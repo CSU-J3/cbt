@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #0a0e14;
+  --bg-panel: #050709;
+  --bg-row-hover: #0f1620;
+  --border-strong: #1f2937;
+  --border-soft: #111820;
+
+  --text-primary: #e5e7eb;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #6b7280;
+
+  --accent-amber: #d97706;
+  --accent-amber-bright: #fbbf24;
+
+  --party-republican: #ef4444;
+  --party-democrat: #3b82f6;
+  --party-independent: #a78bfa;
+
+  --stage-introduced: #94a3b8;
+  --stage-committee: #06b6d4;
+  --stage-floor: #fbbf24;
+  --stage-other-chamber: #f59e0b;
+  --stage-president: #fb923c;
+  --stage-enacted: #10b981;
+}
+
+@theme {
+  --font-mono:
+    ui-monospace, "JetBrains Mono", "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Liberation Mono", monospace;
+}
+
+html,
+body {
+  background-color: var(--bg-base);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-feature-settings: "ss01", "cv02";
+}
+
+/* ---- feed grid ---------------------------------------------------------- */
+/* Columns: expand-arrow | bill-id | title/sponsor | stage | date | topics  */
+.feed-row {
+  display: grid;
+  grid-template-columns: 24px 70px 1fr 130px 80px 130px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+
+.feed-row:hover {
+  background-color: var(--bg-row-hover);
+}
+
+.feed-header-row {
+  display: grid;
+  grid-template-columns: 24px 70px 1fr 130px 80px 130px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 14px;
+  background-color: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.feed-row.is-expanded {
+  background-color: var(--bg-row-hover);
+}
+
+.expanded-panel {
+  background-color: var(--bg-row-hover);
+  border-left: 2px solid var(--accent-amber);
+  border-bottom: 0.5px solid var(--border-strong);
+  padding: 14px 14px 14px 28px;
+  margin-left: 94px; /* aligns under title column on desktop (24px arrow + 70px id + 12px gap - 12px adjustment) */
+}
+
+/* Show full labels on desktop, short labels hidden */
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  .feed-row,
+  .feed-header-row {
+    grid-template-columns: 18px 56px 1fr 60px 60px;
+    column-gap: 6px;
+    padding: 8px 8px;
+  }
+  /* hide the date column (5th of 6) on mobile by giving it display:none via .col-date */
+  .col-date {
+    display: none;
+  }
+  .expanded-panel {
+    margin-left: 0;
+    padding: 14px;
+  }
+  .show-desktop {
+    display: none !important;
+  }
+  .show-mobile {
+    display: inline !important;
+  }
+  .filter-chips {
+    flex-wrap: wrap;
+  }
+}

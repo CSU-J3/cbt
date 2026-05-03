@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+
+# next / vercel build output
+.next/
+.vercel/
+next-env.d.ts
+dist/
+tsconfig.tsbuildinfo
+
+# secrets
+.env
+.env.local
+.env*.local
+
+# logs
+*.log
+
+# os junk
+.DS_Store
+Thumbs.db
+
+# local sqlite (if anyone points TURSO_DATABASE_URL at a file db)
+*.db
+*.db-journal
+
+# development screenshots / generated artifacts
+cbt-*.png
+
+# claude code per-developer state (skills/ stays tracked)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
