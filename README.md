@@ -1,4 +1,4 @@
-# CBT — Congress Bill Tracker
+# CBT — Congress Bill Terminal
 
 A personal Congress bill tracking dashboard. Pulls bills from the Congress.gov
 API, summarizes them with Gemini, and displays them in a Bloomberg-Terminal-style

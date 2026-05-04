@@ -1,9 +1,9 @@
 ---
 name: cbt
-description: Use this skill when working on CBT (Congress Bill Tracker), the personal Congress bill tracking dashboard. Triggers on any work touching the Congress.gov API sync pipeline, LLM bill summarization, the Next.js dashboard frontend, the Turso database schema, or Vercel Cron jobs for this project. Covers the stack (Next.js 15 App Router + TypeScript + Tailwind + Turso + Google GenAI SDK), the build order (sync script first, UI second), Congress.gov API quirks, and the summarization prompt conventions.
+description: Use this skill when working on CBT (Congress Bill Terminal), the personal Congress bill tracking dashboard. Triggers on any work touching the Congress.gov API sync pipeline, LLM bill summarization, the Next.js dashboard frontend, the Turso database schema, or Vercel Cron jobs for this project. Covers the stack (Next.js 15 App Router + TypeScript + Tailwind + Turso + Google GenAI SDK), the build order (sync script first, UI second), Congress.gov API quirks, and the summarization prompt conventions.
 ---
 
-# CBT — Congress Bill Tracker
+# CBT — Congress Bill Terminal
 
 ## What this is
 
@@ -37,7 +37,7 @@ Base URL: `https://api.congress.gov/v3`. Auth: `?api_key=...` query parameter. F
 
 Key endpoints used here:
 
-- `/bill?fromDateTime=...&toDateTime=...&sort=updateDate+desc` — list bills updated in a window
+- `/bill/{currentCongress}?fromDateTime=...&sort=updateDate+desc` — list bills updated in a window for the current Congress
 - `/bill/{congress}/{billType}/{billNumber}` — full bill detail
 - `/bill/{congress}/{billType}/{billNumber}/actions` — action history
 - `/bill/{congress}/{billType}/{billNumber}/text` — list of text versions, each with formats
@@ -47,10 +47,11 @@ Key endpoints used here:
 
 - `updateDate` and `updateDateIncludingText` are different fields. Use `updateDateIncludingText` for sync detection so text changes trigger re-summarization.
 - `billType` values are lowercase: `hr`, `s`, `hjres`, `sjres`, `hconres`, `sconres`, `hres`, `sres`. The API rejects uppercase.
-- The current Congress is the 119th (started Jan 2025). Default to `congress=119` unless the user asks otherwise.
+- The current Congress is derived from `lib/congress.ts` — `getCurrentCongress(date = new Date())` returns the right number. The list-endpoint URL in `lib/sync.ts` uses it (`/bill/${getCurrentCongress()}`); don't reintroduce a hardcoded `119`. Modern Congresses run two years starting Jan 3 of odd years (119th: 2025–2027, 120th: 2027–2029, etc.); the cron tick at 09:00 UTC means rollover happens within ~24h of Jan 3.
 - CRS summaries are written for staff and are usually too dense for the dashboard. Use them as input to the LLM, not as the displayed summary.
 - Bill text comes back as a list of versions (Introduced, Engrossed, Enrolled, etc). Use the most recent version's `formattedText` URL, fetched separately.
 - List endpoints return at most 250 items per page. Paginate with `offset` and `limit`.
+- Congress rollover tradeoff: the list endpoint is scoped to the current Congress, so when `getCurrentCongress()` flips on Jan 3 of an odd year, late updates on previous-Congress bills (delayed enactment signatures, lame-duck votes, etc.) stop being picked up. Bills already in the DB stay; they just freeze. Acceptable for a personal dashboard — not worth running parallel historical syncs.
 
 ## Database schema
 
@@ -102,6 +103,31 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
 
+### Query helpers (`lib/queries.ts`)
+
+- `getFeedBills(filters, limit)` / `getFeedCount(filters)` — main feed; `total` is the absolute bill count, `filtered` applies stage/topics/q.
+- `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
+- `getPresidentBills(filters, limit)` / `getPresidentCount(filters)` — `/president` page. Compose `buildPresidentWhere` on top of `buildFeedWhere`, but strip `filters.stage` first (stage is fixed by the helper). Adds `stage = 'president'` and `latest_action_date IS NOT NULL`. Sorted by `latest_action_date DESC`. Same `{total, filtered}` contract as the others.
+- `getSponsors(filters, limit)` / `getSponsorCount(filters)` — `/sponsors` page. `SponsorFilters` is `{ party?: 'R'|'D'|'I', state?, q? }`; `q` matches `sponsor_name LIKE`, not bill text. Aggregates `bills` by `(sponsor_name, sponsor_party, sponsor_state)` with `COUNT(*)` and `MAX(latest_action_date)`. Inherits `summary IS NOT NULL` from the same convention `buildFeedWhere` uses, so unsummarized bills don't pad sponsor counts. `party='I'` matches any non-R, non-D variant (`UPPER(sponsor_party) NOT IN ('R','D')`) — Bernie Sanders' `ID`, hypothetical `IND`, etc. `getSponsorCount` wraps the GROUP BY in a subquery to count distinct sponsor groups.
+- `getSponsorStates()` — distinct non-null `sponsor_state` values (alphabetical) for the State dropdown.
+- `getSponsorRecentBills(name, limit=5)` — newest bills for a sponsor, used by the inline expand panel.
+- `normalizePartyVariant(party)` — collapses any sponsor party string to `'R' | 'D' | 'I' | null`. Use this both for filtering and for badge rendering so `R`, `D`, and everything-else-non-null map to the three party colors.
+- `sanitizeStaleStage(input)` — accepts only the four dropdown-eligible stages so a hand-typed `?stage=enacted` is silently ignored on `/stale`.
+- `sanitizeSort(input)` — accepts `'action' | 'introduced'`, falls back to `'action'` on anything else.
+
+### Feed sort (`?sort=action|introduced`)
+
+Applies to `/` and `/watchlist` only. Two keys, default `action`:
+
+- `action`: `ORDER BY latest_action_date DESC NULLS LAST, id DESC`
+- `introduced`: `ORDER BY introduced_date DESC NULLS LAST, id DESC`
+
+`SortDropdown` is a client component that mirrors `StageFilter`. It deletes `expanded` and (for the default) `sort` from the URL on change, preserves everything else. The visible Action column always shows `latest_action_date` regardless of sort key — the sort axis isn't what's displayed.
+
+Do **not** add the dropdown to `/stale` (forced ASC by definition), `/president` (3 rows, sorted by desk arrival), or `/sponsors` (sorted by `bill_count`, different axis).
+
+`FeedFilters` includes an optional `sponsor?: string`. When set, `buildFeedWhere` ANDs `sponsor_name = ?` so `/?sponsor=<encoded name>` filters the main feed. The HeaderBar count line shows `· sponsored by <name>` in `--accent-amber` when active. All other feed filters (stage, topics, q) compose with it via the same plumbing — and the `StageFilter`, `TopicFilter`, `BillRow` components all thread `sponsor` through their generated hrefs, same way they thread `q`.
+
 ## Summarization prompt
 
 Keep summaries 2-3 sentences. Plain English. Neutral. Focus on what the bill *does*, not what it's titled. The CRS summary is a useful input but should not be copied.
@@ -139,11 +165,24 @@ Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and
 
 ### Pages
 
-- `/` — feed of the 50 most recent bills, filterable by topic + stage
+- `/` — feed of the 50 most recent bills, filterable by topic + stage, searchable via `?q=`
 - `/bill/[id]` — detail page (card panel layout)
 - `/watchlist` — bills flagged via `★ Watch`
+- `/stale` — bills with no action in 60+ days, sorted oldest-action-first. Same filter chrome as the feed. Stage filter is constrained to the four eligible stages (`introduced`, `committee`, `floor`, `other_chamber`) — `president` and `enacted` never appear (success states aren't stalls). Action column renders days-since (`247d`) instead of a date, color-coded by threshold.
+- `/president` — bills with `stage='president'`, sorted newest action first. Counterpart to `/stale`: what's queued for signature/veto, not what's been abandoned. No `StageFilter` (stage is fixed). Topic + search filters only. `?stage=*` is silently dropped. Action column renders days-on-desk with the desk-time threshold table.
+- `/sponsors` — distinct sponsors aggregated from `bills`, sorted by `bill_count DESC, sponsor_name ASC`. Filters: party (R/D/I), state (only states present in the data), name search. Click a row to inline-expand: 5 most recent bills + a `[VIEW ALL N BILLS →]` link to `/?sponsor=<encoded name>`. Custom `SponsorRow` grid (`24px 1fr 40px 50px 80px 110px`) — does not reuse `BillRow`. Routing slug is the URL-encoded `sponsor_name` itself; we don't store `bioguide_id`, so two reps with identical names from the same state and party would collide (no detail page to break, just an expand collision). Add `sponsor_bioguide_id` only if a real collision shows up.
 
-All three share the same `HeaderBar` (count + last-updated MT) and `FooterLegend` (party + stage legend).
+All three share the same `HeaderBar` (count + last-updated MT) and `FooterLegend` (party + stage legend). The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
+
+### Search
+
+URL state: `?q=<query>` on `/`. Combines with `?stage=` and `?topics=` via AND.
+
+- `components/SearchBox.tsx` is the only client island for search. 250 ms debounce, then `router.push` updates the URL (preserving existing params, dropping `expanded`). Initial value comes from `useSearchParams().get("q")`. The `×` clear button calls `setValue("")` which triggers the same effect.
+- `lib/queries.ts` accepts `q?: string` in `FeedFilters`. WHERE is built additively in `buildFeedWhere` and shared between `getFeedBills` and `getFeedCount`. Search clause OR's `LOWER(id|title|sponsor_name|summary) LIKE ?` plus a normalized bill-id match `REPLACE(LOWER(id), '-', '') LIKE ?`.
+- Bill ID normalization: query and id are both lowercased and stripped of spaces/dashes before comparison, so `HR 2702`, `hr2702`, `hr-2702`, `2702`, and `119hr2702` all match `119-hr-2702`.
+- Empty results render a centered `NO BILLS MATCH "<q>"` block plus a `[Clear search]` link that preserves stage+topics.
+- `StageFilter`, `TopicFilter`, and `BillRow` thread `q` through their generated hrefs so search is preserved when users change filters or expand a row.
 
 ### Color palette (CSS vars on `:root` in `app/globals.css`)
 
@@ -185,12 +224,20 @@ Display as 3-5-letter abbreviations (`FIN`, `HLTH`, `DEF`, `ENV`, `CRIM`, `GOV`,
 ### Typography
 
 - `var(--font-mono)` (`ui-monospace, JetBrains Mono, …`) on `body` — applies to the whole app.
-- 10px for labels and badges; 11px for dim text and dates; 12px for body and bill titles in lists; 13–14px for the most prominent IDs and titles on the detail page.
+- Size tiers (post handoff 20 readability bump; previous values shown in parentheses):
+  - **12px** (was 10px) — column headers, badges, stage indicators, topic tags, footer legend, dropdown labels, button text, filter chip labels.
+  - **13px** (was 11px) — dates, search input, brand mark, dim secondary text, count line auxiliaries.
+  - **14px** (was 12px) — body content: bill IDs/titles in rows, sponsor names, expanded summaries (`text-sm leading-relaxed`).
+  - **15px** (was 13px) — bill detail page subtitle (`<h1>` text under the bill ID).
+  - **16px** (was 14px) — bill detail page bill ID, the most prominent number on the page.
 - Letter-spacing `0.5px` on uppercase labels. Sentence case for prose.
+- When you bump a tier, also bump the `.feed-row`/`.sponsor-row` fixed column widths in `globals.css` to keep stage labels and dates from overflowing — the current widths are sized for the tiers above. Don't reuse the old values.
 
 ### Layout grid
 
-Six-column row, `24px 70px 1fr 130px 80px 130px` for `[expand-arrow] [bill-id] [title-and-sponsor] [stage] [action-date] [topics]`. Defined as `.feed-row` in `globals.css`. Header row uses the same grid via `.feed-header-row`.
+Layout is **full-width fluid** — no `max-w-*` cap on the outer container. Pages, `HeaderBar`, and `FooterLegend` all stretch to the viewport with `w-full` and a small `px-4` gutter. The `1fr` title column inside `BillRow` and `SponsorRow` absorbs the extra width on wide displays. If a future page feels too sparse at 2400px+, the right fix is to add `max-w-[1200px]` to the offending column (e.g. the bill summary paragraph), not to re-cap the outer container.
+
+Six-column row, `24px 86px 1fr 150px 96px 150px` for `[expand-arrow] [bill-id] [title-and-sponsor] [stage] [action-date] [topics]`. Defined as `.feed-row` in `globals.css`. Header row uses the same grid via `.feed-header-row`.
 
 Below 700px (`@media (max-width: 700px)`):
 - Date column hidden (`.col-date`)
@@ -213,7 +260,23 @@ URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansi
 - `formatDateShort(iso)` → `MM-DD-YY` for the feed list.
 - `formatDateLong(iso)` → `YYYY-MM-DD` for the detail page and the expanded panel.
 - `formatLastUpdated(iso)` → `HH:MM MT` (America/Denver) for the header bar.
+- `daysSince(iso)` → integer days from the date to today (UTC). Used by the `/stale` page's days-since column.
 - No date-fns or dayjs.
+
+### Days-since column (`/stale`, `/president`)
+
+`BillRow` accepts `daysSinceMode?: 'staleness' | 'desk-time'`. Undefined keeps the default `MM-DD-YY` action-date rendering. Either mode swaps the cell to a right-aligned `247d` figure in `tabular-nums`, with a mode-specific color threshold table:
+
+| Mode | Used by | Thresholds |
+|---|---|---|
+| `staleness` | `/stale` | `<180d` → `--text-secondary`, `180–364d` → `--accent-amber`, `≥365d` → `--party-republican` |
+| `desk-time` | `/president` | `<10d` → `--text-secondary`, `10–29d` → `--accent-amber`, `≥30d` → `--party-republican` |
+
+Same color vocabulary across both, different boundaries (60-day stalls vs. the 10-day constitutional clock). No named tier labels in text — color carries the signal.
+
+### `basePath` threading
+
+`StageFilter`, `TopicFilter`, `BillRow`, and `SearchBox` all accept an optional `basePath?: string` prop (default `/`) so they can be reused on `/stale` (or any future feed-shaped route). The home page passes `/` (or omits), `/stale` passes `/stale`. `StageFilter` also accepts `availableStages?: readonly Stage[]` so `/stale` can hide `president` and `enacted` from the dropdown.
 
 ## Environment variables
 
@@ -230,7 +293,6 @@ The cron route should reject requests where `Authorization` header doesn't match
 ## What not to do
 
 - Don't add user accounts or auth. This is single-user.
-- Don't build a full-text search yet. The feed plus topic filters cover the use case.
 - Don't fetch bills live from the browser. Everything reads from Turso.
 - Don't store the LLM prompt in the database. Keep it in source so it's versioned with the code.
 - Don't summarize every bill in Congress. Summarize on demand: a bill gets a summary the first time it appears in the feed query window with a topic match.
