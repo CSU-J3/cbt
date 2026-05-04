@@ -1,8 +1,8 @@
+import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
-const CURRENT_CONGRESS = 119;
 
 type LatestAction = { actionDate?: string; text?: string };
 type Sponsor = { fullName?: string; party?: string; state?: string };
@@ -77,7 +77,7 @@ function listUrl(fromDateTime: string, offset: number, apiKey: string): string {
     format: "json",
     api_key: apiKey,
   });
-  return `${API_BASE}/bill/${CURRENT_CONGRESS}?${params.toString()}`;
+  return `${API_BASE}/bill/${getCurrentCongress()}?${params.toString()}`;
 }
 
 function detailUrl(congress: number, type: string, number: string | number, apiKey: string): string {

@@ -2,44 +2,28 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 
-const STAGE_LABEL: Record<string, string> = {
-  introduced: "INTRODUCED",
-  committee: "COMMITTEE",
-  floor: "FLOOR",
-  other_chamber: "OTHER CHAMBER",
-  president: "PRESIDENT",
-  enacted: "ENACTED",
-};
-
-export function StageFilter({
+export function StateFilter({
   current,
-  topics,
+  party,
   q,
-  sponsor,
-  sort,
-  basePath = "/",
-  availableStages = ALLOWED_STAGES,
+  basePath,
+  states,
 }: {
   current: string | undefined;
-  topics: string[];
-  q?: string;
-  sponsor?: string;
-  sort?: string;
-  basePath?: string;
-  availableStages?: readonly Stage[];
+  party: string | undefined;
+  q: string | undefined;
+  basePath: string;
+  states: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function onChange(value: string) {
     const params = new URLSearchParams();
-    if (topics.length > 0) params.set("topics", topics.join(","));
-    if (value) params.set("stage", value);
+    if (party) params.set("party", party);
+    if (value) params.set("state", value);
     if (q) params.set("q", q);
-    if (sponsor) params.set("sponsor", sponsor);
-    if (sort && sort !== "action") params.set("sort", sort);
     const qs = params.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);
@@ -58,10 +42,10 @@ export function StageFilter({
         borderColor: "var(--border-strong)",
       }}
     >
-      <option value="">ALL STAGES</option>
-      {availableStages.map((s) => (
+      <option value="">ALL STATES</option>
+      {states.map((s) => (
         <option key={s} value={s}>
-          {STAGE_LABEL[s]}
+          {s}
         </option>
       ))}
     </select>

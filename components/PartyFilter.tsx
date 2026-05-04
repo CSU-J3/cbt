@@ -2,44 +2,34 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 
-const STAGE_LABEL: Record<string, string> = {
-  introduced: "INTRODUCED",
-  committee: "COMMITTEE",
-  floor: "FLOOR",
-  other_chamber: "OTHER CHAMBER",
-  president: "PRESIDENT",
-  enacted: "ENACTED",
+const PARTY_LABEL: Record<string, string> = {
+  R: "REPUBLICAN",
+  D: "DEMOCRAT",
+  I: "INDEPENDENT",
 };
 
-export function StageFilter({
+const PARTIES = ["R", "D", "I"] as const;
+
+export function PartyFilter({
   current,
-  topics,
+  state,
   q,
-  sponsor,
-  sort,
-  basePath = "/",
-  availableStages = ALLOWED_STAGES,
+  basePath,
 }: {
   current: string | undefined;
-  topics: string[];
-  q?: string;
-  sponsor?: string;
-  sort?: string;
-  basePath?: string;
-  availableStages?: readonly Stage[];
+  state: string | undefined;
+  q: string | undefined;
+  basePath: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function onChange(value: string) {
     const params = new URLSearchParams();
-    if (topics.length > 0) params.set("topics", topics.join(","));
-    if (value) params.set("stage", value);
+    if (value) params.set("party", value);
+    if (state) params.set("state", state);
     if (q) params.set("q", q);
-    if (sponsor) params.set("sponsor", sponsor);
-    if (sort && sort !== "action") params.set("sort", sort);
     const qs = params.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);
@@ -58,10 +48,10 @@ export function StageFilter({
         borderColor: "var(--border-strong)",
       }}
     >
-      <option value="">ALL STAGES</option>
-      {availableStages.map((s) => (
-        <option key={s} value={s}>
-          {STAGE_LABEL[s]}
+      <option value="">ALL PARTIES</option>
+      {PARTIES.map((p) => (
+        <option key={p} value={p}>
+          {PARTY_LABEL[p]}
         </option>
       ))}
     </select>

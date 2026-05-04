@@ -40,7 +40,7 @@ export function WatchlistToggle({
   }
 
   const baseClass =
-    "inline-flex items-center gap-1 border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.5px] transition disabled:opacity-50";
+    "inline-flex items-center gap-1 border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition disabled:opacity-50";
   const style = isOn
     ? {
         backgroundColor: "var(--accent-amber)",
@@ -66,7 +66,7 @@ export function WatchlistToggle({
         <span>{isOn ? "WATCHING" : "WATCH"}</span>
       </button>
       {error ? (
-        <span className="text-[10px] uppercase tracking-[0.5px]" style={{ color: "var(--party-republican)" }}>
+        <span className="text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--party-republican)" }}>
           {error}
         </span>
       ) : null}

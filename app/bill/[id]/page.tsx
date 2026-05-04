@@ -29,8 +29,8 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[110px_1fr] gap-x-4 py-1 text-[11px]">
-      <dt className="text-[10px] uppercase" style={labelStyle}>
+    <div className="grid grid-cols-[124px_1fr] gap-x-4 py-1.5 text-[13px]">
+      <dt className="text-[12px] uppercase" style={labelStyle}>
         {label}
       </dt>
       <dd style={valueStyle}>{children}</dd>
@@ -70,7 +70,7 @@ export default async function BillDetailPage({
     <div className="flex min-h-screen flex-col">
       <HeaderBar />
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-4">
+      <main className="w-full flex-1 px-4 py-4">
         <div
           className="border p-5"
           style={{
@@ -82,13 +82,13 @@ export default async function BillDetailPage({
             <div>
               <div className="flex items-baseline gap-3">
                 <span
-                  className="text-[14px] font-medium"
+                  className="text-[16px] font-medium"
                   style={{ color: "var(--accent-amber)" }}
                 >
                   {formatBillId(bill.bill_type, bill.bill_number)}
                 </span>
                 <h1
-                  className="text-[13px]"
+                  className="text-[15px]"
                   style={{ color: "var(--text-primary)" }}
                 >
                   {bill.title}
@@ -136,13 +136,13 @@ export default async function BillDetailPage({
             <>
               <Divider />
               <div
-                className="mb-1 text-[10px] uppercase tracking-[0.5px]"
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
                 style={labelStyle}
               >
                 Summary
               </div>
               <p
-                className="text-[12px] leading-[1.6]"
+                className="max-w-[80ch] text-[14px] leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {bill.summary}
@@ -154,13 +154,13 @@ export default async function BillDetailPage({
             <>
               <Divider />
               <div
-                className="mb-1 text-[10px] uppercase tracking-[0.5px]"
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
                 style={labelStyle}
               >
                 Latest action
               </div>
               <p
-                className="text-[12px] leading-[1.6]"
+                className="max-w-[80ch] text-[14px] leading-relaxed"
                 style={{ color: "var(--text-muted)" }}
               >
                 {bill.latest_action_text}
@@ -175,7 +175,7 @@ export default async function BillDetailPage({
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
+              className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
               style={{
                 color: "var(--text-dim)",
                 borderColor: "var(--border-strong)",
@@ -185,7 +185,7 @@ export default async function BillDetailPage({
             </a>
             <a
               href="/"
-              className="border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
+              className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
               style={{
                 color: "var(--text-dim)",
                 borderColor: "var(--border-strong)",
@@ -203,13 +203,13 @@ export default async function BillDetailPage({
             }}
           >
             <summary
-              className="cursor-pointer select-none px-3 py-2 text-[10px] font-medium uppercase tracking-[0.5px]"
+              className="cursor-pointer select-none px-3 py-2 text-[12px] font-medium uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               ▾ Raw JSON
             </summary>
             <pre
-              className="overflow-auto border-t px-3 py-2 text-[10px] leading-snug"
+              className="overflow-auto border-t px-3 py-2 text-[12px] leading-snug"
               style={{
                 borderColor: "var(--border-strong)",
                 color: "var(--text-muted)",
@@ -221,7 +221,7 @@ export default async function BillDetailPage({
 
           {bill.summary_model ? (
             <p
-              className="mt-3 text-[10px] uppercase tracking-[0.5px]"
+              className="mt-3 text-[12px] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               Summary by {bill.summary_model}

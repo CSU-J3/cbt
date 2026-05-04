@@ -1,10 +1,16 @@
 import { BillRow } from "@/components/BillRow";
 import { FooterLegend } from "@/components/FooterLegend";
 import { HeaderBar } from "@/components/HeaderBar";
-import { getWatchlistBills, isInWatchlist } from "@/lib/queries";
+import { SortDropdown } from "@/components/SortDropdown";
+import {
+  getWatchlistBills,
+  isInWatchlist,
+  sanitizeSort,
+} from "@/lib/queries";
 
 type SearchParams = {
   expanded?: string;
+  sort?: string;
 };
 
 export default async function WatchlistPage({
@@ -14,7 +20,8 @@ export default async function WatchlistPage({
 }) {
   const params = await searchParams;
   const expandedParam = typeof params.expanded === "string" ? params.expanded : undefined;
-  const bills = await getWatchlistBills();
+  const sort = sanitizeSort(params.sort);
+  const bills = await getWatchlistBills(sort);
   const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
     ? expandedParam
     : undefined;
@@ -24,9 +31,9 @@ export default async function WatchlistPage({
     <div className="flex min-h-screen flex-col">
       <HeaderBar />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-4">
+      <main className="w-full flex-1 px-4 py-4">
         <div
-          className="mb-3 flex items-baseline gap-3 border-b pb-3 text-[10px] uppercase tracking-[0.5px]"
+          className="mb-3 flex items-baseline gap-3 border-b pb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{
             borderColor: "var(--border-strong)",
             color: "var(--text-dim)",
@@ -35,11 +42,15 @@ export default async function WatchlistPage({
           <span style={{ color: "var(--accent-amber)" }}>★ Watchlist</span>
           <span>·</span>
           <span>{bills.length} {bills.length === 1 ? "bill" : "bills"}</span>
+          <span className="ml-auto flex items-center gap-2">
+            <span>Sort</span>
+            <SortDropdown current={sort} basePath="/watchlist" />
+          </span>
         </div>
 
         {bills.length === 0 ? (
           <div
-            className="border px-6 py-12 text-center text-[11px] uppercase tracking-[0.5px]"
+            className="border px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
             style={{
               borderColor: "var(--border-strong)",
               color: "var(--text-dim)",
@@ -68,7 +79,7 @@ export default async function WatchlistPage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics: [], stage: undefined }}
+                  filters={{ topics: [], stage: undefined, sort }}
                   basePath="/watchlist"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}

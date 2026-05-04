@@ -41,14 +41,25 @@ body {
   font-feature-settings: "ss01", "cv02";
 }
 
+/* ---- header bar -------------------------------------------------------- */
+.header-search {
+  width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.header-nav {
+  margin-left: auto;
+}
+
 /* ---- feed grid ---------------------------------------------------------- */
 /* Columns: expand-arrow | bill-id | title/sponsor | stage | date | topics  */
 .feed-row {
   display: grid;
-  grid-template-columns: 24px 70px 1fr 130px 80px 130px;
+  grid-template-columns: 24px 86px 1fr 150px 96px 150px;
   align-items: center;
   column-gap: 12px;
-  padding: 8px 14px;
+  padding: 9px 14px;
   border-bottom: 0.5px solid var(--border-soft);
   text-decoration: none;
 }
@@ -59,14 +70,14 @@ body {
 
 .feed-header-row {
   display: grid;
-  grid-template-columns: 24px 70px 1fr 130px 80px 130px;
+  grid-template-columns: 24px 86px 1fr 150px 96px 150px;
   align-items: center;
   column-gap: 12px;
-  padding: 8px 14px;
+  padding: 9px 14px;
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -79,8 +90,50 @@ body {
   background-color: var(--bg-row-hover);
   border-left: 2px solid var(--accent-amber);
   border-bottom: 0.5px solid var(--border-strong);
-  padding: 14px 14px 14px 28px;
-  margin-left: 94px; /* aligns under title column on desktop (24px arrow + 70px id + 12px gap - 12px adjustment) */
+  padding: 16px 16px 16px 30px;
+  margin-left: 110px; /* aligns under title column on desktop */
+}
+
+/* ---- sponsor grid ------------------------------------------------------ */
+/* Columns: expand-arrow | name | party-badge | state | bill-count | latest-action */
+.sponsor-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 48px 56px 96px 120px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+
+.sponsor-row:hover {
+  background-color: var(--bg-row-hover);
+}
+
+.sponsor-header-row {
+  display: grid;
+  grid-template-columns: 24px 1fr 48px 56px 96px 120px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 9px 14px;
+  background-color: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sponsor-row.is-expanded {
+  background-color: var(--bg-row-hover);
+}
+
+.sponsor-expanded-panel {
+  background-color: var(--bg-row-hover);
+  border-left: 2px solid var(--accent-amber);
+  border-bottom: 0.5px solid var(--border-strong);
+  padding: 16px 16px 16px 30px;
+  margin-left: 24px; /* align under name column */
 }
 
 /* Show full labels on desktop, short labels hidden */
@@ -91,15 +144,25 @@ body {
 @media (max-width: 700px) {
   .feed-row,
   .feed-header-row {
-    grid-template-columns: 18px 56px 1fr 60px 60px;
+    grid-template-columns: 18px 70px 1fr 80px 80px;
     column-gap: 6px;
-    padding: 8px 8px;
+    padding: 9px 8px;
+  }
+  .sponsor-row,
+  .sponsor-header-row {
+    grid-template-columns: 18px 1fr 40px 44px 70px 84px;
+    column-gap: 6px;
+    padding: 9px 8px;
   }
   /* hide the date column (5th of 6) on mobile by giving it display:none via .col-date */
   .col-date {
     display: none;
   }
   .expanded-panel {
+    margin-left: 0;
+    padding: 14px;
+  }
+  .sponsor-expanded-panel {
     margin-left: 0;
     padding: 14px;
   }
@@ -111,5 +174,18 @@ body {
   }
   .filter-chips {
     flex-wrap: wrap;
+  }
+
+  .header-inner {
+    flex-wrap: wrap;
+  }
+  .header-search {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .header-nav {
+    margin-left: auto;
   }
 }

@@ -53,6 +53,18 @@ export function formatLastUpdated(iso: string | null | undefined): string {
   return `${mountainTimeFormatter.format(d)} MT`;
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function daysSince(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  const part = dateStr.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(part)) return 0;
+  const t = Date.parse(`${part}T00:00:00Z`);
+  if (Number.isNaN(t)) return 0;
+  const now = Date.now();
+  return Math.max(0, Math.floor((now - t) / MS_PER_DAY));
+}
+
 export function parseTopics(json: string | null | undefined): string[] {
   if (!json) return [];
   try {

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CBT — Congress Bill Tracker",
+  title: "CBT — Congress Bill Terminal",
   description:
     "Personal feed of recent US Congress bills with plain-English summaries.",
 };

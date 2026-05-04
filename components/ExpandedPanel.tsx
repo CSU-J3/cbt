@@ -19,10 +19,10 @@ export function ExpandedPanel({
   const url = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
   return (
     <div className="expanded-panel">
-      <dl className="grid grid-cols-[110px_1fr] gap-y-1 text-[11px]">
+      <dl className="grid grid-cols-[124px_1fr] gap-y-1.5 text-[13px]">
         {introducedDate ? (
           <>
-            <dt className="text-[10px] uppercase" style={labelStyle}>
+            <dt className="text-[12px] uppercase" style={labelStyle}>
               Introduced
             </dt>
             <dd style={{ color: "var(--text-secondary)" }}>
@@ -32,7 +32,7 @@ export function ExpandedPanel({
         ) : null}
         {bill.latest_action_date || bill.latest_action_text ? (
           <>
-            <dt className="text-[10px] uppercase" style={labelStyle}>
+            <dt className="text-[12px] uppercase" style={labelStyle}>
               Last action
             </dt>
             <dd style={{ color: "var(--text-secondary)" }}>
@@ -53,15 +53,15 @@ export function ExpandedPanel({
       </dl>
 
       {bill.summary ? (
-        <div className="mt-3">
+        <div className="mt-4">
           <div
-            className="text-[10px] uppercase tracking-[0.5px]"
+            className="text-[12px] uppercase tracking-[0.5px]"
             style={labelStyle}
           >
             Summary
           </div>
           <p
-            className="mt-1 text-xs leading-[1.6]"
+            className="mt-2 text-sm leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
             {bill.summary}
@@ -69,11 +69,11 @@ export function ExpandedPanel({
         </div>
       ) : null}
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-5 flex flex-wrap items-center gap-2">
         <WatchlistToggle billId={bill.id} initial={onWatchlist} />
         <a
           href={`/bill/${bill.id}`}
-          className="border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
+          className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
           style={{
             color: "var(--text-dim)",
             borderColor: "var(--border-strong)",
@@ -85,7 +85,7 @@ export function ExpandedPanel({
           href={url}
           target="_blank"
           rel="noreferrer"
-          className="border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
+          className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
           style={{
             color: "var(--text-dim)",
             borderColor: "var(--border-strong)",

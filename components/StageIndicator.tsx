@@ -48,7 +48,7 @@ export function StageIndicator({
   const color = STAGE_COLOR[stage] ?? "var(--text-muted)";
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.5px]"
+      className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.5px]"
       style={{ color }}
     >
       <span aria-hidden>{prefix}</span>

@@ -8,7 +8,7 @@ export function FooterLegend() {
       }}
     >
       <div
-        className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-2 text-[10px] uppercase tracking-[0.5px]"
+        className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-2.5 text-[12px] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-dim)" }}
       >
         <div className="flex items-center gap-3">
