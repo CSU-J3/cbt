@@ -96,24 +96,30 @@ export function BillRow({
         >
           {formatBillId(bill.bill_type, bill.bill_number)}
         </span>
-        <span className="min-w-0 truncate text-[14px]">
-          <span style={{ color: "var(--text-primary)" }}>{bill.title}</span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span
+            className="truncate text-[14px]"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {bill.title}
+          </span>
           {bill.sponsor_name ? (
-            <>
-              <span style={{ color: "var(--text-dim)" }}> · </span>
-              <span style={{ color: "var(--text-muted)" }}>
+            <span className="flex min-w-0 items-baseline text-[12px]">
+              <span
+                className="truncate"
+                style={{ color: "var(--text-muted)" }}
+              >
                 {shortSponsor(bill.sponsor_name)}
               </span>
               {bill.sponsor_party || bill.sponsor_state ? (
-                <>
-                  {" "}
+                <span className="ml-1.5 shrink-0">
                   <PartyTag
                     party={bill.sponsor_party}
                     state={bill.sponsor_state}
                   />
-                </>
+                </span>
               ) : null}
-            </>
+            </span>
           ) : null}
         </span>
         <span>
