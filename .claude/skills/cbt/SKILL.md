@@ -76,11 +76,14 @@ CREATE TABLE bills (
   summary_model TEXT,               -- which model produced it
   summary_updated_at TEXT,          -- when summary was generated
   topics TEXT,                      -- JSON array of topic tags from LLM
-  stage TEXT                        -- introduced | committee | floor | other_chamber | president | enacted
+  stage TEXT,                       -- introduced | committee | floor | other_chamber | president | enacted
+  previous_stage TEXT,              -- prior stage value, written when stage transitions
+  stage_changed_at TEXT             -- ISO timestamp of the most recent stage change
 );
 
 CREATE INDEX idx_bills_update_date ON bills(update_date DESC);
 CREATE INDEX idx_bills_latest_action ON bills(latest_action_date DESC);
+CREATE INDEX idx_bills_stage_changed_at ON bills(stage_changed_at DESC);
 
 CREATE TABLE watchlist (
   bill_id TEXT PRIMARY KEY REFERENCES bills(id),
@@ -99,7 +102,7 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 2. Call `/bill?fromDateTime={maxUpdate}&sort=updateDate+desc` and paginate.
 3. For each bill, compare `updateDateIncludingText` against what's stored. If new or changed, fetch full detail.
 4. Upsert into `bills`. If `updateDateIncludingText` changed, clear `summary` so it gets re-summarized.
-5. Find rows where `summary IS NULL`. For each, fetch latest text version, call the LLM, write summary.
+5. Find rows where `summary IS NULL`. For each, fetch latest text version, call the LLM, write summary. If the prior `stage` was non-null and differs from the new LLM-classified stage, also write `previous_stage` (= prior stage) and `stage_changed_at` (= now). The sync upsert preserves `stage` across re-classifications so this comparison stays meaningful; only `summary`, `topics`, etc. get nulled when `update_date` changes.
 
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
 
@@ -107,7 +110,7 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 
 - `getFeedBills(filters, limit)` / `getFeedCount(filters)` — main feed; `total` is the absolute bill count, `filtered` applies stage/topics/q.
 - `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
-- `getPresidentBills(filters, limit)` / `getPresidentCount(filters)` — `/president` page. Compose `buildPresidentWhere` on top of `buildFeedWhere`, but strip `filters.stage` first (stage is fixed by the helper). Adds `stage = 'president'` and `latest_action_date IS NOT NULL`. Sorted by `latest_action_date DESC`. Same `{total, filtered}` contract as the others.
+- `getPresidentBills(filters, limit)` / `getPresidentCount(filters)` — `/president` page. Compose `buildPresidentWhere` on top of `buildFeedWhere`, but strip `filters.stage` first (stage is fixed by the helper). Adds `stage = 'president'` and `latest_action_date IS NOT NULL`. Sorted by `latest_action_date ASC` (oldest at desk first — closest to the 10-day veto deadline). Same `{total, filtered}` contract as the others.
 - `getSponsors(filters, limit)` / `getSponsorCount(filters)` — `/sponsors` page. `SponsorFilters` is `{ party?: 'R'|'D'|'I', state?, q? }`; `q` matches `sponsor_name LIKE`, not bill text. Aggregates `bills` by `(sponsor_name, sponsor_party, sponsor_state)` with `COUNT(*)` and `MAX(latest_action_date)`. Inherits `summary IS NOT NULL` from the same convention `buildFeedWhere` uses, so unsummarized bills don't pad sponsor counts. `party='I'` matches any non-R, non-D variant (`UPPER(sponsor_party) NOT IN ('R','D')`) — Bernie Sanders' `ID`, hypothetical `IND`, etc. `getSponsorCount` wraps the GROUP BY in a subquery to count distinct sponsor groups.
 - `getSponsorStates()` — distinct non-null `sponsor_state` values (alphabetical) for the State dropdown.
 - `getSponsorRecentBills(name, limit=5)` — newest bills for a sponsor, used by the inline expand panel.
@@ -169,7 +172,8 @@ Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and
 - `/bill/[id]` — detail page (card panel layout)
 - `/watchlist` — bills flagged via `★ Watch`
 - `/stale` — bills with no action in 60+ days, sorted oldest-action-first. Same filter chrome as the feed. Stage filter is constrained to the four eligible stages (`introduced`, `committee`, `floor`, `other_chamber`) — `president` and `enacted` never appear (success states aren't stalls). Action column renders days-since (`247d`) instead of a date, color-coded by threshold.
-- `/president` — bills with `stage='president'`, sorted newest action first. Counterpart to `/stale`: what's queued for signature/veto, not what's been abandoned. No `StageFilter` (stage is fixed). Topic + search filters only. `?stage=*` is silently dropped. Action column renders days-on-desk with the desk-time threshold table.
+- `/president` — bills with `stage='president'`, sorted oldest action first (closest to the 10-day veto deadline). Counterpart to `/stale`: what's queued for signature/veto, not what's been abandoned. No `StageFilter` (stage is fixed). Topic + search filters only. `?stage=*` is silently dropped. Action column renders days-on-desk with the desk-time threshold table. Header chrome: `BILLS AT DESK`. Empty state: single muted line, no chrome.
+- `/changes` — bills whose stage moved in the last 7 days, sorted by `stage_changed_at DESC`. The "in motion" view between `/stale` and `/president`. No stage filter (the page is about transitions, not destinations). Topic + search + chamber filters only. The stage column renders the transition (`▸ INTRO → ▸▸ COMMITTEE`) with the prior stage dimmed via the `muted` prop on `StageIndicator`; the action-date column shows `Xd ago` from `stage_changed_at`. Wider stage column comes from the `.changes-feed` wrapper class, not a `BillRow` template change. `BillRow` opts in via `showStageTransition`. Empty state: `No stage changes in the last 7 days.`
 - `/sponsors` — distinct sponsors aggregated from `bills`, sorted by `bill_count DESC, sponsor_name ASC`. Filters: party (R/D/I), state (only states present in the data), name search. Click a row to inline-expand: 5 most recent bills + a `[VIEW ALL N BILLS →]` link to `/?sponsor=<encoded name>`. Custom `SponsorRow` grid (`24px 1fr 40px 50px 80px 110px`) — does not reuse `BillRow`. Routing slug is the URL-encoded `sponsor_name` itself; we don't store `bioguide_id`, so two reps with identical names from the same state and party would collide (no detail page to break, just an expand collision). Add `sponsor_bioguide_id` only if a real collision shows up.
 
 All three share the same `HeaderBar` (count + last-updated MT) and `FooterLegend` (party + stage legend). The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
@@ -270,7 +274,7 @@ URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansi
 | Mode | Used by | Thresholds |
 |---|---|---|
 | `staleness` | `/stale` | `<180d` → `--text-secondary`, `180–364d` → `--accent-amber`, `≥365d` → `--party-republican` |
-| `desk-time` | `/president` | `<10d` → `--text-secondary`, `10–29d` → `--accent-amber`, `≥30d` → `--party-republican` |
+| `desk-time` | `/president` | `<5d` → `--text-secondary`, `5–9d` → `--accent-amber`, `≥10d` → `--party-republican` (overdue or misclassified) |
 
 Same color vocabulary across both, different boundaries (60-day stalls vs. the 10-day constitutional clock). No named tier labels in text — color carries the signal.
 

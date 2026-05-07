@@ -15,8 +15,8 @@ type DaysSinceMode = "staleness" | "desk-time";
 
 function daysSinceColor(days: number, mode: DaysSinceMode): string {
   if (mode === "desk-time") {
-    if (days >= 30) return "var(--party-republican)";
-    if (days >= 10) return "var(--accent-amber)";
+    if (days >= 10) return "var(--party-republican)";
+    if (days >= 5) return "var(--accent-amber)";
     return "var(--text-secondary)";
   }
   if (days >= 365) return "var(--party-republican)";
@@ -30,6 +30,8 @@ export type BillRowFilters = {
   q?: string;
   sponsor?: string;
   sort?: string;
+  page?: number;
+  chamber?: string;
 };
 
 function shortSponsor(name: string | null): string {
@@ -48,6 +50,7 @@ export function BillRow({
   onWatchlist,
   introducedDate,
   daysSinceMode,
+  showStageTransition = false,
 }: {
   bill: FeedBill;
   filters: BillRowFilters;
@@ -56,6 +59,7 @@ export function BillRow({
   onWatchlist: boolean;
   introducedDate: string | null;
   daysSinceMode?: DaysSinceMode;
+  showStageTransition?: boolean;
 }) {
   const isExpanded = expandedId === bill.id;
   const topics = parseTopics(bill.topics);
@@ -67,6 +71,9 @@ export function BillRow({
   if (filters.sponsor) params.set("sponsor", filters.sponsor);
   if (filters.sort && filters.sort !== "action")
     params.set("sort", filters.sort);
+  if (filters.chamber) params.set("chamber", filters.chamber);
+  if (filters.page && filters.page > 1)
+    params.set("page", String(filters.page));
   if (!isExpanded) params.set("expanded", bill.id);
   const qs = params.toString();
   const href = qs ? `${basePath}?${qs}` : basePath;
@@ -91,20 +98,20 @@ export function BillRow({
           {isExpanded ? "▾" : "▸"}
         </span>
         <span
-          className="text-[14px] font-medium"
+          className="text-[16px] font-medium"
           style={{ color: "var(--accent-amber)" }}
         >
           {formatBillId(bill.bill_type, bill.bill_number)}
         </span>
         <span className="flex min-w-0 flex-col leading-tight">
           <span
-            className="truncate text-[14px]"
+            className="truncate text-[16px]"
             style={{ color: "var(--text-primary)" }}
           >
             {bill.title}
           </span>
           {bill.sponsor_name ? (
-            <span className="flex min-w-0 items-baseline text-[12px]">
+            <span className="flex min-w-0 items-baseline text-[14px]">
               <span
                 className="truncate"
                 style={{ color: "var(--text-muted)" }}
@@ -123,11 +130,30 @@ export function BillRow({
           ) : null}
         </span>
         <span>
-          <StageIndicator stage={bill.stage} responsive />
+          {showStageTransition && bill.previous_stage ? (
+            <span className="inline-flex items-center gap-1.5">
+              <StageIndicator stage={bill.previous_stage} responsive muted />
+              <span aria-hidden style={{ color: "var(--text-dim)" }}>
+                →
+              </span>
+              <StageIndicator stage={bill.stage} responsive />
+            </span>
+          ) : (
+            <StageIndicator stage={bill.stage} responsive />
+          )}
         </span>
-        {daysSinceMode ? (
+        {showStageTransition ? (
           <span
-            className="col-date text-right text-[13px] tabular-nums"
+            className="col-date text-right text-[15px] tabular-nums"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            {bill.stage_changed_at
+              ? `${daysSince(bill.stage_changed_at)}d ago`
+              : "—"}
+          </span>
+        ) : daysSinceMode ? (
+          <span
+            className="col-date text-right text-[15px] tabular-nums"
             style={{
               color: daysSinceColor(
                 daysSince(bill.latest_action_date),
@@ -141,7 +167,7 @@ export function BillRow({
           </span>
         ) : (
           <span
-            className="col-date text-[13px]"
+            className="col-date text-[15px]"
             style={{ color: "var(--text-dim)" }}
           >
             {formatDateShort(bill.latest_action_date)}

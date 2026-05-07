@@ -37,18 +37,22 @@ const STAGE_COLOR: Record<string, string> = {
 export function StageIndicator({
   stage,
   responsive = false,
+  muted = false,
 }: {
   stage: string | null;
   responsive?: boolean;
+  muted?: boolean;
 }) {
   if (!stage) return null;
   const prefix = STAGE_PREFIX[stage] ?? "▸";
   const full = STAGE_LABEL[stage] ?? stage.toUpperCase();
   const short = STAGE_LABEL_SHORT[stage] ?? full;
-  const color = STAGE_COLOR[stage] ?? "var(--text-muted)";
+  const color = muted
+    ? "var(--text-dim)"
+    : (STAGE_COLOR[stage] ?? "var(--text-muted)");
   return (
     <span
-      className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.5px]"
+      className="inline-flex items-center gap-1.5 text-[14px] uppercase tracking-[0.5px]"
       style={{ color }}
     >
       <span aria-hidden>{prefix}</span>

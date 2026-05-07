@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { getDb } from "../lib/db";
 
+type Db = ReturnType<typeof getDb>;
+
 const statements = [
   `CREATE TABLE IF NOT EXISTS bills (
     id TEXT PRIMARY KEY,
@@ -31,12 +33,39 @@ const statements = [
   )`,
 ];
 
+async function ensureColumn(
+  db: Db,
+  table: string,
+  column: string,
+  ddl: string,
+): Promise<void> {
+  const r = await db.execute(`PRAGMA table_info(${table})`);
+  const exists = r.rows.some((row) => (row.name as string) === column);
+  if (exists) {
+    console.log(`column ${table}.${column} already exists`);
+    return;
+  }
+  await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+  console.log(`added column ${table}.${column}`);
+}
+
 async function main() {
   const db = getDb();
   for (const sql of statements) {
     await db.execute(sql);
     console.log("ok:", sql.split("\n")[0]);
   }
+  await ensureColumn(db, "bills", "sponsor_bioguide_id", "TEXT");
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_bioguide ON bills(sponsor_bioguide_id)",
+  );
+  console.log("ok: idx_bills_sponsor_bioguide");
+  await ensureColumn(db, "bills", "previous_stage", "TEXT");
+  await ensureColumn(db, "bills", "stage_changed_at", "TEXT");
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_stage_changed_at ON bills(stage_changed_at DESC)",
+  );
+  console.log("ok: idx_bills_stage_changed_at");
   console.log("migration complete");
 }
 

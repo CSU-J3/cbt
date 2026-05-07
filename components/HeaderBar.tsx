@@ -9,21 +9,23 @@ import {
   getFeedStats,
 } from "@/lib/queries";
 
-type CountMode = "feed" | "stale" | "desk" | "sponsors";
+type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
 
 export async function HeaderBar({
   feedFilters,
   basePath = "/",
   countMode = "feed",
   staleCounts,
-  deskCounts,
+  changesCounts,
+  presidentCounts,
   sponsorCounts,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
   countMode?: CountMode;
   staleCounts?: FeedCount;
-  deskCounts?: FeedCount;
+  changesCounts?: FeedCount;
+  presidentCounts?: FeedCount;
   sponsorCounts?: FeedCount;
 }) {
   const stats = await getFeedStats();
@@ -31,11 +33,13 @@ export async function HeaderBar({
   const counts = showSearch
     ? countMode === "stale"
       ? (staleCounts ?? null)
-      : countMode === "desk"
-        ? (deskCounts ?? null)
-        : countMode === "sponsors"
-          ? (sponsorCounts ?? null)
-          : await getFeedCount(feedFilters)
+      : countMode === "changes"
+        ? (changesCounts ?? null)
+        : countMode === "president"
+          ? (presidentCounts ?? null)
+          : countMode === "sponsors"
+            ? (sponsorCounts ?? null)
+            : await getFeedCount(feedFilters)
     : null;
   const q = feedFilters?.q?.trim() ?? "";
   const sponsor = feedFilters?.sponsor?.trim() ?? "";
@@ -46,9 +50,11 @@ export async function HeaderBar({
       !!feedFilters?.sponsor ||
       (feedFilters?.topics?.length ?? 0) > 0);
   const isStaleMode = countMode === "stale";
-  const isDeskMode = countMode === "desk";
+  const isChangesMode = countMode === "changes";
+  const isPresidentMode = countMode === "president";
   const isSponsorMode = countMode === "sponsors";
-  const useAccentBright = isStaleMode || isDeskMode || isSponsorMode;
+  const useAccentBright =
+    isStaleMode || isChangesMode || isPresidentMode || isSponsorMode;
 
   return (
     <header
@@ -59,14 +65,67 @@ export async function HeaderBar({
       }}
     >
       <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
-        <Link
-          href="/"
-          className="text-[16px] font-medium uppercase tracking-[0.5px] whitespace-nowrap"
-          style={{ color: "var(--accent-amber)" }}
-        >
-          CBT <span style={{ color: "var(--text-dim)" }}>//</span>{" "}
-          {currentCongressLabel()}
-        </Link>
+        <div className="flex flex-col leading-tight">
+          <Link
+            href="/"
+            className="text-[16px] font-medium uppercase tracking-[0.5px] whitespace-nowrap"
+            style={{ color: "var(--accent-amber)" }}
+          >
+            CBT <span style={{ color: "var(--text-dim)" }}>//</span>{" "}
+            {currentCongressLabel()}
+          </Link>
+          <span
+            className="text-[11px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-dim)" }}
+          >
+            {counts && (isFiltering || isStaleMode || isChangesMode || isPresidentMode || isSponsorMode) ? (
+              <>
+                <span
+                  style={{
+                    color: useAccentBright
+                      ? "var(--accent-amber-bright)"
+                      : "var(--accent-amber)",
+                  }}
+                >
+                  {counts.filtered.toLocaleString()}
+                </span>
+                <span> of </span>
+                <span>
+                  {counts.total.toLocaleString()}{" "}
+                  {isStaleMode
+                    ? "stale bills"
+                    : isChangesMode
+                      ? "stage changes"
+                      : isPresidentMode
+                        ? "bills at desk"
+                        : isSponsorMode
+                          ? "sponsors"
+                          : "bills"}
+                </span>
+                {q ? (
+                  <>
+                    <span> · </span>
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      &quot;{q}&quot;
+                    </span>
+                  </>
+                ) : null}
+                {sponsor && !isSponsorMode ? (
+                  <>
+                    <span> · </span>
+                    <span style={{ color: "var(--accent-amber)" }}>
+                      sponsored by {sponsor}
+                    </span>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <>{stats.total.toLocaleString()} bills</>
+            )}
+            <span> · </span>
+            updated {formatLastUpdated(stats.lastUpdated)}
+          </span>
+        </div>
 
         {showSearch ? (
           <div className="header-search">
@@ -85,7 +144,7 @@ export async function HeaderBar({
               color: isSponsorMode ? "var(--accent-amber)" : undefined,
             }}
           >
-            Sponsors
+            👥 Sponsors
           </Link>
           <Link
             href="/stale"
@@ -97,13 +156,22 @@ export async function HeaderBar({
             ⏳ Stale
           </Link>
           <Link
+            href="/changes"
+            className="transition hover:text-[var(--text-secondary)]"
+            style={{
+              color: isChangesMode ? "var(--accent-amber)" : undefined,
+            }}
+          >
+            ⇄ Changes
+          </Link>
+          <Link
             href="/president"
             className="transition hover:text-[var(--text-secondary)]"
             style={{
-              color: isDeskMode ? "var(--accent-amber)" : undefined,
+              color: isPresidentMode ? "var(--accent-amber)" : undefined,
             }}
           >
-            Desk
+            ▸▸▸▸ President
           </Link>
           <Link
             href="/watchlist"
@@ -111,54 +179,6 @@ export async function HeaderBar({
           >
             ★ Watchlist
           </Link>
-          <span>
-            {counts && (isFiltering || isStaleMode || isDeskMode || isSponsorMode) ? (
-              <>
-                <span
-                  style={{
-                    color: useAccentBright
-                      ? "var(--accent-amber-bright)"
-                      : "var(--accent-amber)",
-                  }}
-                >
-                  {counts.filtered.toLocaleString()}
-                </span>
-                <span> of </span>
-                <span>
-                  {counts.total.toLocaleString()}{" "}
-                  {isStaleMode
-                    ? "stale bills"
-                    : isDeskMode
-                      ? "at president's desk"
-                      : isSponsorMode
-                        ? "sponsors"
-                        : "bills"}
-                </span>
-                {q ? (
-                  <>
-                    <span style={{ color: "var(--text-dim)" }}> · </span>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      &quot;{q}&quot;
-                    </span>
-                  </>
-                ) : null}
-                {sponsor && !isSponsorMode ? (
-                  <>
-                    <span style={{ color: "var(--text-dim)" }}> · </span>
-                    <span style={{ color: "var(--accent-amber)" }}>
-                      sponsored by {sponsor}
-                    </span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <>
-                {stats.total.toLocaleString()} bills
-                <span style={{ color: "var(--text-dim)" }}> · </span>
-                updated {formatLastUpdated(stats.lastUpdated)}
-              </>
-            )}
-          </span>
         </nav>
       </div>
     </header>

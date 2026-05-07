@@ -48,7 +48,7 @@ export async function runSummarize(
     where.push(`bill_type IN (${options.types.map(() => "?").join(",")})`);
     args.push(...options.types);
   }
-  let sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text
+  let sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage
     FROM bills WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
   if (limit > 0) {
     sql += ` LIMIT ?`;
@@ -56,14 +56,17 @@ export async function runSummarize(
   }
   const rs = await db.execute({ sql, args });
 
-  const bills: BillRow[] = rs.rows.map((r) => ({
-    id: r.id as string,
-    congress: r.congress as number,
-    bill_type: r.bill_type as string,
-    bill_number: r.bill_number as number,
-    title: r.title as string,
-    latest_action_text: (r.latest_action_text as string | null) ?? null,
-  }));
+  const bills: Array<BillRow & { oldStage: string | null }> = rs.rows.map(
+    (r) => ({
+      id: r.id as string,
+      congress: r.congress as number,
+      bill_type: r.bill_type as string,
+      bill_number: r.bill_number as number,
+      title: r.title as string,
+      latest_action_text: (r.latest_action_text as string | null) ?? null,
+      oldStage: (r.stage as string | null) ?? null,
+    }),
+  );
 
   console.log(
     `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"}`,
@@ -90,19 +93,40 @@ export async function runSummarize(
             console.warn(`parse-fail: ${bill.id}`);
             return { bill, result: null };
           }
-          await db.execute({
-            sql: `UPDATE bills
-                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?
-                  WHERE id = ?`,
-            args: [
-              out.result.summary,
-              SUMMARY_MODEL,
-              new Date().toISOString(),
-              JSON.stringify(out.result.topics),
-              out.result.stage,
-              bill.id,
-            ],
-          });
+          const transitioned =
+            bill.oldStage !== null && bill.oldStage !== out.result.stage;
+          if (transitioned) {
+            await db.execute({
+              sql: `UPDATE bills
+                    SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
+                        previous_stage = ?, stage_changed_at = ?
+                    WHERE id = ?`,
+              args: [
+                out.result.summary,
+                SUMMARY_MODEL,
+                new Date().toISOString(),
+                JSON.stringify(out.result.topics),
+                out.result.stage,
+                bill.oldStage,
+                new Date().toISOString(),
+                bill.id,
+              ],
+            });
+          } else {
+            await db.execute({
+              sql: `UPDATE bills
+                    SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?
+                    WHERE id = ?`,
+              args: [
+                out.result.summary,
+                SUMMARY_MODEL,
+                new Date().toISOString(),
+                JSON.stringify(out.result.topics),
+                out.result.stage,
+                bill.id,
+              ],
+            });
+          }
           return { bill, result: out.result };
         } catch (e) {
           console.error(`error ${bill.id}:`, (e as Error).message);

@@ -5,7 +5,12 @@ const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
 
 type LatestAction = { actionDate?: string; text?: string };
-type Sponsor = { fullName?: string; party?: string; state?: string };
+type Sponsor = {
+  fullName?: string;
+  party?: string;
+  state?: string;
+  bioguideId?: string;
+};
 
 type ListBill = {
   congress: number;
@@ -116,9 +121,9 @@ const UPSERT_SQL = `
 INSERT INTO bills (
   id, congress, bill_type, bill_number, title,
   introduced_date, latest_action_date, latest_action_text,
-  sponsor_name, sponsor_party, sponsor_state,
+  sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
   update_date, raw_json
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   title = excluded.title,
   introduced_date = excluded.introduced_date,
@@ -127,13 +132,13 @@ ON CONFLICT(id) DO UPDATE SET
   sponsor_name = excluded.sponsor_name,
   sponsor_party = excluded.sponsor_party,
   sponsor_state = excluded.sponsor_state,
+  sponsor_bioguide_id = excluded.sponsor_bioguide_id,
   raw_json = excluded.raw_json,
   update_date = excluded.update_date,
   summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
-  topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END,
-  stage = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.stage END
+  topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END
 `;
 
 async function upsertBill(
@@ -161,6 +166,7 @@ async function upsertBill(
       sponsor?.fullName ?? null,
       sponsor?.party ?? null,
       sponsor?.state ?? null,
+      sponsor?.bioguideId ?? null,
       update,
       JSON.stringify(detail),
     ],
