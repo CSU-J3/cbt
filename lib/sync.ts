@@ -173,12 +173,14 @@ async function upsertBill(
   });
 }
 
-export async function runSync(): Promise<SyncStats> {
+export type RunSyncOptions = { fromDateTime?: string };
+
+export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
   const db = getDb();
 
-  const fromDateTime = await getWatermark(db);
+  const fromDateTime = opts.fromDateTime ?? (await getWatermark(db));
   console.log(`syncing bills updated since ${fromDateTime}`);
 
   let offset = 0;

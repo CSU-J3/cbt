@@ -18,6 +18,18 @@ Then output a JSON block with:
 - topics: array of 1-3 topic tags from this list: [${ALLOWED_TOPICS.join(", ")}]
 - stage: one of [introduced, committee, floor, other_chamber, president, enacted]
 
+Determine \`stage\` from the latest_action_text. The action text is ground truth; do NOT infer stage from the bill's content or title. Apply these rules in order and stop at the first match:
+
+1. action text contains "Became Public Law" or "Signed by President" → enacted
+2. action text contains "Presented to President" or "to the President" → president
+3. action text contains BOTH "Passed Senate" AND "Passed House" → other_chamber
+4. action text contains "Passed Senate" or "Passed House" (only one) → floor
+5. action text contains "Reported", "Ordered Reported", or "Committee Consideration" → committee
+6. action text contains "Referred to" with no further action mentioned → committee
+7. otherwise → introduced
+
+The bill's content is written as a proposal even after it becomes law — never let that mislead you. If the action text says it became public law, the stage is enacted regardless of how the bill text reads.
+
 Respond in this exact format:
 
 SUMMARY:
