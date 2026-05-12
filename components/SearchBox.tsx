@@ -20,6 +20,7 @@ export function SearchBox({ basePath = "/" }: { basePath?: string } = {}) {
       if (trimmed) params.set("q", trimmed);
       else params.delete("q");
       params.delete("expanded");
+      params.delete("page");
       const qs = params.toString();
       router.push(qs ? `${basePath}?${qs}` : basePath);
     }, 250);

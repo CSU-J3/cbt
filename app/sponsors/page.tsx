@@ -1,28 +1,35 @@
 import Link from "next/link";
-import { FooterLegend } from "@/components/FooterLegend";
+import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
-import { PartyFilter } from "@/components/PartyFilter";
-import { SponsorRow } from "@/components/SponsorRow";
-import { StateFilter } from "@/components/StateFilter";
+import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
+import { SponsorSortToggle } from "@/components/SponsorSortToggle";
 import {
-  getSponsorCount,
+  type Chamber,
   getSponsorRecentBills,
-  getSponsors,
-  getSponsorStates,
-  type PartyKey,
-  type SponsorFilters,
+  getSponsorsRanked,
+  getSponsorStats,
+  getSponsorTopTopics,
+  normalizePartyVariant,
+  sanitizeChamber,
+  sanitizeSponsorSort,
 } from "@/lib/queries";
 
 type SearchParams = {
-  party?: string;
-  state?: string;
-  q?: string;
+  chamber?: string;
   expanded?: string;
+  sort?: string;
 };
 
-function sanitizeParty(input: string | undefined): PartyKey | undefined {
-  if (input === "R" || input === "D" || input === "I") return input;
-  return undefined;
+function partyColorFor(party: string | null): string {
+  const key = normalizePartyVariant(party);
+  if (key === "R") return "var(--party-republican)";
+  if (key === "D") return "var(--party-democrat)";
+  if (key === "I") return "var(--party-independent)";
+  return "var(--text-dim)";
+}
+
+function sponsorKey(s: { sponsor_bioguide_id: string | null; sponsor_name: string }): string {
+  return s.sponsor_bioguide_id ?? s.sponsor_name;
 }
 
 export default async function SponsorsPage({
@@ -31,43 +38,49 @@ export default async function SponsorsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const party = sanitizeParty(params.party);
-  const stateRaw =
-    typeof params.state === "string" ? params.state.trim().toUpperCase() : "";
-  const q = typeof params.q === "string" ? params.q.trim() : "";
+  const chamber = sanitizeChamber(params.chamber);
+  const sort = sanitizeSponsorSort(params.sort);
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
+  const headerFilters = { topics: [], chamber };
+  const rows = await getSponsorsRanked({ chamber }, sort, 100);
+  const maxVolume = rows.reduce((m, r) => Math.max(m, r.total), 0);
 
-  const states = await getSponsorStates();
-  const stateAllowed = stateRaw && states.includes(stateRaw) ? stateRaw : "";
+  const expandedSponsor = expandedParam
+    ? rows.find((s) => sponsorKey(s) === expandedParam)
+    : undefined;
 
-  const filters: SponsorFilters = {
-    party,
-    state: stateAllowed || undefined,
-    q: q || undefined,
+  const expansion = expandedSponsor
+    ? await (async () => {
+        const key = sponsorKey(expandedSponsor);
+        const [stats, topics, recentBills] = await Promise.all([
+          getSponsorStats(key),
+          getSponsorTopTopics(key),
+          getSponsorRecentBills(key),
+        ]);
+        return { key, stats, topics, recentBills };
+      })()
+    : null;
+
+  const carry = new URLSearchParams();
+  if (chamber) carry.set("chamber", chamber);
+  if (sort !== "volume") carry.set("sort", sort);
+
+  const chamberLabel: Record<Chamber, string> = {
+    house: "house",
+    senate: "senate",
   };
-  const headerFilters = { topics: [], stage: undefined, q: q || undefined };
-  const hasFilters = !!party || !!stateAllowed;
+  const sortLabel = sort === "passrate" ? "pass rate" : "bills introduced";
+  const subtitle = chamber
+    ? `Top 100 ${chamberLabel[chamber]} sponsors by ${sortLabel} (119th Congress)`
+    : `Top 100 by ${sortLabel} (119th Congress)`;
 
-  const [sponsors, counts] = await Promise.all([
-    getSponsors(filters),
-    getSponsorCount(filters),
-  ]);
-
-  const expandedName =
-    expandedParam && sponsors.some((s) => s.sponsor_name === expandedParam)
-      ? expandedParam
-      : undefined;
-  const recentBills = expandedName
-    ? await getSponsorRecentBills(expandedName, 5)
-    : [];
-
-  const clearSearchParams = new URLSearchParams();
-  if (party) clearSearchParams.set("party", party);
-  if (stateAllowed) clearSearchParams.set("state", stateAllowed);
-  const clearSearchHref = clearSearchParams.toString()
-    ? `/sponsors?${clearSearchParams.toString()}`
-    : "/sponsors";
+  function rowHref(key: string, isExpanded: boolean): string {
+    const sp = new URLSearchParams(carry);
+    if (!isExpanded) sp.set("expanded", key);
+    const qs = sp.toString();
+    return qs ? `/sponsors?${qs}` : "/sponsors";
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -75,127 +88,168 @@ export default async function SponsorsPage({
         feedFilters={headerFilters}
         basePath="/sponsors"
         countMode="sponsors"
-        sponsorCounts={counts}
       />
 
       <main className="w-full flex-1 px-4 py-4">
-        <p
-          className="mb-3 text-[12px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          who&apos;s introducing what, sorted by bill count
-        </p>
-
-        <section
-          className="filter-chips mb-3 flex flex-wrap items-center gap-3 border-b pb-3"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
+        <div className="mb-3 flex flex-wrap items-baseline gap-3">
+          <h1
+            className="text-[14px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--accent-amber)" }}
+          >
+            Sponsors
+          </h1>
           <span
             className="text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
+            style={{ color: "var(--text-muted)" }}
           >
-            Party
+            {subtitle}
           </span>
-          <PartyFilter
-            current={party}
-            state={stateAllowed || undefined}
-            q={q || undefined}
-            basePath="/sponsors"
-          />
-          <span
-            className="ml-2 text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
+          <span className="ml-auto flex flex-wrap items-center gap-3">
+            <ChamberToggle
+              current={chamber}
+              carry={carry}
+              basePath="/sponsors"
+            />
+            <SponsorSortToggle
+              current={sort}
+              carry={carry}
+              basePath="/sponsors"
+            />
+          </span>
+        </div>
+
+        {sort === "passrate" ? (
+          <p
+            className="mb-3 text-[12px] leading-snug"
+            style={{ color: "var(--text-muted)" }}
           >
-            State
-          </span>
-          <StateFilter
-            current={stateAllowed || undefined}
-            party={party}
-            q={q || undefined}
-            basePath="/sponsors"
-            states={states}
-          />
-          {hasFilters ? (
-            <Link
-              href={q ? `/sponsors?q=${encodeURIComponent(q)}` : "/sponsors"}
-              className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              Clear filters ✕
-            </Link>
-          ) : null}
-        </section>
+            <em>
+              Pass rate = bills currently at <code>enacted</code> stage. Most
+              bills die in committee without a formal vote. Numbers stabilize
+              after the Congress ends.
+            </em>
+          </p>
+        ) : null}
 
         <div
           className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
-          <div className="sponsor-header-row">
-            <span aria-hidden></span>
-            <span>Sponsor</span>
-            <span>Pty</span>
-            <span>St</span>
-            <span className="text-right">Bills</span>
-            <span>Latest</span>
-          </div>
-
-          {sponsors.length === 0 ? (
-            q ? (
-              <div
-                className="px-6 py-12 text-center"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <p className="text-[14px] uppercase tracking-[0.5px]">
-                  No sponsors match &quot;{q}&quot;
-                </p>
-                <p
-                  className="mt-2 text-[13px]"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  Try a broader term, check spelling, or clear the search.
-                </p>
-                <Link
-                  href={clearSearchHref}
-                  className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
-                  style={{
-                    color: "var(--accent-amber)",
-                    borderColor: "var(--accent-amber)",
-                  }}
-                >
-                  [Clear search]
-                </Link>
-              </div>
-            ) : (
-              <div
-                className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                No sponsors match these filters
-              </div>
-            )
+          {rows.length === 0 ? (
+            <div
+              className="px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-dim)" }}
+            >
+              No sponsors found
+            </div>
           ) : (
-            <ul>
-              {sponsors.map((s) => (
-                <SponsorRow
-                  key={`${s.sponsor_name}|${s.sponsor_party}|${s.sponsor_state}`}
-                  sponsor={s}
-                  filters={{
-                    party,
-                    state: stateAllowed || undefined,
-                    q: q || undefined,
-                  }}
-                  expanded={expandedName === s.sponsor_name}
-                  recentBills={
-                    expandedName === s.sponsor_name ? recentBills : []
-                  }
-                />
-              ))}
-            </ul>
+            <ol>
+              {rows.map((s, i) => {
+                const volPct = maxVolume > 0 ? (s.total / maxVolume) * 100 : 0;
+                const ratePct = Math.round(s.passrate * 100);
+                const partyColor = partyColorFor(s.sponsor_party);
+                const enactedColor = "var(--stage-enacted)";
+                const key = sponsorKey(s);
+                const isExpanded = expansion?.key === key;
+                return (
+                  <li key={key}>
+                    <Link
+                      href={rowHref(key, isExpanded)}
+                      replace
+                      scroll={false}
+                      prefetch={false}
+                      className={`sponsor-bar-row ${isExpanded ? "is-expanded" : ""}`}
+                    >
+                      <span
+                        aria-hidden
+                        style={{
+                          color: isExpanded
+                            ? "var(--accent-amber)"
+                            : "var(--text-dim)",
+                        }}
+                      >
+                        {isExpanded ? "▾" : "▸"}
+                      </span>
+                      <span
+                        className="text-right text-[12px] tabular-nums"
+                        style={{ color: "var(--text-dim)" }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span
+                        title={s.sponsor_name}
+                        className="truncate text-[14px]"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {s.sponsor_name}
+                      </span>
+                      <span className="sponsor-bars">
+                        <span className="sponsor-bar-line">
+                          <span className="sponsor-bar-track">
+                            <span
+                              className="sponsor-bar-fill"
+                              style={{
+                                width: `${volPct}%`,
+                                backgroundColor: partyColor,
+                              }}
+                              aria-hidden
+                            />
+                          </span>
+                          <span
+                            className="text-right text-[12px] tabular-nums"
+                            style={{ color: "var(--text-secondary)" }}
+                          >
+                            {s.total.toLocaleString()}
+                          </span>
+                        </span>
+                        <span className="sponsor-bar-line">
+                          <span className="sponsor-bar-track">
+                            <span
+                              className="sponsor-bar-fill"
+                              style={{
+                                width: `${ratePct}%`,
+                                backgroundColor: enactedColor,
+                              }}
+                              aria-hidden
+                            />
+                          </span>
+                          <span
+                            className="text-right text-[12px] tabular-nums"
+                            style={{ color: "var(--text-secondary)" }}
+                          >
+                            {ratePct}%
+                          </span>
+                        </span>
+                      </span>
+                      <span
+                        className="text-right text-[12px] tabular-nums"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <span style={{ color: "var(--stage-enacted)" }}>
+                          {s.enacted}✓
+                        </span>{" "}
+                        / {s.total}
+                      </span>
+                    </Link>
+                    {isExpanded && expansion ? (
+                      <SponsorExpandedPanel
+                        sponsorKey={key}
+                        sponsorName={s.sponsor_name}
+                        sponsorParty={s.sponsor_party}
+                        sponsorState={s.sponsor_state}
+                        bioguideId={s.sponsor_bioguide_id}
+                        stats={expansion.stats}
+                        topics={expansion.topics}
+                        recentBills={expansion.recentBills}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
           )}
         </div>
       </main>
-
-      <FooterLegend />
     </div>
   );
 }

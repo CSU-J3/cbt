@@ -1,16 +1,19 @@
 import { BillRow } from "@/components/BillRow";
-import { FooterLegend } from "@/components/FooterLegend";
+import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SortDropdown } from "@/components/SortDropdown";
+import { StageLegend } from "@/components/StageLegend";
 import {
   getWatchlistBills,
   isInWatchlist,
+  sanitizeChamber,
   sanitizeSort,
 } from "@/lib/queries";
 
 type SearchParams = {
   expanded?: string;
   sort?: string;
+  chamber?: string;
 };
 
 export default async function WatchlistPage({
@@ -21,11 +24,16 @@ export default async function WatchlistPage({
   const params = await searchParams;
   const expandedParam = typeof params.expanded === "string" ? params.expanded : undefined;
   const sort = sanitizeSort(params.sort);
-  const bills = await getWatchlistBills(sort);
+  const chamber = sanitizeChamber(params.chamber);
+  const bills = await getWatchlistBills(sort, chamber);
   const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
     ? expandedParam
     : undefined;
   const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
+
+  const carry = new URLSearchParams();
+  if (sort && sort !== "action") carry.set("sort", sort);
+  if (chamber) carry.set("chamber", chamber);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -42,6 +50,11 @@ export default async function WatchlistPage({
           <span style={{ color: "var(--accent-amber)" }}>★ Watchlist</span>
           <span>·</span>
           <span>{bills.length} {bills.length === 1 ? "bill" : "bills"}</span>
+          <ChamberToggle
+            current={chamber}
+            carry={carry}
+            basePath="/watchlist"
+          />
           <span className="ml-auto flex items-center gap-2">
             <span>Sort</span>
             <SortDropdown current={sort} basePath="/watchlist" />
@@ -66,6 +79,7 @@ export default async function WatchlistPage({
             className="border"
             style={{ borderColor: "var(--border-strong)" }}
           >
+            <StageLegend />
             <div className="feed-header-row">
               <span aria-hidden></span>
               <span>Bill</span>
@@ -79,7 +93,7 @@ export default async function WatchlistPage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics: [], stage: undefined, sort }}
+                  filters={{ topics: [], stage: undefined, sort, chamber }}
                   basePath="/watchlist"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}
@@ -90,8 +104,6 @@ export default async function WatchlistPage({
           </div>
         )}
       </main>
-
-      <FooterLegend />
     </div>
   );
 }

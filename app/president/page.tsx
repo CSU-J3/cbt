@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
-import { FooterLegend } from "@/components/FooterLegend";
+import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
+import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
   getPresidentBills,
   getPresidentCount,
   isInWatchlist,
+  sanitizeChamber,
   sanitizeTopics,
 } from "@/lib/queries";
 
@@ -14,6 +16,7 @@ type SearchParams = {
   topics?: string;
   expanded?: string;
   q?: string;
+  chamber?: string;
 };
 
 export default async function PresidentPage({
@@ -26,8 +29,14 @@ export default async function PresidentPage({
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
-  const hasFilters = topics.length > 0;
-  const feedFilters = { topics, q: q || undefined };
+  const chamber = sanitizeChamber(params.chamber);
+  const hasFilters = topics.length > 0 || !!chamber;
+  const feedFilters = { topics, q: q || undefined, chamber };
+
+  const carry = new URLSearchParams();
+  if (topics.length > 0) carry.set("topics", topics.join(","));
+  if (q) carry.set("q", q);
+  if (chamber) carry.set("chamber", chamber);
 
   const [bills, counts] = await Promise.all([
     getPresidentBills(feedFilters, 50),
@@ -50,8 +59,8 @@ export default async function PresidentPage({
       <HeaderBar
         feedFilters={feedFilters}
         basePath="/president"
-        countMode="desk"
-        deskCounts={counts}
+        countMode="president"
+        presidentCounts={counts}
       />
 
       <main className="w-full flex-1 px-4 py-4">
@@ -59,7 +68,7 @@ export default async function PresidentPage({
           className="mb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
-          passed both chambers, awaiting signature or veto
+          oldest at desk first
         </p>
 
         <section
@@ -76,6 +85,12 @@ export default async function PresidentPage({
             selected={topics}
             stage={undefined}
             q={q}
+            chamber={chamber}
+            basePath="/president"
+          />
+          <ChamberToggle
+            current={chamber}
+            carry={carry}
             basePath="/president"
           />
           {hasFilters ? (
@@ -93,6 +108,7 @@ export default async function PresidentPage({
           className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
+          <StageLegend />
           <div className="feed-header-row">
             <span aria-hidden></span>
             <span>Bill</span>
@@ -105,10 +121,10 @@ export default async function PresidentPage({
           {bills.length === 0 ? (
             counts.total === 0 ? (
               <div
-                className="px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
+                className="px-6 py-8 text-center text-[13px]"
                 style={{ color: "var(--text-muted)" }}
               >
-                No bills awaiting presidential action
+                No bills currently awaiting presidential action.
               </div>
             ) : q ? (
               <div
@@ -149,7 +165,7 @@ export default async function PresidentPage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics, stage: undefined, q }}
+                  filters={{ topics, stage: undefined, q, chamber }}
                   basePath="/president"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}
@@ -161,8 +177,6 @@ export default async function PresidentPage({
           )}
         </div>
       </main>
-
-      <FooterLegend />
     </div>
   );
 }

@@ -56,7 +56,7 @@ export const TOPIC_LABELS: Record<string, string> = {
   trade: "TRD",
   housing: "HSG",
   transportation: "TRNS",
-  foreign_policy: "FOR",
+  foreign_policy: "FRGN",
   veterans: "VET",
   elections: "ELEC",
   budget: "BDGT",
@@ -67,10 +67,44 @@ export const TOPIC_LABELS: Record<string, string> = {
   other: "OTHR",
 };
 
+export const TOPIC_FULL_LABELS: Record<string, string> = {
+  healthcare: "Healthcare",
+  immigration: "Immigration",
+  taxes: "Taxes",
+  defense: "Defense",
+  energy: "Energy",
+  environment: "Environment",
+  education: "Education",
+  labor: "Labor",
+  technology: "Technology",
+  civil_rights: "Civil rights",
+  criminal_justice: "Criminal justice",
+  agriculture: "Agriculture",
+  trade: "Trade",
+  housing: "Housing",
+  transportation: "Transportation",
+  foreign_policy: "Foreign policy",
+  veterans: "Veterans",
+  elections: "Elections",
+  budget: "Budget",
+  financial_services: "Financial services",
+  government_operations: "Government operations",
+  consumer_protection: "Consumer protection",
+  social_security: "Social security",
+  other: "Other",
+};
+
 export function topicColor(topic: string): string {
   return TOPIC_COLORS[topic] ?? TOPIC_COLORS.other!;
 }
 
 export function topicLabel(topic: string): string {
   return TOPIC_LABELS[topic] ?? topic.toUpperCase();
+}
+
+export function topicFullLabel(topic: string): string {
+  return (
+    TOPIC_FULL_LABELS[topic] ??
+    topic.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
 }

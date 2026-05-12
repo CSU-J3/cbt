@@ -1,4 +1,4 @@
-import { topicColor, topicLabel } from "@/lib/topic-colors";
+import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 export function TopicTags({
   topics,
@@ -10,10 +10,12 @@ export function TopicTags({
   if (topics.length === 0) return null;
 
   const desktop = (
-    <span className="inline-flex items-center gap-0.5 text-[12px] uppercase tracking-[0.5px]">
+    <span className="inline-flex items-center gap-0.5 text-[14px] uppercase tracking-[0.5px]">
       {topics.map((t, i) => (
         <span key={t}>
-          <span style={{ color: topicColor(t) }}>{topicLabel(t)}</span>
+          <span title={topicFullLabel(t)} style={{ color: topicColor(t) }}>
+            {topicLabel(t)}
+          </span>
           {i < topics.length - 1 ? (
             <span style={{ color: "var(--text-dim)" }}> · </span>
           ) : null}
@@ -29,8 +31,10 @@ export function TopicTags({
   return (
     <span className="min-w-0 truncate">
       <span className="show-desktop">{desktop}</span>
-      <span className="show-mobile text-[12px] uppercase tracking-[0.5px]">
-        <span style={{ color: topicColor(first) }}>{topicLabel(first)}</span>
+      <span className="show-mobile text-[14px] uppercase tracking-[0.5px]">
+        <span title={topicFullLabel(first)} style={{ color: topicColor(first) }}>
+          {topicLabel(first)}
+        </span>
         {extra > 0 ? (
           <span style={{ color: "var(--text-dim)" }}> +{extra}</span>
         ) : null}

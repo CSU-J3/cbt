@@ -19,6 +19,7 @@ export function StageFilter({
   q,
   sponsor,
   sort,
+  chamber,
   basePath = "/",
   availableStages = ALLOWED_STAGES,
 }: {
@@ -27,6 +28,7 @@ export function StageFilter({
   q?: string;
   sponsor?: string;
   sort?: string;
+  chamber?: string;
   basePath?: string;
   availableStages?: readonly Stage[];
 }) {
@@ -40,6 +42,7 @@ export function StageFilter({
     if (q) params.set("q", q);
     if (sponsor) params.set("sponsor", sponsor);
     if (sort && sort !== "action") params.set("sort", sort);
+    if (chamber) params.set("chamber", chamber);
     const qs = params.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);

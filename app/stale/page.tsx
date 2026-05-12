@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
-import { FooterLegend } from "@/components/FooterLegend";
+import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageFilter } from "@/components/StageFilter";
+import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStaleBills,
   getStaleCount,
   isInWatchlist,
+  sanitizeChamber,
   sanitizeStaleStage,
   sanitizeTopics,
   STALE_FILTER_STAGES,
@@ -18,6 +20,7 @@ type SearchParams = {
   stage?: string;
   expanded?: string;
   q?: string;
+  chamber?: string;
 };
 
 export default async function StalePage({
@@ -31,8 +34,15 @@ export default async function StalePage({
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
-  const hasFilters = topics.length > 0 || !!stage;
-  const feedFilters = { topics, stage, q: q || undefined };
+  const chamber = sanitizeChamber(params.chamber);
+  const hasFilters = topics.length > 0 || !!stage || !!chamber;
+  const feedFilters = { topics, stage, q: q || undefined, chamber };
+
+  const carry = new URLSearchParams();
+  if (topics.length > 0) carry.set("topics", topics.join(","));
+  if (stage) carry.set("stage", stage);
+  if (q) carry.set("q", q);
+  if (chamber) carry.set("chamber", chamber);
 
   const [bills, counts] = await Promise.all([
     getStaleBills(feedFilters, 50),
@@ -82,9 +92,11 @@ export default async function StalePage({
             current={stage}
             topics={topics}
             q={q}
+            chamber={chamber}
             basePath="/stale"
             availableStages={STALE_FILTER_STAGES}
           />
+          <ChamberToggle current={chamber} carry={carry} basePath="/stale" />
           <span
             className="ml-2 text-[12px] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
@@ -95,6 +107,7 @@ export default async function StalePage({
             selected={topics}
             stage={stage}
             q={q}
+            chamber={chamber}
             basePath="/stale"
           />
           {hasFilters ? (
@@ -112,6 +125,7 @@ export default async function StalePage({
           className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
+          <StageLegend />
           <div className="feed-header-row">
             <span aria-hidden></span>
             <span>Bill</span>
@@ -161,7 +175,7 @@ export default async function StalePage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics, stage, q }}
+                  filters={{ topics, stage, q, chamber }}
                   basePath="/stale"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}
@@ -173,8 +187,6 @@ export default async function StalePage({
           )}
         </div>
       </main>
-
-      <FooterLegend />
     </div>
   );
 }

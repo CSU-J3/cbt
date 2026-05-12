@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ALLOWED_TOPICS } from "@/lib/enums";
-import { topicColor, topicLabel } from "@/lib/topic-colors";
+import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 function buildHref(
   selected: string[],
@@ -9,6 +9,7 @@ function buildHref(
   q: string | undefined,
   sponsor: string | undefined,
   sort: string | undefined,
+  chamber: string | undefined,
   basePath: string,
 ): string {
   const has = selected.includes(topic);
@@ -19,6 +20,7 @@ function buildHref(
   if (q) params.set("q", q);
   if (sponsor) params.set("sponsor", sponsor);
   if (sort && sort !== "action") params.set("sort", sort);
+  if (chamber) params.set("chamber", chamber);
   const qs = params.toString();
   return qs ? `${basePath}?${qs}` : basePath;
 }
@@ -29,6 +31,7 @@ export function TopicFilter({
   q,
   sponsor,
   sort,
+  chamber,
   basePath = "/",
 }: {
   selected: string[];
@@ -36,13 +39,14 @@ export function TopicFilter({
   q?: string;
   sponsor?: string;
   sort?: string;
+  chamber?: string;
   basePath?: string;
 }) {
   return (
     <div className="filter-chips flex items-center gap-1">
       {ALLOWED_TOPICS.map((t) => {
         const isOn = selected.includes(t);
-        const href = buildHref(selected, t, stage, q, sponsor, sort, basePath);
+        const href = buildHref(selected, t, stage, q, sponsor, sort, chamber, basePath);
         const color = topicColor(t);
         const style = isOn
           ? { backgroundColor: color, color: "#0a0e14", borderColor: color }
@@ -52,6 +56,7 @@ export function TopicFilter({
             key={t}
             href={href}
             scroll={false}
+            title={topicFullLabel(t)}
             className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
             style={style}
           >

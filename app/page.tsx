@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
-import { FooterLegend } from "@/components/FooterLegend";
+import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
+import { Pagination } from "@/components/Pagination";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageFilter } from "@/components/StageFilter";
+import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
+import { timed } from "@/lib/perf";
 import {
+  FEED_PAGE_SIZE,
   getFeedBills,
   isInWatchlist,
+  sanitizeChamber,
   sanitizeSort,
   sanitizeStage,
   sanitizeTopics,
@@ -20,6 +25,8 @@ type SearchParams = {
   q?: string;
   sponsor?: string;
   sort?: string;
+  page?: string;
+  chamber?: string;
 };
 
 export default async function FeedPage({
@@ -27,6 +34,7 @@ export default async function FeedPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const pageT0 = performance.now();
   const params = await searchParams;
   const topics = sanitizeTopics(params.topics);
   const stage = sanitizeStage(params.stage);
@@ -37,14 +45,37 @@ export default async function FeedPage({
       ? params.sponsor.trim()
       : undefined;
   const sort = sanitizeSort(params.sort);
-  const hasFilters = topics.length > 0 || !!stage || !!sponsor;
-  const feedFilters = { topics, stage, q: q || undefined, sponsor, sort };
+  const chamber = sanitizeChamber(params.chamber);
+  const hasFilters = topics.length > 0 || !!stage || !!sponsor || !!chamber;
+  const feedFilters = { topics, stage, q: q || undefined, sponsor, sort, chamber };
 
-  const bills = await getFeedBills(feedFilters, 50);
+  const rawPage = Number.parseInt(params.page ?? "1", 10);
+  const requestedPage = Number.isFinite(rawPage) ? rawPage : 1;
+  const {
+    bills,
+    page: currentPage,
+    totalPages,
+  } = await timed("getFeedBills", () =>
+    getFeedBills(feedFilters, {
+      page: requestedPage,
+      pageSize: FEED_PAGE_SIZE,
+    }),
+  );
   const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
     ? expandedParam
     : undefined;
-  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
+  const onWatchlist = expandedId
+    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
+    : false;
+  console.log(`[perf] /  page-data: ${Math.round(performance.now() - pageT0)}ms`);
+
+  const carry = new URLSearchParams();
+  if (topics.length > 0) carry.set("topics", topics.join(","));
+  if (stage) carry.set("stage", stage);
+  if (q) carry.set("q", q);
+  if (sponsor) carry.set("sponsor", sponsor);
+  if (sort && sort !== "action") carry.set("sort", sort);
+  if (chamber) carry.set("chamber", chamber);
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -59,57 +90,65 @@ export default async function FeedPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <section
-          className="filter-chips mb-3 flex flex-wrap items-center gap-3 border-b pb-3"
+          className="mb-3 flex flex-col gap-3"
           style={{ borderColor: "var(--border-strong)" }}
         >
-          <span
-            className="text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
-          >
-            Stage
-          </span>
-          <StageFilter
-            current={stage}
-            topics={topics}
-            q={q}
-            sponsor={sponsor}
-            sort={sort}
-          />
-          <span
-            className="ml-2 text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
-          >
-            Topics
-          </span>
-          <TopicFilter
-            selected={topics}
-            stage={stage}
-            q={q}
-            sponsor={sponsor}
-            sort={sort}
-          />
-          <span
-            className="ml-2 text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
-          >
-            Sort
-          </span>
-          <SortDropdown current={sort} basePath="/" />
-          {hasFilters ? (
-            <Link
-              href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
-              className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+          <div className="filter-chips flex flex-wrap items-center gap-3">
+            <StageFilter
+              current={stage}
+              topics={topics}
+              q={q}
+              sponsor={sponsor}
+              sort={sort}
+              chamber={chamber}
+            />
+            <ChamberToggle current={chamber} carry={carry} basePath="/" />
+            <span
+              className="ml-auto flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
-              Clear filters ✕
-            </Link>
-          ) : null}
+              Sort
+              <SortDropdown current={sort} basePath="/" />
+            </span>
+            {hasFilters ? (
+              <Link
+                href={q ? `/?q=${encodeURIComponent(q)}` : "/"}
+                className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+                style={{ color: "var(--text-dim)" }}
+              >
+                Clear filters ✕
+              </Link>
+            ) : null}
+          </div>
+          <div className="filter-chips flex flex-wrap items-center gap-3">
+            <span
+              className="text-[12px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-dim)" }}
+            >
+              Topics
+            </span>
+            <TopicFilter
+              selected={topics}
+              stage={stage}
+              q={q}
+              sponsor={sponsor}
+              sort={sort}
+              chamber={chamber}
+            />
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            carry={carry}
+            basePath="/"
+          />
         </section>
 
         <div
           className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
+          <StageLegend />
           <div className="feed-header-row">
             <span aria-hidden></span>
             <span>Bill</span>
@@ -154,24 +193,30 @@ export default async function FeedPage({
               </div>
             )
           ) : (
-            <ul>
-              {bills.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  filters={{ topics, stage, q, sponsor, sort }}
-                  basePath="/"
-                  expandedId={expandedId}
-                  onWatchlist={expandedId === b.id ? onWatchlist : false}
-                  introducedDate={b.introduced_date}
-                />
-              ))}
-            </ul>
+            <>
+              <ul>
+                {bills.map((b) => (
+                  <BillRow
+                    key={b.id}
+                    bill={b}
+                    filters={{ topics, stage, q, sponsor, sort, chamber, page: currentPage }}
+                    basePath="/"
+                    expandedId={expandedId}
+                    onWatchlist={expandedId === b.id ? onWatchlist : false}
+                    introducedDate={b.introduced_date}
+                  />
+                ))}
+              </ul>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                carry={carry}
+                basePath="/"
+              />
+            </>
           )}
         </div>
       </main>
-
-      <FooterLegend />
     </div>
   );
 }

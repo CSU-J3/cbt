@@ -2,6 +2,7 @@ import Link from "next/link";
 import { SearchBox } from "@/components/SearchBox";
 import { currentCongressLabel } from "@/lib/congress";
 import { formatLastUpdated } from "@/lib/format";
+import { timed } from "@/lib/perf";
 import {
   type FeedCount,
   type FeedFilters,
@@ -28,7 +29,7 @@ export async function HeaderBar({
   presidentCounts?: FeedCount;
   sponsorCounts?: FeedCount;
 }) {
-  const stats = await getFeedStats();
+  const stats = await timed("HeaderBar.getFeedStats", () => getFeedStats());
   const showSearch = !!feedFilters;
   const counts = showSearch
     ? countMode === "stale"
@@ -39,7 +40,9 @@ export async function HeaderBar({
           ? (presidentCounts ?? null)
           : countMode === "sponsors"
             ? (sponsorCounts ?? null)
-            : await getFeedCount(feedFilters)
+            : await timed("HeaderBar.getFeedCount", () =>
+                getFeedCount(feedFilters!),
+              )
     : null;
   const q = feedFilters?.q?.trim() ?? "";
   const sponsor = feedFilters?.sponsor?.trim() ?? "";
