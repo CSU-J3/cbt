@@ -8,9 +8,18 @@ import {
   type SummarizeResult,
 } from "./summarize";
 
-const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 2000;
+const PER_REQUEST_DELAY_MS = 400;
+const RETRY_429_BACKOFF_MS = [2000, 4000, 8000, 16000];
 const DEFAULT_LIMIT = 50;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function is429(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b429\b|RESOURCE_EXHAUSTED|"code"\s*:\s*429/.test(msg);
+}
 
 export type SummarizeStats = {
   ok: number;
@@ -69,7 +78,7 @@ export async function runSummarize(
   );
 
   console.log(
-    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"}`,
+    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} serial, ${PER_REQUEST_DELAY_MS}ms throttle`,
   );
 
   const stats: SummarizeStats = {
@@ -79,82 +88,103 @@ export async function runSummarize(
     outputTokens: 0,
     samples: [],
   };
+  let gaveUp429 = 0;
 
-  for (let i = 0; i < bills.length; i += BATCH_SIZE) {
-    const batch = bills.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(
-      batch.map(async (bill) => {
-        try {
-          const ctx = await fetchBillContext(bill, congressKey);
-          const out = await summarizeBill(client, bill, ctx);
-          stats.promptTokens += out.promptTokens;
-          stats.outputTokens += out.outputTokens;
-          if (!out.result) {
-            console.warn(`parse-fail: ${bill.id}`);
-            return { bill, result: null };
-          }
-          const transitioned =
-            bill.oldStage !== null && bill.oldStage !== out.result.stage;
-          if (transitioned) {
-            await db.execute({
-              sql: `UPDATE bills
-                    SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                        previous_stage = ?, stage_changed_at = ?
-                    WHERE id = ?`,
-              args: [
-                out.result.summary,
-                SUMMARY_MODEL,
-                new Date().toISOString(),
-                JSON.stringify(out.result.topics),
-                out.result.stage,
-                bill.oldStage,
-                new Date().toISOString(),
-                bill.id,
-              ],
-            });
-          } else {
-            await db.execute({
-              sql: `UPDATE bills
-                    SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?
-                    WHERE id = ?`,
-              args: [
-                out.result.summary,
-                SUMMARY_MODEL,
-                new Date().toISOString(),
-                JSON.stringify(out.result.topics),
-                out.result.stage,
-                bill.id,
-              ],
-            });
-          }
-          return { bill, result: out.result };
-        } catch (e) {
-          console.error(`error ${bill.id}:`, (e as Error).message);
-          return { bill, result: null };
+  for (let i = 0; i < bills.length; i++) {
+    const bill = bills[i]!;
+
+    let out: Awaited<ReturnType<typeof summarizeBill>> | null = null;
+    let attempt = 0;
+    let failed = false;
+    while (true) {
+      try {
+        const ctx = await fetchBillContext(bill, congressKey);
+        out = await summarizeBill(client, bill, ctx);
+        break;
+      } catch (e) {
+        if (is429(e) && attempt < RETRY_429_BACKOFF_MS.length) {
+          const wait = RETRY_429_BACKOFF_MS[attempt]!;
+          console.warn(
+            `429 ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_429_BACKOFF_MS.length})`,
+          );
+          await sleep(wait);
+          attempt++;
+          continue;
         }
-      }),
-    );
-
-    for (const r of results) {
-      if (r.result) {
-        stats.ok++;
-        if (stats.samples.length < 5) stats.samples.push({ bill: r.bill, result: r.result });
-      } else {
-        stats.failed++;
+        if (is429(e)) {
+          gaveUp429++;
+          console.warn(
+            `429-give-up ${bill.id}: stays NULL, will retry next pass (total give-ups: ${gaveUp429})`,
+          );
+        } else {
+          console.error(`error ${bill.id}:`, (e as Error).message);
+        }
+        failed = true;
+        break;
       }
     }
 
-    const seen = Math.min(i + BATCH_SIZE, bills.length);
+    if (failed || !out) {
+      stats.failed++;
+    } else {
+      stats.promptTokens += out.promptTokens;
+      stats.outputTokens += out.outputTokens;
+      if (!out.result) {
+        console.warn(`parse-fail: ${bill.id}`);
+        stats.failed++;
+      } else {
+        const transitioned =
+          bill.oldStage !== null && bill.oldStage !== out.result.stage;
+        if (transitioned) {
+          await db.execute({
+            sql: `UPDATE bills
+                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
+                      previous_stage = ?, stage_changed_at = ?
+                  WHERE id = ?`,
+            args: [
+              out.result.summary,
+              SUMMARY_MODEL,
+              new Date().toISOString(),
+              JSON.stringify(out.result.topics),
+              out.result.stage,
+              bill.oldStage,
+              new Date().toISOString(),
+              bill.id,
+            ],
+          });
+        } else {
+          await db.execute({
+            sql: `UPDATE bills
+                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?
+                  WHERE id = ?`,
+            args: [
+              out.result.summary,
+              SUMMARY_MODEL,
+              new Date().toISOString(),
+              JSON.stringify(out.result.topics),
+              out.result.stage,
+              bill.id,
+            ],
+          });
+        }
+        stats.ok++;
+        if (stats.samples.length < 5)
+          stats.samples.push({ bill, result: out.result });
+      }
+    }
+
+    const seen = i + 1;
     if (seen % 50 === 0 || seen === bills.length) {
       console.log(
-        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} tokens=${stats.promptTokens}/${stats.outputTokens}`,
+        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} (429-give-ups=${gaveUp429}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
       );
     }
 
-    if (i + BATCH_SIZE < bills.length) {
-      await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+    if (i + 1 < bills.length) {
+      await sleep(PER_REQUEST_DELAY_MS);
     }
   }
 
+  console.log(`final 429-give-ups: ${gaveUp429}`);
   return stats;
 }
