@@ -9,16 +9,20 @@ import {
 } from "./summarize";
 
 const PER_REQUEST_DELAY_MS = 400;
-const RETRY_429_BACKOFF_MS = [2000, 4000, 8000, 16000];
+const RETRY_BACKOFF_MS = [2000, 4000, 8000, 16000];
 const DEFAULT_LIMIT = 50;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function is429(err: unknown): boolean {
+// Gemini documents 429 (RESOURCE_EXHAUSTED) and 503 (UNAVAILABLE) as transient.
+// Other 5xx codes typically indicate a non-retryable request-shape problem.
+function isRetryable(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /\b429\b|RESOURCE_EXHAUSTED|"code"\s*:\s*429/.test(msg);
+  return /\b(429|503)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|"code"\s*:\s*(429|503)/.test(
+    msg,
+  );
 }
 
 export type SummarizeStats = {
@@ -88,7 +92,7 @@ export async function runSummarize(
     outputTokens: 0,
     samples: [],
   };
-  let gaveUp429 = 0;
+  let gaveUpRetryable = 0;
 
   for (let i = 0; i < bills.length; i++) {
     const bill = bills[i]!;
@@ -102,19 +106,19 @@ export async function runSummarize(
         out = await summarizeBill(client, bill, ctx);
         break;
       } catch (e) {
-        if (is429(e) && attempt < RETRY_429_BACKOFF_MS.length) {
-          const wait = RETRY_429_BACKOFF_MS[attempt]!;
+        if (isRetryable(e) && attempt < RETRY_BACKOFF_MS.length) {
+          const wait = RETRY_BACKOFF_MS[attempt]!;
           console.warn(
-            `429 ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_429_BACKOFF_MS.length})`,
+            `retry ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_BACKOFF_MS.length}) ${(e as Error).message.slice(0, 80)}`,
           );
           await sleep(wait);
           attempt++;
           continue;
         }
-        if (is429(e)) {
-          gaveUp429++;
+        if (isRetryable(e)) {
+          gaveUpRetryable++;
           console.warn(
-            `429-give-up ${bill.id}: stays NULL, will retry next pass (total give-ups: ${gaveUp429})`,
+            `retry-give-up ${bill.id}: stays NULL, will retry next pass (total give-ups: ${gaveUpRetryable})`,
           );
         } else {
           console.error(`error ${bill.id}:`, (e as Error).message);
@@ -176,7 +180,7 @@ export async function runSummarize(
     const seen = i + 1;
     if (seen % 50 === 0 || seen === bills.length) {
       console.log(
-        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} (429-give-ups=${gaveUp429}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
+        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} (retry-give-ups=${gaveUpRetryable}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
       );
     }
 
@@ -185,6 +189,6 @@ export async function runSummarize(
     }
   }
 
-  console.log(`final 429-give-ups: ${gaveUp429}`);
+  console.log(`final retry-give-ups: ${gaveUpRetryable}`);
   return stats;
 }
