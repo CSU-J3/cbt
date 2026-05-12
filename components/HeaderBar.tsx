@@ -2,7 +2,6 @@ import Link from "next/link";
 import { SearchBox } from "@/components/SearchBox";
 import { currentCongressLabel } from "@/lib/congress";
 import { formatLastUpdated } from "@/lib/format";
-import { timed } from "@/lib/perf";
 import {
   type FeedCount,
   type FeedFilters,
@@ -32,7 +31,7 @@ export async function HeaderBar({
   // doesn't need to re-run the same COUNT(*) query getFeedBills already did.
   feedFilteredCount?: number;
 }) {
-  const stats = await timed("HeaderBar.getFeedStats", () => getFeedStats());
+  const stats = await getFeedStats();
   const showSearch = !!feedFilters;
   const counts = showSearch
     ? countMode === "stale"

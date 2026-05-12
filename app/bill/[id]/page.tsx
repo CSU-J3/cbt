@@ -10,7 +10,6 @@ import {
   formatDateLong,
   parseTopics,
 } from "@/lib/format";
-import { timed } from "@/lib/perf";
 import { getBillById, isInWatchlist } from "@/lib/queries";
 
 const labelStyle: React.CSSProperties = {
@@ -47,32 +46,24 @@ function Divider() {
   );
 }
 
-export const revalidate = 300;
-
 export default async function BillDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const pageT0 = performance.now();
   const { id } = await params;
-  const bill = await timed("getBillById", () => getBillById(id));
+  const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const onWatchlist = await timed("isInWatchlist", () => isInWatchlist(bill.id));
+  const onWatchlist = await isInWatchlist(bill.id);
   const url = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
   const topics = parseTopics(bill.topics);
-  const rawT0 = performance.now();
   let formattedRaw = bill.raw_json;
   try {
     formattedRaw = JSON.stringify(JSON.parse(bill.raw_json), null, 2);
   } catch {
     // leave raw on parse failure
   }
-  console.log(
-    `[perf] bill raw_json format: ${Math.round(performance.now() - rawT0)}ms · size=${bill.raw_json.length}`,
-  );
-  console.log(`[perf] /bill/${id} page-data: ${Math.round(performance.now() - pageT0)}ms`);
 
   return (
     <div className="flex min-h-screen flex-col">

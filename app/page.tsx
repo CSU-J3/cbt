@@ -7,7 +7,6 @@ import { SortDropdown } from "@/components/SortDropdown";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
-import { timed } from "@/lib/perf";
 import {
   FEED_PAGE_SIZE,
   getFeedBills,
@@ -29,14 +28,11 @@ type SearchParams = {
   chamber?: string;
 };
 
-export const revalidate = 300;
-
 export default async function FeedPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const pageT0 = performance.now();
   const params = await searchParams;
   const topics = sanitizeTopics(params.topics);
   const stage = sanitizeStage(params.stage);
@@ -58,19 +54,14 @@ export default async function FeedPage({
     page: currentPage,
     totalPages,
     total: filteredCount,
-  } = await timed("getFeedBills", () =>
-    getFeedBills(feedFilters, {
-      page: requestedPage,
-      pageSize: FEED_PAGE_SIZE,
-    }),
-  );
+  } = await getFeedBills(feedFilters, {
+    page: requestedPage,
+    pageSize: FEED_PAGE_SIZE,
+  });
   const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
     ? expandedParam
     : undefined;
-  const onWatchlist = expandedId
-    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
-    : false;
-  console.log(`[perf] /  page-data: ${Math.round(performance.now() - pageT0)}ms`);
+  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const carry = new URLSearchParams();
   if (topics.length > 0) carry.set("topics", topics.join(","));

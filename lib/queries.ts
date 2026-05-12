@@ -286,24 +286,6 @@ export type FeedCount = {
   filtered: number;
 };
 
-export async function getFeedCount(filters: FeedFilters): Promise<FeedCount> {
-  const db = getDb();
-  const { clauses, args } = buildFeedWhere(filters);
-  const { clauses: totalClauses, args: totalArgs } = buildFeedWhere({});
-  const totalRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-    args: totalArgs,
-  });
-  const filteredRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${clauses.join(" AND ")}`,
-    args,
-  });
-  return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
-    filtered: Number(filteredRs.rows[0]?.n ?? 0),
-  };
-}
-
 export async function getStaleBills(
   filters: FeedFilters,
   limit = 50,
