@@ -6,7 +6,6 @@ import { timed } from "@/lib/perf";
 import {
   type FeedCount,
   type FeedFilters,
-  getFeedCount,
   getFeedStats,
 } from "@/lib/queries";
 
@@ -20,6 +19,7 @@ export async function HeaderBar({
   changesCounts,
   presidentCounts,
   sponsorCounts,
+  feedFilteredCount,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
@@ -28,19 +28,12 @@ export async function HeaderBar({
   changesCounts?: FeedCount;
   presidentCounts?: FeedCount;
   sponsorCounts?: FeedCount;
+  // Filtered count for the feed view, provided by the page so HeaderBar
+  // doesn't need to re-run the same COUNT(*) query getFeedBills already did.
+  feedFilteredCount?: number;
 }) {
   const stats = await timed("HeaderBar.getFeedStats", () => getFeedStats());
   const showSearch = !!feedFilters;
-  // When no filters are active, total and filtered both equal stats.total.
-  // Skip the DB round-trip (~3-5s on default /) and synthesize the same
-  // shape locally. Any non-empty filter falls through to the real query.
-  const hasAnyFilter =
-    !!feedFilters &&
-    ((feedFilters.topics?.length ?? 0) > 0 ||
-      !!feedFilters.stage ||
-      !!feedFilters.q ||
-      !!feedFilters.sponsor ||
-      !!feedFilters.chamber);
   const counts = showSearch
     ? countMode === "stale"
       ? (staleCounts ?? null)
@@ -50,11 +43,12 @@ export async function HeaderBar({
           ? (presidentCounts ?? null)
           : countMode === "sponsors"
             ? (sponsorCounts ?? null)
-            : hasAnyFilter
-              ? await timed("HeaderBar.getFeedCount", () =>
-                  getFeedCount(feedFilters!),
-                )
-              : ({ total: stats.total, filtered: stats.total } as FeedCount)
+            : feedFilteredCount !== undefined
+              ? ({
+                  total: stats.total,
+                  filtered: feedFilteredCount,
+                } as FeedCount)
+              : null
     : null;
   const q = feedFilters?.q?.trim() ?? "";
   const sponsor = feedFilters?.sponsor?.trim() ?? "";

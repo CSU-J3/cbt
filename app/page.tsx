@@ -57,6 +57,7 @@ export default async function FeedPage({
     bills,
     page: currentPage,
     totalPages,
+    total: filteredCount,
   } = await timed("getFeedBills", () =>
     getFeedBills(feedFilters, {
       page: requestedPage,
@@ -88,7 +89,7 @@ export default async function FeedPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar feedFilters={feedFilters} />
+      <HeaderBar feedFilters={feedFilters} feedFilteredCount={filteredCount} />
 
       <main className="w-full flex-1 px-4 py-4">
         <section
