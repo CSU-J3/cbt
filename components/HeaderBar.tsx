@@ -31,6 +31,16 @@ export async function HeaderBar({
 }) {
   const stats = await timed("HeaderBar.getFeedStats", () => getFeedStats());
   const showSearch = !!feedFilters;
+  // When no filters are active, total and filtered both equal stats.total.
+  // Skip the DB round-trip (~3-5s on default /) and synthesize the same
+  // shape locally. Any non-empty filter falls through to the real query.
+  const hasAnyFilter =
+    !!feedFilters &&
+    ((feedFilters.topics?.length ?? 0) > 0 ||
+      !!feedFilters.stage ||
+      !!feedFilters.q ||
+      !!feedFilters.sponsor ||
+      !!feedFilters.chamber);
   const counts = showSearch
     ? countMode === "stale"
       ? (staleCounts ?? null)
@@ -40,9 +50,11 @@ export async function HeaderBar({
           ? (presidentCounts ?? null)
           : countMode === "sponsors"
             ? (sponsorCounts ?? null)
-            : await timed("HeaderBar.getFeedCount", () =>
-                getFeedCount(feedFilters!),
-              )
+            : hasAnyFilter
+              ? await timed("HeaderBar.getFeedCount", () =>
+                  getFeedCount(feedFilters!),
+                )
+              : ({ total: stats.total, filtered: stats.total } as FeedCount)
     : null;
   const q = feedFilters?.q?.trim() ?? "";
   const sponsor = feedFilters?.sponsor?.trim() ?? "";
