@@ -97,6 +97,9 @@ function buildFeedWhere(filters: FeedFilters): {
   clauses: string[];
   args: (string | number)[];
 } {
+  // Intentional: feed hides un-summarized rows (they read as broken to users).
+  // Header counts derive from this same WHERE, so the displayed total always
+  // matches what the feed renders. Don't drop without picking a placeholder UX.
   const clauses: string[] = ["summary IS NOT NULL"];
   const args: (string | number)[] = [];
 
