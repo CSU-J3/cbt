@@ -47,6 +47,8 @@ function Divider() {
   );
 }
 
+export const revalidate = 300;
+
 export default async function BillDetailPage({
   params,
 }: {

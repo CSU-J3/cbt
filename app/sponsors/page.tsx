@@ -20,6 +20,8 @@ type SearchParams = {
   sort?: string;
 };
 
+export const revalidate = 300;
+
 function partyColorFor(party: string | null): string {
   const key = normalizePartyVariant(party);
   if (key === "R") return "var(--party-republican)";

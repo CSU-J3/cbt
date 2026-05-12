@@ -1,3 +1,4 @@
+import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { addToWatchlist, getBillById, removeFromWatchlist } from "@/lib/queries";
 
@@ -33,5 +34,6 @@ export async function POST(request: Request) {
   } else {
     await removeFromWatchlist(billId);
   }
+  revalidatePath("/watchlist");
   return NextResponse.json({ ok: true, billId, action });
 }

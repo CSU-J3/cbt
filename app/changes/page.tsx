@@ -21,6 +21,8 @@ type SearchParams = {
 
 const DAYS = 7;
 
+export const revalidate = 300;
+
 export default async function ChangesPage({
   searchParams,
 }: {
