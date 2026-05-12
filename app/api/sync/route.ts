@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { runSummarize } from "@/lib/summarize-runner";
 import { runSync } from "@/lib/sync";
@@ -29,6 +30,8 @@ async function handle(request: Request) {
 
   const sync = await runSync();
   const summarize = await runSummarize({ limit: 50 });
+
+  revalidateTag("feed-stats");
 
   return NextResponse.json({
     ok: true,

@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getDb } from "./db";
 import { ALLOWED_STAGES_SET, ALLOWED_TOPICS_SET } from "./enums";
 
@@ -190,20 +191,30 @@ export type FeedStats = {
   lastUpdated: string | null;
 };
 
-export async function getFeedStats(): Promise<FeedStats> {
-  const db = getDb();
-  const { clauses, args } = buildFeedWhere({});
-  const r = await db.execute({
-    sql: `SELECT COUNT(*) AS total, MAX(update_date) AS last
-          FROM bills WHERE ${clauses.join(" AND ")}`,
-    args,
-  });
-  const row = r.rows[0];
-  return {
-    total: Number(row?.total ?? 0),
-    lastUpdated: (row?.last as string | null) ?? null,
-  };
-}
+// Global "X bills · updated Y" counter shown in HeaderBar on every page.
+// Cached for 1h because (a) the sync cron writes once daily, and (b) the
+// sync route calls revalidateTag("feed-stats") on success so post-sync hits
+// see fresh numbers immediately. Step 0 measured this query at 1.5-3s; the
+// HeaderBar runs on every page render, so caching it removes the dominant
+// per-request cost across the entire dashboard.
+export const getFeedStats = unstable_cache(
+  async (): Promise<FeedStats> => {
+    const db = getDb();
+    const { clauses, args } = buildFeedWhere({});
+    const r = await db.execute({
+      sql: `SELECT COUNT(*) AS total, MAX(update_date) AS last
+            FROM bills WHERE ${clauses.join(" AND ")}`,
+      args,
+    });
+    const row = r.rows[0];
+    return {
+      total: Number(row?.total ?? 0),
+      lastUpdated: (row?.last as string | null) ?? null,
+    };
+  },
+  ["getFeedStats"],
+  { revalidate: 3600, tags: ["feed-stats"] },
+);
 
 export const FEED_PAGE_SIZE = 100;
 
