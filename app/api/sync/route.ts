@@ -32,6 +32,7 @@ async function handle(request: Request) {
   const summarize = await runSummarize({ limit: 50 });
 
   revalidateTag("feed-stats");
+  revalidateTag("feed-bills");
 
   return NextResponse.json({
     ok: true,

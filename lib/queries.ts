@@ -226,47 +226,60 @@ export type FeedPage = {
   totalPages: number;
 };
 
-export async function getFeedBills(
-  filters: FeedFilters,
-  {
-    page = 1,
-    pageSize = FEED_PAGE_SIZE,
-  }: { page?: number; pageSize?: number } = {},
-): Promise<FeedPage> {
-  const db = getDb();
-  const { clauses, args } = buildFeedWhere(filters);
-  const where = clauses.join(" AND ");
+// Wrapped in unstable_cache because revalidate=300 does nothing for a route
+// that awaits searchParams (Next.js 15 treats that as a dynamic API and
+// disables the Full Route Cache). Caching at the query level instead means
+// the dominant default-/ view (unfiltered, page 1) serves from cache for
+// every user. Sync cron calls revalidateTag("feed-bills") on write.
+//
+// Cache key includes filters + page + pageSize via unstable_cache's
+// argument-derived keying. Filter combinations that vary order (e.g. topics)
+// produce distinct keys; that's a hit-rate cost we accept for simplicity.
+export const getFeedBills = unstable_cache(
+  async (
+    filters: FeedFilters,
+    {
+      page = 1,
+      pageSize = FEED_PAGE_SIZE,
+    }: { page?: number; pageSize?: number } = {},
+  ): Promise<FeedPage> => {
+    const db = getDb();
+    const { clauses, args } = buildFeedWhere(filters);
+    const where = clauses.join(" AND ");
 
-  const countRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${where}`,
-    args: [...args],
-  });
-  const total = Number(countRs.rows[0]?.n ?? 0);
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
-  const offset = (clampedPage - 1) * pageSize;
+    const countRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${where}`,
+      args: [...args],
+    });
+    const total = Number(countRs.rows[0]?.n ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
+    const offset = (clampedPage - 1) * pageSize;
 
-  const sortColumn =
-    filters.sort === "introduced" ? "introduced_date" : "latest_action_date";
+    const sortColumn =
+      filters.sort === "introduced" ? "introduced_date" : "latest_action_date";
 
-  const sql = `SELECT id, congress, bill_type, bill_number, title,
-    sponsor_name, sponsor_party, sponsor_state, introduced_date,
-    latest_action_date, latest_action_text, update_date,
-    summary, topics, stage
-    FROM bills
-    WHERE ${where}
-    ORDER BY ${sortColumn} DESC NULLS LAST, id DESC
-    LIMIT ? OFFSET ?`;
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage
+      FROM bills
+      WHERE ${where}
+      ORDER BY ${sortColumn} DESC NULLS LAST, id DESC
+      LIMIT ? OFFSET ?`;
 
-  const rs = await db.execute({ sql, args: [...args, pageSize, offset] });
-  return {
-    bills: rs.rows.map(rowToFeedBill),
-    total,
-    page: clampedPage,
-    pageSize,
-    totalPages,
-  };
-}
+    const rs = await db.execute({ sql, args: [...args, pageSize, offset] });
+    return {
+      bills: rs.rows.map(rowToFeedBill),
+      total,
+      page: clampedPage,
+      pageSize,
+      totalPages,
+    };
+  },
+  ["getFeedBills"],
+  { revalidate: 3600, tags: ["feed-bills"] },
+);
 
 export type FeedCount = {
   total: number;
