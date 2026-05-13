@@ -4,8 +4,11 @@ import { runSummarize } from "@/lib/summarize-runner";
 import { runSync } from "@/lib/sync";
 
 // Sync + summarize can take many seconds; opt out of static optimization.
-// 60s matches the Vercel Hobby ceiling. The summarize step is sliced to 50
-// bills/tick (see runSummarize call below) so each cron run finishes well under it.
+// 60s matches the Vercel Hobby ceiling. Summarize is throttled at 400ms +
+// can hit Gemini 429/503 backoffs, which empirically caps us at ~12 bills
+// per run inside the 60s window. The previous 50 was aspirational and
+// caused timeouts; with timeouts, the post-sync revalidateTag never flushed
+// and the dashboard caches went stale for a full TTL.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -36,7 +39,7 @@ async function handle(request: Request) {
 
   let summarize: Awaited<ReturnType<typeof runSummarize>> | null = null;
   try {
-    summarize = await runSummarize({ limit: 50 });
+    summarize = await runSummarize({ limit: 12 });
     revalidateTag("bills");
   } catch (err) {
     console.error("[sync] summarize step failed:", err);
