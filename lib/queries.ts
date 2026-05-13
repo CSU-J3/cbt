@@ -213,7 +213,7 @@ export const getFeedStats = unstable_cache(
     };
   },
   ["getFeedStats"],
-  { revalidate: 3600, tags: ["feed-stats"] },
+  { revalidate: 3600, tags: ["bills"] },
 );
 
 export const FEED_PAGE_SIZE = 100;
@@ -278,7 +278,7 @@ export const getFeedBills = unstable_cache(
     };
   },
   ["getFeedBills"],
-  { revalidate: 3600, tags: ["feed-bills"] },
+  { revalidate: 3600, tags: ["bills"] },
 );
 
 export type FeedCount = {

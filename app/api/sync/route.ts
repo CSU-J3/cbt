@@ -29,20 +29,30 @@ async function handle(request: Request) {
   if (denied) return denied;
 
   const sync = await runSync();
-  const summarize = await runSummarize({ limit: 50 });
+  // Invalidate after sync writes new bill rows, even if the summarize step
+  // below later runs long and the 60s function ceiling kills us. Without
+  // this, a timeout would leave stale caches for up to an hour.
+  revalidateTag("bills");
 
-  revalidateTag("feed-stats");
-  revalidateTag("feed-bills");
+  let summarize: Awaited<ReturnType<typeof runSummarize>> | null = null;
+  try {
+    summarize = await runSummarize({ limit: 50 });
+    revalidateTag("bills");
+  } catch (err) {
+    console.error("[sync] summarize step failed:", err);
+  }
 
   return NextResponse.json({
     ok: true,
     sync,
-    summarize: {
-      ok: summarize.ok,
-      failed: summarize.failed,
-      promptTokens: summarize.promptTokens,
-      outputTokens: summarize.outputTokens,
-    },
+    summarize: summarize
+      ? {
+          ok: summarize.ok,
+          failed: summarize.failed,
+          promptTokens: summarize.promptTokens,
+          outputTokens: summarize.outputTokens,
+        }
+      : null,
   });
 }
 
