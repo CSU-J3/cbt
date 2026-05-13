@@ -286,26 +286,27 @@ export type FeedCount = {
   filtered: number;
 };
 
-export async function getStaleBills(
-  filters: FeedFilters,
-  limit = 50,
-): Promise<FeedBill[]> {
-  const db = getDb();
-  const { clauses, args } = buildStaleWhere(filters);
-  args.push(limit);
+export const getStaleBills = unstable_cache(
+  async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
+    const db = getDb();
+    const { clauses, args } = buildStaleWhere(filters);
+    args.push(limit);
 
-  const sql = `SELECT id, congress, bill_type, bill_number, title,
-    sponsor_name, sponsor_party, sponsor_state, introduced_date,
-    latest_action_date, latest_action_text, update_date,
-    summary, topics, stage
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    ORDER BY latest_action_date ASC
-    LIMIT ?`;
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage
+      FROM bills
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY latest_action_date ASC
+      LIMIT ?`;
 
-  const rs = await db.execute({ sql, args });
-  return rs.rows.map(rowToFeedBill);
-}
+    const rs = await db.execute({ sql, args });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getStaleBills"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 function buildPresidentWhere(filters: FeedFilters): {
   clauses: string[];
@@ -319,48 +320,51 @@ function buildPresidentWhere(filters: FeedFilters): {
   return { clauses, args };
 }
 
-export async function getPresidentBills(
-  filters: FeedFilters,
-  limit = 50,
-): Promise<FeedBill[]> {
-  const db = getDb();
-  const { clauses, args } = buildPresidentWhere(filters);
-  args.push(limit);
+export const getPresidentBills = unstable_cache(
+  async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
+    const db = getDb();
+    const { clauses, args } = buildPresidentWhere(filters);
+    args.push(limit);
 
-  const sql = `SELECT id, congress, bill_type, bill_number, title,
-    sponsor_name, sponsor_party, sponsor_state, introduced_date,
-    latest_action_date, latest_action_text, update_date,
-    summary, topics, stage
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    ORDER BY latest_action_date ASC
-    LIMIT ?`;
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage
+      FROM bills
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY latest_action_date ASC
+      LIMIT ?`;
 
-  const rs = await db.execute({ sql, args });
-  return rs.rows.map(rowToFeedBill);
-}
+    const rs = await db.execute({ sql, args });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getPresidentBills"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
-export async function getPresidentCount(
-  filters: FeedFilters,
-): Promise<FeedCount> {
-  const db = getDb();
-  const { clauses: filteredClauses, args: filteredArgs } =
-    buildPresidentWhere(filters);
-  const { clauses: totalClauses, args: totalArgs } = buildPresidentWhere({});
+export const getPresidentCount = unstable_cache(
+  async (filters: FeedFilters): Promise<FeedCount> => {
+    const db = getDb();
+    const { clauses: filteredClauses, args: filteredArgs } =
+      buildPresidentWhere(filters);
+    const { clauses: totalClauses, args: totalArgs } = buildPresidentWhere({});
 
-  const totalRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-    args: totalArgs,
-  });
-  const filteredRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
-    args: filteredArgs,
-  });
-  return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
-    filtered: Number(filteredRs.rows[0]?.n ?? 0),
-  };
-}
+    const totalRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
+      args: totalArgs,
+    });
+    const filteredRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
+      args: filteredArgs,
+    });
+    return {
+      total: Number(totalRs.rows[0]?.n ?? 0),
+      filtered: Number(filteredRs.rows[0]?.n ?? 0),
+    };
+  },
+  ["getPresidentCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 function buildSponsorWhere(filters: SponsorFilters): {
   clauses: string[];
@@ -479,46 +483,50 @@ export type SponsorRanking = {
   passrate: number;
 };
 
-export async function getSponsorsRanked(
-  filters: SponsorFilters,
-  sort: SponsorSort = "volume",
-  limit = 100,
-): Promise<SponsorRanking[]> {
-  const db = getDb();
-  const { clauses, args } = buildSponsorWhere(filters);
-  const sql = `SELECT
-      COALESCE(sponsor_bioguide_id, sponsor_name) AS group_key,
-      MAX(sponsor_bioguide_id) AS sponsor_bioguide_id,
-      MAX(sponsor_name) AS sponsor_name,
-      MAX(sponsor_party) AS sponsor_party,
-      MAX(sponsor_state) AS sponsor_state,
-      COUNT(*) AS total,
-      SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
-      CAST(SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS REAL)
-        / COUNT(*) AS passrate
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    GROUP BY group_key
-    ORDER BY
-      CASE WHEN ? = 'passrate' THEN passrate END DESC,
-      CASE WHEN ? = 'passrate' THEN total END DESC,
-      CASE WHEN ? = 'volume' THEN total END DESC,
-      sponsor_name ASC
-    LIMIT ?`;
-  const rs = await db.execute({
-    sql,
-    args: [...args, sort, sort, sort, limit],
-  });
-  return rs.rows.map((r) => ({
-    sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
-    sponsor_name: r.sponsor_name as string,
-    sponsor_party: (r.sponsor_party as string | null) ?? null,
-    sponsor_state: (r.sponsor_state as string | null) ?? null,
-    total: Number(r.total ?? 0),
-    enacted: Number(r.enacted ?? 0),
-    passrate: Number(r.passrate ?? 0),
-  }));
-}
+export const getSponsorsRanked = unstable_cache(
+  async (
+    filters: SponsorFilters,
+    sort: SponsorSort = "volume",
+    limit = 100,
+  ): Promise<SponsorRanking[]> => {
+    const db = getDb();
+    const { clauses, args } = buildSponsorWhere(filters);
+    const sql = `SELECT
+        COALESCE(sponsor_bioguide_id, sponsor_name) AS group_key,
+        MAX(sponsor_bioguide_id) AS sponsor_bioguide_id,
+        MAX(sponsor_name) AS sponsor_name,
+        MAX(sponsor_party) AS sponsor_party,
+        MAX(sponsor_state) AS sponsor_state,
+        COUNT(*) AS total,
+        SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+        CAST(SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS REAL)
+          / COUNT(*) AS passrate
+      FROM bills
+      WHERE ${clauses.join(" AND ")}
+      GROUP BY group_key
+      ORDER BY
+        CASE WHEN ? = 'passrate' THEN passrate END DESC,
+        CASE WHEN ? = 'passrate' THEN total END DESC,
+        CASE WHEN ? = 'volume' THEN total END DESC,
+        sponsor_name ASC
+      LIMIT ?`;
+    const rs = await db.execute({
+      sql,
+      args: [...args, sort, sort, sort, limit],
+    });
+    return rs.rows.map((r) => ({
+      sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
+      sponsor_name: r.sponsor_name as string,
+      sponsor_party: (r.sponsor_party as string | null) ?? null,
+      sponsor_state: (r.sponsor_state as string | null) ?? null,
+      total: Number(r.total ?? 0),
+      enacted: Number(r.enacted ?? 0),
+      passrate: Number(r.passrate ?? 0),
+    }));
+  },
+  ["getSponsorsRanked"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 export type SponsorPassRate = {
   sponsor_bioguide_id: string | null;
@@ -573,21 +581,23 @@ export async function getSponsorStates(): Promise<string[]> {
     .filter((s): s is string => !!s);
 }
 
-export async function getSponsorRecentBills(
-  sponsorKey: string,
-): Promise<FeedBill[]> {
-  const db = getDb();
-  const sql = `SELECT id, congress, bill_type, bill_number, title,
-    sponsor_name, sponsor_party, sponsor_state, introduced_date,
-    latest_action_date, latest_action_text, update_date,
-    summary, topics, stage
-    FROM bills
-    WHERE summary IS NOT NULL
-      AND (sponsor_bioguide_id = ? OR sponsor_name = ?)
-    ORDER BY latest_action_date DESC NULLS LAST`;
-  const rs = await db.execute({ sql, args: [sponsorKey, sponsorKey] });
-  return rs.rows.map(rowToFeedBill);
-}
+export const getSponsorRecentBills = unstable_cache(
+  async (sponsorKey: string): Promise<FeedBill[]> => {
+    const db = getDb();
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage
+      FROM bills
+      WHERE summary IS NOT NULL
+        AND (sponsor_bioguide_id = ? OR sponsor_name = ?)
+      ORDER BY latest_action_date DESC NULLS LAST`;
+    const rs = await db.execute({ sql, args: [sponsorKey, sponsorKey] });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getSponsorRecentBills"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 export type SponsorStats = {
   total: number;
@@ -599,68 +609,71 @@ export type SponsorStats = {
   president: number;
 };
 
-export async function getSponsorStats(
-  sponsorKey: string,
-): Promise<SponsorStats> {
-  const db = getDb();
-  const rs = await db.execute({
-    sql: `SELECT
-        COUNT(*) AS total,
-        SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
-        SUM(CASE WHEN stage = 'introduced' THEN 1 ELSE 0 END) AS introduced,
-        SUM(CASE WHEN stage = 'committee' THEN 1 ELSE 0 END) AS committee,
-        SUM(CASE WHEN stage = 'floor' THEN 1 ELSE 0 END) AS floor_count,
-        SUM(CASE WHEN stage = 'other_chamber' THEN 1 ELSE 0 END) AS other_chamber,
-        SUM(CASE WHEN stage = 'president' THEN 1 ELSE 0 END) AS president
-      FROM bills
-      WHERE sponsor_bioguide_id = ? OR sponsor_name = ?`,
-    args: [sponsorKey, sponsorKey],
-  });
-  const r = rs.rows[0];
-  return {
-    total: Number(r?.total ?? 0),
-    enacted: Number(r?.enacted ?? 0),
-    introduced: Number(r?.introduced ?? 0),
-    committee: Number(r?.committee ?? 0),
-    floor: Number(r?.floor_count ?? 0),
-    other_chamber: Number(r?.other_chamber ?? 0),
-    president: Number(r?.president ?? 0),
-  };
-}
+export const getSponsorStats = unstable_cache(
+  async (sponsorKey: string): Promise<SponsorStats> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+          SUM(CASE WHEN stage = 'introduced' THEN 1 ELSE 0 END) AS introduced,
+          SUM(CASE WHEN stage = 'committee' THEN 1 ELSE 0 END) AS committee,
+          SUM(CASE WHEN stage = 'floor' THEN 1 ELSE 0 END) AS floor_count,
+          SUM(CASE WHEN stage = 'other_chamber' THEN 1 ELSE 0 END) AS other_chamber,
+          SUM(CASE WHEN stage = 'president' THEN 1 ELSE 0 END) AS president
+        FROM bills
+        WHERE sponsor_bioguide_id = ? OR sponsor_name = ?`,
+      args: [sponsorKey, sponsorKey],
+    });
+    const r = rs.rows[0];
+    return {
+      total: Number(r?.total ?? 0),
+      enacted: Number(r?.enacted ?? 0),
+      introduced: Number(r?.introduced ?? 0),
+      committee: Number(r?.committee ?? 0),
+      floor: Number(r?.floor_count ?? 0),
+      other_chamber: Number(r?.other_chamber ?? 0),
+      president: Number(r?.president ?? 0),
+    };
+  },
+  ["getSponsorStats"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 export type SponsorTopic = { topic: string; count: number };
 
-export async function getSponsorTopTopics(
-  sponsorKey: string,
-  limit = 3,
-): Promise<SponsorTopic[]> {
-  const db = getDb();
-  const rs = await db.execute({
-    sql: `SELECT topics FROM bills
-          WHERE topics IS NOT NULL
-            AND (sponsor_bioguide_id = ? OR sponsor_name = ?)`,
-    args: [sponsorKey, sponsorKey],
-  });
-  const counts = new Map<string, number>();
-  for (const row of rs.rows) {
-    const raw = row.topics as string | null;
-    if (!raw) continue;
-    try {
-      const arr = JSON.parse(raw) as unknown;
-      if (!Array.isArray(arr)) continue;
-      for (const t of arr) {
-        if (typeof t !== "string") continue;
-        counts.set(t, (counts.get(t) ?? 0) + 1);
+export const getSponsorTopTopics = unstable_cache(
+  async (sponsorKey: string, limit = 3): Promise<SponsorTopic[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT topics FROM bills
+            WHERE topics IS NOT NULL
+              AND (sponsor_bioguide_id = ? OR sponsor_name = ?)`,
+      args: [sponsorKey, sponsorKey],
+    });
+    const counts = new Map<string, number>();
+    for (const row of rs.rows) {
+      const raw = row.topics as string | null;
+      if (!raw) continue;
+      try {
+        const arr = JSON.parse(raw) as unknown;
+        if (!Array.isArray(arr)) continue;
+        for (const t of arr) {
+          if (typeof t !== "string") continue;
+          counts.set(t, (counts.get(t) ?? 0) + 1);
+        }
+      } catch {
+        continue;
       }
-    } catch {
-      continue;
     }
-  }
-  return [...counts.entries()]
-    .map(([topic, count]) => ({ topic, count }))
-    .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic))
-    .slice(0, limit);
-}
+    return [...counts.entries()]
+      .map(([topic, count]) => ({ topic, count }))
+      .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic))
+      .slice(0, limit);
+  },
+  ["getSponsorTopTopics"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 function buildChangesWhere(filters: FeedFilters, days: number): {
   clauses: string[];
@@ -673,78 +686,87 @@ function buildChangesWhere(filters: FeedFilters, days: number): {
   return { clauses, args };
 }
 
-export async function getStageChanges(
-  filters: FeedFilters,
-  days = 7,
-  limit = 200,
-): Promise<FeedBill[]> {
-  const db = getDb();
-  const { clauses, args } = buildChangesWhere(filters, days);
-  args.push(limit);
+export const getStageChanges = unstable_cache(
+  async (
+    filters: FeedFilters,
+    days = 7,
+    limit = 200,
+  ): Promise<FeedBill[]> => {
+    const db = getDb();
+    const { clauses, args } = buildChangesWhere(filters, days);
+    args.push(limit);
 
-  const sql = `SELECT id, congress, bill_type, bill_number, title,
-    sponsor_name, sponsor_party, sponsor_state, introduced_date,
-    latest_action_date, latest_action_text, update_date,
-    summary, topics, stage, previous_stage, stage_changed_at
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    ORDER BY stage_changed_at DESC
-    LIMIT ?`;
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage, previous_stage, stage_changed_at
+      FROM bills
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY stage_changed_at DESC
+      LIMIT ?`;
 
-  const rs = await db.execute({ sql, args });
-  return rs.rows.map((r) => ({
-    ...rowToFeedBill(r),
-    previous_stage: (r.previous_stage as string | null) ?? null,
-    stage_changed_at: (r.stage_changed_at as string | null) ?? null,
-  }));
-}
+    const rs = await db.execute({ sql, args });
+    return rs.rows.map((r) => ({
+      ...rowToFeedBill(r),
+      previous_stage: (r.previous_stage as string | null) ?? null,
+      stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+    }));
+  },
+  ["getStageChanges"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
-export async function getStageChangesCount(
-  filters: FeedFilters,
-  days = 7,
-): Promise<FeedCount> {
-  const db = getDb();
-  const { clauses: filteredClauses, args: filteredArgs } = buildChangesWhere(
-    filters,
-    days,
-  );
-  const { clauses: totalClauses, args: totalArgs } = buildChangesWhere(
-    {},
-    days,
-  );
-  const totalRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-    args: totalArgs,
-  });
-  const filteredRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
-    args: filteredArgs,
-  });
-  return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
-    filtered: Number(filteredRs.rows[0]?.n ?? 0),
-  };
-}
+export const getStageChangesCount = unstable_cache(
+  async (filters: FeedFilters, days = 7): Promise<FeedCount> => {
+    const db = getDb();
+    const { clauses: filteredClauses, args: filteredArgs } = buildChangesWhere(
+      filters,
+      days,
+    );
+    const { clauses: totalClauses, args: totalArgs } = buildChangesWhere(
+      {},
+      days,
+    );
+    const totalRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
+      args: totalArgs,
+    });
+    const filteredRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
+      args: filteredArgs,
+    });
+    return {
+      total: Number(totalRs.rows[0]?.n ?? 0),
+      filtered: Number(filteredRs.rows[0]?.n ?? 0),
+    };
+  },
+  ["getStageChangesCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
-export async function getStaleCount(filters: FeedFilters): Promise<FeedCount> {
-  const db = getDb();
-  const { clauses: filteredClauses, args: filteredArgs } =
-    buildStaleWhere(filters);
-  const { clauses: totalClauses, args: totalArgs } = buildStaleWhere({});
+export const getStaleCount = unstable_cache(
+  async (filters: FeedFilters): Promise<FeedCount> => {
+    const db = getDb();
+    const { clauses: filteredClauses, args: filteredArgs } =
+      buildStaleWhere(filters);
+    const { clauses: totalClauses, args: totalArgs } = buildStaleWhere({});
 
-  const totalRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-    args: totalArgs,
-  });
-  const filteredRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
-    args: filteredArgs,
-  });
-  return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
-    filtered: Number(filteredRs.rows[0]?.n ?? 0),
-  };
-}
+    const totalRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
+      args: totalArgs,
+    });
+    const filteredRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
+      args: filteredArgs,
+    });
+    return {
+      total: Number(totalRs.rows[0]?.n ?? 0),
+      filtered: Number(filteredRs.rows[0]?.n ?? 0),
+    };
+  },
+  ["getStaleCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 function rowToFeedBill(r: Record<string, unknown>): FeedBill {
   return {
@@ -825,27 +847,30 @@ export async function removeFromWatchlist(billId: string): Promise<void> {
   });
 }
 
-export async function getWatchlistBills(
-  sort: SortKey = "action",
-  chamber?: Chamber,
-): Promise<FeedBill[]> {
-  const db = getDb();
-  const sortColumn =
-    sort === "introduced" ? "b.introduced_date" : "b.latest_action_date";
-  const chamberClause =
-    chamber === "house"
-      ? ` AND b.bill_type IN (${HOUSE_BILL_TYPES})`
-      : chamber === "senate"
-        ? ` AND b.bill_type IN (${SENATE_BILL_TYPES})`
-        : "";
-  const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
-    b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
-    b.latest_action_date, b.latest_action_text, b.update_date,
-    b.summary, b.topics, b.stage
-    FROM bills b
-    INNER JOIN watchlist w ON w.bill_id = b.id
-    WHERE 1=1${chamberClause}
-    ORDER BY ${sortColumn} DESC NULLS LAST, b.id DESC`;
-  const rs = await db.execute(sql);
-  return rs.rows.map(rowToFeedBill);
-}
+// Tagged with both "watchlist" (membership changes from toggle) and "bills"
+// (underlying row data changes from sync), so either trigger invalidates.
+export const getWatchlistBills = unstable_cache(
+  async (sort: SortKey = "action", chamber?: Chamber): Promise<FeedBill[]> => {
+    const db = getDb();
+    const sortColumn =
+      sort === "introduced" ? "b.introduced_date" : "b.latest_action_date";
+    const chamberClause =
+      chamber === "house"
+        ? ` AND b.bill_type IN (${HOUSE_BILL_TYPES})`
+        : chamber === "senate"
+          ? ` AND b.bill_type IN (${SENATE_BILL_TYPES})`
+          : "";
+    const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
+      b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
+      b.latest_action_date, b.latest_action_text, b.update_date,
+      b.summary, b.topics, b.stage
+      FROM bills b
+      INNER JOIN watchlist w ON w.bill_id = b.id
+      WHERE 1=1${chamberClause}
+      ORDER BY ${sortColumn} DESC NULLS LAST, b.id DESC`;
+    const rs = await db.execute(sql);
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getWatchlistBills"],
+  { revalidate: 3600, tags: ["watchlist", "bills"] },
+);
