@@ -4,7 +4,6 @@ import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
-import { timed } from "@/lib/perf";
 import {
   getStageChanges,
   getStageChangesCount,
@@ -22,8 +21,6 @@ type SearchParams = {
 
 const DAYS = 7;
 
-export const revalidate = 300;
-
 export default async function ChangesPage({
   searchParams,
 }: {
@@ -38,19 +35,15 @@ export default async function ChangesPage({
   const hasFilters = topics.length > 0 || !!chamber;
   const feedFilters = { topics, q: q || undefined, chamber };
 
-  const pageT0 = performance.now();
   const [bills, counts] = await Promise.all([
-    timed("getStageChanges", () => getStageChanges(feedFilters, DAYS)),
-    timed("getStageChangesCount", () => getStageChangesCount(feedFilters, DAYS)),
+    getStageChanges(feedFilters, DAYS),
+    getStageChangesCount(feedFilters, DAYS),
   ]);
   const expandedId =
     expandedParam && bills.some((b) => b.id === expandedParam)
       ? expandedParam
       : undefined;
-  const onWatchlist = expandedId
-    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
-    : false;
-  console.log(`[perf] /changes page-data: ${Math.round(performance.now() - pageT0)}ms`);
+  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));

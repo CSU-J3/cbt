@@ -3,7 +3,6 @@ import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { SponsorSortToggle } from "@/components/SponsorSortToggle";
-import { timed } from "@/lib/perf";
 import {
   type Chamber,
   getSponsorRecentBills,
@@ -20,8 +19,6 @@ type SearchParams = {
   expanded?: string;
   sort?: string;
 };
-
-export const revalidate = 300;
 
 function partyColorFor(party: string | null): string {
   const key = normalizePartyVariant(party);
@@ -40,16 +37,13 @@ export default async function SponsorsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const pageT0 = performance.now();
   const params = await searchParams;
   const chamber = sanitizeChamber(params.chamber);
   const sort = sanitizeSponsorSort(params.sort);
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
   const headerFilters = { topics: [], chamber };
-  const rows = await timed("getSponsorsRanked", () =>
-    getSponsorsRanked({ chamber }, sort, 100),
-  );
+  const rows = await getSponsorsRanked({ chamber }, sort, 100);
   const maxVolume = rows.reduce((m, r) => Math.max(m, r.total), 0);
 
   const expandedSponsor = expandedParam
@@ -60,14 +54,13 @@ export default async function SponsorsPage({
     ? await (async () => {
         const key = sponsorKey(expandedSponsor);
         const [stats, topics, recentBills] = await Promise.all([
-          timed("getSponsorStats", () => getSponsorStats(key)),
-          timed("getSponsorTopTopics", () => getSponsorTopTopics(key)),
-          timed("getSponsorRecentBills", () => getSponsorRecentBills(key)),
+          getSponsorStats(key),
+          getSponsorTopTopics(key),
+          getSponsorRecentBills(key),
         ]);
         return { key, stats, topics, recentBills };
       })()
     : null;
-  console.log(`[perf] /sponsors page-data: ${Math.round(performance.now() - pageT0)}ms`);
 
   const carry = new URLSearchParams();
   if (chamber) carry.set("chamber", chamber);

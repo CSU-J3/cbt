@@ -5,7 +5,6 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
-import { timed } from "@/lib/perf";
 import {
   getStaleBills,
   getStaleCount,
@@ -23,8 +22,6 @@ type SearchParams = {
   q?: string;
   chamber?: string;
 };
-
-export const revalidate = 300;
 
 export default async function StalePage({
   searchParams,
@@ -47,19 +44,15 @@ export default async function StalePage({
   if (q) carry.set("q", q);
   if (chamber) carry.set("chamber", chamber);
 
-  const pageT0 = performance.now();
   const [bills, counts] = await Promise.all([
-    timed("getStaleBills", () => getStaleBills(feedFilters, 50)),
-    timed("getStaleCount", () => getStaleCount(feedFilters)),
+    getStaleBills(feedFilters, 50),
+    getStaleCount(feedFilters),
   ]);
   const expandedId =
     expandedParam && bills.some((b) => b.id === expandedParam)
       ? expandedParam
       : undefined;
-  const onWatchlist = expandedId
-    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
-    : false;
-  console.log(`[perf] /stale page-data: ${Math.round(performance.now() - pageT0)}ms`);
+  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));

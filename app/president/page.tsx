@@ -4,7 +4,6 @@ import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
-import { timed } from "@/lib/perf";
 import {
   getPresidentBills,
   getPresidentCount,
@@ -19,8 +18,6 @@ type SearchParams = {
   q?: string;
   chamber?: string;
 };
-
-export const revalidate = 300;
 
 export default async function PresidentPage({
   searchParams,
@@ -41,19 +38,15 @@ export default async function PresidentPage({
   if (q) carry.set("q", q);
   if (chamber) carry.set("chamber", chamber);
 
-  const pageT0 = performance.now();
   const [bills, counts] = await Promise.all([
-    timed("getPresidentBills", () => getPresidentBills(feedFilters, 50)),
-    timed("getPresidentCount", () => getPresidentCount(feedFilters)),
+    getPresidentBills(feedFilters, 50),
+    getPresidentCount(feedFilters),
   ]);
   const expandedId =
     expandedParam && bills.some((b) => b.id === expandedParam)
       ? expandedParam
       : undefined;
-  const onWatchlist = expandedId
-    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
-    : false;
-  console.log(`[perf] /president page-data: ${Math.round(performance.now() - pageT0)}ms`);
+  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));

@@ -3,7 +3,6 @@ import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
-import { timed } from "@/lib/perf";
 import {
   getWatchlistBills,
   isInWatchlist,
@@ -17,28 +16,20 @@ type SearchParams = {
   chamber?: string;
 };
 
-export const revalidate = 300;
-
 export default async function WatchlistPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const pageT0 = performance.now();
   const params = await searchParams;
   const expandedParam = typeof params.expanded === "string" ? params.expanded : undefined;
   const sort = sanitizeSort(params.sort);
   const chamber = sanitizeChamber(params.chamber);
-  const bills = await timed("getWatchlistBills", () =>
-    getWatchlistBills(sort, chamber),
-  );
+  const bills = await getWatchlistBills(sort, chamber);
   const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
     ? expandedParam
     : undefined;
-  const onWatchlist = expandedId
-    ? await timed("isInWatchlist", () => isInWatchlist(expandedId))
-    : false;
-  console.log(`[perf] /watchlist page-data: ${Math.round(performance.now() - pageT0)}ms`);
+  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const carry = new URLSearchParams();
   if (sort && sort !== "action") carry.set("sort", sort);
