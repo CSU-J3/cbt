@@ -11,6 +11,7 @@ import {
   getSponsorTopTopics,
   normalizePartyVariant,
   sanitizeChamber,
+  sanitizeIncludeCeremonial,
   sanitizeSponsorSort,
 } from "@/lib/queries";
 
@@ -18,6 +19,7 @@ type SearchParams = {
   chamber?: string;
   expanded?: string;
   sort?: string;
+  ceremonial?: string;
 };
 
 function partyColorFor(party: string | null): string {
@@ -40,10 +42,15 @@ export default async function SponsorsPage({
   const params = await searchParams;
   const chamber = sanitizeChamber(params.chamber);
   const sort = sanitizeSponsorSort(params.sort);
+  const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
-  const headerFilters = { topics: [], chamber };
-  const rows = await getSponsorsRanked({ chamber }, sort, 100);
+  const headerFilters = { topics: [], chamber, includeCeremonial };
+  const rows = await getSponsorsRanked(
+    { chamber, includeCeremonial },
+    sort,
+    100,
+  );
   const maxVolume = rows.reduce((m, r) => Math.max(m, r.total), 0);
 
   const expandedSponsor = expandedParam
@@ -54,9 +61,9 @@ export default async function SponsorsPage({
     ? await (async () => {
         const key = sponsorKey(expandedSponsor);
         const [stats, topics, recentBills] = await Promise.all([
-          getSponsorStats(key),
-          getSponsorTopTopics(key),
-          getSponsorRecentBills(key),
+          getSponsorStats(key, includeCeremonial),
+          getSponsorTopTopics(key, 3, includeCeremonial),
+          getSponsorRecentBills(key, includeCeremonial),
         ]);
         return { key, stats, topics, recentBills };
       })()
@@ -65,6 +72,7 @@ export default async function SponsorsPage({
   const carry = new URLSearchParams();
   if (chamber) carry.set("chamber", chamber);
   if (sort !== "volume") carry.set("sort", sort);
+  if (includeCeremonial) carry.set("ceremonial", "1");
 
   const chamberLabel: Record<Chamber, string> = {
     house: "house",
@@ -241,6 +249,7 @@ export default async function SponsorsPage({
                         stats={expansion.stats}
                         topics={expansion.topics}
                         recentBills={expansion.recentBills}
+                        includeCeremonial={includeCeremonial}
                       />
                     ) : null}
                   </li>

@@ -1,3 +1,4 @@
+import { classifyCluster } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 
@@ -122,8 +123,8 @@ INSERT INTO bills (
   id, congress, bill_type, bill_number, title,
   introduced_date, latest_action_date, latest_action_text,
   sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
-  update_date, raw_json
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  update_date, raw_json, cluster_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   title = excluded.title,
   introduced_date = excluded.introduced_date,
@@ -135,10 +136,12 @@ ON CONFLICT(id) DO UPDATE SET
   sponsor_bioguide_id = excluded.sponsor_bioguide_id,
   raw_json = excluded.raw_json,
   update_date = excluded.update_date,
+  cluster_id = excluded.cluster_id,
   summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
-  topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END
+  topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END,
+  is_ceremonial = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.is_ceremonial END
 `;
 
 async function upsertBill(
@@ -152,12 +155,14 @@ async function upsertBill(
     return;
   }
   const sponsor = detail.sponsors?.[0];
+  const billType = String(detail.type).toLowerCase();
+  const clusterId = classifyCluster(detail.title, billType);
   await db.execute({
     sql: UPSERT_SQL,
     args: [
       id,
       detail.congress,
-      String(detail.type).toLowerCase(),
+      billType,
       Number(detail.number),
       detail.title,
       detail.introducedDate ?? null,
@@ -169,6 +174,7 @@ async function upsertBill(
       sponsor?.bioguideId ?? null,
       update,
       JSON.stringify(detail),
+      clusterId,
     ],
   });
 }

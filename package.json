@@ -10,6 +10,10 @@
     "migrate": "tsx scripts/migrate.ts",
     "sync": "tsx scripts/sync.ts",
     "summarize": "tsx scripts/summarize.ts",
+    "classify-ceremonial": "tsx scripts/classify-ceremonial.ts",
+    "backfill-clusters": "tsx scripts/backfill-clusters.ts",
+    "lead": "tsx scripts/generate-lead.ts",
+    "report": "tsx scripts/generate-report.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,7 +22,9 @@
     "dotenv": "^16.4.5",
     "next": "^15.5.15",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.4",

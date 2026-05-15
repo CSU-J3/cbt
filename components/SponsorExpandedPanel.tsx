@@ -41,6 +41,7 @@ export function SponsorExpandedPanel({
   stats,
   topics,
   recentBills,
+  includeCeremonial = false,
 }: {
   sponsorKey: string;
   sponsorName: string;
@@ -50,11 +51,13 @@ export function SponsorExpandedPanel({
   stats: SponsorStats;
   topics: SponsorTopic[];
   recentBills: FeedBill[];
+  includeCeremonial?: boolean;
 }) {
   const partyColor = partyColorFor(sponsorParty);
   const enactedPct =
     stats.total > 0 ? Math.round((stats.enacted / stats.total) * 100) : 0;
-  const openInFeedHref = `/?sponsor=${encodeURIComponent(sponsorKey)}`;
+  const ceremonialSuffix = includeCeremonial ? "&ceremonial=1" : "";
+  const openInFeedHref = `/feed?sponsor=${encodeURIComponent(sponsorKey)}${ceremonialSuffix}`;
 
   return (
     <div className="sponsor-expanded-panel">
@@ -132,7 +135,7 @@ export function SponsorExpandedPanel({
                   {topics.map((t, i) => (
                     <span key={t.topic} className="flex items-center">
                       <Link
-                        href={`/?sponsor=${encodeURIComponent(sponsorKey)}&topics=${t.topic}`}
+                        href={`/feed?sponsor=${encodeURIComponent(sponsorKey)}&topics=${t.topic}${ceremonialSuffix}`}
                         title={topicFullLabel(t.topic)}
                         style={{ color: topicColor(t.topic) }}
                       >

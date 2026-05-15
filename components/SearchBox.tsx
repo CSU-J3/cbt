@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export function SearchBox({ basePath = "/" }: { basePath?: string } = {}) {
+export function SearchBox({ basePath = "/feed" }: { basePath?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initial = searchParams.get("q") ?? "";

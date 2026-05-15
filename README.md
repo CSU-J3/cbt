@@ -31,6 +31,10 @@ Next.js 15 (App Router) · TypeScript · Tailwind v4 · Turso (libSQL) ·
    to 50 bills.
 6. `npm run dev` — dashboard at http://localhost:3000
 
+> On Windows with Git Bash, Ctrl+C on `npm run dev` doesn't always reap the
+> node process. If a subsequent launch fails with a port-3000 collision, run
+> `taskkill /F /IM node.exe` from cmd or PowerShell to clear leftover processes.
+
 ## Deployment
 
 Deployed via `vercel --prod`. A daily Vercel Cron at 09:00 UTC (`vercel.json`)
@@ -43,7 +47,7 @@ Hobby 60-second function ceiling).
 - `app/` — Next.js App Router pages (`/`, `/bill/[id]`, `/watchlist`) and API
   routes (`/api/sync`, `/api/watchlist`)
 - `components/` — small Tailwind primitives (`BillRow`, `StageIndicator`,
-  `TopicTags`, `HeaderBar`, `FooterLegend`, …)
+  `TopicTags`, `HeaderBar`, `StageLegend`, …)
 - `lib/` — shared logic: `db.ts`, `queries.ts`, `sync.ts`, `summarize.ts`,
   `summarize-runner.ts`, `enums.ts`, `topic-colors.ts`, `format.ts`
 - `scripts/` — standalone CLI entry points: `migrate.ts`, `sync.ts`,

@@ -1,5 +1,14 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import {
+  generateDashboardLead,
+  writeDashboardLead,
+} from "@/lib/dashboard-lead";
+import {
+  generateWeeklyReport,
+  getPriorWeek,
+  writeReport,
+} from "@/lib/report-generation";
 import { runSummarize } from "@/lib/summarize-runner";
 import { runSync } from "@/lib/sync";
 
@@ -43,6 +52,39 @@ async function handle(request: Request) {
     revalidateTag("bills");
   } catch (err) {
     console.error("[sync] summarize step failed:", err);
+  }
+
+  // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
+  // if Gemini errors or rate-limits, the prior lead stays in the DB and the
+  // dashboard keeps rendering it. revalidateTag flushes the cached lead.
+  try {
+    const lead = await generateDashboardLead();
+    await writeDashboardLead(lead);
+    revalidateTag("bills");
+  } catch (err) {
+    console.warn("[sync] lead generation failed; keeping prior lead", err);
+  }
+
+  // Weekly report — generated on Monday for the prior calendar week. The
+  // Monday check is UTC because the cron runs at 09:00 UTC. Non-fatal: on
+  // failure no row is written, the cron's other steps still complete, and
+  // manual recovery is `npm run report`.
+  const now = new Date();
+  if (now.getUTCDay() === 1) {
+    try {
+      const week = getPriorWeek(now);
+      const report = await generateWeeklyReport(week);
+      await writeReport({
+        slug: report.slug,
+        weekStart: week.start,
+        weekEnd: week.end,
+        title: report.title,
+        contentMd: report.content_md,
+      });
+      revalidateTag("reports");
+    } catch (err) {
+      console.warn("[cron] report generation failed; skipping", err);
+    }
   }
 
   return NextResponse.json({

@@ -10,6 +10,8 @@ function buildHref(
   sponsor: string | undefined,
   sort: string | undefined,
   chamber: string | undefined,
+  ceremonial: boolean | undefined,
+  cluster: string | undefined,
   basePath: string,
 ): string {
   const has = selected.includes(topic);
@@ -21,6 +23,8 @@ function buildHref(
   if (sponsor) params.set("sponsor", sponsor);
   if (sort && sort !== "action") params.set("sort", sort);
   if (chamber) params.set("chamber", chamber);
+  if (ceremonial) params.set("ceremonial", "1");
+  if (cluster) params.set("cluster", cluster);
   const qs = params.toString();
   return qs ? `${basePath}?${qs}` : basePath;
 }
@@ -32,7 +36,9 @@ export function TopicFilter({
   sponsor,
   sort,
   chamber,
-  basePath = "/",
+  ceremonial,
+  cluster,
+  basePath = "/feed",
 }: {
   selected: string[];
   stage: string | undefined;
@@ -40,13 +46,15 @@ export function TopicFilter({
   sponsor?: string;
   sort?: string;
   chamber?: string;
+  ceremonial?: boolean;
+  cluster?: string;
   basePath?: string;
 }) {
   return (
     <div className="filter-chips flex items-center gap-1">
       {ALLOWED_TOPICS.map((t) => {
         const isOn = selected.includes(t);
-        const href = buildHref(selected, t, stage, q, sponsor, sort, chamber, basePath);
+        const href = buildHref(selected, t, stage, q, sponsor, sort, chamber, ceremonial, cluster, basePath);
         const color = topicColor(t);
         const style = isOn
           ? { backgroundColor: color, color: "#0a0e14", borderColor: color }

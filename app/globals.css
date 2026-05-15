@@ -52,6 +52,153 @@ body {
   margin-left: auto;
 }
 
+/* ---- dashboard --------------------------------------------------------- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 5fr 6fr 3fr;
+  gap: 12px;
+}
+.dashboard-pane {
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--border-soft);
+  background-color: var(--bg-panel);
+  padding: 12px;
+}
+.dashboard-pane-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+.dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* dashboard lead — cron-generated prose summary above the grid */
+.dashboard-lead {
+  background-color: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-soft);
+  padding: 16px;
+}
+.dashboard-lead-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.dashboard-lead-prose {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  max-width: 800px;
+}
+@media (max-width: 700px) {
+  .dashboard-lead-prose {
+    max-width: none;
+  }
+}
+.activity-ticker-footer {
+  display: block;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+  background-color: var(--bg-panel);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.activity-ticker-footer:hover {
+  color: var(--accent-amber-bright);
+}
+.topic-dist-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 50px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 3px 4px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.topic-dist-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.topic-dist-bar-track {
+  height: 10px;
+  background-color: var(--bg-base);
+  border: 0.5px solid var(--border-soft);
+  overflow: hidden;
+}
+.topic-dist-bar-fill {
+  display: block;
+  height: 100%;
+}
+
+/* funnel rows — clickable stage filter controls (parallel to topic-dist) */
+.funnel-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 96px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 4px 4px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.funnel-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.funnel-bar-track {
+  height: 12px;
+  background-color: var(--bg-base);
+  border: 0.5px solid var(--border-soft);
+  overflow: hidden;
+}
+.funnel-bar-fill {
+  display: block;
+  height: 100%;
+}
+
+/* active filter strip — between HeaderBar and the dashboard grid */
+.active-filter-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 9px 16px;
+  background-color: var(--bg-panel);
+  border-top: 0.5px solid var(--border-soft);
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.active-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.active-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+}
+.active-filter-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.active-filter-link:hover {
+  color: var(--accent-amber-bright);
+}
+
 /* ---- feed grid ---------------------------------------------------------- */
 /* Columns: expand-arrow | bill-id | title/sponsor | stage | date | topics  */
 .feed-row {
@@ -134,6 +281,34 @@ body {
   background-color: var(--bg-row-hover);
 }
 
+/* ---- cluster index ----------------------------------------------------- */
+/* Columns: name+slug | count | example title */
+.cluster-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr);
+  align-items: center;
+  column-gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+.cluster-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.cluster-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 80px minmax(0, 3fr);
+  align-items: center;
+  column-gap: 16px;
+  padding: 9px 14px;
+  background-color: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-strong);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ---- sponsor bar chart row -------------------------------------------- */
 /* Columns: chevron | rank | name | bars (volume + passrate) | suffix     */
 .sponsor-bar-row {
@@ -202,6 +377,14 @@ body {
 }
 
 @media (max-width: 700px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  /* 44px minimum tap targets for the clickable dashboard filter rows */
+  .funnel-row,
+  .topic-dist-row {
+    min-height: 44px;
+  }
   .feed-row,
   .feed-header-row {
     grid-template-columns: 18px 78px 1fr 80px 80px;

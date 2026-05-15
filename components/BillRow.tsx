@@ -32,6 +32,8 @@ export type BillRowFilters = {
   sort?: string;
   page?: number;
   chamber?: string;
+  ceremonial?: boolean;
+  cluster?: string;
 };
 
 function shortSponsor(name: string | null): string {
@@ -45,7 +47,7 @@ function shortSponsor(name: string | null): string {
 export function BillRow({
   bill,
   filters,
-  basePath,
+  basePath = "/feed",
   expandedId,
   onWatchlist,
   introducedDate,
@@ -54,7 +56,7 @@ export function BillRow({
 }: {
   bill: FeedBill;
   filters: BillRowFilters;
-  basePath: string;
+  basePath?: string;
   expandedId: string | undefined;
   onWatchlist: boolean;
   introducedDate: string | null;
@@ -72,6 +74,8 @@ export function BillRow({
   if (filters.sort && filters.sort !== "action")
     params.set("sort", filters.sort);
   if (filters.chamber) params.set("chamber", filters.chamber);
+  if (filters.ceremonial) params.set("ceremonial", "1");
+  if (filters.cluster) params.set("cluster", filters.cluster);
   if (filters.page && filters.page > 1)
     params.set("page", String(filters.page));
   if (!isExpanded) params.set("expanded", bill.id);

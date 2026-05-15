@@ -78,18 +78,45 @@ CREATE TABLE bills (
   topics TEXT,                      -- JSON array of topic tags from LLM
   stage TEXT,                       -- introduced | committee | floor | other_chamber | president | enacted
   previous_stage TEXT,              -- prior stage value, written when stage transitions
-  stage_changed_at TEXT             -- ISO timestamp of the most recent stage change
+  stage_changed_at TEXT,            -- ISO timestamp of the most recent stage change
+  is_ceremonial INTEGER,            -- tri-state: NULL unclassified, 0 substantive, 1 ceremonial
+  cluster_id TEXT                   -- regex-matched template slug; NULL = no template fit
 );
 
 CREATE INDEX idx_bills_update_date ON bills(update_date DESC);
 CREATE INDEX idx_bills_latest_action ON bills(latest_action_date DESC);
 CREATE INDEX idx_bills_stage_changed_at ON bills(stage_changed_at DESC);
+CREATE INDEX idx_bills_is_ceremonial ON bills(is_ceremonial);
+CREATE INDEX idx_bills_cluster_id ON bills(cluster_id);
 
 CREATE TABLE watchlist (
   bill_id TEXT PRIMARY KEY REFERENCES bills(id),
   added_at TEXT NOT NULL,
   notes TEXT
 );
+
+-- Key-value store for cron-generated dashboard content. Flexible so future
+-- dashboard state needs no further migration. Currently holds the one row
+-- key = 'weekly_lead' (the LLM-generated dashboard lead).
+CREATE TABLE dashboard_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+-- Weekly cron-generated reports. One row per calendar week (Mon-Sun),
+-- keyed by the ISO week-start date (slug). content_md is the rendered
+-- Markdown body. created_at is JS-side ISO.
+CREATE TABLE reports (
+  slug TEXT PRIMARY KEY,         -- ISO week-start date, e.g. "2026-05-11"
+  week_start TEXT NOT NULL,
+  week_end TEXT NOT NULL,
+  title TEXT NOT NULL,           -- "Week of May 11, 2026"
+  content_md TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_reports_week_start ON reports(week_start DESC);
 ```
 
 Skip cosponsors, committees, and full action history for now. Add tables for those only when the UI needs them.
@@ -111,12 +138,36 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 - `getFeedBills(filters, {page, pageSize})` — main feed; returns `{ bills, total, page, pageSize, totalPages }`. `total` is the filtered count. The page passes `total` into `HeaderBar` via `feedFilteredCount` so the header doesn't need a second COUNT query. The unfiltered count for the "X of Y" header line comes from `getFeedStats().total`.
 - `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
 - `getPresidentBills(filters, limit)` / `getPresidentCount(filters)` — `/president` page. Compose `buildPresidentWhere` on top of `buildFeedWhere`, but strip `filters.stage` first (stage is fixed by the helper). Adds `stage = 'president'` and `latest_action_date IS NOT NULL`. Sorted by `latest_action_date ASC` (oldest at desk first — closest to the 10-day veto deadline). Same `{total, filtered}` contract as the others.
+- `getStageChanges(filters, days=7, limit=200, dashboard?)` / `getStageChangesCount(filters, days)` — `/changes` page and the dashboard's `ActivityTicker`. `buildChangesWhere` composes on `buildFeedWhere` (stripping `filters.stage`) and adds `stage_changed_at` within the last `days`, sorted `stage_changed_at DESC`. Excludes ceremonial by default like everything built on `buildFeedWhere`, so the ticker calls it with empty `filters` + `limit: 15`. The optional 4th `DashboardFilters` arg carries the dashboard's click-to-filter state: `stage` matches transitions where `stage = ? OR previous_stage = ?` (either direction), `topic` narrows via `json_each` EXISTS. `/changes` ignores the 4th arg.
 - `getSponsors(filters, limit)` / `getSponsorCount(filters)` — `/sponsors` page. `SponsorFilters` is `{ party?: 'R'|'D'|'I', state?, q? }`; `q` matches `sponsor_name LIKE`, not bill text. Aggregates `bills` by `(sponsor_name, sponsor_party, sponsor_state)` with `COUNT(*)` and `MAX(latest_action_date)`. Inherits `summary IS NOT NULL` from the same convention `buildFeedWhere` uses, so unsummarized bills don't pad sponsor counts. `party='I'` matches any non-R, non-D variant (`UPPER(sponsor_party) NOT IN ('R','D')`) — Bernie Sanders' `ID`, hypothetical `IND`, etc. `getSponsorCount` wraps the GROUP BY in a subquery to count distinct sponsor groups.
 - `getSponsorStates()` — distinct non-null `sponsor_state` values (alphabetical) for the State dropdown.
 - `getSponsorRecentBills(name, limit=5)` — newest bills for a sponsor, used by the inline expand panel.
 - `normalizePartyVariant(party)` — collapses any sponsor party string to `'R' | 'D' | 'I' | null`. Use this both for filtering and for badge rendering so `R`, `D`, and everything-else-non-null map to the three party colors.
 - `sanitizeStaleStage(input)` — accepts only the four dropdown-eligible stages so a hand-typed `?stage=enacted` is silently ignored on `/stale`.
 - `sanitizeSort(input)` — accepts `'action' | 'introduced'`, falls back to `'action'` on anything else.
+- `sanitizeIncludeCeremonial(input)` — `'1'` → `true`, anything else → `false`. Default behavior hides ceremonial bills.
+- `sanitizeClusterId(input)` — returns the slug only if it matches a known `CLUSTER_PATTERNS` id (from `lib/cluster-patterns.ts`); anything else → `undefined`. URL input is untrusted everywhere.
+- `getStageDistribution(filters?)` — dashboard stage funnel: per-stage counts of substantive (non-ceremonial) on-path bills, plus `offPath` (stage `other`/NULL) and `total`. Optional `DashboardFilters` arg: `topic` re-shapes the funnel to that topic's stage distribution (via `json_each` EXISTS); `stage` is *not* applied here — a single-bar funnel is useless, so `stage` only drives the component's selection state. Cached, tag `bills`, key includes the filter args.
+- `getCorpusStats()` — total non-ceremonial bill count + most recent `update_date`. Feeds the dashboard `HeaderBar`. Cached, tag `bills`, invalidated by the sync cron.
+- `getTopicDistribution(filters?)` — corpus-wide topic counts (non-ceremonial only), sorted by count desc. Uses `json_each` to UNNEST the `topics` JSON array — the standard pattern for aggregating across a JSON column; any future JSON columns aggregate the same way. Rows are validated against the `Topic` enum (unknown values logged and skipped). Optional `DashboardFilters` arg: `stage` narrows the counts to bills at that stage; `topic` is *not* applied here (visual selection only). Cached, tag `bills`, key includes the filter args.
+- `getDashboardLead()` — reads the current `weekly_lead` row from `dashboard_state` (`{ text, updatedAt }`), or `null` if the cron hasn't generated one yet. Cached, tag `bills`, invalidated by the cron after a fresh lead is written.
+- `getReportsList()` / `getReport(slug)` — weekly reports for `/reports` and `/reports/[slug]`. Both cached with tag `reports` (separate from `bills` because the cron's report step revalidates independently). The cron's Monday step calls `revalidateTag('reports')` after writing.
+
+### Ceremonial filter (`?ceremonial=1`)
+
+`FeedFilters.includeCeremonial?: boolean` and `SponsorFilters.includeCeremonial?: boolean` flow through `buildFeedWhere` / `buildSponsorWhere`. Both helpers append `(is_ceremonial = 0 OR is_ceremonial IS NULL)` unless the flag is true. NULL counts as visible during backfill so the dashboard doesn't go dark while the classifier is running. The flag becomes part of the `unstable_cache` argument-derived key, so the on/off variants live in separate cache slots.
+
+Don't apply on `/watchlist` or `/bill/[id]` — watched ceremonial bills must surface, and detail pages always render. The toggle is a list-view concept. `getFeedStats(includeCeremonial, cluster?)`, `getSponsorRecentBills(key, includeCeremonial)`, `getSponsorStats(key, includeCeremonial)`, and `getSponsorTopTopics(key, limit, includeCeremonial)` all take the flag explicitly so the expanded sponsor panel matches the active toggle.
+
+### Cluster filter (`?cluster=<slug>`)
+
+Regex-based template clustering. Patterns + `classifyCluster(title, billType)` live in `lib/cluster-patterns.ts` (single source of truth — pattern revision is cheap because there's no separate metadata store). The sync upsert calls `classifyCluster` unconditionally on every bill (pure regex, zero cost) and writes `cluster_id` in the same `INSERT ... ON CONFLICT` statement.
+
+`FeedFilters.cluster?: string` propagates through `buildFeedWhere`, which adds `cluster_id = ?`. **Cluster bypasses the ceremonial gate** — when `cluster` is set, `buildFeedWhere` skips the `(is_ceremonial = 0 OR is_ceremonial IS NULL)` clause entirely. Reasoning: most clusters are mostly ceremonial; opting into "awareness designations" means asking to see the noise. The toggle is suppressed in `HeaderBar` whenever `feedFilters.cluster` is set so the dead control isn't rendered.
+
+Sponsor queries do not take the cluster filter (sponsor page is about people, not bill shapes). `getClusterStats()` returns `[{id, name, description, count, exampleTitle}]` sorted by count desc; `getUnmatchedClusterCount(includeCeremonial)` returns `COUNT(*) WHERE cluster_id IS NULL` honoring the active ceremonial filter. Both cached `tags: ["bills"]`.
+
+Backfill: `npm run backfill-clusters` → `scripts/backfill-clusters.ts`. Pure regex, no API calls; runs in under a minute against the full corpus. Idempotent via `WHERE cluster_id IS NULL` so re-running after adding a sixth pattern only touches previously-unmatched rows. Logs per-cluster counts at the end. POSTs to `REVALIDATE_URL` (with `Authorization: Bearer ${CRON_SECRET}`) on completion to invalidate the `bills` tag, same as the ceremonial backfill.
 
 ### Feed sort (`?sort=action|introduced`)
 
@@ -143,6 +194,7 @@ You are summarizing a US Congress bill for a personal tracking dashboard. Write 
 Then output a JSON block with:
 - topics: array of 1-3 topic tags from this list: [healthcare, immigration, taxes, defense, energy, environment, education, labor, technology, civil_rights, criminal_justice, agriculture, trade, housing, transportation, foreign_policy, veterans, elections, budget, financial_services, government_operations, consumer_protection, social_security, other]
 - stage: one of [introduced, committee, floor, other_chamber, president, enacted]
+- is_ceremonial: true if symbolic (awareness days, building renamings, recognitions, sense-of-Congress); false if it changes law, appropriates funds, or directs an agency
 
 Bill title: {title}
 Latest action: {latest_action_text}
@@ -155,28 +207,55 @@ SUMMARY:
 <2-3 sentences>
 
 JSON:
-{"topics": [...], "stage": "..."}
+{"topics": [...], "stage": "...", "is_ceremonial": true|false}
 ```
 
-Parse the response by splitting on `JSON:` and parsing the second half. If parsing fails, log the bill ID and skip it; don't crash the sync.
+Parse the response by splitting on `JSON:` and parsing the second half. If parsing fails, log the bill ID and skip it; don't crash the sync. The `is_ceremonial` field is defensive: if the model omits it or returns a non-boolean, the parser writes NULL so the standalone backfill (`npm run classify-ceremonial`) can pick it up later. Title-only re-classification lives in `lib/classify-ceremonial.ts`; the sync `UPSERT_SQL` clears `is_ceremonial` along with `summary` whenever `update_date` changes so re-classification rides through the inline summarize path with no extra Gemini call.
 
 The prompt will need iteration. Expect to revise it 5-10 times. Common failure modes: LLM repeats the bill's marketing title, LLM editorializes, LLM picks `other` for the topic when a better tag exists. Test against a sample of 20 known bills and read the outputs side by side.
 
+## Dashboard lead generation
+
+The dashboard's top-of-page `DashboardLead` is a 3-sentence prose summary, generated once per cron tick by `lib/dashboard-lead.ts::generateDashboardLead`.
+
+- **Inputs:** corpus size, last-7-day stage transitions (count + top 5 with bill ID, truncated title, transition arrow), last-7-day enactments (count + top 3 IDs), last-7-day new introductions (count), and the topic with the most transitions in the last 7 days. All gathered by focused queries in `lib/dashboard-lead.ts` — not cached UI helpers.
+- **Model:** `gemini-2.5-flash`, single completion, reuses the `SUMMARY_MODEL` constant and client pattern from `lib/summarize.ts`.
+- **Prompt** lives in source under `lib/dashboard-lead.ts`. Expect prompt iteration over the first 5-10 generations — same failure modes as the summarize prompt (marketing-title creep, generic openers like "This week, Congress...", vague numbers, editorial framing).
+- **Storage:** upserted into `dashboard_state` under `key = 'weekly_lead'` with a JS-side ISO `updated_at`. Read back by `getDashboardLead()`.
+- **Cron integration:** `app/api/sync/route.ts` calls `generateDashboardLead` + `writeDashboardLead` after sync + summarize, then `revalidateTag("bills")`. Failure is non-fatal — the cron logs a warning, the prior lead stays in the DB, and the dashboard keeps rendering it.
+- **Manual run:** `npm run lead` → `scripts/generate-lead.ts` generates, prints, and writes a lead. Use it to iterate on the prompt without waiting for cron.
+
+## Report generation
+
+Weekly reports — one Markdown blob per calendar week, rendered at `/reports/[slug]`.
+
+- Generated weekly on Monday 09:00 UTC by `lib/report-generation.ts::generateWeeklyReport`. The cron step in `app/api/sync/route.ts` is gated by `now.getUTCDay() === 1`; non-Monday ticks skip it.
+- One Gemini call per report. Structured output with four section markers (`LEAD`, `STAGE_COMMENTARY`, `ENACTMENTS_COMMENTARY`, `TOPIC_COMMENTARY`). Parsed by splitting on markers, same pattern as the summarize prompt. The `ENACTMENTS_COMMENTARY` slot is also where the LLM emits the `_No bills became law this week._` placeholder when enactments count is zero — the assembly step then skips the bill list.
+- The Markdown body is assembled programmatically: section headers + counts come from the data, prose comes from the LLM. Bill IDs render as plain text (`HR 2702`); stage transitions use the canonical `▸ INTRO → ▸▸ COMMITTEE` glyphs.
+- Storage: upserted into `reports` keyed by `slug` (the ISO week-start date). Re-running for the same week overwrites the prior row.
+- Failure mode: cron logs a warning and writes no row; the sync's other steps still complete. Manual recovery: `npm run report` (prior week) or `npm run report YYYY-MM-DD` (specific week start). `scripts/generate-report.ts` prints the assembled Markdown before writing — useful for iterating on the prompt.
+- Notable introductions ranks by `LENGTH(summary)` as a weak substantiveness proxy until `text_length` and `cosponsor_count` land in future enrichment handoffs. CRA-disapproval is included as substantive; other clusters are filtered out.
+- Markdown rendered on `/reports/[slug]` via `react-markdown` + `remark-gfm` (needed for the topic-breakdown table) with terminal-aesthetic component overrides in `components/ReportMarkdown.tsx`.
+
 ## Frontend design system
 
-Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and topics. No light mode. Tailwind v4 only (no shadcn / no other libraries). Server components by default; the only client islands are `WatchlistToggle` and `StageFilter`.
+Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and topics. No light mode. Tailwind v4 only (no shadcn / no other libraries). Server components by default; client islands are `WatchlistToggle`, `StageFilter`, `SortDropdown`, `SearchBox`, and `CeremonialToggle`.
 
 ### Pages
 
-- `/` — feed of the 50 most recent bills, filterable by topic + stage, searchable via `?q=`
+- `/` — dashboard. Three-pane grid: stage funnel (left), activity ticker (middle), right pane stacks sub-view links + topic distribution. The middle pane's `ActivityTicker` shows the top 15 recent stage transitions from the last 7 days (ceremonial excluded), each rendered with `BillRow` in `showStageTransition` mode, plus a footer link to `/changes`. The right pane's `TopicDistribution` lists every non-ceremonial topic with at least one bill, sorted by count desc, color-coded bars per `lib/topic-colors.ts`. A cron-generated `DashboardLead` (3-sentence prose summary) renders at the very top, above the `ActiveFilterStrip` — corpus-wide, does not change with active filters, and hides itself entirely if no lead has been generated yet. `HeaderBar` uses `variant='dashboard'` here. No search, no count line. Accepts `?stage=<stage>` and `?topics=<topic>` query params for click-to-filter — single value each, validated against the Stage and Topic enums, invalid values silently dropped (no `q`/`sort`/`sponsor`/`cluster` on `/`). URL params drive all three panes and compose: clicking a funnel bar toggles `stage`, clicking a topic row toggles `topics`. Selected bar/row renders at full opacity, others at 0.4. `ActiveFilterStrip` renders above the grid when any filter is active, with `× CLEAR` (→ `/`) and `VIEW IN /FEED →` (→ `/feed?stage=…&topics=…`) links. Because `await searchParams` opts the route into dynamic rendering, `/` is no longer statically prerendered — the `bills`-tagged query cache still applies at the query layer. Mobile: panes stack top-to-bottom.
+- `/feed` — the bill feed previously at `/`. 50 most recent bills, filterable by topic + stage, searchable via `?q=`. Same behavior, same filters, same pagination, just at the new URL. `BillRow`, `StageFilter`, `TopicFilter`, and `SearchBox` now default `basePath` to `/feed`.
 - `/bill/[id]` — detail page (card panel layout)
 - `/watchlist` — bills flagged via `★ Watch`
 - `/stale` — bills with no action in 60+ days, sorted oldest-action-first. Same filter chrome as the feed. Stage filter is constrained to the four eligible stages (`introduced`, `committee`, `floor`, `other_chamber`) — `president` and `enacted` never appear (success states aren't stalls). Action column renders days-since (`247d`) instead of a date, color-coded by threshold.
 - `/president` — bills with `stage='president'`, sorted oldest action first (closest to the 10-day veto deadline). Counterpart to `/stale`: what's queued for signature/veto, not what's been abandoned. No `StageFilter` (stage is fixed). Topic + search filters only. `?stage=*` is silently dropped. Action column renders days-on-desk with the desk-time threshold table. Header chrome: `BILLS AT DESK`. Empty state: single muted line, no chrome.
 - `/changes` — bills whose stage moved in the last 7 days, sorted by `stage_changed_at DESC`. The "in motion" view between `/stale` and `/president`. No stage filter (the page is about transitions, not destinations). Topic + search + chamber filters only. The stage column renders the transition (`▸ INTRO → ▸▸ COMMITTEE`) with the prior stage dimmed via the `muted` prop on `StageIndicator`; the action-date column shows `Xd ago` from `stage_changed_at`. Wider stage column comes from the `.changes-feed` wrapper class, not a `BillRow` template change. `BillRow` opts in via `showStageTransition`. Empty state: `No stage changes in the last 7 days.`
 - `/sponsors` — distinct sponsors aggregated from `bills`, sorted by `bill_count DESC, sponsor_name ASC`. Filters: party (R/D/I), state (only states present in the data), name search. Click a row to inline-expand: 5 most recent bills + a `[VIEW ALL N BILLS →]` link to `/?sponsor=<encoded name>`. Custom `SponsorRow` grid (`24px 1fr 40px 50px 80px 110px`) — does not reuse `BillRow`. Routing slug is the URL-encoded `sponsor_name` itself; we don't store `bioguide_id`, so two reps with identical names from the same state and party would collide (no detail page to break, just an expand collision). Add `sponsor_bioguide_id` only if a real collision shows up.
+- `/clusters` — bill template index. One row per regex pattern from `lib/cluster-patterns.ts`, sorted by count desc. Each row links to `/?cluster=<id>`. Sub-header shows `N templates · X matched · Y unmatched` where Y honors the active ceremonial filter via URL param. No `CeremonialToggle` (the page isn't a feed). No `SearchBox` (not a feed). Custom `.cluster-row` / `.cluster-header-row` grid (`1.2fr 80px 3fr`).
+- `/reports` — index of weekly reports, newest first. Empty until the first Monday after handoff 58 ships, when the cron writes the first row. Plain `HeaderBar` (no filters), simple row list with hover; click navigates to `/reports/[slug]`.
+- `/reports/[slug]` — individual weekly report. Markdown body rendered by `components/ReportMarkdown.tsx` (react-markdown + remark-gfm) with terminal-aesthetic component overrides for h1/h2/p/ul/li/code/table/em/strong. `[Download .md ↓]` link in the header pulls from `/reports/[slug]/download`, which serves `report.content_md` with `Content-Disposition: attachment; filename="cbt-${slug}.md"`. Unknown slug renders a friendly empty state with a back link, not Next's `notFound()`.
 
-All three share the same `HeaderBar` (count + last-updated MT) and `FooterLegend` (party + stage legend). The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
+Feed-shaped routes (`/feed`, `/stale`, `/changes`, `/president`, `/watchlist`) share the same `HeaderBar` (count + last-updated MT) and render a `StageLegend` (party + stage legend) inline at the top of the list — there is no footer legend component. The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
 
 ### Search
 
@@ -187,6 +266,14 @@ URL state: `?q=<query>` on `/`. Combines with `?stage=` and `?topics=` via AND.
 - Bill ID normalization: query and id are both lowercased and stripped of spaces/dashes before comparison, so `HR 2702`, `hr2702`, `hr-2702`, `2702`, and `119hr2702` all match `119-hr-2702`.
 - Empty results render a centered `NO BILLS MATCH "<q>"` block plus a `[Clear search]` link that preserves stage+topics.
 - `StageFilter`, `TopicFilter`, and `BillRow` thread `q` through their generated hrefs so search is preserved when users change filters or expand a row.
+
+### Ceremonial toggle (`?ceremonial=1`)
+
+`components/CeremonialToggle.tsx` is a client island mounted in `HeaderBar`'s right cluster. It pushes `?ceremonial=1` on check, removes the param on uncheck, and preserves every other URL param including `expanded` (so flipping the filter doesn't collapse the open row). Label: `include ceremonial` unchecked, `including ceremonial` checked. Suppressed on `/watchlist` and `/bill/[id]` (HeaderBar gates on `feedFilters` being present).
+
+URL plumbing mirrors `q` and `sponsor`: `StageFilter`, `TopicFilter`, `BillRow` accept a `ceremonial?: boolean` prop and append `ceremonial=1` to their generated hrefs. `SortDropdown`, `SearchBox`, `ChamberToggle`, and `Pagination` all read or carry the existing URLSearchParams, so the toggle survives sort/search/chamber/pagination interactions automatically. Each list page (`/`, `/stale`, `/changes`, `/president`, `/sponsors`) reads `params.ceremonial` via `sanitizeIncludeCeremonial`, threads it into `feedFilters`/`carry`, and passes it through to `BillRow`/`SponsorExpandedPanel`.
+
+The standalone backfill is `npm run classify-ceremonial` → `scripts/classify-ceremonial.ts`. Concurrency 10, idempotent via `WHERE is_ceremonial IS NULL`, ~30 min for the full corpus, well under $1. After completion it POSTs to `REVALIDATE_URL` (with `Authorization: Bearer ${CRON_SECRET}`) to invalidate the `bills` tag — a small `app/api/revalidate/route.ts` exists for that purpose. Without those env vars the script logs a hint instead of failing.
 
 ### Color palette (CSS vars on `:root` in `app/globals.css`)
 
@@ -239,7 +326,7 @@ Display as 3-5-letter abbreviations (`FIN`, `HLTH`, `DEF`, `ENV`, `CRIM`, `GOV`,
 
 ### Layout grid
 
-Layout is **full-width fluid** — no `max-w-*` cap on the outer container. Pages, `HeaderBar`, and `FooterLegend` all stretch to the viewport with `w-full` and a small `px-4` gutter. The `1fr` title column inside `BillRow` and `SponsorRow` absorbs the extra width on wide displays. If a future page feels too sparse at 2400px+, the right fix is to add `max-w-[1200px]` to the offending column (e.g. the bill summary paragraph), not to re-cap the outer container.
+Layout is **full-width fluid** — no `max-w-*` cap on the outer container. Pages, `HeaderBar`, and `StageLegend` all stretch to the viewport with `w-full` and a small `px-4` gutter. The `1fr` title column inside `BillRow` and `SponsorRow` absorbs the extra width on wide displays. If a future page feels too sparse at 2400px+, the right fix is to add `max-w-[1200px]` to the offending column (e.g. the bill summary paragraph), not to re-cap the outer container.
 
 Six-column row, `24px 86px 1fr 150px 96px 150px` for `[expand-arrow] [bill-id] [title-and-sponsor] [stage] [action-date] [topics]`. Defined as `.feed-row` in `globals.css`. Header row uses the same grid via `.feed-header-row`.
 
@@ -256,6 +343,7 @@ URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansi
 ### Server / client split
 
 - All pages are server components and query Turso via `lib/queries.ts`.
+- The dashboard at `/` is entirely server-rendered. No client islands. The funnel is static hand-rolled SVG.
 - Client islands: `components/WatchlistToggle.tsx` (POSTs to `/api/watchlist`, then `router.refresh()`) and `components/StageFilter.tsx` (calls `router.push` to update the URL with the chosen stage).
 - The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`.
 
@@ -280,7 +368,29 @@ Same color vocabulary across both, different boundaries (60-day stalls vs. the 1
 
 ### `basePath` threading
 
-`StageFilter`, `TopicFilter`, `BillRow`, and `SearchBox` all accept an optional `basePath?: string` prop (default `/`) so they can be reused on `/stale` (or any future feed-shaped route). The home page passes `/` (or omits), `/stale` passes `/stale`. `StageFilter` also accepts `availableStages?: readonly Stage[]` so `/stale` can hide `president` and `enacted` from the dropdown.
+`StageFilter`, `TopicFilter`, `BillRow`, and `SearchBox` all accept an optional `basePath?: string` prop (default `/feed`) so they can be reused on `/stale` (or any future feed-shaped route). Each feed-shaped route either passes its own path (`/stale`, `/changes`, `/president`, etc.) or omits the prop and gets `/feed`. The dashboard at `/` does not render any of these components. `StageFilter` also accepts `availableStages?: readonly Stage[]` so `/stale` can hide `president` and `enacted` from the dropdown.
+
+## Information architecture
+
+Three depth levels for any entity in the dashboard (bills, members, races):
+
+1. **Snapshot.** The row dropdown on a list page. Few fields, fast read. Answers "is this interesting enough to look deeper."
+2. **Hub.** The entity detail page (`/bill/[id]`, `/sponsors/[bioguideId]`, `/race/[id]`). Holds the thesis for that entity. Links out to focused sub-pages rather than embedding everything.
+3. **Sub-page.** One topic about the entity, treated deeply. News mentions scoped to a bill, race detail for a member, similar-bills cluster, vote breakdown.
+
+The hub holds the thesis. Sub-pages hold focused deep cuts. Curiosity drives navigation, not scrolling.
+
+### Working theses
+
+- **Bill hub** (`/bill/[id]`): "What does this bill do and how is it moving?" Summary, status, sponsor link, watchlist toggle. Sub-page links for similar bills, news mentions, votes, full text (out to congress.gov).
+- **Member hub** (`/sponsors/[bioguideId]`): "What does this person work on in Congress?" Voting record, sponsored bills, committee assignments, badges. Header indicators link to the race surface when applicable; donor and stock data live on sub-pages.
+- **Race hub** (`/race/[id]`, planned): "Who's contesting this seat and where does it stand?" Rating, seat-up year, candidate roster, incumbent link back to their member hub.
+
+### The rule
+
+For any new feature involving an entity page, decide whether it adds a snapshot field, a hub element, or a sub-page link. Don't invent a fourth bucket. If the answer is "it deserves its own section on the hub," that section probably wants to be a sub-page link instead.
+
+Decide the hub's thesis before the second sub-page link ships, or the hub turns into the sub-page it's supposed to link to.
 
 ## Environment variables
 
@@ -296,7 +406,8 @@ The cron route should reject requests where `Authorization` header doesn't match
 
 ## Things to watch for
 
-- **Route-level `revalidate` does nothing in Next.js 15 for any page using `await searchParams` or `await params`.** Those async dynamic APIs opt the route into fully dynamic rendering, which disables the Full Route Cache regardless of the `revalidate` export. Confirmed in production: every response sent `Cache-Control: private, no-cache, no-store` and `X-Vercel-Cache: MISS`. Cache at the query layer with `unstable_cache` + `revalidateTag` instead — that's how `getFeedStats` and `getFeedBills` actually stay cached across requests. The sync cron calls `revalidateTag("feed-stats")` and `revalidateTag("feed-bills")` after writes to invalidate on fresh data.
+- **Route-level `revalidate` does nothing in Next.js 15 for any page using `await searchParams` or `await params`.** Those async dynamic APIs opt the route into fully dynamic rendering, which disables the Full Route Cache regardless of the `revalidate` export. Confirmed in production: every response sent `Cache-Control: private, no-cache, no-store` and `X-Vercel-Cache: MISS`. Cache at the query layer with `unstable_cache` + `revalidateTag` instead — that's how `getFeedStats` and `getFeedBills` actually stay cached across requests. Every cached query helper is tagged with a single unified `"bills"` tag (commit `0693843`); the sync cron calls `revalidateTag("bills")` after writes to invalidate them all on fresh data.
+- **The dashboard `/` is dynamically rendered, not statically prerendered.** Once `await searchParams` was added to `app/page.tsx` for click-to-filter (handoff 56), `/` lost its static prerender — same mechanism as the note above. Query-layer caching via `unstable_cache` + the `bills` tag still applies, so this is a small latency regression, not a correctness one.
 
 ## What not to do
 

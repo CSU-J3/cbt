@@ -17,6 +17,7 @@ const SYSTEM_PROMPT = `You are summarizing a US Congress bill for a personal tra
 Then output a JSON block with:
 - topics: array of 1-3 topic tags from this list: [${ALLOWED_TOPICS.join(", ")}]
 - stage: one of [introduced, committee, floor, other_chamber, president, enacted]
+- is_ceremonial: true if the bill's primary purpose is symbolic (awareness days/weeks/months, renaming federal buildings/post offices/highways/installations, recognizing achievements or anniversaries, congratulatory or memorial resolutions, expressing the sense of Congress with no legal effect); false if it changes law, appropriates funds, creates or modifies programs, alters rights, sets policy, or directs an agency — even narrowly scoped.
 
 Determine \`stage\` from the latest_action_text. The action text is ground truth; do NOT infer stage from the bill's content or title. Apply these rules in order and stop at the first match:
 
@@ -36,7 +37,7 @@ SUMMARY:
 <2-3 sentences>
 
 JSON:
-{"topics": [...], "stage": "..."}`;
+{"topics": [...], "stage": "...", "is_ceremonial": true|false}`;
 
 export type BillRow = {
   id: string;
@@ -51,6 +52,7 @@ export type SummarizeResult = {
   summary: string;
   topics: string[];
   stage: string;
+  is_ceremonial: boolean | null;
 };
 
 export type BillContext = {
@@ -153,14 +155,22 @@ function parseResponse(text: string): SummarizeResult | null {
     return null;
   }
   if (!parsed || typeof parsed !== "object") return null;
-  const obj = parsed as { topics?: unknown; stage?: unknown };
+  const obj = parsed as {
+    topics?: unknown;
+    stage?: unknown;
+    is_ceremonial?: unknown;
+  };
   const topics = Array.isArray(obj.topics)
     ? obj.topics.filter((t): t is string => typeof t === "string")
     : null;
   const stage = typeof obj.stage === "string" ? obj.stage : null;
   if (!topics || topics.length === 0 || !stage) return null;
+  // Defensive: if the field is missing or not a boolean, leave it NULL so the
+  // backfill script can pick it up later. Don't guess.
+  const is_ceremonial =
+    typeof obj.is_ceremonial === "boolean" ? obj.is_ceremonial : null;
 
-  return { summary, topics, stage };
+  return { summary, topics, stage, is_ceremonial };
 }
 
 export type SummarizeOutput = {
@@ -214,7 +224,12 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
   }
 
   return {
-    result: { summary: parsed.summary, topics, stage },
+    result: {
+      summary: parsed.summary,
+      topics,
+      stage,
+      is_ceremonial: parsed.is_ceremonial,
+    },
     promptTokens,
     outputTokens,
   };

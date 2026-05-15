@@ -9,6 +9,8 @@ import {
   getStageChangesCount,
   isInWatchlist,
   sanitizeChamber,
+  sanitizeClusterId,
+  sanitizeIncludeCeremonial,
   sanitizeTopics,
 } from "@/lib/queries";
 
@@ -17,6 +19,8 @@ type SearchParams = {
   expanded?: string;
   q?: string;
   chamber?: string;
+  ceremonial?: string;
+  cluster?: string;
 };
 
 const DAYS = 7;
@@ -32,8 +36,16 @@ export default async function ChangesPage({
     typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
-  const hasFilters = topics.length > 0 || !!chamber;
-  const feedFilters = { topics, q: q || undefined, chamber };
+  const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
+  const cluster = sanitizeClusterId(params.cluster);
+  const hasFilters = topics.length > 0 || !!chamber || !!cluster;
+  const feedFilters = {
+    topics,
+    q: q || undefined,
+    chamber,
+    includeCeremonial,
+    cluster,
+  };
 
   const [bills, counts] = await Promise.all([
     getStageChanges(feedFilters, DAYS),
@@ -47,6 +59,8 @@ export default async function ChangesPage({
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
+  if (includeCeremonial) clearSearchParams.set("ceremonial", "1");
+  if (cluster) clearSearchParams.set("cluster", cluster);
   const clearSearchHref = clearSearchParams.toString()
     ? `/changes?${clearSearchParams.toString()}`
     : "/changes";
@@ -55,6 +69,8 @@ export default async function ChangesPage({
   if (topics.length > 0) carry.set("topics", topics.join(","));
   if (q) carry.set("q", q);
   if (chamber) carry.set("chamber", chamber);
+  if (includeCeremonial) carry.set("ceremonial", "1");
+  if (cluster) carry.set("cluster", cluster);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -88,12 +104,21 @@ export default async function ChangesPage({
             stage={undefined}
             q={q}
             chamber={chamber}
+            ceremonial={includeCeremonial}
+            cluster={cluster}
             basePath="/changes"
           />
           <ChamberToggle current={chamber} carry={carry} basePath="/changes" />
           {hasFilters ? (
             <Link
-              href={q ? `/changes?q=${encodeURIComponent(q)}` : "/changes"}
+              href={(() => {
+                const sp = new URLSearchParams();
+                if (q) sp.set("q", q);
+                if (includeCeremonial) sp.set("ceremonial", "1");
+                if (cluster) sp.set("cluster", cluster);
+                const qs = sp.toString();
+                return qs ? `/changes?${qs}` : "/changes";
+              })()}
               className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
@@ -163,7 +188,7 @@ export default async function ChangesPage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics, stage: undefined, q, chamber }}
+                  filters={{ topics, stage: undefined, q, chamber, ceremonial: includeCeremonial, cluster }}
                   basePath="/changes"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}

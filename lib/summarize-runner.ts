@@ -139,11 +139,17 @@ export async function runSummarize(
       } else {
         const transitioned =
           bill.oldStage !== null && bill.oldStage !== out.result.stage;
+        const ceremonialArg =
+          out.result.is_ceremonial === null
+            ? null
+            : out.result.is_ceremonial
+              ? 1
+              : 0;
         if (transitioned) {
           await db.execute({
             sql: `UPDATE bills
                   SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                      previous_stage = ?, stage_changed_at = ?
+                      previous_stage = ?, stage_changed_at = ?, is_ceremonial = ?
                   WHERE id = ?`,
             args: [
               out.result.summary,
@@ -153,13 +159,15 @@ export async function runSummarize(
               out.result.stage,
               bill.oldStage,
               new Date().toISOString(),
+              ceremonialArg,
               bill.id,
             ],
           });
         } else {
           await db.execute({
             sql: `UPDATE bills
-                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?
+                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
+                      is_ceremonial = ?
                   WHERE id = ?`,
             args: [
               out.result.summary,
@@ -167,6 +175,7 @@ export async function runSummarize(
               new Date().toISOString(),
               JSON.stringify(out.result.topics),
               out.result.stage,
+              ceremonialArg,
               bill.id,
             ],
           });

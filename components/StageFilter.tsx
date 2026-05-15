@@ -20,7 +20,9 @@ export function StageFilter({
   sponsor,
   sort,
   chamber,
-  basePath = "/",
+  ceremonial,
+  cluster,
+  basePath = "/feed",
   availableStages = ALLOWED_STAGES,
 }: {
   current: string | undefined;
@@ -29,6 +31,8 @@ export function StageFilter({
   sponsor?: string;
   sort?: string;
   chamber?: string;
+  ceremonial?: boolean;
+  cluster?: string;
   basePath?: string;
   availableStages?: readonly Stage[];
 }) {
@@ -43,6 +47,8 @@ export function StageFilter({
     if (sponsor) params.set("sponsor", sponsor);
     if (sort && sort !== "action") params.set("sort", sort);
     if (chamber) params.set("chamber", chamber);
+    if (ceremonial) params.set("ceremonial", "1");
+    if (cluster) params.set("cluster", cluster);
     const qs = params.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);

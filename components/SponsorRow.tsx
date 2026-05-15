@@ -134,7 +134,7 @@ export function SponsorRow({
           )}
           <div className="mt-3">
             <Link
-              href={`/?sponsor=${slug}`}
+              href={`/feed?sponsor=${slug}`}
               className="inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >

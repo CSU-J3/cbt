@@ -10,6 +10,8 @@ import {
   getStaleCount,
   isInWatchlist,
   sanitizeChamber,
+  sanitizeClusterId,
+  sanitizeIncludeCeremonial,
   sanitizeStaleStage,
   sanitizeTopics,
   STALE_FILTER_STAGES,
@@ -21,6 +23,8 @@ type SearchParams = {
   expanded?: string;
   q?: string;
   chamber?: string;
+  ceremonial?: string;
+  cluster?: string;
 };
 
 export default async function StalePage({
@@ -35,14 +39,25 @@ export default async function StalePage({
     typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
-  const hasFilters = topics.length > 0 || !!stage || !!chamber;
-  const feedFilters = { topics, stage, q: q || undefined, chamber };
+  const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
+  const cluster = sanitizeClusterId(params.cluster);
+  const hasFilters = topics.length > 0 || !!stage || !!chamber || !!cluster;
+  const feedFilters = {
+    topics,
+    stage,
+    q: q || undefined,
+    chamber,
+    includeCeremonial,
+    cluster,
+  };
 
   const carry = new URLSearchParams();
   if (topics.length > 0) carry.set("topics", topics.join(","));
   if (stage) carry.set("stage", stage);
   if (q) carry.set("q", q);
   if (chamber) carry.set("chamber", chamber);
+  if (includeCeremonial) carry.set("ceremonial", "1");
+  if (cluster) carry.set("cluster", cluster);
 
   const [bills, counts] = await Promise.all([
     getStaleBills(feedFilters, 50),
@@ -57,6 +72,8 @@ export default async function StalePage({
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
   if (stage) clearSearchParams.set("stage", stage);
+  if (includeCeremonial) clearSearchParams.set("ceremonial", "1");
+  if (cluster) clearSearchParams.set("cluster", cluster);
   const clearSearchHref = clearSearchParams.toString()
     ? `/stale?${clearSearchParams.toString()}`
     : "/stale";
@@ -93,6 +110,8 @@ export default async function StalePage({
             topics={topics}
             q={q}
             chamber={chamber}
+            ceremonial={includeCeremonial}
+            cluster={cluster}
             basePath="/stale"
             availableStages={STALE_FILTER_STAGES}
           />
@@ -108,11 +127,20 @@ export default async function StalePage({
             stage={stage}
             q={q}
             chamber={chamber}
+            ceremonial={includeCeremonial}
+            cluster={cluster}
             basePath="/stale"
           />
           {hasFilters ? (
             <Link
-              href={q ? `/stale?q=${encodeURIComponent(q)}` : "/stale"}
+              href={(() => {
+                const sp = new URLSearchParams();
+                if (q) sp.set("q", q);
+                if (includeCeremonial) sp.set("ceremonial", "1");
+                if (cluster) sp.set("cluster", cluster);
+                const qs = sp.toString();
+                return qs ? `/stale?${qs}` : "/stale";
+              })()}
               className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
@@ -175,7 +203,7 @@ export default async function StalePage({
                 <BillRow
                   key={b.id}
                   bill={b}
-                  filters={{ topics, stage, q, chamber }}
+                  filters={{ topics, stage, q, chamber, ceremonial: includeCeremonial, cluster }}
                   basePath="/stale"
                   expandedId={expandedId}
                   onWatchlist={expandedId === b.id ? onWatchlist : false}

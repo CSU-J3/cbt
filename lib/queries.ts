@@ -1,6 +1,12 @@
 import { unstable_cache } from "next/cache";
+import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
-import { ALLOWED_STAGES_SET, ALLOWED_TOPICS_SET } from "./enums";
+import {
+  ALLOWED_STAGES_SET,
+  ALLOWED_TOPICS_SET,
+  type Stage,
+  type Topic,
+} from "./enums";
 
 export const STALE_DAYS = 60;
 export const STALE_ELIGIBLE_STAGES = [
@@ -62,6 +68,8 @@ export type FeedFilters = {
   sponsor?: string;
   sort?: SortKey;
   chamber?: Chamber;
+  includeCeremonial?: boolean;
+  cluster?: string;
 };
 
 export type PartyKey = "R" | "D" | "I";
@@ -80,6 +88,7 @@ export type SponsorFilters = {
   state?: string;
   q?: string;
   chamber?: Chamber;
+  includeCeremonial?: boolean;
 };
 
 export function normalizePartyVariant(party: string | null): PartyKey | null {
@@ -138,6 +147,17 @@ function buildFeedWhere(filters: FeedFilters): {
     clauses.push(`bill_type IN (${SENATE_BILL_TYPES})`);
   }
 
+  // Cluster filter bypasses the ceremonial gate: most clusters are mostly
+  // ceremonial, and opting into a cluster means asking to see all of it.
+  if (filters.cluster) {
+    clauses.push("cluster_id = ?");
+    args.push(filters.cluster);
+  } else if (!filters.includeCeremonial) {
+    // Hide ceremonial bills by default. NULL (unclassified) treated as visible
+    // so the dashboard doesn't go dark during backfill.
+    clauses.push("(is_ceremonial = 0 OR is_ceremonial IS NULL)");
+  }
+
   return { clauses, args };
 }
 
@@ -149,9 +169,16 @@ export function sanitizeTopics(input: string | undefined): string[] {
     .filter((t) => ALLOWED_TOPICS_SET.has(t));
 }
 
-export function sanitizeStage(input: string | undefined): string | undefined {
+export function sanitizeStage(input: string | undefined): Stage | undefined {
   if (!input) return undefined;
-  return ALLOWED_STAGES_SET.has(input) ? input : undefined;
+  return ALLOWED_STAGES_SET.has(input) ? (input as Stage) : undefined;
+}
+
+// Single-topic validation for the dashboard's ?topics= param. The feed uses
+// sanitizeTopics (plural, comma-split); the dashboard takes one topic for v1.
+export function sanitizeTopic(input: string | undefined): Topic | undefined {
+  if (!input) return undefined;
+  return ALLOWED_TOPICS_SET.has(input) ? (input as Topic) : undefined;
 }
 
 export function sanitizeStaleStage(
@@ -171,6 +198,19 @@ export function sanitizeChamber(
 ): Chamber | undefined {
   if (raw && CHAMBERS_SET.has(raw)) return raw as Chamber;
   return undefined;
+}
+
+export function sanitizeIncludeCeremonial(
+  raw: string | null | undefined,
+): boolean {
+  return raw === "1";
+}
+
+export function sanitizeClusterId(
+  raw: string | null | undefined,
+): string | undefined {
+  if (!raw) return undefined;
+  return CLUSTER_IDS.has(raw) ? raw : undefined;
 }
 
 function buildStaleWhere(filters: FeedFilters): {
@@ -193,14 +233,17 @@ export type FeedStats = {
 
 // Global "X bills · updated Y" counter shown in HeaderBar on every page.
 // Cached for 1h because (a) the sync cron writes once daily, and (b) the
-// sync route calls revalidateTag("feed-stats") on success so post-sync hits
+// sync route calls revalidateTag("bills") on success so post-sync hits
 // see fresh numbers immediately. Step 0 measured this query at 1.5-3s; the
 // HeaderBar runs on every page render, so caching it removes the dominant
 // per-request cost across the entire dashboard.
 export const getFeedStats = unstable_cache(
-  async (): Promise<FeedStats> => {
+  async (
+    includeCeremonial: boolean = false,
+    cluster?: string,
+  ): Promise<FeedStats> => {
     const db = getDb();
-    const { clauses, args } = buildFeedWhere({});
+    const { clauses, args } = buildFeedWhere({ includeCeremonial, cluster });
     const r = await db.execute({
       sql: `SELECT COUNT(*) AS total, MAX(update_date) AS last
             FROM bills WHERE ${clauses.join(" AND ")}`,
@@ -216,6 +259,241 @@ export const getFeedStats = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// Pipeline order, top-to-bottom, for the dashboard stage funnel.
+const FUNNEL_STAGES: Stage[] = [
+  "introduced",
+  "committee",
+  "floor",
+  "other_chamber",
+  "president",
+  "enacted",
+];
+
+// Click-to-filter state for the dashboard panes (handoff 56). Single value
+// each; the dashboard accepts a strict subset of feed-shaped params.
+export type DashboardFilters = {
+  stage?: Stage;
+  topic?: Topic;
+};
+
+export type StageDistribution = {
+  stage: Stage;
+  count: number;
+  percentage: number; // 0-100, of total substantive on-path bills
+};
+
+// Feeds the dashboard's stage funnel. Counts substantive (non-ceremonial)
+// bills per on-path stage; `offPath` is the substantive bills with stage
+// 'other' or NULL. Tagged "bills" so the sync cron's revalidateTag flushes it.
+//
+// `filters.topic` re-shapes the funnel to the stage distribution *within*
+// that topic. `filters.stage` is NOT applied here — a single-bar funnel is
+// useless; it only drives the component's selection state. unstable_cache
+// keys on the args, so each filter variant gets its own cache slot.
+export const getStageDistribution = unstable_cache(
+  async (
+    filters?: DashboardFilters,
+  ): Promise<{
+    bars: StageDistribution[];
+    offPath: number;
+    total: number;
+  }> => {
+    const db = getDb();
+    const topic = filters?.topic;
+    const topicClause = topic
+      ? " AND EXISTS (SELECT 1 FROM json_each(bills.topics) WHERE value = ?)"
+      : "";
+    const topicArgs = topic ? [topic] : [];
+
+    const placeholders = FUNNEL_STAGES.map(() => "?").join(", ");
+    const rs = await db.execute({
+      sql: `SELECT stage, COUNT(*) AS count
+            FROM bills
+            WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+              AND stage IN (${placeholders})${topicClause}
+            GROUP BY stage`,
+      args: [...FUNNEL_STAGES, ...topicArgs],
+    });
+    const counts = new Map<string, number>();
+    for (const r of rs.rows) {
+      counts.set(r.stage as string, Number(r.count ?? 0));
+    }
+    const total = FUNNEL_STAGES.reduce(
+      (sum, s) => sum + (counts.get(s) ?? 0),
+      0,
+    );
+    const bars: StageDistribution[] = FUNNEL_STAGES.map((stage) => {
+      const count = counts.get(stage) ?? 0;
+      return {
+        stage,
+        count,
+        percentage: total > 0 ? (count / total) * 100 : 0,
+      };
+    });
+
+    const offRs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills
+            WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+              AND (stage = 'other' OR stage IS NULL)${topicClause}`,
+      args: [...topicArgs],
+    });
+    return {
+      bars,
+      offPath: Number(offRs.rows[0]?.n ?? 0),
+      total,
+    };
+  },
+  ["getStageDistribution"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+export type CorpusStats = {
+  total: number; // total non-ceremonial bills
+  lastSync: string | null; // ISO timestamp of most recent update_date
+};
+
+// Feeds the dashboard HeaderBar's "N bills tracked · last sync HH:MM MT" line.
+export const getCorpusStats = unstable_cache(
+  async (): Promise<CorpusStats> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT COUNT(*) AS total, MAX(update_date) AS last_sync
+       FROM bills
+       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)`,
+    );
+    const r = rs.rows[0];
+    return {
+      total: Number(r?.total ?? 0),
+      lastSync: (r?.last_sync as string | null) ?? null,
+    };
+  },
+  ["getCorpusStats"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+export type TopicCount = {
+  topic: Topic;
+  count: number;
+};
+
+// Corpus-wide topic distribution for the dashboard's right pane. `json_each`
+// is the standard pattern for aggregating across the `topics` JSON column —
+// it UNNESTs the array so each tag becomes its own row before GROUP BY. Any
+// future JSON columns should aggregate the same way. Non-ceremonial only;
+// NULL ceremonial counts as visible, same convention as buildFeedWhere.
+//
+// `filters.stage` narrows the counts to bills at that stage. `filters.topic`
+// is NOT applied here — it only drives the component's selection state.
+export const getTopicDistribution = unstable_cache(
+  async (filters?: DashboardFilters): Promise<TopicCount[]> => {
+    const db = getDb();
+    const stage = filters?.stage;
+    const stageClause = stage ? " AND bills.stage = ?" : "";
+    const stageArgs = stage ? [stage] : [];
+    const rs = await db.execute({
+      sql: `SELECT je.value AS topic, COUNT(*) AS count
+       FROM bills, json_each(bills.topics) je
+       WHERE bills.topics IS NOT NULL
+         AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)${stageClause}
+       GROUP BY je.value
+       ORDER BY count DESC`,
+      args: [...stageArgs],
+    });
+    const result: TopicCount[] = [];
+    for (const r of rs.rows) {
+      const topic = r.topic as string;
+      if (!ALLOWED_TOPICS_SET.has(topic)) {
+        console.warn(
+          `[getTopicDistribution] skipping unknown topic: ${topic}`,
+        );
+        continue;
+      }
+      result.push({ topic: topic as Topic, count: Number(r.count ?? 0) });
+    }
+    return result;
+  },
+  ["getTopicDistribution"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// The cron-generated 3-sentence dashboard lead, stored in dashboard_state
+// under key 'weekly_lead'. Returns null if the cron hasn't generated one yet
+// (fresh DB). Tagged "bills" so the cron's revalidateTag flushes it after a
+// fresh generation writes the new lead.
+export const getDashboardLead = unstable_cache(
+  async (): Promise<{ text: string; updatedAt: string } | null> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT value, updated_at FROM dashboard_state WHERE key = 'weekly_lead'`,
+    );
+    const r = rs.rows[0];
+    if (!r) return null;
+    return {
+      text: r.value as string,
+      updatedAt: r.updated_at as string,
+    };
+  },
+  ["getDashboardLead"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+export type ReportListItem = {
+  slug: string;
+  title: string;
+  weekStart: string;
+  weekEnd: string;
+};
+
+export type Report = ReportListItem & {
+  contentMd: string;
+  createdAt: string;
+};
+
+// Weekly cron-generated reports (handoff 58). Tagged "reports" — a separate
+// tag from "bills" because the cron's report step revalidates independently
+// of the sync/summarize steps.
+export const getReportsList = unstable_cache(
+  async (): Promise<ReportListItem[]> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT slug, title, week_start, week_end
+       FROM reports
+       ORDER BY week_start DESC`,
+    );
+    return rs.rows.map((r) => ({
+      slug: r.slug as string,
+      title: r.title as string,
+      weekStart: r.week_start as string,
+      weekEnd: r.week_end as string,
+    }));
+  },
+  ["reports-list"],
+  { revalidate: 3600, tags: ["reports"] },
+);
+
+export const getReport = unstable_cache(
+  async (slug: string): Promise<Report | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT slug, title, week_start, week_end, content_md, created_at
+            FROM reports WHERE slug = ? LIMIT 1`,
+      args: [slug],
+    });
+    const r = rs.rows[0];
+    if (!r) return null;
+    return {
+      slug: r.slug as string,
+      title: r.title as string,
+      weekStart: r.week_start as string,
+      weekEnd: r.week_end as string,
+      contentMd: r.content_md as string,
+      createdAt: r.created_at as string,
+    };
+  },
+  ["report"],
+  { revalidate: 3600, tags: ["reports"] },
+);
+
 export const FEED_PAGE_SIZE = 100;
 
 export type FeedPage = {
@@ -229,8 +507,8 @@ export type FeedPage = {
 // Wrapped in unstable_cache because revalidate=300 does nothing for a route
 // that awaits searchParams (Next.js 15 treats that as a dynamic API and
 // disables the Full Route Cache). Caching at the query level instead means
-// the dominant default-/ view (unfiltered, page 1) serves from cache for
-// every user. Sync cron calls revalidateTag("feed-bills") on write.
+// the dominant default feed view (unfiltered, page 1) serves from cache for
+// every user. Sync cron calls revalidateTag("bills") on write.
 //
 // Cache key includes filters + page + pageSize via unstable_cache's
 // argument-derived keying. Filter combinations that vary order (e.g. topics)
@@ -399,6 +677,12 @@ function buildSponsorWhere(filters: SponsorFilters): {
     clauses.push(`bill_type IN (${HOUSE_BILL_TYPES})`);
   } else if (filters.chamber === "senate") {
     clauses.push(`bill_type IN (${SENATE_BILL_TYPES})`);
+  }
+
+  // Sponsor rankings should reflect substantive work by default. Unclassified
+  // rows (NULL) stay visible so the page doesn't go dark during backfill.
+  if (!filters.includeCeremonial) {
+    clauses.push("(is_ceremonial = 0 OR is_ceremonial IS NULL)");
   }
 
   return { clauses, args };
@@ -582,15 +866,21 @@ export async function getSponsorStates(): Promise<string[]> {
 }
 
 export const getSponsorRecentBills = unstable_cache(
-  async (sponsorKey: string): Promise<FeedBill[]> => {
+  async (
+    sponsorKey: string,
+    includeCeremonial: boolean = false,
+  ): Promise<FeedBill[]> => {
     const db = getDb();
+    const ceremonialClause = includeCeremonial
+      ? ""
+      : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage
       FROM bills
       WHERE summary IS NOT NULL
-        AND (sponsor_bioguide_id = ? OR sponsor_name = ?)
+        AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}
       ORDER BY latest_action_date DESC NULLS LAST`;
     const rs = await db.execute({ sql, args: [sponsorKey, sponsorKey] });
     return rs.rows.map(rowToFeedBill);
@@ -610,8 +900,14 @@ export type SponsorStats = {
 };
 
 export const getSponsorStats = unstable_cache(
-  async (sponsorKey: string): Promise<SponsorStats> => {
+  async (
+    sponsorKey: string,
+    includeCeremonial: boolean = false,
+  ): Promise<SponsorStats> => {
     const db = getDb();
+    const ceremonialClause = includeCeremonial
+      ? ""
+      : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
     const rs = await db.execute({
       sql: `SELECT
           COUNT(*) AS total,
@@ -622,7 +918,7 @@ export const getSponsorStats = unstable_cache(
           SUM(CASE WHEN stage = 'other_chamber' THEN 1 ELSE 0 END) AS other_chamber,
           SUM(CASE WHEN stage = 'president' THEN 1 ELSE 0 END) AS president
         FROM bills
-        WHERE sponsor_bioguide_id = ? OR sponsor_name = ?`,
+        WHERE (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}`,
       args: [sponsorKey, sponsorKey],
     });
     const r = rs.rows[0];
@@ -643,12 +939,19 @@ export const getSponsorStats = unstable_cache(
 export type SponsorTopic = { topic: string; count: number };
 
 export const getSponsorTopTopics = unstable_cache(
-  async (sponsorKey: string, limit = 3): Promise<SponsorTopic[]> => {
+  async (
+    sponsorKey: string,
+    limit = 3,
+    includeCeremonial: boolean = false,
+  ): Promise<SponsorTopic[]> => {
     const db = getDb();
+    const ceremonialClause = includeCeremonial
+      ? ""
+      : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
     const rs = await db.execute({
       sql: `SELECT topics FROM bills
             WHERE topics IS NOT NULL
-              AND (sponsor_bioguide_id = ? OR sponsor_name = ?)`,
+              AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}`,
       args: [sponsorKey, sponsorKey],
     });
     const counts = new Map<string, number>();
@@ -675,7 +978,11 @@ export const getSponsorTopTopics = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
-function buildChangesWhere(filters: FeedFilters, days: number): {
+function buildChangesWhere(
+  filters: FeedFilters,
+  days: number,
+  dashboard?: DashboardFilters,
+): {
   clauses: string[];
   args: (string | number)[];
 } {
@@ -683,6 +990,19 @@ function buildChangesWhere(filters: FeedFilters, days: number): {
   const { clauses, args } = buildFeedWhere(rest);
   clauses.push("stage_changed_at IS NOT NULL");
   clauses.push(`stage_changed_at > datetime('now', '-${days} days')`);
+  // Dashboard click-to-filter (handoff 56). Stage matches transitions
+  // involving that stage in either direction; topic uses the json_each
+  // EXISTS pattern shared with the other dashboard helpers.
+  if (dashboard?.stage) {
+    clauses.push("(stage = ? OR previous_stage = ?)");
+    args.push(dashboard.stage, dashboard.stage);
+  }
+  if (dashboard?.topic) {
+    clauses.push(
+      "EXISTS (SELECT 1 FROM json_each(bills.topics) WHERE value = ?)",
+    );
+    args.push(dashboard.topic);
+  }
   return { clauses, args };
 }
 
@@ -691,9 +1011,10 @@ export const getStageChanges = unstable_cache(
     filters: FeedFilters,
     days = 7,
     limit = 200,
+    dashboard?: DashboardFilters,
   ): Promise<FeedBill[]> => {
     const db = getDb();
-    const { clauses, args } = buildChangesWhere(filters, days);
+    const { clauses, args } = buildChangesWhere(filters, days, dashboard);
     args.push(limit);
 
     const sql = `SELECT id, congress, bill_type, bill_number, title,
@@ -846,6 +1167,77 @@ export async function removeFromWatchlist(billId: string): Promise<void> {
     args: [billId],
   });
 }
+
+export type ClusterStat = {
+  id: string;
+  name: string;
+  description: string;
+  count: number;
+  exampleTitle: string | null;
+};
+
+// Returns one row per pattern (zero-counts included), sorted by count DESC.
+// Uses a single GROUP BY scan plus per-id lookups for example titles. Cheap.
+export const getClusterStats = unstable_cache(
+  async (): Promise<ClusterStat[]> => {
+    const db = getDb();
+    const countsRs = await db.execute(
+      `SELECT cluster_id, COUNT(*) AS n
+       FROM bills WHERE cluster_id IS NOT NULL GROUP BY cluster_id`,
+    );
+    const countsByPattern = new Map<string, number>();
+    for (const r of countsRs.rows) {
+      countsByPattern.set(
+        r.cluster_id as string,
+        Number(r.n ?? 0),
+      );
+    }
+
+    const result: ClusterStat[] = [];
+    for (const p of CLUSTER_PATTERNS) {
+      const count = countsByPattern.get(p.id) ?? 0;
+      let exampleTitle: string | null = null;
+      if (count > 0) {
+        const ex = await db.execute({
+          sql: `SELECT title FROM bills
+                WHERE cluster_id = ?
+                ORDER BY latest_action_date DESC NULLS LAST, id DESC
+                LIMIT 1`,
+          args: [p.id],
+        });
+        exampleTitle = (ex.rows[0]?.title as string | null) ?? null;
+      }
+      result.push({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        count,
+        exampleTitle,
+      });
+    }
+    return result.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  },
+  ["getClusterStats"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+export const getUnmatchedClusterCount = unstable_cache(
+  async (includeCeremonial: boolean = false): Promise<number> => {
+    const db = getDb();
+    // Honors the active ceremonial filter so the displayed unmatched figure
+    // matches what's actually visible elsewhere in the app.
+    const ceremonialClause = includeCeremonial
+      ? ""
+      : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+    const rs = await db.execute(
+      `SELECT COUNT(*) AS n FROM bills
+       WHERE cluster_id IS NULL${ceremonialClause}`,
+    );
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getUnmatchedClusterCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
 
 // Tagged with both "watchlist" (membership changes from toggle) and "bills"
 // (underlying row data changes from sync), so either trigger invalidates.
