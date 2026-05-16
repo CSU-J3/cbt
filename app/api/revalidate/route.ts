@@ -18,9 +18,18 @@ function authorize(request: Request): NextResponse | null {
   return null;
 }
 
+const ALLOWED_TAGS = new Set(["bills", "reports"]);
+
 export async function POST(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
-  revalidateTag("bills");
-  return NextResponse.json({ ok: true, tag: "bills" });
+  const tag = new URL(request.url).searchParams.get("tag") ?? "bills";
+  if (!ALLOWED_TAGS.has(tag)) {
+    return NextResponse.json(
+      { error: `tag must be one of: ${[...ALLOWED_TAGS].join(", ")}` },
+      { status: 400 },
+    );
+  }
+  revalidateTag(tag);
+  return NextResponse.json({ ok: true, tag });
 }
