@@ -119,7 +119,33 @@ CREATE TABLE reports (
 );
 
 CREATE INDEX idx_reports_week_start ON reports(week_start DESC);
+
+-- Member bios. One row per Congress.gov member, populated by
+-- `npm run sync:members`. Backs /sponsors/[bioguideId].
+CREATE TABLE members (
+  bioguide_id TEXT PRIMARY KEY,        -- e.g. "S000033"
+  name TEXT NOT NULL,                  -- directOrderName from API
+  first_name TEXT,
+  last_name TEXT,
+  party TEXT,                          -- normalized 'R' | 'D' | 'I'
+  state TEXT,                          -- two-letter (matches bills.sponsor_state)
+  state_name TEXT,                     -- "California"
+  district INTEGER,                    -- House only, NULL for Senate
+  chamber TEXT,                        -- 'house' | 'senate'
+  birth_year INTEGER,
+  depiction_url TEXT,                  -- official photo URL
+  current_term_end_year INTEGER,       -- derived: startYear + 2 (House) or +6 (Senate)
+  next_election_year INTEGER,          -- derived: current_term_end_year - 1
+  terms_json TEXT,                     -- raw terms array, for future use
+  raw_json TEXT NOT NULL,
+  fetched_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_members_state ON members(state);
+CREATE INDEX idx_members_next_election ON members(next_election_year);
 ```
+
+`bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
 
 Skip cosponsors, committees, and full action history for now. Add tables for those only when the UI needs them.
 
@@ -130,7 +156,7 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 1. Read `MAX(update_date)` from the `bills` table. If empty, default to 7 days ago.
 2. Call `/bill?fromDateTime={maxUpdate}&sort=updateDate+desc` and paginate.
 3. For each bill, compare `updateDateIncludingText` against what's stored. If new or changed, fetch full detail.
-4. Upsert into `bills`. If `updateDateIncludingText` changed, clear `summary` so it gets re-summarized. `cosponsor_count` is also captured from `bill.cosponsors.count` on every upsert and is intentionally NOT nulled across re-syncs — counts are fresh from every detail fetch, so re-nulling would create unnecessary backfill churn.
+4. Upsert into `bills`. If `updateDateIncludingText` changed, clear `summary` so it gets re-summarized. `cosponsor_count` is also captured from `bill.cosponsors.count` on every upsert and is intentionally NOT nulled across re-syncs — counts are fresh from every detail fetch, so re-nulling would create unnecessary backfill churn. `sponsor_bioguide_id` is captured from `sponsors[0].bioguideId` and refreshed on every upsert (cost of re-writing identical values is zero; bioguide_id never actually changes for a bill).
 5. Find rows where `summary IS NULL`. For each, fetch latest text version, call the LLM, write summary. The pre-truncation length of the fetched text is also captured into `text_length` on the same UPDATE — NULL when no text version is available or the fetch failed (so the text-length backfill can retry), distinguishable from 0 (checked, empty). If the prior `stage` was non-null and differs from the new LLM-classified stage, also write `previous_stage` (= prior stage) and `stage_changed_at` (= now). The sync upsert preserves `stage` across re-classifications so this comparison stays meaningful; only `summary`, `topics`, etc. get nulled when `update_date` changes.
 
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
@@ -139,6 +165,8 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 
 - `npm run backfill:cosponsors` — pure SQL `json_extract` from `raw_json` into `cosponsor_count`. No API calls, instant. Idempotent via `WHERE cosponsor_count IS NULL`. JSON path is `$.cosponsors.count` (the sync stores `detailRes.bill` directly as `raw_json`, not the outer wrapper).
 - `npm run backfill:text-length` — re-fetches text URLs for summarized bills with NULL `text_length`. Throttled at ~5 bills/sec, ~50 min for the full corpus, safe to Ctrl-C and resume. Empty fetch → write 0; thrown fetch → leave NULL so the next run retries. Reuses `fetchBillText` exported from `lib/summarize.ts`.
+- `npm run backfill:bioguide-ids` — pure SQL `json_extract` from `raw_json` into `sponsor_bioguide_id`. JSON path `$.sponsors[0].bioguideId`. Modern syncs already write this field directly so the script is a safety net for older rows; coverage is ~100% on the live corpus.
+- `npm run sync:members` — fetches `/member/{bioguideId}` from Congress.gov for every distinct `bills.sponsor_bioguide_id`, upserts into `members`. Skips rows refreshed within `STALE_DAYS = 30`. ~544 API calls on a clean run, ~90 seconds. Not in the cron — manual refresh monthly. The script derives `chamber` from the latest term and computes `current_term_end_year` as `startYear + 2` (House) or `+ 6` (Senate) because the API omits `endYear` on active terms. `party` comes from `partyHistory` (most recent entry); the script accepts both abbreviation form (`R`, `D`, `I`) and full name (`Republican`, `Democratic`, `Independent`).
 
 ### Query helpers (`lib/queries.ts`)
 
@@ -159,6 +187,7 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 - `getTopicDistribution(filters?)` — corpus-wide topic counts (non-ceremonial only), sorted by count desc. Uses `json_each` to UNNEST the `topics` JSON array — the standard pattern for aggregating across a JSON column; any future JSON columns aggregate the same way. Rows are validated against the `Topic` enum (unknown values logged and skipped). Optional `DashboardFilters` arg: `stage` narrows the counts to bills at that stage; `topic` is *not* applied here (visual selection only). Cached, tag `bills`, key includes the filter args.
 - `getDashboardLead()` — reads the current `weekly_lead` row from `dashboard_state` (`{ text, updatedAt }`), or `null` if the cron hasn't generated one yet. Cached, tag `bills`, invalidated by the cron after a fresh lead is written.
 - `getReportsList()` / `getReport(slug)` — weekly reports for `/reports` and `/reports/[slug]`. Both cached with tag `reports` (separate from `bills` because the cron's report step revalidates independently). The cron's Monday step calls `revalidateTag('reports')` after writing.
+- `getMember(bioguideId)` / `getMemberStats(bioguideId)` / `getMemberBills(bioguideId, limit)` — back the `/sponsors/[bioguideId]` member hub. Cached with tag `members` (24h revalidate); `getMemberBills` additionally tagged `bills` since the underlying bill rows change with the daily cron. `getMemberStats` excludes ceremonial bills from the enacted-rate denominator so the number reflects substantive work. `getSponsors` (`/sponsors`) returns `sponsor_bioguide_id` via `MAX(...)` so the row's expanded panel can render `[View detail →]` when present.
 
 ### Ceremonial filter (`?ceremonial=1`)
 
@@ -261,6 +290,7 @@ Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and
 - `/clusters` — bill template index. One row per regex pattern from `lib/cluster-patterns.ts`, sorted by count desc. Each row links to `/?cluster=<id>`. Sub-header shows `N templates · X matched · Y unmatched` where Y honors the active ceremonial filter via URL param. No `CeremonialToggle` (the page isn't a feed). No `SearchBox` (not a feed). Custom `.cluster-row` / `.cluster-header-row` grid (`1.2fr 80px 3fr`).
 - `/reports` — index of weekly reports, newest first. Empty until the first Monday after handoff 58 ships, when the cron writes the first row. Plain `HeaderBar` (no filters), simple row list with hover; click navigates to `/reports/[slug]`.
 - `/reports/[slug]` — individual weekly report. Markdown body rendered by `components/ReportMarkdown.tsx` (react-markdown + remark-gfm) with terminal-aesthetic component overrides for h1/h2/p/ul/li/code/table/em/strong. `[Download .md ↓]` link in the header pulls from `/reports/[slug]/download`, which serves `report.content_md` with `Content-Disposition: attachment; filename="cbt-${slug}.md"`. Unknown slug renders a friendly empty state with a back link, not Next's `notFound()`.
+- `/sponsors/[bioguideId]` — member hub (handoff 60). Photo (depiction_url, plain `<img>` with initials fallback), name, party + state + district chip, born year, next-election chip. Stat block (bills sponsored, enacted with %, avg cosponsor count). Affiliations placeholder ("Coming soon"). Top 10 sponsored bills via reused `BillRow` (no expand, no daysSinceMode). `[View all N bills →]` links to `/feed?sponsor=<bioguide_id>`. Unknown bioguide_id renders a friendly empty state, not Next's `notFound()`. Reads from `members` table; refresh via `npm run sync:members`.
 
 Feed-shaped routes (`/feed`, `/stale`, `/changes`, `/president`, `/watchlist`) share the same `HeaderBar` (count + last-updated MT) and render a `StageLegend` (party + stage legend) inline at the top of the list — there is no footer legend component. The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
 
@@ -416,6 +446,10 @@ The cron route should reject requests where `Authorization` header doesn't match
 - **Route-level `revalidate` does nothing in Next.js 15 for any page using `await searchParams` or `await params`.** Those async dynamic APIs opt the route into fully dynamic rendering, which disables the Full Route Cache regardless of the `revalidate` export. Confirmed in production: every response sent `Cache-Control: private, no-cache, no-store` and `X-Vercel-Cache: MISS`. Cache at the query layer with `unstable_cache` + `revalidateTag` instead — that's how `getFeedStats` and `getFeedBills` actually stay cached across requests. Every cached query helper is tagged with a single unified `"bills"` tag (commit `0693843`); the sync cron calls `revalidateTag("bills")` after writes to invalidate them all on fresh data.
 - **The dashboard `/` is dynamically rendered, not statically prerendered.** Once `await searchParams` was added to `app/page.tsx` for click-to-filter (handoff 56), `/` lost its static prerender — same mechanism as the note above. Query-layer caching via `unstable_cache` + the `bills` tag still applies, so this is a small latency regression, not a correctness one.
 - **`raw_json` stores the unwrapped `detailRes.bill` object, not the outer `{ bill: ... }` wrapper.** So `json_extract(raw_json, '$.cosponsors.count')` works; `'$.bill.cosponsors.count'` always returns NULL. Verify the path with a quick `SELECT json_extract(raw_json, '$...') FROM bills LIMIT 5` before writing any new backfill that pulls from `raw_json`.
+- **Member endpoint quirks** — three things the `/member/{bioguideId}` response does that contradict some Congress.gov docs and template snippets:
+  - `member.terms` is the term array directly. **Not** `member.terms.item`. Iterating `member.terms?.item ?? []` silently returns nothing.
+  - Party comes from `member.partyHistory` (sorted by `startYear` desc). `member.partyName` does not exist on the response. Pull `partyAbbreviation` (one-letter `R`/`D`/`I`); a substring match on `partyName` against the abbreviation falls through to `I` for everyone.
+  - `endYear` is **omitted on the active term** (the one for the current Congress). Derive it from chamber + `startYear`: senate → `startYear + 6`, house → `startYear + 2`. `next_election_year = current_term_end_year - 1` (terms end Jan 3 of an odd year, election the prior November). Members appointed mid-term may still have non-standard spans; spot-check after sync.
 
 ## What not to do
 

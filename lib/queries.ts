@@ -471,6 +471,140 @@ export const getReportsList = unstable_cache(
   { revalidate: 3600, tags: ["reports"] },
 );
 
+// ---- Members (handoff 60) ------------------------------------------------
+
+export type Member = {
+  bioguideId: string;
+  name: string;
+  firstName: string | null;
+  lastName: string | null;
+  party: PartyKey | null;
+  state: string | null;
+  stateName: string | null;
+  district: number | null;
+  chamber: "house" | "senate" | null;
+  birthYear: number | null;
+  depictionUrl: string | null;
+  currentTermEndYear: number | null;
+  nextElectionYear: number | null;
+};
+
+export type MemberStats = {
+  billsSponsored: number;
+  billsEnacted: number;
+  enactedRate: number; // 0-1, 0 when billsSponsored is 0
+  avgCosponsorCount: number | null;
+};
+
+function rowToMember(r: Record<string, unknown>): Member {
+  const party = r.party as string | null;
+  return {
+    bioguideId: r.bioguide_id as string,
+    name: r.name as string,
+    firstName: (r.first_name as string | null) ?? null,
+    lastName: (r.last_name as string | null) ?? null,
+    party:
+      party === "R" || party === "D" || party === "I"
+        ? (party as PartyKey)
+        : null,
+    state: (r.state as string | null) ?? null,
+    stateName: (r.state_name as string | null) ?? null,
+    district:
+      r.district === null || r.district === undefined
+        ? null
+        : Number(r.district),
+    chamber:
+      r.chamber === "house" || r.chamber === "senate"
+        ? (r.chamber as "house" | "senate")
+        : null,
+    birthYear:
+      r.birth_year === null || r.birth_year === undefined
+        ? null
+        : Number(r.birth_year),
+    depictionUrl: (r.depiction_url as string | null) ?? null,
+    currentTermEndYear:
+      r.current_term_end_year === null || r.current_term_end_year === undefined
+        ? null
+        : Number(r.current_term_end_year),
+    nextElectionYear:
+      r.next_election_year === null || r.next_election_year === undefined
+        ? null
+        : Number(r.next_election_year),
+  };
+}
+
+export const getMember = unstable_cache(
+  async (bioguideId: string): Promise<Member | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT bioguide_id, name, first_name, last_name, party, state, state_name,
+              district, chamber, birth_year, depiction_url,
+              current_term_end_year, next_election_year
+            FROM members WHERE bioguide_id = ? LIMIT 1`,
+      args: [bioguideId],
+    });
+    const r = rs.rows[0];
+    return r ? rowToMember(r) : null;
+  },
+  ["getMember"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
+// Excludes ceremonial bills from the enacted rate so the number reflects
+// substantive work (a renaming counts toward "bills sponsored" elsewhere,
+// but enacted-rate is a quality signal, not a volume signal).
+export const getMemberStats = unstable_cache(
+  async (bioguideId: string): Promise<MemberStats> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT
+              COUNT(*) AS bills_sponsored,
+              SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS bills_enacted,
+              AVG(cosponsor_count) AS avg_cosponsor_count
+            FROM bills
+            WHERE sponsor_bioguide_id = ?
+              AND (is_ceremonial = 0 OR is_ceremonial IS NULL)`,
+      args: [bioguideId],
+    });
+    const r = rs.rows[0];
+    const billsSponsored = Number(r?.bills_sponsored ?? 0);
+    const billsEnacted = Number(r?.bills_enacted ?? 0);
+    const avgRaw = r?.avg_cosponsor_count;
+    return {
+      billsSponsored,
+      billsEnacted,
+      enactedRate: billsSponsored > 0 ? billsEnacted / billsSponsored : 0,
+      avgCosponsorCount:
+        avgRaw === null || avgRaw === undefined ? null : Number(avgRaw),
+    };
+  },
+  ["getMemberStats"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
+// Ceremonial bills included — the member hub is about a person's full output,
+// not a substantive-only feed. The UI can dim ceremonial rows via the
+// existing is_ceremonial signal threaded through FeedBill.
+export const getMemberBills = unstable_cache(
+  async (bioguideId: string, limit: number = 10): Promise<FeedBill[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT id, congress, bill_type, bill_number, title,
+              sponsor_name, sponsor_party, sponsor_state, introduced_date,
+              latest_action_date, latest_action_text, update_date,
+              summary, topics, stage
+            FROM bills
+            WHERE sponsor_bioguide_id = ?
+            ORDER BY latest_action_date DESC NULLS LAST, id DESC
+            LIMIT ?`,
+      args: [bioguideId, limit],
+    });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getMemberBills"],
+  { revalidate: 86400, tags: ["members", "bills"] },
+);
+
 export const getReport = unstable_cache(
   async (slug: string): Promise<Report | null> => {
     const db = getDb();

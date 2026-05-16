@@ -200,7 +200,16 @@ export function SponsorExpandedPanel({
             </div>
           ) : null}
 
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+            {bioguideId ? (
+              <Link
+                href={`/sponsors/${bioguideId}`}
+                className="inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+                style={{ color: "var(--accent-amber)" }}
+              >
+                [View detail →]
+              </Link>
+            ) : null}
             <Link
               href={openInFeedHref}
               className="inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"

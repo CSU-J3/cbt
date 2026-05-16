@@ -50,6 +50,28 @@ const statements = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_reports_week_start ON reports(week_start DESC)`,
+  // handoff 60: members table. One row per Congress.gov member. Backs the
+  // /sponsors/[bioguideId] member hub. Populated by `npm run sync:members`.
+  `CREATE TABLE IF NOT EXISTS members (
+    bioguide_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    party TEXT,
+    state TEXT,
+    state_name TEXT,
+    district INTEGER,
+    chamber TEXT,
+    birth_year INTEGER,
+    depiction_url TEXT,
+    current_term_end_year INTEGER,
+    next_election_year INTEGER,
+    terms_json TEXT,
+    raw_json TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_members_state ON members(state)`,
+  `CREATE INDEX IF NOT EXISTS idx_members_next_election ON members(next_election_year)`,
 ];
 
 async function ensureColumn(
