@@ -58,6 +58,10 @@ export type SummarizeResult = {
 export type BillContext = {
   billText: string;
   crsSummary: string;
+  // Pre-truncation length of the fetched bill text. NULL when no text version
+  // was available or the fetch failed — distinguishable from 0 so the
+  // text-length backfill can retry the failures later (handoff 59).
+  textLength: number | null;
 };
 
 function stripHtml(html: string): string {
@@ -97,6 +101,28 @@ type SummariesResp = {
   summaries?: Array<{ actionDate?: string; text?: string }>;
 };
 
+// Fetches the latest text version's stripped content, untruncated. Returns
+// "" when the bill has no text version listed yet (common for fresh
+// introductions). Throws on network/HTTP failure so the text-length
+// backfill can distinguish "no text available" (=0) from "fetch failed"
+// (=leave NULL and retry).
+export async function fetchBillText(
+  bill: { congress: number; bill_type: string; bill_number: number },
+  apiKey: string,
+): Promise<string> {
+  const base = `https://api.congress.gov/v3/bill/${bill.congress}/${bill.bill_type}/${bill.bill_number}`;
+  const auth = `format=json&api_key=${encodeURIComponent(apiKey)}`;
+  const tr = await fetchJson<TextResp>(`${base}/text?${auth}`);
+  const versions = (tr.textVersions ?? []).slice().sort((a, b) =>
+    (b.date ?? "").localeCompare(a.date ?? ""),
+  );
+  const latest = versions[0];
+  const formatted = latest?.formats?.find((f) => f.type === "Formatted Text");
+  if (!formatted?.url) return "";
+  const html = await fetchText(formatted.url);
+  return stripHtml(html);
+}
+
 export async function fetchBillContext(
   bill: BillRow,
   apiKey: string,
@@ -105,17 +131,15 @@ export async function fetchBillContext(
   const auth = `format=json&api_key=${encodeURIComponent(apiKey)}`;
 
   let billText = "";
+  let textLength: number | null = null;
   try {
-    const tr = await fetchJson<TextResp>(`${base}/text?${auth}`);
-    const versions = (tr.textVersions ?? []).slice().sort((a, b) =>
-      (b.date ?? "").localeCompare(a.date ?? ""),
-    );
-    const latest = versions[0];
-    const formatted = latest?.formats?.find((f) => f.type === "Formatted Text");
-    if (formatted?.url) {
-      const html = await fetchText(formatted.url);
-      billText = stripHtml(html).slice(0, TEXT_LIMIT);
+    const raw = await fetchBillText(bill, apiKey);
+    if (raw) {
+      textLength = raw.length;
+      billText = raw.slice(0, TEXT_LIMIT);
     }
+    // raw === "" → textLength stays null. NULL preserves "data not available"
+    // so a fresh introduction that gets text later still updates correctly.
   } catch {
     // bills without text yet are still summarizable from title + CRS
   }
@@ -132,7 +156,7 @@ export async function fetchBillContext(
     // CRS summaries are optional
   }
 
-  return { billText, crsSummary };
+  return { billText, crsSummary, textLength };
 }
 
 function parseResponse(text: string): SummarizeResult | null {
@@ -177,6 +201,9 @@ export type SummarizeOutput = {
   result: SummarizeResult | null;
   promptTokens: number;
   outputTokens: number;
+  // Pre-truncation length of the bill text used for the prompt. Threaded
+  // from BillContext so the runner can persist it alongside the summary.
+  textLength: number | null;
 };
 
 export async function summarizeBill(
@@ -202,9 +229,21 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
   const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
 
   const text = response.text;
-  if (!text) return { result: null, promptTokens, outputTokens };
+  if (!text)
+    return {
+      result: null,
+      promptTokens,
+      outputTokens,
+      textLength: context.textLength,
+    };
   const parsed = parseResponse(text);
-  if (!parsed) return { result: null, promptTokens, outputTokens };
+  if (!parsed)
+    return {
+      result: null,
+      promptTokens,
+      outputTokens,
+      textLength: context.textLength,
+    };
 
   const valid: string[] = [];
   const invalid: string[] = [];
@@ -232,5 +271,6 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
     },
     promptTokens,
     outputTokens,
+    textLength: context.textLength,
   };
 }

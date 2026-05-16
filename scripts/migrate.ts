@@ -95,6 +95,10 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_cluster_id ON bills(cluster_id)",
   );
   console.log("ok: idx_bills_cluster_id");
+  // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
+  // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
+  await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
+  await ensureColumn(db, "bills", "text_length", "INTEGER");
   console.log("migration complete");
 }
 

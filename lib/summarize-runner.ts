@@ -149,7 +149,7 @@ export async function runSummarize(
           await db.execute({
             sql: `UPDATE bills
                   SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                      previous_stage = ?, stage_changed_at = ?, is_ceremonial = ?
+                      previous_stage = ?, stage_changed_at = ?, is_ceremonial = ?, text_length = ?
                   WHERE id = ?`,
             args: [
               out.result.summary,
@@ -160,6 +160,7 @@ export async function runSummarize(
               bill.oldStage,
               new Date().toISOString(),
               ceremonialArg,
+              out.textLength,
               bill.id,
             ],
           });
@@ -167,7 +168,7 @@ export async function runSummarize(
           await db.execute({
             sql: `UPDATE bills
                   SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                      is_ceremonial = ?
+                      is_ceremonial = ?, text_length = ?
                   WHERE id = ?`,
             args: [
               out.result.summary,
@@ -176,6 +177,7 @@ export async function runSummarize(
               JSON.stringify(out.result.topics),
               out.result.stage,
               ceremonialArg,
+              out.textLength,
               bill.id,
             ],
           });

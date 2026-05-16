@@ -222,17 +222,24 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic))
     .slice(0, DEAD_TOPIC_LIMIT);
 
-  // 5. Notable introductions — top substantive intros by summary length.
-  // Summary length is a weak substantiveness proxy until text_length lands.
+  // 5. Notable introductions — top substantive intros by cosponsor support,
+  // tiebroken by raw text length (handoff 59). text_length filter excludes
+  // short resolutions and one-pagers that slip past the ceremonial+cluster
+  // gates; NULL is kept so the filter doesn't go empty during backfill.
+  // Cosponsor NULLs sort last; they should be rare once the backfill runs.
   const notableRs = await db.execute({
     sql: `SELECT bill_type, bill_number, title,
-            sponsor_name, sponsor_party, sponsor_state
+            sponsor_name, sponsor_party, sponsor_state,
+            cosponsor_count, text_length
           FROM bills
           WHERE introduced_date BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}
             AND (cluster_id IS NULL OR cluster_id = 'cra-disapproval')
             AND summary IS NOT NULL
-          ORDER BY LENGTH(summary) DESC
+            AND (text_length IS NULL OR text_length > 5000)
+          ORDER BY cosponsor_count DESC NULLS LAST,
+                   COALESCE(text_length, 0) DESC,
+                   id DESC
           LIMIT ?`,
     args: [week.start, week.end, NOTABLE_LIMIT],
   });

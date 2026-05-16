@@ -12,6 +12,8 @@
     "summarize": "tsx scripts/summarize.ts",
     "classify-ceremonial": "tsx scripts/classify-ceremonial.ts",
     "backfill-clusters": "tsx scripts/backfill-clusters.ts",
+    "backfill:cosponsors": "tsx scripts/backfill-cosponsors.ts",
+    "backfill:text-length": "tsx scripts/backfill-text-length.ts",
     "lead": "tsx scripts/generate-lead.ts",
     "report": "tsx scripts/generate-report.ts",
     "typecheck": "tsc --noEmit"

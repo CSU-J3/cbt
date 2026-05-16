@@ -80,7 +80,9 @@ CREATE TABLE bills (
   previous_stage TEXT,              -- prior stage value, written when stage transitions
   stage_changed_at TEXT,            -- ISO timestamp of the most recent stage change
   is_ceremonial INTEGER,            -- tri-state: NULL unclassified, 0 substantive, 1 ceremonial
-  cluster_id TEXT                   -- regex-matched template slug; NULL = no template fit
+  cluster_id TEXT,                  -- regex-matched template slug; NULL = no template fit
+  cosponsor_count INTEGER,          -- bill.cosponsors.count from API; NULL = not yet populated, 0 = no cosponsors
+  text_length INTEGER               -- pre-truncation length of fetched bill text; NULL = no text or fetch failed, 0 = checked, empty
 );
 
 CREATE INDEX idx_bills_update_date ON bills(update_date DESC);
@@ -128,10 +130,15 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 1. Read `MAX(update_date)` from the `bills` table. If empty, default to 7 days ago.
 2. Call `/bill?fromDateTime={maxUpdate}&sort=updateDate+desc` and paginate.
 3. For each bill, compare `updateDateIncludingText` against what's stored. If new or changed, fetch full detail.
-4. Upsert into `bills`. If `updateDateIncludingText` changed, clear `summary` so it gets re-summarized.
-5. Find rows where `summary IS NULL`. For each, fetch latest text version, call the LLM, write summary. If the prior `stage` was non-null and differs from the new LLM-classified stage, also write `previous_stage` (= prior stage) and `stage_changed_at` (= now). The sync upsert preserves `stage` across re-classifications so this comparison stays meaningful; only `summary`, `topics`, etc. get nulled when `update_date` changes.
+4. Upsert into `bills`. If `updateDateIncludingText` changed, clear `summary` so it gets re-summarized. `cosponsor_count` is also captured from `bill.cosponsors.count` on every upsert and is intentionally NOT nulled across re-syncs — counts are fresh from every detail fetch, so re-nulling would create unnecessary backfill churn.
+5. Find rows where `summary IS NULL`. For each, fetch latest text version, call the LLM, write summary. The pre-truncation length of the fetched text is also captured into `text_length` on the same UPDATE — NULL when no text version is available or the fetch failed (so the text-length backfill can retry), distinguishable from 0 (checked, empty). If the prior `stage` was non-null and differs from the new LLM-classified stage, also write `previous_stage` (= prior stage) and `stage_changed_at` (= now). The sync upsert preserves `stage` across re-classifications so this comparison stays meaningful; only `summary`, `topics`, etc. get nulled when `update_date` changes.
 
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
+
+### Backfill scripts
+
+- `npm run backfill:cosponsors` — pure SQL `json_extract` from `raw_json` into `cosponsor_count`. No API calls, instant. Idempotent via `WHERE cosponsor_count IS NULL`. JSON path is `$.cosponsors.count` (the sync stores `detailRes.bill` directly as `raw_json`, not the outer wrapper).
+- `npm run backfill:text-length` — re-fetches text URLs for summarized bills with NULL `text_length`. Throttled at ~5 bills/sec, ~50 min for the full corpus, safe to Ctrl-C and resume. Empty fetch → write 0; thrown fetch → leave NULL so the next run retries. Reuses `fetchBillText` exported from `lib/summarize.ts`.
 
 ### Query helpers (`lib/queries.ts`)
 
@@ -234,7 +241,7 @@ Weekly reports — one Markdown blob per calendar week, rendered at `/reports/[s
 - The Markdown body is assembled programmatically: section headers + counts come from the data, prose comes from the LLM. Bill IDs render as plain text (`HR 2702`); stage transitions use the canonical `▸ INTRO → ▸▸ COMMITTEE` glyphs.
 - Storage: upserted into `reports` keyed by `slug` (the ISO week-start date). Re-running for the same week overwrites the prior row.
 - Failure mode: cron logs a warning and writes no row; the sync's other steps still complete. Manual recovery: `npm run report` (prior week) or `npm run report YYYY-MM-DD` (specific week start). `scripts/generate-report.ts` prints the assembled Markdown before writing — useful for iterating on the prompt.
-- Notable introductions ranks by `LENGTH(summary)` as a weak substantiveness proxy until `text_length` and `cosponsor_count` land in future enrichment handoffs. CRA-disapproval is included as substantive; other clusters are filtered out.
+- Notable introductions ranks by `cosponsor_count DESC NULLS LAST`, tiebroken by `COALESCE(text_length, 0) DESC` then `id DESC`. The pre-filter `(text_length IS NULL OR text_length > 5000)` excludes short resolutions and one-pagers that slip past the ceremonial+cluster gates while keeping NULL rows visible during backfill. CRA-disapproval is included as substantive; other clusters are filtered out. (The handoff-58 `LENGTH(summary)` proxy was retired in handoff 59.)
 - Markdown rendered on `/reports/[slug]` via `react-markdown` + `remark-gfm` (needed for the topic-breakdown table) with terminal-aesthetic component overrides in `components/ReportMarkdown.tsx`.
 
 ## Frontend design system
@@ -408,6 +415,7 @@ The cron route should reject requests where `Authorization` header doesn't match
 
 - **Route-level `revalidate` does nothing in Next.js 15 for any page using `await searchParams` or `await params`.** Those async dynamic APIs opt the route into fully dynamic rendering, which disables the Full Route Cache regardless of the `revalidate` export. Confirmed in production: every response sent `Cache-Control: private, no-cache, no-store` and `X-Vercel-Cache: MISS`. Cache at the query layer with `unstable_cache` + `revalidateTag` instead — that's how `getFeedStats` and `getFeedBills` actually stay cached across requests. Every cached query helper is tagged with a single unified `"bills"` tag (commit `0693843`); the sync cron calls `revalidateTag("bills")` after writes to invalidate them all on fresh data.
 - **The dashboard `/` is dynamically rendered, not statically prerendered.** Once `await searchParams` was added to `app/page.tsx` for click-to-filter (handoff 56), `/` lost its static prerender — same mechanism as the note above. Query-layer caching via `unstable_cache` + the `bills` tag still applies, so this is a small latency regression, not a correctness one.
+- **`raw_json` stores the unwrapped `detailRes.bill` object, not the outer `{ bill: ... }` wrapper.** So `json_extract(raw_json, '$.cosponsors.count')` works; `'$.bill.cosponsors.count'` always returns NULL. Verify the path with a quick `SELECT json_extract(raw_json, '$...') FROM bills LIMIT 5` before writing any new backfill that pulls from `raw_json`.
 
 ## What not to do
 

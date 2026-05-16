@@ -34,6 +34,7 @@ type DetailBill = {
   updateDateIncludingText?: string;
   latestAction?: LatestAction;
   sponsors?: Sponsor[];
+  cosponsors?: { count?: number };
 };
 
 type ListResponse = {
@@ -118,13 +119,17 @@ async function getStoredUpdate(
   return (row.update_date as string | null) ?? null;
 }
 
+// cosponsor_count is refreshed on every upsert (cosponsors accrete over the
+// life of a bill). Intentionally NOT cleared when update_date changes —
+// re-nulling would create unnecessary backfill churn since the count is
+// fresh from every detail fetch.
 const UPSERT_SQL = `
 INSERT INTO bills (
   id, congress, bill_type, bill_number, title,
   introduced_date, latest_action_date, latest_action_text,
   sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
-  update_date, raw_json, cluster_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  update_date, raw_json, cluster_id, cosponsor_count
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   title = excluded.title,
   introduced_date = excluded.introduced_date,
@@ -137,6 +142,7 @@ ON CONFLICT(id) DO UPDATE SET
   raw_json = excluded.raw_json,
   update_date = excluded.update_date,
   cluster_id = excluded.cluster_id,
+  cosponsor_count = excluded.cosponsor_count,
   summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
@@ -157,6 +163,7 @@ async function upsertBill(
   const sponsor = detail.sponsors?.[0];
   const billType = String(detail.type).toLowerCase();
   const clusterId = classifyCluster(detail.title, billType);
+  const cosponsorCount = detail.cosponsors?.count ?? null;
   await db.execute({
     sql: UPSERT_SQL,
     args: [
@@ -175,6 +182,7 @@ async function upsertBill(
       update,
       JSON.stringify(detail),
       clusterId,
+      cosponsorCount,
     ],
   });
 }
