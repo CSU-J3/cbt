@@ -72,6 +72,203 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_members_state ON members(state)`,
   `CREATE INDEX IF NOT EXISTS idx_members_next_election ON members(next_election_year)`,
+  // handoff 61: hand-curated caucus / advocacy affiliations. One row per
+  // (bioguide_id, org). FK to members; rows are seeded via
+  // `npm run seed:affiliations`. `category` is 'caucus' in v1 and reserved
+  // for 'union' / 'advocacy' in later theme-6 sub-handoffs.
+  `CREATE TABLE IF NOT EXISTS affiliations (
+    bioguide_id TEXT NOT NULL REFERENCES members(bioguide_id),
+    org TEXT NOT NULL,
+    category TEXT NOT NULL,
+    source_url TEXT,
+    last_verified TEXT NOT NULL,
+    PRIMARY KEY (bioguide_id, org)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_affiliations_org ON affiliations(org)`,
+  `CREATE INDEX IF NOT EXISTS idx_affiliations_bioguide ON affiliations(bioguide_id)`,
+  // handoff 62: race surface. One row per (state, district/senate, cycle).
+  // Stubs auto-derived from `members` via `npm run backfill:races`; rating
+  // and candidate roster hand-curated via `npm run seed:races`. Rating
+  // string is one of the seven Sabato categories (nullable until seeded).
+  `CREATE TABLE IF NOT EXISTS races (
+    id TEXT PRIMARY KEY,
+    cycle INTEGER NOT NULL,
+    chamber TEXT NOT NULL,
+    state TEXT NOT NULL,
+    district INTEGER,
+    rating TEXT,
+    rating_source TEXT,
+    rating_updated_at TEXT,
+    incumbent_bioguide_id TEXT REFERENCES members(bioguide_id),
+    source_url TEXT,
+    last_verified TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_races_cycle ON races(cycle)`,
+  `CREATE INDEX IF NOT EXISTS idx_races_state ON races(state)`,
+  `CREATE INDEX IF NOT EXISTS idx_races_chamber ON races(chamber)`,
+  `CREATE INDEX IF NOT EXISTS idx_races_incumbent ON races(incumbent_bioguide_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_races_rating ON races(rating)`,
+  `CREATE TABLE IF NOT EXISTS race_candidates (
+    race_id TEXT NOT NULL REFERENCES races(id),
+    name TEXT NOT NULL,
+    party TEXT,
+    bioguide_id TEXT REFERENCES members(bioguide_id),
+    status TEXT,
+    source_url TEXT,
+    PRIMARY KEY (race_id, name)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_race_candidates_race ON race_candidates(race_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_race_candidates_bioguide ON race_candidates(bioguide_id)`,
+  // handoff 64: news signal pipeline. One row per (bill_id, article_url)
+  // — the UNIQUE constraint makes re-ingestion idempotent. A single article
+  // can match multiple bills, generating one row per pair. `matched_via`
+  // and `match_confidence` are forward-looking: v1 is regex-only
+  // (deterministic, NULL confidence); fuzzy/LLM layers in 65+ will use 0-1.
+  `CREATE TABLE IF NOT EXISTS news_mentions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id TEXT NOT NULL REFERENCES bills(id),
+    source TEXT NOT NULL,
+    article_url TEXT NOT NULL,
+    article_title TEXT NOT NULL,
+    article_summary TEXT,
+    published_at TEXT NOT NULL,
+    matched_via TEXT NOT NULL,
+    match_confidence REAL,
+    ingested_at TEXT NOT NULL,
+    UNIQUE(bill_id, article_url)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_news_mentions_bill ON news_mentions(bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_news_mentions_published ON news_mentions(published_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_news_mentions_source ON news_mentions(source)`,
+  // handoff 70: stock trades from FMP disclosures. Composite id keys the
+  // table because FMP doesn't return a stable filing id (bioguide-disclosure
+  // date-ticker-transaction date-amount; re-ingestion is idempotent via
+  // INSERT OR IGNORE). bioguide_id nullable so unmatched rows still land —
+  // matcher is best-effort and audit-by-SELECT-WHERE-NULL is the workflow.
+  `CREATE TABLE IF NOT EXISTS stock_trades (
+    id TEXT PRIMARY KEY,
+    bioguide_id TEXT REFERENCES members(bioguide_id),
+    member_name_raw TEXT NOT NULL,
+    chamber TEXT NOT NULL,
+    ticker TEXT,
+    asset_description TEXT,
+    transaction_type TEXT,
+    transaction_date TEXT,
+    disclosure_date TEXT,
+    amount TEXT,
+    owner TEXT,
+    raw_json TEXT NOT NULL,
+    ingested_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_trades_bioguide ON stock_trades(bioguide_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_trades_disclosure_date ON stock_trades(disclosure_date DESC)`,
+  // handoff 65: donors pipeline. Three tables — top 10 donors per (member,
+  // cycle), top 5 industries per (member, cycle), fundraising totals per
+  // (member, cycle). All money columns are INTEGER cents to avoid float
+  // precision drift on aggregation. Rank in the PK lets re-ingest cleanly
+  // overwrite: DELETE WHERE bioguide_id=? AND cycle=? then INSERT rank 1..N.
+  `CREATE TABLE IF NOT EXISTS member_donors (
+    bioguide_id TEXT NOT NULL REFERENCES members(bioguide_id),
+    cycle INTEGER NOT NULL,
+    rank INTEGER NOT NULL,
+    org_name TEXT NOT NULL,
+    total INTEGER NOT NULL,
+    pacs INTEGER,
+    indivs INTEGER,
+    source_url TEXT,
+    ingested_at TEXT NOT NULL,
+    PRIMARY KEY (bioguide_id, cycle, rank)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_member_donors_org ON member_donors(org_name)`,
+  `CREATE TABLE IF NOT EXISTS member_industries (
+    bioguide_id TEXT NOT NULL REFERENCES members(bioguide_id),
+    cycle INTEGER NOT NULL,
+    rank INTEGER NOT NULL,
+    industry_name TEXT NOT NULL,
+    total INTEGER NOT NULL,
+    source_url TEXT,
+    ingested_at TEXT NOT NULL,
+    PRIMARY KEY (bioguide_id, cycle, rank)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_member_industries_name ON member_industries(industry_name)`,
+  `CREATE TABLE IF NOT EXISTS member_fundraising (
+    bioguide_id TEXT NOT NULL REFERENCES members(bioguide_id),
+    cycle INTEGER NOT NULL,
+    total_raised INTEGER NOT NULL,
+    total_spent INTEGER,
+    cash_on_hand INTEGER,
+    debts INTEGER,
+    source_url TEXT,
+    ingested_at TEXT NOT NULL,
+    PRIMARY KEY (bioguide_id, cycle)
+  )`,
+  // Generic key/value table for sync checkpoint state. One row in v1:
+  // key='donors_cursor', value=last-processed bioguide_id. Cleared when a
+  // run finishes the full member list.
+  `CREATE TABLE IF NOT EXISTS sync_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  // handoff 71: race ratings from third-party forecasters (Cook v1; Sabato
+  // and Inside Elections layer in later as additional rows). Composite id
+  // = race_id-source so re-seeding upserts in place. race_id is a loose
+  // link to races.id (no FK constraint) — ratings can sit ahead of race
+  // rows existing, useful when the seed runs before the next-election
+  // year flips. rating_score is a -3..+3 numeric proxy for sorting by
+  // competitiveness without parsing strings; |rating_score| <= 1 is the
+  // "competitive" filter.
+  `CREATE TABLE IF NOT EXISTS race_ratings (
+    id TEXT PRIMARY KEY,
+    race_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    rating TEXT NOT NULL,
+    rating_score INTEGER NOT NULL,
+    rating_date TEXT,
+    source_url TEXT,
+    cycle INTEGER NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_ratings_race ON race_ratings(race_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_ratings_score ON race_ratings(rating_score)`,
+  // handoff 77: House roll-call votes. `id` is 'house-{congress}-{session}-
+  // {rollCall}'. `bill_id` references bills.id when the vote attaches to a
+  // bill; NULL for amendment/procedural votes whose legislationType doesn't
+  // map (those land in amendment_designation as raw 'HAMDT5' etc.). totals
+  // are summed across votePartyTotal[] at ingest time so reads don't have
+  // to re-aggregate. Senate ships in a separate handoff (XML scraping).
+  `CREATE TABLE IF NOT EXISTS votes (
+    id TEXT PRIMARY KEY,
+    chamber TEXT NOT NULL,
+    congress INTEGER NOT NULL,
+    session INTEGER NOT NULL,
+    roll_call INTEGER NOT NULL,
+    vote_date TEXT NOT NULL,
+    question TEXT,
+    description TEXT,
+    result TEXT,
+    bill_id TEXT REFERENCES bills(id),
+    amendment_designation TEXT,
+    yea_count INTEGER NOT NULL,
+    nay_count INTEGER NOT NULL,
+    present_count INTEGER,
+    not_voting_count INTEGER,
+    raw_json TEXT NOT NULL,
+    update_date TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_votes_chamber_date ON votes(chamber, vote_date DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_votes_bill_id ON votes(bill_id) WHERE bill_id IS NOT NULL`,
+  // bioguide_id intentionally NOT a FK to members — vote records include
+  // members who haven't been synced yet (or have since left) and we never
+  // want a missing-member row to block the position insert. Join at
+  // query time.
+  `CREATE TABLE IF NOT EXISTS member_votes (
+    vote_id TEXT NOT NULL REFERENCES votes(id),
+    bioguide_id TEXT NOT NULL,
+    position TEXT NOT NULL,
+    PRIMARY KEY (vote_id, bioguide_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_member_votes_bioguide ON member_votes(bioguide_id)`,
 ];
 
 async function ensureColumn(

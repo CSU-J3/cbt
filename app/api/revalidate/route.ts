@@ -18,7 +18,14 @@ function authorize(request: Request): NextResponse | null {
   return null;
 }
 
-const ALLOWED_TAGS = new Set(["bills", "reports"]);
+const ALLOWED_TAGS = new Set([
+  "bills",
+  "reports",
+  "races",
+  "race-ratings",
+  "news-breaking",
+  "member-trades",
+]);
 
 export async function POST(request: Request) {
   const denied = authorize(request);

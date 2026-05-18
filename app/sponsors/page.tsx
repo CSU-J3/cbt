@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
+import { SponsorProductivityScatter } from "@/components/SponsorProductivityScatter";
 import { SponsorSortToggle } from "@/components/SponsorSortToggle";
 import {
   type Chamber,
@@ -138,6 +139,19 @@ export default async function SponsorsPage({
             </em>
           </p>
         ) : null}
+
+        <section
+          className="mb-4 border p-3"
+          style={{ borderColor: "var(--border-strong)" }}
+        >
+          <p
+            className="mb-2 text-[12px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Sponsor productivity (bills · pass rate)
+          </p>
+          <SponsorProductivityScatter />
+        </section>
 
         <div
           className="border"

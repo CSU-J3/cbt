@@ -143,6 +143,132 @@ CREATE TABLE members (
 
 CREATE INDEX idx_members_state ON members(state);
 CREATE INDEX idx_members_next_election ON members(next_election_year);
+
+-- Hand-curated caucus / advocacy affiliations (handoff 61). One row per
+-- (bioguide_id, org). FK to members.bioguide_id. category is 'caucus' in
+-- v1; reserved for 'union' / 'advocacy' in later theme-6 sub-handoffs.
+CREATE TABLE affiliations (
+  bioguide_id TEXT NOT NULL REFERENCES members(bioguide_id),
+  org TEXT NOT NULL,                -- stable slug; display labels live in lib/caucus-config.ts
+  category TEXT NOT NULL,           -- 'caucus' only in v1
+  source_url TEXT,
+  last_verified TEXT NOT NULL,      -- ISO date
+  PRIMARY KEY (bioguide_id, org)
+);
+
+CREATE INDEX idx_affiliations_org ON affiliations(org);
+CREATE INDEX idx_affiliations_bioguide ON affiliations(bioguide_id);
+
+-- Race surface (handoff 62). One row per (state, district, cycle) for the
+-- House and per (state, cycle) for the Senate. Stubs are auto-derived from
+-- members via `npm run backfill:races`; rating + roster are hand-curated
+-- via `npm run seed:races`. id format = raceIdFromMember (lib/race-id.ts):
+-- "CO-08-2026" (House, zero-padded) | "S-CO-2026" (Senate).
+CREATE TABLE races (
+  id TEXT PRIMARY KEY,
+  cycle INTEGER NOT NULL,
+  chamber TEXT NOT NULL,
+  state TEXT NOT NULL,
+  district INTEGER,                          -- null for Senate
+  rating TEXT,                               -- safe_r | likely_r | lean_r | tossup | lean_d | likely_d | safe_d
+  rating_source TEXT,
+  rating_updated_at TEXT,                    -- ISO date
+  incumbent_bioguide_id TEXT REFERENCES members(bioguide_id),
+  source_url TEXT,
+  last_verified TEXT NOT NULL
+);
+
+CREATE INDEX idx_races_cycle ON races(cycle);
+CREATE INDEX idx_races_state ON races(state);
+CREATE INDEX idx_races_chamber ON races(chamber);
+CREATE INDEX idx_races_incumbent ON races(incumbent_bioguide_id);
+CREATE INDEX idx_races_rating ON races(rating);
+
+CREATE TABLE race_candidates (
+  race_id TEXT NOT NULL REFERENCES races(id),
+  name TEXT NOT NULL,
+  party TEXT,                                -- 'R' | 'D' | 'I' | nullable
+  bioguide_id TEXT REFERENCES members(bioguide_id),
+  status TEXT,                               -- 'declared' | 'running' | 'won_primary' | 'withdrew'
+  source_url TEXT,
+  PRIMARY KEY (race_id, name)
+);
+
+CREATE INDEX idx_race_candidates_race ON race_candidates(race_id);
+CREATE INDEX idx_race_candidates_bioguide ON race_candidates(bioguide_id);
+
+-- Race ratings (handoff 71). Third-party forecaster ratings layered onto
+-- the race surface — Cook in v1; Sabato and Inside Elections layer in
+-- later as additional rows under the same schema. Composite id =
+-- `race_id-source` makes re-seeding upsert in place. race_id is a loose
+-- link to races.id (no FK constraint) so ratings can sit ahead of race
+-- rows existing. rating_score is a -3..+3 numeric proxy for competitive-
+-- ness sorting without parsing strings; |rating_score| <= 1 is the
+-- "competitive" filter. Seeded by `npm run seed:ratings` from
+-- data/race-ratings-cook-2026.json; refresh quarterly.
+CREATE TABLE race_ratings (
+  id TEXT PRIMARY KEY,                       -- race_id + '-' + source
+  race_id TEXT NOT NULL,
+  source TEXT NOT NULL,                      -- 'cook' | 'sabato' | 'inside_elections'
+  rating TEXT NOT NULL,                      -- 'Solid D' .. 'Solid R'
+  rating_score INTEGER NOT NULL,             -- -3 .. +3 (D negative, R positive)
+  rating_date TEXT,                          -- ISO date from the forecaster
+  source_url TEXT,
+  cycle INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_ratings_race ON race_ratings(race_id);
+CREATE INDEX idx_ratings_score ON race_ratings(rating_score);
+
+-- News signal (handoff 64). One row per (bill_id, article_url) — UNIQUE
+-- makes re-ingestion idempotent. A single article citing multiple bills
+-- generates one row per pair. v1 uses regex-only matching
+-- (matched_via='bill_id_regex', match_confidence NULL); fuzzy / LLM
+-- layers in handoff 65+ will populate confidence 0-1.
+CREATE TABLE news_mentions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bill_id TEXT NOT NULL REFERENCES bills(id),
+  source TEXT NOT NULL,                    -- 'politico' | 'the_hill' | 'roll_call'
+  article_url TEXT NOT NULL,
+  article_title TEXT NOT NULL,
+  article_summary TEXT,
+  published_at TEXT NOT NULL,              -- ISO datetime from RSS
+  matched_via TEXT NOT NULL,               -- 'bill_id_regex' in v1
+  match_confidence REAL,                   -- NULL for regex (deterministic)
+  ingested_at TEXT NOT NULL,
+  UNIQUE(bill_id, article_url)
+);
+
+CREATE INDEX idx_news_mentions_bill ON news_mentions(bill_id);
+CREATE INDEX idx_news_mentions_published ON news_mentions(published_at DESC);
+CREATE INDEX idx_news_mentions_source ON news_mentions(source);
+
+-- Stock trade disclosures (handoff 70). Source: Financial Modeling Prep
+-- (FMP) free tier. Composite `id` because FMP doesn't return a stable
+-- filing id (bioguide-disclosure_date-ticker-transaction_date-amount).
+-- `bioguide_id` nullable so unmatched FMP names still land — the matcher
+-- is best-effort; audit unmatched rows with
+-- `SELECT * FROM stock_trades WHERE bioguide_id IS NULL`. Amounts kept as
+-- raw filing strings (`"$1,001 - $15,000"`) — no min/max parse in v1.
+CREATE TABLE stock_trades (
+  id TEXT PRIMARY KEY,
+  bioguide_id TEXT REFERENCES members(bioguide_id),
+  member_name_raw TEXT NOT NULL,
+  chamber TEXT NOT NULL,                   -- 'senate' | 'house'
+  ticker TEXT,
+  asset_description TEXT,
+  transaction_type TEXT,                   -- 'Purchase' | 'Sale (Partial)' | etc, raw
+  transaction_date TEXT,                   -- ISO date, may be approximate
+  disclosure_date TEXT,                    -- ISO date
+  amount TEXT,                             -- raw filing bucket string
+  owner TEXT,                              -- 'SELF' | 'SPOUSE' | 'JOINT' | etc, raw
+  raw_json TEXT NOT NULL,
+  ingested_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_trades_bioguide ON stock_trades(bioguide_id);
+CREATE INDEX idx_trades_disclosure_date ON stock_trades(disclosure_date DESC);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
@@ -161,12 +287,20 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
 
+**News ingestion (in cron).** After sync + summarize + lead generation, the cron route pulls RSS feeds from Politico, The Hill, and Roll Call. Bill IDs are extracted via regex from each article's title + summary, looked up against the `bills` table (unknown ids logged and skipped), and matches written to `news_mentions`. Idempotent on `(bill_id, article_url)`. Best-effort — RSS errors are logged but never fail the cron. Local test: `npm run sync:news`. UI surfaces (breaking-news view, media-attention column) land in handoffs 66 and 67.
+
 ### Backfill scripts
 
 - `npm run backfill:cosponsors` — pure SQL `json_extract` from `raw_json` into `cosponsor_count`. No API calls, instant. Idempotent via `WHERE cosponsor_count IS NULL`. JSON path is `$.cosponsors.count` (the sync stores `detailRes.bill` directly as `raw_json`, not the outer wrapper).
 - `npm run backfill:text-length` — re-fetches text URLs for summarized bills with NULL `text_length`. Throttled at ~5 bills/sec, ~50 min for the full corpus, safe to Ctrl-C and resume. Empty fetch → write 0; thrown fetch → leave NULL so the next run retries. Reuses `fetchBillText` exported from `lib/summarize.ts`.
 - `npm run backfill:bioguide-ids` — pure SQL `json_extract` from `raw_json` into `sponsor_bioguide_id`. JSON path `$.sponsors[0].bioguideId`. Modern syncs already write this field directly so the script is a safety net for older rows; coverage is ~100% on the live corpus.
 - `npm run sync:members` — fetches `/member/{bioguideId}` from Congress.gov for every distinct `bills.sponsor_bioguide_id`, upserts into `members`. Skips rows refreshed within `STALE_DAYS = 30`. ~544 API calls on a clean run, ~90 seconds. Not in the cron — manual refresh monthly. The script derives `chamber` from the latest term and computes `current_term_end_year` as `startYear + 2` (House) or `+ 6` (Senate) because the API omits `endYear` on active terms. `party` comes from `partyHistory` (most recent entry); the script accepts both abbreviation form (`R`, `D`, `I`) and full name (`Republican`, `Democratic`, `Independent`).
+- `npm run seed:affiliations` — loads caucus rosters from `data/affiliations-seed.json` into the `affiliations` table. No API calls (pure JSON read + upsert). Idempotent via `INSERT ... ON CONFLICT(bioguide_id, org) DO UPDATE`. Rosters whose bioguide_id isn't in the `members` table yet get warn-and-skip, not abort. Re-running after editing the JSON is the refresh workflow — refresh quarterly by hand.
+- `npm run backfill:races` — one-shot derivation of stub race rows from `members`. `INSERT OR IGNORE` so re-runs don't clobber hand-curated rating + candidate data. Expected ~435 House + ~33 Senate ≈ ~468 rows on first run; second run prints `Inserted: 0`. The SQL `id` expression is a translation of `raceIdFromMember` in `lib/race-id.ts` — keep them in sync.
+- `npm run seed:races` — applies the hand-curated rating + candidate roster layer from `data/races-seed.json` on top of the stubs. Idempotent: UPDATE on the race row + `INSERT ... ON CONFLICT(race_id, name) DO UPDATE` on candidates. Unknown race ids get warn-and-skip; invalid ratings (not in the Sabato seven) get warn-and-skip. Refresh quarterly by editing the JSON and re-running.
+- `npm run seed:ratings` — loads third-party race ratings into `race_ratings` (handoffs 71 + 73). Globs every `data/race-ratings-*.json` and upserts each row on `(race_id, source)` via `INSERT ... ON CONFLICT(id) DO UPDATE`. v1 covers Cook, Sabato, and Inside Elections (Senate only); three sources is the cap — more is noise. Unknown rating strings warn-and-skip; after 73 that almost always means a new rater vocabulary needs adding to the `RATING_SCORES` map in the script plus the matching color maps in `components/RatingChip.tsx` and `components/MemberHeader.tsx`. Prints per-source summary lines plus an aggregate. race_id is a loose link — ratings can land before the race row exists. Refresh quarterly by re-pulling each rater's page.
+- `npm run sync:news` — runs the news ingestion pipeline (handoff 64) locally. Same code path the cron route invokes via `ingestNews()`. Prints per-source `fetched/mentions/skipped_unknown_bill` counts; idempotent across reruns thanks to the `(bill_id, article_url)` UNIQUE constraint.
+- `npm run sync:trades` — runs the stock-trades ingestion pipeline (handoff 70) locally via `ingestTrades`. Same code path as the cron, but capped at 20 pages per chamber (cron caps at 3). Reads `members` into memory, fetches FMP disclosure pages for senate + house, name-matches via `lib/matchMember.ts`, and `INSERT OR IGNORE`s into `stock_trades`. Stops early when an entire FMP page is all-seen. Prints `inserted / matched / total` per chamber plus a sample of unmatched names — the audit workflow for tightening the matcher.
 
 ### Query helpers (`lib/queries.ts`)
 
@@ -185,9 +319,13 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 - `getStageDistribution(filters?)` — dashboard stage funnel: per-stage counts of substantive (non-ceremonial) on-path bills, plus `offPath` (stage `other`/NULL) and `total`. Optional `DashboardFilters` arg: `topic` re-shapes the funnel to that topic's stage distribution (via `json_each` EXISTS); `stage` is *not* applied here — a single-bar funnel is useless, so `stage` only drives the component's selection state. Cached, tag `bills`, key includes the filter args.
 - `getCorpusStats()` — total non-ceremonial bill count + most recent `update_date`. Feeds the dashboard `HeaderBar`. Cached, tag `bills`, invalidated by the sync cron.
 - `getTopicDistribution(filters?)` — corpus-wide topic counts (non-ceremonial only), sorted by count desc. Uses `json_each` to UNNEST the `topics` JSON array — the standard pattern for aggregating across a JSON column; any future JSON columns aggregate the same way. Rows are validated against the `Topic` enum (unknown values logged and skipped). Optional `DashboardFilters` arg: `stage` narrows the counts to bills at that stage; `topic` is *not* applied here (visual selection only). Cached, tag `bills`, key includes the filter args.
+- `getTopicMixByChamber()` — chamber-faceted variant of the same topic distribution (handoff 76). Two `CASE WHEN bills.bill_type IN (...)` sums (house: `hr/hjres/hconres/hres`; senate: `s/sjres/sconres/sres`) over the same `json_each` fanout. Non-ceremonial, corpus-wide, tag `bills`. Every bill maps to exactly one chamber so the two sums never double-count. Sorted by combined count DESC so House and Senate columns share an axis. Backs `TopicMixByChamber` on the home dashboard.
 - `getDashboardLead()` — reads the current `weekly_lead` row from `dashboard_state` (`{ text, updatedAt }`), or `null` if the cron hasn't generated one yet. Cached, tag `bills`, invalidated by the cron after a fresh lead is written.
-- `getReportsList()` / `getReport(slug)` — weekly reports for `/reports` and `/reports/[slug]`. Both cached with tag `reports` (separate from `bills` because the cron's report step revalidates independently). The cron's Monday step calls `revalidateTag('reports')` after writing.
+- `getReportsList()` / `getReports(limit, offset)` / `getReportCount()` / `getReport(slug)` — weekly reports for `/reports` and `/reports/[slug]`. All cached with tag `reports` (separate from `bills` because the cron's report step revalidates independently). The cron's Monday step calls `revalidateTag('reports')` after writing. `getReportsList()` is the unpaginated variant kept for compatibility with internal callers (cron, dashboard widgets); the `/reports` page uses the paginated pair (handoff 75).
 - `getMember(bioguideId)` / `getMemberStats(bioguideId)` / `getMemberBills(bioguideId, limit)` — back the `/sponsors/[bioguideId]` member hub. Cached with tag `members` (24h revalidate); `getMemberBills` additionally tagged `bills` since the underlying bill rows change with the daily cron. `getMemberStats` excludes ceremonial bills from the enacted-rate denominator so the number reflects substantive work. `getSponsors` (`/sponsors`) returns `sponsor_bioguide_id` via `MAX(...)` so the row's expanded panel can render `[View detail →]` when present.
+- `getMemberAffiliations(bioguideId)` — caucus affiliations for a member, sorted by `CAUCUS_CONFIG.priority` asc. Rows whose `org` is not in `CAUCUS_CONFIG` are filtered out (defensive against config renames leaving orphan rows). Cached tag `members`, shares the existing sync invalidation — affiliations themselves are seeded manually, so no separate invalidation surface.
+- `getRace(id)` / `getRaceCandidates(raceId)` — back the `/race/[id]` hub. Both cached, tag `races` (separate from `bills` and `members` because seeds refresh independently). `getRaceCandidates` orders by status precedence — `won_primary` first, then `running`, `declared`, `withdrew`, others — then name. The `/api/revalidate?tag=races` route is the manual-flush hook; the seed scripts do not POST to it (no live cron to invalidate against). Hit it manually if a cache flush is needed after a seed run.
+- `getRaceRatings(raceId)` / `getMostCompetitiveRaces(cycle, limit)` — back the rating chips on `/race/[id]` and the member-hub seat-up indicator (handoff 71). Both cached, tag `race-ratings` (separate from `races` because the rating seed refreshes quarterly on a different cadence). `getRaceRatings` returns rows sorted by `updated_at DESC`, so consumers can take `[0]` for the freshest read across sources. `getMostCompetitiveRaces` orders by `MIN(ABS(rating_score))` per race (so a single Toss Up rating from any source floats the race up), tiebreak `MAX(updated_at)`; it's wired up but not yet rendered — feeds the future "most competitive races" dashboard cut. The `/api/revalidate?tag=race-ratings` route is the manual flush hook after a re-seed.
 
 ### Ceremonial filter (`?ceremonial=1`)
 
@@ -279,18 +417,19 @@ Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and
 
 ### Pages
 
-- `/` — dashboard. Three-pane grid: stage funnel (left), activity ticker (middle), right pane stacks sub-view links + topic distribution. The middle pane's `ActivityTicker` shows the top 15 recent stage transitions from the last 7 days (ceremonial excluded), each rendered with `BillRow` in `showStageTransition` mode, plus a footer link to `/changes`. The right pane's `TopicDistribution` lists every non-ceremonial topic with at least one bill, sorted by count desc, color-coded bars per `lib/topic-colors.ts`. A cron-generated `DashboardLead` (3-sentence prose summary) renders at the very top, above the `ActiveFilterStrip` — corpus-wide, does not change with active filters, and hides itself entirely if no lead has been generated yet. `HeaderBar` uses `variant='dashboard'` here. No search, no count line. Accepts `?stage=<stage>` and `?topics=<topic>` query params for click-to-filter — single value each, validated against the Stage and Topic enums, invalid values silently dropped (no `q`/`sort`/`sponsor`/`cluster` on `/`). URL params drive all three panes and compose: clicking a funnel bar toggles `stage`, clicking a topic row toggles `topics`. Selected bar/row renders at full opacity, others at 0.4. `ActiveFilterStrip` renders above the grid when any filter is active, with `× CLEAR` (→ `/`) and `VIEW IN /FEED →` (→ `/feed?stage=…&topics=…`) links. Because `await searchParams` opts the route into dynamic rendering, `/` is no longer statically prerendered — the `bills`-tagged query cache still applies at the query layer. Mobile: panes stack top-to-bottom.
+- `/` — dashboard. Three-pane grid: stage funnel (left), activity ticker (middle), right pane stacks sub-view links + topic distribution. Below the grid sits the `BillsTimeSeries` chart (handoff 66) — hand-rolled SVG, stacked monthly bars for the current Congress (top 6 topics by overall count + an `other` catchall, counted by `topics[0]` to avoid double-counting, ceremonial excluded, cached under tag `bills`). The middle pane's `ActivityTicker` shows the top 15 recent stage transitions from the last 7 days (ceremonial excluded), each rendered with `BillRow` in `showStageTransition` mode, plus a footer link to `/changes`. The right pane's `TopicDistribution` lists every non-ceremonial topic with at least one bill, sorted by count desc, color-coded bars per `lib/topic-colors.ts`. A cron-generated `DashboardLead` (3-sentence prose summary) renders at the very top, above the `ActiveFilterStrip` — corpus-wide, does not change with active filters, and hides itself entirely if no lead has been generated yet. `HeaderBar` uses `variant='dashboard'` here. No search, no count line. Accepts `?stage=<stage>` and `?topics=<topic>` query params for click-to-filter — single value each, validated against the Stage and Topic enums, invalid values silently dropped (no `q`/`sort`/`sponsor`/`cluster` on `/`). URL params drive all three panes and compose: clicking a funnel bar toggles `stage`, clicking a topic row toggles `topics`. Selected bar/row renders at full opacity, others at 0.4. `ActiveFilterStrip` renders above the grid when any filter is active, with `× CLEAR` (→ `/`) and `VIEW IN /FEED →` (→ `/feed?stage=…&topics=…`) links. Because `await searchParams` opts the route into dynamic rendering, `/` is no longer statically prerendered — the `bills`-tagged query cache still applies at the query layer. Mobile: panes stack top-to-bottom.
 - `/feed` — the bill feed previously at `/`. 50 most recent bills, filterable by topic + stage, searchable via `?q=`. Same behavior, same filters, same pagination, just at the new URL. `BillRow`, `StageFilter`, `TopicFilter`, and `SearchBox` now default `basePath` to `/feed`.
 - `/bill/[id]` — detail page (card panel layout)
 - `/watchlist` — bills flagged via `★ Watch`
 - `/stale` — bills with no action in 60+ days, sorted oldest-action-first. Same filter chrome as the feed. Stage filter is constrained to the four eligible stages (`introduced`, `committee`, `floor`, `other_chamber`) — `president` and `enacted` never appear (success states aren't stalls). Action column renders days-since (`247d`) instead of a date, color-coded by threshold.
 - `/president` — bills with `stage='president'`, sorted oldest action first (closest to the 10-day veto deadline). Counterpart to `/stale`: what's queued for signature/veto, not what's been abandoned. No `StageFilter` (stage is fixed). Topic + search filters only. `?stage=*` is silently dropped. Action column renders days-on-desk with the desk-time threshold table. Header chrome: `BILLS AT DESK`. Empty state: single muted line, no chrome.
 - `/changes` — bills whose stage moved in the last 7 days, sorted by `stage_changed_at DESC`. The "in motion" view between `/stale` and `/president`. No stage filter (the page is about transitions, not destinations). Topic + search + chamber filters only. The stage column renders the transition (`▸ INTRO → ▸▸ COMMITTEE`) with the prior stage dimmed via the `muted` prop on `StageIndicator`; the action-date column shows `Xd ago` from `stage_changed_at`. Wider stage column comes from the `.changes-feed` wrapper class, not a `BillRow` template change. `BillRow` opts in via `showStageTransition`. Empty state: `No stage changes in the last 7 days.`
-- `/sponsors` — distinct sponsors aggregated from `bills`, sorted by `bill_count DESC, sponsor_name ASC`. Filters: party (R/D/I), state (only states present in the data), name search. Click a row to inline-expand: 5 most recent bills + a `[VIEW ALL N BILLS →]` link to `/?sponsor=<encoded name>`. Custom `SponsorRow` grid (`24px 1fr 40px 50px 80px 110px`) — does not reuse `BillRow`. Routing slug is the URL-encoded `sponsor_name` itself; we don't store `bioguide_id`, so two reps with identical names from the same state and party would collide (no detail page to break, just an expand collision). Add `sponsor_bioguide_id` only if a real collision shows up.
+- `/sponsors` — distinct sponsors aggregated from `bills`, sorted by `bill_count DESC, sponsor_name ASC`. Filters: party (R/D/I), state (only states present in the data), name search. Click a row to inline-expand: 5 most recent bills + a `[VIEW ALL N BILLS →]` link to `/?sponsor=<encoded name>`. Custom `SponsorRow` grid (`24px 1fr 40px 50px 80px 110px`) — does not reuse `BillRow`. Routing slug is the URL-encoded `sponsor_name` itself; we don't store `bioguide_id`, so two reps with identical names from the same state and party would collide (no detail page to break, just an expand collision). Add `sponsor_bioguide_id` only if a real collision shows up. A `SponsorProductivityScatter` chart (handoff 67) sits above the list — hand-rolled SVG, each current-Congress sponsor with 3+ bills is a party-colored dot at `(billCount, passRate)`. Pass rate = stage advanced past `introduced` / non-ceremonial bills with a non-null, non-`other` stage. Top 5 by volume + top 5 by pass rate get short-name labels. Dots link to the member hub when `bioguide_id` resolved. Backed by `getSponsorProductivity()` in `lib/queries.ts`, cached under tag `bills`.
 - `/clusters` — bill template index. One row per regex pattern from `lib/cluster-patterns.ts`, sorted by count desc. Each row links to `/?cluster=<id>`. Sub-header shows `N templates · X matched · Y unmatched` where Y honors the active ceremonial filter via URL param. No `CeremonialToggle` (the page isn't a feed). No `SearchBox` (not a feed). Custom `.cluster-row` / `.cluster-header-row` grid (`1.2fr 80px 3fr`).
-- `/reports` — index of weekly reports, newest first. Empty until the first Monday after handoff 58 ships, when the cron writes the first row. Plain `HeaderBar` (no filters), simple row list with hover; click navigates to `/reports/[slug]`.
+- `/reports` — index of weekly reports, newest first (handoff 75). `HeaderBar` runs in `pageTitle="Weekly Reports"` + `pageCount` mode (no feed filters). `.report-row` grid is `90px 1fr 80px` for week-start date, title, and a `View →` arrow — no stats column because the `reports` schema only stores `slug/title/week_start/week_end/content_md/created_at`. Click navigates to `/reports/[slug]`. Pagination via `?page=N` at `PAGE_SIZE = 20`. Empty state: `Reports begin Monday <next Monday>.` Cached at the query layer (`getReports`/`getReportCount`, tag `reports`, 1h revalidate); the report cron's `revalidateTag('reports')` flushes both. Global nav includes `⎘ Reports` between News and Sponsors.
 - `/reports/[slug]` — individual weekly report. Markdown body rendered by `components/ReportMarkdown.tsx` (react-markdown + remark-gfm) with terminal-aesthetic component overrides for h1/h2/p/ul/li/code/table/em/strong. `[Download .md ↓]` link in the header pulls from `/reports/[slug]/download`, which serves `report.content_md` with `Content-Disposition: attachment; filename="cbt-${slug}.md"`. Unknown slug renders a friendly empty state with a back link, not Next's `notFound()`.
-- `/sponsors/[bioguideId]` — member hub (handoff 60). Photo (depiction_url, plain `<img>` with initials fallback), name, party + state + district chip, born year, next-election chip. Stat block (bills sponsored, enacted with %, avg cosponsor count). Affiliations placeholder ("Coming soon"). Top 10 sponsored bills via reused `BillRow` (no expand, no daysSinceMode). `[View all N bills →]` links to `/feed?sponsor=<bioguide_id>`. Unknown bioguide_id renders a friendly empty state, not Next's `notFound()`. Reads from `members` table; refresh via `npm run sync:members`.
+- `/sponsors/[bioguideId]` — member hub (handoff 60, +61, +62). Photo (depiction_url, plain `<img>` with initials fallback), name, party + state + district chip, born year, next-election chip (links to `/race/<id>` when the member has a non-null `next_election_year` — handoff 62), and the top-2 caucus badges by priority appended to the meta line (handoff 61). Stat block (bills sponsored, enacted with %, avg cosponsor count). Affiliations row below stats renders every caucus badge by priority; absent entirely for unaffiliated members (no "Coming soon"). Top 10 sponsored bills via reused `BillRow` (no expand, no daysSinceMode). `[View all N bills →]` links to `/feed?sponsor=<bioguide_id>`. Unknown bioguide_id renders a friendly empty state, not Next's `notFound()`. Reads from `members` + `affiliations`; refresh via `npm run sync:members` and `npm run seed:affiliations`.
+- `/race/[id]` — race hub (handoff 62). Race name + cycle + days-to-election countdown. Rating block (Sabato seven, party-colored chip) when hand-curated. Incumbent card linking to `/sponsors/<bioguide_id>` (or "OPEN SEAT" placeholder when `incumbent_bioguide_id` is null). Candidate roster from `race_candidates`, ordered won_primary → running → declared → withdrew → name; withdrawn rows render dimmed. Stub state (no rating, no candidates) shows a single muted "Incumbent running for re-election. No competitive rating yet." line. Source URL + `last_verified` date at the bottom. Unknown id renders a friendly empty state, not Next's `notFound()`. Reads from `races` + `race_candidates` + (incumbent) `members`. ID format: `<STATE>-<DD>-<YYYY>` for House (zero-padded district), `S-<STATE>-<YYYY>` for Senate — produced by `lib/race-id.ts::raceIdFromMember`.
 
 Feed-shaped routes (`/feed`, `/stale`, `/changes`, `/president`, `/watchlist`) share the same `HeaderBar` (count + last-updated MT) and render a `StageLegend` (party + stage legend) inline at the top of the list — there is no footer legend component. The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
 
@@ -421,13 +560,58 @@ The hub holds the thesis. Sub-pages hold focused deep cuts. Curiosity drives nav
 
 - **Bill hub** (`/bill/[id]`): "What does this bill do and how is it moving?" Summary, status, sponsor link, watchlist toggle. Sub-page links for similar bills, news mentions, votes, full text (out to congress.gov).
 - **Member hub** (`/sponsors/[bioguideId]`): "What does this person work on in Congress?" Voting record, sponsored bills, committee assignments, badges. Header indicators link to the race surface when applicable; donor and stock data live on sub-pages.
-- **Race hub** (`/race/[id]`, planned): "Who's contesting this seat and where does it stand?" Rating, seat-up year, candidate roster, incumbent link back to their member hub.
+- **Race hub** (`/race/[id]`, planned): "Who's contesting this seat and where does it stand?" Sabato rating, third-party Cook ratings (handoff 71), seat-up year, candidate roster, incumbent link back to their member hub.
 
 ### The rule
 
 For any new feature involving an entity page, decide whether it adds a snapshot field, a hub element, or a sub-page link. Don't invent a fourth bucket. If the answer is "it deserves its own section on the hub," that section probably wants to be a sub-page link instead.
 
 Decide the hub's thesis before the second sub-page link ships, or the hub turns into the sub-page it's supposed to link to.
+
+## News signal sources
+
+v1 covers three RSS feeds: Politico, The Hill, Roll Call. URLs in `lib/news-sources.ts`. Cron tick fetches all three after sync + summarize + lead generation, regex-matches bill ids in `title + summary`, looks up against the `bills` table, and writes (bill_id, article_url) rows to `news_mentions`. Ingestion is best-effort — RSS errors are logged in the cron output and never fail the run. Local test: `npm run sync:news`.
+
+The matching layer is `lib/bill-id-extract.ts` — a permissive regex covering all 8 bill types with whitespace and dot variants (`HR 1234`, `H.R. 1234`, `H. R. 1234`, `S.Res. 5`, `HJRes 12`, etc.). Bare-`S` matches require a context word (`bill`, `senate`, `legislation`, `act`, `amendment`, `measure`) or at least one dot to cut the obvious noise; everything else gets through and the false-positive rate gets measured formally in handoff 65 (matching accuracy validation against a hand-labeled sample). Fuzzy title matching, LLM disambiguation, and UI surfaces are explicitly deferred.
+
+## Race surface
+
+v1 covers the upcoming cycle for every sitting member's seat. Stubs come from `npm run backfill:races` (one-shot derivation from `members`). Ratings + candidate rosters are hand-curated in `data/races-seed.json` from Sabato's Crystal Ball (paywalled Cook and Inside Elections are skipped for v1), applied via `npm run seed:races`. Refresh quarterly. Polling, FEC fundraising, and district demographics are deferred sub-pages.
+
+Race IDs are deterministic from member data (`raceIdFromMember` in `lib/race-id.ts`): House is `<STATE>-<DD>-<YYYY>` with a zero-padded district; Senate is `S-<STATE>-<YYYY>`. The backfill SQL is a translation of that function — if the format changes, update both. Members with `chamber='house'` and `district IS NULL` are excluded from the backfill so the id can never be malformed.
+
+The hub thesis: "Who's contesting this seat and where does it stand?" The next-election chip on `/sponsors/[bioguideId]` is the bridge from member hubs — the chip becomes a link to `/race/<id>` when the member has a non-null `next_election_year`. "Former member" remains text-only.
+
+## Race ratings
+
+Source-attributed forecaster ratings layered on top of the race surface (handoffs 71 + 73). v1 ships **Cook**, **Sabato**, and **Inside Elections** as separate rows under the same `race_ratings` schema. Three sources is the cap; the disagreement between them is the analytical signal (e.g. Cook moved OH to Toss Up on 2026-04-13 while Sabato and IE still had it Lean R). Ratings are hand-seeded from JSON files in `data/race-ratings-*.json` rather than scraped — the raters' public pages aren't stable enough to script for a quarterly cadence. Refresh quarterly by re-pulling each rater's page, editing the JSON, and running `npm run seed:ratings` (which globs the entire `data/race-ratings-*.json` set).
+
+**Per-source vocabulary** — chips preserve the source's own labels verbatim:
+
+| Rating string | Source(s)    | Score | Color           |
+|---------------|--------------|-------|-----------------|
+| Solid D / R   | Cook, IE     | ±3    | partisan        |
+| Safe D / R    | Sabato       | ±3    | partisan        |
+| Likely D / R  | all three    | ±2    | partisan        |
+| Lean D / R    | all three    | ±1    | partisan        |
+| Tilt D / R    | IE only      | ±1    | partisan        |
+| Toss Up       | all three    |  0    | amber           |
+
+`rating_score` is an integer. Tilt collapses to Lean for sort purposes — the `ABS(rating_score) <= 1` competitive filter still catches it, and ties within a score break on `updated_at DESC`. Don't introduce a decimal score type for Tilt's "between" semantic. Sabato's `Safe` is preserved on ingest; do not rewrite it to `Solid` because the source attribution is part of why the chip carries a rater name.
+
+Rendering: `/race/[id]` shows the full source-attributed chip(s) (`[COOK · TOSS UP] · [SABATO · LEAN R] · [IE · LEAN R]`) inline in the header, separated by `·` when multiple sources exist. The member-hub seat-up chip extends to `Next election 2026 · TOSS UP` when a rating is present, but does not render the source name — at the member-hub level the chip is a glance signal, not a source citation; clicking through to `/race/[id]` is where source attribution lives. If no rating exists, both surfaces render without the chip (no "Not yet rated" placeholder — absence is the signal). The home-dashboard `CompetitiveRacesBlock` (handoff 72) uses the same `RatingChip` mapping, so multi-source rendering is free there too.
+
+`getMostCompetitiveRaces` ranks by `MIN(ABS(rating_score))` across sources — a single Toss Up rating from any rater floats a race up. Tie-break on `MAX(updated_at) DESC` so freshly-moved races surface ahead of stale ones at the same lean. The competitive cut is `ABS(rating_score) <= 1`. Solid-rated House districts are intentionally **not** in any seed — 370+ rows of "Solid D"/"Solid R" with zero analytical value would pad the table.
+
+**Adding a new rater label** is a three-file change: extend `RATING_SCORES` in `scripts/seed-race-ratings.ts` (the integer score), extend `colorFor` + `borderColorFor` in `components/RatingChip.tsx`, and extend `ratingColor` in `components/MemberHeader.tsx`. If any of the three is missed, the chip falls through to a muted gray.
+
+## Caucus affiliations
+
+v1 covers four caucuses: House Freedom Caucus, Republican Study Committee, Congressional Progressive Caucus, New Democrat Coalition. Rosters are hand-curated in `data/affiliations-seed.json` (one entry per caucus, `members` is an array of bioguide_id strings) and loaded via `npm run seed:affiliations`. Refresh quarterly: edit the JSON, bump `last_verified`, re-run the script — `INSERT ... ON CONFLICT` upserts in place. There is no auto-sync, no scraping; Freedom Caucus has no official public roster so Ballotpedia is the tracked-list proxy.
+
+Display labels, party colors, and priority order live in `lib/caucus-config.ts` (single source of truth). The `affiliations` table accepts any `org` string — the config governs which orgs actually render. Sorting is by `priority` ASC: Freedom (1) > RSC (2) > Progressive (3) > New Dem (4). That order drives header truncation (top-2 badges only on `MemberHeader`'s meta line) and the full affiliations row below the stats block.
+
+Identity caucuses (CBC, CHC, CAPAC), Problem Solvers, and the Squad are deferred to v1.5. Union endorsements and advocacy alignments are separate theme-6 sub-handoffs and reuse the same `affiliations` table with different `category` values.
 
 ## Environment variables
 
@@ -437,6 +621,7 @@ GEMINI_API_KEY=           # Google AI Studio key (free tier covers personal use)
 TURSO_DATABASE_URL=
 TURSO_AUTH_TOKEN=
 CRON_SECRET=              # used to authenticate Vercel Cron hits to /api/sync
+FMP_API_KEY=              # Financial Modeling Prep, free tier 250 calls/day
 ```
 
 The cron route should reject requests where `Authorization` header doesn't match `Bearer ${CRON_SECRET}`.
@@ -450,6 +635,15 @@ The cron route should reject requests where `Authorization` header doesn't match
   - `member.terms` is the term array directly. **Not** `member.terms.item`. Iterating `member.terms?.item ?? []` silently returns nothing.
   - Party comes from `member.partyHistory` (sorted by `startYear` desc). `member.partyName` does not exist on the response. Pull `partyAbbreviation` (one-letter `R`/`D`/`I`); a substring match on `partyName` against the abbreviation falls through to `I` for everyone.
   - `endYear` is **omitted on the active term** (the one for the current Congress). Derive it from chamber + `startYear`: senate → `startYear + 6`, house → `startYear + 2`. `next_election_year = current_term_end_year - 1` (terms end Jan 3 of an odd year, election the prior November). Members appointed mid-term may still have non-standard spans; spot-check after sync.
+- **Adding a new caucus** is a two-file change: extend `CaucusOrg` + `CAUCUS_CONFIG` in `lib/caucus-config.ts`, then add an entry to `data/affiliations-seed.json` and re-run `npm run seed:affiliations`. The `affiliations` table accepts any `org` string — the config is the gate that decides what renders. Rows for orgs missing from `CAUCUS_CONFIG` are filtered out by `getMemberAffiliations` (won't appear in the UI; won't break it either). Removing a caucus is the same but in reverse — and `WHERE org = ?` DELETE from `affiliations` to drop stale rows.
+- **Race IDs are deterministic from member data via `raceIdFromMember`** (`lib/race-id.ts`). The backfill SQL is a translation of that function; if the format ever changes (mid-decade redistricting, new chamber, etc.), update both. Members with `chamber='house'` and `district IS NULL` are filtered out of the backfill so the id can't be malformed.
+- **Senate term derivation is non-trivial** — the Congress.gov `/member/{bioguideId}` endpoint returns one entry per 2-year Congress, not one per 6-year senate term. Use `lib/derive-term.ts` (`senateTermStart` walks the contiguous run ending at the latest Congress and computes the offset within the 3-Congress cycle), not raw `startYear + 6` math. Naive math collapses every continuously-serving senator to `next_election_year = 2030` (the handoff-60 bug fixed by handoff 63). Verification: `SELECT COUNT(*) FROM races WHERE chamber='senate'` should be ~90-100 across three cycles (2026, 2028, 2030).
+- **RSS feed URLs drift.** If `news_mentions` stops growing, first thing to check is whether each feed in `NEWS_SOURCES` (`lib/news-sources.ts`) still returns valid XML. Publishers sometimes move feeds (e.g., `/policy/congress/feed/` instead of `/homenews/feed/`) without redirects. The cron logs per-source `fetched=N mentions=N skipped_unknown_bill=N` counts, so a flatlined source is visible in Vercel logs. Backup URLs: Politico → `https://www.politico.com/rss/politicopicks.xml`; The Hill → `https://thehill.com/policy/congress/feed/`; Roll Call → their RSS directory.
+- **Special-election winners and mid-term appointees are misclassified by `senateTermStart`** — their first senate Congress is a partial-term fill, not a regular term start, so the 3-Congress modular math anchors to the wrong cycle. Known affected senators as of 2026-05-16: Markey (MA), Warnock (GA), Kelly (AZ), Husted (OH), Moody (FL), and Cornyn (TX — sworn in Dec 2002 during Congress 107 when Phil Gramm resigned early). Symptom: two senators from the same state land in the same `next_election_year` (`SELECT state, next_election_year, COUNT(*) FROM members WHERE chamber='senate' GROUP BY state, next_election_year HAVING COUNT(*) > 1`). Fix path when a real collision matters: hand-correct the rows with `UPDATE members SET next_election_year = ?, current_term_end_year = ? WHERE bioguide_id = ?` and re-run `npm run backfill:races`. Auto-correction would need an external class mapping; out of scope for v1.
+- **FMP daily quota.** Free tier is 250 calls/day. The cron uses 1-3 calls per chamber per tick (3-page cap); initial backfill via `npm run sync:trades` caps at 20 pages per chamber so a first run can't burn the cap. FMP endpoint paths have been renamed historically — current paths are `/stable/senate-latest` and `/stable/house-latest` (the `/api/v4/senate-trading` + `/api/v4/senate-disclosure` paths were retired). If `npm run sync:trades` returns zero rows or a 404, the docs are the first thing to check (`https://site.financialmodelingprep.com/developer/docs`).
+- **FMP free-tier pagination cap.** On `/stable/` endpoints, `?page=N` for any `N > 0` returns `402 "The values for 'page' can only be 0 based on your current subscription."` Only the paid tier paginates. Each `-latest` endpoint returns the 100 most-recent disclosures on page 0 and that's it. Daily incremental sync works fine — page 0 keeps refreshing top-of-feed — but historical backfill via this script is **effectively capped at 100 rows per chamber per run** regardless of the 20-page CLI cap. To seed historical depth, upgrade the FMP tier or switch source. The 402 line shows up in `sync-trades` output after page 0's data is already inserted; it's cosmetic, not data loss.
+- **Name-to-bioguide matching is best-effort.** `stock_trades.bioguide_id` is nullable; unmatched FMP names get inserted with NULL and don't appear on member hubs (`getMemberTrades` filters by `bioguide_id = ?`). Audit periodically with `SELECT COUNT(*) FROM stock_trades WHERE bioguide_id IS NULL` and `SELECT DISTINCT member_name_raw FROM stock_trades WHERE bioguide_id IS NULL`. Tighten `lib/matchMember.ts` (state-hint fallback, nicknames) before assuming the data is incomplete.
+- **Race ratings are hand-seeded.** The three `data/race-ratings-*.json` files (Cook, Sabato, Inside Elections — handoffs 71 + 73) are the source of truth. Refresh quarterly by re-checking each rater's page and updating the JSON, then running `npm run seed:ratings` (it globs all three). The raters update ratings infrequently between cycles, so quarterly is more than enough. The seed files' `race_id` keys are aligned to the existing `S-<STATE>-<YYYY>` / `<STATE>-<DD>-<YYYY>` format — Wikipedia-pulled ids originally used `<STATE>-SEN-<YYYY>` / `<STATE>-SEN-SP-<YYYY>`, find-replaced in place when the seed was first applied. Senate specials collapse onto the regular-cycle id because the races table keys senate seats by `next_election_year` alone. **Source recall is not a substitute for sourced data here** — if a rater moves a race, update the JSON from the rater's page, don't hand-write a rating from memory.
 
 ## What not to do
 

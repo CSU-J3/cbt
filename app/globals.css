@@ -25,6 +25,14 @@
   --stage-other-chamber: #f59e0b;
   --stage-president: #fb923c;
   --stage-enacted: #10b981;
+
+  /* Vote tokens (handoff 79). --vote-nay is intentionally distinct from
+     --party-republican so a Democrat's nay vote doesn't render as
+     Republican-coded. Vote color is decoupled from party color. */
+  --vote-yea: #10b981;
+  --vote-nay: #f87171;
+  --vote-present: #fbbf24;
+  --vote-not-voting: #6b7280;
 }
 
 @theme {
@@ -281,6 +289,364 @@ body {
   background-color: var(--bg-row-hover);
 }
 
+/* ---- stock trade rows (handoff 70) ------------------------------------- */
+.trade-row {
+  display: grid;
+  grid-template-columns: 60px 40px 80px 1fr 110px 110px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+
+.trade-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.trade-row .ticker {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  font-size: 13px;
+}
+
+.trade-row .amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.trade-row .txn-buy {
+  color: var(--stage-enacted);
+}
+.trade-row .txn-sell {
+  color: var(--party-republican);
+}
+.trade-row .txn-other {
+  color: var(--text-muted);
+}
+
+.trade-row .owner-chip {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trade-header-row {
+  display: grid;
+  grid-template-columns: 60px 40px 80px 1fr 110px 110px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trade-header-row .amount {
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .trade-row {
+    grid-template-columns: 60px 80px 110px 80px;
+  }
+  .trade-row .chamber-chip,
+  .trade-row .asset-description {
+    display: none;
+  }
+  .trade-header-row {
+    grid-template-columns: 60px 80px 110px 80px;
+  }
+  .trade-header-row .chamber-chip,
+  .trade-header-row .asset-description {
+    display: none;
+  }
+}
+
+/* ---- member voting record (handoff 79) -------------------------------- */
+/* Columns: position chip | date | bill / amendment id | question + result |
+   roll-call number. Roll-call + bill columns collapse below 700px. */
+.vote-row {
+  display: grid;
+  grid-template-columns: 60px 70px 70px 1fr 80px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+
+.vote-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.vote-row .position-chip {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.vote-row .vote-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.vote-row .vote-bill {
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 12px;
+}
+
+.vote-row .vote-bill a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.vote-row .vote-bill a:hover {
+  color: var(--accent-amber-bright);
+}
+
+.vote-row .vote-question {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vote-row .vote-roll {
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+}
+
+.vote-header-row {
+  display: grid;
+  grid-template-columns: 60px 70px 70px 1fr 80px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.vote-header-row .vote-roll {
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .vote-row,
+  .vote-header-row {
+    grid-template-columns: 56px 70px 60px 1fr;
+  }
+  .vote-row .vote-roll,
+  .vote-header-row .vote-roll {
+    display: none;
+  }
+}
+
+/* ---- breaking news rows (handoff 69) ----------------------------------- */
+/* Columns: bill id | headline | source label | age */
+.news-row {
+  display: grid;
+  grid-template-columns: 86px 1fr 120px 64px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 14px;
+}
+
+.news-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.news-row .source {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.news-row .age {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.news-header-row {
+  display: grid;
+  grid-template-columns: 86px 1fr 120px 64px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 9px 0;
+  border-bottom: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.news-header-row .age {
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .news-row {
+    grid-template-columns: 86px 1fr 56px;
+  }
+  .news-row .source {
+    display: none;
+  }
+  .news-header-row {
+    grid-template-columns: 86px 1fr 56px;
+  }
+  .news-header-row .source {
+    display: none;
+  }
+}
+
+/* ---- topic mix by chamber (handoff 76) -------------------------------- */
+.topic-chamber-mix {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+  margin: 8px 0;
+}
+
+.topic-chamber-mix .column-label {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.topic-chamber-row {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 0;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.topic-chamber-row .topic {
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.topic-chamber-row .bar-track {
+  height: 8px;
+  background: var(--border-soft);
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.topic-chamber-row .bar-fill {
+  height: 100%;
+  opacity: 0.7;
+}
+
+.topic-chamber-row .count {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 700px) {
+  .topic-chamber-mix {
+    grid-template-columns: 1fr;
+    row-gap: 16px;
+  }
+}
+
+/* ---- reports index (handoff 75) --------------------------------------- */
+/* Columns: week start date | title | view arrow. The handoff spec'd a
+   180px stats column too, but the reports schema has no stats fields and
+   parsing them out of LLM-written prose would be brittle. */
+.report-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 80px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.report-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.report-header-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 80px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 9px 14px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 700px) {
+  .report-row,
+  .report-header-row {
+    grid-template-columns: 90px 1fr 60px;
+    padding: 9px 10px;
+  }
+}
+
+/* ---- competitive races (handoff 72) ----------------------------------- */
+/* Columns: race label | incumbent name + party | chamber chip | rating(s) */
+.competitive-race-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px 180px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.competitive-race-row:hover {
+  background: var(--bg-row-hover);
+}
+
+.competitive-race-row .race-label {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.competitive-race-row .chamber-chip {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
 /* ---- cluster index ----------------------------------------------------- */
 /* Columns: name+slug | count | example title */
 .cluster-row {
@@ -433,6 +799,12 @@ body {
   .funnel-row,
   .topic-dist-row {
     min-height: 44px;
+  }
+  .competitive-race-row {
+    grid-template-columns: 100px 1fr 120px;
+  }
+  .competitive-race-row .chamber-chip {
+    display: none;
   }
   .feed-row,
   .feed-header-row {

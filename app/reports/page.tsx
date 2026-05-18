@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { ReportRow } from "@/components/ReportRow";
 import { formatWeekTitle } from "@/lib/report-generation";
-import { getReportsList } from "@/lib/queries";
+import { getReportCount, getReports } from "@/lib/queries";
 
 // Reads the DB; opt out of static prerender. unstable_cache still applies.
 export const dynamic = "force-dynamic";
 
-// Label for the empty-state line: the next Monday strictly after today.
+const PAGE_SIZE = 20;
+
+// Empty-state hint: the next Monday strictly after today, formatted via
+// the same helper the report header uses.
 function nextMondayLabel(): string {
   const d = new Date();
   const daysUntilMonday = (8 - d.getUTCDay()) % 7 || 7;
@@ -14,22 +18,41 @@ function nextMondayLabel(): string {
   return formatWeekTitle(d.toISOString().slice(0, 10));
 }
 
-export default async function ReportsPage() {
-  const reports = await getReportsList();
+function parsePage(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+}
+
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const offset = (page - 1) * PAGE_SIZE;
+
+  const [count, reports] = await Promise.all([
+    getReportCount(),
+    getReports(PAGE_SIZE, offset),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const showPagination = count > PAGE_SIZE;
+  const prevHref = page > 1 ? `/reports?page=${page - 1}` : null;
+  const nextHref = page < totalPages ? `/reports?page=${page + 1}` : null;
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar
+        basePath="/reports"
+        pageTitle="Weekly Reports"
+        pageCount={count}
+        pageCountLabel={count === 1 ? "report" : "reports"}
+      />
 
       <main className="w-full flex-1 px-4 py-4">
-        <h1
-          className="mb-3 text-[14px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--accent-amber)" }}
-        >
-          Weekly Reports
-        </h1>
-
-        {reports.length === 0 ? (
+        {count === 0 ? (
           <div
             className="px-6 py-16 text-center text-[13px]"
             style={{ color: "var(--text-muted)" }}
@@ -37,35 +60,61 @@ export default async function ReportsPage() {
             Reports begin Monday {nextMondayLabel()}.
           </div>
         ) : (
-          <div
-            className="border"
-            style={{ borderColor: "var(--border-strong)" }}
-          >
-            <ul>
+          <>
+            <div
+              className="border"
+              style={{ borderColor: "var(--border-strong)" }}
+            >
+              <div
+                className="report-header-row"
+                style={{
+                  backgroundColor: "var(--bg-panel)",
+                  borderBottom: "0.5px solid var(--border-strong)",
+                  color: "var(--text-dim)",
+                }}
+              >
+                <span>Week</span>
+                <span>Report</span>
+                <span aria-hidden></span>
+              </div>
               {reports.map((r) => (
-                <li key={r.slug}>
-                  <Link
-                    href={`/reports/${r.slug}`}
-                    className="flex items-center gap-4 px-4 py-3 transition hover:bg-[var(--bg-row-hover)]"
-                    style={{
-                      borderBottom: "0.5px solid var(--border-soft)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    <span className="text-[14px] uppercase tracking-[0.5px]">
-                      {r.title}
-                    </span>
-                    <span
-                      className="ml-auto text-[12px] uppercase tracking-[0.5px]"
-                      style={{ color: "var(--accent-amber)" }}
-                    >
-                      View →
-                    </span>
-                  </Link>
-                </li>
+                <ReportRow key={r.slug} report={r} />
               ))}
-            </ul>
-          </div>
+            </div>
+
+            {showPagination ? (
+              <div
+                className="mt-4 flex items-center justify-between text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-dim)" }}
+              >
+                {prevHref ? (
+                  <Link
+                    href={prevHref}
+                    className="transition hover:text-[var(--accent-amber-bright)]"
+                    style={{ color: "var(--accent-amber)" }}
+                  >
+                    ← Previous
+                  </Link>
+                ) : (
+                  <span></span>
+                )}
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+                {nextHref ? (
+                  <Link
+                    href={nextHref}
+                    className="transition hover:text-[var(--accent-amber-bright)]"
+                    style={{ color: "var(--accent-amber)" }}
+                  >
+                    Next →
+                  </Link>
+                ) : (
+                  <span></span>
+                )}
+              </div>
+            ) : null}
+          </>
         )}
       </main>
     </div>

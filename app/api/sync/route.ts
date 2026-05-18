@@ -4,6 +4,7 @@ import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
+import { ingestNews } from "@/lib/news-ingest";
 import {
   generateWeeklyReport,
   getPriorWeek,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/report-generation";
 import { runSummarize } from "@/lib/summarize-runner";
 import { runSync } from "@/lib/sync";
+import { ingestTrades } from "@/lib/trades-ingest";
 
 // Sync + summarize can take many seconds; opt out of static optimization.
 // 60s matches the Vercel Hobby ceiling. Summarize is throttled at 400ms +
@@ -63,6 +65,53 @@ async function handle(request: Request) {
     revalidateTag("bills");
   } catch (err) {
     console.warn("[sync] lead generation failed; keeping prior lead", err);
+  }
+
+  // News ingestion (handoff 64). Pulls 3 RSS feeds, regex-matches bill ids,
+  // writes to news_mentions. Best-effort: per-source errors get logged but
+  // never fail the cron — sync + summarize already wrote their data and
+  // news is purely an enrichment surface. UI consumption lands in 66/67.
+  try {
+    const newsResults = await ingestNews();
+    const totalInserted = newsResults.reduce(
+      (s, r) => s + r.mentionsInserted,
+      0,
+    );
+    const totalErrors = newsResults.flatMap((r) => r.errors);
+    console.log(
+      `[sync] news: ${totalInserted} mentions inserted across ${newsResults.length} sources`,
+    );
+    for (const r of newsResults) {
+      console.log(
+        `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill}`,
+      );
+    }
+    if (totalErrors.length > 0) {
+      for (const e of totalErrors) console.warn(`[sync] news error: ${e}`);
+    }
+    // Flush the breaking-news query cache so /news and the home banner see
+    // fresh mentions without waiting on the 600s backstop revalidate.
+    revalidateTag("news-breaking");
+  } catch (err) {
+    console.warn("[sync] news ingestion failed; skipping", err);
+  }
+
+  // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
+  // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
+  // endpoint logs and skips, never crashes the cron. Capped at 3 pages
+  // per chamber on the cron path — cron is incremental, the 20-page
+  // backfill is reserved for `npm run sync:trades`.
+  try {
+    const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
+    for (const r of tradeResults) {
+      console.log(
+        `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size}`,
+      );
+      for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
+    }
+    revalidateTag("member-trades");
+  } catch (err) {
+    console.warn("[sync] trades ingestion failed; skipping", err);
   }
 
   // Weekly report — generated on Monday for the prior calendar week. The

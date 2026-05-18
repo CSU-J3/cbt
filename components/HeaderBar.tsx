@@ -24,6 +24,9 @@ export async function HeaderBar({
   presidentCounts,
   sponsorCounts,
   feedFilteredCount,
+  pageTitle,
+  pageCount,
+  pageCountLabel = "items",
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
@@ -37,6 +40,11 @@ export async function HeaderBar({
   // Filtered count for the feed view, provided by the page so HeaderBar
   // doesn't need to re-run the same COUNT(*) query getFeedBills already did.
   feedFilteredCount?: number;
+  // For non-feed pages that still want the standard header chrome with a
+  // distinct title and count (e.g. /news). Bypasses the bill-count line.
+  pageTitle?: string;
+  pageCount?: number;
+  pageCountLabel?: string;
 }) {
   if (variant === "dashboard") {
     const corpus = await getCorpusStats();
@@ -109,6 +117,8 @@ export async function HeaderBar({
   const isChangesMode = countMode === "changes";
   const isPresidentMode = countMode === "president";
   const isSponsorMode = countMode === "sponsors";
+  const isNewsMode = basePath === "/news";
+  const isReportsMode = basePath === "/reports";
   const useAccentBright =
     isStaleMode || isChangesMode || isPresidentMode || isSponsorMode;
 
@@ -134,7 +144,25 @@ export async function HeaderBar({
             className="text-[11px] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
-            {counts && (isFiltering || isStaleMode || isChangesMode || isPresidentMode || isSponsorMode) ? (
+            {pageTitle ? (
+              <>
+                <span style={{ color: "var(--accent-amber)" }}>
+                  {pageTitle}
+                </span>
+                {pageCount !== undefined ? (
+                  <>
+                    <span> · </span>
+                    <span
+                      className="tabular-nums"
+                      style={{ color: "var(--accent-amber-bright)" }}
+                    >
+                      {pageCount.toLocaleString()}
+                    </span>
+                    <span> {pageCountLabel}</span>
+                  </>
+                ) : null}
+              </>
+            ) : counts && (isFiltering || isStaleMode || isChangesMode || isPresidentMode || isSponsorMode) ? (
               <>
                 <span
                   style={{
@@ -213,6 +241,24 @@ export async function HeaderBar({
             }}
           >
             ▤ Feed
+          </Link>
+          <Link
+            href="/news"
+            className="transition hover:text-[var(--text-secondary)]"
+            style={{
+              color: isNewsMode ? "var(--accent-amber)" : undefined,
+            }}
+          >
+            ⚡ News
+          </Link>
+          <Link
+            href="/reports"
+            className="transition hover:text-[var(--text-secondary)]"
+            style={{
+              color: isReportsMode ? "var(--accent-amber)" : undefined,
+            }}
+          >
+            ⎘ Reports
           </Link>
           <Link
             href="/sponsors"

@@ -5,36 +5,17 @@
 // Manual: `npm run sync:members`. Not in the cron — bios drift slowly.
 import "dotenv/config";
 import { getDb } from "../lib/db";
+import {
+  houseNextElection,
+  houseTermEnd,
+  senateNextElection,
+  senateTermEnd,
+  senateTermStart,
+} from "../lib/derive-term";
+import { stateAbbr } from "../lib/states";
 
 const STALE_DAYS = 30;
 const DELAY_MS = 150;
-
-// US state and territory full-name → two-letter postal code. Matches the
-// `bills.sponsor_state` convention so the columns can join cleanly.
-const STATE_ABBR: Record<string, string> = {
-  Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR",
-  California: "CA", Colorado: "CO", Connecticut: "CT", Delaware: "DE",
-  Florida: "FL", Georgia: "GA", Hawaii: "HI", Idaho: "ID",
-  Illinois: "IL", Indiana: "IN", Iowa: "IA", Kansas: "KS",
-  Kentucky: "KY", Louisiana: "LA", Maine: "ME", Maryland: "MD",
-  Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS",
-  Missouri: "MO", Montana: "MT", Nebraska: "NE", Nevada: "NV",
-  "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM",
-  "New York": "NY", "North Carolina": "NC", "North Dakota": "ND",
-  Ohio: "OH", Oklahoma: "OK", Oregon: "OR", Pennsylvania: "PA",
-  "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD",
-  Tennessee: "TN", Texas: "TX", Utah: "UT", Vermont: "VT",
-  Virginia: "VA", Washington: "WA", "West Virginia": "WV",
-  Wisconsin: "WI", Wyoming: "WY",
-  "District of Columbia": "DC",
-  "American Samoa": "AS", Guam: "GU", "Northern Mariana Islands": "MP",
-  "Puerto Rico": "PR", "Virgin Islands": "VI",
-};
-
-function stateAbbr(name: string | null | undefined): string | null {
-  if (!name) return null;
-  return STATE_ABBR[name] ?? null;
-}
 
 // Accepts both partyAbbreviation ("R", "D", "I", "ID") and partyName
 // ("Republican", "Democratic", "Independent"). The Congress.gov member
@@ -108,17 +89,26 @@ function pickCurrentParty(history: PartyHistoryEntry[] | undefined): string | nu
   return sorted[0]?.partyAbbreviation ?? sorted[0]?.partyName ?? null;
 }
 
-// Active-term endYear is missing in the API response, so derive it from
-// chamber + startYear: House = 2-year terms, Senate = 6-year terms.
-// next_election_year is endYear - 1 (Nov election the year before swear-in).
-function deriveTermEndYear(
+// Term math is split by chamber and delegated to lib/derive-term.ts. Senate
+// needs the 3-Congress modular walkback (Congress.gov returns one entry per
+// 2-year Congress, not per 6-year term — naive `startYear + 6` collapses
+// every continuously-serving senator to the same term boundary). House is
+// straightforward: one Congress = one term.
+function deriveTermYears(
   chamber: "house" | "senate" | null,
-  startYear: number | undefined,
-  explicitEndYear: number | undefined,
-): number | null {
-  if (explicitEndYear) return explicitEndYear;
-  if (!chamber || !startYear) return null;
-  return chamber === "senate" ? startYear + 6 : startYear + 2;
+  terms: Term[],
+  latestTermStartYear: number | undefined,
+): { endYear: number | null; nextElection: number | null } {
+  if (chamber === "senate") {
+    const ts = senateTermStart(terms);
+    if (ts === null) return { endYear: null, nextElection: null };
+    return { endYear: senateTermEnd(ts), nextElection: senateNextElection(ts) };
+  }
+  if (chamber === "house" && latestTermStartYear !== undefined) {
+    const endYear = houseTermEnd(latestTermStartYear);
+    return { endYear, nextElection: houseNextElection(endYear) };
+  }
+  return { endYear: null, nextElection: null };
 }
 
 async function fetchMember(
@@ -177,15 +167,8 @@ async function main() {
       const terms = member.terms ?? [];
       const currentTerm = pickCurrentTerm(terms);
       const chamber = deriveChamber(currentTerm);
-      const currentTermEndYear = deriveTermEndYear(
-        chamber,
-        currentTerm?.startYear,
-        currentTerm?.endYear,
-      );
-      // Terms end Jan 3 of an odd year; the prior November is the election.
-      const nextElectionYear = currentTermEndYear
-        ? currentTermEndYear - 1
-        : null;
+      const { endYear: currentTermEndYear, nextElection: nextElectionYear } =
+        deriveTermYears(chamber, terms, currentTerm?.startYear);
       const stateName = currentTerm?.stateName ?? member.state ?? null;
       const fallbackName =
         [member.firstName, member.lastName].filter(Boolean).join(" ") ||

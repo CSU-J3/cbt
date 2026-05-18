@@ -55,6 +55,22 @@ export function formatLastUpdated(iso: string | null | undefined): string {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// Relative-age string for news mentions. Sub-hour → "Xm"; sub-day → "Xh";
+// otherwise → "Xd". Floors each unit so a 59-min mention reads "59m" rather
+// than "1h", matching how news clients display recency.
+export function formatRelativeAge(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "—";
+  const diffMs = Math.max(0, Date.now() - t);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
 export function daysSince(dateStr: string | null | undefined): number {
   if (!dateStr) return 0;
   const part = dateStr.slice(0, 10);
@@ -63,6 +79,63 @@ export function daysSince(dateStr: string | null | undefined): number {
   if (Number.isNaN(t)) return 0;
   const now = Date.now();
   return Math.max(0, Math.floor((now - t) / MS_PER_DAY));
+}
+
+// General election day for a given cycle: first Tuesday after the first
+// Monday of November. Returned as a UTC Date so callers can subtract from
+// "today UTC" without timezone drift biting the day count.
+export function electionDay(cycle: number): Date {
+  const nov1 = new Date(Date.UTC(cycle, 10, 1));
+  const dow = nov1.getUTCDay(); // 0=Sun … 6=Sat
+  const firstMondayOffset = dow <= 1 ? 1 - dow : 8 - dow;
+  const firstMonday = new Date(Date.UTC(cycle, 10, 1 + firstMondayOffset));
+  const electionDate = new Date(firstMonday);
+  electionDate.setUTCDate(firstMonday.getUTCDate() + 1);
+  return electionDate;
+}
+
+// Days from today (UTC) to the general election. Negative once the
+// election is in the past — callers render "Election concluded" rather
+// than a negative countdown.
+export function daysToElection(cycle: number): number {
+  const election = electionDay(cycle);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  const ms = election.getTime() - today.getTime();
+  return Math.floor(ms / MS_PER_DAY);
+}
+
+// "1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st"... Used for
+// House district names ("Colorado 8th Congressional District"). District 0
+// is rendered as "At-Large" by the caller; this helper assumes n >= 1.
+export function ordinal(n: number): string {
+  const abs = Math.abs(n);
+  const last2 = abs % 100;
+  if (last2 >= 11 && last2 <= 13) return `${n}th`;
+  switch (abs % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+// Compact USD formatter for the donor/industry stat lines. Input is cents
+// (matches the integer storage on member_donors / member_industries /
+// member_fundraising); divide once here so callers can stay in cent space.
+// $87 / $245K / $1.2M / $5M — terminal-aesthetic, monospace-friendly.
+export function formatDollarsCompact(cents: number): string {
+  const dollars = cents / 100;
+  if (dollars >= 1_000_000) {
+    const m = dollars / 1_000_000;
+    return m >= 10 ? `$${Math.round(m)}M` : `$${m.toFixed(1)}M`;
+  }
+  if (dollars >= 1_000) return `$${Math.round(dollars / 1000)}K`;
+  return `$${Math.round(dollars)}`;
 }
 
 export function parseTopics(json: string | null | undefined): string[] {

@@ -11,8 +11,10 @@ const TITLE_TRUNCATE = 80;
 const STAGE_MOVEMENT_LIMIT = 10;
 const DEAD_TOPIC_LIMIT = 10;
 const DEAD_BILLS_PER_TOPIC = 3;
-const DEAD_STALE_DAYS = 30;
+// Matches /stale page threshold — consistency matters more than count optics.
+const DEAD_STALE_DAYS = 60;
 const NOTABLE_LIMIT = 5;
+const TOPIC_BREAKDOWN_LIMIT = 7;
 
 export type WeekRange = {
   start: string; // ISO date, Monday
@@ -59,8 +61,15 @@ export function formatWeekTitle(weekStart: string): string {
 
 // ---- text helpers ------------------------------------------------------
 
+// Cuts at the last whitespace before character n so titles don't end mid-word
+// ("…Committee on Foreign Investment in t…"). Falls back to hard truncation
+// when no whitespace exists in the first n characters (pathological titles).
 function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+  if (s.length <= n) return s;
+  const slice = s.slice(0, n);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > 0) return `${slice.slice(0, lastSpace)}…`;
+  return `${s.slice(0, n - 1)}…`;
 }
 
 const STAGE_PREFIX: Record<string, string> = {
@@ -127,7 +136,7 @@ type NotableIntro = {
   sponsorState: string | null;
 };
 
-type TopicMovement = { topic: string; count: number };
+type TopicIntroduction = { topic: string; count: number };
 
 type ReportData = {
   transitionsCount: number;
@@ -137,7 +146,7 @@ type ReportData = {
   introductionsCount: number;
   deadByTopic: DeadTopic[];
   notableIntros: NotableIntro[];
-  topicMovements: TopicMovement[];
+  topicIntroductions: TopicIntroduction[];
 };
 
 async function gatherReportData(week: WeekRange): Promise<ReportData> {
@@ -188,8 +197,13 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     args: [week.start, week.end],
   });
 
-  // 4. Dead in committee — no action in 30+ days as of week end, by topic.
-  // json_each UNNESTs the topics array, same pattern as getTopicDistribution.
+  // 4. Dead in committee — bills whose staleness threshold was crossed
+  // *during* this week, by topic. Sliding window on latest_action_date,
+  // shifted back by DEAD_STALE_DAYS: at week start the bill was still in
+  // the recent-action window; at week end it has crossed the threshold.
+  // Restricted to introduced/committee — floor/other_chamber stalls are
+  // whip-count problems, a different phenomenon. json_each UNNESTs the
+  // topics array, same pattern as getTopicDistribution.
   const deadRs = await db.execute({
     sql: `SELECT je.value AS topic, b.bill_type, b.bill_number
           FROM bills b, json_each(b.topics) je
@@ -197,9 +211,10 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
             AND ${NON_CEREMONIAL.replace(/is_ceremonial/g, "b.is_ceremonial")}
             AND b.stage IN ('introduced', 'committee')
             AND b.latest_action_date IS NOT NULL
-            AND b.latest_action_date < date(?, '-${DEAD_STALE_DAYS} days')
+            AND b.latest_action_date > date(?, '-${DEAD_STALE_DAYS} days')
+            AND b.latest_action_date <= date(?, '-${DEAD_STALE_DAYS} days')
           ORDER BY b.latest_action_date ASC`,
-    args: [week.end],
+    args: [week.start, week.end],
   });
   const deadMap = new Map<string, string[]>();
   for (const r of deadRs.rows) {
@@ -251,23 +266,26 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     sponsorState: (r.sponsor_state as string | null) ?? null,
   }));
 
-  // 6. Topic breakdown — stage transitions per topic for the week.
+  // 6. Topic breakdown — what got introduced this week, by topic. Aggregates
+  // the topics JSON for bills whose introduced_date falls in the week.
+  // (Previously used stage_changed_at, which returned empty when bug 1's
+  // first-time-enactment case bypassed the transition write.)
   const topicRs = await db.execute({
     sql: `SELECT je.value AS topic, COUNT(*) AS n
           FROM bills b, json_each(b.topics) je
           WHERE b.topics IS NOT NULL
             AND ${NON_CEREMONIAL.replace(/is_ceremonial/g, "b.is_ceremonial")}
-            AND b.stage_changed_at IS NOT NULL
-            AND date(b.stage_changed_at) BETWEEN ? AND ?
+            AND b.introduced_date BETWEEN ? AND ?
           GROUP BY je.value
           ORDER BY n DESC`,
     args: [week.start, week.end],
   });
-  const topicMovements: TopicMovement[] = [];
+  const topicIntroductions: TopicIntroduction[] = [];
   for (const r of topicRs.rows) {
     const topic = r.topic as string;
     if (!ALLOWED_TOPICS_SET.has(topic)) continue;
-    topicMovements.push({ topic, count: Number(r.n ?? 0) });
+    topicIntroductions.push({ topic, count: Number(r.n ?? 0) });
+    if (topicIntroductions.length >= TOPIC_BREAKDOWN_LIMIT) break;
   }
 
   return {
@@ -278,7 +296,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     introductionsCount: Number(introRs.rows[0]?.n ?? 0),
     deadByTopic,
     notableIntros,
-    topicMovements,
+    topicIntroductions,
   };
 }
 
@@ -297,10 +315,7 @@ STAGE_COMMENTARY:
 <2-3 sentences about the stage movements>
 
 ENACTMENTS_COMMENTARY:
-<1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>
-
-TOPIC_COMMENTARY:
-<1-2 sentences about the topic breakdown>`;
+<1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
   const transitionLines =
@@ -322,8 +337,8 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
           .map((e) => e.billId)
           .join(", ")
       : "(none)";
-  const topTopic = d.topicMovements[0]
-    ? `${d.topicMovements[0].topic} (${d.topicMovements[0].count} transitions)`
+  const topTopic = d.topicIntroductions[0]
+    ? `${d.topicIntroductions[0].topic} (${d.topicIntroductions[0].count} introductions)`
     : "(none)";
 
   return `WEEK DATA (${week.start} to ${week.end}):
@@ -341,14 +356,12 @@ type ReportCommentary = {
   lead: string;
   stageCommentary: string;
   enactmentsCommentary: string;
-  topicCommentary: string;
 };
 
 const REPORT_MARKERS = [
   "LEAD",
   "STAGE_COMMENTARY",
   "ENACTMENTS_COMMENTARY",
-  "TOPIC_COMMENTARY",
 ] as const;
 
 function parseReportResponse(text: string): ReportCommentary | null {
@@ -367,15 +380,12 @@ function parseReportResponse(text: string): ReportCommentary | null {
     if (!value) return null;
     values[marker] = value;
   }
-  const { LEAD, STAGE_COMMENTARY, ENACTMENTS_COMMENTARY, TOPIC_COMMENTARY } =
-    values;
-  if (!LEAD || !STAGE_COMMENTARY || !ENACTMENTS_COMMENTARY || !TOPIC_COMMENTARY)
-    return null;
+  const { LEAD, STAGE_COMMENTARY, ENACTMENTS_COMMENTARY } = values;
+  if (!LEAD || !STAGE_COMMENTARY || !ENACTMENTS_COMMENTARY) return null;
   return {
     lead: LEAD,
     stageCommentary: STAGE_COMMENTARY,
     enactmentsCommentary: ENACTMENTS_COMMENTARY,
-    topicCommentary: TOPIC_COMMENTARY,
   };
 }
 
@@ -419,7 +429,7 @@ function assembleMarkdown(
   // Dead in committee
   lines.push("## Dead in committee", "");
   lines.push(
-    "Bills with no action in 30+ days as of week end, grouped by topic.",
+    `Bills that crossed ${DEAD_STALE_DAYS} days without action this week, grouped by topic.`,
     "",
   );
   if (d.deadByTopic.length > 0) {
@@ -430,7 +440,7 @@ function assembleMarkdown(
     }
     lines.push("");
   } else {
-    lines.push("_No bills stalled in committee as of week end._", "");
+    lines.push("_No bills crossed the staleness threshold this week._", "");
   }
 
   // Notable introductions
@@ -448,17 +458,18 @@ function assembleMarkdown(
     lines.push("_No substantive bills introduced this week._", "");
   }
 
-  // Topic breakdown
+  // Topic breakdown — purely data-driven (no LLM commentary). Counts come
+  // from introduced_date in the week, not stage transitions, so the section
+  // can't contradict the introductions count in the intro.
   lines.push("## Topic breakdown", "");
-  lines.push(c.topicCommentary, "");
-  if (d.topicMovements.length > 0) {
-    lines.push("| Topic | Movement |", "|---|---|");
-    for (const t of d.topicMovements) {
-      lines.push(`| ${topicLabel(t.topic)} | ${t.count} |`);
+  lines.push("What got introduced this week, by topic.", "");
+  if (d.topicIntroductions.length > 0) {
+    for (const t of d.topicIntroductions) {
+      lines.push(`- **${topicLabel(t.topic)}** (${t.count})`);
     }
     lines.push("");
   } else {
-    lines.push("_No topic activity this week._", "");
+    lines.push("_No bills introduced this week._", "");
   }
 
   // Most talked about — stub until theme 4 ships.

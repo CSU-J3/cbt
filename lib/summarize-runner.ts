@@ -137,8 +137,13 @@ export async function runSummarize(
         console.warn(`parse-fail: ${bill.id}`);
         stats.failed++;
       } else {
+        // First-time-seen non-`introduced` stage counts as a transition too:
+        // a bill arriving already past introduced (e.g. S 723 first observed
+        // at `enacted`) skipped earlier stages in our view and that's
+        // semantically a transition the report needs to surface.
         const transitioned =
-          bill.oldStage !== null && bill.oldStage !== out.result.stage;
+          (bill.oldStage !== null && bill.oldStage !== out.result.stage) ||
+          (bill.oldStage === null && out.result.stage !== "introduced");
         const ceremonialArg =
           out.result.is_ceremonial === null
             ? null
