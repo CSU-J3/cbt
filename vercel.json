@@ -2,12 +2,19 @@
   "functions": {
     "app/api/sync/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/sync-votes/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/sync",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/sync-votes",
+      "schedule": "0 10 * * *"
     }
   ]
 }

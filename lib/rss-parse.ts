@@ -38,16 +38,29 @@ function asText(value: unknown): string {
   return "";
 }
 
+// Decode the HTML entities RSS feeds commonly emit in title/description.
+// Politico and others use numeric entities for curly quotes
+// (`&#8216;...&#8217;`, `&#8220;...&#8221;`) and em-dashes (`&#8212;`) —
+// without decoding, those end up stored literally in `news_mentions` rows
+// and surface as ugly noise on the report and breaking-news views.
+// Handles both decimal (&#N;) and hex (&#xHH;) forms; the named-entity
+// list below covers everything the upstream feeds actually send (small
+// fixed set — adding more is cheap, but better to extend on demand than
+// pull a full HTML5 entity table for a handful of cases).
 function stripHtml(s: string): string {
   return s
     .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
     .replace(/<[^>]+>/g, "")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
