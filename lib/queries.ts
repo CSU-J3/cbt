@@ -1078,6 +1078,132 @@ export const getMostCompetitiveRaces = unstable_cache(
   { revalidate: 86400, tags: ["race-ratings"] },
 );
 
+// ---- Races index (handoff 84) -------------------------------------------
+
+export type RaceIndexRow = {
+  raceId: string;
+  chamber: "house" | "senate";
+  state: string;
+  district: number | null;
+  cycle: number;
+  incumbentName: string | null;
+  incumbentParty: PartyKey | null;
+  incumbentBioguideId: string | null;
+  // Per-source ratings; null when that rater rated it Solid/Safe (and
+  // therefore wasn't seeded) or hasn't rated the seat at all.
+  cookRating: string | null;
+  sabatoRating: string | null;
+  ieRating: string | null;
+  // Most competitive rating across sources, with its signed score. Negative
+  // is bluer; 0 is toss-up; positive is redder. Drives the sort.
+  consensusRating: string | null;
+  consensusScore: number | null;
+};
+
+// Index of every race with at least one rating row. INNER JOIN excludes
+// the 432 House stubs from backfill:races that have no ratings yet —
+// surfacing them all would be 90% noise on the page. Pivot the three
+// sources into columns via MAX(CASE WHEN ...) so each race renders one row.
+// Sort: chamber DESC (Senate before House — Senate is the smaller pane and
+// reads as the lead), then |consensus_score| ASC so toss-ups float to the
+// top of each section, then state/district as tiebreak.
+export const getRacesIndex = unstable_cache(
+  async (cycle: number): Promise<RaceIndexRow[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT r.id, r.chamber, r.state, r.district, r.cycle,
+                   r.incumbent_bioguide_id,
+                   m.name AS incumbent_name,
+                   m.party AS incumbent_party,
+                   MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
+                   MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
+                   MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
+                   MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating_score END) AS sabato_score,
+                   MAX(CASE WHEN rr.source = 'inside_elections' THEN rr.rating END) AS ie_rating,
+                   MAX(CASE WHEN rr.source = 'inside_elections' THEN rr.rating_score END) AS ie_score
+            FROM races r
+            INNER JOIN race_ratings rr ON rr.race_id = r.id AND rr.cycle = r.cycle
+            LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
+            WHERE r.cycle = ?
+            GROUP BY r.id`,
+      args: [cycle],
+    });
+
+    const out: RaceIndexRow[] = [];
+    for (const row of rs.rows) {
+      const chamberRaw = row.chamber as string;
+      const chamber =
+        chamberRaw === "senate" ? "senate" : ("house" as const);
+
+      const cookRating = (row.cook_rating as string | null) ?? null;
+      const sabatoRating = (row.sabato_rating as string | null) ?? null;
+      const ieRating = (row.ie_rating as string | null) ?? null;
+      const cookScore = row.cook_score as number | null;
+      const sabatoScore = row.sabato_score as number | null;
+      const ieScore = row.ie_score as number | null;
+
+      // Pick the most competitive (smallest |score|) rating across sources
+      // as the "consensus" for sort + display. Tie-break: prefer Cook
+      // (most established forecaster) when |score| matches.
+      const candidates: Array<{ rating: string; score: number }> = [];
+      if (cookRating !== null && cookScore !== null)
+        candidates.push({ rating: cookRating, score: cookScore });
+      if (sabatoRating !== null && sabatoScore !== null)
+        candidates.push({ rating: sabatoRating, score: sabatoScore });
+      if (ieRating !== null && ieScore !== null)
+        candidates.push({ rating: ieRating, score: ieScore });
+      let consensusRating: string | null = null;
+      let consensusScore: number | null = null;
+      if (candidates.length > 0) {
+        const winner = candidates.reduce((best, c) =>
+          Math.abs(c.score) < Math.abs(best.score) ? c : best,
+        );
+        consensusRating = winner.rating;
+        consensusScore = winner.score;
+      }
+
+      out.push({
+        raceId: row.id as string,
+        chamber,
+        state: row.state as string,
+        district: (row.district as number | null) ?? null,
+        cycle: Number(row.cycle),
+        incumbentName: (row.incumbent_name as string | null) ?? null,
+        incumbentParty: normalizePartyVariant(
+          (row.incumbent_party as string | null) ?? null,
+        ),
+        incumbentBioguideId:
+          (row.incumbent_bioguide_id as string | null) ?? null,
+        cookRating,
+        sabatoRating,
+        ieRating,
+        consensusRating,
+        consensusScore,
+      });
+    }
+
+    // In-JS sort because rating-score columns come from a CASE inside the
+    // same GROUP BY and the engine treats them as nullable. Sorting in JS
+    // is also where the chamber-first ordering lives.
+    out.sort((a, b) => {
+      if (a.chamber !== b.chamber) {
+        return a.chamber === "senate" ? -1 : 1;
+      }
+      const aAbs = a.consensusScore === null ? 99 : Math.abs(a.consensusScore);
+      const bAbs = b.consensusScore === null ? 99 : Math.abs(b.consensusScore);
+      if (aAbs !== bAbs) return aAbs - bAbs;
+      if (a.state !== b.state) return a.state.localeCompare(b.state);
+      const ad = a.district ?? 0;
+      const bd = b.district ?? 0;
+      return ad - bd;
+    });
+
+    return out;
+  },
+  ["getRacesIndex"],
+  { revalidate: 3600, tags: ["race-ratings", "races"] },
+);
+
 export const getReport = unstable_cache(
   async (slug: string): Promise<Report | null> => {
     const db = getDb();

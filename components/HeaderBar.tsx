@@ -270,6 +270,12 @@ export async function HeaderBar({
             👥 Sponsors
           </Link>
           <Link
+            href="/races"
+            className="transition hover:text-[var(--text-secondary)]"
+          >
+            🗳 Races
+          </Link>
+          <Link
             href="/clusters"
             className="transition hover:text-[var(--text-secondary)]"
           >

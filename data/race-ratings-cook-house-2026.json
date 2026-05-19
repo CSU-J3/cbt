@@ -1,0 +1,380 @@
+{
+  "source": "cook",
+  "cycle": 2026,
+  "source_url_base": "https://www.cookpolitical.com/ratings/house-race-ratings",
+  "note": "Cook Political Report House ratings (handoff 84). Snapshot from Wikipedia's \"2026 United States House of Representatives election ratings\" page, fetched 2026-05-19. Solid/Safe verdicts are intentionally excluded — they're either partisan-locked or already covered by the senate-only pattern set in handoff 71. Refresh quarterly by re-checking the rater's page (or the Wikipedia table that mirrors it) and editing this file.",
+  "ratings": [
+    {
+      "race_id": "AZ-01-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "AZ-02-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "AZ-06-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CA-13-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CA-21-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CA-22-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CA-45-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CA-48-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CO-05-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "CO-08-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-07-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-09-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-13-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-14-2026",
+      "rating": "Lean R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-22-2026",
+      "rating": "Lean R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-25-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "FL-27-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "IN-01-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "IA-01-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "IA-02-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "IA-03-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "ME-02-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MI-04-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MI-07-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MI-08-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MI-10-2026",
+      "rating": "Lean R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MN-02-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "MT-01-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NE-02-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NV-01-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NV-03-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NV-04-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NH-01-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NH-02-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NJ-07-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NJ-09-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NM-02-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NY-03-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NY-04-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NY-17-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NY-19-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NC-01-2026",
+      "rating": "Lean R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "NC-11-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "OH-01-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "OH-09-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "OH-13-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "OR-05-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "PA-01-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "PA-07-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "PA-08-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "PA-10-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "TX-15-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "TX-23-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "TX-28-2026",
+      "rating": "Lean D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "TX-34-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "TX-35-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "VA-01-2026",
+      "rating": "Lean R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "VA-02-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "VA-07-2026",
+      "rating": "Likely D",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "WA-03-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "WI-01-2026",
+      "rating": "Likely R",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    },
+    {
+      "race_id": "WI-03-2026",
+      "rating": "Toss Up",
+      "rating_date": "2026-05-19",
+      "source_url": "https://www.cookpolitical.com/ratings/house-race-ratings"
+    }
+  ]
+}
