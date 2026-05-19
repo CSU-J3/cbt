@@ -269,6 +269,54 @@ CREATE TABLE stock_trades (
 
 CREATE INDEX idx_trades_bioguide ON stock_trades(bioguide_id);
 CREATE INDEX idx_trades_disclosure_date ON stock_trades(disclosure_date DESC);
+
+-- Roll-call votes (handoffs 77 + 80). One row per (chamber, congress,
+-- session, roll_call). `id` shape is 'house-119-2-1234' / 'senate-119-1-132'
+-- — chamber lowercase, no zero-padding on the roll-call segment. `bill_id`
+-- FK is NULLed in the sync if the referenced bill hasn't been synced into
+-- `bills` yet (vote rows always land regardless); the LEFT JOIN at read
+-- time surfaces orphans via raw_json if needed. `amendment_designation`
+-- holds the raw legislation reference for non-bill votes ('HAMDT5', 'PN123',
+-- treaty 'TD2', etc.) — anything whose type doesn't map to the 8 bill
+-- types. yea/nay/present/not_voting counts are summed at ingest so reads
+-- don't re-aggregate.
+CREATE TABLE votes (
+  id TEXT PRIMARY KEY,                       -- e.g. "house-119-2-1234" / "senate-119-1-132"
+  chamber TEXT NOT NULL,                     -- 'house' | 'senate' (lowercase, matches bills.bill_type convention)
+  congress INTEGER NOT NULL,
+  session INTEGER NOT NULL,
+  roll_call INTEGER NOT NULL,
+  vote_date TEXT NOT NULL,                   -- ISO timestamp
+  question TEXT,                             -- e.g. "On Passage" / "On Cloture on the Motion to Proceed"
+  description TEXT,                          -- vote_type (house) or vote_title (senate)
+  result TEXT,                               -- "Passed" / "Cloture Motion Agreed to" / etc.
+  bill_id TEXT REFERENCES bills(id),         -- NULL for amendments, nominations, procedural votes
+  amendment_designation TEXT,                -- raw 'HAMDT5' / 'PN123' / etc. when bill_id is NULL
+  yea_count INTEGER NOT NULL,
+  nay_count INTEGER NOT NULL,
+  present_count INTEGER,
+  not_voting_count INTEGER,
+  raw_json TEXT NOT NULL,                    -- full API/XML payload for the vote
+  update_date TEXT NOT NULL
+);
+
+CREATE INDEX idx_votes_chamber_date ON votes(chamber, vote_date DESC);
+CREATE INDEX idx_votes_bill_id ON votes(bill_id) WHERE bill_id IS NOT NULL;
+
+-- Per-member positions on a vote. bioguide_id is intentionally NOT a FK to
+-- `members` — vote rolls include members who haven't been synced yet (or
+-- who've since left), and a missing-member row must never block the
+-- position insert. Join at query time. `position` is normalized to a
+-- lowercase enum at ingest ('yea' | 'nay' | 'present' | 'not_voting');
+-- "Aye", "Yes", "No", "Absent" are all folded in by the sync.
+CREATE TABLE member_votes (
+  vote_id TEXT NOT NULL REFERENCES votes(id),
+  bioguide_id TEXT NOT NULL,
+  position TEXT NOT NULL,                    -- 'yea' | 'nay' | 'present' | 'not_voting'
+  PRIMARY KEY (vote_id, bioguide_id)
+);
+
+CREATE INDEX idx_member_votes_bioguide ON member_votes(bioguide_id);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
@@ -288,6 +336,17 @@ The sync runs incrementally. Don't re-fetch bills that haven't changed.
 Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cron route at `/api/sync` running once daily at 09:00 UTC (Vercel Hobby tier caps cron frequency to once-per-day; the summarize step is sliced to 50 bills per run).
 
 **News ingestion (in cron).** After sync + summarize + lead generation, the cron route pulls RSS feeds from Politico, The Hill, and Roll Call. Bill IDs are extracted via regex from each article's title + summary, looked up against the `bills` table (unknown ids logged and skipped), and matches written to `news_mentions`. Idempotent on `(bill_id, article_url)`. Best-effort — RSS errors are logged but never fail the cron. Local test: `npm run sync:news`. UI surfaces (breaking-news view, media-attention column) land in handoffs 66 and 67.
+
+**Roll-call vote sync (handoffs 77 + 80).** Two separate scripts because the two chambers have completely different sources:
+
+- House: `lib/votes-sync.ts::runVotesSync` → `npm run sync:votes`. Congress.gov `/v3/house-vote/{congress}/{session}` (list, item, members sub-resources). Field names to watch: `startDate` not `voteDate`, `sessionNumber` not `session`, `voteQuestion` not `question`, flat `legislationType`/`legislationNumber` not nested. The /members sub-resource returns all ~435 reps in one call — no pagination. Watermark = `MAX(vote_date) WHERE chamber='house'`; per-vote skip via `existing` set keyed by vote id.
+- Senate: `lib/senate-votes-sync.ts::runSenateVotesSync` → `npm run sync:senate-votes`. Scrapes XML from `senate.gov/legislative/LIS/roll_call_lists/vote_menu_119_{S}.xml` (menu, newest-first; reversed to ascend) and `roll_call_votes/vote119{S}/vote_119_{S}_{NNNNN}.xml` (detail). Polls both sessions on each run. Watermark = `MAX(roll_call) WHERE chamber='senate' AND session=?` — per-session because vote numbers reset.
+
+Senate XML keys members by `lis_member_id` (e.g. "S428"), but **Congress.gov does not expose LIS IDs** on either the list or per-member endpoints. The resolver in `lib/lis-map.ts::buildSenatorResolver` maps to `bioguide_id` via `(last_name, state)` lookup against the `members` table — NFD-fold to handle diacritic mismatches (senate.gov strips them: XML "Lujan" ↔ DB "Luján"). A small `SENATOR_BIOGUIDE_FALLBACK` constant covers senators absent from `members` (sync-members only pulls bill sponsors; departed senators and freshly-seated senators who haven't sponsored anything yet aren't covered). Re-evaluate the fallback table when `sync-members` learns to pull current senators directly from `/v3/member?chamber=Senate`.
+
+Both vote upserts use the same `position` enum (lowercase `yea | nay | present | not_voting`) — the senate sync folds "Aye"/"Yes"/"No"/"Absent" into the canonical set. The `votes.bill_id` FK is NULLed if the referenced bill row isn't synced yet (Senate especially — most votes are nominations/PNs that never had a bill_id at all). Member upserts run as a single `DELETE WHERE vote_id=? + INSERT...` batch per vote so a partial failure can't leave a roll-call half-populated.
+
+**Neither vote sync is on the cron path yet.** They run manually. The 60-second Vercel function ceiling makes folding them into `/api/sync` risky (House alone can be 400+ vote rows during a busy week, each requiring 2 API hops + ~100ms throttle); a separate daily cron entry in `vercel.json` is the likely follow-up.
 
 ### Backfill scripts
 
@@ -326,6 +385,11 @@ Run via `pnpm tsx scripts/sync.ts` locally. In production, wired to a Vercel Cro
 - `getMemberAffiliations(bioguideId)` — caucus affiliations for a member, sorted by `CAUCUS_CONFIG.priority` asc. Rows whose `org` is not in `CAUCUS_CONFIG` are filtered out (defensive against config renames leaving orphan rows). Cached tag `members`, shares the existing sync invalidation — affiliations themselves are seeded manually, so no separate invalidation surface.
 - `getRace(id)` / `getRaceCandidates(raceId)` — back the `/race/[id]` hub. Both cached, tag `races` (separate from `bills` and `members` because seeds refresh independently). `getRaceCandidates` orders by status precedence — `won_primary` first, then `running`, `declared`, `withdrew`, others — then name. The `/api/revalidate?tag=races` route is the manual-flush hook; the seed scripts do not POST to it (no live cron to invalidate against). Hit it manually if a cache flush is needed after a seed run.
 - `getRaceRatings(raceId)` / `getMostCompetitiveRaces(cycle, limit)` — back the rating chips on `/race/[id]` and the member-hub seat-up indicator (handoff 71). Both cached, tag `race-ratings` (separate from `races` because the rating seed refreshes quarterly on a different cadence). `getRaceRatings` returns rows sorted by `updated_at DESC`, so consumers can take `[0]` for the freshest read across sources. `getMostCompetitiveRaces` orders by `MIN(ABS(rating_score))` per race (so a single Toss Up rating from any source floats the race up), tiebreak `MAX(updated_at)`; it's wired up but not yet rendered — feeds the future "most competitive races" dashboard cut. The `/api/revalidate?tag=race-ratings` route is the manual flush hook after a re-seed.
+- `getRecentVotes(chamber, limit)` — last N votes for one chamber, used by the (planned) dashboard ticker / chamber-level views. **Takes chamber, not bioguideId** — sponsor-page vote lists use `getMemberVotes` instead. Cached, tag `votes`.
+- `getVotesByBill(billId)` — every vote tied to a specific bill (newest first). Backs the bill detail page's vote section. Cached, tag `votes`.
+- `getMemberVote(voteId, bioguideId)` — single position lookup; returns `{ position } | null`. Used inside the vote detail breakdown where one member's stance is highlighted. Cached, tag `votes`.
+- `getMemberVotes(bioguideId, { page, pageSize })` — paginated vote history for the member hub. **No chamber filter** — joins `member_votes → votes` purely on bioguide_id, so House and Senate votes flow through the same list. Natural separation happens because a House member has no senate `member_votes` rows and vice versa. Cached, tag `votes`.
+- `getMemberVoteStats(bioguideId)` — yea/nay/present/not_voting totals for a member. Powers the `MemberVoteStats` line on the sponsor hub. Cached, tag `votes`.
 
 ### Ceremonial filter (`?ceremonial=1`)
 
@@ -428,7 +492,7 @@ Bloomberg Terminal aesthetic. Dark monospace, dense rows, color-coded stages and
 - `/clusters` — bill template index. One row per regex pattern from `lib/cluster-patterns.ts`, sorted by count desc. Each row links to `/?cluster=<id>`. Sub-header shows `N templates · X matched · Y unmatched` where Y honors the active ceremonial filter via URL param. No `CeremonialToggle` (the page isn't a feed). No `SearchBox` (not a feed). Custom `.cluster-row` / `.cluster-header-row` grid (`1.2fr 80px 3fr`).
 - `/reports` — index of weekly reports, newest first (handoff 75). `HeaderBar` runs in `pageTitle="Weekly Reports"` + `pageCount` mode (no feed filters). `.report-row` grid is `90px 1fr 80px` for week-start date, title, and a `View →` arrow — no stats column because the `reports` schema only stores `slug/title/week_start/week_end/content_md/created_at`. Click navigates to `/reports/[slug]`. Pagination via `?page=N` at `PAGE_SIZE = 20`. Empty state: `Reports begin Monday <next Monday>.` Cached at the query layer (`getReports`/`getReportCount`, tag `reports`, 1h revalidate); the report cron's `revalidateTag('reports')` flushes both. Global nav includes `⎘ Reports` between News and Sponsors.
 - `/reports/[slug]` — individual weekly report. Markdown body rendered by `components/ReportMarkdown.tsx` (react-markdown + remark-gfm) with terminal-aesthetic component overrides for h1/h2/p/ul/li/code/table/em/strong. `[Download .md ↓]` link in the header pulls from `/reports/[slug]/download`, which serves `report.content_md` with `Content-Disposition: attachment; filename="cbt-${slug}.md"`. Unknown slug renders a friendly empty state with a back link, not Next's `notFound()`.
-- `/sponsors/[bioguideId]` — member hub (handoff 60, +61, +62). Photo (depiction_url, plain `<img>` with initials fallback), name, party + state + district chip, born year, next-election chip (links to `/race/<id>` when the member has a non-null `next_election_year` — handoff 62), and the top-2 caucus badges by priority appended to the meta line (handoff 61). Stat block (bills sponsored, enacted with %, avg cosponsor count). Affiliations row below stats renders every caucus badge by priority; absent entirely for unaffiliated members (no "Coming soon"). Top 10 sponsored bills via reused `BillRow` (no expand, no daysSinceMode). `[View all N bills →]` links to `/feed?sponsor=<bioguide_id>`. Unknown bioguide_id renders a friendly empty state, not Next's `notFound()`. Reads from `members` + `affiliations`; refresh via `npm run sync:members` and `npm run seed:affiliations`.
+- `/sponsors/[bioguideId]` — member hub (handoff 60, +61, +62, +77, +80). Photo (depiction_url, plain `<img>` with initials fallback), name, party + state + district chip, born year, next-election chip (links to `/race/<id>` when the member has a non-null `next_election_year` — handoff 62), and the top-2 caucus badges by priority appended to the meta line (handoff 61). Stat block (bills sponsored, enacted with %, avg cosponsor count). Affiliations row below stats renders every caucus badge by priority; absent entirely for unaffiliated members (no "Coming soon"). Top 10 sponsored bills via reused `BillRow` (no expand, no daysSinceMode). `[View all N bills →]` links to `/feed?sponsor=<bioguide_id>`. **Voting record section** (handoffs 77 + 80): a `MemberVoteStats` summary line (`House votes · N total · yea% · nay% · missed%` — chamber label flips for Senate members) plus the most-recent votes rendered by `MemberVoteRow`. `getMemberVotes` has no chamber filter; a senator's page shows their Senate votes and a House rep's page shows House votes purely because they have no `member_votes` rows in the other chamber. Empty state: `No {chamber} votes recorded for this member yet.` Stock-trades block sits below the voting section. Unknown bioguide_id renders a friendly empty state, not Next's `notFound()`. Reads from `members` + `affiliations` + `votes`/`member_votes` + `stock_trades`; refresh via `npm run sync:members`, `npm run seed:affiliations`, `npm run sync:votes`, `npm run sync:senate-votes`.
 - `/race/[id]` — race hub (handoff 62). Race name + cycle + days-to-election countdown. Rating block (Sabato seven, party-colored chip) when hand-curated. Incumbent card linking to `/sponsors/<bioguide_id>` (or "OPEN SEAT" placeholder when `incumbent_bioguide_id` is null). Candidate roster from `race_candidates`, ordered won_primary → running → declared → withdrew → name; withdrawn rows render dimmed. Stub state (no rating, no candidates) shows a single muted "Incumbent running for re-election. No competitive rating yet." line. Source URL + `last_verified` date at the bottom. Unknown id renders a friendly empty state, not Next's `notFound()`. Reads from `races` + `race_candidates` + (incumbent) `members`. ID format: `<STATE>-<DD>-<YYYY>` for House (zero-padded district), `S-<STATE>-<YYYY>` for Senate — produced by `lib/race-id.ts::raceIdFromMember`.
 
 Feed-shaped routes (`/feed`, `/stale`, `/changes`, `/president`, `/watchlist`) share the same `HeaderBar` (count + last-updated MT) and render a `StageLegend` (party + stage legend) inline at the top of the list — there is no footer legend component. The feed page passes `feedFilters` to `HeaderBar`, which swaps in a `<SearchBox />` (centered) and a filtered count display (`47 OF 1,643 BILLS · "fentanyl"` with the numerator in `--accent-amber`).
@@ -465,7 +529,11 @@ The standalone backfill is `npm run classify-ceremonial` → `scripts/classify-c
 --stage-introduced: #94a3b8;   --stage-committee: #06b6d4;
 --stage-floor: #fbbf24;        --stage-other-chamber: #f59e0b;
 --stage-president: #fb923c;    --stage-enacted: #10b981;
+--vote-yea: #10b981;           --vote-nay: #f87171;
+--vote-present: #fbbf24;       --vote-not-voting: #6b7280;
 ```
+
+Vote tokens (handoff 79) are deliberately decoupled from party colors: `--vote-nay` is the softer `#f87171`, not `--party-republican`'s `#ef4444`, so a Democrat's nay vote doesn't read as a party-coded R chip. `--vote-yea` happens to share `#10b981` with `--stage-enacted` — different semantics (a position vs. a stage), same green.
 
 ### Stage indicators (arrow glyph + colored uppercase label)
 
@@ -644,6 +712,10 @@ The cron route should reject requests where `Authorization` header doesn't match
 - **FMP free-tier pagination cap.** On `/stable/` endpoints, `?page=N` for any `N > 0` returns `402 "The values for 'page' can only be 0 based on your current subscription."` Only the paid tier paginates. Each `-latest` endpoint returns the 100 most-recent disclosures on page 0 and that's it. Daily incremental sync works fine — page 0 keeps refreshing top-of-feed — but historical backfill via this script is **effectively capped at 100 rows per chamber per run** regardless of the 20-page CLI cap. To seed historical depth, upgrade the FMP tier or switch source. The 402 line shows up in `sync-trades` output after page 0's data is already inserted; it's cosmetic, not data loss.
 - **Name-to-bioguide matching is best-effort.** `stock_trades.bioguide_id` is nullable; unmatched FMP names get inserted with NULL and don't appear on member hubs (`getMemberTrades` filters by `bioguide_id = ?`). Audit periodically with `SELECT COUNT(*) FROM stock_trades WHERE bioguide_id IS NULL` and `SELECT DISTINCT member_name_raw FROM stock_trades WHERE bioguide_id IS NULL`. Tighten `lib/matchMember.ts` (state-hint fallback, nicknames) before assuming the data is incomplete.
 - **Race ratings are hand-seeded.** The three `data/race-ratings-*.json` files (Cook, Sabato, Inside Elections — handoffs 71 + 73) are the source of truth. Refresh quarterly by re-checking each rater's page and updating the JSON, then running `npm run seed:ratings` (it globs all three). The raters update ratings infrequently between cycles, so quarterly is more than enough. The seed files' `race_id` keys are aligned to the existing `S-<STATE>-<YYYY>` / `<STATE>-<DD>-<YYYY>` format — Wikipedia-pulled ids originally used `<STATE>-SEN-<YYYY>` / `<STATE>-SEN-SP-<YYYY>`, find-replaced in place when the seed was first applied. Senate specials collapse onto the regular-cycle id because the races table keys senate seats by `next_election_year` alone. **Source recall is not a substitute for sourced data here** — if a rater moves a race, update the JSON from the rater's page, don't hand-write a rating from memory.
+- **Vote sync runs manually, not on cron.** `npm run sync:votes` (House, Congress.gov) and `npm run sync:senate-votes` (Senate, senate.gov XML) are not folded into `/api/sync` — a busy week can produce 400+ vote rows × 2-3 API hops each, well past the 60s Vercel function ceiling. Schedule them yourself, or add a dedicated daily cron entry in `vercel.json` once timing has been measured. Both syncs are incremental (watermark per session for Senate, MAX(vote_date) for House) so re-runs are cheap.
+- **Senate has no Congress.gov vote coverage.** Vote data comes from XML on senate.gov (LIS feed). The XML keys members by `lis_member_id` (e.g. "S428"), but the Congress.gov member API **does not expose LIS IDs** — neither the list endpoint nor the per-member detail. `lib/lis-map.ts` works around this by matching `(last_name, state)` against the `members` table, with an NFD diacritic fold (senate.gov strips accents: "Lujan" ↔ "Luján"). A small `SENATOR_BIOGUIDE_FALLBACK` table covers senators absent from `members` — current entries: Rubio (FL → resigned Jan 2025), Vance (OH → resigned to become VP), Armstrong (OK → seated Jan 2026, no sponsorships yet). Audit when a new vote-XML warning appears in sync output (`no bioguide match: <name> (<state>) lis=<id>`) — usually means a new appointee/special-election winner needs adding, or `sync:members` is overdue.
+- **`votes.chamber` is lowercase**, matching the `bills.bill_type` convention (`hr` / `s` / `house` / `senate`). The handoff drafts for the vote pipeline initially used `'House'`/`'Senate'`; ingest writes lowercase and every query/UI consumer expects lowercase. If a query suddenly returns no rows for what looks like a correct chamber, check casing first.
+- **`member_votes.position` is normalized lowercase** (`yea | nay | present | not_voting`). Source data varies ("Aye", "Yes", "No", "Absent"); the sync folds it. New consumers must lowercase before comparing — `WHERE position = 'Yea'` matches nothing.
 
 ## What not to do
 
