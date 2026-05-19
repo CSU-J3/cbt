@@ -209,7 +209,7 @@ export default async function MemberPage({
                   style={{ color: "var(--text-muted)" }}
                 >
                   {member.chamber === "senate"
-                    ? "Senate voting records sync ships next. Check back soon."
+                    ? "No Senate votes recorded for this member yet."
                     : "No House votes recorded for this member yet."}
                 </div>
               )}
