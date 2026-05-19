@@ -1403,6 +1403,43 @@ export const getBreakingNews = unstable_cache(
   { revalidate: 600, tags: ["news-breaking"] },
 );
 
+// ---- News matcher candidate pool (handoff 86) ---------------------------
+
+export type CandidateBill = {
+  id: string;
+  title: string;
+  summary: string | null;
+};
+
+// Bills in active play, fed to the LLM matcher in `lib/news-matcher.ts`.
+// Pre-filter is keyword overlap (article words ∩ bill-title words), so the
+// pool can be larger than the per-article cap without paying LLM cost on
+// every bill. Cap defends against a runaway query on weeks with huge
+// floor activity. Not cached: the matcher runs once per cron tick, the
+// query is cheap, and cycling daily-changing rows through unstable_cache
+// would just churn the cache without benefit.
+export async function getCandidateBills(
+  daysBack = 30,
+  limit = 500,
+): Promise<CandidateBill[]> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT id, title, summary
+          FROM bills
+          WHERE latest_action_date >= date('now', ?)
+            AND summary IS NOT NULL
+            AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
+          ORDER BY latest_action_date DESC
+          LIMIT ?`,
+    args: [`-${daysBack} days`, limit],
+  });
+  return rs.rows.map((r) => ({
+    id: r.id as string,
+    title: r.title as string,
+    summary: (r.summary as string | null) ?? null,
+  }));
+}
+
 export const FEED_PAGE_SIZE = 100;
 
 export type FeedPage = {

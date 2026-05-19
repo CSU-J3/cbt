@@ -8,7 +8,7 @@ async function main() {
   const results = await ingestNews();
   for (const r of results) {
     console.log(
-      `${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill}`,
+      `${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} llm_errors=${r.llmErrors}`,
     );
     for (const e of r.errors) console.error(`  ERR: ${e}`);
   }

@@ -83,7 +83,7 @@ async function handle(request: Request) {
     );
     for (const r of newsResults) {
       console.log(
-        `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill}`,
+        `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} llm_errors=${r.llmErrors}`,
       );
     }
     if (totalErrors.length > 0) {
