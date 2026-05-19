@@ -15,6 +15,7 @@ const DEAD_BILLS_PER_TOPIC = 3;
 const DEAD_STALE_DAYS = 60;
 const NOTABLE_LIMIT = 5;
 const TOPIC_BREAKDOWN_LIMIT = 7;
+const MOST_TALKED_LIMIT = 5;
 
 export type WeekRange = {
   start: string; // ISO date, Monday
@@ -138,6 +139,13 @@ type NotableIntro = {
 
 type TopicIntroduction = { topic: string; count: number };
 
+type MostTalkedAbout = {
+  billId: string;
+  title: string;
+  sponsorName: string | null;
+  mentionCount: number;
+};
+
 type ReportData = {
   transitionsCount: number;
   stageMovements: StageMovement[];
@@ -147,6 +155,7 @@ type ReportData = {
   deadByTopic: DeadTopic[];
   notableIntros: NotableIntro[];
   topicIntroductions: TopicIntroduction[];
+  mostTalkedAbout: MostTalkedAbout[];
 };
 
 async function gatherReportData(week: WeekRange): Promise<ReportData> {
@@ -288,6 +297,29 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     if (topicIntroductions.length >= TOPIC_BREAKDOWN_LIMIT) break;
   }
 
+  // 7. Most talked about — top bills by news_mentions row count within the
+  // report week. Idempotent and cheap; news_mentions has UNIQUE(bill_id,
+  // article_url) so the count reflects distinct articles, not duplicates.
+  // Empty result is the common case while the regex matcher is undertuned;
+  // the section renders a clean fallback in that case.
+  const newsRs = await db.execute({
+    sql: `SELECT b.bill_type, b.bill_number, b.title, b.sponsor_name,
+                 COUNT(nm.id) AS mention_count
+          FROM news_mentions nm
+          JOIN bills b ON b.id = nm.bill_id
+          WHERE date(nm.published_at) BETWEEN ? AND ?
+          GROUP BY nm.bill_id
+          ORDER BY mention_count DESC, b.bill_type ASC, b.bill_number ASC
+          LIMIT ?`,
+    args: [week.start, week.end, MOST_TALKED_LIMIT],
+  });
+  const mostTalkedAbout: MostTalkedAbout[] = newsRs.rows.map((r) => ({
+    billId: formatBillId(r.bill_type as string, r.bill_number as number),
+    title: r.title as string,
+    sponsorName: (r.sponsor_name as string | null) ?? null,
+    mentionCount: Number(r.mention_count ?? 0),
+  }));
+
   return {
     transitionsCount: transRs.rows.length,
     stageMovements,
@@ -297,6 +329,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     deadByTopic,
     notableIntros,
     topicIntroductions,
+    mostTalkedAbout,
   };
 }
 
@@ -315,7 +348,10 @@ STAGE_COMMENTARY:
 <2-3 sentences about the stage movements>
 
 ENACTMENTS_COMMENTARY:
-<1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>`;
+<1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>
+
+MOST_TALKED_COMMENTARY:
+<2-3 sentences on what got media coverage and why it might matter; reference specific bill IDs from the data; output exactly "_No news mentions tracked for this week._" if the news mention count is zero>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
   const transitionLines =
@@ -341,6 +377,16 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
     ? `${d.topicIntroductions[0].topic} (${d.topicIntroductions[0].count} introductions)`
     : "(none)";
 
+  const mostTalkedLines =
+    d.mostTalkedAbout.length > 0
+      ? d.mostTalkedAbout
+          .map(
+            (m) =>
+              `  - ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}): ${truncate(m.title, 70)}`,
+          )
+          .join("\n")
+      : "  - (none — news_mentions had no matches for this week)";
+
   return `WEEK DATA (${week.start} to ${week.end}):
 - Total stage transitions: ${d.transitionsCount}
 - Top 5 transitions:
@@ -348,6 +394,8 @@ ${transitionLines}
 - Enactments: ${d.enactmentsCount} bills, including ${enactmentIds}
 - New introductions: ${d.introductionsCount}
 - Top topic by activity: ${topTopic}
+- Most talked about (by tracked news mentions):
+${mostTalkedLines}
 
 Write the report sections:`;
 }
@@ -356,12 +404,14 @@ type ReportCommentary = {
   lead: string;
   stageCommentary: string;
   enactmentsCommentary: string;
+  mostTalkedCommentary: string;
 };
 
 const REPORT_MARKERS = [
   "LEAD",
   "STAGE_COMMENTARY",
   "ENACTMENTS_COMMENTARY",
+  "MOST_TALKED_COMMENTARY",
 ] as const;
 
 function parseReportResponse(text: string): ReportCommentary | null {
@@ -380,12 +430,24 @@ function parseReportResponse(text: string): ReportCommentary | null {
     if (!value) return null;
     values[marker] = value;
   }
-  const { LEAD, STAGE_COMMENTARY, ENACTMENTS_COMMENTARY } = values;
-  if (!LEAD || !STAGE_COMMENTARY || !ENACTMENTS_COMMENTARY) return null;
+  const {
+    LEAD,
+    STAGE_COMMENTARY,
+    ENACTMENTS_COMMENTARY,
+    MOST_TALKED_COMMENTARY,
+  } = values;
+  if (
+    !LEAD ||
+    !STAGE_COMMENTARY ||
+    !ENACTMENTS_COMMENTARY ||
+    !MOST_TALKED_COMMENTARY
+  )
+    return null;
   return {
     lead: LEAD,
     stageCommentary: STAGE_COMMENTARY,
     enactmentsCommentary: ENACTMENTS_COMMENTARY,
+    mostTalkedCommentary: MOST_TALKED_COMMENTARY,
   };
 }
 
@@ -416,20 +478,30 @@ function assembleMarkdown(
     lines.push("_No stage movements this week._", "");
   }
 
-  // Enactments — when count is zero the commentary IS the placeholder line.
+  // Enactments — trust the LLM commentary when bills became law; emit the
+  // canonical fallback verbatim otherwise (same italic-preservation reason
+  // as the "Most talked about" section below).
   lines.push(`## Enactments (${d.enactmentsCount})`, "");
-  lines.push(c.enactmentsCommentary, "");
   if (d.enactments.length > 0) {
+    lines.push(c.enactmentsCommentary, "");
     for (const e of d.enactments) {
       lines.push(`- ${e.billId} — ${truncate(e.title, TITLE_TRUNCATE)}`);
     }
     lines.push("");
+  } else {
+    lines.push("_No bills became law this week._", "");
   }
 
-  // Dead in committee
-  lines.push("## Dead in committee", "");
+  // Newly stalled (heading rename per handoff 85: "Dead in committee" was
+  // ambiguous — the section is about bills that NEWLY crossed the staleness
+  // threshold during the report week, not a corpus snapshot). Counts can
+  // look large because the topics JSON fans a single bill across every
+  // topic it carries; that's intended (a banking-and-consumer-protection
+  // bill stalling reads as a signal for both topics) but warrants a
+  // one-line note so a reader knows the count isn't unique-bill.
+  lines.push("## Newly stalled", "");
   lines.push(
-    `Bills that crossed ${DEAD_STALE_DAYS} days without action this week, grouped by topic.`,
+    `Bills whose ${DEAD_STALE_DAYS}-day inactivity threshold crossed during this week, grouped by topic. A bill with multiple topics appears in each.`,
     "",
   );
   if (d.deadByTopic.length > 0) {
@@ -472,9 +544,25 @@ function assembleMarkdown(
     lines.push("_No bills introduced this week._", "");
   }
 
-  // Most talked about — stub until theme 4 ships.
+  // Most talked about — top bills by tracked news mentions this week.
+  // When news_mentions is empty for the week, emit the canonical fallback
+  // verbatim (the LLM occasionally drops the underscores from the literal
+  // template, breaking the italic styling). When data exists, trust the
+  // LLM commentary and render the bill list under it the same way
+  // enactments does.
   lines.push("## Most talked about", "");
-  lines.push("_News mentions coming when theme 4 ships._", "");
+  if (d.mostTalkedAbout.length > 0) {
+    lines.push(c.mostTalkedCommentary, "");
+    for (const m of d.mostTalkedAbout) {
+      const sponsor = m.sponsorName ? ` — ${m.sponsorName}` : "";
+      lines.push(
+        `- ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}) — ${truncate(m.title, TITLE_TRUNCATE)}${sponsor}`,
+      );
+    }
+    lines.push("");
+  } else {
+    lines.push("_No news mentions tracked for this week._", "");
+  }
 
   return lines.join("\n");
 }
