@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
 import { HeaderBar } from "@/components/HeaderBar";
 import { MemberAffiliations } from "@/components/MemberAffiliations";
+import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
 import { MemberHeader } from "@/components/MemberHeader";
 import { MemberStats } from "@/components/MemberStats";
 import { MemberVoteRow } from "@/components/MemberVoteRow";
@@ -12,6 +13,7 @@ import {
   getMember,
   getMemberAffiliations,
   getMemberBills,
+  getMemberFundraising,
   getMemberStats,
   getMemberTradeCount,
   getMemberTrades,
@@ -45,6 +47,7 @@ export default async function MemberPage({
     tradeCount,
     voteStats,
     recentVotes,
+    fundraising,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -54,6 +57,7 @@ export default async function MemberPage({
     getMemberTradeCount(bioguideId),
     getMemberVoteStats(bioguideId),
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
+    getMemberFundraising(bioguideId),
   ]);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
@@ -100,6 +104,11 @@ export default async function MemberPage({
 
             <div className="mb-6">
               <MemberAffiliations affiliations={affiliations} />
+              {fundraising ? (
+                <div className="mt-3">
+                  <MemberFundraisingLine fundraising={fundraising} />
+                </div>
+              ) : null}
             </div>
 
             <section

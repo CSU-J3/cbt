@@ -25,6 +25,7 @@
     "sync:trades": "tsx scripts/sync-trades.ts",
     "sync:votes": "tsx scripts/sync-votes.ts",
     "sync:senate-votes": "tsx scripts/sync-senate-votes.ts",
+    "sync:fec": "tsx scripts/sync-fec.ts",
     "lead": "tsx scripts/generate-lead.ts",
     "report": "tsx scripts/generate-report.ts",
     "typecheck": "tsc --noEmit"

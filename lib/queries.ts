@@ -1170,6 +1170,53 @@ export const getMemberTradeCount = unstable_cache(
   { revalidate: 3600, tags: ["member-trades"] },
 );
 
+// ---- FEC fundraising (handoff 83) ---------------------------------------
+
+export type MemberFundraising = {
+  cycle: number;
+  totalRaised: number | null; // cents
+  totalSpent: number | null;
+  cashOnHand: number | null;
+  debts: number | null;
+  coverageEndDate: string | null;
+  sourceUrl: string | null;
+  ingestedAt: string;
+};
+
+// Single most-recent cycle's fundraising row for a member. Returns null
+// when the member has never resolved to an FEC candidate or didn't file
+// for the cycle — the hub treats absent rows as "no fundraising shown,"
+// not as an error. Tag is its own scope so the (manual) `sync:fec` cron
+// flushes the member-hub line without churning `members`.
+export const getMemberFundraising = unstable_cache(
+  async (bioguideId: string): Promise<MemberFundraising | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT cycle, total_raised, total_spent, cash_on_hand, debts,
+                   coverage_end_date, source_url, ingested_at
+            FROM member_fundraising
+            WHERE bioguide_id = ?
+            ORDER BY cycle DESC
+            LIMIT 1`,
+      args: [bioguideId],
+    });
+    const row = rs.rows[0];
+    if (!row) return null;
+    return {
+      cycle: Number(row.cycle),
+      totalRaised: (row.total_raised as number | null) ?? null,
+      totalSpent: (row.total_spent as number | null) ?? null,
+      cashOnHand: (row.cash_on_hand as number | null) ?? null,
+      debts: (row.debts as number | null) ?? null,
+      coverageEndDate: (row.coverage_end_date as string | null) ?? null,
+      sourceUrl: (row.source_url as string | null) ?? null,
+      ingestedAt: row.ingested_at as string,
+    };
+  },
+  ["getMemberFundraising"],
+  { revalidate: 86400, tags: ["member-fundraising"] },
+);
+
 // ---- Breaking news (handoff 69) -----------------------------------------
 
 export type NewsMention = {

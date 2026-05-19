@@ -318,6 +318,19 @@ async function main() {
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
   await ensureColumn(db, "bills", "text_length", "INTEGER");
+  // handoff 83: FEC fundraising. Cache the resolved FEC candidate_id on
+  // members so the next sync skips the search step. `fec_resolved_at` is
+  // bumped on both successful and unsuccessful resolution attempts, so a
+  // member with NULL `fec_candidate_id` AND a recent `fec_resolved_at`
+  // means "no FEC match found, don't retry constantly" — distinguishable
+  // from NULL/NULL ("never tried").
+  await ensureColumn(db, "members", "fec_candidate_id", "TEXT");
+  await ensureColumn(db, "members", "fec_resolved_at", "TEXT");
+  // Date of FEC's most-recent filing for the row, e.g. "2026-03-31" — feeds
+  // the "as of {date}" suffix on the member-hub fundraising line. Lives on
+  // member_fundraising rather than its own table because every fundraising
+  // total inherently has one coverage window.
+  await ensureColumn(db, "member_fundraising", "coverage_end_date", "TEXT");
   console.log("migration complete");
 }
 
