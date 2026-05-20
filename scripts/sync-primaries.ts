@@ -30,9 +30,10 @@ const SENATE_STATES_2026 = [
 ];
 
 // House districts by region (handoff 92). Phase 2 ships the Northeast — 76
-// districts across 9 states; phase 3 (handoff 93) ships the South; Midwest /
-// West follow in handoffs 94-95. `district: 0` is an at-large seat (Vermont
-// in the Northeast, Delaware in the South).
+// districts across 9 states; phase 3 (handoff 93) ships the South; phase 4
+// (handoff 95) ships the Midwest; the West follows in handoff 96. `district:
+// 0` is an at-large seat (Vermont in the Northeast, Delaware in the South,
+// North Dakota and South Dakota in the Midwest).
 type HouseRegion = "northeast" | "south" | "midwest" | "west";
 
 type HouseDistrict = { state: string; district: number };
@@ -72,10 +73,27 @@ export const HOUSE_DISTRICTS_SOUTH_2026: HouseDistrict[] = [
   { state: "DE", district: 0 }, // Delaware at-large
 ];
 
+// Seat counts per Midwest state (handoff 95). All 12 states run standard
+// closed / semi-closed partisan primaries — no jungle, top-two or top-four —
+// so no parser branch is needed. 10 numbered-district states here; with the
+// North Dakota and South Dakota at-large seats appended the expanded list
+// must total 91 (handoff 95 acceptance check).
+const MIDWEST_SEATS: Record<string, number> = {
+  IL: 17, IN: 9, IA: 4, KS: 4, MI: 13, MN: 8, MO: 8, NE: 3, OH: 15, WI: 8,
+};
+
+export const HOUSE_DISTRICTS_MIDWEST_2026: HouseDistrict[] = [
+  ...Object.entries(MIDWEST_SEATS).flatMap(([state, seats]) =>
+    Array.from({ length: seats }, (_, i) => ({ state, district: i + 1 })),
+  ),
+  { state: "ND", district: 0 }, // North Dakota at-large
+  { state: "SD", district: 0 }, // South Dakota at-large
+];
+
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
   south: HOUSE_DISTRICTS_SOUTH_2026,
-  midwest: [],
+  midwest: HOUSE_DISTRICTS_MIDWEST_2026,
   west: [],
 };
 
