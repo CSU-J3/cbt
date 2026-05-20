@@ -1,23 +1,25 @@
-// Race-ratings scraper (handoff 88). Pulls 2026 U.S. House race ratings
-// from Ballotpedia's election page.
+// Race-ratings scraper (handoff 88, +89 all-three-sources). Pulls 2026
+// U.S. House race ratings from Ballotpedia's election page.
 //
-// Why Ballotpedia and not Sabato directly: Sabato's Crystal Ball 2026
+// Why Ballotpedia and not the raters directly: Sabato's Crystal Ball 2026
 // pages (centerforpolitics.org/crystalball/2026-house/) are JS-rendered —
 // the static HTML carries zero rating data. Ballotpedia's MediaWiki
 // `w/api.php` wikitext endpoint returns 404. But the rendered Ballotpedia
 // election page DOES carry a clean server-rendered comparison table with
-// Cook / Inside Elections / Sabato columns. We read Sabato's column from
-// there. The stored `source` stays 'sabato' because the rating IS
-// Sabato's verdict; only the transport is Ballotpedia.
+// Cook / Inside Elections / Sabato columns. We read all three. The stored
+// `source` is the rater whose verdict it is; only the transport is
+// Ballotpedia.
 //
 // Scope: House only. Ballotpedia's 2026 Senate page has the intro
-// sentence for a ratings table but no table — Senate Sabato ratings stay
-// on the handoff-71 manual JSON seed until Ballotpedia publishes one.
+// sentence for a ratings table but no table — Senate ratings stay on the
+// handoff-71 manual JSON seed until Ballotpedia publishes one.
 //
 // Parsing: regex over the single, uniform, server-rendered MediaWiki
 // table rather than adding an HTML-parser dependency for one table. A
 // row-count sanity check throws if the table shape changes (435 House
 // districts expected) so a silent Ballotpedia restructure fails loud.
+
+import { stateAbbr } from "./states";
 
 const HOUSE_URL =
   "https://ballotpedia.org/United_States_House_of_Representatives_elections,_2026";
@@ -26,27 +28,45 @@ const HOUSE_URL =
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
-// Ballotpedia's Sabato column vocabulary → the normalized labels already
-// used in race_ratings (handoff 71's RATING_SCORES vocabulary). Safe* is
-// deliberately absent: Solid/Safe House seats are not seeded (SKILL.md —
-// 360+ partisan-locked rows of zero analytical value). A "Safe" verdict
-// maps to null and the caller drops the row.
-const SABATO_NORMALIZE: Record<string, string | null> = {
+export type RatingSource = "cook" | "inside_elections" | "sabato";
+
+// Ballotpedia table column index → source. Column 0 is the district.
+const SOURCE_COLUMN: { index: number; source: RatingSource }[] = [
+  { index: 1, source: "cook" },
+  { index: 2, source: "inside_elections" },
+  { index: 3, source: "sabato" },
+];
+
+// Ballotpedia preserves each rater's own vocabulary per column. Mapping to
+// the normalized labels already used in race_ratings (handoff 71's
+// RATING_SCORES vocabulary). The four partisan-locked labels — Cook/IE
+// "Solid" and Sabato "Safe" — map to null: Solid/Safe House seats are not
+// seeded (SKILL.md: 360+ partisan-locked rows of zero analytical value).
+// Inside Elections' "Tilt" tier maps through verbatim.
+const NORMALIZE: Record<string, string | null> = {
+  "Solid Republican": null,
+  "Solid Democratic": null,
   "Safe Republican": null,
   "Safe Democratic": null,
   "Likely Republican": "Likely R",
   "Likely Democratic": "Likely D",
   "Lean Republican": "Lean R",
   "Lean Democratic": "Lean D",
+  "Tilt Republican": "Tilt R",
+  "Tilt Democratic": "Tilt D",
   "Toss-up": "Toss Up",
 };
 
 // Score for the normalized label — mirrors scripts/seed-race-ratings.ts.
-// race_ratings.rating_score is NOT NULL, so every upsert needs one.
+// race_ratings.rating_score is NOT NULL, so every upsert needs one. Tilt
+// collapses to the Lean score (±1); the rating string keeps "Tilt" so the
+// chip still renders the source's own tier.
 const RATING_SCORE: Record<string, number> = {
   "Likely D": -2,
   "Lean D": -1,
+  "Tilt D": -1,
   "Toss Up": 0,
+  "Tilt R": 1,
   "Lean R": 1,
   "Likely R": 2,
 };
@@ -55,12 +75,11 @@ const EXPECTED_HOUSE_ROWS = 435;
 
 export type ScrapedRating = {
   raceId: string; // e.g. "CA-22-2026"
-  rating: string; // normalized: "Lean R" | "Toss Up" | ...
+  source: RatingSource;
+  rating: string; // normalized: "Lean R" | "Toss Up" | "Tilt D" | ...
   ratingScore: number;
   rawRating: string; // exactly as Ballotpedia rendered it
 };
-
-import { stateAbbr } from "./states";
 
 async function fetchHtml(url: string): Promise<string> {
   const res = await fetch(url, {
@@ -98,7 +117,37 @@ function toRaceId(districtCell: string): string | null {
   return `${abbr}-${m[2].padStart(2, "0")}-2026`;
 }
 
-export async function scrapeHouseSabatoRatings(): Promise<ScrapedRating[]> {
+// Parse one rating cell into a normalized ScrapedRating, or null when the
+// cell is Solid/Safe (skipped) or an unrecognized vocabulary (warned).
+function parseRatingCell(
+  raceId: string,
+  source: RatingSource,
+  cellHtml: string,
+): ScrapedRating | null {
+  const rawRating = stripTags(cellHtml);
+  const normalized = NORMALIZE[rawRating];
+  if (normalized === undefined) {
+    // Vocabulary we didn't expect — worth a log. Empty cells (a rater
+    // hasn't rated the seat) are common and silently skipped.
+    if (rawRating) {
+      console.warn(`  unknown ${source} rating "${rawRating}" for ${raceId}`);
+    }
+    return null;
+  }
+  if (normalized === null) return null; // Solid/Safe — not seeded
+  return {
+    raceId,
+    source,
+    rating: normalized,
+    ratingScore: RATING_SCORE[normalized] ?? 0,
+    rawRating,
+  };
+}
+
+// Scrapes all three rater columns from the Ballotpedia House ratings
+// table. Returns a flat array — one entry per (race, source) pair where
+// the rating is competitive (non-Solid/Safe).
+export async function scrapeHouseRatings(): Promise<ScrapedRating[]> {
   const html = await fetchHtml(HOUSE_URL);
 
   // The ratings comparison table follows this intro sentence. Anchoring on
@@ -133,23 +182,10 @@ export async function scrapeHouseSabatoRatings(): Promise<ScrapedRating[]> {
     if (cells.length < 4) continue;
     const raceId = toRaceId(cells[0]!);
     if (!raceId) continue; // at-large / unparseable
-    const rawRating = stripTags(cells[3]!);
-    const normalized = SABATO_NORMALIZE[rawRating];
-    // undefined = vocabulary we didn't expect (log-worthy); null = Safe
-    // (intentionally skipped). Both drop the row.
-    if (normalized === undefined) {
-      if (rawRating) {
-        console.warn(`  unknown Sabato rating "${rawRating}" for ${raceId}`);
-      }
-      continue;
+    for (const { index, source } of SOURCE_COLUMN) {
+      const parsed = parseRatingCell(raceId, source, cells[index]!);
+      if (parsed) out.push(parsed);
     }
-    if (normalized === null) continue; // Safe — not seeded
-    out.push({
-      raceId,
-      rating: normalized,
-      ratingScore: RATING_SCORE[normalized] ?? 0,
-      rawRating,
-    });
   }
   return out;
 }
