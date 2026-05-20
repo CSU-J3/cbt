@@ -4,6 +4,28 @@
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { scrapeStatePrimaryCalendar } from "../lib/primary-calendar-scrape";
+import { scrapeSenateCandidates } from "../lib/senate-candidates-scrape";
+import { stateName } from "../lib/states";
+
+// 33 regular-cycle 2026 Senate states plus the FL and OH specials — the
+// handoff 91 SENATE_STATES_2026 list.
+const SENATE_STATES_2026 = [
+  "AL", "AK", "AR", "CO", "DE", "GA", "ID", "IL", "IA", "KS",
+  "KY", "LA", "ME", "MA", "MI", "MN", "MS", "MT", "NE", "NH",
+  "NJ", "NM", "NC", "OK", "OR", "RI", "SC", "SD", "TN", "TX",
+  "VA", "WA", "WY",
+  "FL", "OH",
+];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Last word of a candidate name, lowercased — the member-match key.
+function lastNameKey(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return (parts[parts.length - 1] ?? "").toLowerCase();
+}
 
 // Pulls the 270toWin calendar and upserts a D and an R primary row per state,
 // plus an 'open' row for top-two / top-four states. Row id shape is
@@ -70,15 +92,105 @@ async function syncCalendar(): Promise<void> {
   console.log(`Calendar synced: ${calendar.length} states`);
 }
 
-// Step 3 — Senate candidate rosters from Ballotpedia. Deferred to a focused
-// follow-up pass (handoff 91 was landed calendar-first). Note for whoever
-// picks this up: the working Ballotpedia URL is the SINGULAR form
-// `https://ballotpedia.org/United_States_Senate_election_in_{State},_2026`
-// — the handoff's plural `..._elections_in_...` 404s for every state.
+// Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
+// Ballotpedia election page, parses the D/R primary voteboxes, and upserts
+// the rosters into primary_candidates. Per-state delete-then-insert keeps
+// re-runs idempotent (the table has no natural unique key). Candidates are
+// best-effort matched to sitting senators by last name + state — challengers
+// aren't members of Congress, so most rows resolve to a NULL bioguide_id.
 async function syncSenateCandidates(): Promise<void> {
-  console.log(
-    "Senate candidate sync: deferred (handoff 91 Step 3 follow-up pass)",
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  const memberRows = await db.execute(
+    "SELECT bioguide_id, name, state FROM members WHERE chamber = 'senate'",
   );
+  const senatorsByState = new Map<
+    string,
+    { bioguideId: string; name: string }[]
+  >();
+  for (const r of memberRows.rows) {
+    const st = r.state as string | null;
+    if (!st) continue;
+    const list = senatorsByState.get(st) ?? [];
+    list.push({
+      bioguideId: r.bioguide_id as string,
+      name: ((r.name as string | null) ?? "").toLowerCase(),
+    });
+    senatorsByState.set(st, list);
+  }
+
+  function matchMember(candidateName: string, state: string): string | null {
+    const key = lastNameKey(candidateName);
+    if (!key) return null;
+    const hits = (senatorsByState.get(state) ?? []).filter((m) =>
+      m.name.includes(key),
+    );
+    return hits.length === 1 ? hits[0]!.bioguideId : null;
+  }
+
+  let okStates = 0;
+  let totalCandidates = 0;
+  let matchedCandidates = 0;
+  const failures: string[] = [];
+  const perState: string[] = [];
+
+  for (const abbr of SENATE_STATES_2026) {
+    const slug = stateName(abbr).replace(/ /g, "_");
+    const result = await scrapeSenateCandidates(abbr, slug);
+    await sleep(700); // be polite to Ballotpedia between fetches
+
+    if (result.status !== "ok") {
+      failures.push(`${abbr} — ${result.status}`);
+      continue;
+    }
+    okStates++;
+
+    for (const party of ["D", "R"] as const) {
+      const primaryId = `senate-${abbr}-2026-${party}`;
+      await db.execute({
+        sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
+        args: [primaryId],
+      });
+      const roster = result.candidates.filter((c) => c.party === party);
+      for (const c of roster) {
+        const bioguideId = matchMember(c.name, abbr);
+        if (bioguideId) matchedCandidates++;
+        totalCandidates++;
+        await db.execute({
+          sql: `INSERT INTO primary_candidates
+                  (primary_id, name, party, incumbent, bioguide_id, status, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            primaryId,
+            c.name,
+            party,
+            c.incumbent ? 1 : 0,
+            bioguideId,
+            c.isWinner ? "winner" : "running",
+            now,
+          ],
+        });
+      }
+    }
+    perState.push(`  ${abbr}: ${result.candidates.length} candidates`);
+  }
+
+  console.log("\n=== Senate candidate sync ===");
+  if (perState.length > 0) console.log(perState.join("\n"));
+  console.log(
+    `\nStates scraped OK: ${okStates}/${SENATE_STATES_2026.length}`,
+  );
+  console.log(
+    `Candidates upserted: ${totalCandidates} ` +
+      `(matched to a sitting senator: ${matchedCandidates})`,
+  );
+  if (failures.length > 0) {
+    console.log(`Failed to parse (${failures.length}):`);
+    for (const f of failures) console.log(`  ${f}`);
+  } else {
+    console.log("Failed to parse: none");
+  }
 }
 
 async function main() {
