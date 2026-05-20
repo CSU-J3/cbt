@@ -190,8 +190,15 @@ function readCachedHtml(url: string): string | null {
 }
 
 function writeCachedHtml(url: string, html: string): void {
-  mkdirSync(HTML_CACHE_DIR, { recursive: true });
-  writeFileSync(cacheFileFor(url), html, "utf8");
+  // The cache is a dev-time convenience only. On a read-only filesystem —
+  // e.g. a Vercel function, where process.cwd() is not writable — the write
+  // fails; swallow it so the scrape proceeds uncached rather than crashing.
+  try {
+    mkdirSync(HTML_CACHE_DIR, { recursive: true });
+    writeFileSync(cacheFileFor(url), html, "utf8");
+  } catch {
+    // ignore — uncached scrape is correct, just slower
+  }
 }
 
 // Chamber-agnostic page parser: takes the raw HTML of a Ballotpedia election
