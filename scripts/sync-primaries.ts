@@ -2,7 +2,7 @@
 //   (default)          handoff 91 — state-level primary calendar (all 50
 //                      states) + Senate candidate rosters (33 races).
 //   --region=<region>  handoff 92 — House candidate rosters for one region
-//                      (northeast shipped; south/midwest/west are stubs).
+//                      (northeast + south shipped; midwest/west are stubs).
 // `npm run sync:primaries` runs the default pass; `npm run sync:house-primaries
 // -- --region=northeast` runs the House pass.
 import "dotenv/config";
@@ -28,8 +28,9 @@ const SENATE_STATES_2026 = [
 ];
 
 // House districts by region (handoff 92). Phase 2 ships the Northeast — 76
-// districts across 9 states; South / Midwest / West follow in handoffs 93-95.
-// `district: 0` is an at-large seat (Vermont).
+// districts across 9 states; phase 3 (handoff 93) ships the South; Midwest /
+// West follow in handoffs 94-95. `district: 0` is an at-large seat (Vermont
+// in the Northeast, Delaware in the South).
 type HouseRegion = "northeast" | "south" | "midwest" | "west";
 
 type HouseDistrict = { state: string; district: number };
@@ -48,9 +49,30 @@ export const HOUSE_DISTRICTS_NORTHEAST_2026: HouseDistrict[] = [
   { state: "VT", district: 0 }, // Vermont at-large
 ];
 
+// Seat counts per South state (handoff 93), expanded into one HouseDistrict
+// per seat below. Louisiana is intentionally absent: LA's 2026 U.S. House
+// races run as a single nonpartisan majority-vote ("jungle") primary — one
+// all-candidate ballot with no D/R sections — which parseCandidatesPage does
+// not handle. LA-1..LA-6 are deferred to a follow-up (HO 93.5); the LA-1 page
+// (.../Louisiana%27s_1st_Congressional_District_election,_2026) was checked
+// manually and its voteboxes are all "Nonpartisan primary election". 14
+// numbered-district states here; with Delaware's at-large seat appended the
+// expanded list must total 158 (handoff 93 acceptance check, LA-deferred case).
+const SOUTH_SEATS: Record<string, number> = {
+  AL: 7, AR: 4, FL: 28, GA: 14, KY: 6, MD: 8, MS: 4, NC: 14,
+  OK: 5, SC: 7, TN: 9, TX: 38, VA: 11, WV: 2,
+};
+
+export const HOUSE_DISTRICTS_SOUTH_2026: HouseDistrict[] = [
+  ...Object.entries(SOUTH_SEATS).flatMap(([state, seats]) =>
+    Array.from({ length: seats }, (_, i) => ({ state, district: i + 1 })),
+  ),
+  { state: "DE", district: 0 }, // Delaware at-large
+];
+
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
-  south: [],
+  south: HOUSE_DISTRICTS_SOUTH_2026,
   midwest: [],
   west: [],
 };
