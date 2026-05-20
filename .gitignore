@@ -27,6 +27,9 @@ Thumbs.db
 # development screenshots / generated artifacts
 cbt-*.png
 
+# scraper HTML cache (handoff 92 — dev convenience, not committed)
+.cache/
+
 # claude code per-developer state (skills/ stays tracked)
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
