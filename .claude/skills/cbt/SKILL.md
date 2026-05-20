@@ -318,6 +318,46 @@ CREATE TABLE member_votes (
 );
 
 CREATE INDEX idx_member_votes_bioguide ON member_votes(bioguide_id);
+
+-- Primary tracker (handoff 91; House regions added in 92/93/95/96, Louisiana
+-- in 93.5). One row per primary contest. `id` shape is "senate-{ST}-2026-
+-- {party}" or "house-{ST}-{DD}-2026-{party}" — {DD} is the zero-padded
+-- district, {party} is 'D' | 'R' | 'open'. The 'open' party value is the
+-- single all-candidate ballot for top-two / top-four / nonpartisan contests
+-- (CA, WA, AK, LA). `primary_type` is the 270toWin calendar classification.
+CREATE TABLE primaries (
+  id TEXT PRIMARY KEY,              -- e.g. "house-LA-01-2026-open"
+  state TEXT NOT NULL,
+  district TEXT,                    -- zero-padded ("07"); NULL for Senate
+  chamber TEXT NOT NULL,            -- 'senate' | 'house'
+  party TEXT NOT NULL,              -- 'D' | 'R' | 'open'
+  primary_date TEXT,                -- ISO date, from the 270toWin calendar
+  runoff_date TEXT,
+  primary_type TEXT,                -- 'closed' | 'open' | 'top_two' | 'top_four' | ...
+  race_id TEXT REFERENCES races(id),-- loose link to races.id
+  updated_at TEXT NOT NULL
+);
+
+-- Per-contest candidate rosters, scraped from Ballotpedia. No natural unique
+-- key — the sync does a per-`primary_id` delete-then-insert, so `id` is a
+-- throwaway AUTOINCREMENT. `bioguide_id` is a best-effort incumbent match
+-- (nullable; most challengers never resolve). `party` is the candidate's own
+-- party letter, meaningful even in an 'open' contest. `vote_pct` is populated
+-- post-election.
+CREATE TABLE primary_candidates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  primary_id TEXT NOT NULL REFERENCES primaries(id),
+  name TEXT NOT NULL,
+  party TEXT NOT NULL,              -- candidate's own party letter (D/R/L/G/I)
+  incumbent INTEGER DEFAULT 0,      -- 0 | 1
+  bioguide_id TEXT REFERENCES members(bioguide_id),
+  status TEXT DEFAULT 'running',    -- 'running' | 'winner'
+  vote_pct REAL,                    -- NULL until results are in
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_primaries_date ON primaries(primary_date);
+CREATE INDEX idx_primary_candidates_primary ON primary_candidates(primary_id);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
@@ -709,10 +749,24 @@ FMP_API_KEY=              # Financial Modeling Prep, free tier 250 calls/day
 
 The cron route should reject requests where `Authorization` header doesn't match `Bearer ${CRON_SECRET}`.
 
+## Pre-flight verification
+
+Before writing acceptance criteria, parser branches, runtime estimates, or any code that depends on an assumption about the world, verify the assumption against the actual artifact. This is broader than API liveness — three handoffs in one session shipped wrong premises that a few minutes of pre-flight caught:
+
+- **HO 96 (House West):** the handoff assumed CA top-two and AK top-four needed separate parser branches. Spot-checking CA-01 / WA-03 / AK-AL on Ballotpedia showed all three render the same nonpartisan votebox the existing `parseCandidatesPage` already handled via the `open` contest — zero parser work needed.
+- **HO 97 (primaries cron):** the handoff proposed day-of-week dispatch, one region per weekday. Measuring West warm-cache at 152.9s showed every region exceeds the 60s Vercel ceiling on the per-district `sleep(1000)` alone — day-of-week was structurally non-viable, replaced with a cursor.
+- **HO 93.5 (Louisiana):** the handoff said LA moved to closed partisan primaries for 2026 (legally true). The LA House Ballotpedia pages still render as nonpartisan voteboxes — so that is what the scraper sees and stores.
+
+Pre-flight covers API endpoint liveness, third-party page structure, runtime cost on the actual platform, and schema column names — view `scripts/migrate.ts` for the real columns rather than recalling them from memory. (This handoff exists partly because HO 93.5's acceptance criteria referenced `primary_candidates.state` and `dashboard_state.total_targets`, neither of which exists.)
+
+When sources disagree — legal reality vs. data source, vendor docs vs. third-party articles, training memory vs. the filesystem — the source of truth for the code being written wins. If the scraper reads Ballotpedia, Ballotpedia wins (see the data-source note under "Things to watch for").
+
 ## Things to watch for
 
 - **Route-level `revalidate` does nothing in Next.js 15 for any page using `await searchParams` or `await params`.** Those async dynamic APIs opt the route into fully dynamic rendering, which disables the Full Route Cache regardless of the `revalidate` export. Confirmed in production: every response sent `Cache-Control: private, no-cache, no-store` and `X-Vercel-Cache: MISS`. Cache at the query layer with `unstable_cache` + `revalidateTag` instead — that's how `getFeedStats` and `getFeedBills` actually stay cached across requests. Every cached query helper is tagged with a single unified `"bills"` tag (commit `0693843`); the sync cron calls `revalidateTag("bills")` after writes to invalidate them all on fresh data.
 - **The dashboard `/` is dynamically rendered, not statically prerendered.** Once `await searchParams` was added to `app/page.tsx` for click-to-filter (handoff 56), `/` lost its static prerender — same mechanism as the note above. Query-layer caching via `unstable_cache` + the `bills` tag still applies, so this is a small latency regression, not a correctness one.
+- **Vercel serverless functions can't write to `process.cwd()`** — the filesystem is read-only outside `/tmp`. HO 97 caught this pre-deploy: the scraper's `writeCachedHtml` wrote the HTML cache under `process.cwd()`, fine locally but an `EROFS` crash on every cron tick in production. The fix swallows the write error (the cache is a perf optimization, not correctness). Any code that writes to disk from an API route must target `/tmp` or wrap the write in try/catch.
+- **Vercel function timing runs ~2× local pre-flight measurements** — a cold-network tax. HO 97's primaries cron measured 5.5s for the calendar tick locally; the first production tick came in at 10.3s. Plan headroom from that ratio: a ~30s local measurement projects to ~60s in prod, the Hobby ceiling. `CRON_SLICE = 20` in `lib/primaries-sync.ts` sits comfortably under it — treat ~30s of local tick time as the practical upper bound when tuning the slice size.
 - **`raw_json` stores the unwrapped `detailRes.bill` object, not the outer `{ bill: ... }` wrapper.** So `json_extract(raw_json, '$.cosponsors.count')` works; `'$.bill.cosponsors.count'` always returns NULL. Verify the path with a quick `SELECT json_extract(raw_json, '$...') FROM bills LIMIT 5` before writing any new backfill that pulls from `raw_json`.
 - **Member endpoint quirks** — three things the `/member/{bioguideId}` response does that contradict some Congress.gov docs and template snippets:
   - `member.terms` is the term array directly. **Not** `member.terms.item`. Iterating `member.terms?.item ?? []` silently returns nothing.
@@ -730,6 +784,7 @@ The cron route should reject requests where `Authorization` header doesn't match
 - **Race ratings are hand-seeded.** The three `data/race-ratings-*.json` files (Cook, Sabato, Inside Elections — handoffs 71 + 73) are the source of truth. Refresh quarterly by re-checking each rater's page and updating the JSON, then running `npm run seed:ratings` (it globs all three). The raters update ratings infrequently between cycles, so quarterly is more than enough. The seed files' `race_id` keys are aligned to the existing `S-<STATE>-<YYYY>` / `<STATE>-<DD>-<YYYY>` format — Wikipedia-pulled ids originally used `<STATE>-SEN-<YYYY>` / `<STATE>-SEN-SP-<YYYY>`, find-replaced in place when the seed was first applied. Senate specials collapse onto the regular-cycle id because the races table keys senate seats by `next_election_year` alone. **Source recall is not a substitute for sourced data here** — if a rater moves a race, update the JSON from the rater's page, don't hand-write a rating from memory.
 - **Vote sync is on its own cron** (`/api/sync-votes`, 10:00 UTC daily — handoff 87), separate from `/api/sync` because a busy week's 400+ vote rows × 2-3 API hops each can approach the 60s ceiling. Both syncs are incremental (watermark per session for Senate, MAX(vote_date) for House) so a long tick resumes next day; still runnable by hand via `npm run sync:votes` / `npm run sync:senate-votes`. See the "Cron topology" subsection under Sync logic for the full four-cron picture.
 - **Ballotpedia nonpartisan House primaries (HO 96, +93.5).** Four states run a single all-candidate House primary instead of split D/R primaries: CA + WA (top-two), AK (top-four), and LA (nonpartisan all-candidate — HO 93.5; the handoff expected closed partisan D/R but every 2026 LA House page renders one nonpartisan votebox). `parseCandidatesPage` (`lib/primary-candidates-scrape.ts`) routes these to the `"open"` contest. Two markup variants: CA/WA/AK voteboxes carry `<div class="race_header nonpartisan">` and tag each candidate's party on the `image-candidate-thumbnail-wrapper` class; LA voteboxes carry a **bare `<div class="race_header">`** (contest type only in the `<h5>` — the parser falls back to the header text) and put party in a **`(R)`/`(D)` suffix** after the candidate link (`openContestParty` tries the wrapper, then the suffix). There is no separate top-two/top-four/jungle parser and none is needed. `syncHouseDistricts` (`lib/primaries-sync.ts`) picks the contest set per district from `NONPARTISAN_HOUSE_STATES` — `["open"]` for CA/WA/AK/LA, `["D","R"]` elsewhere — storing rosters under a `house-{ST}-{DD}-2026-open` primary id with `party='open'`. If a state's pages ever switch shape (e.g. LA actually adopting D/R voteboxes), the structural guard in `syncHouseDistricts` logs it and the state should leave `NONPARTISAN_HOUSE_STATES`.
+- **The data source's current representation wins over external reality.** Louisiana is legally on closed partisan primaries for 2026 federal races, but Ballotpedia still renders LA House races as nonpartisan voteboxes — so the scraper stores them as nonpartisan. When web research contradicts what the scrape target actually publishes, the scrape target is the source of truth for the code.
 - **Senate has no Congress.gov vote coverage.** Vote data comes from XML on senate.gov (LIS feed). The XML keys members by `lis_member_id` (e.g. "S428"), but the Congress.gov member API **does not expose LIS IDs** — neither the list endpoint nor the per-member detail. `lib/lis-map.ts` works around this by matching `(last_name, state)` against the `members` table, with an NFD diacritic fold (senate.gov strips accents: "Lujan" ↔ "Luján"). A small `SENATOR_BIOGUIDE_FALLBACK` table covers senators absent from `members` — current entries: Rubio (FL → resigned Jan 2025), Vance (OH → resigned to become VP), Armstrong (OK → seated Jan 2026, no sponsorships yet). Audit when a new vote-XML warning appears in sync output (`no bioguide match: <name> (<state>) lis=<id>`) — usually means a new appointee/special-election winner needs adding, or `sync:members` is overdue.
 - **`votes.chamber` is lowercase**, matching the `bills.bill_type` convention (`hr` / `s` / `house` / `senate`). The handoff drafts for the vote pipeline initially used `'House'`/`'Senate'`; ingest writes lowercase and every query/UI consumer expects lowercase. If a query suddenly returns no rows for what looks like a correct chamber, check casing first.
 - **`member_votes.position` is normalized lowercase** (`yea | nay | present | not_voting`). Source data varies ("Aye", "Yes", "No", "Absent"); the sync folds it. New consumers must lowercase before comparing — `WHERE position = 'Yea'` matches nothing.
