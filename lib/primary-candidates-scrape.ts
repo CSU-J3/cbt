@@ -16,17 +16,22 @@
 //
 // Each page's "Candidates and election results" section holds Ballotpedia
 // "votebox" blocks. A votebox opens with <div class="race_header {kind}">
-// — democratic / republican / nonpartisan — followed by a
+// — kind is democratic / republican / nonpartisan, and CAN BE ABSENT (a bare
+// `race_header`, as on Louisiana's 2026 House pages) — followed by a
 // <table class="results_table"> of <tr class="results_row ..."> rows, one per
 // candidate. democratic/republican voteboxes are partisan primaries; a
-// nonpartisan votebox is either a top-N primary (AK) or a general election —
-// the <h5> text disambiguates ("primary" vs "general"). In a nonpartisan
-// votebox each candidate's own party comes from the
-// image-candidate-thumbnail-wrapper class on the row. Runoff voteboxes are
-// skipped (their roster is a subset of the primary's). Candidate name is the
-// <a> in the votebox-results-cell--text cell; incumbents are <u>-wrapped; the
-// winner row carries a "winner" class. NY-style fusion-party voteboxes
-// (Conservative, Working Families) carry no kind class and are skipped.
+// nonpartisan votebox (or a bare one whose <h5> says "nonpartisan primary")
+// is an all-candidate top-N / jungle primary. The <h5> text both disambiguates
+// primary vs general/runoff/special and, for a bare votebox, supplies the
+// contest type the missing class would have. Per-candidate party in a
+// nonpartisan votebox comes from the image-candidate-thumbnail-wrapper class
+// (CA/WA/AK) or, when that is bare, the "(R)"/"(D)" suffix after the candidate
+// link (Louisiana) — see openContestParty. Runoff voteboxes are skipped (their
+// roster is a subset of the primary's). Candidate name is the <a> in the
+// votebox-results-cell--text cell; incumbents are <u>-wrapped; the winner row
+// carries a "winner" class. NY-style fusion-party voteboxes (Conservative,
+// Working Families) carry no kind class and an <h5> that names no recognized
+// contest, so they are still skipped.
 //
 // Parsing: regex, same approach as lib/race-ratings-scrape.ts and
 // lib/primary-calendar-scrape.ts — no HTML-parser dependency.
@@ -107,15 +112,30 @@ export function houseDistrictUrl(slug: string, district: number): string {
   return `https://ballotpedia.org/${slug}${possessive}_${segment}_Congressional_District_election,_2026`;
 }
 
-// Ballotpedia's full party word -> the one-letter code stored on candidates.
+// Ballotpedia party token -> the one-letter code stored on candidates.
+// Accepts both the full word (thumbnail-wrapper class, "Republican") and the
+// single-letter abbreviation (Louisiana name suffix, "(R)").
 function partyLetter(word: string): string {
-  const w = word.toLowerCase();
-  if (w.startsWith("republican")) return "R";
-  if (w.startsWith("democratic")) return "D";
-  if (w.startsWith("libertarian")) return "L";
-  if (w.startsWith("green")) return "G";
-  if (w.startsWith("independent")) return "I";
-  return "I"; // nonpartisan / unaffiliated / unknown
+  const w = word.trim().toLowerCase();
+  if (w === "r" || w.startsWith("republican")) return "R";
+  if (w === "d" || w.startsWith("democrat")) return "D";
+  if (w === "l" || w.startsWith("libertarian")) return "L";
+  if (w === "g" || w.startsWith("green")) return "G";
+  return "I"; // independent / nonpartisan / unaffiliated / unknown
+}
+
+// Party for a candidate row in a nonpartisan ("open") votebox. Two markups
+// occur in the wild: CA/WA/AK top-two/top-four rows tag the thumbnail wrapper
+// with the full party word (image-candidate-thumbnail-wrapper Republican);
+// Louisiana's nonpartisan-primary rows leave the wrapper bare and put a
+// "(R)" / "(D)" abbreviation just after the candidate link. Try the wrapper,
+// fall back to the abbreviation, default to independent.
+function openContestParty(row: string): string {
+  const wrap = row.match(/image-candidate-thumbnail-wrapper\s+([A-Za-z]+)/);
+  if (wrap?.[1]) return partyLetter(wrap[1]);
+  const abbr = row.match(/<\/a>\s*\(([A-Za-z]{1,12})\)/);
+  if (abbr?.[1]) return partyLetter(abbr[1]);
+  return "I";
 }
 
 // Parse one votebox slice into candidate rows. For D/R contests every row is
@@ -138,8 +158,7 @@ function parseVotebox(
     if (!name) continue; // "Other/Write-in" aggregate rows carry no link
     let party: string;
     if (contest === "open") {
-      const wrap = row.match(/image-candidate-thumbnail-wrapper\s+(\w+)/);
-      party = wrap?.[1] ? partyLetter(wrap[1]) : "I";
+      party = openContestParty(row);
     } else {
       party = contest; // D or R
     }
@@ -225,14 +244,6 @@ export function parseCandidatesPage(
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i]!;
     const cls = h[1] ?? "";
-    const contest: CandidateContest | null = cls.includes("democratic")
-      ? "D"
-      : cls.includes("republican")
-        ? "R"
-        : cls.includes("nonpartisan")
-          ? "open"
-          : null;
-    if (!contest) continue;
 
     const start = h.index ?? 0;
     const end =
@@ -240,15 +251,30 @@ export function parseCandidatesPage(
         ? (headers[i + 1]!.index ?? section.length)
         : section.length;
     const slice = section.slice(start, end);
+    const headerText = stripTags(
+      slice.match(/<h5[^>]*>([\s\S]*?)<\/h5>/)?.[1] ?? "",
+    );
+
+    // Contest type comes from the votebox's CSS modifier class
+    // (race_header democratic / republican / nonpartisan). Louisiana's 2026
+    // House voteboxes carry a bare `race_header` class — the contest is named
+    // only in the <h5> ("Nonpartisan primary election ...") — so fall back to
+    // the header text when the class carries no party hint.
+    let contest: CandidateContest | null = cls.includes("democratic")
+      ? "D"
+      : cls.includes("republican")
+        ? "R"
+        : cls.includes("nonpartisan")
+          ? "open"
+          : null;
+    if (!contest && /nonpartisan/i.test(headerText)) contest = "open";
+    if (!contest) continue;
 
     // Keep only regular primary voteboxes: the <h5> says "primary", not
     // "runoff", not "special". This drops general-election voteboxes (also
     // "nonpartisan"-classed), primary-runoff voteboxes (a subset of the
     // primary), and special-election primaries embedded in a regular page
     // (e.g. RI-01 carries both — special elections are out of scope).
-    const headerText = stripTags(
-      slice.match(/<h5[^>]*>([\s\S]*?)<\/h5>/)?.[1] ?? "",
-    );
     if (
       !/primary/i.test(headerText) ||
       /runoff/i.test(headerText) ||

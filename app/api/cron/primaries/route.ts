@@ -1,5 +1,5 @@
 // Primary-candidates cron entry (handoff 97). The full primary-tracker corpus
-// is ~430 scrape units (1 Senate pass + 429 House districts); at ~1.5-2s per
+// is ~470 scrape units (1 calendar + 34 Senate + 435 House); at ~1.5-2s per
 // district the Ballotpedia politeness sleep alone puts any whole region well
 // past the 60s Vercel Hobby function ceiling (West measured 153s). So this
 // route does NOT scrape a region per tick — runPrimariesCronTick walks a

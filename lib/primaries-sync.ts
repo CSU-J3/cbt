@@ -13,13 +13,13 @@
 //   --rematch          handoff 94 — re-run the House incumbent matcher over
 //                      existing primary_candidates rows; no scraping.
 //
-// Cron (handoff 97): the full corpus is ~430 scrape units (1 Senate + 429
-// House districts). At ~1.5-2s per district — the Ballotpedia politeness
-// sleep dominates — a whole region blows Vercel Hobby's 60s function ceiling
-// (West alone measured 153s). So the cron does NOT scrape a region per tick.
-// runPrimariesCronTick walks a persistent cursor (stored in dashboard_state),
-// scraping the Senate in one tick and CRON_HOUSE_SLICE House districts per
-// tick, refreshing the whole corpus every ~3 weeks.
+// Cron (handoff 97, +93.5): the full corpus is ~470 scrape units (1 calendar
+// + 34 Senate states + 435 House districts). At ~1.5-2s per unit — the
+// Ballotpedia politeness sleep dominates — a whole region blows Vercel Hobby's
+// 60s function ceiling (West alone measured 153s). So the cron does NOT scrape
+// a region per tick. runPrimariesCronTick walks a persistent cursor (stored in
+// dashboard_state), processing CRON_SLICE units per daily tick and refreshing
+// the whole corpus every ~25 days.
 import { getDb } from "./db";
 import { scrapeStatePrimaryCalendar } from "./primary-calendar-scrape";
 import {
@@ -64,17 +64,16 @@ export const HOUSE_DISTRICTS_NORTHEAST_2026: HouseDistrict[] = [
   { state: "VT", district: 0 }, // Vermont at-large
 ];
 
-// Seat counts per South state (handoff 93), expanded into one HouseDistrict
-// per seat below. Louisiana is intentionally absent: LA's 2026 U.S. House
-// races run as a single nonpartisan majority-vote ("jungle") primary — one
-// all-candidate ballot with no D/R sections — which parseCandidatesPage does
-// not handle. LA-1..LA-6 are deferred to a follow-up (HO 93.5); the LA-1 page
-// (.../Louisiana%27s_1st_Congressional_District_election,_2026) was checked
-// manually and its voteboxes are all "Nonpartisan primary election". 14
-// numbered-district states here; with Delaware's at-large seat appended the
-// expanded list must total 158 (handoff 93 acceptance check, LA-deferred case).
+// Seat counts per South state (handoff 93, +93.5), expanded into one
+// HouseDistrict per seat below. Louisiana joined in HO 93.5: every 2026 LA
+// U.S. House district page on Ballotpedia renders a single "Nonpartisan
+// primary election" all-candidate votebox (the HO 93.5 handoff expected
+// closed partisan D/R — the published pages show otherwise), so LA is listed
+// in NONPARTISAN_HOUSE_STATES below and parses through the "open" contest
+// like CA/WA/AK. 15 numbered-district states here; with Delaware's at-large
+// seat appended the expanded list must total 164.
 const SOUTH_SEATS: Record<string, number> = {
-  AL: 7, AR: 4, FL: 28, GA: 14, KY: 6, MD: 8, MS: 4, NC: 14,
+  AL: 7, AR: 4, FL: 28, GA: 14, KY: 6, LA: 6, MD: 8, MS: 4, NC: 14,
   OK: 5, SC: 7, TN: 9, TX: 38, VA: 11, WV: 2,
 };
 
@@ -119,14 +118,21 @@ export const HOUSE_DISTRICTS_WEST_2026: HouseDistrict[] = [
   { state: "WY", district: 0 }, // Wyoming at-large
 ];
 
-// West states running a single nonpartisan all-candidate primary instead of
-// partisan D/R primaries: CA + WA run top-two (top two advance regardless of
-// party), AK runs top-four (top four advance to a ranked-choice general).
-// Ballotpedia renders all three identically — one `race_header nonpartisan`
-// votebox — so parseCandidatesPage already extracts them into the "open"
-// contest; the only per-state distinction the scraper needs is which contests
-// a district runs. The other 10 West states run ordinary partisan primaries.
-const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK"]);
+// States whose U.S. House districts run a single nonpartisan all-candidate
+// primary instead of partisan D/R primaries. parseCandidatesPage routes these
+// into the "open" contest, and syncHouseDistricts stores one
+// `house-{ST}-{DD}-2026-open` row per district:
+//   CA, WA — top-two (top two advance regardless of party)
+//   AK     — top-four (top four advance to a ranked-choice general)
+//   LA     — nonpartisan all-candidate primary (HO 93.5). The handoff expected
+//            closed partisan D/R, but every 2026 LA House page on Ballotpedia
+//            renders one "Nonpartisan primary election" votebox; we store what
+//            the source shows. If LA's pages later switch to D/R voteboxes,
+//            the structural guard in syncHouseDistricts logs it ("D/R
+//            candidate(s) on a nonpartisan-state page") — the signal to drop
+//            LA from this set.
+// Every other state runs ordinary partisan primaries.
+const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK", "LA"]);
 
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
@@ -831,10 +837,9 @@ async function unmatchedHouseIncumbents(
 }
 
 const NE_STATES = ["CT", "ME", "MA", "NH", "NJ", "NY", "PA", "RI", "VT"];
-// South minus LA — the 15 states HO 93 actually scraped (LA's jungle primary
-// is deferred to HO 93.5).
+// The 16 South-region states (HO 93 scraped 15; Louisiana joined in HO 93.5).
 const SOUTH_STATES = [
-  "AL", "AR", "DE", "FL", "GA", "KY", "MD", "MS",
+  "AL", "AR", "DE", "FL", "GA", "KY", "LA", "MD", "MS",
   "NC", "OK", "SC", "TN", "TX", "VA", "WV",
 ];
 
@@ -1085,7 +1090,7 @@ const CRON_REGION_ORDER: HouseRegion[] = [
 // calendar is always a tick of its own). Each unit costs ~1.5-2s — the
 // Ballotpedia politeness sleep dominates — so 20 keeps a tick near ~35-40s,
 // comfortably inside the 60s Vercel ceiling. Corpus = 1 calendar + 34 Senate
-// + 429 House = 464 units → ~25 ticks → a ~25-day full refresh cycle. Lower
+// + 435 House = 470 units → ~26 ticks → a ~26-day full refresh cycle. Lower
 // this if the route's elapsedMs log trends toward 60000.
 const CRON_SLICE = 20;
 
