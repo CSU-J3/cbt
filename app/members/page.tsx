@@ -35,7 +35,7 @@ function sponsorKey(s: { sponsor_bioguide_id: string | null; sponsor_name: strin
   return s.sponsor_bioguide_id ?? s.sponsor_name;
 }
 
-export default async function SponsorsPage({
+export default async function MembersPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
@@ -88,14 +88,14 @@ export default async function SponsorsPage({
     const sp = new URLSearchParams(carry);
     if (!isExpanded) sp.set("expanded", key);
     const qs = sp.toString();
-    return qs ? `/sponsors?${qs}` : "/sponsors";
+    return qs ? `/members?${qs}` : "/members";
   }
 
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar
         feedFilters={headerFilters}
-        basePath="/sponsors"
+        basePath="/members"
         countMode="sponsors"
       />
 
@@ -105,7 +105,7 @@ export default async function SponsorsPage({
             className="text-[14px] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
-            Sponsors
+            Members
           </h1>
           <span
             className="text-[12px] uppercase tracking-[0.5px]"
@@ -117,12 +117,12 @@ export default async function SponsorsPage({
             <ChamberToggle
               current={chamber}
               carry={carry}
-              basePath="/sponsors"
+              basePath="/members"
             />
             <SponsorSortToggle
               current={sort}
               carry={carry}
-              basePath="/sponsors"
+              basePath="/members"
             />
           </span>
         </div>
@@ -148,7 +148,7 @@ export default async function SponsorsPage({
             className="mb-2 text-[12px] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-muted)" }}
           >
-            Sponsor productivity (bills · pass rate)
+            Member productivity (bills · pass rate)
           </p>
           <SponsorProductivityScatter />
         </section>

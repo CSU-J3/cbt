@@ -476,7 +476,7 @@ export type SponsorProductivityRow = {
   passRate: number; // 0-1
 };
 
-// Feeds the /sponsors productivity scatter (handoff 67). Pass rate denominator
+// Feeds the /members productivity scatter (handoff 67). Pass rate denominator
 // excludes `stage IS NULL` (unsummarized) and `stage = 'other'` (off-path)
 // so the chart only reflects bills with a real classifier verdict. Numerator
 // counts anything past introduction. Sponsors with <3 bills are dropped —

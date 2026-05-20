@@ -66,7 +66,7 @@ export function RaceCandidates({
             <span className="flex-1">
               {c.bioguide_id ? (
                 <Link
-                  href={`/sponsors/${c.bioguide_id}`}
+                  href={`/members/${c.bioguide_id}`}
                   className="transition hover:text-[var(--accent-amber)]"
                 >
                   {c.name}

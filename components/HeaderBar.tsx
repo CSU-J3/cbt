@@ -261,13 +261,13 @@ export async function HeaderBar({
             ⎘ Reports
           </Link>
           <Link
-            href="/sponsors"
+            href="/members"
             className="transition hover:text-[var(--text-secondary)]"
             style={{
               color: isSponsorMode ? "var(--accent-amber)" : undefined,
             }}
           >
-            👥 Sponsors
+            👥 Members
           </Link>
           <Link
             href="/races"

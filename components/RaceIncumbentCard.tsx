@@ -113,7 +113,7 @@ export function RaceIncumbentCard({
           {locator(member, race)}
         </span>
         <Link
-          href={`/sponsors/${member.bioguideId}`}
+          href={`/members/${member.bioguideId}`}
           className="mt-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
           style={{ color: "var(--accent-amber)" }}
         >

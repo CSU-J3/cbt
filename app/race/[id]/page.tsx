@@ -99,7 +99,7 @@ export default async function RacePage({
         <Link
           href={
             incumbent
-              ? `/sponsors/${incumbent.bioguideId}`
+              ? `/members/${incumbent.bioguideId}`
               : "/feed"
           }
           className="mb-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"

@@ -38,7 +38,7 @@ function RaceRow({ race }: { race: RaceIndexRow }) {
     <>
       {race.incumbentBioguideId ? (
         <Link
-          href={`/sponsors/${race.incumbentBioguideId}`}
+          href={`/members/${race.incumbentBioguideId}`}
           className="transition hover:text-[var(--accent-amber-bright)]"
           style={{ color: "var(--text-primary)" }}
         >

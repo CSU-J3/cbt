@@ -183,7 +183,7 @@ export async function SponsorProductivityScatter() {
           return (
             <g key={`g-${key}`}>
               {row.bioguideId ? (
-                <Link href={`/sponsors/${row.bioguideId}`}>{dot}</Link>
+                <Link href={`/members/${row.bioguideId}`}>{dot}</Link>
               ) : (
                 dot
               )}

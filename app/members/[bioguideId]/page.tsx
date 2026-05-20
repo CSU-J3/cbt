@@ -80,11 +80,11 @@ export default async function MemberPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <Link
-          href="/sponsors"
+          href="/members"
           className="mb-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
           style={{ color: "var(--text-dim)" }}
         >
-          ← Back to sponsors
+          ← Back to members
         </Link>
 
         {member ? (
@@ -294,11 +294,11 @@ export default async function MemberPage({
               bioguide_id: {bioguideId}
             </p>
             <Link
-              href="/sponsors"
+              href="/members"
               className="mt-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
-              ← Back to sponsors
+              ← Back to members
             </Link>
           </div>
         )}
