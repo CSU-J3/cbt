@@ -19,6 +19,7 @@ import {
   getMemberTrades,
   getMemberVotes,
   getMemberVoteStats,
+  getPalestineScorecard,
   getRaceRatings,
 } from "@/lib/queries";
 import { raceIdFromMember } from "@/lib/race-id";
@@ -30,6 +31,16 @@ export const dynamic = "force-dynamic";
 const BILL_LIMIT = 10;
 const TRADE_LIMIT = 10;
 const VOTE_LIMIT = 20;
+
+// USCPR scorecard outcome → vote color (handoff 90). Word-boundary matching so
+// "Not elected" / "Not sponsoring" — which contain the substring "no" — fall
+// through to the neutral dim color rather than reading as a nay vote.
+function palestineVoteColor(outcome: string): string {
+  const o = outcome.toLowerCase();
+  if (/\b(yes|yea)\b/.test(o)) return "var(--vote-yea)";
+  if (/\b(no|nay)\b/.test(o)) return "var(--vote-nay)";
+  return "var(--text-dim)";
+}
 
 export default async function MemberPage({
   params,
@@ -48,6 +59,7 @@ export default async function MemberPage({
     voteStats,
     recentVotes,
     fundraising,
+    scorecard,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -58,6 +70,7 @@ export default async function MemberPage({
     getMemberVoteStats(bioguideId),
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
     getMemberFundraising(bioguideId),
+    getPalestineScorecard(bioguideId),
   ]);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
@@ -223,6 +236,88 @@ export default async function MemberPage({
                 </div>
               )}
             </section>
+
+            {scorecard ? (
+              <section
+                className="mt-6 border"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
+                <div
+                  className="flex items-baseline justify-between px-4 py-3"
+                  style={{
+                    backgroundColor: "var(--bg-panel)",
+                    borderBottom: "0.5px solid var(--border-strong)",
+                  }}
+                >
+                  <h2
+                    className="text-[12px] uppercase tracking-[0.5px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Palestine scorecard
+                  </h2>
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1VU1y_jSb2hanU2MrLsjRx8tujB-C--UAQ2EahaTXGUo"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+                    style={{ color: "var(--text-dim)" }}
+                  >
+                    via USCPR ↗
+                  </a>
+                </div>
+
+                <div className="px-4 py-3">
+                  <div className="mb-3 flex items-center gap-3">
+                    <span
+                      className="text-[24px] font-bold leading-none"
+                      style={{ color: "var(--accent-amber-bright)" }}
+                    >
+                      {scorecard.grade}
+                    </span>
+                    <div className="flex flex-col">
+                      <span
+                        className="text-[12px]"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Score: {scorecard.total_score}
+                      </span>
+                      {scorecard.rank ? (
+                        <span
+                          className="text-[12px]"
+                          style={{ color: "var(--text-dim)" }}
+                        >
+                          Rank #{scorecard.rank} of 47
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    {Object.entries(scorecard.votes).map(
+                      ([label, outcome]) => (
+                        <div
+                          key={label}
+                          className="flex items-start justify-between gap-3"
+                        >
+                          <span
+                            className="flex-1 text-[12px]"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            {label}
+                          </span>
+                          <span
+                            className="shrink-0 text-[12px]"
+                            style={{ color: palestineVoteColor(outcome) }}
+                          >
+                            {outcome}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              </section>
+            ) : null}
 
             <section
               className="mt-6 border"

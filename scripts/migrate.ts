@@ -269,6 +269,21 @@ const statements = [
     PRIMARY KEY (vote_id, bioguide_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_member_votes_bioguide ON member_votes(bioguide_id)`,
+  // handoff 90: USCPR Senate Palestine voting scorecard. One row per
+  // (Senate Democrat) member, keyed by bioguide_id. Synced from a public
+  // Google Sheet via `npm run sync:palestine` — the sheet is the
+  // authoritative source, no LLM matching. `votes_json` is a JSON object
+  // mapping each vote/sponsorship label to its raw outcome string.
+  `CREATE TABLE IF NOT EXISTS palestine_scorecard (
+    bioguide_id TEXT PRIMARY KEY REFERENCES members(bioguide_id),
+    grade TEXT,
+    rank INTEGER,
+    sponsor_score TEXT,
+    voting_score TEXT,
+    total_score TEXT,
+    votes_json TEXT NOT NULL,
+    synced_at TEXT NOT NULL
+  )`,
 ];
 
 async function ensureColumn(

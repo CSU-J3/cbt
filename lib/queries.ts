@@ -830,6 +830,45 @@ export const getMemberBills = unstable_cache(
   { revalidate: 86400, tags: ["members", "bills"] },
 );
 
+export type PalestineScorecard = {
+  grade: string;
+  rank: number | null;
+  sponsor_score: string | null;
+  voting_score: string | null;
+  total_score: string | null;
+  votes: Record<string, string>;
+};
+
+// USCPR Senate Palestine voting scorecard for a member (handoff 90). Returns
+// null for anyone not on the scorecard — Republicans, House members, and any
+// senator absent from the source sheet — so the member hub renders the
+// section only when this is non-null. Synced manually via
+// `npm run sync:palestine`; tagged "members" to ride the member-bio cache
+// invalidation surface.
+export const getPalestineScorecard = unstable_cache(
+  async (bioguideId: string): Promise<PalestineScorecard | null> => {
+    const db = getDb();
+    const result = await db.execute({
+      sql: `SELECT grade, rank, sponsor_score, voting_score, total_score, votes_json
+            FROM palestine_scorecard WHERE bioguide_id = ?`,
+      args: [bioguideId],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      grade: row.grade as string,
+      rank:
+        row.rank === null || row.rank === undefined ? null : Number(row.rank),
+      sponsor_score: (row.sponsor_score as string | null) ?? null,
+      voting_score: (row.voting_score as string | null) ?? null,
+      total_score: (row.total_score as string | null) ?? null,
+      votes: JSON.parse(row.votes_json as string) as Record<string, string>,
+    };
+  },
+  ["getPalestineScorecard"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
 // ---- Races (handoff 62) -------------------------------------------------
 
 export type Race = {
