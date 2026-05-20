@@ -7,13 +7,15 @@ import { scrapeStatePrimaryCalendar } from "../lib/primary-calendar-scrape";
 import { scrapeSenateCandidates } from "../lib/senate-candidates-scrape";
 import { stateName } from "../lib/states";
 
-// 33 regular-cycle 2026 Senate states plus the FL and OH specials — the
-// handoff 91 SENATE_STATES_2026 list.
+// 2026 Senate states. WA was dropped from the handoff's SENATE_STATES_2026
+// list — Washington has no 2026 Senate race (its seats are up 2028 / 2030).
+// FL and OH are 2026 specials; the scraper resolves their special-election
+// URL automatically.
 const SENATE_STATES_2026 = [
   "AL", "AK", "AR", "CO", "DE", "GA", "ID", "IL", "IA", "KS",
   "KY", "LA", "ME", "MA", "MI", "MN", "MS", "MT", "NE", "NH",
   "NJ", "NM", "NC", "OK", "OR", "RI", "SC", "SD", "TN", "TX",
-  "VA", "WA", "WY",
+  "VA", "WY",
   "FL", "OH",
 ];
 
@@ -146,13 +148,17 @@ async function syncSenateCandidates(): Promise<void> {
     }
     okStates++;
 
-    for (const party of ["D", "R"] as const) {
-      const primaryId = `senate-${abbr}-2026-${party}`;
+    // Route each candidate to its primary by contest: the D / R partisan
+    // primaries, or the "open" all-candidate primary (AK's top-four). The
+    // 'open' primaries row only exists for top-two/four states, so the
+    // DELETE/INSERT there is a no-op for ordinary D/R states.
+    for (const contest of ["D", "R", "open"] as const) {
+      const primaryId = `senate-${abbr}-2026-${contest}`;
       await db.execute({
         sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
         args: [primaryId],
       });
-      const roster = result.candidates.filter((c) => c.party === party);
+      const roster = result.candidates.filter((c) => c.contest === contest);
       for (const c of roster) {
         const bioguideId = matchMember(c.name, abbr);
         if (bioguideId) matchedCandidates++;
@@ -164,7 +170,7 @@ async function syncSenateCandidates(): Promise<void> {
           args: [
             primaryId,
             c.name,
-            party,
+            c.party,
             c.incumbent ? 1 : 0,
             bioguideId,
             c.isWinner ? "winner" : "running",
