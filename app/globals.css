@@ -681,7 +681,7 @@ body {
 .race-row,
 .race-header-row {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1.4fr) 88px 88px 92px 92px;
+  grid-template-columns: 90px minmax(0, 1.4fr) 88px 88px 92px 92px 96px;
   align-items: center;
   column-gap: 12px;
   padding: 8px 14px;

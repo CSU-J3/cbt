@@ -28,6 +28,7 @@
     "sync:senate-votes": "tsx scripts/sync-senate-votes.ts",
     "sync:fec": "tsx scripts/sync-fec.ts",
     "sync:palestine": "tsx scripts/sync-palestine.ts",
+    "sync:primaries": "tsx scripts/sync-primaries.ts",
     "lead": "tsx scripts/generate-lead.ts",
     "report": "tsx scripts/generate-report.ts",
     "typecheck": "tsc --noEmit"

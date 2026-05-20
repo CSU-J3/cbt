@@ -9,6 +9,7 @@ import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
+import { daysUntil, formatDateShort } from "@/lib/format";
 import {
   getMember,
   getMemberAffiliations,
@@ -20,6 +21,7 @@ import {
   getMemberVotes,
   getMemberVoteStats,
   getPalestineScorecard,
+  getPrimaryForRace,
   getRaceRatings,
 } from "@/lib/queries";
 import { raceIdFromMember } from "@/lib/race-id";
@@ -87,6 +89,19 @@ export default async function MemberPage({
   const ratings = raceId ? await getRaceRatings(raceId) : [];
   const headerRating = ratings[0] ?? null;
 
+  // The member's 2026 state primary (handoff 91). Only D/R members resolve a
+  // row — independents don't run in a party primary. The chip shows for House
+  // and Senate members alike: every state's primary date sits on the
+  // senate-prefixed calendar row.
+  const memberPrimary =
+    member && member.state && (member.party === "D" || member.party === "R")
+      ? await getPrimaryForRace(member.state, null, member.party)
+      : null;
+  const primaryDays =
+    memberPrimary?.primary_date != null
+      ? daysUntil(memberPrimary.primary_date)
+      : null;
+
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar />
@@ -107,6 +122,24 @@ export default async function MemberPage({
               affiliations={affiliations}
               rating={headerRating}
             />
+
+            {memberPrimary?.primary_date ? (
+              <div
+                className="mt-2 text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--accent-amber)" }}
+              >
+                Primary {memberPrimary.party === "D" ? "Dem" : "Rep"}:{" "}
+                {formatDateShort(memberPrimary.primary_date)}
+                {primaryDays !== null &&
+                primaryDays >= 0 &&
+                primaryDays <= 30 ? (
+                  <span style={{ color: "var(--party-republican)" }}>
+                    {" "}
+                    ({primaryDays === 0 ? "today" : `${primaryDays}d`})
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
 
             <div
               className="my-5 border-t border-b"

@@ -9,7 +9,13 @@
 // color regardless of strength (the strength is in the text).
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
-import { getRacesIndex, type RaceIndexRow } from "@/lib/queries";
+import { daysUntil, formatDateShort } from "@/lib/format";
+import {
+  getPastPrimaries,
+  getRacesIndex,
+  getUpcomingPrimaries,
+  type RaceIndexRow,
+} from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +39,13 @@ function partyChip(party: string | null): { label: string; color: string } | nul
   return null;
 }
 
-function RaceRow({ race }: { race: RaceIndexRow }) {
+function RaceRow({
+  race,
+  primaryDate,
+}: {
+  race: RaceIndexRow;
+  primaryDate: string | null;
+}) {
   const incumbent = race.incumbentName ? (
     <>
       {race.incumbentBioguideId ? (
@@ -52,6 +64,13 @@ function RaceRow({ race }: { race: RaceIndexRow }) {
     <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
   );
   const p = partyChip(race.incumbentParty);
+  const pDays = primaryDate ? daysUntil(primaryDate) : null;
+  const primaryColor =
+    pDays === null
+      ? "var(--text-dim)"
+      : pDays >= 0 && pDays <= 30
+        ? "var(--party-republican)"
+        : "var(--text-muted)";
   return (
     <Link
       href={`/race/${race.raceId}`}
@@ -99,6 +118,12 @@ function RaceRow({ race }: { race: RaceIndexRow }) {
       >
         {race.consensusRating ?? "—"}
       </span>
+      <span
+        className="text-[12px] tabular-nums"
+        style={{ color: primaryColor }}
+      >
+        {primaryDate ? formatDateShort(primaryDate) : "—"}
+      </span>
     </Link>
   );
 }
@@ -106,9 +131,11 @@ function RaceRow({ race }: { race: RaceIndexRow }) {
 function RaceSection({
   title,
   races,
+  primaries,
 }: {
   title: string;
   races: RaceIndexRow[];
+  primaries: Map<string, string>;
 }) {
   return (
     <section className="mb-6">
@@ -142,10 +169,17 @@ function RaceSection({
             <span>Sabato</span>
             <span>Inside Elec</span>
             <span>Consensus</span>
+            <span>Primary</span>
           </div>
           <div>
             {races.map((r) => (
-              <RaceRow key={r.raceId} race={r} />
+              <RaceRow
+                key={r.raceId}
+                race={r}
+                primaryDate={
+                  primaries.get(`${r.state}-${r.incumbentParty}`) ?? null
+                }
+              />
             ))}
           </div>
         </>
@@ -155,9 +189,20 @@ function RaceSection({
 }
 
 export default async function RacesPage() {
-  const races = await getRacesIndex(2026);
+  const [races, upcoming, past] = await Promise.all([
+    getRacesIndex(2026),
+    getUpcomingPrimaries(300),
+    getPastPrimaries(300),
+  ]);
   const senate = races.filter((r) => r.chamber === "senate");
   const house = races.filter((r) => r.chamber === "house");
+  // State primary date keyed by "{STATE}-{party}" — every race in a state
+  // shares that state's primary date (it sits on the senate-prefixed
+  // calendar row regardless of the race's chamber).
+  const primaries = new Map<string, string>();
+  for (const p of [...upcoming, ...past]) {
+    if (p.primary_date) primaries.set(`${p.state}-${p.party}`, p.primary_date);
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -187,8 +232,8 @@ export default async function RacesPage() {
           a row for the race hub; click an incumbent for their member page.
         </p>
 
-        <RaceSection title="Senate" races={senate} />
-        <RaceSection title="House" races={house} />
+        <RaceSection title="Senate" races={senate} primaries={primaries} />
+        <RaceSection title="House" races={house} primaries={primaries} />
       </main>
     </div>
   );

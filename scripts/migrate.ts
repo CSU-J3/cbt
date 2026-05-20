@@ -284,6 +284,36 @@ const statements = [
     votes_json TEXT NOT NULL,
     synced_at TEXT NOT NULL
   )`,
+  // handoff 91: primary tracker. `primaries` is one row per (state, chamber,
+  // party) primary contest — id shape "senate-PA-2026-D" / "house-PA-07-2026-R"
+  // / "senate-CA-2026-open" for top-two/top-four states. `race_id` is a loose
+  // link to races.id. `primary_candidates` holds the per-contest rosters,
+  // synced from Ballotpedia; `bioguide_id` is nullable (best-effort match).
+  `CREATE TABLE IF NOT EXISTS primaries (
+    id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    district TEXT,
+    chamber TEXT NOT NULL,
+    party TEXT NOT NULL,
+    primary_date TEXT,
+    runoff_date TEXT,
+    primary_type TEXT,
+    race_id TEXT REFERENCES races(id),
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS primary_candidates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    primary_id TEXT NOT NULL REFERENCES primaries(id),
+    name TEXT NOT NULL,
+    party TEXT NOT NULL,
+    incumbent INTEGER DEFAULT 0,
+    bioguide_id TEXT REFERENCES members(bioguide_id),
+    status TEXT DEFAULT 'running',
+    vote_pct REAL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_primaries_date ON primaries(primary_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_primary_candidates_primary ON primary_candidates(primary_id)`,
 ];
 
 async function ensureColumn(

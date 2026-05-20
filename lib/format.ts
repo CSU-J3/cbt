@@ -81,6 +81,20 @@ export function daysSince(dateStr: string | null | undefined): number {
   return Math.max(0, Math.floor((now - t) / MS_PER_DAY));
 }
 
+// Days from today (UTC midnight) to the given date: 0 = today, positive =
+// future, negative = past. Counterpart to daysSince; used by the primary
+// tracker's countdown surfaces (handoff 91).
+export function daysUntil(dateStr: string | null | undefined): number {
+  if (!dateStr) return 0;
+  const part = dateStr.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(part)) return 0;
+  const t = Date.parse(`${part}T00:00:00Z`);
+  if (Number.isNaN(t)) return 0;
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return Math.round((t - today.getTime()) / MS_PER_DAY);
+}
+
 // General election day for a given cycle: first Tuesday after the first
 // Monday of November. Returned as a UTC Date so callers can subtract from
 // "today UTC" without timezone drift biting the day count.

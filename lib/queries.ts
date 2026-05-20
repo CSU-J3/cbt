@@ -869,6 +869,137 @@ export const getPalestineScorecard = unstable_cache(
   { revalidate: 86400, tags: ["members"] },
 );
 
+// ---- Primaries (handoff 91) ---------------------------------------------
+
+export type PrimaryCandidate = {
+  id: number;
+  name: string;
+  party: string;
+  incumbent: boolean;
+  bioguide_id: string | null;
+  status: string;
+  vote_pct: number | null;
+};
+
+export type PrimaryWithCandidates = {
+  id: string;
+  state: string;
+  district: string | null;
+  chamber: string;
+  party: string;
+  primary_date: string | null;
+  runoff_date: string | null;
+  primary_type: string | null;
+  race_id: string | null;
+  candidates: PrimaryCandidate[];
+};
+
+// Candidate rows are folded into one string per primary by GROUP_CONCAT:
+// fields joined by '|', rows by '~~'. The row separator is '~~' rather than
+// the default comma so a candidate name containing a comma can't corrupt the
+// split (rosters land in the handoff 91 Step 3 follow-up).
+const PRIMARY_CANDIDATE_FIELDS =
+  "pc.id || '|' || pc.name || '|' || pc.party || '|' || " +
+  "pc.incumbent || '|' || COALESCE(pc.bioguide_id,'') || '|' || " +
+  "pc.status || '|' || COALESCE(pc.vote_pct,'')";
+
+function parseCandidatesRaw(raw: string | null): PrimaryCandidate[] {
+  if (!raw) return [];
+  return raw.split("~~").map((c) => {
+    const [id, name, party, incumbent, bioguideId, status, votePct] =
+      c.split("|");
+    return {
+      id: Number(id ?? 0),
+      name: name ?? "",
+      party: party ?? "",
+      incumbent: incumbent === "1",
+      bioguide_id: bioguideId || null,
+      status: status ?? "running",
+      vote_pct: votePct ? Number(votePct) : null,
+    };
+  });
+}
+
+function rowToPrimary(r: Record<string, unknown>): PrimaryWithCandidates {
+  return {
+    id: r.id as string,
+    state: r.state as string,
+    district: (r.district as string | null) ?? null,
+    chamber: r.chamber as string,
+    party: r.party as string,
+    primary_date: (r.primary_date as string | null) ?? null,
+    runoff_date: (r.runoff_date as string | null) ?? null,
+    primary_type: (r.primary_type as string | null) ?? null,
+    race_id: (r.race_id as string | null) ?? null,
+    candidates: parseCandidatesRaw(
+      (r.candidates_raw as string | null) ?? null,
+    ),
+  };
+}
+
+const PRIMARY_SELECT =
+  `SELECT p.id, p.state, p.district, p.chamber, p.party,
+     p.primary_date, p.runoff_date, p.primary_type, p.race_id,
+     GROUP_CONCAT(${PRIMARY_CANDIDATE_FIELDS}, '~~') AS candidates_raw
+   FROM primaries p
+   LEFT JOIN primary_candidates pc ON pc.primary_id = p.id`;
+
+// Primaries on or after today, soonest first — backs the /primaries index.
+export async function getUpcomingPrimaries(
+  limit = 50,
+): Promise<PrimaryWithCandidates[]> {
+  const db = getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const rs = await db.execute({
+    sql: `${PRIMARY_SELECT}
+          WHERE p.primary_date >= ?
+          GROUP BY p.id
+          ORDER BY p.primary_date ASC, p.state ASC, p.party ASC
+          LIMIT ?`,
+    args: [today, limit],
+  });
+  return rs.rows.map((r) => rowToPrimary(r));
+}
+
+// Primaries before today, most recent first — the /primaries "Past" section.
+export async function getPastPrimaries(
+  limit = 200,
+): Promise<PrimaryWithCandidates[]> {
+  const db = getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const rs = await db.execute({
+    sql: `${PRIMARY_SELECT}
+          WHERE p.primary_date < ?
+          GROUP BY p.id
+          ORDER BY p.primary_date DESC, p.state ASC, p.party ASC
+          LIMIT ?`,
+    args: [today, limit],
+  });
+  return rs.rows.map((r) => rowToPrimary(r));
+}
+
+// Single primary lookup for a state + party. A non-null `district` selects
+// the House id shape; null resolves to the state-level (senate-prefixed) row
+// every member of that state shares. Returns null when no such row exists.
+export async function getPrimaryForRace(
+  state: string,
+  district: string | null,
+  party: string,
+): Promise<PrimaryWithCandidates | null> {
+  const db = getDb();
+  const id = district
+    ? `house-${state}-${district}-2026-${party}`
+    : `senate-${state}-2026-${party}`;
+  const rs = await db.execute({
+    sql: `${PRIMARY_SELECT}
+          WHERE p.id = ?
+          GROUP BY p.id`,
+    args: [id],
+  });
+  const row = rs.rows[0];
+  return row ? rowToPrimary(row) : null;
+}
+
 // ---- Races (handoff 62) -------------------------------------------------
 
 export type Race = {

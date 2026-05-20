@@ -276,6 +276,12 @@ export async function HeaderBar({
             🗳 Races
           </Link>
           <Link
+            href="/primaries"
+            className="transition hover:text-[var(--text-secondary)]"
+          >
+            ▦ Primaries
+          </Link>
+          <Link
             href="/clusters"
             className="transition hover:text-[var(--text-secondary)]"
           >
