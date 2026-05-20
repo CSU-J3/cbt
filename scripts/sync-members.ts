@@ -1,8 +1,24 @@
-// Pulls distinct sponsor bioguide_ids from `bills`, fetches each member from
-// Congress.gov, upserts into `members`. Skips members refreshed within the
-// last STALE_DAYS so reruns are cheap. ~600 API calls on first run, ~90s.
+// Refreshes the `members` table from the Congress.gov 119th-Congress roster.
 //
-// Manual: `npm run sync:members`. Not in the cron — bios drift slowly.
+// HO 94: this used to seed from `SELECT DISTINCT sponsor_bioguide_id FROM
+// bills`, which structurally missed any current member who hadn't sponsored a
+// bill yet (notably special-election winners). It now enumerates the roster
+// endpoint directly, so the table reflects the actual 119th membership, and
+// carries an `is_current` flag so members who served part of the Congress but
+// no longer do (deaths, resignations) are kept as rows rather than deleted.
+//
+// Endpoints (verified HO 94 — do NOT use `/member?congress=119`, which does
+// not filter by Congress and returns ~2,700 historical members):
+//   GET /member/congress/119                    — full 119th roster (551)
+//   GET /member/congress/119?currentMember=true  — currently serving (536)
+//   GET /member/{bioguideId}                     — per-member detail
+//
+// The 551 vs 536 gap is the inactivity signal. Detail is fetched per member
+// so every existing column (birth year, depiction, derived term years) stays
+// populated — the roster list endpoint is too sparse for that on its own.
+//
+// Manual: `npm run sync:members`. ~90s. Re-run after any special election or
+// redraw; quarterly at minimum otherwise.
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import {
@@ -14,8 +30,13 @@ import {
 } from "../lib/derive-term";
 import { stateAbbr } from "../lib/states";
 
-const STALE_DAYS = 30;
+const CONGRESS = 119;
+const PAGE_LIMIT = 250;
 const DELAY_MS = 150;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Accepts both partyAbbreviation ("R", "D", "I", "ID") and partyName
 // ("Republican", "Democratic", "Independent"). The Congress.gov member
@@ -66,6 +87,14 @@ type Member = {
 };
 
 type MemberResponse = { member?: Member };
+
+// The /member/congress/{congress} list endpoint returns sparse member stubs;
+// only the bioguideId is consumed here (detail is fetched separately).
+type RosterStub = { bioguideId?: string };
+type RosterResponse = {
+  members?: RosterStub[];
+  pagination?: { count?: number; next?: string | null };
+};
 
 function deriveChamber(term: Term | null): "house" | "senate" | null {
   const c = (term?.chamber ?? "").toLowerCase();
@@ -126,42 +155,71 @@ async function fetchMember(
   return data.member;
 }
 
+// Pages a `/member/congress/{congress}` list endpoint, offset-based, and
+// returns the set of bioguide ids it contains. `extraQuery` carries an
+// optional filter such as `currentMember=true`.
+async function fetchRosterIds(
+  apiKey: string,
+  extraQuery: string,
+): Promise<Set<string>> {
+  const ids = new Set<string>();
+  let offset = 0;
+  for (;;) {
+    const url =
+      `https://api.congress.gov/v3/member/congress/${CONGRESS}` +
+      `?offset=${offset}&limit=${PAGE_LIMIT}&format=json` +
+      (extraQuery ? `&${extraQuery}` : "") +
+      `&api_key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`roster HTTP ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const data = (await res.json()) as RosterResponse;
+    const page = data.members ?? [];
+    for (const m of page) {
+      if (m.bioguideId) ids.add(m.bioguideId);
+    }
+    if (page.length < PAGE_LIMIT) break;
+    offset += PAGE_LIMIT;
+    await sleep(DELAY_MS);
+  }
+  return ids;
+}
+
 async function main() {
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
 
   const db = getDb();
 
-  const distinctRes = await db.execute(`
-    SELECT DISTINCT sponsor_bioguide_id
-    FROM bills
-    WHERE sponsor_bioguide_id IS NOT NULL
-  `);
-  const bioguideIds = distinctRes.rows.map(
-    (r) => r.sponsor_bioguide_id as string,
+  // Snapshot the table before touching it so the report can distinguish
+  // newly-added members from updates.
+  const beforeRes = await db.execute("SELECT bioguide_id FROM members");
+  const beforeIds = new Set(
+    beforeRes.rows.map((r) => r.bioguide_id as string),
   );
-  console.log(`Distinct sponsors: ${bioguideIds.length}`);
+  console.log(`Members table before: ${beforeIds.size} rows`);
+
+  const rosterIds = await fetchRosterIds(apiKey, "");
+  await sleep(DELAY_MS);
+  const currentIds = await fetchRosterIds(apiKey, "currentMember=true");
+  console.log(
+    `Roster: ${rosterIds.size} in the 119th Congress, ` +
+      `${currentIds.size} currently serving`,
+  );
+  if (rosterIds.size === 0) {
+    throw new Error("roster endpoint returned 0 members — aborting");
+  }
 
   let fetched = 0;
-  let skipped = 0;
   let failed = 0;
+  const newlyAdded: string[] = [];
+  const markedInactive: string[] = [];
+  const failures: string[] = [];
 
-  for (const bioguideId of bioguideIds) {
-    const existing = await db.execute({
-      sql: `SELECT fetched_at FROM members WHERE bioguide_id = ?`,
-      args: [bioguideId],
-    });
-    if (existing.rows.length > 0) {
-      const ageDays =
-        (Date.now() -
-          new Date(existing.rows[0]!.fetched_at as string).getTime()) /
-        86400000;
-      if (ageDays < STALE_DAYS) {
-        skipped++;
-        continue;
-      }
-    }
-
+  for (const bioguideId of rosterIds) {
+    const isCurrent = currentIds.has(bioguideId) ? 1 : 0;
     try {
       const member = await fetchMember(bioguideId, apiKey);
       const terms = member.terms ?? [];
@@ -187,8 +245,8 @@ async function main() {
                 bioguide_id, name, first_name, last_name, party, state, state_name,
                 district, chamber, birth_year, depiction_url,
                 current_term_end_year, next_election_year, terms_json,
-                raw_json, fetched_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                raw_json, is_current, fetched_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(bioguide_id) DO UPDATE SET
                 name = excluded.name,
                 first_name = excluded.first_name,
@@ -204,6 +262,7 @@ async function main() {
                 next_election_year = excluded.next_election_year,
                 terms_json = excluded.terms_json,
                 raw_json = excluded.raw_json,
+                is_current = excluded.is_current,
                 fetched_at = excluded.fetched_at`,
         args: [
           bioguideId,
@@ -221,21 +280,58 @@ async function main() {
           nextElectionYear,
           JSON.stringify(terms),
           JSON.stringify(member),
+          isCurrent,
           new Date().toISOString(),
         ],
       });
       fetched++;
-      console.log(`${bioguideId}: ${name}`);
+      if (!beforeIds.has(bioguideId)) newlyAdded.push(`${bioguideId} ${name}`);
+      if (isCurrent === 0) markedInactive.push(`${bioguideId} ${name}`);
     } catch (err) {
       failed++;
       const msg = err instanceof Error ? err.message : String(err);
+      failures.push(`${bioguideId}: ${msg.slice(0, 120)}`);
       console.warn(`${bioguideId}: failed — ${msg.slice(0, 120)}`);
     }
 
-    await new Promise((r) => setTimeout(r, DELAY_MS));
+    await sleep(DELAY_MS);
   }
 
-  console.log(`Done. fetched=${fetched} skipped=${skipped} failed=${failed}`);
+  // Any pre-existing row whose bioguide is not in the 119th roster at all
+  // (stale carryover from the old bill-sponsor seeding) is also non-current.
+  const rosterList = [...rosterIds];
+  const placeholders = rosterList.map(() => "?").join(", ");
+  const leftover = await db.execute({
+    sql: `UPDATE members SET is_current = 0
+            WHERE bioguide_id NOT IN (${placeholders})`,
+    args: rosterList,
+  });
+  const leftoverInactivated = Number(leftover.rowsAffected ?? 0);
+
+  const afterRes = await db.execute("SELECT COUNT(*) AS n FROM members");
+  const afterCount = Number(afterRes.rows[0]!.n);
+
+  console.log("\n=== Members refresh — HO 94 ===");
+  console.log(`1. Row count: ${beforeIds.size} before → ${afterCount} after`);
+  console.log(`2. Newly added (${newlyAdded.length}):`);
+  for (const m of newlyAdded) console.log(`     ${m}`);
+  if (newlyAdded.length === 0) console.log("     none");
+  console.log(
+    `3. 119th members marked is_current = false (${markedInactive.length}) ` +
+      "— deaths / resignations / expulsions:",
+  );
+  for (const m of markedInactive) console.log(`     ${m}`);
+  if (markedInactive.length === 0) console.log("     none");
+  if (leftoverInactivated > 0) {
+    console.log(
+      `   (plus ${leftoverInactivated} pre-existing non-119th rows ` +
+        "set is_current = 0)",
+    );
+  }
+  console.log(`4. Detail fetched: ${fetched}, failed: ${failed}`);
+  if (failures.length > 0) {
+    for (const f of failures) console.log(`     ${f}`);
+  }
 }
 
 main().catch((err) => {

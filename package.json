@@ -30,6 +30,7 @@
     "sync:palestine": "tsx scripts/sync-palestine.ts",
     "sync:primaries": "tsx scripts/sync-primaries.ts",
     "sync:house-primaries": "tsx scripts/sync-primaries.ts",
+    "sync:rematch": "tsx scripts/sync-primaries.ts --rematch",
     "lead": "tsx scripts/generate-lead.ts",
     "report": "tsx scripts/generate-report.ts",
     "typecheck": "tsc --noEmit"

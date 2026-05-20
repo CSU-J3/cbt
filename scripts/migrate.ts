@@ -371,6 +371,12 @@ async function main() {
   // from NULL/NULL ("never tried").
   await ensureColumn(db, "members", "fec_candidate_id", "TEXT");
   await ensureColumn(db, "members", "fec_resolved_at", "TEXT");
+  // handoff 94: current-service flag. `sync:members` sets it from the
+  // Congress.gov `currentMember=true` roster; members who served part of the
+  // 119th but no longer do (deaths, resignations) are kept as rows with
+  // is_current = 0 rather than deleted, so historical "who held this seat"
+  // queries still resolve.
+  await ensureColumn(db, "members", "is_current", "INTEGER NOT NULL DEFAULT 1");
   // Date of FEC's most-recent filing for the row, e.g. "2026-03-31" — feeds
   // the "as of {date}" suffix on the member-hub fundraising line. Lives on
   // member_fundraising rather than its own table because every fundraising
