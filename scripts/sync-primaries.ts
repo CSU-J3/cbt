@@ -1,8 +1,8 @@
 // Primary tracker sync. Passes selected by argv:
 //   (default)          handoff 91 — state-level primary calendar (all 50
 //                      states) + Senate candidate rosters (33 races).
-//   --region=<region>  handoff 92 — House candidate rosters for one region
-//                      (northeast + south shipped; midwest/west are stubs).
+//   --region=<region>  handoff 92/93/95/96 — House candidate rosters for one
+//                      region (all four regions shipped).
 //   --rematch          handoff 94 — re-run the House incumbent matcher over
 //                      existing primary_candidates rows; no scraping.
 // `npm run sync:primaries` runs the default pass; `npm run sync:house-primaries
@@ -31,9 +31,10 @@ const SENATE_STATES_2026 = [
 
 // House districts by region (handoff 92). Phase 2 ships the Northeast — 76
 // districts across 9 states; phase 3 (handoff 93) ships the South; phase 4
-// (handoff 95) ships the Midwest; the West follows in handoff 96. `district:
-// 0` is an at-large seat (Vermont in the Northeast, Delaware in the South,
-// North Dakota and South Dakota in the Midwest).
+// (handoff 95) ships the Midwest; phase 5 (handoff 96) ships the West.
+// `district: 0` is an at-large seat (Vermont in the Northeast, Delaware in the
+// South, North Dakota and South Dakota in the Midwest, Alaska and Wyoming in
+// the West).
 type HouseRegion = "northeast" | "south" | "midwest" | "west";
 
 type HouseDistrict = { state: string; district: number };
@@ -90,11 +91,37 @@ export const HOUSE_DISTRICTS_MIDWEST_2026: HouseDistrict[] = [
   { state: "SD", district: 0 }, // South Dakota at-large
 ];
 
+// Seat counts per West state (handoff 96), expanded into one HouseDistrict per
+// seat below. 11 numbered-district states here; with the Alaska and Wyoming
+// at-large seats appended the expanded list must total 104 (handoff 96
+// acceptance check). California's 52 districts are the largest single-state
+// load in the project.
+const WEST_SEATS: Record<string, number> = {
+  AZ: 9, CA: 52, CO: 8, HI: 2, ID: 2, MT: 2, NV: 4, NM: 3, OR: 6, UT: 4, WA: 10,
+};
+
+export const HOUSE_DISTRICTS_WEST_2026: HouseDistrict[] = [
+  ...Object.entries(WEST_SEATS).flatMap(([state, seats]) =>
+    Array.from({ length: seats }, (_, i) => ({ state, district: i + 1 })),
+  ),
+  { state: "AK", district: 0 }, // Alaska at-large
+  { state: "WY", district: 0 }, // Wyoming at-large
+];
+
+// West states running a single nonpartisan all-candidate primary instead of
+// partisan D/R primaries: CA + WA run top-two (top two advance regardless of
+// party), AK runs top-four (top four advance to a ranked-choice general).
+// Ballotpedia renders all three identically — one `race_header nonpartisan`
+// votebox — so parseCandidatesPage already extracts them into the "open"
+// contest; the only per-state distinction the scraper needs is which contests
+// a district runs. The other 10 West states run ordinary partisan primaries.
+const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK"]);
+
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
   south: HOUSE_DISTRICTS_SOUTH_2026,
   midwest: HOUSE_DISTRICTS_MIDWEST_2026,
-  west: [],
+  west: HOUSE_DISTRICTS_WEST_2026,
 };
 
 function sleep(ms: number): Promise<void> {
@@ -407,10 +434,12 @@ async function syncSenateCandidates(): Promise<void> {
   }
 }
 
-// Step 4 — House candidate rosters (handoff 92). For each district in the
-// region, scrapes the Ballotpedia per-district election page, parses the D/R
-// primary voteboxes, and upserts both the `primaries` rows (one D + one R per
-// district) and their `primary_candidates` rosters. Per-district
+// Step 4 — House candidate rosters (handoff 92, +96). For each district in the
+// region, scrapes the Ballotpedia per-district election page, parses its
+// primary voteboxes, and upserts both the `primaries` rows and their
+// `primary_candidates` rosters. Partisan districts get one D + one R row;
+// nonpartisan districts (CA/WA top-two, AK top-four — see
+// NONPARTISAN_HOUSE_STATES) get a single `open` row instead. Per-district
 // delete-then-insert on primary_candidates keeps re-runs idempotent.
 //
 // The per-district primary date is the state's primary date — the calendar
@@ -483,8 +512,25 @@ async function syncHouseCandidates(region: HouseRegion): Promise<void> {
   const specials: string[] = [];
   const oddities: string[] = [];
 
+  // Per-state parse tally — backs the per-state breakdown print, which is how
+  // the CA / WA / AK sanity thresholds in handoff 96 get checked.
+  const perState = new Map<
+    string,
+    { attempted: number; parsedOk: number; candidates: number }
+  >();
+  const stateStat = (st: string) => {
+    let s = perState.get(st);
+    if (!s) {
+      s = { attempted: 0, parsedOk: 0, candidates: 0 };
+      perState.set(st, s);
+    }
+    return s;
+  };
+
   for (const d of districts) {
     attempted++;
+    const stat = stateStat(d.state);
+    stat.attempted++;
     const dd = String(d.district).padStart(2, "0");
     const label = `${d.state}-${dd}`;
     const slug = stateName(d.state).replace(/ /g, "_");
@@ -503,24 +549,44 @@ async function syncHouseCandidates(region: HouseRegion): Promise<void> {
     }
     if (result.status === "ok") {
       parsedOk++;
+      stat.parsedOk++;
     } else {
       // no_section / no_candidates: page reachable but no roster. Still create
-      // empty D/R primaries rows below so the district stays tracked.
+      // empty primaries rows below so the district stays tracked.
       emptyDistricts.push(`${label} — ${result.status}`);
     }
 
+    // Nonpartisan-primary states (CA/WA top-two, AK top-four) run a single
+    // all-candidate ballot — parseCandidatesPage routes those into the "open"
+    // contest. Everywhere else runs partisan D/R primaries. The contest set is
+    // chosen once per district from NONPARTISAN_HOUSE_STATES; no state checks
+    // anywhere else in the loop.
+    const expectsOpen = NONPARTISAN_HOUSE_STATES.has(d.state);
     const openCount = result.candidates.filter(
       (c) => c.contest === "open",
     ).length;
-    if (openCount > 0) {
+    const drCount = result.candidates.length - openCount;
+    // Structural guard: a votebox type that doesn't match the state's expected
+    // primary system means the Ballotpedia template drifted for this district.
+    // Such candidates fall outside the contest set below and are not stored.
+    if (expectsOpen && drCount > 0) {
       oddities.push(
-        `${label} — ${openCount} candidate(s) in a nonpartisan primary ` +
-          "(top-N parsing deferred; not stored)",
+        `${label} — ${drCount} D/R candidate(s) on a nonpartisan-state ` +
+          "page (not stored)",
       );
     }
+    if (!expectsOpen && openCount > 0) {
+      oddities.push(
+        `${label} — ${openCount} nonpartisan candidate(s) on a partisan-state ` +
+          "page (not stored)",
+      );
+    }
+    const contests = expectsOpen
+      ? (["open"] as const)
+      : (["D", "R"] as const);
 
     const cal = calByState.get(d.state);
-    for (const contest of ["D", "R"] as const) {
+    for (const contest of contests) {
       const primaryId = `house-${d.state}-${dd}-2026-${contest}`;
       await db.execute({
         sql: `INSERT INTO primaries
@@ -567,6 +633,7 @@ async function syncHouseCandidates(region: HouseRegion): Promise<void> {
           );
         }
         totalCandidates++;
+        stat.candidates++;
         await db.execute({
           sql: `INSERT INTO primary_candidates
                   (primary_id, name, party, incumbent, bioguide_id, status, updated_at)
@@ -627,6 +694,15 @@ async function syncHouseCandidates(region: HouseRegion): Promise<void> {
   } else {
     console.log("  none");
   }
+  console.log("\n7. Per-state breakdown (parsed / attempted · candidates):");
+  for (const st of [...perState.keys()].sort()) {
+    const s = perState.get(st)!;
+    const np = NONPARTISAN_HOUSE_STATES.has(st) ? " [nonpartisan]" : "";
+    console.log(
+      `  ${st}: ${s.parsedOk}/${s.attempted} · ${s.candidates}${np}`,
+    );
+  }
+
   if (oddities.length > 0) {
     console.log(`\nOddities (${oddities.length}):`);
     for (const o of oddities) console.log(`  ${o}`);
