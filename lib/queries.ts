@@ -1015,6 +1015,8 @@ const PRIMARY_SELECT =
    LEFT JOIN primary_candidates pc ON pc.primary_id = p.id`;
 
 // Primaries on or after today, soonest first — backs the /primaries index.
+// `election_round = 'primary'` keeps runoff rows (HO 107) out of /primaries
+// and /races; runoffs surface only via getRunoffsForRace on the race page.
 export async function getUpcomingPrimaries(
   limit = 50,
 ): Promise<PrimaryWithCandidates[]> {
@@ -1022,7 +1024,7 @@ export async function getUpcomingPrimaries(
   const today = new Date().toISOString().slice(0, 10);
   const rs = await db.execute({
     sql: `${PRIMARY_SELECT}
-          WHERE p.primary_date >= ?
+          WHERE p.primary_date >= ? AND p.election_round = 'primary'
           GROUP BY p.id
           ORDER BY p.primary_date ASC, p.state ASC, p.party ASC
           LIMIT ?`,
@@ -1039,7 +1041,7 @@ export async function getPastPrimaries(
   const today = new Date().toISOString().slice(0, 10);
   const rs = await db.execute({
     sql: `${PRIMARY_SELECT}
-          WHERE p.primary_date < ?
+          WHERE p.primary_date < ? AND p.election_round = 'primary'
           GROUP BY p.id
           ORDER BY p.primary_date DESC, p.state ASC, p.party ASC
           LIMIT ?`,
@@ -1068,6 +1070,26 @@ export async function getPrimaryForRace(
   });
   const row = rs.rows[0];
   return row ? rowToPrimary(row) : null;
+}
+
+// Runoff contests for a race (handoff 107). A race can have more than one —
+// Louisiana's closed-primary system runs a separate runoff per party, so
+// `S-LA-2026` returns both the Republican and Democratic runoffs. Ordered by
+// party for stable rendering. Returns [] when the race had no runoff.
+// Reuses PRIMARY_SELECT / rowToPrimary — a runoff row is a `primaries` row
+// with `election_round = 'runoff'`.
+export async function getRunoffsForRace(
+  raceId: string,
+): Promise<PrimaryWithCandidates[]> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `${PRIMARY_SELECT}
+          WHERE p.race_id = ? AND p.election_round = 'runoff'
+          GROUP BY p.id
+          ORDER BY p.party ASC`,
+    args: [raceId],
+  });
+  return rs.rows.map((r) => rowToPrimary(r));
 }
 
 // ---- Races (handoff 62) -------------------------------------------------

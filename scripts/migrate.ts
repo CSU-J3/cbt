@@ -411,6 +411,17 @@ async function main() {
   // is_current = 0 rather than deleted, so historical "who held this seat"
   // queries still resolve.
   await ensureColumn(db, "members", "is_current", "INTEGER NOT NULL DEFAULT 1");
+  // handoff 107: election round on primaries. 'primary' (default — every
+  // existing row) or 'runoff'. A runoff is a primary-shaped contest, so it
+  // lives as additional `primaries` rows (id suffix `-runoff`) rather than a
+  // separate table; this column is the discriminator. getUpcomingPrimaries /
+  // getPastPrimaries filter to 'primary' so /primaries stays primary-only.
+  await ensureColumn(
+    db,
+    "primaries",
+    "election_round",
+    "TEXT NOT NULL DEFAULT 'primary'",
+  );
   // Date of FEC's most-recent filing for the row, e.g. "2026-03-31" — feeds
   // the "as of {date}" suffix on the member-hub fundraising line. Lives on
   // member_fundraising rather than its own table because every fundraising

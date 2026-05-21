@@ -320,21 +320,25 @@ CREATE TABLE member_votes (
 CREATE INDEX idx_member_votes_bioguide ON member_votes(bioguide_id);
 
 -- Primary tracker (handoff 91; House regions added in 92/93/95/96, Louisiana
--- in 93.5). One row per primary contest. `id` shape is "senate-{ST}-2026-
--- {party}" or "house-{ST}-{DD}-2026-{party}" — {DD} is the zero-padded
--- district, {party} is 'D' | 'R' | 'open'. The 'open' party value is the
--- single all-candidate ballot for top-two / top-four / nonpartisan contests
--- (CA, WA, AK, LA). `primary_type` is the 270toWin calendar classification.
+-- in 93.5; runoffs in 107). One row per primary OR runoff contest. `id` shape
+-- is "senate-{ST}-2026-{party}" or "house-{ST}-{DD}-2026-{party}" — {DD} is
+-- the zero-padded district, {party} is 'D' | 'R' | 'open'. The 'open' party
+-- value is the single all-candidate ballot for top-two / top-four /
+-- nonpartisan contests (CA, WA, AK, LA). `primary_type` is the 270toWin
+-- calendar classification. `election_round` (HO 107) discriminates a runoff
+-- contest from the round-1 primary — runoff rows take the same id with a
+-- `-runoff` suffix; see "Runoff tracking" below.
 CREATE TABLE primaries (
   id TEXT PRIMARY KEY,              -- e.g. "house-LA-01-2026-open"
   state TEXT NOT NULL,
   district TEXT,                    -- zero-padded ("07"); NULL for Senate
   chamber TEXT NOT NULL,            -- 'senate' | 'house'
   party TEXT NOT NULL,              -- 'D' | 'R' | 'open'
-  primary_date TEXT,                -- ISO date, from the 270toWin calendar
-  runoff_date TEXT,
+  primary_date TEXT,                -- ISO date; for a runoff row, the runoff's own date
+  runoff_date TEXT,                 -- on a round-1 row, forward link to the runoff date
   primary_type TEXT,                -- 'closed' | 'open' | 'top_two' | 'top_four' | ...
   race_id TEXT REFERENCES races(id),-- loose link to races.id
+  election_round TEXT NOT NULL DEFAULT 'primary', -- 'primary' | 'runoff' (HO 107)
   updated_at TEXT NOT NULL
 );
 
@@ -433,6 +437,7 @@ Primary scrape logic lives in `lib/primaries-sync.ts` (handoff 97 moved it out o
 - `npm run seed:affiliations` — loads caucus rosters from `data/affiliations-seed.json` into the `affiliations` table. No API calls (pure JSON read + upsert). Idempotent via `INSERT ... ON CONFLICT(bioguide_id, org) DO UPDATE`. Rosters whose bioguide_id isn't in the `members` table yet get warn-and-skip, not abort. Re-running after editing the JSON is the refresh workflow — refresh quarterly by hand.
 - `npm run backfill:races` — one-shot derivation of stub race rows from `members`. `INSERT OR IGNORE` so re-runs don't clobber hand-curated rating + candidate data. Expected ~435 House + ~33 Senate ≈ ~468 rows on first run; second run prints `Inserted: 0`. The SQL `id` expression is a translation of `raceIdFromMember` in `lib/race-id.ts` — keep them in sync.
 - `npm run seed:races` — applies the hand-curated rating + candidate roster layer from `data/races-seed.json` on top of the stubs. Idempotent: UPDATE on the race row + `INSERT ... ON CONFLICT(race_id, name) DO UPDATE` on candidates. Unknown race ids get warn-and-skip; invalid ratings (not in the Sabato seven) get warn-and-skip. Refresh quarterly by editing the JSON and re-running.
+- `npm run seed:runoffs` — loads hand-curated runoff contests into `primaries` + `primary_candidates` (handoff 107) from `data/runoff-seeds/la-senate-2026.json`. Idempotent: the runoff `primaries` row upserts on its PK, `primary_candidates` is delete-then-insert per `primary_id`, and the round-1 `primaries` rows get their `runoff_date` set. See "Runoff tracking" below.
 - `npm run seed:ratings` — loads third-party race ratings into `race_ratings` (handoffs 71 + 73). Globs every `data/race-ratings-*.json` and upserts each row on `(race_id, source)` via `INSERT ... ON CONFLICT(id) DO UPDATE`. v1 covers Cook, Sabato, and Inside Elections (Senate only); three sources is the cap — more is noise. Unknown rating strings warn-and-skip; after 73 that almost always means a new rater vocabulary needs adding to the `RATING_SCORES` map in the script plus the matching color maps in `components/RatingChip.tsx` and `components/MemberHeader.tsx`. Prints per-source summary lines plus an aggregate. race_id is a loose link — ratings can land before the race row exists. Refresh quarterly by re-pulling each rater's page.
 - `npm run sync:news` — runs the news ingestion pipeline (handoff 64) locally. Same code path the cron route invokes via `ingestNews()`. Prints per-source `fetched/mentions/skipped_unknown_bill` counts; idempotent across reruns thanks to the `(bill_id, article_url)` UNIQUE constraint.
 - `npm run sync:trades` — runs the stock-trades ingestion pipeline (handoff 70) locally via `ingestTrades`. Same code path as the cron, but capped at 20 pages per chamber (cron caps at 3). Reads `members` into memory, fetches FMP disclosure pages for senate + house, name-matches via `lib/matchMember.ts`, and `INSERT OR IGNORE`s into `stock_trades`. Stops early when an entire FMP page is all-seen. Prints `inserted / matched / total` per chamber plus a sample of unmatched names — the audit workflow for tightening the matcher.
@@ -765,6 +770,16 @@ v1 covers four caucuses: House Freedom Caucus, Republican Study Committee, Congr
 Display labels, party colors, and priority order live in `lib/caucus-config.ts` (single source of truth). The `affiliations` table accepts any `org` string — the config governs which orgs actually render. Sorting is by `priority` ASC: Freedom (1) > RSC (2) > Progressive (3) > New Dem (4). That order drives header truncation (top-2 badges only on `MemberHeader`'s meta line) and the full affiliations row below the stats block.
 
 Identity caucuses (CBC, CHC, CAPAC), Problem Solvers, and the Squad are deferred to v1.5. Union endorsements and advocacy alignments are separate theme-6 sub-handoffs and reuse the same `affiliations` table with different `category` values.
+
+## Runoff tracking
+
+Runoffs (handoff 107) are modeled as **`primaries` rows**, not a separate table — a runoff is a primary-shaped per-(state, chamber, party) contest, so it reuses `primary_candidates`, `PRIMARY_SELECT`, `parseCandidatesRaw`, and `rowToPrimary` wholesale. The `primaries.election_round` column (`'primary'` | `'runoff'`, default `'primary'`) is the discriminator; runoff rows take the round-1 id with a `-runoff` suffix (e.g. `senate-LA-2026-R-runoff`). On a runoff row `primary_date` is the runoff's own election date and `runoff_date` is NULL; on the round-1 row `runoff_date` is the forward link to the runoff. Results reuse `primary_candidates.status` (`'running'` = pending, then `'winner'` / `'loser'` — `'loser'` is a new value, no migration) and `vote_pct`.
+
+Louisiana's closed-primary system runs a **separate runoff per party**, so one race can have two runoff rows (`senate-LA-2026-D-runoff` + `senate-LA-2026-R-runoff`). v1 covers only the LA Senate 2026 race (Cassidy's seat — he was eliminated in the May 16 primary; R runoff Letlow vs Fleming, D runoff Davis vs Crockett, both June 27).
+
+Query helpers: `getUpcomingPrimaries` / `getPastPrimaries` filter `election_round = 'primary'` so `/primaries` and `/races` stay primary-only; `getRunoffsForRace(raceId)` returns the runoff rows for a race (the `/race/[id]` page consumer). `getPrimaryForRace` is unaffected — it does an exact-id lookup and runoff ids are distinct. The primaries query helpers are uncached plain `db.execute`, so there is no cache tag to extend.
+
+**Seed → scraper transition.** v1 ingestion is a **hand-curated seed** — `data/runoff-seeds/la-senate-2026.json`, loaded by `npm run seed:runoffs`. This is deliberate: the June 27 runoff has no results yet, and Ballotpedia had not built the Democratic runoff page at seed time (the Republican runoff votebox/sub-page exist; the Democratic one 404s). When a real Ballotpedia runoff scraper lands — a post-June-27 handoff, once results exist and both pages are built — it should **overwrite or retire the seed JSON**, not run alongside it. The Ballotpedia runoff votebox carries `race_header {party}` + an h5 reading `"… primary runoff …"`; note `parseCandidatesPage` currently *drops* `/runoff/`-headed voteboxes, so a runoff scraper needs that gate bypassed for runoff mode.
 
 ## Environment variables
 
