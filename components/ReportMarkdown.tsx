@@ -1,5 +1,30 @@
+import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { getCurrentCongress } from "@/lib/congress";
+
+// Bill IDs in report prose and lists are emitted by formatBillId — uppercase
+// type, single space, number ("HR 2702", "HJRES 140", "S 4465"). HO 113 turns
+// them into links to /bill/[id]. Match the 8 bill types longest-first so HRES
+// wins over HR and the *CONRES/*JRES forms win over a bare S; require a word
+// boundary before the type and reject a preceding `[` so an ID the LLM may
+// have already linked is not double-wrapped; `(?!\d)` ends the number cleanly
+// while leaving a trailing possessive/plural ("HR 2702's") outside the link.
+const BILL_ID_RE =
+  /(?<!\[)\b(HCONRES|HJRES|HRES|HR|SCONRES|SJRES|SRES|S) (\d{1,5})(?!\d)/g;
+
+// Rewrites bare bill IDs into markdown links. The corpus is current-Congress-
+// only, so getCurrentCongress() supplies the id prefix. The lowercased type is
+// already the bills.id billType segment (hr/s/hjres/...). The historical
+// reports render through this same component, so they get linking for free.
+function linkifyBillIds(md: string): string {
+  const congress = getCurrentCongress();
+  return md.replace(
+    BILL_ID_RE,
+    (full, type: string, num: string) =>
+      `[${full}](/bill/${congress}-${type.toLowerCase()}-${num})`,
+  );
+}
 
 // Renders a report's Markdown body with terminal-aesthetic overrides.
 // Server component — react-markdown renders fine without client JS.
@@ -48,6 +73,18 @@ export function ReportMarkdown({ content }: { content: string }) {
             {children}
           </li>
         ),
+        // Bill-ID links (HO 113). Amber at rest, brighter on hover, no
+        // underline — matches the link treatment on /bill/[id] and the feed,
+        // so 40+ links in a dense report don't read as a wall of underlines.
+        a: ({ href, children }) => (
+          <Link
+            href={href ?? "#"}
+            className="transition hover:text-[var(--accent-amber-bright)]"
+            style={{ color: "var(--accent-amber)" }}
+          >
+            {children}
+          </Link>
+        ),
         code: ({ children }) => (
           <code style={{ color: "var(--accent-amber)" }}>{children}</code>
         ),
@@ -87,7 +124,7 @@ export function ReportMarkdown({ content }: { content: string }) {
         ),
       }}
     >
-      {content}
+      {linkifyBillIds(content)}
     </Markdown>
   );
 }
