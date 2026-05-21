@@ -3,12 +3,14 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { RaceCandidates } from "@/components/RaceCandidates";
 import { RaceHeader } from "@/components/RaceHeader";
 import { RaceIncumbentCard } from "@/components/RaceIncumbentCard";
+import { RaceRunoffs } from "@/components/RaceRunoffs";
 import { formatDateLong } from "@/lib/format";
 import {
   getMember,
   getRace,
   getRaceCandidates,
   getRaceRatings,
+  getRunoffsForRace,
 } from "@/lib/queries";
 
 // Reads the DB by params; opt out of static prerender (same as the
@@ -80,16 +82,21 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings] = await Promise.all([
+  const [candidates, incumbent, ratings, runoffs] = await Promise.all([
     getRaceCandidates(race.id),
     race.incumbent_bioguide_id
       ? getMember(race.incumbent_bioguide_id)
       : Promise.resolve(null),
     getRaceRatings(race.id),
+    getRunoffsForRace(race.id),
   ]);
 
   const rating = ratingMeta(race.rating);
-  const isStub = !race.rating && candidates.length === 0;
+  // A race that went to runoff is never a "stub" — runoffs.length guards the
+  // "Incumbent running for re-election" placeholder, which would contradict
+  // the runoff section (HO 107).
+  const isStub =
+    !race.rating && candidates.length === 0 && runoffs.length === 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -159,6 +166,8 @@ export default async function RacePage({
             <RaceIncumbentCard member={incumbent} race={race} />
           </div>
         </section>
+
+        <RaceRunoffs runoffs={runoffs} />
 
         {isStub ? (
           <p
