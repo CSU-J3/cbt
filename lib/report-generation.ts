@@ -9,7 +9,10 @@ const NON_CEREMONIAL = "(is_ceremonial = 0 OR is_ceremonial IS NULL)";
 
 const TITLE_TRUNCATE = 80;
 const STAGE_MOVEMENT_LIMIT = 10;
-const DEAD_TOPIC_LIMIT = 10;
+// HO 110: "Newly stalled" trimmed from a 10-topic ID-wall to the top 3 topics
+// by stall volume, max 3 bill IDs each (<=9 IDs total). Stalls earn a place
+// in the report but not the bulk they had.
+const DEAD_TOPIC_LIMIT = 3;
 const DEAD_BILLS_PER_TOPIC = 3;
 // Matches /stale page threshold — consistency matters more than count optics.
 const DEAD_STALE_DAYS = 60;
@@ -149,10 +152,18 @@ type MostTalkedAbout = {
 type ReportData = {
   transitionsCount: number;
   stageMovements: StageMovement[];
+  // Earliest date(stage_changed_at) in the corpus, or null if nothing has
+  // ever been tracked. stage_changed_at is never backfilled, so a report
+  // whose week ends before this date legitimately predates tracking — the
+  // zero-movements copy says so rather than implying Congress was idle.
+  stageTrackingStart: string | null;
   enactmentsCount: number;
   enactments: Enactment[];
   introductionsCount: number;
   deadByTopic: DeadTopic[];
+  // Distinct bills that crossed the staleness threshold this week (deadByTopic
+  // fans one bill across every topic it carries, so its counts over-count).
+  deadBillCount: number;
   notableIntros: NotableIntro[];
   topicIntroductions: TopicIntroduction[];
   mostTalkedAbout: MostTalkedAbout[];
@@ -183,6 +194,15 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
       sponsorParty: (r.sponsor_party as string | null) ?? null,
       sponsorState: (r.sponsor_state as string | null) ?? null,
     }));
+
+  // 1b. Earliest tracked stage transition in the corpus. Lets assembleMarkdown
+  // tell "this week predates stage tracking" apart from "this week was quiet".
+  const trackRs = await db.execute(
+    `SELECT MIN(date(stage_changed_at)) AS first
+     FROM bills WHERE stage_changed_at IS NOT NULL`,
+  );
+  const stageTrackingStart =
+    (trackRs.rows[0]?.first as string | null) ?? null;
 
   // 2. Enactments within the week — full list, no limit.
   const enactRs = await db.execute({
@@ -226,6 +246,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     args: [week.start, week.end],
   });
   const deadMap = new Map<string, string[]>();
+  const deadBills = new Set<string>();
   for (const r of deadRs.rows) {
     const topic = r.topic as string;
     if (!ALLOWED_TOPICS_SET.has(topic)) continue;
@@ -233,6 +254,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
       r.bill_type as string,
       r.bill_number as number,
     );
+    deadBills.add(billId);
     const list = deadMap.get(topic) ?? [];
     list.push(billId);
     deadMap.set(topic, list);
@@ -323,10 +345,12 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   return {
     transitionsCount: transRs.rows.length,
     stageMovements,
+    stageTrackingStart,
     enactmentsCount: enactments.length,
     enactments,
     introductionsCount: Number(introRs.rows[0]?.n ?? 0),
     deadByTopic,
+    deadBillCount: deadBills.size,
     notableIntros,
     topicIntroductions,
     mostTalkedAbout,
@@ -345,7 +369,7 @@ LEAD:
 <2-3 sentences, max 60 words>
 
 STAGE_COMMENTARY:
-<2-3 sentences about the stage movements>
+<2-3 sentences about the stage movements; output exactly "_No stage movements this week._" if the stage transition count is zero>
 
 ENACTMENTS_COMMENTARY:
 <1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>
@@ -373,8 +397,11 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
           .map((e) => e.billId)
           .join(", ")
       : "(none)";
+  // topicLabel() here, not the raw enum — buildUserPrompt feeds the LLM, and
+  // the LLM copies what it sees. A raw `government_operations` leaked into the
+  // 2026-05-04 report's lead this way (HO 110).
   const topTopic = d.topicIntroductions[0]
-    ? `${d.topicIntroductions[0].topic} (${d.topicIntroductions[0].count} introductions)`
+    ? `${topicLabel(d.topicIntroductions[0].topic)} (${d.topicIntroductions[0].count} introductions)`
     : "(none)";
 
   const mostTalkedLines =
@@ -453,8 +480,16 @@ function parseReportResponse(text: string): ReportCommentary | null {
 
 // ---- markdown assembly -------------------------------------------------
 
+// Section order (HO 110) answers "WTF is going on in Congress?" strongest
+// signal first: lead synthesis, then news, what advanced, what became law,
+// what notable bills were filed, the topic rollup, and stalls (anti-news)
+// last. The handoff sketched a "New introductions count" trailing section —
+// no such section exists (the count lives in the lead), and "Notable
+// introductions" it omitted does exist, so the realized order keeps all six
+// real sections rather than inventing/dropping any.
 function assembleMarkdown(
   title: string,
+  week: WeekRange,
   d: ReportData,
   c: ReportCommentary,
 ): string {
@@ -462,10 +497,33 @@ function assembleMarkdown(
   lines.push(`# ${title}`, "");
   lines.push(c.lead, "");
 
-  // Stage movements
+  // Most talked about — news signal leads the body. When news_mentions is
+  // empty for the week, emit the canonical fallback verbatim (the LLM
+  // occasionally drops the underscores from the literal template, breaking
+  // the italic styling); otherwise trust the LLM commentary.
+  lines.push("## Most talked about", "");
+  if (d.mostTalkedAbout.length > 0) {
+    lines.push(c.mostTalkedCommentary, "");
+    for (const m of d.mostTalkedAbout) {
+      const sponsor = m.sponsorName ? ` — ${m.sponsorName}` : "";
+      lines.push(
+        `- ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}) — ${truncate(m.title, TITLE_TRUNCATE)}${sponsor}`,
+      );
+    }
+    lines.push("");
+  } else {
+    lines.push("_No news mentions tracked for this week._", "");
+  }
+
+  // Stage movements. The zero case is split (HO 110): a week that predates
+  // stage tracking is not a quiet week. stage_changed_at is never backfilled,
+  // so a report whose week ends before the first tracked transition has no
+  // data — say so rather than implying Congress was idle. When there are
+  // movements, the LLM commentary leads; when zero, assembly owns the copy
+  // (c.stageCommentary is ignored, same as the enactments zero case).
   lines.push(`## Stage movements (${d.transitionsCount})`, "");
-  lines.push(c.stageCommentary, "");
   if (d.stageMovements.length > 0) {
+    lines.push(c.stageCommentary, "");
     for (const m of d.stageMovements) {
       lines.push(
         `- ${m.billId} — ${stageGlyph(m.prevStage)} → ${stageGlyph(
@@ -474,13 +532,19 @@ function assembleMarkdown(
       );
     }
     lines.push("");
+  } else if (d.stageTrackingStart === null || week.end < d.stageTrackingStart) {
+    lines.push(
+      d.stageTrackingStart
+        ? `_Stage transition tracking began ${d.stageTrackingStart}. This report covers an earlier week, so no movements were recorded._`
+        : "_Stage transition tracking was not yet active for this week._",
+      "",
+    );
   } else {
     lines.push("_No stage movements this week._", "");
   }
 
   // Enactments — trust the LLM commentary when bills became law; emit the
-  // canonical fallback verbatim otherwise (same italic-preservation reason
-  // as the "Most talked about" section below).
+  // canonical fallback verbatim otherwise.
   lines.push(`## Enactments (${d.enactmentsCount})`, "");
   if (d.enactments.length > 0) {
     lines.push(c.enactmentsCommentary, "");
@@ -490,29 +554,6 @@ function assembleMarkdown(
     lines.push("");
   } else {
     lines.push("_No bills became law this week._", "");
-  }
-
-  // Newly stalled (heading rename per handoff 85: "Dead in committee" was
-  // ambiguous — the section is about bills that NEWLY crossed the staleness
-  // threshold during the report week, not a corpus snapshot). Counts can
-  // look large because the topics JSON fans a single bill across every
-  // topic it carries; that's intended (a banking-and-consumer-protection
-  // bill stalling reads as a signal for both topics) but warrants a
-  // one-line note so a reader knows the count isn't unique-bill.
-  lines.push("## Newly stalled", "");
-  lines.push(
-    `Bills whose ${DEAD_STALE_DAYS}-day inactivity threshold crossed during this week, grouped by topic. A bill with multiple topics appears in each.`,
-    "",
-  );
-  if (d.deadByTopic.length > 0) {
-    for (const t of d.deadByTopic) {
-      lines.push(
-        `- **${topicLabel(t.topic)}** (${t.count}): ${t.billIds.join(", ")}`,
-      );
-    }
-    lines.push("");
-  } else {
-    lines.push("_No bills crossed the staleness threshold this week._", "");
   }
 
   // Notable introductions
@@ -532,7 +573,7 @@ function assembleMarkdown(
 
   // Topic breakdown — purely data-driven (no LLM commentary). Counts come
   // from introduced_date in the week, not stage transitions, so the section
-  // can't contradict the introductions count in the intro.
+  // can't contradict the introductions count in the lead.
   lines.push("## Topic breakdown", "");
   lines.push("What got introduced this week, by topic.", "");
   if (d.topicIntroductions.length > 0) {
@@ -544,24 +585,24 @@ function assembleMarkdown(
     lines.push("_No bills introduced this week._", "");
   }
 
-  // Most talked about — top bills by tracked news mentions this week.
-  // When news_mentions is empty for the week, emit the canonical fallback
-  // verbatim (the LLM occasionally drops the underscores from the literal
-  // template, breaking the italic styling). When data exists, trust the
-  // LLM commentary and render the bill list under it the same way
-  // enactments does.
-  lines.push("## Most talked about", "");
-  if (d.mostTalkedAbout.length > 0) {
-    lines.push(c.mostTalkedCommentary, "");
-    for (const m of d.mostTalkedAbout) {
-      const sponsor = m.sponsorName ? ` — ${m.sponsorName}` : "";
+  // Newly stalled — last: anti-news, lowest signal. Trimmed (HO 110) from a
+  // 10-topic ID-wall to the top 3 topics; the lead line carries the distinct-
+  // bill aggregate so the section keeps its shape without the bulk. The
+  // per-topic (count) is the full topic total; only the bill IDs are capped.
+  lines.push("## Newly stalled", "");
+  if (d.deadByTopic.length > 0) {
+    lines.push(
+      `${d.deadBillCount} bill${d.deadBillCount === 1 ? "" : "s"} crossed the ${DEAD_STALE_DAYS}-day inactivity threshold this week. Top topics by stall volume (a bill with multiple topics counts under each):`,
+      "",
+    );
+    for (const t of d.deadByTopic) {
       lines.push(
-        `- ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}) — ${truncate(m.title, TITLE_TRUNCATE)}${sponsor}`,
+        `- **${topicLabel(t.topic)}** (${t.count}): ${t.billIds.join(", ")}`,
       );
     }
     lines.push("");
   } else {
-    lines.push("_No news mentions tracked for this week._", "");
+    lines.push("_No bills crossed the staleness threshold this week._", "");
   }
 
   return lines.join("\n");
@@ -579,6 +620,17 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
 }> {
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!geminiKey) throw new Error("GEMINI_API_KEY is not set");
+
+  // Incomplete-week guard (HO 110). A report for a week that hasn't ended is
+  // near-empty and misleading (the 2026-05-18 backfill row is the artifact).
+  // Refuse; the cron treats a thrown error as non-fatal and retries next tick
+  // once the week has closed.
+  const today = isoDate(new Date());
+  if (week.end > today) {
+    throw new Error(
+      `Refusing to generate report for incomplete week ${week.start}..${week.end}: week_end is in the future (today is ${today}). Retry once the week closes.`,
+    );
+  }
 
   const data = await gatherReportData(week);
   const client = new GoogleGenAI({ apiKey: geminiKey });
@@ -606,7 +658,7 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
   return {
     slug: week.start,
     title,
-    content_md: assembleMarkdown(title, data, commentary),
+    content_md: assembleMarkdown(title, week, data, commentary),
   };
 }
 
