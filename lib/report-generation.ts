@@ -112,6 +112,27 @@ function stageGlyph(stage: string | null): string {
   return `${prefix} ${label}`;
 }
 
+// Legislative-progression order. Drives stage-transition direction so the
+// prompt can tell the LLM a floor→committee move is a setback, not progress
+// (HO 112) — the LLM otherwise narrates every transition as forward.
+const STAGE_RANK: Record<string, number> = {
+  introduced: 0,
+  committee: 1,
+  floor: 2,
+  other_chamber: 3,
+  president: 4,
+  enacted: 5,
+};
+
+function stageDirection(prev: string | null, next: string | null): string {
+  const p = prev ? STAGE_RANK[prev] : undefined;
+  const n = next ? STAGE_RANK[next] : undefined;
+  if (p === undefined || n === undefined) return "other";
+  if (n > p) return "forward";
+  if (n < p) return "backward";
+  return "other";
+}
+
 function topicLabel(topic: string): string {
   const spaced = topic.replace(/_/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
@@ -176,6 +197,10 @@ type ReportData = {
   enactmentsCount: number;
   enactments: Enactment[];
   introductionsCount: number;
+  // Prior week's non-ceremonial introduction count — the LLM uses the delta
+  // as synthesis raw material for the LEAD (HO 112). 0 for the earliest
+  // reports, whose prior week predates the corpus.
+  priorIntroductionsCount: number;
   deadByTopic: DeadTopic[];
   // Distinct bills that crossed the staleness threshold this week (deadByTopic
   // fans one bill across every topic it carries, so its counts over-count).
@@ -234,12 +259,20 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     title: r.title as string,
   }));
 
-  // 3. New introductions count.
+  // 3. New introductions count — this week and the week before, so the LEAD
+  // can synthesize a trend ("introductions rose/fell") rather than recite a
+  // bare number (HO 112).
   const introRs = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM bills
           WHERE introduced_date BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}`,
     args: [week.start, week.end],
+  });
+  const priorIntroRs = await db.execute({
+    sql: `SELECT COUNT(*) AS n FROM bills
+          WHERE introduced_date BETWEEN ? AND ?
+            AND ${NON_CEREMONIAL}`,
+    args: [addDays(week.start, -7), addDays(week.start, -1)],
   });
 
   // 4. Dead in committee — bills whose staleness threshold was crossed
@@ -392,6 +425,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     enactmentsCount: enactments.length,
     enactments,
     introductionsCount: Number(introRs.rows[0]?.n ?? 0),
+    priorIntroductionsCount: Number(priorIntroRs.rows[0]?.n ?? 0),
     deadByTopic,
     deadBillCount: deadBills.size,
     notableIntros,
@@ -402,25 +436,41 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
 
 // ---- LLM prompt --------------------------------------------------------
 
-const SYSTEM_PROMPT = `You are writing the weekly Congress report for a personal tracking dashboard.
+const SYSTEM_PROMPT = `You are writing the weekly Congress report for a personal tracking dashboard. The reader opens this Monday morning wanting one thing: a sense-making answer to "what actually happened in Congress last week?" — not a list of numbers, an answer.
 
-Generate prose for the following sections based on the data provided. Each section's prose must reference specific bill IDs (e.g. "HR 2702") and use exact numbers from the data. Avoid generic openers ("This week, Congress..."), avoid marketing titles for bills, avoid editorial framing. Plain numbers, plain language, terminal voice.
+Voice: terminal, plain, direct. Short sentences. No editorializing, no marketing titles for bills, no newsletter throat-clearing.
+
+THE LEAD is the most important section. It must SYNTHESIZE, not recite. A lead that just lists counts has failed.
+- Wrong — these are real rejected leads, never write in this register:
+  "This week, 216 new bills were introduced. Government operations was the most active topic."
+  "Congress introduced 100 new bills this week."
+  "This week recorded 38 total stage transitions."
+- Right — name the throughline. What was the week ABOUT? Lead with the specific: a named bill that moved, a topic surge, a notable enactment. Let numbers support the point, never open with one. If three appropriations bills became law, that is the lead. If the week was diffuse, say so and name the one or two things that stood out — by bill ID.
+
+RULES for every section's prose:
+- A bulleted list follows the prose in most sections. The prose introduces the SIGNIFICANCE of the section; it does NOT re-name the items the list is about to show. Never write "Three bills became law: S 4465, HR 7147, and HJRES 140" above a list of those three — write what they do or why they matter.
+- Never invent counts. You are not told how many items the list holds. Do not write "five transitions" or "all of the top three" — a wrong number is worse than none. Write "the leading transitions" or name specific bills. Cite a number only when the data states it explicitly.
+- Reference specific bill IDs (e.g. "HR 2702").
+- Banned — never write these, their inflections, or anything in their register: "noteworthy" / "notable" / "notably", "significant" / "significantly", "of particular interest", "stood out", "marked a", "this week saw" / "Congress saw" (do not open a sentence by personifying Congress or the week as a thing that "saw" activity — state the activity directly), "delve", "underscore", "leverage", "pivotal", "crucial", "critical" (as a value judgment — "critical infrastructure" as a bill's actual subject is fine), "tapestry", "testament to", "it's worth noting". Describe what happened; do not rate its importance with an adjective or adverb.
 
 Output in this exact format:
 
 LEAD:
-<2-3 sentences, max 60 words>
+<2-3 sentences, max 60 words. Synthesis, per the rule above.>
 
 STAGE_COMMENTARY:
-<2-3 sentences about the stage movements; output exactly "_No stage movements this week._" if the stage transition count is zero>
+<2-3 sentences on what advanced. Each transition carries a direction (forward / backward / other) — narrate a backward move honestly: a bill returning to committee from the floor is a setback, not progress. Output exactly "_No stage movements this week._" if the transition count is zero.>
 
 ENACTMENTS_COMMENTARY:
-<1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>
+<1-2 sentences on what the new laws DO — not which IDs they are; the list shows IDs. Output exactly "_No bills became law this week._" if the enactments count is zero.>
 
 MOST_TALKED_COMMENTARY:
-<2-3 sentences on what got media coverage and why it might matter; reference specific bill IDs from the data; each bill carries a confidence label ('high' or 'medium') — treat it only as a signal for how strongly to assert, and never repeat the label in the prose; output exactly "_No news mentions tracked for this week._" if the news mention count is zero>`;
+<2-3 sentences on what drew news coverage and why it might matter; reference specific bill IDs. Each bill carries a confidence label: for 'high', use assertive verbs ("drew coverage in", "was cited by", "received attention from"); for 'medium', hedge ("appeared in", "was mentioned by"). Never write the label itself. Output exactly "_No news mentions tracked for this week._" if the news mention count is zero.>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
+  // Each transition carries a derived direction so the LLM can narrate
+  // backward moves honestly (HO 112). "Leading" — not "top 5" — so the LLM
+  // does not anchor on a count it cannot verify against the rendered list.
   const transitionLines =
     d.stageMovements.length > 0
       ? d.stageMovements
@@ -429,23 +479,33 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
             (t) =>
               `  - ${t.billId}: ${truncate(t.title, 70)} (${stageGlyph(
                 t.prevStage,
-              )} → ${stageGlyph(t.newStage)})`,
+              )} → ${stageGlyph(t.newStage)}, direction: ${stageDirection(
+                t.prevStage,
+                t.newStage,
+              )})`,
           )
           .join("\n")
       : "  - (none)";
-  const enactmentIds =
+  // ID + title, so the LLM can write what the new laws DO rather than recite
+  // their IDs (the rendered list already carries the IDs).
+  const enactmentLines =
     d.enactments.length > 0
       ? d.enactments
-          .slice(0, 3)
-          .map((e) => e.billId)
-          .join(", ")
-      : "(none)";
+          .slice(0, 5)
+          .map((e) => `  - ${e.billId}: ${truncate(e.title, 70)}`)
+          .join("\n")
+      : "  - (none)";
   // topicLabel() here, not the raw enum — buildUserPrompt feeds the LLM, and
   // the LLM copies what it sees. A raw `government_operations` leaked into the
-  // 2026-05-04 report's lead this way (HO 110).
-  const topTopic = d.topicIntroductions[0]
-    ? `${topicLabel(d.topicIntroductions[0].topic)} (${d.topicIntroductions[0].count} introductions)`
-    : "(none)";
+  // 2026-05-04 report's lead this way (HO 110). Top 3, not 1, so the LLM can
+  // see whether the week was topic-concentrated or spread.
+  const topTopics =
+    d.topicIntroductions.length > 0
+      ? d.topicIntroductions
+          .slice(0, 3)
+          .map((t) => `${topicLabel(t.topic)} (${t.count})`)
+          .join(", ")
+      : "(none)";
 
   const mostTalkedLines =
     d.mostTalkedAbout.length > 0
@@ -465,14 +525,17 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
           .join("\n")
       : "  - (none — no bills cleared the news-confidence floor this week)";
 
+  const introDelta =
+    d.introductionsCount - d.priorIntroductionsCount >= 0 ? "up" : "down";
+
   return `WEEK DATA (${week.start} to ${week.end}):
-- Total stage transitions: ${d.transitionsCount}
-- Top 5 transitions:
+- New bill introductions: ${d.introductionsCount} (prior week: ${d.priorIntroductionsCount} — ${introDelta})
+- Most active topics by introductions: ${topTopics}
+- Stage transitions this week: ${d.transitionsCount}. Leading transitions:
 ${transitionLines}
-- Enactments: ${d.enactmentsCount} bills, including ${enactmentIds}
-- New introductions: ${d.introductionsCount}
-- Top topic by activity: ${topTopic}
-- Most talked about (by tracked news mentions):
+- Bills enacted into law this week: ${d.enactmentsCount}
+${enactmentLines}
+- Most talked about (tracked news mentions, confidence-filtered):
 ${mostTalkedLines}
 
 Write the report sections:`;
