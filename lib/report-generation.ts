@@ -19,6 +19,17 @@ const DEAD_STALE_DAYS = 60;
 const NOTABLE_LIMIT = 5;
 const TOPIC_BREAKDOWN_LIMIT = 7;
 const MOST_TALKED_LIMIT = 5;
+// HO 111: news-signal confidence gate. Every news_mentions row is
+// matched_via='llm_match'; the matcher emits match_confidence bimodally — a
+// 1.0 "confident" cluster and a 0.5-0.7 "uncertain" cluster, nothing between.
+// 0.7 cleanly separates them, and `match_confidence >= 0.7` also drops the
+// NULL-confidence rows (a confidence-population gap, ~21/47 at audit time —
+// not regex matches) since `NULL >= 0.7` is false in SQL. A bill needs >= 2
+// mentions to count as "talked about" rather than merely "appeared once".
+const NEWS_CONFIDENCE_FLOOR = 0.7;
+const NEWS_MIN_MENTIONS = 2;
+// avg_confidence >= this renders as the 'high' tier in the prompt context.
+const NEWS_HIGH_TIER = 0.9;
 
 export type WeekRange = {
   start: string; // ISO date, Monday
@@ -147,6 +158,11 @@ type MostTalkedAbout = {
   title: string;
   sponsorName: string | null;
   mentionCount: number;
+  // Confidence summary for the prompt context (HO 111). The LLM sees the
+  // tier, never the raw float — a float invites it to recite "0.91".
+  confidenceTier: "high" | "medium";
+  outlets: string[];
+  sampleHeadlines: string[];
 };
 
 type ReportData = {
@@ -319,28 +335,55 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     if (topicIntroductions.length >= TOPIC_BREAKDOWN_LIMIT) break;
   }
 
-  // 7. Most talked about — top bills by news_mentions row count within the
-  // report week. Idempotent and cheap; news_mentions has UNIQUE(bill_id,
-  // article_url) so the count reflects distinct articles, not duplicates.
-  // Empty result is the common case while the regex matcher is undertuned;
-  // the section renders a clean fallback in that case.
+  // 7. Most talked about — top bills by news_mentions within the report week,
+  // confidence-gated (HO 111). The WHERE floor on match_confidence excludes
+  // both the 0.5-0.7 "uncertain" band and NULL-confidence rows; the HAVING
+  // floor drops bills mentioned only once. Ranked loudest-and-most-confident
+  // first: mention count, then average confidence, then recency. news_mentions
+  // has UNIQUE(bill_id, article_url) so a count reflects distinct articles.
   const newsRs = await db.execute({
     sql: `SELECT b.bill_type, b.bill_number, b.title, b.sponsor_name,
-                 COUNT(nm.id) AS mention_count
+                 COUNT(nm.id) AS mention_count,
+                 AVG(nm.match_confidence) AS avg_confidence,
+                 GROUP_CONCAT(DISTINCT nm.source) AS outlets,
+                 GROUP_CONCAT(nm.article_title, '~~') AS headlines,
+                 MAX(nm.published_at) AS latest_mention
           FROM news_mentions nm
           JOIN bills b ON b.id = nm.bill_id
           WHERE date(nm.published_at) BETWEEN ? AND ?
+            AND nm.match_confidence >= ?
           GROUP BY nm.bill_id
-          ORDER BY mention_count DESC, b.bill_type ASC, b.bill_number ASC
+          HAVING COUNT(nm.id) >= ?
+          ORDER BY mention_count DESC, avg_confidence DESC,
+                   latest_mention DESC
           LIMIT ?`,
-    args: [week.start, week.end, MOST_TALKED_LIMIT],
+    args: [
+      week.start,
+      week.end,
+      NEWS_CONFIDENCE_FLOOR,
+      NEWS_MIN_MENTIONS,
+      MOST_TALKED_LIMIT,
+    ],
   });
-  const mostTalkedAbout: MostTalkedAbout[] = newsRs.rows.map((r) => ({
-    billId: formatBillId(r.bill_type as string, r.bill_number as number),
-    title: r.title as string,
-    sponsorName: (r.sponsor_name as string | null) ?? null,
-    mentionCount: Number(r.mention_count ?? 0),
-  }));
+  const mostTalkedAbout: MostTalkedAbout[] = newsRs.rows.map((r) => {
+    const avg = Number(r.avg_confidence ?? 0);
+    const outlets = ((r.outlets as string | null) ?? "")
+      .split(",")
+      .filter(Boolean);
+    const sampleHeadlines = ((r.headlines as string | null) ?? "")
+      .split("~~")
+      .filter(Boolean)
+      .slice(0, 3);
+    return {
+      billId: formatBillId(r.bill_type as string, r.bill_number as number),
+      title: r.title as string,
+      sponsorName: (r.sponsor_name as string | null) ?? null,
+      mentionCount: Number(r.mention_count ?? 0),
+      confidenceTier: avg >= NEWS_HIGH_TIER ? "high" : "medium",
+      outlets,
+      sampleHeadlines,
+    };
+  });
 
   return {
     transitionsCount: transRs.rows.length,
@@ -375,7 +418,7 @@ ENACTMENTS_COMMENTARY:
 <1-2 sentences about the enactments; output exactly "_No bills became law this week._" if the enactments count is zero>
 
 MOST_TALKED_COMMENTARY:
-<2-3 sentences on what got media coverage and why it might matter; reference specific bill IDs from the data; output exactly "_No news mentions tracked for this week._" if the news mention count is zero>`;
+<2-3 sentences on what got media coverage and why it might matter; reference specific bill IDs from the data; each bill carries a confidence label ('high' or 'medium') — treat it only as a signal for how strongly to assert, and never repeat the label in the prose; output exactly "_No news mentions tracked for this week._" if the news mention count is zero>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
   const transitionLines =
@@ -407,12 +450,20 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
   const mostTalkedLines =
     d.mostTalkedAbout.length > 0
       ? d.mostTalkedAbout
-          .map(
-            (m) =>
-              `  - ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}): ${truncate(m.title, 70)}`,
-          )
+          .map((m) => {
+            const outlets =
+              m.outlets.length > 0 ? m.outlets.join(", ") : "unknown";
+            const heads = m.sampleHeadlines
+              .map((h) => `"${truncate(h, 70)}"`)
+              .join("; ");
+            return (
+              `  - ${m.billId} (${m.mentionCount} mention${m.mentionCount === 1 ? "" : "s"}, ` +
+              `confidence ${m.confidenceTier}, outlets: ${outlets}): ${truncate(m.title, 70)}\n` +
+              `      headlines: ${heads}`
+            );
+          })
           .join("\n")
-      : "  - (none — news_mentions had no matches for this week)";
+      : "  - (none — no bills cleared the news-confidence floor this week)";
 
   return `WEEK DATA (${week.start} to ${week.end}):
 - Total stage transitions: ${d.transitionsCount}

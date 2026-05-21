@@ -556,6 +556,7 @@ Weekly reports — one Markdown blob per calendar week, rendered at `/reports/[s
 - Failure mode: cron logs a warning and writes no row; the sync's other steps still complete. Manual recovery: `npm run report` (prior week) or `npm run report YYYY-MM-DD` (specific week start). `scripts/generate-report.ts` prints the assembled Markdown before writing — useful for iterating on the prompt.
 - Notable introductions ranks by `cosponsor_count DESC NULLS LAST`, tiebroken by `COALESCE(text_length, 0) DESC` then `id DESC`. The pre-filter `(text_length IS NULL OR text_length > 5000)` excludes short resolutions and one-pagers that slip past the ceremonial+cluster gates while keeping NULL rows visible during backfill. CRA-disapproval is included as substantive; other clusters are filtered out. (The handoff-58 `LENGTH(summary)` proxy was retired in handoff 59.)
 - Markdown rendered on `/reports/[slug]` via `react-markdown` + `remark-gfm` (needed for the topic-breakdown table) with terminal-aesthetic component overrides in `components/ReportMarkdown.tsx`.
+- "Most talked about" is confidence-gated (HO 111): the `mostTalkedAbout` query keeps only `news_mentions` rows with `match_confidence >= 0.7` (which also excludes NULL-confidence rows — SQL three-valued logic), and only bills with `>= 2` such mentions. Ranked by mention count → avg confidence → recency. The prompt context gets a bucketed `confidence_tier` (`high` >= 0.9, else `medium`) plus outlets and sample headlines — never the raw float.
 
 ## Frontend design system
 
