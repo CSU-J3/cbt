@@ -18,6 +18,7 @@
 // Follow-up: if those queries gain unstable_cache wrappers, add the matching
 // revalidateTag call here.
 import { NextResponse } from "next/server";
+import { startCronRun, finishCronRun } from "@/lib/cron-log";
 import { runPrimariesCronTick } from "@/lib/primaries-sync";
 
 export const dynamic = "force-dynamic";
@@ -42,16 +43,19 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
+  // Durable cron logging (handoff 105). startCronRun after auth; the catch
+  // records the failure to cron_runs and still returns the explicit 500 JSON
+  // this route returned before.
+  const runId = await startCronRun("/api/cron/primaries");
   const t0 = Date.now();
   let result: Awaited<ReturnType<typeof runPrimariesCronTick>>;
   try {
     result = await runPrimariesCronTick();
   } catch (err) {
     console.error("[cron-primaries] failed:", err);
-    return NextResponse.json(
-      { ok: false, error: (err as Error).message },
-      { status: 500 },
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    await finishCronRun(runId, "error", null, message);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
   const elapsedMs = Date.now() - t0;
 
@@ -63,7 +67,9 @@ async function handle(request: Request) {
       `elapsedMs=${elapsedMs}`,
   );
 
-  return NextResponse.json({ ok: true, elapsedMs, ...result });
+  const responseBody = { ok: true, elapsedMs, ...result };
+  await finishCronRun(runId, "success", responseBody);
+  return NextResponse.json(responseBody);
 }
 
 export async function POST(request: Request) {

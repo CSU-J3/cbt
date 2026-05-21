@@ -1,5 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { startCronRun, finishCronRun } from "@/lib/cron-log";
 import {
   generateDashboardLead,
   writeDashboardLead,
@@ -42,112 +43,126 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  const sync = await runSync();
-  // Invalidate after sync writes new bill rows, even if the summarize step
-  // below later runs long and the 60s function ceiling kills us. Without
-  // this, a timeout would leave stale caches for up to an hour.
-  revalidateTag("bills");
-
-  let summarize: Awaited<ReturnType<typeof runSummarize>> | null = null;
+  // Durable cron logging (handoff 105). startCronRun runs after the auth
+  // check so unauthorized probes never reach cron_runs. The whole sync body
+  // is wrapped: only runSync() throws out of here (the summarize/news/trades/
+  // report steps below are deliberately non-fatal and swallow their own
+  // errors — their failure shows up as a null in the persisted payload).
+  const runId = await startCronRun("/api/sync");
   try {
-    summarize = await runSummarize({ limit: 12 });
+    const sync = await runSync();
+    // Invalidate after sync writes new bill rows, even if the summarize step
+    // below later runs long and the 60s function ceiling kills us. Without
+    // this, a timeout would leave stale caches for up to an hour.
     revalidateTag("bills");
-  } catch (err) {
-    console.error("[sync] summarize step failed:", err);
-  }
 
-  // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
-  // if Gemini errors or rate-limits, the prior lead stays in the DB and the
-  // dashboard keeps rendering it. revalidateTag flushes the cached lead.
-  try {
-    const lead = await generateDashboardLead();
-    await writeDashboardLead(lead);
-    revalidateTag("bills");
-  } catch (err) {
-    console.warn("[sync] lead generation failed; keeping prior lead", err);
-  }
-
-  // News ingestion (handoff 64). Pulls 3 RSS feeds, regex-matches bill ids,
-  // writes to news_mentions. Best-effort: per-source errors get logged but
-  // never fail the cron — sync + summarize already wrote their data and
-  // news is purely an enrichment surface. UI consumption lands in 66/67.
-  try {
-    const newsResults = await ingestNews();
-    const totalInserted = newsResults.reduce(
-      (s, r) => s + r.mentionsInserted,
-      0,
-    );
-    const totalErrors = newsResults.flatMap((r) => r.errors);
-    console.log(
-      `[sync] news: ${totalInserted} mentions inserted across ${newsResults.length} sources`,
-    );
-    for (const r of newsResults) {
-      console.log(
-        `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} llm_errors=${r.llmErrors}`,
-      );
-    }
-    if (totalErrors.length > 0) {
-      for (const e of totalErrors) console.warn(`[sync] news error: ${e}`);
-    }
-    // Flush the breaking-news query cache so /news and the home banner see
-    // fresh mentions without waiting on the 600s backstop revalidate.
-    revalidateTag("news-breaking");
-  } catch (err) {
-    console.warn("[sync] news ingestion failed; skipping", err);
-  }
-
-  // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
-  // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
-  // endpoint logs and skips, never crashes the cron. Capped at 3 pages
-  // per chamber on the cron path — cron is incremental, the 20-page
-  // backfill is reserved for `npm run sync:trades`.
-  try {
-    const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
-    for (const r of tradeResults) {
-      console.log(
-        `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size}`,
-      );
-      for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
-    }
-    revalidateTag("member-trades");
-  } catch (err) {
-    console.warn("[sync] trades ingestion failed; skipping", err);
-  }
-
-  // Weekly report — generated on Monday for the prior calendar week. The
-  // Monday check is UTC because the cron runs at 09:00 UTC. Non-fatal: on
-  // failure no row is written, the cron's other steps still complete, and
-  // manual recovery is `npm run report`.
-  const now = new Date();
-  if (now.getUTCDay() === 1) {
+    let summarize: Awaited<ReturnType<typeof runSummarize>> | null = null;
     try {
-      const week = getPriorWeek(now);
-      const report = await generateWeeklyReport(week);
-      await writeReport({
-        slug: report.slug,
-        weekStart: week.start,
-        weekEnd: week.end,
-        title: report.title,
-        contentMd: report.content_md,
-      });
-      revalidateTag("reports");
+      summarize = await runSummarize({ limit: 12 });
+      revalidateTag("bills");
     } catch (err) {
-      console.warn("[cron] report generation failed; skipping", err);
+      console.error("[sync] summarize step failed:", err);
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    sync,
-    summarize: summarize
-      ? {
-          ok: summarize.ok,
-          failed: summarize.failed,
-          promptTokens: summarize.promptTokens,
-          outputTokens: summarize.outputTokens,
-        }
-      : null,
-  });
+    // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
+    // if Gemini errors or rate-limits, the prior lead stays in the DB and the
+    // dashboard keeps rendering it. revalidateTag flushes the cached lead.
+    try {
+      const lead = await generateDashboardLead();
+      await writeDashboardLead(lead);
+      revalidateTag("bills");
+    } catch (err) {
+      console.warn("[sync] lead generation failed; keeping prior lead", err);
+    }
+
+    // News ingestion (handoff 64). Pulls 3 RSS feeds, regex-matches bill ids,
+    // writes to news_mentions. Best-effort: per-source errors get logged but
+    // never fail the cron — sync + summarize already wrote their data and
+    // news is purely an enrichment surface. UI consumption lands in 66/67.
+    try {
+      const newsResults = await ingestNews();
+      const totalInserted = newsResults.reduce(
+        (s, r) => s + r.mentionsInserted,
+        0,
+      );
+      const totalErrors = newsResults.flatMap((r) => r.errors);
+      console.log(
+        `[sync] news: ${totalInserted} mentions inserted across ${newsResults.length} sources`,
+      );
+      for (const r of newsResults) {
+        console.log(
+          `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} llm_errors=${r.llmErrors}`,
+        );
+      }
+      if (totalErrors.length > 0) {
+        for (const e of totalErrors) console.warn(`[sync] news error: ${e}`);
+      }
+      // Flush the breaking-news query cache so /news and the home banner see
+      // fresh mentions without waiting on the 600s backstop revalidate.
+      revalidateTag("news-breaking");
+    } catch (err) {
+      console.warn("[sync] news ingestion failed; skipping", err);
+    }
+
+    // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
+    // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
+    // endpoint logs and skips, never crashes the cron. Capped at 3 pages
+    // per chamber on the cron path — cron is incremental, the 20-page
+    // backfill is reserved for `npm run sync:trades`.
+    try {
+      const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
+      for (const r of tradeResults) {
+        console.log(
+          `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size}`,
+        );
+        for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
+      }
+      revalidateTag("member-trades");
+    } catch (err) {
+      console.warn("[sync] trades ingestion failed; skipping", err);
+    }
+
+    // Weekly report — generated on Monday for the prior calendar week. The
+    // Monday check is UTC because the cron runs at 09:00 UTC. Non-fatal: on
+    // failure no row is written, the cron's other steps still complete, and
+    // manual recovery is `npm run report`.
+    const now = new Date();
+    if (now.getUTCDay() === 1) {
+      try {
+        const week = getPriorWeek(now);
+        const report = await generateWeeklyReport(week);
+        await writeReport({
+          slug: report.slug,
+          weekStart: week.start,
+          weekEnd: week.end,
+          title: report.title,
+          contentMd: report.content_md,
+        });
+        revalidateTag("reports");
+      } catch (err) {
+        console.warn("[cron] report generation failed; skipping", err);
+      }
+    }
+
+    const responseBody = {
+      ok: true,
+      sync,
+      summarize: summarize
+        ? {
+            ok: summarize.ok,
+            failed: summarize.failed,
+            promptTokens: summarize.promptTokens,
+            outputTokens: summarize.outputTokens,
+          }
+        : null,
+    };
+    await finishCronRun(runId, "success", responseBody);
+    return NextResponse.json(responseBody);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await finishCronRun(runId, "error", null, message);
+    throw err; // let Next.js return the 500 as before
+  }
 }
 
 export async function POST(request: Request) {

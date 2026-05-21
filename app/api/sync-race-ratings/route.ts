@@ -8,6 +8,7 @@
 // the /races page picks up rating moves without waiting on the backstop.
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { startCronRun, finishCronRun } from "@/lib/cron-log";
 import { runRaceRatingsSync } from "@/lib/race-ratings-sync";
 
 export const dynamic = "force-dynamic";
@@ -32,21 +33,24 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  let stats: Awaited<ReturnType<typeof runRaceRatingsSync>> | null = null;
+  // Durable cron logging (handoff 105). startCronRun after auth; the catch
+  // records the failure to cron_runs and still returns the explicit 500 JSON
+  // this route returned before.
+  const runId = await startCronRun("/api/sync-race-ratings");
   try {
-    stats = await runRaceRatingsSync();
+    const stats = await runRaceRatingsSync();
     // race-ratings tag is separate from races/bills — the rating seed and
     // now this scrape refresh on their own cadence.
     revalidateTag("race-ratings");
+    const responseBody = { ok: true, stats };
+    await finishCronRun(runId, "success", responseBody);
+    return NextResponse.json(responseBody);
   } catch (err) {
     console.error("[sync-race-ratings] failed:", err);
-    return NextResponse.json(
-      { ok: false, error: (err as Error).message },
-      { status: 500 },
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    await finishCronRun(runId, "error", null, message);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true, stats });
 }
 
 export async function POST(request: Request) {

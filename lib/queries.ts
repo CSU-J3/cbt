@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
+import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import {
@@ -2664,3 +2665,90 @@ export const getMemberVoteStats = unstable_cache(
   ["getMemberVoteStats"],
   { revalidate: 3600, tags: ["votes"] },
 );
+
+// ---------------------------------------------------------------------------
+// Cron runs (handoff 105)
+//
+// Durable record of every cron tick — see lib/cron-log.ts. Intentionally NOT
+// unstable_cache-wrapped: the whole point is reading fresh run state, and a
+// cached layer would defeat that. Reads are infrequent (manual inspection /
+// a future admin surface), so the un-cached cost is irrelevant.
+// ---------------------------------------------------------------------------
+
+export interface CronRun {
+  id: number;
+  route: string;
+  started_at: string;
+  ended_at: string | null;
+  elapsed_ms: number | null;
+  status: CronRunStatus;
+  payload: unknown;
+  error_message: string | null;
+}
+
+// A row stuck at 'running' past this window is treated as a timeout — the
+// Vercel runtime killed the function before finishCronRun could fire. This
+// is display-only reconciliation; the DB row stays 'running' (it literally
+// means "we don't know"). 120s comfortably clears the 60s function ceiling.
+const CRON_TIMEOUT_MS = 120_000;
+
+function rowToCronRun(row: Record<string, unknown>): CronRun {
+  let payload: unknown = null;
+  const rawPayload = row.payload;
+  if (typeof rawPayload === "string") {
+    try {
+      payload = JSON.parse(rawPayload);
+    } catch {
+      payload = rawPayload; // keep the raw string if it isn't valid JSON
+    }
+  }
+
+  let status = row.status as CronRunStatus;
+  if (status === "running") {
+    const startedMs = Date.parse(row.started_at as string);
+    if (Number.isFinite(startedMs) && Date.now() - startedMs > CRON_TIMEOUT_MS) {
+      status = "timeout";
+    }
+  }
+
+  return {
+    id: Number(row.id),
+    route: row.route as string,
+    started_at: row.started_at as string,
+    ended_at: (row.ended_at as string | null) ?? null,
+    elapsed_ms: row.elapsed_ms == null ? null : Number(row.elapsed_ms),
+    status,
+    payload,
+    error_message: (row.error_message as string | null) ?? null,
+  };
+}
+
+/** Most recent cron runs across all routes, newest first. */
+export async function getRecentCronRuns(limit = 50): Promise<CronRun[]> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT id, route, started_at, ended_at, elapsed_ms, status,
+            payload, error_message
+          FROM cron_runs
+          ORDER BY started_at DESC, id DESC
+          LIMIT ?`,
+    args: [limit],
+  });
+  return rs.rows.map((r) => rowToCronRun(r as Record<string, unknown>));
+}
+
+/** The latest run for a single route, or null if that route has never run. */
+export async function getLatestCronRun(route: string): Promise<CronRun | null> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT id, route, started_at, ended_at, elapsed_ms, status,
+            payload, error_message
+          FROM cron_runs
+          WHERE route = ?
+          ORDER BY started_at DESC, id DESC
+          LIMIT 1`,
+    args: [route],
+  });
+  const r = rs.rows[0];
+  return r ? rowToCronRun(r as Record<string, unknown>) : null;
+}

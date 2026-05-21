@@ -358,6 +358,27 @@ CREATE TABLE primary_candidates (
 
 CREATE INDEX idx_primaries_date ON primaries(primary_date);
 CREATE INDEX idx_primary_candidates_primary ON primary_candidates(primary_id);
+
+-- Durable cron-run log (handoff 105). One row per cron tick — startCronRun
+-- inserts a 'running' row after the route's auth check, finishCronRun closes
+-- it out. `elapsed_ms` is computed DB-side from `started_at`. `payload` is
+-- the JSON response body. A row stuck at status='running' past ~120s is an
+-- implicit timeout (the Vercel runtime killed the function before
+-- finishCronRun fired). Exists because Vercel Hobby discards live logs
+-- after 30 minutes. Written via lib/cron-log.ts.
+CREATE TABLE cron_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  route TEXT NOT NULL,                  -- '/api/cron/primaries' etc.
+  started_at TEXT NOT NULL,             -- ISO timestamp
+  ended_at TEXT,                        -- ISO, NULL while running
+  elapsed_ms INTEGER,                   -- NULL while running
+  status TEXT NOT NULL,                 -- 'running' | 'success' | 'error' | 'timeout'
+  payload TEXT,                         -- JSON blob: full response body
+  error_message TEXT                    -- captured exception string, NULL on success
+);
+
+CREATE INDEX idx_cron_runs_route_started ON cron_runs(route, started_at DESC);
+CREATE INDEX idx_cron_runs_status ON cron_runs(status);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
@@ -776,6 +797,7 @@ When sources disagree — legal reality vs. data source, vendor docs vs. third-p
 - **The dashboard `/` is dynamically rendered, not statically prerendered.** Once `await searchParams` was added to `app/page.tsx` for click-to-filter (handoff 56), `/` lost its static prerender — same mechanism as the note above. Query-layer caching via `unstable_cache` + the `bills` tag still applies, so this is a small latency regression, not a correctness one.
 - **Vercel serverless functions can't write to `process.cwd()`** — the filesystem is read-only outside `/tmp`. HO 97 caught this pre-deploy: the scraper's `writeCachedHtml` wrote the HTML cache under `process.cwd()`, fine locally but an `EROFS` crash on every cron tick in production. The fix swallows the write error (the cache is a perf optimization, not correctness). Any code that writes to disk from an API route must target `/tmp` or wrap the write in try/catch.
 - **Vercel function timing runs ~2× local pre-flight measurements** — a cold-network tax. HO 97's primaries cron measured 5.5s for the calendar tick locally; the first production tick came in at 10.3s. Plan headroom from that ratio: a ~30s local measurement projects to ~60s in prod, the Hobby ceiling. `CRON_SLICE = 20` in `lib/primaries-sync.ts` sits comfortably under it — treat ~30s of local tick time as the practical upper bound when tuning the slice size.
+- **Vercel Hobby tier caps live logs at 30 minutes.** Past that window, the only record of a cron tick is the `cron_runs` table. Every cron route writes to it via `lib/cron-log.ts` (`startCronRun` / `finishCronRun`); read with `getRecentCronRuns` or `getLatestCronRun` from `lib/queries.ts`. Rows stuck at `status='running'` for over 120s are implicit timeouts — the Vercel runtime killed the function before `finishCronRun` could fire. The DB row stays `'running'` (it literally means "we don't know"); the query helpers reconcile it to `'timeout'` at read time without mutating the row.
 - **`raw_json` stores the unwrapped `detailRes.bill` object, not the outer `{ bill: ... }` wrapper.** So `json_extract(raw_json, '$.cosponsors.count')` works; `'$.bill.cosponsors.count'` always returns NULL. Verify the path with a quick `SELECT json_extract(raw_json, '$...') FROM bills LIMIT 5` before writing any new backfill that pulls from `raw_json`.
 - **Member endpoint quirks** — three things the `/member/{bioguideId}` response does that contradict some Congress.gov docs and template snippets:
   - `member.terms` is the term array directly. **Not** `member.terms.item`. Iterating `member.terms?.item ?? []` silently returns nothing.

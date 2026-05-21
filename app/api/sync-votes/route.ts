@@ -12,6 +12,7 @@
 // helpers in lib/queries.ts on success.
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { startCronRun, finishCronRun } from "@/lib/cron-log";
 import { runSenateVotesSync } from "@/lib/senate-votes-sync";
 import { runVotesSync } from "@/lib/votes-sync";
 
@@ -37,26 +38,39 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  let house: Awaited<ReturnType<typeof runVotesSync>> | null = null;
+  // Durable cron logging (handoff 105). The per-chamber failures below are
+  // swallowed (a House outage must not strand the Senate sync), so the run
+  // status stays 'success' — the persisted payload carries null house/senate
+  // when a chamber failed, which is where that failure is visible.
+  const runId = await startCronRun("/api/sync-votes");
   try {
-    house = await runVotesSync();
+    let house: Awaited<ReturnType<typeof runVotesSync>> | null = null;
+    try {
+      house = await runVotesSync();
+    } catch (err) {
+      console.error("[sync-votes] house failed:", err);
+    }
+
+    let senate: Awaited<ReturnType<typeof runSenateVotesSync>> | null = null;
+    try {
+      senate = await runSenateVotesSync();
+    } catch (err) {
+      console.error("[sync-votes] senate failed:", err);
+    }
+
+    // Flush all vote-tagged query caches (getRecentVotes, getMemberVotes,
+    // getMemberVoteStats, etc.) so the member hub picks up new positions
+    // without waiting on the 1h backstop revalidate.
+    if (house || senate) revalidateTag("votes");
+
+    const responseBody = { ok: true, house, senate };
+    await finishCronRun(runId, "success", responseBody);
+    return NextResponse.json(responseBody);
   } catch (err) {
-    console.error("[sync-votes] house failed:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await finishCronRun(runId, "error", null, message);
+    throw err; // let Next.js return the 500 as before
   }
-
-  let senate: Awaited<ReturnType<typeof runSenateVotesSync>> | null = null;
-  try {
-    senate = await runSenateVotesSync();
-  } catch (err) {
-    console.error("[sync-votes] senate failed:", err);
-  }
-
-  // Flush all vote-tagged query caches (getRecentVotes, getMemberVotes,
-  // getMemberVoteStats, etc.) so the member hub picks up new positions
-  // without waiting on the 1h backstop revalidate.
-  if (house || senate) revalidateTag("votes");
-
-  return NextResponse.json({ ok: true, house, senate });
 }
 
 export async function POST(request: Request) {

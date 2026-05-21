@@ -329,6 +329,25 @@ const statements = [
     PRIMARY KEY (congress, law_number)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_historical_laws_enacted ON historical_laws(congress, enacted_date)`,
+  // handoff 105: durable cron-run log. Vercel Hobby caps live logs at 30
+  // minutes, so a cron tick's only persistent record past that window is a
+  // row here. `lib/cron-log.ts` writes one row per run (startCronRun at the
+  // top of each cron route, finishCronRun at the end). `elapsed_ms` is
+  // computed DB-side from `started_at` so callers never pass a start clock.
+  // A row stuck at status='running' past ~120s is an implicit timeout — the
+  // Vercel runtime killed the function before finishCronRun could fire.
+  `CREATE TABLE IF NOT EXISTS cron_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    route TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    elapsed_ms INTEGER,
+    status TEXT NOT NULL,
+    payload TEXT,
+    error_message TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_cron_runs_route_started ON cron_runs(route, started_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status)`,
 ];
 
 async function ensureColumn(
