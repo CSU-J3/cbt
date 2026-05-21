@@ -233,6 +233,12 @@ export function parseCandidatesPage(
   if (anchor === -1) {
     return { state, url, status: "no_section", candidates: [] };
   }
+  // On a dedicated special-election page every votebox header reads
+  // "Special …", so the "drop anything special" gate below has to invert —
+  // see the comment on the filter. Self-detected from the page <title> (the
+  // same signal scrapeHouseCandidates uses) so no caller plumbing is needed;
+  // on a regular page this is false and the gate is unchanged.
+  const onSpecialPage = isSpecialElectionPage(html);
   const nextH2 = html.indexOf("<h2", anchor + 10);
   const section = html.slice(anchor, nextH2 === -1 ? anchor + 80000 : nextH2);
 
@@ -270,15 +276,24 @@ export function parseCandidatesPage(
     if (!contest && /nonpartisan/i.test(headerText)) contest = "open";
     if (!contest) continue;
 
-    // Keep only regular primary voteboxes: the <h5> says "primary", not
-    // "runoff", not "special". This drops general-election voteboxes (also
-    // "nonpartisan"-classed), primary-runoff voteboxes (a subset of the
-    // primary), and special-election primaries embedded in a regular page
-    // (e.g. RI-01 carries both — special elections are out of scope).
+    // Keep only the primary voteboxes for this page's election: the <h5>
+    // says "primary", not "runoff". This drops general-election voteboxes
+    // (also "nonpartisan"-classed) and primary-runoff voteboxes (a subset of
+    // the primary).
+    //
+    // The "special" half is page-aware. On a *regular* page, a "Special …"
+    // votebox is a special-election primary embedded alongside the regular
+    // primary (e.g. RI carrying both) and must be dropped. On a *dedicated*
+    // special-election page (FL/OH 2026 Senate), every votebox header reads
+    // "Special …" — there the legitimate D/R primaries ARE the "Special …"
+    // boxes, and it's the embedded *regular* boxes (if any) that get dropped.
+    // `!== onSpecialPage` expresses both: drop when special-ness doesn't
+    // match the page type. On a regular page (onSpecialPage=false) this is
+    // identical to the old `/special/i.test(headerText)` gate.
     if (
       !/primary/i.test(headerText) ||
       /runoff/i.test(headerText) ||
-      /special/i.test(headerText)
+      /special/i.test(headerText) !== onSpecialPage
     ) {
       continue;
     }

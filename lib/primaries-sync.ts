@@ -30,8 +30,12 @@ import { stateName } from "./states";
 
 // 2026 Senate states. WA was dropped from the handoff's SENATE_STATES_2026
 // list — Washington has no 2026 Senate race (its seats are up 2028 / 2030).
-// FL and OH are 2026 specials; the scraper resolves their special-election
-// URL automatically.
+// FL and OH are 2026 specials: scrapeSenateCandidates falls back to the
+// special-election URL when the regular page 404s, and parseCandidatesPage
+// is page-type-aware — on a special page the "Special D/R primary" voteboxes
+// are the rosters to keep (HO 106). Before HO 106 the URL resolved but the
+// parser's blanket "drop anything special" gate discarded those voteboxes,
+// so FL/OH always returned no_candidates.
 const SENATE_STATES_2026 = [
   "AL", "AK", "AR", "CO", "DE", "GA", "ID", "IL", "IA", "KS",
   "KY", "LA", "ME", "MA", "MI", "MN", "MS", "MT", "NE", "NH",
