@@ -1,3 +1,5 @@
+import { SvgGridY } from "@/components/svg/SvgGridY";
+import { SvgLegend } from "@/components/svg/SvgLegend";
 import { getBillsByMonth } from "@/lib/queries";
 import { topicColor, topicLabel } from "@/lib/topic-colors";
 
@@ -83,32 +85,14 @@ export async function BillsTimeSeries() {
         role="img"
         aria-label="Bills introduced per month stacked by topic"
       >
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-          const y = PAD.top + innerHeight * (1 - t);
-          const label = Math.round(yAxisMax * t);
-          return (
-            <g key={t}>
-              <line
-                x1={PAD.left}
-                x2={PAD.left + innerWidth}
-                y1={y}
-                y2={y}
-                stroke="var(--border-soft)"
-                strokeWidth={1}
-              />
-              <text
-                x={PAD.left - 6}
-                y={y + 4}
-                textAnchor="end"
-                fontSize="11"
-                fill="var(--text-dim)"
-                fontFamily="var(--font-mono)"
-              >
-                {label.toLocaleString()}
-              </text>
-            </g>
-          );
-        })}
+        <SvgGridY
+          padLeft={PAD.left}
+          padTop={PAD.top}
+          innerWidth={innerWidth}
+          innerHeight={innerHeight}
+          max={yAxisMax}
+          format={(v) => Math.round(v).toLocaleString()}
+        />
 
         {months.map((month, i) => {
           const x = PAD.left + i * barWidth + barGap / 2;
@@ -158,20 +142,12 @@ export async function BillsTimeSeries() {
         })}
       </svg>
 
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] uppercase tracking-[0.5px]">
-        {stackOrder.map((topic) => (
-          <span key={topic} className="inline-flex items-center gap-1">
-            <span
-              aria-hidden
-              className="inline-block h-2 w-2"
-              style={{ backgroundColor: topicColor(topic) }}
-            />
-            <span style={{ color: topicColor(topic) }}>
-              {topicLabel(topic)}
-            </span>
-          </span>
-        ))}
-      </div>
+      <SvgLegend
+        items={stackOrder.map((topic) => ({
+          label: topicLabel(topic),
+          color: topicColor(topic),
+        }))}
+      />
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SvgGridY } from "@/components/svg/SvgGridY";
+import { SvgLegend } from "@/components/svg/SvgLegend";
 import { getSponsorProductivity } from "@/lib/queries";
 
 const CHART_HEIGHT = 360;
@@ -89,32 +91,15 @@ export async function SponsorProductivityScatter() {
         role="img"
         aria-label="Sponsor productivity: bills sponsored versus pass rate"
       >
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-          const y = PAD.top + innerHeight * (1 - t);
-          const value = yAxisMax * t;
-          return (
-            <g key={`y-${t}`}>
-              <line
-                x1={PAD.left}
-                x2={PAD.left + innerWidth}
-                y1={y}
-                y2={y}
-                stroke="var(--border-soft)"
-                strokeWidth={1}
-              />
-              <text
-                x={PAD.left - 8}
-                y={y + 4}
-                textAnchor="end"
-                fontSize="11"
-                fill="var(--text-dim)"
-                fontFamily="var(--font-mono)"
-              >
-                {Math.round(value * 100)}%
-              </text>
-            </g>
-          );
-        })}
+        <SvgGridY
+          padLeft={PAD.left}
+          padTop={PAD.top}
+          innerWidth={innerWidth}
+          innerHeight={innerHeight}
+          max={yAxisMax}
+          format={(v) => `${Math.round(v * 100)}%`}
+          labelGap={8}
+        />
 
         {[0, 0.25, 0.5, 0.75, 1].map((t) => {
           const x = PAD.left + innerWidth * t;
@@ -203,21 +188,14 @@ export async function SponsorProductivityScatter() {
         })}
       </svg>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] uppercase tracking-[0.5px]">
-        {(["R", "D", "I"] as const).map((p) => (
-          <span key={p} className="inline-flex items-center gap-1">
-            <span
-              aria-hidden
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: PARTY_COLORS[p] }}
-            />
-            <span style={{ color: PARTY_COLORS[p] }}>{p}</span>
-          </span>
-        ))}
-        <span className="ml-2" style={{ color: "var(--text-muted)" }}>
-          {rows.length} sponsors · 3+ bills · non-ceremonial
-        </span>
-      </div>
+      <SvgLegend
+        items={(["R", "D", "I"] as const).map((p) => ({
+          label: p,
+          color: PARTY_COLORS[p]!,
+        }))}
+        shape="dot"
+        trailing={`${rows.length} sponsors · 3+ bills · non-ceremonial`}
+      />
     </div>
   );
 }

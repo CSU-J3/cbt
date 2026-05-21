@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
 import { ReportRow } from "@/components/ReportRow";
 import { formatWeekTitle } from "@/lib/report-generation";
 import { getReportCount, getReports } from "@/lib/queries";
@@ -52,6 +53,35 @@ export default async function ReportsPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <section
+          className="mb-4 border"
+          style={{ borderColor: "var(--border-strong)" }}
+        >
+          <div
+            className="flex items-baseline justify-between px-4 py-2"
+            style={{
+              backgroundColor: "var(--bg-panel)",
+              borderBottom: "0.5px solid var(--border-strong)",
+            }}
+          >
+            <p
+              className="text-[12px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--accent-amber)" }}
+            >
+              Productivity vs. the 118th
+            </p>
+            <p
+              className="text-[11px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-dim)" }}
+            >
+              Laws enacted · cumulative
+            </p>
+          </div>
+          <div className="px-4 py-4">
+            <LawsEnactedComparison />
+          </div>
+        </section>
+
         {count === 0 ? (
           <div
             className="px-6 py-16 text-center text-[13px]"

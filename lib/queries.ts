@@ -565,6 +565,75 @@ export const getBillsByMonth = unstable_cache(
   { revalidate: 86400, tags: ["bills"] },
 );
 
+export type LawsByWeekRow = {
+  congress: 118 | 119;
+  weekOfSession: number; // 0 = first week after the Jan 3 start
+  cumulativeLaws: number; // running total at end of that week
+};
+
+// Congress start dates (Jan 3 of the odd year). Used to bucket an enacted
+// date into a week-of-session.
+const CONGRESS_START: Record<number, string> = {
+  118: "2023-01-03",
+  119: "2025-01-03",
+};
+const WEEK_MS = 7 * 86_400_000;
+
+// Cumulative enacted-law count by week of session, 118th vs 119th (HO 101) —
+// backs the LawsEnactedComparison chart on /reports. The 118th comes from
+// `historical_laws` (static backfill); the 119th from `bills` where
+// stage='enacted' (kept fresh by the daily cron). One row per session week
+// from 0 to the last week with data, carrying the running total forward
+// across quiet weeks, so a chart can plot a continuous cumulative line. The
+// week math is done in TypeScript rather than SQL — the row counts are tiny
+// (~274 + ~95) and a libSQL window-function CTE buys nothing here. Tagged
+// "bills" so the sync cron's revalidateTag refreshes the 119th line.
+export const getLawsEnactedBySessionWeek = unstable_cache(
+  async (): Promise<LawsByWeekRow[]> => {
+    const db = getDb();
+    const h118 = await db.execute(
+      "SELECT enacted_date AS d FROM historical_laws WHERE congress = 118",
+    );
+    const h119 = await db.execute(
+      `SELECT latest_action_date AS d FROM bills
+         WHERE congress = 119 AND stage = 'enacted'
+           AND latest_action_date IS NOT NULL`,
+    );
+
+    const series = (
+      rows: Array<Record<string, unknown>>,
+      congress: 118 | 119,
+    ): LawsByWeekRow[] => {
+      const start = Date.parse(`${CONGRESS_START[congress]}T00:00:00Z`);
+      const perWeek = new Map<number, number>();
+      let maxWeek = -1;
+      for (const r of rows) {
+        const d = r.d as string | null;
+        if (!d) continue;
+        const t = Date.parse(`${d.slice(0, 10)}T00:00:00Z`);
+        if (Number.isNaN(t)) continue;
+        const w = Math.max(0, Math.floor((t - start) / WEEK_MS));
+        perWeek.set(w, (perWeek.get(w) ?? 0) + 1);
+        if (w > maxWeek) maxWeek = w;
+      }
+      const out: LawsByWeekRow[] = [];
+      let cum = 0;
+      for (let w = 0; w <= maxWeek; w++) {
+        cum += perWeek.get(w) ?? 0;
+        out.push({ congress, weekOfSession: w, cumulativeLaws: cum });
+      }
+      return out;
+    };
+
+    return [
+      ...series(h118.rows as Array<Record<string, unknown>>, 118),
+      ...series(h119.rows as Array<Record<string, unknown>>, 119),
+    ];
+  },
+  ["getLawsEnactedBySessionWeek"],
+  { revalidate: 86400, tags: ["bills"] },
+);
+
 // The cron-generated 3-sentence dashboard lead, stored in dashboard_state
 // under key 'weekly_lead'. Returns null if the cron hasn't generated one yet
 // (fresh DB). Tagged "bills" so the cron's revalidateTag flushes it after a

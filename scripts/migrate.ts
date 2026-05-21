@@ -314,6 +314,21 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_primaries_date ON primaries(primary_date)`,
   `CREATE INDEX IF NOT EXISTS idx_primary_candidates_primary ON primary_candidates(primary_id)`,
+  // handoff 101: enacted laws of past Congresses, for the laws-enacted
+  // comparison chart. Stores the 118th only — the 119th's enacted laws live
+  // in `bills` (stage='enacted') and the chart query UNIONs the two. `law_number`
+  // is the API's "{congress}-{n}" form (e.g. "118-2"); `source_bill_id` matches
+  // bills.id ("118-hr-346") when the origin bill is known. Static history —
+  // backfilled once via `npm run backfill:laws`, never on cron.
+  `CREATE TABLE IF NOT EXISTS historical_laws (
+    congress INTEGER NOT NULL,
+    law_number TEXT NOT NULL,
+    source_bill_id TEXT,
+    enacted_date TEXT NOT NULL,
+    title TEXT,
+    PRIMARY KEY (congress, law_number)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_historical_laws_enacted ON historical_laws(congress, enacted_date)`,
 ];
 
 async function ensureColumn(
