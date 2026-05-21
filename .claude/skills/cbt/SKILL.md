@@ -642,9 +642,18 @@ URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansi
 ### Server / client split
 
 - All pages are server components and query Turso via `lib/queries.ts`.
-- The dashboard at `/` is entirely server-rendered. No client islands. The funnel is static hand-rolled SVG.
+- The dashboard at `/` is entirely server-rendered. No client islands — every chart is a static server component (see **Chart idiom** below).
 - Client islands: `components/WatchlistToggle.tsx` (POSTs to `/api/watchlist`, then `router.refresh()`) and `components/StageFilter.tsx` (calls `router.push` to update the URL with the chosen stage).
 - The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`.
+
+### Chart idiom
+
+Five charts ship today, split by what the chart needs:
+
+- **divs + CSS** for 1-D bar rankings — `StageFunnel`, `TopicDistribution`, `TopicMixByChamber`. No coordinate system needed; values map directly to bar widths via CSS variables. Inherits the terminal aesthetic from `app/globals.css` with zero extra scaffolding.
+- **Hand-rolled SVG** for charts that need a coordinate space — `BillsTimeSeries` (time on x, count on y), `SponsorProductivityScatter` (volume vs. pass rate). Each currently re-declares its own `viewBox`, axis-tick, and legend scaffolding; when a third SVG chart lands, extract the shared primitives.
+
+No chart library. Recharts, D3, and Observable Plot are all available via npm, but the terminal aesthetic argues for control over convenience. Full per-chart inventory (data source, render location, state) lives in `docs/viz-audit.md`.
 
 ### Date formatting (`lib/format.ts`)
 
