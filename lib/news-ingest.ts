@@ -11,7 +11,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { extractBillIds } from "./bill-id-extract";
 import { getDb } from "./db";
-import { matchBillsToArticle } from "./news-matcher";
+import { type MatchConfidence, matchBillsToArticle } from "./news-matcher";
 import { NEWS_SOURCES } from "./news-sources";
 import { getCandidateBills } from "./queries";
 import { fetchAndParseRss } from "./rss-parse";
@@ -20,6 +20,16 @@ import { fetchAndParseRss } from "./rss-parse";
 // out by the keyword pre-filter, this keeps us well under Gemini Flash's
 // free-tier rate limits (15 RPM as of 2026-05).
 const LLM_INTERVAL_MS = 250;
+
+// LLM confidence label → the REAL stored in news_mentions.match_confidence
+// (HO 104). The column is REAL (designed for a 0-1 score); the matcher emits
+// coarse high/medium/low buckets, and these three values are all the column
+// will ever hold from the LLM path. Regex matches store NULL (deterministic).
+const CONFIDENCE_REAL: Record<MatchConfidence, number> = {
+  high: 1,
+  medium: 0.6,
+  low: 0.3,
+};
 
 export interface IngestResult {
   source: string;
@@ -107,13 +117,16 @@ export async function ingestNews(): Promise<IngestResult[]> {
 
       for (const item of items) {
         const text = `${item.title}\n${item.summary ?? ""}`;
-        let billIds = extractBillIds(text);
+        // Regex hits store NULL confidence (deterministic — a spelled-out
+        // bill ID is not a probabilistic match); LLM hits carry a REAL.
+        let billMatches: { billId: string; confidence: number | null }[] =
+          extractBillIds(text).map((id) => ({ billId: id, confidence: null }));
         let matchedVia: "bill_id_regex" | "llm_match" = "bill_id_regex";
 
         // LLM fallback fires only when regex misses AND we have a key set.
         // No-pre-filter-hits short-circuits BEFORE counting an LLM call so
         // the llmCalls metric reflects actual Gemini round-trips.
-        if (billIds.length === 0 && llmClient && candidates.length > 0) {
+        if (billMatches.length === 0 && llmClient && candidates.length > 0) {
           const outcome = await matchBillsToArticle(
             llmClient,
             item.title,
@@ -123,7 +136,10 @@ export async function ingestNews(): Promise<IngestResult[]> {
           if (outcome.kind === "matched") {
             result.llmCalls++;
             result.llmMatches++;
-            billIds = outcome.billIds;
+            billMatches = outcome.matches.map((m) => ({
+              billId: m.billId,
+              confidence: CONFIDENCE_REAL[m.confidence],
+            }));
             matchedVia = "llm_match";
             await sleep(LLM_INTERVAL_MS);
           } else if (outcome.kind === "no_match") {
@@ -138,15 +154,15 @@ export async function ingestNews(): Promise<IngestResult[]> {
           // no_pre_filter_hits: no LLM call, no metric bump, no sleep
         }
 
-        if (billIds.length === 0) continue;
+        if (billMatches.length === 0) continue;
 
-        for (const billId of billIds) {
+        for (const m of billMatches) {
           const inserted = await recordMention(
-            billId,
+            m.billId,
             source.slug,
             item,
             matchedVia,
-            null,
+            m.confidence,
           );
           if (inserted) result.mentionsInserted++;
           else result.mentionsSkippedUnknownBill++;
