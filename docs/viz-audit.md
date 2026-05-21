@@ -27,7 +27,7 @@ Interaction model also varies: `StageFunnel` and `TopicDistribution` wrap rows i
 
 ## Roadmap mapping
 
-No `docs/roadmap.md` (or any `roadmap*` file) exists in the repo — mapped against handoff 99's inline theme-5 list:
+At audit time `docs/roadmap.md` was not in the repo, so the mapping below was made against handoff 99's inline theme-5 list. (HO 100 has since committed `docs/roadmap.md`; citations to the roadmap now resolve.)
 
 - Stage funnel on the home page — **built** (`StageFunnel`, `/`)
 - Topic distribution faceted by chamber — **built** (`TopicMixByChamber`, `/`)
@@ -43,6 +43,6 @@ No `docs/roadmap.md` (or any `roadmap*` file) exists in the repo — mapped agai
 
 ## Audit notes
 
-- `docs/roadmap.md` does not exist — handoff 99 cites "roadmap.md theme 5" but no roadmap file is in the repo.
+- `docs/roadmap.md` was not in the repo at audit time — HO 99 fell back to handoff 99's inline "roadmap.md theme 5" list. HO 100 subsequently committed the file, so the gap is closed.
 - SKILL.md describes the dashboard funnel as "static hand-rolled SVG"; `StageFunnel.tsx` is actually divs + CSS. Only `BillsTimeSeries` and `SponsorProductivityScatter` use SVG. (SKILL.md fix is out of scope per handoff 99 — flagged for the next handoff.)
 - HO attribution is best-effort. `TopicMixByChamber` / `BillsTimeSeries` / `SponsorProductivityScatter` were first committed in bundle `85f4f22` (labeled "HO 74, 77, 79"); SKILL.md attributes them to HO 76 / 66 / 67 respectively — SKILL.md's numbers are used above. `StageFunnel` / `TopicDistribution` shipped in bundle `4aa79ac` ("handoffs 50-58"), in the ~HO 56 dashboard redesign — handoff 99's "HO 81 spec" reference postdates the component itself.
