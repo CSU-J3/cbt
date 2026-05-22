@@ -1,7 +1,7 @@
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BillsTimeSeries } from "@/components/BillsTimeSeries";
-import { BreakingNewsBanner } from "@/components/BreakingNewsBanner";
+import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 import { DashboardLead } from "@/components/DashboardLead";
@@ -35,7 +35,7 @@ export default async function DashboardPage({
     <div className="flex min-h-screen flex-col">
       <HeaderBar variant="dashboard" />
       <DashboardLead />
-      <BreakingNewsBanner />
+      <BreakingNewsBlock />
       <ActiveFilterStrip filters={filters} />
 
       <main className="w-full flex-1 px-4 py-4">

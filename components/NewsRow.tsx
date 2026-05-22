@@ -34,19 +34,27 @@ function billTypeAndNumber(billId: string): {
 export function NewsRow({
   mention,
   showFullHeadline = false,
+  linkBillToDetail = false,
 }: {
   mention: NewsMention;
   showFullHeadline?: boolean;
+  // When true the bill ID links straight to the bill hub (/bill/[id]);
+  // default routes to the feed's expand panel. The home-page
+  // BreakingNewsBlock (HO 114) opts into detail; /news keeps the expand.
+  linkBillToDetail?: boolean;
 }) {
   const hours = ageHours(mention.publishedAt);
   const ageLabel = formatRelativeAge(mention.publishedAt);
   const tn = billTypeAndNumber(mention.billId);
   const billLabel = tn ? formatBillId(tn.type, tn.number) : mention.billId;
+  const billHref = linkBillToDetail
+    ? `/bill/${encodeURIComponent(mention.billId)}`
+    : `/feed?expanded=${encodeURIComponent(mention.billId)}`;
 
   return (
     <div className="news-row">
       <Link
-        href={`/feed?expanded=${encodeURIComponent(mention.billId)}`}
+        href={billHref}
         className="text-[14px] font-medium tabular-nums"
         style={{ color: "var(--accent-amber)" }}
         title={mention.billTitle}

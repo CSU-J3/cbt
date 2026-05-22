@@ -1665,6 +1665,61 @@ export const getBreakingNews = unstable_cache(
   { revalidate: 600, tags: ["news-breaking"] },
 );
 
+// Backs the home-page BreakingNewsBlock (handoff 114). Distinct from
+// getBreakingNews on three axes locked in HO 114 Phase 1:
+//   - wider window (72h default — 24h is structurally too sparse on this
+//     corpus, see the Phase 1 diagnostic)
+//   - a confidence floor (the home block is the premium surface, so only
+//     high-confidence LLM matches earn a slot; 0.7 also drops NULL-confidence
+//     rows via SQL three-valued logic, and matches the weekly report's bar)
+//   - dedup by bill_id — a bill cited in three articles surfaces once.
+// SQLite's bare-column-with-MAX() idiom (supported by libSQL) picks each
+// group's most-recent article for the non-aggregated columns. Shares the
+// `news-breaking` cache tag with getBreakingNews so the existing
+// revalidateTag("news-breaking") in /api/sync flushes both.
+export const getBreakingNewsForHome = unstable_cache(
+  async ({
+    limit = 3,
+    hours = 72,
+    minConfidence = 0.7,
+  }: {
+    limit?: number;
+    hours?: number;
+    minConfidence?: number;
+  } = {}): Promise<NewsMention[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT m.id, m.bill_id, m.source, m.article_title, m.article_url,
+              MAX(m.published_at) AS published_at,
+              b.title AS bill_title,
+              b.sponsor_name AS bill_sponsor_name,
+              b.sponsor_party AS bill_sponsor_party
+            FROM news_mentions m
+            INNER JOIN bills b ON b.id = m.bill_id
+            WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
+              AND m.match_confidence >= ?
+              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+            GROUP BY m.bill_id
+            ORDER BY published_at DESC, m.id DESC
+            LIMIT ?`,
+      args: [hours, minConfidence, limit],
+    });
+    return rs.rows.map((r) => ({
+      id: Number(r.id),
+      billId: r.bill_id as string,
+      billTitle: r.bill_title as string,
+      billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
+      billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
+      source: r.source as string,
+      title: r.article_title as string,
+      url: r.article_url as string,
+      publishedAt: r.published_at as string,
+    }));
+  },
+  ["getBreakingNewsForHome"],
+  { revalidate: 600, tags: ["news-breaking"] },
+);
+
 // ---- News matcher candidate pool (handoff 86) ---------------------------
 
 export type CandidateBill = {
