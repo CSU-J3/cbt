@@ -427,6 +427,21 @@ async function main() {
   // member_fundraising rather than its own table because every fundraising
   // total inherently has one coverage window.
   await ensureColumn(db, "member_fundraising", "coverage_end_date", "TEXT");
+  // handoff 115: summarize failure tracking. Summarize moved to its own cron
+  // (/api/cron/summarize). `summarize_failed_at` gates the runner's selector —
+  // a bill that just failed is skipped for 24h so a stuck bill can't burn
+  // consecutive ticks. `summarize_attempts` counts cumulative failures so the
+  // route can surface chronically-failing bills (>= 3) to the cron_runs error
+  // trail for manual inspection. Both reset to NULL/0 when a bill re-syncs
+  // with a new update_date (see UPSERT_SQL in lib/sync.ts) and on a
+  // successful summary.
+  await ensureColumn(db, "bills", "summarize_failed_at", "TEXT");
+  await ensureColumn(
+    db,
+    "bills",
+    "summarize_attempts",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
   console.log("migration complete");
 }
 

@@ -11,16 +11,13 @@ import {
   getPriorWeek,
   writeReport,
 } from "@/lib/report-generation";
-import { runSummarize } from "@/lib/summarize-runner";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
-// Sync + summarize can take many seconds; opt out of static optimization.
-// 60s matches the Vercel Hobby ceiling. Summarize is throttled at 400ms +
-// can hit Gemini 429/503 backoffs, which empirically caps us at ~12 bills
-// per run inside the 60s window. The previous 50 was aspirational and
-// caused timeouts; with timeouts, the post-sync revalidateTag never flushed
-// and the dashboard caches went stale for a full TTL.
+// Daily sync cron. HO 115 split summarize out into /api/cron/summarize because
+// summarize alone consumed most of the 60s budget and starved every step
+// behind it (news, trades, report were never reached). This route now runs:
+// bill sync → dashboard lead → news ingest → trades → weekly report (Mon).
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -51,18 +48,11 @@ async function handle(request: Request) {
   const runId = await startCronRun("/api/sync");
   try {
     const sync = await runSync();
-    // Invalidate after sync writes new bill rows, even if the summarize step
-    // below later runs long and the 60s function ceiling kills us. Without
-    // this, a timeout would leave stale caches for up to an hour.
+    // Invalidate after sync writes new bill rows so the dashboard sees them
+    // before any later step in this tick fails. HO 115 removed the
+    // summarize step from this route; summarize now runs at /api/cron/summarize
+    // and revalidates `bills` on its own when summaries land.
     revalidateTag("bills");
-
-    let summarize: Awaited<ReturnType<typeof runSummarize>> | null = null;
-    try {
-      summarize = await runSummarize({ limit: 12 });
-      revalidateTag("bills");
-    } catch (err) {
-      console.error("[sync] summarize step failed:", err);
-    }
 
     // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
     // if Gemini errors or rate-limits, the prior lead stays in the DB and the
@@ -147,14 +137,6 @@ async function handle(request: Request) {
     const responseBody = {
       ok: true,
       sync,
-      summarize: summarize
-        ? {
-            ok: summarize.ok,
-            failed: summarize.failed,
-            promptTokens: summarize.promptTokens,
-            outputTokens: summarize.outputTokens,
-          }
-        : null,
     };
     await finishCronRun(runId, "success", responseBody);
     return NextResponse.json(responseBody);

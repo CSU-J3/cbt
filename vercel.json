@@ -11,6 +11,9 @@
     },
     "app/api/cron/primaries/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/summarize/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -29,6 +32,10 @@
     {
       "path": "/api/cron/primaries",
       "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/summarize",
+      "schedule": "0 13 * * *"
     }
   ]
 }

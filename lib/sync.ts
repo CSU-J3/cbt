@@ -147,7 +147,12 @@ ON CONFLICT(id) DO UPDATE SET
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
   topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END,
-  is_ceremonial = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.is_ceremonial END
+  is_ceremonial = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.is_ceremonial END,
+  -- HO 115: a bill with a new update_date gets a fresh shot at summarization.
+  -- Clear the failure timestamp and attempt counter so the 24h-skip clause in
+  -- runSummarize doesn't strand a re-synced bill on its prior failure record.
+  summarize_failed_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summarize_failed_at END,
+  summarize_attempts = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.summarize_attempts END
 `;
 
 async function upsertBill(

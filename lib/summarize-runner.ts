@@ -11,9 +11,37 @@ import {
 const PER_REQUEST_DELAY_MS = 400;
 const RETRY_BACKOFF_MS = [2000, 4000, 8000, 16000];
 const DEFAULT_LIMIT = 50;
+// HO 115: hard wall-clock cap per bill. Combined with the route's 45s
+// "stop starting new bills" deadline (passed via deadlineMs), 45s + 15s
+// guarantees the cron function never crosses Vercel's 60s ceiling — even
+// if the very last bill hangs on a fetch or Gemini call.
+const PER_BILL_TIMEOUT_MS = 15_000;
+// HO 115: how long to wait after a per-bill failure before re-attempting it.
+// Matches the daily cron cadence — a failed bill cleanly retries on the next
+// tick instead of burning consecutive ticks. Reset to NULL/0 when the bill
+// re-syncs (see UPSERT_SQL) or summarizes successfully.
+const FAILURE_DEFER_HOURS = 24;
+// HO 115: bills crossing this attempt count are surfaced into the
+// cron_runs error trail for manual inspection — not auto-disabled, just
+// flagged. Each tick still retries them once the 24h defer elapses.
+const CHRONIC_ATTEMPT_THRESHOLD = 3;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("aborted", "AbortError"));
+      return;
+    }
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(new DOMException("aborted", "AbortError"));
+      },
+      { once: true },
+    );
+  });
 }
 
 // Gemini documents 429 (RESOURCE_EXHAUSTED) and 503 (UNAVAILABLE) as transient.
@@ -28,19 +56,56 @@ function isRetryable(err: unknown): boolean {
 export type SummarizeStats = {
   ok: number;
   failed: number;
+  // Subset of `failed` whose abort signal fired — i.e. they hit the
+  // per-bill 15s wall-clock cap rather than a model/network error.
+  timedOut: number;
   promptTokens: number;
   outputTokens: number;
   samples: Array<{ bill: BillRow; result: SummarizeResult }>;
+  // HO 115: bill ids that crossed CHRONIC_ATTEMPT_THRESHOLD this tick, with
+  // their post-increment attempt count for the cron_runs error message.
+  chronicFailures: string[];
+  // HO 115: did the tick stop because deadlineMs was reached (vs. exhausting
+  // the eligible bill list)? Useful in the route's response payload.
+  budgetStopped: boolean;
 };
 
 export type SummarizeOptions = {
   /**
-   * Maximum number of bills to process. Defaults to 50 (matches the cron tick).
-   * Pass 0 to disable the limit entirely (used by the standalone script for manual drains).
+   * Maximum number of bills to process. Defaults to 50 (kept for the
+   * standalone CLI which still uses a count-based slice). Pass 0 for
+   * unbounded (full-backlog drain via `npm run summarize`).
    */
   limit?: number;
   types?: string[];
+  /**
+   * HO 115: absolute epoch-millis past which the loop stops *starting* new
+   * bills. The 15s per-bill AbortController bounds the in-flight bill on
+   * top of this, so the route can budget `deadlineMs = routeStart + 45_000`
+   * and stay safely under the 60s function ceiling. When both `limit` and
+   * `deadlineMs` are set, whichever fires first stops the loop.
+   */
+  deadlineMs?: number;
 };
+
+// HO 115: increment the failure counter and stamp summarize_failed_at so the
+// selector's 24h-skip clause picks the bill up again on the next-but-one tick.
+// Returns the post-increment attempt count so the runner can flag chronic
+// failures (>= 3) to the cron_runs error trail.
+async function markBillFailed(
+  db: ReturnType<typeof getDb>,
+  billId: string,
+): Promise<number> {
+  const rs = await db.execute({
+    sql: `UPDATE bills
+          SET summarize_failed_at = ?,
+              summarize_attempts = summarize_attempts + 1
+          WHERE id = ?
+          RETURNING summarize_attempts`,
+    args: [new Date().toISOString(), billId],
+  });
+  return Number(rs.rows[0]?.summarize_attempts ?? 0);
+}
 
 export async function runSummarize(
   options: SummarizeOptions = {},
@@ -54,8 +119,16 @@ export async function runSummarize(
   const client = new GoogleGenAI({ apiKey: geminiKey });
 
   const limit = options.limit ?? DEFAULT_LIMIT;
+  const deadlineMs = options.deadlineMs;
 
-  const where: string[] = ["summary IS NULL"];
+  // HO 115: selector adds the 24h skip clause so a bill that failed within
+  // the last day doesn't get re-tried on this tick. Bills that never failed
+  // (summarize_failed_at IS NULL) pass through normally; this is also the
+  // state for the entire pre-115 corpus after migration.
+  const where: string[] = [
+    "summary IS NULL",
+    `(summarize_failed_at IS NULL OR summarize_failed_at < datetime('now', '-${FAILURE_DEFER_HOURS} hours'))`,
+  ];
   const args: (string | number)[] = [];
   if (options.types && options.types.length > 0) {
     where.push(`bill_type IN (${options.types.map(() => "?").join(",")})`);
@@ -82,121 +155,163 @@ export async function runSummarize(
   );
 
   console.log(
-    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} serial, ${PER_REQUEST_DELAY_MS}ms throttle`,
+    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} ${deadlineMs ? `deadline=${new Date(deadlineMs).toISOString()} ` : ""}serial, ${PER_REQUEST_DELAY_MS}ms throttle, ${PER_BILL_TIMEOUT_MS}ms per-bill cap`,
   );
 
   const stats: SummarizeStats = {
     ok: 0,
     failed: 0,
+    timedOut: 0,
     promptTokens: 0,
     outputTokens: 0,
     samples: [],
+    chronicFailures: [],
+    budgetStopped: false,
   };
   let gaveUpRetryable = 0;
 
   for (let i = 0; i < bills.length; i++) {
+    // Deadline check before starting a new bill, so the 15s per-bill cap
+    // is the only thing that can push us past `deadlineMs`.
+    if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+      stats.budgetStopped = true;
+      console.log(
+        `budget reached after ${i}/${bills.length} bill(s); stopping`,
+      );
+      break;
+    }
+
     const bill = bills[i]!;
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), PER_BILL_TIMEOUT_MS);
 
     let out: Awaited<ReturnType<typeof summarizeBill>> | null = null;
     let attempt = 0;
     let failed = false;
-    while (true) {
-      try {
-        const ctx = await fetchBillContext(bill, congressKey);
-        out = await summarizeBill(client, bill, ctx);
-        break;
-      } catch (e) {
-        if (isRetryable(e) && attempt < RETRY_BACKOFF_MS.length) {
-          const wait = RETRY_BACKOFF_MS[attempt]!;
-          console.warn(
-            `retry ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_BACKOFF_MS.length}) ${(e as Error).message.slice(0, 80)}`,
-          );
-          await sleep(wait);
-          attempt++;
-          continue;
+
+    try {
+      while (true) {
+        try {
+          const ctx = await fetchBillContext(bill, congressKey, ac.signal);
+          out = await summarizeBill(client, bill, ctx, ac.signal);
+          break;
+        } catch (e) {
+          // Only retry on transient API errors AND if the per-bill timer
+          // hasn't fired — once aborted, sleeping further would either
+          // reject immediately or just stall the rest of the tick.
+          if (
+            !ac.signal.aborted &&
+            isRetryable(e) &&
+            attempt < RETRY_BACKOFF_MS.length
+          ) {
+            const wait = RETRY_BACKOFF_MS[attempt]!;
+            console.warn(
+              `retry ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_BACKOFF_MS.length}) ${(e as Error).message.slice(0, 80)}`,
+            );
+            await sleep(wait, ac.signal);
+            attempt++;
+            continue;
+          }
+          if (ac.signal.aborted) {
+            console.warn(
+              `timeout ${bill.id}: exceeded ${PER_BILL_TIMEOUT_MS}ms, deferring ${FAILURE_DEFER_HOURS}h`,
+            );
+          } else if (isRetryable(e)) {
+            gaveUpRetryable++;
+            console.warn(
+              `retry-give-up ${bill.id}: deferring ${FAILURE_DEFER_HOURS}h (total give-ups: ${gaveUpRetryable})`,
+            );
+          } else {
+            console.error(`error ${bill.id}:`, (e as Error).message);
+          }
+          failed = true;
+          break;
         }
-        if (isRetryable(e)) {
-          gaveUpRetryable++;
-          console.warn(
-            `retry-give-up ${bill.id}: stays NULL, will retry next pass (total give-ups: ${gaveUpRetryable})`,
-          );
-        } else {
-          console.error(`error ${bill.id}:`, (e as Error).message);
-        }
-        failed = true;
-        break;
       }
+    } finally {
+      clearTimeout(timer);
     }
 
-    if (failed || !out) {
-      stats.failed++;
-    } else {
+    // Always count tokens even when parsing failed — they were billed.
+    if (out) {
       stats.promptTokens += out.promptTokens;
       stats.outputTokens += out.outputTokens;
-      if (!out.result) {
+    }
+
+    const succeeded = !failed && out !== null && out.result !== null;
+    if (!succeeded) {
+      if (!failed && out && !out.result) {
         console.warn(`parse-fail: ${bill.id}`);
-        stats.failed++;
-      } else {
-        // First-time-seen non-`introduced` stage counts as a transition too:
-        // a bill arriving already past introduced (e.g. S 723 first observed
-        // at `enacted`) skipped earlier stages in our view and that's
-        // semantically a transition the report needs to surface.
-        const transitioned =
-          (bill.oldStage !== null && bill.oldStage !== out.result.stage) ||
-          (bill.oldStage === null && out.result.stage !== "introduced");
-        const ceremonialArg =
-          out.result.is_ceremonial === null
-            ? null
-            : out.result.is_ceremonial
-              ? 1
-              : 0;
-        if (transitioned) {
-          await db.execute({
-            sql: `UPDATE bills
-                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                      previous_stage = ?, stage_changed_at = ?, is_ceremonial = ?, text_length = ?
-                  WHERE id = ?`,
-            args: [
-              out.result.summary,
-              SUMMARY_MODEL,
-              new Date().toISOString(),
-              JSON.stringify(out.result.topics),
-              out.result.stage,
-              bill.oldStage,
-              new Date().toISOString(),
-              ceremonialArg,
-              out.textLength,
-              bill.id,
-            ],
-          });
-        } else {
-          await db.execute({
-            sql: `UPDATE bills
-                  SET summary = ?, summary_model = ?, summary_updated_at = ?, topics = ?, stage = ?,
-                      is_ceremonial = ?, text_length = ?
-                  WHERE id = ?`,
-            args: [
-              out.result.summary,
-              SUMMARY_MODEL,
-              new Date().toISOString(),
-              JSON.stringify(out.result.topics),
-              out.result.stage,
-              ceremonialArg,
-              out.textLength,
-              bill.id,
-            ],
-          });
-        }
-        stats.ok++;
-        if (stats.samples.length < 5)
-          stats.samples.push({ bill, result: out.result });
       }
+      stats.failed++;
+      if (ac.signal.aborted) stats.timedOut++;
+      // Stamp the failure so the next tick's selector skips this bill for
+      // FAILURE_DEFER_HOURS. Same UPDATE for all failure shapes — timeout,
+      // retry give-up, non-retryable error, parse-fail — so any stuck bill
+      // can't repeatedly burn budget.
+      const attempts = await markBillFailed(db, bill.id);
+      if (attempts >= CHRONIC_ATTEMPT_THRESHOLD) {
+        stats.chronicFailures.push(`${bill.id}(attempts=${attempts})`);
+      }
+    } else {
+      const result = out!.result!;
+      // First-time-seen non-`introduced` stage counts as a transition too:
+      // a bill arriving already past introduced (e.g. S 723 first observed
+      // at `enacted`) skipped earlier stages in our view and that's
+      // semantically a transition the report needs to surface.
+      const transitioned =
+        (bill.oldStage !== null && bill.oldStage !== result.stage) ||
+        (bill.oldStage === null && result.stage !== "introduced");
+      const ceremonialArg =
+        result.is_ceremonial === null ? null : result.is_ceremonial ? 1 : 0;
+      if (transitioned) {
+        await db.execute({
+          sql: `UPDATE bills
+                SET summary = ?, summary_model = ?, summary_updated_at = ?,
+                    topics = ?, stage = ?, previous_stage = ?, stage_changed_at = ?,
+                    is_ceremonial = ?, text_length = ?,
+                    summarize_failed_at = NULL, summarize_attempts = 0
+                WHERE id = ?`,
+          args: [
+            result.summary,
+            SUMMARY_MODEL,
+            new Date().toISOString(),
+            JSON.stringify(result.topics),
+            result.stage,
+            bill.oldStage,
+            new Date().toISOString(),
+            ceremonialArg,
+            out!.textLength,
+            bill.id,
+          ],
+        });
+      } else {
+        await db.execute({
+          sql: `UPDATE bills
+                SET summary = ?, summary_model = ?, summary_updated_at = ?,
+                    topics = ?, stage = ?, is_ceremonial = ?, text_length = ?,
+                    summarize_failed_at = NULL, summarize_attempts = 0
+                WHERE id = ?`,
+          args: [
+            result.summary,
+            SUMMARY_MODEL,
+            new Date().toISOString(),
+            JSON.stringify(result.topics),
+            result.stage,
+            ceremonialArg,
+            out!.textLength,
+            bill.id,
+          ],
+        });
+      }
+      stats.ok++;
+      if (stats.samples.length < 5) stats.samples.push({ bill, result });
     }
 
     const seen = i + 1;
     if (seen % 50 === 0 || seen === bills.length) {
       console.log(
-        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} (retry-give-ups=${gaveUpRetryable}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
+        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} timeout=${stats.timedOut} (retry-give-ups=${gaveUpRetryable}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
       );
     }
 
@@ -205,6 +320,8 @@ export async function runSummarize(
     }
   }
 
-  console.log(`final retry-give-ups: ${gaveUpRetryable}`);
+  console.log(
+    `final: ok=${stats.ok} fail=${stats.failed} timeout=${stats.timedOut} retry-give-ups=${gaveUpRetryable} budgetStopped=${stats.budgetStopped} chronic=${stats.chronicFailures.length}`,
+  );
   return stats;
 }

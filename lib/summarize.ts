@@ -79,14 +79,23 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { Accept: "text/html,*/*" } });
+// HO 115: optional AbortSignal threaded through every fetch so the runner's
+// per-bill 15s timeout actually interrupts in-flight HTTP — without it, a
+// stuck Congress.gov download could hang the whole tick.
+async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch(url, {
+    headers: { Accept: "text/html,*/*" },
+    signal,
+  });
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
   return res.text();
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal,
+  });
   if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
   return (await res.json()) as T;
 }
@@ -109,23 +118,25 @@ type SummariesResp = {
 export async function fetchBillText(
   bill: { congress: number; bill_type: string; bill_number: number },
   apiKey: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const base = `https://api.congress.gov/v3/bill/${bill.congress}/${bill.bill_type}/${bill.bill_number}`;
   const auth = `format=json&api_key=${encodeURIComponent(apiKey)}`;
-  const tr = await fetchJson<TextResp>(`${base}/text?${auth}`);
+  const tr = await fetchJson<TextResp>(`${base}/text?${auth}`, signal);
   const versions = (tr.textVersions ?? []).slice().sort((a, b) =>
     (b.date ?? "").localeCompare(a.date ?? ""),
   );
   const latest = versions[0];
   const formatted = latest?.formats?.find((f) => f.type === "Formatted Text");
   if (!formatted?.url) return "";
-  const html = await fetchText(formatted.url);
+  const html = await fetchText(formatted.url, signal);
   return stripHtml(html);
 }
 
 export async function fetchBillContext(
   bill: BillRow,
   apiKey: string,
+  signal?: AbortSignal,
 ): Promise<BillContext> {
   const base = `https://api.congress.gov/v3/bill/${bill.congress}/${bill.bill_type}/${bill.bill_number}`;
   const auth = `format=json&api_key=${encodeURIComponent(apiKey)}`;
@@ -133,7 +144,7 @@ export async function fetchBillContext(
   let billText = "";
   let textLength: number | null = null;
   try {
-    const raw = await fetchBillText(bill, apiKey);
+    const raw = await fetchBillText(bill, apiKey, signal);
     if (raw) {
       textLength = raw.length;
       billText = raw.slice(0, TEXT_LIMIT);
@@ -141,12 +152,15 @@ export async function fetchBillContext(
     // raw === "" → textLength stays null. NULL preserves "data not available"
     // so a fresh introduction that gets text later still updates correctly.
   } catch {
-    // bills without text yet are still summarizable from title + CRS
+    // bills without text yet are still summarizable from title + CRS. If the
+    // signal aborted here, the CRS fetch below sees the same aborted signal
+    // and the call chain unwinds through summarizeBill where the abort
+    // surfaces as a thrown error caught by the runner.
   }
 
   let crsSummary = "";
   try {
-    const sr = await fetchJson<SummariesResp>(`${base}/summaries?${auth}`);
+    const sr = await fetchJson<SummariesResp>(`${base}/summaries?${auth}`, signal);
     const list = (sr.summaries ?? []).slice().sort((a, b) =>
       (b.actionDate ?? "").localeCompare(a.actionDate ?? ""),
     );
@@ -210,6 +224,7 @@ export async function summarizeBill(
   client: GoogleGenAI,
   bill: BillRow,
   context: BillContext,
+  signal?: AbortSignal,
 ): Promise<SummarizeOutput> {
   const userPrompt = `Bill title: ${bill.title}
 Latest action: ${bill.latest_action_text ?? "(none)"}
@@ -222,6 +237,10 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
     config: {
       systemInstruction: SYSTEM_PROMPT,
       thinkingConfig: { thinkingBudget: 0 },
+      // HO 115: client-side cancel for the runner's per-bill 15s timeout.
+      // The SDK doc notes this won't stop server-side billing, but for us the
+      // value is bounding wall-clock so a hung call can't burn the cron tick.
+      abortSignal: signal,
     },
   });
 
