@@ -10,7 +10,7 @@ type SearchParams = {
   ceremonial?: string;
 };
 
-export default async function ClustersPage({
+export default async function PatternsPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
@@ -35,13 +35,13 @@ export default async function ClustersPage({
             className="text-[14px] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
-            Bill templates
+            Bill patterns
           </h1>
           <span
             className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
-            {stats.length} templates · {matched.toLocaleString()} bills matched ·{" "}
+            {stats.length} patterns · {matched.toLocaleString()} bills matched ·{" "}
             {unmatched.toLocaleString()} unmatched
           </span>
         </div>
@@ -50,8 +50,8 @@ export default async function ClustersPage({
           className="mb-3 text-[12px] leading-snug"
           style={{ color: "var(--text-muted)" }}
         >
-          Pattern-matched cluster identities for bills that share a structural template.
-          Click a cluster to filter the feed to it.
+          Pattern-matched cluster identities for bills that share a structural pattern.
+          Click a pattern to filter the feed to it.
         </p>
 
         <div
@@ -59,7 +59,7 @@ export default async function ClustersPage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <div className="cluster-header-row">
-            <span>Template</span>
+            <span>Pattern</span>
             <span className="text-right">Count</span>
             <span>Example</span>
           </div>

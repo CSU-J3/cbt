@@ -282,10 +282,10 @@ export async function HeaderBar({
             ▦ Primaries
           </Link>
           <Link
-            href="/clusters"
+            href="/patterns"
             className="transition hover:text-[var(--text-secondary)]"
           >
-            ⊞ Templates
+            ⊞ Patterns
           </Link>
           <Link
             href="/stale"
