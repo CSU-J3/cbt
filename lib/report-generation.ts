@@ -434,6 +434,50 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   };
 }
 
+// ---- banned-phrase compliance (HO 112.2) -------------------------------
+
+// Single source of truth for the banned single-word list. The SYSTEM_PROMPT
+// interpolates these stems and the regenerate-on-violation check enforces
+// them, so the prompt and the check cannot drift. Each entry is a stem:
+// `\b<stem>\w*\b` matches every morphological variant ("significant",
+// "significantly") without matching a prefix-modified word ("insignificant" —
+// the leading \b boundary breaks). Multi-word phrases and "critical"
+// (legitimate as a bill's actual subject — "critical infrastructure") stay in
+// the prompt prose only; a blunt stem regex cannot honor their context, so
+// they are deliberately not enforced.
+const BANNED_STEMS: string[] = [
+  "notewort", // noteworthy
+  "notabl", // notable, notably
+  "significant", // significant, significantly
+  "delv", // delve, delving
+  "underscor", // underscore, underscoring
+  "leverag", // leverage, leveraging
+  "pivotal",
+  "crucial",
+  "tapestr", // tapestry, tapestries
+  "testament", // testament, "testament to"
+];
+
+const BANNED_REGEX = BANNED_STEMS.map(
+  (stem) => new RegExp(`\\b${stem}\\w*\\b`, "i"),
+);
+
+// Scans the full generated report text for banned morphological variants.
+// Returns the distinct matched words (first-seen casing), [] when clean.
+function scanBanned(text: string): string[] {
+  const found: string[] = [];
+  const seen = new Set<string>();
+  for (const re of BANNED_REGEX) {
+    const m = re.exec(text);
+    if (!m) continue;
+    const key = m[0].toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    found.push(m[0]);
+  }
+  return found;
+}
+
 // ---- LLM prompt --------------------------------------------------------
 
 const SYSTEM_PROMPT = `You are writing the weekly Congress report for a personal tracking dashboard. The reader opens this Monday morning wanting one thing: a sense-making answer to "what actually happened in Congress last week?" — not a list of numbers, an answer.
@@ -451,7 +495,7 @@ RULES for every section's prose:
 - A bulleted list follows the prose in most sections. The prose introduces the SIGNIFICANCE of the section; it does NOT re-name the items the list is about to show. Never write "Three bills became law: S 4465, HR 7147, and HJRES 140" above a list of those three — write what they do or why they matter.
 - Never invent counts. You are not told how many items the list holds. Do not write "five transitions" or "all of the top three" — a wrong number is worse than none. Write "the leading transitions" or name specific bills. Cite a number only when the data states it explicitly.
 - Reference specific bill IDs (e.g. "HR 2702").
-- Banned — never write these, their inflections, or anything in their register: "noteworthy" / "notable" / "notably", "significant" / "significantly", "of particular interest", "stood out", "marked a", "this week saw" / "Congress saw" (do not open a sentence by personifying Congress or the week as a thing that "saw" activity — state the activity directly), "delve", "underscore", "leverage", "pivotal", "crucial", "critical" (as a value judgment — "critical infrastructure" as a bill's actual subject is fine), "tapestry", "testament to", "it's worth noting". Describe what happened; do not rate its importance with an adjective or adverb.
+- Banned word stems — never write any word built on these stems, in any inflection or register: ${BANNED_STEMS.join(", ")}. Also never write these phrases: "of particular interest", "stood out", "marked a", "this week saw", "Congress saw", "it's worth noting" — and do not open a sentence by personifying Congress or the week as a thing that "saw" activity; state the activity directly. Do not use "critical" as a value judgment, though "critical infrastructure" as a bill's actual subject is fine. Describe what happened; do not rate its importance with an adjective or adverb.
 
 Output in this exact format:
 
@@ -724,6 +768,58 @@ function assembleMarkdown(
 
 // ---- public API --------------------------------------------------------
 
+// Wraps the Flash call with a regenerate-on-violation check (HO 112.2). Scans
+// the full generated text against BANNED_REGEX; a banned morphological variant
+// triggers one retry with a corrective instruction naming the matched
+// phrase(s) — models avoid named negatives more reliably than a generic rule
+// reminder. Capped at one retry: the Vercel 60s cron ceiling matters, and a
+// model that leaks twice rarely self-corrects on a third pass. If the retry
+// still leaks, the second output ships and the event is logged.
+async function generateReportWithRetry(
+  client: GoogleGenAI,
+  week: WeekRange,
+  userPrompt: string,
+): Promise<string> {
+  const config = {
+    systemInstruction: SYSTEM_PROMPT,
+    thinkingConfig: { thinkingBudget: 8192 },
+  };
+
+  const callFlash = async (contents: string): Promise<string> => {
+    const response = await client.models.generateContent({
+      model: SUMMARY_MODEL,
+      contents,
+      config,
+    });
+    const text = response.text?.trim();
+    if (!text) throw new Error("Gemini returned an empty report");
+    return text;
+  };
+
+  const firstText = await callFlash(userPrompt);
+  const firstViolations = scanBanned(firstText);
+  if (firstViolations.length === 0) return firstText;
+
+  // Name the specific matched phrase(s) in the corrective prompt — models
+  // avoid named negatives more reliably than a generic rule reminder.
+  const named = firstViolations.map((v) => `"${v}"`).join(", ");
+  const correction =
+    `Your previous response used the banned phrase ${named}. Regenerate ` +
+    `the report without using that phrase or any morphological variant of it.`;
+  const secondText = await callFlash(`${userPrompt}\n\n${correction}`);
+
+  // One retry only — the Vercel 60s cron ceiling matters, and a model that
+  // leaks twice rarely self-corrects on a third pass. If the retry still
+  // leaks, the second output ships; the log records it for later telemetry.
+  console.log(
+    `[REPORT-RETRY] week=${week.start} attempt=1 ` +
+      `violations=${JSON.stringify(firstViolations)} ` +
+      `cleaned=${scanBanned(secondText).length === 0}`,
+  );
+
+  return secondText;
+}
+
 // Gathers the week's data, prompts Gemini for section prose, assembles the
 // Markdown body. Throws on missing key, empty response, or parse failure —
 // callers (cron) treat failure as non-fatal and write no row.
@@ -749,17 +845,11 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
   const data = await gatherReportData(week);
   const client = new GoogleGenAI({ apiKey: geminiKey });
 
-  const response = await client.models.generateContent({
-    model: SUMMARY_MODEL,
-    contents: buildUserPrompt(week, data),
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      thinkingConfig: { thinkingBudget: 8192 },
-    },
-  });
-
-  const text = response.text?.trim();
-  if (!text) throw new Error("Gemini returned an empty report");
+  const text = await generateReportWithRetry(
+    client,
+    week,
+    buildUserPrompt(week, data),
+  );
 
   const commentary = parseReportResponse(text);
   if (!commentary) {
