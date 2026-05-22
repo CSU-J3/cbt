@@ -754,7 +754,7 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
     contents: buildUserPrompt(week, data),
     config: {
       systemInstruction: SYSTEM_PROMPT,
-      thinkingConfig: { thinkingBudget: 0 },
+      thinkingConfig: { thinkingBudget: 8192 },
     },
   });
 
