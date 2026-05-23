@@ -2101,6 +2101,185 @@ export type SponsorRanking = {
   passrate: number;
 };
 
+// HO 124: page-shape replacement for the sponsor-only roster. Driven from
+// members LEFT JOIN bills_agg, so all 536 current members surface — including
+// the handful (Pelosi, Hoyer, special-election arrivals like Armstrong /
+// Mejia) who haven't sponsored anything yet. `passrate` is intentionally
+// NULL when total=0 so the UI can render an em-dash instead of "0%", which
+// reads as a real 0-of-N pass rate; existing SponsorRanking keeps the
+// number-only shape because its rows have at least one bill by construction.
+export type MemberRanking = {
+  bioguide_id: string;
+  name: string;
+  party: string | null;
+  state: string | null;
+  chamber: Chamber;
+  district: number | null;
+  total: number;
+  enacted: number;
+  passrate: number | null;
+};
+
+export type MemberParty = "D" | "R" | "I";
+const MEMBER_PARTY_SET = new Set<string>(["D", "R", "I"]);
+export function sanitizeMemberParty(input: unknown): MemberParty | undefined {
+  if (typeof input !== "string") return undefined;
+  return MEMBER_PARTY_SET.has(input) ? (input as MemberParty) : undefined;
+}
+
+export function sanitizeMemberState(
+  input: unknown,
+  allowed: Set<string>,
+): string | undefined {
+  if (typeof input !== "string") return undefined;
+  const up = input.toUpperCase();
+  return allowed.has(up) ? up : undefined;
+}
+
+export type MemberFilters = {
+  chamber?: Chamber;
+  party?: MemberParty;
+  state?: string;
+  q?: string;
+  includeCeremonial?: boolean;
+};
+
+// Builds the WHERE clauses + args shared by getMembersRanked and
+// getMembersRankedCount. is_current=1 is always on — HO 124 covers the 119th
+// Congress only; historical members (Frank, etc.) stay accessible via
+// /members/[bioguideId] but don't pollute the roster page.
+function buildMemberWhere(filters: MemberFilters): {
+  clauses: string[];
+  args: (string | number)[];
+} {
+  const clauses: string[] = ["m.is_current = 1"];
+  const args: (string | number)[] = [];
+  if (filters.chamber) {
+    clauses.push("m.chamber = ?");
+    args.push(filters.chamber);
+  }
+  if (filters.party) {
+    clauses.push("m.party = ?");
+    args.push(filters.party);
+  }
+  if (filters.state) {
+    clauses.push("m.state = ?");
+    args.push(filters.state);
+  }
+  if (filters.q) {
+    clauses.push("LOWER(m.name) LIKE ?");
+    args.push(`%${filters.q.toLowerCase()}%`);
+  }
+  return { clauses, args };
+}
+
+// Aggregation CTE used by both ranked + count queries — the count query
+// doesn't strictly need it, but extracting keeps the ceremonial-filter
+// semantics in one place.
+function billsAggCte(includeCeremonial: boolean): string {
+  const ceremonial = includeCeremonial
+    ? ""
+    : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+  return `bills_agg AS (
+    SELECT
+      sponsor_bioguide_id,
+      COUNT(*) AS total,
+      SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+      CAST(SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS REAL)
+        / COUNT(*) AS passrate
+    FROM bills
+    WHERE sponsor_bioguide_id IS NOT NULL${ceremonial}
+    GROUP BY sponsor_bioguide_id
+  )`;
+}
+
+export const getMembersRanked = unstable_cache(
+  async (
+    filters: MemberFilters,
+    sort: SponsorSort = "volume",
+    page = 1,
+    pageSize = 50,
+  ): Promise<MemberRanking[]> => {
+    const db = getDb();
+    const { clauses, args } = buildMemberWhere(filters);
+    // SQLite ORDER BY DESC sorts NULL last by default, so a NULL-passrate
+    // (zero-bills) member lands at the bottom of the passrate-sort without
+    // a NULLS-LAST clause. For volume sort, total=0 rows sort last by
+    // numeric DESC. Either way: name ASC is the final tiebreak so the
+    // 4 zero-sponsorship rows order deterministically (Armstrong, Hoyer,
+    // Mejia, Pelosi).
+    const sql = `
+      WITH ${billsAggCte(filters.includeCeremonial ?? false)}
+      SELECT
+        m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
+        COALESCE(b.total,   0) AS total,
+        COALESCE(b.enacted, 0) AS enacted,
+        b.passrate             AS passrate
+      FROM members m
+      LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY
+        CASE WHEN ? = 'passrate' THEN passrate END DESC,
+        CASE WHEN ? = 'passrate' THEN total    END DESC,
+        CASE WHEN ? = 'volume'   THEN total    END DESC,
+        m.name ASC
+      LIMIT ? OFFSET ?
+    `;
+    const offset = Math.max(0, (page - 1) * pageSize);
+    const rs = await db.execute({
+      sql,
+      args: [...args, sort, sort, sort, pageSize, offset],
+    });
+    return rs.rows.map((r) => ({
+      bioguide_id: r.bioguide_id as string,
+      name: r.name as string,
+      party: (r.party as string | null) ?? null,
+      state: (r.state as string | null) ?? null,
+      chamber: r.chamber as Chamber,
+      district: (r.district as number | null) ?? null,
+      total: Number(r.total ?? 0),
+      enacted: Number(r.enacted ?? 0),
+      passrate: r.passrate === null || r.passrate === undefined
+        ? null
+        : Number(r.passrate),
+    }));
+  },
+  ["getMembersRanked"],
+  { revalidate: 3600, tags: ["members", "bills"] },
+);
+
+export const getMembersRankedCount = unstable_cache(
+  async (filters: MemberFilters): Promise<number> => {
+    const db = getDb();
+    const { clauses, args } = buildMemberWhere(filters);
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM members m WHERE ${clauses.join(" AND ")}`,
+      args,
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getMembersRankedCount"],
+  { revalidate: 3600, tags: ["members", "bills"] },
+);
+
+// Distinct state codes among currently-serving members, alphabetical, for
+// the /members state dropdown. Cached separately from the ranked rows so
+// the dropdown stays stable as the user filters/paginates without re-
+// running the bigger query.
+export const getMemberStates = unstable_cache(
+  async (): Promise<string[]> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT DISTINCT state FROM members
+       WHERE is_current = 1 AND state IS NOT NULL
+       ORDER BY state ASC`,
+    );
+    return rs.rows.map((r) => r.state as string);
+  },
+  ["getMemberStates"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
 export const getSponsorsRanked = unstable_cache(
   async (
     filters: SponsorFilters,

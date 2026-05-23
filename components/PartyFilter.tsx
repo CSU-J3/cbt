@@ -11,26 +11,29 @@ const PARTY_LABEL: Record<string, string> = {
 
 const PARTIES = ["R", "D", "I"] as const;
 
+// Drop on every filter change: cursor params that no longer make sense
+// after the user narrows the set. `expanded` keeps the prior selection from
+// jumping to a sponsor who may now be off-page; `page` resets pagination
+// because the filter changes which rows exist.
 export function PartyFilter({
   current,
-  state,
-  q,
+  carry,
   basePath,
 }: {
   current: string | undefined;
-  state: string | undefined;
-  q: string | undefined;
+  carry: URLSearchParams;
   basePath: string;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   function onChange(value: string) {
-    const params = new URLSearchParams();
-    if (value) params.set("party", value);
-    if (state) params.set("state", state);
-    if (q) params.set("q", q);
-    const qs = params.toString();
+    const sp = new URLSearchParams(carry);
+    sp.delete("expanded");
+    sp.delete("page");
+    if (value) sp.set("party", value);
+    else sp.delete("party");
+    const qs = sp.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);
     });

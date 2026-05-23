@@ -3,7 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-export function SearchBox({ basePath = "/feed" }: { basePath?: string } = {}) {
+export function SearchBox({
+  basePath = "/feed",
+  placeholder = "search bills...",
+}: { basePath?: string; placeholder?: string } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initial = searchParams.get("q") ?? "";
@@ -35,7 +38,7 @@ export function SearchBox({ basePath = "/feed" }: { basePath?: string } = {}) {
         onChange={(e) => setValue(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder="search bills..."
+        placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
         className="search-box w-full font-mono text-[14px] outline-none"

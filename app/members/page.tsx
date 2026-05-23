@@ -1,27 +1,40 @@
 import Link from "next/link";
 import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
+import { Pagination } from "@/components/Pagination";
+import { PartyFilter } from "@/components/PartyFilter";
+import { SearchBox } from "@/components/SearchBox";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { SponsorProductivityScatter } from "@/components/SponsorProductivityScatter";
 import { SponsorSortToggle } from "@/components/SponsorSortToggle";
+import { StateFilter } from "@/components/StateFilter";
 import {
-  type Chamber,
+  getMemberStates,
+  getMembersRanked,
+  getMembersRankedCount,
   getSponsorRecentBills,
-  getSponsorsRanked,
   getSponsorStats,
   getSponsorTopTopics,
   normalizePartyVariant,
   sanitizeChamber,
   sanitizeIncludeCeremonial,
+  sanitizeMemberParty,
+  sanitizeMemberState,
   sanitizeSponsorSort,
 } from "@/lib/queries";
 
 type SearchParams = {
   chamber?: string;
-  expanded?: string;
+  party?: string;
+  state?: string;
+  q?: string;
   sort?: string;
+  page?: string;
+  expanded?: string;
   ceremonial?: string;
 };
+
+const PAGE_SIZE = 50;
 
 function partyColorFor(party: string | null): string {
   const key = normalizePartyVariant(party);
@@ -31,10 +44,6 @@ function partyColorFor(party: string | null): string {
   return "var(--text-dim)";
 }
 
-function sponsorKey(s: { sponsor_bioguide_id: string | null; sponsor_name: string }): string {
-  return s.sponsor_bioguide_id ?? s.sponsor_name;
-}
-
 export default async function MembersPage({
   searchParams,
 }: {
@@ -42,25 +51,53 @@ export default async function MembersPage({
 }) {
   const params = await searchParams;
   const chamber = sanitizeChamber(params.chamber);
+  const party = sanitizeMemberParty(params.party);
   const sort = sanitizeSponsorSort(params.sort);
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
-  const expandedParam =
-    typeof params.expanded === "string" ? params.expanded : undefined;
-  const headerFilters = { topics: [], chamber, includeCeremonial };
-  const rows = await getSponsorsRanked(
-    { chamber, includeCeremonial },
-    sort,
-    100,
-  );
+  const q =
+    typeof params.q === "string" && params.q.trim().length > 0
+      ? params.q.trim()
+      : undefined;
+
+  // State dropdown is gated by which abbreviations actually exist in the
+  // current roster (50 + DC + a couple of territories). Pulled once per
+  // request; cached separately so the filter render stays cheap.
+  const stateOptions = await getMemberStates();
+  const stateSet = new Set(stateOptions);
+  const state = sanitizeMemberState(params.state, stateSet);
+
+  const pageParam = Number.parseInt(params.page ?? "1", 10);
+  const page =
+    Number.isFinite(pageParam) && pageParam >= 1 ? pageParam : 1;
+
+  const filters = {
+    chamber,
+    party,
+    state,
+    q,
+    includeCeremonial,
+  };
+
+  const [rows, total] = await Promise.all([
+    getMembersRanked(filters, sort, page, PAGE_SIZE),
+    getMembersRankedCount(filters),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const maxVolume = rows.reduce((m, r) => Math.max(m, r.total), 0);
 
-  const expandedSponsor = expandedParam
-    ? rows.find((s) => sponsorKey(s) === expandedParam)
+  const expandedParam =
+    typeof params.expanded === "string" ? params.expanded : undefined;
+  const expandedMember = expandedParam
+    ? rows.find((r) => r.bioguide_id === expandedParam)
     : undefined;
 
-  const expansion = expandedSponsor
+  // Expansion data still keys off the same sponsor helpers — they accept a
+  // bioguide_id and resolve via OR. Members with zero sponsored bills come
+  // back as zero stats / empty bills, which the panel already handles since
+  // its callers (SponsorExpandedPanel) just render what they're given.
+  const expansion = expandedMember
     ? await (async () => {
-        const key = sponsorKey(expandedSponsor);
+        const key = expandedMember.bioguide_id;
         const [stats, topics, recentBills] = await Promise.all([
           getSponsorStats(key, includeCeremonial),
           getSponsorTopTopics(key, 3, includeCeremonial),
@@ -70,26 +107,31 @@ export default async function MembersPage({
       })()
     : null;
 
+  // `carry` plumbs every active filter through child components so a filter
+  // change or pagination preserves the others. Cleared per-control: each
+  // filter drops `page` + `expanded` on change (see PartyFilter etc.).
   const carry = new URLSearchParams();
   if (chamber) carry.set("chamber", chamber);
+  if (party) carry.set("party", party);
+  if (state) carry.set("state", state);
+  if (q) carry.set("q", q);
   if (sort !== "volume") carry.set("sort", sort);
   if (includeCeremonial) carry.set("ceremonial", "1");
+  if (page > 1) carry.set("page", String(page));
 
-  const chamberLabel: Record<Chamber, string> = {
-    house: "house",
-    senate: "senate",
-  };
-  const sortLabel = sort === "passrate" ? "pass rate" : "bills introduced";
-  const subtitle = chamber
-    ? `Top 100 ${chamberLabel[chamber]} sponsors by ${sortLabel} (119th Congress)`
-    : `Top 100 by ${sortLabel} (119th Congress)`;
+  const filterActive = Boolean(chamber || party || state || q);
+  const subtitle = filterActive
+    ? `${total.toLocaleString()} of 536 · 119th Congress`
+    : `${total.toLocaleString()} members of the 119th Congress`;
 
-  function rowHref(key: string, isExpanded: boolean): string {
+  function rowHref(bioguideId: string, isExpanded: boolean): string {
     const sp = new URLSearchParams(carry);
-    if (!isExpanded) sp.set("expanded", key);
+    if (!isExpanded) sp.set("expanded", bioguideId);
     const qs = sp.toString();
     return qs ? `/members?${qs}` : "/members";
   }
+
+  const headerFilters = { topics: [], chamber, includeCeremonial };
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -119,12 +161,27 @@ export default async function MembersPage({
               carry={carry}
               basePath="/members"
             />
+            <PartyFilter
+              current={party}
+              carry={carry}
+              basePath="/members"
+            />
+            <StateFilter
+              current={state}
+              carry={carry}
+              basePath="/members"
+              states={stateOptions}
+            />
             <SponsorSortToggle
               current={sort}
               carry={carry}
               basePath="/members"
             />
           </span>
+        </div>
+
+        <div className="mb-3 max-w-md">
+          <SearchBox basePath="/members" placeholder="search members..." />
         </div>
 
         {sort === "passrate" ? (
@@ -135,7 +192,9 @@ export default async function MembersPage({
             <em>
               Pass rate = bills currently at <code>enacted</code> stage. Most
               bills die in committee without a formal vote. Numbers stabilize
-              after the Congress ends.
+              after the Congress ends. Members with no sponsored bills render
+              an em-dash rather than 0% so "no data" doesn't read as "0% pass
+              rate."
             </em>
           </p>
         ) : null}
@@ -162,21 +221,28 @@ export default async function MembersPage({
               className="px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
-              No sponsors found
+              No members match
             </div>
           ) : (
             <ol>
-              {rows.map((s, i) => {
-                const volPct = maxVolume > 0 ? (s.total / maxVolume) * 100 : 0;
-                const ratePct = Math.round(s.passrate * 100);
-                const partyColor = partyColorFor(s.sponsor_party);
+              {rows.map((m, i) => {
+                const volPct = maxVolume > 0 ? (m.total / maxVolume) * 100 : 0;
+                // passrate is NULL for the zero-bills case; render em-dash
+                // instead of "0%" so the reader doesn't misread "no data" as
+                // a 0-of-N pass rate.
+                const rateLabel =
+                  m.passrate === null ? "—" : `${Math.round(m.passrate * 100)}%`;
+                const ratePct =
+                  m.passrate === null ? 0 : Math.round(m.passrate * 100);
+                const partyColor = partyColorFor(m.party);
                 const enactedColor = "var(--stage-enacted)";
-                const key = sponsorKey(s);
-                const isExpanded = expansion?.key === key;
+                const isExpanded = expansion?.key === m.bioguide_id;
+                const rankNumber = (page - 1) * PAGE_SIZE + i + 1;
+                const isEmpty = m.total === 0;
                 return (
-                  <li key={key}>
+                  <li key={m.bioguide_id}>
                     <Link
-                      href={rowHref(key, isExpanded)}
+                      href={rowHref(m.bioguide_id, isExpanded)}
                       replace
                       scroll={false}
                       prefetch={false}
@@ -196,50 +262,58 @@ export default async function MembersPage({
                         className="text-right text-[12px] tabular-nums"
                         style={{ color: "var(--text-dim)" }}
                       >
-                        {i + 1}
+                        {rankNumber}
                       </span>
                       <span
-                        title={s.sponsor_name}
+                        title={m.name}
                         className="truncate text-[14px]"
                         style={{ color: "var(--text-primary)" }}
                       >
-                        {s.sponsor_name}
+                        {m.name}
                       </span>
                       <span className="sponsor-bars">
                         <span className="sponsor-bar-line">
                           <span className="sponsor-bar-track">
-                            <span
-                              className="sponsor-bar-fill"
-                              style={{
-                                width: `${volPct}%`,
-                                backgroundColor: partyColor,
-                              }}
-                              aria-hidden
-                            />
+                            {isEmpty ? null : (
+                              <span
+                                className="sponsor-bar-fill"
+                                style={{
+                                  width: `${volPct}%`,
+                                  backgroundColor: partyColor,
+                                }}
+                                aria-hidden
+                              />
+                            )}
                           </span>
                           <span
                             className="text-right text-[12px] tabular-nums"
                             style={{ color: "var(--text-secondary)" }}
                           >
-                            {s.total.toLocaleString()}
+                            {m.total.toLocaleString()}
                           </span>
                         </span>
                         <span className="sponsor-bar-line">
                           <span className="sponsor-bar-track">
-                            <span
-                              className="sponsor-bar-fill"
-                              style={{
-                                width: `${ratePct}%`,
-                                backgroundColor: enactedColor,
-                              }}
-                              aria-hidden
-                            />
+                            {isEmpty ? null : (
+                              <span
+                                className="sponsor-bar-fill"
+                                style={{
+                                  width: `${ratePct}%`,
+                                  backgroundColor: enactedColor,
+                                }}
+                                aria-hidden
+                              />
+                            )}
                           </span>
                           <span
                             className="text-right text-[12px] tabular-nums"
-                            style={{ color: "var(--text-secondary)" }}
+                            style={{
+                              color: isEmpty
+                                ? "var(--text-dim)"
+                                : "var(--text-secondary)",
+                            }}
                           >
-                            {ratePct}%
+                            {rateLabel}
                           </span>
                         </span>
                       </span>
@@ -248,18 +322,18 @@ export default async function MembersPage({
                         style={{ color: "var(--text-muted)" }}
                       >
                         <span style={{ color: "var(--stage-enacted)" }}>
-                          {s.enacted}✓
+                          {m.enacted}✓
                         </span>{" "}
-                        / {s.total}
+                        / {m.total}
                       </span>
                     </Link>
                     {isExpanded && expansion ? (
                       <SponsorExpandedPanel
-                        sponsorKey={key}
-                        sponsorName={s.sponsor_name}
-                        sponsorParty={s.sponsor_party}
-                        sponsorState={s.sponsor_state}
-                        bioguideId={s.sponsor_bioguide_id}
+                        sponsorKey={m.bioguide_id}
+                        sponsorName={m.name}
+                        sponsorParty={m.party}
+                        sponsorState={m.state}
+                        bioguideId={m.bioguide_id}
                         stats={expansion.stats}
                         topics={expansion.topics}
                         recentBills={expansion.recentBills}
@@ -271,6 +345,13 @@ export default async function MembersPage({
               })}
             </ol>
           )}
+
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            carry={carry}
+            basePath="/members"
+          />
         </div>
       </main>
     </div>

@@ -5,14 +5,12 @@ import { useTransition } from "react";
 
 export function StateFilter({
   current,
-  party,
-  q,
+  carry,
   basePath,
   states,
 }: {
   current: string | undefined;
-  party: string | undefined;
-  q: string | undefined;
+  carry: URLSearchParams;
   basePath: string;
   states: string[];
 }) {
@@ -20,11 +18,12 @@ export function StateFilter({
   const [isPending, startTransition] = useTransition();
 
   function onChange(value: string) {
-    const params = new URLSearchParams();
-    if (party) params.set("party", party);
-    if (value) params.set("state", value);
-    if (q) params.set("q", q);
-    const qs = params.toString();
+    const sp = new URLSearchParams(carry);
+    sp.delete("expanded");
+    sp.delete("page");
+    if (value) sp.set("state", value);
+    else sp.delete("state");
+    const qs = sp.toString();
     startTransition(() => {
       router.push(qs ? `${basePath}?${qs}` : basePath);
     });
