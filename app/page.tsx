@@ -1,14 +1,11 @@
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTicker } from "@/components/ActivityTicker";
-import { BillsTimeSeries } from "@/components/BillsTimeSeries";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
-import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 import { DashboardLead } from "@/components/DashboardLead";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageFunnel } from "@/components/StageFunnel";
-import { SubViewLinkStrip } from "@/components/SubViewLinkStrip";
 import { TopicDistribution } from "@/components/TopicDistribution";
+import { TopStalls } from "@/components/TopStalls";
 import {
   type DashboardFilters,
   sanitizeStage,
@@ -20,6 +17,17 @@ type SearchParams = {
   topics?: string;
 };
 
+// HO 126 home reorganization. Above the fold: LEAD + BREAKING. Below: a
+// 2x2 balanced grid of STAGE DIST / ACTIVITY / TOP STALLS / TOPIC DIST.
+// The lower-half SVG charts (HO 66 BillsTimeSeries + HO 76 TopicMix) moved
+// to /trends; the CompetitiveRacesBlock was retired entirely (full
+// coverage at /races). JUMP TO went away with SubViewLinkStrip — the top
+// nav already covers every destination it linked to.
+//
+// BillRow / TopStalls / StagePillStrip vocabulary from HO 125 carries
+// through. TOP STALLS uses a minimal one-line row (rather than compact
+// BillRow) because the 2x2 quadrant width is too narrow for a 3-line
+// stacked content column.
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -50,26 +58,16 @@ export default async function DashboardPage({
             <ActivityTicker filters={filters} />
           </section>
 
-          <div className="dashboard-right">
-            <section className="dashboard-pane">
-              <p className="dashboard-pane-label">Jump To</p>
-              <SubViewLinkStrip />
-            </section>
-            <section className="dashboard-pane">
-              <p className="dashboard-pane-label">Topic Distribution</p>
-              <TopicDistribution filters={filters} />
-            </section>
-          </div>
+          <section className="dashboard-pane">
+            <p className="dashboard-pane-label">Top Stalls</p>
+            <TopStalls />
+          </section>
+
+          <section className="dashboard-pane">
+            <p className="dashboard-pane-label">Topic Distribution</p>
+            <TopicDistribution filters={filters} />
+          </section>
         </div>
-
-        <section className="dashboard-pane mt-3">
-          <p className="dashboard-pane-label">Bills Introduced Per Month</p>
-          <BillsTimeSeries />
-        </section>
-
-        <TopicMixByChamber />
-
-        <CompetitiveRacesBlock />
       </main>
     </div>
   );

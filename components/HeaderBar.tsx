@@ -14,6 +14,99 @@ import {
 type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
 type HeaderVariant = "feed" | "dashboard";
 
+// HO 126: shared nav rendered in both header variants. The dashboard
+// variant used to omit the nav entirely (when JUMP TO sat in the home
+// grid), but with JUMP TO retired and SubViewLinkStrip deleted the home
+// page would otherwise have zero in-page navigation. `activeMode` carries
+// the highlight for nav targets whose active state is interesting; pages
+// without a corresponding mode just inherit the default dim color.
+function HeaderNav({
+  active = {},
+}: {
+  active?: {
+    feed?: boolean;
+    news?: boolean;
+    reports?: boolean;
+    sponsor?: boolean;
+    stale?: boolean;
+    changes?: boolean;
+    president?: boolean;
+  };
+}) {
+  const amber = "var(--accent-amber)";
+  return (
+    <nav
+      className="header-nav flex items-center gap-4 text-[16px] uppercase tracking-[0.5px] whitespace-nowrap"
+      style={{ color: "var(--text-dim)" }}
+    >
+      <Link
+        href="/feed"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.feed ? amber : undefined }}
+      >
+        ▤ Feed
+      </Link>
+      <Link
+        href="/news"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.news ? amber : undefined }}
+      >
+        ⚡ News
+      </Link>
+      <Link
+        href="/reports"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.reports ? amber : undefined }}
+      >
+        ⎘ Reports
+      </Link>
+      <Link
+        href="/members"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.sponsor ? amber : undefined }}
+      >
+        👥 Members
+      </Link>
+      <Link href="/races" className="transition hover:text-[var(--text-secondary)]">
+        🗳 Races
+      </Link>
+      <Link href="/primaries" className="transition hover:text-[var(--text-secondary)]">
+        ▦ Primaries
+      </Link>
+      <Link href="/patterns" className="transition hover:text-[var(--text-secondary)]">
+        ⊞ Patterns
+      </Link>
+      <Link href="/trends" className="transition hover:text-[var(--text-secondary)]">
+        📈 Trends
+      </Link>
+      <Link
+        href="/stale"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.stale ? amber : undefined }}
+      >
+        ⏳ Stale
+      </Link>
+      <Link
+        href="/changes"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.changes ? amber : undefined }}
+      >
+        ⇄ Changes
+      </Link>
+      <Link
+        href="/president"
+        className="transition hover:text-[var(--text-secondary)]"
+        style={{ color: active.president ? amber : undefined }}
+      >
+        ▸▸▸▸ President
+      </Link>
+      <Link href="/watchlist" className="transition hover:text-[var(--text-secondary)]">
+        ★ Watchlist
+      </Link>
+    </nav>
+  );
+}
+
 export async function HeaderBar({
   feedFilters,
   basePath = "/",
@@ -66,13 +159,16 @@ export async function HeaderBar({
             {currentCongressLabel()}
           </Link>
           <span
-            className="ml-auto text-[13px] uppercase tracking-[0.5px] tabular-nums"
+            className="ml-4 text-[13px] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
             {corpus.total.toLocaleString()} bills tracked
             <span> · </span>
             last sync {formatLastUpdated(corpus.lastSync)}
           </span>
+          <div className="ml-auto">
+            <HeaderNav />
+          </div>
         </div>
       </header>
     );
@@ -229,98 +325,17 @@ export async function HeaderBar({
           <CeremonialToggle checked={includeCeremonial} />
         ) : null}
 
-        <nav
-          className="header-nav flex items-center gap-4 text-[16px] uppercase tracking-[0.5px] whitespace-nowrap"
-          style={{ color: "var(--text-dim)" }}
-        >
-          <Link
-            href="/feed"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isFeedMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ▤ Feed
-          </Link>
-          <Link
-            href="/news"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isNewsMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ⚡ News
-          </Link>
-          <Link
-            href="/reports"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isReportsMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ⎘ Reports
-          </Link>
-          <Link
-            href="/members"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isSponsorMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            👥 Members
-          </Link>
-          <Link
-            href="/races"
-            className="transition hover:text-[var(--text-secondary)]"
-          >
-            🗳 Races
-          </Link>
-          <Link
-            href="/primaries"
-            className="transition hover:text-[var(--text-secondary)]"
-          >
-            ▦ Primaries
-          </Link>
-          <Link
-            href="/patterns"
-            className="transition hover:text-[var(--text-secondary)]"
-          >
-            ⊞ Patterns
-          </Link>
-          <Link
-            href="/stale"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isStaleMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ⏳ Stale
-          </Link>
-          <Link
-            href="/changes"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isChangesMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ⇄ Changes
-          </Link>
-          <Link
-            href="/president"
-            className="transition hover:text-[var(--text-secondary)]"
-            style={{
-              color: isPresidentMode ? "var(--accent-amber)" : undefined,
-            }}
-          >
-            ▸▸▸▸ President
-          </Link>
-          <Link
-            href="/watchlist"
-            className="transition hover:text-[var(--text-secondary)]"
-          >
-            ★ Watchlist
-          </Link>
-        </nav>
+        <HeaderNav
+          active={{
+            feed: isFeedMode,
+            news: isNewsMode,
+            reports: isReportsMode,
+            sponsor: isSponsorMode,
+            stale: isStaleMode,
+            changes: isChangesMode,
+            president: isPresidentMode,
+          }}
+        />
       </div>
     </header>
   );

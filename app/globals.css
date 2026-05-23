@@ -70,9 +70,15 @@ body {
 }
 
 /* ---- dashboard --------------------------------------------------------- */
+/* HO 126: 2x2 balanced quadrant grid. STAGE · ACTIVITY on top row, STALLS
+   · TOPIC on bottom row, every quadrant ~equal width (~720px @ 1440px
+   viewport). Replaces the prior 5fr/6fr/3fr three-pane layout that
+   embedded a JUMP TO nav (dropped — top nav covers every link) and a
+   right-side TOPIC column. */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 5fr 6fr 3fr;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
   gap: 12px;
 }
 .dashboard-pane {
@@ -88,11 +94,6 @@ body {
   letter-spacing: 0.5px;
   color: var(--text-dim);
   margin-bottom: 10px;
-}
-.dashboard-right {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 /* dashboard lead — cron-generated prose summary above the grid */
@@ -132,6 +133,52 @@ body {
 }
 .activity-ticker-footer:hover {
   color: var(--accent-amber-bright);
+}
+
+/* HO 126 TOP STALLS quadrant row — minimal `[chip] [title] [Xd]` layout,
+   deliberately distinct from the compact BillRow used by ActivityTicker.
+   At 2x2 quadrant widths the compact row's 3-line stacked content stops
+   being scannable; the one-line format here packs ~5 rows where compact
+   would fit ~3. */
+.top-stalls-row {
+  display: grid;
+  grid-template-columns: minmax(72px, max-content) 1fr 48px;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 6px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+.top-stalls-row:hover {
+  background-color: var(--bg-row-hover);
+}
+
+/* Horizontal bill-id chip — chamber-tinted variant of HO 125's
+   BillIdRail. Same --rail-house / --rail-senate tokens, same 10% tint +
+   border treatment, just turned 90° and sized for inline use. Reused in
+   TOP STALLS today; available as a primitive for any future surface that
+   wants a chamber-tinted bill-id pill. */
+.bill-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  border-radius: 2px;
+  border-left: 2px solid var(--text-dim);
+  background-color: var(--bg-panel);
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.bill-chip--house {
+  border-left-color: var(--rail-house);
+  background-color: color-mix(in srgb, var(--rail-house) 12%, var(--bg-panel));
+}
+.bill-chip--senate {
+  border-left-color: var(--rail-senate);
+  background-color: color-mix(in srgb, var(--rail-senate) 12%, var(--bg-panel));
 }
 .topic-dist-row {
   display: grid;
