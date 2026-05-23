@@ -1,3 +1,5 @@
+import { STAGE_LABELS } from "@/lib/enums";
+
 export function StageLegend() {
   return (
     <div
@@ -9,17 +11,47 @@ export function StageLegend() {
       }}
       aria-label="Legend"
     >
-      <span style={{ color: "var(--stage-introduced)" }}>▸ INTRO</span>
+      <span
+        style={{ color: "var(--stage-introduced)" }}
+        title={STAGE_LABELS.introduced}
+      >
+        ▸ INTRO
+      </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span style={{ color: "var(--stage-committee)" }}>▸ COMMITTEE</span>
+      <span
+        style={{ color: "var(--stage-committee)" }}
+        title={STAGE_LABELS.committee}
+      >
+        ▸ COMMITTEE
+      </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span style={{ color: "var(--stage-floor)" }}>▸▸ FLOOR</span>
+      <span
+        style={{ color: "var(--stage-floor)" }}
+        title={STAGE_LABELS.floor}
+      >
+        ▸▸ FLOOR
+      </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span style={{ color: "var(--stage-other-chamber)" }}>▸▸▸ OTHER CHAMBER</span>
+      <span
+        style={{ color: "var(--stage-other-chamber)" }}
+        title={STAGE_LABELS.other_chamber}
+      >
+        ▸▸▸ OTHER CHAMBER
+      </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span style={{ color: "var(--stage-president)" }}>▸▸▸▸ PRESIDENT</span>
+      <span
+        style={{ color: "var(--stage-president)" }}
+        title={STAGE_LABELS.president}
+      >
+        ▸▸▸▸ PRESIDENT
+      </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span style={{ color: "var(--stage-enacted)" }}>✓ ENACTED</span>
+      <span
+        style={{ color: "var(--stage-enacted)" }}
+        title={STAGE_LABELS.enacted}
+      >
+        ✓ ENACTED
+      </span>
 
       <span aria-hidden className="mx-1" style={{ color: "var(--text-dim)" }}>
         ·

@@ -1,3 +1,4 @@
+import { RACE_RATING_SOURCES } from "@/lib/enums";
 import type { RaceRating } from "@/lib/queries";
 
 // Source-attributed rating chip used on /race/[id] (handoff 71). Color is
@@ -95,6 +96,7 @@ export function RatingChip({
       <span
         className="text-[11px]"
         style={{ color: "var(--text-muted)" }}
+        title={RACE_RATING_SOURCES[rating.source]}
       >
         {sourceLabel(rating.source)}
       </span>

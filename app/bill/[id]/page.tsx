@@ -4,6 +4,7 @@ import { PartyTag } from "@/components/PartyTag";
 import { StageIndicator } from "@/components/StageIndicator";
 import { TopicTags } from "@/components/TopicTags";
 import { WatchlistToggle } from "@/components/WatchlistToggle";
+import { BILL_TYPE_LABELS } from "@/lib/enums";
 import {
   congressGovUrl,
   formatBillId,
@@ -83,6 +84,7 @@ export default async function BillDetailPage({
                 <span
                   className="text-[16px] font-medium"
                   style={{ color: "var(--accent-amber)" }}
+                  title={BILL_TYPE_LABELS[bill.bill_type]}
                 >
                   {formatBillId(bill.bill_type, bill.bill_number)}
                 </span>

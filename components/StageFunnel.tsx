@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { STAGE_LABELS, type Stage } from "@/lib/enums";
 import { type DashboardFilters, getStageDistribution } from "@/lib/queries";
 
 const STAGE_PREFIX: Record<string, string> = {
@@ -68,6 +69,7 @@ export async function StageFunnel({
               href={buildHref(b.stage, filters)}
               className="funnel-row"
               style={{ opacity: dimmed ? 0.4 : 1 }}
+              title={STAGE_LABELS[b.stage as Stage] ?? undefined}
             >
               <span
                 className="text-[12px] uppercase tracking-[0.5px]"

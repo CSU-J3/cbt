@@ -3,6 +3,7 @@ import { ExpandedPanel } from "@/components/ExpandedPanel";
 import { PartyTag } from "@/components/PartyTag";
 import { StageIndicator } from "@/components/StageIndicator";
 import { TopicTags } from "@/components/TopicTags";
+import { BILL_TYPE_LABELS } from "@/lib/enums";
 import {
   daysSince,
   formatBillId,
@@ -104,6 +105,7 @@ export function BillRow({
         <span
           className="text-[16px] font-medium"
           style={{ color: "var(--accent-amber)" }}
+          title={BILL_TYPE_LABELS[bill.bill_type]}
         >
           {formatBillId(bill.bill_type, bill.bill_number)}
         </span>

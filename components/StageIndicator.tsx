@@ -1,3 +1,5 @@
+import { STAGE_LABELS } from "@/lib/enums";
+
 const STAGE_PREFIX: Record<string, string> = {
   introduced: "▸",
   committee: "▸",
@@ -50,10 +52,13 @@ export function StageIndicator({
   const color = muted
     ? "var(--text-dim)"
     : (STAGE_COLOR[stage] ?? "var(--text-muted)");
+  const tooltip =
+    STAGE_LABELS[stage as keyof typeof STAGE_LABELS] ?? undefined;
   return (
     <span
       className="inline-flex items-center gap-1.5 text-[14px] uppercase tracking-[0.5px]"
       style={{ color }}
+      title={tooltip}
     >
       <span aria-hidden>{prefix}</span>
       {responsive ? (

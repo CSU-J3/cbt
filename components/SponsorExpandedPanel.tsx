@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SponsorPhoto } from "@/components/SponsorPhoto";
 import { StateFlag } from "@/components/StateFlag";
+import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
 import { formatBillId, formatDateShort } from "@/lib/format";
 import {
   type FeedBill,
@@ -110,7 +111,10 @@ export function SponsorExpandedPanel({
               {STAGE_BADGES.filter((b) => (stats[b.key] as number) > 0).map(
                 (b, i, arr) => (
                   <span key={b.key} className="flex items-center">
-                    <span style={{ color: b.color }}>
+                    <span
+                      style={{ color: b.color }}
+                      title={STAGE_LABELS[b.key as keyof typeof STAGE_LABELS]}
+                    >
                       {b.glyph} {b.label} {String(stats[b.key])}
                     </span>
                     {i < arr.length - 1 ? (
@@ -178,6 +182,7 @@ export function SponsorExpandedPanel({
                         href={`/bill/${b.id}`}
                         className="font-medium whitespace-nowrap tabular-nums text-[16px]"
                         style={{ color: "var(--accent-amber)" }}
+                        title={BILL_TYPE_LABELS[b.bill_type]}
                       >
                         {formatBillId(b.bill_type, b.bill_number)}
                       </Link>
