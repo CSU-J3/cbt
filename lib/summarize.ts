@@ -4,6 +4,7 @@ import {
   ALLOWED_STAGES_SET,
   ALLOWED_TOPICS,
   ALLOWED_TOPICS_SET,
+  TOPIC_ALIASES,
 } from "./enums";
 
 export { ALLOWED_STAGES, ALLOWED_TOPICS };
@@ -264,11 +265,27 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
       textLength: context.textLength,
     };
 
+  // HO 121: canonical taxonomy first, then TOPIC_ALIASES, then drop. A
+  // proposed tag that aliases to a canonical we already kept gets deduped
+  // (e.g. an LLM response of `["public_health", "healthcare"]` lands as
+  // just `["healthcare"]`). The `invalid-topic` warn only fires for tags
+  // that miss both the canonical set and the alias map — that recurrence
+  // count is the signal layer for future taxonomy decisions; don't
+  // pre-populate the alias map aggressively.
   const valid: string[] = [];
+  const seen = new Set<string>();
   const invalid: string[] = [];
   for (const t of parsed.topics) {
-    if (ALLOWED_TOPICS_SET.has(t)) valid.push(t);
-    else invalid.push(t);
+    let canonical: string | null = null;
+    if (ALLOWED_TOPICS_SET.has(t)) canonical = t;
+    else if (TOPIC_ALIASES[t]) canonical = TOPIC_ALIASES[t];
+    if (canonical === null) {
+      invalid.push(t);
+      continue;
+    }
+    if (seen.has(canonical)) continue;
+    seen.add(canonical);
+    valid.push(canonical);
   }
   if (invalid.length > 0) {
     console.warn(`invalid-topic ${bill.id}: dropped ${invalid.join(",")}`);
