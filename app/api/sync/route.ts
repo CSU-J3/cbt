@@ -5,7 +5,6 @@ import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
-import { ingestNews } from "@/lib/news-ingest";
 import {
   generateWeeklyReport,
   getPriorWeek,
@@ -14,9 +13,10 @@ import {
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
-// Daily sync cron. HO 115 split summarize out; HO 116 bounded runSync. This
-// route now runs: bill sync (≤30s budget) → dashboard lead → news → trades →
-// weekly report (Mondays only). Per-step wall-clock times are logged and
+// Daily sync cron. HO 115 split summarize out; HO 116 bounded runSync;
+// HO 117 split news ingestion into /api/cron/news. This route now runs:
+// bill sync (≤30s budget) → dashboard lead → trades → weekly report
+// (Mondays only). News is gone. Per-step wall-clock times are logged and
 // included in the cron_runs payload so the next "step X starved" problem
 // becomes visible without instrumentation work.
 export const dynamic = "force-dynamic";
@@ -60,7 +60,6 @@ async function handle(request: Request) {
   const timings: Record<string, number | null> = {
     sync: null,
     lead: null,
-    news: null,
     trades: null,
     report: null,
   };
@@ -93,39 +92,6 @@ async function handle(request: Request) {
     }
     timings.lead = Date.now() - tLead;
     console.log(`[sync] lead: ${timings.lead}ms`);
-
-    // News ingestion (handoff 64). Pulls 3 RSS feeds, regex-matches bill ids,
-    // writes to news_mentions. Best-effort: per-source errors get logged but
-    // never fail the cron — sync already wrote its data and news is purely
-    // an enrichment surface. UI consumption: HO 66/67 plus the HO 114
-    // breaking-news block on the home page.
-    const tNews = Date.now();
-    try {
-      const newsResults = await ingestNews();
-      const totalInserted = newsResults.reduce(
-        (s, r) => s + r.mentionsInserted,
-        0,
-      );
-      const totalErrors = newsResults.flatMap((r) => r.errors);
-      console.log(
-        `[sync] news: ${totalInserted} mentions inserted across ${newsResults.length} sources`,
-      );
-      for (const r of newsResults) {
-        console.log(
-          `[sync] news.${r.source}: fetched=${r.itemsFetched} mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} llm_errors=${r.llmErrors}`,
-        );
-      }
-      if (totalErrors.length > 0) {
-        for (const e of totalErrors) console.warn(`[sync] news error: ${e}`);
-      }
-      // Flush the breaking-news query cache so /news and the home block see
-      // fresh mentions without waiting on the 600s backstop revalidate.
-      revalidateTag("news-breaking");
-    } catch (err) {
-      console.warn("[sync] news ingestion failed; skipping", err);
-    }
-    timings.news = Date.now() - tNews;
-    console.log(`[sync] news: ${timings.news}ms`);
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck

@@ -97,6 +97,7 @@ export async function matchBillsToArticle(
   articleTitle: string,
   articleSummary: string | null,
   candidates: CandidateBill[],
+  signal?: AbortSignal,
 ): Promise<MatchOutcome> {
   const articleText = `${articleTitle}\n${articleSummary ?? ""}`;
   const filtered = preFilter(articleText, candidates);
@@ -124,6 +125,12 @@ ${candidateList}`;
       config: {
         systemInstruction: SYSTEM_PROMPT,
         thinkingConfig: { thinkingBudget: 0 },
+        // HO 117: per-article 8s timeout from the caller. SDK doc notes the
+        // abort is client-side only — it won't stop server-side billing —
+        // but for us the value is bounding wall-clock so a hung call can't
+        // burn the cron tick. The caller checks `signal.aborted` after to
+        // distinguish a timeout from a real api_error.
+        abortSignal: signal,
       },
     });
     text = response.text?.trim();

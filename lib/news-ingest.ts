@@ -1,5 +1,5 @@
-// News ingestion orchestrator (handoff 64, +86 LLM fallback). Pulls each
-// RSS feed, runs the bill-id matcher chain against title + summary:
+// News ingestion orchestrator (handoff 64, +86 LLM fallback, +117 budget).
+// Pulls each RSS feed, runs the bill-id matcher chain against title + summary:
 //   1. regex match via extractBillIds — fast, free, ~100% precision when
 //      bill IDs are spelled out in the subhead (rare in practice — RSS
 //      subheads cite by topic not by ID)
@@ -8,6 +8,12 @@
 // Matched ids are looked up against `bills` and idempotently upserted into
 // news_mentions. Per-source errors are caught and returned in the
 // IngestResult so the cron caller can log them without failing the run.
+//
+// HO 117: now bounded. The caller (route /api/cron/news) passes a
+// `deadlineMs` so the loop stops starting new articles once the budget is
+// near-exhausted. Each LLM call is wrapped in a 8s AbortController on top
+// of that, so the deadline + per-article cap together guarantee the cron
+// function never crosses Vercel's 60s ceiling.
 import { GoogleGenAI } from "@google/genai";
 import { extractBillIds } from "./bill-id-extract";
 import { getDb } from "./db";
@@ -20,6 +26,10 @@ import { fetchAndParseRss } from "./rss-parse";
 // out by the keyword pre-filter, this keeps us well under Gemini Flash's
 // free-tier rate limits (15 RPM as of 2026-05).
 const LLM_INTERVAL_MS = 250;
+// HO 117: per-article hard cap. Observed p95 was 760ms locally and max
+// 1053ms in HO 117 Phase 1; 8s is ~10× p95 — generous but tight enough
+// to bound a hung Gemini call so it can't burn the whole tick.
+const PER_ARTICLE_TIMEOUT_MS = 8_000;
 
 // LLM confidence label → the REAL stored in news_mentions.match_confidence
 // (HO 104). The column is REAL (designed for a 0-1 score); the matcher emits
@@ -41,17 +51,42 @@ export interface IngestResult {
   llmCalls: number;
   llmMatches: number;
   llmErrors: number;
+  // HO 117: subset of llmErrors where the per-article AbortController
+  // fired (signal.aborted true at catch). Defensive metric — observed 0
+  // in Phase 1 measurement.
+  llmTimeouts: number;
+  // HO 117: wall-clock for this feed (RSS fetch + per-article loop + DB
+  // writes). Surfaced into cron_runs.payload.timings by the route caller.
+  wallMs: number;
+  // HO 117: true if the deadline interrupted this feed's article loop.
+  // Distinguishable from "completed cleanly" so the caller can spot a
+  // half-processed feed in logs.
+  budgetStopped: boolean;
   errors: string[];
 }
+
+export type IngestOptions = {
+  /**
+   * HO 117: absolute epoch-millis past which ingestNews stops *starting*
+   * new articles. The 8s per-article AbortController bounds the in-flight
+   * article on top of this. Route passes routeStart + 45_000; combined
+   * with the 8s cap and ~2s of cron-log writes, the function stays inside
+   * the 60s Vercel ceiling.
+   */
+  deadlineMs?: number;
+};
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export async function ingestNews(): Promise<IngestResult[]> {
+export async function ingestNews(
+  options: IngestOptions = {},
+): Promise<IngestResult[]> {
   const db = getDb();
   const results: IngestResult[] = [];
   const ingestedAt = new Date().toISOString();
+  const deadlineMs = options.deadlineMs;
 
   // LLM fallback setup. If GEMINI_API_KEY isn't present we skip the
   // fallback entirely — regex-only mode is the original behavior and
@@ -99,7 +134,30 @@ export async function ingestNews(): Promise<IngestResult[]> {
     return true;
   }
 
-  for (const source of NEWS_SOURCES) {
+  feedLoop: for (const source of NEWS_SOURCES) {
+    // HO 117: check the deadline before starting a new feed — if budget is
+    // exhausted, don't even pay for the RSS fetch on the remaining feeds.
+    if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+      console.log(
+        `[news] budget reached before ${source.slug}; skipping remaining feeds`,
+      );
+      results.push({
+        source: source.slug,
+        itemsFetched: 0,
+        mentionsInserted: 0,
+        mentionsSkippedUnknownBill: 0,
+        llmCalls: 0,
+        llmMatches: 0,
+        llmErrors: 0,
+        llmTimeouts: 0,
+        wallMs: 0,
+        budgetStopped: true,
+        errors: ["budget reached before feed started"],
+      });
+      continue;
+    }
+
+    const feedStart = Date.now();
     const result: IngestResult = {
       source: source.slug,
       itemsFetched: 0,
@@ -108,6 +166,9 @@ export async function ingestNews(): Promise<IngestResult[]> {
       llmCalls: 0,
       llmMatches: 0,
       llmErrors: 0,
+      llmTimeouts: 0,
+      wallMs: 0,
+      budgetStopped: false,
       errors: [],
     };
 
@@ -116,6 +177,22 @@ export async function ingestNews(): Promise<IngestResult[]> {
       result.itemsFetched = items.length;
 
       for (const item of items) {
+        // HO 117: deadline check before starting a new article so the only
+        // thing that can push us past `deadlineMs` is the 8s per-article
+        // AbortController.
+        if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+          result.budgetStopped = true;
+          console.log(
+            `[news] budget reached mid-${source.slug}; stopping after ${result.itemsFetched - items.indexOf(item)} unprocessed`,
+          );
+          // Wrap up this feed's stats, then bail out of the outer loop —
+          // feeds after this won't even start (the feed-loop check above
+          // catches them).
+          result.wallMs = Date.now() - feedStart;
+          results.push(result);
+          break feedLoop;
+        }
+
         const text = `${item.title}\n${item.summary ?? ""}`;
         // Regex hits store NULL confidence (deterministic — a spelled-out
         // bill ID is not a probabilistic match); LLM hits carry a REAL.
@@ -127,12 +204,24 @@ export async function ingestNews(): Promise<IngestResult[]> {
         // No-pre-filter-hits short-circuits BEFORE counting an LLM call so
         // the llmCalls metric reflects actual Gemini round-trips.
         if (billMatches.length === 0 && llmClient && candidates.length > 0) {
-          const outcome = await matchBillsToArticle(
-            llmClient,
-            item.title,
-            item.summary,
-            candidates,
-          );
+          // HO 117: per-article AbortController. The 8s cap is enforced by
+          // the timer; on abort the matcher's catch returns api_error, and
+          // the post-call signal.aborted check separates a timeout from a
+          // genuine model error.
+          const ac = new AbortController();
+          const timer = setTimeout(() => ac.abort(), PER_ARTICLE_TIMEOUT_MS);
+          let outcome;
+          try {
+            outcome = await matchBillsToArticle(
+              llmClient,
+              item.title,
+              item.summary,
+              candidates,
+              ac.signal,
+            );
+          } finally {
+            clearTimeout(timer);
+          }
           if (outcome.kind === "matched") {
             result.llmCalls++;
             result.llmMatches++;
@@ -147,8 +236,15 @@ export async function ingestNews(): Promise<IngestResult[]> {
             await sleep(LLM_INTERVAL_MS);
           } else if (outcome.kind === "api_error") {
             result.llmCalls++;
-            result.llmErrors++;
-            result.errors.push(`llm match: ${outcome.reason}`);
+            if (ac.signal.aborted) {
+              result.llmTimeouts++;
+              result.errors.push(
+                `llm timeout (${PER_ARTICLE_TIMEOUT_MS}ms): ${item.title.slice(0, 60)}`,
+              );
+            } else {
+              result.llmErrors++;
+              result.errors.push(`llm match: ${outcome.reason}`);
+            }
             await sleep(LLM_INTERVAL_MS);
           }
           // no_pre_filter_hits: no LLM call, no metric bump, no sleep
@@ -173,6 +269,7 @@ export async function ingestNews(): Promise<IngestResult[]> {
       result.errors.push(msg);
     }
 
+    result.wallMs = Date.now() - feedStart;
     results.push(result);
   }
 
