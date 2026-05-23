@@ -359,6 +359,12 @@ export type SenateSyncSummary = {
   totalCandidates: number;
   matchedCandidates: number;
   failures: string[];
+  // HO 120 additions: time-budget instrumentation. CLI passes neither
+  // deadlineMs nor onProgress and reads these as the obvious values
+  // (budgetStopped=false, fetchFailures=[], perStateMs populated).
+  budgetStopped: boolean;
+  fetchFailures: string[];
+  perStateMs: number[];
 };
 
 // Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
@@ -371,8 +377,18 @@ export type SenateSyncSummary = {
 // `states` defaults to the full 2026 Senate slate; the handoff-97 cron passes
 // a slice (the full 34-state pass measured ~57s, past the 60s ceiling once
 // the calendar scrape is added) so one tick stays well inside the budget.
+//
+// `opts.deadlineMs` is the absolute Date.now() at which the caller wants the
+// loop to stop *starting* new states (HO 120). `opts.onProgress(i)` runs
+// after each successful upsert with the slice-relative index just completed
+// — the cron route uses it to commit the cursor per-state so a tick that
+// gets killed mid-slice doesn't discard the states it already finished.
 export async function syncSenateCandidates(
   states: string[] = SENATE_STATES_2026,
+  opts: {
+    deadlineMs?: number;
+    onProgress?: (i: number) => Promise<void>;
+  } = {},
 ): Promise<SenateSyncSummary> {
   const db = getDb();
   const now = new Date().toISOString();
@@ -408,15 +424,36 @@ export async function syncSenateCandidates(
   let totalCandidates = 0;
   let matchedCandidates = 0;
   const failures: string[] = [];
+  const fetchFailures: string[] = [];
+  const perStateMs: number[] = [];
   const perState: string[] = [];
+  let budgetStopped = false;
 
-  for (const abbr of states) {
+  for (let i = 0; i < states.length; i++) {
+    if (opts.deadlineMs !== undefined && Date.now() >= opts.deadlineMs) {
+      // HO 120: stop *starting* new states once we've crossed the budget.
+      // The states we already processed have their cursor committed via
+      // onProgress, so the next tick picks up cleanly from i.
+      budgetStopped = true;
+      break;
+    }
+    const abbr = states[i]!;
     const slug = stateName(abbr).replace(/ /g, "_");
+    const stateStart = Date.now();
     const result = await scrapeSenateCandidates(abbr, slug);
     await sleep(700); // be polite to Ballotpedia between fetches
 
     if (result.status !== "ok") {
-      failures.push(`${abbr} — ${result.status}`);
+      // A `no_page` with httpStatus 0 is the HO 120 per-fetch timeout
+      // surfacing — log it under fetchFailures so it shows up in
+      // cron_runs.payload separately from genuine 404s / parse failures.
+      if (result.status === "no_page" && result.httpStatus === 0) {
+        fetchFailures.push(`${abbr} — fetch timeout`);
+      } else {
+        failures.push(`${abbr} — ${result.status}`);
+      }
+      perStateMs.push(Date.now() - stateStart);
+      await opts.onProgress?.(i);
       continue;
     }
     okStates++;
@@ -453,6 +490,8 @@ export async function syncSenateCandidates(
       }
     }
     perState.push(`  ${abbr}: ${result.candidates.length} candidates`);
+    perStateMs.push(Date.now() - stateStart);
+    await opts.onProgress?.(i);
   }
 
   console.log("\n=== Senate candidate sync ===");
@@ -468,6 +507,13 @@ export async function syncSenateCandidates(
   } else {
     console.log("Failed to parse: none");
   }
+  if (fetchFailures.length > 0) {
+    console.log(`Fetch timeouts (${fetchFailures.length}):`);
+    for (const f of fetchFailures) console.log(`  ${f}`);
+  }
+  if (budgetStopped) {
+    console.log("Stopped early on time budget.");
+  }
 
   return {
     okStates,
@@ -475,6 +521,9 @@ export async function syncSenateCandidates(
     totalCandidates,
     matchedCandidates,
     failures,
+    budgetStopped,
+    fetchFailures,
+    perStateMs,
   };
 }
 
@@ -485,6 +534,13 @@ export type HouseSyncSummary = {
   totalCandidates: number;
   matchedIncumbents: number;
   totalIncumbents: number;
+  // HO 120 additions: time-budget instrumentation, surfaced in cron_runs
+  // payload. CLI callers pass neither deadlineMs nor onProgress and read
+  // these as the obvious values (budgetStopped=false, fetchFailures=[],
+  // perDistrictMs populated).
+  budgetStopped: boolean;
+  fetchFailures: string[];
+  perDistrictMs: number[];
 };
 
 // Step 4 — House candidate rosters (handoff 92, +96). For each district in the
@@ -503,9 +559,20 @@ export type HouseSyncSummary = {
 // reads them rather than re-scraping 270toWin. Run the calendar pass first if
 // those rows are missing. House special elections are out of scope: districts
 // whose normal URL resolves to a special-election page are logged and skipped.
+// `opts.deadlineMs` is the absolute Date.now() at which the caller wants the
+// loop to stop *starting* new districts (HO 120). `opts.onProgress(i)` runs
+// after each district (success or skip) with the slice-relative index just
+// completed — the cron route uses it to commit the cursor per-district so a
+// tick that gets killed mid-slice doesn't discard the districts it already
+// finished. CLI callers (sync-primaries.ts) pass neither and the loop runs
+// as it always has.
 export async function syncHouseDistricts(
   districts: HouseDistrict[],
   label: string,
+  opts: {
+    deadlineMs?: number;
+    onProgress?: (i: number) => Promise<void>;
+  } = {},
 ): Promise<HouseSyncSummary> {
   const db = getDb();
   const now = new Date().toISOString();
@@ -518,6 +585,9 @@ export async function syncHouseDistricts(
       totalCandidates: 0,
       matchedIncumbents: 0,
       totalIncumbents: 0,
+      budgetStopped: false,
+      fetchFailures: [],
+      perDistrictMs: [],
     };
   }
   const states = [...new Set(districts.map((d) => d.state))];
@@ -571,6 +641,9 @@ export async function syncHouseDistricts(
   let parsedOk = 0;
   let totalCandidates = 0;
   const urlMisses: string[] = []; // no_page — genuine URL miss
+  const fetchFailures: string[] = []; // HO 120: no_page with httpStatus 0 = our 8s timeout fired
+  const perDistrictMs: number[] = [];
+  let budgetStopped = false;
   const emptyDistricts: string[] = []; // no_section / no_candidates — no filings
   const specials: string[] = [];
   const oddities: string[] = [];
@@ -590,7 +663,16 @@ export async function syncHouseDistricts(
     return s;
   };
 
-  for (const d of districts) {
+  for (let i = 0; i < districts.length; i++) {
+    if (opts.deadlineMs !== undefined && Date.now() >= opts.deadlineMs) {
+      // HO 120: stop *starting* new districts once the route's 50s budget is
+      // exhausted. Districts already processed are cursor-committed via
+      // onProgress, so the next tick resumes from i without redoing them.
+      budgetStopped = true;
+      break;
+    }
+    const d = districts[i]!;
+    const districtStart = Date.now();
     attempted++;
     const stat = stateStat(d.state);
     stat.attempted++;
@@ -604,12 +686,22 @@ export async function syncHouseDistricts(
       specials.push(
         `${districtLabel} — special election, skipped (${result.url})`,
       );
+      perDistrictMs.push(Date.now() - districtStart);
+      await opts.onProgress?.(i);
       continue;
     }
     if (result.status === "no_page") {
-      urlMisses.push(
-        `${districtLabel} — HTTP ${result.httpStatus ?? "ERR"} ${result.url}`,
-      );
+      if (result.httpStatus === 0) {
+        // HO 120 per-fetch timeout — the URL hung past 8s, we abort and move
+        // on. Don't permanently block the cursor on a single dead district.
+        fetchFailures.push(`${districtLabel} — fetch timeout ${result.url}`);
+      } else {
+        urlMisses.push(
+          `${districtLabel} — HTTP ${result.httpStatus ?? "ERR"} ${result.url}`,
+        );
+      }
+      perDistrictMs.push(Date.now() - districtStart);
+      await opts.onProgress?.(i);
       continue;
     }
     if (result.status === "ok") {
@@ -715,6 +807,8 @@ export async function syncHouseDistricts(
         });
       }
     }
+    perDistrictMs.push(Date.now() - districtStart);
+    await opts.onProgress?.(i);
   }
 
   const unmatchedIncumbents: string[] = [];
@@ -740,6 +834,16 @@ export async function syncHouseDistricts(
   if (urlMisses.length > 0) {
     console.log(`\nURL misses (${urlMisses.length}):`);
     for (const m of urlMisses) console.log(`  ${m}`);
+  }
+  if (fetchFailures.length > 0) {
+    console.log(`\nFetch timeouts (${fetchFailures.length}):`);
+    for (const f of fetchFailures) console.log(`  ${f}`);
+  }
+  if (budgetStopped) {
+    console.log(
+      `\nStopped early on time budget (${attempted}/${districts.length} ` +
+        "districts attempted).",
+    );
   }
   if (emptyDistricts.length > 0) {
     console.log(`\nNo filings yet (${emptyDistricts.length}):`);
@@ -780,6 +884,9 @@ export async function syncHouseDistricts(
     totalCandidates,
     matchedIncumbents: matchedIncumbents.size,
     totalIncumbents,
+    budgetStopped,
+    fetchFailures,
+    perDistrictMs,
   };
 }
 
@@ -1090,13 +1197,26 @@ const CRON_REGION_ORDER: HouseRegion[] = [
   "west",
 ];
 
-// Scrape units processed per cron tick (Senate states or House districts; the
-// calendar is always a tick of its own). Each unit costs ~1.5-2s — the
-// Ballotpedia politeness sleep dominates — so 20 keeps a tick near ~35-40s,
-// comfortably inside the 60s Vercel ceiling. Corpus = 1 calendar + 34 Senate
-// + 435 House = 470 units → ~26 ticks → a ~26-day full refresh cycle. Lower
-// this if the route's elapsedMs log trends toward 60000.
-const CRON_SLICE = 20;
+// House districts processed per cron tick. Each unit costs ~1.5-2s local,
+// ~2-3s prod after the cold-network tax noted in HO 97 — the 1000ms
+// Ballotpedia politeness sleep dominates. HO 120 lowered this from 20 to 12
+// after the pre-flight measure showed a 20-slice projected to ~67s prod
+// (over the 60s ceiling); 12 lands a tick near ~46s, leaving margin for the
+// deadline check + the per-fetch 8s timeout to do their work without
+// orphaning the row.
+const CRON_HOUSE_SLICE = 12;
+
+// Senate states per cron tick. Senate is much smaller (34 states total) and
+// sleeps 700ms not 1000ms, so the budget is looser. HO 120 keeps this at 20
+// — it's a calendar-cycle knob, not a safety knob, because the per-state
+// cursor commit makes a senate tick safe even if it spans two days.
+const CRON_SENATE_SLICE = 20;
+
+// HO 120 wall-clock deadline for the cron tick. The route owns the absolute
+// Date.now() at start; this is the offset. 50s leaves ~10s of headroom under
+// the 60s Vercel function ceiling for the deadline-triggered tail (cursor
+// commit, finishCronRun, response serialization) to land cleanly.
+const DEADLINE_MS = 50_000;
 
 // dashboard_state key holding the cron cursor — the index into buildScrapeUnits
 // of the next unit to process. dashboard_state is the project's existing
@@ -1158,15 +1278,52 @@ export type PrimariesCronResult = {
     totalCandidates: number;
     matchedIncumbents: number;
   };
+  // HO 120 instrumentation surfaced into cron_runs.payload. budgetStopped is
+  // true when the route stopped *starting* new units before the slice ended;
+  // fetchFailures lists per-unit 8s fetch-timeout abortions (separate from
+  // genuine 404s, which land under the existing urlMisses bucket); the
+  // perDistrictMs summary mirrors HO 117's per-feed timings for ad-hoc
+  // capacity tuning without a full instrumentation pass.
+  budgetStopped: boolean;
+  fetchFailures: string[];
+  perUnitMs?: { p50: number; p95: number; max: number; count: number };
 };
 
-// One cron tick (handoff 97). Reads the cursor, processes one tick's worth of
-// work — the calendar pass, up to CRON_SLICE Senate states, or up to CRON_SLICE
-// House districts — advances the cursor, and wraps to the start at the end of
-// the list. The cursor is written only after the scrape succeeds, so a tick
-// that times out or throws simply re-runs the same slice next day (the upserts
-// are idempotent). Designed to fit Vercel Hobby's 60s function ceiling.
-export async function runPrimariesCronTick(): Promise<PrimariesCronResult> {
+// Computes the p50/p95/max summary surfaced in cron_runs.payload (HO 120).
+// Returns undefined when no units were measured — the cron route then omits
+// the perUnitMs key entirely rather than logging a synthetic "no data" row.
+function summarizeMs(
+  durations: number[],
+): { p50: number; p95: number; max: number; count: number } | undefined {
+  if (durations.length === 0) return undefined;
+  const sorted = [...durations].sort((a, b) => a - b);
+  const at = (q: number) =>
+    sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))]!;
+  return {
+    p50: at(0.5),
+    p95: at(0.95),
+    max: sorted[sorted.length - 1]!,
+    count: sorted.length,
+  };
+}
+
+// One cron tick (handoff 97, refactored HO 120). Reads the cursor, processes
+// one tick's worth of work — the calendar pass, up to CRON_SENATE_SLICE Senate
+// states, or up to CRON_HOUSE_SLICE House districts — and wraps to the start
+// at the end of the list. HO 120 changes the cursor-write timing: the cursor
+// advances **per unit** as each state/district finishes, so a tick that runs
+// out of budget mid-slice keeps the units it did finish. Combined with the
+// 50s wall-clock deadline + 8s per-fetch AbortController in
+// `lib/primary-candidates-scrape.ts`, this closes the implicit-timeout loop
+// that left orphaned `cron_runs` rows (id=9, id=19 in the prod table — the
+// canonical pre-HO-120 evidence).
+//
+// `routeStart` is the absolute Date.now() at route entry; the route owns it
+// so the deadline reflects the full function lifetime, not just this entry
+// point. CLI / tests can omit it and skip the deadline entirely.
+export async function runPrimariesCronTick(
+  routeStart: number = Date.now(),
+): Promise<PrimariesCronResult> {
   const db = getDb();
   const units = buildScrapeUnits();
   let cursor = await readCursor(db);
@@ -1174,27 +1331,44 @@ export async function runPrimariesCronTick(): Promise<PrimariesCronResult> {
   const cursorStart = cursor;
   const unit = units[cursor]!;
   const base = { cursorStart, totalUnits: units.length };
+  const deadlineMs = routeStart + DEADLINE_MS;
 
   if (unit.kind === "calendar") {
     const calendar = await syncCalendar();
     cursor = (cursor + 1) % units.length;
     await writeCursor(db, cursor);
-    return { unit: "calendar", ...base, cursorEnd: cursor, calendarStates: calendar.states };
+    return {
+      unit: "calendar",
+      ...base,
+      cursorEnd: cursor,
+      calendarStates: calendar.states,
+      budgetStopped: false,
+      fetchFailures: [],
+    };
   }
 
   if (unit.kind === "senate") {
-    // Take up to CRON_SLICE consecutive Senate units from the cursor.
+    // Take up to CRON_SENATE_SLICE consecutive Senate units from the cursor.
     const slice: string[] = [];
-    let i = cursor;
-    while (slice.length < CRON_SLICE && i < units.length) {
-      const u = units[i]!;
+    let sliceEnd = cursor;
+    while (slice.length < CRON_SENATE_SLICE && sliceEnd < units.length) {
+      const u = units[sliceEnd]!;
       if (u.kind !== "senate") break;
       slice.push(u.state);
-      i++;
+      sliceEnd++;
     }
-    const senate = await syncSenateCandidates(slice);
-    cursor = i >= units.length ? 0 : i;
-    await writeCursor(db, cursor);
+    // Per-state cursor commit (HO 120). `i` is the slice-relative index of
+    // the unit just finished, so the absolute cursor lands at cursor + i + 1.
+    const senate = await syncSenateCandidates(slice, {
+      deadlineMs,
+      onProgress: async (i) => {
+        const next = cursor + i + 1;
+        await writeCursor(db, next >= units.length ? 0 : next);
+      },
+    });
+    // Final cursor: wherever the per-state commits landed it. Re-read to be
+    // sure (cheap one-row select; correctness > saving the read).
+    cursor = await readCursor(db);
     return {
       unit: "senate",
       ...base,
@@ -1205,22 +1379,30 @@ export async function runPrimariesCronTick(): Promise<PrimariesCronResult> {
         last: slice[slice.length - 1]!,
         count: slice.length,
       },
+      budgetStopped: senate.budgetStopped,
+      fetchFailures: senate.fetchFailures,
+      perUnitMs: summarizeMs(senate.perStateMs),
     };
   }
 
-  // House: take up to CRON_SLICE consecutive House districts from the cursor.
-  // Stop at the end of the unit list rather than wrapping mid-slice.
+  // House: take up to CRON_HOUSE_SLICE consecutive House districts from the
+  // cursor. Stop at the end of the unit list rather than wrapping mid-slice.
   const slice: HouseDistrict[] = [];
-  let i = cursor;
-  while (slice.length < CRON_SLICE && i < units.length) {
-    const u = units[i]!;
+  let sliceEnd = cursor;
+  while (slice.length < CRON_HOUSE_SLICE && sliceEnd < units.length) {
+    const u = units[sliceEnd]!;
     if (u.kind !== "house") break;
     slice.push(u.district);
-    i++;
+    sliceEnd++;
   }
-  const summary = await syncHouseDistricts(slice, "cron-slice");
-  cursor = i >= units.length ? 0 : i;
-  await writeCursor(db, cursor);
+  const summary = await syncHouseDistricts(slice, "cron-slice", {
+    deadlineMs,
+    onProgress: async (i) => {
+      const next = cursor + i + 1;
+      await writeCursor(db, next >= units.length ? 0 : next);
+    },
+  });
+  cursor = await readCursor(db);
 
   const fmt = (d: HouseDistrict) =>
     `${d.state}-${String(d.district).padStart(2, "0")}`;
@@ -1237,5 +1419,8 @@ export async function runPrimariesCronTick(): Promise<PrimariesCronResult> {
       totalCandidates: summary.totalCandidates,
       matchedIncumbents: summary.matchedIncumbents,
     },
+    budgetStopped: summary.budgetStopped,
+    fetchFailures: summary.fetchFailures,
+    perUnitMs: summarizeMs(summary.perDistrictMs),
   };
 }

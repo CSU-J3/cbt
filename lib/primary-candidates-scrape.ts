@@ -173,11 +173,25 @@ function parseVotebox(
   return out;
 }
 
-async function fetchPage(url: string): Promise<Response | null> {
+// HO 120 per-fetch wall-clock cap. p95 was ~1.9s local in the HO 120 pre-
+// flight measure → ~4s prod after the ~2× cold-network tax noted in HO 97,
+// so 8s is roughly 2× that p95 — enough headroom for a slow real fetch, but
+// not so much that a single hung request can burn a meaningful chunk of the
+// 50s tick budget. `scrapeHouseCandidates` and `scrapeSenateCandidates` set
+// their own AbortController with this deadline; on abort, the scrape
+// returns `status: "no_page"` with `httpStatus: 0` so the caller can
+// distinguish a timeout from a real 404 in `cron_runs.payload.fetchFailures`.
+const FETCH_TIMEOUT_MS = 8_000;
+
+async function fetchPage(
+  url: string,
+  signal?: AbortSignal,
+): Promise<Response | null> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
       redirect: "follow",
+      signal,
     });
     return res;
   } catch {
@@ -320,22 +334,51 @@ function isSpecialElectionPage(html: string): boolean {
   return /special election/i.test(title);
 }
 
+// Wraps a single fetch attempt in an 8s AbortController. On abort, returns
+// `{ res: null, aborted: true }` so callers can short-circuit retry loops
+// rather than burn `HOUSE_RETRY_BACKOFF_MS * HOUSE_FETCH_ATTEMPTS` on a stuck
+// URL (HO 120).
+async function fetchPageWithTimeout(
+  url: string,
+): Promise<{ res: Response | null; aborted: boolean }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetchPage(url, controller.signal);
+    return { res, aborted: controller.signal.aborted };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function scrapeSenateCandidates(
   state: string,
   slug: string,
 ): Promise<CandidateScrapeResult> {
   // Try the standard election page; fall back to the special-election URL
-  // (FL / OH 2026 specials live there).
+  // (FL / OH 2026 specials live there). HO 120: both attempts run under the
+  // 8s per-fetch cap; an aborted fetch surfaces as `httpStatus: 0` so the
+  // primaries-sync layer can log it under `fetchFailures` rather than the
+  // generic `no_page` bucket.
   let url = senatePageUrl(slug);
-  let res = await fetchPage(url);
-  if (!res || !res.ok) {
+  let attempt = await fetchPageWithTimeout(url);
+  if (!attempt.res || !attempt.res.ok) {
+    if (attempt.aborted) {
+      return { state, url, status: "no_page", httpStatus: 0, candidates: [] };
+    }
     url = senateSpecialPageUrl(slug);
-    res = await fetchPage(url);
+    attempt = await fetchPageWithTimeout(url);
   }
-  if (!res || !res.ok) {
-    return { state, url, status: "no_page", httpStatus: res?.status, candidates: [] };
+  if (!attempt.res || !attempt.res.ok) {
+    return {
+      state,
+      url,
+      status: "no_page",
+      httpStatus: attempt.aborted ? 0 : attempt.res?.status,
+      candidates: [],
+    };
   }
-  const html = await res.text();
+  const html = await attempt.res.text();
   return parseCandidatesPage(html, state, url);
 }
 
@@ -374,7 +417,19 @@ export async function scrapeHouseCandidates(
     if (attempt > 0) {
       await new Promise((r) => setTimeout(r, HOUSE_RETRY_BACKOFF_MS));
     }
-    const res = await fetchPage(url);
+    const { res, aborted } = await fetchPageWithTimeout(url);
+    if (aborted) {
+      // HO 120 per-fetch timeout — Ballotpedia hung on this URL. Don't burn
+      // the rest of the retry budget on it; surface as a fetch failure
+      // (httpStatus 0) and let the caller advance the cursor past it.
+      return {
+        state,
+        url,
+        status: "no_page",
+        httpStatus: 0,
+        candidates: [],
+      };
+    }
     if (!res || !res.ok) {
       last = {
         state,

@@ -50,7 +50,12 @@ async function handle(request: Request) {
   const t0 = Date.now();
   let result: Awaited<ReturnType<typeof runPrimariesCronTick>>;
   try {
-    result = await runPrimariesCronTick();
+    // HO 120: pass the route start so the 50s wall-clock deadline reflects
+    // the function's full lifetime, not just the tick entry. Combined with
+    // per-unit cursor commit inside runPrimariesCronTick, a tick that
+    // budget-stops mid-slice keeps the units it did finish — pre-HO 120 the
+    // cursor-write was at slice-end-only, so a kill ate the whole slice.
+    result = await runPrimariesCronTick(t0);
   } catch (err) {
     console.error("[cron-primaries] failed:", err);
     const message = err instanceof Error ? err.message : String(err);
