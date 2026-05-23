@@ -457,11 +457,14 @@ body {
   }
 }
 
-/* ---- breaking news rows (handoff 69) ----------------------------------- */
-/* Columns: bill id | headline | source label | age */
+/* ---- breaking news rows (handoff 69; bill-cell + pill HO 118) ---------- */
+/* Columns: bill id (+ optional [+N] companions pill) | headline | source | age.
+   First column widened from 86px to 124px in HO 118 to fit `HCONRES 9999
+   [+9]` without overflowing into the headline column. /news rows pay a few
+   pixels of extra padding; no visible regression. */
 .news-row {
   display: grid;
-  grid-template-columns: 86px 1fr 120px 64px;
+  grid-template-columns: 124px 1fr 120px 64px;
   align-items: baseline;
   column-gap: 12px;
   padding: 6px 0;
@@ -471,6 +474,18 @@ body {
 
 .news-row:hover {
   background: var(--bg-row-hover);
+}
+
+.news-row .bill-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.news-row .companions-pill {
+  font-variant-numeric: tabular-nums;
 }
 
 .news-row .source {
@@ -488,7 +503,7 @@ body {
 
 .news-header-row {
   display: grid;
-  grid-template-columns: 86px 1fr 120px 64px;
+  grid-template-columns: 124px 1fr 120px 64px;
   align-items: baseline;
   column-gap: 12px;
   padding: 9px 0;
@@ -506,13 +521,13 @@ body {
 
 @media (max-width: 700px) {
   .news-row {
-    grid-template-columns: 86px 1fr 56px;
+    grid-template-columns: 124px 1fr 56px;
   }
   .news-row .source {
     display: none;
   }
   .news-header-row {
-    grid-template-columns: 86px 1fr 56px;
+    grid-template-columns: 124px 1fr 56px;
   }
   .news-header-row .source {
     display: none;

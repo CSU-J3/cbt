@@ -51,16 +51,29 @@ export function NewsRow({
     ? `/bill/${encodeURIComponent(mention.billId)}`
     : `/feed?expanded=${encodeURIComponent(mention.billId)}`;
 
+  const otherBills = mention.otherBills ?? [];
+
   return (
     <div className="news-row">
-      <Link
-        href={billHref}
-        className="text-[14px] font-medium tabular-nums"
-        style={{ color: "var(--accent-amber)" }}
-        title={mention.billTitle}
-      >
-        {billLabel}
-      </Link>
+      <span className="bill-cell">
+        <Link
+          href={billHref}
+          className="text-[14px] font-medium tabular-nums"
+          style={{ color: "var(--accent-amber)" }}
+          title={mention.billTitle}
+        >
+          {billLabel}
+        </Link>
+        {otherBills.length > 0 && (
+          <span
+            className="companions-pill text-[12px] tabular-nums"
+            style={{ color: "var(--text-muted)" }}
+            title={otherBills.join(", ")}
+          >
+            [+{otherBills.length}]
+          </span>
+        )}
+      </span>
       <a
         href={mention.url}
         target="_blank"
