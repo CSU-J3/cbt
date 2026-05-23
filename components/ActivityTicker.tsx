@@ -25,19 +25,10 @@ export async function ActivityTicker({
           No stage changes in the last 7 days.
         </div>
       ) : (
-        <div className="changes-feed flex-1">
+        <div className="flex-1">
           <ul>
             {bills.map((b) => (
-              <BillRow
-                key={b.id}
-                bill={b}
-                filters={{ topics: [], stage: undefined }}
-                basePath="/feed"
-                expandedId={undefined}
-                onWatchlist={false}
-                introducedDate={b.introduced_date}
-                showStageTransition
-              />
+              <BillRow key={b.id} bill={b} compact />
             ))}
           </ul>
         </div>

@@ -5,13 +5,11 @@ import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
 import {
   getWatchlistBills,
-  isInWatchlist,
   sanitizeChamber,
   sanitizeSort,
 } from "@/lib/queries";
 
 type SearchParams = {
-  expanded?: string;
   sort?: string;
   chamber?: string;
 };
@@ -22,14 +20,9 @@ export default async function WatchlistPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const expandedParam = typeof params.expanded === "string" ? params.expanded : undefined;
   const sort = sanitizeSort(params.sort);
   const chamber = sanitizeChamber(params.chamber);
   const bills = await getWatchlistBills(sort, chamber);
-  const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
-    ? expandedParam
-    : undefined;
-  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const carry = new URLSearchParams();
   if (sort && sort !== "action") carry.set("sort", sort);
@@ -71,7 +64,7 @@ export default async function WatchlistPage({
           >
             <p style={{ color: "var(--text-muted)" }}>No bills on watchlist</p>
             <p className="mt-2 normal-case tracking-normal">
-              Add bills from the feed by clicking ★ Watch on any expanded row.
+              Add bills from any bill detail page by clicking ★ Watch.
             </p>
           </div>
         ) : (
@@ -80,25 +73,9 @@ export default async function WatchlistPage({
             style={{ borderColor: "var(--border-strong)" }}
           >
             <StageLegend />
-            <div className="feed-header-row">
-              <span aria-hidden></span>
-              <span>Bill</span>
-              <span>Title / Sponsor</span>
-              <span>Stage</span>
-              <span className="col-date">Action</span>
-              <span>Topics</span>
-            </div>
             <ul>
               {bills.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  filters={{ topics: [], stage: undefined, sort, chamber }}
-                  basePath="/watchlist"
-                  expandedId={expandedId}
-                  onWatchlist={expandedId === b.id ? onWatchlist : false}
-                  introducedDate={b.introduced_date}
-                />
+                <BillRow key={b.id} bill={b} />
               ))}
             </ul>
           </div>

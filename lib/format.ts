@@ -57,7 +57,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Relative-age string for news mentions. Sub-hour → "Xm"; sub-day → "Xh";
 // otherwise → "Xd". Floors each unit so a 59-min mention reads "59m" rather
-// than "1h", matching how news clients display recency.
+// than "1h", matching how news clients display recency. Capped at days
+// because the news feed never shows anything older than a few weeks; for
+// the longer arcs the BillRow stage pills need, use formatRelativeAgeLong.
 export function formatRelativeAge(iso: string | null | undefined): string {
   if (!iso) return "—";
   const t = Date.parse(iso);
@@ -69,6 +71,29 @@ export function formatRelativeAge(iso: string | null | undefined): string {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+// Extended relative-age covering minutes through years (HO 125). Used by the
+// BillRow stage pills, where bills can be 9 months old or more — the news-
+// feed version caps at days, which renders as e.g. "270d" instead of "9mo".
+// Boundaries are practical, not calendar-precise: 30-day months and 365-day
+// years are good enough for terminal-style "9mo ago" UI text. Output is
+// lowercase; row CSS applies uppercase at render so the value travels
+// case-agnostic through the pipe.
+export function formatRelativeAgeLong(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "—";
+  const diffMs = Math.max(0, Date.now() - t);
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 14) return `${days}d`;
+  if (days < 60) return `${Math.floor(days / 7)}w`;
+  if (days < 730) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
 }
 
 export function daysSince(dateStr: string | null | undefined): number {

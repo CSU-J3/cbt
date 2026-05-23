@@ -33,6 +33,15 @@
   --vote-nay: #f87171;
   --vote-present: #fbbf24;
   --vote-not-voting: #6b7280;
+
+  /* Bill-id rail (HO 125). Chamber-of-origin marker for the BillRow rail.
+     Deliberately NOT reused from party or stage palettes — the chamber is
+     structural ("which body filed this bill"), not partisan. Picked from a
+     visually distinct family from --stage-committee cyan (#06b6d4) and
+     --party-independent purple (#a78bfa) so a glance distinguishes the
+     vertical rail from inline stage pills or party tags. */
+  --rail-house: #22d3ee;
+  --rail-senate: #c084fc;
 }
 
 @theme {
@@ -207,52 +216,188 @@ body {
   color: var(--accent-amber-bright);
 }
 
-/* ---- feed grid ---------------------------------------------------------- */
-/* Columns: expand-arrow | bill-id | title/sponsor | stage | date | topics  */
+/* ---- feed row (HO 125 redesign) ----------------------------------------
+   Three columns: vertical bill-id rail | stacked content | optional
+   days-since cell. The expand affordance and the horizontal HR-1234 prefix
+   from the prior layout are gone — clicking the row navigates straight to
+   /bill/[id], and the inline summary excerpt absorbs the fast-scan job the
+   expand panel used to do.
+                                                                          */
 .feed-row {
   display: grid;
-  grid-template-columns: 24px 96px 1fr 150px 96px 150px;
-  align-items: center;
-  column-gap: 12px;
-  padding: 9px 14px;
+  grid-template-columns: 56px 1fr;
+  align-items: stretch;
+  gap: 0 14px;
+  padding: 0;
   border-bottom: 0.5px solid var(--border-soft);
   text-decoration: none;
+}
+
+.feed-row.has-days-since {
+  grid-template-columns: 56px 1fr 90px;
 }
 
 .feed-row:hover {
   background-color: var(--bg-row-hover);
 }
 
-.feed-header-row {
-  display: grid;
-  grid-template-columns: 24px 96px 1fr 150px 96px 150px;
+.feed-row .row-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 0;
+}
+
+.feed-row .row-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.feed-row .row-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-row .row-meta {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 12px;
-  padding: 9px 14px;
-  background-color: var(--bg-panel);
-  border-bottom: 0.5px solid var(--border-strong);
-  color: var(--text-dim);
-  font-size: 14px;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-top: 2px;
 }
 
-.feed-row.is-expanded {
-  background-color: var(--bg-row-hover);
+.feed-row .row-meta .row-view-detail {
+  margin-left: auto;
+  color: var(--text-dim);
 }
 
-/* /changes view: stage column needs room for "PREV → NEW" transition */
-.changes-feed .feed-row,
-.changes-feed .feed-header-row {
-  grid-template-columns: 24px 96px 1fr 220px 96px 150px;
+.feed-row:hover .row-view-detail {
+  color: var(--accent-amber);
 }
 
-.expanded-panel {
-  background-color: var(--bg-row-hover);
-  border-left: 2px solid var(--accent-amber);
-  border-bottom: 0.5px solid var(--border-strong);
-  padding: 16px 16px 16px 30px;
-  margin-left: 110px; /* aligns under title column on desktop */
+.feed-row .row-days-since {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 14px 10px 0;
+}
+
+/* ---- bill-id rail (HO 125) -------------------------------------------- */
+/* Vertical type-over-number block, chamber-tinted. Subtle 12% tint fill +
+   3px left border at full saturation reads as a structural marker rather
+   than competing with the inline stage pills. */
+.bill-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 4px;
+  border-left: 3px solid var(--text-dim);
+  background-color: var(--bg-panel);
+  line-height: 1.1;
+}
+
+.bill-rail--house {
+  border-left-color: var(--rail-house);
+  background-color: color-mix(in srgb, var(--rail-house) 10%, var(--bg-panel));
+}
+
+.bill-rail--senate {
+  border-left-color: var(--rail-senate);
+  background-color: color-mix(in srgb, var(--rail-senate) 10%, var(--bg-panel));
+}
+
+.bill-rail .rail-type {
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.bill-rail .rail-number {
+  font-size: 17px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* ---- stage pill strip (HO 125) ---------------------------------------- */
+.stage-pill-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stage-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-pill--history {
+  opacity: 0.6;
+}
+
+.stage-pill-arrow {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ---- compact feed row (HO 125 — ActivityTicker only) ------------------ */
+/* Used in the home dashboard's middle pane. Slim rail (40px), no inline
+   summary excerpt, no View Detail span — the ticker is scan-not-read.    */
+.feed-row.feed-row--compact {
+  grid-template-columns: 40px 1fr;
+}
+
+.feed-row--compact .row-content {
+  gap: 3px;
+  padding: 8px 0;
+}
+
+.feed-row--compact .row-summary,
+.feed-row--compact .row-view-detail {
+  display: none;
+}
+
+.feed-row--compact .bill-rail {
+  padding: 4px 2px;
+}
+
+.feed-row--compact .bill-rail .rail-number {
+  font-size: 14px;
 }
 
 /* ---- sponsor grid ------------------------------------------------------ */
@@ -849,15 +994,29 @@ body {
   .competitive-race-row .chamber-chip {
     display: none;
   }
-  .feed-row,
-  .feed-header-row {
-    grid-template-columns: 18px 78px 1fr 80px 80px;
-    column-gap: 6px;
-    padding: 9px 8px;
+  /* HO 125 feed row at narrow viewports: tighten the rail, drop the
+     optional days-since column so the stacked content takes full width.
+     daysSinceMode pages collapse their right column under 700px — the
+     value is also shown in the row meta strip via StagePillStrip's
+     time-since on the current pill. */
+  .feed-row {
+    grid-template-columns: 44px 1fr;
+    gap: 0 10px;
   }
-  .changes-feed .feed-row,
-  .changes-feed .feed-header-row {
-    grid-template-columns: 18px 78px 1fr 140px 80px;
+  .feed-row.has-days-since {
+    grid-template-columns: 44px 1fr;
+  }
+  .feed-row .row-days-since {
+    display: none;
+  }
+  .feed-row .row-content {
+    padding: 8px 0;
+  }
+  .feed-row .row-title {
+    font-size: 15px;
+  }
+  .feed-row .row-summary {
+    font-size: 12px;
   }
   .sponsor-row,
   .sponsor-header-row {
@@ -868,10 +1027,6 @@ body {
   /* hide the date column (5th of 6) on mobile by giving it display:none via .col-date */
   .col-date {
     display: none;
-  }
-  .expanded-panel {
-    margin-left: 0;
-    padding: 14px;
   }
   .sponsor-expanded-panel {
     margin-left: 0;

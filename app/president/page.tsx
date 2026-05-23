@@ -7,7 +7,6 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   getPresidentBills,
   getPresidentCount,
-  isInWatchlist,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -16,7 +15,6 @@ import {
 
 type SearchParams = {
   topics?: string;
-  expanded?: string;
   q?: string;
   chamber?: string;
   ceremonial?: string;
@@ -30,8 +28,6 @@ export default async function PresidentPage({
 }) {
   const params = await searchParams;
   const topics = sanitizeTopics(params.topics);
-  const expandedParam =
-    typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
@@ -56,11 +52,6 @@ export default async function PresidentPage({
     getPresidentBills(feedFilters, 50),
     getPresidentCount(feedFilters),
   ]);
-  const expandedId =
-    expandedParam && bills.some((b) => b.id === expandedParam)
-      ? expandedParam
-      : undefined;
-  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -134,14 +125,6 @@ export default async function PresidentPage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <StageLegend />
-          <div className="feed-header-row">
-            <span aria-hidden></span>
-            <span>Bill</span>
-            <span>Title / Sponsor</span>
-            <span>Stage</span>
-            <span className="col-date">On Desk</span>
-            <span>Topics</span>
-          </div>
 
           {bills.length === 0 ? (
             counts.total === 0 ? (
@@ -187,16 +170,7 @@ export default async function PresidentPage({
           ) : (
             <ul>
               {bills.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  filters={{ topics, stage: undefined, q, chamber, ceremonial: includeCeremonial, cluster }}
-                  basePath="/president"
-                  expandedId={expandedId}
-                  onWatchlist={expandedId === b.id ? onWatchlist : false}
-                  introducedDate={b.introduced_date}
-                  daysSinceMode="desk-time"
-                />
+                <BillRow key={b.id} bill={b} daysSinceMode="desk-time" />
               ))}
             </ul>
           )}

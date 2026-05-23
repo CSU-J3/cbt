@@ -187,15 +187,6 @@ export default async function MemberPage({
 
               <StageLegend />
 
-              <div className="feed-header-row">
-                <span aria-hidden></span>
-                <span>Bill</span>
-                <span>Title / Sponsor</span>
-                <span>Stage</span>
-                <span className="col-date">Action</span>
-                <span>Topics</span>
-              </div>
-
               {bills.length === 0 ? (
                 <div
                   className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
@@ -206,15 +197,7 @@ export default async function MemberPage({
               ) : (
                 <ul>
                   {bills.map((b) => (
-                    <BillRow
-                      key={b.id}
-                      bill={b}
-                      filters={{ topics: [], stage: undefined }}
-                      basePath="/feed"
-                      expandedId={undefined}
-                      onWatchlist={false}
-                      introducedDate={b.introduced_date}
-                    />
+                    <BillRow key={b.id} bill={b} />
                   ))}
                 </ul>
               )}

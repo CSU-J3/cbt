@@ -887,7 +887,7 @@ export const getMemberBills = unstable_cache(
       sql: `SELECT id, congress, bill_type, bill_number, title,
               sponsor_name, sponsor_party, sponsor_state, introduced_date,
               latest_action_date, latest_action_text, update_date,
-              summary, topics, stage
+              summary, topics, stage, stage_changed_at
             FROM bills
             WHERE sponsor_bioguide_id = ?
             ORDER BY latest_action_date DESC NULLS LAST, id DESC
@@ -1874,7 +1874,7 @@ export const getFeedBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage
+      summary, topics, stage, stage_changed_at
       FROM bills
       WHERE ${where}
       ORDER BY ${sortColumn} DESC NULLS LAST, id DESC
@@ -1907,7 +1907,7 @@ export const getStaleBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage
+      summary, topics, stage, stage_changed_at
       FROM bills
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
@@ -1941,7 +1941,7 @@ export const getPresidentBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage
+      summary, topics, stage, stage_changed_at
       FROM bills
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
@@ -2390,7 +2390,7 @@ export const getSponsorRecentBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage
+      summary, topics, stage, stage_changed_at
       FROM bills
       WHERE summary IS NOT NULL
         AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}
@@ -2619,6 +2619,13 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
     summary: (r.summary as string | null) ?? null,
     topics: (r.topics as string | null) ?? null,
     stage: (r.stage as string | null) ?? null,
+    // HO 125: pulled into every feed-shape query so the StagePillStrip can
+    // render the current pill's time-since. Undefined-safe so callers that
+    // don't yet SELECT the column degrade to no-time on the current pill.
+    stage_changed_at:
+      r.stage_changed_at === undefined
+        ? null
+        : ((r.stage_changed_at as string | null) ?? null),
   };
 }
 

@@ -10,7 +10,6 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   FEED_PAGE_SIZE,
   getFeedBills,
-  isInWatchlist,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -22,7 +21,6 @@ import {
 type SearchParams = {
   topics?: string;
   stage?: string;
-  expanded?: string;
   q?: string;
   sponsor?: string;
   sort?: string;
@@ -40,7 +38,6 @@ export default async function FeedPage({
   const params = await searchParams;
   const topics = sanitizeTopics(params.topics);
   const stage = sanitizeStage(params.stage);
-  const expandedParam = typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const sponsor =
     typeof params.sponsor === "string" && params.sponsor.trim()
@@ -74,10 +71,6 @@ export default async function FeedPage({
     page: requestedPage,
     pageSize: FEED_PAGE_SIZE,
   });
-  const expandedId = expandedParam && bills.some((b) => b.id === expandedParam)
-    ? expandedParam
-    : undefined;
-  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const carry = new URLSearchParams();
   if (topics.length > 0) carry.set("topics", topics.join(","));
@@ -178,14 +171,6 @@ export default async function FeedPage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <StageLegend />
-          <div className="feed-header-row">
-            <span aria-hidden></span>
-            <span>Bill</span>
-            <span>Title / Sponsor</span>
-            <span>Stage</span>
-            <span className="col-date">Action</span>
-            <span>Topics</span>
-          </div>
 
           {bills.length === 0 ? (
             q ? (
@@ -225,25 +210,7 @@ export default async function FeedPage({
             <>
               <ul>
                 {bills.map((b) => (
-                  <BillRow
-                    key={b.id}
-                    bill={b}
-                    filters={{
-                      topics,
-                      stage,
-                      q,
-                      sponsor,
-                      sort,
-                      chamber,
-                      ceremonial: includeCeremonial,
-                      cluster,
-                      page: currentPage,
-                    }}
-                    basePath="/feed"
-                    expandedId={expandedId}
-                    onWatchlist={expandedId === b.id ? onWatchlist : false}
-                    introducedDate={b.introduced_date}
-                  />
+                  <BillRow key={b.id} bill={b} />
                 ))}
               </ul>
               <Pagination

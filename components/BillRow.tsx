@@ -1,15 +1,9 @@
 import Link from "next/link";
-import { ExpandedPanel } from "@/components/ExpandedPanel";
+import { BillIdRail } from "@/components/BillIdRail";
 import { PartyTag } from "@/components/PartyTag";
-import { StageIndicator } from "@/components/StageIndicator";
+import { StagePillStrip } from "@/components/StagePillStrip";
 import { TopicTags } from "@/components/TopicTags";
-import { BILL_TYPE_LABELS } from "@/lib/enums";
-import {
-  daysSince,
-  formatBillId,
-  formatDateShort,
-  parseTopics,
-} from "@/lib/format";
+import { daysSince, parseTopics } from "@/lib/format";
 import type { FeedBill } from "@/lib/queries";
 
 type DaysSinceMode = "staleness" | "desk-time";
@@ -25,141 +19,102 @@ function daysSinceColor(days: number, mode: DaysSinceMode): string {
   return "var(--text-secondary)";
 }
 
-export type BillRowFilters = {
-  topics: string[];
-  stage: string | undefined;
-  q?: string;
-  sponsor?: string;
-  sort?: string;
-  page?: number;
-  chamber?: string;
-  ceremonial?: boolean;
-  cluster?: string;
-};
-
 function shortSponsor(name: string | null): string {
   if (!name) return "";
-  // "Rep. Barr, Andy [R-KY-6]" → "Barr"
   const noPrefix = name.replace(/^(Rep\.|Sen\.|Del\.|Res\.)\s*/i, "").trim();
   const lastName = noPrefix.split(",")[0]?.trim();
   return lastName ?? noPrefix;
 }
 
+// HO 125 redesign. Replaces the prior horizontal `[expand-arrow] [HR 1234]
+// [title/sponsor] [stage] [date] [topics]` grid with a vertical rail + a
+// stacked content column (title → summary excerpt → stage strip → meta
+// strip). Expand-to-reveal is gone; the whole row links straight to
+// /bill/[id], and the inline summary excerpt absorbs the fast-scan
+// workflow the expanded panel used to handle.
+//
+// `daysSinceMode` is still honored by /stale and /president — adds a right-
+// edge column with the colored days-since metric. The `showStageTransition`
+// prop is gone: the StagePillStrip is now always rendered, and it shows
+// the transition narrative inherently.
+//
+// `compact` is opt-in for ActivityTicker — slimmer rail, no inline summary,
+// no View Detail span. Pass it from the dashboard center pane only.
 export function BillRow({
   bill,
-  filters,
-  basePath = "/feed",
-  expandedId,
-  onWatchlist,
-  introducedDate,
   daysSinceMode,
-  showStageTransition = false,
+  compact = false,
 }: {
   bill: FeedBill;
-  filters: BillRowFilters;
-  basePath?: string;
-  expandedId: string | undefined;
-  onWatchlist: boolean;
-  introducedDate: string | null;
   daysSinceMode?: DaysSinceMode;
-  showStageTransition?: boolean;
+  compact?: boolean;
 }) {
-  const isExpanded = expandedId === bill.id;
   const topics = parseTopics(bill.topics);
+  const href = `/bill/${bill.id}`;
 
-  const params = new URLSearchParams();
-  if (filters.topics.length > 0) params.set("topics", filters.topics.join(","));
-  if (filters.stage) params.set("stage", filters.stage);
-  if (filters.q) params.set("q", filters.q);
-  if (filters.sponsor) params.set("sponsor", filters.sponsor);
-  if (filters.sort && filters.sort !== "action")
-    params.set("sort", filters.sort);
-  if (filters.chamber) params.set("chamber", filters.chamber);
-  if (filters.ceremonial) params.set("ceremonial", "1");
-  if (filters.cluster) params.set("cluster", filters.cluster);
-  if (filters.page && filters.page > 1)
-    params.set("page", String(filters.page));
-  if (!isExpanded) params.set("expanded", bill.id);
-  const qs = params.toString();
-  const href = qs ? `${basePath}?${qs}` : basePath;
+  const partyState =
+    bill.sponsor_party || bill.sponsor_state ? (
+      <PartyTag party={bill.sponsor_party} state={bill.sponsor_state} />
+    ) : null;
+
+  const sponsorBlock = bill.sponsor_name ? (
+    <span className="inline-flex items-center gap-1.5 min-w-0">
+      <span className="truncate" style={{ color: "var(--text-muted)" }}>
+        {shortSponsor(bill.sponsor_name)}
+      </span>
+      {partyState}
+    </span>
+  ) : null;
+
+  const rowClass = [
+    "feed-row",
+    daysSinceMode ? "has-days-since" : "",
+    compact ? "feed-row--compact" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <li>
       <Link
         href={href}
-        replace
-        scroll={false}
         prefetch={false}
-        className={`feed-row ${isExpanded ? "is-expanded" : ""}`}
+        className={rowClass}
       >
-        <span
-          aria-hidden
-          style={{
-            color: isExpanded
-              ? "var(--accent-amber)"
-              : "var(--text-dim)",
-          }}
-        >
-          {isExpanded ? "▾" : "▸"}
-        </span>
-        <span
-          className="text-[16px] font-medium"
-          style={{ color: "var(--accent-amber)" }}
-          title={BILL_TYPE_LABELS[bill.bill_type]}
-        >
-          {formatBillId(bill.bill_type, bill.bill_number)}
-        </span>
-        <span className="flex min-w-0 flex-col leading-tight">
-          <span
-            className="truncate text-[16px]"
-            style={{ color: "var(--text-primary)" }}
-          >
-            {bill.title}
-          </span>
-          {bill.sponsor_name ? (
-            <span className="flex min-w-0 items-baseline text-[14px]">
-              <span
-                className="truncate"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {shortSponsor(bill.sponsor_name)}
-              </span>
-              {bill.sponsor_party || bill.sponsor_state ? (
-                <span className="ml-1.5 shrink-0">
-                  <PartyTag
-                    party={bill.sponsor_party}
-                    state={bill.sponsor_state}
-                  />
-                </span>
-              ) : null}
-            </span>
+        <BillIdRail
+          billType={bill.bill_type}
+          billNumber={bill.bill_number}
+        />
+
+        <span className="row-content">
+          <span className="row-title">{bill.title}</span>
+
+          {!compact && bill.summary ? (
+            <span className="row-summary">{bill.summary}</span>
           ) : null}
-        </span>
-        <span>
-          {showStageTransition && bill.previous_stage ? (
-            <span className="inline-flex items-center gap-1.5">
-              <StageIndicator stage={bill.previous_stage} responsive muted />
-              <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                →
+
+          <StagePillStrip
+            stage={bill.stage}
+            introducedDate={bill.introduced_date}
+            stageChangedAt={bill.stage_changed_at ?? null}
+          />
+
+          <span className="row-meta">
+            {sponsorBlock}
+            {topics.length > 0 ? (
+              <span className="inline-flex">
+                <TopicTags topics={topics} responsive />
               </span>
-              <StageIndicator stage={bill.stage} responsive />
-            </span>
-          ) : (
-            <StageIndicator stage={bill.stage} responsive />
-          )}
-        </span>
-        {showStageTransition ? (
-          <span
-            className="col-date text-right text-[15px] tabular-nums"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {bill.stage_changed_at
-              ? `${daysSince(bill.stage_changed_at)}d ago`
-              : "—"}
+            ) : null}
+            {compact ? null : (
+              <span className="row-view-detail">View detail →</span>
+            )}
           </span>
-        ) : daysSinceMode ? (
+        </span>
+
+        {daysSinceMode && bill.latest_action_date ? (
           <span
-            className="col-date text-right text-[15px] tabular-nums"
+            className="row-days-since"
             style={{
               color: daysSinceColor(
                 daysSince(bill.latest_action_date),
@@ -167,29 +122,17 @@ export function BillRow({
               ),
             }}
           >
-            {bill.latest_action_date
-              ? `${daysSince(bill.latest_action_date)}d`
-              : "—"}
+            {daysSince(bill.latest_action_date)}d
           </span>
-        ) : (
+        ) : daysSinceMode ? (
           <span
-            className="col-date text-[15px]"
+            className="row-days-since"
             style={{ color: "var(--text-dim)" }}
           >
-            {formatDateShort(bill.latest_action_date)}
+            —
           </span>
-        )}
-        <span>
-          <TopicTags topics={topics} responsive />
-        </span>
+        ) : null}
       </Link>
-      {isExpanded ? (
-        <ExpandedPanel
-          bill={bill}
-          onWatchlist={onWatchlist}
-          introducedDate={introducedDate}
-        />
-      ) : null}
     </li>
   );
 }

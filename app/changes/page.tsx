@@ -7,7 +7,6 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStageChanges,
   getStageChangesCount,
-  isInWatchlist,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -16,7 +15,6 @@ import {
 
 type SearchParams = {
   topics?: string;
-  expanded?: string;
   q?: string;
   chamber?: string;
   ceremonial?: string;
@@ -32,8 +30,6 @@ export default async function ChangesPage({
 }) {
   const params = await searchParams;
   const topics = sanitizeTopics(params.topics);
-  const expandedParam =
-    typeof params.expanded === "string" ? params.expanded : undefined;
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
@@ -51,11 +47,6 @@ export default async function ChangesPage({
     getStageChanges(feedFilters, DAYS),
     getStageChangesCount(feedFilters, DAYS),
   ]);
-  const expandedId =
-    expandedParam && bills.some((b) => b.id === expandedParam)
-      ? expandedParam
-      : undefined;
-  const onWatchlist = expandedId ? await isInWatchlist(expandedId) : false;
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -128,18 +119,10 @@ export default async function ChangesPage({
         </section>
 
         <div
-          className="changes-feed border"
+          className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
           <StageLegend />
-          <div className="feed-header-row">
-            <span aria-hidden></span>
-            <span>Bill</span>
-            <span>Title / Sponsor</span>
-            <span>Stage Change</span>
-            <span className="col-date">Changed</span>
-            <span>Topics</span>
-          </div>
 
           {bills.length === 0 ? (
             counts.total === 0 ? (
@@ -185,16 +168,7 @@ export default async function ChangesPage({
           ) : (
             <ul>
               {bills.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  filters={{ topics, stage: undefined, q, chamber, ceremonial: includeCeremonial, cluster }}
-                  basePath="/changes"
-                  expandedId={expandedId}
-                  onWatchlist={expandedId === b.id ? onWatchlist : false}
-                  introducedDate={b.introduced_date}
-                  showStageTransition
-                />
+                <BillRow key={b.id} bill={b} />
               ))}
             </ul>
           )}
