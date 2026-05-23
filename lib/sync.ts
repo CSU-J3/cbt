@@ -4,6 +4,10 @@ import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
+// HO 116: hard wall-clock cap per detail fetch. Cheap insurance — observed
+// p95 was 127ms locally — but mirrors the HO 115 summarize pattern so a
+// future hung Congress.gov call can't burn the cron tick.
+const PER_DETAIL_TIMEOUT_MS = 15_000;
 
 type LatestAction = { actionDate?: string; text?: string };
 type Sponsor = {
@@ -49,6 +53,13 @@ export type SyncStats = {
   upserted: number;
   skipped: number;
   failed: number;
+  // HO 116: detail fetches killed by the per-bill AbortController. Subset of
+  // `failed`. Defensive metric — measured p95 is 127ms, so this is usually 0.
+  timedOut: number;
+  // HO 116: did the loop stop because deadlineMs was reached (vs. exhausting
+  // the list)? The route uses this in its timings payload to see whether the
+  // cron is leaving runSync work on the table.
+  budgetStopped: boolean;
   fromDateTime: string;
 };
 
@@ -60,13 +71,20 @@ function effectiveUpdate(b: { updateDateIncludingText?: string; updateDate?: str
   return b.updateDateIncludingText ?? b.updateDate;
 }
 
-async function fetchJson<T>(url: string, attempt = 0): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+async function fetchJson<T>(
+  url: string,
+  signal?: AbortSignal,
+  attempt = 0,
+): Promise<T> {
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal,
+  });
   if (res.status === 429 && attempt < 3) {
     const wait = 2000 * (attempt + 1);
     console.warn(`rate limited, sleeping ${wait}ms`);
     await new Promise((r) => setTimeout(r, wait));
-    return fetchJson<T>(url, attempt + 1);
+    return fetchJson<T>(url, signal, attempt + 1);
   }
   if (!res.ok) {
     const body = await res.text();
@@ -109,14 +127,27 @@ async function getWatermark(db: ReturnType<typeof getDb>): Promise<string> {
   return normalizeDateTime(m);
 }
 
-async function getStoredUpdate(
+// HO 116: batched diff. One round-trip per list page replaces the previous
+// per-bill SELECT, which was the dominant cost in runSync (8.5s/page on
+// Turso locally → ~17s/page projected in prod). Same logic, identical
+// skip/needs-fetch outcome — see scripts/diagnostic/sync-measure.ts.
+async function getStoredUpdates(
   db: ReturnType<typeof getDb>,
-  id: string,
-): Promise<string | null> {
-  const r = await db.execute({ sql: "SELECT update_date FROM bills WHERE id = ?", args: [id] });
-  const row = r.rows[0];
-  if (!row) return null;
-  return (row.update_date as string | null) ?? null;
+  ids: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (ids.length === 0) return result;
+  const placeholders = ids.map(() => "?").join(",");
+  const r = await db.execute({
+    sql: `SELECT id, update_date FROM bills WHERE id IN (${placeholders})`,
+    args: ids,
+  });
+  for (const row of r.rows) {
+    const id = row.id as string;
+    const ud = row.update_date as string | null;
+    if (ud) result.set(id, ud);
+  }
+  return result;
 }
 
 // cosponsor_count is refreshed on every upsert (cosponsors accrete over the
@@ -192,7 +223,19 @@ async function upsertBill(
   });
 }
 
-export type RunSyncOptions = { fromDateTime?: string };
+export type RunSyncOptions = {
+  fromDateTime?: string;
+  /**
+   * HO 116: absolute epoch-millis past which runSync stops *starting* new
+   * bills. The 15s per-detail AbortController bounds the in-flight bill on
+   * top of this, mirroring runSummarize's pattern. The route passes
+   * `routeStart + 30_000` so the downstream steps (lead + news + trades +
+   * Monday report) get ~25s of remaining function budget. Outer-loop
+   * pagination check too: if a long page-1 detail-fetch crowd pushed us past
+   * the deadline, we won't even fetch the next list page.
+   */
+  deadlineMs?: number;
+};
 
 export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const apiKey = process.env.CONGRESS_API_KEY;
@@ -200,7 +243,11 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const db = getDb();
 
   const fromDateTime = opts.fromDateTime ?? (await getWatermark(db));
-  console.log(`syncing bills updated since ${fromDateTime}`);
+  const deadlineMs = opts.deadlineMs;
+  console.log(
+    `syncing bills updated since ${fromDateTime}` +
+      (deadlineMs ? ` deadline=${new Date(deadlineMs).toISOString()}` : ""),
+  );
 
   let offset = 0;
   const stats: SyncStats = {
@@ -208,10 +255,30 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     upserted: 0,
     skipped: 0,
     failed: 0,
+    timedOut: 0,
+    budgetStopped: false,
     fromDateTime,
   };
+  let deadlineReached = false;
 
-  while (true) {
+  // HO 116 caveat (worth knowing before tweaking this loop): list sort is
+  // `updateDate desc` so the freshest bills are processed first. On a
+  // partial-tick kill — Vercel ceiling or `deadlineMs` reached — the new
+  // MAX(update_date) advances to whichever bill we processed first (the
+  // freshest one). Bills further down in the same tick's queue (older
+  // changes) end up below the next tick's watermark and are skipped until
+  // they update again on their own. This is the same behavior the pre-116
+  // implementation had; HO 116 doesn't regress it. If post-deploy shows the
+  // backlog isn't draining, the resolution is `updateDate asc` plus an
+  // explicit cursor in `sync_state` — defer until evidence calls for it.
+  pageLoop: while (true) {
+    if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+      stats.budgetStopped = true;
+      console.log(
+        `budget reached before page offset=${offset}; stopping`,
+      );
+      break;
+    }
     const url = listUrl(fromDateTime, offset, apiKey);
     const page = await fetchJson<ListResponse>(url);
     const bills = page.bills ?? [];
@@ -219,7 +286,23 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
 
     console.log(`page offset=${offset}: ${bills.length} bills`);
 
+    // HO 116: batch the diff. One IN(...) SELECT for the whole page replaces
+    // 250 per-bill round-trips — measured 8481ms → 84ms on a full page.
+    const ids = bills.map((lb) => billId(lb.congress, lb.type, lb.number));
+    const storedById = await getStoredUpdates(db, ids);
+
     for (const lb of bills) {
+      // Deadline check before starting any new bill, so the only thing that
+      // can push us past `deadlineMs` is the 15s per-detail AbortController.
+      if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+        stats.budgetStopped = true;
+        deadlineReached = true;
+        console.log(
+          `budget reached after ${stats.seen}/${bills.length}+ bill(s); stopping`,
+        );
+        break pageLoop;
+      }
+
       stats.seen++;
       const id = billId(lb.congress, lb.type, lb.number);
       const listUpdate = effectiveUpdate(lb);
@@ -228,15 +311,23 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
         stats.skipped++;
         continue;
       }
-      const stored = await getStoredUpdate(db, id);
+      const stored = storedById.get(id) ?? null;
       if (stored && stored >= listUpdate) {
         stats.skipped++;
         continue;
       }
 
+      // HO 116: detail fetch is bounded by a 15s AbortController. Same shape
+      // as runSummarize. `ac.signal.aborted` after a throw means the timer
+      // fired; that bill counts as timedOut (subset of failed) and will be
+      // re-attempted naturally on the next tick when its watermark
+      // comparison still shows it as needing fetch.
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), PER_DETAIL_TIMEOUT_MS);
       try {
         const detailRes = await fetchJson<DetailResponse>(
           detailUrl(lb.congress, lb.type, lb.number, apiKey),
+          ac.signal,
         );
         const detail = detailRes.bill;
         if (!detail) {
@@ -247,17 +338,29 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
         await upsertBill(db, detail);
         stats.upserted++;
       } catch (err) {
-        console.error(`failed ${id}:`, (err as Error).message);
+        if (ac.signal.aborted) {
+          stats.timedOut++;
+          console.warn(
+            `timeout ${id}: detail exceeded ${PER_DETAIL_TIMEOUT_MS}ms`,
+          );
+        } else {
+          console.error(`failed ${id}:`, (err as Error).message);
+        }
         stats.failed++;
+      } finally {
+        clearTimeout(timer);
       }
     }
 
+    if (deadlineReached) break;
     if (bills.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
   }
 
   console.log(
-    `done: seen=${stats.seen} upserted=${stats.upserted} skipped=${stats.skipped} failed=${stats.failed}`,
+    `done: seen=${stats.seen} upserted=${stats.upserted} ` +
+      `skipped=${stats.skipped} failed=${stats.failed} ` +
+      `timeout=${stats.timedOut} budgetStopped=${stats.budgetStopped}`,
   );
   return stats;
 }
