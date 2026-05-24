@@ -271,13 +271,34 @@ body {
    daysSinceMode is on. */
 .feed-row {
   display: grid;
-  grid-template-columns: 1fr 36px;
+  grid-template-columns: 1fr 40px 36px;
   align-items: stretch;
   border-bottom: 0.5px solid var(--border-soft);
 }
 
 .feed-row.has-days-since {
-  grid-template-columns: 1fr 90px 36px;
+  grid-template-columns: 1fr 90px 40px 36px;
+}
+
+/* HO 130 media-attention cell. Just the number in --accent-amber when
+   populated; blank slot otherwise. Sits between the Link/days-since and
+   the star so its own click target doesn't nest inside the row's anchor. */
+.feed-row .row-media {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 9px 0 0 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-amber);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.feed-row .row-media:hover {
+  color: var(--accent-amber-bright);
+}
+.feed-row .row-media-count {
+  letter-spacing: 0.2px;
 }
 
 .feed-row:hover {
@@ -441,7 +462,11 @@ body {
 /* Used in the home dashboard's middle pane. Slim rail (40px), no inline
    summary excerpt, no View Detail span — the ticker is scan-not-read.    */
 .feed-row.feed-row--compact {
-  grid-template-columns: 1fr 28px;
+  grid-template-columns: 1fr 40px 28px;
+}
+.feed-row--compact .row-media {
+  font-size: 13px;
+  padding: 7px 0 0 0;
 }
 
 .feed-row--compact .feed-row-link {
@@ -1326,11 +1351,15 @@ body {
   .feed-row.has-days-since {
     grid-template-columns: 1fr 32px;
   }
+  .feed-row.feed-row--compact {
+    grid-template-columns: 1fr 28px;
+  }
   .feed-row .feed-row-link {
     grid-template-columns: 44px 1fr;
     gap: 0 10px;
   }
-  .feed-row .row-days-since {
+  .feed-row .row-days-since,
+  .feed-row .row-media {
     display: none;
   }
   .feed-row .row-content {

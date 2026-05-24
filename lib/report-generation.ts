@@ -26,7 +26,7 @@ const MOST_TALKED_LIMIT = 5;
 // NULL-confidence rows (a confidence-population gap, ~21/47 at audit time —
 // not regex matches) since `NULL >= 0.7` is false in SQL. A bill needs >= 2
 // mentions to count as "talked about" rather than merely "appeared once".
-const NEWS_CONFIDENCE_FLOOR = 0.7;
+export const NEWS_CONFIDENCE_FLOOR = 0.7;
 const NEWS_MIN_MENTIONS = 2;
 // avg_confidence >= this renders as the 'high' tier in the prompt context.
 const NEWS_HIGH_TIER = 0.9;

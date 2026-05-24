@@ -9,6 +9,22 @@ import {
   type Stage,
   type Topic,
 } from "./enums";
+import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
+
+// HO 130: media-attention column. JOIN-at-read pattern reused across every
+// feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
+// getPresidentBills, getWatchlistBills). One subquery materialized per
+// statement; trivial at current news_mentions volume (~100 rows). Constants
+// live here so a window/floor change is a one-file edit.
+const MENTION_WINDOW_DAYS = 7;
+const MENTION_SUBQUERY = `LEFT JOIN (
+  SELECT bill_id, COUNT(*) AS n
+  FROM news_mentions
+  WHERE published_at >= datetime('now', '-${MENTION_WINDOW_DAYS} days')
+    AND match_confidence >= ${NEWS_CONFIDENCE_FLOOR}
+  GROUP BY bill_id
+) nm ON nm.bill_id = bills.id`;
+const MENTION_SELECT = "COALESCE(nm.n, 0) AS mention_count_7d";
 
 export const STALE_DAYS = 60;
 export const STALE_ELIGIBLE_STAGES = [
@@ -44,6 +60,10 @@ export type FeedBill = {
   stage: string | null;
   previous_stage?: string | null;
   stage_changed_at?: string | null;
+  // HO 130: news-mentions count in the trailing 7d window, gated by
+  // NEWS_CONFIDENCE_FLOOR. 0 when the bill has no high-confidence press;
+  // every feed-shape query joins news_mentions to populate it.
+  mentionCount7d?: number;
 };
 
 export type BillDetail = FeedBill & {
@@ -206,6 +226,18 @@ export function sanitizeIncludeCeremonial(
   raw: string | null | undefined,
 ): boolean {
   return raw === "1";
+}
+
+// HO 130: validates `?bill=` for the /news filter. Format is
+// `<congress>-<billtype>-<number>`, e.g. `119-hr-1234`. Lowercase normalized.
+// Invalid → undefined so the page falls back to the unfiltered view.
+const BILL_ID_RE = /^[0-9]{1,4}-[a-z]+-[0-9]+$/;
+export function sanitizeBillId(
+  raw: string | null | undefined,
+): string | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  const normalized = raw.trim().toLowerCase();
+  return BILL_ID_RE.test(normalized) ? normalized : undefined;
 }
 
 export function sanitizeClusterId(
@@ -1672,6 +1704,45 @@ export const getBreakingNews = unstable_cache(
   { revalidate: 600, tags: ["news-breaking"] },
 );
 
+// HO 130 /news?bill=<id> filter. Returns all mentions for a single bill,
+// ignoring the trailing-hours window since the user has explicitly opted
+// into a specific bill via the media-attention chip on a feed row. Same
+// ceremonial gate as getBreakingNews so we don't surface mentions for a
+// bill that's hidden everywhere else.
+export const getNewsForBill = unstable_cache(
+  async (billId: string, limit = 50): Promise<NewsMention[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT m.id, m.bill_id, m.source, m.article_title, m.article_url,
+              m.published_at,
+              b.title AS bill_title,
+              b.sponsor_name AS bill_sponsor_name,
+              b.sponsor_party AS bill_sponsor_party
+            FROM news_mentions m
+            INNER JOIN bills b ON b.id = m.bill_id
+            WHERE m.bill_id = ?
+              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+            ORDER BY m.published_at DESC, m.id DESC
+            LIMIT ?`,
+      args: [billId, limit],
+    });
+    return rs.rows.map((r) => ({
+      id: Number(r.id),
+      billId: r.bill_id as string,
+      billTitle: r.bill_title as string,
+      billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
+      billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
+      source: r.source as string,
+      title: r.article_title as string,
+      url: r.article_url as string,
+      publishedAt: r.published_at as string,
+      otherBills: [],
+    }));
+  },
+  ["getNewsForBill"],
+  { revalidate: 600, tags: ["news-breaking"] },
+);
+
 // Backs the home-page BreakingNewsBlock (handoff 114, flipped HO 118).
 // Distinct from getBreakingNews on four axes:
 //   - wider window (72h default — 24h is structurally too sparse on this
@@ -1874,8 +1945,10 @@ export const getFeedBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at
+      summary, topics, stage, stage_changed_at,
+      ${MENTION_SELECT}
       FROM bills
+      ${MENTION_SUBQUERY}
       WHERE ${where}
       ORDER BY ${sortColumn} DESC NULLS LAST, id DESC
       LIMIT ? OFFSET ?`;
@@ -1890,7 +1963,7 @@ export const getFeedBills = unstable_cache(
     };
   },
   ["getFeedBills"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
 export type FeedCount = {
@@ -1907,8 +1980,10 @@ export const getStaleBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at
+      summary, topics, stage, stage_changed_at,
+      ${MENTION_SELECT}
       FROM bills
+      ${MENTION_SUBQUERY}
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
       LIMIT ?`;
@@ -1917,7 +1992,7 @@ export const getStaleBills = unstable_cache(
     return rs.rows.map(rowToFeedBill);
   },
   ["getStaleBills"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
 function buildPresidentWhere(filters: FeedFilters): {
@@ -1941,8 +2016,10 @@ export const getPresidentBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at
+      summary, topics, stage, stage_changed_at,
+      ${MENTION_SELECT}
       FROM bills
+      ${MENTION_SUBQUERY}
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
       LIMIT ?`;
@@ -1951,7 +2028,7 @@ export const getPresidentBills = unstable_cache(
     return rs.rows.map(rowToFeedBill);
   },
   ["getPresidentBills"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
 export const getPresidentCount = unstable_cache(
@@ -2533,8 +2610,10 @@ export const getStageChanges = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, previous_stage, stage_changed_at
+      summary, topics, stage, previous_stage, stage_changed_at,
+      ${MENTION_SELECT}
       FROM bills
+      ${MENTION_SUBQUERY}
       WHERE ${clauses.join(" AND ")}
       ORDER BY stage_changed_at DESC
       LIMIT ?`;
@@ -2547,7 +2626,7 @@ export const getStageChanges = unstable_cache(
     }));
   },
   ["getStageChanges"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
 export const getStageChangesCount = unstable_cache(
@@ -2626,6 +2705,12 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
       r.stage_changed_at === undefined
         ? null
         : ((r.stage_changed_at as string | null) ?? null),
+    // HO 130: same undefined-safe pattern — defaults to 0 if the caller
+    // didn't SELECT mention_count_7d (a getBillById caller, for example).
+    mentionCount7d:
+      r.mention_count_7d === undefined
+        ? 0
+        : Number(r.mention_count_7d ?? 0),
   };
 }
 
@@ -3160,16 +3245,24 @@ export const getWatchlistBills = unstable_cache(
     const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
       b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
       b.latest_action_date, b.latest_action_text, b.update_date,
-      b.summary, b.topics, b.stage, b.stage_changed_at
+      b.summary, b.topics, b.stage, b.stage_changed_at,
+      COALESCE(nm.n, 0) AS mention_count_7d
       FROM bills b
       INNER JOIN watchlist w ON w.bill_id = b.id
+      LEFT JOIN (
+        SELECT bill_id, COUNT(*) AS n
+        FROM news_mentions
+        WHERE published_at >= datetime('now', '-${MENTION_WINDOW_DAYS} days')
+          AND match_confidence >= ${NEWS_CONFIDENCE_FLOOR}
+        GROUP BY bill_id
+      ) nm ON nm.bill_id = b.id
       WHERE 1=1${chamberClause}
       ORDER BY ${sortColumn} DESC NULLS LAST, b.id DESC`;
     const rs = await db.execute(sql);
     return rs.rows.map(rowToFeedBill);
   },
   ["getWatchlistBills"],
-  { revalidate: 3600, tags: ["watchlist", "bills"] },
+  { revalidate: 3600, tags: ["watchlist", "bills", "news-breaking"] },
 );
 
 // ---- Votes (handoff 77) -------------------------------------------------

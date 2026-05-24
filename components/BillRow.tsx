@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BillIdRail } from "@/components/BillIdRail";
+import { MediaAttentionCell } from "@/components/MediaAttentionCell";
 import { PartyTag } from "@/components/PartyTag";
 import { StagePillStrip } from "@/components/StagePillStrip";
 import { TopicTags } from "@/components/TopicTags";
@@ -125,6 +126,11 @@ export function BillRow({
             : "—"}
         </span>
       ) : null}
+
+      <MediaAttentionCell
+        billId={bill.id}
+        count={bill.mentionCount7d ?? 0}
+      />
 
       <span className="row-star">
         <WatchStar
