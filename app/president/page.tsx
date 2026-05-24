@@ -7,6 +7,7 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   getPresidentBills,
   getPresidentCount,
+  getWatchedBillIds,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -48,10 +49,12 @@ export default async function PresidentPage({
   if (includeCeremonial) carry.set("ceremonial", "1");
   if (cluster) carry.set("cluster", cluster);
 
-  const [bills, counts] = await Promise.all([
+  const [bills, counts, watchedIds] = await Promise.all([
     getPresidentBills(feedFilters, 50),
     getPresidentCount(feedFilters),
+    getWatchedBillIds(),
   ]);
+  const watchedSet = new Set(watchedIds);
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -170,7 +173,12 @@ export default async function PresidentPage({
           ) : (
             <ul>
               {bills.map((b) => (
-                <BillRow key={b.id} bill={b} daysSinceMode="desk-time" />
+                <BillRow
+                  key={b.id}
+                  bill={b}
+                  daysSinceMode="desk-time"
+                  onWatchlist={watchedSet.has(b.id)}
+                />
               ))}
             </ul>
           )}

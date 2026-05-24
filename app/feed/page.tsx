@@ -10,6 +10,7 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   FEED_PAGE_SIZE,
   getFeedBills,
+  getWatchedBillIds,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -62,15 +63,14 @@ export default async function FeedPage({
 
   const rawPage = Number.parseInt(params.page ?? "1", 10);
   const requestedPage = Number.isFinite(rawPage) ? rawPage : 1;
-  const {
-    bills,
-    page: currentPage,
-    totalPages,
-    total: filteredCount,
-  } = await getFeedBills(feedFilters, {
-    page: requestedPage,
-    pageSize: FEED_PAGE_SIZE,
-  });
+  const [
+    { bills, page: currentPage, totalPages, total: filteredCount },
+    watchedIds,
+  ] = await Promise.all([
+    getFeedBills(feedFilters, { page: requestedPage, pageSize: FEED_PAGE_SIZE }),
+    getWatchedBillIds(),
+  ]);
+  const watchedSet = new Set(watchedIds);
 
   const carry = new URLSearchParams();
   if (topics.length > 0) carry.set("topics", topics.join(","));
@@ -210,7 +210,11 @@ export default async function FeedPage({
             <>
               <ul>
                 {bills.map((b) => (
-                  <BillRow key={b.id} bill={b} />
+                  <BillRow
+                    key={b.id}
+                    bill={b}
+                    onWatchlist={watchedSet.has(b.id)}
+                  />
                 ))}
               </ul>
               <Pagination

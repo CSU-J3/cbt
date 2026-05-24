@@ -2672,6 +2672,24 @@ export async function isInWatchlist(billId: string): Promise<boolean> {
   return rs.rows.length > 0;
 }
 
+// HO 127 — bulk read of every watched bill_id for the current "user" (the
+// app is single-user, so the whole table is the answer). List pages call
+// this once and pass the array through to BillRow → WatchStar so each row
+// renders the correct ★/☆ glyph without an N-query fan-out. The watchlist
+// table is personal-sized (<100 rows in practice); fetching the full list
+// per render is cheap. Returns an array (not Set) because unstable_cache
+// serializes its result and Set doesn't round-trip cleanly; callers Set-ify
+// at the call site.
+export const getWatchedBillIds = unstable_cache(
+  async (): Promise<string[]> => {
+    const db = getDb();
+    const rs = await db.execute("SELECT bill_id FROM watchlist");
+    return rs.rows.map((r) => r.bill_id as string);
+  },
+  ["getWatchedBillIds"],
+  { revalidate: 3600, tags: ["watchlist"] },
+);
+
 export async function addToWatchlist(billId: string): Promise<void> {
   const db = getDb();
   await db.execute({
@@ -2775,7 +2793,7 @@ export const getWatchlistBills = unstable_cache(
     const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
       b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
       b.latest_action_date, b.latest_action_text, b.update_date,
-      b.summary, b.topics, b.stage
+      b.summary, b.topics, b.stage, b.stage_changed_at
       FROM bills b
       INNER JOIN watchlist w ON w.bill_id = b.id
       WHERE 1=1${chamberClause}

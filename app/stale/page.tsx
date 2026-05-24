@@ -8,6 +8,7 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStaleBills,
   getStaleCount,
+  getWatchedBillIds,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -55,10 +56,12 @@ export default async function StalePage({
   if (includeCeremonial) carry.set("ceremonial", "1");
   if (cluster) carry.set("cluster", cluster);
 
-  const [bills, counts] = await Promise.all([
+  const [bills, counts, watchedIds] = await Promise.all([
     getStaleBills(feedFilters, 50),
     getStaleCount(feedFilters),
+    getWatchedBillIds(),
   ]);
+  const watchedSet = new Set(watchedIds);
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -183,7 +186,12 @@ export default async function StalePage({
           ) : (
             <ul>
               {bills.map((b) => (
-                <BillRow key={b.id} bill={b} daysSinceMode="staleness" />
+                <BillRow
+                  key={b.id}
+                  bill={b}
+                  daysSinceMode="staleness"
+                  onWatchlist={watchedSet.has(b.id)}
+                />
               ))}
             </ul>
           )}

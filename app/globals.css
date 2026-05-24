@@ -263,29 +263,44 @@ body {
   color: var(--accent-amber-bright);
 }
 
-/* ---- feed row (HO 125 redesign) ----------------------------------------
-   Three columns: vertical bill-id rail | stacked content | optional
-   days-since cell. The expand affordance and the horizontal HR-1234 prefix
-   from the prior layout are gone — clicking the row navigates straight to
-   /bill/[id], and the inline summary excerpt absorbs the fast-scan job the
-   expand panel used to do.
-                                                                          */
+/* ---- feed row (HO 125 redesign + HO 127 star) -------------------------
+   The outer <li> is the grid container. A <Link> covers rail + content
+   (the navigable area) and the WatchStar lives as a sibling cell on the
+   right — putting a <button> inside an <a> would be invalid HTML. The
+   optional days-since cell sits between the Link and the star when
+   daysSinceMode is on. */
 .feed-row {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 1fr 36px;
   align-items: stretch;
-  gap: 0 14px;
-  padding: 0;
   border-bottom: 0.5px solid var(--border-soft);
-  text-decoration: none;
 }
 
 .feed-row.has-days-since {
-  grid-template-columns: 56px 1fr 90px;
+  grid-template-columns: 1fr 90px 36px;
 }
 
 .feed-row:hover {
   background-color: var(--bg-row-hover);
+}
+
+/* The Link itself is also a grid — rail + stacked-content side by side. */
+.feed-row .feed-row-link {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: stretch;
+  gap: 0 14px;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+/* HO 127 watch-star slot. Centered, small click target. */
+.feed-row .row-star {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8px 4px 0 0;
 }
 
 .feed-row .row-content {
@@ -426,6 +441,10 @@ body {
 /* Used in the home dashboard's middle pane. Slim rail (40px), no inline
    summary excerpt, no View Detail span — the ticker is scan-not-read.    */
 .feed-row.feed-row--compact {
+  grid-template-columns: 1fr 28px;
+}
+
+.feed-row--compact .feed-row-link {
   grid-template-columns: 40px 1fr;
 }
 
@@ -445,6 +464,10 @@ body {
 
 .feed-row--compact .bill-rail .rail-number {
   font-size: 14px;
+}
+
+.feed-row--compact .row-star {
+  padding: 6px 2px 0 0;
 }
 
 /* ---- sponsor grid ------------------------------------------------------ */
@@ -1041,17 +1064,20 @@ body {
   .competitive-race-row .chamber-chip {
     display: none;
   }
-  /* HO 125 feed row at narrow viewports: tighten the rail, drop the
-     optional days-since column so the stacked content takes full width.
-     daysSinceMode pages collapse their right column under 700px — the
-     value is also shown in the row meta strip via StagePillStrip's
-     time-since on the current pill. */
+  /* HO 125 + HO 127 feed row at narrow viewports: tighten the inner rail,
+     drop the optional days-since column so the link area takes full
+     width, keep a slim star slot on the right. daysSinceMode pages lose
+     the days-since column under 700px — the value is also conveyed via
+     the current pill's time-since in StagePillStrip. */
   .feed-row {
-    grid-template-columns: 44px 1fr;
-    gap: 0 10px;
+    grid-template-columns: 1fr 32px;
   }
   .feed-row.has-days-since {
+    grid-template-columns: 1fr 32px;
+  }
+  .feed-row .feed-row-link {
     grid-template-columns: 44px 1fr;
+    gap: 0 10px;
   }
   .feed-row .row-days-since {
     display: none;

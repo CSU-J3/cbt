@@ -3,6 +3,7 @@ import { BillIdRail } from "@/components/BillIdRail";
 import { PartyTag } from "@/components/PartyTag";
 import { StagePillStrip } from "@/components/StagePillStrip";
 import { TopicTags } from "@/components/TopicTags";
+import { WatchStar } from "@/components/WatchStar";
 import { daysSince, parseTopics } from "@/lib/format";
 import type { FeedBill } from "@/lib/queries";
 
@@ -26,28 +27,29 @@ function shortSponsor(name: string | null): string {
   return lastName ?? noPrefix;
 }
 
-// HO 125 redesign. Replaces the prior horizontal `[expand-arrow] [HR 1234]
-// [title/sponsor] [stage] [date] [topics]` grid with a vertical rail + a
-// stacked content column (title → summary excerpt → stage strip → meta
-// strip). Expand-to-reveal is gone; the whole row links straight to
-// /bill/[id], and the inline summary excerpt absorbs the fast-scan
-// workflow the expanded panel used to handle.
+// HO 125 redesign + HO 127 row-level watch star. The outer <li> is the grid
+// container so the WatchStar can live as a sibling of the navigable Link
+// — putting a <button> inside an <a> would be invalid HTML and break
+// keyboard semantics. The Link covers rail + content (everything that
+// navigates to /bill/[id]); the star and the optional days-since slot
+// each occupy their own grid cell to the right.
 //
-// `daysSinceMode` is still honored by /stale and /president — adds a right-
-// edge column with the colored days-since metric. The `showStageTransition`
-// prop is gone: the StagePillStrip is now always rendered, and it shows
-// the transition narrative inherently.
-//
-// `compact` is opt-in for ActivityTicker — slimmer rail, no inline summary,
-// no View Detail span. Pass it from the dashboard center pane only.
+// `daysSinceMode` is honored by /stale and /president — adds a right-edge
+// column with the colored days-since metric. `compact` is opt-in for
+// ActivityTicker — slimmer rail, no inline summary, no View Detail span,
+// smaller star. `onWatchlist` carries the membership read from the page
+// (see getWatchedBillIds in lib/queries.ts) so initial render shows the
+// right ★/☆ without per-row server fetches.
 export function BillRow({
   bill,
   daysSinceMode,
   compact = false,
+  onWatchlist = false,
 }: {
   bill: FeedBill;
   daysSinceMode?: DaysSinceMode;
   compact?: boolean;
+  onWatchlist?: boolean;
 }) {
   const topics = parseTopics(bill.topics);
   const href = `/bill/${bill.id}`;
@@ -75,12 +77,8 @@ export function BillRow({
     .join(" ");
 
   return (
-    <li>
-      <Link
-        href={href}
-        prefetch={false}
-        className={rowClass}
-      >
+    <li className={rowClass}>
+      <Link href={href} prefetch={false} className="feed-row-link">
         <BillIdRail
           billType={bill.bill_type}
           billNumber={bill.bill_number}
@@ -111,28 +109,30 @@ export function BillRow({
             )}
           </span>
         </span>
-
-        {daysSinceMode && bill.latest_action_date ? (
-          <span
-            className="row-days-since"
-            style={{
-              color: daysSinceColor(
-                daysSince(bill.latest_action_date),
-                daysSinceMode,
-              ),
-            }}
-          >
-            {daysSince(bill.latest_action_date)}d
-          </span>
-        ) : daysSinceMode ? (
-          <span
-            className="row-days-since"
-            style={{ color: "var(--text-dim)" }}
-          >
-            —
-          </span>
-        ) : null}
       </Link>
+
+      {daysSinceMode ? (
+        <span
+          className="row-days-since"
+          style={{
+            color: bill.latest_action_date
+              ? daysSinceColor(daysSince(bill.latest_action_date), daysSinceMode)
+              : "var(--text-dim)",
+          }}
+        >
+          {bill.latest_action_date
+            ? `${daysSince(bill.latest_action_date)}d`
+            : "—"}
+        </span>
+      ) : null}
+
+      <span className="row-star">
+        <WatchStar
+          billId={bill.id}
+          initial={onWatchlist}
+          size={compact ? "sm" : "md"}
+        />
+      </span>
     </li>
   );
 }

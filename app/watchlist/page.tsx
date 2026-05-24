@@ -75,7 +75,7 @@ export default async function WatchlistPage({
             <StageLegend />
             <ul>
               {bills.map((b) => (
-                <BillRow key={b.id} bill={b} />
+                <BillRow key={b.id} bill={b} onWatchlist />
               ))}
             </ul>
           </div>

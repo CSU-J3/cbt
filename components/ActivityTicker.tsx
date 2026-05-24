@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
-import { type DashboardFilters, getStageChanges } from "@/lib/queries";
+import {
+  type DashboardFilters,
+  getStageChanges,
+  getWatchedBillIds,
+} from "@/lib/queries";
 
 const TICKER_LIMIT = 15;
 
@@ -13,7 +17,11 @@ export async function ActivityTicker({
 }: {
   filters?: DashboardFilters;
 }) {
-  const bills = await getStageChanges({}, 7, TICKER_LIMIT, filters);
+  const [bills, watchedIds] = await Promise.all([
+    getStageChanges({}, 7, TICKER_LIMIT, filters),
+    getWatchedBillIds(),
+  ]);
+  const watchedSet = new Set(watchedIds);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -28,7 +36,12 @@ export async function ActivityTicker({
         <div className="flex-1">
           <ul>
             {bills.map((b) => (
-              <BillRow key={b.id} bill={b} compact />
+              <BillRow
+                key={b.id}
+                bill={b}
+                compact
+                onWatchlist={watchedSet.has(b.id)}
+              />
             ))}
           </ul>
         </div>

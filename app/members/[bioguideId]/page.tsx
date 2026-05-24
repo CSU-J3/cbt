@@ -23,6 +23,7 @@ import {
   getPalestineScorecard,
   getPrimaryForRace,
   getRaceRatings,
+  getWatchedBillIds,
 } from "@/lib/queries";
 import { raceIdFromMember } from "@/lib/race-id";
 
@@ -62,6 +63,7 @@ export default async function MemberPage({
     recentVotes,
     fundraising,
     scorecard,
+    watchedIds,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -73,7 +75,9 @@ export default async function MemberPage({
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
     getMemberFundraising(bioguideId),
     getPalestineScorecard(bioguideId),
+    getWatchedBillIds(),
   ]);
+  const watchedSet = new Set(watchedIds);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
   // on /race/[id] carries source attribution; here the chip is a glance
@@ -197,7 +201,11 @@ export default async function MemberPage({
               ) : (
                 <ul>
                   {bills.map((b) => (
-                    <BillRow key={b.id} bill={b} />
+                    <BillRow
+                      key={b.id}
+                      bill={b}
+                      onWatchlist={watchedSet.has(b.id)}
+                    />
                   ))}
                 </ul>
               )}

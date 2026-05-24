@@ -7,6 +7,7 @@ import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStageChanges,
   getStageChangesCount,
+  getWatchedBillIds,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
@@ -43,10 +44,12 @@ export default async function ChangesPage({
     cluster,
   };
 
-  const [bills, counts] = await Promise.all([
+  const [bills, counts, watchedIds] = await Promise.all([
     getStageChanges(feedFilters, DAYS),
     getStageChangesCount(feedFilters, DAYS),
+    getWatchedBillIds(),
   ]);
+  const watchedSet = new Set(watchedIds);
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -168,7 +171,11 @@ export default async function ChangesPage({
           ) : (
             <ul>
               {bills.map((b) => (
-                <BillRow key={b.id} bill={b} />
+                <BillRow
+                  key={b.id}
+                  bill={b}
+                  onWatchlist={watchedSet.has(b.id)}
+                />
               ))}
             </ul>
           )}
