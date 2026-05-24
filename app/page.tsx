@@ -58,9 +58,9 @@ export default async function DashboardPage({
           </section>
 
           <section className="home-quadrant">
-            <p className="home-quadrant-label">Top Stalls</p>
+            <p className="home-quadrant-label">Color Key</p>
             <div className="home-quadrant-body">
-              <TopStalls />
+              <ColorKey />
             </div>
           </section>
 
@@ -79,9 +79,9 @@ export default async function DashboardPage({
           </section>
 
           <section className="home-quadrant">
-            <p className="home-quadrant-label">Color Key</p>
+            <p className="home-quadrant-label">Top Stalls</p>
             <div className="home-quadrant-body">
-              <ColorKey />
+              <TopStalls />
             </div>
           </section>
         </div>

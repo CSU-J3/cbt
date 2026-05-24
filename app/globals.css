@@ -54,9 +54,13 @@
   --space-xl: 24px;
 
   /* HO 131 home-header height. Drives the no-scroll calc on .home-grid:
-     `height: calc(100vh - var(--home-header-height))`. Bumped here if the
-     header (title + meta + lead + nav) grows or shrinks. */
-  --home-header-height: 220px;
+     `height: calc(100vh - var(--home-header-height))`. Sized for the
+     widest case (≥1920px viewport, lead line-clamp: 3). At narrower
+     viewports the line-clamp shrinks (2 then 1), so the actual header
+     becomes shorter and the grid simply gains a few extra px of slack —
+     no visual harm. Bump only if the header gains a new row (e.g.
+     additional meta line, nav wraps to two rows at desktop). */
+  --home-header-height: 180px;
 }
 
 @theme {
@@ -125,12 +129,8 @@ body {
   padding: var(--space-md) var(--space-xl) var(--space-sm);
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
-}
-.home-header-top {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-md);
+  flex-direction: column;
 }
 .terminal-prompt {
   font-family: var(--font-mono);
@@ -140,6 +140,7 @@ body {
   letter-spacing: 1px;
   text-decoration: none;
   line-height: 1.1;
+  align-self: flex-start;
 }
 .terminal-prompt .prompt-accent {
   color: var(--accent-amber);
@@ -148,24 +149,28 @@ body {
 .terminal-prompt:hover .prompt-accent {
   color: var(--accent-amber-bright);
 }
-.home-header-meta {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
 .home-header-lead {
   margin-top: var(--space-sm);
   font-size: 14px;
   line-height: 1.45;
   color: var(--text-primary);
   display: -webkit-box;
+  /* Default (≥1920px breakpoint below): 3 lines visible. Font-size stays
+     constant across breakpoints — only the visible line count shrinks
+     as the viewport narrows, so the prose never compresses to
+     unreadable. */
   -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   max-width: 1200px;
+}
+.home-header-meta {
+  margin-top: var(--space-xs);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
 }
 .home-header-nav {
   margin-top: var(--space-md);
@@ -283,10 +288,26 @@ body {
 /* Narrower viewport — relax the no-scroll constraint, let the grid stack
    into 2 columns. Mobile-first stacking lives in the existing 700px
    block further down. */
+/* HO 131 viewport-tier line-clamps for the LEAD prose. Font-size stays
+   constant; only the visible line count shrinks so the header height
+   stays bounded as the viewport narrows. Cascades from the default rule
+   (line-clamp: 3) — both queries can apply at very narrow widths; the
+   last rule wins. */
+@media (max-width: 1919px) {
+  .home-header-lead {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+}
+
 /* Below 1200px (tablet-ish portrait, ultra-narrow desktop): relax the
    no-scroll rule. 1440x900 stays on the 3x2 grid above and may scroll
    modestly per the HO 131 viewport spec. */
 @media (max-width: 1199px) {
+  .home-header-lead {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
   .home-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-rows: repeat(3, minmax(0, 1fr));
