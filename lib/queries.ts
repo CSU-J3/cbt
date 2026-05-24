@@ -2712,30 +2712,46 @@ export type ClusterStat = {
   description: string;
   count: number;
   exampleTitle: string | null;
+  pastCommittee: number;
+  enacted: number;
+  ceremonial: number;
 };
 
 // Returns one row per pattern (zero-counts included), sorted by count DESC.
-// Uses a single GROUP BY scan plus per-id lookups for example titles. Cheap.
+// Single GROUP BY scan aggregates count + stage-progression + ceremonial in
+// one pass; per-id example title lookup runs only for non-empty clusters.
 export const getClusterStats = unstable_cache(
   async (): Promise<ClusterStat[]> => {
     const db = getDb();
-    const countsRs = await db.execute(
-      `SELECT cluster_id, COUNT(*) AS n
+    const aggRs = await db.execute(
+      `SELECT cluster_id,
+              COUNT(*) AS total,
+              SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee,
+              SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+              SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial
        FROM bills WHERE cluster_id IS NOT NULL GROUP BY cluster_id`,
     );
-    const countsByPattern = new Map<string, number>();
-    for (const r of countsRs.rows) {
-      countsByPattern.set(
-        r.cluster_id as string,
-        Number(r.n ?? 0),
-      );
+    type Agg = { total: number; pastCommittee: number; enacted: number; ceremonial: number };
+    const aggByPattern = new Map<string, Agg>();
+    for (const r of aggRs.rows) {
+      aggByPattern.set(r.cluster_id as string, {
+        total: Number(r.total ?? 0),
+        pastCommittee: Number(r.past_committee ?? 0),
+        enacted: Number(r.enacted ?? 0),
+        ceremonial: Number(r.ceremonial ?? 0),
+      });
     }
 
     const result: ClusterStat[] = [];
     for (const p of CLUSTER_PATTERNS) {
-      const count = countsByPattern.get(p.id) ?? 0;
+      const agg = aggByPattern.get(p.id) ?? {
+        total: 0,
+        pastCommittee: 0,
+        enacted: 0,
+        ceremonial: 0,
+      };
       let exampleTitle: string | null = null;
-      if (count > 0) {
+      if (agg.total > 0) {
         const ex = await db.execute({
           sql: `SELECT title FROM bills
                 WHERE cluster_id = ?
@@ -2749,8 +2765,11 @@ export const getClusterStats = unstable_cache(
         id: p.id,
         name: p.name,
         description: p.description,
-        count,
+        count: agg.total,
         exampleTitle,
+        pastCommittee: agg.pastCommittee,
+        enacted: agg.enacted,
+        ceremonial: agg.ceremonial,
       });
     }
     return result.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
@@ -2774,6 +2793,81 @@ export const getUnmatchedClusterCount = unstable_cache(
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getUnmatchedClusterCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+export type PatternTopSponsor = {
+  name: string;
+  party: string | null;
+  count: number;
+};
+
+export type PatternDrilldown = {
+  topSponsors: PatternTopSponsor[];
+  recentBills: FeedBill[];
+  headline: {
+    total: number;
+    pastCommittee: number;
+    enacted: number;
+    ceremonial: number;
+  };
+};
+
+// Powers the /patterns drill-in panel. Caller is expected to pass a
+// CLUSTER_IDS-validated slug (use sanitizeClusterId). Tag matches the rest
+// of the bills graph so a sync invalidates this alongside everything else.
+export const getClusterDrilldown = unstable_cache(
+  async (clusterId: string): Promise<PatternDrilldown> => {
+    const db = getDb();
+
+    const [headlineRs, sponsorsRs, recentRs] = await Promise.all([
+      db.execute({
+        sql: `SELECT COUNT(*) AS total,
+                     SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee,
+                     SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+                     SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial
+              FROM bills WHERE cluster_id = ?`,
+        args: [clusterId],
+      }),
+      db.execute({
+        sql: `SELECT sponsor_name AS name, sponsor_party AS party, COUNT(*) AS n
+              FROM bills
+              WHERE cluster_id = ? AND sponsor_name IS NOT NULL
+              GROUP BY sponsor_name, sponsor_party
+              ORDER BY n DESC
+              LIMIT 5`,
+        args: [clusterId],
+      }),
+      db.execute({
+        sql: `SELECT id, congress, bill_type, bill_number, title,
+                     sponsor_name, sponsor_party, sponsor_state, introduced_date,
+                     latest_action_date, latest_action_text, update_date,
+                     summary, topics, stage, stage_changed_at
+              FROM bills
+              WHERE cluster_id = ?
+              ORDER BY latest_action_date DESC NULLS LAST, id DESC
+              LIMIT 10`,
+        args: [clusterId],
+      }),
+    ]);
+
+    const headlineRow = headlineRs.rows[0];
+    return {
+      topSponsors: sponsorsRs.rows.map((r) => ({
+        name: r.name as string,
+        party: (r.party as string | null) ?? null,
+        count: Number(r.n ?? 0),
+      })),
+      recentBills: recentRs.rows.map(rowToFeedBill),
+      headline: {
+        total: Number(headlineRow?.total ?? 0),
+        pastCommittee: Number(headlineRow?.past_committee ?? 0),
+        enacted: Number(headlineRow?.enacted ?? 0),
+        ceremonial: Number(headlineRow?.ceremonial ?? 0),
+      },
+    };
+  },
+  ["getClusterDrilldown"],
   { revalidate: 3600, tags: ["bills"] },
 );
 
