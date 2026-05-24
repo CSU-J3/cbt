@@ -42,6 +42,21 @@
      vertical rail from inline stage pills or party tags. */
   --rail-house: #22d3ee;
   --rail-senate: #c084fc;
+
+  /* HO 131 spacing scale. Use in place of ad-hoc px values for block-level
+     rhythm (gap, padding, margin). Inner-row paddings (.feed-row,
+     .topic-dist-row, .funnel-row, etc.) keep their custom values — those
+     drive per-row density, not block rhythm. */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* HO 131 home-header height. Drives the no-scroll calc on .home-grid:
+     `height: calc(100vh - var(--home-header-height))`. Bumped here if the
+     header (title + meta + lead + nav) grows or shrinks. */
+  --home-header-height: 220px;
 }
 
 @theme {
@@ -69,54 +84,231 @@ body {
   margin-left: auto;
 }
 
-/* ---- dashboard --------------------------------------------------------- */
-/* HO 126: 2x2 balanced quadrant grid. STAGE · ACTIVITY on top row, STALLS
-   · TOPIC on bottom row, every quadrant ~equal width (~720px @ 1440px
-   viewport). Replaces the prior 5fr/6fr/3fr three-pane layout that
-   embedded a JUMP TO nav (dropped — top nav covers every link) and a
-   right-side TOPIC column. */
+/* ---- /trends pane grid ------------------------------------------------- */
+/* HO 126 legacy quadrant grid retained for /trends. The home page moved
+   to .home-grid in HO 131; this 2x2 .dashboard-pane styling still backs
+   the trends page and any future surface that wants the same chrome. */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
-  gap: 12px;
+  gap: var(--space-md);
 }
 .dashboard-pane {
   display: flex;
   flex-direction: column;
   border: 0.5px solid var(--border-soft);
   background-color: var(--bg-panel);
-  padding: 12px;
+  padding: var(--space-md);
 }
 .dashboard-pane-label {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
-  margin-bottom: 10px;
+  margin-bottom: var(--space-sm);
 }
 
-/* dashboard lead — cron-generated prose summary above the grid */
-.dashboard-lead {
-  background-color: var(--bg-panel);
-  border-bottom: 0.5px solid var(--border-soft);
-  padding: 16px;
+/* ---- home dashboard (HO 131) ------------------------------------------ */
+/* Foundation redesign: terminal-prompt title + LEAD prose + 12-item nav
+   above a 3x2 no-scroll grid. Primary target 2560x1440; scales to
+   1920x1080 without scroll. ACTIVITY and TOPIC quadrants cap by
+   overflow (TOPIC scrolls internally pending HO 132 bubble swap;
+   ACTIVITY pending HO 133 paging redesign). */
+.home-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--bg-base);
 }
-.dashboard-lead-label {
+.home-header {
+  padding: var(--space-md) var(--space-xl) var(--space-sm);
+  background-color: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-strong);
+}
+.home-header-top {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+}
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  text-decoration: none;
+  line-height: 1.1;
+}
+.terminal-prompt .prompt-accent {
+  color: var(--accent-amber);
+  margin-left: 2px;
+}
+.terminal-prompt:hover .prompt-accent {
+  color: var(--accent-amber-bright);
+}
+.home-header-meta {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.home-header-lead {
+  margin-top: var(--space-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 1200px;
+}
+.home-header-nav {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 0.5px solid var(--border-soft);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.home-header-nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 120ms ease;
+  white-space: nowrap;
+}
+.home-header-nav a:hover {
+  color: var(--text-primary);
+}
+.home-header-nav a[aria-current="page"] {
+  color: var(--accent-amber);
+}
+.home-main {
+  flex: 1;
+  padding: var(--space-md) var(--space-xl) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.home-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  min-height: 0;
+  /* Subtract header chrome + main padding so the grid fills exactly the
+     remaining viewport. The fallback keeps something rendering even when
+     the var isn't available (e.g. older browsers in :root cascade). */
+  height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
+}
+.home-quadrant {
+  display: flex;
+  flex-direction: column;
+  border: 0.5px solid var(--border-soft);
+  background-color: var(--bg-panel);
+  padding: var(--space-md);
+  min-height: 0;
+  overflow: hidden;
+}
+.home-quadrant-label {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  color: var(--text-dim);
+  margin-bottom: var(--space-sm);
+  flex-shrink: 0;
 }
-.dashboard-lead-prose {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-primary);
-  max-width: 800px;
+.home-quadrant-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.home-quadrant-body--scroll {
+  overflow-y: auto;
+}
+
+/* HO 131 color-key block (bottom-right quadrant) */
+.color-key {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  font-size: 11px;
+}
+.color-key-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.color-key-heading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.color-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+}
+.color-key-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.color-key-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.color-key-accent-note {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+/* Narrower viewport — relax the no-scroll constraint, let the grid stack
+   into 2 columns. Mobile-first stacking lives in the existing 700px
+   block further down. */
+/* Below 1200px (tablet-ish portrait, ultra-narrow desktop): relax the
+   no-scroll rule. 1440x900 stays on the 3x2 grid above and may scroll
+   modestly per the HO 131 viewport spec. */
+@media (max-width: 1199px) {
+  .home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    height: auto;
+    min-height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
+  }
 }
 @media (max-width: 700px) {
-  .dashboard-lead-prose {
-    max-width: none;
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-rows: minmax(280px, auto);
+    height: auto;
+  }
+  .home-header {
+    padding: var(--space-md);
+  }
+  .terminal-prompt {
+    font-size: 22px;
+  }
+  .home-main {
+    padding: var(--space-md);
   }
 }
 .activity-ticker-footer {

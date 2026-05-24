@@ -14,95 +14,74 @@ import {
 type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
 type HeaderVariant = "feed" | "dashboard";
 
+// HO 131: shared nav-item config consumed by both HeaderNav (top-right
+// chrome on /feed-shaped pages) and HomeHeader (under-title row on /).
+// Each item carries a one-line tooltip (HO 131 ask 7) matching the HO 123
+// vocabulary — short, sentence case, no trailing period. Append-only
+// when adding nav targets; deletions ripple through both surfaces.
+export type NavItemKey =
+  | "feed"
+  | "news"
+  | "reports"
+  | "sponsor"
+  | "races"
+  | "primaries"
+  | "patterns"
+  | "trends"
+  | "stale"
+  | "changes"
+  | "president"
+  | "watchlist";
+
+export type NavItem = {
+  key: NavItemKey;
+  href: string;
+  label: string;
+  tooltip: string;
+};
+
+export const NAV_ITEMS: readonly NavItem[] = [
+  { key: "feed", href: "/feed", label: "▤ Feed", tooltip: "Browse all bills" },
+  { key: "news", href: "/news", label: "⚡ News", tooltip: "Bills in the press, last 24h" },
+  { key: "reports", href: "/reports", label: "⎘ Reports", tooltip: "Weekly written reports on the corpus" },
+  { key: "sponsor", href: "/members", label: "👥 Members", tooltip: "All 536 current Members of Congress" },
+  { key: "races", href: "/races", label: "🗳 Races", tooltip: "2026 House and Senate races" },
+  { key: "primaries", href: "/primaries", label: "▦ Primaries", tooltip: "Primary calendar and candidate filings" },
+  { key: "patterns", href: "/patterns", label: "⊞ Patterns", tooltip: "Bill shapes — facility-naming, awareness designations" },
+  { key: "trends", href: "/trends", label: "📈 Trends", tooltip: "Long-run bill volume and topic-mix charts" },
+  { key: "stale", href: "/stale", label: "⏳ Stale", tooltip: "Bills with no action in 60+ days" },
+  { key: "changes", href: "/changes", label: "⇄ Changes", tooltip: "Bills that moved stage in the last 7 days" },
+  { key: "president", href: "/president", label: "▸▸▸▸ President", tooltip: "Bills at the president's desk, closest to veto deadline" },
+  { key: "watchlist", href: "/watchlist", label: "★ Watchlist", tooltip: "Bills you've flagged with the watch star" },
+];
+
+export type NavActive = Partial<Record<NavItemKey, boolean>>;
+
 // HO 126: shared nav rendered in both header variants. The dashboard
 // variant used to omit the nav entirely (when JUMP TO sat in the home
 // grid), but with JUMP TO retired and SubViewLinkStrip deleted the home
 // page would otherwise have zero in-page navigation. `activeMode` carries
 // the highlight for nav targets whose active state is interesting; pages
 // without a corresponding mode just inherit the default dim color.
-function HeaderNav({
-  active = {},
-}: {
-  active?: {
-    feed?: boolean;
-    news?: boolean;
-    reports?: boolean;
-    sponsor?: boolean;
-    stale?: boolean;
-    changes?: boolean;
-    president?: boolean;
-  };
-}) {
+function HeaderNav({ active = {} }: { active?: NavActive }) {
   const amber = "var(--accent-amber)";
   return (
     <nav
       className="header-nav flex items-center gap-4 text-[16px] uppercase tracking-[0.5px] whitespace-nowrap"
       style={{ color: "var(--text-dim)" }}
     >
-      <Link
-        href="/feed"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.feed ? amber : undefined }}
-      >
-        ▤ Feed
-      </Link>
-      <Link
-        href="/news"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.news ? amber : undefined }}
-      >
-        ⚡ News
-      </Link>
-      <Link
-        href="/reports"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.reports ? amber : undefined }}
-      >
-        ⎘ Reports
-      </Link>
-      <Link
-        href="/members"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.sponsor ? amber : undefined }}
-      >
-        👥 Members
-      </Link>
-      <Link href="/races" className="transition hover:text-[var(--text-secondary)]">
-        🗳 Races
-      </Link>
-      <Link href="/primaries" className="transition hover:text-[var(--text-secondary)]">
-        ▦ Primaries
-      </Link>
-      <Link href="/patterns" className="transition hover:text-[var(--text-secondary)]">
-        ⊞ Patterns
-      </Link>
-      <Link href="/trends" className="transition hover:text-[var(--text-secondary)]">
-        📈 Trends
-      </Link>
-      <Link
-        href="/stale"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.stale ? amber : undefined }}
-      >
-        ⏳ Stale
-      </Link>
-      <Link
-        href="/changes"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.changes ? amber : undefined }}
-      >
-        ⇄ Changes
-      </Link>
-      <Link
-        href="/president"
-        className="transition hover:text-[var(--text-secondary)]"
-        style={{ color: active.president ? amber : undefined }}
-      >
-        ▸▸▸▸ President
-      </Link>
-      <Link href="/watchlist" className="transition hover:text-[var(--text-secondary)]">
-        ★ Watchlist
-      </Link>
+      {NAV_ITEMS.map((item) => (
+        <Link
+          key={item.key}
+          href={item.href}
+          title={item.tooltip}
+          aria-label={item.tooltip}
+          className="transition hover:text-[var(--text-secondary)]"
+          style={{ color: active[item.key] ? amber : undefined }}
+        >
+          {item.label}
+        </Link>
+      ))}
     </nav>
   );
 }

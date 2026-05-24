@@ -1,8 +1,8 @@
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { DashboardLead } from "@/components/DashboardLead";
-import { HeaderBar } from "@/components/HeaderBar";
+import { ColorKey } from "@/components/ColorKey";
+import { HomeHeader } from "@/components/HomeHeader";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopicDistribution } from "@/components/TopicDistribution";
 import { TopStalls } from "@/components/TopStalls";
@@ -17,17 +17,14 @@ type SearchParams = {
   topics?: string;
 };
 
-// HO 126 home reorganization. Above the fold: LEAD + BREAKING. Below: a
-// 2x2 balanced grid of STAGE DIST / ACTIVITY / TOP STALLS / TOPIC DIST.
-// The lower-half SVG charts (HO 66 BillsTimeSeries + HO 76 TopicMix) moved
-// to /trends; the CompetitiveRacesBlock was retired entirely (full
-// coverage at /races). JUMP TO went away with SubViewLinkStrip — the top
-// nav already covers every destination it linked to.
-//
-// BillRow / TopStalls / StagePillStrip vocabulary from HO 125 carries
-// through. TOP STALLS uses a minimal one-line row (rather than compact
-// BillRow) because the 2x2 quadrant width is too narrow for a 3-line
-// stacked content column.
+// HO 131 dashboard redesign foundation. HomeHeader replaces the old
+// `HeaderBar variant="dashboard"` chrome and folds DashboardLead into the
+// header. Body is a 3x2 grid that fills the viewport without scrolling at
+// 2560x1440 (primary) and 1920x1080 (secondary). Each quadrant is
+// `overflow: hidden` so its content decides how many rows show — the
+// cell does not impose a hardcoded row cap. TOPIC quadrant keeps an
+// inner scroll until HO 132 swaps in the bubble chart. ACTIVITY quadrant
+// shows whatever rows fit; HO 133 redesigns it with proper paging.
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -40,32 +37,52 @@ export default async function DashboardPage({
   };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <HeaderBar variant="dashboard" />
-      <DashboardLead />
-      <BreakingNewsBlock />
+    <div className="home-shell">
+      <HomeHeader />
       <ActiveFilterStrip filters={filters} />
 
-      <main className="w-full flex-1 px-4 py-4">
-        <div className="dashboard-grid">
-          <section className="dashboard-pane">
-            <p className="dashboard-pane-label">Stage Distribution</p>
-            <StageFunnel filters={filters} />
+      <main className="home-main">
+        <div className="home-grid">
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Breaking · Last 72h</p>
+            <div className="home-quadrant-body">
+              <BreakingNewsBlock />
+            </div>
           </section>
 
-          <section className="dashboard-pane">
-            <p className="dashboard-pane-label">Activity · Last 7 Days</p>
-            <ActivityTicker filters={filters} />
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Activity · Last 7 Days</p>
+            <div className="home-quadrant-body">
+              <ActivityTicker filters={filters} />
+            </div>
           </section>
 
-          <section className="dashboard-pane">
-            <p className="dashboard-pane-label">Top Stalls</p>
-            <TopStalls />
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Top Stalls</p>
+            <div className="home-quadrant-body">
+              <TopStalls />
+            </div>
           </section>
 
-          <section className="dashboard-pane">
-            <p className="dashboard-pane-label">Topic Distribution</p>
-            <TopicDistribution filters={filters} />
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Stage Distribution</p>
+            <div className="home-quadrant-body">
+              <StageFunnel filters={filters} />
+            </div>
+          </section>
+
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Topic Distribution</p>
+            <div className="home-quadrant-body home-quadrant-body--scroll">
+              <TopicDistribution filters={filters} />
+            </div>
+          </section>
+
+          <section className="home-quadrant">
+            <p className="home-quadrant-label">Color Key</p>
+            <div className="home-quadrant-body">
+              <ColorKey />
+            </div>
           </section>
         </div>
       </main>
