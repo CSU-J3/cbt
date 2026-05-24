@@ -1862,6 +1862,38 @@ export const getBreakingNewsForHome = unstable_cache(
   { revalidate: 600, tags: ["news-breaking"] },
 );
 
+// HO 133: deduped count of breaking-news articles inside the home-block
+// window + confidence floor. Drives the `[ + N MORE → ]` expander chrome
+// under the BREAKING tab (N = total - cap). Mirrors getBreakingNewsForHome's
+// dedup-by-article-key so the count matches the same article universe the
+// rows visualize.
+export const getBreakingNewsForHomeCount = unstable_cache(
+  async ({
+    hours = 72,
+    minConfidence = 0.7,
+  }: {
+    hours?: number;
+    minConfidence?: number;
+  } = {}): Promise<number> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT COUNT(DISTINCT COALESCE(
+              m.article_url,
+              m.article_title || '|' || m.source || '|' || m.published_at
+            )) AS n
+            FROM news_mentions m
+            INNER JOIN bills b ON b.id = m.bill_id
+            WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
+              AND m.match_confidence >= ?
+              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)`,
+      args: [hours, minConfidence],
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getBreakingNewsForHomeCount"],
+  { revalidate: 600, tags: ["news-breaking"] },
+);
+
 // ---- News matcher candidate pool (handoff 86) ---------------------------
 
 export type CandidateBill = {

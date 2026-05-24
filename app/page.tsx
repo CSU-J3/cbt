@@ -1,30 +1,31 @@
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { ColorKey } from "@/components/ColorKey";
+import { BreakingStallsTabs } from "@/components/BreakingStallsTabs";
 import { HomeHeader } from "@/components/HomeHeader";
-import { StageFunnel } from "@/components/StageFunnel";
 import { TopicDistribution } from "@/components/TopicDistribution";
 import { TopStalls } from "@/components/TopStalls";
 import {
   type DashboardFilters,
+  getBreakingNewsForHomeCount,
   sanitizeStage,
   sanitizeTopic,
 } from "@/lib/queries";
+
+const TOP_STALLS_COUNT = 5;
 
 type SearchParams = {
   stage?: string;
   topics?: string;
 };
 
-// HO 131 dashboard redesign foundation. HomeHeader replaces the old
-// `HeaderBar variant="dashboard"` chrome and folds DashboardLead into the
-// header. Body is a 3x2 grid that fills the viewport without scrolling at
-// 2560x1440 (primary) and 1920x1080 (secondary). Each quadrant is
-// `overflow: hidden` so its content decides how many rows show — the
-// cell does not impose a hardcoded row cap. TOPIC quadrant keeps an
-// inner scroll until HO 132 swaps in the bubble chart. ACTIVITY quadrant
-// shows whatever rows fit; HO 133 redesigns it with proper paging.
+// HO 133 dashboard layout pivot v2. STAGE DISTRIBUTION and COLOR KEY
+// moved from grid quadrants into the header band; BREAKING + TOP STALLS
+// merged into a single tabbed quadrant via `BreakingStallsTabs`. The
+// remaining grid is 2x2 conceptually but visually 2 cols x (1 + full-
+// width) rows: row 1 = tabs | activity, row 2 = topic distribution
+// spanning both columns. BREAKING and ACTIVITY both cap at 5 rows + an
+// `[ + N MORE → ]` expander linking to /news and /changes respectively.
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -36,18 +37,25 @@ export default async function DashboardPage({
     topic: sanitizeTopic(sp.topics),
   };
 
+  const breakingCount = await getBreakingNewsForHomeCount({
+    hours: 72,
+    minConfidence: 0.7,
+  });
+
   return (
     <div className="home-shell">
-      <HomeHeader />
+      <HomeHeader filters={filters} />
       <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
         <div className="home-grid">
           <section className="home-quadrant">
-            <p className="home-quadrant-label">Breaking · Last 72h</p>
-            <div className="home-quadrant-body">
-              <BreakingNewsBlock />
-            </div>
+            <BreakingStallsTabs
+              breakingContent={<BreakingNewsBlock />}
+              stallsContent={<TopStalls />}
+              breakingCount={breakingCount}
+              stallsCount={TOP_STALLS_COUNT}
+            />
           </section>
 
           <section className="home-quadrant">
@@ -57,31 +65,10 @@ export default async function DashboardPage({
             </div>
           </section>
 
-          <section className="home-quadrant">
-            <p className="home-quadrant-label">Color Key</p>
-            <div className="home-quadrant-body">
-              <ColorKey />
-            </div>
-          </section>
-
-          <section className="home-quadrant">
-            <p className="home-quadrant-label">Stage Distribution</p>
-            <div className="home-quadrant-body">
-              <StageFunnel filters={filters} />
-            </div>
-          </section>
-
-          <section className="home-quadrant">
+          <section className="home-quadrant home-quadrant--topic">
             <p className="home-quadrant-label">Topic Distribution</p>
             <div className="home-quadrant-body home-quadrant-body--scroll">
               <TopicDistribution filters={filters} />
-            </div>
-          </section>
-
-          <section className="home-quadrant">
-            <p className="home-quadrant-label">Top Stalls</p>
-            <div className="home-quadrant-body">
-              <TopStalls />
             </div>
           </section>
         </div>

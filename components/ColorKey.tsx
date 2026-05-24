@@ -1,52 +1,101 @@
-// HO 131: dedicated home quadrant explaining every color in active use.
-// Read-only signal — no click targets, no hover-state. Four sections:
-//   STAGES — six --stage-* tokens with their funnel prefixes
-//   TOPICS — eight color groups from lib/topic-colors.ts (rolled up;
-//            the per-topic colors are aliased into 8 buckets there)
-//   PARTIES — three --party-* tokens
-//   ACCENT — --accent-amber meaning "active filter / clickable highlight"
-//
-// Each row is a flex-wrap of chips so the block reflows cleanly inside
-// whatever width the quadrant lands at.
+import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
+
+// HO 131 + HO 133: read-only legend of every color in active use. Five
+// sections: STAGES (6), TOPICS (8 color groups), PARTIES (3), BILL TYPES
+// (8 chips on the 2-color chamber palette), and ACCENT (single-line note).
+// Every chip gains a `title=` tooltip whose copy comes from the canonical
+// source (STAGE_LABELS, BILL_TYPE_LABELS, hand-curated for topic groups
+// and parties). Section spacing tightened in HO 133 so the block fits a
+// header-band column at 1920x1080 without scroll.
 type Swatch = {
   label: string;
   color: string;
   prefix?: string;
+  tooltip: string;
 };
 
 const STAGES: Swatch[] = [
-  { label: "INTRO", prefix: "▸", color: "var(--stage-introduced)" },
-  { label: "COMMITTEE", prefix: "▸", color: "var(--stage-committee)" },
-  { label: "FLOOR", prefix: "▸▸", color: "var(--stage-floor)" },
-  { label: "OTHER CHAMBER", prefix: "▸▸▸", color: "var(--stage-other-chamber)" },
-  { label: "PRESIDENT", prefix: "▸▸▸▸", color: "var(--stage-president)" },
-  { label: "ENACTED", prefix: "✓", color: "var(--stage-enacted)" },
+  { label: "INTRO", prefix: "▸", color: "var(--stage-introduced)", tooltip: STAGE_LABELS.introduced },
+  { label: "COMMITTEE", prefix: "▸", color: "var(--stage-committee)", tooltip: STAGE_LABELS.committee },
+  { label: "FLOOR", prefix: "▸▸", color: "var(--stage-floor)", tooltip: STAGE_LABELS.floor },
+  { label: "OTHER CHAMBER", prefix: "▸▸▸", color: "var(--stage-other-chamber)", tooltip: STAGE_LABELS.other_chamber },
+  { label: "PRESIDENT", prefix: "▸▸▸▸", color: "var(--stage-president)", tooltip: STAGE_LABELS.president },
+  { label: "ENACTED", prefix: "✓", color: "var(--stage-enacted)", tooltip: STAGE_LABELS.enacted },
 ];
 
-// Mirrors the bucket groupings in lib/topic-colors.ts. Labels list the
-// member topics inline so a reader can match a colored topic-row on the
-// feed back to its group without opening the source file.
 const TOPIC_GROUPS: Swatch[] = [
-  { label: "FIN/COMM", color: "#a78bfa" },
-  { label: "TECH", color: "#22d3ee" },
-  { label: "DEF/FOR", color: "#34d399" },
-  { label: "ENV/ENERGY", color: "#65a30d" },
-  { label: "SOC/LABOR", color: "#f472b6" },
-  { label: "JUSTICE", color: "#fb7185" },
-  { label: "INFRA/GOV", color: "#f59e0b" },
-  { label: "OTHER", color: "#6b7280" },
+  {
+    label: "FIN/COMM",
+    color: "#a78bfa",
+    tooltip: "Financial services · taxes · budget · trade · consumer protection",
+  },
+  { label: "TECH", color: "#22d3ee", tooltip: "Technology" },
+  {
+    label: "DEF/FOR",
+    color: "#34d399",
+    tooltip: "Defense · foreign policy · veterans",
+  },
+  {
+    label: "ENV/ENERGY",
+    color: "#65a30d",
+    tooltip: "Environment · energy · agriculture",
+  },
+  {
+    label: "SOC/LABOR",
+    color: "#f472b6",
+    tooltip: "Healthcare · education · labor · housing · social security",
+  },
+  {
+    label: "JUSTICE",
+    color: "#fb7185",
+    tooltip: "Civil rights · criminal justice · immigration · elections",
+  },
+  {
+    label: "INFRA/GOV",
+    color: "#f59e0b",
+    tooltip: "Transportation · government operations",
+  },
+  { label: "OTHER", color: "#6b7280", tooltip: "Catchall for unclassified" },
 ];
 
 const PARTIES: Swatch[] = [
-  { label: "DEM", color: "var(--party-democrat)" },
-  { label: "REP", color: "var(--party-republican)" },
-  { label: "IND", color: "var(--party-independent)" },
+  { label: "DEM", color: "var(--party-democrat)", tooltip: "Democrat" },
+  { label: "REP", color: "var(--party-republican)", tooltip: "Republican" },
+  { label: "IND", color: "var(--party-independent)", tooltip: "Independent" },
 ];
+
+// Bill types are color-grouped by chamber-of-origin on the BillRow rail
+// (cyan=House, purple=Senate). The 8 chips here share those 2 colors but
+// each carries the type acronym readers actually see on a row, plus a
+// full-name tooltip from BILL_TYPE_LABELS.
+const SENATE_TYPES = new Set(["s", "sres", "sjres", "sconres"]);
+const BILL_TYPE_ORDER = [
+  "s",
+  "hr",
+  "hjres",
+  "sjres",
+  "hres",
+  "sres",
+  "hconres",
+  "sconres",
+] as const;
+const BILL_TYPES: Swatch[] = BILL_TYPE_ORDER.map((t) => ({
+  label: t.toUpperCase(),
+  color: SENATE_TYPES.has(t) ? "var(--rail-senate)" : "var(--rail-house)",
+  tooltip: BILL_TYPE_LABELS[t] ?? t.toUpperCase(),
+}));
 
 function Chip({ swatch }: { swatch: Swatch }) {
   return (
-    <span className="color-key-chip" style={{ color: swatch.color }}>
-      {swatch.prefix ? <span aria-hidden>{swatch.prefix} </span> : (
+    <span
+      className="color-key-chip"
+      style={{ color: swatch.color }}
+      title={swatch.tooltip}
+      aria-label={swatch.tooltip}
+    >
+      {swatch.prefix ? (
+        <span aria-hidden>{swatch.prefix} </span>
+      ) : (
         <span
           className="color-key-dot"
           style={{ backgroundColor: swatch.color }}
@@ -58,10 +107,21 @@ function Chip({ swatch }: { swatch: Swatch }) {
   );
 }
 
-function Section({ heading, items }: { heading: string; items: Swatch[] }) {
+function Section({
+  heading,
+  subhead,
+  items,
+}: {
+  heading: string;
+  subhead?: string;
+  items: Swatch[];
+}) {
   return (
     <div className="color-key-section">
-      <p className="color-key-heading">{heading}</p>
+      <p className="color-key-heading">
+        {heading}
+        {subhead ? <span className="color-key-subhead"> · {subhead}</span> : null}
+      </p>
       <div className="color-key-row">
         {items.map((s) => (
           <Chip key={s.label} swatch={s} />
@@ -77,6 +137,11 @@ export function ColorKey() {
       <Section heading="Stages" items={STAGES} />
       <Section heading="Topics" items={TOPIC_GROUPS} />
       <Section heading="Parties" items={PARTIES} />
+      <Section
+        heading="Bill Types"
+        subhead="rail color = chamber-of-origin"
+        items={BILL_TYPES}
+      />
       <div className="color-key-section">
         <p className="color-key-heading">Accent</p>
         <p className="color-key-accent-note">

@@ -53,14 +53,14 @@
   --space-lg: 16px;
   --space-xl: 24px;
 
-  /* HO 131 home-header height. Drives the no-scroll calc on .home-grid:
-     `height: calc(100vh - var(--home-header-height))`. Sized for the
-     widest case (≥1920px viewport, lead line-clamp: 3). At narrower
-     viewports the line-clamp shrinks (2 then 1), so the actual header
-     becomes shorter and the grid simply gains a few extra px of slack —
-     no visual harm. Bump only if the header gains a new row (e.g.
-     additional meta line, nav wraps to two rows at desktop). */
-  --home-header-height: 180px;
+  /* HO 131/133 home-header height. Drives the no-scroll calc on
+     .home-grid: `height: calc(100vh - var(--home-header-height))`. Sized
+     for the post-HO-133 3-column header band (title block + Stage
+     Distribution + Color Key sharing the same row). The tallest sibling
+     column drives the band height — typically Color Key with 5 sections
+     or Stage Distribution with 6 funnel bars. Bumped from 180px to 240px
+     when stage + color moved out of the grid quadrants. */
+  --home-header-height: 240px;
 }
 
 @theme {
@@ -113,12 +113,10 @@ body {
   margin-bottom: var(--space-sm);
 }
 
-/* ---- home dashboard (HO 131) ------------------------------------------ */
-/* Foundation redesign: terminal-prompt title + LEAD prose + 12-item nav
-   above a 3x2 no-scroll grid. Primary target 2560x1440; scales to
-   1920x1080 without scroll. ACTIVITY and TOPIC quadrants cap by
-   overflow (TOPIC scrolls internally pending HO 132 bubble swap;
-   ACTIVITY pending HO 133 paging redesign). */
+/* ---- home dashboard (HO 131, restructured HO 133) -------------------- */
+/* HO 133 layout pivot v2: title block + Stage Distribution + Color Key
+   share a 3-column header band; the grid below holds the tabbed
+   BREAKING/STALLS quadrant + ACTIVITY + a full-width TOPIC row. */
 .home-shell {
   display: flex;
   flex-direction: column;
@@ -129,8 +127,24 @@ body {
   padding: var(--space-md) var(--space-xl) var(--space-sm);
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
+  display: grid;
+  grid-template-columns: minmax(0, 700px) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+.home-header-title {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 700px;
+}
+.home-header-stage,
+.home-header-key {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-left: 0.5px solid var(--border-soft);
+  padding-left: var(--space-lg);
 }
 .terminal-prompt {
   font-family: var(--font-mono);
@@ -205,14 +219,18 @@ body {
 .home-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   grid-template-rows: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
   min-height: 0;
   /* Subtract header chrome + main padding so the grid fills exactly the
-     remaining viewport. The fallback keeps something rendering even when
-     the var isn't available (e.g. older browsers in :root cascade). */
+     remaining viewport. */
   height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
+}
+/* HO 133: Topic Distribution spans both columns on row 2. When HO 132
+   ships, the topic bubble lands in this same cell. */
+.home-quadrant--topic {
+  grid-column: 1 / -1;
 }
 .home-quadrant {
   display: flex;
@@ -242,17 +260,20 @@ body {
   overflow-y: auto;
 }
 
-/* HO 131 color-key block (bottom-right quadrant) */
+/* HO 131 + HO 133 color-key block (right-side header column). Section
+   gaps tightened in HO 133 to fit the 5-section layout (Stages, Topics,
+   Parties, Bill Types, Accent) inside the header band without bloating
+   --home-header-height. */
 .color-key {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   font-size: 11px;
 }
 .color-key-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: 2px;
 }
 .color-key-heading {
   font-size: 11px;
@@ -260,10 +281,16 @@ body {
   letter-spacing: 0.5px;
   color: var(--text-muted);
 }
+.color-key-subhead {
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 10px;
+}
 .color-key-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
+  gap: 4px var(--space-sm);
 }
 .color-key-chip {
   display: inline-flex;
@@ -273,6 +300,7 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   white-space: nowrap;
+  cursor: default;
 }
 .color-key-dot {
   display: inline-block;
@@ -281,8 +309,64 @@ body {
   border-radius: 50%;
 }
 .color-key-accent-note {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
+   bottom on active, dim text otherwise) but renders <button>s and a
+   tighter margin since the strip lives inside a quadrant, not a page-
+   level header. */
+.breaking-stalls-tabs {
+  margin-bottom: var(--space-sm);
+  flex-shrink: 0;
+}
+.breaking-stalls-tabs button {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 0;
+  font-family: inherit;
   font-size: 12px;
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.breaking-stalls-tabs button:hover {
+  color: var(--text-secondary);
+}
+.breaking-stalls-tabs button[aria-current="page"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-amber);
+}
+.breaking-stalls-tabs .count {
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+
+/* HO 133 cap-with-expander footer. Replaces the prior
+   .activity-ticker-footer pattern on BREAKING + ACTIVITY surfaces. The
+   chrome is intentionally heavier than a textual "view all" footer
+   because it carries a count and acts as the cap-line affordance. */
+.home-expander {
+  display: block;
+  margin-top: auto;
+  padding: var(--space-sm) 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-top: 0.5px solid var(--border-soft);
+  text-decoration: none;
+  transition: color 120ms ease, background-color 120ms ease;
+  flex-shrink: 0;
+}
+.home-expander:hover {
+  color: var(--accent-amber-bright);
+  background-color: var(--bg-row-hover);
 }
 
 /* Narrower viewport — relax the no-scroll constraint, let the grid stack
@@ -290,9 +374,9 @@ body {
    block further down. */
 /* HO 131 viewport-tier line-clamps for the LEAD prose. Font-size stays
    constant; only the visible line count shrinks so the header height
-   stays bounded as the viewport narrows. Cascades from the default rule
-   (line-clamp: 3) — both queries can apply at very narrow widths; the
-   last rule wins. */
+   stays bounded as the viewport narrows. Cascades from the default
+   rule (line-clamp: 3) — both queries can apply at very narrow widths;
+   the last rule wins. */
 @media (max-width: 1919px) {
   .home-header-lead {
     -webkit-line-clamp: 2;
@@ -300,19 +384,49 @@ body {
   }
 }
 
+/* HO 133: below 1280px the 3-column header band reflows to a stack —
+   title block on row 1 full-width, stage + color side-by-side on
+   row 2. The grid below also relaxes its no-scroll math; 1440x900 is
+   allowed to scroll modestly per the HO 131 viewport spec. */
+@media (max-width: 1279px) {
+  .home-header {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  .home-header-title {
+    grid-column: 1 / -1;
+    max-width: none;
+  }
+  .home-header-stage,
+  .home-header-key {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
 /* Below 1200px (tablet-ish portrait, ultra-narrow desktop): relax the
-   no-scroll rule. 1440x900 stays on the 3x2 grid above and may scroll
-   modestly per the HO 131 viewport spec. */
+   line-clamp and the grid. */
 @media (max-width: 1199px) {
   .home-header-lead {
     -webkit-line-clamp: 1;
     line-clamp: 1;
   }
   .home-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, minmax(0, 1fr));
     height: auto;
     min-height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
+  }
+}
+
+/* HO 133: under 800px the header band collapses to a single column —
+   stage and color stack under the title block. */
+@media (max-width: 799px) {
+  .home-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .home-header-stage,
+  .home-header-key {
+    grid-column: 1;
   }
 }
 @media (max-width: 700px) {
