@@ -1,13 +1,26 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+
+// HO 129: SearchBox now decides where to route based on the current
+// pathname, not the basePath prop:
+//   - /feed and /members own a native ?q= filter on the same page;
+//     stay inline so existing filter state is preserved.
+//   - anywhere else, route to /search for the global tabbed search.
+// `basePath` becomes the inline-stay destination (defaults to /feed) and
+// is otherwise unused. /feed bookmarks (`/feed?q=…`) keep working
+// unchanged because the receiving page hasn't moved.
+function isInlinePath(pathname: string): boolean {
+  return pathname.startsWith("/feed") || pathname.startsWith("/members");
+}
 
 export function SearchBox({
   basePath = "/feed",
   placeholder = "search bills...",
 }: { basePath?: string; placeholder?: string } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const initial = searchParams.get("q") ?? "";
   const [value, setValue] = useState(initial);
@@ -19,16 +32,31 @@ export function SearchBox({
     if (trimmed === current) return;
 
     const handle = setTimeout(() => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (trimmed) params.set("q", trimmed);
-      else params.delete("q");
-      params.delete("expanded");
-      params.delete("page");
-      const qs = params.toString();
-      router.push(qs ? `${basePath}?${qs}` : basePath);
+      const stayInline = isInlinePath(pathname);
+      if (stayInline) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (trimmed) params.set("q", trimmed);
+        else params.delete("q");
+        params.delete("expanded");
+        params.delete("page");
+        const qs = params.toString();
+        router.push(qs ? `${basePath}?${qs}` : basePath);
+      } else {
+        const params = new URLSearchParams();
+        if (trimmed) params.set("q", trimmed);
+        // Preserve the active tab when typing while already on /search,
+        // so a user mid-tab doesn't get bounced back to bills on each
+        // keystroke. From any other page, tab defaults to bills.
+        if (pathname.startsWith("/search")) {
+          const tab = searchParams.get("tab");
+          if (tab) params.set("tab", tab);
+        }
+        const qs = params.toString();
+        router.push(qs ? `/search?${qs}` : "/search");
+      }
     }, 250);
     return () => clearTimeout(handle);
-  }, [value, searchParams, router, basePath]);
+  }, [value, searchParams, router, basePath, pathname]);
 
   return (
     <div className="search-box-wrap relative">

@@ -1058,6 +1058,104 @@ body {
   }
 }
 
+/* ---- /search global tabbed search (HO 129) ---------------------------- */
+.search-tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border-strong);
+  margin-bottom: 16px;
+}
+.search-tabs a {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.search-tabs a:hover {
+  color: var(--text-secondary);
+}
+.search-tabs a[aria-current="page"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-amber);
+}
+.search-tabs a[data-empty="true"] {
+  opacity: 0.5;
+}
+.search-tabs .count {
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+.search-empty-hint {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 48px 16px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.search-empty-hint a {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.search-empty-hint a:hover {
+  color: var(--accent-amber-bright);
+  text-decoration: underline;
+}
+.search-results-bills,
+.search-results-members,
+.search-results-reports {
+  border: 1px solid var(--border-strong);
+}
+.member-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 100px 64px minmax(0, 100px);
+  align-items: center;
+  column-gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+.member-search-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.member-search-row:last-child {
+  border-bottom: none;
+}
+.report-search-row {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  text-decoration: none;
+}
+.report-search-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.report-search-row:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 700px) {
+  .search-tabs {
+    gap: 12px;
+    overflow-x: auto;
+  }
+  .member-search-row {
+    grid-template-columns: minmax(0, 1fr) 80px;
+    column-gap: 8px;
+  }
+  .member-search-row .member-search-chamber,
+  .member-search-row .member-search-party {
+    display: none;
+  }
+}
+
 /* ---- /races index rows ----------------------------------------------- */
 /* Columns: seat | incumbent | cook | sabato | inside_elec | consensus.   */
 /* House and Senate sections share the same grid so columns line up.      */

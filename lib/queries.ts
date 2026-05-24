@@ -2871,6 +2871,279 @@ export const getClusterDrilldown = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// ---- /search global search (HO 129) -----------------------------------
+
+export const SEARCH_TABS = ["bills", "members", "news", "reports"] as const;
+export type SearchTab = (typeof SEARCH_TABS)[number];
+const SEARCH_TABS_SET = new Set<string>(SEARCH_TABS);
+
+const SEARCH_Q_MAX = 200;
+
+export function sanitizeQ(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== "string") return "";
+  return raw.trim().slice(0, SEARCH_Q_MAX);
+}
+
+export function sanitizeSearchTab(
+  raw: string | null | undefined,
+): SearchTab {
+  if (raw && SEARCH_TABS_SET.has(raw)) return raw as SearchTab;
+  return "bills";
+}
+
+const SEARCH_LIMIT = 50;
+
+// Bills: same OR shape as buildFeedWhere's q clause, but intentionally
+// IGNORES topic/stage/cluster/chamber filters — global search is global.
+// Ceremonial bills stay hidden by default (matches the rest of the app's
+// default). Summary-null bills stay hidden (matches buildFeedWhere).
+function billsSearchSqlFragment(): { clause: string; argsCount: 5 } {
+  return {
+    clause: `summary IS NOT NULL
+        AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
+        AND (LOWER(id) LIKE ?
+          OR LOWER(title) LIKE ?
+          OR LOWER(sponsor_name) LIKE ?
+          OR LOWER(summary) LIKE ?
+          OR REPLACE(LOWER(id), '-', '') LIKE ?)`,
+    argsCount: 5,
+  };
+}
+
+function billsSearchArgs(q: string): string[] {
+  const like = `%${q.toLowerCase()}%`;
+  const idLike = `%${normalizeBillIdQuery(q)}%`;
+  return [like, like, like, like, idLike];
+}
+
+export const searchBillsCount = unstable_cache(
+  async (q: string): Promise<number> => {
+    if (!q) return 0;
+    const db = getDb();
+    const { clause } = billsSearchSqlFragment();
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${clause}`,
+      args: billsSearchArgs(q),
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["searchBillsCount"],
+  { revalidate: 600, tags: ["bills"] },
+);
+
+export const searchBills = unstable_cache(
+  async (q: string): Promise<FeedBill[]> => {
+    if (!q) return [];
+    const db = getDb();
+    const { clause } = billsSearchSqlFragment();
+    const rs = await db.execute({
+      sql: `SELECT id, congress, bill_type, bill_number, title,
+                   sponsor_name, sponsor_party, sponsor_state, introduced_date,
+                   latest_action_date, latest_action_text, update_date,
+                   summary, topics, stage, stage_changed_at
+            FROM bills
+            WHERE ${clause}
+            ORDER BY latest_action_date DESC NULLS LAST, id DESC
+            LIMIT ?`,
+      args: [...billsSearchArgs(q), SEARCH_LIMIT],
+    });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["searchBills"],
+  { revalidate: 600, tags: ["bills"] },
+);
+
+export type MemberSearchResult = {
+  bioguide_id: string;
+  name: string;
+  party: string | null;
+  state: string | null;
+  chamber: Chamber | null;
+  district: number | null;
+  total: number;
+};
+
+// Matches against members.name OR state_name so "Texas" surfaces TX members.
+// is_current=1 so historical members don't pollute the result list. Joined
+// with the bills_agg CTE to surface the bill_count column.
+export const searchMembersCount = unstable_cache(
+  async (q: string): Promise<number> => {
+    if (!q) return 0;
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM members
+            WHERE is_current = 1
+              AND (LOWER(name) LIKE ? OR LOWER(state_name) LIKE ?)`,
+      args: [like, like],
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["searchMembersCount"],
+  { revalidate: 600, tags: ["members"] },
+);
+
+export const searchMembers = unstable_cache(
+  async (q: string): Promise<MemberSearchResult[]> => {
+    if (!q) return [];
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const sql = `
+      WITH bills_agg AS (
+        SELECT sponsor_bioguide_id, COUNT(*) AS total
+        FROM bills
+        WHERE sponsor_bioguide_id IS NOT NULL
+          AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
+        GROUP BY sponsor_bioguide_id
+      )
+      SELECT m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
+             COALESCE(b.total, 0) AS total
+      FROM members m
+      LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
+      WHERE m.is_current = 1
+        AND (LOWER(m.name) LIKE ? OR LOWER(m.state_name) LIKE ?)
+      ORDER BY total DESC, m.name ASC
+      LIMIT ?
+    `;
+    const rs = await db.execute({ sql, args: [like, like, SEARCH_LIMIT] });
+    return rs.rows.map((r) => ({
+      bioguide_id: r.bioguide_id as string,
+      name: r.name as string,
+      party: (r.party as string | null) ?? null,
+      state: (r.state as string | null) ?? null,
+      chamber: (r.chamber as Chamber | null) ?? null,
+      district: (r.district as number | null) ?? null,
+      total: Number(r.total ?? 0),
+    }));
+  },
+  ["searchMembers"],
+  { revalidate: 600, tags: ["members", "bills"] },
+);
+
+// News mentions reuse NewsMention so SearchResultsNews can render through
+// the existing NewsRow component. INNER JOIN on bills (same shape as
+// getBreakingNews) gives us bill_title + sponsor metadata for the row.
+export const searchNewsCount = unstable_cache(
+  async (q: string): Promise<number> => {
+    if (!q) return 0;
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM news_mentions m
+            INNER JOIN bills b ON b.id = m.bill_id
+            WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+              AND (LOWER(m.article_title) LIKE ?
+                OR LOWER(m.article_summary) LIKE ?
+                OR LOWER(m.source) LIKE ?)`,
+      args: [like, like, like],
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["searchNewsCount"],
+  { revalidate: 600, tags: ["news-breaking", "bills"] },
+);
+
+export const searchNews = unstable_cache(
+  async (q: string): Promise<NewsMention[]> => {
+    if (!q) return [];
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const rs = await db.execute({
+      sql: `SELECT m.id, m.bill_id, m.source, m.article_title, m.article_url,
+                   m.published_at,
+                   b.title AS bill_title,
+                   b.sponsor_name AS bill_sponsor_name,
+                   b.sponsor_party AS bill_sponsor_party
+            FROM news_mentions m
+            INNER JOIN bills b ON b.id = m.bill_id
+            WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+              AND (LOWER(m.article_title) LIKE ?
+                OR LOWER(m.article_summary) LIKE ?
+                OR LOWER(m.source) LIKE ?)
+            ORDER BY m.published_at DESC, m.id DESC
+            LIMIT ?`,
+      args: [like, like, like, SEARCH_LIMIT],
+    });
+    return rs.rows.map((r) => ({
+      id: Number(r.id),
+      billId: r.bill_id as string,
+      billTitle: r.bill_title as string,
+      billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
+      billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
+      source: r.source as string,
+      title: r.article_title as string,
+      url: r.article_url as string,
+      publishedAt: r.published_at as string,
+      otherBills: [],
+    }));
+  },
+  ["searchNews"],
+  { revalidate: 600, tags: ["news-breaking", "bills"] },
+);
+
+export type ReportSearchResult = {
+  slug: string;
+  title: string;
+  week_start: string;
+  snippet: string;
+};
+
+// Builds a ~140-char snippet centered on the first match of `q` in
+// content_md, with surrounding markdown noise (#/*/_) collapsed to spaces.
+// If the match is in title rather than body, returns the first 140 chars
+// of the body anyway as fallback context.
+function reportSnippet(contentMd: string, q: string): string {
+  const lower = contentMd.toLowerCase();
+  const needle = q.toLowerCase();
+  const idx = lower.indexOf(needle);
+  const start = idx >= 0 ? Math.max(0, idx - 60) : 0;
+  const slice = contentMd.slice(start, start + 200);
+  const cleaned = slice
+    .replace(/[#*_`]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 140 ? cleaned.slice(0, 140) + "…" : cleaned;
+}
+
+export const searchReportsCount = unstable_cache(
+  async (q: string): Promise<number> => {
+    if (!q) return 0;
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM reports
+            WHERE LOWER(title) LIKE ? OR LOWER(content_md) LIKE ?`,
+      args: [like, like],
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["searchReportsCount"],
+  { revalidate: 600, tags: ["reports"] },
+);
+
+export const searchReports = unstable_cache(
+  async (q: string): Promise<ReportSearchResult[]> => {
+    if (!q) return [];
+    const db = getDb();
+    const like = `%${q.toLowerCase()}%`;
+    const rs = await db.execute({
+      sql: `SELECT slug, title, week_start, content_md FROM reports
+            WHERE LOWER(title) LIKE ? OR LOWER(content_md) LIKE ?
+            ORDER BY week_start DESC
+            LIMIT ?`,
+      args: [like, like, SEARCH_LIMIT],
+    });
+    return rs.rows.map((r) => ({
+      slug: r.slug as string,
+      title: r.title as string,
+      week_start: r.week_start as string,
+      snippet: reportSnippet(r.content_md as string, q),
+    }));
+  },
+  ["searchReports"],
+  { revalidate: 600, tags: ["reports"] },
+);
+
 // Tagged with both "watchlist" (membership changes from toggle) and "bills"
 // (underlying row data changes from sync), so either trigger invalidates.
 export const getWatchlistBills = unstable_cache(
