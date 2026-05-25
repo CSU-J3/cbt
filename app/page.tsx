@@ -76,7 +76,6 @@ export default async function DashboardPage({
     count: b.count,
     color: STAGE_BUBBLE_COLORS[b.stage],
     tooltip: `${STAGE_LABELS[b.stage]} — ${b.count.toLocaleString()} bills`,
-    href: `/feed?stage=${encodeURIComponent(b.stage)}`,
   }));
 
   const topicData: BubbleDatum[] = topicRows.map((t) => ({
@@ -85,7 +84,6 @@ export default async function DashboardPage({
     count: t.count,
     color: topicColor(t.topic),
     tooltip: `${topicFullLabel(t.topic)} — ${t.count.toLocaleString()} bills`,
-    href: `/feed?topics=${encodeURIComponent(t.topic)}`,
   }));
 
   return (
@@ -119,14 +117,14 @@ export default async function DashboardPage({
           <section className="home-quadrant">
             <p className="home-quadrant-label">Stage Distribution</p>
             <div className="home-quadrant-body">
-              <DashboardBubbleChart data={stageData} />
+              <DashboardBubbleChart data={stageData} paramKey="stage" />
             </div>
           </section>
 
           <section className="home-quadrant">
             <p className="home-quadrant-label">Topic Distribution</p>
             <div className="home-quadrant-body">
-              <DashboardBubbleChart data={topicData} />
+              <DashboardBubbleChart data={topicData} paramKey="topics" />
             </div>
           </section>
         </div>

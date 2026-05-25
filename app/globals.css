@@ -1275,6 +1275,11 @@ body {
   stroke: var(--accent-amber-bright);
   stroke-width: 2.5;
 }
+.dashboard-bubble.selected circle {
+  stroke: var(--accent-amber-bright);
+  stroke-width: 2.5;
+  fill-opacity: 1;
+}
 .dashboard-bubble text {
   font-size: 11px;
   fill: var(--text-primary);
