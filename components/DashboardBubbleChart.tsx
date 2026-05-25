@@ -8,16 +8,19 @@ import { useMemo } from "react";
 // surfaces. Sized by sqrt(count) implicitly via d3-hierarchy's pack
 // layout — pack works on values, and feeding it Math.max(count, 1)
 // reproduces the sqrt-faithful area encoding the HO 128 patterns
-// chart established. Client island only because the optional click
-// handler needs useRouter for soft navigation; if no onSelectHref is
-// passed the bubbles render static.
+// chart established. Client island because click navigation uses
+// router.push for soft routing. Each datum carries its own href; the
+// chart stays route-agnostic (a callback prop would not cross the
+// RSC boundary).
 export type BubbleDatum = {
   id: string;
   label: string;
   count: number;
   color: string;
-  /** Optional native tooltip on hover. Falls back to `${label}, ${count} bills`. */
+  /** Native tooltip on hover. Falls back to `${label}, ${count} bills`. */
   tooltip?: string;
+  /** Optional click destination. Zero-count bubbles ignore this. */
+  href?: string;
 };
 
 // Internal viewBox math. The chart's actual pixel size is driven by
@@ -30,11 +33,9 @@ const MIN_RADIUS = 12;
 
 export function DashboardBubbleChart({
   data,
-  onSelectHref,
   height = VIEW_H,
 }: {
   data: BubbleDatum[];
-  onSelectHref?: (id: string) => string;
   /** ViewBox height; rarely overridden. Pixel height is CSS-driven. */
   height?: number;
 }) {
@@ -56,12 +57,6 @@ export function DashboardBubbleChart({
     }));
   }, [data, height]);
 
-  function handleClick(id: string) {
-    if (!onSelectHref) return;
-    const href = onSelectHref(id);
-    router.push(href, { scroll: false });
-  }
-
   return (
     <svg
       className="dashboard-bubble-svg"
@@ -71,7 +66,8 @@ export function DashboardBubbleChart({
     >
       {nodes.map(({ datum, x, y, r }) => {
         const isEmpty = datum.count === 0;
-        const clickable = !!onSelectHref && !isEmpty;
+        const href = isEmpty ? undefined : datum.href;
+        const clickable = !!href;
         const labelLines = labelFor(datum, r);
         const ariaLabel = isEmpty
           ? `${datum.label}, no bills`
@@ -84,7 +80,11 @@ export function DashboardBubbleChart({
             key={datum.id}
             className={`dashboard-bubble${clickable ? "" : " is-static"}`}
             transform={`translate(${x}, ${y})`}
-            onClick={clickable ? () => handleClick(datum.id) : undefined}
+            onClick={
+              clickable
+                ? () => router.push(href, { scroll: false })
+                : undefined
+            }
             role={clickable ? "button" : undefined}
             tabIndex={clickable ? 0 : undefined}
             aria-label={ariaLabel}
@@ -93,7 +93,7 @@ export function DashboardBubbleChart({
                 ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      handleClick(datum.id);
+                      router.push(href, { scroll: false });
                     }
                   }
                 : undefined

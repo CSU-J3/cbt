@@ -44,9 +44,9 @@
   --rail-senate: #c084fc;
 
   /* HO 131 spacing scale. Use in place of ad-hoc px values for block-level
-     rhythm (gap, padding, margin). Inner-row paddings (.feed-row,
-     .topic-dist-row, .funnel-row, etc.) keep their custom values — those
-     drive per-row density, not block rhythm. */
+     rhythm (gap, padding, margin). Inner-row paddings (.feed-row, etc.)
+     keep their custom values — those drive per-row density, not block
+     rhythm. */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
@@ -231,22 +231,17 @@ body {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  /* HO 133 v5: row 1 (BREAKING tabs | ACTIVITY) sizes to content;
-     row 2 (TOPIC DIST, full width) claims the remainder. At tall
-     viewports (2560x1440) this prevents the small-content row from
-     ballooning to half-height with dead space under the expander
-     chrome — small blocks on top, big visualization on bottom. */
+  /* HO 132 row sizing: row 1 (BREAKING / ACTIVITY tabs) sizes to
+     content; row 2 (STAGE bubbles | TOPIC bubbles) claims the
+     remainder. The bubble charts fill their cells via height:100%
+     on .dashboard-bubble-svg, so a taller viewport gets bigger
+     bubbles rather than a dead-space gap below them. */
   grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-md);
   min-height: 0;
   /* Subtract header chrome + main padding so the grid fills exactly the
      remaining viewport. */
   height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
-}
-/* HO 133: Topic Distribution spans both columns on row 2. When HO 132
-   ships, the topic bubble lands in this same cell. */
-.home-quadrant--topic {
-  grid-column: 1 / -1;
 }
 .home-quadrant {
   display: flex;
@@ -485,53 +480,6 @@ body {
   border-left-color: var(--rail-senate);
   background-color: color-mix(in srgb, var(--rail-senate) 12%, var(--bg-panel));
 }
-.topic-dist-row {
-  display: grid;
-  grid-template-columns: 60px 1fr 50px;
-  align-items: center;
-  column-gap: 12px;
-  padding: 3px 4px;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-.topic-dist-row:hover {
-  background-color: var(--bg-row-hover);
-}
-.topic-dist-bar-track {
-  height: 10px;
-  background-color: var(--bg-base);
-  border: 0.5px solid var(--border-soft);
-  overflow: hidden;
-}
-.topic-dist-bar-fill {
-  display: block;
-  height: 100%;
-}
-
-/* funnel rows — clickable stage filter controls (parallel to topic-dist) */
-.funnel-row {
-  display: grid;
-  grid-template-columns: 130px 1fr 96px;
-  align-items: center;
-  column-gap: 12px;
-  padding: 4px 4px;
-  text-decoration: none;
-  transition: opacity 0.15s;
-}
-.funnel-row:hover {
-  background-color: var(--bg-row-hover);
-}
-.funnel-bar-track {
-  height: 12px;
-  background-color: var(--bg-base);
-  border: 0.5px solid var(--border-soft);
-  overflow: hidden;
-}
-.funnel-bar-fill {
-  display: block;
-  height: 100%;
-}
-
 /* active filter strip — between HeaderBar and the dashboard grid */
 .active-filter-strip {
   display: flex;
@@ -1677,10 +1625,6 @@ body {
     grid-template-columns: 1fr;
   }
   /* 44px minimum tap targets for the clickable dashboard filter rows */
-  .funnel-row,
-  .topic-dist-row {
-    min-height: 44px;
-  }
   .competitive-race-row {
     grid-template-columns: 100px 1fr 120px;
   }
