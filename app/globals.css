@@ -1293,6 +1293,48 @@ body {
   user-select: none;
   font-weight: 500;
 }
+
+/* HO 132 dashboard bubble chart. Same visual idiom as .pattern-bubble
+   but the svg fills its grid cell (width + height 100%) so the row-2
+   stage/topic cells size to the dashboard's no-scroll layout instead
+   of a fixed 480px height. */
+.dashboard-bubble-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background-color: var(--bg-panel);
+}
+.dashboard-bubble {
+  outline: none;
+}
+.dashboard-bubble.is-static {
+  cursor: default;
+}
+.dashboard-bubble:not(.is-static) {
+  cursor: pointer;
+}
+.dashboard-bubble circle {
+  transition: stroke 120ms ease, fill-opacity 120ms ease;
+  stroke: transparent;
+  stroke-width: 1.5;
+}
+.dashboard-bubble:not(.is-static):hover circle {
+  stroke: var(--accent-amber);
+  stroke-width: 2;
+  fill-opacity: 1;
+}
+.dashboard-bubble:focus-visible circle {
+  stroke: var(--accent-amber-bright);
+  stroke-width: 2.5;
+}
+.dashboard-bubble text {
+  font-size: 11px;
+  fill: var(--text-primary);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  user-select: none;
+  font-weight: 500;
+}
 .pattern-legend {
   display: flex;
   gap: 12px;
