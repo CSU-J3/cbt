@@ -1998,6 +1998,32 @@ export const getFeedBills = unstable_cache(
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
+// HO 132.1 dashboard drawer. Thin wrapper over getFeedBills that takes
+// the dashboard's single-topic param shape ({ stage?, topic? }) and
+// caps results at a small drawer limit. Returns total alongside the
+// rows so the drawer header can show "N bills" without a second query.
+export type DashboardDrawerBills = {
+  bills: FeedBill[];
+  total: number;
+};
+export const getDashboardDrawerBills = unstable_cache(
+  async (
+    filters: { stage?: Stage; topic?: Topic },
+    limit = 10,
+  ): Promise<DashboardDrawerBills> => {
+    const { bills, total } = await getFeedBills(
+      {
+        stage: filters.stage,
+        topics: filters.topic ? [filters.topic] : undefined,
+      },
+      { page: 1, pageSize: limit },
+    );
+    return { bills, total };
+  },
+  ["getDashboardDrawerBills"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 export type FeedCount = {
   total: number;
   filtered: number;
