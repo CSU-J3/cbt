@@ -3,16 +3,23 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 
-// HO 132.1 dashboard drawer client island. Renders a fixed-position
-// slide panel from the right when `?stage=` or `?topics=` is present
-// in the URL. The bills list itself is a server component passed in
-// as `children` — drawer doesn't fetch, doesn't know about the data
-// shape, only manages open/close presentation + dismiss handlers.
+// HO 132.1 dashboard drawer client island. Stays mounted at all times
+// so both the open (200ms ease-out) and close (150ms ease-in) CSS
+// transitions get a chance to play — toggling data-open on the
+// backdrop and panel triggers the transition in whichever direction.
 //
-// Dismiss (X / backdrop click / ESC) routes to "/" with scroll
-// preserved. That clears BOTH params, which also clears the
-// dashboard's existing click-to-filter narrowing — drawer dismiss is
-// a full filter reset by design.
+// The bills list itself is a server component passed in as `children`
+// — drawer doesn't fetch, doesn't know about the data shape, only
+// manages dismiss + the data-open attribute.
+//
+// Dismiss (X / backdrop click / ESC) routes to "/" — clears BOTH
+// params, which also clears the dashboard's existing click-to-filter
+// narrowing. Deliberate: drawer dismiss is a full filter reset.
+//
+// Trade-off: when params clear, the server re-renders and `children`
+// becomes null mid-close-animation; the panel slides out with an
+// empty body for ~150ms. Acceptable since the user just clicked
+// dismiss and isn't looking inside.
 export function DashboardBillsDrawer({ children }: { children: ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -20,8 +27,6 @@ export function DashboardBillsDrawer({ children }: { children: ReactNode }) {
   const topic = params.get("topics");
   const open = !!(stage || topic);
 
-  // ESC closes the drawer when it's open. Bound on the window so the
-  // user doesn't need to click into the drawer for focus first.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
@@ -34,23 +39,26 @@ export function DashboardBillsDrawer({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, router]);
 
-  if (!open) return null;
-
   function close() {
     router.push("/", { scroll: false });
   }
+
+  const dataOpen = open ? "true" : "false";
 
   return (
     <>
       <div
         className="bills-drawer-backdrop"
+        data-open={dataOpen}
         onClick={close}
         aria-hidden
       />
       <aside
         className="bills-drawer"
+        data-open={dataOpen}
         role="dialog"
-        aria-modal="true"
+        aria-modal={open ? "true" : "false"}
+        aria-hidden={open ? undefined : true}
         aria-label="Filtered bills"
       >
         <header className="bills-drawer-header">
@@ -60,15 +68,12 @@ export function DashboardBillsDrawer({ children }: { children: ReactNode }) {
               type="button"
               className="bills-drawer-close"
               onClick={close}
+              tabIndex={open ? 0 : -1}
               aria-label="Close drawer"
             >
               ×
             </button>
           </div>
-          {/* Chip row + meta + list all live inside `children`; they
-              depend on the server-resolved stage/topic so the parent
-              is the right place to render them. The header above
-              carries only presentation concerns the client owns. */}
         </header>
         <div className="bills-drawer-body">{children}</div>
       </aside>

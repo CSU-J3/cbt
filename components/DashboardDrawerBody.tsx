@@ -7,6 +7,13 @@ import {
 } from "@/lib/queries";
 import { topicFullLabel } from "@/lib/topic-colors";
 
+// Short uppercase stage label matching the bubble form (COMMITTEE,
+// OTHER CHAMBER, etc.) — STAGE_LABELS is descriptive prose ("In
+// committee; under review") which is too long for a chip.
+function stageChipLabel(stage: Stage): string {
+  return stage.replace(/_/g, " ").toUpperCase();
+}
+
 // HO 132.1 drawer body. Server component fed the dashboard's
 // single-topic filter shape; queried via getDashboardDrawerBills
 // (thin wrapper over getFeedBills, capped at 10 rows). Rendered as
@@ -51,16 +58,16 @@ export async function DashboardDrawerBody({
     <>
       <div className="bills-drawer-chips">
         {stage ? (
-          <span className="bills-drawer-chip">
+          <span className="bills-drawer-chip" title={STAGE_LABELS[stage]}>
             <span className="bills-drawer-chip-key">Stage</span>
             <span className="bills-drawer-chip-value">
-              {STAGE_LABELS[stage]}
+              {stageChipLabel(stage)}
             </span>
             <Link
               href={clearStageHref}
               scroll={false}
               className="bills-drawer-chip-clear"
-              aria-label={`Clear stage filter (${STAGE_LABELS[stage]})`}
+              aria-label={`Clear stage filter (${stageChipLabel(stage)})`}
             >
               ×
             </Link>

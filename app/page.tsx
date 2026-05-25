@@ -2,10 +2,12 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
+import { DashboardBillsDrawer } from "@/components/DashboardBillsDrawer";
 import {
   type BubbleDatum,
   DashboardBubbleChart,
 } from "@/components/DashboardBubbleChart";
+import { DashboardDrawerBody } from "@/components/DashboardDrawerBody";
 import { HomeHeader } from "@/components/HomeHeader";
 import { TopStalls } from "@/components/TopStalls";
 import { STAGE_LABELS, type Stage } from "@/lib/enums";
@@ -129,6 +131,12 @@ export default async function DashboardPage({
           </section>
         </div>
       </main>
+
+      <DashboardBillsDrawer>
+        {filters.stage || filters.topic ? (
+          <DashboardDrawerBody stage={filters.stage} topic={filters.topic} />
+        ) : null}
+      </DashboardBillsDrawer>
     </div>
   );
 }

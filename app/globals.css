@@ -1707,14 +1707,25 @@ body {
 
 /* ---- HO 132.1 dashboard bills drawer ---------------------------------- */
 /* Fixed-position slide panel from the right edge, opened by clicking a
-   stage or topic bubble. The drawer itself is presentation; the bills
-   list inside is server-rendered and passed as children. */
+   stage or topic bubble. Always mounted in the DOM so both open and
+   close animate via CSS transitions — the data-open attribute toggles
+   the destination state. Asymmetric timings (200ms ease-out open,
+   150ms ease-in close) per HO 132.1 proposal 3: the base rule defines
+   the close direction; the data-open="true" rule overrides duration
+   + easing for the open direction. */
 .bills-drawer-backdrop {
   position: fixed;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.5);
   z-index: 50;
-  animation: bills-drawer-fade-in 200ms ease-out;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease-in;
+}
+.bills-drawer-backdrop[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 200ms ease-out;
 }
 .bills-drawer {
   position: fixed;
@@ -1728,15 +1739,14 @@ body {
   z-index: 51;
   display: flex;
   flex-direction: column;
-  animation: bills-drawer-slide-in 200ms ease-out;
+  transform: translateX(100%);
+  pointer-events: none;
+  transition: transform 150ms ease-in;
 }
-@keyframes bills-drawer-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes bills-drawer-slide-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+.bills-drawer[data-open="true"] {
+  transform: translateX(0);
+  pointer-events: auto;
+  transition: transform 200ms ease-out;
 }
 .bills-drawer-header {
   flex-shrink: 0;
