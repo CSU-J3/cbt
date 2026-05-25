@@ -1,14 +1,14 @@
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
+import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { BreakingStallsTabs } from "@/components/BreakingStallsTabs";
 import { HomeHeader } from "@/components/HomeHeader";
-import { StageFunnel } from "@/components/StageFunnel";
 import { TopicDistribution } from "@/components/TopicDistribution";
 import { TopStalls } from "@/components/TopStalls";
 import {
   type DashboardFilters,
   getBreakingNewsForHomeCount,
+  getStageChangesCount,
   sanitizeStage,
   sanitizeTopic,
 } from "@/lib/queries";
@@ -20,13 +20,11 @@ type SearchParams = {
   topics?: string;
 };
 
-// HO 133 / 134 dashboard layout. Header band carries title stack +
-// nav row + persistent COLOR KEY stages strip (HO 134). Grid is
-// 2 cols x (1 + full-width) rows: row 1 = 3-tab quadrant (BREAKING /
-// TOP STALLS / STAGE DIST) | ACTIVITY, row 2 = TOPIC DISTRIBUTION
-// spanning both columns. BREAKING and ACTIVITY cap at 5 rows + an
-// `[ + N MORE → ]` expander linking to /news and /changes
-// respectively. Default tab stays BREAKING.
+// HO 132 dashboard layout. Row 1: BREAKING single-view (no tab strip,
+// label-only header) | ACTIVITY tabs (ACTIVITY default, TOP STALLS
+// reachable). Row 2 still holds the TOPIC DISTRIBUTION bar chart for
+// this commit (commit A); commit C swaps it for the stage + topic
+// bubble pair sized 50/50.
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -38,10 +36,10 @@ export default async function DashboardPage({
     topic: sanitizeTopic(sp.topics),
   };
 
-  const breakingCount = await getBreakingNewsForHomeCount({
-    hours: 72,
-    minConfidence: 0.7,
-  });
+  const [breakingCount, activityCount] = await Promise.all([
+    getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7 }),
+    getStageChangesCount({}, 7),
+  ]);
 
   return (
     <div className="home-shell">
@@ -51,20 +49,24 @@ export default async function DashboardPage({
       <main className="home-main">
         <div className="home-grid">
           <section className="home-quadrant">
-            <BreakingStallsTabs
-              breakingContent={<BreakingNewsBlock />}
-              stallsContent={<TopStalls />}
-              stageContent={<StageFunnel filters={filters} />}
-              breakingCount={breakingCount}
-              stallsCount={TOP_STALLS_COUNT}
-            />
+            <p className="home-quadrant-label">
+              Breaking · Last 72h{" "}
+              <span className="home-quadrant-label-count">
+                ({breakingCount.toLocaleString()})
+              </span>
+            </p>
+            <div className="home-quadrant-body">
+              <BreakingNewsBlock />
+            </div>
           </section>
 
           <section className="home-quadrant">
-            <p className="home-quadrant-label">Activity · Last 7 Days</p>
-            <div className="home-quadrant-body">
-              <ActivityTicker filters={filters} />
-            </div>
+            <ActivityTabs
+              activityContent={<ActivityTicker filters={filters} />}
+              stallsContent={<TopStalls />}
+              activityCount={activityCount.total}
+              stallsCount={TOP_STALLS_COUNT}
+            />
           </section>
 
           <section className="home-quadrant home-quadrant--topic">

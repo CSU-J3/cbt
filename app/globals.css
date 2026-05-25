@@ -265,6 +265,10 @@ body {
   margin-bottom: var(--space-sm);
   flex-shrink: 0;
 }
+.home-quadrant-label-count {
+  color: var(--text-muted);
+  margin-left: 4px;
+}
 .home-quadrant-body {
   flex: 1;
   min-height: 0;
@@ -436,22 +440,6 @@ body {
     padding: var(--space-md);
   }
 }
-.activity-ticker-footer {
-  display: block;
-  padding: 10px 0;
-  text-align: center;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--accent-amber);
-  background-color: var(--bg-panel);
-  text-decoration: none;
-  transition: color 0.15s;
-}
-.activity-ticker-footer:hover {
-  color: var(--accent-amber-bright);
-}
-
 /* HO 126 TOP STALLS quadrant row — minimal `[chip] [title] [Xd]` layout,
    deliberately distinct from the compact BillRow used by ActivityTicker.
    At 2x2 quadrant widths the compact row's 3-line stacked content stops

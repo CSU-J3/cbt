@@ -81,7 +81,7 @@ export async function TopStalls() {
           );
         })}
       </ul>
-      <Link href="/stale" className="activity-ticker-footer">
+      <Link href="/stale" className="home-expander">
         [ View all stale → ]
       </Link>
     </div>
