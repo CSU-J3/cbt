@@ -33,7 +33,11 @@ export async function TopicDistribution({
   const activeTopic = filters?.topic;
 
   return (
-    <div className="flex flex-col gap-0.5">
+    // HO 133 v5: cap chart width at 1200px and center inside the cell so
+    // bar lengths stay comparable at the eye-scale even at 2560+ wide
+    // viewports. The .home-quadrant cell itself stays full-width — only
+    // the chart inside is constrained.
+    <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-0.5">
       {rows.map((r) => {
         const color = topicColor(r.topic);
         const width = maxCount > 0 ? (r.count / maxCount) * 100 : 0;

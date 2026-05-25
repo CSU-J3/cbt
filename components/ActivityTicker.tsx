@@ -41,18 +41,16 @@ export async function ActivityTicker({
           No stage changes in the last 7 days.
         </div>
       ) : (
-        <div className="flex-1">
-          <ul>
-            {bills.map((b) => (
-              <BillRow
-                key={b.id}
-                bill={b}
-                compact
-                onWatchlist={watchedSet.has(b.id)}
-              />
-            ))}
-          </ul>
-        </div>
+        <ul>
+          {bills.map((b) => (
+            <BillRow
+              key={b.id}
+              bill={b}
+              compact
+              onWatchlist={watchedSet.has(b.id)}
+            />
+          ))}
+        </ul>
       )}
       <Link href="/changes" className="home-expander">
         {remaining > 0

@@ -36,7 +36,7 @@ export async function BreakingNewsBlock() {
           No breaking news in the last {WINDOW_HOURS}h.
         </p>
       ) : (
-        <ul className="flex-1">
+        <ul>
           {mentions.map((m) => (
             <li key={m.id}>
               <NewsRow mention={m} showFullHeadline={false} linkBillToDetail />

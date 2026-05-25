@@ -53,14 +53,14 @@
   --space-lg: 16px;
   --space-xl: 24px;
 
-  /* HO 131/133 home-header height. Drives the no-scroll calc on
-     .home-grid: `height: calc(100vh - var(--home-header-height))`. Sized
-     for the post-HO-133 3-column header band (title block + Stage
-     Distribution + Color Key sharing the same row). The tallest sibling
-     column drives the band height — typically Color Key with 5 sections
-     or Stage Distribution with 6 funnel bars. Bumped from 180px to 240px
-     when stage + color moved out of the grid quadrants. */
-  --home-header-height: 240px;
+  /* HO 131/133/134 home-header height. Drives the no-scroll calc on
+     .home-grid: `height: calc(100vh - var(--home-header-height))`.
+     HO 134 inlined the LEAD next to the 26px prompt and added a
+     persistent COLOR KEY strip below the nav. The amendment expanded
+     the strip from STAGES-only to all five sections (~26 chips), so
+     it wraps to two lines at most viewports. Bumped 180 → 220 to
+     accommodate the two-line strip without crowding the grid below. */
+  --home-header-height: 220px;
 }
 
 @theme {
@@ -114,9 +114,9 @@ body {
 }
 
 /* ---- home dashboard (HO 131, restructured HO 133) -------------------- */
-/* HO 133 layout pivot v2: title block + Stage Distribution + Color Key
-   share a 3-column header band; the grid below holds the tabbed
-   BREAKING/STALLS quadrant + ACTIVITY + a full-width TOPIC row. */
+/* HO 133 layout pivot v4: single-column header band — title stack +
+   full-width nav row. STAGE DIST and COLOR KEY both live in the
+   tabbed quadrant below; the header carries no side column. */
 .home-shell {
   display: flex;
   flex-direction: column;
@@ -127,24 +127,25 @@ body {
   padding: var(--space-md) var(--space-xl) var(--space-sm);
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
-  display: grid;
-  grid-template-columns: minmax(0, 700px) minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-lg);
-  align-items: start;
+  display: flex;
+  flex-direction: column;
 }
 .home-header-title {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  max-width: 700px;
 }
-.home-header-stage,
-.home-header-key {
+/* HO 134: prompt and LEAD share a baseline row. The prompt is a
+   fixed-width inline element on the left; the LEAD is a flex-1
+   paragraph beside it that wraps to its own column. Baseline
+   alignment puts the prompt's text baseline on the lead's first
+   line, so the two start at the same y even though the prompt
+   sits at 26px and the lead at 14px. */
+.home-header-prompt-row {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: var(--space-md);
   min-width: 0;
-  border-left: 0.5px solid var(--border-soft);
-  padding-left: var(--space-lg);
 }
 .terminal-prompt {
   font-family: var(--font-mono);
@@ -154,7 +155,8 @@ body {
   letter-spacing: 1px;
   text-decoration: none;
   line-height: 1.1;
-  align-self: flex-start;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .terminal-prompt .prompt-accent {
   color: var(--accent-amber);
@@ -164,15 +166,16 @@ body {
   color: var(--accent-amber-bright);
 }
 .home-header-lead {
-  margin-top: var(--space-sm);
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   line-height: 1.45;
   color: var(--text-primary);
   display: -webkit-box;
-  /* Default (≥1920px breakpoint below): 3 lines visible. Font-size stays
-     constant across breakpoints — only the visible line count shrinks
-     as the viewport narrows, so the prose never compresses to
-     unreadable. */
+  /* Default (≥1920px breakpoint below): 3 lines visible. Font-size
+     stays constant across breakpoints — only the visible line count
+     shrinks as the viewport narrows, so the prose never compresses
+     to unreadable. */
   -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -186,13 +189,21 @@ body {
   color: var(--text-muted);
   text-transform: uppercase;
 }
+/* HO 133 v4/v5 full-width nav row — sibling of .home-header-title (no
+   longer nested inside it), so it spans the entire header width
+   regardless of the title block's content width. v5: switched from
+   `space-between` (which created oversized gaps at wide viewports)
+   to `flex-start` with a fixed 30px column gap so the strip reads
+   as one coherent nav row instead of scattered links. */
 .home-header-nav {
-  margin-top: var(--space-md);
-  padding-top: var(--space-md);
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
   border-top: 0.5px solid var(--border-soft);
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-md) var(--space-lg);
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--space-xs) 30px;
   font-size: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -220,7 +231,12 @@ body {
   flex: 1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
+  /* HO 133 v5: row 1 (BREAKING tabs | ACTIVITY) sizes to content;
+     row 2 (TOPIC DIST, full width) claims the remainder. At tall
+     viewports (2560x1440) this prevents the small-content row from
+     ballooning to half-height with dead space under the expander
+     chrome — small blocks on top, big visualization on bottom. */
+  grid-template-rows: auto minmax(0, 1fr);
   gap: var(--space-md);
   min-height: 0;
   /* Subtract header chrome + main padding so the grid fills exactly the
@@ -260,57 +276,61 @@ body {
   overflow-y: auto;
 }
 
-/* HO 131 + HO 133 color-key block (right-side header column). Section
-   gaps tightened in HO 133 to fit the 5-section layout (Stages, Topics,
-   Parties, Bill Types, Accent) inside the header band without bloating
-   --home-header-height. */
-.color-key {
+/* HO 134 (+ amendment): persistent COLOR KEY strip rendered below
+   the home nav row. Five inline-flex clusters (STAGES, TOPICS,
+   PARTIES, BILL TYPES, ACCENT). Section labels stay tight against
+   their chips; the outer strip wraps gracefully between clusters.
+   Subordinate to the nav: smaller font, dashed top border, muted
+   label/section colors. */
+.color-key-strip {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 0.5px dashed var(--border-soft);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-lg);
   font-size: 11px;
-}
-.color-key-section {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.color-key-heading {
-  font-size: 11px;
-  text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  text-transform: uppercase;
 }
-.color-key-subhead {
+.color-key-strip-label {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.color-key-strip-cluster {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px var(--space-sm);
+}
+.color-key-strip-section {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.color-key-strip-subhead {
   color: var(--text-dim);
   text-transform: none;
   letter-spacing: 0;
   font-size: 10px;
 }
-.color-key-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px var(--space-sm);
-}
-.color-key-chip {
+.color-key-strip-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
   white-space: nowrap;
   cursor: default;
 }
-.color-key-dot {
+.color-key-strip-dot {
   display: inline-block;
   width: 8px;
   height: 8px;
   border-radius: 50%;
 }
-.color-key-accent-note {
-  font-size: 11px;
-  letter-spacing: 0.5px;
+.color-key-strip-note {
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
@@ -349,10 +369,15 @@ body {
 /* HO 133 cap-with-expander footer. Replaces the prior
    .activity-ticker-footer pattern on BREAKING + ACTIVITY surfaces. The
    chrome is intentionally heavier than a textual "view all" footer
-   because it carries a count and acts as the cap-line affordance. */
+   because it carries a count and acts as the cap-line affordance.
+   HO 133 v4: dropped `margin-top: auto` so the expander sits tight
+   under the last row instead of being pinned to the bottom of the
+   cell. Combined with removing `flex-1` from BreakingNewsBlock /
+   ActivityTicker content wrappers, this stacks rows + expander at
+   the top of the quadrant — the bottom becomes clean negative
+   space at tall viewports (2560x1440). */
 .home-expander {
   display: block;
-  margin-top: auto;
   padding: var(--space-sm) 0;
   text-align: center;
   font-size: 12px;
@@ -369,38 +394,15 @@ body {
   background-color: var(--bg-row-hover);
 }
 
-/* Narrower viewport — relax the no-scroll constraint, let the grid stack
-   into 2 columns. Mobile-first stacking lives in the existing 700px
-   block further down. */
-/* HO 131 viewport-tier line-clamps for the LEAD prose. Font-size stays
-   constant; only the visible line count shrinks so the header height
-   stays bounded as the viewport narrows. Cascades from the default
-   rule (line-clamp: 3) — both queries can apply at very narrow widths;
-   the last rule wins. */
+/* HO 131 viewport-tier line-clamps for the LEAD prose. Font-size
+   stays constant; only the visible line count shrinks so the header
+   height stays bounded as the viewport narrows. Cascades from the
+   default rule (line-clamp: 3) — both queries can apply at very
+   narrow widths; the last rule wins. */
 @media (max-width: 1919px) {
   .home-header-lead {
     -webkit-line-clamp: 2;
     line-clamp: 2;
-  }
-}
-
-/* HO 133: below 1280px the 3-column header band reflows to a stack —
-   title block on row 1 full-width, stage + color side-by-side on
-   row 2. The grid below also relaxes its no-scroll math; 1440x900 is
-   allowed to scroll modestly per the HO 131 viewport spec. */
-@media (max-width: 1279px) {
-  .home-header {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto;
-  }
-  .home-header-title {
-    grid-column: 1 / -1;
-    max-width: none;
-  }
-  .home-header-stage,
-  .home-header-key {
-    border-left: none;
-    padding-left: 0;
   }
 }
 
@@ -412,23 +414,11 @@ body {
     line-clamp: 1;
   }
   .home-grid {
-    grid-template-rows: repeat(2, minmax(0, 1fr));
     height: auto;
     min-height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
   }
 }
 
-/* HO 133: under 800px the header band collapses to a single column —
-   stage and color stack under the title block. */
-@media (max-width: 799px) {
-  .home-header {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .home-header-stage,
-  .home-header-key {
-    grid-column: 1;
-  }
-}
 @media (max-width: 700px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
