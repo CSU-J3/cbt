@@ -2253,6 +2253,12 @@ export type MemberRanking = {
   total: number;
   enacted: number;
   passrate: number | null;
+  // HO 142: USCPR Palestine scorecard grade + rank, LEFT JOIN'd in
+  // getMembersRanked so the row list can render the same chip the hub
+  // header carries. Both null for the ~489 members not on the sheet
+  // (House, Republican senators, independents).
+  palestineGrade: string | null;
+  palestineRank: number | null;
 };
 
 export type MemberParty = "D" | "R" | "I";
@@ -2349,9 +2355,12 @@ export const getMembersRanked = unstable_cache(
         m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
         COALESCE(b.total,   0) AS total,
         COALESCE(b.enacted, 0) AS enacted,
-        b.passrate             AS passrate
+        b.passrate             AS passrate,
+        ps.grade               AS palestine_grade,
+        ps.rank                AS palestine_rank
       FROM members m
       LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
+      LEFT JOIN palestine_scorecard ps ON ps.bioguide_id = m.bioguide_id
       WHERE ${clauses.join(" AND ")}
       ORDER BY
         CASE WHEN ? = 'passrate' THEN passrate END DESC,
@@ -2377,6 +2386,11 @@ export const getMembersRanked = unstable_cache(
       passrate: r.passrate === null || r.passrate === undefined
         ? null
         : Number(r.passrate),
+      palestineGrade: (r.palestine_grade as string | null) ?? null,
+      palestineRank:
+        r.palestine_rank === null || r.palestine_rank === undefined
+          ? null
+          : Number(r.palestine_rank),
     }));
   },
   ["getMembersRanked"],

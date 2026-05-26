@@ -3,12 +3,14 @@ import { ChamberToggle } from "@/components/ChamberToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Pagination } from "@/components/Pagination";
+import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
 import { SearchBox } from "@/components/SearchBox";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { SponsorProductivityScatter } from "@/components/SponsorProductivityScatter";
 import { SponsorSortToggle } from "@/components/SponsorSortToggle";
 import { StateFilter } from "@/components/StateFilter";
+import { isPalestineGrade } from "@/lib/palestine-config";
 import {
   getMemberStates,
   getMembersRanked,
@@ -266,12 +268,23 @@ export default async function MembersPage({
                       >
                         {rankNumber}
                       </span>
-                      <span
-                        title={m.name}
-                        className="truncate text-[14px]"
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {m.name}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          title={m.name}
+                          className="truncate text-[14px]"
+                          style={{ color: "var(--text-primary)" }}
+                        >
+                          {m.name}
+                        </span>
+                        {m.palestineGrade &&
+                        isPalestineGrade(m.palestineGrade) ? (
+                          <span className="shrink-0">
+                            <PalestineBadge
+                              grade={m.palestineGrade}
+                              rank={m.palestineRank}
+                            />
+                          </span>
+                        ) : null}
                       </span>
                       <span className="sponsor-bars">
                         <span className="sponsor-bar-line">
