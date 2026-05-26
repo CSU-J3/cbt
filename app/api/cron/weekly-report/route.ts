@@ -5,15 +5,11 @@
 // 5-25 09:35 finished as an orphaned cron_runs row. On its own route the
 // report has the full 60s budget.
 //
-// KNOWN ISSUE (deferred to HO 141): the underlying generateWeeklyReport()
-// call measured 88s end-to-end during HO 139 verification — Gemini Flash
-// with thinkingBudget=8192 dominates. The 55s soft timeout in wrapCronRoute
-// fires before the call completes, so this cron consistently finalizes as
-// status='timeout' (HTTP 504, no `reports` row) instead of orphaning. That
-// is strictly better than the pre-HO-139 SIGKILL behavior — the row is
-// durable and the failure mode is named — but the cron does not yet produce
-// new reports. Rows still come from manual `npm run report`. HO 141 tracks
-// the perf fix (likely lowering thinkingBudget or splitting the LLM call).
+// HO 141 closed without a code change after measurement: the 88s end-to-end
+// observed during HO 139 verification was a Gemini service outlier. Phase 1
+// measured the same path at 12-15s on a normal day, well under the 55s soft
+// timeout. If a slow-Gemini day recurs the wrapper finalizes the row as
+// `status='timeout'` cleanly — that durability behavior is the right floor.
 //
 // Schedule: Monday 09:30 UTC — 30 min after /api/sync. Data inputs for
 // the prior calendar week (stage transitions, enactments, news mentions)
