@@ -15,12 +15,12 @@
 //
 // revalidateTag("news-breaking") flushes both /news (getBreakingNews) and
 // the home block (getBreakingNewsForHome) — both share that tag per HO 114.
-// /api/sync no longer touches the tag (it doesn't write to news_mentions
-// after HO 117). If the home block goes stale post-deploy, this flush is
-// the first thing to check.
+//
+// HO 139: migrated to wrapCronRoute. Per-article LLM timeouts flow through
+// `chronicErr` to land in cron_runs.error_message on success rows.
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { finishCronRun, startCronRun } from "@/lib/cron-log";
+import { wrapCronRoute } from "@/lib/cron-log";
 import { ingestNews } from "@/lib/news-ingest";
 
 export const dynamic = "force-dynamic";
@@ -49,13 +49,11 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // Start the deadline clock BEFORE startCronRun so the cron-log INSERT
-  // counts against the 45s budget (Turso round-trip ~100-300ms).
-  const routeStart = Date.now();
-  const runId = await startCronRun("/api/cron/news");
-
-  try {
-    const feeds = await ingestNews({ deadlineMs: routeStart + NEWS_BUDGET_MS });
+  const result = await wrapCronRoute("/api/cron/news", async () => {
+    const routeStart = Date.now();
+    const feeds = await ingestNews({
+      deadlineMs: routeStart + NEWS_BUDGET_MS,
+    });
 
     // Per-feed wall-clock for cron_runs.payload.timings — same shape as
     // /api/sync's timings object so the watch-pattern stays consistent.
@@ -86,12 +84,7 @@ async function handle(request: Request) {
     // Flush both /news and the HO 114 home block — same shared tag.
     revalidateTag("news-breaking");
 
-    const elapsedMs = Date.now() - routeStart;
-    console.log(`[news] total: ${elapsedMs}ms`);
-
-    const responseBody = {
-      ok: true,
-      elapsedMs,
+    const payload = {
       timings,
       totals: {
         mentions: totalInserted,
@@ -104,20 +97,17 @@ async function handle(request: Request) {
       feeds,
     };
 
-    // Surface chronic per-article LLM timeouts into the cron_runs error
-    // trail (HO 115 pattern) — non-fatal, status stays success.
-    const errMsg =
+    // Surface chronic per-article LLM timeouts into cron_runs error trail
+    // (HO 115 pattern) — non-fatal, status stays success.
+    const chronicErr =
       totalLlmTimeouts > 0
         ? `llm timeouts: ${totalLlmTimeouts} article(s) exceeded the per-article cap`
         : undefined;
-    await finishCronRun(runId, "success", responseBody, errMsg);
-    return NextResponse.json(responseBody);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[cron-news] failed:", err);
-    await finishCronRun(runId, "error", null, message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
-  }
+
+    return { payload, chronicErr };
+  });
+
+  return NextResponse.json(result.body, { status: result.httpStatus });
 }
 
 export async function POST(request: Request) {

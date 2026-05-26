@@ -1,18 +1,20 @@
 // Vote sync cron entry (handoff 87). Separated from /api/sync because the
 // vote pipelines (House Congress.gov + Senate senate.gov XML) can run into
 // minutes on busy weeks — well past the 60s function ceiling that
-// /api/sync already pushes against with bill sync + summarize + news +
-// trades + Monday reports. Even at 60s here, the vote sync is incremental
-// (watermark-based per session) so a single tick can resume from where
-// the last one ended — eventually catches up.
+// /api/sync already pushes against. Even at 60s here, the vote sync is
+// incremental (watermark-based per session) so a single tick can resume
+// from where the last one ended — eventually catches up.
 //
 // Auth mirrors /api/sync exactly: Bearer CRON_SECRET. Failures are caught
 // per chamber so a House outage doesn't strand the Senate sync (and vice
 // versa). revalidateTag("votes") flushes all five vote-related query
 // helpers in lib/queries.ts on success.
+//
+// HO 139: migrated to wrapCronRoute. Catch path now returns explicit
+// 500 JSON (was `throw err` for Next default 500).
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { startCronRun, finishCronRun } from "@/lib/cron-log";
+import { wrapCronRoute } from "@/lib/cron-log";
 import { runSenateVotesSync } from "@/lib/senate-votes-sync";
 import { runVotesSync } from "@/lib/votes-sync";
 
@@ -38,12 +40,7 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // Durable cron logging (handoff 105). The per-chamber failures below are
-  // swallowed (a House outage must not strand the Senate sync), so the run
-  // status stays 'success' — the persisted payload carries null house/senate
-  // when a chamber failed, which is where that failure is visible.
-  const runId = await startCronRun("/api/sync-votes");
-  try {
+  const result = await wrapCronRoute("/api/sync-votes", async () => {
     let house: Awaited<ReturnType<typeof runVotesSync>> | null = null;
     try {
       house = await runVotesSync();
@@ -63,14 +60,10 @@ async function handle(request: Request) {
     // without waiting on the 1h backstop revalidate.
     if (house || senate) revalidateTag("votes");
 
-    const responseBody = { ok: true, house, senate };
-    await finishCronRun(runId, "success", responseBody);
-    return NextResponse.json(responseBody);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await finishCronRun(runId, "error", null, message);
-    throw err; // let Next.js return the 500 as before
-  }
+    return { payload: { house, senate } };
+  });
+
+  return NextResponse.json(result.body, { status: result.httpStatus });
 }
 
 export async function POST(request: Request) {

@@ -1,30 +1,26 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { startCronRun, finishCronRun } from "@/lib/cron-log";
+import { wrapCronRoute } from "@/lib/cron-log";
 import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
-import {
-  generateWeeklyReport,
-  getPriorWeek,
-  writeReport,
-} from "@/lib/report-generation";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
 // Daily sync cron. HO 115 split summarize out; HO 116 bounded runSync;
-// HO 117 split news ingestion into /api/cron/news. This route now runs:
-// bill sync (≤30s budget) → dashboard lead → trades → weekly report
-// (Mondays only). News is gone. Per-step wall-clock times are logged and
-// included in the cron_runs payload so the next "step X starved" problem
-// becomes visible without instrumentation work.
+// HO 117 split news ingestion into /api/cron/news; HO 139 split the
+// weekly report into /api/cron/weekly-report and migrated this route to
+// the `wrapCronRoute` finalize pattern. This route now runs: bill sync
+// (≤30s budget) → dashboard lead → trades. Report and news live on their
+// own crons. Per-step wall-clock times are logged and included in the
+// cron_runs payload.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 // HO 116 lock: stop starting new bills in runSync at 30s wall-clock from
-// route start. Leaves ~25s for downstream steps (lead + news + trades +
-// Monday report) inside the 60s function ceiling.
+// route start. Leaves ~25s for downstream steps (lead + trades) inside
+// the 60s function ceiling.
 const SYNC_BUDGET_MS = 30_000;
 
 function authorize(request: Request): NextResponse | null {
@@ -46,25 +42,18 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // Durable cron logging (handoff 105). startCronRun runs after the auth
-  // check so unauthorized probes never reach cron_runs. The downstream
-  // steps (lead/news/trades/report) deliberately swallow their own errors —
-  // only runSync() and the cron-log writes throw out of here.
-  const routeStart = Date.now();
-  const runId = await startCronRun("/api/sync");
+  const result = await wrapCronRoute("/api/sync", async () => {
+    const routeStart = Date.now();
 
-  // Per-step wall-clock timings. Surfaced in console.log AND in the
-  // responseBody → cron_runs.payload, so a future "step X is overrunning
-  // its share of the budget" investigation has data without an HO 117
-  // instrumentation pass first.
-  const timings: Record<string, number | null> = {
-    sync: null,
-    lead: null,
-    trades: null,
-    report: null,
-  };
+    // Per-step wall-clock timings. Surfaced in console.log AND in the
+    // cron_runs.payload so a future "step X is overrunning its share of the
+    // budget" investigation has data without an instrumentation pass first.
+    const timings: Record<string, number | null> = {
+      sync: null,
+      lead: null,
+      trades: null,
+    };
 
-  try {
     const tSync = Date.now();
     const sync = await runSync({ deadlineMs: routeStart + SYNC_BUDGET_MS });
     timings.sync = Date.now() - tSync;
@@ -74,14 +63,12 @@ async function handle(request: Request) {
         `failed=${sync.failed} timeout=${sync.timedOut} budgetStopped=${sync.budgetStopped})`,
     );
     // Invalidate after sync writes new bill rows so the dashboard sees them
-    // before any later step in this tick fails. HO 115 removed the
-    // summarize step from this route; summarize now runs at /api/cron/summarize
-    // and revalidates `bills` on its own when summaries land.
+    // before any later step in this tick fails.
     revalidateTag("bills");
 
     // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
     // if Gemini errors or rate-limits, the prior lead stays in the DB and the
-    // dashboard keeps rendering it. revalidateTag flushes the cached lead.
+    // dashboard keeps rendering it.
     const tLead = Date.now();
     try {
       const lead = await generateDashboardLead();
@@ -95,9 +82,7 @@ async function handle(request: Request) {
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
-    // endpoint logs and skips, never crashes the cron. Capped at 3 pages
-    // per chamber on the cron path — cron is incremental, the 20-page
-    // backfill is reserved for `npm run sync:trades`.
+    // endpoint logs and skips, never crashes the cron.
     const tTrades = Date.now();
     try {
       const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
@@ -114,47 +99,15 @@ async function handle(request: Request) {
     timings.trades = Date.now() - tTrades;
     console.log(`[sync] trades: ${timings.trades}ms`);
 
-    // Weekly report — generated on Monday for the prior calendar week. The
-    // Monday check is UTC because the cron runs at 09:00 UTC. Non-fatal: on
-    // failure no row is written, the cron's other steps still complete, and
-    // manual recovery is `npm run report`.
-    const now = new Date();
-    if (now.getUTCDay() === 1) {
-      const tReport = Date.now();
-      try {
-        const week = getPriorWeek(now);
-        const report = await generateWeeklyReport(week);
-        await writeReport({
-          slug: report.slug,
-          weekStart: week.start,
-          weekEnd: week.end,
-          title: report.title,
-          contentMd: report.content_md,
-        });
-        revalidateTag("reports");
-      } catch (err) {
-        console.warn("[cron] report generation failed; skipping", err);
-      }
-      timings.report = Date.now() - tReport;
-      console.log(`[sync] report: ${timings.report}ms`);
-    }
-
     const elapsedMs = Date.now() - routeStart;
     console.log(`[sync] total: ${elapsedMs}ms`);
 
-    const responseBody = {
-      ok: true,
-      elapsedMs,
-      timings,
-      sync,
+    return {
+      payload: { timings, sync },
     };
-    await finishCronRun(runId, "success", responseBody);
-    return NextResponse.json(responseBody);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await finishCronRun(runId, "error", { timings }, message);
-    throw err; // let Next.js return the 500 as before
-  }
+  });
+
+  return NextResponse.json(result.body, { status: result.httpStatus });
 }
 
 export async function POST(request: Request) {

@@ -418,9 +418,10 @@ Both vote upserts use the same `position` enum (lowercase `yea | nay | present |
 
 ### Cron topology
 
-Six cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function):
+Seven cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function):
 
-- `/api/sync` — 09:00 UTC — bills: sync (≤30s budget, HO 116) + dashboard lead + trades + Monday weekly report. Summarize was split out in HO 115; runSync got its own time budget + 15s per-detail `AbortController` + batched diff in HO 116; news ingestion was split into `/api/cron/news` in HO 117. Per-step wall-clock times are included in the `cron_runs.payload` `timings` object so the next "step X is overrunning" investigation has data ready.
+- `/api/sync` — 09:00 UTC — bills: sync (≤30s budget, HO 116) + dashboard lead + trades. Summarize was split out in HO 115; runSync got its own time budget + 15s per-detail `AbortController` + batched diff in HO 116; news ingestion was split into `/api/cron/news` in HO 117; weekly report was split into `/api/cron/weekly-report` in HO 139. Per-step wall-clock times are included in the `cron_runs.payload.payload.timings` object so the next "step X is overrunning" investigation has data ready.
+- `/api/cron/weekly-report` — Monday 09:30 UTC (`30 9 * * 1`) — weekly report generation (handoff 139). Split out of `/api/sync` because the shared Monday 09:00 tick was running sync + lead + trades + report inside one 60s function and never reached the report step in production — `cron_runs` row 27 (2026-05-25 09:35 `/api/sync`) is the canonical orphan. Calls `getPriorWeek(now) → generateWeeklyReport(week) → writeReport(...) → revalidateTag("reports")`. **Known issue, deferred to HO 141:** `generateWeeklyReport` measured 88s end-to-end during HO 139 verification (Gemini Flash with `thinkingBudget=8192` dominates), so this cron consistently finalizes as `status='timeout'` instead of `'success'`. That's strictly better than the pre-HO-139 SIGKILL — the row is durable and the failure mode is named — but the cron does not yet produce new reports. Rows still come from manual `npm run report` until HO 141 lowers the LLM budget or splits the call.
 - `/api/sync-votes` — 10:00 UTC — House (Congress.gov) + Senate (senate.gov XML) roll-call votes (handoff 87).
 - `/api/sync-race-ratings` — 11:00 UTC **Wednesdays only** (`0 11 * * 3`) — Sabato race ratings from Ballotpedia (handoff 88).
 - `/api/cron/primaries` — 12:00 UTC — primary candidates (handoff 97, time-budgeted HO 120). Stops *starting* new districts at 50s wall-clock; each outbound Ballotpedia fetch is capped by an 8s `AbortController`. **Cursor commits per-district**, so a tick killed mid-slice keeps the districts it finished — the pre-HO-120 slice-level cursor write left two orphaned `cron_runs` rows (id=9 / id=19, 2026-05-22 + 2026-05-23) where the slice never advanced, treated as the canonical example of that failure mode.
@@ -430,6 +431,28 @@ Six cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at 
 The primaries cron does **not** scrape a region per tick. The corpus is ~470 scrape units (1 calendar pass + 34 Senate states + 435 House districts); at ~1.5-2s per unit — the Ballotpedia politeness sleep dominates — any whole region blows the 60s ceiling (West measured 153s warm-cache, ~200s cold; the full 34-state Senate pass measured 65s). Instead `runPrimariesCronTick` (`lib/primaries-sync.ts`) walks a persistent cursor stored in `dashboard_state` under key `primaries_cron_cursor`, processing one tick's worth per day: the calendar pass, or up to `CRON_SENATE_SLICE` (20) Senate states, or up to `CRON_HOUSE_SLICE` (12, lowered from 20 in HO 120 after the pre-flight measure projected a 20-slice to ~67s prod) House districts — then advances the cursor and wraps at the end. Full-corpus refresh takes ~40 days post-HO-120 (was ~26 pre-fix). The cursor is written **per unit** as each district/state finishes (HO 120), so a tick that runs out of budget keeps the units it did finish. `runPrimariesCronTick` takes a `routeStart: number` so the 50s `DEADLINE_MS` reflects the function's full lifetime; the route passes `t0`. Senate cursor slice stays at 20 because the per-unit commit makes a senate tick safe to span two days if it ever needs to. Lower `CRON_HOUSE_SLICE` if `cron_runs.payload.perUnitMs.p95` trends past ~4s.
 
 Primary scrape logic lives in `lib/primaries-sync.ts` (handoff 97 moved it out of `scripts/` so the cron route and the CLI share it); `scripts/sync-primaries.ts` is now a thin CLI wrapper. The primaries query helpers in `lib/queries.ts` use plain `db.execute` (no `unstable_cache`), so the cron does no `revalidateTag` — add one if those queries are ever cached.
+
+### Cron finalize pattern (HO 139)
+
+All seven cron routes route through `wrapCronRoute(route, handler)` in `lib/cron-log.ts`. The wrapper does three things:
+
+1. **Reaper sweep at the top.** Any `cron_runs` row stuck at `status='running'` with `started_at` older than 5 minutes is updated to `status='orphaned'` with `ended_at=now()`. Self-healing — no separate reaper route. The threshold is 5× the 60s function ceiling; anything older than that was killed by SIGKILL and the function that owned the row is long dead.
+2. **Soft timeout race.** The handler runs inside `Promise.race(handler(), timeoutPromise)` with a 55s default timeout (5s buffer under the 60s Vercel SIGKILL). A timeout throws `CronTimeoutError`, which the wrapper catches and finalizes as `status='timeout'` with HTTP 504. Critical: a Vercel SIGKILL at 60s skips `finally` blocks, so the soft timeout is the only thing that guarantees the row finalizes cleanly. AbortController would not help — libsql/Gemini SDKs don't honor abort signals.
+3. **Finalize and respond.** Success → `status='success'`, HTTP 200, payload as JSON. Error → `status='error'`, HTTP 500. Timeout → `status='timeout'`, HTTP 504. Routes pass `{ payload, chronicErr? }` from the handler; `chronicErr` is non-fatal info (chronic summarize failures, news LLM timeouts) that lands in `cron_runs.error_message` on success rows.
+
+**Status vocabulary** (`CronRunStatus` in `lib/cron-log.ts`):
+
+| Status      | Meaning                                                                        |
+|-------------|--------------------------------------------------------------------------------|
+| `running`   | In-flight. Should never persist past 5 minutes (reaper threshold).             |
+| `success`   | Handler returned cleanly, row finalized inside the function.                   |
+| `error`     | Handler threw; row finalized with the error message. HTTP 500.                 |
+| `timeout`   | Soft timeout hit at 55s, row finalized cleanly before SIGKILL. HTTP 504.       |
+| `orphaned`  | Reaper found a stale `running` row from a prior SIGKILL. HTTP irrelevant.      |
+
+The read-side `rowToCronRun` in `lib/queries.ts` keeps a display-only fallback: any row still marked `running` past 5 minutes renders as `orphaned`. Backstops the gap between SIGKILL and the next tick's reaper sweep.
+
+The four 2026-05-22 through 2026-05-25 orphan rows that motivated HO 139 are backfilled with `payload='{"backfilled":true,"reason":"pre-HO-139"}'` so they don't pollute future audits.
 
 ### Backfill scripts
 
@@ -552,7 +575,7 @@ The dashboard's top-of-page `DashboardLead` is a 3-sentence prose summary, gener
 
 Weekly reports — one Markdown blob per calendar week, rendered at `/reports/[slug]`.
 
-- Generated weekly on Monday 09:00 UTC by `lib/report-generation.ts::generateWeeklyReport`. The cron step in `app/api/sync/route.ts` is gated by `now.getUTCDay() === 1`; non-Monday ticks skip it.
+- Generated weekly on Monday 09:30 UTC by `app/api/cron/weekly-report/route.ts`, which calls `lib/report-generation.ts::generateWeeklyReport`. HO 139 split this out of `/api/sync` after the shared Monday 09:00 tick repeatedly never reached the report step inside its 60s budget; the route now has the full ceiling to itself and the cron is Monday-only via the `30 9 * * 1` schedule.
 - **Incomplete-week guard (HO 110):** `generateWeeklyReport` throws if `week.end` is in the future, so a report is never generated for a week that hasn't closed (the cron treats the throw as non-fatal and retries next tick). The 2026-05-18 backfilled row predates the guard and is left as a historical artifact.
 - One Gemini call per report. Structured output with four section markers (`LEAD`, `STAGE_COMMENTARY`, `ENACTMENTS_COMMENTARY`, `MOST_TALKED_COMMENTARY`). Parsed by splitting on markers, same pattern as the summarize prompt. The `ENACTMENTS_COMMENTARY` and `STAGE_COMMENTARY` slots also carry the LLM's zero-count placeholder, though assembly owns the copy when a count is zero and ignores the LLM output there.
 - The Markdown body is assembled programmatically: section headers + counts come from the data, prose comes from the LLM. Bill IDs render as plain text (`HR 2702`); stage transitions use the canonical `▸ INTRO → ▸▸ COMMITTEE` glyphs.

@@ -11,9 +11,13 @@
 // 09:00, sync-votes at 10:00, race-ratings at 11:00 Wed, primaries at
 // 12:00). revalidateTag("bills") flushes the cached bill queries so the
 // dashboard sees fresh summaries.
+//
+// HO 139: migrated to wrapCronRoute. Chronic >=3-attempt summarize
+// failures flow through `chronicErr` so they still land in the
+// cron_runs.error_message column on success rows.
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { finishCronRun, startCronRun } from "@/lib/cron-log";
+import { wrapCronRoute } from "@/lib/cron-log";
 import { runSummarize } from "@/lib/summarize-runner";
 
 export const dynamic = "force-dynamic";
@@ -43,22 +47,14 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // Start the deadline clock BEFORE startCronRun so the cron-log INSERT
-  // counts against the 45s budget (it's a Turso round-trip, ~100-300ms;
-  // small but real).
-  const routeStart = Date.now();
-  const runId = await startCronRun("/api/cron/summarize");
-
-  try {
+  const result = await wrapCronRoute("/api/cron/summarize", async () => {
+    const routeStart = Date.now();
     const stats = await runSummarize({
       deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
     });
     revalidateTag("bills");
 
-    const elapsedMs = Date.now() - routeStart;
-    const responseBody = {
-      ok: true,
-      elapsedMs,
+    const payload = {
       summarized: stats.ok,
       failed: stats.failed,
       timedOut: stats.timedOut,
@@ -72,18 +68,15 @@ async function handle(request: Request) {
     // attempts get written into the cron_runs error_message column so the
     // log shows them past the 30-minute live-log window. Status stays
     // "success" — these aren't fatal to the tick, just worth eyeballing.
-    const errMsg =
+    const chronicErr =
       stats.chronicFailures.length > 0
-        ? `chronic summarize failures (>=${3} attempts): ${stats.chronicFailures.join(", ")}`
+        ? `chronic summarize failures (>=3 attempts): ${stats.chronicFailures.join(", ")}`
         : undefined;
-    await finishCronRun(runId, "success", responseBody, errMsg);
-    return NextResponse.json(responseBody);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[cron-summarize] failed:", err);
-    await finishCronRun(runId, "error", null, message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
-  }
+
+    return { payload, chronicErr };
+  });
+
+  return NextResponse.json(result.body, { status: result.httpStatus });
 }
 
 export async function POST(request: Request) {

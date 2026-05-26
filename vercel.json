@@ -17,12 +17,19 @@
     },
     "app/api/cron/news/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/weekly-report/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
     {
       "path": "/api/sync",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/weekly-report",
+      "schedule": "30 9 * * 1"
     },
     {
       "path": "/api/sync-votes",

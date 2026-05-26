@@ -12,13 +12,10 @@
 // handoff sketched is unused — a 7-slot dispatch can't address the ~23 ticks
 // the 60s ceiling forces, so the cursor does the slicing instead.
 //
-// No revalidateTag: the primaries query helpers in lib/queries.ts
-// (getUpcomingPrimaries / getPastPrimaries / getPrimaryForRace) use plain
-// db.execute, not unstable_cache, so there is no cached layer to flush.
-// Follow-up: if those queries gain unstable_cache wrappers, add the matching
-// revalidateTag call here.
+// HO 139: migrated to wrapCronRoute; inline reaper sweeps stale rows from
+// prior SIGKILLs (5-22 / 5-23 ticks both got reaped during this handoff).
 import { NextResponse } from "next/server";
-import { startCronRun, finishCronRun } from "@/lib/cron-log";
+import { wrapCronRoute } from "@/lib/cron-log";
 import { runPrimariesCronTick } from "@/lib/primaries-sync";
 
 export const dynamic = "force-dynamic";
@@ -43,38 +40,27 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // Durable cron logging (handoff 105). startCronRun after auth; the catch
-  // records the failure to cron_runs and still returns the explicit 500 JSON
-  // this route returned before.
-  const runId = await startCronRun("/api/cron/primaries");
-  const t0 = Date.now();
-  let result: Awaited<ReturnType<typeof runPrimariesCronTick>>;
-  try {
+  const result = await wrapCronRoute("/api/cron/primaries", async () => {
+    const t0 = Date.now();
     // HO 120: pass the route start so the 50s wall-clock deadline reflects
-    // the function's full lifetime, not just the tick entry. Combined with
-    // per-unit cursor commit inside runPrimariesCronTick, a tick that
-    // budget-stops mid-slice keeps the units it did finish — pre-HO 120 the
-    // cursor-write was at slice-end-only, so a kill ate the whole slice.
-    result = await runPrimariesCronTick(t0);
-  } catch (err) {
-    console.error("[cron-primaries] failed:", err);
-    const message = err instanceof Error ? err.message : String(err);
-    await finishCronRun(runId, "error", null, message);
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
-  }
-  const elapsedMs = Date.now() - t0;
+    // the function's full lifetime. Combined with per-unit cursor commit
+    // inside runPrimariesCronTick, a tick that budget-stops mid-slice keeps
+    // the units it did finish.
+    const tickResult = await runPrimariesCronTick(t0);
+    const elapsedMs = Date.now() - t0;
 
-  // elapsedMs is the budget gauge — if it trends toward 60000, lower
-  // CRON_HOUSE_SLICE in lib/primaries-sync.ts.
-  console.log(
-    `[cron-primaries] unit=${result.unit} ` +
-      `cursor=${result.cursorStart}->${result.cursorEnd}/${result.totalUnits} ` +
-      `elapsedMs=${elapsedMs}`,
-  );
+    // elapsedMs is the budget gauge — if it trends toward 60000, lower
+    // CRON_HOUSE_SLICE in lib/primaries-sync.ts.
+    console.log(
+      `[cron-primaries] unit=${tickResult.unit} ` +
+        `cursor=${tickResult.cursorStart}->${tickResult.cursorEnd}/${tickResult.totalUnits} ` +
+        `elapsedMs=${elapsedMs}`,
+    );
 
-  const responseBody = { ok: true, elapsedMs, ...result };
-  await finishCronRun(runId, "success", responseBody);
-  return NextResponse.json(responseBody);
+    return { payload: tickResult };
+  });
+
+  return NextResponse.json(result.body, { status: result.httpStatus });
 }
 
 export async function POST(request: Request) {

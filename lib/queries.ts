@@ -3557,10 +3557,12 @@ export interface CronRun {
 }
 
 // A row stuck at 'running' past this window is treated as a timeout — the
-// Vercel runtime killed the function before finishCronRun could fire. This
-// is display-only reconciliation; the DB row stays 'running' (it literally
-// means "we don't know"). 120s comfortably clears the 60s function ceiling.
-const CRON_TIMEOUT_MS = 120_000;
+// Vercel runtime killed the function before finishCronRun could fire. HO 139
+// added an inline reaper at the top of every wrapped route that writes
+// 'orphaned' to the DB at the same 5-minute threshold; this display-only
+// fallback remains as a backstop for the gap between a SIGKILL and the next
+// tick's reaper sweep. Matches REAPER_THRESHOLD_MS in lib/cron-log.ts.
+const CRON_TIMEOUT_MS = 5 * 60_000;
 
 function rowToCronRun(row: Record<string, unknown>): CronRun {
   let payload: unknown = null;
@@ -3577,7 +3579,7 @@ function rowToCronRun(row: Record<string, unknown>): CronRun {
   if (status === "running") {
     const startedMs = Date.parse(row.started_at as string);
     if (Number.isFinite(startedMs) && Date.now() - startedMs > CRON_TIMEOUT_MS) {
-      status = "timeout";
+      status = "orphaned";
     }
   }
 
