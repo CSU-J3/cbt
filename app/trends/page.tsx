@@ -1,4 +1,5 @@
 import { BillsTimeSeries } from "@/components/BillsTimeSeries";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 
@@ -12,9 +13,10 @@ import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 export default function TrendsPage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath="/trends" />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="patterns" active="trends" />
         <h1
           className="mb-3 text-[14px] uppercase tracking-[0.5px]"
           style={{ color: "var(--accent-amber)" }}

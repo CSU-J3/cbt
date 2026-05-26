@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChamberToggle } from "@/components/ChamberToggle";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Pagination } from "@/components/Pagination";
 import { PartyFilter } from "@/components/PartyFilter";
@@ -142,6 +143,7 @@ export default async function MembersPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="members" active="members" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

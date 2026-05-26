@@ -8,6 +8,7 @@
 // SKILL.md). Toss Up reads in amber; partisan ratings carry the party
 // color regardless of strength (the strength is in the text).
 import Link from "next/link";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { daysUntil, formatDateShort } from "@/lib/format";
 import {
@@ -206,8 +207,9 @@ export default async function RacesPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath="/races" />
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="members" active="races" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

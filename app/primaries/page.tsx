@@ -1,6 +1,7 @@
 // /primaries index (handoff 91). The 2026 state congressional primary
 // calendar — all 50 states — grouped by date, today first, past collapsed.
 // Candidate rosters (Step 3) land in a follow-up sync; rows show a count.
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { daysUntil, formatDateLong, formatDateShort } from "@/lib/format";
 import {
@@ -143,8 +144,9 @@ export default async function PrimariesPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath="/primaries" />
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="members" active="primaries" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

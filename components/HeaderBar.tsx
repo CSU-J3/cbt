@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
+import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { SearchBox } from "@/components/SearchBox";
 import { getClusterPattern } from "@/lib/cluster-patterns";
 import { currentCongressLabel } from "@/lib/congress";
@@ -14,24 +15,14 @@ import {
 type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
 type HeaderVariant = "feed" | "dashboard";
 
-// HO 131: shared nav-item config consumed by both HeaderNav (top-right
-// chrome on /feed-shaped pages) and HomeHeader (under-title row on /).
-// Each item carries a one-line tooltip (HO 131 ask 7) matching the HO 123
-// vocabulary — short, sentence case, no trailing period. Append-only
-// when adding nav targets; deletions ripple through both surfaces.
-export type NavItemKey =
-  | "feed"
-  | "news"
-  | "reports"
-  | "sponsor"
-  | "races"
-  | "primaries"
-  | "patterns"
-  | "trends"
-  | "stale"
-  | "changes"
-  | "president"
-  | "watchlist";
+// HO 131 / 134: shared nav-item config consumed by both HeaderNav
+// (top-right chrome on /feed-shaped pages) and HomeHeader (under-title
+// row on /). HO 134 collapsed 12 individual destinations to 4 group
+// landings — every secondary destination now lives inside a GroupTabs
+// strip on the group landing page. NavItemKey mirrors NavKey from
+// GroupTabs since the top nav's vocabulary is exactly the set of values
+// pathToNavKey() can return (the 3 groups plus standalone /watchlist).
+export type NavItemKey = NavKey;
 
 export type NavItem = {
   key: NavItemKey;
@@ -41,29 +32,13 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "feed", href: "/feed", label: "▤ Feed", tooltip: "Browse all bills" },
-  { key: "news", href: "/news", label: "⚡ News", tooltip: "Bills in the press, last 24h" },
-  { key: "reports", href: "/reports", label: "⎘ Reports", tooltip: "Weekly written reports on the corpus" },
-  { key: "sponsor", href: "/members", label: "👥 Members", tooltip: "All 536 current Members of Congress" },
-  { key: "races", href: "/races", label: "🗳 Races", tooltip: "2026 House and Senate races" },
-  { key: "primaries", href: "/primaries", label: "▦ Primaries", tooltip: "Primary calendar and candidate filings" },
-  { key: "patterns", href: "/patterns", label: "⊞ Patterns", tooltip: "Bill shapes — facility-naming, awareness designations" },
-  { key: "trends", href: "/trends", label: "📈 Trends", tooltip: "Long-run bill volume and topic-mix charts" },
-  { key: "stale", href: "/stale", label: "⏳ Stale", tooltip: "Bills with no action in 60+ days" },
-  { key: "changes", href: "/changes", label: "⇄ Changes", tooltip: "Bills that moved stage in the last 7 days" },
-  { key: "president", href: "/president", label: "▸▸▸▸ President", tooltip: "Bills at the president's desk, closest to veto deadline" },
+  { key: "feed", href: "/feed", label: "▤ Feed", tooltip: "Bills, news, reports, stage changes, and the president's desk" },
+  { key: "members", href: "/members", label: "👥 Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
+  { key: "patterns", href: "/patterns", label: "⊞ Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
   { key: "watchlist", href: "/watchlist", label: "★ Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
 
-export type NavActive = Partial<Record<NavItemKey, boolean>>;
-
-// HO 126: shared nav rendered in both header variants. The dashboard
-// variant used to omit the nav entirely (when JUMP TO sat in the home
-// grid), but with JUMP TO retired and SubViewLinkStrip deleted the home
-// page would otherwise have zero in-page navigation. `activeMode` carries
-// the highlight for nav targets whose active state is interesting; pages
-// without a corresponding mode just inherit the default dim color.
-function HeaderNav({ active = {} }: { active?: NavActive }) {
+function HeaderNav({ active }: { active: NavItemKey | null }) {
   const amber = "var(--accent-amber)";
   return (
     <nav
@@ -77,7 +52,7 @@ function HeaderNav({ active = {} }: { active?: NavActive }) {
           title={item.tooltip}
           aria-label={item.tooltip}
           className="transition hover:text-[var(--text-secondary)]"
-          style={{ color: active[item.key] ? amber : undefined }}
+          style={{ color: active === item.key ? amber : undefined }}
         >
           {item.label}
         </Link>
@@ -146,7 +121,7 @@ export async function HeaderBar({
             last sync {formatLastUpdated(corpus.lastSync)}
           </span>
           <div className="ml-auto">
-            <HeaderNav />
+            <HeaderNav active={null} />
           </div>
         </div>
       </header>
@@ -187,13 +162,10 @@ export async function HeaderBar({
       !!feedFilters?.sponsor ||
       !!cluster ||
       (feedFilters?.topics?.length ?? 0) > 0);
-  const isFeedMode = basePath === "/feed";
   const isStaleMode = countMode === "stale";
   const isChangesMode = countMode === "changes";
   const isPresidentMode = countMode === "president";
   const isSponsorMode = countMode === "sponsors";
-  const isNewsMode = basePath === "/news";
-  const isReportsMode = basePath === "/reports";
   const useAccentBright =
     isStaleMode || isChangesMode || isPresidentMode || isSponsorMode;
 
@@ -304,17 +276,7 @@ export async function HeaderBar({
           <CeremonialToggle checked={includeCeremonial} />
         ) : null}
 
-        <HeaderNav
-          active={{
-            feed: isFeedMode,
-            news: isNewsMode,
-            reports: isReportsMode,
-            sponsor: isSponsorMode,
-            stale: isStaleMode,
-            changes: isChangesMode,
-            president: isPresidentMode,
-          }}
-        />
+        <HeaderNav active={pathToNavKey(basePath)} />
       </div>
     </header>
   );

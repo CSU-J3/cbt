@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { PatternBubbleSVG } from "@/components/PatternBubbleSVG";
 import { PatternDrilldownPanel } from "@/components/PatternDrilldownPanel";
@@ -43,9 +44,10 @@ export default async function PatternsPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath="/patterns" />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="patterns" active="patterns" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

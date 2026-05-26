@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
 import { ReportRow } from "@/components/ReportRow";
@@ -53,6 +54,7 @@ export default async function ReportsPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="feed" active="reports" />
         <section
           className="mb-4 border"
           style={{ borderColor: "var(--border-strong)" }}

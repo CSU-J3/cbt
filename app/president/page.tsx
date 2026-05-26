@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
 import { ChamberToggle } from "@/components/ChamberToggle";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
@@ -74,6 +75,7 @@ export default async function PresidentPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="feed" active="president" />
         <p
           className="mb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
 import { ChamberToggle } from "@/components/ChamberToggle";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Pagination } from "@/components/Pagination";
 import { SortDropdown } from "@/components/SortDropdown";
@@ -100,6 +101,7 @@ export default async function FeedPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="feed" active="bills" />
         <section
           className="mb-3 flex flex-col gap-3"
           style={{ borderColor: "var(--border-strong)" }}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
 import { ChamberToggle } from "@/components/ChamberToggle";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
@@ -82,6 +83,7 @@ export default async function StalePage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="patterns" active="stale" />
         <p
           className="mb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}

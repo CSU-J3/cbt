@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsRow } from "@/components/NewsRow";
 import { formatBillId } from "@/lib/format";
@@ -52,6 +53,7 @@ export default async function NewsPage({
       />
 
       <main className="w-full flex-1 px-4 py-4">
+        <GroupTabs group="feed" active="news" />
         {billId ? (
           <div className="mb-3 flex items-baseline gap-3 text-[12px] uppercase tracking-[0.5px]">
             <span style={{ color: "var(--text-muted)" }}>
