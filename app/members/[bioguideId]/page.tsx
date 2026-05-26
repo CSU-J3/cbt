@@ -125,6 +125,7 @@ export default async function MemberPage({
               member={member}
               affiliations={affiliations}
               rating={headerRating}
+              scorecard={scorecard}
             />
 
             {memberPrimary?.primary_date ? (

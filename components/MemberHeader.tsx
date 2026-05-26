@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CaucusBadge } from "./CaucusBadge";
-import type { Member, MemberAffiliation, RaceRating } from "@/lib/queries";
+import { PalestineBadge } from "./PalestineBadge";
+import { isPalestineGrade } from "@/lib/palestine-config";
+import type {
+  Member,
+  MemberAffiliation,
+  PalestineScorecard,
+  RaceRating,
+} from "@/lib/queries";
 import { raceIdFromMember } from "@/lib/race-id";
 
 function partyColor(party: Member["party"]): string {
@@ -60,10 +67,12 @@ export function MemberHeader({
   member,
   affiliations = [],
   rating = null,
+  scorecard = null,
 }: {
   member: Member;
   affiliations?: MemberAffiliation[];
   rating?: RaceRating | null;
+  scorecard?: PalestineScorecard | null;
 }) {
   const [photoErrored, setPhotoErrored] = useState(false);
   const showPhoto = member.depictionUrl && !photoErrored;
@@ -186,6 +195,12 @@ export function MemberHeader({
                 <CaucusBadge key={a.org} org={a.org} />
               ))}
             </>
+          ) : null}
+          {scorecard && isPalestineGrade(scorecard.grade) ? (
+            <PalestineBadge
+              grade={scorecard.grade}
+              rank={scorecard.rank}
+            />
           ) : null}
         </div>
       </div>
