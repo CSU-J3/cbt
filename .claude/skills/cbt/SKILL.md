@@ -454,6 +454,17 @@ The read-side `rowToCronRun` in `lib/queries.ts` keeps a display-only fallback: 
 
 The four 2026-05-22 through 2026-05-25 orphan rows that motivated HO 139 are backfilled with `payload='{"backfilled":true,"reason":"pre-HO-139"}'` so they don't pollute future audits.
 
+### Cron latency notes
+
+Reference numbers for the routes whose runtimes have been characterized, useful when a `cron_runs.elapsed_ms` value looks off and you want to know whether it's normal or worth investigating:
+
+- `/api/sync` — typical ~40s end-to-end on a busy day (HO 139 verification: 40.4s = sync 5.9s + lead 25.3s + trades 9.0s). The dashboard-lead generation is the dominant step.
+- `/api/cron/weekly-report` — typical **~15s end-to-end** (HO 141 Phase 1: gatherReportData ~5s + Gemini Flash 8-10s = 12-15s pipeline, route end-to-end 14.9s with a `reports` row written). At the current `thinkingBudget: 8192`, none of the lower-budget candidates (4096/2048/1024) reliably reduced Flash latency — Flash floor is ~7-10s regardless. 1024 leaks banned phrases per HO 112.2 so it's not safe to drop to anyway.
+
+**Historical outlier — 2026-05-26.** During HO 139 verification, the same `/api/cron/weekly-report` path took **88s end-to-end** twice in a row, finalizing as `status='timeout'` each time. Initially treated as a structural perf problem (motivating HO 141). HO 141's Phase 1 swept `thinkingBudget` ∈ {1024, 2048, 4096, 8192} from the same dev laptop ~3 hours later and measured the same code path at 12-15s across every candidate. The 88s was a Gemini service slowdown, not the code. The pattern lesson: **two close-in-time samples aren't a verdict** — sweep the parameter space and re-measure across hours before concluding a structural problem.
+
+**The wrapper is the durability floor.** Whenever Gemini or any downstream dependency has a slow day, the HO 139 `wrapCronRoute` finalizes the row as `status='timeout'` (HTTP 504) cleanly at 55s instead of stranding it as a `running` row past the SIGKILL. That gives the on-call signal a name without forcing an immediate code change — a recurrence is a row to read, not a mystery.
+
 ### Backfill scripts
 
 - `npm run backfill:cosponsors` — pure SQL `json_extract` from `raw_json` into `cosponsor_count`. No API calls, instant. Idempotent via `WHERE cosponsor_count IS NULL`. JSON path is `$.cosponsors.count` (the sync stores `detailRes.bill` directly as `raw_json`, not the outer wrapper).
