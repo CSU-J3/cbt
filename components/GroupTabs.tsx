@@ -38,12 +38,19 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   ],
 };
 
-export type NavKey = Group | "watchlist";
+export type NavKey = "dashboard" | Group | "watchlist";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page already passes in. /watchlist is a
-// standalone top-nav target with no group tabs. /, /search, /bill/[id],
+// standalone top-nav target with no group tabs. /search, /bill/[id],
 // etc. return null (no top-nav highlight).
+//
+// Note: `/` is intentionally NOT handled here. The home page renders
+// HomeHeader (not HeaderBar), which sets its own Dashboard-active
+// highlight via the NavItemKey == "dashboard" check (HO 140). HeaderBar's
+// default basePath="/" must therefore return null so detail pages that
+// omit an explicit basePath (/watchlist, /bill/[id], /members/[bioguideId],
+// /race/[id], /reports/[slug]) don't falsely light up the Dashboard tab.
 export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/watchlist") return "watchlist";
   for (const group of Object.keys(GROUP_TABS) as Group[]) {

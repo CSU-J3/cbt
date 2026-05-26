@@ -32,6 +32,7 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  { key: "dashboard", href: "/", label: "⌂ Dashboard", tooltip: "Dashboard summary" },
   { key: "feed", href: "/feed", label: "▤ Feed", tooltip: "Bills, news, reports, stage changes, and the president's desk" },
   { key: "members", href: "/members", label: "👥 Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "patterns", href: "/patterns", label: "⊞ Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },

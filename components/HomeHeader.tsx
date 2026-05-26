@@ -49,6 +49,10 @@ export async function HomeHeader() {
             href={item.href}
             title={item.tooltip}
             aria-label={item.tooltip}
+            style={{
+              color:
+                item.key === "dashboard" ? "var(--accent-amber)" : undefined,
+            }}
           >
             {item.label}
           </Link>
