@@ -42,6 +42,23 @@ Key endpoints used here:
 - `/bill/{congress}/{billType}/{billNumber}/actions` — action history
 - `/bill/{congress}/{billType}/{billNumber}/text` — list of text versions, each with formats
 - `/bill/{congress}/{billType}/{billNumber}/summaries` — CRS summaries when available
+- `/bill/{congress}/{billType}/{billNumber}/committees` — committees referred + activities; bill→committees direction (HO 143; the committee→bills direction can't filter by Congress, so this is the right way to feed `committee_bills`)
+- `/committee/{congress}` — paginated list of all committees + subcommittees in a Congress (HO 143)
+- `/committee/{chamber}/{systemCode}` — committee detail. **The path uses `{chamber}` not `{congress}`** — `/committee/119/<systemCode>` returns "Unknown resource".
+
+### External data sources
+
+Not every signal in CBT comes from Congress.gov. The non-Congress.gov sources currently in use:
+
+- **Stooq** (`https://stooq.com/q/l/`) — markets ticker (HO 142): SPX, WTI, DXY. Public CSV endpoint, no auth, 15-20 min delayed.
+- **FRED** (`https://fred.stlouisfed.org/graph/fredgraph.csv`) — 10Y Treasury yield (HO 142, series `DGS10`). End-of-day only, no auth.
+- **unitedstates/congress-legislators** (`https://raw.githubusercontent.com/unitedstates/congress-legislators/main/`) — `committee-membership-current.yaml` for committee rosters (HO 143; Congress.gov has no roster endpoint), and historically the canonical free source for member data. Public GitHub raw, no auth.
+- **Ballotpedia** scraping — primaries (HO 91-96, 120) and race ratings (HO 71).
+- **House Clerk + Senate eFD** (planned) — STOCK Act PTR disclosures (HO 70 placeholder; backlog).
+- **CBOE/Yahoo** (not currently in use) — would supply VIX once a stable free source emerges (backlog).
+- **RSS** (HO 64/75/86/102/103/104/111) — news ingestion from configured feeds; matchers in `lib/news-ingest.ts`.
+
+THOMAS-style committee codes (used in the unitedstates YAML) map to Congress.gov `systemCode` by lowercasing and padding 4-char codes with `00`: `SSAF` → `ssaf00`, `SSAF13` → `ssaf13`. Verified against Congress.gov detail responses during HO 143 pre-flight.
 
 ### Gotchas
 
@@ -402,11 +419,55 @@ CREATE TABLE market_ticks (
   market_date TEXT NOT NULL             -- YYYY-MM-DD of the trading day the price represents
 );
 CREATE INDEX idx_market_ticks_symbol_time ON market_ticks(symbol, ticked_at DESC);
+
+-- handoff 143: committee surface, Phase 1 data layer. Three tables. The
+-- list comes from Congress.gov `/committee/119`; the bills join is built
+-- bill→committees direction (`/bill/{congress}/{type}/{number}/committees`)
+-- because the committee→bills endpoint won't filter by Congress. Member
+-- rosters do not exist on Congress.gov's API — sourced from
+-- unitedstates/congress-legislators/committee-membership-current.yaml
+-- instead. system_code rule (THOMAS → Congress.gov): lowercase, and
+-- pad 4-char codes with '00' (so 'SSAF' → 'ssaf00', 'SSAF13' → 'ssaf13').
+CREATE TABLE committees (
+  system_code TEXT PRIMARY KEY,           -- 'hsju00' / 'sseg01' etc., lowercase
+  name TEXT NOT NULL,
+  chamber TEXT NOT NULL,                  -- 'house' | 'senate' | 'joint' (lowercased on insert)
+  committee_type TEXT,                    -- 'Standing' | 'Select' | 'Joint' | 'Task Force' ...
+  parent_system_code TEXT,                -- non-null for subcommittees
+  url TEXT,
+  is_current INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE committee_bills (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bill_id TEXT NOT NULL,                  -- references bills.id; not FK'd (sync ordering)
+  committee_system_code TEXT NOT NULL,
+  activity_type TEXT,                     -- 'Referred to' / 'Reported by' / 'Discharged' / ...
+  activity_date TEXT,                     -- ISO of the activity
+  updated_at TEXT NOT NULL,
+  UNIQUE(bill_id, committee_system_code, activity_type, activity_date)
+);
+CREATE INDEX idx_committee_bills_bill ON committee_bills(bill_id);
+CREATE INDEX idx_committee_bills_committee ON committee_bills(committee_system_code);
+CREATE INDEX idx_committee_bills_activity ON committee_bills(activity_date DESC);
+
+CREATE TABLE committee_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  committee_system_code TEXT NOT NULL,
+  bioguide_id TEXT NOT NULL,
+  role TEXT,                              -- 'Chair' / 'Chairman' / 'Ranking Member' / NULL for rank-and-file
+  party_side TEXT,                        -- 'majority' | 'minority' from the YAML
+  rank INTEGER,                           -- intra-side rank from the YAML
+  updated_at TEXT NOT NULL,
+  UNIQUE(committee_system_code, bioguide_id)
+);
+CREATE INDEX idx_committee_members_committee ON committee_members(committee_system_code);
+CREATE INDEX idx_committee_members_member ON committee_members(bioguide_id);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
 
-Skip cosponsors, committees, and full action history for now. Add tables for those only when the UI needs them.
+Skip full action history for now. Add a table for it only when the UI needs it.
 
 ## Sync logic
 
@@ -435,12 +496,13 @@ Both vote upserts use the same `position` enum (lowercase `yea | nay | present |
 
 ### Cron topology
 
-Seven cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function). Plus one out-of-band route triggered by GitHub Actions (`/api/cron/markets`, HO 142) — Vercel still hosts the function, but the schedule lives outside Vercel so it can fire at higher frequency than once-per-day. See "GitHub Actions cron" below.
+Eight cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function). Plus one out-of-band route triggered by GitHub Actions (`/api/cron/markets`, HO 142) — Vercel still hosts the function, but the schedule lives outside Vercel so it can fire at higher frequency than once-per-day. See "GitHub Actions cron" below.
 
 - `/api/sync` — 09:00 UTC — bills: sync (≤30s budget, HO 116) + dashboard lead + trades. Summarize was split out in HO 115; runSync got its own time budget + 15s per-detail `AbortController` + batched diff in HO 116; news ingestion was split into `/api/cron/news` in HO 117; weekly report was split into `/api/cron/weekly-report` in HO 139. Per-step wall-clock times are included in the `cron_runs.payload.payload.timings` object so the next "step X is overrunning" investigation has data ready.
 - `/api/cron/weekly-report` — Monday 09:30 UTC (`30 9 * * 1`) — weekly report generation (handoff 139). Split out of `/api/sync` because the shared Monday 09:00 tick was running sync + lead + trades + report inside one 60s function and never reached the report step in production — `cron_runs` row 27 (2026-05-25 09:35 `/api/sync`) is the canonical orphan. Calls `getPriorWeek(now) → generateWeeklyReport(week) → writeReport(...) → revalidateTag("reports")`. The 88s end-to-end measurement during HO 139 verification — which initially looked like a structural perf problem — was a Gemini service outlier; HO 141's Phase 1 diagnostic re-measured the same path at 12-15s end-to-end across all four `thinkingBudget` candidates (1024/2048/4096/8192). Stayed on `thinkingBudget: 8192` (lower budgets don't reliably reduce latency in the data, and 1024 leaks banned phrases per HO 112.2). If a slow-Gemini day recurs the HO 139 wrapper catches it as `status='timeout'` cleanly.
 - `/api/sync-votes` — 10:00 UTC — House (Congress.gov) + Senate (senate.gov XML) roll-call votes (handoff 87).
 - `/api/sync-race-ratings` — 11:00 UTC **Wednesdays only** (`0 11 * * 3`) — Sabato race ratings from Ballotpedia (handoff 88).
+- `/api/cron/committees` — 11:30 UTC — committee data sync (handoff 143). Three operations per tick: full refresh of the `committees` list from Congress.gov `/committee/119`; full refresh of `committee_members` from unitedstates/congress-legislators committee-membership-current.yaml (Congress.gov has no roster endpoint — verified HO 143 pre-flight); incremental refresh of `committee_bills` via the bill→committees direction, gated on a `committee_bills_sync_cursor` (`update_date` watermark) in `dashboard_state`. Stops *starting* new per-bill fetches at 45s. Initial backfill of ~16K bills lives in `scripts/backfill-committee-bills.ts` (runs locally without the 60s ceiling); the cron handles steady state of 50-500 newly-updated bills/day. `revalidateTag("committees")` flushes all four committee query helpers in `lib/queries.ts`.
 - `/api/cron/primaries` — 12:00 UTC — primary candidates (handoff 97, time-budgeted HO 120). Stops *starting* new districts at 50s wall-clock; each outbound Ballotpedia fetch is capped by an 8s `AbortController`. **Cursor commits per-district**, so a tick killed mid-slice keeps the districts it finished — the pre-HO-120 slice-level cursor write left two orphaned `cron_runs` rows (id=9 / id=19, 2026-05-22 + 2026-05-23) where the slice never advanced, treated as the canonical example of that failure mode.
 - `/api/cron/summarize` — 13:00 UTC — LLM summarization of bills with `summary IS NULL` (handoff 115). Time-budgeted: stops *starting* new bills at 45s wall-clock; each in-flight bill is capped by a 15s `AbortController` (so 45+15 = 60 worst case). Selector skips bills with `summarize_failed_at` set within the last 24h, so a stuck bill can't burn consecutive ticks. Bills hitting `summarize_attempts >= 3` are surfaced into the tick's `cron_runs.error_message` for manual review.
 - `/api/cron/news` — 14:00 UTC — RSS ingestion + LLM bill-matching (handoff 117). Pulls 3 RSS feeds, regex-matches bill ids in titles, falls back to a Gemini Flash matcher for the ~95% of articles that don't cite bills verbatim. Time-budgeted: stops *starting* new articles at 45s; each LLM call is capped by an 8s `AbortController` (per-article p95 was 760ms in HO 117 Phase 1, so 8s is ~10× p95). `llmTimeouts` count surfaces into `cron_runs.error_message` for manual review. `revalidateTag("news-breaking")` flushes both `/news` (`getBreakingNews`) and the HO 114 home block (`getBreakingNewsForHome`) — both share that tag.
@@ -452,7 +514,7 @@ Primary scrape logic lives in `lib/primaries-sync.ts` (handoff 97 moved it out o
 
 ### Cron finalize pattern (HO 139)
 
-All seven cron routes route through `wrapCronRoute(route, handler)` in `lib/cron-log.ts`. The wrapper does three things:
+All eight cron routes route through `wrapCronRoute(route, handler)` in `lib/cron-log.ts`. The wrapper does three things:
 
 1. **Reaper sweep at the top.** Any `cron_runs` row stuck at `status='running'` with `started_at` older than 5 minutes is updated to `status='orphaned'` with `ended_at=now()`. Self-healing — no separate reaper route. The threshold is 5× the 60s function ceiling; anything older than that was killed by SIGKILL and the function that owned the row is long dead.
 2. **Soft timeout race.** The handler runs inside `Promise.race(handler(), timeoutPromise)` with a 55s default timeout (5s buffer under the 60s Vercel SIGKILL). A timeout throws `CronTimeoutError`, which the wrapper catches and finalizes as `status='timeout'` with HTTP 504. Critical: a Vercel SIGKILL at 60s skips `finally` blocks, so the soft timeout is the only thing that guarantees the row finalizes cleanly. AbortController would not help — libsql/Gemini SDKs don't honor abort signals.
@@ -507,6 +569,7 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 - `npm run sync:rematch` — re-runs the House incumbent matcher (`scripts/sync-primaries.ts --rematch`) over existing `primary_candidates` rows without re-scraping Ballotpedia. Run it after `sync:members` so refreshed roster data flows into the `primary_candidates.bioguide_id` linkage. Prints match-rate deltas and HO 94 spot-checks.
 - `npm run seed:affiliations` — loads caucus rosters from `data/affiliations-seed.json` into the `affiliations` table. No API calls (pure JSON read + upsert). Idempotent via `INSERT ... ON CONFLICT(bioguide_id, org) DO UPDATE`. Rosters whose bioguide_id isn't in the `members` table yet get warn-and-skip, not abort. Re-running after editing the JSON is the refresh workflow — refresh quarterly by hand.
 - `npm run backfill:races` — one-shot derivation of stub race rows from `members`. `INSERT OR IGNORE` so re-runs don't clobber hand-curated rating + candidate data. Expected ~435 House + ~33 Senate ≈ ~468 rows on first run; second run prints `Inserted: 0`. The SQL `id` expression is a translation of `raceIdFromMember` in `lib/race-id.ts` — keep them in sync.
+- `npm run backfill:committee-bills` — one-time backfill of `committee_bills` (HO 143). Walks every 119th bill with `raw_json.committees.count > 0` and pulls `/bill/{congress}/{type}/{number}/committees`, upserting via the UNIQUE constraint. Resumable via `dashboard_state.committee_bills_sync_cursor` — same cursor the `/api/cron/committees` route uses, so Ctrl-C is safe and re-running picks up where it left off. ~16K bills × ~300ms/call ≈ ~60-90 minutes; delete `scripts/backfill-committee-bills.ts` after the run finishes, cron handles steady state.
 - `npm run seed:races` — applies the hand-curated rating + candidate roster layer from `data/races-seed.json` on top of the stubs. Idempotent: UPDATE on the race row + `INSERT ... ON CONFLICT(race_id, name) DO UPDATE` on candidates. Unknown race ids get warn-and-skip; invalid ratings (not in the Sabato seven) get warn-and-skip. Refresh quarterly by editing the JSON and re-running.
 - `npm run seed:runoffs` — loads hand-curated runoff contests into `primaries` + `primary_candidates` (handoff 107) from `data/runoff-seeds/la-senate-2026.json`. Idempotent: the runoff `primaries` row upserts on its PK, `primary_candidates` is delete-then-insert per `primary_id`, and the round-1 `primaries` rows get their `runoff_date` set. See "Runoff tracking" below.
 - `npm run seed:ratings` — loads third-party race ratings into `race_ratings` (handoffs 71 + 73). Globs every `data/race-ratings-*.json` and upserts each row on `(race_id, source)` via `INSERT ... ON CONFLICT(id) DO UPDATE`. v1 covers Cook, Sabato, and Inside Elections (Senate only); three sources is the cap — more is noise. Unknown rating strings warn-and-skip; after 73 that almost always means a new rater vocabulary needs adding to the `RATING_SCORES` map in the script plus the matching color maps in `components/RatingChip.tsx` and `components/MemberHeader.tsx`. Prints per-source summary lines plus an aggregate. race_id is a loose link — ratings can land before the race row exists. Refresh quarterly by re-pulling each rater's page.

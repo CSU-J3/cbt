@@ -3637,6 +3637,184 @@ export async function getRecentCronRuns(limit = 50): Promise<CronRun[]> {
   return rs.rows.map((r) => rowToCronRun(r as Record<string, unknown>));
 }
 
+// HO 143: committee surface (data layer). Four helpers — full list,
+// per-committee bills, per-committee members, and the "most active recently"
+// activity cut. All cache under tag `committees` so the sync route's
+// revalidateTag('committees') flushes them together. Cardinality is small
+// (~237 committees, ~5K members, ~16K-50K committee_bills rows when fully
+// backfilled), so no pagination on the helpers — UI handles slicing.
+export type Committee = {
+  systemCode: string;
+  name: string;
+  chamber: "house" | "senate" | "joint";
+  committeeType: string | null;
+  parentSystemCode: string | null;
+  url: string | null;
+  isCurrent: boolean;
+};
+
+export type CommitteeMember = {
+  bioguideId: string;
+  role: string | null;
+  partySide: "majority" | "minority" | null;
+  rank: number | null;
+  // Joined from members at read time so consumers don't have to roundtrip.
+  // Null when the member YAML carries a bioguide we don't have a row for yet.
+  name: string | null;
+  party: PartyKey | null;
+  state: string | null;
+};
+
+export type CommitteeActivity = {
+  systemCode: string;
+  name: string;
+  chamber: "house" | "senate" | "joint";
+  recentBillCount: number;
+};
+
+export const getCommittees = unstable_cache(
+  async (filters?: { chamber?: string }): Promise<Committee[]> => {
+    const db = getDb();
+    const chamber = filters?.chamber;
+    const rs = chamber
+      ? await db.execute({
+          sql: `SELECT system_code, name, chamber, committee_type,
+                  parent_system_code, url, is_current
+                FROM committees
+                WHERE chamber = ? AND is_current = 1
+                ORDER BY parent_system_code IS NULL DESC, name`,
+          args: [chamber],
+        })
+      : await db.execute(`
+          SELECT system_code, name, chamber, committee_type,
+            parent_system_code, url, is_current
+          FROM committees
+          WHERE is_current = 1
+          ORDER BY chamber, parent_system_code IS NULL DESC, name`);
+    return rs.rows.map((r) => ({
+      systemCode: r.system_code as string,
+      name: r.name as string,
+      chamber: r.chamber as "house" | "senate" | "joint",
+      committeeType: (r.committee_type as string | null) ?? null,
+      parentSystemCode: (r.parent_system_code as string | null) ?? null,
+      url: (r.url as string | null) ?? null,
+      isCurrent: Number(r.is_current) === 1,
+    }));
+  },
+  ["committees-list"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export const getCommitteeBills = unstable_cache(
+  async (systemCode: string, limit = 50): Promise<FeedBill[]> => {
+    const db = getDb();
+    // Most recent activity per (bill, committee) — DISTINCT bill_id keyed by
+    // MAX(activity_date) so a bill referred and later reported shows once.
+    const rs = await db.execute({
+      sql: `WITH cb AS (
+              SELECT bill_id, MAX(activity_date) AS latest_activity
+              FROM committee_bills
+              WHERE committee_system_code = ?
+              GROUP BY bill_id
+            )
+            SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number,
+                   bills.title, bills.sponsor_name, bills.sponsor_party,
+                   bills.sponsor_state, bills.introduced_date,
+                   bills.latest_action_date, bills.latest_action_text,
+                   bills.update_date, bills.summary, bills.topics, bills.stage,
+                   bills.previous_stage, bills.stage_changed_at,
+                   ${MENTION_SELECT}
+            FROM cb
+            JOIN bills ON bills.id = cb.bill_id
+            ${MENTION_SUBQUERY}
+            ORDER BY cb.latest_activity DESC NULLS LAST, bills.update_date DESC
+            LIMIT ?`,
+      args: [systemCode, limit],
+    });
+    return rs.rows.map((r) => ({
+      id: r.id as string,
+      congress: r.congress as number,
+      bill_type: r.bill_type as string,
+      bill_number: r.bill_number as number,
+      title: r.title as string,
+      sponsor_name: (r.sponsor_name as string | null) ?? null,
+      sponsor_party: (r.sponsor_party as string | null) ?? null,
+      sponsor_state: (r.sponsor_state as string | null) ?? null,
+      introduced_date: (r.introduced_date as string | null) ?? null,
+      latest_action_date: (r.latest_action_date as string | null) ?? null,
+      latest_action_text: (r.latest_action_text as string | null) ?? null,
+      update_date: r.update_date as string,
+      summary: (r.summary as string | null) ?? null,
+      topics: (r.topics as string | null) ?? null,
+      stage: (r.stage as string | null) ?? null,
+      previous_stage: (r.previous_stage as string | null) ?? null,
+      stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+      mentionCount7d: Number(r.mention_count_7d ?? 0),
+    }));
+  },
+  ["committee-bills"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export const getCommitteeMembers = unstable_cache(
+  async (systemCode: string): Promise<CommitteeMember[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT cm.bioguide_id, cm.role, cm.party_side, cm.rank,
+                   m.name, m.party, m.state
+            FROM committee_members cm
+            LEFT JOIN members m ON m.bioguide_id = cm.bioguide_id
+            WHERE cm.committee_system_code = ?
+            ORDER BY cm.party_side, cm.rank ASC NULLS LAST`,
+      args: [systemCode],
+    });
+    return rs.rows.map((r) => ({
+      bioguideId: r.bioguide_id as string,
+      role: (r.role as string | null) ?? null,
+      partySide: (r.party_side as "majority" | "minority" | null) ?? null,
+      rank: (r.rank as number | null) ?? null,
+      name: (r.name as string | null) ?? null,
+      party: (r.party as PartyKey | null) ?? null,
+      state: (r.state as string | null) ?? null,
+    }));
+  },
+  ["committee-members"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+// "Most active recently" — committees ranked by distinct bills with at least
+// one committee_bills.activity_date in the last N days. Subcommittees roll
+// up to their parent; the dashboard's framing question is committee-level.
+export const getCommitteeActivity = unstable_cache(
+  async (days = 30): Promise<CommitteeActivity[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT
+              COALESCE(c.parent_system_code, c.system_code) AS roll_up_code,
+              MAX(parent.name) AS roll_up_name,
+              MAX(parent.chamber) AS roll_up_chamber,
+              COUNT(DISTINCT cb.bill_id) AS n
+            FROM committee_bills cb
+            JOIN committees c ON c.system_code = cb.committee_system_code
+            LEFT JOIN committees parent
+              ON parent.system_code = COALESCE(c.parent_system_code, c.system_code)
+            WHERE cb.activity_date >= datetime('now', ?)
+            GROUP BY roll_up_code
+            HAVING n > 0
+            ORDER BY n DESC, roll_up_name`,
+      args: [`-${days} days`],
+    });
+    return rs.rows.map((r) => ({
+      systemCode: r.roll_up_code as string,
+      name: r.roll_up_name as string,
+      chamber: r.roll_up_chamber as "house" | "senate" | "joint",
+      recentBillCount: Number(r.n),
+    }));
+  },
+  ["committee-activity"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
 // HO 142: markets ticker. One MarketTick per internal symbol — most recent
 // row, joined with the in-code label/format. Decoupling label/format from
 // the DB keeps the upstream-source rewiring (Stooq → FRED for TNX etc.) a

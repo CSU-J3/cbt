@@ -23,6 +23,9 @@
     },
     "app/api/cron/markets/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/committees/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -41,6 +44,10 @@
     {
       "path": "/api/sync-race-ratings",
       "schedule": "0 11 * * 3"
+    },
+    {
+      "path": "/api/cron/committees",
+      "schedule": "30 11 * * *"
     },
     {
       "path": "/api/cron/primaries",

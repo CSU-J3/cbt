@@ -366,6 +366,49 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_market_ticks_symbol_time
     ON market_ticks(symbol, ticked_at DESC)`,
+  // handoff 143: committee surface, Phase 1 data layer. Three tables — the
+  // committee dimension, the bill↔committee join (with activity type +
+  // date so referral / report / discharge are distinguishable), and the
+  // member↔committee roster. system_code is Congress.gov's stable PK
+  // (lowercase alphanumeric like 'hsju00', 'sseg01' for subs). Committee
+  // membership has no Congress.gov endpoint — sourced from
+  // unitedstates/congress-legislators/committee-membership-current.yaml
+  // (`party_side` is 'majority'|'minority' from the YAML; the real party
+  // letter joins from members.party at read time).
+  `CREATE TABLE IF NOT EXISTS committees (
+    system_code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    chamber TEXT NOT NULL,
+    committee_type TEXT,
+    parent_system_code TEXT,
+    url TEXT,
+    is_current INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS committee_bills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id TEXT NOT NULL,
+    committee_system_code TEXT NOT NULL,
+    activity_type TEXT,
+    activity_date TEXT,
+    updated_at TEXT NOT NULL,
+    UNIQUE(bill_id, committee_system_code, activity_type, activity_date)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_bills_bill ON committee_bills(bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_bills_committee ON committee_bills(committee_system_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_bills_activity ON committee_bills(activity_date DESC)`,
+  `CREATE TABLE IF NOT EXISTS committee_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    committee_system_code TEXT NOT NULL,
+    bioguide_id TEXT NOT NULL,
+    role TEXT,
+    party_side TEXT,
+    rank INTEGER,
+    updated_at TEXT NOT NULL,
+    UNIQUE(committee_system_code, bioguide_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_members_committee ON committee_members(committee_system_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_members_member ON committee_members(bioguide_id)`,
 ];
 
 async function ensureColumn(
