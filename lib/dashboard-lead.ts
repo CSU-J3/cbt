@@ -18,12 +18,11 @@ const STAGE_ABBR: Record<string, string> = {
   enacted: "ENACTED",
 };
 
-const SYSTEM_PROMPT = `You are writing the daily lead for a Congress tracking dashboard. Write exactly 3 sentences, max 60 words total, describing what's happening in Congress right now based on the data below. Reference at least 2 specific bill IDs (e.g. "HR 2702"). Use exact numbers from the data. Avoid generic openers ("This week, Congress..."), avoid editorial framing, avoid marketing titles for bills. Plain numbers, plain language, terminal voice.`;
+const SYSTEM_PROMPT = `You are writing the daily lead for a Congress tracking dashboard. Write exactly 3 sentences, max 60 words total, describing what's happening in Congress right now based on the data below. Focus on activity and deltas — what moved in the last 7 days: stage transitions, enactments, new introductions, where the activity is concentrated. Do NOT cite the total corpus size or how many bills are tracked overall; that number is rendered elsewhere on the page. Reference at least 2 specific bill IDs (e.g. "HR 2702"). Use exact numbers from the data. Avoid generic openers ("This week, Congress..."), avoid editorial framing, avoid marketing titles for bills. Plain numbers, plain language, terminal voice.`;
 
 type Transition = { id: string; title: string; transition: string };
 
 type LeadData = {
-  total: number;
   transitionsCount: number;
   topTransitions: Transition[];
   enactmentsCount: number;
@@ -47,10 +46,6 @@ function stageLabel(stage: string | null): string {
 
 async function gatherLeadData(): Promise<LeadData> {
   const db = getDb();
-
-  const totalRs = await db.execute(
-    `SELECT COUNT(*) AS n FROM bills WHERE ${NON_CEREMONIAL}`,
-  );
 
   const transRs = await db.execute(
     `SELECT id, bill_type, bill_number, title, stage, previous_stage
@@ -100,7 +95,6 @@ async function gatherLeadData(): Promise<LeadData> {
   const topicRow = topicRs.rows[0];
 
   return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
     transitionsCount: transRs.rows.length,
     topTransitions,
     enactmentsCount: enactRs.rows.length,
@@ -126,7 +120,6 @@ function buildUserPrompt(d: LeadData): string {
     : "(none)";
 
   return `DATA:
-- Corpus size: ${d.total} non-ceremonial bills tracked
 - Stage transitions (last 7d): ${d.transitionsCount} total
 - Top 5 recent transitions:
 ${transitionLines}
