@@ -20,6 +20,9 @@
     },
     "app/api/cron/weekly-report/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/markets/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

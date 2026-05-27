@@ -3,6 +3,7 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
+import { MARKET_SYMBOLS, type MarketFormat } from "./markets";
 import {
   ALLOWED_STAGES_SET,
   ALLOWED_TOPICS_SET,
@@ -3635,6 +3636,58 @@ export async function getRecentCronRuns(limit = 50): Promise<CronRun[]> {
   });
   return rs.rows.map((r) => rowToCronRun(r as Record<string, unknown>));
 }
+
+// HO 142: markets ticker. One MarketTick per internal symbol — most recent
+// row, joined with the in-code label/format. Decoupling label/format from
+// the DB keeps the upstream-source rewiring (Stooq → FRED for TNX etc.) a
+// pure code change with no schema implication.
+export type MarketTick = {
+  symbol: string;
+  label: string;
+  price: number;
+  changePct: number | null;
+  tickedAt: string;
+  marketDate: string;
+  format: MarketFormat;
+};
+
+export const getLatestMarketTicks = unstable_cache(
+  async (): Promise<MarketTick[]> => {
+    const db = getDb();
+    const rs = await db.execute(`
+      SELECT m.symbol, m.price, m.change_pct, m.ticked_at, m.market_date
+      FROM market_ticks m
+      INNER JOIN (
+        SELECT symbol, MAX(ticked_at) AS max_t
+        FROM market_ticks
+        GROUP BY symbol
+      ) latest ON m.symbol = latest.symbol AND m.ticked_at = latest.max_t
+      ORDER BY m.symbol`);
+    const symbolMap = new Map(MARKET_SYMBOLS.map((s) => [s.internal, s]));
+    const out: MarketTick[] = [];
+    for (const row of rs.rows) {
+      const internal = row.symbol as string;
+      const meta = symbolMap.get(internal);
+      if (!meta) continue; // unknown internal symbol — skip rather than crash
+      out.push({
+        symbol: internal,
+        label: meta.label,
+        price: row.price as number,
+        changePct: (row.change_pct as number | null) ?? null,
+        tickedAt: row.ticked_at as string,
+        marketDate: row.market_date as string,
+        format: meta.format,
+      });
+    }
+    // Preserve the in-code MARKET_SYMBOLS order so the UI ticker reads
+    // SPX → TNX → WTI → DXY regardless of DB row order.
+    const order = new Map(MARKET_SYMBOLS.map((s, i) => [s.internal, i]));
+    out.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
+    return out;
+  },
+  ["market-ticks-latest"],
+  { tags: ["markets"], revalidate: 60 },
+);
 
 /** The latest run for a single route, or null if that route has never run. */
 export async function getLatestCronRun(route: string): Promise<CronRun | null> {

@@ -385,6 +385,23 @@ CREATE TABLE cron_runs (
 
 CREATE INDEX idx_cron_runs_route_started ON cron_runs(route, started_at DESC);
 CREATE INDEX idx_cron_runs_status ON cron_runs(status);
+
+-- handoff 142: markets ticker. Append-only history of policy-effect
+-- indicators refreshed every 30 min during market hours by a GitHub
+-- Actions cron (Vercel Hobby caps cron at once daily). `symbol` is the
+-- internal stable id; the upstream source + remote ticker live in
+-- lib/markets.ts (Stooq for SPX/WTI/DXY, FRED for TNX). VIX is deferred —
+-- see docs/backlog.md. ~16k rows/year at the v1 cadence (4 symbols × 13
+-- ticks/day × 252 trading days); history retained as charting fuel.
+CREATE TABLE market_ticks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL,
+  price REAL NOT NULL,
+  change_pct REAL,                      -- NULL on first tick (no prior reference)
+  ticked_at TEXT NOT NULL,              -- ISO fetch timestamp (UTC)
+  market_date TEXT NOT NULL             -- YYYY-MM-DD of the trading day the price represents
+);
+CREATE INDEX idx_market_ticks_symbol_time ON market_ticks(symbol, ticked_at DESC);
 ```
 
 `bills.sponsor_bioguide_id` (added earlier, indexed `idx_bills_sponsor_bioguide`) joins to `members.bioguide_id`. The two `sponsor_*` text columns on `bills` are kept as a denormalized fallback for sponsors that don't (yet) have a member row.
@@ -418,7 +435,7 @@ Both vote upserts use the same `position` enum (lowercase `yea | nay | present |
 
 ### Cron topology
 
-Seven cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function):
+Seven cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron at once-per-day; each invocation is a 60s-max function). Plus one out-of-band route triggered by GitHub Actions (`/api/cron/markets`, HO 142) — Vercel still hosts the function, but the schedule lives outside Vercel so it can fire at higher frequency than once-per-day. See "GitHub Actions cron" below.
 
 - `/api/sync` — 09:00 UTC — bills: sync (≤30s budget, HO 116) + dashboard lead + trades. Summarize was split out in HO 115; runSync got its own time budget + 15s per-detail `AbortController` + batched diff in HO 116; news ingestion was split into `/api/cron/news` in HO 117; weekly report was split into `/api/cron/weekly-report` in HO 139. Per-step wall-clock times are included in the `cron_runs.payload.payload.timings` object so the next "step X is overrunning" investigation has data ready.
 - `/api/cron/weekly-report` — Monday 09:30 UTC (`30 9 * * 1`) — weekly report generation (handoff 139). Split out of `/api/sync` because the shared Monday 09:00 tick was running sync + lead + trades + report inside one 60s function and never reached the report step in production — `cron_runs` row 27 (2026-05-25 09:35 `/api/sync`) is the canonical orphan. Calls `getPriorWeek(now) → generateWeeklyReport(week) → writeReport(...) → revalidateTag("reports")`. The 88s end-to-end measurement during HO 139 verification — which initially looked like a structural perf problem — was a Gemini service outlier; HO 141's Phase 1 diagnostic re-measured the same path at 12-15s end-to-end across all four `thinkingBudget` candidates (1024/2048/4096/8192). Stayed on `thinkingBudget: 8192` (lower budgets don't reliably reduce latency in the data, and 1024 leaks banned phrases per HO 112.2). If a slow-Gemini day recurs the HO 139 wrapper catches it as `status='timeout'` cleanly.
@@ -427,6 +444,7 @@ Seven cron jobs on Vercel Hobby, all daily, staggered by hour (Hobby caps cron a
 - `/api/cron/primaries` — 12:00 UTC — primary candidates (handoff 97, time-budgeted HO 120). Stops *starting* new districts at 50s wall-clock; each outbound Ballotpedia fetch is capped by an 8s `AbortController`. **Cursor commits per-district**, so a tick killed mid-slice keeps the districts it finished — the pre-HO-120 slice-level cursor write left two orphaned `cron_runs` rows (id=9 / id=19, 2026-05-22 + 2026-05-23) where the slice never advanced, treated as the canonical example of that failure mode.
 - `/api/cron/summarize` — 13:00 UTC — LLM summarization of bills with `summary IS NULL` (handoff 115). Time-budgeted: stops *starting* new bills at 45s wall-clock; each in-flight bill is capped by a 15s `AbortController` (so 45+15 = 60 worst case). Selector skips bills with `summarize_failed_at` set within the last 24h, so a stuck bill can't burn consecutive ticks. Bills hitting `summarize_attempts >= 3` are surfaced into the tick's `cron_runs.error_message` for manual review.
 - `/api/cron/news` — 14:00 UTC — RSS ingestion + LLM bill-matching (handoff 117). Pulls 3 RSS feeds, regex-matches bill ids in titles, falls back to a Gemini Flash matcher for the ~95% of articles that don't cite bills verbatim. Time-budgeted: stops *starting* new articles at 45s; each LLM call is capped by an 8s `AbortController` (per-article p95 was 760ms in HO 117 Phase 1, so 8s is ~10× p95). `llmTimeouts` count surfaces into `cron_runs.error_message` for manual review. `revalidateTag("news-breaking")` flushes both `/news` (`getBreakingNews`) and the HO 114 home block (`getBreakingNewsForHome`) — both share that tag.
+- `/api/cron/markets` — **not on Vercel cron**, fires every 30 min during US market hours via GitHub Actions (`.github/workflows/markets-tick.yml`, schedule `0,30 14-20 * * 1-5`). Fetches the v1 lineup (SPX/WTI/DXY from Stooq, TNX from FRED) in parallel, computes percent change vs the most recent prior `market_date` row of the same symbol, appends one row per symbol to `market_ticks`, and `revalidateTag("markets")`. Per-symbol failures are non-fatal — they land in the response payload and (if any) in `cron_runs.error_message` via the HO 139 chronicErr pattern. Typical wall-clock 2-5s (5 small HTTP fetches + 5 small upserts). VIX is deferred (no free reliable source).
 
 The primaries cron does **not** scrape a region per tick. The corpus is ~470 scrape units (1 calendar pass + 34 Senate states + 435 House districts); at ~1.5-2s per unit — the Ballotpedia politeness sleep dominates — any whole region blows the 60s ceiling (West measured 153s warm-cache, ~200s cold; the full 34-state Senate pass measured 65s). Instead `runPrimariesCronTick` (`lib/primaries-sync.ts`) walks a persistent cursor stored in `dashboard_state` under key `primaries_cron_cursor`, processing one tick's worth per day: the calendar pass, or up to `CRON_SENATE_SLICE` (20) Senate states, or up to `CRON_HOUSE_SLICE` (12, lowered from 20 in HO 120 after the pre-flight measure projected a 20-slice to ~67s prod) House districts — then advances the cursor and wraps at the end. Full-corpus refresh takes ~40 days post-HO-120 (was ~26 pre-fix). The cursor is written **per unit** as each district/state finishes (HO 120), so a tick that runs out of budget keeps the units it did finish. `runPrimariesCronTick` takes a `routeStart: number` so the 50s `DEADLINE_MS` reflects the function's full lifetime; the route passes `t0`. Senate cursor slice stays at 20 because the per-unit commit makes a senate tick safe to span two days if it ever needs to. Lower `CRON_HOUSE_SLICE` if `cron_runs.payload.perUnitMs.p95` trends past ~4s.
 
@@ -453,6 +471,19 @@ All seven cron routes route through `wrapCronRoute(route, handler)` in `lib/cron
 The read-side `rowToCronRun` in `lib/queries.ts` keeps a display-only fallback: any row still marked `running` past 5 minutes renders as `orphaned`. Backstops the gap between SIGKILL and the next tick's reaper sweep.
 
 The four 2026-05-22 through 2026-05-25 orphan rows that motivated HO 139 are backfilled with `payload='{"backfilled":true,"reason":"pre-HO-139"}'` so they don't pollute future audits.
+
+### GitHub Actions cron (the high-frequency escape hatch, HO 142)
+
+Vercel Hobby caps cron at once-per-day, so any sync that needs to fire more often (every 30 min, hourly, etc.) lives as a GitHub Actions workflow that just POSTs the Vercel-hosted route. Vercel doesn't care the request came from a non-Vercel cron; the function executes normally and writes to the same `cron_runs` table via `wrapCronRoute`.
+
+Pattern:
+
+1. Build the route under `app/api/cron/<name>/route.ts` exactly like a Vercel-cron route — `wrapCronRoute`, Bearer `CRON_SECRET` auth, `maxDuration: 60` in `vercel.json` (so the function runs at function-tier limits even though no Vercel cron schedule references it).
+2. Add `.github/workflows/<name>-tick.yml` with the desired schedule and a `curl -fsS -X POST -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://<deploy-url>/api/cron/<name>` step.
+3. Add `CRON_SECRET` as a GitHub repository secret (same value as the Vercel env var so one secret rotates for both).
+4. First scheduled run may be up to ~15 min delayed — GitHub Actions cron isn't punctual. Fine for refresh-style work; not fine for time-sensitive triggers.
+
+Reuse this for any future high-frequency sync (news refresh, race-rating polling, primary-results scraping). The route is still observable through `cron_runs` because it uses the same wrapper.
 
 ### Cron latency notes
 

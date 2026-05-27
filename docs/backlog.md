@@ -19,3 +19,4 @@ Raw ideas not yet ready for a handoff. Graduate entries to `docs/handoffs/` with
 - **Per-source weighting in media-attention count** (HO 130).
 - **Additional time windows beyond 7d for media-attention** (HO 130).
 - **Filter/sort within Breaking/Top Stalls tab strip** (HO 133).
+- **VIX intraday source.** Stooq doesn't carry it and Yahoo's unauthed endpoints are too unstable for a daily refresh contract. Worth picking back up when a free source emerges or when a paid plan covers it incidentally.

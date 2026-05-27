@@ -348,6 +348,24 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_cron_runs_route_started ON cron_runs(route, started_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status)`,
+  // handoff 142: markets ticker data layer. Append-only history of policy-
+  // effect indicators (SPX/TNX/WTI/DXY in v1; VIX deferred — Stooq doesn't
+  // carry it). Refreshed every 30 min during US market hours by a GitHub
+  // Actions cron (Vercel Hobby caps cron at once daily). `symbol` is the
+  // internal stable identifier; the upstream source/remote-symbol mapping
+  // lives in `lib/markets.ts` and is decoupled from the DB. `change_pct` is
+  // nullable: NULL on the first-ever tick for a symbol (no prior reference)
+  // and on any tick whose source doesn't expose a prior close.
+  `CREATE TABLE IF NOT EXISTS market_ticks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    price REAL NOT NULL,
+    change_pct REAL,
+    ticked_at TEXT NOT NULL,
+    market_date TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_market_ticks_symbol_time
+    ON market_ticks(symbol, ticked_at DESC)`,
 ];
 
 async function ensureColumn(

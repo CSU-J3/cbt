@@ -1,0 +1,24 @@
+name: Markets Tick
+
+# HO 142: refresh the markets ticker every 30 min during US market hours.
+# Vercel Hobby caps cron at once daily, so the schedule lives here and
+# hits the regular HTTP endpoint. CRON_SECRET must be set as a repo
+# secret with the same value as Vercel's CRON_SECRET env var.
+#
+# Schedule drifts with DST: 14:00-20:00 UTC = 09:30-15:30 ET in summer,
+# 09:00-15:00 ET in winter (approx). v1 accepts the edge drift; tighten
+# with date-range conditions if it ever matters.
+on:
+  schedule:
+    - cron: '0,30 14-20 * * 1-5'
+  workflow_dispatch: {}
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit markets endpoint
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://cbt-chi-silk.vercel.app/api/cron/markets
