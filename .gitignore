@@ -25,6 +25,7 @@ Thumbs.db
 *.db-journal
 
 # development screenshots / generated artifacts
+.verify-out/
 cbt-*.png
 
 # scraper HTML cache (handoff 92 — dev convenience, not committed)
