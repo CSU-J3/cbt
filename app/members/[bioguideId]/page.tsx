@@ -14,12 +14,14 @@ import {
   getMember,
   getMemberAffiliations,
   getMemberBills,
+  getMemberCommittees,
   getMemberFundraising,
   getMemberStats,
   getMemberTradeCount,
   getMemberTrades,
   getMemberVotes,
   getMemberVoteStats,
+  type MemberCommitteeRow,
   getPalestineScorecard,
   getPrimaryForRace,
   getRaceRatings,
@@ -34,6 +36,83 @@ export const dynamic = "force-dynamic";
 const BILL_LIMIT = 10;
 const TRADE_LIMIT = 10;
 const VOTE_LIMIT = 20;
+
+// HO 145: committee role → badge style. Chair / Co-Chair / Vice Chair land
+// on the amber accent (the page's leadership color); Ranking Member uses a
+// muted tag style to read as opposition leadership. Anything else (rank-
+// and-file with NULL role, or unexpected free-text roles from the source
+// YAML) returns null so no badge is rendered.
+function roleBadge(
+  role: string | null,
+): { label: string; color: string } | null {
+  if (!role) return null;
+  const r = role.toLowerCase();
+  if (r.includes("ranking")) {
+    return { label: "RANKING", color: "var(--text-muted)" };
+  }
+  if (r.includes("chair")) {
+    // Vice/Co/Acting all roll up into "CHAIR" badge — the role string itself
+    // is shown in the row's title attribute for the exact wording.
+    return { label: "CHAIR", color: "var(--accent-amber)" };
+  }
+  return null;
+}
+
+function CommitteeAssignmentRow({ row }: { row: MemberCommitteeRow }) {
+  const badge = roleBadge(row.role);
+  const isSub = row.parentSystemCode !== null;
+  return (
+    <li
+      className="grid grid-cols-[1fr_auto] items-baseline gap-3 px-4 py-2 border-b"
+      style={{ borderColor: "var(--border-soft)" }}
+    >
+      <span className="min-w-0">
+        {isSub ? (
+          <span
+            className="mr-1.5 text-[12px]"
+            style={{ color: "var(--text-dim)" }}
+            aria-hidden
+          >
+            ↳
+          </span>
+        ) : null}
+        <Link
+          href={`/committee/${row.systemCode}`}
+          className="text-[14px] transition hover:text-[var(--accent-amber-bright)]"
+          style={{ color: "var(--text-primary)" }}
+          title={row.role ?? undefined}
+        >
+          {row.name}
+        </Link>
+        <span
+          className="ml-2 text-[11px] uppercase tracking-[0.5px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {row.chamber === "house"
+            ? "HOUSE"
+            : row.chamber === "senate"
+              ? "SENATE"
+              : "JOINT"}
+          {row.committeeType ? ` · ${row.committeeType}` : ""}
+          {isSub && row.parentName ? ` · ${row.parentName}` : ""}
+        </span>
+      </span>
+      {badge ? (
+        <span
+          className="inline-block px-2 py-[1px] text-[11px] uppercase tracking-[0.5px]"
+          style={{
+            color: badge.color,
+            border: `1px solid ${badge.color}`,
+            borderRadius: "2px",
+          }}
+          title={row.role ?? undefined}
+        >
+          {badge.label}
+        </span>
+      ) : null}
+    </li>
+  );
+}
 
 // USCPR scorecard outcome → vote color (handoff 90). Word-boundary matching so
 // "Not elected" / "Not sponsoring" — which contain the substring "no" — fall
@@ -63,6 +142,7 @@ export default async function MemberPage({
     recentVotes,
     fundraising,
     scorecard,
+    committeeAssignments,
     watchedIds,
   ] = await Promise.all([
     getMember(bioguideId),
@@ -75,6 +155,7 @@ export default async function MemberPage({
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
     getMemberFundraising(bioguideId),
     getPalestineScorecard(bioguideId),
+    getMemberCommittees(bioguideId),
     getWatchedBillIds(),
   ]);
   const watchedSet = new Set(watchedIds);
@@ -206,6 +287,43 @@ export default async function MemberPage({
                       key={b.id}
                       bill={b}
                       onWatchlist={watchedSet.has(b.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section
+              className="mt-6 border"
+              style={{ borderColor: "var(--border-strong)" }}
+            >
+              <div
+                className="flex items-baseline justify-between px-4 py-3"
+                style={{
+                  backgroundColor: "var(--bg-panel)",
+                  borderBottom: "0.5px solid var(--border-strong)",
+                }}
+              >
+                <h2
+                  className="text-[12px] uppercase tracking-[0.5px]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Committees ({committeeAssignments.length})
+                </h2>
+              </div>
+              {committeeAssignments.length === 0 ? (
+                <p
+                  className="px-4 py-4 text-[12px]"
+                  style={{ color: "var(--text-dim)" }}
+                >
+                  No committee assignments on file.
+                </p>
+              ) : (
+                <ul>
+                  {committeeAssignments.map((row) => (
+                    <CommitteeAssignmentRow
+                      key={row.systemCode}
+                      row={row}
                     />
                   ))}
                 </ul>

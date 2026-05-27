@@ -3964,6 +3964,118 @@ export const getCommitteeBySystemCode = unstable_cache(
   { tags: ["committees"], revalidate: 3600 },
 );
 
+// HO 145: cross-link helpers. Both feed detail-page surfaces (member hub
+// and bill detail). Cardinality is small — a member sits on at most a
+// dozen committees, a bill ends up with a handful of referrals — so these
+// are direct joins without aggregation.
+export type MemberCommitteeRow = {
+  systemCode: string;
+  name: string;
+  chamber: "house" | "senate" | "joint";
+  committeeType: string | null;
+  parentSystemCode: string | null;
+  parentName: string | null;
+  role: string | null;
+  partySide: "majority" | "minority" | null;
+  rank: number | null;
+};
+
+export const getMemberCommittees = unstable_cache(
+  async (bioguideId: string): Promise<MemberCommitteeRow[]> => {
+    const db = getDb();
+    // Parents first (Standing → Select → Joint → Task Force → Other by name),
+    // then subcommittees grouped by parent name then their own name. The
+    // "↳ parent" caption on each subcommittee row carries the hierarchy at
+    // render time, so a single sub block under a single sub-header reads
+    // unambiguously.
+    const rs = await db.execute({
+      sql: `SELECT cm.role, cm.party_side, cm.rank,
+                   c.system_code, c.name, c.chamber, c.committee_type,
+                   c.parent_system_code,
+                   p.name AS parent_name
+            FROM committee_members cm
+            JOIN committees c ON c.system_code = cm.committee_system_code
+            LEFT JOIN committees p ON p.system_code = c.parent_system_code
+            WHERE cm.bioguide_id = ? AND c.is_current = 1
+            ORDER BY
+              c.parent_system_code IS NOT NULL ASC,
+              CASE c.committee_type
+                WHEN 'Standing' THEN 1
+                WHEN 'Select' THEN 2
+                WHEN 'Joint' THEN 3
+                WHEN 'Task Force' THEN 4
+                ELSE 5
+              END,
+              COALESCE(p.name, '') ASC,
+              c.name ASC`,
+      args: [bioguideId],
+    });
+    return rs.rows.map((r) => ({
+      systemCode: r.system_code as string,
+      name: r.name as string,
+      chamber: r.chamber as "house" | "senate" | "joint",
+      committeeType: (r.committee_type as string | null) ?? null,
+      parentSystemCode: (r.parent_system_code as string | null) ?? null,
+      parentName: (r.parent_name as string | null) ?? null,
+      role: (r.role as string | null) ?? null,
+      partySide: (r.party_side as "majority" | "minority" | null) ?? null,
+      rank: (r.rank as number | null) ?? null,
+    }));
+  },
+  ["member-committees"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export type BillCommitteeRow = {
+  systemCode: string;
+  name: string;
+  chamber: "house" | "senate" | "joint";
+  parentSystemCode: string | null;
+  parentName: string | null;
+  activityType: string;
+  activityDate: string;
+};
+
+export const getBillCommittees = unstable_cache(
+  async (billId: string): Promise<BillCommitteeRow[]> => {
+    const db = getDb();
+    // Don't dedupe — a "Referred to → Reported by" sequence on the same
+    // committee carries two distinct informational rows; the activity verb
+    // is what makes each one worth showing. NULL activity_date sorted last
+    // so dateless rows don't masquerade as freshest.
+    const rs = await db.execute({
+      sql: `SELECT cb.activity_type, cb.activity_date,
+                   c.system_code, c.name, c.chamber,
+                   c.parent_system_code,
+                   p.name AS parent_name
+            FROM committee_bills cb
+            JOIN committees c ON c.system_code = cb.committee_system_code
+            LEFT JOIN committees p ON p.system_code = c.parent_system_code
+            WHERE cb.bill_id = ?
+            ORDER BY cb.activity_date DESC NULLS LAST, c.name ASC`,
+      args: [billId],
+    });
+    return rs.rows
+      .map((r) => {
+        const activityDate = r.activity_date as string | null;
+        const activityType = r.activity_type as string | null;
+        if (!activityDate || !activityType) return null;
+        return {
+          systemCode: r.system_code as string,
+          name: r.name as string,
+          chamber: r.chamber as "house" | "senate" | "joint",
+          parentSystemCode: (r.parent_system_code as string | null) ?? null,
+          parentName: (r.parent_name as string | null) ?? null,
+          activityType,
+          activityDate,
+        };
+      })
+      .filter((x): x is BillCommitteeRow => x !== null);
+  },
+  ["bill-committees"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
 export const getCommitteeSubcommittees = unstable_cache(
   async (parentSystemCode: string): Promise<Committee[]> => {
     const db = getDb();

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HeaderBar } from "@/components/HeaderBar";
 import { PartyTag } from "@/components/PartyTag";
@@ -9,9 +10,15 @@ import {
   congressGovUrl,
   formatBillId,
   formatDateLong,
+  formatRelativeAgeLong,
   parseTopics,
 } from "@/lib/format";
-import { getBillById, isInWatchlist } from "@/lib/queries";
+import {
+  type BillCommitteeRow,
+  getBillById,
+  getBillCommittees,
+  isInWatchlist,
+} from "@/lib/queries";
 
 const labelStyle: React.CSSProperties = {
   color: "var(--text-dim)",
@@ -47,6 +54,58 @@ function Divider() {
   );
 }
 
+// HO 145: per-committee referral row on the bill detail page. Subcommittees
+// carry their parent name inline (matching the member-hub pattern) so the
+// hierarchy reads without a tree UI.
+function BillCommitteeItem({ row }: { row: BillCommitteeRow }) {
+  const isSub = row.parentSystemCode !== null;
+  const chamberLabel =
+    row.chamber === "house"
+      ? "HOUSE"
+      : row.chamber === "senate"
+        ? "SENATE"
+        : "JOINT";
+  return (
+    <li
+      className="py-1.5 text-[13px]"
+      style={{ color: "var(--text-secondary)" }}
+    >
+      {isSub ? (
+        <span
+          className="mr-1.5 text-[12px]"
+          style={{ color: "var(--text-dim)" }}
+          aria-hidden
+        >
+          ↳
+        </span>
+      ) : null}
+      <Link
+        href={`/committee/${row.systemCode}`}
+        className="transition hover:text-[var(--accent-amber-bright)]"
+        style={{ color: "var(--text-primary)" }}
+      >
+        {row.name}
+      </Link>
+      <span
+        className="ml-2 text-[11px] uppercase tracking-[0.5px]"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {chamberLabel}
+        {isSub && row.parentName ? ` · ${row.parentName}` : ""}
+      </span>
+      <span
+        className="ml-2 text-[12px]"
+        style={{ color: "var(--text-muted)" }}
+      >
+        · {row.activityType} ·{" "}
+        <span className="tabular-nums">
+          {formatRelativeAgeLong(row.activityDate)} ago
+        </span>
+      </span>
+    </li>
+  );
+}
+
 export default async function BillDetailPage({
   params,
 }: {
@@ -56,7 +115,10 @@ export default async function BillDetailPage({
   const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const onWatchlist = await isInWatchlist(bill.id);
+  const [onWatchlist, committees] = await Promise.all([
+    isInWatchlist(bill.id),
+    getBillCommittees(bill.id),
+  ]);
   const url = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
   const topics = parseTopics(bill.topics);
   let formattedRaw = bill.raw_json;
@@ -132,6 +194,26 @@ export default async function BillDetailPage({
               </Field>
             ) : null}
           </div>
+
+          {committees.length > 0 ? (
+            <>
+              <Divider />
+              <div
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
+                style={labelStyle}
+              >
+                Committees ({committees.length})
+              </div>
+              <ul>
+                {committees.map((row, i) => (
+                  <BillCommitteeItem
+                    key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
+                    row={row}
+                  />
+                ))}
+              </ul>
+            </>
+          ) : null}
 
           {bill.summary ? (
             <>
