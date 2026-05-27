@@ -27,16 +27,20 @@ export type NavItemKey = NavKey;
 export type NavItem = {
   key: NavItemKey;
   href: string;
+  /** Glyph rendered separately from the label so the home header can
+   * size icons (16px) independently from text (14px) per the home
+   * dashboard cleanup handoff. */
+  icon: string;
   label: string;
   tooltip: string;
 };
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "dashboard", href: "/", label: "⌂ Dashboard", tooltip: "Dashboard summary" },
-  { key: "feed", href: "/feed", label: "▤ Feed", tooltip: "Bills, news, reports, stage changes, and the president's desk" },
-  { key: "members", href: "/members", label: "👥 Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
-  { key: "patterns", href: "/patterns", label: "⊞ Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
-  { key: "watchlist", href: "/watchlist", label: "★ Watchlist", tooltip: "Bills you've flagged with the watch star" },
+  { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
+  { key: "feed", href: "/feed", icon: "▤", label: "Feed", tooltip: "Bills, news, reports, stage changes, and the president's desk" },
+  { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
+  { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
+  { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
 
 function HeaderNav({ active }: { active: NavItemKey | null }) {
@@ -55,7 +59,7 @@ function HeaderNav({ active }: { active: NavItemKey | null }) {
           className="transition hover:text-[var(--text-secondary)]"
           style={{ color: active === item.key ? amber : undefined }}
         >
-          {item.label}
+          <span aria-hidden>{item.icon}</span> {item.label}
         </Link>
       ))}
     </nav>

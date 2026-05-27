@@ -18,11 +18,17 @@ function chamberClass(billType: string): string {
 export function BillIdRail({
   billType,
   billNumber,
+  tooltip,
 }: {
   billType: string;
   billNumber: number;
+  /** Override the default chamber-label tooltip with a bill-specific
+   * string (e.g. the bill's full title on a feed row). When unset,
+   * falls back to BILL_TYPE_LABELS[billType] from the HO 123 chamber
+   * tooltip convention. */
+  tooltip?: string;
 }) {
-  const label = BILL_TYPE_LABELS[billType];
+  const label = tooltip ?? BILL_TYPE_LABELS[billType];
   return (
     <span className={`bill-rail ${chamberClass(billType)}`} title={label}>
       <span className="rail-type">{billType.toUpperCase()}</span>

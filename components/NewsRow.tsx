@@ -68,7 +68,7 @@ export function NewsRow({
           <span
             className="companions-pill text-[12px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
-            title={otherBills.join(", ")}
+            title={`${otherBills.length} additional related ${otherBills.length === 1 ? "article" : "articles"} (${otherBills.join(", ")})`}
           >
             [+{otherBills.length}]
           </span>

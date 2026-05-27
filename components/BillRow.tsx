@@ -83,6 +83,7 @@ export function BillRow({
         <BillIdRail
           billType={bill.bill_type}
           billNumber={bill.bill_number}
+          tooltip={bill.title}
         />
 
         <span className="row-content">

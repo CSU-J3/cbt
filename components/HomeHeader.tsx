@@ -4,15 +4,13 @@ import { NAV_ITEMS } from "@/components/HeaderBar";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
-// HO 131 / 133 / 134: home-only header chrome. Stack order:
-//   1. prompt + LEAD on the same baseline row (prompt 26px mono,
-//      lead 14px wrapping to its own column to the right; HO 134)
-//   2. `· LAST SYNC · N BILLS TRACKED` meta line (11px dim)
-//   3. full-width nav row (NAV_ITEMS)
-//   4. persistent COLOR KEY stages strip (HO 134), home-only
-//
-// Sits outside the no-scroll grid below; --home-header-height drives
-// the grid's height calc so the no-scroll body fits exactly.
+// Home-only header chrome (home-dashboard-cleanup). Two-row structure:
+//   Row 1: title block (prompt + LEAD on baseline + META line) on the
+//          left, boxed COLOR KEY legend (~240px) on the right.
+//   Row 2: full-width nav strip — 14px text, 16px icons, active state
+//          = amber-bright text + 2px amber bottom border.
+// At < 1280px the top row flows to a column so the legend stacks below
+// the title block.
 export async function HomeHeader() {
   const [corpus, lead] = await Promise.all([
     getCorpusStats(),
@@ -21,25 +19,29 @@ export async function HomeHeader() {
 
   return (
     <header className="home-header">
-      <div className="home-header-title">
-        <div className="home-header-prompt-row">
-          <Link
-            href="/"
-            className="terminal-prompt"
-            aria-label="Congress Terminal home"
-          >
-            Congress Terminal<span className="prompt-accent">{":\\>"}</span>
-          </Link>
+      <div className="home-header-top">
+        <div className="home-header-title">
+          <div className="home-header-prompt-row">
+            <Link
+              href="/"
+              className="terminal-prompt"
+              aria-label="Congress Terminal home"
+            >
+              Congress Terminal<span className="prompt-accent">{":\\>"}</span>
+            </Link>
 
-          {lead?.text ? (
-            <p className="home-header-lead">{lead.text}</p>
-          ) : null}
+            {lead?.text ? (
+              <p className="home-header-lead">{lead.text}</p>
+            ) : null}
+          </div>
+
+          <p className="home-header-meta">
+            · LAST SYNC {formatLastUpdated(corpus.lastSync)} ·{" "}
+            {corpus.total.toLocaleString()} BILLS TRACKED
+          </p>
         </div>
 
-        <p className="home-header-meta">
-          · LAST SYNC {formatLastUpdated(corpus.lastSync)} ·{" "}
-          {corpus.total.toLocaleString()} BILLS TRACKED
-        </p>
+        <ColorKeyStrip />
       </div>
 
       <nav className="home-header-nav" aria-label="Primary navigation">
@@ -49,17 +51,15 @@ export async function HomeHeader() {
             href={item.href}
             title={item.tooltip}
             aria-label={item.tooltip}
-            style={{
-              color:
-                item.key === "dashboard" ? "var(--accent-amber)" : undefined,
-            }}
+            aria-current={item.key === "dashboard" ? "page" : undefined}
           >
-            {item.label}
+            <span className="nav-icon" aria-hidden>
+              {item.icon}
+            </span>
+            <span className="nav-label">{item.label}</span>
           </Link>
         ))}
       </nav>
-
-      <ColorKeyStrip />
     </header>
   );
 }

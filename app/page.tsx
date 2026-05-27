@@ -2,18 +2,17 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { DashboardBillsDrawer } from "@/components/DashboardBillsDrawer";
 import {
   type BubbleDatum,
   DashboardBubbleChart,
 } from "@/components/DashboardBubbleChart";
-import { DashboardDrawerBody } from "@/components/DashboardDrawerBody";
 import { HomeHeader } from "@/components/HomeHeader";
+import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
-import { STAGE_LABELS, type Stage } from "@/lib/enums";
 import {
   type DashboardFilters,
   getBreakingNewsForHomeCount,
+  getCorpusStats,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
@@ -24,34 +23,22 @@ import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 const TOP_STALLS_COUNT = 5;
 
-const STAGE_BUBBLE_LABELS: Record<Stage, string> = {
-  introduced: "INTRO",
-  committee: "COMMITTEE",
-  floor: "FLOOR",
-  other_chamber: "OTHER CHAMBER",
-  president: "PRESIDENT",
-  enacted: "ENACTED",
-};
-
-const STAGE_BUBBLE_COLORS: Record<Stage, string> = {
-  introduced: "var(--stage-introduced)",
-  committee: "var(--stage-committee)",
-  floor: "var(--stage-floor)",
-  other_chamber: "var(--stage-other-chamber)",
-  president: "var(--stage-president)",
-  enacted: "var(--stage-enacted)",
-};
-
+// Home-dashboard-cleanup layout. Three-column grid:
+//   Col 1 (1.2fr) — STAGE DISTRIBUTION funnel (220px fixed) stacked
+//                  over TOPIC DISTRIBUTION bubbles (flex-1).
+//   Col 2 (1fr)   — ACTIVITY / TOP STALLS tabs.
+//   Col 3 (1fr)   — BREAKING · LAST 72H.
+//
+// Drawer pattern dropped: clicks on a funnel row or a topic bubble
+// rebase the dashboard in place. ACTIVITY and BREAKING both rebase
+// (count + rows) to the filtered slice; the bubble chart rebases sizes
+// when STAGE is selected; the funnel rebases counts when TOPIC is
+// selected. Lead in the header stays corpus-wide (per HO 57).
 type SearchParams = {
   stage?: string;
   topics?: string;
 };
 
-// HO 132 dashboard layout. Row 1: BREAKING single-view | ACTIVITY +
-// STALLS tabs. Row 2: STAGE DISTRIBUTION bubbles | TOPIC DISTRIBUTION
-// bubbles, 50/50. Both bubble charts feed off the existing
-// getStageDistribution / getTopicDistribution queries and link to
-// /feed with the appropriate filter param (?stage= or ?topics=).
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -63,30 +50,35 @@ export default async function DashboardPage({
     topic: sanitizeTopic(sp.topics),
   };
 
-  const [breakingCount, activityCount, stageDist, topicRows] = await Promise.all([
-    getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7 }),
-    getStageChangesCount({}, 7),
-    getStageDistribution(filters),
-    getTopicDistribution(filters),
-  ]);
+  const [breakingCount, activityCount, stageDist, topicRows, corpus] =
+    await Promise.all([
+      getBreakingNewsForHomeCount({
+        hours: 72,
+        minConfidence: 0.7,
+        filters,
+      }),
+      getStageChangesCount({}, 7, filters),
+      getStageDistribution(filters),
+      getTopicDistribution(filters),
+      getCorpusStats(),
+    ]);
 
-  // getStageDistribution returns all 6 FUNNEL_STAGES (zero-filled), so
-  // president stays in the chart at zero-count rendering when it's empty.
-  const stageData: BubbleDatum[] = stageDist.bars.map((b) => ({
-    id: b.stage,
-    label: STAGE_BUBBLE_LABELS[b.stage],
-    count: b.count,
-    color: STAGE_BUBBLE_COLORS[b.stage],
-    tooltip: `${STAGE_LABELS[b.stage]} — ${b.count.toLocaleString()} bills`,
-  }));
-
-  const topicData: BubbleDatum[] = topicRows.map((t) => ({
-    id: t.topic,
-    label: topicLabel(t.topic),
-    count: t.count,
-    color: topicColor(t.topic),
-    tooltip: `${topicFullLabel(t.topic)} — ${t.count.toLocaleString()} bills`,
-  }));
+  // Topic-bubble tooltip carries percentage of the (corpus-wide,
+  // non-ceremonial) total — distinct from the topic-distribution
+  // query's count, which is a *tag count* (bills can have multiple
+  // topics). Percentage uses corpus.total as the denominator so the
+  // number reads as "share of all bills tagged with this topic."
+  const corpusTotal = corpus.total;
+  const topicData: BubbleDatum[] = topicRows.map((t) => {
+    const pct = corpusTotal > 0 ? (t.count / corpusTotal) * 100 : 0;
+    return {
+      id: t.topic,
+      label: topicLabel(t.topic),
+      count: t.count,
+      color: topicColor(t.topic),
+      tooltip: `${topicFullLabel(t.topic)} · ${t.count.toLocaleString()} bills · ${pct.toFixed(1)}%`,
+    };
+  });
 
   return (
     <div className="home-shell">
@@ -95,18 +87,34 @@ export default async function DashboardPage({
 
       <main className="home-main">
         <div className="home-grid">
-          <section className="home-quadrant">
-            <p className="home-quadrant-label">
-              Breaking · Last 72h{" "}
-              <span className="home-quadrant-label-count">
-                ({breakingCount.toLocaleString()})
-              </span>
-            </p>
-            <div className="home-quadrant-body">
-              <BreakingNewsBlock />
-            </div>
-          </section>
+          {/* Col 1: STAGE funnel + TOPIC bubbles stacked */}
+          <div className="home-col-stack">
+            <section className="home-quadrant home-panel-stage">
+              <p
+                className="home-quadrant-label"
+                title="All bills by current legislative stage"
+              >
+                Stage Distribution
+              </p>
+              <div className="home-quadrant-body">
+                <StageFunnel bars={stageDist.bars} />
+              </div>
+            </section>
 
+            <section className="home-quadrant home-panel-topic">
+              <p
+                className="home-quadrant-label"
+                title="All bills by topic tag"
+              >
+                Topic Distribution
+              </p>
+              <div className="home-quadrant-body">
+                <DashboardBubbleChart data={topicData} paramKey="topics" />
+              </div>
+            </section>
+          </div>
+
+          {/* Col 2: ACTIVITY / TOP STALLS tabs */}
           <section className="home-quadrant">
             <ActivityTabs
               activityContent={<ActivityTicker filters={filters} />}
@@ -116,27 +124,23 @@ export default async function DashboardPage({
             />
           </section>
 
+          {/* Col 3: BREAKING · LAST 72H */}
           <section className="home-quadrant">
-            <p className="home-quadrant-label">Stage Distribution</p>
+            <p
+              className="home-quadrant-label"
+              title="Recent news linked to tracked bills"
+            >
+              Breaking · Last 72h{" "}
+              <span className="home-quadrant-label-count">
+                ({breakingCount.toLocaleString()})
+              </span>
+            </p>
             <div className="home-quadrant-body">
-              <DashboardBubbleChart data={stageData} paramKey="stage" />
-            </div>
-          </section>
-
-          <section className="home-quadrant">
-            <p className="home-quadrant-label">Topic Distribution</p>
-            <div className="home-quadrant-body">
-              <DashboardBubbleChart data={topicData} paramKey="topics" />
+              <BreakingNewsBlock filters={filters} />
             </div>
           </section>
         </div>
       </main>
-
-      <DashboardBillsDrawer>
-        {filters.stage || filters.topic ? (
-          <DashboardDrawerBody stage={filters.stage} topic={filters.topic} />
-        ) : null}
-      </DashboardBillsDrawer>
     </div>
   );
 }

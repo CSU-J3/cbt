@@ -1771,12 +1771,26 @@ export const getBreakingNewsForHome = unstable_cache(
     limit = 3,
     hours = 72,
     minConfidence = 0.7,
+    filters,
   }: {
     limit?: number;
     hours?: number;
     minConfidence?: number;
+    /** Dashboard click-to-filter state. Stage matches `bills.stage = ?`;
+     * topic narrows via `json_each` EXISTS. Each filter combination gets
+     * its own cache slot (args are part of unstable_cache's key). */
+    filters?: DashboardFilters;
   } = {}): Promise<NewsMention[]> => {
     const db = getDb();
+    const stage = filters?.stage;
+    const topic = filters?.topic;
+    const stageClause = stage ? " AND b.stage = ?" : "";
+    const topicClause = topic
+      ? " AND EXISTS (SELECT 1 FROM json_each(b.topics) WHERE value = ?)"
+      : "";
+    const filterArgs: (string | number)[] = [];
+    if (stage) filterArgs.push(stage);
+    if (topic) filterArgs.push(topic);
     const rs = await db.execute({
       sql: `WITH ranked AS (
               SELECT
@@ -1805,7 +1819,7 @@ export const getBreakingNewsForHome = unstable_cache(
               INNER JOIN bills b ON b.id = m.bill_id
               WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
                 AND m.match_confidence >= ?
-                AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+                AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)${stageClause}${topicClause}
             ),
             others AS (
               SELECT
@@ -1831,7 +1845,7 @@ export const getBreakingNewsForHome = unstable_cache(
             WHERE pm.rn = 1
             ORDER BY pm.published_at DESC, pm.id DESC
             LIMIT ?`,
-      args: [hours, minConfidence, limit],
+      args: [hours, minConfidence, ...filterArgs, limit],
     });
     return rs.rows.map((r) => {
       const otherBillsRaw = r.other_bill_ids as string;
@@ -1871,11 +1885,25 @@ export const getBreakingNewsForHomeCount = unstable_cache(
   async ({
     hours = 72,
     minConfidence = 0.7,
+    filters,
   }: {
     hours?: number;
     minConfidence?: number;
+    /** Dashboard click-to-filter state. Must match getBreakingNewsForHome's
+     * filter shape exactly so the count and the rows refer to the same
+     * article universe. */
+    filters?: DashboardFilters;
   } = {}): Promise<number> => {
     const db = getDb();
+    const stage = filters?.stage;
+    const topic = filters?.topic;
+    const stageClause = stage ? " AND b.stage = ?" : "";
+    const topicClause = topic
+      ? " AND EXISTS (SELECT 1 FROM json_each(b.topics) WHERE value = ?)"
+      : "";
+    const filterArgs: (string | number)[] = [];
+    if (stage) filterArgs.push(stage);
+    if (topic) filterArgs.push(topic);
     const rs = await db.execute({
       sql: `SELECT COUNT(DISTINCT COALESCE(
               m.article_url,
@@ -1885,8 +1913,8 @@ export const getBreakingNewsForHomeCount = unstable_cache(
             INNER JOIN bills b ON b.id = m.bill_id
             WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
               AND m.match_confidence >= ?
-              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)`,
-      args: [hours, minConfidence],
+              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)${stageClause}${topicClause}`,
+      args: [hours, minConfidence, ...filterArgs],
     });
     return Number(rs.rows[0]?.n ?? 0);
   },
@@ -1996,32 +2024,6 @@ export const getFeedBills = unstable_cache(
   },
   ["getFeedBills"],
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
-);
-
-// HO 132.1 dashboard drawer. Thin wrapper over getFeedBills that takes
-// the dashboard's single-topic param shape ({ stage?, topic? }) and
-// caps results at a small drawer limit. Returns total alongside the
-// rows so the drawer header can show "N bills" without a second query.
-export type DashboardDrawerBills = {
-  bills: FeedBill[];
-  total: number;
-};
-export const getDashboardDrawerBills = unstable_cache(
-  async (
-    filters: { stage?: Stage; topic?: Topic },
-    limit = 10,
-  ): Promise<DashboardDrawerBills> => {
-    const { bills, total } = await getFeedBills(
-      {
-        stage: filters.stage,
-        topics: filters.topic ? [filters.topic] : undefined,
-      },
-      { page: 1, pageSize: limit },
-    );
-    return { bills, total };
-  },
-  ["getDashboardDrawerBills"],
-  { revalidate: 3600, tags: ["bills"] },
 );
 
 export type FeedCount = {
@@ -2702,15 +2704,26 @@ export const getStageChanges = unstable_cache(
 );
 
 export const getStageChangesCount = unstable_cache(
-  async (filters: FeedFilters, days = 7): Promise<FeedCount> => {
+  async (
+    filters: FeedFilters,
+    days = 7,
+    dashboard?: DashboardFilters,
+  ): Promise<FeedCount> => {
     const db = getDb();
     const { clauses: filteredClauses, args: filteredArgs } = buildChangesWhere(
       filters,
       days,
+      dashboard,
     );
+    // `total` here is "all changes inside the active filter context" — the
+    // ACTIVITY tab badge consumes .total, so the dashboard-filter slice has
+    // to ride into both the total and the filtered query for the badge to
+    // rebase alongside the rows. /changes never passes `dashboard`, so its
+    // behavior is unchanged.
     const { clauses: totalClauses, args: totalArgs } = buildChangesWhere(
       {},
       days,
+      dashboard,
     );
     const totalRs = await db.execute({
       sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,

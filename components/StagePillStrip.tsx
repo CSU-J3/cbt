@@ -1,4 +1,3 @@
-import { STAGE_LABELS, type Stage } from "@/lib/enums";
 import { formatRelativeAgeLong } from "@/lib/format";
 
 // Three-state stage display (HO 125). Pre-flight found only 3% of bills
@@ -38,8 +37,19 @@ function stageColor(stage: string): string {
   return STAGE_COLOR[stage] ?? "var(--text-muted)";
 }
 
-function stageTitle(stage: string): string | undefined {
-  return STAGE_LABELS[stage as Stage] ?? undefined;
+function stageDisplay(stage: string): string {
+  // "other_chamber" → "Other chamber", "introduced" → "Introduced".
+  const spaced = stage.replace(/_/g, " ");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+// Expanded form per the home-dashboard-cleanup tooltip audit: "2 weeks
+// in Introduced" rather than the descriptive STAGE_LABELS prose. Falls
+// back to a stage-only sentence when `age` isn't available (the 14k
+// legacy committee bills without a recorded stage_changed_at).
+function stageTitle(stage: string, age: string | null): string {
+  const name = stageDisplay(stage);
+  return age ? `${age} in ${name}` : `In ${name}`;
 }
 
 function StagePill({
@@ -55,7 +65,7 @@ function StagePill({
     <span
       className={`stage-pill${history ? " stage-pill--history" : ""}`}
       style={{ color: stageColor(stage) }}
-      title={stageTitle(stage)}
+      title={stageTitle(stage, age)}
     >
       <span>{stage.replace(/_/g, " ").toUpperCase()}</span>
       {age ? (
