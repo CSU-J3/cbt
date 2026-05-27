@@ -465,6 +465,8 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 
 **The wrapper is the durability floor.** Whenever Gemini or any downstream dependency has a slow day, the HO 139 `wrapCronRoute` finalizes the row as `status='timeout'` (HTTP 504) cleanly at 55s instead of stranding it as a `running` row past the SIGKILL. That gives the on-call signal a name without forcing an immediate code change — a recurrence is a row to read, not a mystery.
 
+**HO 135 watch.** `/api/sync` hit 53s on the 2026-05-27 scheduled tick (2s under the 55s floor). One datapoint, not a trend. Trigger for Phase 2 (HO 120-style per-unit cursor commit on `runSync`'s diff loop): next timeout or a clear pattern across 3 ticks. Re-run `scripts/diagnostic/cron-health-135.ts` to refresh the read.
+
 ### Backfill scripts
 
 - `npm run backfill:cosponsors` — pure SQL `json_extract` from `raw_json` into `cosponsor_count`. No API calls, instant. Idempotent via `WHERE cosponsor_count IS NULL`. JSON path is `$.cosponsors.count` (the sync stores `detailRes.bill` directly as `raw_json`, not the outer wrapper).
