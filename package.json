@@ -16,7 +16,6 @@
     "backfill:text-length": "tsx scripts/backfill-text-length.ts",
     "backfill:bioguide-ids": "tsx scripts/backfill-bioguide-ids.ts",
     "backfill:laws": "tsx scripts/backfill-historical-laws.ts",
-    "backfill:committee-bills": "tsx scripts/backfill-committee-bills.ts",
     "sync:members": "tsx scripts/sync-members.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",
     "backfill:races": "tsx scripts/backfill-races.ts",
