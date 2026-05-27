@@ -28,6 +28,7 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   ],
   members: [
     { slug: "members", label: "Members", href: "/members" },
+    { slug: "committees", label: "Committees", href: "/committees" },
     { slug: "races", label: "Races", href: "/races" },
     { slug: "primaries", label: "Primaries", href: "/primaries" },
   ],

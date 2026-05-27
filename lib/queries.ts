@@ -3705,16 +3705,36 @@ export const getCommittees = unstable_cache(
   { tags: ["committees"], revalidate: 3600 },
 );
 
+// HO 144: each row carries the per-committee activity context (the latest
+// `committee_bills` row for that pair) so the detail page can render
+// "Referred to · 3d ago" alongside the BillRow, distinct from the global
+// `latest_action_*` fields the row already shows for the bill as a whole.
+export type CommitteeBillRow = {
+  bill: FeedBill;
+  activityType: string | null;
+  activityDate: string | null;
+};
+
 export const getCommitteeBills = unstable_cache(
-  async (systemCode: string, limit = 50): Promise<FeedBill[]> => {
+  async (
+    systemCode: string,
+    limit = 50,
+    sinceDays?: number,
+  ): Promise<CommitteeBillRow[]> => {
     const db = getDb();
     // Most recent activity per (bill, committee) — DISTINCT bill_id keyed by
     // MAX(activity_date) so a bill referred and later reported shows once.
+    // The outer JOIN back to committee_bills picks the matching activity_type
+    // for that latest row so the caller gets the verb alongside the date.
+    const sinceClause = sinceDays
+      ? `AND activity_date >= datetime('now', '-${sinceDays} days')`
+      : "";
     const rs = await db.execute({
       sql: `WITH cb AS (
               SELECT bill_id, MAX(activity_date) AS latest_activity
               FROM committee_bills
               WHERE committee_system_code = ?
+                ${sinceClause}
               GROUP BY bill_id
             )
             SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number,
@@ -3723,33 +3743,43 @@ export const getCommitteeBills = unstable_cache(
                    bills.latest_action_date, bills.latest_action_text,
                    bills.update_date, bills.summary, bills.topics, bills.stage,
                    bills.previous_stage, bills.stage_changed_at,
+                   cb.latest_activity AS activity_date,
+                   (SELECT activity_type FROM committee_bills cb2
+                    WHERE cb2.committee_system_code = ?
+                      AND cb2.bill_id = cb.bill_id
+                      AND cb2.activity_date = cb.latest_activity
+                    LIMIT 1) AS activity_type,
                    ${MENTION_SELECT}
             FROM cb
             JOIN bills ON bills.id = cb.bill_id
             ${MENTION_SUBQUERY}
             ORDER BY cb.latest_activity DESC NULLS LAST, bills.update_date DESC
             LIMIT ?`,
-      args: [systemCode, limit],
+      args: [systemCode, systemCode, limit],
     });
     return rs.rows.map((r) => ({
-      id: r.id as string,
-      congress: r.congress as number,
-      bill_type: r.bill_type as string,
-      bill_number: r.bill_number as number,
-      title: r.title as string,
-      sponsor_name: (r.sponsor_name as string | null) ?? null,
-      sponsor_party: (r.sponsor_party as string | null) ?? null,
-      sponsor_state: (r.sponsor_state as string | null) ?? null,
-      introduced_date: (r.introduced_date as string | null) ?? null,
-      latest_action_date: (r.latest_action_date as string | null) ?? null,
-      latest_action_text: (r.latest_action_text as string | null) ?? null,
-      update_date: r.update_date as string,
-      summary: (r.summary as string | null) ?? null,
-      topics: (r.topics as string | null) ?? null,
-      stage: (r.stage as string | null) ?? null,
-      previous_stage: (r.previous_stage as string | null) ?? null,
-      stage_changed_at: (r.stage_changed_at as string | null) ?? null,
-      mentionCount7d: Number(r.mention_count_7d ?? 0),
+      bill: {
+        id: r.id as string,
+        congress: r.congress as number,
+        bill_type: r.bill_type as string,
+        bill_number: r.bill_number as number,
+        title: r.title as string,
+        sponsor_name: (r.sponsor_name as string | null) ?? null,
+        sponsor_party: (r.sponsor_party as string | null) ?? null,
+        sponsor_state: (r.sponsor_state as string | null) ?? null,
+        introduced_date: (r.introduced_date as string | null) ?? null,
+        latest_action_date: (r.latest_action_date as string | null) ?? null,
+        latest_action_text: (r.latest_action_text as string | null) ?? null,
+        update_date: r.update_date as string,
+        summary: (r.summary as string | null) ?? null,
+        topics: (r.topics as string | null) ?? null,
+        stage: (r.stage as string | null) ?? null,
+        previous_stage: (r.previous_stage as string | null) ?? null,
+        stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+        mentionCount7d: Number(r.mention_count_7d ?? 0),
+      },
+      activityType: (r.activity_type as string | null) ?? null,
+      activityDate: (r.activity_date as string | null) ?? null,
     }));
   },
   ["committee-bills"],
@@ -3812,6 +3842,150 @@ export const getCommitteeActivity = unstable_cache(
     }));
   },
   ["committee-activity"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+// HO 144: committee index helpers. The index page wants per-committee
+// aggregates (member count + recent-30d bill count) so it can sort by
+// activity/name/members without N+1 queries. Subcommittees show as their
+// own rows alongside top-level committees — the index is intentionally a
+// flat list (see HO 144 "Subcommittees in the index" note).
+export type CommitteeIndexRow = {
+  systemCode: string;
+  name: string;
+  chamber: "house" | "senate" | "joint";
+  committeeType: string | null;
+  parentSystemCode: string | null;
+  url: string | null;
+  memberCount: number;
+  recentBillCount: number; // distinct bills with activity in the last 30 days
+};
+
+export const COMMITTEE_INDEX_SORTS = ["activity", "name", "members"] as const;
+export type CommitteeIndexSort = (typeof COMMITTEE_INDEX_SORTS)[number];
+const COMMITTEE_INDEX_SORTS_SET = new Set<string>(COMMITTEE_INDEX_SORTS);
+
+export const COMMITTEE_CHAMBERS = ["house", "senate", "joint"] as const;
+export type CommitteeChamber = (typeof COMMITTEE_CHAMBERS)[number];
+const COMMITTEE_CHAMBERS_SET = new Set<string>(COMMITTEE_CHAMBERS);
+
+export function sanitizeCommitteeSort(
+  raw: string | null | undefined,
+): CommitteeIndexSort {
+  if (raw && COMMITTEE_INDEX_SORTS_SET.has(raw))
+    return raw as CommitteeIndexSort;
+  return "activity";
+}
+
+export function sanitizeCommitteeChamber(
+  raw: string | null | undefined,
+): CommitteeChamber | undefined {
+  if (raw && COMMITTEE_CHAMBERS_SET.has(raw)) return raw as CommitteeChamber;
+  return undefined;
+}
+
+export const getCommitteesIndex = unstable_cache(
+  async (filters?: {
+    chamber?: CommitteeChamber;
+    sort?: CommitteeIndexSort;
+  }): Promise<CommitteeIndexRow[]> => {
+    const db = getDb();
+    const sort = filters?.sort ?? "activity";
+    const orderBy =
+      sort === "name"
+        ? "c.name ASC"
+        : sort === "members"
+          ? "member_count DESC, c.name ASC"
+          : "recent_count DESC, c.name ASC";
+    const chamberClause = filters?.chamber ? "AND c.chamber = ?" : "";
+    const args: (string | number)[] = filters?.chamber
+      ? [filters.chamber]
+      : [];
+    const rs = await db.execute({
+      sql: `SELECT
+              c.system_code, c.name, c.chamber, c.committee_type,
+              c.parent_system_code, c.url,
+              COALESCE(cm.member_count, 0) AS member_count,
+              COALESCE(cb.recent_count, 0) AS recent_count
+            FROM committees c
+            LEFT JOIN (
+              SELECT committee_system_code, COUNT(*) AS member_count
+              FROM committee_members
+              GROUP BY committee_system_code
+            ) cm ON cm.committee_system_code = c.system_code
+            LEFT JOIN (
+              SELECT committee_system_code,
+                     COUNT(DISTINCT bill_id) AS recent_count
+              FROM committee_bills
+              WHERE activity_date >= datetime('now', '-30 days')
+              GROUP BY committee_system_code
+            ) cb ON cb.committee_system_code = c.system_code
+            WHERE c.is_current = 1 ${chamberClause}
+            ORDER BY ${orderBy}`,
+      args,
+    });
+    return rs.rows.map((r) => ({
+      systemCode: r.system_code as string,
+      name: r.name as string,
+      chamber: r.chamber as "house" | "senate" | "joint",
+      committeeType: (r.committee_type as string | null) ?? null,
+      parentSystemCode: (r.parent_system_code as string | null) ?? null,
+      url: (r.url as string | null) ?? null,
+      memberCount: Number(r.member_count ?? 0),
+      recentBillCount: Number(r.recent_count ?? 0),
+    }));
+  },
+  ["committees-index"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export const getCommitteeBySystemCode = unstable_cache(
+  async (systemCode: string): Promise<Committee | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT system_code, name, chamber, committee_type,
+              parent_system_code, url, is_current
+            FROM committees WHERE system_code = ? LIMIT 1`,
+      args: [systemCode],
+    });
+    const r = rs.rows[0];
+    if (!r) return null;
+    return {
+      systemCode: r.system_code as string,
+      name: r.name as string,
+      chamber: r.chamber as "house" | "senate" | "joint",
+      committeeType: (r.committee_type as string | null) ?? null,
+      parentSystemCode: (r.parent_system_code as string | null) ?? null,
+      url: (r.url as string | null) ?? null,
+      isCurrent: Number(r.is_current) === 1,
+    };
+  },
+  ["committee-by-system-code"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export const getCommitteeSubcommittees = unstable_cache(
+  async (parentSystemCode: string): Promise<Committee[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT system_code, name, chamber, committee_type,
+              parent_system_code, url, is_current
+            FROM committees
+            WHERE parent_system_code = ? AND is_current = 1
+            ORDER BY name`,
+      args: [parentSystemCode],
+    });
+    return rs.rows.map((r) => ({
+      systemCode: r.system_code as string,
+      name: r.name as string,
+      chamber: r.chamber as "house" | "senate" | "joint",
+      committeeType: (r.committee_type as string | null) ?? null,
+      parentSystemCode: (r.parent_system_code as string | null) ?? null,
+      url: (r.url as string | null) ?? null,
+      isCurrent: Number(r.is_current) === 1,
+    }));
+  },
+  ["committee-subcommittees"],
   { tags: ["committees"], revalidate: 3600 },
 );
 
