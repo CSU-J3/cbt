@@ -4,6 +4,8 @@
 // window and rendered with BillRow + a per-committee activity caption.
 import Link from "next/link";
 import { BillRow } from "@/components/BillRow";
+import { CommitteeActivityChart } from "@/components/CommitteeActivityChart";
+import { CommitteeTopicDistribution } from "@/components/CommitteeTopicDistribution";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { daysSince } from "@/lib/format";
@@ -265,6 +267,52 @@ export default async function CommitteeDetailPage({
             </p>
           ) : null}
         </section>
+
+        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-[3fr_2fr]">
+          <section
+            className="border"
+            style={{ borderColor: "var(--border-strong)" }}
+          >
+            <div
+              className="border-b px-3 py-2"
+              style={{
+                backgroundColor: "var(--bg-panel)",
+                borderColor: "var(--border-strong)",
+              }}
+            >
+              <span
+                className="text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Activity by month · current Congress
+              </span>
+            </div>
+            <div className="px-3 py-2">
+              <CommitteeActivityChart systemCode={committee.systemCode} />
+            </div>
+          </section>
+
+          <section
+            className="border"
+            style={{ borderColor: "var(--border-strong)" }}
+          >
+            <div
+              className="border-b px-3 py-2"
+              style={{
+                backgroundColor: "var(--bg-panel)",
+                borderColor: "var(--border-strong)",
+              }}
+            >
+              <span
+                className="text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Topic mix · non-ceremonial
+              </span>
+            </div>
+            <CommitteeTopicDistribution systemCode={committee.systemCode} />
+          </section>
+        </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_3fr]">
           <section

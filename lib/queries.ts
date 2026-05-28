@@ -3786,6 +3786,106 @@ export const getCommitteeBills = unstable_cache(
   { tags: ["committees"], revalidate: 3600 },
 );
 
+// HO 146: chart helpers for /committee/[systemCode]. Both aggregate in SQL
+// against the same indices `getCommitteeBills` rides on; no per-row fan-out.
+export type CommitteeActivityBucket =
+  | "Referred"
+  | "Markup"
+  | "Reported"
+  | "Other";
+
+export type CommitteeActivityPeriodRow = {
+  month: string; // 'YYYY-MM'
+  bucket: CommitteeActivityBucket;
+  count: number;
+};
+
+// Raw `committee_bills.activity_type` collapse for chart stacking. Phase 1
+// (HO 146) found 10 distinct raw values, dominated by "Referred To" (~86%).
+// Mapping (after LOWER() normalization to fix the "Discharged From" vs
+// "Discharged from" case-dup found in Phase 1):
+//   referred to                              → Referred
+//   markup by                                → Markup
+//   reported by, reported original measure   → Reported
+//   discharged from, hearings by (full ...), → Other
+//   unknown, bills of interest - …, null
+const ACTIVITY_TYPE_BUCKET_SQL = `
+  CASE LOWER(activity_type)
+    WHEN 'referred to' THEN 'Referred'
+    WHEN 'markup by' THEN 'Markup'
+    WHEN 'reported by' THEN 'Reported'
+    WHEN 'reported original measure' THEN 'Reported'
+    ELSE 'Other'
+  END`;
+
+// Monthly-bucketed activity counts for the committee, stacked by collapsed
+// activity_type. Scoped to the 119th Congress to match BillsTimeSeries'
+// "current Congress" convention; rolls over with the corpus.
+export const getCommitteeActivityByPeriod = unstable_cache(
+  async (systemCode: string): Promise<CommitteeActivityPeriodRow[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT substr(cb.activity_date, 1, 7) AS month,
+                   ${ACTIVITY_TYPE_BUCKET_SQL} AS bucket,
+                   COUNT(*) AS n
+            FROM committee_bills cb
+            JOIN bills b ON b.id = cb.bill_id
+            WHERE cb.committee_system_code = ?
+              AND cb.activity_date IS NOT NULL
+              AND b.congress = (SELECT MAX(congress) FROM bills)
+            GROUP BY month, bucket
+            ORDER BY month, bucket`,
+      args: [systemCode],
+    });
+    return rs.rows.map((r) => ({
+      month: r.month as string,
+      bucket: r.bucket as CommitteeActivityBucket,
+      count: Number(r.n ?? 0),
+    }));
+  },
+  ["committee-activity-by-period"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
+export type CommitteeTopicMixRow = { topic: Topic; count: number };
+
+// Topic distribution for one committee. JOIN committee_bills → bills, exclude
+// ceremonial, json_each fanout on bills.topics, COUNT(DISTINCT bill_id) so a
+// referred-then-reported bill counts once. Corpus-wide (no congress filter),
+// matching getTopicMixByChamber's convention — the committee's whole topic
+// footprint, not just this session.
+export const getCommitteeTopicMix = unstable_cache(
+  async (systemCode: string): Promise<CommitteeTopicMixRow[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT je.value AS topic,
+                   COUNT(DISTINCT cb.bill_id) AS n
+            FROM committee_bills cb
+            JOIN bills b ON b.id = cb.bill_id, json_each(b.topics) je
+            WHERE cb.committee_system_code = ?
+              AND b.topics IS NOT NULL
+              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+            GROUP BY je.value
+            ORDER BY n DESC`,
+      args: [systemCode],
+    });
+    const result: CommitteeTopicMixRow[] = [];
+    for (const r of rs.rows) {
+      const topic = r.topic as string;
+      if (!ALLOWED_TOPICS_SET.has(topic)) {
+        console.warn(
+          `[getCommitteeTopicMix] skipping unknown topic: ${topic}`,
+        );
+        continue;
+      }
+      result.push({ topic: topic as Topic, count: Number(r.n ?? 0) });
+    }
+    return result;
+  },
+  ["committee-topic-mix"],
+  { tags: ["committees"], revalidate: 3600 },
+);
+
 export const getCommitteeMembers = unstable_cache(
   async (systemCode: string): Promise<CommitteeMember[]> => {
     const db = getDb();
