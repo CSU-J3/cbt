@@ -1,17 +1,19 @@
 import Link from "next/link";
-import { ChamberToggle } from "@/components/ChamberToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { MemberProductivityScatter } from "@/components/MemberProductivityScatter";
 import { Pagination } from "@/components/Pagination";
 import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
 import { SearchBox } from "@/components/SearchBox";
+import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
-import { SponsorProductivityScatter } from "@/components/SponsorProductivityScatter";
-import { SponsorSortToggle } from "@/components/SponsorSortToggle";
 import { StateFilter } from "@/components/StateFilter";
 import { isPalestineGrade } from "@/lib/palestine-config";
 import {
+  type Chamber,
+  getMemberAffiliations,
+  getMemberCommittees,
   getMemberStates,
   getMembersRanked,
   getMembersRankedCount,
@@ -62,9 +64,6 @@ export default async function MembersPage({
       ? params.q.trim()
       : undefined;
 
-  // State dropdown is gated by which abbreviations actually exist in the
-  // current roster (50 + DC + a couple of territories). Pulled once per
-  // request; cached separately so the filter render stays cheap.
   const stateOptions = await getMemberStates();
   const stateSet = new Set(stateOptions);
   const state = sanitizeMemberState(params.state, stateSet);
@@ -94,25 +93,27 @@ export default async function MembersPage({
     ? rows.find((r) => r.bioguide_id === expandedParam)
     : undefined;
 
-  // Expansion data still keys off the same sponsor helpers — they accept a
-  // bioguide_id and resolve via OR. Members with zero sponsored bills come
-  // back as zero stats / empty bills, which the panel already handles since
-  // its callers (SponsorExpandedPanel) just render what they're given.
+  // HO 152: extended panel data fetch picks up committees + caucus
+  // affiliations so the expanded row carries the two new sections, in
+  // addition to the existing stats/topics/bills.
   const expansion = expandedMember
     ? await (async () => {
         const key = expandedMember.bioguide_id;
-        const [stats, topics, recentBills] = await Promise.all([
-          getSponsorStats(key, includeCeremonial),
-          getSponsorTopTopics(key, 3, includeCeremonial),
-          getSponsorRecentBills(key, includeCeremonial),
-        ]);
-        return { key, stats, topics, recentBills };
+        const [stats, topics, recentBills, committees, affiliations] =
+          await Promise.all([
+            getSponsorStats(key, includeCeremonial),
+            getSponsorTopTopics(key, 3, includeCeremonial),
+            getSponsorRecentBills(key, includeCeremonial),
+            getMemberCommittees(key),
+            getMemberAffiliations(key),
+          ]);
+        return { key, stats, topics, recentBills, committees, affiliations };
       })()
     : null;
 
   // `carry` plumbs every active filter through child components so a filter
   // change or pagination preserves the others. Cleared per-control: each
-  // filter drops `page` + `expanded` on change (see PartyFilter etc.).
+  // filter drops `page` + `expanded` on change.
   const carry = new URLSearchParams();
   if (chamber) carry.set("chamber", chamber);
   if (party) carry.set("party", party);
@@ -134,7 +135,35 @@ export default async function MembersPage({
     return qs ? `/members?${qs}` : "/members";
   }
 
+  // HO 152 — inline SegmentedToggle href builders. Both toggles drop
+  // `page` and `expanded` on change (same convention the old hand-rolled
+  // toggles used) so a filter change always resets to page 1 with no row
+  // open. The chamber toggle drives both the row list AND the two
+  // scatters' visibility (an "all" view shows both halves; HOUSE / SENATE
+  // hides the other).
+  const buildChamberHref = (value: "" | Chamber) => {
+    const sp = new URLSearchParams(carry);
+    sp.delete("page");
+    sp.delete("expanded");
+    if (value) sp.set("chamber", value);
+    else sp.delete("chamber");
+    const qs = sp.toString();
+    return qs ? `/members?${qs}` : "/members";
+  };
+
+  const buildSortHref = (value: "volume" | "passrate") => {
+    const sp = new URLSearchParams(carry);
+    sp.delete("page");
+    sp.delete("expanded");
+    if (value === "volume") sp.delete("sort");
+    else sp.set("sort", value);
+    const qs = sp.toString();
+    return qs ? `/members?${qs}` : "/members";
+  };
+
   const headerFilters = { topics: [], chamber, includeCeremonial };
+  const showHouse = chamber !== "senate";
+  const showSenate = chamber !== "house";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -160,10 +189,15 @@ export default async function MembersPage({
             {subtitle}
           </span>
           <span className="ml-auto flex flex-wrap items-center gap-3">
-            <ChamberToggle
-              current={chamber}
-              carry={carry}
-              basePath="/members"
+            <SegmentedToggle<"" | Chamber>
+              current={(chamber ?? "") as "" | Chamber}
+              ariaLabel="Chamber"
+              segments={[
+                { value: "", label: "ALL" },
+                { value: "house", label: "HOUSE" },
+                { value: "senate", label: "SENATE" },
+              ]}
+              buildHref={buildChamberHref}
             />
             <PartyFilter
               current={party}
@@ -176,10 +210,14 @@ export default async function MembersPage({
               basePath="/members"
               states={stateOptions}
             />
-            <SponsorSortToggle
+            <SegmentedToggle<"volume" | "passrate">
               current={sort}
-              carry={carry}
-              basePath="/members"
+              ariaLabel="Rank by"
+              segments={[
+                { value: "volume", label: "VOLUME" },
+                { value: "passrate", label: "PASS RATE" },
+              ]}
+              buildHref={buildSortHref}
             />
           </span>
         </div>
@@ -213,7 +251,18 @@ export default async function MembersPage({
           >
             Member productivity (bills · pass rate)
           </p>
-          <SponsorProductivityScatter />
+          <div
+            className={`grid gap-4 ${
+              showHouse && showSenate ? "md:grid-cols-2" : "grid-cols-1"
+            }`}
+          >
+            {showHouse ? (
+              <MemberProductivityScatter chamber="house" />
+            ) : null}
+            {showSenate ? (
+              <MemberProductivityScatter chamber="senate" />
+            ) : null}
+          </div>
         </section>
 
         <div
@@ -231,9 +280,6 @@ export default async function MembersPage({
             <ol>
               {rows.map((m, i) => {
                 const volPct = maxVolume > 0 ? (m.total / maxVolume) * 100 : 0;
-                // passrate is NULL for the zero-bills case; render em-dash
-                // instead of "0%" so the reader doesn't misread "no data" as
-                // a 0-of-N pass rate.
                 const rateLabel =
                   m.passrate === null ? "—" : `${Math.round(m.passrate * 100)}%`;
                 const ratePct =
@@ -352,6 +398,8 @@ export default async function MembersPage({
                         stats={expansion.stats}
                         topics={expansion.topics}
                         recentBills={expansion.recentBills}
+                        committees={expansion.committees}
+                        affiliations={expansion.affiliations}
                         includeCeremonial={includeCeremonial}
                       />
                     ) : null}

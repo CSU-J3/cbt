@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { CaucusBadge } from "@/components/CaucusBadge";
 import { SponsorPhoto } from "@/components/SponsorPhoto";
 import { StateFlag } from "@/components/StateFlag";
 import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
 import { formatBillId, formatDateShort } from "@/lib/format";
 import {
   type FeedBill,
+  type MemberAffiliation,
+  type MemberCommitteeRow,
   normalizePartyVariant,
   type SponsorStats,
   type SponsorTopic,
@@ -42,6 +45,8 @@ export function SponsorExpandedPanel({
   stats,
   topics,
   recentBills,
+  committees = [],
+  affiliations = [],
   includeCeremonial = false,
 }: {
   sponsorKey: string;
@@ -52,6 +57,10 @@ export function SponsorExpandedPanel({
   stats: SponsorStats;
   topics: SponsorTopic[];
   recentBills: FeedBill[];
+  // HO 152: COMMITTEES + CAUCUS BADGES sections, both skip-on-empty so an
+  // unaffiliated freshman doesn't get an empty "no caucuses on file" row.
+  committees?: MemberCommitteeRow[];
+  affiliations?: MemberAffiliation[];
   includeCeremonial?: boolean;
 }) {
   const partyColor = partyColorFor(sponsorParty);
@@ -201,6 +210,92 @@ export function SponsorExpandedPanel({
                     </li>
                   ))}
                 </ul>
+              </div>
+            </div>
+          ) : null}
+
+          {committees.length > 0 ? (
+            <div className="mt-5">
+              <p
+                className="mb-2 text-[14px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Committees ({committees.length})
+              </p>
+              <ul className="flex flex-col">
+                {committees.map((c) => {
+                  const role = c.role?.toLowerCase() ?? "";
+                  const isSub = c.parentSystemCode !== null;
+                  const badge = role.includes("ranking")
+                    ? { label: "RANKING", color: "var(--text-muted)" }
+                    : role.includes("chair")
+                      ? { label: "CHAIR", color: "var(--accent-amber)" }
+                      : null;
+                  return (
+                    <li
+                      key={c.systemCode}
+                      className="flex items-baseline gap-2 py-1"
+                    >
+                      {isSub ? (
+                        <span
+                          aria-hidden
+                          className="text-[12px]"
+                          style={{ color: "var(--text-dim)" }}
+                        >
+                          ↳
+                        </span>
+                      ) : null}
+                      <Link
+                        href={`/committee/${c.systemCode}`}
+                        className="text-[14px] transition hover:text-[var(--accent-amber-bright)]"
+                        style={{ color: "var(--text-primary)" }}
+                        title={c.role ?? undefined}
+                      >
+                        {c.name}
+                      </Link>
+                      <span
+                        className="text-[11px] uppercase tracking-[0.5px]"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {c.chamber === "house"
+                          ? "HOUSE"
+                          : c.chamber === "senate"
+                            ? "SENATE"
+                            : "JOINT"}
+                        {isSub && c.parentName ? ` · ${c.parentName}` : ""}
+                      </span>
+                      {badge ? (
+                        <span
+                          className="ml-auto inline-block px-1.5 py-[1px] text-[11px] uppercase tracking-[0.5px]"
+                          style={{
+                            color: badge.color,
+                            border: `1px solid ${badge.color}`,
+                            borderRadius: "2px",
+                          }}
+                          title={c.role ?? undefined}
+                        >
+                          {badge.label}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+
+          {affiliations.length > 0 ? (
+            <div className="mt-5">
+              <p
+                className="mb-2 text-[14px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Caucuses ({affiliations.length})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {affiliations.map((a) => (
+                  <CaucusBadge key={a.org} org={a.org} />
+                ))}
               </div>
             </div>
           ) : null}

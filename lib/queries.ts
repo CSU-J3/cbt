@@ -510,16 +510,23 @@ export type SponsorProductivityRow = {
   name: string;
   party: PartyKey | null;
   state: string | null;
+  // HO 152: chamber comes from a LEFT JOIN on members so rows whose sponsor
+  // doesn't resolve to a current member (rare unresolved bills) get null
+  // and silently drop from both chamber scatters.
+  chamber: Chamber | null;
   billCount: number;
   advancedCount: number;
+  enactedCount: number;
   passRate: number; // 0-1
 };
 
-// Feeds the /members productivity scatter (handoff 67). Pass rate denominator
-// excludes `stage IS NULL` (unsummarized) and `stage = 'other'` (off-path)
-// so the chart only reflects bills with a real classifier verdict. Numerator
-// counts anything past introduction. Sponsors with <3 bills are dropped —
-// one-shot rates compress to 0 or 100 and add no signal.
+// Feeds the /members productivity scatter (handoff 67, split-by-chamber HO
+// 152). Pass rate denominator excludes `stage IS NULL` (unsummarized) and
+// `stage = 'other'` (off-path) so the chart only reflects bills with a real
+// classifier verdict. Numerator counts anything past introduction.
+// `enactedCount` lights up the per-dot tooltip's "K enacted" suffix.
+// Sponsors with <3 bills are dropped — one-shot rates compress to 0 or 100
+// and add no signal.
 //
 // Scoped to current Congress via MAX(congress) so this rolls over without
 // touching code. Tag `bills` for unified cache invalidation.
@@ -528,35 +535,46 @@ export const getSponsorProductivity = unstable_cache(
     const db = getDb();
     const rs = await db.execute(`
       SELECT
-        sponsor_bioguide_id AS bioguide_id,
-        sponsor_name AS name,
-        sponsor_party AS party_raw,
-        sponsor_state AS state,
+        b.sponsor_bioguide_id AS bioguide_id,
+        b.sponsor_name AS name,
+        b.sponsor_party AS party_raw,
+        b.sponsor_state AS state,
+        m.chamber AS chamber,
         COUNT(*) AS bill_count,
         SUM(CASE
-          WHEN stage IN ('committee','floor','other_chamber','president','enacted')
+          WHEN b.stage IN ('committee','floor','other_chamber','president','enacted')
           THEN 1 ELSE 0
-        END) AS advanced_count
-      FROM bills
-      WHERE congress = (SELECT MAX(congress) FROM bills)
-        AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
-        AND stage IS NOT NULL
-        AND stage != 'other'
-        AND sponsor_name IS NOT NULL
-      GROUP BY sponsor_bioguide_id, sponsor_name, sponsor_party, sponsor_state
+        END) AS advanced_count,
+        SUM(CASE WHEN b.stage = 'enacted' THEN 1 ELSE 0 END) AS enacted_count
+      FROM bills b
+      LEFT JOIN members m ON m.bioguide_id = b.sponsor_bioguide_id
+      WHERE b.congress = (SELECT MAX(congress) FROM bills)
+        AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+        AND b.stage IS NOT NULL
+        AND b.stage != 'other'
+        AND b.sponsor_name IS NOT NULL
+      GROUP BY b.sponsor_bioguide_id, b.sponsor_name, b.sponsor_party,
+               b.sponsor_state, m.chamber
       HAVING COUNT(*) >= 3
       ORDER BY bill_count DESC
     `);
     return rs.rows.map((r) => {
       const billCount = Number(r.bill_count ?? 0);
       const advancedCount = Number(r.advanced_count ?? 0);
+      const enactedCount = Number(r.enacted_count ?? 0);
+      const chamberRaw = r.chamber as string | null;
       return {
         bioguideId: (r.bioguide_id as string | null) ?? null,
         name: r.name as string,
         party: normalizePartyVariant(r.party_raw as string | null),
         state: (r.state as string | null) ?? null,
+        chamber:
+          chamberRaw === "house" || chamberRaw === "senate"
+            ? (chamberRaw as Chamber)
+            : null,
         billCount,
         advancedCount,
+        enactedCount,
         passRate: billCount > 0 ? advancedCount / billCount : 0,
       };
     });
