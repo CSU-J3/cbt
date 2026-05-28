@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BillRow } from "@/components/BillRow";
+import { BillRowList } from "@/components/BillRowList";
 import { ChamberToggle } from "@/components/ChamberToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
@@ -50,7 +50,6 @@ export default async function ChangesPage({
     getStageChangesCount(feedFilters, DAYS),
     getWatchedBillIds(),
   ]);
-  const watchedSet = new Set(watchedIds);
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -171,15 +170,7 @@ export default async function ChangesPage({
               </div>
             )
           ) : (
-            <ul>
-              {bills.map((b) => (
-                <BillRow
-                  key={b.id}
-                  bill={b}
-                  onWatchlist={watchedSet.has(b.id)}
-                />
-              ))}
-            </ul>
+            <BillRowList bills={bills} watchedIds={watchedIds} />
           )}
         </div>
       </main>

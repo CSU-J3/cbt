@@ -1,4 +1,4 @@
-import { BillRow } from "@/components/BillRow";
+import { BillRowList } from "@/components/BillRowList";
 import { ChamberToggle } from "@/components/ChamberToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SortDropdown } from "@/components/SortDropdown";
@@ -73,11 +73,10 @@ export default async function WatchlistPage({
             style={{ borderColor: "var(--border-strong)" }}
           >
             <StageLegend />
-            <ul>
-              {bills.map((b) => (
-                <BillRow key={b.id} bill={b} onWatchlist />
-              ))}
-            </ul>
+            <BillRowList
+              bills={bills}
+              watchedIds={bills.map((b) => b.id)}
+            />
           </div>
         )}
       </main>

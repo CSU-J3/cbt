@@ -870,6 +870,162 @@ body {
   padding: 6px 2px 0 0;
 }
 
+/* ---- expandable row + accordion panel (HO 148) ------------------------ */
+/* Full rows become click-to-expand accordions. The Link is swapped for a
+   div role=button; the panel is rendered as the last <li> child and spans
+   all grid columns. Chevron at the end of the meta line rotates instantly
+   on open (static principle, no transition). */
+.feed-row--expandable .feed-row-link--button {
+  cursor: pointer;
+  outline: none;
+}
+.feed-row--expandable .feed-row-link--button:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: -1px;
+}
+.feed-row.is-open {
+  background-color: var(--bg-row-hover);
+}
+.feed-row .row-chevron {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-block;
+  transform: rotate(0deg);
+  transition: none;
+}
+.feed-row .row-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
+}
+
+.bill-expanded-panel {
+  grid-column: 1 / -1;
+  background-color: var(--bg-row-hover);
+  border-top: 0.5px solid var(--border-soft);
+  padding: 14px 16px 16px 70px; /* left pad aligns under content column */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bill-expanded-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+.bill-expanded-meta-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.bill-expanded-meta-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.bill-expanded-meta-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+.bill-expanded-meta-value {
+  color: var(--text-secondary);
+  min-width: 0;
+}
+.bill-expanded-meta-sub {
+  color: var(--text-dim);
+}
+.bill-expanded-committee-list {
+  display: inline;
+}
+.bill-expanded-committee-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dotted transparent;
+}
+.bill-expanded-committee-link:hover {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber-bright);
+}
+
+.bill-expanded-news {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bill-expanded-news-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.bill-expanded-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.bill-expanded-news-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  font-size: 12px;
+  align-items: baseline;
+}
+.bill-expanded-news-headline {
+  color: var(--text-secondary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bill-expanded-news-headline:hover {
+  color: var(--accent-amber-bright);
+}
+.bill-expanded-news-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.bill-expanded-news-empty {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bill-expanded-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bill-expanded-action-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.bill-expanded-action-chip:hover {
+  color: var(--accent-amber-bright);
+  border-color: var(--accent-amber-bright);
+}
+
 /* ---- sponsor grid ------------------------------------------------------ */
 /* Columns: expand-arrow | name | party-badge | state | bill-count | latest-action */
 .sponsor-row {

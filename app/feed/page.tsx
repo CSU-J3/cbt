@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BillRow } from "@/components/BillRow";
+import { BillRowList } from "@/components/BillRowList";
 import { ChamberToggle } from "@/components/ChamberToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
@@ -71,7 +71,6 @@ export default async function FeedPage({
     getFeedBills(feedFilters, { page: requestedPage, pageSize: FEED_PAGE_SIZE }),
     getWatchedBillIds(),
   ]);
-  const watchedSet = new Set(watchedIds);
 
   const carry = new URLSearchParams();
   if (topics.length > 0) carry.set("topics", topics.join(","));
@@ -210,15 +209,7 @@ export default async function FeedPage({
             )
           ) : (
             <>
-              <ul>
-                {bills.map((b) => (
-                  <BillRow
-                    key={b.id}
-                    bill={b}
-                    onWatchlist={watchedSet.has(b.id)}
-                  />
-                ))}
-              </ul>
+              <BillRowList bills={bills} watchedIds={watchedIds} />
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}

@@ -815,18 +815,27 @@ Inner-row paddings (`.feed-row`, `.topic-dist-row`, `.funnel-row`, `.top-stalls-
 
 `--home-header-height: 240px` is the single fixed offset used by `.home-grid`'s `calc(100vh - var(--home-header-height) - …)` no-scroll math. HO 133 bumped this from 180px to 240px when Stage Distribution + Color Key moved from grid quadrants into the header band — the tallest sibling column (typically Color Key with 5 sections, or Stage Distribution with 6 funnel bars) drives the band height. At narrower viewports the LEAD clamps tighter but stage + color don't shrink, so the band stays ≈240px until the <1280px reflow drops it to two stacked rows. Bump only if the header gains a new row (additional meta line, more color-key sections, nav wraps to two rows at desktop widths).
 
-`.feed-row` grid is post-HO-125 redesigned: a single `Link` wrapping rail + stacked-content + meta, with sibling cells to the right.
+`.feed-row` grid is post-HO-125 redesigned, with HO 148 swapping the navigation Link for an expand-on-click div role=button on full rows:
 
-- Default: `1fr 40px 36px` — Link · media-attention cell (HO 130) · watch star
-- `has-days-since` (used by `/stale`, `/president`): `1fr 90px 40px 36px` — Link · days-since · media-attention · star
-- Compact (used by `ActivityTicker`): `1fr 40px 28px` — slimmer rail, no inline summary, no "View detail →", smaller star
+- Default: `1fr 40px 36px` — interactive row · media-attention cell (HO 130) · watch star
+- `has-days-since` (used by `/stale`, `/president`): `1fr 90px 40px 36px` — adds days-since column
+- Compact (used by `ActivityTicker`, `SearchResultsBills`, `/patterns` drilldown, `/committee/[systemCode]` recent activity): `1fr 40px 28px` — slimmer rail, smaller star, still link-only (no expand)
 - Below 700px: media-attention and days-since are hidden via `display: none`; the row collapses to `1fr 32px` (or `1fr 28px` compact). Filter chips wrap; date column hidden via `.col-date`; stage label switches to short form (`.show-mobile` / `.show-desktop`); topics show first + `+N`.
 
-The Link wrapper is itself a two-column grid (`56px 1fr`) holding `BillIdRail` and `row-content` (title + summary + StagePillStrip + row-meta). The media-attention chip (HO 130) and watch star sit *outside* the Link as separate grid cells so their own anchors/buttons don't nest inside the row anchor.
+The interactive row wrapper is itself a two-column grid (`56px 1fr`) holding `BillIdRail` and `row-content` (title + StagePillStrip + row-meta). HO 148 removed the inline summary excerpt (`.row-summary`) and the `View detail →` text (`.row-view-detail`) from the row meta — both moved into the expanded panel. The media-attention chip (HO 130) and watch star sit *outside* the interactive wrapper as separate grid cells so their own anchors/buttons don't nest inside it.
 
-### Inline expand on the feed
+### Click-to-expand accordion (HO 148)
 
-URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansion (only one open at a time). Server renders the expanded `<ExpandedPanel>` as a sibling to the row, not nested inside the `<Link>`. Panel has a left border in `--accent-amber`, indented to align under the title column on desktop, and contains: introduced + last-action fields, full summary, then `[★ WATCH] [VIEW DETAIL ↗] [CONGRESS.GOV ↗]` buttons.
+Full rows (non-compact) are click-to-expand accordions. **This reverses HO 125's inline-summary-as-primary decision** — the inline summary excerpt is gone, the collapsed row is just title + meta line + chevron, the full summary lives in the expanded panel. The reversal is deliberate (design language matured into spec 4 expand-as-primary).
+
+- `components/BillRowList.tsx` (client) wraps every full-row consumer. Owns the single-open `expandedId` state and a per-bill `Map<billId, PanelData>` cache so re-expanding a row never refetches. Consumers: `/feed`, `/watchlist`, `/changes`, `/stale`, `/president`, `/members/[bioguideId]` Sponsored block.
+- `components/BillRow.tsx` is now a `"use client"` component. When `onToggle` is provided (full rows via `BillRowList`), the outer `<Link>` is replaced with `<div role="button" tabIndex={0} aria-expanded>` that toggles on click and on Enter/Space. The expanded panel renders below the row inside the same `<li>` via `grid-column: 1 / -1`. When `onToggle` is omitted (compact path or any direct caller), the original HO 125 `<Link>` navigation is preserved — compact rows on `ActivityTicker`/`SearchResultsBills`/`/patterns`/`/committee/[systemCode]` stay link-only.
+- `components/BillExpandedPanel.tsx` (client). Renders summary + meta grid (SPONSOR, STAGE, INTRODUCED, LAST ACTION) instantly from the already-loaded `FeedBill`. On first open, fetches committees + news from `GET /api/bill/[id]/panel` and reports the result up to BillRowList for caching. COMMITTEE row renders the deduped roster (newest-activity-per-systemCode), each linking to `/committee/[systemCode]`. Related-news section shows up to 5 mentions; omitted entirely when zero. STAGE cell uses the HO 147 Tooltip (term variant) reading `STAGE_LABELS` from `lib/enums.ts` — the one current Tooltip wiring inside the panel. Bottom row carries two HO 147-styled action chips: `full bill page →` (real `<a href={/bill/[id]}>` so cmd/middle-click new-tab works) and `congress.gov ↗`.
+- `app/api/bill/[id]/panel/route.ts` is the lazy-load endpoint. GET → `{ committees, news }` from the existing cached helpers (`getBillCommittees` tag `committees`, `getNewsForBill` tag `news-breaking`). Single-open caps in-flight to one extra fetch at any moment — far cheaper than the alternative of pre-rendering 50 hidden panels at page load.
+- Chevron `▸` lives at the end of the row meta line. Rotates 90° instantly (no transition) and switches to `--accent-amber` when open. Open row also gets `--bg-row-hover` background.
+- `MediaAttentionCell` and `WatchStar` both call `e.stopPropagation()` on click so the press chip and star don't toggle the row when clicked. Action chips and committee/news links inside the panel also stopPropagation so they navigate cleanly.
+- Cosponsor party split deliberately not surfaced — `bills.cosponsor_count` is the only cosponsor data the sync stores today (HO 148 Phase 1 finding). Cosponsor-list ingestion is a future handoff.
+- URL state (`?open=<billId>`) deliberately deferred. Expand is pure client state; zero server traffic per toggle. If deep-linking demand shows up later, the param slots in alongside `?topics= ?stage= ?q= ?sponsor= ?sort= ?page= ?chamber= ?ceremonial= ?cluster=` without collisions.
 
 ### Server / client split
 

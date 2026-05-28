@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BillRow } from "@/components/BillRow";
+import { BillRowList } from "@/components/BillRowList";
 import { HeaderBar } from "@/components/HeaderBar";
 import { MemberAffiliations } from "@/components/MemberAffiliations";
 import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
@@ -158,7 +158,6 @@ export default async function MemberPage({
     getMemberCommittees(bioguideId),
     getWatchedBillIds(),
   ]);
-  const watchedSet = new Set(watchedIds);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
   // on /race/[id] carries source attribution; here the chip is a glance
@@ -281,15 +280,7 @@ export default async function MemberPage({
                   No bills sponsored
                 </div>
               ) : (
-                <ul>
-                  {bills.map((b) => (
-                    <BillRow
-                      key={b.id}
-                      bill={b}
-                      onWatchlist={watchedSet.has(b.id)}
-                    />
-                  ))}
-                </ul>
+                <BillRowList bills={bills} watchedIds={watchedIds} />
               )}
             </section>
 

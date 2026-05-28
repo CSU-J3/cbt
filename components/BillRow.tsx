@@ -1,3 +1,6 @@
+"use client";
+
+import { type ReactNode } from "react";
 import Link from "next/link";
 import { BillIdRail } from "@/components/BillIdRail";
 import { MediaAttentionCell } from "@/components/MediaAttentionCell";
@@ -28,32 +31,36 @@ function shortSponsor(name: string | null): string {
   return lastName ?? noPrefix;
 }
 
-// HO 125 redesign + HO 127 row-level watch star. The outer <li> is the grid
-// container so the WatchStar can live as a sibling of the navigable Link
-// — putting a <button> inside an <a> would be invalid HTML and break
-// keyboard semantics. The Link covers rail + content (everything that
-// navigates to /bill/[id]); the star and the optional days-since slot
-// each occupy their own grid cell to the right.
-//
-// `daysSinceMode` is honored by /stale and /president — adds a right-edge
-// column with the colored days-since metric. `compact` is opt-in for
-// ActivityTicker — slimmer rail, no inline summary, no View Detail span,
-// smaller star. `onWatchlist` carries the membership read from the page
-// (see getWatchedBillIds in lib/queries.ts) so initial render shows the
-// right ★/☆ without per-row server fetches.
+// HO 148 — when an `onToggle` callback is provided (full rows wrapped in
+// BillRowList), the rail+content becomes a div-role-button click target
+// that fires `onToggle` and the row renders `expandedPanel` below itself
+// inside the same <li>. When no callback (compact rows on the ticker,
+// search results, committee detail, patterns drilldown), the original HO
+// 125 + HO 127 shape is preserved: outer <Link> for navigation, star and
+// media-attention as right-edge siblings. HO 148 also drops the inline
+// summary and "View detail →" text from every full-row consumer; the
+// summary moves into the expanded panel, navigation moves to the panel's
+// `full bill page →` chip.
 export function BillRow({
   bill,
   daysSinceMode,
   compact = false,
   onWatchlist = false,
+  isOpen = false,
+  onToggle,
+  expandedPanel,
 }: {
   bill: FeedBill;
   daysSinceMode?: DaysSinceMode;
   compact?: boolean;
   onWatchlist?: boolean;
+  isOpen?: boolean;
+  onToggle?: () => void;
+  expandedPanel?: ReactNode;
 }) {
   const topics = parseTopics(bill.topics);
   const href = `/bill/${bill.id}`;
+  const expandable = !compact && typeof onToggle === "function";
 
   const partyState =
     bill.sponsor_party || bill.sponsor_state ? (
@@ -73,45 +80,77 @@ export function BillRow({
     "feed-row",
     daysSinceMode ? "has-days-since" : "",
     compact ? "feed-row--compact" : "",
+    expandable ? "feed-row--expandable" : "",
+    isOpen ? "is-open" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
-  return (
-    <li className={rowClass}>
-      <Link href={href} prefetch={false} className="feed-row-link">
-        <BillIdRail
-          billType={bill.bill_type}
-          billNumber={bill.bill_number}
-          tooltip={bill.title}
+  const inner = (
+    <>
+      <BillIdRail
+        billType={bill.bill_type}
+        billNumber={bill.bill_number}
+        tooltip={bill.title}
+      />
+
+      <span className="row-content">
+        <span className="row-title">{bill.title}</span>
+
+        <StagePillStrip
+          stage={bill.stage}
+          introducedDate={bill.introduced_date}
+          stageChangedAt={bill.stage_changed_at ?? null}
         />
 
-        <span className="row-content">
-          <span className="row-title">{bill.title}</span>
-
-          {!compact && bill.summary ? (
-            <span className="row-summary">{bill.summary}</span>
+        <span className="row-meta">
+          {sponsorBlock}
+          {topics.length > 0 ? (
+            <span className="inline-flex">
+              <TopicTags topics={topics} responsive />
+            </span>
           ) : null}
-
-          <StagePillStrip
-            stage={bill.stage}
-            introducedDate={bill.introduced_date}
-            stageChangedAt={bill.stage_changed_at ?? null}
-          />
-
-          <span className="row-meta">
-            {sponsorBlock}
-            {topics.length > 0 ? (
-              <span className="inline-flex">
-                <TopicTags topics={topics} responsive />
-              </span>
-            ) : null}
-            {compact ? null : (
-              <span className="row-view-detail">View detail →</span>
-            )}
-          </span>
+          {expandable ? (
+            <span
+              className={`row-chevron${isOpen ? " is-open" : ""}`}
+              aria-hidden
+            >
+              ▸
+            </span>
+          ) : null}
         </span>
-      </Link>
+      </span>
+    </>
+  );
+
+  // Compact and non-expandable rows keep the HO 125 navigable <Link>. Full
+  // rows wired into BillRowList become a div-role-button — navigation moves
+  // to the panel's `full bill page →` chip.
+  const navigableShell = expandable ? (
+    <div
+      className="feed-row-link feed-row-link--button"
+      role="button"
+      tabIndex={0}
+      aria-expanded={isOpen}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle?.();
+        }
+      }}
+    >
+      {inner}
+    </div>
+  ) : (
+    <Link href={href} prefetch={false} className="feed-row-link">
+      {inner}
+    </Link>
+  );
+
+  return (
+    <li className={rowClass}>
+      {navigableShell}
 
       {daysSinceMode ? (
         <span
@@ -140,6 +179,8 @@ export function BillRow({
           size={compact ? "sm" : "md"}
         />
       </span>
+
+      {expandable && isOpen ? expandedPanel : null}
     </li>
   );
 }
