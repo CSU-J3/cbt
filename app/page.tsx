@@ -23,17 +23,17 @@ import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 const TOP_STALLS_COUNT = 5;
 
-// Home-dashboard-cleanup layout. Three-column grid:
-//   Col 1 (1.2fr) — STAGE DISTRIBUTION funnel (220px fixed) stacked
-//                  over TOPIC DISTRIBUTION bubbles (flex-1).
-//   Col 2 (1fr)   — ACTIVITY / TOP STALLS tabs.
-//   Col 3 (1fr)   — BREAKING · LAST 72H.
+// HO 150 layout: chrome stack (masthead + tape + nav) → full-width BREAKING
+// strip → two-equal-column grid (left: STAGE over TOPIC bubbles; right:
+// ACTIVITY / TOP STALLS tabs) → HO 153 reports-snapshot slot (reserved,
+// empty). The HO 131/133/134 three-column no-scroll grid is gone — spec 1
+// preserves the answer-above-fold (masthead prose + BREAKING) but lets the
+// page scroll so the bubbles can breathe at full half-width.
 //
-// Drawer pattern dropped: clicks on a funnel row or a topic bubble
-// rebase the dashboard in place. ACTIVITY and BREAKING both rebase
-// (count + rows) to the filtered slice; the bubble chart rebases sizes
-// when STAGE is selected; the funnel rebases counts when TOPIC is
-// selected. Lead in the header stays corpus-wide (per HO 57).
+// Click-to-filter (HO 132) is unchanged: funnel bars and topic bubbles
+// push ?stage= / ?topics=; ACTIVITY and BREAKING both rebase to the
+// filtered slice; bubble sizes rebase when STAGE is selected; the funnel
+// rebases when TOPIC is selected. Lead stays corpus-wide.
 type SearchParams = {
   stage?: string;
   topics?: string;
@@ -86,8 +86,24 @@ export default async function DashboardPage({
       <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
+        {/* Full-width BREAKING strip (HO 150) — above the two-column grid,
+            no quadrant chrome; border caps flush to the row list because
+            there's no flex-1 parent stretching the box. */}
+        <section className="home-breaking-strip">
+          <p
+            className="home-quadrant-label"
+            title="Recent news linked to tracked bills"
+          >
+            Breaking · Last 72h{" "}
+            <span className="home-quadrant-label-count">
+              ({breakingCount.toLocaleString()})
+            </span>
+          </p>
+          <BreakingNewsBlock filters={filters} />
+        </section>
+
         <div className="home-grid">
-          {/* Col 1: STAGE funnel + TOPIC bubbles stacked */}
+          {/* Left column: STAGE funnel + TOPIC bubbles stacked */}
           <div className="home-col-stack">
             <section className="home-quadrant home-panel-stage">
               <p
@@ -114,7 +130,7 @@ export default async function DashboardPage({
             </section>
           </div>
 
-          {/* Col 2: ACTIVITY / TOP STALLS tabs */}
+          {/* Right column: ACTIVITY / TOP STALLS tabs */}
           <section className="home-quadrant">
             <ActivityTabs
               activityContent={<ActivityTicker filters={filters} />}
@@ -123,23 +139,11 @@ export default async function DashboardPage({
               stallsCount={TOP_STALLS_COUNT}
             />
           </section>
-
-          {/* Col 3: BREAKING · LAST 72H */}
-          <section className="home-quadrant">
-            <p
-              className="home-quadrant-label"
-              title="Recent news linked to tracked bills"
-            >
-              Breaking · Last 72h{" "}
-              <span className="home-quadrant-label-count">
-                ({breakingCount.toLocaleString()})
-              </span>
-            </p>
-            <div className="home-quadrant-body">
-              <BreakingNewsBlock filters={filters} />
-            </div>
-          </section>
         </div>
+
+        {/* HO 153 reports-snapshot slot. Intentionally empty here —
+            HO 153 fills it with the below-grid weekly-report strip. */}
+        <div className="home-snapshot-slot" aria-hidden />
       </main>
     </div>
   );

@@ -37,9 +37,10 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
-  { key: "feed", href: "/feed", icon: "▤", label: "Feed", tooltip: "Bills, news, reports, stage changes, and the president's desk" },
+  { key: "feed", href: "/feed", icon: "▤", label: "Feed", tooltip: "Bills, news, stage changes, and the president's desk" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
+  { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
 

@@ -171,12 +171,12 @@ body {
 }
 .terminal-prompt {
   font-family: var(--font-mono);
-  font-size: 32px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--text-primary);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   text-decoration: none;
-  line-height: 1.1;
+  line-height: 1.25;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -187,18 +187,36 @@ body {
 .terminal-prompt:hover .prompt-accent {
   color: var(--accent-amber-bright);
 }
+/* HO 150: lead now reads as terminal output — mono 15px --text-muted on
+   the same baseline row as the prompt, ending in a blinking caret. The
+   3-line clamp survives so a long weekly summary doesn't push the tape
+   or nav down the page. */
 .home-header-lead {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: 15px;
   line-height: 1.45;
-  color: var(--text-primary);
+  color: var(--text-muted);
   display: -webkit-box;
   -webkit-line-clamp: 3;
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
   max-width: 1200px;
+}
+/* Single-glyph cursor blink — the dashboard's "sole motion exception"
+   alongside the HO 149 tape marquee. step-end so the blink is a hard
+   on/off (the terminal aesthetic), not a fade. */
+.home-cursor-caret {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent-amber-bright);
+  animation: cursor-blink 1.1s step-end infinite;
+}
+@keyframes cursor-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
 }
 .home-header-meta {
   margin-top: var(--space-xs);
@@ -254,17 +272,34 @@ body {
   padding: var(--space-md) var(--space-xl) var(--space-md);
   display: flex;
   flex-direction: column;
-  min-height: 0;
-}
-.home-grid {
-  flex: 1;
-  display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
   gap: var(--space-md);
   min-height: 0;
-  /* Subtract header chrome + main padding so the grid fills exactly the
-     remaining viewport. */
-  height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
+}
+/* HO 150: full-width BREAKING strip above the grid. No quadrant wrapper —
+   the border caps flush to the row list because there's no flex-1 parent
+   stretching the box; the strip simply sits at its own content height. */
+.home-breaking-strip {
+  border: 0.5px solid var(--border-soft);
+  background-color: var(--bg-panel);
+  padding: var(--space-md);
+}
+.home-breaking-strip .home-quadrant-label {
+  margin-bottom: var(--space-sm);
+}
+.home-breaking-strip .home-expander {
+  margin-top: var(--space-sm);
+}
+.home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  min-height: 0;
+}
+/* HO 153 reserved slot — empty container below the grid. No chrome here;
+   HO 153 fills it with the weekly-report snapshot strip. */
+.home-snapshot-slot {
+  /* No visual rules — the slot only exists structurally so HO 153 can
+     drop into the same place without resurfacing layout decisions. */
 }
 .home-col-stack {
   display: flex;
@@ -318,11 +353,12 @@ body {
   overflow-y: auto;
 }
 
-/* Boxed COLOR KEY legend on the home header. Vertical row stack —
-   each row = 52px label column + indicators that flow inside the
-   right column and wrap when they overflow the box's inner width. */
+/* Boxed COLOR KEY legend on the home header. HO 150 trimmed the inline
+   rows to STAGES + TOPICS only (PARTIES / BILL TYPES / ACCENT moved to
+   the `?` popover) and shrank the box from 240px → 172px so the lead
+   prose has more horizontal room. */
 .color-key-box {
-  width: 240px;
+  width: 172px;
   flex-shrink: 0;
   border: 0.5px solid var(--border-soft);
   background-color: var(--bg-base);
@@ -540,17 +576,12 @@ body {
   .color-key-box {
     width: 100%;
   }
-  .home-grid {
-    height: auto;
-    min-height: calc(100vh - var(--home-header-height) - (2 * var(--space-md)));
-  }
 }
 
 @media (max-width: 1023px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: minmax(280px, auto);
-    height: auto;
   }
 }
 @media (max-width: 700px) {

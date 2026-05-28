@@ -51,7 +51,7 @@ export async function BreakingNewsBlock({
         <ul>
           {mentions.map((m) => (
             <li key={m.id}>
-              <NewsRow mention={m} showFullHeadline={false} linkBillToDetail />
+              <NewsRow mention={m} showFullHeadline linkBillToDetail />
             </li>
           ))}
         </ul>

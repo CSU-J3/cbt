@@ -32,8 +32,19 @@ export async function HomeHeader() {
             </Link>
 
             {lead?.text ? (
-              <p className="home-header-lead">{lead.text}</p>
-            ) : null}
+              <p className="home-header-lead">
+                {lead.text}
+                <span aria-hidden className="home-cursor-caret">
+                  _
+                </span>
+              </p>
+            ) : (
+              <p className="home-header-lead">
+                <span aria-hidden className="home-cursor-caret">
+                  _
+                </span>
+              </p>
+            )}
           </div>
 
           <p className="home-header-meta">
