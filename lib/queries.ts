@@ -93,6 +93,11 @@ export type FeedFilters = {
   chamber?: Chamber;
   includeCeremonial?: boolean;
   cluster?: string;
+  // HO 151: set to "asc" when /feed?stage=president is the sole stage and
+  // no explicit ?sort is provided — preserves the legacy /president
+  // oldest-at-desk-first ordering. Internal-only; never written by URL
+  // params and not surfaced in SortDropdown.
+  direction?: "asc";
 };
 
 export type PartyKey = "R" | "D" | "I";
@@ -1923,6 +1928,222 @@ export const getBreakingNewsForHomeCount = unstable_cache(
   { revalidate: 600, tags: ["news-breaking"] },
 );
 
+// ---- HO 151 NEWS-mode feed -------------------------------------------- //
+// The /feed?mode=news view's data layer. Modeled on getBreakingNewsForHome
+// (same dedup-by-article-key + confidence floor + ceremonial gate), with
+// SOURCE / WINDOW / per-bill filters plus pagination so the same article
+// universe the dashboard BREAKING block shows can be browsed in full.
+
+export const NEWS_WINDOW_HOURS = [24, 72, 168, 720] as const;
+export type NewsWindowHours = (typeof NEWS_WINDOW_HOURS)[number];
+const NEWS_WINDOW_HOURS_SET = new Set<number>(NEWS_WINDOW_HOURS);
+export const NEWS_DEFAULT_WINDOW: NewsWindowHours = 72;
+export const NEWS_FEED_PAGE_SIZE = 50;
+const NEWS_FEED_MIN_CONFIDENCE = 0.7;
+
+const NEWS_SOURCE_SLUGS: ReadonlySet<string> = new Set([
+  "politico",
+  "the_hill",
+  "roll_call",
+]);
+
+export function sanitizeNewsSource(
+  raw: string | null | undefined,
+): string | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  const lower = raw.trim().toLowerCase();
+  return NEWS_SOURCE_SLUGS.has(lower) ? lower : undefined;
+}
+
+export function sanitizeWindowHours(
+  raw: string | null | undefined,
+): NewsWindowHours | undefined {
+  if (!raw) return undefined;
+  const n = Number.parseInt(String(raw), 10);
+  if (!Number.isFinite(n)) return undefined;
+  return NEWS_WINDOW_HOURS_SET.has(n) ? (n as NewsWindowHours) : undefined;
+}
+
+export type NewsFeedFilters = {
+  source?: string;
+  topic?: string;
+  windowHours?: NewsWindowHours;
+  billId?: string;
+};
+
+function buildNewsFeedWhere(filters: NewsFeedFilters): {
+  whereExtra: string;
+  args: (string | number)[];
+} {
+  const parts: string[] = [];
+  const args: (string | number)[] = [];
+  if (filters.source) {
+    parts.push("AND m.source = ?");
+    args.push(filters.source);
+  }
+  if (filters.topic) {
+    parts.push(
+      "AND EXISTS (SELECT 1 FROM json_each(b.topics) WHERE value = ?)",
+    );
+    args.push(filters.topic);
+  }
+  if (filters.billId) {
+    // Bill-scoped NEWS view bypasses the global confidence floor and the
+    // window so a per-bill chip click still shows every mention the bill
+    // ever got — same intent as HO 130's /news?bill=<id> shortcut.
+    parts.push("AND m.bill_id = ?");
+    args.push(filters.billId);
+  }
+  return { whereExtra: parts.join(" "), args };
+}
+
+export type NewsFeedPage = {
+  mentions: NewsMention[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export const getNewsFeed = unstable_cache(
+  async (
+    filters: NewsFeedFilters,
+    {
+      page = 1,
+      pageSize = NEWS_FEED_PAGE_SIZE,
+    }: { page?: number; pageSize?: number } = {},
+  ): Promise<NewsFeedPage> => {
+    const db = getDb();
+    const windowHours = filters.windowHours ?? NEWS_DEFAULT_WINDOW;
+    const isBillScoped = !!filters.billId;
+    const { whereExtra, args: filterArgs } = buildNewsFeedWhere(filters);
+
+    // When the view is scoped to a single bill, drop the window + confidence
+    // gates so a bill's full mention history is reachable (same as HO 130
+    // /news?bill=). The base where clause keeps the ceremonial gate either
+    // way — ceremonial bills are hidden everywhere else, no reason to
+    // surface their news in NEWS mode.
+    const baseWhere = isBillScoped
+      ? "(b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)"
+      : `m.published_at >= datetime('now', '-' || ? || ' hours')
+         AND m.match_confidence >= ?
+         AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)`;
+    const baseArgs: (string | number)[] = isBillScoped
+      ? []
+      : [windowHours, NEWS_FEED_MIN_CONFIDENCE];
+
+    // Count uses the same dedup-by-article-key shape so the page-count
+    // matches the visible rows when an article gets matched to several
+    // bills (HO 133's distinct-article counting convention).
+    const countSql = `SELECT COUNT(DISTINCT COALESCE(
+        m.article_url,
+        m.article_title || '|' || m.source || '|' || m.published_at
+      )) AS n
+      FROM news_mentions m
+      INNER JOIN bills b ON b.id = m.bill_id
+      WHERE ${baseWhere} ${whereExtra}`;
+    const countRs = await db.execute({
+      sql: countSql,
+      args: [...baseArgs, ...filterArgs],
+    });
+    const total = Number(countRs.rows[0]?.n ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
+    const offset = (clampedPage - 1) * pageSize;
+
+    const rowSql = `WITH ranked AS (
+        SELECT
+          m.id,
+          m.bill_id,
+          m.source,
+          m.published_at,
+          m.article_url,
+          m.article_title,
+          m.match_confidence,
+          b.title         AS bill_title,
+          b.sponsor_name  AS bill_sponsor_name,
+          b.sponsor_party AS bill_sponsor_party,
+          COALESCE(
+            m.article_url,
+            m.article_title || '|' || m.source || '|' || m.published_at
+          ) AS article_key,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(
+              m.article_url,
+              m.article_title || '|' || m.source || '|' || m.published_at
+            )
+            ORDER BY m.match_confidence DESC, m.bill_id ASC
+          ) AS rn
+        FROM news_mentions m
+        INNER JOIN bills b ON b.id = m.bill_id
+        WHERE ${baseWhere} ${whereExtra}
+      ),
+      others AS (
+        SELECT
+          article_key,
+          json_group_array(bill_id) AS other_bill_ids
+        FROM ranked
+        WHERE rn > 1
+        GROUP BY article_key
+      )
+      SELECT
+        pm.id,
+        pm.bill_id,
+        pm.bill_title,
+        pm.bill_sponsor_name,
+        pm.bill_sponsor_party,
+        pm.source,
+        pm.article_title,
+        pm.article_url,
+        pm.published_at,
+        COALESCE(o.other_bill_ids, '[]') AS other_bill_ids
+      FROM ranked pm
+      LEFT JOIN others o ON o.article_key = pm.article_key
+      WHERE pm.rn = 1
+      ORDER BY pm.published_at DESC, pm.id DESC
+      LIMIT ? OFFSET ?`;
+    const rs = await db.execute({
+      sql: rowSql,
+      args: [...baseArgs, ...filterArgs, pageSize, offset],
+    });
+
+    const mentions: NewsMention[] = rs.rows.map((r) => {
+      const otherBillsRaw = r.other_bill_ids as string;
+      let otherBills: string[] = [];
+      try {
+        const parsed = JSON.parse(otherBillsRaw);
+        if (Array.isArray(parsed)) {
+          otherBills = parsed.filter((x): x is string => typeof x === "string");
+        }
+      } catch {
+        otherBills = [];
+      }
+      return {
+        id: Number(r.id),
+        billId: r.bill_id as string,
+        billTitle: r.bill_title as string,
+        billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
+        billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
+        source: r.source as string,
+        title: r.article_title as string,
+        url: r.article_url as string,
+        publishedAt: r.published_at as string,
+        otherBills,
+      };
+    });
+
+    return {
+      mentions,
+      total,
+      page: clampedPage,
+      pageSize,
+      totalPages,
+    };
+  },
+  ["getNewsFeed"],
+  { revalidate: 600, tags: ["news-breaking"] },
+);
+
 // ---- News matcher candidate pool (handoff 86) ---------------------------
 
 export type CandidateBill = {
@@ -2002,6 +2223,10 @@ export const getFeedBills = unstable_cache(
 
     const sortColumn =
       filters.sort === "introduced" ? "introduced_date" : "latest_action_date";
+    // HO 151: filters.direction === "asc" flips the order for the
+    // /president alias case (oldest at desk first). NULLS LAST keeps
+    // dateless rows out of the way regardless of direction.
+    const sortDir = filters.direction === "asc" ? "ASC" : "DESC";
 
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
@@ -2011,7 +2236,7 @@ export const getFeedBills = unstable_cache(
       FROM bills
       ${MENTION_SUBQUERY}
       WHERE ${where}
-      ORDER BY ${sortColumn} DESC NULLS LAST, id DESC
+      ORDER BY ${sortColumn} ${sortDir} NULLS LAST, id DESC
       LIMIT ? OFFSET ?`;
 
     const rs = await db.execute({ sql, args: [...args, pageSize, offset] });

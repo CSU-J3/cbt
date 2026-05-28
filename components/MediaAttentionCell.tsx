@@ -4,13 +4,14 @@ import Link from "next/link";
 
 // HO 130: the press chip rendered as a sibling cell of the watch star, not
 // inside the row's main Link wrapper (a nested anchor would be invalid HTML
-// and break keyboard semantics). Just the number in --accent-amber when
-// count > 0; blank cell otherwise. Tooltip carries the window context.
+// and break keyboard semantics). HO 151 added the ⚡ glyph prefix so the
+// chip reads as a marker, not a bare count, and pointed the click target
+// at /feed?mode=news&bill=<id> — NEWS mode is now the canonical news
+// rendering surface (/news redirects in).
 //
-// Click target is /news?bill=<id>. HO 148 added stopPropagation so a click
-// here doesn't bubble up to the BillRow div-role-button and toggle the
-// accordion — the user explicitly clicked the press chip, they want news,
-// not expand.
+// HO 148 added stopPropagation so a click here doesn't bubble up to the
+// BillRow div-role-button and toggle the accordion — the user explicitly
+// clicked the press chip, they want news, not expand.
 export function MediaAttentionCell({
   billId,
   count,
@@ -24,12 +25,15 @@ export function MediaAttentionCell({
   const label = `${count} news mention${count === 1 ? "" : "s"}, last 7 days`;
   return (
     <Link
-      href={`/news?bill=${encodeURIComponent(billId)}`}
+      href={`/feed?mode=news&bill=${encodeURIComponent(billId)}`}
       className="row-media"
       title={label}
       aria-label={label}
       onClick={(e) => e.stopPropagation()}
     >
+      <span aria-hidden className="row-media-glyph">
+        ⚡
+      </span>
       <span className="row-media-count tabular-nums">{count}</span>
     </Link>
   );

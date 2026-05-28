@@ -713,6 +713,11 @@ body {
 .feed-row .row-media-count {
   letter-spacing: 0.2px;
 }
+.feed-row .row-media-glyph {
+  margin-right: 2px;
+  font-size: 11px;
+  line-height: 1;
+}
 
 .feed-row:hover {
   background-color: var(--bg-row-hover);
