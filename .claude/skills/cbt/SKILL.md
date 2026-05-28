@@ -837,10 +837,23 @@ Full rows (non-compact) are click-to-expand accordions. **This reverses HO 125's
 - Cosponsor party split deliberately not surfaced — `bills.cosponsor_count` is the only cosponsor data the sync stores today (HO 148 Phase 1 finding). Cosponsor-list ingestion is a future handoff.
 - URL state (`?open=<billId>`) deliberately deferred. Expand is pure client state; zero server traffic per toggle. If deep-linking demand shows up later, the param slots in alongside `?topics= ?stage= ?q= ?sponsor= ?sort= ?page= ?chamber= ?ceremonial= ?cluster=` without collisions.
 
+### Markets tape (HO 149)
+
+Thin full-width ticker tape on the dashboard, rendered by `HomeHeader` directly between `.home-header-top` (masthead + ColorKeyStrip) and `.home-header-nav`. Currently dashboard-only; whether it propagates to other pages is the HO 154 cleanup-audit call. Feeds off `getLatestMarketTicks()` (HO 142) — the four MarketTicks (SPX/TNX/WTI/DXY).
+
+- `components/MarketsTape.tsx` — server, fetches the ticks (catches throw, falls through to the no-data branch).
+- `components/MarketsTapeClient.tsx` — client, owns the marquee + states. Staleness is computed client-side against real `Date.now()` (server-side staleness would bake into the page-cache TTL and lie at the 26h boundary). A 60s setInterval re-checks so a long-lived tab eventually flips to stale on its own.
+- **Motion exception:** the marquee is the one deliberate exception to the dashboard's cursor-blink-only motion rule. Double-track `translateX 0 → -50%` 22s linear infinite for a seamless wrap with only four symbols. Gated by a persisted pause toggle (`localStorage` key `cbt-tape-paused`) and CSS `@media (prefers-reduced-motion: reduce) { animation-play-state: paused }`; the toggle button overrides reduced-motion if the user explicitly wants play.
+- **Three render states:**
+  - *Live* — double-track scrolls, each tick renders `SYMBOL VALUE ▲/▼ ±N.NN%` (arrow + change% in `--market-up` / `--market-down`; flat = `•` in `--text-secondary`). `AS OF HH:MM UTC` right-pinned; pause/play toggle ⏸/▶ outside the track so it never scrolls off.
+  - *Stale* (latest `tickedAt` older than 26h) — animation stopped, single static track, values in `--text-dim`, arrows dropped, pause button hidden, `AS OF HH:MM UTC · STALE` with the flag in `--accent-amber`. Weekend STALE is expected and correct (no trading-calendar logic in v1; honest AS OF stamp carries the age).
+  - *No-data* (fetch threw or empty) — strip holds full height, em-dash placeholders per symbol, `MARKET DATA UNAVAILABLE` right-aligned in `--text-dim`, no scroll, no pause button.
+- **Tokens:** the two allowed new vars `--market-up: #10b981` and `--market-down: #ef4444` live in `:root`. The exact hexes match `--stage-enacted` / `--party-republican` but are kept distinct so market direction never cross-wires with bill stage or party color.
+
 ### Server / client split
 
 - All pages are server components and query Turso via `lib/queries.ts`.
-- The dashboard at `/` is entirely server-rendered. No client islands — every chart is a static server component (see **Chart idiom** below).
+- The dashboard at `/` is server-rendered apart from a small set of client islands: `DashboardBubbleChart` (URL-driven bubble navigation), `ActivityTabs` (local tab state), `MarketsTapeClient` (HO 149 marquee + pause), and `BillRowList` wrapper (HO 148 accordion, used on the feed-shaped pages but not the dashboard body itself). Charts (`StageFunnel`, `TopicMixByChamber`, `BillsTimeSeries`, etc.) remain static server components.
 - Client islands: `components/WatchlistToggle.tsx` (POSTs to `/api/watchlist`, then `router.refresh()`) and `components/StageFilter.tsx` (calls `router.push` to update the URL with the chosen stage).
 - The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`.
 

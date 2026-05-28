@@ -34,6 +34,13 @@
   --vote-present: #fbbf24;
   --vote-not-voting: #6b7280;
 
+  /* Markets tape direction (HO 149). Exact hexes match --stage-enacted and
+     --party-republican but the semantic is distinct — market direction
+     should not cross-wire with bill stages or party. Kept as their own
+     vars so a future palette tweak can move them independently. */
+  --market-up: #10b981;
+  --market-down: #ef4444;
+
   /* Bill-id rail (HO 125). Chamber-of-origin marker for the BillRow rail.
      Deliberately NOT reused from party or stage palettes — the chamber is
      structural ("which body filed this bill"), not partisan. Picked from a
@@ -2075,5 +2082,126 @@ body {
   border-bottom: none;
   border-left: 1px solid var(--border-strong);
   border-top: 1px solid var(--border-strong);
+}
+
+/* ---- Markets tape (HO 149) -------------------------------------------- */
+/* Full-width strip between masthead and nav. The marquee is the one
+   deliberate motion exception to the cursor-blink rule (per HO 149), gated
+   by a pause toggle and auto-paused on prefers-reduced-motion. */
+.markets-tape {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  background-color: var(--bg-panel);
+  border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.markets-tape-track {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  animation: markets-tape-scroll 22s linear infinite;
+  /* The fade-edge to --bg-panel hides the symbols passing under the right-
+     side meta panel without a hard cutoff. */
+  padding-right: 24px;
+}
+.markets-tape[data-paused="true"] .markets-tape-track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .markets-tape-track {
+    animation-play-state: paused;
+  }
+}
+.markets-tape-track-half {
+  display: flex;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+}
+.markets-tape-track-static {
+  display: flex;
+  flex-wrap: nowrap;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.markets-tape-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 22px;
+  white-space: nowrap;
+}
+.markets-tape-symbol {
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+.markets-tape-price {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.markets-tape-arrow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.markets-tape-change {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+.markets-tape-meta {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 18px;
+  background: linear-gradient(
+    to right,
+    transparent 0,
+    var(--bg-panel) 20px,
+    var(--bg-panel) 100%
+  );
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.markets-tape-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+  outline: none;
+}
+.markets-tape-toggle:hover,
+.markets-tape-toggle:focus-visible {
+  color: var(--accent-amber);
+}
+.markets-tape-stamp {
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.markets-tape-stale-flag {
+  color: var(--accent-amber);
+}
+.markets-tape--stale .markets-tape-symbol,
+.markets-tape--stale .markets-tape-price,
+.markets-tape--no-data .markets-tape-symbol,
+.markets-tape--no-data .markets-tape-price {
+  color: var(--text-dim);
+}
+
+@keyframes markets-tape-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 

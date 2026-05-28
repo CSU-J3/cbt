@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ColorKeyStrip } from "@/components/ColorKeyStrip";
 import { NAV_ITEMS } from "@/components/HeaderBar";
+import { MarketsTape } from "@/components/MarketsTape";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
@@ -43,6 +44,8 @@ export async function HomeHeader() {
 
         <ColorKeyStrip />
       </div>
+
+      <MarketsTape />
 
       <nav className="home-header-nav" aria-label="Primary navigation">
         {NAV_ITEMS.map((item) => (
