@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/Tooltip";
 import {
   BILL_TYPES,
   PARTIES,
@@ -5,6 +6,13 @@ import {
   type Swatch,
   TOPIC_GROUPS,
 } from "@/lib/color-key";
+
+// HO 147: the `?` badge pops the panel-level legend content. Body kept to
+// two short lines per the primitive's spec. Forward-compatible with the
+// HO 154 audit that may trim these rows out of the inline view; the badge
+// remains the canonical place to read them.
+const LEGEND_TOOLTIP_BODY =
+  "R · D · I dots are party colors on member chips. Bill-type tags (HR, S, HJRES, SJRES…) mark each bill rail; amber ▸ marks the active filter or any clickable highlight.";
 
 // Boxed top-right legend on the home header (home-dashboard-cleanup).
 // Vertical row stack — each row = 52px label column + indicators that
@@ -62,6 +70,18 @@ function Row({
 export function ColorKeyStrip() {
   return (
     <aside className="color-key-box" aria-label="Color key">
+      <div className="color-key-header">
+        <span className="color-key-header-label">LEGEND</span>
+        <Tooltip
+          variant="badge"
+          ariaLabel="Show parties, bill types, and accent legend"
+          content={{
+            kind: "text",
+            label: "PARTIES · BILL TYPES · ACCENT",
+            body: LEGEND_TOOLTIP_BODY,
+          }}
+        />
+      </div>
       <Row heading="STAGES" items={STAGES} />
       <Row heading="TOPICS" items={TOPIC_GROUPS} />
       <Row heading="PARTIES" items={PARTIES} />

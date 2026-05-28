@@ -835,6 +835,25 @@ URL-driven via `?expanded=<bill-id>`. Click anywhere on a row → toggle expansi
 - Client islands: `components/WatchlistToggle.tsx` (POSTs to `/api/watchlist`, then `router.refresh()`) and `components/StageFilter.tsx` (calls `router.push` to update the URL with the chosen stage).
 - The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`.
 
+### Tooltip primitive (HO 147)
+
+Rich-content tooltip component for marked affordances. Coexists with HO 123's native `title` attributes during the cleanup window — HO 154 owns the systematic migration off `title` to the primitive. Component (`components/Tooltip.tsx`) is a client island; positioning logic lives in `lib/tooltip-position.ts` (hand-rolled; no Floating UI / Popper dependency — flip/clamp/caret math is ~30 lines and a single component doesn't justify a runtime dep).
+
+Two trigger affordances, one panel:
+
+- **Dotted-underline term** (`variant="term"`). Wraps inline text; gains a 1px dotted `--text-dim` `border-bottom` (not `text-decoration`, so the inner colored text — stage/topic codes — keeps its own color). `cursor: help`, focusable, `aria-describedby` wired.
+- **`?` badge** (`variant="badge"`). 16px bordered mono box for panel/section-level help. First applied in `ColorKeyStrip` next to the new `LEGEND` header row; pops the PARTIES / BILL TYPES / ACCENT body in one panel so the badge is forward-compatible with any future trim of those inline rows.
+
+Panel renders via `createPortal` to `document.body` so it escapes overflow-hidden ancestors. `--bg-panel` bg, 1px `--border-strong`, 5px radius, ~9-11px padding, max-width 260px, 6px rotated-square caret tracking the trigger after horizontal clamping. **Static principle, no fade:** ~400ms hover-in delay (anti-flicker on dense layouts), instant out, instant appear — matches the dashboard's cursor-blink-only motion rule. Hover AND focus both open; Escape closes.
+
+Content has two modes: `kind: "text"` (label + body) and `kind: "data"` (label + count + optional share% + click hint) — the data mode exists so chart-element handoffs (bubble drawer, scatter dots) import it instead of each chart inventing its own hover panel.
+
+First applications (HO 147):
+- `ColorKeyStrip` — `?` badge in the new `.color-key-header` row, pops the legend body.
+- `StageLegend` — the `▸ COMMITTEE` chip is the one dotted-underline example; the other five stages remain on native `title` until HO 154.
+
+Coded-term content reads from the existing label maps (`BILL_TYPE_LABELS` / `STAGE_LABELS` / `RACE_RATING_SOURCES` in `lib/enums.ts`, `TOPIC_LABELS` / `TOPIC_FULL_LABELS` in `lib/topic-colors.ts`) — there is no separate `lib/labels.ts` despite some handoff text claiming so; the HO 123 sweep left the maps in their original homes.
+
 ### Chart idiom
 
 Five charts ship today, split by what the chart needs:

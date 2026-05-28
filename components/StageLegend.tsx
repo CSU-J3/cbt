@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/Tooltip";
 import { STAGE_LABELS } from "@/lib/enums";
 
 export function StageLegend() {
@@ -18,12 +19,22 @@ export function StageLegend() {
         ▸ INTRO
       </span>
       <span style={{ color: "var(--text-dim)" }}>·</span>
-      <span
-        style={{ color: "var(--stage-committee)" }}
-        title={STAGE_LABELS.committee}
+      {/* HO 147: first dotted-underline Tooltip application on a coded
+          term. The inner span keeps its --stage-committee color; the
+          Tooltip's border-bottom underline draws in --text-dim without
+          overriding the text color. The five other stages stay on
+          native `title` until HO 154's app-wide migration. */}
+      <Tooltip
+        variant="term"
+        ariaLabel={`COMMITTEE — ${STAGE_LABELS.committee}`}
+        content={{
+          kind: "text",
+          label: "▸ COMMITTEE",
+          body: STAGE_LABELS.committee,
+        }}
       >
-        ▸ COMMITTEE
-      </span>
+        <span style={{ color: "var(--stage-committee)" }}>▸ COMMITTEE</span>
+      </Tooltip>
       <span style={{ color: "var(--text-dim)" }}>·</span>
       <span
         style={{ color: "var(--stage-floor)" }}
