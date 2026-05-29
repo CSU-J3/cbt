@@ -779,6 +779,80 @@ export const getReportCount = unstable_cache(
   { revalidate: 3600, tags: ["reports"] },
 );
 
+// HO 153: list helper that carries a derived 1-2-line lead per row.
+// Separate from getReports so existing callers keep their lighter
+// ReportListItem shape; the lead is extracted at read time from
+// content_md (lib/report-lead.ts) so the generation pipeline stays
+// untouched per the handoff's "don't add a field for a display concern"
+// discipline. Selecting content_md per row is cheap at the table's
+// scale (weekly cadence, <60 rows in practice; the page caps at 20).
+export type ReportListItemWithLead = ReportListItem & { lead: string };
+
+export const getReportsWithLead = unstable_cache(
+  async (
+    limit: number,
+    offset: number,
+  ): Promise<ReportListItemWithLead[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT slug, title, week_start, week_end, content_md
+            FROM reports
+            ORDER BY week_start DESC
+            LIMIT ? OFFSET ?`,
+      args: [limit, offset],
+    });
+    const { extractReportLead } = await import("./report-lead");
+    return rs.rows.map((r) => ({
+      slug: r.slug as string,
+      title: r.title as string,
+      weekStart: r.week_start as string,
+      weekEnd: r.week_end as string,
+      lead: extractReportLead(r.content_md as string),
+    }));
+  },
+  ["getReportsWithLead"],
+  { revalidate: 3600, tags: ["reports"] },
+);
+
+// HO 153: backs the dashboard snapshot strip — latest report's date +
+// derived lead, plus the next 3 prior dates for the "PREVIOUS · …" row.
+// Returns null when zero reports exist so the slot can stay empty rather
+// than render a placeholder.
+export type DashboardReportSnapshot = {
+  latest: ReportListItemWithLead;
+  previousDates: { slug: string; weekStart: string }[];
+};
+
+export const getDashboardReportSnapshot = unstable_cache(
+  async (): Promise<DashboardReportSnapshot | null> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT slug, title, week_start, week_end, content_md
+       FROM reports
+       ORDER BY week_start DESC
+       LIMIT 4`,
+    );
+    if (rs.rows.length === 0) return null;
+    const { extractReportLead } = await import("./report-lead");
+    const [head, ...tail] = rs.rows;
+    return {
+      latest: {
+        slug: head!.slug as string,
+        title: head!.title as string,
+        weekStart: head!.week_start as string,
+        weekEnd: head!.week_end as string,
+        lead: extractReportLead(head!.content_md as string),
+      },
+      previousDates: tail.map((r) => ({
+        slug: r.slug as string,
+        weekStart: r.week_start as string,
+      })),
+    };
+  },
+  ["getDashboardReportSnapshot"],
+  { revalidate: 3600, tags: ["reports"] },
+);
+
 // ---- Members (handoff 60) ------------------------------------------------
 
 export type Member = {

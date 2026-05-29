@@ -3,8 +3,9 @@ import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
 import { ReportRow } from "@/components/ReportRow";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatWeekTitle } from "@/lib/report-generation";
-import { getReportCount, getReports } from "@/lib/queries";
+import { getReportCount, getReportsWithLead } from "@/lib/queries";
 
 // Reads the DB; opt out of static prerender. unstable_cache still applies.
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function ReportsPage({
 
   const [count, reports] = await Promise.all([
     getReportCount(),
-    getReports(PAGE_SIZE, offset),
+    getReportsWithLead(PAGE_SIZE, offset),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
@@ -55,6 +56,18 @@ export default async function ReportsPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="reports" />
+
+        {/* HO 153 — sub-masthead in the dashboard's terminal-prompt
+            style. HeaderBar above keeps the nav + count chrome; this
+            block delivers spec 6's "Reports:\>" framing without a
+            broader per-page-masthead migration (that's HO 154). */}
+        <div className="reports-masthead">
+          <TerminalPrompt name="Reports" />
+          <p className="reports-masthead-meta">
+            Weekly digest · newest first
+          </p>
+        </div>
+
         <section
           className="mb-4 border"
           style={{ borderColor: "var(--border-strong)" }}

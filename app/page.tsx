@@ -7,6 +7,7 @@ import {
   DashboardBubbleChart,
 } from "@/components/DashboardBubbleChart";
 import { HomeHeader } from "@/components/HomeHeader";
+import { ReportSnapshot } from "@/components/ReportSnapshot";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import {
@@ -141,9 +142,14 @@ export default async function DashboardPage({
           </section>
         </div>
 
-        {/* HO 153 reports-snapshot slot. Intentionally empty here —
-            HO 153 fills it with the below-grid weekly-report strip. */}
-        <div className="home-snapshot-slot" aria-hidden />
+        {/* HO 150 reserved the slot; HO 153 fills it with a slim
+            full-width weekly-report pointer. ReportSnapshot returns null
+            when zero reports exist, so the slot stays empty rather than
+            render a placeholder — same lazy posture as the empty-data
+            states elsewhere. */}
+        <div className="home-snapshot-slot">
+          <ReportSnapshot />
+        </div>
       </main>
     </div>
   );

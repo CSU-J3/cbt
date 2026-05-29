@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ColorKeyStrip } from "@/components/ColorKeyStrip";
 import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
@@ -23,13 +24,7 @@ export async function HomeHeader() {
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            <Link
-              href="/"
-              className="terminal-prompt"
-              aria-label="Congress Terminal home"
-            >
-              Congress Terminal<span className="prompt-accent">{":\\>"}</span>
-            </Link>
+            <TerminalPrompt name="Congress Terminal" href="/" />
 
             {lead?.text ? (
               <p className="home-header-lead">
