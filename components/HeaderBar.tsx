@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
+import { MarketsTape } from "@/components/MarketsTape";
 import { SearchBox } from "@/components/SearchBox";
 import { getClusterPattern } from "@/lib/cluster-patterns";
 import { currentCongressLabel } from "@/lib/congress";
@@ -177,12 +178,17 @@ export async function HeaderBar({
 
   return (
     <header
-      className="border-b"
       style={{
         backgroundColor: "var(--bg-panel)",
-        borderColor: "var(--border-strong)",
+        borderBottom: "1px solid var(--border-strong)",
       }}
     >
+      {/* HO 154.2: MarketsTape goes global. Same component the dashboard's
+          HomeHeader uses; both mount points share the cbt-tape-paused
+          localStorage key so pausing on any page persists everywhere.
+          The dashboard's HomeHeader uses its own placement and never
+          renders HeaderBar — so no double-mount on `/`. */}
+      <MarketsTape />
       <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
         <div className="flex flex-col leading-tight">
           <Link
