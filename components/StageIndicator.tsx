@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/Tooltip";
 import { STAGE_LABELS } from "@/lib/enums";
 
 const STAGE_PREFIX: Record<string, string> = {
@@ -36,6 +37,13 @@ const STAGE_COLOR: Record<string, string> = {
   enacted: "var(--stage-enacted)",
 };
 
+// HO 154.6: stage chips are coded terms (▸ COMMITTEE etc.) — the codes
+// graduate from HO 123's native `title` attribute to the HO 147 Tooltip
+// term variant. The inner span keeps the stage color; the Tooltip's
+// border-bottom underline draws in --text-dim and the hover panel
+// surfaces the STAGE_LABELS active-voice clause. Status-only labels
+// elsewhere (StagePillStrip's "3w in Committee", PalestineBadge, etc.)
+// stay on native title per the cleanup rule.
 export function StageIndicator({
   stage,
   responsive = false,
@@ -52,23 +60,32 @@ export function StageIndicator({
   const color = muted
     ? "var(--text-dim)"
     : (STAGE_COLOR[stage] ?? "var(--text-muted)");
-  const tooltip =
-    STAGE_LABELS[stage as keyof typeof STAGE_LABELS] ?? undefined;
+  const description =
+    STAGE_LABELS[stage as keyof typeof STAGE_LABELS] ?? stage;
   return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[14px] uppercase tracking-[0.5px]"
-      style={{ color }}
-      title={tooltip}
+    <Tooltip
+      variant="term"
+      ariaLabel={`${full} — ${description}`}
+      content={{
+        kind: "text",
+        label: `${prefix} ${full}`,
+        body: description,
+      }}
     >
-      <span aria-hidden>{prefix}</span>
-      {responsive ? (
-        <>
-          <span className="show-desktop">{full}</span>
-          <span className="show-mobile">{short}</span>
-        </>
-      ) : (
-        <span>{full}</span>
-      )}
-    </span>
+      <span
+        className="inline-flex items-center gap-1.5 text-[14px] uppercase tracking-[0.5px]"
+        style={{ color }}
+      >
+        <span aria-hidden>{prefix}</span>
+        {responsive ? (
+          <>
+            <span className="show-desktop">{full}</span>
+            <span className="show-mobile">{short}</span>
+          </>
+        ) : (
+          <span>{full}</span>
+        )}
+      </span>
+    </Tooltip>
   );
 }

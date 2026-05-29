@@ -2207,6 +2207,21 @@ body {
   border-bottom-color: var(--accent-amber);
 }
 
+/* HO 154.6: BillIdRail's tooltip-term wraps a two-line vertical block
+   (type code over number) — the dotted underline doesn't read on a
+   block, so suppress it; keep the column flex so type/number still
+   stack the same way they did pre-HO-154.6. */
+.bill-rail .tooltip-term {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  border-bottom: none;
+}
+.bill-rail .tooltip-term:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+
 /* `?` badge trigger. Small bordered mono box; sits inline with a heading. */
 .tooltip-badge {
   display: inline-flex;
