@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
-import { ChamberToggle } from "@/components/ChamberToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
 import { NewsRow } from "@/components/NewsRow";
 import { Pagination } from "@/components/Pagination";
-import { SegmentedToggle } from "@/components/SegmentedToggle";
+import {
+  CHAMBER_SEGMENTS,
+  SegmentedToggle,
+} from "@/components/SegmentedToggle";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
@@ -223,7 +225,19 @@ async function BillsView({
               ceremonial={includeCeremonial}
               cluster={cluster}
             />
-            <ChamberToggle current={chamber} carry={carry} basePath="/feed" />
+            <SegmentedToggle
+              current={(chamber ?? "") as "" | "house" | "senate"}
+              ariaLabel="Chamber"
+              segments={CHAMBER_SEGMENTS}
+              buildHref={(value) => {
+                const sp = new URLSearchParams(carry);
+                sp.delete("page");
+                if (value) sp.set("chamber", value);
+                else sp.delete("chamber");
+                const qs = sp.toString();
+                return qs ? `/feed?${qs}` : "/feed";
+              }}
+            />
             <span
               className="ml-auto flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}

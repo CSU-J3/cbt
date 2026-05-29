@@ -1,5 +1,8 @@
 import { BillRowList } from "@/components/BillRowList";
-import { ChamberToggle } from "@/components/ChamberToggle";
+import {
+  CHAMBER_SEGMENTS,
+  SegmentedToggle,
+} from "@/components/SegmentedToggle";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
@@ -43,10 +46,18 @@ export default async function WatchlistPage({
           <span style={{ color: "var(--accent-amber)" }}>★ Watchlist</span>
           <span>·</span>
           <span>{bills.length} {bills.length === 1 ? "bill" : "bills"}</span>
-          <ChamberToggle
-            current={chamber}
-            carry={carry}
-            basePath="/watchlist"
+          <SegmentedToggle
+            current={(chamber ?? "") as "" | "house" | "senate"}
+            ariaLabel="Chamber"
+            segments={CHAMBER_SEGMENTS}
+            buildHref={(value) => {
+              const sp = new URLSearchParams(carry);
+              sp.delete("page");
+              if (value) sp.set("chamber", value);
+              else sp.delete("chamber");
+              const qs = sp.toString();
+              return qs ? `/watchlist?${qs}` : "/watchlist";
+            }}
           />
           <span className="ml-auto flex items-center gap-2">
             <span>Sort</span>

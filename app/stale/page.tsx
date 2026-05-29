@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
-import { ChamberToggle } from "@/components/ChamberToggle";
+import {
+  CHAMBER_SEGMENTS,
+  SegmentedToggle,
+} from "@/components/SegmentedToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageFilter } from "@/components/StageFilter";
@@ -110,7 +113,19 @@ export default async function StalePage({
             basePath="/stale"
             availableStages={STALE_FILTER_STAGES}
           />
-          <ChamberToggle current={chamber} carry={carry} basePath="/stale" />
+          <SegmentedToggle
+            current={(chamber ?? "") as "" | "house" | "senate"}
+            ariaLabel="Chamber"
+            segments={CHAMBER_SEGMENTS}
+            buildHref={(value) => {
+              const sp = new URLSearchParams(carry);
+              sp.delete("page");
+              if (value) sp.set("chamber", value);
+              else sp.delete("chamber");
+              const qs = sp.toString();
+              return qs ? `/stale?${qs}` : "/stale";
+            }}
+          />
           <span
             className="ml-2 text-[12px] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}

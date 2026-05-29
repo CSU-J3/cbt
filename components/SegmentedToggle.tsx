@@ -4,15 +4,27 @@ import Link from "next/link";
 // ChamberToggle idiom (which has carried it since HO 90). Mono uppercase
 // chips, active = --accent-amber-bright on --bg-row-hover, inactive =
 // --text-muted on --bg-base, 0.5px border-left between chips. Used by
-// the BILLS|NEWS feed-mode toggle here; HO 152 plugs the same component
-// into the members VOLUME|PASS RATE toggle. ChamberToggle and
-// SponsorSortToggle still hand-roll their own — HO 154 cleanup migrates
-// them so existing call sites stay untouched in this pass.
+// the BILLS|NEWS feed-mode toggle and (after HO 154.3) every chamber +
+// metric toggle in the app. Per the HO 154 cleanup decision, the
+// previously bespoke ChamberToggle was deleted and its 4 callers
+// (/feed, /changes, /stale, /watchlist) now mount SegmentedToggle
+// directly with CHAMBER_SEGMENTS below.
 
 export type Segment<V extends string> = {
   value: V;
   label: string;
 };
+
+// HO 154.3 — shared three-segment ALL | HOUSE | SENATE constant so the
+// chamber toggle's labels stay in one place across pages. Each caller
+// owns its own buildHref (carry + basePath + page-reset semantics vary
+// per surface) so this is the labels-only handoff between the canonical
+// SegmentedToggle and the four feed-shaped pages.
+export const CHAMBER_SEGMENTS: readonly Segment<"" | "house" | "senate">[] = [
+  { value: "", label: "ALL" },
+  { value: "house", label: "HOUSE" },
+  { value: "senate", label: "SENATE" },
+];
 
 export function SegmentedToggle<V extends string>({
   current,
