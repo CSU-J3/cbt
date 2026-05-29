@@ -98,15 +98,19 @@ body {
   margin-left: auto;
 }
 
-/* ---- Mobile nav drawer (HO 156 Phase 2, spec 15a skeleton) ----------- */
-/* One client island mounted in both HeaderBar and HomeHeader. Hidden
-   ≥700px — the inline header nav owns that band. Below 700px the inline
-   navs hide and this hamburger + vertical drawer take over. The drawer is
-   absolute-positioned off the (position: relative) header, so the same
-   markup drops below either header regardless of its internal layout.
-   Instant display toggle (conditional render), no slide — a tap
-   disclosure inside the static-below-1024 constraint, not a motion
-   exception. */
+/* ---- Mobile nav drawer (HO 156 Phase 2 — currently DORMANT) ---------- */
+/* One client island mounted in both HeaderBar and HomeHeader, kept in the
+   tree but not currently shown. At 6 nav items the inline nav wraps cleanly
+   into two rows on a 375px phone, so the hamburger isn't needed (HO 156
+   follow-up). `.mobile-nav` therefore stays display:none at ALL widths and
+   the inline navs render at every width (they already flex-wrap). To revive
+   the drawer — e.g. if the nav count grows past what wraps cleanly — re-add
+   an `@media (max-width: 700px)` block that sets `.mobile-nav { display: flex;
+   justify-content: flex-end; width: 100% }` and hides `.header-nav,
+   .home-header-nav`. Mind the cascade: that media rule must come AFTER the
+   base `.home-header-nav { display: flex }` (later in this file) or equal
+   specificity lets the base win. The drawer panel is absolute-positioned off
+   the (position: relative) header; instant display toggle, no slide. */
 .mobile-nav {
   display: none;
 }
@@ -161,18 +165,6 @@ body {
 .mobile-nav-icon {
   font-size: 16px;
   line-height: 1;
-}
-@media (max-width: 700px) {
-  .mobile-nav {
-    display: flex;
-    justify-content: flex-end;
-    width: 100%;
-  }
-  /* Inline header navs yield to the drawer below 700px. */
-  .header-nav,
-  .home-header-nav {
-    display: none;
-  }
 }
 
 /* ---- /trends pane grid ------------------------------------------------- */
@@ -2408,6 +2400,17 @@ body {
   overflow: hidden;
   font-family: var(--font-mono);
   font-size: 12px;
+}
+/* HO 156 follow-up: hide the tape <700px. It's a dense desktop strip that
+   wraps poorly on phones, reads STALE on the daily-refresh cadence, and
+   isn't worth the vertical space above breaking-news / stage-distribution.
+   CSS-only — the HO 142 data layer stays mounted (ticks still fetched), and
+   the desktop tape (incl. its marquee question, owned by the overflow pass)
+   is untouched. Placed after the base rule so it wins the <700 cascade. */
+@media (max-width: 700px) {
+  .markets-tape {
+    display: none;
+  }
 }
 .markets-tape-track {
   display: flex;
