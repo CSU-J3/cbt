@@ -26,7 +26,6 @@ export function SortDropdown({
     const params = new URLSearchParams(searchParams.toString());
     if (value === "action") params.delete("sort");
     else params.set("sort", value);
-    params.delete("expanded");
     params.delete("page");
     const qs = params.toString();
     startTransition(() => {

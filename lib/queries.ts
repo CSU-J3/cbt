@@ -726,49 +726,10 @@ export type Report = ReportListItem & {
 
 // Weekly cron-generated reports (handoff 58). Tagged "reports" — a separate
 // tag from "bills" because the cron's report step revalidates independently
-// of the sync/summarize steps.
-export const getReportsList = unstable_cache(
-  async (): Promise<ReportListItem[]> => {
-    const db = getDb();
-    const rs = await db.execute(
-      `SELECT slug, title, week_start, week_end
-       FROM reports
-       ORDER BY week_start DESC`,
-    );
-    return rs.rows.map((r) => ({
-      slug: r.slug as string,
-      title: r.title as string,
-      weekStart: r.week_start as string,
-      weekEnd: r.week_end as string,
-    }));
-  },
-  ["reports-list"],
-  { revalidate: 3600, tags: ["reports"] },
-);
-
-// Paginated variant for the /reports index (handoff 75). Same tag/revalidate
-// as getReportsList — the cron's `reports` invalidation flushes both.
-export const getReports = unstable_cache(
-  async (limit: number, offset: number): Promise<ReportListItem[]> => {
-    const db = getDb();
-    const rs = await db.execute({
-      sql: `SELECT slug, title, week_start, week_end
-            FROM reports
-            ORDER BY week_start DESC
-            LIMIT ? OFFSET ?`,
-      args: [limit, offset],
-    });
-    return rs.rows.map((r) => ({
-      slug: r.slug as string,
-      title: r.title as string,
-      weekStart: r.week_start as string,
-      weekEnd: r.week_end as string,
-    }));
-  },
-  ["getReports"],
-  { revalidate: 3600, tags: ["reports"] },
-);
-
+// of the sync/summarize steps. The list helpers that surface a derived
+// lead live further down (getReportsWithLead, getDashboardReportSnapshot,
+// HO 153); both supersede the pre-HO-153 lightweight getReports and
+// getReportsList helpers, which were removed in HO 154.1 as dead code.
 export const getReportCount = unstable_cache(
   async (): Promise<number> => {
     const db = getDb();
@@ -2371,66 +2332,6 @@ export const getStaleBills = unstable_cache(
   },
   ["getStaleBills"],
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
-);
-
-function buildPresidentWhere(filters: FeedFilters): {
-  clauses: string[];
-  args: (string | number)[];
-} {
-  const { stage: _ignored, ...rest } = filters;
-  const { clauses, args } = buildFeedWhere(rest);
-  clauses.push("stage = ?");
-  args.push("president");
-  clauses.push("latest_action_date IS NOT NULL");
-  return { clauses, args };
-}
-
-export const getPresidentBills = unstable_cache(
-  async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
-    const db = getDb();
-    const { clauses, args } = buildPresidentWhere(filters);
-    args.push(limit);
-
-    const sql = `SELECT id, congress, bill_type, bill_number, title,
-      sponsor_name, sponsor_party, sponsor_state, introduced_date,
-      latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at,
-      ${MENTION_SELECT}
-      FROM bills
-      ${MENTION_SUBQUERY}
-      WHERE ${clauses.join(" AND ")}
-      ORDER BY latest_action_date ASC
-      LIMIT ?`;
-
-    const rs = await db.execute({ sql, args });
-    return rs.rows.map(rowToFeedBill);
-  },
-  ["getPresidentBills"],
-  { revalidate: 3600, tags: ["bills", "news-breaking"] },
-);
-
-export const getPresidentCount = unstable_cache(
-  async (filters: FeedFilters): Promise<FeedCount> => {
-    const db = getDb();
-    const { clauses: filteredClauses, args: filteredArgs } =
-      buildPresidentWhere(filters);
-    const { clauses: totalClauses, args: totalArgs } = buildPresidentWhere({});
-
-    const totalRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-      args: totalArgs,
-    });
-    const filteredRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
-      args: filteredArgs,
-    });
-    return {
-      total: Number(totalRs.rows[0]?.n ?? 0),
-      filtered: Number(filteredRs.rows[0]?.n ?? 0),
-    };
-  },
-  ["getPresidentCount"],
-  { revalidate: 3600, tags: ["bills"] },
 );
 
 function buildSponsorWhere(filters: SponsorFilters): {

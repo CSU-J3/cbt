@@ -25,7 +25,6 @@ export function ChamberToggle({
       {SEGMENTS.map(({ value, label }, i) => {
         const sp = new URLSearchParams(carry);
         sp.delete("page");
-        sp.delete("expanded");
         if (value) sp.set("chamber", value);
         else sp.delete("chamber");
         const qs = sp.toString();
