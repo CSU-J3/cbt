@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import {
   type CommitteeChamber,
   type CommitteeIndexRow,
@@ -252,6 +253,9 @@ export default async function CommitteesPage({
       />
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="committees" />
+        <div className="page-masthead">
+          <TerminalPrompt name="Committees" />
+        </div>
 
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1

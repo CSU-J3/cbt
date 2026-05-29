@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { daysUntil, formatDateShort } from "@/lib/format";
 import {
   getPastPrimaries,
@@ -210,6 +211,9 @@ export default async function RacesPage() {
       <HeaderBar basePath="/races" />
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="races" />
+        <div className="page-masthead">
+          <TerminalPrompt name="Races" />
+        </div>
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

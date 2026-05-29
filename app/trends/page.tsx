@@ -1,6 +1,7 @@
 import { BillsTimeSeries } from "@/components/BillsTimeSeries";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 
 // HO 126 — destination for the two SVG charts (HO 66 BillsTimeSeries + HO 76
@@ -17,12 +18,9 @@ export default function TrendsPage() {
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="patterns" active="trends" />
-        <h1
-          className="mb-3 text-[14px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--accent-amber)" }}
-        >
-          Trends
-        </h1>
+        <div className="page-masthead">
+          <TerminalPrompt name="Trends" />
+        </div>
 
         <section
           className="dashboard-pane mb-3"

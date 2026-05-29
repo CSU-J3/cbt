@@ -6,6 +6,7 @@ import {
 import { HeaderBar } from "@/components/HeaderBar";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import {
   getWatchlistBills,
   sanitizeChamber,
@@ -36,6 +37,9 @@ export default async function WatchlistPage({
       <HeaderBar />
 
       <main className="w-full flex-1 px-4 py-4">
+        <div className="page-masthead">
+          <TerminalPrompt name="Watchlist" />
+        </div>
         <div
           className="mb-3 flex items-baseline gap-3 border-b pb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{

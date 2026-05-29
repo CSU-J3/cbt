@@ -1480,9 +1480,13 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* HO 153 — sub-masthead block on /reports. Sits below GroupTabs and
-   borrows the same terminal-prompt styling the dashboard uses. */
-.reports-masthead {
+/* HO 153 → HO 154.4 — per-page sub-masthead block, originally
+   introduced for /reports and generalized in HO 154.4 to apply to
+   every list page (Feed:\>, Members:\>, Committees:\>, etc.).
+   Sits below the GroupTabs strip (or directly below HeaderBar when
+   a page has no GroupTabs) and borrows the same terminal-prompt
+   styling the dashboard masthead uses. */
+.page-masthead {
   display: flex;
   align-items: baseline;
   gap: var(--space-md);
@@ -1490,7 +1494,7 @@ body {
   border-bottom: 0.5px solid var(--border-soft);
   margin-bottom: var(--space-md);
 }
-.reports-masthead-meta {
+.page-masthead-meta {
   font-size: 12px;
   letter-spacing: 0.5px;
   color: var(--text-muted);

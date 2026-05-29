@@ -7,6 +7,7 @@ import {
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { StageLegend } from "@/components/StageLegend";
+import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStageChanges,
@@ -80,6 +81,9 @@ export default async function ChangesPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="changes" />
+        <div className="page-masthead">
+          <TerminalPrompt name="Changes" />
+        </div>
         <p
           className="mb-3 text-[12px] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}

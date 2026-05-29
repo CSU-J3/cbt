@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
+import { Pagination } from "@/components/Pagination";
 import { ReportRow } from "@/components/ReportRow";
 import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatWeekTitle } from "@/lib/report-generation";
@@ -41,9 +41,6 @@ export default async function ReportsPage({
   ]);
 
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const showPagination = count > PAGE_SIZE;
-  const prevHref = page > 1 ? `/reports?page=${page - 1}` : null;
-  const nextHref = page < totalPages ? `/reports?page=${page + 1}` : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -57,15 +54,9 @@ export default async function ReportsPage({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="reports" />
 
-        {/* HO 153 — sub-masthead in the dashboard's terminal-prompt
-            style. HeaderBar above keeps the nav + count chrome; this
-            block delivers spec 6's "Reports:\>" framing without a
-            broader per-page-masthead migration (that's HO 154). */}
-        <div className="reports-masthead">
+        <div className="page-masthead">
           <TerminalPrompt name="Reports" />
-          <p className="reports-masthead-meta">
-            Weekly digest · newest first
-          </p>
+          <p className="page-masthead-meta">Weekly digest · newest first</p>
         </div>
 
         <section
@@ -127,38 +118,12 @@ export default async function ReportsPage({
               ))}
             </div>
 
-            {showPagination ? (
-              <div
-                className="mt-4 flex items-center justify-between text-[12px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                {prevHref ? (
-                  <Link
-                    href={prevHref}
-                    className="transition hover:text-[var(--accent-amber-bright)]"
-                    style={{ color: "var(--accent-amber)" }}
-                  >
-                    ← Previous
-                  </Link>
-                ) : (
-                  <span></span>
-                )}
-                <span>
-                  Page {page} of {totalPages}
-                </span>
-                {nextHref ? (
-                  <Link
-                    href={nextHref}
-                    className="transition hover:text-[var(--accent-amber-bright)]"
-                    style={{ color: "var(--accent-amber)" }}
-                  >
-                    Next →
-                  </Link>
-                ) : (
-                  <span></span>
-                )}
-              </div>
-            ) : null}
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              carry={new URLSearchParams()}
+              basePath="/reports"
+            />
           </>
         )}
       </main>
