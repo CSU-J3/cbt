@@ -16,7 +16,7 @@ export default async function ReportDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath={`/reports/${slug}`} />
 
       <main className="w-full flex-1 px-4 py-4">
         {report ? (

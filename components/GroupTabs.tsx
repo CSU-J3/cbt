@@ -42,25 +42,37 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
 export type NavKey = "dashboard" | Group | "reports" | "watchlist";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
-// from the basePath each page already passes in. /watchlist is a
-// standalone top-nav target with no group tabs. /search, /bill/[id],
-// etc. return null (no top-nav highlight).
+// from the basePath each page passes in. /watchlist is a standalone
+// top-nav target with no group tabs.
 //
-// /reports is BOTH a top-level nav item (HO 150) AND a sub-tab inside the
-// `feed` group, so we special-case it before the group loop. Without this
-// check the loop would return `"feed"` and /reports would light up the
-// Feed tab instead of its own. Broader sub-route active-state coverage
-// (e.g. /committee/* → "members") is HO 154 cleanup.
+// HO 154.5 added sub-route active states: when a detail page passes
+// its actual URL as basePath (e.g. "/bill/119-hr-1"), the prefix
+// matchers below light up the correct top-nav tab — /bill/* → feed,
+// /committee/* / /race/* / /members/[bioguideId] → members,
+// /reports/[slug] → reports. Detail pages on a category surface
+// (Members, Feed, etc.) now keep that surface highlighted instead of
+// dropping the nav back to "no active tab".
+//
+// /reports is BOTH a top-level nav item (HO 150) AND a sub-tab inside
+// the `feed` group, so it's special-cased before the group loop —
+// without this check the loop would return `"feed"` and the Reports
+// landing would light up the Feed tab.
 //
 // Note: `/` is intentionally NOT handled here. The home page renders
 // HomeHeader (not HeaderBar), which sets its own Dashboard-active
-// highlight via the NavItemKey == "dashboard" check (HO 140). HeaderBar's
-// default basePath="/" must therefore return null so detail pages that
-// omit an explicit basePath (/watchlist, /bill/[id], /members/[bioguideId],
-// /race/[id], /reports/[slug]) don't falsely light up the Dashboard tab.
+// highlight via the NavItemKey == "dashboard" check (HO 140).
+// HeaderBar's default basePath="/" therefore must return null so any
+// page that omits an explicit basePath doesn't falsely light up the
+// Dashboard tab; with HO 154.5 every detail page passes its actual
+// URL so this fallback is just defensive.
 export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/watchlist") return "watchlist";
-  if (basePath === "/reports") return "reports";
+  if (basePath === "/reports" || basePath.startsWith("/reports/"))
+    return "reports";
+  if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
+  if (basePath.startsWith("/members/")) return "members";
+  if (basePath.startsWith("/committee/")) return "members";
+  if (basePath.startsWith("/race/")) return "members";
   for (const group of Object.keys(GROUP_TABS) as Group[]) {
     if (GROUP_TABS[group].some((t) => t.href === basePath)) {
       return group;

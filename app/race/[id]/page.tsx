@@ -54,7 +54,7 @@ export default async function RacePage({
   if (!race) {
     return (
       <div className="flex min-h-screen flex-col">
-        <HeaderBar />
+        <HeaderBar basePath={`/race/${id}`} />
         <main className="w-full flex-1 px-4 py-4">
           <div
             className="px-6 py-16 text-center"
@@ -100,7 +100,7 @@ export default async function RacePage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath={`/race/${id}`} />
 
       <main className="w-full flex-1 px-4 py-4">
         <Link

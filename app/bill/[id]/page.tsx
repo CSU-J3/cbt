@@ -130,7 +130,7 @@ export default async function BillDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath={`/bill/${bill.id}`} />
 
       <main className="w-full flex-1 px-4 py-4">
         <div

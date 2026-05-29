@@ -188,7 +188,7 @@ export default async function MemberPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath={`/members/${bioguideId}`} />
 
       <main className="w-full flex-1 px-4 py-4">
         <Link
