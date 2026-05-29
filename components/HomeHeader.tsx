@@ -43,9 +43,15 @@ export async function HomeHeader() {
             )}
           </div>
 
+          {/* HO 157: subhead holds 11px at all bands; below 700px it
+              abbreviates to `· HH:MM MT · N BILLS` by dropping the
+              LAST SYNC / TRACKED affixes via .show-desktop (no size change). */}
           <p className="home-header-meta">
-            · LAST SYNC {formatLastUpdated(corpus.lastSync)} ·{" "}
-            {corpus.total.toLocaleString()} BILLS TRACKED
+            ·{" "}
+            <span className="show-desktop">LAST SYNC </span>
+            {formatLastUpdated(corpus.lastSync)} ·{" "}
+            {corpus.total.toLocaleString()} BILLS
+            <span className="show-desktop"> TRACKED</span>
           </p>
         </div>
 

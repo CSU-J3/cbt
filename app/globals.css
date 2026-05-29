@@ -661,12 +661,23 @@ body {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: minmax(280px, auto);
   }
+  /* HO 157: the dashboard lead-in prose + its blinking cursor are shown
+     ≥1024px only. The cursor is a child of .home-header-lead, so hiding
+     the lead hides it too — which keeps the "no motion below 1024px"
+     rule intact (the cursor blink is the sole desktop motion exception). */
+  .home-header-lead {
+    display: none;
+  }
 }
 @media (max-width: 700px) {
   .home-header {
     padding: var(--space-md);
   }
-  .terminal-prompt {
+  /* HO 157: the prompt grow is scoped to the dashboard hero only. The
+     per-page page-masthead reuses .terminal-prompt but must NOT grow — it
+     ships a GroupTabs strip directly beneath it, and two stacked growing
+     heroes would eat the top of a phone viewport. It holds at 18px. */
+  .home-header-prompt-row .terminal-prompt {
     font-size: 24px;
   }
   .home-main {

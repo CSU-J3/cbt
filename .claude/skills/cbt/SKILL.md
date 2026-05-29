@@ -840,6 +840,22 @@ Nav is **one flat row of 6 group landings** (`NAV_ITEMS` in `HeaderBar.tsx`: Das
 - **Dismiss (this pass):** tapping a nav item closes the drawer (navigation dismisses it); tapping the hamburger again closes it.
 - **15c coupling flag:** tap-outside-to-dismiss and an explicit in-drawer close glyph are deliberately deferred to **15c**, which owns the global touch-toggle convention. 15c must **not** ship a pattern that conflicts with this drawer's open/close model — it layers the richer dismissal on top of (not instead of) the minimal exit shipped here.
 
+**Font-size bands + header collapse (HO 157).** Sizing principle: **one hero per surface grows on mobile; everything else holds or moves to the drawer — nothing shrinks.** (The original 15a spec shrank the title on mobile, which inverted the real shipped behavior; this is the correction. Small screens need the primary mark bigger, not smaller.) All ≥1024 values below are the real shipped values, so desktop stays **pixel-unchanged**.
+
+| Element | ≥1024 | 700–1023 | <700 | Behavior |
+|---|---|---|---|---|
+| HomeHeader prompt (`.home-header-prompt-row .terminal-prompt`) | 18px | 18px | 24px | **Grows** — the dashboard hero |
+| HomeHeader lead-in + cursor (`.home-header-lead`) | shown | hidden | hidden | Gated ≥1024 via `@media (max-width: 1023px)`; cursor is its child so it goes too (keeps "no motion <1024") |
+| HomeHeader subhead (`.home-header-meta`) | 11px | 11px | 11px | Holds; abbreviates to `· HH:MM MT · N BILLS` <700 by dropping LAST SYNC / TRACKED via `.show-desktop` |
+| HeaderBar title (`CBT // 119th`) | 16px | 16px | 16px | Holds, one line to 320px (`whitespace-nowrap`) |
+| HeaderBar count line | 11px | 11px | 11px | Holds; **wraps** to 2 lines on narrow, never truncates (no nowrap/truncate on it) |
+| HeaderNav / home-nav | 16 / 14–16px | same | **drawer** | Move into `MobileNavDrawer` <700 |
+| `page-masthead` (`Feed:\>` etc.) | 18px | 18px | 18px | **Holds — does not grow** (anti-rule) |
+| `GroupTabs` (`.search-tabs`) | 14px | 14px | 14px | Holds; mobile overflow **deferred** |
+
+- **page-masthead anti-grow rule.** The per-page masthead is a hero by shape (`Feed:\>`), so the instinct is to grow it like the dashboard prompt. It must not: it ships a `GroupTabs` strip directly beneath it, and two stacked growing heroes eat the top third of a phone. The `<700` `font-size: 24px` grow is therefore scoped to `.home-header-prompt-row .terminal-prompt`, not the bare `.terminal-prompt` class both share.
+- **GroupTabs deferral + coupling.** GroupTabs holds at its 14px desktop value and is **not** mobile-adapted yet. Its horizontal overflow (wrap vs scroll-x) is the same problem the filter bars (#7) and the markets/breaking marquee (#6) have, so it's decided **once** in the later overflow pass, not piecemeal. Likely answer is scroll-x with a faint right-edge fade + active tab pinned visible — but that introduces a sub-1024 motion exception, so it's an explicit approval gate in that pass, not a default.
+
 ### Click-to-expand accordion (HO 148)
 
 Full rows (non-compact) are click-to-expand accordions. **This reverses HO 125's inline-summary-as-primary decision** — the inline summary excerpt is gone, the collapsed row is just title + meta line + chevron, the full summary lives in the expanded panel. The reversal is deliberate (design language matured into spec 4 expand-as-primary).
