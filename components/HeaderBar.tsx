@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MarketsTape } from "@/components/MarketsTape";
+import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
 import { getClusterPattern } from "@/lib/cluster-patterns";
 import { currentCongressLabel } from "@/lib/congress";
@@ -179,6 +180,7 @@ export async function HeaderBar({
   return (
     <header
       style={{
+        position: "relative",
         backgroundColor: "var(--bg-panel)",
         borderBottom: "1px solid var(--border-strong)",
       }}
@@ -289,6 +291,7 @@ export async function HeaderBar({
         ) : null}
 
         <HeaderNav active={pathToNavKey(basePath)} />
+        <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
       </div>
     </header>
   );

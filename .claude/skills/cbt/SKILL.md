@@ -824,6 +824,22 @@ Inner-row paddings (`.feed-row`, `.topic-dist-row`, `.funnel-row`, `.top-stalls-
 
 The interactive row wrapper is itself a two-column grid (`56px 1fr`) holding `BillIdRail` and `row-content` (title + StagePillStrip + row-meta). HO 148 removed the inline summary excerpt (`.row-summary`) and the `View detail →` text (`.row-view-detail`) from the row meta — both moved into the expanded panel. The media-attention chip (HO 130) and watch star sit *outside* the interactive wrapper as separate grid cells so their own anchors/buttons don't nest inside it.
 
+### Mobile header + nav drawer (spec 15a)
+
+**The header is two components, not one.** Any mobile/header work must keep this split straight (it tripped up the original 15a spec, which assumed a single header with a secondary nav row that HO 134 had already deleted):
+
+- **`HomeHeader`** — dashboard (`/`) only. Holds the `Congress Terminal:\>` prompt (`TerminalPrompt`), the lead-in prose, the blinking cursor (`.home-cursor-caret`, the sole desktop motion exception), the `· LAST SYNC … · N BILLS TRACKED` subhead, and its own `.home-header-nav`.
+- **`HeaderBar`** — every other page. Title `CBT // 119th Congress`, a bills-count / last-updated line, `SearchBox` + `CeremonialToggle` (when `feedFilters` present), and a single `HeaderNav` row. No lead-in, no cursor.
+- **`page-masthead`** (per-page `Feed:\>` / `Members:\>` hero, HO 154.4) and **`GroupTabs`** (sub-nav strip, HO 134) are separate chrome, not part of either header.
+
+Nav is **one flat row of 6 group landings** (`NAV_ITEMS` in `HeaderBar.tsx`: Dashboard · Feed · Members · Patterns · Reports · Watchlist). The old secondary STALE·CHANGES·PRESIDENT·WATCHLIST row was removed by HO 134; those destinations live inside `GroupTabs` on the landing pages.
+
+**`MobileNavDrawer` (HO 156 Phase 2).** One `"use client"` island in `components/MobileNavDrawer.tsx`, mounted in **both** headers and fed the same `NAV_ITEMS` so the drawer content is identical regardless of which header rendered it. It owns the only header client state in the mobile pass (`useState` open/close). Hidden ≥700px (the inline `HeaderNav` / `.home-header-nav` own that band); below 700px a `@media (max-width: 700px)` rule in `globals.css` hides both inline navs (`display: none`) and shows the hamburger. The drawer panel is absolute-positioned off the now-`position: relative` header (`top: 100%; left/right: 0; z-index: 50`), so the same markup drops below either header regardless of its internal flex layout.
+
+- **Instant show/hide** via conditional render (a `display` toggle), **not** a slide. A tap-triggered disclosure reading instant is deliberate — it stays inside the static-below-1024 constraint and is **not** a sanctioned motion exception. No motion ships below 1024px.
+- **Dismiss (this pass):** tapping a nav item closes the drawer (navigation dismisses it); tapping the hamburger again closes it.
+- **15c coupling flag:** tap-outside-to-dismiss and an explicit in-drawer close glyph are deliberately deferred to **15c**, which owns the global touch-toggle convention. 15c must **not** ship a pattern that conflicts with this drawer's open/close model — it layers the richer dismissal on top of (not instead of) the minimal exit shipped here.
+
 ### Click-to-expand accordion (HO 148)
 
 Full rows (non-compact) are click-to-expand accordions. **This reverses HO 125's inline-summary-as-primary decision** — the inline summary excerpt is gone, the collapsed row is just title + meta line + chevron, the full summary lives in the expanded panel. The reversal is deliberate (design language matured into spec 4 expand-as-primary).

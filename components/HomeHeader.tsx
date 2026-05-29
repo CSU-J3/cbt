@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ColorKeyStrip } from "@/components/ColorKeyStrip";
 import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
+import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
@@ -50,6 +51,8 @@ export async function HomeHeader() {
 
         <ColorKeyStrip />
       </div>
+
+      <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
       <MarketsTape />
 

@@ -98,6 +98,83 @@ body {
   margin-left: auto;
 }
 
+/* ---- Mobile nav drawer (HO 156 Phase 2, spec 15a skeleton) ----------- */
+/* One client island mounted in both HeaderBar and HomeHeader. Hidden
+   ≥700px — the inline header nav owns that band. Below 700px the inline
+   navs hide and this hamburger + vertical drawer take over. The drawer is
+   absolute-positioned off the (position: relative) header, so the same
+   markup drops below either header regardless of its internal layout.
+   Instant display toggle (conditional render), no slide — a tap
+   disclosure inside the static-below-1024 constraint, not a motion
+   exception. */
+.mobile-nav {
+  display: none;
+}
+.mobile-nav-toggle {
+  background: none;
+  border: 0.5px solid var(--border-strong);
+  color: var(--accent-amber);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.mobile-nav-toggle:hover {
+  color: var(--accent-amber-bright);
+  border-color: var(--accent-amber);
+}
+.mobile-nav-drawer {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border-strong);
+}
+.mobile-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px var(--space-md);
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-top: 0.5px solid var(--border-soft);
+}
+.mobile-nav-link:first-child {
+  border-top: none;
+}
+.mobile-nav-link:hover {
+  background-color: var(--bg-row-hover);
+  color: var(--text-primary);
+}
+.mobile-nav-link[aria-current="page"] {
+  color: var(--accent-amber-bright);
+}
+.mobile-nav-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+@media (max-width: 700px) {
+  .mobile-nav {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+  }
+  /* Inline header navs yield to the drawer below 700px. */
+  .header-nav,
+  .home-header-nav {
+    display: none;
+  }
+}
+
 /* ---- /trends pane grid ------------------------------------------------- */
 /* HO 126 legacy quadrant grid retained for /trends. The home page moved
    to .home-grid in HO 131; this 2x2 .dashboard-pane styling still backs
@@ -138,6 +215,7 @@ body {
   background-color: var(--bg-base);
 }
 .home-header {
+  position: relative;
   padding: var(--space-md) var(--space-xl) var(--space-sm);
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
