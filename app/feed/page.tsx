@@ -465,7 +465,7 @@ async function NewsView({
             <ul>
               {mentions.map((m) => (
                 <li key={m.id} className="px-3">
-                  <NewsRow mention={m} showFullHeadline linkBillToDetail />
+                  <NewsRow mention={m} showFullHeadline />
                 </li>
               ))}
             </ul>

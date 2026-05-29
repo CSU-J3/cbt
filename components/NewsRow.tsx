@@ -34,22 +34,19 @@ function billTypeAndNumber(billId: string): {
 export function NewsRow({
   mention,
   showFullHeadline = false,
-  linkBillToDetail = false,
 }: {
   mention: NewsMention;
   showFullHeadline?: boolean;
-  // When true the bill ID links straight to the bill hub (/bill/[id]);
-  // default routes to the feed's expand panel. The home-page
-  // BreakingNewsBlock (HO 114) opts into detail; /news keeps the expand.
-  linkBillToDetail?: boolean;
 }) {
   const hours = ageHours(mention.publishedAt);
   const ageLabel = formatRelativeAge(mention.publishedAt);
   const tn = billTypeAndNumber(mention.billId);
   const billLabel = tn ? formatBillId(tn.type, tn.number) : mention.billId;
-  const billHref = linkBillToDetail
-    ? `/bill/${encodeURIComponent(mention.billId)}`
-    : `/feed?expanded=${encodeURIComponent(mention.billId)}`;
+  // The bill ID always links to the bill hub (/bill/[id]). HO 155: the old
+  // non-detail branch pointed at /feed?expanded=<billId>, but the feed runs
+  // on pure client state and never reads `?expanded=` (HO 148), so that
+  // target opened nothing. All callers already used the detail link.
+  const billHref = `/bill/${encodeURIComponent(mention.billId)}`;
 
   const otherBills = mention.otherBills ?? [];
 
