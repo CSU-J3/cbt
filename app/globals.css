@@ -1584,7 +1584,7 @@ body {
 
 /* HO 153 — dashboard snapshot strip. Slim full-width pointer to the
    latest weekly report; fills the HO 150-reserved .home-snapshot-slot
-   below the two-column grid. Lead text is the report's derived first
+   directly under the full-width BREAKING strip (HO 159). Lead text is the report's derived first
    paragraph (lib/report-lead.ts), not a re-synthesis of the week. */
 .home-snapshot {
   border: 0.5px solid var(--border-soft);
@@ -1649,43 +1649,6 @@ body {
 .home-snapshot-read:hover {
   color: var(--accent-amber-bright);
 }
-.home-snapshot-prev {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-}
-.home-snapshot-prev-label {
-  color: var(--text-dim);
-}
-.home-snapshot-prev-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-}
-.home-snapshot-prev-sep {
-  color: var(--text-dim);
-}
-.home-snapshot-prev-date {
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.home-snapshot-prev-date:hover {
-  color: var(--accent-amber-bright);
-}
-.home-snapshot-prev-all {
-  color: var(--accent-amber);
-  text-decoration: none;
-}
-.home-snapshot-prev-all:hover {
-  color: var(--accent-amber-bright);
-}
-
 @media (max-width: 700px) {
   .report-row,
   .report-header-row {

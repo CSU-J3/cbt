@@ -9,7 +9,7 @@ import { getDashboardReportSnapshot } from "@/lib/queries";
 export async function ReportSnapshot() {
   const snap = await getDashboardReportSnapshot();
   if (!snap) return null;
-  const { latest, previousDates } = snap;
+  const { latest } = snap;
   return (
     <section className="home-snapshot" aria-label="Weekly report">
       <div className="home-snapshot-main">
@@ -36,30 +36,6 @@ export async function ReportSnapshot() {
           read full →
         </Link>
       </div>
-      {previousDates.length > 0 ? (
-        <div className="home-snapshot-prev">
-          <span className="home-snapshot-prev-label">Previous</span>
-          {previousDates.map((p) => (
-            <span key={p.slug} className="home-snapshot-prev-item">
-              <span aria-hidden className="home-snapshot-prev-sep">
-                ·
-              </span>
-              <Link
-                href={`/reports/${p.slug}`}
-                className="home-snapshot-prev-date tabular-nums"
-              >
-                {p.weekStart}
-              </Link>
-            </span>
-          ))}
-          <span aria-hidden className="home-snapshot-prev-sep">
-            ·
-          </span>
-          <Link href="/reports" className="home-snapshot-prev-all">
-            all →
-          </Link>
-        </div>
-      ) : null}
     </section>
   );
 }

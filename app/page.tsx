@@ -103,6 +103,14 @@ export default async function DashboardPage({
           <BreakingNewsBlock filters={filters} />
         </section>
 
+        {/* Weekly report snapshot — moved directly under BREAKING in HO 159
+            so breaking (72h) + report (7d) stack as a full-width narrative
+            pair above the grid. ReportSnapshot returns null when zero
+            reports exist, leaving the slot empty. */}
+        <div className="home-snapshot-slot">
+          <ReportSnapshot />
+        </div>
+
         <div className="home-grid">
           {/* Left column: STAGE funnel + TOPIC bubbles stacked */}
           <div className="home-col-stack">
@@ -140,15 +148,6 @@ export default async function DashboardPage({
               stallsCount={TOP_STALLS_COUNT}
             />
           </section>
-        </div>
-
-        {/* HO 150 reserved the slot; HO 153 fills it with a slim
-            full-width weekly-report pointer. ReportSnapshot returns null
-            when zero reports exist, so the slot stays empty rather than
-            render a placeholder — same lazy posture as the empty-data
-            states elsewhere. */}
-        <div className="home-snapshot-slot">
-          <ReportSnapshot />
         </div>
       </main>
     </div>

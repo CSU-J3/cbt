@@ -776,12 +776,12 @@ export const getReportsWithLead = unstable_cache(
 );
 
 // HO 153: backs the dashboard snapshot strip — latest report's date +
-// derived lead, plus the next 3 prior dates for the "PREVIOUS · …" row.
-// Returns null when zero reports exist so the slot can stay empty rather
-// than render a placeholder.
+// derived lead. HO 159 dropped the prior-date list (the "PREVIOUS · …"
+// archive row left the dashboard for /reports, which already lists past
+// weeks). Returns null when zero reports exist so the slot can stay empty
+// rather than render a placeholder.
 export type DashboardReportSnapshot = {
   latest: ReportListItemWithLead;
-  previousDates: { slug: string; weekStart: string }[];
 };
 
 export const getDashboardReportSnapshot = unstable_cache(
@@ -791,11 +791,11 @@ export const getDashboardReportSnapshot = unstable_cache(
       `SELECT slug, title, week_start, week_end, content_md
        FROM reports
        ORDER BY week_start DESC
-       LIMIT 4`,
+       LIMIT 1`,
     );
     if (rs.rows.length === 0) return null;
     const { extractReportLead } = await import("./report-lead");
-    const [head, ...tail] = rs.rows;
+    const [head] = rs.rows;
     return {
       latest: {
         slug: head!.slug as string,
@@ -804,10 +804,6 @@ export const getDashboardReportSnapshot = unstable_cache(
         weekEnd: head!.week_end as string,
         lead: extractReportLead(head!.content_md as string),
       },
-      previousDates: tail.map((r) => ({
-        slug: r.slug as string,
-        weekStart: r.week_start as string,
-      })),
     };
   },
   ["getDashboardReportSnapshot"],
