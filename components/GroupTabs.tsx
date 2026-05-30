@@ -91,7 +91,7 @@ export function GroupTabs({
   const tabs = GROUP_TABS[group];
   return (
     <nav
-      className="search-tabs"
+      className="search-tabs flex-wrap"
       role="tablist"
       aria-label={`${group} group tabs`}
     >

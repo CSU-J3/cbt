@@ -2002,7 +2002,7 @@ body {
 @media (max-width: 700px) {
   .search-tabs {
     gap: 12px;
-    overflow-x: auto;
+    flex-wrap: wrap;
   }
   .member-search-row {
     grid-template-columns: minmax(0, 1fr) 80px;

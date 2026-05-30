@@ -50,7 +50,7 @@ function HeaderNav({ active }: { active: NavItemKey | null }) {
   const amber = "var(--accent-amber)";
   return (
     <nav
-      className="header-nav flex items-center gap-4 text-[16px] uppercase tracking-[0.5px] whitespace-nowrap"
+      className="header-nav flex flex-wrap items-center gap-y-2 gap-4 text-[16px] uppercase tracking-[0.5px] whitespace-nowrap"
       style={{ color: "var(--text-dim)" }}
     >
       {NAV_ITEMS.map((item) => (
