@@ -12,6 +12,7 @@ tsconfig.tsbuildinfo
 .env
 .env.local
 .env*.local
+.env.vercel
 
 # logs
 *.log
