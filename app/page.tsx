@@ -2,6 +2,7 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
+import { ColorKeyStrip } from "@/components/ColorKeyStrip";
 import {
   type BubbleDatum,
   DashboardBubbleChart,
@@ -150,6 +151,14 @@ export default async function DashboardPage({
           </section>
         </div>
       </main>
+
+      {/* HO 162: STAGES + TOPICS legend relocated here from the masthead's
+          boxed top-right rail. Full-width muted reference strip at the bottom
+          of the scrollable page; PARTIES/BILL TYPES/ACCENT stay behind the
+          header `?` badge. */}
+      <footer className="home-footer">
+        <ColorKeyStrip />
+      </footer>
     </div>
   );
 }

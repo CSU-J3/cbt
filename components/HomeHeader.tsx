@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ColorKeyStrip } from "@/components/ColorKeyStrip";
+import { LegendBadge } from "@/components/ColorKeyStrip";
 import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
@@ -7,13 +7,13 @@ import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
-// Home-only header chrome (home-dashboard-cleanup). Two-row structure:
-//   Row 1: title block (prompt + LEAD on baseline + META line) on the
-//          left, boxed COLOR KEY legend (~240px) on the right.
+// Home-only header chrome. HO 162 made the masthead single-column full-width:
+//   Row 1: brand prompt (36px desktop hero) + the `?` LegendBadge on one
+//          line, then the LEAD prose below it, then the META line — all
+//          full-width. The boxed COLOR KEY legend moved to a footer (the old
+//          right-rail was what opened the wide-viewport void).
 //   Row 2: full-width nav strip — 14px text, 16px icons, active state
 //          = amber-bright text + 2px amber bottom border.
-// At < 1280px the top row flows to a column so the legend stacks below
-// the title block.
 export async function HomeHeader() {
   const [corpus, lead] = await Promise.all([
     getCorpusStats(),
@@ -26,22 +26,26 @@ export async function HomeHeader() {
         <div className="home-header-title">
           <div className="home-header-prompt-row">
             <TerminalPrompt name="Congress Terminal" href="/" />
-
-            {lead?.text ? (
-              <p className="home-header-lead">
-                {lead.text}
-                <span aria-hidden className="home-cursor-caret">
-                  _
-                </span>
-              </p>
-            ) : (
-              <p className="home-header-lead">
-                <span aria-hidden className="home-cursor-caret">
-                  _
-                </span>
-              </p>
-            )}
+            <LegendBadge />
           </div>
+
+          {/* HO 162: LEAD now stacks below the brand (was baseline-shared
+              with the prompt) so it reads as terminal output under the 36px
+              hero. Still hidden < 1024px via .home-header-lead. */}
+          {lead?.text ? (
+            <p className="home-header-lead">
+              {lead.text}
+              <span aria-hidden className="home-cursor-caret">
+                _
+              </span>
+            </p>
+          ) : (
+            <p className="home-header-lead">
+              <span aria-hidden className="home-cursor-caret">
+                _
+              </span>
+            </p>
+          )}
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it
               abbreviates to `· HH:MM MT · N BILLS` by dropping the
@@ -54,8 +58,6 @@ export async function HomeHeader() {
             <span className="show-desktop"> TRACKED</span>
           </p>
         </div>
-
-        <ColorKeyStrip />
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />

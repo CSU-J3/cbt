@@ -214,11 +214,11 @@ body {
   display: flex;
   flex-direction: column;
 }
+/* HO 162: single-column full-width masthead. The boxed legend that used to
+   sit in this row (and drive the wide-viewport void) moved to the footer. */
 .home-header-top {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: var(--space-lg);
+  flex-direction: column;
   min-width: 0;
 }
 .home-header-title {
@@ -227,15 +227,12 @@ body {
   min-width: 0;
   flex: 1;
 }
-/* Prompt and LEAD share a baseline row. The prompt is a fixed-width
-   inline element on the left; the LEAD is a flex-1 paragraph beside
-   it that wraps to its own column. Baseline alignment puts the
-   prompt's text baseline on the lead's first line, so the two start
-   at the same y even though the prompt sits at 32px and the lead at
-   13px. */
+/* HO 162: the prompt row now holds the 36px brand hero + the `?` legend
+   badge, vertically centered. The LEAD moved out to its own block below
+   (it used to share this row's baseline with the prompt). */
 .home-header-prompt-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-md);
   min-width: 0;
 }
@@ -257,12 +254,23 @@ body {
 .terminal-prompt:hover .prompt-accent {
   color: var(--accent-amber-bright);
 }
-/* HO 150: lead now reads as terminal output — mono 15px --text-muted on
-   the same baseline row as the prompt, ending in a blinking caret. The
-   3-line clamp survives so a long weekly summary doesn't push the tape
-   or nav down the page. */
+/* HO 162: the dashboard brand is the page hero at 36px on desktop. Scoped to
+   .home-header-prompt-row so the shared page-masthead .terminal-prompt on
+   other routes stays 18px, and gated >=1024 so the <700 grow-to-24px rule and
+   the 700-1023px 18px base are untouched. */
+@media (min-width: 1024px) {
+  .home-header-prompt-row .terminal-prompt {
+    font-size: 36px;
+  }
+}
+/* HO 150/162: lead reads as terminal output — mono 15px --text-muted ending
+   in a blinking caret. HO 162 stacked it below the 36px brand (was baseline-
+   shared with the prompt) and widened the cap 1200px->1400px so it fills
+   common wide displays without running to unreadable line lengths at 2560px+.
+   The 3-line clamp survives so a long weekly summary doesn't push the tape or
+   nav down the page. */
 .home-header-lead {
-  flex: 1;
+  margin-top: var(--space-sm);
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 15px;
@@ -273,7 +281,7 @@ body {
   line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  max-width: 1200px;
+  max-width: 1400px;
 }
 /* Single-glyph cursor blink — the dashboard's "sole motion exception"
    alongside the HO 149 tape marquee. step-end so the blink is a hard
@@ -423,34 +431,21 @@ body {
   overflow-y: auto;
 }
 
-/* Boxed COLOR KEY legend on the home header. HO 150 trimmed the inline
-   rows to STAGES + TOPICS only (PARTIES / BILL TYPES / ACCENT moved to
-   the `?` popover) and shrank the box from 240px → 172px so the lead
-   prose has more horizontal room. */
-.color-key-box {
-  width: 172px;
-  flex-shrink: 0;
-  border: 0.5px solid var(--border-soft);
-  background-color: var(--bg-base);
-  padding: var(--space-sm) var(--space-md);
+/* HO 162: the STAGES + TOPICS legend moved out of the masthead's boxed
+   right-rail into a full-width muted footer at the bottom of the scrollable
+   dashboard. Removing the tall rail from the masthead flex row is what kills
+   the wide-viewport void by construction. PARTIES/BILL TYPES/ACCENT stay
+   behind the header `?` badge. */
+.home-footer {
+  padding: var(--space-md) var(--space-xl);
+  border-top: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+}
+.color-key-footer {
   display: flex;
   flex-direction: column;
   gap: 4px;
   font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.color-key-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 4px;
-  border-bottom: 0.5px solid var(--border-soft);
-  margin-bottom: 2px;
-}
-.color-key-header-label {
-  color: var(--text-dim);
-  font-size: 10px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -632,19 +627,14 @@ body {
   }
 }
 
-/* Below 1280px: the boxed legend flex-wraps below the title block
-   (per the cleanup handoff's "narrower widths" rule). The 3-col grid
-   also relaxes — no longer fixed-height; the page can scroll. */
+/* Below 1280px: the LEAD tightens to a single clamped line. (HO 162: the
+   legend is no longer in the masthead and the masthead is single-column at
+   every width, so the old .home-header-top column flip + .color-key-box width
+   override are gone.) */
 @media (max-width: 1279px) {
   .home-header-lead {
     -webkit-line-clamp: 1;
     line-clamp: 1;
-  }
-  .home-header-top {
-    flex-direction: column;
-  }
-  .color-key-box {
-    width: 100%;
   }
 }
 
