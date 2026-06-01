@@ -1,7 +1,8 @@
 import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
 
-// HO 134: shared swatch constants for the persistent COLOR KEY strip
-// rendered below the home nav row (ColorKeyStrip). Single source of
+// HO 134: shared swatch constants for the dashboard color keys. STAGES +
+// TOPIC_GROUPS feed the per-panel keys (StageKey / TopicKey, HO 167); PARTIES
+// + BILL_TYPES feed the header LegendBadge popover. Single source of
 // truth — STAGE_LABELS / BILL_TYPE_LABELS feed the tooltip copy; CSS
 // vars feed colors so palette tweaks stay in globals.css. Chips with
 // no `prefix` render a small filled dot in the chip color; chips

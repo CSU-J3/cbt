@@ -72,14 +72,23 @@ function Row({
   );
 }
 
-// HO 162: relocated from the masthead's boxed top-right rail to a full-width
-// muted footer at the bottom of the scrollable dashboard. STAGES + TOPICS
-// swatch rows only; PARTIES / BILL TYPES / ACCENT live behind the header's
-// LegendBadge now, so the LEGEND header + `?` badge no longer ride here.
-export function ColorKeyStrip() {
+// HO 167: the STAGES and TOPICS keys moved out of the (now-removed) dashboard
+// footer into their own chart panels — STAGES under the Stage Distribution
+// funnel, TOPICS under the Topic Distribution bubbles — so each key sits with
+// the chart it decodes. Each is one `Row` inside a `.panel-key` footer strip.
+// (The STAGES key earns its place beside the self-labeling funnel by
+// documenting the ▸-glyph progression used on bill-row rails app-wide.)
+export function StageKey() {
   return (
-    <div className="color-key-footer" aria-label="Color key">
+    <div className="panel-key" aria-label="Stage color key">
       <Row heading="STAGES" items={STAGES} />
+    </div>
+  );
+}
+
+export function TopicKey() {
+  return (
+    <div className="panel-key" aria-label="Topic color key">
       <Row heading="TOPICS" items={TOPIC_GROUPS} />
     </div>
   );

@@ -392,7 +392,10 @@ body {
    topic bubble cell, well above the 320px min-height the handoff
    prescribes. */
 .home-panel-stage {
-  flex: 0 0 220px;
+  /* HO 167: content-sized (was fixed 220px) so the STAGES panel-key sits
+     below the funnel without the body's overflow:hidden clipping a bar;
+     keeps a 220px floor for visual consistency. */
+  flex: 0 0 auto;
   min-height: 220px;
 }
 .home-panel-topic {
@@ -431,20 +434,15 @@ body {
   overflow-y: auto;
 }
 
-/* HO 162: the STAGES + TOPICS legend moved out of the masthead's boxed
-   right-rail into a full-width muted footer at the bottom of the scrollable
-   dashboard. Removing the tall rail from the masthead flex row is what kills
-   the wide-viewport void by construction. PARTIES/BILL TYPES/ACCENT stay
-   behind the header `?` badge. */
-.home-footer {
-  padding: var(--space-md) var(--space-xl);
-  border-top: 0.5px solid var(--border-strong);
-  background-color: var(--bg-panel);
-}
-.color-key-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* HO 167: the STAGES / TOPICS keys moved out of the (removed) dashboard footer
+   into their chart panels — each is a `.panel-key` strip rendered as a
+   panel-footer sibling AFTER `.home-quadrant-body` (so the body's
+   overflow:hidden can't clip it), separated from the chart by a top border.
+   Muted reference density, same swatch chips as the old footer legend. */
+.panel-key {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 0.5px solid var(--border-soft);
   font-size: 11px;
   letter-spacing: 0.5px;
   text-transform: uppercase;

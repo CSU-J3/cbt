@@ -2,7 +2,7 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { ColorKeyStrip } from "@/components/ColorKeyStrip";
+import { StageKey, TopicKey } from "@/components/ColorKeyStrip";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import {
   type BubbleDatum,
@@ -130,6 +130,8 @@ export default async function DashboardPage({
               <div className="home-quadrant-body">
                 <StageFunnel bars={stageDist.bars} />
               </div>
+              {/* HO 167: STAGES key sits with the funnel it decodes. */}
+              <StageKey />
             </section>
 
             <section className="home-quadrant home-panel-topic">
@@ -142,6 +144,8 @@ export default async function DashboardPage({
               <div className="home-quadrant-body">
                 <DashboardBubbleChart data={topicData} paramKey="topics" />
               </div>
+              {/* HO 167: TOPICS color key sits with the bubbles it decodes. */}
+              <TopicKey />
             </section>
           </div>
 
@@ -156,14 +160,6 @@ export default async function DashboardPage({
           </section>
         </div>
       </main>
-
-      {/* HO 162: STAGES + TOPICS legend relocated here from the masthead's
-          boxed top-right rail. Full-width muted reference strip at the bottom
-          of the scrollable page; PARTIES/BILL TYPES/ACCENT stay behind the
-          header `?` badge. */}
-      <footer className="home-footer">
-        <ColorKeyStrip />
-      </footer>
     </div>
   );
 }
