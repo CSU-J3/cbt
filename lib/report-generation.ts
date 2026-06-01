@@ -2,7 +2,13 @@ import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
 import { ALLOWED_TOPICS_SET } from "./enums";
 import { formatBillId } from "./format";
+import { withGeminiRetry } from "./gemini-retry";
 import { SUMMARY_MODEL } from "./summarize";
+
+// HO 160: transient-retry backoff for the weekly-report Gemini call. Truncated
+// from summarize's [2000,4000,8000,16000] to 3 steps so the worst case (two
+// ~15s Flash calls + ~14s total backoff ≈ 51s) clears the Vercel 60s ceiling.
+const REPORT_RETRY_BACKOFF_MS = [2000, 4000, 8000];
 
 // Non-ceremonial gate, same convention as buildFeedWhere. NULL = visible.
 const NON_CEREMONIAL = "(is_ceremonial = 0 OR is_ceremonial IS NULL)";
@@ -786,11 +792,25 @@ async function generateReportWithRetry(
   };
 
   const callFlash = async (contents: string): Promise<string> => {
-    const response = await client.models.generateContent({
-      model: SUMMARY_MODEL,
-      contents,
-      config,
-    });
+    // HO 160: retry transient Gemini 503/429 — this route runs once a week, so
+    // a single overloaded response would otherwise strand the whole week's
+    // report. Truncated to 3 backoff steps (~14s max) so worst case — two
+    // ~15s calls plus backoff — stays under the Vercel 60s cron ceiling.
+    const response = await withGeminiRetry(
+      () =>
+        client.models.generateContent({
+          model: SUMMARY_MODEL,
+          contents,
+          config,
+        }),
+      {
+        backoffMs: REPORT_RETRY_BACKOFF_MS,
+        onRetry: ({ attempt, total, waitMs, error }) =>
+          console.warn(
+            `[REPORT] gemini retry: backoff ${waitMs}ms (attempt ${attempt + 1}/${total}) ${error.message.slice(0, 80)}`,
+          ),
+      },
+    );
     const text = response.text?.trim();
     if (!text) throw new Error("Gemini returned an empty report");
     return text;

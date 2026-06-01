@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
+import { isRetryable, sleep, withGeminiRetry } from "./gemini-retry";
 import {
   fetchBillContext,
   summarizeBill,
@@ -25,33 +26,6 @@ const FAILURE_DEFER_HOURS = 24;
 // cron_runs error trail for manual inspection — not auto-disabled, just
 // flagged. Each tick still retries them once the 24h defer elapses.
 const CHRONIC_ATTEMPT_THRESHOLD = 3;
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("aborted", "AbortError"));
-      return;
-    }
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(t);
-        reject(new DOMException("aborted", "AbortError"));
-      },
-      { once: true },
-    );
-  });
-}
-
-// Gemini documents 429 (RESOURCE_EXHAUSTED) and 503 (UNAVAILABLE) as transient.
-// Other 5xx codes typically indicate a non-retryable request-shape problem.
-function isRetryable(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /\b(429|503)\b|RESOURCE_EXHAUSTED|UNAVAILABLE|"code"\s*:\s*(429|503)/.test(
-    msg,
-  );
-}
 
 export type SummarizeStats = {
   ok: number;
@@ -186,48 +160,41 @@ export async function runSummarize(
     const timer = setTimeout(() => ac.abort(), PER_BILL_TIMEOUT_MS);
 
     let out: Awaited<ReturnType<typeof summarizeBill>> | null = null;
-    let attempt = 0;
     let failed = false;
 
     try {
-      while (true) {
-        try {
+      // Retry transient Gemini errors via the shared helper; the per-bill
+      // AbortController (ac.signal) bounds total time exactly as before — once
+      // the 15s timer fires, a pending backoff is interrupted and the error is
+      // re-thrown for classification below.
+      out = await withGeminiRetry(
+        async () => {
           const ctx = await fetchBillContext(bill, congressKey, ac.signal);
-          out = await summarizeBill(client, bill, ctx, ac.signal);
-          break;
-        } catch (e) {
-          // Only retry on transient API errors AND if the per-bill timer
-          // hasn't fired — once aborted, sleeping further would either
-          // reject immediately or just stall the rest of the tick.
-          if (
-            !ac.signal.aborted &&
-            isRetryable(e) &&
-            attempt < RETRY_BACKOFF_MS.length
-          ) {
-            const wait = RETRY_BACKOFF_MS[attempt]!;
+          return summarizeBill(client, bill, ctx, ac.signal);
+        },
+        {
+          backoffMs: RETRY_BACKOFF_MS,
+          signal: ac.signal,
+          onRetry: ({ attempt, total, waitMs, error }) =>
             console.warn(
-              `retry ${bill.id}: backoff ${wait}ms (attempt ${attempt + 1}/${RETRY_BACKOFF_MS.length}) ${(e as Error).message.slice(0, 80)}`,
-            );
-            await sleep(wait, ac.signal);
-            attempt++;
-            continue;
-          }
-          if (ac.signal.aborted) {
-            console.warn(
-              `timeout ${bill.id}: exceeded ${PER_BILL_TIMEOUT_MS}ms, deferring ${FAILURE_DEFER_HOURS}h`,
-            );
-          } else if (isRetryable(e)) {
-            gaveUpRetryable++;
-            console.warn(
-              `retry-give-up ${bill.id}: deferring ${FAILURE_DEFER_HOURS}h (total give-ups: ${gaveUpRetryable})`,
-            );
-          } else {
-            console.error(`error ${bill.id}:`, (e as Error).message);
-          }
-          failed = true;
-          break;
-        }
+              `retry ${bill.id}: backoff ${waitMs}ms (attempt ${attempt + 1}/${total}) ${error.message.slice(0, 80)}`,
+            ),
+        },
+      );
+    } catch (e) {
+      if (ac.signal.aborted) {
+        console.warn(
+          `timeout ${bill.id}: exceeded ${PER_BILL_TIMEOUT_MS}ms, deferring ${FAILURE_DEFER_HOURS}h`,
+        );
+      } else if (isRetryable(e)) {
+        gaveUpRetryable++;
+        console.warn(
+          `retry-give-up ${bill.id}: deferring ${FAILURE_DEFER_HOURS}h (total give-ups: ${gaveUpRetryable})`,
+        );
+      } else {
+        console.error(`error ${bill.id}:`, (e as Error).message);
       }
+      failed = true;
     } finally {
       clearTimeout(timer);
     }
