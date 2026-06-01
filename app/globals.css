@@ -673,7 +673,7 @@ body {
    would fit ~3. */
 .top-stalls-row {
   display: grid;
-  grid-template-columns: minmax(72px, max-content) 1fr 48px;
+  grid-template-columns: minmax(72px, max-content) 1fr 48px 14px;
   align-items: baseline;
   gap: 10px;
   padding: 7px 6px;
@@ -682,6 +682,31 @@ body {
 }
 .top-stalls-row:hover {
   background-color: var(--bg-row-hover);
+}
+/* HO 164: rows are click-to-expand accordions (TopStallsList). The chevron is
+   the 4th grid column; the BillExpandedPanel renders as a block sibling below
+   the row inside the <li>, so it spans full width on its own. */
+.top-stalls-row--expandable {
+  cursor: pointer;
+  outline: none;
+}
+.top-stalls-row--expandable:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: -1px;
+}
+.top-stalls-row.is-open {
+  background-color: var(--bg-row-hover);
+}
+.top-stalls-row .row-chevron {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 120ms ease, color 120ms ease;
+}
+.top-stalls-row .row-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
 }
 
 /* Horizontal bill-id chip — chamber-tinted variant of HO 125's

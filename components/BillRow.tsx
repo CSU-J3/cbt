@@ -31,7 +31,7 @@ function shortSponsor(name: string | null): string {
   return lastName ?? noPrefix;
 }
 
-// HO 148 — when an `onToggle` callback is provided (full rows wrapped in
+// HO 148 — when an `onToggle` callback is provided (rows wrapped in
 // BillRowList), the rail+content becomes a div-role-button click target
 // that fires `onToggle` and the row renders `expandedPanel` below itself
 // inside the same <li>. When no callback (compact rows on the ticker,
@@ -41,6 +41,11 @@ function shortSponsor(name: string | null): string {
 // summary and "View detail →" text from every full-row consumer; the
 // summary moves into the expanded panel, navigation moves to the panel's
 // `full bill page →` chip.
+//
+// HO 164 — expandability no longer excludes compact rows: a compact row that
+// IS given `onToggle` (dashboard ACTIVITY via `<BillRowList compact />`) now
+// expands like a full row. Compact callers that pass no `onToggle` (search,
+// committee, patterns) are unaffected and stay link-only.
 export function BillRow({
   bill,
   daysSinceMode,
@@ -60,7 +65,7 @@ export function BillRow({
 }) {
   const topics = parseTopics(bill.topics);
   const href = `/bill/${bill.id}`;
-  const expandable = !compact && typeof onToggle === "function";
+  const expandable = typeof onToggle === "function";
 
   const partyState =
     bill.sponsor_party || bill.sponsor_state ? (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BillRow } from "@/components/BillRow";
+import { BillRowList } from "@/components/BillRowList";
 import {
   type DashboardFilters,
   getStageChanges,
@@ -28,7 +28,6 @@ export async function ActivityTicker({
     getStageChangesCount({}, 7),
     getWatchedBillIds(),
   ]);
-  const watchedSet = new Set(watchedIds);
   const remaining = Math.max(0, counts.total - bills.length);
 
   return (
@@ -41,16 +40,9 @@ export async function ActivityTicker({
           No stage changes in the last 7 days.
         </div>
       ) : (
-        <ul>
-          {bills.map((b) => (
-            <BillRow
-              key={b.id}
-              bill={b}
-              compact
-              onWatchlist={watchedSet.has(b.id)}
-            />
-          ))}
-        </ul>
+        // HO 164: compact rows that expand into the full BillExpandedPanel,
+        // single-open within this tab (resets when you switch to TOP STALLS).
+        <BillRowList compact bills={bills} watchedIds={watchedIds} />
       )}
       <Link href="/changes" className="home-expander">
         {remaining > 0

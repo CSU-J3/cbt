@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { BILL_TYPE_LABELS } from "@/lib/enums";
-import { daysSince, formatBillId } from "@/lib/format";
+import { TopStallsList } from "@/components/TopStallsList";
 import { getStaleBills } from "@/lib/queries";
 
 // HO 126 — home-page quadrant answering "what's stuck?" Pairs with
@@ -18,21 +17,12 @@ import { getStaleBills } from "@/lib/queries";
 // The chip inherits HO 125's chamber tint (--rail-house cyan /
 // --rail-senate purple) so chamber identity carries through the home page
 // without introducing a new color vocabulary.
+//
+// HO 164: the row layout is unchanged, but rows now click-to-expand into the
+// full BillExpandedPanel (the list + accordion state live in the TopStallsList
+// client island). This stays a server component for the data fetch.
 
-const SENATE_TYPES = new Set(["s", "sres", "sjres", "sconres"]);
 const ROW_LIMIT = 5;
-
-// Same threshold table as the /stale daysSinceMode column in BillRow —
-// keep them in sync. <180d muted, 180-364d amber, ≥365d red.
-function daysColor(days: number): string {
-  if (days >= 365) return "var(--party-republican)";
-  if (days >= 180) return "var(--accent-amber)";
-  return "var(--text-secondary)";
-}
-
-function chipChamberClass(billType: string): string {
-  return SENATE_TYPES.has(billType) ? "bill-chip--senate" : "bill-chip--house";
-}
 
 export async function TopStalls() {
   const bills = await getStaleBills({}, ROW_LIMIT);
@@ -50,37 +40,7 @@ export async function TopStalls() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <ul>
-        {bills.map((b) => {
-          const days = daysSince(b.latest_action_date);
-          const label = formatBillId(b.bill_type, b.bill_number);
-          return (
-            <li key={b.id}>
-              <Link href={`/bill/${b.id}`} className="top-stalls-row">
-                <span
-                  className={`bill-chip ${chipChamberClass(b.bill_type)}`}
-                  title={BILL_TYPE_LABELS[b.bill_type]}
-                >
-                  {label}
-                </span>
-                <span
-                  className="truncate text-[13px]"
-                  style={{ color: "var(--text-secondary)" }}
-                  title={b.title}
-                >
-                  {b.title}
-                </span>
-                <span
-                  className="text-right text-[13px] tabular-nums"
-                  style={{ color: daysColor(days) }}
-                >
-                  {days}d
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <TopStallsList bills={bills} />
       <Link href="/stale" className="home-expander">
         [ View all stale → ]
       </Link>
