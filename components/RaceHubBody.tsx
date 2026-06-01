@@ -49,12 +49,18 @@ export function RaceHubBody({
   incumbent,
   ratings,
   runoffs,
+  preview = false,
 }: {
   race: Race;
   candidates: RaceCandidate[];
   incumbent: Member | null;
   ratings: RaceRating[];
   runoffs: PrimaryWithCandidates[];
+  // HO 170: drawer-only trim. When true, drops the incumbent photo card and
+  // the source/last-verified footer (those stay on /race/[id], which renders
+  // with no `preview` prop). Keeps RaceHeader (name + countdown + multi-source
+  // chips), the rating block, runoffs, and the candidate roster/stub.
+  preview?: boolean;
 }) {
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
@@ -94,28 +100,30 @@ export function RaceHubBody({
         </div>
       ) : null}
 
-      <section
-        className="mt-6 border"
-        style={{ borderColor: "var(--border-strong)" }}
-      >
-        <div
-          className="px-4 py-3"
-          style={{
-            backgroundColor: "var(--bg-panel)",
-            borderBottom: "0.5px solid var(--border-strong)",
-          }}
+      {!preview ? (
+        <section
+          className="mt-6 border"
+          style={{ borderColor: "var(--border-strong)" }}
         >
-          <h2
-            className="text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-secondary)" }}
+          <div
+            className="px-4 py-3"
+            style={{
+              backgroundColor: "var(--bg-panel)",
+              borderBottom: "0.5px solid var(--border-strong)",
+            }}
           >
-            Incumbent
-          </h2>
-        </div>
-        <div className="px-4">
-          <RaceIncumbentCard member={incumbent} race={race} />
-        </div>
-      </section>
+            <h2
+              className="text-[12px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Incumbent
+            </h2>
+          </div>
+          <div className="px-4">
+            <RaceIncumbentCard member={incumbent} race={race} />
+          </div>
+        </section>
+      ) : null}
 
       <RaceRunoffs runoffs={runoffs} />
 
@@ -153,25 +161,27 @@ export function RaceHubBody({
         </section>
       )}
 
-      {race.source_url ? (
-        <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
-          <span className="uppercase tracking-[0.5px]">Source: </span>
-          <a
-            href={race.source_url}
-            target="_blank"
-            rel="noreferrer"
-            className="transition hover:text-[var(--accent-amber-bright)]"
-            style={{ color: "var(--accent-amber)" }}
-          >
-            {race.source_url}
-          </a>
-          <span> · last verified {formatDateLong(race.last_verified)}</span>
-        </div>
-      ) : (
-        <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
-          Last verified {formatDateLong(race.last_verified)}
-        </div>
-      )}
+      {!preview ? (
+        race.source_url ? (
+          <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <span className="uppercase tracking-[0.5px]">Source: </span>
+            <a
+              href={race.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-[var(--accent-amber-bright)]"
+              style={{ color: "var(--accent-amber)" }}
+            >
+              {race.source_url}
+            </a>
+            <span> · last verified {formatDateLong(race.last_verified)}</span>
+          </div>
+        ) : (
+          <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+            Last verified {formatDateLong(race.last_verified)}
+          </div>
+        )
+      ) : null}
     </>
   );
 }

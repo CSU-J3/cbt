@@ -3,13 +3,14 @@
 // HO 166 — client wrapper for the dashboard competitive-races strip. The
 // server CompetitiveRacesBlock fetches + partitions the races; this island
 // holds single-open state, renders the cards as click-to-toggle buttons, and
-// lazy-loads the full race hub (/api/race/[id]/hub) into a drawer on first
-// open. Path B, mirroring TopStallsList — the data fetch stays server-side.
+// lazy-loads the race hub (/api/race/[id]/hub) into a drawer on first open.
+// Path B, mirroring TopStallsList — the data fetch stays server-side.
 //
-// Layout: the cards are a 4-across grid; inlining a drawer after one card
-// would break the row, so the drawer is a full-width block AFTER the grid
-// (single-open → one drawer). In the 2x2/1-col responsive layouts it sits
-// below the whole strip, which is fine for single-open.
+// HO 170 — the drawer is now confined to the clicked card's grid column: each
+// card + its drawer live in a `.competitive-race-cell` grid item, the grid
+// uses `align-items: start`, so the expanded column grows while neighbors stay
+// put. The drawer renders RaceHubBody in `preview` mode (rating + candidates +
+// full-race link; no incumbent photo card or verified footer).
 import { useEffect, useState } from "react";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import { RatingChip } from "@/components/RatingChip";
@@ -55,6 +56,7 @@ function partyColor(party: PartyKey | null): string {
 
 // Lazy-loads the hub on first open; mirrors BillExpandedPanel's fetch shape.
 // Ratings come from the card (already loaded), the rest from the endpoint.
+// Renders RaceHubBody in preview mode (HO 170).
 function RaceDrawer({
   race,
   cached,
@@ -111,13 +113,14 @@ function RaceDrawer({
   return (
     <div className="competitive-race-drawer">
       <RaceHubBody
+        preview
         race={data.race}
         candidates={data.candidates}
         incumbent={data.incumbent}
         ratings={race.ratings}
         runoffs={data.runoffs}
       />
-      <div className="mt-6">
+      <div className="mt-4">
         <a href={`/race/${race.raceId}`} className="bill-expanded-action-chip">
           full race page →
         </a>
@@ -135,7 +138,6 @@ export function CompetitiveRacesStrip({
 }) {
   const { expandedId, toggle, panelCache, handleLoaded } =
     useSingleOpenPanel<RaceHubData>();
-  const openRace = races.find((r) => r.raceId === expandedId) ?? null;
 
   return (
     <section className="dashboard-pane mt-3">
@@ -158,76 +160,76 @@ export function CompetitiveRacesStrip({
         {races.map((race) => {
           const isOpen = expandedId === race.raceId;
           return (
-            <div
-              key={race.raceId}
-              className={`competitive-race-card competitive-race-card--expandable${
-                isOpen ? " is-open" : ""
-              }`}
-              role="button"
-              tabIndex={0}
-              aria-expanded={isOpen}
-              onClick={() => toggle(race.raceId)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  toggle(race.raceId);
-                }
-              }}
-              style={{ color: "var(--text-primary)" }}
-            >
-              <span className="race-card-seat-row">
-                <span className="race-card-seat">
-                  {formatRaceLabel(race.raceId)}
-                </span>
-                <span
-                  className={`row-chevron${isOpen ? " is-open" : ""}`}
-                  aria-hidden
-                >
-                  ▸
-                </span>
-              </span>
-              <span className="race-card-incumbent">
-                {race.incumbentName ? (
-                  <>
-                    {race.incumbentParty ? (
-                      <span
-                        aria-hidden
-                        style={{ color: partyColor(race.incumbentParty) }}
-                      >
-                        ●{" "}
-                      </span>
-                    ) : null}
-                    {race.incumbentName}
-                  </>
-                ) : (
-                  <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
-                )}
-              </span>
-              <span className="race-card-ratings">
-                {race.ratings.map((r, i) => (
-                  <span key={r.id} className="inline-flex items-center gap-2">
-                    {i > 0 ? (
-                      <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                        ·
-                      </span>
-                    ) : null}
-                    <RatingChip rating={r} size="sm" />
+            <div key={race.raceId} className="competitive-race-cell">
+              <div
+                className={`competitive-race-card competitive-race-card--expandable${
+                  isOpen ? " is-open" : ""
+                }`}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                onClick={() => toggle(race.raceId)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    toggle(race.raceId);
+                  }
+                }}
+                style={{ color: "var(--text-primary)" }}
+              >
+                <span className="race-card-seat-row">
+                  <span className="race-card-seat">
+                    {formatRaceLabel(race.raceId)}
                   </span>
-                ))}
-              </span>
+                  <span
+                    className={`row-chevron${isOpen ? " is-open" : ""}`}
+                    aria-hidden
+                  >
+                    ▸
+                  </span>
+                </span>
+                <span className="race-card-incumbent">
+                  {race.incumbentName ? (
+                    <>
+                      {race.incumbentParty ? (
+                        <span
+                          aria-hidden
+                          style={{ color: partyColor(race.incumbentParty) }}
+                        >
+                          ●{" "}
+                        </span>
+                      ) : null}
+                      {race.incumbentName}
+                    </>
+                  ) : (
+                    <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
+                  )}
+                </span>
+                <span className="race-card-ratings">
+                  {race.ratings.map((r, i) => (
+                    <span key={r.id} className="inline-flex items-center gap-2">
+                      {i > 0 ? (
+                        <span aria-hidden style={{ color: "var(--text-dim)" }}>
+                          ·
+                        </span>
+                      ) : null}
+                      <RatingChip rating={r} size="sm" />
+                    </span>
+                  ))}
+                </span>
+              </div>
+
+              {isOpen ? (
+                <RaceDrawer
+                  race={race}
+                  cached={panelCache.get(race.raceId) ?? null}
+                  onLoaded={(data) => handleLoaded(race.raceId, data)}
+                />
+              ) : null}
             </div>
           );
         })}
       </div>
-
-      {openRace ? (
-        <RaceDrawer
-          key={openRace.raceId}
-          race={openRace}
-          cached={panelCache.get(openRace.raceId) ?? null}
-          onLoaded={(data) => handleLoaded(openRace.raceId, data)}
-        />
-      ) : null}
     </section>
   );
 }

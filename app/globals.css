@@ -1678,12 +1678,25 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-md);
+  /* HO 170: cells top-align so an expanded cell grows without stretching its
+     row neighbors to match (which would balloon the collapsed cards). */
+  align-items: start;
+}
+/* HO 170: each card + its drawer is one grid item, so the drawer is confined
+   to the clicked card's column instead of a full-width block below the strip. */
+.competitive-race-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 .competitive-race-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  /* HO 170: floor so collapsed cards in a row stay equal height under
+     align-items:start (ratings wrap to 1-2 lines, varying natural height). */
+  min-height: 104px;
   padding: var(--space-sm) var(--space-md);
   border: 0.5px solid var(--border-soft);
   border-radius: 2px;
@@ -1729,10 +1742,14 @@ body {
   transform: rotate(90deg);
   color: var(--accent-amber);
 }
+/* HO 170: column-confined drawer — a bordered box directly under its card,
+   bounded by the cell's grid column (~280px), not a full-width strip block. */
 .competitive-race-drawer {
-  margin-top: var(--space-md);
-  border-top: 0.5px solid var(--border-strong);
-  padding: var(--space-md) 2px 4px;
+  margin-top: var(--space-sm);
+  border: 0.5px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--bg-base);
+  padding: var(--space-sm) var(--space-md);
 }
 .competitive-race-card .race-card-seat {
   font-size: 12px;
