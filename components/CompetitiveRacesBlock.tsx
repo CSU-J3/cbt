@@ -25,15 +25,6 @@ function formatRaceLabel(raceId: string): string {
   return raceId;
 }
 
-function chamberChip(race: CompetitiveRace): string {
-  if (race.chamber === "senate") return "SEN";
-  if (race.chamber === "house") return "HSE";
-  // Fall back on the id prefix when the race row isn't joined yet.
-  if (race.raceId.startsWith("S-")) return "SEN";
-  if (race.raceId.startsWith("G-")) return "GOV";
-  return "";
-}
-
 function partyColor(party: PartyKey | null): string {
   if (party === "R") return "var(--party-republican)";
   if (party === "D") return "var(--party-democrat)";
@@ -41,14 +32,34 @@ function partyColor(party: PartyKey | null): string {
   return "var(--text-dim)";
 }
 
+// HO 163: a race is Senate if its joined chamber says so, or — for rating
+// rows whose `races` row is missing (loose link, chamber null) — if the
+// deterministic id carries the S- prefix.
+function isSenate(race: CompetitiveRace): boolean {
+  return (
+    race.chamber === "senate" ||
+    (race.chamber === null && race.raceId.startsWith("S-"))
+  );
+}
+
+// HO 163: dashboard races strip. A Senate-led chamber mix — top 2 Senate then
+// top 2 House by competitiveness — rather than pure competitive-first, which
+// would surface 4 House toss-ups and underweight the Senate-control narrative
+// a glance most wants. getMostCompetitiveRaces has no chamber arg, so pull a
+// competitiveness-ordered pool and partition here; the top Senate seats sit
+// ~rank 20 behind the House toss-ups, so POOL clears that comfortably.
+const POOL = 30;
+const PER_CHAMBER = 2;
+
 export async function CompetitiveRacesBlock({
   cycle = 2026,
-  limit = 8,
 }: {
   cycle?: number;
-  limit?: number;
 }) {
-  const races = await getMostCompetitiveRaces(cycle, limit);
+  const pool = await getMostCompetitiveRaces(cycle, POOL);
+  const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
+  const house = pool.filter((r) => !isSenate(r)).slice(0, PER_CHAMBER);
+  const races = [...senate, ...house]; // Senate-led order
   if (races.length === 0) return null;
 
   return (
@@ -68,55 +79,46 @@ export async function CompetitiveRacesBlock({
         </p>
       </div>
 
-      <div>
-        {races.map((race) => {
-          const label = formatRaceLabel(race.raceId);
-          const chip = chamberChip(race);
-          return (
-            <Link
-              key={race.raceId}
-              href={`/race/${race.raceId}`}
-              className="competitive-race-row"
-              style={{ color: "var(--text-primary)" }}
-            >
-              <span className="race-label">{label}</span>
-              <span
-                className="min-w-0 truncate"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {race.incumbentName ? (
-                  <>
-                    {race.incumbentParty ? (
-                      <span
-                        aria-hidden
-                        style={{ color: partyColor(race.incumbentParty) }}
-                      >
-                        ●{" "}
-                      </span>
-                    ) : null}
-                    {race.incumbentName}
-                  </>
-                ) : null}
-              </span>
-              <span className="chamber-chip">{chip}</span>
-              <span className="flex flex-wrap items-center gap-2">
-                {race.ratings.map((r, i) => (
-                  <span
-                    key={r.id}
-                    className="inline-flex items-center gap-2"
-                  >
-                    {i > 0 ? (
-                      <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                        ·
-                      </span>
-                    ) : null}
-                    <RatingChip rating={r} size="sm" />
-                  </span>
-                ))}
-              </span>
-            </Link>
-          );
-        })}
+      <div className="competitive-races-grid">
+        {races.map((race) => (
+          <Link
+            key={race.raceId}
+            href={`/race/${race.raceId}`}
+            className="competitive-race-card"
+            style={{ color: "var(--text-primary)" }}
+          >
+            <span className="race-card-seat">{formatRaceLabel(race.raceId)}</span>
+            <span className="race-card-incumbent">
+              {race.incumbentName ? (
+                <>
+                  {race.incumbentParty ? (
+                    <span
+                      aria-hidden
+                      style={{ color: partyColor(race.incumbentParty) }}
+                    >
+                      ●{" "}
+                    </span>
+                  ) : null}
+                  {race.incumbentName}
+                </>
+              ) : (
+                <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
+              )}
+            </span>
+            <span className="race-card-ratings">
+              {race.ratings.map((r, i) => (
+                <span key={r.id} className="inline-flex items-center gap-2">
+                  {i > 0 ? (
+                    <span aria-hidden style={{ color: "var(--text-dim)" }}>
+                      ·
+                    </span>
+                  ) : null}
+                  <RatingChip rating={r} size="sm" />
+                </span>
+              ))}
+            </span>
+          </Link>
+        ))}
       </div>
     </section>
   );

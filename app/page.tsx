@@ -3,6 +3,7 @@ import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { ColorKeyStrip } from "@/components/ColorKeyStrip";
+import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import {
   type BubbleDatum,
   DashboardBubbleChart,
@@ -111,6 +112,10 @@ export default async function DashboardPage({
         <div className="home-snapshot-slot">
           <ReportSnapshot />
         </div>
+
+        {/* HO 163: competitive-races strip — Senate-led chamber mix (top 2
+            Senate + top 2 House), between the report band and the grid. */}
+        <CompetitiveRacesBlock />
 
         <div className="home-grid">
           {/* Left column: STAGE funnel + TOPIC bubbles stacked */}

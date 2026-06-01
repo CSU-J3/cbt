@@ -1647,35 +1647,60 @@ body {
   }
 }
 
-/* ---- competitive races (handoff 72) ----------------------------------- */
-/* Columns: race label | incumbent name + party | chamber chip | rating(s) */
-.competitive-race-row {
+/* ---- competitive races strip (handoff 72; HO 163 dashboard cards) ------ */
+/* 4-across card strip on the dashboard: top 2 Senate + top 2 House. Each
+   card stacks seat label / incumbent / multi-source rating chips, and links
+   to /race/[id]. Collapses 4 → 2x2 → 1-col. */
+.competitive-races-grid {
   display: grid;
-  grid-template-columns: 100px 1fr 40px 180px;
-  align-items: baseline;
-  column-gap: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border-soft);
-  font-size: 13px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+.competitive-race-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: 0.5px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--bg-base);
   text-decoration: none;
 }
-
-.competitive-race-row:hover {
+.competitive-race-card:hover {
   background: var(--bg-row-hover);
+  border-color: var(--border-strong);
 }
-
-.competitive-race-row .race-label {
+.competitive-race-card .race-card-seat {
   font-size: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
-
-.competitive-race-row .chamber-chip {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-  text-transform: uppercase;
+.competitive-race-card .race-card-incumbent {
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.competitive-race-card .race-card-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 2px;
+}
+@media (max-width: 1023px) {
+  .competitive-races-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 700px) {
+  .competitive-races-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---- cluster index ----------------------------------------------------- */
@@ -2151,13 +2176,6 @@ body {
 @media (max-width: 700px) {
   .dashboard-grid {
     grid-template-columns: 1fr;
-  }
-  /* 44px minimum tap targets for the clickable dashboard filter rows */
-  .competitive-race-row {
-    grid-template-columns: 100px 1fr 120px;
-  }
-  .competitive-race-row .chamber-chip {
-    display: none;
   }
   /* HO 125 + HO 127 feed row at narrow viewports: tighten the inner rail,
      drop the optional days-since column so the link area takes full
