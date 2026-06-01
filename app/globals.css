@@ -1696,6 +1696,46 @@ body {
   background: var(--bg-row-hover);
   border-color: var(--border-strong);
 }
+/* HO 166: cards are click-to-expand. The chevron sits top-right in the seat
+   row; the open card highlights and the full-width drawer renders after the
+   grid (CompetitiveRacesStrip), not inside the card, so the 4-col grid stays
+   intact. */
+.competitive-race-card--expandable {
+  cursor: pointer;
+  outline: none;
+}
+.competitive-race-card--expandable:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: -1px;
+}
+.competitive-race-card.is-open {
+  background: var(--bg-row-hover);
+  border-color: var(--accent-amber);
+}
+.competitive-race-card .race-card-seat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+.competitive-race-card .row-chevron {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 120ms ease, color 120ms ease;
+}
+.competitive-race-card .row-chevron.is-open {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
+}
+.competitive-race-drawer {
+  margin-top: var(--space-md);
+  border-top: 0.5px solid var(--border-strong);
+  padding: var(--space-md) 2px 4px;
+}
 .competitive-race-card .race-card-seat {
   font-size: 12px;
   letter-spacing: 0.5px;
