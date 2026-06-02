@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { NewsRow } from "@/components/NewsRow";
+import { BreakingRow } from "@/components/BreakingRow";
 import {
   type DashboardFilters,
   getBreakingNewsForHome,
@@ -51,7 +51,7 @@ export async function BreakingNewsBlock({
         <ul>
           {mentions.map((m) => (
             <li key={m.id}>
-              <NewsRow mention={m} showFullHeadline />
+              <BreakingRow mention={m} />
             </li>
           ))}
         </ul>

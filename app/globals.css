@@ -386,6 +386,87 @@ body {
   gap: var(--space-lg);
   min-height: 0;
 }
+
+/* HO 178 — BREAKING compact rows + cross-column hover-overrun.
+   The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
+   full-headline overlay can spill rightward across the gutter into the races
+   column. The right column dims to 0.4 while any breaking row is hovered, via
+   :has(), so the popped headline reads cleanly over it. */
+/* Compound selector beats the .home-quadrant overflow:hidden regardless of
+   source order (both are single-class; this is two-class). */
+.home-quadrant.home-breaking-panel {
+  overflow: visible;
+}
+.home-grid:has(.breaking-row:hover) .home-col-right {
+  opacity: 0.4;
+  transition: opacity 120ms ease;
+}
+.breaking-row {
+  position: relative;
+  display: grid;
+  /* ID (~92px) · truncated headline · right-aligned age */
+  grid-template-columns: 92px 1fr auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.breaking-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.breaking-row-id {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.breaking-row-more {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.breaking-row-headline {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.breaking-row-age {
+  font-size: 13px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+/* The overrun overlay: full headline, left-anchored at the headline column
+   (92px ID + 10px gap = 102px), opaque, above the (dimmed) races column.
+   white-space:nowrap so it runs as far right as needed; pointer-events:none so
+   a click falls through to the underlying truncated headline link. */
+.breaking-row-full {
+  position: absolute;
+  top: 50%;
+  left: 102px;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: none;
+  white-space: nowrap;
+  pointer-events: none;
+  font-size: 14px;
+  color: var(--text-primary);
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 6px 10px;
+}
+.breaking-row:hover .breaking-row-full {
+  display: block;
+}
+.breaking-row:hover .breaking-row-age {
+  visibility: hidden;
+}
 /* Col-1 stack: STAGE funnel (220px fixed) over TOPIC bubbles (flex-1).
    The fixed-height panel uses flex-basis so the topic panel claims the
    remaining vertical space — at 1440x900 with header ~200px and

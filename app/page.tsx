@@ -100,7 +100,7 @@ export default async function DashboardPage({
             TOPIC. RIGHT (44%): COMPETITIVE RACES (2×2 hover) → ACTIVITY. */}
         <div className="home-grid">
           {/* LEFT column (56%) */}
-          <div className="home-col-stack">
+          <div className="home-col-stack home-col-left">
             {/* HO 178: BREAKING moved from the full-width strip into the left
                 column. home-breaking-panel marks it for the stage-5 hover-
                 overrun (overflow override + cross-column dim). */}
@@ -149,8 +149,9 @@ export default async function DashboardPage({
             </section>
           </div>
 
-          {/* RIGHT column (44%) */}
-          <div className="home-col-stack">
+          {/* RIGHT column (44%) — dims to 0.4 while a BREAKING row is hovered
+              (HO 178: the overrun headline pops over it). */}
+          <div className="home-col-stack home-col-right">
             {/* HO 178: races moved from a full-width strip into the right
                 column; stage 4 converts it to a 2×2 grid + hover popover. */}
             <CompetitiveRacesBlock />
