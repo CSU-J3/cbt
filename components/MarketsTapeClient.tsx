@@ -22,7 +22,7 @@
 // arrow + change slots, so item width is invariant to values → track width is
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MarketTick } from "@/lib/queries";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
@@ -240,19 +240,36 @@ export function MarketsTapeClient({
   }, [currentTicks, now]);
 
   // HO 168/172: measure the track-half width → marquee duration (~40px/sec).
-  // Deps are the item COUNT and the stale↔live branch, NOT the tick values:
-  // a price refresh must not re-measure (which would restart the animation).
+  // HO 179: also compute how many COPIES of the symbol set each half needs so
+  // the half is always >= the visible tape width — otherwise a short tape (the
+  // 9/8 split is narrower than a wide viewport) exposes blank track near the
+  // -50% loop point and reads sparse. copies = max(2, ceil(container/setWidth)).
+  // Deps are item COUNT, the stale↔live branch, and copies — NOT the tick
+  // values: a price refresh must not re-measure (which would restart the
+  // animation). Per-symbol pins make one set's width value-independent, so
+  // copies is constant across polls → the jump fix holds.
   const halfRef = useRef<HTMLDivElement>(null);
+  const tapeRef = useRef<HTMLDivElement>(null);
   const [marqueeDurationSec, setMarqueeDurationSec] = useState<number | null>(
     null,
   );
+  const [copies, setCopies] = useState(2);
   const itemCount = currentTicks.length;
   useEffect(() => {
-    const el = halfRef.current;
-    if (!el) return;
-    const w = el.offsetWidth;
-    if (w > 0) setMarqueeDurationSec(w / MARQUEE_PX_PER_SEC);
-  }, [itemCount, stale]);
+    const halfEl = halfRef.current;
+    const tapeEl = tapeRef.current;
+    if (!halfEl || !tapeEl) return;
+    const halfW = halfEl.offsetWidth; // = copies × one-set width
+    if (halfW <= 0) return;
+    const setW = halfW / copies;
+    const containerW = tapeEl.offsetWidth;
+    const needed = Math.max(2, Math.ceil(containerW / setW));
+    if (needed !== copies) {
+      setCopies(needed); // re-render, then this effect re-measures
+      return;
+    }
+    setMarqueeDurationSec(halfW / MARQUEE_PX_PER_SEC);
+  }, [itemCount, stale, copies]);
 
   // No-data branch — empty fetch or all rows had unparseable tickedAt.
   if (currentTicks.length === 0 || latestTickedAt === null) {
@@ -282,9 +299,16 @@ export function MarketsTapeClient({
   const items = currentTicks.map((t) => (
     <TickItem key={t.symbol} tick={t} stale={stale} />
   ));
+  // HO 179: each marquee half repeats the set `copies` times so the half always
+  // fills the viewport (no blank stretch at the loop). Keyed Fragments scope the
+  // per-symbol keys within each copy so they don't collide across copies.
+  const halfContent = Array.from({ length: copies }, (_, c) => (
+    <Fragment key={`copy-${c}`}>{items}</Fragment>
+  ));
 
   return (
     <div
+      ref={tapeRef}
       className={`markets-tape${stale ? " markets-tape--stale" : ""}`}
       aria-label="Markets"
     >
@@ -310,10 +334,10 @@ export function MarketsTapeClient({
               second (identical) copy slides into view as the first slides out.
               The first half is measured to scale the duration. */}
           <div className="markets-tape-track-half" ref={halfRef}>
-            {items}
+            {halfContent}
           </div>
           <div className="markets-tape-track-half" aria-hidden>
-            {items}
+            {halfContent}
           </div>
         </div>
       )}

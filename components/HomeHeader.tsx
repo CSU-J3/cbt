@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { LegendBadge } from "@/components/ColorKeyStrip";
 import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
@@ -8,8 +7,8 @@ import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
 // Home-only header chrome. HO 178 reflow:
-//   Masthead row: brand prompt (36px desktop hero) + `?` LegendBadge + the META
-//     line stacked on the LEFT (fixed width); the weekly-summary LEAD prose sits
+//   Masthead row: brand prompt (36px desktop hero) + the META line stacked on
+//     the LEFT (fixed width); the weekly-summary LEAD prose sits
 //     to the RIGHT, fills the remaining width, full-wrap (NO clamp), and the row
 //     height follows the prose when it runs taller than the title block. The
 //     blinking `_` cursor rides the end of the prose. Below 700px the prose is
@@ -39,7 +38,6 @@ export async function HomeHeader() {
                 _
               </span>
             </span>
-            <LegendBadge />
           </div>
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it

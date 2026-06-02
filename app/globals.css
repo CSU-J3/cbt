@@ -240,8 +240,10 @@ body {
   min-width: 0;
 }
 /* The title-end cursor only appears <700px, where the prose (and its own
-   cursor) are removed — see the <700 rule below. */
-.home-cursor-title {
+   cursor) are removed — see the <700 rule below. HO 179: compound selector
+   (0,2,0) so it beats the base `.home-cursor-caret { display:inline-block }`
+   (0,1,0, defined later in the file) — otherwise BOTH cursors show at >=700. */
+.home-cursor-caret.home-cursor-title {
   display: none;
 }
 /* HO 162: the prompt row now holds the 36px brand hero + the `?` legend
@@ -725,7 +727,8 @@ body {
   .home-header-lead {
     display: none;
   }
-  .home-cursor-title {
+  /* HO 179: compound selector to match the >=700 hide rule's specificity. */
+  .home-cursor-caret.home-cursor-title {
     display: inline-block;
   }
   .home-main {
@@ -2494,9 +2497,11 @@ body {
    by a pause toggle and auto-paused on prefers-reduced-motion. */
 .markets-tape {
   position: relative;
-  /* HO 175: z-index so the hover-detail popover (which spills below the tape)
-     paints above the following nav/content. */
-  z-index: 5;
+  /* HO 179: NO z-index here. Two stacked tapes each with z-index made each a
+     stacking context, trapping the top tape's hover popover behind the bottom
+     tape. Without it (position:relative + overflow-x:clip are not stacking-
+     context triggers, and .home-header has no z-index either) the popover's own
+     z-index resolves at the root context — above BOTH tapes and the nav. */
   display: flex;
   align-items: center;
   width: 100%;
@@ -2650,19 +2655,30 @@ body {
   right: 0;
   top: 0;
   bottom: 0;
+  /* HO 179: above the scrolling track (which has no z-index). */
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 12px 0 18px;
-  background: linear-gradient(
-    to right,
-    transparent 0,
-    var(--bg-panel) 20px,
-    var(--bg-panel) 100%
-  );
+  /* HO 179: SOLID bg (was a gradient with a transparent 0-20px zone that let
+     the last scrolling symbol bleed under the "AS OF" text). The track is now
+     fully hidden behind the meta; the ::before adds a soft fade just LEFT of
+     the meta so symbols fade out instead of hard-cutting at its edge. */
+  background: var(--bg-panel);
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.5px;
+}
+.markets-tape-meta::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  background: linear-gradient(to right, transparent, var(--bg-panel));
+  pointer-events: none;
 }
 .markets-tape-stamp {
   white-space: nowrap;
