@@ -1,3 +1,41 @@
 {
-  "races": []
+  "races": [
+    {
+      "id": "S-GA-2026",
+      "rating_source": "Ballotpedia",
+      "source_url": "https://ballotpedia.org/United_States_Senate_election_in_Georgia,_2026",
+      "candidates": [
+        { "name": "Buddy Carter", "party": "R", "bioguide_id": "C001103", "status": "running" },
+        { "name": "Mike Collins", "party": "R", "bioguide_id": "C001129", "status": "running" },
+        { "name": "Derek Dooley", "party": "R", "bioguide_id": null, "status": "running" }
+      ]
+    },
+    {
+      "id": "S-ME-2026",
+      "rating_source": "Ballotpedia",
+      "source_url": "https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026",
+      "candidates": [
+        { "name": "Janet Mills", "party": "D", "bioguide_id": null, "status": "running" },
+        { "name": "Graham Platner", "party": "D", "bioguide_id": null, "status": "running" }
+      ]
+    },
+    {
+      "id": "NJ-07-2026",
+      "rating_source": "Ballotpedia",
+      "source_url": "https://ballotpedia.org/New_Jersey's_7th_Congressional_District_election,_2026",
+      "candidates": [
+        { "name": "Rebecca Bennett", "party": "D", "bioguide_id": null, "status": "running" },
+        { "name": "Megan O'Rourke", "party": "D", "bioguide_id": null, "status": "running" },
+        { "name": "Michael Roth", "party": "D", "bioguide_id": null, "status": "running" }
+      ]
+    },
+    {
+      "id": "PA-10-2026",
+      "rating_source": "Ballotpedia",
+      "source_url": "https://ballotpedia.org/Pennsylvania's_10th_Congressional_District_election,_2026",
+      "candidates": [
+        { "name": "Janelle Stelson", "party": "D", "bioguide_id": null, "status": "running" }
+      ]
+    }
+  ]
 }

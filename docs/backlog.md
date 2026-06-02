@@ -20,3 +20,4 @@ Raw ideas not yet ready for a handoff. Graduate entries to `docs/handoffs/` with
 - **Additional time windows beyond 7d for media-attention** (HO 130).
 - **Filter/sort within Breaking/Top Stalls tab strip** (HO 133).
 - **VIX intraday source.** Stooq doesn't carry it and Yahoo's unauthed endpoints are too unstable for a daily refresh contract. Worth picking back up when a free source emerges or when a paid plan covers it incidentally.
+- **Refresh strip-race candidate rosters after the 2026 primaries** (HO 171). The 4 dashboard-strip rosters in `data/races-seed.json` (S-GA, S-ME, NJ-07, PA-10) are **pre-primary**, verified 2026-06-01, all `status: "running"`. Primaries resolve **GA + PA May 19, NJ June 2, ME June 9 2026**. After each, edit the seed to mark the primary winner `won_primary` and drop also-rans, then re-run `npm run seed:races` + flush the `races` / `race-ratings` tags. Sourced from Ballotpedia (canonical race pages in the seed `source_url`).

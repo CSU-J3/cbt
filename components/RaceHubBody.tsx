@@ -65,9 +65,15 @@ export function RaceHubBody({
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
   // "Incumbent running for re-election" placeholder, which would contradict
-  // the runoff section (HO 107).
+  // the runoff section (HO 107). HO 171: also key off the multi-source
+  // `ratings` array, not just the legacy `races.rating` column — a race whose
+  // rating chips render (race_ratings) must never claim "no competitive rating
+  // yet."
   const isStub =
-    !race.rating && candidates.length === 0 && runoffs.length === 0;
+    !race.rating &&
+    ratings.length === 0 &&
+    candidates.length === 0 &&
+    runoffs.length === 0;
 
   return (
     <>
