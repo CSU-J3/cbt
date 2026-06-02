@@ -19,11 +19,13 @@ type HeaderVariant = "feed" | "dashboard";
 
 // HO 131 / 134: shared nav-item config consumed by both HeaderNav
 // (top-right chrome on /feed-shaped pages) and HomeHeader (under-title
-// row on /). HO 134 collapsed 12 individual destinations to 4 group
-// landings — every secondary destination now lives inside a GroupTabs
+// row on /). HO 134 collapsed 12 individual destinations to a handful of
+// group landings — every secondary destination now lives inside a GroupTabs
 // strip on the group landing page. NavItemKey mirrors NavKey from
 // GroupTabs since the top nav's vocabulary is exactly the set of values
-// pathToNavKey() can return (the 3 groups plus standalone /watchlist).
+// pathToNavKey() can return (the sub-nav groups — feed / members / races
+// (HO 173) / patterns — plus standalone /watchlist and the top-level
+// /reports and Dashboard).
 export type NavItemKey = NavKey;
 
 export type NavItem = {

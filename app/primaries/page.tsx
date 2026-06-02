@@ -147,7 +147,7 @@ export default async function PrimariesPage() {
     <div className="flex min-h-screen flex-col">
       <HeaderBar basePath="/primaries" />
       <main className="w-full flex-1 px-4 py-4">
-        <GroupTabs group="members" active="primaries" />
+        <GroupTabs group="races" active="primaries" />
         <div className="page-masthead">
           <TerminalPrompt name="Primaries" />
         </div>

@@ -10,7 +10,7 @@ import Link from "next/link";
 // Visually reuses the .search-tabs CSS class from SearchTabs.tsx; the
 // .count / .data-empty rules there harmlessly don't match here.
 
-export type Group = "feed" | "members" | "patterns";
+export type Group = "feed" | "members" | "races" | "patterns";
 
 type GroupTab = {
   slug: string;
@@ -29,6 +29,13 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   members: [
     { slug: "members", label: "Members", href: "/members" },
     { slug: "committees", label: "Committees", href: "/committees" },
+  ],
+  // HO 173: electoral surfaces split out of the members group into their
+  // own sub-nav. Keyed "races" (not "electoral") so the group key unifies
+  // with the existing top-nav `races` NavItem — pathToNavKey's group loop
+  // then returns "races" for both /races and /primaries with no extra
+  // matcher, and /primaries lights the Races top-nav tab.
+  races: [
     { slug: "races", label: "Races", href: "/races" },
     { slug: "primaries", label: "Primaries", href: "/primaries" },
   ],
@@ -39,7 +46,8 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   ],
 };
 
-export type NavKey = "dashboard" | Group | "races" | "reports" | "watchlist";
+// "races" is no longer listed separately — it's a Group as of HO 173.
+export type NavKey = "dashboard" | Group | "reports" | "watchlist";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page passes in. /watchlist is a standalone
@@ -48,10 +56,10 @@ export type NavKey = "dashboard" | Group | "races" | "reports" | "watchlist";
 // HO 154.5 added sub-route active states: when a detail page passes
 // its actual URL as basePath (e.g. "/bill/119-hr-1"), the prefix
 // matchers below light up the correct top-nav tab — /bill/* → feed,
-// /committee/* / /race/* / /members/[bioguideId] → members,
-// /reports/[slug] → reports. Detail pages on a category surface
-// (Members, Feed, etc.) now keep that surface highlighted instead of
-// dropping the nav back to "no active tab".
+// /committee/* / /members/[bioguideId] → members, /race/* → races
+// (HO 173), /reports/[slug] → reports. Detail pages on a category
+// surface now keep that surface highlighted instead of dropping the
+// nav back to "no active tab".
 //
 // /reports is BOTH a top-level nav item (HO 150) AND a sub-tab inside
 // the `feed` group, so it's special-cased before the group loop —
@@ -72,10 +80,11 @@ export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
   if (basePath.startsWith("/members/")) return "members";
   if (basePath.startsWith("/committee/")) return "members";
-  // Races is its own top-nav item; `/races` index + `/race/[id]` detail both
-  // light it. Must precede the group loop — Races still lives in the `members`
-  // GROUP_TABS sub-nav, which would otherwise return "members".
-  if (basePath.startsWith("/race")) return "races";
+  // `/race/[id]` detail → Races. The `/races` index and `/primaries` are
+  // left to the group loop below: both live in the `races` GROUP_TABS group
+  // (HO 173), so the loop returns "races" for them. This matcher only needs
+  // to catch the dynamic detail route, which has no exact GROUP_TABS href.
+  if (basePath.startsWith("/race/")) return "races";
   for (const group of Object.keys(GROUP_TABS) as Group[]) {
     if (GROUP_TABS[group].some((t) => t.href === basePath)) {
       return group;

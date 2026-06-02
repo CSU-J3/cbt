@@ -210,7 +210,7 @@ export default async function RacesPage() {
     <div className="flex min-h-screen flex-col">
       <HeaderBar basePath="/races" />
       <main className="w-full flex-1 px-4 py-4">
-        <GroupTabs group="members" active="races" />
+        <GroupTabs group="races" active="races" />
         <div className="page-masthead">
           <TerminalPrompt name="Races" />
         </div>
