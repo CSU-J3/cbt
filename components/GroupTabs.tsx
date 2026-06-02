@@ -39,7 +39,7 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   ],
 };
 
-export type NavKey = "dashboard" | Group | "reports" | "watchlist";
+export type NavKey = "dashboard" | Group | "races" | "reports" | "watchlist";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page passes in. /watchlist is a standalone
@@ -72,7 +72,10 @@ export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
   if (basePath.startsWith("/members/")) return "members";
   if (basePath.startsWith("/committee/")) return "members";
-  if (basePath.startsWith("/race/")) return "members";
+  // Races is its own top-nav item; `/races` index + `/race/[id]` detail both
+  // light it. Must precede the group loop — Races still lives in the `members`
+  // GROUP_TABS sub-nav, which would otherwise return "members".
+  if (basePath.startsWith("/race")) return "races";
   for (const group of Object.keys(GROUP_TABS) as Group[]) {
     if (GROUP_TABS[group].some((t) => t.href === basePath)) {
       return group;
