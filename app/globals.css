@@ -2444,16 +2444,24 @@ body {
    by a pause toggle and auto-paused on prefers-reduced-motion. */
 .markets-tape {
   position: relative;
+  /* HO 175: z-index so the hover-detail popover (which spills below the tape)
+     paints above the following nav/content. */
+  z-index: 5;
   display: flex;
   align-items: center;
   width: 100%;
-  height: 32px;
+  height: 38px;
   background-color: var(--bg-panel);
   border-top: 1px solid var(--border-strong);
   border-bottom: 1px solid var(--border-strong);
-  overflow: hidden;
+  /* HO 175: clip the marquee horizontally but let the hover-detail popover
+     spill vertically. overflow:hidden would clip the popover too; `clip` on one
+     axis with `visible` on the other is a valid pairing (unlike `hidden`, which
+     forces the other axis to `auto`). */
+  overflow-x: clip;
+  overflow-y: visible;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
 }
 /* HO 156 follow-up: hide the tape <700px. It's a dense desktop strip that
    wraps poorly on phones, reads STALE on the daily-refresh cadence, and
@@ -2499,26 +2507,75 @@ body {
 .markets-tape-item {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   padding: 0 22px;
   white-space: nowrap;
+  /* HO 175: anchor for the absolutely-positioned hover-detail popover. */
+  position: relative;
 }
 .markets-tape-symbol {
   color: var(--text-dim);
   letter-spacing: 0.5px;
 }
+/* HO 175: ch-based min-widths so an item's width never changes as its value
+   moves (price digit crossing, change toggling, arrow flat↔directional). The
+   track width is then constant after first paint, so translateX(-50%) maps to a
+   stable pixel offset and the marquee can't jump on a poll. monospace + these
+   reservations = the geometry-stabilization fix. */
 .markets-tape-price {
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
+  min-width: 8ch;
 }
 .markets-tape-arrow {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
 }
+.markets-tape-arrow-glyph {
+  min-width: 1.2ch;
+  text-align: center;
+}
 .markets-tape-change {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.3px;
+  /* Reserved even when empty (flat/stale) so presence never toggles width. */
+  min-width: 7ch;
+}
+/* HO 175: hover-expand detail popover. position:absolute so it never reflows
+   the track (which would re-trigger the geometry jump). Pure CSS :hover — no JS
+   state, no re-render. Composes with hover-pause (.markets-tape-track:hover):
+   the scroll is paused while hovering, so the popover anchors to a stationary
+   item. The tape's overflow-x:clip/overflow-y:visible lets it spill below. */
+.markets-tape-detail {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: none;
+  white-space: nowrap;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 6px 10px;
+  text-transform: none;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+.markets-tape-item:hover .markets-tape-detail {
+  display: block;
+}
+.markets-tape-detail-name {
+  display: block;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.markets-tape-detail-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 .markets-tape-meta {
   position: absolute;

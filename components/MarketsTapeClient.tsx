@@ -11,6 +11,17 @@
 // track never remounts and the scroll never restarts. The duration is only
 // re-measured when the item COUNT (or the stale↔live branch) changes, never on
 // a value update, so a price refresh can't jump the marquee.
+//
+// HO 175 — the marquee still jumped on a poll, but NOT from React identity (the
+// reconciliation above holds). The real cause was geometry: the keyframe is
+// translateX(-50%) of a `width: max-content` track, so when a polled value
+// changed an item's rendered width (price digit crossing, arrow flat↔directional
+// toggling the change slot in/out), the track width changed and -50% mapped to a
+// new pixel offset mid-scroll → visible jump. Fix is CSS-only (globals.css):
+// every item reserves fixed ch-based slot widths and always renders the
+// arrow + change slots, so item width is invariant to values → track width is
+// constant after first paint → -50% is stable. TickItem below renders the
+// always-present slots; the hover-detail popover is also added here (HO 175).
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MarketTick } from "@/lib/queries";
 
@@ -56,8 +67,12 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
           ? "down"
           : "flat"
       : "stale";
+  // HO 175: arrow + change slots ALWAYS render (empty glyph / empty change when
+  // flat or stale) so an item's width never toggles — the CSS min-widths reserve
+  // the space. That width invariance is what keeps the marquee from jumping on a
+  // poll (see the geometry note in globals.css).
   const arrow =
-    dir === "up" ? "▲" : dir === "down" ? "▼" : dir === "flat" ? "•" : null;
+    dir === "up" ? "▲" : dir === "down" ? "▼" : dir === "flat" ? "•" : "";
   const colorVar =
     dir === "up"
       ? "var(--market-up)"
@@ -66,6 +81,11 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
         : dir === "flat"
           ? "var(--text-secondary)"
           : "var(--text-dim)";
+  // Inline change shows only for a real move; flat/stale leave the reserved slot
+  // empty. The popover always states the change explicitly.
+  const inlineChange =
+    !stale && pct !== null && dir !== "flat" ? formatChangePct(pct) : "";
+  const detailChange = pct !== null ? formatChangePct(pct) : "—";
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
@@ -75,17 +95,22 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
       >
         {formatPrice(tick.price, tick.format)}
       </span>
-      {arrow !== null ? (
-        <span className="markets-tape-arrow" style={{ color: colorVar }}>
-          {arrow}
-          {pct !== null && dir !== "flat" ? (
-            <span className="markets-tape-change tabular-nums">
-              {" "}
-              {formatChangePct(pct)}
-            </span>
-          ) : null}
+      <span className="markets-tape-arrow" style={{ color: colorVar }}>
+        <span className="markets-tape-arrow-glyph">{arrow}</span>
+        <span className="markets-tape-change tabular-nums">{inlineChange}</span>
+      </span>
+      {/* HO 175: hover-expand detail. Full instrument name + day change + the
+          trading day it represents. No range — market_ticks stores only
+          price + change. aria-hidden: decorative hover enhancement (the symbol
+          + price are already in the accessible row). */}
+      <span className="markets-tape-detail" aria-hidden>
+        <span className="markets-tape-detail-name">{tick.label}</span>
+        <span className="markets-tape-detail-meta">
+          <span style={{ color: colorVar }}>{detailChange}</span>
+          {" · as of "}
+          {tick.marketDate}
         </span>
-      ) : null}
+      </span>
     </span>
   );
 }
