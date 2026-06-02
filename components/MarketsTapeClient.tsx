@@ -27,12 +27,15 @@ function formatChangePct(pct: number): string {
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
 }
 
+// HO 169: 12-hour with AM/PM (UTC zone kept). e.g. "3:33 PM".
 function formatHHMM(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  const h = d.getUTCHours().toString().padStart(2, "0");
   const m = d.getUTCMinutes().toString().padStart(2, "0");
-  return `${h}:${m}`;
+  const h24 = d.getUTCHours();
+  const period = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h12}:${m} ${period}`;
 }
 
 function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {

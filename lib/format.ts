@@ -38,12 +38,12 @@ export function formatDateLong(iso: string | null | undefined): string {
   return part;
 }
 
-// "HH:MM MT" in America/Denver — header bar last-updated
+// "h:MM AM/PM MT" in America/Denver — header bar last-updated (HO 169: 12-hour)
 const mountainTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Denver",
-  hour: "2-digit",
+  hour: "numeric",
   minute: "2-digit",
-  hour12: false,
+  hour12: true,
 });
 
 export function formatLastUpdated(iso: string | null | undefined): string {

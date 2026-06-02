@@ -89,6 +89,14 @@ export default async function DashboardPage({
       <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
+        {/* Weekly report snapshot — moved ABOVE the BREAKING strip in HO 169
+            (report 7d → breaking 72h). Both are full-width bands; this is a
+            reorder, not a restyle. ReportSnapshot returns null when zero
+            reports exist, leaving the slot empty. */}
+        <div className="home-snapshot-slot">
+          <ReportSnapshot />
+        </div>
+
         {/* Full-width BREAKING strip (HO 150) — above the two-column grid,
             no quadrant chrome; border caps flush to the row list because
             there's no flex-1 parent stretching the box. */}
@@ -104,14 +112,6 @@ export default async function DashboardPage({
           </p>
           <BreakingNewsBlock filters={filters} />
         </section>
-
-        {/* Weekly report snapshot — moved directly under BREAKING in HO 159
-            so breaking (72h) + report (7d) stack as a full-width narrative
-            pair above the grid. ReportSnapshot returns null when zero
-            reports exist, leaving the slot empty. */}
-        <div className="home-snapshot-slot">
-          <ReportSnapshot />
-        </div>
 
         {/* HO 163: competitive-races strip — Senate-led chamber mix (top 2
             Senate + top 2 House), between the report band and the grid. */}
