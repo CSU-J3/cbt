@@ -89,37 +89,34 @@ export default async function DashboardPage({
       <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
-        {/* Weekly report snapshot — moved ABOVE the BREAKING strip in HO 169
-            (report 7d → breaking 72h). Both are full-width bands; this is a
-            reorder, not a restyle. ReportSnapshot returns null when zero
-            reports exist, leaving the slot empty. */}
+        {/* HO 178 decision 2: the HO 153 weekly-report snapshot stays a
+            full-width band above the 56/44 grid (the spec didn't relocate it).
+            Returns null when zero reports exist, leaving the slot empty. */}
         <div className="home-snapshot-slot">
           <ReportSnapshot />
         </div>
 
-        {/* Full-width BREAKING strip (HO 150) — above the two-column grid,
-            no quadrant chrome; border caps flush to the row list because
-            there's no flex-1 parent stretching the box. */}
-        <section className="home-breaking-strip">
-          <p
-            className="home-quadrant-label"
-            title="Recent news linked to tracked bills"
-          >
-            Breaking · Last 72h{" "}
-            <span className="home-quadrant-label-count">
-              ({breakingCount.toLocaleString()})
-            </span>
-          </p>
-          <BreakingNewsBlock filters={filters} />
-        </section>
-
-        {/* HO 163: competitive-races strip — Senate-led chamber mix (top 2
-            Senate + top 2 House), between the report band and the grid. */}
-        <CompetitiveRacesBlock />
-
+        {/* HO 178: 56/44 two-column body. LEFT (56%): BREAKING → STAGE →
+            TOPIC. RIGHT (44%): COMPETITIVE RACES (2×2 hover) → ACTIVITY. */}
         <div className="home-grid">
-          {/* Left column: STAGE funnel + TOPIC bubbles stacked */}
+          {/* LEFT column (56%) */}
           <div className="home-col-stack">
+            {/* HO 178: BREAKING moved from the full-width strip into the left
+                column. home-breaking-panel marks it for the stage-5 hover-
+                overrun (overflow override + cross-column dim). */}
+            <section className="home-quadrant home-breaking-panel">
+              <p
+                className="home-quadrant-label"
+                title="Recent news linked to tracked bills"
+              >
+                Breaking · Last 72h{" "}
+                <span className="home-quadrant-label-count">
+                  ({breakingCount.toLocaleString()})
+                </span>
+              </p>
+              <BreakingNewsBlock filters={filters} />
+            </section>
+
             <section className="home-quadrant home-panel-stage">
               <p
                 className="home-quadrant-label"
@@ -152,15 +149,21 @@ export default async function DashboardPage({
             </section>
           </div>
 
-          {/* Right column: ACTIVITY / TOP STALLS tabs */}
-          <section className="home-quadrant">
-            <ActivityTabs
-              activityContent={<ActivityTicker filters={filters} />}
-              stallsContent={<TopStalls />}
-              activityCount={activityCount.total}
-              stallsCount={TOP_STALLS_COUNT}
-            />
-          </section>
+          {/* RIGHT column (44%) */}
+          <div className="home-col-stack">
+            {/* HO 178: races moved from a full-width strip into the right
+                column; stage 4 converts it to a 2×2 grid + hover popover. */}
+            <CompetitiveRacesBlock />
+
+            <section className="home-quadrant">
+              <ActivityTabs
+                activityContent={<ActivityTicker filters={filters} />}
+                stallsContent={<TopStalls />}
+                activityCount={activityCount.total}
+                stallsCount={TOP_STALLS_COUNT}
+              />
+            </section>
+          </div>
         </div>
       </main>
     </div>

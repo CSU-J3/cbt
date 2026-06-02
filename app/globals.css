@@ -363,24 +363,14 @@ body {
   gap: var(--space-md);
   min-height: 0;
 }
-/* HO 150: full-width BREAKING strip above the grid. No quadrant wrapper —
-   the border caps flush to the row list because there's no flex-1 parent
-   stretching the box; the strip simply sits at its own content height. */
-.home-breaking-strip {
-  border: 0.5px solid var(--border-soft);
-  background-color: var(--bg-panel);
-  padding: var(--space-md);
-}
-.home-breaking-strip .home-quadrant-label {
-  margin-bottom: var(--space-sm);
-}
-.home-breaking-strip .home-expander {
-  margin-top: var(--space-sm);
-}
+/* HO 178: the full-width .home-breaking-strip (HO 150) is retired — BREAKING now
+   lives as a panel in the left column of the 56/44 grid. The grid is 56/44 with
+   a 16px gutter (was equal 1fr 1fr, 12px). */
 .home-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-md);
+  grid-template-columns: 56fr 44fr;
+  gap: var(--space-lg);
+  align-items: start;
   min-height: 0;
 }
 /* HO 153 reserved slot — empty container below the grid. No chrome here;
@@ -392,7 +382,8 @@ body {
 .home-col-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  /* HO 178: 16px vertical gap between stacked panels in each column. */
+  gap: var(--space-lg);
   min-height: 0;
 }
 /* Col-1 stack: STAGE funnel (220px fixed) over TOPIC bubbles (flex-1).
