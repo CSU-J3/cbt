@@ -440,6 +440,9 @@ body {
    overflow:hidden can't clip it), separated from the chart by a top border.
    Muted reference density, same swatch chips as the old footer legend. */
 .panel-key {
+  /* HO 167: now sits at the TOP of its panel (under the label, above the
+     chart body). flex:0 0 auto so the body's flex:1 can't squeeze it. */
+  flex: 0 0 auto;
   margin-top: var(--space-sm);
   padding-top: var(--space-sm);
   border-top: 0.5px solid var(--border-soft);

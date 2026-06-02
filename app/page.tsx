@@ -127,11 +127,13 @@ export default async function DashboardPage({
               >
                 Stage Distribution
               </p>
+              {/* HO 167: STAGES key sits with the funnel it decodes — under
+                  the label, above the body, so it's visible without scrolling
+                  past the chart. */}
+              <StageKey />
               <div className="home-quadrant-body">
                 <StageFunnel bars={stageDist.bars} />
               </div>
-              {/* HO 167: STAGES key sits with the funnel it decodes. */}
-              <StageKey />
             </section>
 
             <section className="home-quadrant home-panel-topic">
@@ -141,11 +143,12 @@ export default async function DashboardPage({
               >
                 Topic Distribution
               </p>
+              {/* HO 167: TOPICS key sits with the bubbles it decodes — under
+                  the label, above the body. */}
+              <TopicKey />
               <div className="home-quadrant-body">
                 <DashboardBubbleChart data={topicData} paramKey="topics" />
               </div>
-              {/* HO 167: TOPICS color key sits with the bubbles it decodes. */}
-              <TopicKey />
             </section>
           </div>
 
