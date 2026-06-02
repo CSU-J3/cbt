@@ -116,12 +116,19 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
         : dir === "flat"
           ? "var(--text-secondary)"
           : "var(--text-dim)";
-  // Inline change shows only for a real move; flat/stale leave the reserved slot
+  // Inline change shows only for a real move; flat leaves the reserved slot
   // empty. The popover always states the change explicitly.
-  const inlineChange =
-    !stale && pct !== null && dir !== "flat" ? formatChangePct(pct) : "";
+  const inlineChange = dir === "flat" ? "" : formatChangePct(pct as number);
   const detailChange = pct !== null ? formatChangePct(pct) : "—";
   const priceSlotCh = PRICE_SLOT_CH[tick.symbol] ?? DEFAULT_PRICE_SLOT_CH;
+  // HO 179.1: a symbol with a value keeps the reserved arrow+change slots so
+  // flat↔directional toggling never changes its width (the HO 175 jump fix).
+  // But a null-change symbol (first tick, no prior session — dir "stale") would
+  // otherwise render ~8ch of EMPTY reserved slot, leaving big gaps across the
+  // tape. Omit the slots entirely for those (zero width) → dense. Tradeoff: when
+  // such a symbol first gets a value (next session) its width grows once — a
+  // one-time settle, not the every-60s jump.
+  const showSlots = dir !== "stale";
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
@@ -134,10 +141,14 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
       >
         {formatPrice(tick.price, tick.format)}
       </span>
-      <span className="markets-tape-arrow" style={{ color: colorVar }}>
-        <span className="markets-tape-arrow-glyph">{arrow}</span>
-        <span className="markets-tape-change tabular-nums">{inlineChange}</span>
-      </span>
+      {showSlots ? (
+        <span className="markets-tape-arrow" style={{ color: colorVar }}>
+          <span className="markets-tape-arrow-glyph">{arrow}</span>
+          <span className="markets-tape-change tabular-nums">
+            {inlineChange}
+          </span>
+        </span>
+      ) : null}
       {/* HO 175/177: hover-expand detail. HO 177 promotes the full instrument
           name (tick.fullName) to the prominent line; the short group label sits
           in the meta line with change + as-of, dropped when it just repeats the
@@ -161,6 +172,7 @@ export function MarketsTapeClient({
   ticks,
   reverse = false,
   placeholderSymbols,
+  showMeta = true,
 }: {
   ticks: MarketTick[];
   // HO 178: scroll this tape the opposite direction (the commodities tape).
@@ -168,6 +180,10 @@ export function MarketsTapeClient({
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
   // the poll filter so a grouped tape only ever updates its own symbols.
   placeholderSymbols?: string[];
+  // HO 179.1: render the AS OF meta? Both dashboard tapes poll the same data, so
+  // only the bottom tape shows the single shared stamp (top passes false).
+  // Single-tape pages keep the default.
+  showMeta?: boolean;
 }) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
@@ -289,7 +305,9 @@ export function MarketsTapeClient({
             </span>
           ))}
         </div>
-        <div className="markets-tape-meta">MARKET DATA UNAVAILABLE</div>
+        {showMeta ? (
+          <div className="markets-tape-meta">MARKET DATA UNAVAILABLE</div>
+        ) : null}
       </div>
     );
   }
@@ -341,14 +359,16 @@ export function MarketsTapeClient({
           </div>
         </div>
       )}
-      <div className="markets-tape-meta">
-        <span className="markets-tape-stamp">
-          AS OF {formatHHMM(latestTickedAt)} UTC
-          {stale ? (
-            <span className="markets-tape-stale-flag"> · STALE</span>
-          ) : null}
-        </span>
-      </div>
+      {showMeta ? (
+        <div className="markets-tape-meta">
+          <span className="markets-tape-stamp">
+            AS OF {formatHHMM(latestTickedAt)} UTC
+            {stale ? (
+              <span className="markets-tape-stale-flag"> · STALE</span>
+            ) : null}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -15,9 +15,11 @@ import { getLatestMarketTicks } from "@/lib/queries";
 export async function MarketsTape({
   group,
   reverse = false,
+  showMeta = true,
 }: {
   group?: MarketGroup;
   reverse?: boolean;
+  showMeta?: boolean;
 } = {}) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
@@ -34,6 +36,7 @@ export async function MarketsTape({
       ticks={groupTicks}
       reverse={reverse}
       placeholderSymbols={placeholderSymbols}
+      showMeta={showMeta}
     />
   );
 }

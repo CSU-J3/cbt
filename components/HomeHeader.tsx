@@ -66,9 +66,15 @@ export async function HomeHeader() {
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      {/* HO 178: two counter-scrolling tapes — equities → , commodities/macro ← */}
-      <MarketsTape group="equities" />
-      <MarketsTape group="commodities" reverse />
+      {/* HO 178: two counter-scrolling tapes — equities → , commodities/macro ←.
+          HO 179.1: wrapped in .markets-tape-block so the top (equities) tape gets
+          a higher stacking order than the bottom — its hover popover (trapped in
+          the track's animated-transform stacking context) then paints above the
+          bottom tape. Only the bottom tape shows the shared AS OF stamp. */}
+      <div className="markets-tape-block">
+        <MarketsTape group="equities" showMeta={false} />
+        <MarketsTape group="commodities" reverse />
+      </div>
 
       <nav className="home-header-nav" aria-label="Primary navigation">
         {NAV_ITEMS.map((item) => (
