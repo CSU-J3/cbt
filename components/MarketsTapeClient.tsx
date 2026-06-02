@@ -33,6 +33,35 @@ const MARQUEE_PX_PER_SEC = 40;
 // HO 172: client poll interval for fresh prices.
 const POLL_MS = 60_000;
 
+// HO 176: per-symbol price-slot width (ch), sized to each instrument's value
+// band so small values aren't padded to the global max (HO 175's flat 8ch made
+// VIX/WTI/TNX read sparse and uneven). STATIC per symbol → value-independent →
+// the rendered width can't change on a poll, so the HO 175 jump fix stays dead.
+// Right-aligned + tabular-nums (CSS) so digits never reflow within the slot, and
+// a value shrinking below a digit boundary (e.g. VIX 10.20→9.85) sits inside the
+// unchanged slot. WTI gets hundreds-headroom for an oil run past $100. Default
+// 8ch (thousands) for any future symbol.
+const PRICE_SLOT_CH: Record<string, number> = {
+  SPX: 8,
+  GOLD: 8,
+  ITA: 6,
+  XLK: 6,
+  XLV: 6,
+  WTI: 6,
+  VIX: 5,
+  TNX: 5,
+  // HO 177 additions. Indices NDQ/DOW are 5-digit ("51,317.60" = 9ch); BTC gets
+  // 10ch so it stays stable across the $100,000 boundary ("100,000.00" = 10ch)
+  // even when oscillating near it. XLE gets energy headroom toward $100 like WTI.
+  XLF: 5,
+  XLE: 6,
+  XLI: 6,
+  NDQ: 9,
+  DOW: 9,
+  BTC: 10,
+};
+const DEFAULT_PRICE_SLOT_CH = 8;
+
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
   return price.toLocaleString(undefined, {
@@ -86,12 +115,16 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
   const inlineChange =
     !stale && pct !== null && dir !== "flat" ? formatChangePct(pct) : "";
   const detailChange = pct !== null ? formatChangePct(pct) : "—";
+  const priceSlotCh = PRICE_SLOT_CH[tick.symbol] ?? DEFAULT_PRICE_SLOT_CH;
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
       <span
         className="markets-tape-price"
-        style={{ color: stale ? "var(--text-dim)" : "var(--text-secondary)" }}
+        style={{
+          minWidth: `${priceSlotCh}ch`,
+          color: stale ? "var(--text-dim)" : "var(--text-secondary)",
+        }}
       >
         {formatPrice(tick.price, tick.format)}
       </span>
@@ -99,13 +132,16 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
         <span className="markets-tape-arrow-glyph">{arrow}</span>
         <span className="markets-tape-change tabular-nums">{inlineChange}</span>
       </span>
-      {/* HO 175: hover-expand detail. Full instrument name + day change + the
-          trading day it represents. No range — market_ticks stores only
-          price + change. aria-hidden: decorative hover enhancement (the symbol
-          + price are already in the accessible row). */}
+      {/* HO 175/177: hover-expand detail. HO 177 promotes the full instrument
+          name (tick.fullName) to the prominent line; the short group label sits
+          in the meta line with change + as-of, dropped when it just repeats the
+          name (e.g. SPX where label === fullName). No range — market_ticks
+          stores only price + change. aria-hidden: decorative hover enhancement
+          (the symbol + price are already in the accessible row). */}
       <span className="markets-tape-detail" aria-hidden>
-        <span className="markets-tape-detail-name">{tick.label}</span>
+        <span className="markets-tape-detail-name">{tick.fullName}</span>
         <span className="markets-tape-detail-meta">
+          {tick.label !== tick.fullName ? `${tick.label} · ` : ""}
           <span style={{ color: colorVar }}>{detailChange}</span>
           {" · as of "}
           {tick.marketDate}
@@ -194,7 +230,22 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
         <div className="markets-tape-track-static">
-          {["SPX", "WTI", "TNX", "ITA", "XLK", "XLV", "GOLD", "VIX"].map((s) => (
+          {[
+            "SPX",
+            "NDQ",
+            "DOW",
+            "WTI",
+            "TNX",
+            "ITA",
+            "XLK",
+            "XLV",
+            "XLF",
+            "XLE",
+            "XLI",
+            "GOLD",
+            "VIX",
+            "BTC",
+          ].map((s) => (
             <span key={s} className="markets-tape-item">
               <span className="markets-tape-symbol">{s}</span>
               <span

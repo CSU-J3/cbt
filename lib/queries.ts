@@ -4422,6 +4422,7 @@ export const getCommitteeSubcommittees = unstable_cache(
 export type MarketTick = {
   symbol: string;
   label: string;
+  fullName: string;
   price: number;
   changePct: number | null;
   tickedAt: string;
@@ -4450,6 +4451,7 @@ export const getLatestMarketTicks = unstable_cache(
       out.push({
         symbol: internal,
         label: meta.label,
+        fullName: meta.fullName,
         price: row.price as number,
         changePct: (row.change_pct as number | null) ?? null,
         tickedAt: row.ticked_at as string,
@@ -4457,9 +4459,9 @@ export const getLatestMarketTicks = unstable_cache(
         format: meta.format,
       });
     }
-    // Preserve the in-code MARKET_SYMBOLS order so the UI ticker reads
-    // SPX → WTI → TNX → ITA → XLK → XLV → GOLD → VIX (HO 168) regardless of
-    // DB row order.
+    // Preserve the in-code MARKET_SYMBOLS order so the UI ticker reads in the
+    // HO 177 sequence (SPX, NDQ, DOW, WTI, TNX, ITA, XLK, XLV, XLF, XLE, XLI,
+    // GOLD, VIX, BTC) regardless of DB row order.
     const order = new Map(MARKET_SYMBOLS.map((s, i) => [s.internal, i]));
     out.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
     return out;

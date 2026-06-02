@@ -83,9 +83,9 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // HO 172: `?source=stooq` fetches only the 6 Stooq symbols (the intraday
+  // HO 172/177: `?source=stooq` fetches only the 12 Stooq symbols (the intraday
   // GitHub Actions run — FRED is end-of-day, so polling it intraday just
-  // re-writes the same value). No param = all 8 (the daily after-close run).
+  // re-writes the same value). No param = all 14 (the daily after-close run).
   const source = new URL(request.url).searchParams.get("source");
   const symbols =
     source === "stooq"

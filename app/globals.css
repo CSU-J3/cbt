@@ -2508,7 +2508,8 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 0 22px;
+  /* HO 176: 18px (was 22px) — 44px between tickers read sparse. */
+  padding: 0 18px;
   white-space: nowrap;
   /* HO 175: anchor for the absolutely-positioned hover-detail popover. */
   position: relative;
@@ -2517,15 +2518,17 @@ body {
   color: var(--text-dim);
   letter-spacing: 0.5px;
 }
-/* HO 175: ch-based min-widths so an item's width never changes as its value
-   moves (price digit crossing, change toggling, arrow flat↔directional). The
-   track width is then constant after first paint, so translateX(-50%) maps to a
-   stable pixel offset and the marquee can't jump on a poll. monospace + these
-   reservations = the geometry-stabilization fix. */
+/* HO 175/176: fixed-width slots so an item's width never changes as its value
+   moves (price digit crossing, change toggling, arrow flat↔directional) — the
+   track width stays constant after first paint, so translateX(-50%) maps to a
+   stable pixel offset and the marquee can't jump on a poll. The price slot's
+   min-width is set PER SYMBOL inline (PRICE_SLOT_CH in MarketsTapeClient) rather
+   than a flat global max, so small values (VIX/WTI) aren't padded to SPX width.
+   Right-align + tabular-nums so digits sit against the arrow and never reflow. */
 .markets-tape-price {
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
-  min-width: 8ch;
+  text-align: right;
 }
 .markets-tape-arrow {
   display: inline-flex;
@@ -2539,8 +2542,10 @@ body {
 .markets-tape-change {
   font-size: 12px;
   letter-spacing: 0.3px;
-  /* Reserved even when empty (flat/stale) so presence never toggles width. */
+  /* Reserved even when empty (flat/stale) so presence never toggles width;
+     uniform across items (every change is ~6ch) so it doesn't read uneven. */
   min-width: 7ch;
+  text-align: right;
 }
 /* HO 175: hover-expand detail popover. position:absolute so it never reflows
    the track (which would re-trigger the geometry jump). Pure CSS :hover — no JS
@@ -2555,10 +2560,14 @@ body {
   z-index: 30;
   display: none;
   white-space: nowrap;
-  background-color: var(--bg-panel);
+  /* HO 176: legibility — --bg-base is lighter than the tape's own --bg-panel, so
+     the popover separates from the strip; the shadow reinforces it. */
+  background-color: var(--bg-base);
   border: 1px solid var(--border-strong);
-  border-radius: 5px;
-  padding: 6px 10px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 8px 12px;
+  min-width: 150px;
   text-transform: none;
   letter-spacing: 0.3px;
   pointer-events: none;
@@ -2568,14 +2577,14 @@ body {
 }
 .markets-tape-detail-name {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-primary);
 }
 .markets-tape-detail-meta {
   display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--text-dim);
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 .markets-tape-meta {
   position: absolute;
