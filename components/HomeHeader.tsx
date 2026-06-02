@@ -68,7 +68,9 @@ export async function HomeHeader() {
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      <MarketsTape />
+      {/* HO 178: two counter-scrolling tapes — equities → , commodities/macro ← */}
+      <MarketsTape group="equities" />
+      <MarketsTape group="commodities" reverse />
 
       <nav className="home-header-nav" aria-label="Primary navigation">
         {NAV_ITEMS.map((item) => (

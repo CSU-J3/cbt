@@ -3,7 +3,11 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
-import { MARKET_SYMBOLS, type MarketFormat } from "./markets";
+import {
+  MARKET_SYMBOLS,
+  type MarketFormat,
+  type MarketGroup,
+} from "./markets";
 import {
   ALLOWED_STAGES_SET,
   ALLOWED_TOPICS_SET,
@@ -4428,6 +4432,7 @@ export type MarketTick = {
   tickedAt: string;
   marketDate: string;
   format: MarketFormat;
+  group: MarketGroup;
 };
 
 export const getLatestMarketTicks = unstable_cache(
@@ -4457,11 +4462,13 @@ export const getLatestMarketTicks = unstable_cache(
         tickedAt: row.ticked_at as string,
         marketDate: row.market_date as string,
         format: meta.format,
+        group: meta.group,
       });
     }
-    // Preserve the in-code MARKET_SYMBOLS order so the UI ticker reads in the
-    // HO 177 sequence (SPX, NDQ, DOW, WTI, TNX, ITA, XLK, XLV, XLF, XLE, XLI,
-    // GOLD, VIX, BTC) regardless of DB row order.
+    // Preserve the in-code MARKET_SYMBOLS order so each tape renders in tape
+    // order (HO 178: equities SPX,NDQ,DOW,ITA,XLK,XLV,XLF,XLE,XLI then
+    // commodities WTI,GOLD,SILVER,NATGAS,DXY,TNX,VIX,BTC) regardless of DB row
+    // order. MarketsTape partitions this list by `group` into the two tapes.
     const order = new Map(MARKET_SYMBOLS.map((s, i) => [s.internal, i]));
     out.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
     return out;

@@ -12,16 +12,27 @@
 // ~24h so its date can lead by a UTC day and carries no volume — both harmless
 // since fetchStooq reads only Close + Date).
 //
-// HO 177 expands to 14: + XLF/XLE/XLI (financials/energy/industrials sector
+// HO 177 expanded to 14: + XLF/XLE/XLI (financials/energy/industrials sector
 // ETFs) + NDQ (Nasdaq Composite — `^ndq`; `^ixic` returns N/D on Stooq) + DOW
 // (Dow — `^dji`; `^dow` is N/D) + BTC (Bitcoin — `btcusd`; its volume cell is
-// empty, harmless since fetchStooq reads only Close + Date). All Stooq, so they
-// join the intraday `?source=stooq` cron set. `fullName` (HO 177) is the long
-// instrument name for the tape's hover popover; `label` stays the short group.
+// empty, harmless since fetchStooq reads only Close + Date). `fullName` is the
+// long instrument name for the tape's hover popover; `label` stays the short
+// group.
+//
+// HO 178 splits the tape into TWO counter-scrolling tapes via `group`:
+//   equities (9): SPX NDQ DOW ITA XLK XLV XLF XLE XLI
+//   commodities (8): WTI GOLD SILVER NATGAS DXY TNX VIX BTC
+// + SILVER (`xagusd`), NATGAS (`ng.f`), DXY re-added (`dx.f`; `^dxy`/`^dx`/
+// `dx-y.nyb` all N/D). COPPER was dropped — no clean free USD/lb source (`hgusd`
+// N/D; `hg.f` returns cents/lb, e.g. 666.63 for ~$6.67, misleading). The 9/8
+// imbalance is intentional. All Stooq adds join the intraday `?source=stooq`
+// cron set; TNX/VIX stay FRED (end-of-day) in the commodities tape. The array is
+// ordered equities-first then commodities so each group renders in tape order.
 // All symbols verified live 2026-06-02.
 
 export type MarketSource = "stooq" | "fred";
 export type MarketFormat = "index" | "yield" | "price";
+export type MarketGroup = "equities" | "commodities";
 
 export type MarketSymbol = {
   internal: string;
@@ -30,23 +41,27 @@ export type MarketSymbol = {
   label: string;
   fullName: string;
   format: MarketFormat;
+  group: MarketGroup;
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
-  { internal: "SPX", source: "stooq", remote: "^spx", label: "S&P 500", fullName: "S&P 500", format: "index" },
-  { internal: "NDQ", source: "stooq", remote: "^ndq", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index" },
-  { internal: "DOW", source: "stooq", remote: "^dji", label: "Dow", fullName: "Dow Jones Industrial Average", format: "index" },
-  { internal: "WTI", source: "stooq", remote: "cl.f", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price" },
-  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield" },
-  { internal: "ITA", source: "stooq", remote: "ita.us", label: "Aerospace & Defense", fullName: "iShares U.S. Aerospace & Defense ETF", format: "price" },
-  { internal: "XLK", source: "stooq", remote: "xlk.us", label: "Technology", fullName: "Technology Select Sector SPDR", format: "price" },
-  { internal: "XLV", source: "stooq", remote: "xlv.us", label: "Health Care", fullName: "Health Care Select Sector SPDR", format: "price" },
-  { internal: "XLF", source: "stooq", remote: "xlf.us", label: "Financials", fullName: "Financial Select Sector SPDR", format: "price" },
-  { internal: "XLE", source: "stooq", remote: "xle.us", label: "Energy", fullName: "Energy Select Sector SPDR", format: "price" },
-  { internal: "XLI", source: "stooq", remote: "xli.us", label: "Industrials", fullName: "Industrial Select Sector SPDR", format: "price" },
-  { internal: "GOLD", source: "stooq", remote: "xauusd", label: "Gold (spot)", fullName: "Gold (Spot)", format: "price" },
-  { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", fullName: "CBOE Volatility Index", format: "index" },
-  { internal: "BTC", source: "stooq", remote: "btcusd", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price" },
+  { internal: "SPX", source: "stooq", remote: "^spx", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities" },
+  { internal: "NDQ", source: "stooq", remote: "^ndq", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities" },
+  { internal: "DOW", source: "stooq", remote: "^dji", label: "Dow", fullName: "Dow Jones Industrial Average", format: "index", group: "equities" },
+  { internal: "ITA", source: "stooq", remote: "ita.us", label: "Aerospace & Defense", fullName: "iShares U.S. Aerospace & Defense ETF", format: "price", group: "equities" },
+  { internal: "XLK", source: "stooq", remote: "xlk.us", label: "Technology", fullName: "Technology Select Sector SPDR", format: "price", group: "equities" },
+  { internal: "XLV", source: "stooq", remote: "xlv.us", label: "Health Care", fullName: "Health Care Select Sector SPDR", format: "price", group: "equities" },
+  { internal: "XLF", source: "stooq", remote: "xlf.us", label: "Financials", fullName: "Financial Select Sector SPDR", format: "price", group: "equities" },
+  { internal: "XLE", source: "stooq", remote: "xle.us", label: "Energy", fullName: "Energy Select Sector SPDR", format: "price", group: "equities" },
+  { internal: "XLI", source: "stooq", remote: "xli.us", label: "Industrials", fullName: "Industrial Select Sector SPDR", format: "price", group: "equities" },
+  { internal: "WTI", source: "stooq", remote: "cl.f", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities" },
+  { internal: "GOLD", source: "stooq", remote: "xauusd", label: "Gold (spot)", fullName: "Gold (Spot)", format: "price", group: "commodities" },
+  { internal: "SILVER", source: "stooq", remote: "xagusd", label: "Silver (spot)", fullName: "Silver (Spot)", format: "price", group: "commodities" },
+  { internal: "NATGAS", source: "stooq", remote: "ng.f", label: "Nat Gas", fullName: "Natural Gas", format: "price", group: "commodities" },
+  { internal: "DXY", source: "stooq", remote: "dx.f", label: "Dollar", fullName: "U.S. Dollar Index", format: "index", group: "commodities" },
+  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities" },
+  { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", fullName: "CBOE Volatility Index", format: "index", group: "commodities" },
+  { internal: "BTC", source: "stooq", remote: "btcusd", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price", group: "commodities" },
 ] as const;
 
 export type FetchedQuote = {

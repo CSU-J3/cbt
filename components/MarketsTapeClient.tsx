@@ -59,6 +59,12 @@ const PRICE_SLOT_CH: Record<string, number> = {
   NDQ: 9,
   DOW: 9,
   BTC: 10,
+  // HO 178 additions. DXY oscillates around 100 → 6ch so "99.18"(5ch) and
+  // "100.50"(6ch) both fit (same $100-boundary logic as BTC@$100k). SILVER 6ch
+  // (~$75, headroom to 3 digits); NATGAS 5ch (~$3, covers a spike to teens).
+  SILVER: 6,
+  NATGAS: 5,
+  DXY: 6,
 };
 const DEFAULT_PRICE_SLOT_CH = 8;
 
@@ -151,13 +157,31 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
   );
 }
 
-export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
+export function MarketsTapeClient({
+  ticks,
+  reverse = false,
+  placeholderSymbols,
+}: {
+  ticks: MarketTick[];
+  // HO 178: scroll this tape the opposite direction (the commodities tape).
+  reverse?: boolean;
+  // HO 178: the symbols this tape owns — drives the no-data placeholder row and
+  // the poll filter so a grouped tape only ever updates its own symbols.
+  placeholderSymbols?: string[];
+}) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
   const [currentTicks, setCurrentTicks] = useState<MarketTick[]>(ticks);
   useEffect(() => {
     setCurrentTicks(ticks);
   }, [ticks]);
+
+  // HO 178: the symbol set this tape renders. Falls back to the served ticks'
+  // own symbols when no explicit list is passed (the single-tape case).
+  const ownSymbols = useMemo(
+    () => new Set(placeholderSymbols ?? ticks.map((t) => t.symbol)),
+    [placeholderSymbols, ticks],
+  );
 
   // Re-check staleness every minute so a long-lived dashboard tab eventually
   // flips to stale without needing a reload at the 26h boundary.
@@ -175,8 +199,13 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
         const res = await fetch("/api/markets/latest");
         if (!res.ok) return;
         const json = (await res.json()) as MarketTick[];
-        if (!cancelled && Array.isArray(json) && json.length > 0) {
-          setCurrentTicks(json);
+        // HO 178: /api/markets/latest returns ALL symbols; keep only the ones
+        // this tape owns so a grouped tape doesn't pull in the other group.
+        const mine = Array.isArray(json)
+          ? json.filter((t) => ownSymbols.has(t.symbol))
+          : [];
+        if (!cancelled && mine.length > 0) {
+          setCurrentTicks(mine);
         }
       } catch {
         // Keep the current ticks on a failed poll.
@@ -187,7 +216,7 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, []);
+  }, [ownSymbols]);
 
   const { latestTickedAt, stale } = useMemo(() => {
     if (currentTicks.length === 0) {
@@ -230,22 +259,8 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
         <div className="markets-tape-track-static">
-          {[
-            "SPX",
-            "NDQ",
-            "DOW",
-            "WTI",
-            "TNX",
-            "ITA",
-            "XLK",
-            "XLV",
-            "XLF",
-            "XLE",
-            "XLI",
-            "GOLD",
-            "VIX",
-            "BTC",
-          ].map((s) => (
+          {(placeholderSymbols ?? ["SPX", "WTI", "TNX", "GOLD", "VIX"]).map(
+            (s) => (
             <span key={s} className="markets-tape-item">
               <span className="markets-tape-symbol">{s}</span>
               <span
@@ -277,10 +292,13 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
         <div className="markets-tape-track-static">{items}</div>
       ) : (
         <div
-          className="markets-tape-track"
+          className={`markets-tape-track${
+            reverse ? " markets-tape-track--reverse" : ""
+          }`}
           // HO 168: measured-width duration (see MARQUEE_PX_PER_SEC) overrides
           // the CSS fallback so the speed is constant for any symbol count.
           // HO 172: hover-to-pause is CSS-only (.markets-tape-track:hover).
+          // HO 178: --reverse flips animation-direction for the second tape.
           style={
             marqueeDurationSec
               ? { animationDuration: `${marqueeDurationSec}s` }

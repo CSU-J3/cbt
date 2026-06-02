@@ -2481,6 +2481,12 @@ body {
 .markets-tape-track:hover {
   animation-play-state: paused;
 }
+/* HO 178: the second (commodities) tape scrolls the opposite direction. The
+   jump-proof geometry (per-symbol pins) and the measured-width duration are
+   direction-agnostic, so flipping animation-direction is all that's needed. */
+.markets-tape-track--reverse {
+  animation-direction: reverse;
+}
 @media (prefers-reduced-motion: reduce) {
   .markets-tape-track {
     animation-play-state: paused;
@@ -2550,12 +2556,15 @@ body {
   top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 30;
+  /* HO 178: above the nav (which follows the tapes in the DOM) so the popover
+     drops cleanly over it instead of the nav bleeding through. */
+  z-index: 60;
   display: none;
   white-space: nowrap;
-  /* HO 176: legibility — --bg-base is lighter than the tape's own --bg-panel, so
-     the popover separates from the strip; the shadow reinforces it. */
-  background-color: var(--bg-base);
+  /* HO 176/178: legibility — --bg-row-hover reads as a solid raised surface,
+     more distinct from the tape (--bg-panel) and the page (--bg-base) than the
+     old --bg-base fill; shadow + border reinforce the separation. */
+  background-color: var(--bg-row-hover);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
