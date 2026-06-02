@@ -83,8 +83,17 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
+  // HO 172: `?source=stooq` fetches only the 6 Stooq symbols (the intraday
+  // GitHub Actions run — FRED is end-of-day, so polling it intraday just
+  // re-writes the same value). No param = all 8 (the daily after-close run).
+  const source = new URL(request.url).searchParams.get("source");
+  const symbols =
+    source === "stooq"
+      ? MARKET_SYMBOLS.filter((s) => s.source === "stooq")
+      : MARKET_SYMBOLS;
+
   const result = await wrapCronRoute("/api/cron/markets", async () => {
-    const outcomes = await Promise.all(MARKET_SYMBOLS.map(processSymbol));
+    const outcomes = await Promise.all(symbols.map(processSymbol));
     const ticked = outcomes.filter((o) => o.ok).length;
     const failed = outcomes.filter((o) => !o.ok);
 

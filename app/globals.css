@@ -2468,11 +2468,13 @@ body {
   flex-wrap: nowrap;
   width: max-content;
   animation: markets-tape-scroll 22s linear infinite;
-  /* The fade-edge to --bg-panel hides the symbols passing under the right-
-     side meta panel without a hard cutoff. */
-  padding-right: 24px;
+  /* HO 172: NO padding here — it was 24px, which made translateX(-50%) land at
+     -(W+12) instead of -W (one half-width), jumping the seam every loop. The
+     right-edge fade is provided by .markets-tape-meta's own gradient. */
 }
-.markets-tape[data-paused="true"] .markets-tape-track {
+/* HO 172: hover-to-pause (replaced the click toggle). CSS-only — independent
+   of the inline animation-duration. */
+.markets-tape-track:hover {
   animation-play-state: paused;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2533,20 +2535,6 @@ body {
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 0.5px;
-}
-.markets-tape-toggle {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 11px;
-  padding: 0 4px;
-  outline: none;
-}
-.markets-tape-toggle:hover,
-.markets-tape-toggle:focus-visible {
-  color: var(--accent-amber);
 }
 .markets-tape-stamp {
   white-space: nowrap;

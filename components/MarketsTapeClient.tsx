@@ -1,18 +1,26 @@
 "use client";
 
-// HO 149 — the marquee, staleness check, pause toggle, and reduced-motion
-// handling. Server (MarketsTape) hands in the four MarketTicks; everything
-// time-sensitive (is-stale, AS OF HH:MM) is computed client-side against
-// real Date.now() so the page-cache TTL can't pretend stale data is fresh.
+// HO 149 — the marquee, staleness check, and reduced-motion handling. Server
+// (MarketsTape) hands in the MarketTicks; everything time-sensitive (is-stale,
+// AS OF) is computed client-side against real Date.now() so the page-cache TTL
+// can't pretend stale data is fresh.
+//
+// HO 172 — hover-to-pause (CSS `:hover`, no JS pause state) and live numbers:
+// the tape polls /api/markets/latest every 60s and maps fresh prices onto the
+// existing items (keyed by symbol) so React reconciles in place — the animated
+// track never remounts and the scroll never restarts. The duration is only
+// re-measured when the item COUNT (or the stale↔live branch) changes, never on
+// a value update, so a price refresh can't jump the marquee.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MarketTick } from "@/lib/queries";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
-const PAUSE_STORAGE_KEY = "cbt-tape-paused";
 // HO 168: target marquee speed. The duration is computed from the measured
 // track-half width (durationSec = width / this), so the crawl reads at a
 // constant ~40px/sec no matter how many symbols ship.
 const MARQUEE_PX_PER_SEC = 40;
+// HO 172: client poll interval for fresh prices.
+const POLL_MS = 60_000;
 
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
@@ -83,67 +91,50 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
 }
 
 export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
-  const [paused, setPaused] = useState(false);
+  // Live tick values. Seeded from the server-rendered prop; the poll updates it
+  // in place. Re-synced if the server re-renders with newer ticks.
+  const [currentTicks, setCurrentTicks] = useState<MarketTick[]>(ticks);
+  useEffect(() => {
+    setCurrentTicks(ticks);
+  }, [ticks]);
+
   // Re-check staleness every minute so a long-lived dashboard tab eventually
   // flips to stale without needing a reload at the 26h boundary.
   const [now, setNow] = useState(() => Date.now());
-
-  // HO 168: measure the track-half width and scale the marquee duration to it
-  // (constant ~40px/sec). The -50% double-track wrap is already count-agnostic;
-  // this makes the *speed* count-agnostic too, so adding/removing symbols never
-  // needs a re-tune. ResizeObserver re-measures on font/layout shifts.
-  const halfRef = useRef<HTMLDivElement>(null);
-  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number | null>(
-    null,
-  );
-
-  useEffect(() => {
-    const el = halfRef.current;
-    if (!el) return;
-    const measure = () => {
-      const w = el.offsetWidth;
-      if (w > 0) setMarqueeDurationSec(w / MARQUEE_PX_PER_SEC);
-    };
-    measure();
-    const ro =
-      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    return () => ro?.disconnect();
-  }, [ticks]);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(PAUSE_STORAGE_KEY);
-    if (stored === "true" || stored === "false") {
-      setPaused(stored === "true");
-      return;
-    }
-    // No stored preference — fall back to the OS reduced-motion default.
-    const reduce = window.matchMedia?.(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    setPaused(Boolean(reduce));
-  }, []);
-
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
 
-  const togglePaused = () => {
-    setPaused((prev) => {
-      const next = !prev;
-      window.localStorage.setItem(PAUSE_STORAGE_KEY, String(next));
-      return next;
-    });
-  };
+  // HO 172: poll for fresh numbers and update values in place (no remount).
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/markets/latest");
+        if (!res.ok) return;
+        const json = (await res.json()) as MarketTick[];
+        if (!cancelled && Array.isArray(json) && json.length > 0) {
+          setCurrentTicks(json);
+        }
+      } catch {
+        // Keep the current ticks on a failed poll.
+      }
+    };
+    const id = window.setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   const { latestTickedAt, stale } = useMemo(() => {
-    if (ticks.length === 0) {
+    if (currentTicks.length === 0) {
       return { latestTickedAt: null as string | null, stale: false };
     }
     let max = 0;
     let latest: string | null = null;
-    for (const t of ticks) {
+    for (const t of currentTicks) {
       const ms = Date.parse(t.tickedAt);
       if (!Number.isFinite(ms)) continue;
       if (ms > max) {
@@ -156,10 +147,25 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
       latestTickedAt: latest,
       stale: now - max > STALE_THRESHOLD_MS,
     };
-  }, [ticks, now]);
+  }, [currentTicks, now]);
+
+  // HO 168/172: measure the track-half width → marquee duration (~40px/sec).
+  // Deps are the item COUNT and the stale↔live branch, NOT the tick values:
+  // a price refresh must not re-measure (which would restart the animation).
+  const halfRef = useRef<HTMLDivElement>(null);
+  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number | null>(
+    null,
+  );
+  const itemCount = currentTicks.length;
+  useEffect(() => {
+    const el = halfRef.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    if (w > 0) setMarqueeDurationSec(w / MARQUEE_PX_PER_SEC);
+  }, [itemCount, stale]);
 
   // No-data branch — empty fetch or all rows had unparseable tickedAt.
-  if (ticks.length === 0 || latestTickedAt === null) {
+  if (currentTicks.length === 0 || latestTickedAt === null) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
         <div className="markets-tape-track-static">
@@ -182,14 +188,13 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
 
   // Stale and live both render the same item list; stale just freezes the
   // track and dims the colors (TickItem reads `stale` for its own swap).
-  const items = ticks.map((t) => (
+  const items = currentTicks.map((t) => (
     <TickItem key={t.symbol} tick={t} stale={stale} />
   ));
 
   return (
     <div
       className={`markets-tape${stale ? " markets-tape--stale" : ""}`}
-      data-paused={paused ? "true" : "false"}
       aria-label="Markets"
     >
       {stale ? (
@@ -197,9 +202,9 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
       ) : (
         <div
           className="markets-tape-track"
-          aria-hidden={paused}
           // HO 168: measured-width duration (see MARQUEE_PX_PER_SEC) overrides
           // the CSS fallback so the speed is constant for any symbol count.
+          // HO 172: hover-to-pause is CSS-only (.markets-tape-track:hover).
           style={
             marqueeDurationSec
               ? { animationDuration: `${marqueeDurationSec}s` }
@@ -219,17 +224,6 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
         </div>
       )}
       <div className="markets-tape-meta">
-        {!stale ? (
-          <button
-            type="button"
-            onClick={togglePaused}
-            className="markets-tape-toggle"
-            aria-label={paused ? "Resume markets tape" : "Pause markets tape"}
-            title={paused ? "Resume" : "Pause"}
-          >
-            {paused ? "▶" : "⏸"}
-          </button>
-        ) : null}
         <span className="markets-tape-stamp">
           AS OF {formatHHMM(latestTickedAt)} UTC
           {stale ? (

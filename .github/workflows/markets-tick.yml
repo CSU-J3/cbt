@@ -1,24 +1,26 @@
-name: Markets Tick
+name: Markets Tick (intraday)
 
-# HO 142: refresh the markets ticker every 30 min during US market hours.
-# Vercel Hobby caps cron at once daily, so the schedule lives here and
-# hits the regular HTTP endpoint. CRON_SECRET must be set as a repo
-# secret with the same value as Vercel's CRON_SECRET env var.
+# HO 142 / HO 172: refresh the markets ticker every 30 min during US market
+# hours. Vercel Hobby caps cron at once daily, so the schedule lives here and
+# hits the regular HTTP endpoint. CRON_SECRET must be set as a repo secret with
+# the same value as Vercel's CRON_SECRET env var.
 #
-# Schedule drifts with DST: 14:00-20:00 UTC = 09:30-15:30 ET in summer,
-# 09:00-15:00 ET in winter (approx). v1 accepts the edge drift; tighten
-# with date-range conditions if it ever matters.
+# HO 172: widened 14-20 → 13-21 UTC so it covers 9:30am-4pm ET in BOTH DST
+# regimes (ET = UTC-4 summer / UTC-5 winter); the old 14-20 missed 9:30-10am in
+# summer and 3-4pm in winter. `?source=stooq` fetches only the 6 Stooq symbols
+# (intraday-delayed); the 2 FRED symbols (TNX, VIX) are end-of-day and handled
+# by the separate daily after-close run (markets-daily.yml).
 on:
   schedule:
-    - cron: '0,30 14-20 * * 1-5'
+    - cron: '0,30 13-21 * * 1-5'
   workflow_dispatch: {}
 
 jobs:
   tick:
     runs-on: ubuntu-latest
     steps:
-      - name: Hit markets endpoint
+      - name: Hit markets endpoint (Stooq only)
         run: |
           curl -fsS -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            https://cbt-chi-silk.vercel.app/api/cron/markets
+            "https://cbt-chi-silk.vercel.app/api/cron/markets?source=stooq"

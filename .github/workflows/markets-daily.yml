@@ -1,0 +1,22 @@
+name: Markets Daily (session close)
+
+# HO 172: once-a-day after-close run that fetches ALL 8 symbols (incl. the FRED
+# end-of-day symbols TNX + VIX, which the intraday Stooq run skips). 22:00 UTC
+# is after the 4pm ET close in both DST regimes (close = 20 UTC summer / 21 UTC
+# winter), so Stooq's Close field is the official session close — this row is
+# the prior-session baseline the next day's intraday change_pct diffs against.
+# CRON_SECRET must be set as a repo secret (same value as Vercel's env var).
+on:
+  schedule:
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch: {}
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit markets endpoint (all 8)
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://cbt-chi-silk.vercel.app/api/cron/markets
