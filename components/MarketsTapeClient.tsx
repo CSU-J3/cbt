@@ -4,11 +4,15 @@
 // handling. Server (MarketsTape) hands in the four MarketTicks; everything
 // time-sensitive (is-stale, AS OF HH:MM) is computed client-side against
 // real Date.now() so the page-cache TTL can't pretend stale data is fresh.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { MarketTick } from "@/lib/queries";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
 const PAUSE_STORAGE_KEY = "cbt-tape-paused";
+// HO 168: target marquee speed. The duration is computed from the measured
+// track-half width (durationSec = width / this), so the crawl reads at a
+// constant ~40px/sec no matter how many symbols ship.
+const MARQUEE_PX_PER_SEC = 40;
 
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
@@ -81,6 +85,29 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
   // flips to stale without needing a reload at the 26h boundary.
   const [now, setNow] = useState(() => Date.now());
 
+  // HO 168: measure the track-half width and scale the marquee duration to it
+  // (constant ~40px/sec). The -50% double-track wrap is already count-agnostic;
+  // this makes the *speed* count-agnostic too, so adding/removing symbols never
+  // needs a re-tune. ResizeObserver re-measures on font/layout shifts.
+  const halfRef = useRef<HTMLDivElement>(null);
+  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const el = halfRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.offsetWidth;
+      if (w > 0) setMarqueeDurationSec(w / MARQUEE_PX_PER_SEC);
+    };
+    measure();
+    const ro =
+      typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [ticks]);
+
   useEffect(() => {
     const stored = window.localStorage.getItem(PAUSE_STORAGE_KEY);
     if (stored === "true" || stored === "false") {
@@ -133,7 +160,7 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
         <div className="markets-tape-track-static">
-          {["SPX", "TNX", "WTI", "DXY"].map((s) => (
+          {["SPX", "WTI", "TNX", "ITA", "XLK", "XLV", "GOLD", "VIX"].map((s) => (
             <span key={s} className="markets-tape-item">
               <span className="markets-tape-symbol">{s}</span>
               <span
@@ -165,11 +192,24 @@ export function MarketsTapeClient({ ticks }: { ticks: MarketTick[] }) {
       {stale ? (
         <div className="markets-tape-track-static">{items}</div>
       ) : (
-        <div className="markets-tape-track" aria-hidden={paused}>
-          {/* Double-track for a seamless wrap with only four symbols. The
-              animation translates 0 → -50% across the combined track, so
-              the second copy slides into view as the first slides out. */}
-          <div className="markets-tape-track-half">{items}</div>
+        <div
+          className="markets-tape-track"
+          aria-hidden={paused}
+          // HO 168: measured-width duration (see MARQUEE_PX_PER_SEC) overrides
+          // the CSS fallback so the speed is constant for any symbol count.
+          style={
+            marqueeDurationSec
+              ? { animationDuration: `${marqueeDurationSec}s` }
+              : undefined
+          }
+        >
+          {/* Double-track for a seamless wrap at any symbol count: the
+              animation translates 0 → -50% across the combined track, so the
+              second (identical) copy slides into view as the first slides out.
+              The first half is measured to scale the duration. */}
+          <div className="markets-tape-track-half" ref={halfRef}>
+            {items}
+          </div>
           <div className="markets-tape-track-half" aria-hidden>
             {items}
           </div>

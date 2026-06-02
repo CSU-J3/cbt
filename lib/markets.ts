@@ -3,9 +3,15 @@
 // `market_ticks`; `remote` is the upstream-specific identifier. Internal
 // labels are intentionally decoupled so a source swap is a one-line edit.
 //
-// v1 ships SPX/TNX/WTI/DXY. VIX is deferred — Stooq doesn't carry it and
-// Yahoo's unauthed endpoints aren't stable enough for a 30-min refresh
-// contract. See docs/backlog.md.
+// HO 168 ships 8: SPX/WTI/TNX (kept) + ITA/XLK/XLV (defense/tech/health sector
+// ETFs — they tie market movement to legislative activity) + GOLD + VIX. DXY
+// was dropped (less Congress-relevant than the sector set). VIX is no longer
+// deferred: Stooq doesn't carry it, but FRED `VIXCLS` (CBOE VIX daily close)
+// is a working free source — end-of-day, same cadence as TNX. Gold is the
+// Stooq `xauusd` spot feed (the recognizable "GOLD 4,486" number; it trades
+// ~24h so its date can lead by a UTC day and carries no volume — both harmless
+// since fetchStooq reads only Close + Date). All symbols verified live
+// 2026-06-01.
 
 export type MarketSource = "stooq" | "fred";
 export type MarketFormat = "index" | "yield" | "price";
@@ -20,9 +26,13 @@ export type MarketSymbol = {
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   { internal: "SPX", source: "stooq", remote: "^spx", label: "S&P 500", format: "index" },
-  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", format: "yield" },
   { internal: "WTI", source: "stooq", remote: "cl.f", label: "WTI Crude", format: "price" },
-  { internal: "DXY", source: "stooq", remote: "dx.f", label: "Dollar Index", format: "index" },
+  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", format: "yield" },
+  { internal: "ITA", source: "stooq", remote: "ita.us", label: "Aerospace & Defense", format: "price" },
+  { internal: "XLK", source: "stooq", remote: "xlk.us", label: "Technology", format: "price" },
+  { internal: "XLV", source: "stooq", remote: "xlv.us", label: "Health Care", format: "price" },
+  { internal: "GOLD", source: "stooq", remote: "xauusd", label: "Gold (spot)", format: "price" },
+  { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", format: "index" },
 ] as const;
 
 export type FetchedQuote = {

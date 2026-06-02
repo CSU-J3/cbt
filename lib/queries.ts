@@ -4458,7 +4458,8 @@ export const getLatestMarketTicks = unstable_cache(
       });
     }
     // Preserve the in-code MARKET_SYMBOLS order so the UI ticker reads
-    // SPX → TNX → WTI → DXY regardless of DB row order.
+    // SPX → WTI → TNX → ITA → XLK → XLV → GOLD → VIX (HO 168) regardless of
+    // DB row order.
     const order = new Map(MARKET_SYMBOLS.map((s, i) => [s.internal, i]));
     out.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
     return out;
