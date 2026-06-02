@@ -5,7 +5,7 @@
       "rating_source": "Ballotpedia",
       "source_url": "https://ballotpedia.org/United_States_Senate_election_in_Georgia,_2026",
       "candidates": [
-        { "name": "Buddy Carter", "party": "R", "bioguide_id": "C001103", "status": "running" },
+        { "name": "Buddy Carter", "party": "R", "bioguide_id": "C001103", "status": "withdrew" },
         { "name": "Mike Collins", "party": "R", "bioguide_id": "C001129", "status": "running" },
         { "name": "Derek Dooley", "party": "R", "bioguide_id": null, "status": "running" }
       ]
@@ -25,8 +25,9 @@
       "source_url": "https://ballotpedia.org/New_Jersey's_7th_Congressional_District_election,_2026",
       "candidates": [
         { "name": "Rebecca Bennett", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Megan O'Rourke", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Michael Roth", "party": "D", "bioguide_id": null, "status": "running" }
+        { "name": "Michael Roth", "party": "D", "bioguide_id": null, "status": "running" },
+        { "name": "Tina Shah", "party": "D", "bioguide_id": null, "status": "running" },
+        { "name": "Brian Varela", "party": "D", "bioguide_id": null, "status": "running" }
       ]
     },
     {
@@ -34,7 +35,7 @@
       "rating_source": "Ballotpedia",
       "source_url": "https://ballotpedia.org/Pennsylvania's_10th_Congressional_District_election,_2026",
       "candidates": [
-        { "name": "Janelle Stelson", "party": "D", "bioguide_id": null, "status": "running" }
+        { "name": "Janelle Stelson", "party": "D", "bioguide_id": null, "status": "won_primary" }
       ]
     }
   ]

@@ -1,0 +1,20 @@
+{
+  "_comment": "HO 174 — GA Senate 2026 GOP runoff seed. The May 19, 2026 Republican primary produced no majority winner; Mike Collins and Derek Dooley advanced to a June 16, 2026 runoff (Buddy Carter eliminated). Single-party runoff (GOP only) — unlike LA's per-party split. Hand-curated from Ballotpedia + AP-sourced primary coverage; no results yet. A post-June-16 handoff seeds the winner. See SKILL.md 'Runoff tracking'.",
+  "raceId": "S-GA-2026",
+  "state": "GA",
+  "chamber": "senate",
+  "district": null,
+  "runoffDate": "2026-06-16",
+  "parentPrimaryIds": ["senate-GA-2026-R"],
+  "source": "Ballotpedia + AP-sourced coverage of the May 19, 2026 GA Senate Republican primary (no majority; Collins + Dooley to a June 16 runoff, Carter eliminated).",
+  "runoffs": [
+    {
+      "id": "senate-GA-2026-R-runoff",
+      "party": "R",
+      "candidates": [
+        { "name": "Mike Collins", "party": "R", "incumbent": false },
+        { "name": "Derek Dooley", "party": "R", "incumbent": false }
+      ]
+    }
+  ]
+}
