@@ -1661,17 +1661,21 @@ body {
 /* 4-across card strip on the dashboard: top 2 Senate + top 2 House. Each
    card stacks seat label / incumbent / multi-source rating chips, and links
    to /race/[id]. Collapses 4 → 2x2 → 1-col. */
+/* HO 178: races reflowed to a 2×2 grid in the 44% right column. The cell is the
+   positioning anchor for the hover popover (which replaced HO 166/170's click
+   drawer). overflow stays visible up the chain so the popover can spill. */
 .competitive-races-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--space-md);
-  /* HO 170: cells top-align so an expanded cell grows without stretching its
-     row neighbors to match (which would balloon the collapsed cards). */
   align-items: start;
 }
-/* HO 170: each card + its drawer is one grid item, so the drawer is confined
-   to the clicked card's column instead of a full-width block below the strip. */
+/* The races pane must not clip the hover popover. */
+.home-races-pane {
+  overflow: visible;
+}
 .competitive-race-cell {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -1681,9 +1685,8 @@ body {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  /* HO 170: floor so collapsed cards in a row stay equal height under
-     align-items:start (ratings wrap to 1-2 lines, varying natural height). */
-  min-height: 104px;
+  /* Floor so the two cards in a row stay equal height under align-items:start. */
+  min-height: 88px;
   padding: var(--space-sm) var(--space-md);
   border: 0.5px solid var(--border-soft);
   border-radius: 2px;
@@ -1694,49 +1697,9 @@ body {
   background: var(--bg-row-hover);
   border-color: var(--border-strong);
 }
-/* HO 166: cards are click-to-expand. The chevron sits top-right in the seat
-   row; the open card highlights and the full-width drawer renders after the
-   grid (CompetitiveRacesStrip), not inside the card, so the 4-col grid stays
-   intact. */
-.competitive-race-card--expandable {
-  cursor: pointer;
-  outline: none;
-}
-.competitive-race-card--expandable:focus-visible {
+.competitive-race-card:focus-visible {
   outline: 1px solid var(--accent-amber);
   outline-offset: -1px;
-}
-.competitive-race-card.is-open {
-  background: var(--bg-row-hover);
-  border-color: var(--accent-amber);
-}
-.competitive-race-card .race-card-seat-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
-.competitive-race-card .row-chevron {
-  flex-shrink: 0;
-  color: var(--text-dim);
-  font-size: 12px;
-  line-height: 1;
-  display: inline-block;
-  transition: transform 120ms ease, color 120ms ease;
-}
-.competitive-race-card .row-chevron.is-open {
-  transform: rotate(90deg);
-  color: var(--accent-amber);
-}
-/* HO 170: column-confined drawer — a bordered box directly under its card,
-   bounded by the cell's grid column (~280px), not a full-width strip block. */
-.competitive-race-drawer {
-  margin-top: var(--space-sm);
-  border: 0.5px solid var(--border-soft);
-  border-radius: 2px;
-  background: var(--bg-base);
-  padding: var(--space-sm) var(--space-md);
 }
 .competitive-race-card .race-card-seat {
   font-size: 12px;
@@ -1759,10 +1722,32 @@ body {
   gap: 4px 6px;
   margin-top: 2px;
 }
-@media (max-width: 1023px) {
-  .competitive-races-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* HO 178: ticker-style hover popover (matches the markets-tape hover idiom):
+   absolute so it never reflows the grid, opaque --bg-row-hover so nothing bleeds
+   through, z-index above the nav. Shown on cell hover; pointer-events stay on so
+   the user can move into it and click candidate/member links. Centered under the
+   card, capped width — the right-edge card's popover stays within the page
+   gutter. The RaceHubBody preview is left-aligned prose inside. */
+.competitive-race-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: none;
+  width: max-content;
+  min-width: 300px;
+  max-width: 360px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+.competitive-race-cell:hover .competitive-race-popover,
+.competitive-race-cell:focus-within .competitive-race-popover {
+  display: block;
 }
 @media (max-width: 700px) {
   .competitive-races-grid {

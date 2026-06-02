@@ -1,20 +1,6 @@
-"use client";
-
-// HO 166 — client wrapper for the dashboard competitive-races strip. The
-// server CompetitiveRacesBlock fetches + partitions the races; this island
-// holds single-open state, renders the cards as click-to-toggle buttons, and
-// lazy-loads the race hub (/api/race/[id]/hub) into a drawer on first open.
-// Path B, mirroring TopStallsList — the data fetch stays server-side.
-//
-// HO 170 — the drawer is now confined to the clicked card's grid column: each
-// card + its drawer live in a `.competitive-race-cell` grid item, the grid
-// uses `align-items: start`, so the expanded column grows while neighbors stay
-// put. The drawer renders RaceHubBody in `preview` mode (rating + candidates +
-// full-race link; no incumbent photo card or verified footer).
-import { useEffect, useState } from "react";
+import Link from "next/link";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import { RatingChip } from "@/components/RatingChip";
-import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import type {
   CompetitiveRace,
   Member,
@@ -23,6 +9,16 @@ import type {
   Race,
   RaceCandidate,
 } from "@/lib/queries";
+
+// HO 178 — the dashboard competitive-races surface, reflowed into a 2×2 grid in
+// the 44% right column with a TICKER-STYLE HOVER POPOVER (like the markets tape)
+// instead of HO 166/170's click-to-expand confined drawer. The card is now a
+// plain link → the race detail page; hovering reveals an absolute, opaque
+// popover with the fuller hub detail (RaceHubBody preview). All hub data is
+// pre-fetched server-side by CompetitiveRacesBlock and passed in, so this is a
+// pure server render — no client island, no fetch, no single-open state
+// (useSingleOpenPanel / RaceDrawer / the /api/race/[id]/hub client fetch are
+// retired for this surface).
 
 export type RaceHubData = {
   race: Race;
@@ -54,93 +50,17 @@ function partyColor(party: PartyKey | null): string {
   return "var(--text-dim)";
 }
 
-// Lazy-loads the hub on first open; mirrors BillExpandedPanel's fetch shape.
-// Ratings come from the card (already loaded), the rest from the endpoint.
-// Renders RaceHubBody in preview mode (HO 170).
-function RaceDrawer({
-  race,
-  cached,
-  onLoaded,
-}: {
-  race: CompetitiveRace;
-  cached: RaceHubData | null;
-  onLoaded: (data: RaceHubData) => void;
-}) {
-  const [data, setData] = useState<RaceHubData | null>(cached);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (data) return;
-    let cancelled = false;
-    fetch(`/api/race/${encodeURIComponent(race.raceId)}/hub`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<RaceHubData>;
-      })
-      .then((json) => {
-        if (cancelled) return;
-        setData(json);
-        onLoaded(json);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [race.raceId, data, onLoaded]);
-
-  if (error) {
-    return (
-      <div className="competitive-race-drawer">
-        <p className="text-[13px]" style={{ color: "var(--text-dim)" }}>
-          Could not load race ({error}).
-        </p>
-      </div>
-    );
-  }
-  if (!data) {
-    return (
-      <div className="competitive-race-drawer">
-        <p className="text-[13px]" style={{ color: "var(--text-dim)" }}>
-          Loading race…
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="competitive-race-drawer">
-      <RaceHubBody
-        preview
-        race={data.race}
-        candidates={data.candidates}
-        incumbent={data.incumbent}
-        ratings={race.ratings}
-        runoffs={data.runoffs}
-      />
-      <div className="mt-4">
-        <a href={`/race/${race.raceId}`} className="bill-expanded-action-chip">
-          full race page →
-        </a>
-      </div>
-    </div>
-  );
-}
-
 export function CompetitiveRacesStrip({
   races,
+  hubs,
   cycle,
 }: {
   races: CompetitiveRace[];
+  hubs: (RaceHubData | null)[];
   cycle: number;
 }) {
-  const { expandedId, toggle, panelCache, handleLoaded } =
-    useSingleOpenPanel<RaceHubData>();
-
   return (
-    <section className="dashboard-pane mt-3">
+    <section className="dashboard-pane home-races-pane">
       <div className="mb-2 flex items-baseline justify-between">
         <p
           className="text-[12px] uppercase tracking-[0.5px]"
@@ -157,36 +77,17 @@ export function CompetitiveRacesStrip({
       </div>
 
       <div className="competitive-races-grid">
-        {races.map((race) => {
-          const isOpen = expandedId === race.raceId;
+        {races.map((race, i) => {
+          const hub = hubs[i] ?? null;
           return (
             <div key={race.raceId} className="competitive-race-cell">
-              <div
-                className={`competitive-race-card competitive-race-card--expandable${
-                  isOpen ? " is-open" : ""
-                }`}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isOpen}
-                onClick={() => toggle(race.raceId)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    toggle(race.raceId);
-                  }
-                }}
+              <Link
+                href={`/race/${race.raceId}`}
+                className="competitive-race-card"
                 style={{ color: "var(--text-primary)" }}
               >
-                <span className="race-card-seat-row">
-                  <span className="race-card-seat">
-                    {formatRaceLabel(race.raceId)}
-                  </span>
-                  <span
-                    className={`row-chevron${isOpen ? " is-open" : ""}`}
-                    aria-hidden
-                  >
-                    ▸
-                  </span>
+                <span className="race-card-seat">
+                  {formatRaceLabel(race.raceId)}
                 </span>
                 <span className="race-card-incumbent">
                   {race.incumbentName ? (
@@ -205,26 +106,29 @@ export function CompetitiveRacesStrip({
                     <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
                   )}
                 </span>
+                {/* Topline rating — first (freshest) source only on the card;
+                    the popover shows the full multi-source set. */}
                 <span className="race-card-ratings">
-                  {race.ratings.map((r, i) => (
-                    <span key={r.id} className="inline-flex items-center gap-2">
-                      {i > 0 ? (
-                        <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                          ·
-                        </span>
-                      ) : null}
-                      <RatingChip rating={r} size="sm" />
-                    </span>
-                  ))}
+                  {race.ratings[0] ? (
+                    <RatingChip rating={race.ratings[0]} size="sm" />
+                  ) : null}
                 </span>
-              </div>
+              </Link>
 
-              {isOpen ? (
-                <RaceDrawer
-                  race={race}
-                  cached={panelCache.get(race.raceId) ?? null}
-                  onLoaded={(data) => handleLoaded(race.raceId, data)}
-                />
+              {/* HO 178: hover popover — absolute, opaque, no reflow (CSS :hover
+                  on the cell). Renders RaceHubBody preview from the pre-fetched
+                  hub. Omitted when the hub didn't resolve. */}
+              {hub ? (
+                <div className="competitive-race-popover" role="tooltip">
+                  <RaceHubBody
+                    preview
+                    race={hub.race}
+                    candidates={hub.candidates}
+                    incumbent={hub.incumbent}
+                    ratings={race.ratings}
+                    runoffs={hub.runoffs}
+                  />
+                </div>
               ) : null}
             </div>
           );
