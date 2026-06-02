@@ -216,16 +216,33 @@ body {
 }
 /* HO 162: single-column full-width masthead. The boxed legend that used to
    sit in this row (and drive the wide-viewport void) moved to the footer. */
+/* HO 178: masthead is a ROW — title block (fixed width) on the left, LEAD prose
+   filling the rest on the right. align-items:flex-start so the prose grows the
+   row taller than the title block when it wraps; gap separates the two. */
 .home-header-top {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-xl);
   min-width: 0;
 }
 .home-header-title {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
+}
+/* HO 178: brand + the <700 title-cursor as one unit so the cursor sits tight
+   against `:\>` without the prompt-row's flex gap between them. */
+.home-header-brand {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+}
+/* The title-end cursor only appears <700px, where the prose (and its own
+   cursor) are removed — see the <700 rule below. */
+.home-cursor-title {
+  display: none;
 }
 /* HO 162: the prompt row now holds the 36px brand hero + the `?` legend
    badge, vertically centered. The LEAD moved out to its own block below
@@ -263,25 +280,18 @@ body {
     font-size: 36px;
   }
 }
-/* HO 150/162: lead reads as terminal output — mono 15px --text-muted ending
-   in a blinking caret. HO 162 stacked it below the 36px brand (was baseline-
-   shared with the prompt) and widened the cap 1200px->1400px so it fills
-   common wide displays without running to unreadable line lengths at 2560px+.
-   The 3-line clamp survives so a long weekly summary doesn't push the tape or
-   nav down the page. */
+/* HO 178: lead prose sits to the RIGHT of the title and FULL-WRAPS — no clamp,
+   no ellipsis, no max-width cap. It fills the remaining masthead width and grows
+   the row taller as the window narrows. The blinking caret rides its end. The
+   HO 162 stacked-below layout + the 3/2/1 line-clamp media queries are retired.
+   Slightly larger than the old 15px per spec (13-14px range → 14px). */
 .home-header-lead {
-  margin-top: var(--space-sm);
+  flex: 1;
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--text-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  max-width: 1400px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 /* Single-glyph cursor blink — the dashboard's "sole motion exception"
    alongside the HO 149 tape marquee. step-end so the blink is a hard
@@ -616,40 +626,13 @@ body {
   background-color: var(--bg-row-hover);
 }
 
-/* Viewport-tier line-clamps for the LEAD prose. Font-size stays
-   constant; only the visible line count shrinks so the header height
-   stays bounded as the viewport narrows. Cascades from the default
-   rule (line-clamp: 3) — both queries can apply at very narrow
-   widths; the last rule wins. */
-@media (max-width: 1919px) {
-  .home-header-lead {
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
-}
-
-/* Below 1280px: the LEAD tightens to a single clamped line. (HO 162: the
-   legend is no longer in the masthead and the masthead is single-column at
-   every width, so the old .home-header-top column flip + .color-key-box width
-   override are gone.) */
-@media (max-width: 1279px) {
-  .home-header-lead {
-    -webkit-line-clamp: 1;
-    line-clamp: 1;
-  }
-}
+/* HO 178: the HO 162 viewport-tier line-clamps (3/2/1) are retired — the LEAD
+   now full-wraps to the right of the title and the row height follows it. */
 
 @media (max-width: 1023px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: minmax(280px, auto);
-  }
-  /* HO 157: the dashboard lead-in prose + its blinking cursor are shown
-     ≥1024px only. The cursor is a child of .home-header-lead, so hiding
-     the lead hides it too — which keeps the "no motion below 1024px"
-     rule intact (the cursor blink is the sole desktop motion exception). */
-  .home-header-lead {
-    display: none;
   }
 }
 @media (max-width: 700px) {
@@ -662,6 +645,16 @@ body {
      heroes would eat the top of a phone viewport. It holds at 18px. */
   .home-header-prompt-row .terminal-prompt {
     font-size: 24px;
+  }
+  /* HO 178: <700 — remove the LEAD prose (and its caret); the blinking cursor
+     instead rides the end of the title (`Congress Terminal:\>_`). This is the
+     intended relaxation of HO 157's no-motion-<1024 rule: one blinking
+     underscore, while the tapes stay hidden <700. */
+  .home-header-lead {
+    display: none;
+  }
+  .home-cursor-title {
+    display: inline-block;
   }
   .home-main {
     padding: var(--space-md);

@@ -7,13 +7,17 @@ import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
-// Home-only header chrome. HO 162 made the masthead single-column full-width:
-//   Row 1: brand prompt (36px desktop hero) + the `?` LegendBadge on one
-//          line, then the LEAD prose below it, then the META line — all
-//          full-width. The boxed COLOR KEY legend moved to a footer (the old
-//          right-rail was what opened the wide-viewport void).
-//   Row 2: full-width nav strip — 14px text, 16px icons, active state
-//          = amber-bright text + 2px amber bottom border.
+// Home-only header chrome. HO 178 reflow:
+//   Masthead row: brand prompt (36px desktop hero) + `?` LegendBadge + the META
+//     line stacked on the LEFT (fixed width); the weekly-summary LEAD prose sits
+//     to the RIGHT, fills the remaining width, full-wrap (NO clamp), and the row
+//     height follows the prose when it runs taller than the title block. The
+//     blinking `_` cursor rides the end of the prose. Below 700px the prose is
+//     removed and the cursor rides the end of the title (`Congress Terminal:\>_`).
+//   Tapes: two counter-scrolling markets tapes (equities one way, commodities/
+//     macro the other) between the masthead and the nav.
+//   Nav: full-width strip — 14px text, 16px icons, active = amber-bright + 2px
+//     amber bottom border.
 export async function HomeHeader() {
   const [corpus, lead] = await Promise.all([
     getCorpusStats(),
@@ -25,27 +29,18 @@ export async function HomeHeader() {
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            <TerminalPrompt name="Congress Terminal" href="/" />
+            {/* HO 178: brand + the <700 title-cursor wrapped as one flex child
+                so the cursor sits tight against `:\>` (no prompt-row gap). The
+                cursor is shown only <700 (where the prose, and its own cursor,
+                are removed) — globals.css .home-cursor-title. */}
+            <span className="home-header-brand">
+              <TerminalPrompt name="Congress Terminal" href="/" />
+              <span aria-hidden className="home-cursor-caret home-cursor-title">
+                _
+              </span>
+            </span>
             <LegendBadge />
           </div>
-
-          {/* HO 162: LEAD now stacks below the brand (was baseline-shared
-              with the prompt) so it reads as terminal output under the 36px
-              hero. Still hidden < 1024px via .home-header-lead. */}
-          {lead?.text ? (
-            <p className="home-header-lead">
-              {lead.text}
-              <span aria-hidden className="home-cursor-caret">
-                _
-              </span>
-            </p>
-          ) : (
-            <p className="home-header-lead">
-              <span aria-hidden className="home-cursor-caret">
-                _
-              </span>
-            </p>
-          )}
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it
               abbreviates to `· HH:MM MT · N BILLS` by dropping the
@@ -58,6 +53,17 @@ export async function HomeHeader() {
             <span className="show-desktop"> TRACKED</span>
           </p>
         </div>
+
+        {/* HO 178: LEAD prose to the RIGHT of the title — full-wrap, no clamp,
+            grows the row taller as the window narrows. Removed entirely <700px
+            (the cursor then rides the title via .home-cursor-title). The caret
+            here is the prose-end cursor shown >=700. */}
+        <p className="home-header-lead">
+          {lead?.text ?? ""}
+          <span aria-hidden className="home-cursor-caret">
+            _
+          </span>
+        </p>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
