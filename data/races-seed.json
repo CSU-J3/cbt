@@ -24,10 +24,10 @@
       "rating_source": "Ballotpedia",
       "source_url": "https://ballotpedia.org/New_Jersey's_7th_Congressional_District_election,_2026",
       "candidates": [
-        { "name": "Rebecca Bennett", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Michael Roth", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Tina Shah", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Brian Varela", "party": "D", "bioguide_id": null, "status": "running" }
+        { "name": "Rebecca Bennett", "party": "D", "bioguide_id": null, "status": "won_primary" },
+        { "name": "Michael Roth", "party": "D", "bioguide_id": null, "status": "withdrew" },
+        { "name": "Tina Shah", "party": "D", "bioguide_id": null, "status": "withdrew" },
+        { "name": "Brian Varela", "party": "D", "bioguide_id": null, "status": "withdrew" }
       ]
     },
     {
