@@ -19,12 +19,17 @@ type GroupTab = {
 };
 
 export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
+  // HO 184: Bills + News dropped from this row. The BILLS|NEWS segmented
+  // toggle on the /bills page is the canonical mode switch, so listing them
+  // here too was a redundant second way to switch the same mode. What remains
+  // are sibling / derived views of the bill feed. Reports is deliberately kept
+  // (it's also a top-level nav item — a pre-existing intentional special-case,
+  // out of scope for this cleanup). Tradeoff: in bills/news mode no tab in this
+  // row is active — accepted in HO 184.
   feed: [
-    { slug: "bills", label: "Bills", href: "/bills" },
-    { slug: "news", label: "News", href: "/news" },
-    { slug: "reports", label: "Reports", href: "/reports" },
     { slug: "changes", label: "Changes", href: "/changes" },
     { slug: "president", label: "President", href: "/president" },
+    { slug: "reports", label: "Reports", href: "/reports" },
   ],
   members: [
     { slug: "members", label: "Members", href: "/members" },
@@ -78,6 +83,12 @@ export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/reports" || basePath.startsWith("/reports/"))
     return "reports";
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
+  // HO 184: /bills (the Bills|News landing) no longer has a GROUP_TABS entry —
+  // Bills/News were dropped from the feed sub-nav (the segmented toggle owns
+  // mode switching). Match it explicitly so the top-nav "Bills|News" still
+  // highlights. The bills, news, and president-alias views all render at
+  // basePath "/bills".
+  if (basePath === "/bills") return "feed";
   if (basePath.startsWith("/members/")) return "members";
   if (basePath.startsWith("/committee/")) return "members";
   // `/race/[id]` detail → Races. The `/races` index and `/primaries` are
