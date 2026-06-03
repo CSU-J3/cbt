@@ -11,6 +11,17 @@ function raceName(r: Race): string {
   return `${state} ${ordinal(r.district)} Congressional District`;
 }
 
+// HO 185 — compact label for the breadcrumb masthead's race detail segment:
+// the 2-letter state abbreviation + a short office (e.g. "GA Senate", "GA 8th",
+// "GA At-Large"). Distinct from raceName above, which uses the full state name
+// + long office for the race page's own H1.
+export function raceLabelCompact(r: Race): string {
+  if (r.chamber === "senate") return `${r.state} Senate`;
+  if (r.district === null) return `${r.state} House`;
+  if (r.district === 0) return `${r.state} At-Large`;
+  return `${r.state} ${ordinal(r.district)}`;
+}
+
 export function RaceHeader({
   race,
   ratings = [],

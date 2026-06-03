@@ -128,7 +128,7 @@ export default async function CommitteeDetailPage({
   if (!committee) {
     return (
       <div className="flex min-h-screen flex-col">
-        <HeaderBar basePath="/committees" pageTitle="COMMITTEE NOT FOUND" />
+        <HeaderBar basePath="/committees" detail="Not found" />
         <main className="w-full flex-1 px-4 py-4">
           <GroupTabs group="members" active="committees" />
           <p
@@ -177,7 +177,7 @@ export default async function CommitteeDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar basePath="/committees" pageTitle={committee.name} />
+      <HeaderBar basePath="/committees" detail={committee.name} />
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="committees" />
 

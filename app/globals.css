@@ -273,6 +273,22 @@ body {
 .terminal-prompt:hover .prompt-accent {
   color: var(--accent-amber-bright);
 }
+/* HO 185 — unified breadcrumb masthead path (`Congress Terminal:\ 119TH \ … >_`).
+   Reuses .terminal-prompt sizing (18px in HeaderBar; 36px on the dashboard via
+   the .home-header-prompt-row scope below) but overrides its nowrap/no-shrink so
+   a deep path (e.g. Members \ Committees \ <name>) WRAPS on narrow widths rather
+   than overflowing. Individual labels stay intact (no mid-label break); the
+   blinking caret (.home-cursor-caret) rides the trailing `>`. */
+.breadcrumb-path {
+  white-space: normal;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.breadcrumb-root,
+.breadcrumb-seg-label {
+  white-space: nowrap;
+}
 /* HO 162: the dashboard brand is the page hero at 36px on desktop. Scoped to
    .home-header-prompt-row so the shared page-masthead .terminal-prompt on
    other routes stays 18px, and gated >=1024 so the <700 grow-to-24px rule and

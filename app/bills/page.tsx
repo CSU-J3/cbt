@@ -206,6 +206,8 @@ async function BillsView({
         feedFilters={feedFilters}
         feedFilteredCount={filteredCount}
         basePath="/bills"
+        mode="bills"
+        presidentAlias={isPresidentAlias}
       />
 
       <main className="w-full flex-1 px-4 py-4">
@@ -411,6 +413,7 @@ async function NewsView({
     <div className="flex min-h-screen flex-col">
       <HeaderBar
         basePath="/bills"
+        mode="news"
         pageTitle="News mentions"
         pageCount={total}
         pageCountLabel="mentions"

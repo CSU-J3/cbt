@@ -34,7 +34,7 @@ export default async function WatchlistPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar />
+      <HeaderBar basePath="/watchlist" />
 
       <main className="w-full flex-1 px-4 py-4">
         <div className="page-masthead">

@@ -188,7 +188,10 @@ export default async function MemberPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar basePath={`/members/${bioguideId}`} />
+      <HeaderBar
+        basePath={`/members/${bioguideId}`}
+        detail={member?.lastName ?? undefined}
+      />
 
       <main className="w-full flex-1 px-4 py-4">
         <Link

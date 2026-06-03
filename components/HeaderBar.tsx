@@ -1,21 +1,20 @@
 import Link from "next/link";
+import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
+import { breadcrumbSegments } from "@/lib/breadcrumb";
 import { getClusterPattern } from "@/lib/cluster-patterns";
-import { currentCongressLabel } from "@/lib/congress";
 import { formatLastUpdated } from "@/lib/format";
 import {
   type FeedCount,
   type FeedFilters,
-  getCorpusStats,
   getFeedStats,
 } from "@/lib/queries";
 
 type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
-type HeaderVariant = "feed" | "dashboard";
 
 // HO 131 / 134: shared nav-item config consumed by both HeaderNav
 // (top-right chrome on /bills-shaped pages) and HomeHeader (under-title
@@ -76,7 +75,6 @@ export async function HeaderBar({
   feedFilters,
   basePath = "/",
   countMode = "feed",
-  variant = "feed",
   staleCounts,
   changesCounts,
   presidentCounts,
@@ -85,12 +83,13 @@ export async function HeaderBar({
   pageTitle,
   pageCount,
   pageCountLabel = "items",
+  detail,
+  mode,
+  presidentAlias,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
   countMode?: CountMode;
-  // "dashboard" drops search/filters/nav and shows corpus count + last sync.
-  variant?: HeaderVariant;
   staleCounts?: FeedCount;
   changesCounts?: FeedCount;
   presidentCounts?: FeedCount;
@@ -103,42 +102,14 @@ export async function HeaderBar({
   pageTitle?: string;
   pageCount?: number;
   pageCountLabel?: string;
+  // HO 185 breadcrumb inputs: `detail` is the detail-page last segment
+  // (HR 9081, member last name, committee name, …); `mode` lets /bills pick
+  // Bills vs News; `presidentAlias` adds the "President" segment for the
+  // /bills?stage=president alias. Sourced from data the page already fetched.
+  detail?: string;
+  mode?: "bills" | "news";
+  presidentAlias?: boolean;
 }) {
-  if (variant === "dashboard") {
-    const corpus = await getCorpusStats();
-    return (
-      <header
-        className="border-b"
-        style={{
-          backgroundColor: "var(--bg-panel)",
-          borderColor: "var(--border-strong)",
-        }}
-      >
-        <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
-          <Link
-            href="/"
-            className="text-[16px] font-medium uppercase tracking-[0.5px] whitespace-nowrap"
-            style={{ color: "var(--accent-amber)" }}
-          >
-            CBT <span style={{ color: "var(--text-dim)" }}>//</span>{" "}
-            {currentCongressLabel()}
-          </Link>
-          <span
-            className="ml-4 text-[13px] uppercase tracking-[0.5px] tabular-nums"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {corpus.total.toLocaleString()} bills tracked
-            <span> · </span>
-            last sync {formatLastUpdated(corpus.lastSync)}
-          </span>
-          <div className="ml-auto">
-            <HeaderNav active={null} />
-          </div>
-        </div>
-      </header>
-    );
-  }
-
   const includeCeremonial = !!feedFilters?.includeCeremonial;
   const cluster = feedFilters?.cluster;
   const stats = await getFeedStats(includeCeremonial, cluster);
@@ -196,14 +167,13 @@ export async function HeaderBar({
       <MarketsTape />
       <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
         <div className="flex flex-col leading-tight">
-          <Link
-            href="/"
-            className="text-[16px] font-medium uppercase tracking-[0.5px] whitespace-nowrap"
-            style={{ color: "var(--accent-amber)" }}
-          >
-            CBT <span style={{ color: "var(--text-dim)" }}>//</span>{" "}
-            {currentCongressLabel()}
-          </Link>
+          <BreadcrumbMasthead
+            segments={breadcrumbSegments(basePath, {
+              mode,
+              presidentAlias,
+              detail,
+            })}
+          />
           <span
             className="text-[11px] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}

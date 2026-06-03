@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { raceLabelCompact } from "@/components/RaceHeader";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import {
   getMember,
@@ -65,7 +66,7 @@ export default async function RacePage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar basePath={`/race/${id}`} />
+      <HeaderBar basePath={`/race/${id}`} detail={raceLabelCompact(race)} />
 
       <main className="w-full flex-1 px-4 py-4">
         <Link
