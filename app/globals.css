@@ -289,6 +289,13 @@ body {
 .breadcrumb-seg-label {
   white-space: nowrap;
 }
+/* True shell spacing: kill the 2px margin .terminal-prompt .prompt-accent adds
+   before each accent glyph (and the caret's margin) so `:\`, the `\` separators,
+   and `>_` sit flush — `Congress Terminal:\119TH\Dashboard>_`. */
+.breadcrumb-path .prompt-accent,
+.breadcrumb-path .home-cursor-caret {
+  margin-left: 0;
+}
 /* HO 162: the dashboard brand is the page hero at 36px on desktop. Scoped to
    .home-header-prompt-row so the shared page-masthead .terminal-prompt on
    other routes stays 18px, and gated >=1024 so the <700 grow-to-24px rule and
