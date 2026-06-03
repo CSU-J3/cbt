@@ -2,7 +2,7 @@
 
 import { hierarchy, pack } from "d3-hierarchy";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type MouseEvent, useCallback, useMemo } from "react";
+import { type MouseEvent, useCallback, useMemo, useRef, useState } from "react";
 
 // HO 132 + 132.1: reusable bubble chart for the dashboard row-2 stage
 // + topic surfaces. Sized by sqrt(count) implicitly via d3-hierarchy's
@@ -30,8 +30,20 @@ export type BubbleDatum = {
   label: string;
   count: number;
   color: string;
-  /** Native tooltip on hover. Falls back to `${label}, ${count} bills`. */
-  tooltip?: string;
+  /** Full category name for the HO 180 hover popover. Falls back to `label`. */
+  fullName?: string;
+};
+
+// HO 180: hover-popover state — the bubble's full name + count, positioned from
+// the hovered bubble's measured rect (relative to the chart wrapper), placed
+// above the bubble (or below when it's near the top edge), clamped horizontally
+// so it stays inside the overflow:hidden panel.
+type HoverState = {
+  name: string;
+  count: number;
+  left: number;
+  top: number;
+  placement: "above" | "below";
 };
 
 // Internal viewBox math. The chart's actual pixel size is driven by
@@ -56,6 +68,32 @@ export function DashboardBubbleChart({
   const router = useRouter();
   const params = useSearchParams();
   const currentValue = params.get(paramKey);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [hover, setHover] = useState<HoverState | null>(null);
+
+  // HO 180: position the popover from the hovered bubble's screen rect, mapped
+  // into wrapper coords. Above the bubble by default; below when it'd clip the
+  // top edge. Horizontal center clamped so the box stays inside the panel.
+  const showHover = useCallback((e: MouseEvent<Element>, datum: BubbleDatum) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const wr = wrap.getBoundingClientRect();
+    const br = e.currentTarget.getBoundingClientRect();
+    const cx = br.left + br.width / 2 - wr.left;
+    const MARGIN = 90;
+    const left = Math.max(MARGIN, Math.min(cx, wr.width - MARGIN));
+    const bubbleTop = br.top - wr.top;
+    const placement: "above" | "below" = bubbleTop < 56 ? "below" : "above";
+    const top = placement === "above" ? bubbleTop - 6 : br.bottom - wr.top + 6;
+    setHover({
+      name: datum.fullName ?? datum.label,
+      count: datum.count,
+      left,
+      top,
+      placement,
+    });
+  }, []);
+  const clearHover = useCallback(() => setHover(null), []);
 
   const buildHref = useCallback(
     (basePath: "/" | "/feed", value: string | null): string => {
@@ -104,74 +142,90 @@ export function DashboardBubbleChart({
   }
 
   return (
-    <svg
-      className="dashboard-bubble-svg"
-      viewBox={`0 0 ${VIEW_W} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-    >
-      {nodes.map(({ datum, x, y, r }) => {
-        const isEmpty = datum.count === 0;
-        const isSelected = !isEmpty && currentValue === datum.id;
-        const clickable = !isEmpty;
-        const labelLines = labelFor(datum, r);
-        const ariaLabel = isEmpty
-          ? `${datum.label}, no bills`
-          : `${datum.label}, ${datum.count.toLocaleString()} bills`;
-        const tooltipText = isEmpty
-          ? null
-          : (datum.tooltip ?? `${datum.label} — ${datum.count.toLocaleString()} bills`);
+    <div className="dashboard-bubble-wrap" ref={wrapRef}>
+      <svg
+        className="dashboard-bubble-svg"
+        viewBox={`0 0 ${VIEW_W} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+        role="img"
+      >
+        {nodes.map(({ datum, x, y, r }) => {
+          const isEmpty = datum.count === 0;
+          const isSelected = !isEmpty && currentValue === datum.id;
+          const clickable = !isEmpty;
+          const labelLines = labelFor(datum, r);
+          const ariaLabel = isEmpty
+            ? `${datum.label}, no bills`
+            : `${datum.label}, ${datum.count.toLocaleString()} bills`;
 
-        // The /feed href is the cmd-click destination (always applies
-        // this bubble's filter). The dashboard href is the soft-route
-        // destination: setting the value on a new bubble, or dropping
-        // the param when re-clicking the selected one.
-        const feedHref = buildHref("/feed", datum.id);
-        const dashboardHref = isSelected
-          ? buildHref("/", null)
-          : buildHref("/", datum.id);
+          // The /feed href is the cmd-click destination (always applies
+          // this bubble's filter). The dashboard href is the soft-route
+          // destination: setting the value on a new bubble, or dropping
+          // the param when re-clicking the selected one.
+          const feedHref = buildHref("/feed", datum.id);
+          const dashboardHref = isSelected
+            ? buildHref("/", null)
+            : buildHref("/", datum.id);
 
-        const bubble = (
-          <g
-            className={`dashboard-bubble${clickable ? "" : " is-static"}${isSelected ? " selected" : ""}`}
-            transform={`translate(${x}, ${y})`}
-            aria-label={ariaLabel}
-          >
-            {tooltipText ? <title>{tooltipText}</title> : null}
-            <circle
-              r={r}
-              fill={datum.color}
-              fillOpacity={isEmpty ? 0.35 : 0.85}
-            />
-            {labelLines.map((line, i) => (
-              <text
-                key={i}
-                y={(i - (labelLines.length - 1) / 2) * 14}
-                textAnchor="middle"
-                dominantBaseline="middle"
-              >
-                {line}
-              </text>
-            ))}
-          </g>
-        );
+          const bubble = (
+            <g
+              className={`dashboard-bubble${clickable ? "" : " is-static"}${isSelected ? " selected" : ""}`}
+              transform={`translate(${x}, ${y})`}
+              aria-label={ariaLabel}
+              onMouseEnter={(e) => showHover(e, datum)}
+              onMouseLeave={clearHover}
+            >
+              <circle
+                r={r}
+                fill={datum.color}
+                fillOpacity={isEmpty ? 0.35 : 0.85}
+              />
+              {labelLines.map((line, i) => (
+                <text
+                  key={i}
+                  y={(i - (labelLines.length - 1) / 2) * 14}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
+                  {line}
+                </text>
+              ))}
+            </g>
+          );
 
-        if (!clickable) {
-          return <g key={datum.id}>{bubble}</g>;
-        }
+          if (!clickable) {
+            return <g key={datum.id}>{bubble}</g>;
+          }
 
-        return (
-          <a
-            key={datum.id}
-            href={feedHref}
-            onClick={(e) => handleAnchorClick(e, dashboardHref)}
-            aria-label={ariaLabel}
-          >
-            {bubble}
-          </a>
-        );
-      })}
-    </svg>
+          return (
+            <a
+              key={datum.id}
+              href={feedHref}
+              onClick={(e) => handleAnchorClick(e, dashboardHref)}
+              aria-label={ariaLabel}
+            >
+              {bubble}
+            </a>
+          );
+        })}
+      </svg>
+
+      {/* HO 180: hover popover — full category name + count, tape/race-card
+          style (absolute, opaque --bg-row-hover, above the chart). pointer-
+          events:none so it never intercepts the bubble's click-to-filter. */}
+      {hover ? (
+        <div
+          className="dashboard-bubble-popover"
+          data-placement={hover.placement}
+          style={{ left: hover.left, top: hover.top }}
+        >
+          <span className="dashboard-bubble-popover-name">{hover.name}</span>
+          <span className="dashboard-bubble-popover-meta">
+            {hover.count.toLocaleString()} bills
+          </span>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

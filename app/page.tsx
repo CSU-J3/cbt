@@ -2,7 +2,7 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { StageKey, TopicKey } from "@/components/ColorKeyStrip";
+import { StageKey } from "@/components/ColorKeyStrip";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import {
   type BubbleDatum,
@@ -15,7 +15,6 @@ import { TopStalls } from "@/components/TopStalls";
 import {
   type DashboardFilters,
   getBreakingNewsForHomeCount,
-  getCorpusStats,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
@@ -53,7 +52,7 @@ export default async function DashboardPage({
     topic: sanitizeTopic(sp.topics),
   };
 
-  const [breakingCount, activityCount, stageDist, topicRows, corpus] =
+  const [breakingCount, activityCount, stageDist, topicRows] =
     await Promise.all([
       getBreakingNewsForHomeCount({
         hours: 72,
@@ -63,25 +62,19 @@ export default async function DashboardPage({
       getStageChangesCount({}, 7, filters),
       getStageDistribution(filters),
       getTopicDistribution(filters),
-      getCorpusStats(),
     ]);
 
-  // Topic-bubble tooltip carries percentage of the (corpus-wide,
-  // non-ceremonial) total — distinct from the topic-distribution
-  // query's count, which is a *tag count* (bills can have multiple
-  // topics). Percentage uses corpus.total as the denominator so the
-  // number reads as "share of all bills tagged with this topic."
-  const corpusTotal = corpus.total;
-  const topicData: BubbleDatum[] = topicRows.map((t) => {
-    const pct = corpusTotal > 0 ? (t.count / corpusTotal) * 100 : 0;
-    return {
-      id: t.topic,
-      label: topicLabel(t.topic),
-      count: t.count,
-      color: topicColor(t.topic),
-      tooltip: `${topicFullLabel(t.topic)} · ${t.count.toLocaleString()} bills · ${pct.toFixed(1)}%`,
-    };
-  });
+  // HO 180: each bubble carries its full category name for the hover popover
+  // (per-topic colors mean the abbreviation alone no longer needs decoding from
+  // a legend). The count rides the popover too; the old percentage-of-corpus
+  // tooltip string was dropped with the native <title>.
+  const topicData: BubbleDatum[] = topicRows.map((t) => ({
+    id: t.topic,
+    label: topicLabel(t.topic),
+    count: t.count,
+    color: topicColor(t.topic),
+    fullName: topicFullLabel(t.topic),
+  }));
 
   return (
     <div className="home-shell">
@@ -140,9 +133,8 @@ export default async function DashboardPage({
               >
                 Topic Distribution
               </p>
-              {/* HO 167: TOPICS key sits with the bubbles it decodes — under
-                  the label, above the body. */}
-              <TopicKey />
+              {/* HO 180: the TOPICS group legend (TopicKey) was removed — bubbles
+                  are now per-topic colored and the hover popover decodes them. */}
               <div className="home-quadrant-body">
                 <DashboardBubbleChart data={topicData} paramKey="topics" />
               </div>

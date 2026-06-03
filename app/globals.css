@@ -1930,11 +1930,50 @@ body {
    but the svg fills its grid cell (width + height 100%) so the row-2
    stage/topic cells size to the dashboard's no-scroll layout instead
    of a fixed 480px height. */
+/* HO 180: relative wrapper so the bubble hover popover can position from a
+   bubble's measured rect and sit above the chart. */
+.dashboard-bubble-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
 .dashboard-bubble-svg {
   width: 100%;
   height: 100%;
   display: block;
   background-color: var(--bg-panel);
+}
+/* HO 180: bubble hover popover — full category name + count, tape/race-card
+   idiom (opaque --bg-row-hover, above the chart, pointer-events:none so it never
+   blocks the bubble's click-to-filter). JS sets left (clamped center) + top
+   (just above/below the bubble); the transform places the box around that
+   anchor. */
+.dashboard-bubble-popover {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  white-space: nowrap;
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 6px 10px;
+  transform: translate(-50%, 0);
+}
+.dashboard-bubble-popover[data-placement="above"] {
+  transform: translate(-50%, -100%);
+}
+.dashboard-bubble-popover-name {
+  display: block;
+  font-size: 13px;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+.dashboard-bubble-popover-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 .dashboard-bubble {
   outline: none;
@@ -1971,6 +2010,9 @@ body {
   pointer-events: none;
   user-select: none;
   font-weight: 500;
+  /* HO 180: dark halo so the light label reads on any of the 24 per-topic
+     fills — including the lighter yellow-greens (BUDGET, EDUCATION). */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
 }
 .pattern-legend {
   display: flex;

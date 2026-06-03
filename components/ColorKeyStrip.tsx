@@ -1,8 +1,9 @@
-import { STAGES, type Swatch, TOPIC_GROUPS } from "@/lib/color-key";
+import { STAGES, type Swatch } from "@/lib/color-key";
 
 // HO 179: the `?` LegendBadge was removed from the masthead (clutter — HO 167
 // moved the stage/topic keys into the chart panels and the party-dot/bill-type
-// meanings read as self-evident). This file now exports only StageKey/TopicKey.
+// meanings read as self-evident). HO 180 removed the TOPICS key too (bubbles are
+// now per-topic colored with a hover popover). This file exports only StageKey.
 
 // One legend row = 52px label column + indicators that flow in the second
 // column and wrap when they overflow the available width.
@@ -49,24 +50,15 @@ function Row({
   );
 }
 
-// HO 167: the STAGES and TOPICS keys moved out of the (now-removed) dashboard
-// footer into their own chart panels — STAGES under the Stage Distribution
-// funnel, TOPICS under the Topic Distribution bubbles — so each key sits with
-// the chart it decodes. Each is one `Row` inside a `.panel-key` footer strip.
-// (The STAGES key earns its place beside the self-labeling funnel by
-// documenting the ▸-glyph progression used on bill-row rails app-wide.)
+// HO 167: the STAGES key moved out of the (now-removed) dashboard footer into
+// its own chart panel — under the Stage Distribution funnel — as one `Row`
+// inside a `.panel-key` strip. (It earns its place beside the self-labeling
+// funnel by documenting the ▸-glyph progression used on bill-row rails app-
+// wide.) The TOPICS sibling was removed in HO 180.
 export function StageKey() {
   return (
     <div className="panel-key" aria-label="Stage color key">
       <Row heading="STAGES" items={STAGES} />
-    </div>
-  );
-}
-
-export function TopicKey() {
-  return (
-    <div className="panel-key" aria-label="Topic color key">
-      <Row heading="TOPICS" items={TOPIC_GROUPS} />
     </div>
   );
 }
