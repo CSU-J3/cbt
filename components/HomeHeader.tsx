@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
-import { NAV_ITEMS } from "@/components/HeaderBar";
 import { DualMarketsTape } from "@/components/DualMarketsTape";
+import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
-import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
 // Home-only header chrome. HO 178 reflow:
@@ -28,16 +28,12 @@ export async function HomeHeader() {
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            {/* HO 178: brand + the <700 title-cursor wrapped as one flex child
-                so the cursor sits tight against `:\>` (no prompt-row gap). The
-                cursor is shown only <700 (where the prose, and its own cursor,
-                are removed) — globals.css .home-cursor-title. */}
-            <span className="home-header-brand">
-              <TerminalPrompt name="Congress Terminal" href="/" />
-              <span aria-hidden className="home-cursor-caret home-cursor-title">
-                _
-              </span>
-            </span>
+            {/* HO 185: the dashboard adopts the shared breadcrumb path masthead
+                (`Congress Terminal:\ 119TH \ Dashboard >_`), sized to the 36px
+                hero via the .home-header-prompt-row scope. Its single blinking
+                caret rides the path end at ALL widths, replacing HO 178/179.1's
+                per-breakpoint prose-caret / title-caret split (both removed). */}
+            <BreadcrumbMasthead segments={["Dashboard"]} />
           </div>
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it
@@ -55,16 +51,11 @@ export async function HomeHeader() {
           </p>
         </div>
 
-        {/* HO 178: LEAD prose to the RIGHT of the title — full-wrap, no clamp,
+        {/* HO 178: LEAD prose to the RIGHT of the path — full-wrap, no clamp,
             grows the row taller as the window narrows. Removed entirely <700px
-            (the cursor then rides the title via .home-cursor-title). The caret
-            here is the prose-end cursor shown >=700. */}
-        <p className="home-header-lead">
-          {lead?.text ?? ""}
-          <span aria-hidden className="home-cursor-caret">
-            _
-          </span>
-        </p>
+            (`.home-header-lead { display:none }`). HO 185: its trailing caret is
+            gone — the single caret now lives at the breadcrumb path's `>_`. */}
+        <p className="home-header-lead">{lead?.text ?? ""}</p>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
