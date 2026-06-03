@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
+import { DualMarketsTape } from "@/components/DualMarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
-import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
@@ -159,12 +159,11 @@ export async function HeaderBar({
         borderBottom: "1px solid var(--border-strong)",
       }}
     >
-      {/* HO 154.2: MarketsTape goes global. Same component the dashboard's
-          HomeHeader uses; both mount points share the cbt-tape-paused
-          localStorage key so pausing on any page persists everywhere.
-          The dashboard's HomeHeader uses its own placement and never
-          renders HeaderBar — so no double-mount on `/`. */}
-      <MarketsTape />
+      {/* HO 185: dual counter-scrolling tapes (was a single combined tape since
+          HO 154.2). Same shared mount the dashboard's HomeHeader uses, so every
+          page gets both equities + commodities and the cycling AS OF stamp. The
+          dashboard renders HomeHeader (not HeaderBar), so no double-mount on `/`. */}
+      <DualMarketsTape />
       <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
         <div className="flex flex-col leading-tight">
           <BreadcrumbMasthead

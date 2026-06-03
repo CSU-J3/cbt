@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { NAV_ITEMS } from "@/components/HeaderBar";
-import { MarketsTape } from "@/components/MarketsTape";
+import { DualMarketsTape } from "@/components/DualMarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
@@ -70,14 +70,10 @@ export async function HomeHeader() {
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
       {/* HO 178: two counter-scrolling tapes — equities → , commodities/macro ←.
-          HO 179.1: wrapped in .markets-tape-block so the top (equities) tape gets
-          a higher stacking order than the bottom — its hover popover (trapped in
-          the track's animated-transform stacking context) then paints above the
-          bottom tape. Only the bottom tape shows the shared AS OF stamp. */}
-      <div className="markets-tape-block">
-        <MarketsTape group="equities" showMeta={false} />
-        <MarketsTape group="commodities" reverse />
-      </div>
+          HO 185: extracted to the shared <DualMarketsTape> (same mount HeaderBar
+          now uses on every page) — the .markets-tape-block stacking, the
+          bottom-only AS OF stamp, and the HO 183 cycling zones all live there. */}
+      <DualMarketsTape />
 
       <nav className="home-header-nav" aria-label="Primary navigation">
         {NAV_ITEMS.map((item) => (
