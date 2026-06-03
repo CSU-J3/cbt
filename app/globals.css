@@ -87,18 +87,109 @@ body {
   font-feature-settings: "ss01", "cv02";
 }
 
-/* ---- header bar -------------------------------------------------------- */
-.header-search {
-  width: 280px;
-  margin-left: auto;
-  margin-right: auto;
+/* ---- HO 187 inner-page chrome (5-band consolidation) ------------------- */
+/* Bands 1-2 live in HeaderBar (full-width, so they carry their own --space-lg
+   horizontal padding); bands 3-5 are rendered inside `<main class="px-4">`, so
+   they take vertical padding only and inherit the 16px gutter. Every band is
+   delimited by a border-bottom rather than gaps, so the chrome reads as stacked
+   terminal strips. (Replaced the old .header-inner / .header-search 280px box /
+   .header-nav-row from HO 185.) */
+/* Band 1 — TITLE BAR: path (left) + main nav (right). flex-wrap bumps the nav
+   to a second line on a deep detail path rather than wrapping the path. */
+.header-titlebar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-md);
+  padding: 10px var(--space-lg);
+  border-bottom: 1px solid var(--border-strong);
 }
-
-/* HO 185: nav lives on its own full-width row below the masthead (see
-   .header-nav-row), so it left-aligns rather than pushing right with the old
-   margin-left:auto that right-anchored it in the single-row layout. */
-.header-nav-row {
-  border-top: 0.5px solid var(--border-soft);
+.header-titlebar .breadcrumb-path {
+  font-size: 16px;
+}
+.header-titlebar-nav {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+/* Band 2 — SYNC STRIP: thin updated/count line. */
+.header-sync {
+  padding: 5px var(--space-lg);
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* Band 3 — CONTROL STRIP (bills, in <main>) + the transitional legacy-controls
+   band (in HeaderBar, full-width). flex-wrap is the 1280px safety: degrade by
+   wrapping, never clip. */
+.control-strip,
+.header-legacy-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+.control-strip {
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-strong);
+}
+.header-legacy-controls {
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border-strong);
+}
+.control-search {
+  flex: 1 1 auto;
+  min-width: 110px;
+  max-width: 230px;
+}
+.control-sort {
+  margin-left: auto;
+}
+/* Band 4 — TOPICS BAND: feed sub-nav + vertical divider + wrapping chips. */
+.topics-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-strong);
+}
+.topics-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.topics-subnav a {
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.topics-subnav a:hover {
+  color: var(--text-secondary);
+}
+.topics-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 16px;
+  background: var(--border-strong);
+}
+/* Band 5 — LEGEND + PAGINATION: stage legend (left) + pager (right). */
+.legend-pagination-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-strong);
+}
+.legend-pagination-pager {
+  margin-left: auto;
 }
 
 /* ---- Mobile nav drawer (HO 156 Phase 2 — currently DORMANT) ---------- */
@@ -2435,16 +2526,10 @@ body {
   .filter-chips {
     flex-wrap: wrap;
   }
-
-  .header-inner {
-    flex-wrap: wrap;
-  }
-  .header-search {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
-    margin-right: 0;
-  }
+  /* HO 187: the new 5-band chrome (.header-titlebar / .control-strip / etc.)
+     all flex-wrap natively, so the old <700 .header-inner / .header-search
+     overrides were removed. A proper mobile collapse for the bands is a
+     downstream pass (noted in HO 187 out-of-scope). */
 }
 
 /* ---- Tooltip primitive (HO 147) --------------------------------------- */

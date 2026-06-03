@@ -2234,7 +2234,10 @@ export async function getCandidateBills(
   }));
 }
 
-export const FEED_PAGE_SIZE = 100;
+// HO 187: 100 → 25 (~4 pages of the substantive corpus) — endless-scroll-ish
+// 100 was too long, 15 too choppy given the real starting point. Bills-scoped
+// (BILLS mode only; NEWS uses NEWS_FEED_PAGE_SIZE).
+export const FEED_PAGE_SIZE = 25;
 
 export type FeedPage = {
   bills: FeedBill[];

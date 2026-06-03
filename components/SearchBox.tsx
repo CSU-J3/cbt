@@ -18,7 +18,8 @@ function isInlinePath(pathname: string): boolean {
 export function SearchBox({
   basePath = "/bills",
   placeholder = "search bills...",
-}: { basePath?: string; placeholder?: string } = {}) {
+  compact = false,
+}: { basePath?: string; placeholder?: string; compact?: boolean } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -60,6 +61,18 @@ export function SearchBox({
 
   return (
     <div className="search-box-wrap relative">
+      {/* HO 187: compact control-strip variant — a ⌕ glyph on the left and
+          tighter padding/size, so the input reads as a terminal field at
+          flex:1 ≤230px instead of the old 280px masthead box. */}
+      {compact ? (
+        <span
+          aria-hidden
+          className="absolute top-1/2 left-2 -translate-y-1/2 text-[13px] leading-none"
+          style={{ color: "var(--text-dim)" }}
+        >
+          ⌕
+        </span>
+      ) : null}
       <input
         type="search"
         value={value}
@@ -69,12 +82,12 @@ export function SearchBox({
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
-        className="search-box w-full font-mono text-[14px] outline-none"
+        className={`search-box w-full font-mono outline-none ${compact ? "text-[13px]" : "text-[14px]"}`}
         style={{
           backgroundColor: "var(--bg-base)",
           color: "var(--text-primary)",
           border: `0.5px solid ${focused ? "var(--accent-amber)" : "var(--border-strong)"}`,
-          padding: "7px 30px 7px 12px",
+          padding: compact ? "5px 26px 5px 26px" : "7px 30px 7px 12px",
         }}
       />
       {value ? (

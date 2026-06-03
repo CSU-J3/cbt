@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
-import { GroupTabs } from "@/components/GroupTabs";
+import { CeremonialToggle } from "@/components/CeremonialToggle";
+import { GROUP_TABS, GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
 import { NewsRow } from "@/components/NewsRow";
 import { Pagination } from "@/components/Pagination";
+import { SearchBox } from "@/components/SearchBox";
 import {
   CHAMBER_SEGMENTS,
   SegmentedToggle,
@@ -199,103 +201,124 @@ async function BillsView({
     ? `/bills?${clearSearchParams.toString()}`
     : "/bills";
 
+  // "Clear filters ✕" drops stage/topics/sponsor/chamber but keeps q +
+  // ceremonial + cluster (matches the pre-HO-187 inline behavior).
+  const clearFiltersParams = new URLSearchParams();
+  if (q) clearFiltersParams.set("q", q);
+  if (includeCeremonial) clearFiltersParams.set("ceremonial", "1");
+  if (cluster) clearFiltersParams.set("cluster", cluster);
+  const clearFiltersHref = clearFiltersParams.toString()
+    ? `/bills?${clearFiltersParams.toString()}`
+    : "/bills";
+
+  const chamberHref = (value: "" | "house" | "senate") => {
+    const sp = new URLSearchParams(carry);
+    sp.delete("page");
+    if (value) sp.set("chamber", value);
+    else sp.delete("chamber");
+    const qs = sp.toString();
+    return qs ? `/bills?${qs}` : "/bills";
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
+      {/* HeaderBar renders bands 1-2 (title + sync). pageOwnsControls suppresses
+          its transitional search/ceremonial — they live in band 3 below. */}
       <HeaderBar
         feedFilters={feedFilters}
         feedFilteredCount={filteredCount}
         basePath="/bills"
         mode="bills"
         presidentAlias={isPresidentAlias}
+        pageOwnsControls
       />
 
       <main className="w-full flex-1 px-4 py-4">
-        <GroupTabs group="feed" active="bills" />
-        <div className="mb-3 flex items-center gap-3">{toggle}</div>
-        <section
-          className="mb-3 flex flex-col gap-3"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
-          <div className="filter-chips flex flex-wrap items-center gap-3">
-            <StageFilter
-              current={stage}
-              topics={topics}
-              q={q}
-              sponsor={sponsor}
-              sort={sort}
-              chamber={chamber}
-              ceremonial={includeCeremonial}
-              cluster={cluster}
-            />
-            <SegmentedToggle
-              current={(chamber ?? "") as "" | "house" | "senate"}
-              ariaLabel="Chamber"
-              segments={CHAMBER_SEGMENTS}
-              buildHref={(value) => {
-                const sp = new URLSearchParams(carry);
-                sp.delete("page");
-                if (value) sp.set("chamber", value);
-                else sp.delete("chamber");
-                const qs = sp.toString();
-                return qs ? `/bills?${qs}` : "/bills";
-              }}
-            />
-            <span
-              className="ml-auto flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              Sort
-              <SortDropdown current={sort} basePath="/bills" />
-            </span>
-            {hasFilters ? (
-              <Link
-                href={(() => {
-                  const sp = new URLSearchParams();
-                  if (q) sp.set("q", q);
-                  if (includeCeremonial) sp.set("ceremonial", "1");
-                  if (cluster) sp.set("cluster", cluster);
-                  const qs = sp.toString();
-                  return qs ? `/bills?${qs}` : "/bills";
-                })()}
-                className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                Clear filters ✕
-              </Link>
-            ) : null}
-          </div>
-          <div className="filter-chips flex flex-wrap items-center gap-3">
-            <span
-              className="text-[12px] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              Topics
-            </span>
-            <TopicFilter
-              selected={topics}
-              stage={stage}
-              q={q}
-              sponsor={sponsor}
-              sort={sort}
-              chamber={chamber}
-              ceremonial={includeCeremonial}
-              cluster={cluster}
-            />
-          </div>
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            carry={carry}
-            basePath="/bills"
+        {/* Band 3 — CONTROL STRIP: toggle + stages + chamber + compact search +
+            ceremonial + sort (pinned right). flex-wrap so it degrades by
+            wrapping, not clipping, below ~1280. */}
+        <div className="control-strip">
+          {toggle}
+          <StageFilter
+            current={stage}
+            topics={topics}
+            q={q}
+            sponsor={sponsor}
+            sort={sort}
+            chamber={chamber}
+            ceremonial={includeCeremonial}
+            cluster={cluster}
           />
-        </section>
+          <SegmentedToggle
+            current={(chamber ?? "") as "" | "house" | "senate"}
+            ariaLabel="Chamber"
+            segments={CHAMBER_SEGMENTS}
+            buildHref={chamberHref}
+          />
+          <div className="control-search">
+            <SearchBox basePath="/bills" compact />
+          </div>
+          <CeremonialToggle checked={includeCeremonial} />
+          {hasFilters ? (
+            <Link
+              href={clearFiltersHref}
+              className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+              style={{ color: "var(--text-dim)" }}
+            >
+              Clear ✕
+            </Link>
+          ) : null}
+          <span
+            className="control-sort flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-dim)" }}
+          >
+            Sort
+            <SortDropdown current={sort} basePath="/bills" />
+          </span>
+        </div>
 
+        {/* Band 4 — TOPICS BAND: the feed sub-nav (Changes·President·Reports) at
+            the left, a vertical divider, then the wrapping topic chips. */}
+        <div className="topics-band">
+          <nav className="topics-subnav" aria-label="Bills views">
+            {GROUP_TABS.feed.map((t) => (
+              <Link key={t.slug} href={t.href}>
+                {t.label}
+              </Link>
+            ))}
+          </nav>
+          <span className="topics-divider" aria-hidden />
+          <TopicFilter
+            selected={topics}
+            stage={stage}
+            q={q}
+            sponsor={sponsor}
+            sort={sort}
+            chamber={chamber}
+            ceremonial={includeCeremonial}
+            cluster={cluster}
+          />
+        </div>
+
+        {/* Band 5 — LEGEND + PAGINATION: stage legend (left) + pager (right). */}
+        <div className="legend-pagination-band">
+          <StageLegend bare />
+          <span className="legend-pagination-pager">
+            <Pagination
+              inline
+              currentPage={currentPage}
+              totalPages={totalPages}
+              carry={carry}
+              basePath="/bills"
+            />
+          </span>
+        </div>
+
+        {/* Bill list — rows unchanged (out of scope). */}
         <div
           className="border"
           style={{ borderColor: "var(--border-strong)" }}
         >
-          <StageLegend />
-
           {bills.length === 0 ? (
             q ? (
               <div

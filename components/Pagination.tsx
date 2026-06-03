@@ -42,11 +42,16 @@ export function Pagination({
   totalPages,
   carry,
   basePath = "/",
+  inline = false,
 }: {
   currentPage: number;
   totalPages: number;
   carry: URLSearchParams;
   basePath?: string;
+  // HO 187: `inline` drops the standalone band chrome (top border, centering,
+  // px-4 py-3) so the pager can sit right-aligned inside the band-5
+  // legend+pagination row. Default keeps the standalone centered band.
+  inline?: boolean;
 }) {
   if (totalPages <= 1) return null;
 
@@ -63,8 +68,12 @@ export function Pagination({
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t px-4 py-3"
-      style={{ borderColor: "var(--border-strong)" }}
+      className={
+        inline
+          ? "flex flex-wrap items-center gap-x-3 gap-y-2"
+          : "flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t px-4 py-3"
+      }
+      style={inline ? undefined : { borderColor: "var(--border-strong)" }}
     >
       {prevDisabled ? (
         <span className={navClass} style={dimStyle}>

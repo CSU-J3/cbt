@@ -1,13 +1,18 @@
 import { Tooltip } from "@/components/Tooltip";
 import { STAGE_LABELS } from "@/lib/enums";
 
-export function StageLegend() {
+export function StageLegend({ bare = false }: { bare?: boolean } = {}) {
   return (
     <div
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-1.5 text-[12px] uppercase tracking-[0.5px]"
+      className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] uppercase tracking-[0.5px]${
+        bare ? "" : " border-b px-4 py-1.5"
+      }`}
       style={{
-        backgroundColor: "var(--bg-panel)",
-        borderColor: "var(--border-soft)",
+        // HO 187: `bare` strips the standalone border/bg/padding so band 5
+        // (legend + pagination) owns the chrome; default keeps the full strip
+        // for the other pages that still render it inside their list box.
+        backgroundColor: bare ? undefined : "var(--bg-panel)",
+        borderColor: bare ? undefined : "var(--border-soft)",
         color: "var(--text-muted)",
       }}
       aria-label="Legend"

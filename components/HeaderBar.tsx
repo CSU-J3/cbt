@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
-import { DualMarketsTape } from "@/components/DualMarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
@@ -86,6 +85,7 @@ export async function HeaderBar({
   detail,
   mode,
   presidentAlias,
+  pageOwnsControls,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
@@ -109,6 +109,12 @@ export async function HeaderBar({
   detail?: string;
   mode?: "bills" | "news";
   presidentAlias?: boolean;
+  // HO 187: when a page renders its own band-3 control strip (compact search +
+  // ceremonial + filters), it passes this so HeaderBar suppresses the
+  // transitional legacy-controls band below the sync strip. /bills owns its
+  // controls; /changes + /stale flip this in their sub-stage. TRANSITIONAL —
+  // remove the prop + the legacy band once every feed page owns its controls.
+  pageOwnsControls?: boolean;
 }) {
   const includeCeremonial = !!feedFilters?.includeCeremonial;
   const cluster = feedFilters?.cluster;
@@ -152,32 +158,31 @@ export async function HeaderBar({
     isStaleMode || isChangesMode || isPresidentMode || isSponsorMode;
 
   return (
-    <header
-      style={{
-        position: "relative",
-        backgroundColor: "var(--bg-panel)",
-        borderBottom: "1px solid var(--border-strong)",
-      }}
-    >
-      {/* HO 185: dual counter-scrolling tapes (was a single combined tape since
-          HO 154.2). Same shared mount the dashboard's HomeHeader uses, so every
-          page gets both equities + commodities and the cycling AS OF stamp. The
-          dashboard renders HomeHeader (not HeaderBar), so no double-mount on `/`. */}
-      <DualMarketsTape />
-      <div className="header-inner flex w-full items-center gap-x-4 px-4 py-3">
-        <div className="flex flex-col leading-tight">
-          <BreadcrumbMasthead
-            segments={breadcrumbSegments(basePath, {
-              mode,
-              presidentAlias,
-              detail,
-            })}
-          />
-          <span
-            className="text-[11px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-dim)" }}
-          >
-            {pageTitle ? (
+    <header style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
+      {/* HO 187 inner-page chrome (5-band consolidation):
+          Band 1 — TITLE BAR: the PowerShell path (left) + the main nav (right)
+          on one row, merging HO 185's separate masthead + nav rows. flex-wrap
+          so a deep detail path bumps the nav to a second line rather than
+          wrapping the path itself (the path is the identity). The markets tape
+          is GONE from inner pages — HO 187 reverted HO 185 sub-stage 2's
+          dual-tapes-everywhere; the tape is dashboard-only again (HomeHeader
+          keeps its own DualMarketsTape mount). */}
+      <div className="header-titlebar">
+        <BreadcrumbMasthead
+          segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
+        />
+        <div className="header-titlebar-nav">
+          <HeaderNav active={pathToNavKey(basePath)} />
+          <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
+        </div>
+      </div>
+
+      {/* Band 2 — SYNC STRIP: the thin updated/count line (no pagination — that
+          moved to band 5). "updated MT" stays static (the cycling stamp lives on
+          the dashboard masthead + the tape, both absent here). */}
+      <div className="header-sync">
+        <span>
+          {pageTitle ? (
               <>
                 <span style={{ color: "var(--accent-amber)" }}>
                   {pageTitle}
@@ -252,27 +257,21 @@ export async function HeaderBar({
           </span>
         </div>
 
-        {showSearch ? (
-          <div className="header-search">
-            <SearchBox basePath={basePath} />
+      {/* Transitional (HO 187): feed pages that haven't built their own band-3
+          control strip yet (/changes, /stale until their sub-stage) still get
+          search + ceremonial here. /bills passes pageOwnsControls and renders
+          them in its own control strip, so this is suppressed there. Remove
+          this block + the prop once every feed page owns its controls. */}
+      {!pageOwnsControls && showSearch ? (
+        <div className="header-legacy-controls">
+          <div className="control-search">
+            <SearchBox basePath={basePath} compact />
           </div>
-        ) : null}
-
-        {showCeremonialToggle ? (
-          <CeremonialToggle checked={includeCeremonial} />
-        ) : null}
-      </div>
-
-      {/* HO 185: nav on its OWN full-width row (mirroring HomeHeader's
-          .home-header-nav) instead of competing for width inside the masthead
-          row. The crowding — path column + 280px search + ceremonial toggle +
-          the 7-item nav all on one items-center line — squeezed the breadcrumb
-          column until the path wrapped and orphaned `>_`. Its own row gives the
-          path room to sit on one line at desktop width. */}
-      <div className="header-nav-row flex w-full items-center px-4 py-2">
-        <HeaderNav active={pathToNavKey(basePath)} />
-        <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
-      </div>
+          {showCeremonialToggle ? (
+            <CeremonialToggle checked={includeCeremonial} />
+          ) : null}
+        </div>
+      ) : null}
     </header>
   );
 }
