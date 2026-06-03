@@ -9,7 +9,6 @@ import { SearchBox } from "@/components/SearchBox";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { StateFilter } from "@/components/StateFilter";
-import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { isPalestineGrade } from "@/lib/palestine-config";
 import {
   type Chamber,
@@ -176,9 +175,6 @@ export default async function MembersPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="members" />
-        <div className="page-masthead">
-          <TerminalPrompt name="Members" />
-        </div>
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

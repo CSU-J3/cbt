@@ -5,7 +5,6 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { PatternBubbleSVG } from "@/components/PatternBubbleSVG";
 import { PatternDrilldownPanel } from "@/components/PatternDrilldownPanel";
 import { PatternLegend } from "@/components/PatternLegend";
-import { TerminalPrompt } from "@/components/TerminalPrompt";
 import {
   getClusterDrilldown,
   getClusterStats,
@@ -49,9 +48,6 @@ export default async function PatternsPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="patterns" active="patterns" />
-        <div className="page-masthead">
-          <TerminalPrompt name="Patterns" />
-        </div>
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"

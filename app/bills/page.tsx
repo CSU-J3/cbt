@@ -12,7 +12,6 @@ import {
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
-import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
   FEED_PAGE_SIZE,
@@ -212,9 +211,6 @@ async function BillsView({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="bills" />
-        <div className="page-masthead">
-          <TerminalPrompt name="Bills" />
-        </div>
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
         <section
           className="mb-3 flex flex-col gap-3"
@@ -421,9 +417,6 @@ async function NewsView({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="news" />
-        <div className="page-masthead">
-          <TerminalPrompt name="News" />
-        </div>
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
 
         <section

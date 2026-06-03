@@ -3,7 +3,6 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { LawsEnactedComparison } from "@/components/LawsEnactedComparison";
 import { Pagination } from "@/components/Pagination";
 import { ReportRow } from "@/components/ReportRow";
-import { TerminalPrompt } from "@/components/TerminalPrompt";
 import { formatWeekTitle } from "@/lib/report-generation";
 import { getReportCount, getReportsWithLead } from "@/lib/queries";
 
@@ -54,10 +53,6 @@ export default async function ReportsPage({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="reports" />
 
-        <div className="page-masthead">
-          <TerminalPrompt name="Reports" />
-          <p className="page-masthead-meta">Weekly digest · newest first</p>
-        </div>
 
         <section
           className="mb-4 border"
