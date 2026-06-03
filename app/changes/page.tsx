@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
+import { CeremonialToggle } from "@/components/CeremonialToggle";
 import {
   CHAMBER_SEGMENTS,
   SegmentedToggle,
 } from "@/components/SegmentedToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { SearchBox } from "@/components/SearchBox";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
@@ -76,6 +78,7 @@ export default async function ChangesPage({
         basePath="/changes"
         countMode="changes"
         changesCounts={counts}
+        pageOwnsControls
       />
 
       <main className="w-full flex-1 px-4 py-4">
@@ -119,6 +122,13 @@ export default async function ChangesPage({
               return qs ? `/changes?${qs}` : "/changes";
             }}
           />
+          {/* HO 187 sub-stage 4: search + ceremonial relocated here from
+              HeaderBar's transitional legacy band (suppressed by
+              pageOwnsControls above). */}
+          <div className="control-search">
+            <SearchBox basePath="/changes" compact />
+          </div>
+          <CeremonialToggle checked={includeCeremonial} />
           {hasFilters ? (
             <Link
               href={(() => {

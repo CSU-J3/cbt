@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
+import { CeremonialToggle } from "@/components/CeremonialToggle";
 import {
   CHAMBER_SEGMENTS,
   SegmentedToggle,
 } from "@/components/SegmentedToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { SearchBox } from "@/components/SearchBox";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
@@ -82,6 +84,7 @@ export default async function StalePage({
         basePath="/stale"
         countMode="stale"
         staleCounts={counts}
+        pageOwnsControls
       />
 
       <main className="w-full flex-1 px-4 py-4">
@@ -141,6 +144,13 @@ export default async function StalePage({
             cluster={cluster}
             basePath="/stale"
           />
+          {/* HO 187 sub-stage 4: search + ceremonial relocated here from
+              HeaderBar's transitional legacy band (suppressed by
+              pageOwnsControls above). */}
+          <div className="control-search">
+            <SearchBox basePath="/stale" compact />
+          </div>
+          <CeremonialToggle checked={includeCeremonial} />
           {hasFilters ? (
             <Link
               href={(() => {
