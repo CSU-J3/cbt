@@ -191,6 +191,37 @@ body {
 .legend-pagination-pager {
   margin-left: auto;
 }
+/* HO 187: topic-chip full-name hover popover — tape-style (instant CSS, no JS
+   delay), the full topic name in that topic's color (set inline per chip). On
+   the filter chips only; the per-row TopicTags use the portal Tooltip (their
+   row truncates, which would clip an absolute popover). */
+.topic-hover {
+  position: relative;
+  display: inline-flex;
+}
+.topic-hover-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: none;
+  white-space: nowrap;
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 5px 9px;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+.topic-hover:hover .topic-hover-pop,
+.topic-hover:focus-within .topic-hover-pop {
+  display: block;
+}
 
 /* ---- Mobile nav drawer (HO 156 Phase 2 — currently DORMANT) ---------- */
 /* One client island mounted in both HeaderBar and HomeHeader, kept in the

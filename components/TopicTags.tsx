@@ -28,6 +28,7 @@ export function TopicTags({
               kind: "text",
               label: topicLabel(t),
               body: topicFullLabel(t),
+              bodyColor: topicColor(t),
             }}
           >
             <span style={{ color: topicColor(t) }}>{topicLabel(t)}</span>
@@ -55,6 +56,7 @@ export function TopicTags({
             kind: "text",
             label: topicLabel(first),
             body: topicFullLabel(first),
+            bodyColor: topicColor(first),
           }}
         >
           <span style={{ color: topicColor(first) }}>

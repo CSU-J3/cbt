@@ -24,7 +24,14 @@ import {
 const HOVER_IN_DELAY_MS = 400;
 
 export type TooltipContent =
-  | { kind: "text"; label?: string; body: string }
+  | {
+      kind: "text";
+      label?: string;
+      body: string;
+      /** HO 187: color the body text (e.g. a topic acronym's full name in that
+       *  topic's color). Defaults to the panel's --text-secondary. */
+      bodyColor?: string;
+    }
   | {
       kind: "data";
       label?: string;
@@ -87,7 +94,12 @@ function TooltipPanel({
         <div className="tooltip-panel-label">{content.label}</div>
       ) : null}
       {content.kind === "text" ? (
-        <div className="tooltip-panel-body">{content.body}</div>
+        <div
+          className="tooltip-panel-body"
+          style={content.bodyColor ? { color: content.bodyColor } : undefined}
+        >
+          {content.body}
+        </div>
       ) : (
         <div className="tooltip-panel-body tooltip-panel-data">
           <span className="tabular-nums">

@@ -60,16 +60,24 @@ export function TopicFilter({
           ? { backgroundColor: color, color: "#0a0e14", borderColor: color }
           : { color, borderColor: color };
         return (
-          <Link
-            key={t}
-            href={href}
-            scroll={false}
-            title={topicFullLabel(t)}
-            className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
-            style={style}
-          >
-            {topicLabel(t)}
-          </Link>
+          // HO 187: instant tape-style colored hover popover (replaces the slow
+          // browser `title`) — the full topic name in that topic's color. The
+          // filter chips aren't inside a clipping container, so a CSS popover
+          // works here; the per-row TopicTags use the portal Tooltip instead
+          // (their row truncates, which would clip an absolute popover).
+          <span key={t} className="topic-hover">
+            <Link
+              href={href}
+              scroll={false}
+              className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+              style={style}
+            >
+              {topicLabel(t)}
+            </Link>
+            <span className="topic-hover-pop" aria-hidden style={{ color }}>
+              {topicFullLabel(t)}
+            </span>
+          </span>
         );
       })}
     </div>
