@@ -12,8 +12,8 @@ import { type MouseEvent, useCallback, useMemo, useRef, useState } from "react";
 //
 // Click behavior (HO 132.1):
 //   - Each clickable bubble is wrapped in an SVG <a href> pointing to
-//     the equivalent /feed view. Cmd/ctrl/shift/alt-click and middle/
-//     aux-click preserve the browser-native behavior (open /feed in a
+//     the equivalent /bills view. Cmd/ctrl/shift/alt-click and middle/
+//     aux-click preserve the browser-native behavior (open /bills in a
 //     new tab).
 //   - Plain click: preventDefault, then router.push("/?…") with the
 //     current dimension's param toggled while every other param is
@@ -96,7 +96,7 @@ export function DashboardBubbleChart({
   const clearHover = useCallback(() => setHover(null), []);
 
   const buildHref = useCallback(
-    (basePath: "/" | "/feed", value: string | null): string => {
+    (basePath: "/" | "/bills", value: string | null): string => {
       const next = new URLSearchParams(params.toString());
       if (value === null) next.delete(paramKey);
       else next.set(paramKey, value);
@@ -127,7 +127,7 @@ export function DashboardBubbleChart({
     dashboardHref: string,
   ) {
     // Modifier-held or non-primary click: let the browser open the
-    // /feed href natively (new tab, etc.) — no soft routing.
+    // /bills href natively (new tab, etc.) — no soft routing.
     if (
       e.metaKey ||
       e.ctrlKey ||
@@ -158,11 +158,11 @@ export function DashboardBubbleChart({
             ? `${datum.label}, no bills`
             : `${datum.label}, ${datum.count.toLocaleString()} bills`;
 
-          // The /feed href is the cmd-click destination (always applies
+          // The /bills href is the cmd-click destination (always applies
           // this bubble's filter). The dashboard href is the soft-route
           // destination: setting the value on a new bubble, or dropping
           // the param when re-clicking the selected one.
-          const feedHref = buildHref("/feed", datum.id);
+          const feedHref = buildHref("/bills", datum.id);
           const dashboardHref = isSelected
             ? buildHref("/", null)
             : buildHref("/", datum.id);

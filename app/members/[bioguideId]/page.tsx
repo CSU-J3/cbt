@@ -261,7 +261,7 @@ export default async function MemberPage({
                 </h2>
                 {stats.billsSponsored > bills.length ? (
                   <Link
-                    href={`/feed?sponsor=${encodeURIComponent(member.bioguideId)}`}
+                    href={`/bills?sponsor=${encodeURIComponent(member.bioguideId)}`}
                     className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
                     style={{ color: "var(--accent-amber)" }}
                   >

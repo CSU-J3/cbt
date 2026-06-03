@@ -6,7 +6,7 @@ import Link from "next/link";
 // inside the row's main Link wrapper (a nested anchor would be invalid HTML
 // and break keyboard semantics). HO 151 added the ⚡ glyph prefix so the
 // chip reads as a marker, not a bare count, and pointed the click target
-// at /feed?mode=news&bill=<id> — NEWS mode is now the canonical news
+// at /bills?mode=news&bill=<id> — NEWS mode is now the canonical news
 // rendering surface (/news redirects in).
 //
 // HO 148 added stopPropagation so a click here doesn't bubble up to the
@@ -25,7 +25,7 @@ export function MediaAttentionCell({
   const label = `${count} news mention${count === 1 ? "" : "s"}, last 7 days`;
   return (
     <Link
-      href={`/feed?mode=news&bill=${encodeURIComponent(billId)}`}
+      href={`/bills?mode=news&bill=${encodeURIComponent(billId)}`}
       className="row-media"
       title={label}
       aria-label={label}

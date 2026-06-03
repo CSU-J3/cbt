@@ -4,7 +4,7 @@ import { ALLOWED_TOPICS } from "@/lib/enums";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import { NEWS_WINDOW_HOURS, type NewsWindowHours } from "@/lib/queries";
 
-// HO 151 — filter bar for /feed?mode=news. Single-select chips for
+// HO 151 — filter bar for /bills?mode=news. Single-select chips for
 // SOURCE / TOPIC / WINDOW (the news universe is small enough today that
 // single-select beats the multi-select comma URL the BILLS-mode
 // TopicFilter uses; switching to a comma-list is a future toggle if
@@ -58,7 +58,7 @@ export function NewsFilters({
     }
     sp.delete("page");
     const qs = sp.toString();
-    return qs ? `/feed?${qs}` : "/feed";
+    return qs ? `/bills?${qs}` : "/bills";
   };
 
   return (

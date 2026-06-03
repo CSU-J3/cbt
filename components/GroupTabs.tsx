@@ -20,7 +20,7 @@ type GroupTab = {
 
 export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   feed: [
-    { slug: "bills", label: "Bills", href: "/feed" },
+    { slug: "bills", label: "Bills", href: "/bills" },
     { slug: "news", label: "News", href: "/news" },
     { slug: "reports", label: "Reports", href: "/reports" },
     { slug: "changes", label: "Changes", href: "/changes" },

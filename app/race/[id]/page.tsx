@@ -42,7 +42,7 @@ export default async function RacePage({
               race id: {id}
             </p>
             <Link
-              href="/feed"
+              href="/bills"
               className="mt-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
@@ -69,7 +69,7 @@ export default async function RacePage({
 
       <main className="w-full flex-1 px-4 py-4">
         <Link
-          href={incumbent ? `/members/${incumbent.bioguideId}` : "/feed"}
+          href={incumbent ? `/members/${incumbent.bioguideId}` : "/bills"}
           className="mb-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
           style={{ color: "var(--text-dim)" }}
         >

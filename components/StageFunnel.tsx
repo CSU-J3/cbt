@@ -10,7 +10,7 @@ import type { Stage } from "@/lib/enums";
 // inside their track so the row stack reads as the classic bottleneck
 // shape — widest at COMMITTEE, narrowing toward both ends. Click toggles
 // `?stage=<id>` exactly like the prior bubble; cmd/ctrl/shift/alt-click
-// keeps the browser-native /feed escape via the wrapping <a href>.
+// keeps the browser-native /bills escape via the wrapping <a href>.
 
 type StageBar = {
   stage: Stage;

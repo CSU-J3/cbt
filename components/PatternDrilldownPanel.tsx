@@ -23,7 +23,7 @@ function partyColor(party: string | null): string {
 
 // Slides in below the bubble SVG when a cluster is selected. Headline line
 // summarizes the pattern, sponsor mini-bar surfaces the leaders behind it,
-// and the feed-link closes the drill-out path (returns to /feed filtered
+// and the feed-link closes the drill-out path (returns to /bills filtered
 // to this cluster, the existing HO 51 convention).
 export async function PatternDrilldownPanel({
   clusterId,
@@ -124,7 +124,7 @@ export async function PatternDrilldownPanel({
       ) : null}
 
       <Link
-        href={`/feed?cluster=${encodeURIComponent(clusterId)}`}
+        href={`/bills?cluster=${encodeURIComponent(clusterId)}`}
         className="pattern-drilldown-feed-link"
       >
         [ View all {total.toLocaleString()} bills in feed → ]

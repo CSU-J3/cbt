@@ -43,7 +43,7 @@ export function NewsRow({
   const tn = billTypeAndNumber(mention.billId);
   const billLabel = tn ? formatBillId(tn.type, tn.number) : mention.billId;
   // The bill ID always links to the bill hub (/bill/[id]). HO 155: the old
-  // non-detail branch pointed at /feed?expanded=<billId>, but the feed runs
+  // non-detail branch pointed at /bills?expanded=<billId>, but the feed runs
   // on pure client state and never reads `?expanded=` (HO 148), so that
   // target opened nothing. All callers already used the detail link.
   const billHref = `/bill/${encodeURIComponent(mention.billId)}`;

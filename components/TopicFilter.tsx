@@ -38,7 +38,7 @@ export function TopicFilter({
   chamber,
   ceremonial,
   cluster,
-  basePath = "/feed",
+  basePath = "/bills",
 }: {
   selected: string[];
   stage: string | undefined;

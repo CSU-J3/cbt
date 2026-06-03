@@ -13,7 +13,7 @@ async function main() {
 
   console.log(`\nrepresentative query: "${Q}"\n`);
 
-  // 1. BILLS — mirror the existing /feed?q= LIKE clause exactly.
+  // 1. BILLS — mirror the existing /bills?q= LIKE clause exactly.
   console.log("--- 1. BILLS count ---");
   const bills = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM bills

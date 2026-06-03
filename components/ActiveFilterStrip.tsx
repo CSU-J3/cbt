@@ -3,7 +3,7 @@ import type { DashboardFilters } from "@/lib/queries";
 
 // Renders between HeaderBar and the dashboard grid. Hidden entirely when no
 // filter is active. Provides the two escapes from a filtered dashboard:
-// clear back to /, or carry the filters into the full /feed list.
+// clear back to /, or carry the filters into the full /bills list.
 export function ActiveFilterStrip({
   filters,
 }: {
@@ -15,7 +15,7 @@ export function ActiveFilterStrip({
   const feedParams = new URLSearchParams();
   if (stage) feedParams.set("stage", stage);
   if (topic) feedParams.set("topics", topic);
-  const feedHref = `/feed?${feedParams.toString()}`;
+  const feedHref = `/bills?${feedParams.toString()}`;
 
   return (
     <div className="active-filter-strip">
@@ -45,7 +45,7 @@ export function ActiveFilterStrip({
           × Clear
         </Link>
         <Link href={feedHref} className="active-filter-link">
-          View in /feed →
+          View in /bills →
         </Link>
       </span>
     </div>

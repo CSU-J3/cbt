@@ -81,7 +81,7 @@ export default async function FeedPage({
     }
     if (next === "news") sp.set("mode", "news");
     const qs = sp.toString();
-    return qs ? `/feed?${qs}` : "/feed";
+    return qs ? `/bills?${qs}` : "/bills";
   };
 
   const toggle = (
@@ -197,21 +197,21 @@ async function BillsView({
   if (includeCeremonial) clearSearchParams.set("ceremonial", "1");
   if (cluster) clearSearchParams.set("cluster", cluster);
   const clearSearchHref = clearSearchParams.toString()
-    ? `/feed?${clearSearchParams.toString()}`
-    : "/feed";
+    ? `/bills?${clearSearchParams.toString()}`
+    : "/bills";
 
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar
         feedFilters={feedFilters}
         feedFilteredCount={filteredCount}
-        basePath="/feed"
+        basePath="/bills"
       />
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="bills" />
         <div className="page-masthead">
-          <TerminalPrompt name="Feed" />
+          <TerminalPrompt name="Bills" />
         </div>
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
         <section
@@ -239,7 +239,7 @@ async function BillsView({
                 if (value) sp.set("chamber", value);
                 else sp.delete("chamber");
                 const qs = sp.toString();
-                return qs ? `/feed?${qs}` : "/feed";
+                return qs ? `/bills?${qs}` : "/bills";
               }}
             />
             <span
@@ -247,7 +247,7 @@ async function BillsView({
               style={{ color: "var(--text-dim)" }}
             >
               Sort
-              <SortDropdown current={sort} basePath="/feed" />
+              <SortDropdown current={sort} basePath="/bills" />
             </span>
             {hasFilters ? (
               <Link
@@ -257,7 +257,7 @@ async function BillsView({
                   if (includeCeremonial) sp.set("ceremonial", "1");
                   if (cluster) sp.set("cluster", cluster);
                   const qs = sp.toString();
-                  return qs ? `/feed?${qs}` : "/feed";
+                  return qs ? `/bills?${qs}` : "/bills";
                 })()}
                 className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
                 style={{ color: "var(--text-dim)" }}
@@ -288,7 +288,7 @@ async function BillsView({
             currentPage={currentPage}
             totalPages={totalPages}
             carry={carry}
-            basePath="/feed"
+            basePath="/bills"
           />
         </section>
 
@@ -343,7 +343,7 @@ async function BillsView({
                 currentPage={currentPage}
                 totalPages={totalPages}
                 carry={carry}
-                basePath="/feed"
+                basePath="/bills"
               />
             </>
           )}
@@ -410,7 +410,7 @@ async function NewsView({
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar
-        basePath="/feed"
+        basePath="/bills"
         pageTitle="News mentions"
         pageCount={total}
         pageCountLabel="mentions"
@@ -419,7 +419,7 @@ async function NewsView({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="news" />
         <div className="page-masthead">
-          <TerminalPrompt name="Feed" />
+          <TerminalPrompt name="News" />
         </div>
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
 
@@ -438,7 +438,7 @@ async function NewsView({
             currentPage={currentPage}
             totalPages={totalPages}
             carry={newsCarry}
-            basePath="/feed"
+            basePath="/bills"
           />
         </section>
 
@@ -473,7 +473,7 @@ async function NewsView({
               currentPage={currentPage}
               totalPages={totalPages}
               carry={newsCarry}
-              basePath="/feed"
+              basePath="/bills"
             />
           </div>
         )}

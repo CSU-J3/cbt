@@ -7,7 +7,7 @@ import Link from "next/link";
 // the BILLS|NEWS feed-mode toggle and (after HO 154.3) every chamber +
 // metric toggle in the app. Per the HO 154 cleanup decision, the
 // previously bespoke ChamberToggle was deleted and its 4 callers
-// (/feed, /changes, /stale, /watchlist) now mount SegmentedToggle
+// (/bills, /changes, /stale, /watchlist) now mount SegmentedToggle
 // directly with CHAMBER_SEGMENTS below.
 
 export type Segment<V extends string> = {

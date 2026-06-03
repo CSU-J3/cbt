@@ -18,7 +18,7 @@ type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
 type HeaderVariant = "feed" | "dashboard";
 
 // HO 131 / 134: shared nav-item config consumed by both HeaderNav
-// (top-right chrome on /feed-shaped pages) and HomeHeader (under-title
+// (top-right chrome on /bills-shaped pages) and HomeHeader (under-title
 // row on /). HO 134 collapsed 12 individual destinations to a handful of
 // group landings — every secondary destination now lives inside a GroupTabs
 // strip on the group landing page. NavItemKey mirrors NavKey from
@@ -41,7 +41,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
-  { key: "feed", href: "/feed", icon: "▤", label: "Bills|News", tooltip: "Bills, news, stage changes, and the president's desk" },
+  { key: "feed", href: "/bills", icon: "▤", label: "Bills|News", tooltip: "Bills, news, stage changes, and the president's desk" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "races", href: "/races", icon: "🗳", label: "Races", tooltip: "Competitive 2026 races and forecaster ratings" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },

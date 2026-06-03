@@ -22,7 +22,7 @@ export function StageFilter({
   chamber,
   ceremonial,
   cluster,
-  basePath = "/feed",
+  basePath = "/bills",
   availableStages = ALLOWED_STAGES,
 }: {
   current: string | undefined;

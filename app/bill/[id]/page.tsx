@@ -267,7 +267,7 @@ export default async function BillDetailPage({
               Congress.gov ↗
             </a>
             <a
-              href="/feed"
+              href="/bills"
               className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
               style={{
                 color: "var(--text-dim)",

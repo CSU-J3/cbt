@@ -97,7 +97,7 @@ export type FeedFilters = {
   chamber?: Chamber;
   includeCeremonial?: boolean;
   cluster?: string;
-  // HO 151: set to "asc" when /feed?stage=president is the sole stage and
+  // HO 151: set to "asc" when /bills?stage=president is the sole stage and
   // no explicit ?sort is provided — preserves the legacy /president
   // oldest-at-desk-first ordering. Internal-only; never written by URL
   // params and not surfaced in SortDropdown.
@@ -1982,7 +1982,7 @@ export const getBreakingNewsForHomeCount = unstable_cache(
 );
 
 // ---- HO 151 NEWS-mode feed -------------------------------------------- //
-// The /feed?mode=news view's data layer. Modeled on getBreakingNewsForHome
+// The /bills?mode=news view's data layer. Modeled on getBreakingNewsForHome
 // (same dedup-by-article-key + confidence floor + ceremonial gate), with
 // SOURCE / WINDOW / per-bill filters plus pagination so the same article
 // universe the dashboard BREAKING block shows can be browsed in full.

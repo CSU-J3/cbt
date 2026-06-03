@@ -5,18 +5,18 @@ import { useEffect, useState } from "react";
 
 // HO 129: SearchBox now decides where to route based on the current
 // pathname, not the basePath prop:
-//   - /feed and /members own a native ?q= filter on the same page;
+//   - /bills and /members own a native ?q= filter on the same page;
 //     stay inline so existing filter state is preserved.
 //   - anywhere else, route to /search for the global tabbed search.
-// `basePath` becomes the inline-stay destination (defaults to /feed) and
-// is otherwise unused. /feed bookmarks (`/feed?q=…`) keep working
+// `basePath` becomes the inline-stay destination (defaults to /bills) and
+// is otherwise unused. /bills bookmarks (`/bills?q=…`) keep working
 // unchanged because the receiving page hasn't moved.
 function isInlinePath(pathname: string): boolean {
-  return pathname.startsWith("/feed") || pathname.startsWith("/members");
+  return pathname.startsWith("/bills") || pathname.startsWith("/members");
 }
 
 export function SearchBox({
-  basePath = "/feed",
+  basePath = "/bills",
   placeholder = "search bills...",
 }: { basePath?: string; placeholder?: string } = {}) {
   const router = useRouter();
