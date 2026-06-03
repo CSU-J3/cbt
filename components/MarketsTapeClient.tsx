@@ -24,6 +24,7 @@
 // always-present slots; the hover-detail popover is also added here (HO 175).
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { MarketTick } from "@/lib/queries";
+import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
 // HO 168: target marquee speed. The duration is computed from the measured
@@ -79,17 +80,6 @@ function formatPrice(price: number, format: MarketTick["format"]): string {
 function formatChangePct(pct: number): string {
   const abs = Math.abs(pct).toFixed(2);
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
-}
-
-// HO 169: 12-hour with AM/PM (UTC zone kept). e.g. "3:33 PM".
-function formatHHMM(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const m = d.getUTCMinutes().toString().padStart(2, "0");
-  const h24 = d.getUTCHours();
-  const period = h24 >= 12 ? "PM" : "AM";
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${m} ${period}`;
 }
 
 function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
@@ -198,6 +188,15 @@ export function MarketsTapeClient({
     () => new Set(placeholderSymbols ?? ticks.map((t) => t.symbol)),
     [placeholderSymbols, ticks],
   );
+
+  // HO 183: the AS OF stamp cycles through US zones (ET→CT→MT→PT→UTC). The hook
+  // is clock-derived, so this tape and the masthead LAST SYNC show the same zone
+  // at the same instant. Display-only — it changes only the meta text (not the
+  // track), so it never triggers the marquee re-measure (deps below exclude it)
+  // and the meta layer is position:absolute, so the zone-label width swap can't
+  // reflow the track. Reduced-motion pins it to MT. Called unconditionally even
+  // when showMeta is false (top tape) — hooks must not be conditional.
+  const zone = useZoneCycle();
 
   // Re-check staleness every minute so a long-lived dashboard tab eventually
   // flips to stale without needing a reload at the 26h boundary.
@@ -362,7 +361,7 @@ export function MarketsTapeClient({
       {showMeta ? (
         <div className="markets-tape-meta">
           <span className="markets-tape-stamp">
-            AS OF {formatHHMM(latestTickedAt)} UTC
+            AS OF {formatInZone(latestTickedAt, zone)}
             {stale ? (
               <span className="markets-tape-stale-flag"> · STALE</span>
             ) : null}

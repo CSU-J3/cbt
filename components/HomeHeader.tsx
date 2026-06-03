@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { NAV_ITEMS } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { TerminalPrompt } from "@/components/TerminalPrompt";
-import { formatLastUpdated } from "@/lib/format";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
 // Home-only header chrome. HO 178 reflow:
@@ -41,12 +41,15 @@ export async function HomeHeader() {
           </div>
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it
-              abbreviates to `· HH:MM MT · N BILLS` by dropping the
-              LAST SYNC / TRACKED affixes via .show-desktop (no size change). */}
+              abbreviates to `· HH:MM <ZONE> · N BILLS` by dropping the
+              LAST SYNC / TRACKED affixes via .show-desktop (no size change).
+              HO 183: the time token now cycles through US zones (ET→CT→MT→PT→
+              UTC) via CyclingTimestamp — the third named motion exception;
+              still cycles <700px (plain text, no cost). */}
           <p className="home-header-meta">
             ·{" "}
             <span className="show-desktop">LAST SYNC </span>
-            {formatLastUpdated(corpus.lastSync)} ·{" "}
+            <CyclingTimestamp iso={corpus.lastSync} /> ·{" "}
             {corpus.total.toLocaleString()} BILLS
             <span className="show-desktop"> TRACKED</span>
           </p>
