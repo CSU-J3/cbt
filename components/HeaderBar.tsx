@@ -261,7 +261,15 @@ export async function HeaderBar({
         {showCeremonialToggle ? (
           <CeremonialToggle checked={includeCeremonial} />
         ) : null}
+      </div>
 
+      {/* HO 185: nav on its OWN full-width row (mirroring HomeHeader's
+          .home-header-nav) instead of competing for width inside the masthead
+          row. The crowding — path column + 280px search + ceremonial toggle +
+          the 7-item nav all on one items-center line — squeezed the breadcrumb
+          column until the path wrapped and orphaned `>_`. Its own row gives the
+          path room to sit on one line at desktop width. */}
+      <div className="header-nav-row flex w-full items-center px-4 py-2">
         <HeaderNav active={pathToNavKey(basePath)} />
         <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
       </div>

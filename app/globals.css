@@ -94,8 +94,11 @@ body {
   margin-right: auto;
 }
 
-.header-nav {
-  margin-left: auto;
+/* HO 185: nav lives on its own full-width row below the masthead (see
+   .header-nav-row), so it left-aligns rather than pushing right with the old
+   margin-left:auto that right-anchored it in the single-row layout. */
+.header-nav-row {
+  border-top: 0.5px solid var(--border-soft);
 }
 
 /* ---- Mobile nav drawer (HO 156 Phase 2 — currently DORMANT) ---------- */
@@ -2441,9 +2444,6 @@ body {
     width: 100%;
     margin-left: 0;
     margin-right: 0;
-  }
-  .header-nav {
-    margin-left: auto;
   }
 }
 
