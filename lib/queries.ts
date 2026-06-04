@@ -555,12 +555,20 @@ export type SponsorProductivityRow = {
 export const getSponsorProductivity = unstable_cache(
   async (): Promise<SponsorProductivityRow[]> => {
     const db = getDb();
+    // HO 199: group on the stable bioguide_id and source the display fields
+    // (name/party/state/chamber) from the canonical `members` row, NOT the
+    // denormalized bill columns. Grouping on `sponsor_name` split a member into
+    // two rows when their bills carried two name spellings under one bioguide
+    // (Begich: 27 "Nicholas J." + 7 "Nicholas"). `members.bioguide_id` is the
+    // PK so m.* is single-valued per group; m.party is already the normalized
+    // R/D/I. No null-bioguide bills exist, so grouping by bioguide drops
+    // nothing (the WHERE now gates on bioguide instead of sponsor_name).
     const rs = await db.execute(`
       SELECT
         b.sponsor_bioguide_id AS bioguide_id,
-        b.sponsor_name AS name,
-        b.sponsor_party AS party_raw,
-        b.sponsor_state AS state,
+        m.name AS name,
+        m.party AS party_raw,
+        m.state AS state,
         m.chamber AS chamber,
         COUNT(*) AS bill_count,
         SUM(CASE
@@ -574,9 +582,8 @@ export const getSponsorProductivity = unstable_cache(
         AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
         AND b.stage IS NOT NULL
         AND b.stage != 'other'
-        AND b.sponsor_name IS NOT NULL
-      GROUP BY b.sponsor_bioguide_id, b.sponsor_name, b.sponsor_party,
-               b.sponsor_state, m.chamber
+        AND b.sponsor_bioguide_id IS NOT NULL
+      GROUP BY b.sponsor_bioguide_id
       HAVING COUNT(*) >= 3
       ORDER BY bill_count DESC
     `);
@@ -3276,10 +3283,18 @@ export const getClusterDrilldown = unstable_cache(
         args: [clusterId],
       }),
       db.execute({
-        sql: `SELECT sponsor_name AS name, sponsor_party AS party, COUNT(*) AS n
+        // HO 199: dedupe by the stable bioguide (was GROUP BY sponsor_name,
+        // sponsor_party — which split a member whose bills carry two name
+        // spellings under one bioguide, same bug as the scatter). MAX(...)
+        // keeps the "Last, First [bracket]" shape this panel's shortSponsor()
+        // expects (members.name is directOrder and wouldn't shorten) while
+        // collapsing to one row per bioguide. No null-bioguide bills exist, so
+        // gating on bioguide drops nothing.
+        sql: `SELECT MAX(sponsor_name) AS name, MAX(sponsor_party) AS party,
+                     COUNT(*) AS n
               FROM bills
-              WHERE cluster_id = ? AND sponsor_name IS NOT NULL
-              GROUP BY sponsor_name, sponsor_party
+              WHERE cluster_id = ? AND sponsor_bioguide_id IS NOT NULL
+              GROUP BY sponsor_bioguide_id
               ORDER BY n DESC
               LIMIT 5`,
         args: [clusterId],
