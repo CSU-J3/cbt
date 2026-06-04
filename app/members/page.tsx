@@ -87,6 +87,8 @@ export default async function MembersPage({
   ]);
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const maxVolume = rows.reduce((m, r) => Math.max(m, r.total), 0);
+  // HO 196: page-level so the column-header row picks the middle (bar) label.
+  const isVolumeView = sort === "volume";
 
   const expandedParam =
     typeof params.expanded === "string" ? params.expanded : undefined;
@@ -290,7 +292,19 @@ export default async function MembersPage({
               No members match
             </div>
           ) : (
-            <ol>
+            <>
+              {/* HO 196: column headers — middle (bar) label swaps with the
+                  active sort. Same grid as .sponsor-bar-row so labels align. */}
+              <div className="sponsor-bar-header">
+                <span aria-hidden />
+                <span className="h-right">#</span>
+                <span>MEMBER</span>
+                <span>{isVolumeView ? "BILLS" : "PASS RATE"}</span>
+                <span className="h-right">RATE</span>
+                <span className="h-right">ENACT</span>
+                <span className="h-right">BILLS</span>
+              </div>
+              <ol>
               {rows.map((m, i) => {
                 const volPct = maxVolume > 0 ? (m.total / maxVolume) * 100 : 0;
                 const rateLabel =
@@ -301,7 +315,13 @@ export default async function MembersPage({
                 const enactedColor = "var(--stage-enacted)";
                 const isExpanded = expansion?.key === m.bioguide_id;
                 const rankNumber = (page - 1) * PAGE_SIZE + i + 1;
-                const isEmpty = m.total === 0;
+                // HO 196: ONE bar, meaning follows the active sort. VOLUME →
+                // party-colored, length = count/max-in-view; PASS RATE → green,
+                // length = enacted %. Track is always full-width so fills
+                // compare row-to-row; barPct=0 leaves the track empty.
+                const isVolume = sort === "volume";
+                const barColor = isVolume ? partyColor : enactedColor;
+                const barPct = isVolume ? volPct : ratePct;
                 return (
                   <li key={m.bioguide_id}>
                     <Link
@@ -327,6 +347,7 @@ export default async function MembersPage({
                       >
                         {rankNumber}
                       </span>
+                      {/* MEMBER: name + party-colored [PARTY-STATE] bracket */}
                       <span className="flex min-w-0 items-center gap-2">
                         <span
                           title={m.name}
@@ -334,6 +355,12 @@ export default async function MembersPage({
                           style={{ color: "var(--text-primary)" }}
                         >
                           {m.name}
+                        </span>
+                        <span
+                          className="shrink-0 text-[12px] tabular-nums"
+                          style={{ color: partyColor }}
+                        >
+                          [{m.party ?? "?"}-{m.state ?? "?"}]
                         </span>
                         {m.palestineGrade &&
                         isPalestineGrade(m.palestineGrade) ? (
@@ -345,60 +372,57 @@ export default async function MembersPage({
                           </span>
                         ) : null}
                       </span>
-                      <span className="sponsor-bars">
-                        <span className="sponsor-bar-line">
-                          <span className="sponsor-bar-track">
-                            {isEmpty ? null : (
-                              <span
-                                className="sponsor-bar-fill"
-                                style={{
-                                  width: `${volPct}%`,
-                                  backgroundColor: partyColor,
-                                }}
-                                aria-hidden
-                              />
-                            )}
-                          </span>
+
+                      {/* BAR: single, meaning follows the active sort */}
+                      <span className="sponsor-bar-track">
+                        {barPct > 0 ? (
                           <span
-                            className="text-right text-[12px] tabular-nums"
-                            style={{ color: "var(--text-secondary)" }}
-                          >
-                            {m.total.toLocaleString()}
-                          </span>
-                        </span>
-                        <span className="sponsor-bar-line">
-                          <span className="sponsor-bar-track">
-                            {isEmpty ? null : (
-                              <span
-                                className="sponsor-bar-fill"
-                                style={{
-                                  width: `${ratePct}%`,
-                                  backgroundColor: enactedColor,
-                                }}
-                                aria-hidden
-                              />
-                            )}
-                          </span>
-                          <span
-                            className="text-right text-[12px] tabular-nums"
+                            className="sponsor-bar-fill"
                             style={{
-                              color: isEmpty
-                                ? "var(--text-dim)"
-                                : "var(--text-secondary)",
+                              width: `${barPct}%`,
+                              backgroundColor: barColor,
                             }}
-                          >
-                            {rateLabel}
-                          </span>
-                        </span>
+                            aria-hidden
+                          />
+                        ) : null}
                       </span>
+
+                      {/* RATE: green when >0, dim at 0 / no-data */}
                       <span
                         className="text-right text-[12px] tabular-nums"
-                        style={{ color: "var(--text-muted)" }}
+                        style={{
+                          color:
+                            ratePct > 0
+                              ? "var(--stage-enacted)"
+                              : "var(--text-dim)",
+                        }}
                       >
-                        <span style={{ color: "var(--stage-enacted)" }}>
-                          {m.enacted}✓
-                        </span>{" "}
-                        / {m.total}
+                        {rateLabel}
+                      </span>
+
+                      {/* ENACTED: N ✓ — secondary, dim at 0 */}
+                      <span
+                        className="text-right text-[12px] tabular-nums"
+                        style={{
+                          color:
+                            m.enacted > 0
+                              ? "var(--text-secondary)"
+                              : "var(--text-dim)",
+                        }}
+                      >
+                        {m.enacted} ✓
+                      </span>
+
+                      {/* BILLS: dim, emphasized to --text-primary when sorted by volume */}
+                      <span
+                        className="text-right text-[12px] tabular-nums"
+                        style={{
+                          color: isVolume
+                            ? "var(--text-primary)"
+                            : "var(--text-dim)",
+                        }}
+                      >
+                        {m.total.toLocaleString()}
                       </span>
                     </Link>
                     {isExpanded && expansion ? (
@@ -419,7 +443,8 @@ export default async function MembersPage({
                   </li>
                 );
               })}
-            </ol>
+              </ol>
+            </>
           )}
 
           <Pagination

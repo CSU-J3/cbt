@@ -2646,9 +2646,12 @@ body {
 
 /* ---- sponsor bar chart row -------------------------------------------- */
 /* Columns: chevron | rank | name | bars (volume + passrate) | suffix     */
+/* HO 196: 7-col row — chevron · # · MEMBER · BAR · RATE · ENACTED · BILLS.
+   The header row below shares this template so labels line up. */
 .sponsor-bar-row {
   display: grid;
-  grid-template-columns: 24px 36px minmax(0, 1.5fr) minmax(0, 4fr) 80px;
+  grid-template-columns:
+    20px 30px minmax(0, 1.6fr) minmax(0, 2.4fr) 46px 56px 50px;
   align-items: center;
   column-gap: 12px;
   padding: 7px 14px;
@@ -2661,24 +2664,29 @@ body {
 .sponsor-bar-row.is-expanded {
   background-color: var(--bg-row-hover);
 }
-.sponsor-bars {
+.sponsor-bar-header {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns:
+    20px 30px minmax(0, 1.6fr) minmax(0, 2.4fr) 46px 56px 50px;
+  align-items: center;
   column-gap: 12px;
-  row-gap: 4px;
-  align-items: center;
-  min-width: 0;
+  padding: 6px 14px;
+  border-bottom: 0.5px solid var(--border-strong);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
 }
-.sponsor-bar-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  column-gap: 8px;
-  align-items: center;
-  min-width: 0;
+.sponsor-bar-header .h-right {
+  text-align: right;
 }
+/* HO 196: single per-row bar (meaning follows the active sort). Track always
+   full-width so fills compare row-to-row; fill is party-colored (volume) or
+   green (pass rate). */
 .sponsor-bar-track {
   height: 12px;
-  background-color: var(--bg-base);
+  width: 100%;
+  background-color: #1a1f2e;
   border: 0.5px solid var(--border-soft);
   overflow: hidden;
 }
@@ -2688,13 +2696,12 @@ body {
 }
 
 @media (max-width: 700px) {
-  .sponsor-bar-row {
-    grid-template-columns: 18px 24px minmax(0, 1fr) minmax(0, 1.5fr) 56px;
+  .sponsor-bar-row,
+  .sponsor-bar-header {
+    grid-template-columns:
+      16px 22px minmax(0, 1.3fr) minmax(0, 1.6fr) 38px 44px 40px;
     column-gap: 6px;
     padding: 7px 8px;
-  }
-  .sponsor-bars {
-    grid-template-columns: 1fr;
   }
 }
 
