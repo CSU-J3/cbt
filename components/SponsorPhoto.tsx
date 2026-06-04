@@ -17,10 +17,14 @@ export function SponsorPhoto({
   bioguideId,
   name,
   partyColor,
+  // HO 198: the expanded member card uses a 96px photo; the member hub keeps
+  // the original 150px. Initials scale proportionally (36/150 ratio).
+  width = 150,
 }: {
   bioguideId: string | null;
   name: string;
   partyColor: string;
+  width?: number;
 }) {
   const [errored, setErrored] = useState(false);
   const url = bioguideId
@@ -30,8 +34,10 @@ export function SponsorPhoto({
   if (!url || errored) {
     return (
       <div
-        className="flex aspect-[3/4] w-[150px] shrink-0 items-center justify-center text-[36px] font-medium uppercase tracking-[1px]"
+        className="flex aspect-[3/4] shrink-0 items-center justify-center font-medium uppercase tracking-[1px]"
         style={{
+          width,
+          fontSize: Math.round(width * 0.24),
           backgroundColor: "var(--bg-base)",
           color: partyColor,
           border: `0.5px solid var(--border-strong)`,
@@ -50,8 +56,9 @@ export function SponsorPhoto({
       alt={name}
       loading="lazy"
       onError={() => setErrored(true)}
-      className="aspect-[3/4] w-[150px] shrink-0 object-cover"
+      className="aspect-[3/4] shrink-0 object-cover"
       style={{
+        width,
         backgroundColor: "var(--bg-base)",
         border: `0.5px solid var(--border-strong)`,
       }}

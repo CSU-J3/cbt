@@ -2514,6 +2514,9 @@ export type MemberRanking = {
   // (House, Republican senators, independents).
   palestineGrade: string | null;
   palestineRank: number | null;
+  // HO 200: USCPR total score (e.g. "57%") for the expanded-card scorecard
+  // detail. Same LEFT JOIN, one extra column — no new query. Null off-sheet.
+  palestineScore: string | null;
 };
 
 export type MemberParty = "D" | "R" | "I";
@@ -2612,7 +2615,8 @@ export const getMembersRanked = unstable_cache(
         COALESCE(b.enacted, 0) AS enacted,
         b.passrate             AS passrate,
         ps.grade               AS palestine_grade,
-        ps.rank                AS palestine_rank
+        ps.rank                AS palestine_rank,
+        ps.total_score         AS palestine_score
       FROM members m
       LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
       LEFT JOIN palestine_scorecard ps ON ps.bioguide_id = m.bioguide_id
@@ -2646,6 +2650,7 @@ export const getMembersRanked = unstable_cache(
         r.palestine_rank === null || r.palestine_rank === undefined
           ? null
           : Number(r.palestine_rank),
+      palestineScore: (r.palestine_score as string | null) ?? null,
     }));
   },
   ["getMembersRanked"],

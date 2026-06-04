@@ -2709,8 +2709,75 @@ body {
   background-color: var(--bg-row-hover);
   border-left: 2px solid var(--accent-amber);
   border-bottom: 0.5px solid var(--border-strong);
-  padding: 16px 16px 16px 30px;
   margin-left: 24px; /* align under name column */
+}
+
+/* HO 198: 3-column member card (HO 191 bill-panel idiom — column borders,
+   darker side rails): left rail (~200px) · middle recent-bills (1.5fr) ·
+   right committees (1fr). */
+.sponsor-card-grid {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: stretch;
+  width: 100%;
+}
+/* All three columns share the panel's --bg-row-hover base — no per-column
+   background, so the boundaries read as intentional dividers, not color seams
+   (the HO 191 bill panel keeps one continuous surface the same way). The
+   border-right lines are the column dividers; the columns abut (no gap) so the
+   line reads as a clean divider on one surface. */
+.sponsor-card-rail,
+.sponsor-card-mid,
+.sponsor-card-right {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.sponsor-card-rail {
+  gap: 10px;
+}
+.sponsor-card-rail,
+.sponsor-card-mid {
+  border-right: 1px solid var(--border-strong);
+}
+.sponsor-card-btn {
+  display: block;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  padding: 5px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+}
+.sponsor-card-btn--amber {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+}
+.sponsor-card-btn--amber:hover {
+  border-color: var(--accent-amber-bright);
+  color: var(--accent-amber-bright);
+}
+.sponsor-card-btn--soft {
+  color: var(--text-muted);
+}
+.sponsor-card-btn--soft:hover {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
+}
+/* Mobile stack — full <700 treatment deferred (HO 198), this just prevents a
+   broken 3-col on phones. */
+@media (max-width: 700px) {
+  .sponsor-card-grid {
+    grid-template-columns: 1fr;
+  }
+  .sponsor-card-rail,
+  .sponsor-card-mid {
+    border-right: none;
+    border-bottom: 1px solid var(--border-strong);
+  }
 }
 
 /* ---- member hub (handoff 60) ------------------------------------------ */

@@ -432,11 +432,15 @@ export default async function MembersPage({
                         sponsorParty={m.party}
                         sponsorState={m.state}
                         bioguideId={m.bioguide_id}
+                        chamber={m.chamber}
                         stats={expansion.stats}
                         topics={expansion.topics}
                         recentBills={expansion.recentBills}
                         committees={expansion.committees}
                         affiliations={expansion.affiliations}
+                        palestineGrade={m.palestineGrade}
+                        palestineRank={m.palestineRank}
+                        palestineScore={m.palestineScore}
                         includeCeremonial={includeCeremonial}
                       />
                     ) : null}
