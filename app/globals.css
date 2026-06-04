@@ -105,7 +105,9 @@ body {
   border-bottom: 1px solid var(--border-strong);
 }
 .header-titlebar .breadcrumb-path {
-  font-size: 16px;
+  /* HO 187: the path is the page identity — it must read as the title and
+     dominate the bar. Clearly larger than the nav (13px) to its right. */
+  font-size: 20px;
 }
 .header-titlebar-nav {
   margin-left: auto;
