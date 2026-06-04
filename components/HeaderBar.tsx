@@ -171,18 +171,20 @@ export async function HeaderBar({
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
         />
-        <div className="header-titlebar-nav">
-          <HeaderNav active={pathToNavKey(basePath)} />
-          <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
-        </div>
-      </div>
-
-      {/* Band 2 — SYNC STRIP: the thin updated/count line (no pagination — that
-          moved to band 5). "updated MT" stays static (the cycling stamp lives on
-          the dashboard masthead + the tape, both absent here). */}
-      <div className="header-sync">
-        <span>
-          {pageTitle ? (
+        {/* HO 189: sync inline after the breadcrumb cursor
+            (`…Bills>_ · N BILLS · UPDATED MT`); the HO 187 standalone band is
+            gone. The span ALWAYS renders with `flex: 1 1 0` — basis 0 so its
+            content width never triggers the nav to wrap; it grows to fill the
+            path→nav gap and ellipsis-truncates when the gap is tight (the sync
+            gives first; the nav wraps only when path+nav alone overflow). Empty
+            on detail pages (deep paths, corpus count isn't page-specific) — it
+            still flex-grows to keep the nav right-aligned, just shows nothing
+            (no dangling ellipsis). */}
+        <span className="header-titlebar-sync">
+          {detail ? null : (
+            <>
+            {" · "}
+            {pageTitle ? (
               <>
                 <span style={{ color: "var(--accent-amber)" }}>
                   {pageTitle}
@@ -254,8 +256,14 @@ export async function HeaderBar({
             )}
             <span> · </span>
             updated {formatLastUpdated(stats.lastUpdated)}
-          </span>
+            </>
+          )}
+        </span>
+        <div className="header-titlebar-nav">
+          <HeaderNav active={pathToNavKey(basePath)} />
+          <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
         </div>
+      </div>
 
       {/* Transitional (HO 187): feed pages that haven't built their own band-3
           control strip yet (/changes, /stale until their sub-stage) still get

@@ -100,7 +100,11 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-xs) var(--space-md);
+  /* HO 189: column-gap 0 — the sync's leading `· ` spaces it from the path and
+     its flex-grow fills the gap to the nav, so an extra item-gap would just push
+     a razor-thin deep path + nav over the edge and wrap the nav. row-gap kept
+     for the wrapped-nav case. */
+  gap: var(--space-xs) 0;
   padding: 10px var(--space-lg);
   border-bottom: 1px solid var(--border-strong);
 }
@@ -110,14 +114,24 @@ body {
   font-size: 20px;
 }
 .header-titlebar-nav {
-  margin-left: auto;
   display: flex;
   align-items: center;
+  /* HO 189: protected — never shrinks and no auto-margin (the sync's flex-grow
+     fills the gap and pushes the nav right). */
+  flex-shrink: 0;
 }
-/* Band 2 — SYNC STRIP: thin updated/count line. */
-.header-sync {
-  padding: 5px var(--space-lg);
-  border-bottom: 0.5px solid var(--border-soft);
+/* HO 189: sync line, now INLINE in the title bar after the cursor (the HO 187
+   standalone band is gone). Lowest-priority element — flex:0 1 auto + min-width:0
+   + ellipsis so it truncates/collapses before the nav wraps (nav flex-shrink:0)
+   or the path gives. 10px dim uppercase, matching the old band's text. */
+.header-titlebar-sync {
+  /* basis 0 so the sync's content width never forces the nav to wrap; grows to
+     fill the path→nav gap and ellipsis-truncates when the gap is tight. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 10px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
