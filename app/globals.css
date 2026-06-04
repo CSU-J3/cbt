@@ -1347,17 +1347,31 @@ body {
   min-width: 0;
   max-width: 100%;
 }
+/* HO 194: at-rest underline on the sponsor-name trigger so it reads as
+   interactive before hovering (the base bill-expanded-link only underlines on
+   hover). Scoped to the .sponsor-hover trigger so other bill-expanded-link uses
+   are untouched. Higher specificity than .bill-expanded-link, so this wins;
+   hover intensifies to amber-bright (the text also brightens via the base
+   rule). Solid 1px keeps the box height stable — no reflow. */
+.sponsor-hover > a {
+  border-bottom: 1px solid var(--accent-amber);
+}
+.sponsor-hover > a:hover,
+.sponsor-hover > a:focus-visible {
+  border-bottom-color: var(--accent-amber-bright);
+}
 .sponsor-hover-card {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
   z-index: 40;
   display: none;
-  align-items: center;
-  gap: 10px;
-  width: max-content;
-  max-width: 240px;
-  padding: 8px 10px;
+  /* HO 194: photo left + text right, text TOP-aligned to the photo. */
+  align-items: flex-start;
+  gap: 13px;
+  /* 320 = 12 pad + 120 photo + 13 gap + 163 text col + 12 pad */
+  width: 320px;
+  padding: 12px;
   background: var(--bg-row-hover);
   border: 1px solid var(--border-strong);
   border-radius: 5px;
@@ -1371,36 +1385,45 @@ body {
   display: flex;
 }
 .sponsor-hover-avatar {
-  width: 46px;
-  height: 60px;
+  /* HO 194: 120×144 (bioguide 5:6) — the dominant element, sets card height. */
+  width: 120px;
+  height: 144px;
   flex-shrink: 0;
   object-fit: cover;
   background-color: var(--bg-base);
-  border: 0.5px solid var(--border-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
 }
 .sponsor-hover-avatar--fallback {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 38px;
   font-weight: 500;
   letter-spacing: 1px;
 }
 .sponsor-hover-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
+  padding-top: 1px;
 }
 .sponsor-hover-name {
   font-size: 13px;
+  font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.3;
+  line-height: 1.25;
 }
 .sponsor-hover-party {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.5px;
+}
+.sponsor-hover-loc {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.2;
 }
 /* HO 191: full-width stage pipeline (replaces the HO 188 timeline strip).
    6 equal-width nodes; connector half-segments meet at each dot's center so

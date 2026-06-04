@@ -79,6 +79,14 @@ export type FeedBill = {
   // members.depiction_url in getFeedBills only; undefined-safe in rowToFeedBill
   // so other feed-shape queries degrade to null (no card off /bills).
   sponsor_depiction_url?: string | null;
+  // HO 194: clean member fields for the refined card's text (natural-order
+  // name + district). Same getFeedBills-only JOIN; sponsor_name's "Last, First
+  // [bracket]" is too noisy to parse (suffixes/nicknames), so thread the real
+  // columns. district is NULL for Senate and House at-large (chamber resolves
+  // the two via bill_type).
+  sponsor_first_name?: string | null;
+  sponsor_last_name?: string | null;
+  sponsor_district?: number | null;
 };
 
 export type BillDetail = FeedBill & {
@@ -2300,6 +2308,9 @@ export const getFeedBills = unstable_cache(
       summary, topics, stage, stage_changed_at,
       sponsor_bioguide_id, cosponsor_count,
       msp.depiction_url AS sponsor_depiction_url,
+      msp.first_name AS sponsor_first_name,
+      msp.last_name AS sponsor_last_name,
+      msp.district AS sponsor_district,
       ${MENTION_SELECT}
       FROM bills
       ${MENTION_SUBQUERY}
@@ -3048,6 +3059,19 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
       r.sponsor_depiction_url === undefined
         ? null
         : ((r.sponsor_depiction_url as string | null) ?? null),
+    // HO 194: undefined-safe — only getFeedBills SELECTs these.
+    sponsor_first_name:
+      r.sponsor_first_name === undefined
+        ? null
+        : ((r.sponsor_first_name as string | null) ?? null),
+    sponsor_last_name:
+      r.sponsor_last_name === undefined
+        ? null
+        : ((r.sponsor_last_name as string | null) ?? null),
+    sponsor_district:
+      r.sponsor_district === undefined || r.sponsor_district === null
+        ? null
+        : Number(r.sponsor_district),
   };
 }
 

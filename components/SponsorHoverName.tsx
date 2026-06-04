@@ -16,7 +16,14 @@
 // expandable /bills row is a div role=button; the panel is a div) — nesting an
 // anchor inside the compact/link-only row's <Link> would be invalid HTML.
 import { useState } from "react";
+import { ordinal } from "@/lib/format";
+import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
+
+// Sponsor's chamber == the bill's originating chamber, so bill_type gives the
+// Rep./Sen. prefix without threading a chamber field (and disambiguates a NULL
+// district: Senate vs House at-large).
+const SENATE_BILL_TYPES = new Set(["s", "sjres", "sconres", "sres"]);
 
 const PARTY_COLOR = {
   R: "var(--party-republican)",
@@ -91,11 +98,41 @@ export function SponsorHoverName({
   label: string;
   anchorClassName?: string;
 }) {
-  const name = bill.sponsor_name ?? "";
+  const rawName = bill.sponsor_name ?? "";
   const partyColor = partyColorFor(bill.sponsor_party);
-  const partyState = [bill.sponsor_party, bill.sponsor_state]
-    .filter(Boolean)
-    .join("-");
+  const isSenate = SENATE_BILL_TYPES.has(bill.bill_type);
+  const district = bill.sponsor_district ?? null;
+
+  // HO 194: natural-order "Rep./Sen. First Last" from the clean member fields
+  // (sponsor_name's "Last, First [bracket]" is too noisy to parse). Falls back
+  // to the raw sponsor_name if the member columns aren't present (degraded
+  // feeds, or a bioguide with no member row — ~0 in practice).
+  const haveName = bill.sponsor_first_name && bill.sponsor_last_name;
+  const prefix = isSenate ? "Sen." : "Rep.";
+  const displayName = haveName
+    ? `${prefix} ${bill.sponsor_first_name} ${bill.sponsor_last_name}`
+    : rawName;
+
+  // Party-state[-district] bracket: [R-MD-1] / [I-ME] / [R-WY-At Large].
+  const districtSeg =
+    district != null ? `-${district}` : isSenate ? "" : "-At Large";
+  const bracket =
+    bill.sponsor_party || bill.sponsor_state
+      ? `[${bill.sponsor_party ?? "?"}-${bill.sponsor_state ?? "?"}${districtSeg}]`
+      : null;
+
+  // Location line: "Maryland · 1st District" / "Wyoming · At-Large District" /
+  // "Massachusetts · Senate".
+  const seat =
+    district != null
+      ? `${ordinal(district)} District`
+      : isSenate
+        ? "Senate"
+        : "At-Large District";
+  const locLine = bill.sponsor_state
+    ? `${stateName(bill.sponsor_state)} · ${seat}`
+    : null;
+
   return (
     <span className="sponsor-hover">
       <a
@@ -108,15 +145,18 @@ export function SponsorHoverName({
       <span className="sponsor-hover-card" role="tooltip">
         <SponsorAvatar
           url={bill.sponsor_depiction_url ?? null}
-          name={name}
+          name={rawName}
           partyColor={partyColor}
         />
         <span className="sponsor-hover-info">
-          <span className="sponsor-hover-name">{name}</span>
-          {partyState ? (
+          <span className="sponsor-hover-name">{displayName}</span>
+          {bracket ? (
             <span className="sponsor-hover-party" style={{ color: partyColor }}>
-              {partyState}
+              {bracket}
             </span>
+          ) : null}
+          {haveName && locLine ? (
+            <span className="sponsor-hover-loc">{locLine}</span>
           ) : null}
         </span>
       </span>
