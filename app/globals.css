@@ -201,7 +201,9 @@ body {
 }
 .topic-hover-pop {
   position: absolute;
-  top: calc(100% + 6px);
+  /* HO 187: open UPWARD. The stage legend band sits directly BELOW the topics
+     band, so a downward popover lands on it; opening up clears it. */
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
@@ -1064,7 +1066,7 @@ body {
 }
 
 .feed-row .row-title {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
