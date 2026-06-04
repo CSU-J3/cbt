@@ -86,6 +86,8 @@ export async function HeaderBar({
   mode,
   presidentAlias,
   pageOwnsControls,
+  cursorAtEnd,
+  liftSyncContrast,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
@@ -115,6 +117,13 @@ export async function HeaderBar({
   // controls; /changes + /stale flip this in their sub-stage. TRANSITIONAL —
   // remove the prop + the legacy band once every feed page owns its controls.
   pageOwnsControls?: boolean;
+  // HO 195: Members-only chrome divergences. `cursorAtEnd` moves the blinking
+  // caret off the breadcrumb `>` (suppressed there) to the END of the inline
+  // sync string. `liftSyncContrast` lifts the sync run to --text-muted and the
+  // count number to --text-secondary. Both default off — every other page keeps
+  // the cursor glued to `>` and the dim sync (no regression).
+  cursorAtEnd?: boolean;
+  liftSyncContrast?: boolean;
 }) {
   const includeCeremonial = !!feedFilters?.includeCeremonial;
   const cluster = feedFilters?.cluster;
@@ -170,6 +179,7 @@ export async function HeaderBar({
       <div className="header-titlebar">
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
+          cursor={!cursorAtEnd}
         />
         {/* HO 189: sync inline after the breadcrumb cursor
             (`…Bills>_ · N BILLS · UPDATED MT`); the HO 187 standalone band is
@@ -180,7 +190,12 @@ export async function HeaderBar({
             on detail pages (deep paths, corpus count isn't page-specific) — it
             still flex-grows to keep the nav right-aligned, just shows nothing
             (no dangling ellipsis). */}
-        <span className="header-titlebar-sync">
+        <span
+          className="header-titlebar-sync"
+          style={
+            liftSyncContrast ? { color: "var(--text-muted)" } : undefined
+          }
+        >
           {detail ? null : (
             <>
             {" · "}
@@ -252,10 +267,29 @@ export async function HeaderBar({
                 ) : null}
               </>
             ) : (
-              <>{stats.total.toLocaleString()} bills</>
+              <>
+                <span
+                  style={
+                    liftSyncContrast
+                      ? { color: "var(--text-secondary)" }
+                      : undefined
+                  }
+                >
+                  {stats.total.toLocaleString()}
+                </span>{" "}
+                bills
+              </>
             )}
             <span> · </span>
             updated {formatLastUpdated(stats.lastUpdated)}
+            {/* HO 195: on Members the caret trails the full sync string
+                (cursor suppressed on the breadcrumb `>`) — a deliberate
+                divergence from Bills, where it stays glued to `>`. */}
+            {cursorAtEnd ? (
+              <span aria-hidden className="home-cursor-caret">
+                {" _"}
+              </span>
+            ) : null}
             </>
           )}
         </span>

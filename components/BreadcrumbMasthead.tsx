@@ -16,7 +16,18 @@ import { getCurrentCongress, ordinal } from "@/lib/congress";
 // Sizing is contextual via CSS ancestry, not a prop: inside HomeHeader's
 // `.home-header-prompt-row` the existing 36px desktop rule applies; in
 // HeaderBar it renders at the default `.terminal-prompt` size.
-export function BreadcrumbMasthead({ segments }: { segments: string[] }) {
+//
+// `cursor` (default true) renders the blinking `_` glued to the trailing `>` —
+// the behavior on the dashboard, Bills, and every page. HO 195: `/members`
+// passes `cursor={false}` and re-emits the caret at the END of the inline sync
+// string instead (a deliberate Members-only divergence); no other page changes.
+export function BreadcrumbMasthead({
+  segments,
+  cursor = true,
+}: {
+  segments: string[];
+  cursor?: boolean;
+}) {
   const congress = ordinal(getCurrentCongress()).toUpperCase(); // "119TH"
   const parts = [congress, ...segments];
   return (
@@ -44,9 +55,11 @@ export function BreadcrumbMasthead({ segments }: { segments: string[] }) {
       <span className="prompt-accent" aria-hidden>
         {">"}
       </span>
-      <span aria-hidden className="home-cursor-caret">
-        _
-      </span>
+      {cursor ? (
+        <span aria-hidden className="home-cursor-caret">
+          _
+        </span>
+      ) : null}
     </span>
   );
 }
