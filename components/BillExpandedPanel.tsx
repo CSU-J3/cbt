@@ -114,7 +114,19 @@ export function BillExpandedPanel({
       <div className="bill-expanded-meta-grid">
         {bill.sponsor_name ? (
           <MetaRow label="SPONSOR">
-            <span>{bill.sponsor_name}</span>
+            {/* HO 188: link to the member hub when the bill carries a
+                bioguide id (it's nullable for unmatched sponsors). */}
+            {bill.sponsor_bioguide_id ? (
+              <a
+                href={`/members/${bill.sponsor_bioguide_id}`}
+                className="bill-expanded-link"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {bill.sponsor_name}
+              </a>
+            ) : (
+              <span>{bill.sponsor_name}</span>
+            )}
             {bill.sponsor_party || bill.sponsor_state ? (
               <span className="bill-expanded-meta-sub">
                 {" "}
@@ -124,6 +136,20 @@ export function BillExpandedPanel({
                   .join("-")}
               </span>
             ) : null}
+          </MetaRow>
+        ) : null}
+
+        {/* HO 188: cosponsor count (bills.cosponsor_count). The list isn't
+            stored; the count links nowhere — congress.gov chip below has it. */}
+        {typeof bill.cosponsor_count === "number" ? (
+          <MetaRow label="COSPONSORS">
+            <span className="tabular-nums">
+              {bill.cosponsor_count.toLocaleString()}
+            </span>
+            <span className="bill-expanded-meta-sub">
+              {" "}
+              cosponsor{bill.cosponsor_count === 1 ? "" : "s"}
+            </span>
           </MetaRow>
         ) : null}
 
@@ -169,6 +195,8 @@ export function BillExpandedPanel({
         <CommitteeRows data={data} />
       </div>
 
+      <MilestoneStrip bill={bill} />
+
       <NewsSection data={data} error={error} />
 
       <div className="bill-expanded-actions">
@@ -189,6 +217,59 @@ export function BillExpandedPanel({
           congress.gov ↗
         </a>
       </div>
+    </div>
+  );
+}
+
+// HO 188: thin milestone strip from fields already on FeedBill (0 new
+// queries): Introduced → the most recent stage change → Last action. Not the
+// full action history (that needs a /actions sync — deferred); votes could be
+// added later as a +1-query milestone if this reads well.
+function MilestoneStrip({ bill }: { bill: FeedBill }) {
+  const items: { key: string; label: string; date: string | null; detail?: string }[] =
+    [];
+  if (bill.introduced_date) {
+    items.push({ key: "intro", label: "Introduced", date: bill.introduced_date });
+  }
+  // Skip when stage is still "introduced" — the Introduced milestone above
+  // already covers it (avoids a redundant "Reached intro" line).
+  if (bill.stage && bill.stage !== "introduced" && bill.stage_changed_at) {
+    items.push({
+      key: "stage",
+      label: `Reached ${shortStageLabel(bill.stage).toLowerCase()}`,
+      date: bill.stage_changed_at,
+    });
+  }
+  if (bill.latest_action_date || bill.latest_action_text) {
+    items.push({
+      key: "last",
+      label: "Last action",
+      date: bill.latest_action_date,
+      detail: bill.latest_action_text ?? undefined,
+    });
+  }
+  if (items.length === 0) return null;
+  return (
+    <div className="bill-expanded-timeline">
+      <div className="bill-expanded-timeline-label">Timeline</div>
+      <ol className="bill-expanded-timeline-list">
+        {items.map((it) => (
+          <li key={it.key} className="bill-expanded-timeline-item">
+            <span className="bill-expanded-timeline-marker" aria-hidden>
+              ▸
+            </span>
+            <span className="bill-expanded-timeline-name">{it.label}</span>
+            {it.date ? (
+              <span className="bill-expanded-timeline-date tabular-nums">
+                {formatDateLong(it.date)}
+              </span>
+            ) : null}
+            {it.detail ? (
+              <span className="bill-expanded-timeline-detail">{it.detail}</span>
+            ) : null}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

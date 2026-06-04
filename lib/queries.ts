@@ -69,6 +69,12 @@ export type FeedBill = {
   // NEWS_CONFIDENCE_FLOOR. 0 when the bill has no high-confidence press;
   // every feed-shape query joins news_mentions to populate it.
   mentionCount7d?: number;
+  // HO 188: expanded-panel enrichment columns. Optional + undefined-safe in
+  // rowToFeedBill, so feed-shape queries that don't SELECT them (/stale,
+  // /changes, /watchlist today) degrade to null — the sponsor link / cosponsor
+  // count simply don't render there. getFeedBills (/bills) selects both.
+  sponsor_bioguide_id?: string | null;
+  cosponsor_count?: number | null;
 };
 
 export type BillDetail = FeedBill & {
@@ -2288,6 +2294,7 @@ export const getFeedBills = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
+      sponsor_bioguide_id, cosponsor_count,
       ${MENTION_SELECT}
       FROM bills
       ${MENTION_SUBQUERY}
@@ -3018,6 +3025,18 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
       r.mention_count_7d === undefined
         ? 0
         : Number(r.mention_count_7d ?? 0),
+    // HO 188: undefined-safe — feed queries that don't SELECT these degrade
+    // to null (link/count omitted) rather than breaking.
+    sponsor_bioguide_id:
+      r.sponsor_bioguide_id === undefined
+        ? null
+        : ((r.sponsor_bioguide_id as string | null) ?? null),
+    cosponsor_count:
+      r.cosponsor_count === undefined
+        ? null
+        : r.cosponsor_count === null
+          ? null
+          : Number(r.cosponsor_count),
   };
 }
 
