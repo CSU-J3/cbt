@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BillIdRail } from "@/components/BillIdRail";
 import { MediaAttentionCell } from "@/components/MediaAttentionCell";
 import { PartyTag } from "@/components/PartyTag";
+import { SponsorHoverName } from "@/components/SponsorHoverName";
 import { StagePillStrip } from "@/components/StagePillStrip";
 import { TopicTags } from "@/components/TopicTags";
 import { WatchStar } from "@/components/WatchStar";
@@ -72,11 +73,26 @@ export function BillRow({
       <PartyTag party={bill.sponsor_party} state={bill.sponsor_state} />
     ) : null;
 
+  // HO 192: on expandable rows (the /bills accordion is a div role=button, so
+  // a nested member <a> is valid) the short sponsor name gets the same
+  // highlight + hover card as the expanded panel. Link-only/compact rows wrap
+  // the whole row in a real <Link>, where a nested anchor is invalid HTML — and
+  // those feeds don't SELECT the bioguide/photo anyway — so they keep plain
+  // text. The card content is full-name regardless of the short trigger.
+  const sponsorShort = shortSponsor(bill.sponsor_name);
   const sponsorBlock = bill.sponsor_name ? (
     <span className="inline-flex items-center gap-1.5 min-w-0">
-      <span className="truncate" style={{ color: "var(--text-muted)" }}>
-        {shortSponsor(bill.sponsor_name)}
-      </span>
+      {expandable && bill.sponsor_bioguide_id ? (
+        <SponsorHoverName
+          bill={bill}
+          label={sponsorShort}
+          anchorClassName="bill-expanded-link truncate"
+        />
+      ) : (
+        <span className="truncate" style={{ color: "var(--text-muted)" }}>
+          {sponsorShort}
+        </span>
+      )}
       {partyState}
     </span>
   ) : null;

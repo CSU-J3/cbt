@@ -1337,6 +1337,71 @@ body {
   color: var(--accent-amber-bright);
   border-bottom-color: var(--accent-amber-bright);
 }
+/* HO 192: sponsor hover card (photo + name + party-state). Pure-CSS reveal on
+   hover/focus of the name; absolute + opaque so it overlays without shifting
+   layout. Opens below-right of the name; the panel isn't a clipping container,
+   so it floats over the columns. */
+.sponsor-hover {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.sponsor-hover-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  background: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  /* normal-case prose card, not a coded-label row */
+  text-transform: none;
+  letter-spacing: normal;
+}
+.sponsor-hover:hover .sponsor-hover-card,
+.sponsor-hover:focus-within .sponsor-hover-card {
+  display: flex;
+}
+.sponsor-hover-avatar {
+  width: 46px;
+  height: 60px;
+  flex-shrink: 0;
+  object-fit: cover;
+  background-color: var(--bg-base);
+  border: 0.5px solid var(--border-strong);
+}
+.sponsor-hover-avatar--fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+.sponsor-hover-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.sponsor-hover-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.sponsor-hover-party {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
 /* HO 191: full-width stage pipeline (replaces the HO 188 timeline strip).
    6 equal-width nodes; connector half-segments meet at each dot's center so
    the colored line runs continuously to the current stage. Dot centers are

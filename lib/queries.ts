@@ -75,6 +75,10 @@ export type FeedBill = {
   // count simply don't render there. getFeedBills (/bills) selects both.
   sponsor_bioguide_id?: string | null;
   cosponsor_count?: number | null;
+  // HO 192: sponsor photo for the expanded-panel hover card. LEFT JOIN'd from
+  // members.depiction_url in getFeedBills only; undefined-safe in rowToFeedBill
+  // so other feed-shape queries degrade to null (no card off /bills).
+  sponsor_depiction_url?: string | null;
 };
 
 export type BillDetail = FeedBill & {
@@ -2295,9 +2299,11 @@ export const getFeedBills = unstable_cache(
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
       sponsor_bioguide_id, cosponsor_count,
+      msp.depiction_url AS sponsor_depiction_url,
       ${MENTION_SELECT}
       FROM bills
       ${MENTION_SUBQUERY}
+      LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id
       WHERE ${where}
       ORDER BY ${sortColumn} ${sortDir} NULLS LAST, id DESC
       LIMIT ? OFFSET ?`;
@@ -3037,6 +3043,11 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
         : r.cosponsor_count === null
           ? null
           : Number(r.cosponsor_count),
+    // HO 192: undefined-safe — only getFeedBills SELECTs it.
+    sponsor_depiction_url:
+      r.sponsor_depiction_url === undefined
+        ? null
+        : ((r.sponsor_depiction_url as string | null) ?? null),
   };
 }
 

@@ -20,6 +20,7 @@ import {
   formatRelativeAgeLong,
 } from "@/lib/format";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
+import { SponsorHoverName } from "@/components/SponsorHoverName";
 import type { FeedBill } from "@/lib/queries";
 
 export type PanelCommittee = {
@@ -151,15 +152,13 @@ export function BillExpandedPanel({
             {bill.sponsor_name ? (
               <MetaRow label="SPONSOR">
                 {/* HO 188: link to the member hub when the bill carries a
-                    bioguide id (it's nullable for unmatched sponsors). */}
+                    bioguide id (it's nullable for unmatched sponsors).
+                    HO 192: the linked name also triggers a hover card
+                    (photo + name + party-state). The card rides with the
+                    member link — unmatched sponsors (plain text, no photo)
+                    get no card. */}
                 {bill.sponsor_bioguide_id ? (
-                  <a
-                    href={`/members/${bill.sponsor_bioguide_id}`}
-                    className="bill-expanded-link"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {bill.sponsor_name}
-                  </a>
+                  <SponsorHoverName bill={bill} label={bill.sponsor_name} />
                 ) : (
                   <span>{bill.sponsor_name}</span>
                 )}
