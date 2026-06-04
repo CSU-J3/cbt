@@ -48,6 +48,7 @@ export function BillRowList({
               isOpen ? (
                 <BillExpandedPanel
                   bill={b}
+                  compact={compact}
                   cached={panelCache.get(b.id) ?? null}
                   onLoaded={(data) => handleLoaded(b.id, data)}
                 />

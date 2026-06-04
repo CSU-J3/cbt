@@ -1337,47 +1337,140 @@ body {
   color: var(--accent-amber-bright);
   border-bottom-color: var(--accent-amber-bright);
 }
-/* HO 188: thin milestone strip (Introduced → stage change → last action). */
-.bill-expanded-timeline {
+/* HO 191: full-width stage pipeline (replaces the HO 188 timeline strip).
+   6 equal-width nodes; connector half-segments meet at each dot's center so
+   the colored line runs continuously to the current stage. Dot centers are
+   pinned to y=8px (via per-state margin-top) so connectors align across the
+   variable dot sizes. */
+.stage-pipeline {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.bill-expanded-timeline-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.bill-expanded-timeline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: flex-start;
   list-style: none;
-  margin: 0;
+  margin: 2px 0 4px;
   padding: 0;
 }
-.bill-expanded-timeline-item {
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-secondary);
+.stage-pipeline-node {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  padding: 0 2px;
 }
-.bill-expanded-timeline-marker {
-  color: var(--accent-amber);
+.stage-pipeline-node::before,
+.stage-pipeline-node::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  height: 2px;
+  transform: translateY(-50%);
+  z-index: 0;
 }
-.bill-expanded-timeline-name {
+.stage-pipeline-node::before {
+  left: 0;
+  width: 50%;
+  background: var(--conn-left);
+}
+.stage-pipeline-node::after {
+  right: 0;
+  width: 50%;
+  background: var(--conn-right);
+}
+.stage-pipeline-node:first-child::before,
+.stage-pipeline-node:last-child::after {
+  display: none;
+}
+.stage-pipeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.stage-pipeline-node.is-reached .stage-pipeline-dot {
+  background: var(--node-color);
+}
+.stage-pipeline-node.is-unreached .stage-pipeline-dot {
+  background: var(--bg-row-hover);
+  border: 1.5px solid var(--border-strong);
+}
+.stage-pipeline-node.is-current .stage-pipeline-dot {
+  width: 16px;
+  height: 16px;
+  margin-top: 0;
+  background: var(--node-color);
+  /* panel-bg ring lifts the marker off the connector, then a thin node-color
+     halo — crisp, no blur (terminal aesthetic). */
+  box-shadow:
+    0 0 0 3px var(--bg-row-hover),
+    0 0 0 4.5px var(--node-color);
+}
+.stage-pipeline-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 11px;
+  line-height: 1.2;
   color: var(--text-dim);
 }
-.bill-expanded-timeline-date {
-  color: var(--text-secondary);
+.stage-pipeline-node.is-reached .stage-pipeline-label {
+  color: var(--node-color);
 }
-.bill-expanded-timeline-detail {
-  font-size: 12px;
-  color: var(--text-muted);
+.stage-pipeline-node.is-current .stage-pipeline-label {
+  color: var(--node-color);
+  font-weight: 700;
+}
+.stage-pipeline-date {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1.1;
+  color: var(--text-dim);
+  min-height: 10px; /* reserve so dateless nodes keep label alignment */
+}
+
+/* HO 191: two-column body — summary + news (left, ~1.6fr, border-right) and
+   metadata + buttons (right, ~1fr, slightly darker panel). */
+.bill-expanded-body {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 16px;
+}
+.bill-expanded-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bill-expanded-col-left {
+  border-right: 1px solid var(--border-strong);
+  padding-right: 16px;
+}
+.bill-expanded-col-right {
+  background: var(--bg-panel);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+.bill-expanded-meta-row--stacked {
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+/* Mobile stack — full <700 treatment deferred (HO 191), this just prevents a
+   broken 2-col on phones. */
+@media (max-width: 700px) {
+  .bill-expanded-body {
+    grid-template-columns: 1fr;
+  }
+  .bill-expanded-col-left {
+    border-right: none;
+    padding-right: 0;
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: 12px;
+  }
 }
 
 .bill-expanded-news {
@@ -1450,6 +1543,16 @@ body {
 .bill-expanded-action-chip:hover {
   color: var(--accent-amber-bright);
   border-color: var(--accent-amber-bright);
+}
+/* HO 191: congress.gov ↗ — soft border, secondary weight (the amber chip is
+   the primary FULL BILL PAGE action). */
+.bill-expanded-action-chip--soft {
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+.bill-expanded-action-chip--soft:hover {
+  border-color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 /* ---- sponsor grid ------------------------------------------------------ */

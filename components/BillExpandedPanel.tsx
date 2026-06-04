@@ -1,18 +1,25 @@
 "use client";
 
-// HO 148 — expanded panel rendered below a BillRow when the row is the
-// single-open row in BillRowList. Summary + meta grid render instantly
-// from FeedBill (already on the feed query); committees + news lazy-load
-// on first open via /api/bill/[id]/panel. Result is cached one level up
-// in BillRowList, so re-expanding the same row is free.
+// HO 191 — expanded panel redesign. Layout is now:
+//   (row header lives in BillRow, above) →
+//   full-width STAGE PIPELINE (6 stages, reached/current/unreached) →
+//   two columns: LEFT summary + related news, RIGHT metadata (no STAGE row)
+//                + action buttons.
+// The HO 188 enrichment content (sponsor link, cosponsor count, committee
+// links, news) is preserved — rearranged, with the old thin timeline strip
+// replaced by the pipeline.
+//
+// `compact` (dashboard ACTIVITY expand): pipeline + summary only. No right
+// column, no news — and since neither committees nor news render, the panel
+// skips the /api/bill/[id]/panel fetch entirely (0 queries). Full /bills
+// stays at 2 (committees + news). One component, one prop, no fork.
 import { useEffect, useState } from "react";
-import { Tooltip } from "@/components/Tooltip";
 import {
   congressGovUrl,
   formatDateLong,
   formatRelativeAgeLong,
 } from "@/lib/format";
-import { STAGE_LABELS } from "@/lib/enums";
+import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 import type { FeedBill } from "@/lib/queries";
 
 export type PanelCommittee = {
@@ -37,17 +44,29 @@ export type PanelData = {
   news: PanelNews[];
 };
 
-function shortStageLabel(stage: string): string {
-  const map: Record<string, string> = {
-    introduced: "INTRO",
-    committee: "COMMITTEE",
-    floor: "FLOOR",
-    other_chamber: "OTHER CHAMBER",
-    president: "PRESIDENT",
-    enacted: "ENACTED",
-  };
-  return map[stage] ?? stage.toUpperCase();
-}
+// Pipeline positions, left→right. Label + the matching --stage-* token so the
+// dots/connectors/labels color-match the rest of the app's stage vocabulary.
+// `compactLabel` is used only in the narrow dashboard-compact pipeline, where
+// "OTHER CHAMBER" wraps to two lines at 9.5px; the full /bills pipeline keeps
+// the full label.
+const PIPELINE: {
+  stage: Stage;
+  label: string;
+  compactLabel?: string;
+  color: string;
+}[] = [
+  { stage: "introduced", label: "INTRO", color: "var(--stage-introduced)" },
+  { stage: "committee", label: "COMMITTEE", color: "var(--stage-committee)" },
+  { stage: "floor", label: "FLOOR", color: "var(--stage-floor)" },
+  {
+    stage: "other_chamber",
+    label: "OTHER CHAMBER",
+    compactLabel: "OTHER CH.",
+    color: "var(--stage-other-chamber)",
+  },
+  { stage: "president", label: "PRESIDENT", color: "var(--stage-president)" },
+  { stage: "enacted", label: "ENACTED", color: "var(--stage-enacted)" },
+];
 
 function MetaRow({
   label,
@@ -68,16 +87,20 @@ export function BillExpandedPanel({
   bill,
   cached,
   onLoaded,
+  compact = false,
 }: {
   bill: FeedBill;
   cached: PanelData | null;
   onLoaded: (data: PanelData) => void;
+  compact?: boolean;
 }) {
   const [data, setData] = useState<PanelData | null>(cached);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (data) return;
+    // Compact (dashboard) renders neither committees nor news — skip the
+    // fetch entirely so the dashboard expand costs 0 queries.
+    if (compact || data) return;
     let cancelled = false;
     fetch(`/api/bill/${encodeURIComponent(bill.id)}/panel`)
       .then((r) => {
@@ -96,189 +119,197 @@ export function BillExpandedPanel({
     return () => {
       cancelled = true;
     };
-  }, [bill.id, data, onLoaded]);
+  }, [bill.id, data, onLoaded, compact]);
 
   const cgUrl = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
 
-  // Cosponsor count comes off bill.raw_json via bills.cosponsor_count — but
-  // FeedBill omits that column today. Until the feed query carries it,
-  // omit the row rather than fake it. (Tracked as part of the future
-  // cosponsor-detail handoff.)
+  if (compact) {
+    return (
+      <div className="bill-expanded-panel bill-expanded-panel--compact">
+        <StagePipeline bill={bill} compact />
+        {bill.summary ? (
+          <p className="bill-expanded-summary">{bill.summary}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="bill-expanded-panel">
-      {bill.summary ? (
-        <p className="bill-expanded-summary">{bill.summary}</p>
-      ) : null}
+      <StagePipeline bill={bill} />
 
-      <div className="bill-expanded-meta-grid">
-        {bill.sponsor_name ? (
-          <MetaRow label="SPONSOR">
-            {/* HO 188: link to the member hub when the bill carries a
-                bioguide id (it's nullable for unmatched sponsors). */}
-            {bill.sponsor_bioguide_id ? (
-              <a
-                href={`/members/${bill.sponsor_bioguide_id}`}
-                className="bill-expanded-link"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {bill.sponsor_name}
-              </a>
-            ) : (
-              <span>{bill.sponsor_name}</span>
-            )}
-            {bill.sponsor_party || bill.sponsor_state ? (
-              <span className="bill-expanded-meta-sub">
-                {" "}
-                ·{" "}
-                {[bill.sponsor_party, bill.sponsor_state]
-                  .filter(Boolean)
-                  .join("-")}
-              </span>
+      <div className="bill-expanded-body">
+        <div className="bill-expanded-col bill-expanded-col-left">
+          {bill.summary ? (
+            <p className="bill-expanded-summary">{bill.summary}</p>
+          ) : null}
+          <NewsSection data={data} error={error} />
+        </div>
+
+        <div className="bill-expanded-col bill-expanded-col-right">
+          <div className="bill-expanded-meta-grid">
+            {bill.sponsor_name ? (
+              <MetaRow label="SPONSOR">
+                {/* HO 188: link to the member hub when the bill carries a
+                    bioguide id (it's nullable for unmatched sponsors). */}
+                {bill.sponsor_bioguide_id ? (
+                  <a
+                    href={`/members/${bill.sponsor_bioguide_id}`}
+                    className="bill-expanded-link"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {bill.sponsor_name}
+                  </a>
+                ) : (
+                  <span>{bill.sponsor_name}</span>
+                )}
+                {bill.sponsor_party || bill.sponsor_state ? (
+                  <span className="bill-expanded-meta-sub">
+                    {" "}
+                    ·{" "}
+                    {[bill.sponsor_party, bill.sponsor_state]
+                      .filter(Boolean)
+                      .join("-")}
+                  </span>
+                ) : null}
+              </MetaRow>
             ) : null}
-          </MetaRow>
-        ) : null}
 
-        {/* HO 188: cosponsor count (bills.cosponsor_count). The list isn't
-            stored; the count links nowhere — congress.gov chip below has it. */}
-        {typeof bill.cosponsor_count === "number" ? (
-          <MetaRow label="COSPONSORS">
-            <span className="tabular-nums">
-              {bill.cosponsor_count.toLocaleString()}
-            </span>
-            <span className="bill-expanded-meta-sub">
-              {" "}
-              cosponsor{bill.cosponsor_count === 1 ? "" : "s"}
-            </span>
-          </MetaRow>
-        ) : null}
+            {/* HO 188: cosponsor count (bills.cosponsor_count). The list isn't
+                stored; the count links nowhere — congress.gov chip has it. */}
+            {typeof bill.cosponsor_count === "number" ? (
+              <MetaRow label="COSPONSORS">
+                <span className="tabular-nums">
+                  {bill.cosponsor_count.toLocaleString()}
+                </span>
+                <span className="bill-expanded-meta-sub">
+                  {" "}
+                  cosponsor{bill.cosponsor_count === 1 ? "" : "s"}
+                </span>
+              </MetaRow>
+            ) : null}
 
-        {bill.stage ? (
-          <MetaRow label="STAGE">
-            <Tooltip
-              variant="term"
-              ariaLabel={`${shortStageLabel(bill.stage)} — ${
-                STAGE_LABELS[bill.stage as keyof typeof STAGE_LABELS] ?? ""
-              }`}
-              content={{
-                kind: "text",
-                label: shortStageLabel(bill.stage),
-                body:
-                  STAGE_LABELS[bill.stage as keyof typeof STAGE_LABELS] ??
-                  bill.stage,
-              }}
+            <CommitteeRows data={data} />
+
+            {bill.introduced_date ? (
+              <MetaRow label="INTRODUCED">
+                <span className="tabular-nums">
+                  {formatDateLong(bill.introduced_date)}
+                </span>
+              </MetaRow>
+            ) : null}
+
+            {/* STAGE row removed (HO 191) — the pipeline owns bill position. */}
+
+            {bill.latest_action_date || bill.latest_action_text ? (
+              <div className="bill-expanded-meta-row bill-expanded-meta-row--stacked">
+                <span className="bill-expanded-meta-label">LAST ACTION</span>
+                <span className="bill-expanded-meta-value">
+                  {bill.latest_action_date ? (
+                    <span className="tabular-nums bill-expanded-meta-sub">
+                      {formatDateLong(bill.latest_action_date)} ·{" "}
+                    </span>
+                  ) : null}
+                  <span>{bill.latest_action_text ?? "—"}</span>
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="bill-expanded-actions">
+            <a
+              href={`/bill/${bill.id}`}
+              className="bill-expanded-action-chip"
+              onClick={(e) => e.stopPropagation()}
             >
-              <span>{shortStageLabel(bill.stage)}</span>
-            </Tooltip>
-          </MetaRow>
-        ) : null}
-
-        {bill.introduced_date ? (
-          <MetaRow label="INTRODUCED">
-            <span className="tabular-nums">
-              {formatDateLong(bill.introduced_date)}
-            </span>
-          </MetaRow>
-        ) : null}
-
-        {bill.latest_action_date || bill.latest_action_text ? (
-          <MetaRow label="LAST ACTION">
-            {bill.latest_action_date ? (
-              <span className="tabular-nums bill-expanded-meta-sub">
-                {formatDateLong(bill.latest_action_date)} ·{" "}
-              </span>
-            ) : null}
-            <span>{bill.latest_action_text ?? "—"}</span>
-          </MetaRow>
-        ) : null}
-
-        <CommitteeRows data={data} />
-      </div>
-
-      <MilestoneStrip bill={bill} />
-
-      <NewsSection data={data} error={error} />
-
-      <div className="bill-expanded-actions">
-        <a
-          href={`/bill/${bill.id}`}
-          className="bill-expanded-action-chip"
-          onClick={(e) => e.stopPropagation()}
-        >
-          full bill page →
-        </a>
-        <a
-          href={cgUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="bill-expanded-action-chip"
-          onClick={(e) => e.stopPropagation()}
-        >
-          congress.gov ↗
-        </a>
+              full bill page →
+            </a>
+            <a
+              href={cgUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bill-expanded-action-chip bill-expanded-action-chip--soft"
+              onClick={(e) => e.stopPropagation()}
+            >
+              congress.gov ↗
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// HO 188: thin milestone strip from fields already on FeedBill (0 new
-// queries): Introduced → the most recent stage change → Last action. Not the
-// full action history (that needs a /actions sync — deferred); votes could be
-// added later as a +1-query milestone if this reads well.
-function MilestoneStrip({ bill }: { bill: FeedBill }) {
-  const items: { key: string; label: string; date: string | null; detail?: string }[] =
-    [];
-  if (bill.introduced_date) {
-    items.push({ key: "intro", label: "Introduced", date: bill.introduced_date });
-  }
-  // Skip when stage is still "introduced" — the Introduced milestone above
-  // already covers it (avoids a redundant "Reached intro" line).
-  if (bill.stage && bill.stage !== "introduced" && bill.stage_changed_at) {
-    items.push({
-      key: "stage",
-      label: `Reached ${shortStageLabel(bill.stage).toLowerCase()}`,
-      date: bill.stage_changed_at,
-    });
-  }
-  if (bill.latest_action_date || bill.latest_action_text) {
-    items.push({
-      key: "last",
-      label: "Last action",
-      date: bill.latest_action_date,
-      detail: bill.latest_action_text ?? undefined,
-    });
-  }
-  if (items.length === 0) return null;
+// HO 191 — full-width stage pipeline. Reached stages fill in the stage color,
+// the current stage gets a larger bright marker + bold label, unreached stages
+// show a dim hollow dot. Connectors are colored up to the current stage, then
+// --border-strong. Dates appear under a stage only when one is actually stored:
+// INTRO from introduced_date, the current stage from stage_changed_at (only
+// ~4% of bills carry it — HO 188). Intermediate reached stages show label only.
+//
+// Suppressed entirely when stage is NULL (unsummarized) or off-path (`other`):
+// an all-unreached strip on an unclassified bill would falsely read as
+// "reached nothing." indexOf returns -1 for both, so we bail.
+function StagePipeline({
+  bill,
+  compact = false,
+}: {
+  bill: FeedBill;
+  compact?: boolean;
+}) {
+  const currentIdx = bill.stage
+    ? ALLOWED_STAGES.indexOf(bill.stage as Stage)
+    : -1;
+  if (currentIdx < 0) return null;
+
   return (
-    <div className="bill-expanded-timeline">
-      <div className="bill-expanded-timeline-label">Timeline</div>
-      <ol className="bill-expanded-timeline-list">
-        {items.map((it) => (
-          <li key={it.key} className="bill-expanded-timeline-item">
-            <span className="bill-expanded-timeline-marker" aria-hidden>
-              ▸
-            </span>{" "}
-            <span className="bill-expanded-timeline-name">{it.label}</span>
-            {it.date ? (
-              <>
-                <span className="bill-expanded-meta-sub"> · </span>
-                <span className="bill-expanded-timeline-date tabular-nums">
-                  {formatDateLong(it.date)}
-                </span>
-              </>
-            ) : null}
-            {it.detail ? (
-              <>
-                <span className="bill-expanded-meta-sub"> · </span>
-                <span className="bill-expanded-timeline-detail">
-                  {it.detail}
-                </span>
-              </>
-            ) : null}
+    <ol className="stage-pipeline" aria-label="Bill stage">
+      {PIPELINE.map((p, i) => {
+        const reached = i <= currentIdx;
+        const current = i === currentIdx;
+        const date =
+          i === 0
+            ? (bill.introduced_date ?? null)
+            : current
+              ? (bill.stage_changed_at ?? null)
+              : null;
+
+        // Connector half-segments meet at each dot's center. A half is
+        // colored when the line through it has been reached.
+        const leftColored = i > 0 && i <= currentIdx;
+        const rightColored = i < currentIdx;
+
+        const nodeClass = [
+          "stage-pipeline-node",
+          reached ? "is-reached" : "is-unreached",
+          current ? "is-current" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return (
+          <li
+            key={p.stage}
+            className={nodeClass}
+            style={
+              {
+                "--node-color": p.color,
+                "--conn-left": leftColored ? p.color : "var(--border-strong)",
+                "--conn-right": rightColored ? p.color : "var(--border-strong)",
+              } as React.CSSProperties
+            }
+          >
+            <span className="stage-pipeline-dot" aria-hidden />
+            <span className="stage-pipeline-label">
+              {compact ? (p.compactLabel ?? p.label) : p.label}
+            </span>
+            <span className="stage-pipeline-date tabular-nums">
+              {date ? formatDateLong(date) : " "}
+            </span>
           </li>
-        ))}
-      </ol>
-    </div>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -344,11 +375,18 @@ function NewsSection({
     );
   }
   if (!data) {
+    return <p className="bill-expanded-news-empty">Loading related news…</p>;
+  }
+  // HO 191 follow-up: state the absence rather than hiding the section. Full
+  // /bills panel only — the compact dashboard variant never renders this.
+  if (data.news.length === 0) {
     return (
-      <p className="bill-expanded-news-empty">Loading related news…</p>
+      <div className="bill-expanded-news">
+        <div className="bill-expanded-news-label">Related news</div>
+        <p className="bill-expanded-news-empty">No related news</p>
+      </div>
     );
   }
-  if (data.news.length === 0) return null;
   return (
     <div className="bill-expanded-news">
       <div className="bill-expanded-news-label">
