@@ -257,15 +257,23 @@ function MilestoneStrip({ bill }: { bill: FeedBill }) {
           <li key={it.key} className="bill-expanded-timeline-item">
             <span className="bill-expanded-timeline-marker" aria-hidden>
               ▸
-            </span>
+            </span>{" "}
             <span className="bill-expanded-timeline-name">{it.label}</span>
             {it.date ? (
-              <span className="bill-expanded-timeline-date tabular-nums">
-                {formatDateLong(it.date)}
-              </span>
+              <>
+                <span className="bill-expanded-meta-sub"> · </span>
+                <span className="bill-expanded-timeline-date tabular-nums">
+                  {formatDateLong(it.date)}
+                </span>
+              </>
             ) : null}
             {it.detail ? (
-              <span className="bill-expanded-timeline-detail">{it.detail}</span>
+              <>
+                <span className="bill-expanded-meta-sub"> · </span>
+                <span className="bill-expanded-timeline-detail">
+                  {it.detail}
+                </span>
+              </>
             ) : null}
           </li>
         ))}
