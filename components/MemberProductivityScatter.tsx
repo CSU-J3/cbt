@@ -21,7 +21,15 @@ const PAD = { top: 24, right: 16, bottom: 48, left: 48 };
 const VB_WIDTH = 600;
 const DOT_RADIUS = 4;
 const LABEL_OFFSET = 8;
-const TOP_N_LABELS = 5;
+// HO 197: labels are threshold-gated (not top-N) then collision-dodged.
+// A point earns a label only if it's a real outlier on either axis…
+const LABEL_PASS_THRESHOLD = 0.1; // > 10% pass rate, OR
+const LABEL_BILLS_THRESHOLD = 100; // > 100 bills.
+// …and only if no already-kept label sits within this many px (euclidean on
+// rendered x/y, sized for the 10px label font) — kills the residual stacks.
+const COLLISION_PX = 16;
+// Presentational vertical jitter for the 0%-pass mass (see seededJitter).
+const JITTER_PX = 3;
 
 const Y_ZOOM_MAX = 0.3;
 const X_TICKS: readonly number[] = [1, 10, 100, 500];
@@ -59,6 +67,20 @@ function chamberLabel(chamber: Chamber): string {
   return chamber === "house" ? "HOUSE" : "SENATE";
 }
 
+// HO 197 — deterministic ±JITTER_PX from a member key. This component is a
+// SERVER component that re-renders on every request (the page awaits
+// searchParams), so Math.random() would re-jitter the dots on every page load.
+// Seeding off the stable sponsorKey keeps the offset identical across renders —
+// a static presentational nudge, never animated, never re-randomized.
+function seededJitter(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) {
+    h = (h * 31 + key.charCodeAt(i)) | 0;
+  }
+  const unit = (h >>> 0) % 1000 / 999; // 0..1, stable per key
+  return (unit * 2 - 1) * JITTER_PX; // -JITTER_PX..+JITTER_PX
+}
+
 export async function MemberProductivityScatter({
   chamber,
 }: {
@@ -90,23 +112,8 @@ export async function MemberProductivityScatter({
     );
   }
 
-  // Outlier labels are still top-N-by-volume + top-N-by-pass-rate per
-  // chamber, deduped, so each chart highlights its own outliers rather
-  // than letting the high-volume House drown out Senate names.
   const sponsorKey = (r: { bioguideId: string | null; name: string }) =>
     r.bioguideId ?? r.name;
-  const topByVolume = [...rows]
-    .sort((a, b) => b.billCount - a.billCount)
-    .slice(0, TOP_N_LABELS);
-  const topByPassRate = [...rows]
-    .sort(
-      (a, b) =>
-        b.passRate - a.passRate || b.billCount - a.billCount,
-    )
-    .slice(0, TOP_N_LABELS);
-  const labelKeys = new Set(
-    [...topByVolume, ...topByPassRate].map(sponsorKey),
-  );
 
   const maxBills = Math.max(...rows.map((r) => r.billCount));
   const xRangeMax = Math.max(xLog(maxBills), xLog(500));
@@ -118,6 +125,54 @@ export async function MemberProductivityScatter({
     ((xLog(v) - X_RANGE_MIN) / (xRangeMax - X_RANGE_MIN)) * innerWidth;
   const yScale = (rate: number) =>
     PAD.top + (1 - Math.min(rate, Y_ZOOM_MAX) / Y_ZOOM_MAX) * innerHeight;
+
+  // HO 197 — pre-pass: rendered positions for every dot, applying the
+  // presentational jitter to the 0%-pass mass only. FLAGGED exception to
+  // true-value rendering: the jitter offsets the rendered `y` so the long tail
+  // reads as a density band instead of a smear on the y=0 line — it does NOT
+  // change the data. The dot's <title> + <Link> below stay bound to the true
+  // `row` values, so hover and click are unaffected.
+  const points = rows.map((row, idx) => {
+    const key = sponsorKey(row);
+    const x = xScale(row.billCount);
+    const baseY = yScale(row.passRate);
+    const y = row.passRate === 0 ? baseY + seededJitter(key) : baseY;
+    return { row, key, idx, x, y, isOverflow: row.passRate > Y_ZOOM_MAX };
+  });
+
+  // HO 197 — labels: threshold-gate (real outlier on either axis), then greedy
+  // collision dodge by salience so the residual stacks (Norton/Nadler/Biggs,
+  // Hagerty/Capito/Britt) collapse to one survivor. Suppressed points keep
+  // their dot + hover; only the in-chart text is dropped.
+  //
+  // Labeling is per-POINT (by idx), not per-key: getSponsorProductivity can
+  // split one member across rows (a sponsor_name variant under the same
+  // bioguide — e.g. Begich's 34 bills land as 27 + 7), and a key-based set
+  // would flip the label on for both dots when only one clears the threshold.
+  // The labeledKeys guard also caps a split member at one label total.
+  const labeledIdx = new Set<number>();
+  const labeledKeys = new Set<string>();
+  const keptPositions: { x: number; y: number }[] = [];
+  const candidates = points
+    .filter(
+      (p) =>
+        p.row.passRate > LABEL_PASS_THRESHOLD ||
+        p.row.billCount > LABEL_BILLS_THRESHOLD,
+    )
+    .sort(
+      (a, b) =>
+        b.row.passRate - a.row.passRate || b.row.billCount - a.row.billCount,
+    );
+  for (const p of candidates) {
+    if (labeledKeys.has(p.key)) continue; // one label per member
+    const collides = keptPositions.some(
+      (k) => Math.hypot(k.x - p.x, k.y - p.y) < COLLISION_PX,
+    );
+    if (collides) continue;
+    labeledIdx.add(p.idx);
+    labeledKeys.add(p.key);
+    keptPositions.push({ x: p.x, y: p.y });
+  }
 
   const overFlowCount = rows.filter((r) => r.passRate > Y_ZOOM_MAX).length;
 
@@ -195,13 +250,9 @@ export async function MemberProductivityScatter({
           PASS RATE · 0–30%
         </text>
 
-        {rows.map((row) => {
-          const key = sponsorKey(row);
-          const x = xScale(row.billCount);
-          const isOverflow = row.passRate > Y_ZOOM_MAX;
-          const y = yScale(row.passRate);
+        {points.map(({ row, idx, x, y, isOverflow }) => {
           const color = row.party ? PARTY_COLORS[row.party]! : "var(--text-dim)";
-          const labeled = labelKeys.has(key);
+          const labeled = labeledIdx.has(idx);
           const titleText = `${row.name} · ${row.billCount} bills · ${Math.round(
             row.passRate * 100,
           )}% pass rate · ${row.enactedCount} enacted`;
@@ -220,7 +271,7 @@ export async function MemberProductivityScatter({
             </circle>
           );
           return (
-            <g key={`g-${key}`}>
+            <g key={`g-${idx}`}>
               {row.bioguideId ? (
                 <Link href={`/members/${row.bioguideId}`}>{dot}</Link>
               ) : (
