@@ -1078,6 +1078,14 @@ export type PrimaryWithCandidates = {
   primary_type: string | null;
   race_id: string | null;
   candidates: PrimaryCandidate[];
+  // HO 203: bioguide of the member who CURRENTLY holds this seat (house seat
+  // matched by state+district against `members`, is_current). Used to mark the
+  // actual seat incumbent with ★ — distinct from the per-candidate `incumbent`
+  // flag, which is "is a sitting member of Congress" (true for >1 candidate in
+  // top-two / redraw contests like CA-40 Calvert+Kim or TX-18 Menefee+Green).
+  // NULL for at-large (members.district is NULL), senate, and open seats — the
+  // render falls back to the `incumbent` flag there (≤1 in those, no bug).
+  seat_incumbent_bioguide: string | null;
 };
 
 // Candidate rows are folded into one string per primary by GROUP_CONCAT:
@@ -1120,13 +1128,20 @@ function rowToPrimary(r: Record<string, unknown>): PrimaryWithCandidates {
     candidates: parseCandidatesRaw(
       (r.candidates_raw as string | null) ?? null,
     ),
+    seat_incumbent_bioguide:
+      (r.seat_incumbent_bioguide as string | null) ?? null,
   };
 }
 
 const PRIMARY_SELECT =
   `SELECT p.id, p.state, p.district, p.chamber, p.party,
      p.primary_date, p.runoff_date, p.primary_type, p.race_id,
-     GROUP_CONCAT(${PRIMARY_CANDIDATE_FIELDS}, '~~') AS candidates_raw
+     GROUP_CONCAT(${PRIMARY_CANDIDATE_FIELDS}, '~~') AS candidates_raw,
+     (SELECT m.bioguide_id FROM members m
+        WHERE m.is_current = 1 AND m.chamber = 'house'
+          AND m.state = p.state
+          AND m.district = CAST(p.district AS INTEGER)
+        LIMIT 1) AS seat_incumbent_bioguide
    FROM primaries p
    LEFT JOIN primary_candidates pc ON pc.primary_id = p.id`;
 
