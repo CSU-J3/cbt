@@ -1,6 +1,7 @@
 // /primaries index (handoff 91). The 2026 state congressional primary
 // calendar — all 50 states — grouped by date, today first, past collapsed.
-// Candidate rosters (Step 3) land in a follow-up sync; rows show a count.
+// Voted primaries (HO 206 `vote_pct`) render a result share bar (HO 207);
+// upcoming ones show the candidate field as a "not yet voted" fallback.
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { PrimaryExpandProvider, PrimaryRow } from "@/components/PrimaryRow";
@@ -82,12 +83,31 @@ function DateGroup({
 }
 
 export default async function PrimariesPage() {
+  // HO 207: lift the 300 cap to cover the full 2026 cycle (~457 past / ~447
+  // upcoming). The old cap dropped the earliest-voted primaries — now that each
+  // voted row carries a result share bar, that hid ~157 results (incl. the
+  // March 3 TX-Sen Paxton/Cornyn runoff).
   const [upcoming, past] = await Promise.all([
-    getUpcomingPrimaries(300),
-    getPastPrimaries(300),
+    getUpcomingPrimaries(600),
+    getPastPrimaries(600),
   ]);
+
+  // HO 208 guard: in the voted block, hide past contests with no roster AND no
+  // result (the empty "roster pending" rows). This is a DISPLAY guard over two
+  // distinct underlying problems — neither fixed here, both a data follow-up:
+  //   • FALSE CONTESTS — senate primaries for states with no 2026 Senate seat
+  //     (IN / PA / CA Senate). The primaries sync seeds senate-{ST}-2026-{D,R,
+  //     open} for all 50 states regardless of whether a seat is up; these rows
+  //     should be suppressed at the SOURCE (sync fix), not merely hidden.
+  //   • REAL BUT UNROSTERED — genuine 2026 contests whose roster scrape is
+  //     missing (SD/WV Senate, ~25 House). These should be BACKFILLED, not
+  //     suppressed — the guard hiding them must not become their resting state.
+  const votedRows = past.filter(
+    (p) =>
+      p.candidates.length > 0 || p.candidates.some((c) => c.vote_pct != null),
+  );
   const upcomingGroups = groupByDate(upcoming);
-  const pastGroups = groupByDate(past);
+  const pastGroups = groupByDate(votedRows);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -102,13 +122,13 @@ export default async function PrimariesPage() {
             className="text-[14px] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
-            Upcoming primaries
+            2026 primaries
           </h1>
           <span
             className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
-            {upcoming.length} upcoming · {past.length} past · 2026 cycle
+            {past.length} past · {upcoming.length} upcoming · 2026 cycle
           </span>
         </div>
 
@@ -116,41 +136,47 @@ export default async function PrimariesPage() {
           className="mb-4 text-[12px] leading-snug"
           style={{ color: "var(--text-muted)" }}
         >
-          State congressional primary calendar, all 50 states. Source: 270toWin.
-          Candidate rosters land in a follow-up sync (handoff 91 Step 3).
+          State congressional primary calendar, all 50 states. Voted contests
+          show candidate result shares; upcoming show the field. Sources:
+          270toWin (calendar) · Ballotpedia (rosters + results).
         </p>
 
-        {/* HO 203: single-open expand across the whole calendar — the provider
-            wraps both the upcoming groups and the past <details> so opening one
-            row collapses any other (HO 148 pattern), client-side. */}
+        {/* HO 208: one date-sorted list — most-recent results first (past DESC,
+            the voted result bars), a subtle seam, then upcoming (ASC,
+            nearest-first, "not yet voted"). No collapsed <details>; the result
+            bars are the first thing visible, no expand required. The per-row
+            HO 148 click-to-expand (single-open via the provider) is unaffected. */}
         <PrimaryExpandProvider>
-          {upcomingGroups.length === 0 ? (
+          {pastGroups.map((g) => (
+            <DateGroup key={`past-${g.date}`} date={g.date} rows={g.rows} />
+          ))}
+
+          {upcomingGroups.length > 0 && pastGroups.length > 0 ? (
+            <div className="mt-6 mb-3 flex items-center gap-3">
+              <span
+                className="shrink-0 text-[11px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-dim)" }}
+              >
+                Upcoming · not yet voted
+              </span>
+              <span
+                className="h-px flex-1"
+                style={{ backgroundColor: "var(--border-strong)" }}
+              />
+            </div>
+          ) : null}
+
+          {upcomingGroups.map((g) => (
+            <DateGroup key={`up-${g.date}`} date={g.date} rows={g.rows} />
+          ))}
+
+          {pastGroups.length === 0 && upcomingGroups.length === 0 ? (
             <div
               className="px-4 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
-              No upcoming primaries
+              No primaries
             </div>
-          ) : (
-            upcomingGroups.map((g) => (
-              <DateGroup key={g.date} date={g.date} rows={g.rows} />
-            ))
-          )}
-
-          {pastGroups.length > 0 ? (
-            <details className="mt-6">
-              <summary
-                className="cursor-pointer text-[12px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                Past primaries · {past.length} contests
-              </summary>
-              <div className="mt-3">
-                {pastGroups.map((g) => (
-                  <DateGroup key={g.date} date={g.date} rows={g.rows} />
-                ))}
-              </div>
-            </details>
           ) : null}
         </PrimaryExpandProvider>
       </main>
