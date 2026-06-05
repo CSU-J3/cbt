@@ -475,8 +475,8 @@ export async function syncSenateCandidates(
         totalCandidates++;
         await db.execute({
           sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             primaryId,
             c.name,
@@ -484,6 +484,9 @@ export async function syncSenateCandidates(
             c.incumbent ? 1 : 0,
             bioguideId,
             c.isWinner ? "winner" : "running",
+            // HO 206: NULL on an un-voted primary (parseVotebox returns null
+            // when the votebox carries no results), the real share once voted.
+            c.votePct,
             now,
           ],
         });
@@ -793,8 +796,8 @@ export async function syncHouseDistricts(
         stat.candidates++;
         await db.execute({
           sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             primaryId,
             c.name,
@@ -802,6 +805,8 @@ export async function syncHouseDistricts(
             c.incumbent ? 1 : 0,
             bioguideId,
             c.isWinner ? "winner" : "running",
+            // HO 206: NULL until this district's primary has voted (see senate).
+            c.votePct,
             now,
           ],
         });

@@ -52,6 +52,14 @@ export type ScrapedCandidate = {
   party: string; // the candidate's own party letter (D/R/L/G/I/...)
   incumbent: boolean;
   isWinner: boolean;
+  // HO 206: per-candidate result share, read from the SAME already-isolated
+  // 2026-primary votebox the roster comes from (not a page-wide scan — the page
+  // also carries historical 2024/2022 voteboxes with identical markup). NULL
+  // when the box has no results yet (un-voted primary), distinguishable from 0
+  // (a candidate who got 0%). `votePct` prefers the high-precision bar-width
+  // style over the rounded `percentage_number` display.
+  votePct: number | null;
+  votes: number | null;
 };
 
 export type CandidateScrapeStatus =
@@ -162,12 +170,36 @@ function parseVotebox(
     } else {
       party = contest; // D or R
     }
+    // HO 206: result share for this row. The bar-width style carries full
+    // precision (e.g. width:78.40408...%); the `percentage_number` div is the
+    // rounded display (78.4) — prefer the former, fall back to the latter.
+    // Absent on an un-voted primary's votebox → NULL (not 0). Raw votes live in
+    // the row's second `--number` cell (the first holds the percentage divs, so
+    // its content starts with `<div>`, not a digit — the `>[0-9]` anchor only
+    // matches the votes cell).
+    const widthStr = row.match(
+      /class="inner_percentage[^"]*"\s+style="width:\s*([0-9.]+)%/,
+    )?.[1];
+    const pctNumStr = row.match(/class="percentage_number">\s*([0-9.]+)\s*</)?.[1];
+    const pctRaw =
+      widthStr != null
+        ? Number(widthStr)
+        : pctNumStr != null
+          ? Number(pctNumStr)
+          : null;
+    const votesStr = row.match(
+      /class="votebox-results-cell--number">\s*([0-9][0-9,]*)\s*<\/td>/,
+    )?.[1];
+    const votesRaw = votesStr != null ? Number(votesStr.replace(/,/g, "")) : null;
+
     out.push({
       name,
       contest,
       party,
       incumbent: /<u>/.test(row), // Ballotpedia underlines incumbents
       isWinner: /class="results_row[^"]*\bwinner\b/.test(row),
+      votePct: pctRaw != null && Number.isFinite(pctRaw) ? pctRaw : null,
+      votes: votesRaw != null && Number.isFinite(votesRaw) ? votesRaw : null,
     });
   }
   return out;
@@ -397,10 +429,15 @@ export async function scrapeHouseCandidates(
   state: string,
   slug: string,
   district: number,
+  opts?: { bypassCache?: boolean },
 ): Promise<CandidateScrapeResult> {
   const url = houseDistrictUrl(slug, district);
 
-  const cached = readCachedHtml(url);
+  // HO 206: the results pass must read LIVE — the .cache/ HTML is pre-results
+  // (scraped ~May 20, before the primaries voted), so a cached read backfills
+  // zeros. `bypassCache` forces a fresh fetch; the roster sync leaves it unset
+  // and keeps the dev cache. (scrapeSenateCandidates is already cache-free.)
+  const cached = opts?.bypassCache ? null : readCachedHtml(url);
   if (cached) {
     return isSpecialElectionPage(cached)
       ? { state, url, status: "special", candidates: [] }
