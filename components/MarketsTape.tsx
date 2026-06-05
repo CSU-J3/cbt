@@ -1,13 +1,14 @@
 // HO 149 — markets ticker tape. Server parent fetches the MarketTicks, then
 // hands them to the client marquee for animation + staleness.
 //
-// HO 178 — the tape can render a single symbol GROUP. The dashboard (HomeHeader)
-// mounts two: `<MarketsTape group="equities" />` and
-// `<MarketsTape group="commodities" reverse />` (counter-scrolling). Every other
-// page (HeaderBar, HO 154.2) mounts `<MarketsTape />` with no group → one
-// combined tape of all symbols, single direction. `placeholderSymbols` (the
-// group's full internal-symbol list) drives both the no-data placeholder row and
-// the client's poll filter, so a tape only ever updates its own symbols.
+// HO 178 — the tape can render a single symbol GROUP. Both the dashboard
+// (HomeHeader) and every inner page (HeaderBar, via HO 202's restore) mount the
+// dual counter-scrolling pair through `<DualMarketsTape>`:
+// `<MarketsTape group="equities" />` + `<MarketsTape group="commodities" reverse />`.
+// The no-group "combined" form (one tape, all symbols, single direction) is left
+// in place but no longer mounted anywhere. `placeholderSymbols` (the group's full
+// internal-symbol list) drives both the no-data placeholder row and the client's
+// poll filter, so a tape only ever updates its own symbols.
 import { MarketsTapeClient } from "@/components/MarketsTapeClient";
 import { MARKET_SYMBOLS, type MarketGroup } from "@/lib/markets";
 import { getLatestMarketTicks } from "@/lib/queries";

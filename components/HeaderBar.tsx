@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
+import { DualMarketsTape } from "@/components/DualMarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
@@ -168,14 +169,16 @@ export async function HeaderBar({
 
   return (
     <header style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
-      {/* HO 187 inner-page chrome (5-band consolidation):
+      {/* Inner-page chrome (HO 187 band consolidation):
           Band 1 — TITLE BAR: the PowerShell path (left) + the main nav (right)
           on one row, merging HO 185's separate masthead + nav rows. flex-wrap
           so a deep detail path bumps the nav to a second line rather than
-          wrapping the path itself (the path is the identity). The markets tape
-          is GONE from inner pages — HO 187 reverted HO 185 sub-stage 2's
-          dual-tapes-everywhere; the tape is dashboard-only again (HomeHeader
-          keeps its own DualMarketsTape mount). */}
+          wrapping the path itself (the path is the identity).
+          The dual markets tape sits BELOW the title bar — HO 187 removed it
+          from inner pages, then HO 202 restored it app-wide (the dual
+          counter-scrolling pair, the same <DualMarketsTape> the dashboard's
+          HomeHeader mounts), matching the dashboard's masthead → tape → nav
+          order. */}
       <div className="header-titlebar">
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
@@ -298,6 +301,13 @@ export async function HeaderBar({
           <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
         </div>
       </div>
+
+      {/* HO 202: the dual markets tape, restored to every inner page (one mount
+          here reaches all HeaderBar pages, mirroring HomeHeader's single mount
+          for the dashboard). Below the title bar to match the dashboard's
+          masthead → tape → nav order. Hidden <700px by the global .markets-tape
+          rule, same as the dashboard. */}
+      <DualMarketsTape />
 
       {/* Transitional (HO 187): feed pages that haven't built their own band-3
           control strip yet (/changes, /stale until their sub-stage) still get
