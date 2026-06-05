@@ -1,13 +1,19 @@
 "use client";
 
-// HO 203 — Primaries row. Upgrades the bare "N candidates" count to a
-// candidate-field list (top-3 + "+N others", incumbent flagged) and a
-// click-to-expand full field (HO 148 idiom). NO share bar / no poll-share —
-// there is no polling data model and `vote_pct` (results) is 100% NULL across
-// the corpus, so a bar would be rendered against empty data; "never fake an
-// even-split bar" forces no bar (HO 203 Phase 1). Client-side expand (not
-// URL-driven) because past primaries live inside a native <details> that a
-// navigation re-render would collapse.
+// HO 203 → HO 207 — Primaries row. HO 203 shipped a candidate-field list +
+// single-open expand; HO 207 (now that HO 206 populates `vote_pct`) replaces the
+// list with a party-tinted RESULTS share bar for voted primaries, keeping the
+// field-list as the "not yet voted" fallback for un-voted ones.
+//
+// Marker semantics (HO 207 reframe): ★ = ADVANCER (won / advanced — runoffs
+// advance two, so two ★s is valid), read from `status==='winner'`. Incumbent is
+// a separate signal — amber name in the fallback list, an "INC" badge in the
+// expand — so the two never collide on the same glyph. The seat-incumbent
+// resolution (HO 203, `seat_incumbent_bioguide`) still drives that incumbent
+// cue and the member-page links.
+//
+// Client-side single-open expand (not URL-driven) because past primaries live
+// inside a native <details> a navigation re-render would collapse.
 import {
   createContext,
   type ReactNode,
@@ -34,8 +40,7 @@ const PrimaryExpandContext = createContext<PrimaryExpandCtx>({
 
 export function PrimaryExpandProvider({ children }: { children: ReactNode }) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const toggle = (id: string) =>
-    setOpenId((cur) => (cur === id ? null : id));
+  const toggle = (id: string) => setOpenId((cur) => (cur === id ? null : id));
   return (
     <PrimaryExpandContext.Provider value={{ openId, toggle }}>
       {children}
@@ -49,19 +54,24 @@ function partyChip(party: string): { label: string; color: string } {
   return { label: "OPEN", color: "var(--accent-amber)" };
 }
 
-// ★ = the actual seat incumbent (the candidate whose bioguide matches the
-// seat's current officeholder, `seatBio`). This is distinct from the per-
-// candidate `incumbent` flag ("is a sitting member of Congress"), which is true
-// for >1 candidate in top-two / redraw contests (CA-40 Calvert+Kim, TX-18
-// Menefee+Green) and still drives the member-page LINK. Falls back to the
-// `incumbent` flag only when seatBio is unresolved (at-large/senate/open) —
-// where it's ≤1 anyway, so no multi-star.
+// ★ = the actual seat incumbent (the candidate whose bioguide matches the seat's
+// current officeholder, `seatBio`) — distinct from the per-candidate `incumbent`
+// flag ("is a sitting member of Congress"), which is true for >1 candidate in
+// top-two / redraw contests and still drives the member-page LINK. Falls back to
+// the `incumbent` flag where seatBio is unresolved (≤1 there).
 function isSeatIncumbent(c: PrimaryCandidate, seatBio: string | null): boolean {
   return seatBio ? c.bioguide_id === seatBio : c.incumbent;
 }
 
-// Lead with the seat incumbent, then other sitting members, then alphabetical.
-function ordered(
+// HO 207: advancer = the winner-class row from the results parse (status set to
+// 'winner' by the sync / backfill). Runoffs advance two.
+function isAdvancer(c: PrimaryCandidate): boolean {
+  return c.status === "winner";
+}
+
+// Un-voted ordering: lead with the seat incumbent, then other sitting members,
+// then alphabetical.
+function orderedByIncumbent(
   cands: PrimaryCandidate[],
   seatBio: string | null,
 ): PrimaryCandidate[] {
@@ -74,9 +84,84 @@ function ordered(
   );
 }
 
+// Voted ordering: by result share, leader first.
+function orderedByShare(cands: PrimaryCandidate[]): PrimaryCandidate[] {
+  return [...cands].sort((a, b) => (b.vote_pct ?? 0) - (a.vote_pct ?? 0));
+}
+
 function lastName(name: string): string {
   const parts = name.trim().split(/\s+/);
   return parts[parts.length - 1] ?? name;
+}
+
+// Brightness rank toward the bar's dark base (cleaner than raw opacity, which
+// shows the background through and washes the saturated party reds/blues —
+// the HO 207 build-time legibility call). Leader = full tint; trailing darker.
+function segColor(tint: string, rank: number): string {
+  if (rank === 0) return tint;
+  if (rank === 1) return `color-mix(in srgb, ${tint} 62%, var(--bg-base))`;
+  return `color-mix(in srgb, ${tint} 40%, var(--bg-base))`;
+}
+
+function ShareBar({
+  cands,
+  tint,
+}: {
+  cands: PrimaryCandidate[];
+  tint: string;
+}) {
+  const ranked = orderedByShare(cands.filter((c) => c.vote_pct != null));
+  const top = ranked.slice(0, FIELD_CAP);
+  const rest = ranked.slice(FIELD_CAP);
+  const restShare = rest.reduce((s, c) => s + (c.vote_pct ?? 0), 0);
+
+  return (
+    <span
+      className="flex h-[18px] w-full overflow-hidden rounded-[2px]"
+      style={{ backgroundColor: "var(--bg-base)" }}
+    >
+      {top.map((c, i) => {
+        const pct = c.vote_pct ?? 0;
+        return (
+          <span
+            key={c.id}
+            // shrink-0 + minWidth:0 pin the rendered width to vote_pct exactly —
+            // without them a flex item won't shrink below its label's min-content,
+            // so narrow segments bleed wide and distort the bar. The 1px --bg-base
+            // hairline separates adjacent segments so same-hue neighbours (the
+            // whole bar is one tint, brightness-stepped) read as distinct rather
+            // than one mass (box-sizing:border-box keeps the border inside the %).
+            className="flex h-full shrink-0 items-center overflow-hidden px-1.5 text-[10px] whitespace-nowrap"
+            style={{
+              width: `${pct}%`,
+              minWidth: 0,
+              backgroundColor: segColor(tint, i),
+              color: "var(--text-primary)",
+              borderRight: "1px solid var(--bg-base)",
+            }}
+            title={`${c.name} — ${pct.toFixed(1)}%${isAdvancer(c) ? " · advanced" : ""}`}
+          >
+            {isAdvancer(c) ? "★ " : ""}
+            {lastName(c.name)} {Math.round(pct)}%
+          </span>
+        );
+      })}
+      {restShare > 0.5 ? (
+        <span
+          className="flex h-full shrink-0 items-center overflow-hidden px-1 text-[10px] whitespace-nowrap"
+          style={{
+            width: `${restShare}%`,
+            minWidth: 0,
+            backgroundColor: "var(--border-strong)",
+            color: "var(--text-dim)",
+          }}
+          title={`${rest.length} more candidate${rest.length === 1 ? "" : "s"}`}
+        >
+          +{rest.length}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
@@ -89,10 +174,18 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
       : null;
 
   const seatBio = p.seat_incumbent_bioguide;
-  const cands = ordered(p.candidates, seatBio);
-  const shown = cands.slice(0, FIELD_CAP);
-  const more = cands.length - shown.length;
-  const hasField = cands.length > 0;
+  const hasField = p.candidates.length > 0;
+  const hasResults = p.candidates.some((c) => c.vote_pct != null);
+
+  // Collapsed field list (un-voted fallback): incumbent-first.
+  const listCands = orderedByIncumbent(p.candidates, seatBio);
+  const shown = listCands.slice(0, FIELD_CAP);
+  const more = listCands.length - shown.length;
+
+  // Expand: results order when voted, incumbent order otherwise.
+  const expandCands = hasResults
+    ? orderedByShare(p.candidates)
+    : listCands;
 
   return (
     <div style={{ borderBottom: "0.5px solid var(--border-soft)" }}>
@@ -111,10 +204,11 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
               }
             : undefined
         }
-        className="flex items-baseline justify-between gap-3 px-3 py-1.5"
+        className="flex items-center gap-3 px-3 py-1.5"
         style={{ cursor: hasField ? "pointer" : "default" }}
       >
-        <span className="flex min-w-0 items-baseline gap-2">
+        {/* SEAT + PARTY */}
+        <span className="flex shrink-0 items-center gap-2">
           <span
             className="inline-block shrink-0 text-[11px] uppercase tracking-[0.5px]"
             style={{ color: chip.color, width: "38px" }}
@@ -135,7 +229,13 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
               {special}
             </span>
           ) : null}
-          {hasField ? (
+        </span>
+
+        {/* FIELD: results bar (voted) / field list (un-voted) / roster pending */}
+        <span className="flex min-w-0 flex-1 items-center">
+          {hasResults ? (
+            <ShareBar cands={p.candidates} tint={chip.color} />
+          ) : hasField ? (
             <span
               className="truncate text-[12px]"
               style={{ color: "var(--text-muted)" }}
@@ -150,7 +250,6 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
                         : undefined
                     }
                   >
-                    {isSeatIncumbent(c, seatBio) ? "★ " : ""}
                     {lastName(c.name)}
                   </span>
                 </span>
@@ -160,6 +259,7 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
                   {" · "}+{more} other{more === 1 ? "" : "s"}
                 </span>
               ) : null}
+              <span style={{ color: "var(--text-dim)" }}> — not yet voted</span>
             </span>
           ) : (
             <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
@@ -167,8 +267,10 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
             </span>
           )}
         </span>
+
+        {/* PRIMARY meta: runoff link + chevron (the date lives on the group header) */}
         <span
-          className="flex shrink-0 items-baseline gap-3 text-[12px] tabular-nums"
+          className="flex shrink-0 items-center gap-3 text-[12px] tabular-nums"
           style={{ color: "var(--text-muted)" }}
         >
           {p.runoff_date ? (
@@ -193,14 +295,37 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
           style={{ backgroundColor: "var(--bg-row-hover)" }}
         >
           <ul className="flex flex-col gap-1 py-1">
-            {cands.map((c) => (
+            {expandCands.map((c) => (
               <li key={c.id} className="flex items-baseline gap-2 text-[13px]">
+                {c.vote_pct != null ? (
+                  <span
+                    className="w-[44px] shrink-0 text-right text-[12px] tabular-nums"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    {c.vote_pct.toFixed(1)}%
+                  </span>
+                ) : null}
+                {isAdvancer(c) ? (
+                  <span
+                    className="shrink-0 text-[11px]"
+                    style={{ color: "var(--accent-amber)" }}
+                    title="Won / advanced"
+                  >
+                    ★
+                  </span>
+                ) : null}
                 {isSeatIncumbent(c, seatBio) ? (
                   <span
                     className="shrink-0 text-[10px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--accent-amber)" }}
+                    style={{
+                      color: "var(--text-muted)",
+                      border: "1px solid var(--border-strong)",
+                      borderRadius: "2px",
+                      padding: "0 3px",
+                    }}
+                    title="Incumbent for this seat"
                   >
-                    ★ inc
+                    inc
                   </span>
                 ) : null}
                 {c.bioguide_id ? (
@@ -217,14 +342,6 @@ export function PrimaryRow({ p }: { p: PrimaryWithCandidates }) {
                 <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
                   {c.party}
                 </span>
-                {c.status && c.status !== "running" ? (
-                  <span
-                    className="text-[11px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    {c.status.replace(/_/g, " ")}
-                  </span>
-                ) : null}
               </li>
             ))}
           </ul>

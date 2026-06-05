@@ -81,9 +81,19 @@ async function main() {
         chamber === "senate"
           ? `senate-${state}-2026-${c.contest}`
           : `house-${state}-${districtStr}-2026-${c.contest}`;
+      // HO 207: also write the advancer status — the result marks who won /
+      // advanced (Ballotpedia's `winner`-class row, parseVotebox `isWinner`).
+      // Runoffs advance two, so >1 'winner' per primary is valid. Only set on
+      // voted candidates (votePct non-null), so un-voted rows stay 'running'.
       const up = await db.execute({
-        sql: "UPDATE primary_candidates SET vote_pct = ?, updated_at = ? WHERE primary_id = ? AND name = ?",
-        args: [c.votePct, now, primaryId, c.name],
+        sql: "UPDATE primary_candidates SET vote_pct = ?, status = ?, updated_at = ? WHERE primary_id = ? AND name = ?",
+        args: [
+          c.votePct,
+          c.isWinner ? "winner" : "running",
+          now,
+          primaryId,
+          c.name,
+        ],
       });
       if (up.rowsAffected > 0) {
         rowsUpdated += up.rowsAffected;
