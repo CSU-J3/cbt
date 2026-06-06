@@ -11,6 +11,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { CartogramChallenger, CartogramContest } from "@/lib/cartogram-data";
+import { formatDollarsCompact } from "@/lib/format";
 import type { PartyKey } from "@/lib/queries";
 
 function partyColor(p: PartyKey | null | undefined): string {
@@ -176,6 +177,17 @@ function RaceCardRow({
             >
               {contest.party ?? "?"} · incumbent
             </span>
+            {/* HO 212: incumbent cash-on-hand (FEC, cents). null = no filing
+                on record → omit cleanly; a real filed-empty 0 renders "$0".
+                Incumbent-only: challenger cash is structurally unavailable. */}
+            {contest.incumbentCashOnHand != null ? (
+              <span
+                className="racecard-cash"
+                title="Incumbent cash on hand (FEC, this cycle)"
+              >
+                CASH <b>{formatDollarsCompact(contest.incumbentCashOnHand)}</b>
+              </span>
+            ) : null}
           </div>
 
           {/* Challengers, or the honest null-safe placeholder (133/137 today) */}

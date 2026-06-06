@@ -39,6 +39,7 @@ export type CartogramContest = {
   rating?: string | null; // consensus rating label
   ratingScore?: number | null; // consensus score (for chip color/sort)
   incumbentDepictionUrl?: string | null;
+  incumbentCashOnHand?: number | null; // HO 212: cents; null = no FEC filing, 0 = filed-empty
   challengers?: CartogramChallenger[]; // race_candidates (mostly empty today)
   // ── PRIMARIES card (Pass 2) — undefined on races contests ──
   primary?: PrimaryWithCandidates; // raw row for the HO 207 ShareBar / sched list
@@ -110,6 +111,7 @@ export function buildRacesCartogram(
       rating: r.consensusRating,
       ratingScore: r.consensusScore,
       incumbentDepictionUrl: r.incumbentDepictionUrl,
+      incumbentCashOnHand: r.incumbentCashOnHand,
       challengers: challengersByRace.get(r.raceId) ?? [],
     };
     const arr = byState.get(r.state);

@@ -1525,6 +1525,11 @@ export type RaceIndexRow = {
   // HO 210 Pass 2: incumbent photo for the pinned map card (member-photo
   // pattern; onError → initials). 137/137 rated incumbents have one.
   incumbentDepictionUrl: string | null;
+  // HO 212: incumbent cash-on-hand in CENTS, from member_fundraising (FEC,
+  // HO 83), joined 1:1 on (bioguide_id, cycle). null when the incumbent has
+  // no filing on record (9/137 today); a real filed-but-empty account is 0.
+  // Challenger cash is structurally unavailable (table is bioguide-keyed).
+  incumbentCashOnHand: number | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -1552,6 +1557,7 @@ export const getRacesIndex = unstable_cache(
                    m.name AS incumbent_name,
                    m.party AS incumbent_party,
                    m.depiction_url AS incumbent_depiction_url,
+                   mf.cash_on_hand AS incumbent_cash_on_hand,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
                    MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
@@ -1561,6 +1567,8 @@ export const getRacesIndex = unstable_cache(
             FROM races r
             INNER JOIN race_ratings rr ON rr.race_id = r.id AND rr.cycle = r.cycle
             LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
+            LEFT JOIN member_fundraising mf
+                   ON mf.bioguide_id = r.incumbent_bioguide_id AND mf.cycle = r.cycle
             WHERE r.cycle = ?
             GROUP BY r.id`,
       args: [cycle],
@@ -1613,6 +1621,10 @@ export const getRacesIndex = unstable_cache(
           (row.incumbent_bioguide_id as string | null) ?? null,
         incumbentDepictionUrl:
           (row.incumbent_depiction_url as string | null) ?? null,
+        incumbentCashOnHand:
+          row.incumbent_cash_on_hand == null
+            ? null
+            : Number(row.incumbent_cash_on_hand),
         cookRating,
         sabatoRating,
         ieRating,
