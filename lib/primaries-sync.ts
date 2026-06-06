@@ -28,19 +28,24 @@ import {
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
 
-// 2026 Senate states. WA was dropped from the handoff's SENATE_STATES_2026
-// list — Washington has no 2026 Senate race (its seats are up 2028 / 2030).
-// FL and OH are 2026 specials: scrapeSenateCandidates falls back to the
-// special-election URL when the regular page 404s, and parseCandidatesPage
-// is page-type-aware — on a special page the "Special D/R primary" voteboxes
-// are the rosters to keep (HO 106). Before HO 106 the URL resolved but the
-// parser's blanket "drop anything special" gate discarded those voteboxes,
-// so FL/OH always returned no_candidates.
+// The 2026 Senate map — the 33 Class II seats up this cycle + the FL and OH
+// specials = 35 states. The SINGLE authoritative answer to "which states have a
+// 2026 Senate seat": it gates BOTH the Senate roster scrape (syncSenateCandidates
+// default) AND the calendar seed (syncCalendar, HO 209 — so no false Senate
+// contests get seeded for the ~15 no-seat states). Verified against race_ratings
+// (Cook 2026) + Wikipedia / Ballotpedia / FEC; the `races` and `members` tables
+// are WRONG here (they carry CA/NY and miss FL/MN/MS/NE/NJ/OH) so must NOT be the
+// source. WA is correctly absent (seats up 2028/2030). **WV was wrongly MISSING
+// until HO 209** — Capito's seat is a real Class II 2026 seat, and its omission
+// is exactly why the WV roster came back empty. FL and OH are 2026 specials:
+// scrapeSenateCandidates falls back to the special-election URL when the regular
+// page 404s, and parseCandidatesPage is page-type-aware (HO 106) — on a special
+// page the "Special D/R primary" voteboxes are the rosters to keep.
 const SENATE_STATES_2026 = [
   "AL", "AK", "AR", "CO", "DE", "GA", "ID", "IL", "IA", "KS",
   "KY", "LA", "ME", "MA", "MI", "MN", "MS", "MT", "NE", "NH",
   "NJ", "NM", "NC", "OK", "OR", "RI", "SC", "SD", "TN", "TX",
-  "VA", "WY",
+  "VA", "WV", "WY",
   "FL", "OH",
 ];
 
@@ -287,17 +292,25 @@ function matchHouseCandidate(
 
 export type CalendarSyncSummary = { states: number };
 
-// Pulls the 270toWin calendar and upserts a D and an R primary row per state,
-// plus an 'open' row for top-two / top-four states. Row id shape is
-// "senate-{STATE}-2026-{party}" — the id prefix is a fixed convention from
-// the handoff (the row carries the state's primary date, which applies to
-// every contest that day regardless of chamber).
+// Pulls the 270toWin calendar and upserts a D and an R Senate primary row per
+// 2026-Senate-seat state, plus an 'open' row for top-two / top-four states. Row
+// id shape is "senate-{STATE}-2026-{party}" — a fixed convention from the
+// handoff (the row carries the state's primary date, which applies to every
+// contest that day regardless of chamber). The 270toWin calendar lists a primary
+// DATE for all 50 states, but a SENATE primary row must only exist where a seat
+// is actually up — so states with no 2026 Senate seat are SKIPPED (HO 209, gated
+// on SENATE_STATES_2026) and no false Senate contests get seeded ("WTF is going
+// on" must not show a PA Senate primary that isn't happening).
 export async function syncCalendar(): Promise<CalendarSyncSummary> {
   const db = getDb();
   const calendar = await scrapeStatePrimaryCalendar();
   const now = new Date().toISOString();
 
+  let seededStates = 0;
   for (const entry of calendar) {
+    // HO 209: gate on the 2026 Senate map — no seat up → no Senate primary rows.
+    if (!SENATE_STATES_2026.includes(entry.state)) continue;
+    seededStates++;
     for (const party of ["D", "R"] as const) {
       const id = `senate-${entry.state}-2026-${party}`;
       await db.execute({
@@ -349,8 +362,11 @@ export async function syncCalendar(): Promise<CalendarSyncSummary> {
     }
   }
 
-  console.log(`Calendar synced: ${calendar.length} states`);
-  return { states: calendar.length };
+  console.log(
+    `Calendar synced: ${seededStates} of ${calendar.length} states seeded ` +
+      `Senate primaries (HO 209: gated on the 2026 Senate map)`,
+  );
+  return { states: seededStates };
 }
 
 export type SenateSyncSummary = {
