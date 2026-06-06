@@ -2,10 +2,13 @@
 // calendar — all 50 states — grouped by date, today first, past collapsed.
 // Voted primaries (HO 206 `vote_pct`) render a result share bar (HO 207);
 // upcoming ones show the candidate field as a "not yet voted" fallback.
+import { CartogramShell } from "@/components/CartogramShell";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { PrimaryExpandProvider, PrimaryRow } from "@/components/PrimaryRow";
+import { buildPrimariesCartogram } from "@/lib/cartogram-data";
 import { daysUntil, formatDateLong } from "@/lib/format";
+import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   getPastPrimaries,
   getUpcomingPrimaries,
@@ -109,6 +112,13 @@ export default async function PrimariesPage() {
   const upcomingGroups = groupByDate(upcoming);
   const pastGroups = groupByDate(votedRows);
 
+  // HO 210: cartogram bands — VOTED (vote_pct present) / SOON (next-4 rolling
+  // window) / LATER. Built from the full unfiltered set (not the votedRows
+  // display guard) so band classification sees every contest.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const cartogram = buildPrimariesCartogram(upcoming, past, todayISO);
+  const geometry = getUsMapGeometry();
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* HO 203: match the Members/Races chrome — cursor trails the full inline
@@ -141,12 +151,16 @@ export default async function PrimariesPage() {
           270toWin (calendar) · Ballotpedia (rosters + results).
         </p>
 
-        {/* HO 208: one date-sorted list — most-recent results first (past DESC,
-            the voted result bars), a subtle seam, then upcoming (ASC,
-            nearest-first, "not yet voted"). No collapsed <details>; the result
-            bars are the first thing visible, no expand required. The per-row
-            HO 148 click-to-expand (single-open via the provider) is unaffected. */}
-        <PrimaryExpandProvider>
+        {/* HO 210: map-first cartogram above the existing list. The full
+            date-sorted list (HO 208) is one MAP/LIST toggle away, unchanged,
+            passed in as listSlot. */}
+        <CartogramShell
+          variant="primaries"
+          cells={cartogram.cells}
+          summary={cartogram.summary}
+          geometry={geometry}
+          listSlot={
+            <PrimaryExpandProvider>
           {pastGroups.map((g) => (
             <DateGroup key={`past-${g.date}`} date={g.date} rows={g.rows} />
           ))}
@@ -178,7 +192,9 @@ export default async function PrimariesPage() {
               No primaries
             </div>
           ) : null}
-        </PrimaryExpandProvider>
+            </PrimaryExpandProvider>
+          }
+        />
       </main>
     </div>
   );

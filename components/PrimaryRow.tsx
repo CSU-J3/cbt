@@ -103,7 +103,10 @@ function segColor(tint: string, rank: number): string {
   return `color-mix(in srgb, ${tint} 40%, var(--bg-base))`;
 }
 
-function ShareBar({
+// Exported (HO 210 Pass 2) so the pinned map card reuses the HO 207 results bar
+// AS-IS. It depends only on its {cands, tint} props — no context, no module
+// state — so it renders identically in the card and in the primaries list.
+export function ShareBar({
   cands,
   tint,
 }: {

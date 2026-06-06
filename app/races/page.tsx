@@ -8,11 +8,15 @@
 // SKILL.md). Toss Up reads in amber; partisan ratings carry the party
 // color regardless of strength (the strength is in the text).
 import Link from "next/link";
+import { CartogramShell } from "@/components/CartogramShell";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { daysUntil, formatDateShort } from "@/lib/format";
+import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   getPastPrimaries,
+  getRaceCandidatesForCycle,
   getRacesIndex,
   getUpcomingPrimaries,
   type RaceIndexRow,
@@ -190,10 +194,11 @@ function RaceSection({
 }
 
 export default async function RacesPage() {
-  const [races, upcoming, past] = await Promise.all([
+  const [races, upcoming, past, raceCandidates] = await Promise.all([
     getRacesIndex(2026),
     getUpcomingPrimaries(300),
     getPastPrimaries(300),
+    getRaceCandidatesForCycle(2026),
   ]);
   const senate = races.filter((r) => r.chamber === "senate");
   const house = races.filter((r) => r.chamber === "house");
@@ -204,6 +209,11 @@ export default async function RacesPage() {
   for (const p of [...upcoming, ...past]) {
     if (p.primary_date) primaries.set(`${p.state}-${p.party}`, p.primary_date);
   }
+
+  // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
+  // tile count === the number of rows the LIST shows for that state.
+  const cartogram = buildRacesCartogram(races, raceCandidates);
+  const geometry = getUsMapGeometry();
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -217,12 +227,6 @@ export default async function RacesPage() {
           >
             2026 races
           </h1>
-          <span
-            className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {races.length} tracked · {senate.length} Senate · {house.length} House
-          </span>
         </div>
 
         <p
@@ -230,12 +234,23 @@ export default async function RacesPage() {
           style={{ color: "var(--text-muted)" }}
         >
           Seats rated by Cook, Sabato, or Inside Elections as anything other than
-          Solid/Safe. Sorted by consensus competitiveness — toss-ups first. Click
-          a row for the race hub; click an incumbent for their member page.
+          Solid/Safe. Map shows how many competitive races each state holds; one
+          MAP/LIST toggle away is the full spectrum-bar list. Click a tile to pin
+          its contests; click an incumbent for their member page.
         </p>
 
-        <RaceSection title="Senate" races={senate} primaries={primaries} />
-        <RaceSection title="House" races={house} primaries={primaries} />
+        <CartogramShell
+          variant="races"
+          cells={cartogram.cells}
+          summary={cartogram.summary}
+          geometry={geometry}
+          listSlot={
+            <>
+              <RaceSection title="Senate" races={senate} primaries={primaries} />
+              <RaceSection title="House" races={house} primaries={primaries} />
+            </>
+          }
+        />
       </main>
     </div>
   );

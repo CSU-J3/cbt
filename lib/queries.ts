@@ -1317,6 +1317,46 @@ export const getRaceCandidates = unstable_cache(
   { revalidate: 86400, tags: ["races"] },
 );
 
+// HO 210 Pass 2: all candidates for a cycle in one query so the pinned map card
+// can show challenger rosters without an N+1 of getRaceCandidates. Returns a
+// FLAT array (not a Map) because unstable_cache JSON-serializes its result and a
+// Map would round-trip to {} — the builder groups by race_id. Today only ~4 of
+// the 137 rated races carry rows (the hand-seeded strip races); the rest fall
+// back to a null-safe placeholder in the card. Same precedence + party
+// normalization as getRaceCandidates.
+export const getRaceCandidatesForCycle = unstable_cache(
+  async (cycle: number): Promise<RaceCandidate[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT rc.race_id, rc.name, rc.party, rc.bioguide_id, rc.status,
+                   rc.source_url
+            FROM race_candidates rc
+            JOIN races r ON r.id = rc.race_id
+            WHERE r.cycle = ?
+            ORDER BY
+              CASE
+                WHEN rc.status = 'won_primary' THEN 0
+                WHEN rc.status = 'running' THEN 1
+                WHEN rc.status = 'declared' THEN 2
+                WHEN rc.status = 'withdrew' THEN 3
+                ELSE 4
+              END,
+              rc.name ASC`,
+      args: [cycle],
+    });
+    return rs.rows.map((r) => ({
+      race_id: r.race_id as string,
+      name: r.name as string,
+      party: normalizePartyVariant(r.party as string | null),
+      bioguide_id: (r.bioguide_id as string | null) ?? null,
+      status: (r.status as string | null) ?? null,
+      source_url: (r.source_url as string | null) ?? null,
+    }));
+  },
+  ["getRaceCandidatesForCycle"],
+  { revalidate: 86400, tags: ["races"] },
+);
+
 // ---- Race ratings (handoff 71) ------------------------------------------
 
 export const RATING_SOURCES = ["cook", "sabato", "inside_elections"] as const;
@@ -1482,6 +1522,9 @@ export type RaceIndexRow = {
   incumbentName: string | null;
   incumbentParty: PartyKey | null;
   incumbentBioguideId: string | null;
+  // HO 210 Pass 2: incumbent photo for the pinned map card (member-photo
+  // pattern; onError → initials). 137/137 rated incumbents have one.
+  incumbentDepictionUrl: string | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -1508,6 +1551,7 @@ export const getRacesIndex = unstable_cache(
                    r.incumbent_bioguide_id,
                    m.name AS incumbent_name,
                    m.party AS incumbent_party,
+                   m.depiction_url AS incumbent_depiction_url,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
                    MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
@@ -1567,6 +1611,8 @@ export const getRacesIndex = unstable_cache(
         ),
         incumbentBioguideId:
           (row.incumbent_bioguide_id as string | null) ?? null,
+        incumbentDepictionUrl:
+          (row.incumbent_depiction_url as string | null) ?? null,
         cookRating,
         sabatoRating,
         ieRating,
