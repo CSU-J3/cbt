@@ -608,12 +608,21 @@ export async function syncHouseDistricts(
   const totalIncumbents = incumbentByDistrict.size;
   const matchedIncumbents = new Set<string>();
 
-  // State primary date / type, read from the calendar rows syncCalendar seeded.
+  // State primary date / type. The date is a STATE-level fact (every contest on
+  // the ballot that day shares it), so read it from ANY of the state's existing
+  // primary rows — NOT specifically senate-{ST}-D. HO 209 gated the senate seed
+  // to the 35 states with a 2026 seat, so the old `chamber='senate' AND
+  // party='D'` source is now absent for the ~15 no-seat states and would null
+  // their House dates. MAX() just picks the (uniform) value per state.
   const calRows = await db.execute({
-    sql: `SELECT state, primary_date, runoff_date, primary_type
+    sql: `SELECT state,
+                 MAX(primary_date) AS primary_date,
+                 MAX(runoff_date) AS runoff_date,
+                 MAX(primary_type) AS primary_type
             FROM primaries
-            WHERE chamber = 'senate' AND party = 'D'
-              AND state IN (${statePlaceholders})`,
+            WHERE primary_date IS NOT NULL
+              AND state IN (${statePlaceholders})
+            GROUP BY state`,
     args: states,
   });
   const calByState = new Map<
