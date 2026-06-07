@@ -3528,6 +3528,42 @@ a.racecard-cand-name:hover {
   color: var(--text-secondary);
   font-weight: 600;
 }
+/* HO 214: 2024 general-election margin bar on the expanded race row. */
+.racecard-margin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 2px;
+}
+.racecard-margin-tag {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.racecard-margin-track {
+  position: relative;
+  flex: 1;
+  max-width: 160px;
+  height: 6px;
+  background: var(--border-strong);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.racecard-margin-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  border-radius: 3px;
+}
+.racecard-margin-val {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  min-width: 48px;
+}
 .racecard-placeholder {
   font-size: 12px;
   color: var(--text-dim);

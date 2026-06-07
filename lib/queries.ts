@@ -1530,6 +1530,10 @@ export type RaceIndexRow = {
   // no filing on record (9/137 today); a real filed-but-empty account is 0.
   // Challenger cash is structurally unavailable (table is bioguide-keyed).
   incumbentCashOnHand: number | null;
+  // HO 214: 2024 House general margin, SIGNED pct points (R-won positive,
+  // D-won negative). House-only — null for Senate (no 2024 general), RCV
+  // states (ME/AK), and unresolved pages. Lives on races.margin_2024.
+  margin2024: number | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -1553,7 +1557,7 @@ export const getRacesIndex = unstable_cache(
     const db = getDb();
     const rs = await db.execute({
       sql: `SELECT r.id, r.chamber, r.state, r.district, r.cycle,
-                   r.incumbent_bioguide_id,
+                   r.incumbent_bioguide_id, r.margin_2024,
                    m.name AS incumbent_name,
                    m.party AS incumbent_party,
                    m.depiction_url AS incumbent_depiction_url,
@@ -1625,6 +1629,8 @@ export const getRacesIndex = unstable_cache(
           row.incumbent_cash_on_hand == null
             ? null
             : Number(row.incumbent_cash_on_hand),
+        margin2024:
+          row.margin_2024 == null ? null : Number(row.margin_2024),
         cookRating,
         sabatoRating,
         ieRating,

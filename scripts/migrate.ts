@@ -503,6 +503,15 @@ async function main() {
     "summarize_attempts",
     "INTEGER NOT NULL DEFAULT 0",
   );
+  // handoff 214: 2024 House general-election margin per seat, scraped from the
+  // per-seat Ballotpedia 2024 election page (House-only). SIGNED percentage-
+  // point margin = winner% − runner-up%, sign by winner party: positive =
+  // Republican-won, negative = Democrat-won (matches the race_ratings.score
+  // R-positive/D-negative convention). NULL = no 2024 general for the seat
+  // (Senate — last ran 2020/2022), an RCV result with no standard votebox
+  // (Maine/Alaska), or an unresolved/404 page. 1:1 with the race, so it lives
+  // on `races`.
+  await ensureColumn(db, "races", "margin_2024", "REAL");
   console.log("migration complete");
 }
 

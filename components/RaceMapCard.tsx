@@ -67,6 +67,35 @@ function Face({
   );
 }
 
+// HO 214: 2024 House general-election margin bar. `margin` is SIGNED pct points
+// — positive = Republican-won, negative = Democrat-won. Magnitude drives the bar
+// width (scaled so ~20pts fills it); winner party drives the color + label.
+// null → render nothing (Senate / RCV / unresolved — clean omit, no NaN).
+function MarginBar({ margin }: { margin: number | null | undefined }) {
+  if (margin == null || !Number.isFinite(margin)) return null;
+  const mag = Math.abs(margin);
+  const party: PartyKey = margin > 0 ? "R" : "D";
+  // Only a true tie reads EVEN; a 0.2-pt win still shows its winner (R+0.2).
+  const even = mag < 0.1;
+  const color = even ? "var(--text-muted)" : partyColor(party);
+  const label = even ? "EVEN" : `${party}+${mag.toFixed(1)}`;
+  const width = Math.min(100, Math.max(2, mag * 5)); // ~20pts fills the track
+  return (
+    <div className="racecard-margin" title="2024 general-election margin (winner − runner-up)">
+      <span className="racecard-margin-tag">2024</span>
+      <span className="racecard-margin-track" aria-hidden>
+        <span
+          className="racecard-margin-fill"
+          style={{ width: `${width}%`, background: color }}
+        />
+      </span>
+      <span className="racecard-margin-val" style={{ color }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function ChallengerRow({ c }: { c: CartogramChallenger }) {
   const dim = c.status === "withdrew";
   return (
@@ -199,9 +228,10 @@ function RaceCardRow({
             </div>
           )}
 
-          {/* margin bar omitted — no 2024-margin data yet (rich-card HO).
-              Rich-card insertion points: ●N news flag · Kalshi · cash ·
-              rater spread · trend sparkline · per-race news. */}
+          {/* HO 214: 2024 House general margin bar (House seats only; Senate /
+              RCV / unresolved render nothing). Remaining rich-card insertion
+              points: ●N news flag · Kalshi · rater spread · trend sparkline. */}
+          <MarginBar margin={contest.margin2024} />
 
           {contest.href ? (
             <Link href={contest.href} className="racecard-hublink">
