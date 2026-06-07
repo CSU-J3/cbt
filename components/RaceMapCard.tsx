@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { CartogramChallenger, CartogramContest } from "@/lib/cartogram-data";
 import { formatDollarsCompact } from "@/lib/format";
+import type { KalshiOdds } from "@/lib/kalshi";
 import type { PartyKey } from "@/lib/queries";
 
 function partyColor(p: PartyKey | null | undefined): string {
@@ -91,6 +92,74 @@ function MarginBar({ margin }: { margin: number | null | undefined }) {
       </span>
       <span className="racecard-margin-val" style={{ color }}>
         {label}
+      </span>
+    </div>
+  );
+}
+
+function partyWord(p: PartyKey | null): string {
+  if (p === "R") return "Rep";
+  if (p === "D") return "Dem";
+  if (p === "I") return "Ind";
+  return "—";
+}
+
+// Surname for the dense card line; drop given names + Jr./Sr./III suffixes.
+const NAME_SUFFIX = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
+function surname(name: string): string {
+  const toks = name
+    .replace(/[.,]/g, " ")
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  while (toks.length > 1 && NAME_SUFFIX.has(toks[toks.length - 1]!.toLowerCase())) toks.pop();
+  return toks[toks.length - 1] ?? name;
+}
+const nameKey = (name: string) => surname(name).toLowerCase();
+
+// HO 218: per-seat Kalshi market line. Named-favorite with a party degrade.
+// - party-labeled market (~65%): "KALSHI · Dem 72%", party-colored
+// - candidate-name market: "KALSHI · Spanberger 72%"; party resolved against
+//   the card's own roster (incumbent + challengers) for color, else neutral —
+//   never fabricate a party the API didn't give
+// - null odds (no Kalshi general market, e.g. S-KY) OR a market past close_time:
+//   render nothing (null-safe absence, same as cash/margin)
+function KalshiLine({
+  odds,
+  contest,
+}: {
+  odds: KalshiOdds | null | undefined;
+  contest: CartogramContest;
+}) {
+  if (!odds) return null;
+  if (odds.closeTime && Date.parse(odds.closeTime) < Date.now()) return null;
+
+  let party: PartyKey | null = odds.favoriteParty;
+  if (!party && !odds.favoriteIsParty) {
+    const fk = nameKey(odds.favoriteLabel);
+    if (contest.incumbent && nameKey(contest.incumbent.name) === fk) {
+      party = contest.party ?? null;
+    } else {
+      const ch = (contest.challengers ?? []).find((c) => nameKey(c.name) === fk);
+      if (ch) party = ch.party;
+    }
+  }
+
+  const text = odds.favoriteIsParty
+    ? party
+      ? partyWord(party)
+      : odds.favoriteLabel
+    : surname(odds.favoriteLabel);
+  const color = party ? partyColor(party) : "var(--text-secondary)";
+
+  return (
+    <div
+      className="racecard-kalshi"
+      title={`Kalshi market — ${odds.favoriteLabel} ${odds.impliedPct}% implied probability`}
+    >
+      <span className="racecard-kalshi-tag">KALSHI</span>
+      <span className="racecard-kalshi-val" style={{ color }}>
+        {text} <span className="tabular-nums">{odds.impliedPct}%</span>
       </span>
     </div>
   );
@@ -230,8 +299,11 @@ function RaceCardRow({
 
           {/* HO 214: 2024 House general margin bar (House seats only; Senate /
               RCV / unresolved render nothing). Remaining rich-card insertion
-              points: ●N news flag · Kalshi · rater spread · trend sparkline. */}
+              points: ●N news flag · rater spread · trend sparkline. */}
           <MarginBar margin={contest.margin2024} />
+
+          {/* HO 218: per-seat Kalshi odds line (null-safe absence). */}
+          <KalshiLine odds={contest.kalshiOdds} contest={contest} />
 
           {contest.href ? (
             <Link href={contest.href} className="racecard-hublink">

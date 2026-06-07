@@ -15,6 +15,7 @@ import {
   type Topic,
 } from "./enums";
 import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
+import type { KalshiOdds } from "./kalshi";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
 // feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
@@ -1534,6 +1535,11 @@ export type RaceIndexRow = {
   // D-won negative). House-only — null for Senate (no 2024 general), RCV
   // states (ME/AK), and unresolved pages. Lives on races.margin_2024.
   margin2024: number | null;
+  // HO 218: per-seat Kalshi market odds for the card line, LEFT JOIN'd 1:1 from
+  // kalshi_odds. null when Kalshi runs no general market for the seat (e.g.
+  // S-KY, which has only primary markets) — render nothing, same null-safe
+  // absence as cash/margin.
+  kalshiOdds: KalshiOdds | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -1562,6 +1568,13 @@ export const getRacesIndex = unstable_cache(
                    m.party AS incumbent_party,
                    m.depiction_url AS incumbent_depiction_url,
                    mf.cash_on_hand AS incumbent_cash_on_hand,
+                   ko.event_ticker AS ko_event_ticker,
+                   ko.implied_pct AS ko_implied_pct,
+                   ko.favorite_label AS ko_favorite_label,
+                   ko.favorite_is_party AS ko_favorite_is_party,
+                   ko.favorite_party AS ko_favorite_party,
+                   ko.open_interest AS ko_open_interest,
+                   ko.close_time AS ko_close_time,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
                    MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
@@ -1573,6 +1586,7 @@ export const getRacesIndex = unstable_cache(
             LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
             LEFT JOIN member_fundraising mf
                    ON mf.bioguide_id = r.incumbent_bioguide_id AND mf.cycle = r.cycle
+            LEFT JOIN kalshi_odds ko ON ko.race_id = r.id
             WHERE r.cycle = ?
             GROUP BY r.id`,
       args: [cycle],
@@ -1631,6 +1645,23 @@ export const getRacesIndex = unstable_cache(
             : Number(row.incumbent_cash_on_hand),
         margin2024:
           row.margin_2024 == null ? null : Number(row.margin_2024),
+        kalshiOdds:
+          row.ko_implied_pct == null
+            ? null
+            : {
+                raceId: row.id as string,
+                eventTicker: (row.ko_event_ticker as string | null) ?? "",
+                impliedPct: Number(row.ko_implied_pct),
+                favoriteLabel: (row.ko_favorite_label as string | null) ?? "",
+                favoriteIsParty: Number(row.ko_favorite_is_party) === 1,
+                favoriteParty:
+                  (row.ko_favorite_party as "D" | "R" | "I" | null) ?? null,
+                openInterest:
+                  row.ko_open_interest == null
+                    ? null
+                    : Number(row.ko_open_interest),
+                closeTime: (row.ko_close_time as string | null) ?? null,
+              },
         cookRating,
         sabatoRating,
         ieRating,

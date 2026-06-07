@@ -210,6 +210,26 @@ const statements = [
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  // HO 218: per-seat Kalshi prediction-market odds. One row per race_id (our
+  // raceId form, e.g. "PA-07-2026" / "S-ME-2026"). Loose link to races.id (no
+  // FK) — the fetcher writes every 2026 House/Senate general seat Kalshi runs,
+  // including ones we don't rate; getRacesIndex's LEFT JOIN picks the 137.
+  // Refreshed by the GitHub Actions cron (/api/cron/kalshi); odds move intraday.
+  // favorite_is_party=1 when the outcome label is a bare party string (~65% of
+  // markets) vs a candidate name; favorite_party is set only for party labels
+  // (name labels resolve to a party at render via the card roster).
+  `CREATE TABLE IF NOT EXISTS kalshi_odds (
+    race_id TEXT PRIMARY KEY,
+    cycle INTEGER NOT NULL,
+    event_ticker TEXT NOT NULL,
+    implied_pct INTEGER NOT NULL,
+    favorite_label TEXT NOT NULL,
+    favorite_is_party INTEGER NOT NULL,
+    favorite_party TEXT,
+    open_interest INTEGER,
+    close_time TEXT,
+    updated_at TEXT NOT NULL
+  )`,
   // handoff 71: race ratings from third-party forecasters (Cook v1; Sabato
   // and Inside Elections layer in later as additional rows). Composite id
   // = race_id-source so re-seeding upserts in place. race_id is a loose

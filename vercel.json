@@ -26,6 +26,9 @@
     },
     "app/api/cron/committees/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/kalshi/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [

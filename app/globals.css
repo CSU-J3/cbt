@@ -3564,6 +3564,28 @@ a.racecard-cand-name:hover {
   flex-shrink: 0;
   min-width: 48px;
 }
+/* HO 218: per-seat Kalshi market-odds line on the expanded race row. Neutral
+   KALSHI tag + party-colored named favorite, matching the cash/margin idiom. */
+.racecard-kalshi {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+.racecard-kalshi-tag {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.racecard-kalshi-val {
+  font-weight: 600;
+}
+.racecard-kalshi-val::before {
+  content: "· ";
+  color: var(--text-dim);
+  font-weight: 400;
+}
 .racecard-placeholder {
   font-size: 12px;
   color: var(--text-dim);
