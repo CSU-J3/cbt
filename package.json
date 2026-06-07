@@ -20,6 +20,7 @@
     "sync:members": "tsx scripts/sync-members.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",
     "backfill:races": "tsx scripts/backfill-races.ts",
+    "backfill:race-challengers": "tsx scripts/backfill-race-challengers.ts",
     "seed:races": "tsx scripts/seed-races.ts",
     "seed:ratings": "tsx scripts/seed-race-ratings.ts",
     "seed:runoffs": "tsx scripts/seed-runoffs.ts",
