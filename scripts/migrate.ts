@@ -251,6 +251,28 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_ratings_race ON race_ratings(race_id)`,
   `CREATE INDEX IF NOT EXISTS idx_ratings_score ON race_ratings(rating_score)`,
+  // HO 220: rating-history change-detect log. Append-only (the market_ticks
+  // precedent), one row per (race_id, source) per actual rating MOVE — a daily
+  // cron (/api/cron/rating-history) compares live race_ratings to the latest
+  // logged value and appends ONLY on a score/label diff (rating_date is carried
+  // but NOT part of the predicate — a same-rating re-publish must not log a
+  // noise point). First run logs every current rating as the baseline; static
+  // days log zero. `rating` mirrors race_ratings.rating (verbatim label);
+  // `rating_date` is the rater's published date (better sparkline x-axis than
+  // observation), `observed_at` is the day WE logged it (honest fallback).
+  // UNIQUE(race_id, source, observed_at) makes a same-day re-run a no-op.
+  // No sparkline yet — this just plants the tree (HO 220 is data capture only).
+  `CREATE TABLE IF NOT EXISTS rating_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    race_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    rating_score INTEGER NOT NULL,
+    rating TEXT NOT NULL,
+    rating_date TEXT,
+    observed_at TEXT NOT NULL,
+    UNIQUE(race_id, source, observed_at)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_rating_history_race_source ON rating_history(race_id, source, observed_at)`,
   // handoff 77: House roll-call votes. `id` is 'house-{congress}-{session}-
   // {rollCall}'. `bill_id` references bills.id when the vote attaches to a
   // bill; NULL for amendment/procedural votes whose legislationType doesn't

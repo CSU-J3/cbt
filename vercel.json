@@ -29,6 +29,9 @@
     },
     "app/api/cron/kalshi/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/rating-history/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -63,6 +66,10 @@
     {
       "path": "/api/cron/news",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/rating-history",
+      "schedule": "0 15 * * *"
     }
   ]
 }
