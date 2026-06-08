@@ -1523,6 +1523,12 @@ export type RaceIndexRow = {
   incumbentName: string | null;
   incumbentParty: PartyKey | null;
   incumbentBioguideId: string | null;
+  // HO 221: retirement flag. 0 = incumbent not running (OPEN seat → amber OPEN
+  // tag + ○ glyph + cash suppressed); NULL/1 = render as a normal defended
+  // incumbent. NULL is NOT open (the honest uncurated default). Hand-seeded
+  // from Ballotpedia via races-seed.json; distinct from incumbent_bioguide_id
+  // IS NULL (vacancy/unmapped, which can't express a retirement).
+  incumbentRunning: number | null;
   // HO 210 Pass 2: incumbent photo for the pinned map card (member-photo
   // pattern; onError → initials). 137/137 rated incumbents have one.
   incumbentDepictionUrl: string | null;
@@ -1563,7 +1569,7 @@ export const getRacesIndex = unstable_cache(
     const db = getDb();
     const rs = await db.execute({
       sql: `SELECT r.id, r.chamber, r.state, r.district, r.cycle,
-                   r.incumbent_bioguide_id, r.margin_2024,
+                   r.incumbent_bioguide_id, r.margin_2024, r.incumbent_running,
                    m.name AS incumbent_name,
                    m.party AS incumbent_party,
                    m.depiction_url AS incumbent_depiction_url,
@@ -1637,6 +1643,8 @@ export const getRacesIndex = unstable_cache(
         ),
         incumbentBioguideId:
           (row.incumbent_bioguide_id as string | null) ?? null,
+        incumbentRunning:
+          row.incumbent_running == null ? null : Number(row.incumbent_running),
         incumbentDepictionUrl:
           (row.incumbent_depiction_url as string | null) ?? null,
         incumbentCashOnHand:

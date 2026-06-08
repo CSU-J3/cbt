@@ -554,6 +554,14 @@ async function main() {
   // (Maine/Alaska), or an unresolved/404 page. 1:1 with the race, so it lives
   // on `races`.
   await ensureColumn(db, "races", "margin_2024", "REAL");
+  // HO 221: retirement / incumbent-running flag for the OPEN-seat tag.
+  // NULL = uncurated (render as a normal defended incumbent — the honest
+  // default), 0 = incumbent not running (retiring or seeking other office →
+  // OPEN seat), 1 = reserved for "confirmed running". Hand-seeded from the
+  // Ballotpedia not-running-for-re-election list via races-seed.json. NULL is
+  // NOT open — only an explicit 0 lights the tag. `incumbent_bioguide_id IS
+  // NULL` is a different concept (vacancy/unmapped), can't express retirement.
+  await ensureColumn(db, "races", "incumbent_running", "INTEGER");
   console.log("migration complete");
 }
 

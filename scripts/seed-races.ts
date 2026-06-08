@@ -33,6 +33,9 @@ interface RaceSeed {
   rating_source?: string | null;
   rating_updated_at?: string | null;
   source_url?: string | null;
+  // HO 221: 0 = incumbent not running (OPEN seat), 1 = running, omit = leave
+  // unchanged. A retirement-only entry carries just `id` + `incumbent_running`.
+  incumbent_running?: number | null;
   candidates?: CandidateSeed[];
 }
 
@@ -47,6 +50,7 @@ async function main() {
   let candidates = 0;
   let missingRaces = 0;
   let invalidRatings = 0;
+  let flagged = 0;
 
   for (const race of (seed.races as RaceSeed[]) ?? []) {
     if (!knownIds.has(race.id)) {
@@ -60,21 +64,40 @@ async function main() {
       continue;
     }
 
-    await db.execute({
-      sql: `UPDATE races
-            SET rating = ?, rating_source = ?, rating_updated_at = ?,
-                source_url = ?, last_verified = ?
-            WHERE id = ?`,
-      args: [
-        race.rating ?? null,
-        race.rating_source ?? null,
-        race.rating_updated_at ?? null,
-        race.source_url ?? null,
-        today,
-        race.id,
-      ],
-    });
-    updated++;
+    // Only run the rating/source UPDATE for entries that actually carry that
+    // data — so a retirement-only entry (just id + incumbent_running) can't
+    // null out an existing rating/source. (HO 221.)
+    const hasRatingData =
+      race.rating != null ||
+      race.rating_source != null ||
+      race.source_url != null;
+    if (hasRatingData) {
+      await db.execute({
+        sql: `UPDATE races
+              SET rating = ?, rating_source = ?, rating_updated_at = ?,
+                  source_url = ?, last_verified = ?
+              WHERE id = ?`,
+        args: [
+          race.rating ?? null,
+          race.rating_source ?? null,
+          race.rating_updated_at ?? null,
+          race.source_url ?? null,
+          today,
+          race.id,
+        ],
+      });
+      updated++;
+    }
+
+    // HO 221: incumbent-running flag — additive, sets ONLY this column (+
+    // last_verified), so it never clobbers rating/source on the row.
+    if (race.incumbent_running != null) {
+      await db.execute({
+        sql: `UPDATE races SET incumbent_running = ?, last_verified = ? WHERE id = ?`,
+        args: [race.incumbent_running, today, race.id],
+      });
+      flagged++;
+    }
 
     for (const c of race.candidates ?? []) {
       await db.execute({
@@ -100,7 +123,7 @@ async function main() {
   }
 
   console.log(
-    `Done. races_updated=${updated} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
+    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
   );
 }
 

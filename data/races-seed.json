@@ -37,6 +37,40 @@
       "candidates": [
         { "name": "Janelle Stelson", "party": "D", "bioguide_id": null, "status": "won_primary" }
       ]
-    }
+    },
+    { "id": "S-AL-2026", "incumbent_running": 0 },
+    { "id": "S-IA-2026", "incumbent_running": 0 },
+    { "id": "S-IL-2026", "incumbent_running": 0 },
+    { "id": "S-KY-2026", "incumbent_running": 0 },
+    { "id": "S-MI-2026", "incumbent_running": 0 },
+    { "id": "S-MT-2026", "incumbent_running": 0 },
+    { "id": "S-NC-2026", "incumbent_running": 0 },
+    { "id": "S-NH-2026", "incumbent_running": 0 },
+    { "id": "S-WY-2026", "incumbent_running": 0 },
+    { "id": "AZ-01-2026", "incumbent_running": 0 },
+    { "id": "CA-48-2026", "incumbent_running": 0 },
+    { "id": "FL-02-2026", "incumbent_running": 0 },
+    { "id": "FL-11-2026", "incumbent_running": 0 },
+    { "id": "FL-16-2026", "incumbent_running": 0 },
+    { "id": "GA-01-2026", "incumbent_running": 0 },
+    { "id": "IA-02-2026", "incumbent_running": 0 },
+    { "id": "KY-06-2026", "incumbent_running": 0 },
+    { "id": "ME-02-2026", "incumbent_running": 0 },
+    { "id": "MI-10-2026", "incumbent_running": 0 },
+    { "id": "MN-02-2026", "incumbent_running": 0 },
+    { "id": "MT-01-2026", "incumbent_running": 0 },
+    { "id": "NE-02-2026", "incumbent_running": 0 },
+    { "id": "NH-01-2026", "incumbent_running": 0 },
+    { "id": "NV-02-2026", "incumbent_running": 0 },
+    { "id": "NY-21-2026", "incumbent_running": 0 },
+    { "id": "OK-01-2026", "incumbent_running": 0 },
+    { "id": "SC-01-2026", "incumbent_running": 0 },
+    { "id": "SC-05-2026", "incumbent_running": 0 },
+    { "id": "TN-09-2026", "incumbent_running": 0 },
+    { "id": "TX-10-2026", "incumbent_running": 0 },
+    { "id": "TX-21-2026", "incumbent_running": 0 },
+    { "id": "TX-22-2026", "incumbent_running": 0 },
+    { "id": "WA-04-2026", "incumbent_running": 0 },
+    { "id": "WI-07-2026", "incumbent_running": 0 }
   ]
 }

@@ -3674,6 +3674,25 @@ a.racecard-cand-name:hover {
   color: var(--text-dim);
   font-weight: 400;
 }
+/* HO 221: OPEN-seat (retirement) row cues — ○ in place of the [party] chip,
+   amber OPEN pill (the app-wide attention accent), dim "(retiring)" name cue. */
+.racecard-open-glyph {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.racecard-open-tag {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+  border: 1px solid var(--accent-amber);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.racecard-retiring {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
 .racecard-placeholder {
   font-size: 12px;
   color: var(--text-dim);

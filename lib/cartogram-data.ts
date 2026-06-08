@@ -43,6 +43,7 @@ export type CartogramContest = {
   incumbentCashOnHand?: number | null; // HO 212: cents; null = no FEC filing, 0 = filed-empty
   margin2024?: number | null; // HO 214: signed 2024 House margin (R+ / D−); null = none/RCV/Senate
   kalshiOdds?: KalshiOdds | null; // HO 218: per-seat market odds; null = no Kalshi general market
+  isOpen?: boolean; // HO 221: incumbent not running (retirement flag) → OPEN seat
   challengers?: CartogramChallenger[]; // race_candidates (mostly empty today)
   // ── PRIMARIES card (Pass 2) — undefined on races contests ──
   primary?: PrimaryWithCandidates; // raw row for the HO 207 ShareBar / sched list
@@ -117,6 +118,7 @@ export function buildRacesCartogram(
       incumbentCashOnHand: r.incumbentCashOnHand,
       margin2024: r.margin2024,
       kalshiOdds: r.kalshiOdds,
+      isOpen: r.incumbentRunning === 0,
       challengers: challengersByRace.get(r.raceId) ?? [],
     };
     const arr = byState.get(r.state);

@@ -202,6 +202,10 @@ function RaceCardRow({
 }) {
   const incName = contest.incumbent?.name ?? "Open seat";
   const challengers = contest.challengers ?? [];
+  // HO 221: retirement-flagged seat. The incumbent is leaving, so the row reads
+  // OPEN (amber) with a ○ in place of the party chip and a "(retiring)" cue on
+  // the still-shown incumbent name — no fabricated successor.
+  const isOpen = contest.isOpen ?? false;
 
   return (
     <li className="racecard-row">
@@ -231,12 +235,27 @@ function RaceCardRow({
           party={contest.party}
         />
         <span className="racecard-seat">
-          <span style={{ color: partyColor(contest.party) }}>
-            [{contest.party ?? "?"}]
-          </span>{" "}
+          {isOpen ? (
+            <span className="racecard-open-glyph" aria-hidden>
+              ○
+            </span>
+          ) : (
+            <span style={{ color: partyColor(contest.party) }}>
+              [{contest.party ?? "?"}]
+            </span>
+          )}{" "}
           {contest.label}
+          {isOpen ? <span className="racecard-open-tag">OPEN</span> : null}
         </span>
-        <span className="racecard-name">{incName}</span>
+        <span className="racecard-name">
+          {isOpen ? (
+            <span style={{ color: "var(--text-dim)" }}>
+              {incName} <span className="racecard-retiring">(retiring)</span>
+            </span>
+          ) : (
+            incName
+          )}
+        </span>
         <span
           className="racecard-rating"
           style={{ color: ratingColor(contest.rating) }}
@@ -273,12 +292,13 @@ function RaceCardRow({
               className="racecard-cand-meta"
               style={{ color: partyColor(contest.party) }}
             >
-              {contest.party ?? "?"} · incumbent
+              {contest.party ?? "?"} · {isOpen ? "retiring" : "incumbent"}
             </span>
             {/* HO 212: incumbent cash-on-hand (FEC, cents). null = no filing
                 on record → omit cleanly; a real filed-empty 0 renders "$0".
-                Incumbent-only: challenger cash is structurally unavailable. */}
-            {contest.incumbentCashOnHand != null ? (
+                Incumbent-only: challenger cash is structurally unavailable.
+                HO 221: suppressed on an OPEN seat — no incumbent cash story. */}
+            {!isOpen && contest.incumbentCashOnHand != null ? (
               <span
                 className="racecard-cash"
                 title="Incumbent cash on hand (FEC, this cycle)"
