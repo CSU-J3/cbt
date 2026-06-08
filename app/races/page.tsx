@@ -11,10 +11,12 @@ import Link from "next/link";
 import { CartogramShell } from "@/components/CartogramShell";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { RacesHeroBand } from "@/components/RacesHeroBand";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { daysUntil, formatDateShort } from "@/lib/format";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
+  getChamberControl,
   getPastPrimaries,
   getRaceCandidatesForCycle,
   getRacesIndex,
@@ -194,12 +196,14 @@ function RaceSection({
 }
 
 export default async function RacesPage() {
-  const [races, upcoming, past, raceCandidates] = await Promise.all([
-    getRacesIndex(2026),
-    getUpcomingPrimaries(300),
-    getPastPrimaries(300),
-    getRaceCandidatesForCycle(2026),
-  ]);
+  const [races, upcoming, past, raceCandidates, chamberControl] =
+    await Promise.all([
+      getRacesIndex(2026),
+      getUpcomingPrimaries(300),
+      getPastPrimaries(300),
+      getRaceCandidatesForCycle(2026),
+      getChamberControl(),
+    ]);
   const senate = races.filter((r) => r.chamber === "senate");
   const house = races.filter((r) => r.chamber === "house");
   // State primary date keyed by "{STATE}-{party}" — every race in a state
@@ -238,6 +242,13 @@ export default async function RacesPage() {
           MAP/LIST toggle away is the full spectrum-bar list. Click a tile to pin
           its contests; click an incumbent for their member page.
         </p>
+
+        <RacesHeroBand
+          control={chamberControl}
+          ratedCount={races.length}
+          senateCount={senate.length}
+          houseCount={house.length}
+        />
 
         <CartogramShell
           variant="races"

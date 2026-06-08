@@ -15,7 +15,7 @@ import {
   type Topic,
 } from "./enums";
 import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
-import type { KalshiOdds } from "./kalshi";
+import type { ChamberControl, KalshiOdds } from "./kalshi";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
 // feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
@@ -1690,6 +1690,29 @@ export const getRacesIndex = unstable_cache(
   },
   ["getRacesIndex"],
   { revalidate: 3600, tags: ["race-ratings", "races"] },
+);
+
+// HO 219: Kalshi chamber-control (House/Senate balance of power) for the /races
+// hero band. Reads the single dashboard_state JSON blob the Kalshi cron writes;
+// null (or a null chamber) when no blob exists yet → the band cell degrades.
+// Tag "races" so the cron's revalidateTag("races") flushes it.
+export const getChamberControl = unstable_cache(
+  async (): Promise<ChamberControl | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: "SELECT value FROM dashboard_state WHERE key = 'kalshi_chamber_control' LIMIT 1",
+      args: [],
+    });
+    const raw = rs.rows[0]?.value as string | undefined;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as ChamberControl;
+    } catch {
+      return null;
+    }
+  },
+  ["getChamberControl"],
+  { revalidate: 3600, tags: ["races"] },
 );
 
 export const getReport = unstable_cache(

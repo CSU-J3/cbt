@@ -32,6 +32,22 @@ type KMarket = {
 };
 type KEvent = { event_ticker?: string; markets?: KMarket[] };
 
+// HO 219: chamber-control (House/Senate balance of power). Two fixed event
+// tickers, each with a D + R outcome market. We store BOTH exact pcts — the two
+// last_price_dollars do NOT sum to 100 (live: House 78+23=101, Senate 41+58=99),
+// so the loser is never 100−fav. Lives in dashboard_state, not kalshi_odds
+// (that's a per-seat table), keyed 'kalshi_chamber_control'.
+export type ChamberOdds = {
+  favParty: "D" | "R" | "I";
+  favPct: number; // 0-100
+  otherParty: "D" | "R" | "I";
+  otherPct: number; // 0-100
+};
+export type ChamberControl = {
+  house: ChamberOdds | null;
+  senate: ChamberOdds | null;
+};
+
 const PARTY_RE = /party|^(democrat(ic)?|republican|gop|independent|libertarian|green)$/i;
 function partyFromLabel(label: string): "D" | "R" | "I" | null {
   if (/republican|gop/i.test(label)) return "R";
@@ -69,7 +85,7 @@ export function tickerToRaceId(
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchPage(url: string): Promise<{ events?: KEvent[]; cursor?: string }> {
+async function kalshiGet<T>(url: string): Promise<T> {
   for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (res.status === 429) {
@@ -77,7 +93,7 @@ async function fetchPage(url: string): Promise<{ events?: KEvent[]; cursor?: str
       continue;
     }
     if (!res.ok) throw new Error(`kalshi HTTP ${res.status}`);
-    return res.json() as Promise<{ events?: KEvent[]; cursor?: string }>;
+    return res.json() as Promise<T>;
   }
   throw new Error("kalshi 429 retries exhausted");
 }
@@ -129,7 +145,7 @@ export async function fetchKalshiSeatOdds(): Promise<KalshiOdds[]> {
   let pages = 0;
   while (pages < 60) {
     const url = `${KALSHI_BASE}/events?status=open&with_nested_markets=true&limit=200${cursor ? `&cursor=${cursor}` : ""}`;
-    const d = await fetchPage(url);
+    const d = await kalshiGet<{ events?: KEvent[]; cursor?: string }>(url);
     const evs = d.events ?? [];
     pages++;
     for (const ev of evs) {
@@ -149,4 +165,51 @@ export async function fetchKalshiSeatOdds(): Promise<KalshiOdds[]> {
     await sleep(250);
   }
   return [...byRace.values()];
+}
+
+type KControlMarket = {
+  ticker?: string;
+  last_price_dollars?: string | null;
+  yes_sub_title?: string | null;
+  no_sub_title?: string | null;
+};
+
+// One chamber-control event → {fav, other} with both exact pcts. Party comes
+// from the outcome-market ticker suffix (CONTROLH-2026-D / -R), falling back to
+// the label. Returns null if fewer than two outcomes price (degrade, don't
+// crash). Favored = higher implied prob; an exact tie keeps a stable order.
+async function readControl(eventTicker: string): Promise<ChamberOdds | null> {
+  const d = await kalshiGet<{ markets?: KControlMarket[] }>(
+    `${KALSHI_BASE}/markets?event_ticker=${eventTicker}&limit=8`,
+  );
+  const byParty = new Map<"D" | "R" | "I", number>();
+  for (const m of d.markets ?? []) {
+    const p = parseFloat(m.last_price_dollars ?? "");
+    if (!Number.isFinite(p)) continue;
+    const tk = (m.ticker || "").toUpperCase();
+    let party: "D" | "R" | "I" | null = null;
+    if (tk.endsWith("-D")) party = "D";
+    else if (tk.endsWith("-R")) party = "R";
+    else if (tk.endsWith("-I")) party = "I";
+    else party = partyFromLabel(m.yes_sub_title || m.no_sub_title || "");
+    if (party) byParty.set(party, Math.round(p * 100));
+  }
+  const entries = [...byParty.entries()].sort((a, b) => b[1] - a[1]);
+  if (entries.length < 2) return null;
+  const [fav, other] = entries as [
+    ["D" | "R" | "I", number],
+    ["D" | "R" | "I", number],
+  ];
+  return { favParty: fav[0], favPct: fav[1], otherParty: other[0], otherPct: other[1] };
+}
+
+// House + Senate balance-of-power odds in parallel. Two direct event reads —
+// these tickers are fixed (no scanning); the per-chamber catch keeps one bad
+// read from nulling the other.
+export async function fetchChamberControl(): Promise<ChamberControl> {
+  const [house, senate] = await Promise.all([
+    readControl("CONTROLH-2026").catch(() => null),
+    readControl("CONTROLS-2026").catch(() => null),
+  ]);
+  return { house, senate };
 }

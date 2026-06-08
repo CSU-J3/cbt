@@ -10,7 +10,7 @@ import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
-import { fetchKalshiSeatOdds } from "@/lib/kalshi";
+import { fetchChamberControl, fetchKalshiSeatOdds } from "@/lib/kalshi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -68,8 +68,25 @@ async function handle(request: Request) {
     }));
     if (stmts.length > 0) await db.batch(stmts, "write");
 
+    // HO 219: chamber-control (House/Senate balance of power) — two fixed event
+    // reads, stored as one dashboard_state JSON blob (both exact pcts per
+    // chamber). Non-fatal: a failed read just leaves the prior blob in place.
+    const control = await fetchChamberControl();
+    await db.execute({
+      sql: `INSERT INTO dashboard_state (key, value, updated_at)
+            VALUES ('kalshi_chamber_control', ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      args: [JSON.stringify(control), now],
+    });
+
     revalidateTag("races");
-    return { payload: { seats: odds.length } };
+    return {
+      payload: {
+        seats: odds.length,
+        house: control.house,
+        senate: control.senate,
+      },
+    };
   });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
