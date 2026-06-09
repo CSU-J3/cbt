@@ -2616,32 +2616,158 @@ body {
   }
 }
 
-/* ---- /races index rows ----------------------------------------------- */
-/* Columns: seat | incumbent | cook | sabato | inside_elec | consensus.   */
-/* House and Senate sections share the same grid so columns line up.      */
-.race-row,
-.race-header-row {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1.4fr) 88px 88px 92px 92px 96px;
-  align-items: center;
-  column-gap: 12px;
+/* ---- /races LIST view (HO 222) --------------------------------------- */
+/* Consensus-led, toss-ups-first rows (components/RaceListView). Replaced the
+   old 5-column rating matrix (.race-row/.race-header-row). Row columns:
+   seat | candidate | consensus chip | spread bar | ◆ | 2024 margin | cash |
+   chevron, with a 3px severity rail on the left edge. */
+.race-list-summary {
   padding: 8px 14px;
-  border-bottom: 0.5px solid var(--border-soft);
+  margin-bottom: 8px;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  background-color: var(--bg-panel);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text-dim);
 }
-.race-row {
-  text-decoration: none;
-}
-.race-row:hover {
-  background-color: var(--bg-row-hover);
-}
-.race-header-row {
+.race-list-sechead {
+  padding: 9px 14px;
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
-  color: var(--text-dim);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 9px 14px;
+  color: var(--text-secondary);
+}
+.race-list-empty {
+  padding: 24px 14px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.race-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.race-list-item {
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.race-list-row {
+  display: grid;
+  grid-template-columns:
+    70px minmax(0, 1fr) 96px 56px 14px 152px 80px 14px;
+  align-items: center;
+  column-gap: 12px;
+  padding: 8px 14px 8px 11px;
+  border-left: 3px solid var(--text-dim);
+  cursor: pointer;
+}
+.race-list-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.race-list-seat {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.race-list-cand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.race-list-party {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.race-list-open-glyph {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.race-list-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.race-list-inc-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.race-list-inc-link:hover {
+  color: var(--accent-amber-bright);
+}
+.race-list-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+/* 3-segment rater spread (Cook · Sabato · Inside); empty rater = --bg-base. */
+.race-spread {
+  display: inline-flex;
+  gap: 2px;
+  width: 56px;
+}
+.race-spread-seg {
+  flex: 1;
+  height: 9px;
+  border-radius: 1px;
+}
+.race-list-diverge {
+  font-size: 11px;
+  text-align: center;
+}
+.race-list-margin :where(.racecard-margin) {
+  padding-top: 0;
+}
+.race-list-margin-na {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.race-list-cash {
+  font-size: 12px;
+  text-align: right;
+}
+.race-list-chevron {
+  font-size: 11px;
+  text-align: center;
+}
+/* Expand: per-rater detail + Kalshi line + hub link (no news block — there is
+   no race→news linkage; see RaceListView header). */
+.race-list-expand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 14px 12px 16px;
+  background-color: var(--bg-row-hover);
+}
+.race-list-raters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.race-list-rater-src {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 11px;
+}
+.race-list-rater-sep {
+  color: var(--text-dim);
 }
 
 /* ---- sponsor bar chart row -------------------------------------------- */
