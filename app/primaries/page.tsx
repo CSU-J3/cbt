@@ -2,9 +2,9 @@
 // calendar — all 50 states — grouped by date, today first, past collapsed.
 // Voted primaries (HO 206 `vote_pct`) render a result share bar (HO 207);
 // upcoming ones show the candidate field as a "not yet voted" fallback.
-import { CartogramShell } from "@/components/CartogramShell";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { PrimariesMap } from "@/components/PrimariesMap";
 import { PrimaryExpandProvider, PrimaryRow } from "@/components/PrimaryRow";
 import { buildPrimariesCartogram } from "@/lib/cartogram-data";
 import { daysUntil, formatDateLong } from "@/lib/format";
@@ -154,8 +154,7 @@ export default async function PrimariesPage() {
         {/* HO 210: map-first cartogram above the existing list. The full
             date-sorted list (HO 208) is one MAP/LIST toggle away, unchanged,
             passed in as listSlot. */}
-        <CartogramShell
-          variant="primaries"
+        <PrimariesMap
           cells={cartogram.cells}
           summary={cartogram.summary}
           geometry={geometry}

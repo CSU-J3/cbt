@@ -214,9 +214,19 @@ export function buildPrimariesCartogram(
         : `${p.candidates.length} cand${p.candidates.length === 1 ? "" : "s"}`;
       if (contestVoted) votedContests++;
       const incRow = p.candidates.find((c) => c.incumbent && c.bioguide_id);
+      // HO 226: district key so a clicked cd119 polygon (seatId {ST}-{DD}-2026)
+      // groups its D + R primaries into the two-column card. House → the seatId
+      // form; senate → S-{ST}-2026 (statewide, no polygon — a pick chip only).
+      const raceId =
+        chamber === "senate"
+          ? `S-${state}-2026`
+          : district != null
+            ? `${state}-${String(district).padStart(2, "0")}-2026`
+            : null;
       contests.push({
         label,
         chamber,
+        raceId: raceId ?? undefined,
         meta: `${dateStr} · ${fieldStr}`,
         href: p.race_id ? `/race/${p.race_id}` : null,
         incumbent: incRow ? { name: incRow.name, bioguideId: incRow.bioguide_id } : null,
@@ -233,7 +243,8 @@ export function buildPrimariesCartogram(
       if (a.chamber !== b.chamber) return a.chamber === "senate" ? -1 : 1;
       return a.label.localeCompare(b.label);
     });
-    cells.push({ state, active: contests.length > 0, count: null, band, contests });
+    // HO 226: count drives the `● N` badge on multi-primary states.
+    cells.push({ state, active: contests.length > 0, count: contests.length, band, contests });
   }
 
   const summary = `${all.length} PRIMARIES · ${votedContests} VOTED · ${byState.size} STATES`;

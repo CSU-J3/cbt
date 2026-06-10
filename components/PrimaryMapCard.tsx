@@ -7,7 +7,7 @@
 // builder), so this renders without a refetch.
 
 import Link from "next/link";
-import { ShareBar } from "@/components/PrimaryRow";
+import { ShareBar } from "@/components/ShareBar";
 import type { CartogramContest } from "@/lib/cartogram-data";
 import { formatDateLong } from "@/lib/format";
 import type { PrimaryCandidate } from "@/lib/queries";

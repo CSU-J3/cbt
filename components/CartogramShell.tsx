@@ -44,12 +44,14 @@ function racesFill(count: number): FillStyle {
   return { fill: "#8b82e8", label: "#0a0e14" };
 }
 
-// PRIMARIES — three recency hues.
+// PRIMARIES — recency bands (HO 226 recolor: deeper teal/amber so the bands sit
+// distinctly from the races purple ramp, with a primaries-specific NONE darker
+// than the shared INACTIVE). VOTED / SOON / LATER / NONE.
 function primariesFill(band: PrimaryBand | null): FillStyle {
-  if (band === "voted") return { fill: "#06b6d4", label: "#0a0e14" };
-  if (band === "soon") return { fill: "#fbbf24", label: "#0a0e14" };
-  if (band === "later") return { fill: "#2a3344", label: "#94a3b8" };
-  return INACTIVE;
+  if (band === "voted") return { fill: "#0e7490", label: "#e5e7eb" };
+  if (band === "soon") return { fill: "#b45309", label: "#e5e7eb" };
+  if (band === "later") return { fill: "#1e2740", label: "#94a3b8" };
+  return { fill: "#11161f", label: "#475569" };
 }
 
 function RacesLegend() {
@@ -81,9 +83,9 @@ function RacesLegend() {
 
 function PrimariesLegend() {
   const items = [
-    { swatch: "#06b6d4", border: "#06b6d4", label: "VOTED" },
-    { swatch: "#fbbf24", border: "#fbbf24", label: "SOON" },
-    { swatch: "#2a3344", border: "#1f2937", label: "LATER" },
+    { swatch: "#0e7490", border: "#0e7490", label: "VOTED" },
+    { swatch: "#b45309", border: "#b45309", label: "SOON" },
+    { swatch: "#1e2740", border: "#1f2937", label: "LATER" },
   ];
   return (
     <div className="cart-legend">
@@ -96,6 +98,9 @@ function PrimariesLegend() {
           {i.label}
         </span>
       ))}
+      <span className="cart-legend-item" style={{ color: "var(--accent-amber)" }}>
+        ● N multiple primaries
+      </span>
     </div>
   );
 }
@@ -142,6 +147,7 @@ export function CartogramShell({
   geometry,
   listSlot,
   onStatePick,
+  dimmedStates,
 }: {
   variant: CartogramVariant;
   cells: CartogramCell[];
@@ -152,6 +158,9 @@ export function CartogramShell({
   // calls this instead of pinning the inline report — the district modal opens.
   // Omitted on /primaries, which keeps the pin→inline-card behavior unchanged.
   onStatePick?: (abbr: string) => void;
+  // HO 226 (additive, /primaries only): states NOT in the active scrubber month
+  // are dimmed. Undefined (e.g. /races) → no dimming.
+  dimmedStates?: ReadonlySet<string>;
 }) {
   const [view, setView] = useState<"map" | "list">("map");
   const [hovered, setHovered] = useState<string | null>(null);
@@ -342,9 +351,16 @@ export function CartogramShell({
                 const labelText =
                   variant === "races" && active && hovered === s.abbr && cell?.count
                     ? `${s.abbr} ${cell.count}`
-                    : s.abbr;
+                    : variant === "primaries" && active && (cell?.count ?? 0) > 1
+                      ? `${s.abbr} ●${cell.count}`
+                      : s.abbr;
                 return (
-                  <g key={s.abbr}>
+                  <g
+                    key={s.abbr}
+                    {...(dimmedStates
+                      ? { opacity: dimmedStates.has(s.abbr) ? 0.28 : 1 }
+                      : {})}
+                  >
                     {isDC ? (
                       // DC has no visible polygon at this zoom — fixed marker.
                       <rect
@@ -401,9 +417,16 @@ export function CartogramShell({
                 const labelText =
                   variant === "races" && active && hovered === l.abbr && cell?.count
                     ? `${l.abbr} ${cell.count}`
-                    : l.abbr;
+                    : variant === "primaries" && active && (cell?.count ?? 0) > 1
+                      ? `${l.abbr} ●${cell.count}`
+                      : l.abbr;
                 return (
-                  <g key={`lead-${l.abbr}`}>
+                  <g
+                    key={`lead-${l.abbr}`}
+                    {...(dimmedStates
+                      ? { opacity: dimmedStates.has(l.abbr) ? 0.28 : 1 }
+                      : {})}
+                  >
                     <line
                       x1={l.cx}
                       y1={l.cy}
