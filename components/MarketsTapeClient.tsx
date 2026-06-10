@@ -42,30 +42,19 @@ const POLL_MS = 60_000;
 // a value shrinking below a digit boundary (e.g. VIX 10.20→9.85) sits inside the
 // unchanged slot. WTI gets hundreds-headroom for an oil run past $100. Default
 // 8ch (thousands) for any future symbol.
+// HO 227: the 9 live symbols (Stooq died → indices on FMP, the rest FRED EOD;
+// the 6 sector ETFs + SILVER + DXY were dropped). Indices NDQ/DOW are 5-digit
+// ("51,317.60" = 9ch); BTC 10ch (stable across $100,000); WTI 6ch (oil past
+// $100); VIX/TNX 5ch; NATGAS 5ch (~$3, headroom to teens).
 const PRICE_SLOT_CH: Record<string, number> = {
   SPX: 8,
-  GOLD: 8,
-  ITA: 6,
-  XLK: 6,
-  XLV: 6,
-  WTI: 6,
-  VIX: 5,
-  TNX: 5,
-  // HO 177 additions. Indices NDQ/DOW are 5-digit ("51,317.60" = 9ch); BTC gets
-  // 10ch so it stays stable across the $100,000 boundary ("100,000.00" = 10ch)
-  // even when oscillating near it. XLE gets energy headroom toward $100 like WTI.
-  XLF: 5,
-  XLE: 6,
-  XLI: 6,
   NDQ: 9,
   DOW: 9,
-  BTC: 10,
-  // HO 178 additions. DXY oscillates around 100 → 6ch so "99.18"(5ch) and
-  // "100.50"(6ch) both fit (same $100-boundary logic as BTC@$100k). SILVER 6ch
-  // (~$75, headroom to 3 digits); NATGAS 5ch (~$3, covers a spike to teens).
-  SILVER: 6,
+  WTI: 6,
   NATGAS: 5,
-  DXY: 6,
+  VIX: 5,
+  TNX: 5,
+  BTC: 10,
 };
 const DEFAULT_PRICE_SLOT_CH = 8;
 
@@ -122,6 +111,14 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
+      {/* HO 227: FRED-sourced symbols are end-of-day. A static per-symbol tag
+          (never toggles → width-invariant, the HO 175 jump fix stays dead) so an
+          EOD close is never read as a fresh intraday print. */}
+      {tick.eod ? (
+        <span className="markets-tape-eod" title="End-of-day value">
+          EOD
+        </span>
+      ) : null}
       <span
         className="markets-tape-price"
         style={{
@@ -152,6 +149,7 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
           <span style={{ color: colorVar }}>{detailChange}</span>
           {" · as of "}
           {tick.marketDate}
+          {tick.eod ? " · end of day" : ""}
         </span>
       </span>
     </span>

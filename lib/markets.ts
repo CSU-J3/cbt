@@ -29,8 +29,30 @@
 // cron set; TNX/VIX stay FRED (end-of-day) in the commodities tape. The array is
 // ordered equities-first then commodities so each group renders in tape order.
 // All symbols verified live 2026-06-02.
+//
+// HO 227 — STOOQ IS DEAD. Stooq retired the `/q/l/` light-quote CSV endpoint
+// (it 404s "page does not exist or has been moved" for every symbol; the only
+// surviving data path, `/q/d/l/`, is now behind a JS browser-verification wall —
+// unusable headless). All 15 Stooq symbols went stale 2026-06-05 while the cron
+// kept reporting `success`. Re-sourced ALL-FREE:
+//   - indices (SPX/NDQ/DOW) → FMP `/stable/quote` (intraday-ish, the FMP_API_KEY
+//     already in env for trades; `^GSPC`/`^IXIC`/`^DJI`).
+//   - rates/VIX (TNX/VIX) → FRED, unchanged (already EOD).
+//   - commodities (WTI/NATGAS/BTC) → FRED, EOD.
+//   - DROPPED: the 6 sector ETFs (ITA/XLK/XLV/XLF/XLE/XLI — no free programmatic
+//     source; FMP free 402s them, FRED carries no ETF prices); SILVER + DXY (no
+//     keep-list / DTWEXBGS is a different basket than ICE DXY); and GOLD — its
+//     only FRED option (GOLDAMGBD228NLBM, the London fix) is DISCONTINUED and
+//     404s (confirmed in the HO 227 probe). Tape 17 → 8.
+//   - FRED commodity IDs (DCOILWTICO/DHHNGSP/CBBTCUSD) are documented-active series
+//     but were NOT live-verifiable from the build env (FRED slow/blocked there —
+//     valid series timed out downloading full history; only the dead GOLD id 404'd
+//     fast). They tick fine in prod like TNX/VIX already do; the cron's per-symbol
+//     resilience + the HO 227 failure-honesty surface any bad id within retention.
+// FRED-sourced symbols are EOD and labeled `eod` on the tape so a stale close is
+// never shown as a fresh intraday print (the same honesty as the cron-status fix).
 
-export type MarketSource = "stooq" | "fred";
+export type MarketSource = "fmp" | "fred";
 export type MarketFormat = "index" | "yield" | "price";
 export type MarketGroup = "equities" | "commodities";
 
@@ -45,23 +67,16 @@ export type MarketSymbol = {
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
-  { internal: "SPX", source: "stooq", remote: "^spx", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities" },
-  { internal: "NDQ", source: "stooq", remote: "^ndq", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities" },
-  { internal: "DOW", source: "stooq", remote: "^dji", label: "Dow", fullName: "Dow Jones Industrial Average", format: "index", group: "equities" },
-  { internal: "ITA", source: "stooq", remote: "ita.us", label: "Aerospace & Defense", fullName: "iShares U.S. Aerospace & Defense ETF", format: "price", group: "equities" },
-  { internal: "XLK", source: "stooq", remote: "xlk.us", label: "Technology", fullName: "Technology Select Sector SPDR", format: "price", group: "equities" },
-  { internal: "XLV", source: "stooq", remote: "xlv.us", label: "Health Care", fullName: "Health Care Select Sector SPDR", format: "price", group: "equities" },
-  { internal: "XLF", source: "stooq", remote: "xlf.us", label: "Financials", fullName: "Financial Select Sector SPDR", format: "price", group: "equities" },
-  { internal: "XLE", source: "stooq", remote: "xle.us", label: "Energy", fullName: "Energy Select Sector SPDR", format: "price", group: "equities" },
-  { internal: "XLI", source: "stooq", remote: "xli.us", label: "Industrials", fullName: "Industrial Select Sector SPDR", format: "price", group: "equities" },
-  { internal: "WTI", source: "stooq", remote: "cl.f", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities" },
-  { internal: "GOLD", source: "stooq", remote: "xauusd", label: "Gold (spot)", fullName: "Gold (Spot)", format: "price", group: "commodities" },
-  { internal: "SILVER", source: "stooq", remote: "xagusd", label: "Silver (spot)", fullName: "Silver (Spot)", format: "price", group: "commodities" },
-  { internal: "NATGAS", source: "stooq", remote: "ng.f", label: "Nat Gas", fullName: "Natural Gas", format: "price", group: "commodities" },
-  { internal: "DXY", source: "stooq", remote: "dx.f", label: "Dollar", fullName: "U.S. Dollar Index", format: "index", group: "commodities" },
+  // Indices — FMP /stable/quote (intraday, free on the existing key). HO 227.
+  { internal: "SPX", source: "fmp", remote: "^GSPC", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities" },
+  { internal: "NDQ", source: "fmp", remote: "^IXIC", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities" },
+  { internal: "DOW", source: "fmp", remote: "^DJI", label: "Dow", fullName: "Dow Jones Industrial Average", format: "index", group: "equities" },
+  // Commodities + rates + VIX — FRED (end-of-day). HO 227 re-source.
+  { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities" },
+  { internal: "NATGAS", source: "fred", remote: "DHHNGSP", label: "Nat Gas", fullName: "Natural Gas (Henry Hub Spot)", format: "price", group: "commodities" },
   { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities" },
   { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", fullName: "CBOE Volatility Index", format: "index", group: "commodities" },
-  { internal: "BTC", source: "stooq", remote: "btcusd", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price", group: "commodities" },
+  { internal: "BTC", source: "fred", remote: "CBBTCUSD", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price", group: "commodities" },
 ] as const;
 
 export type FetchedQuote = {
@@ -76,33 +91,36 @@ class FetchQuoteError extends Error {
   }
 }
 
-// Stooq daily CSV with f=sd2t2ohlcv returns one data row:
-// "Symbol,Date,Time,Open,High,Low,Close,Volume"
-// "^SPX,2026-05-27,17:26:15,7526.3,7530.4,7506.5,7510.2,654450638"
-// When a symbol doesn't exist the data cells are literal "N/D".
-async function fetchStooq(symbol: MarketSymbol): Promise<FetchedQuote> {
-  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(symbol.remote)}&f=sd2t2ohlcv&h&e=csv`;
+// FMP /stable/quote returns a JSON array with one quote object:
+// [{"symbol":"^GSPC","name":"S&P 500","price":7386.31,"changePercentage":-0.26,
+//   "change":-19.42,"volume":...,"timestamp":1749...}]
+// Intraday (the replacement for Stooq's light-quote feed, HO 227). Uses the
+// FMP_API_KEY already in env for the trades pipeline. The quote carries its own
+// change, but we keep the route's prior-session diff for consistency — so we
+// only need price + the trading date. marketDate from the `timestamp` when
+// present, else today (the fetch is intraday, so "today" is the right date).
+async function fetchFmp(symbol: MarketSymbol): Promise<FetchedQuote> {
+  const key = process.env.FMP_API_KEY;
+  if (!key) {
+    throw new FetchQuoteError(symbol.internal, `FMP_API_KEY not configured`);
+  }
+  const url = `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol.remote)}&apikey=${key}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
-    throw new FetchQuoteError(symbol.internal, `stooq HTTP ${res.status}`);
+    throw new FetchQuoteError(symbol.internal, `fmp HTTP ${res.status}`);
   }
-  const body = (await res.text()).trim();
-  const lines = body.split(/\r?\n/);
-  if (lines.length < 2) {
-    throw new FetchQuoteError(symbol.internal, `stooq returned no data row`);
+  const data: unknown = await res.json();
+  const row = Array.isArray(data) ? data[0] : data;
+  const price = (row as { price?: unknown })?.price;
+  if (typeof price !== "number" || !Number.isFinite(price)) {
+    throw new FetchQuoteError(symbol.internal, `fmp no numeric price`);
   }
-  const cells = lines[1]!.split(",");
-  // Stooq sentinel for "no data" is literal "N/D" in every cell.
-  const date = cells[1];
-  const close = cells[6];
-  if (!date || date === "N/D" || !close || close === "N/D") {
-    throw new FetchQuoteError(symbol.internal, `stooq N/D — symbol may be wrong`);
-  }
-  const price = Number(close);
-  if (!Number.isFinite(price)) {
-    throw new FetchQuoteError(symbol.internal, `stooq non-numeric close: ${close}`);
-  }
-  return { price, marketDate: date };
+  const ts = (row as { timestamp?: unknown })?.timestamp;
+  const marketDate =
+    typeof ts === "number" && Number.isFinite(ts)
+      ? new Date(ts * 1000).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+  return { price, marketDate };
 }
 
 // FRED's public fredgraph.csv returns full history with two columns
@@ -130,8 +148,8 @@ async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
 
 export async function fetchQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   switch (symbol.source) {
-    case "stooq":
-      return fetchStooq(symbol);
+    case "fmp":
+      return fetchFmp(symbol);
     case "fred":
       return fetchFred(symbol);
   }

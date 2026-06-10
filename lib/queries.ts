@@ -4680,6 +4680,9 @@ export type MarketTick = {
   marketDate: string;
   format: MarketFormat;
   group: MarketGroup;
+  // HO 227: true for FRED-sourced symbols (end-of-day). The tape labels these so
+  // a stale close is never shown as a fresh intraday print. FMP indices = false.
+  eod: boolean;
 };
 
 export const getLatestMarketTicks = unstable_cache(
@@ -4710,6 +4713,7 @@ export const getLatestMarketTicks = unstable_cache(
         marketDate: row.market_date as string,
         format: meta.format,
         group: meta.group,
+        eod: meta.source === "fred",
       });
     }
     // Preserve the in-code MARKET_SYMBOLS order so each tape renders in tape

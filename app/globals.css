@@ -3235,6 +3235,17 @@ body {
   color: var(--text-dim);
   letter-spacing: 0.5px;
 }
+/* HO 227: end-of-day tag for FRED-sourced symbols — a stale close must never
+   read as a fresh intraday print. Dim + small so it labels without shouting. */
+.markets-tape-eod {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 0 2px;
+  margin-left: 1px;
+}
 /* HO 175/176: fixed-width slots so an item's width never changes as its value
    moves (price digit crossing, change toggling, arrow flat↔directional) — the
    track width stays constant after first paint, so translateX(-50%) maps to a

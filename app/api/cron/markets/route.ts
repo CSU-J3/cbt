@@ -83,14 +83,16 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  // HO 172/177: `?source=stooq` fetches only the 12 Stooq symbols (the intraday
-  // GitHub Actions run — FRED is end-of-day, so polling it intraday just
-  // re-writes the same value). No param = all 14 (the daily after-close run).
+  // `?source=<src>` fetches only that source's symbols; no param = all. HO 172
+  // used this so the intraday GitHub Actions run polls only the intraday source
+  // (FRED is end-of-day — polling it intraday just re-writes the same value). HO
+  // 227: Stooq died; the intraday source is now FMP (the indices), so the
+  // intraday workflow hits `?source=fmp`; the daily after-close run uses no param
+  // and gets everything incl. the FRED EOD symbols. Filter is generic by source.
   const source = new URL(request.url).searchParams.get("source");
-  const symbols =
-    source === "stooq"
-      ? MARKET_SYMBOLS.filter((s) => s.source === "stooq")
-      : MARKET_SYMBOLS;
+  const symbols = source
+    ? MARKET_SYMBOLS.filter((s) => s.source === source)
+    : MARKET_SYMBOLS;
 
   const result = await wrapCronRoute("/api/cron/markets", async () => {
     const outcomes = await Promise.all(symbols.map(processSymbol));
@@ -112,11 +114,23 @@ async function handle(request: Request) {
     // getLatestMarketTicks().
     revalidateTag("markets");
 
+    const failSummary = failed
+      .map((f) => `${f.internal}=${f.error}`)
+      .join("; ");
+
+    // HO 227 — failure honesty. A tick that fetched ZERO of the symbols it
+    // exists to fetch did NOT succeed: throw so wrapCronRoute finalizes `error`
+    // (HTTP 500) and the breakage shows up in `cron_runs.status` within the
+    // 30-min retention window — instead of the old `success` row that hid the
+    // Stooq death for days. A PARTIAL tick (some fetched, some failed — e.g.
+    // one symbol down, or a just-after-open lag) stays success + chronicErr, so
+    // a single flaky upstream doesn't false-alarm the whole run.
+    if (symbols.length > 0 && ticked === 0) {
+      throw new Error(`markets cron fetched 0/${symbols.length} symbols: ${failSummary}`);
+    }
+
     const payload = { ticked, failed: failed.length, outcomes };
-    const chronicErr =
-      failed.length > 0
-        ? `markets fetch failures: ${failed.map((f) => `${f.internal}=${f.error}`).join("; ")}`
-        : undefined;
+    const chronicErr = failed.length > 0 ? `markets fetch failures: ${failSummary}` : undefined;
 
     return { payload, chronicErr };
   });

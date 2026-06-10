@@ -7,9 +7,14 @@ name: Markets Tick (intraday)
 #
 # HO 172: widened 14-20 → 13-21 UTC so it covers 9:30am-4pm ET in BOTH DST
 # regimes (ET = UTC-4 summer / UTC-5 winter); the old 14-20 missed 9:30-10am in
-# summer and 3-4pm in winter. `?source=stooq` fetches only the 6 Stooq symbols
-# (intraday-delayed); the 2 FRED symbols (TNX, VIX) are end-of-day and handled
-# by the separate daily after-close run (markets-daily.yml).
+# summer and 3-4pm in winter.
+#
+# HO 227: Stooq died, so the intraday source is now FMP (the indices SPX/NDQ/DOW).
+# `?source=fmp` fetches only those; the FRED symbols (rates/VIX/commodities) are
+# end-of-day and handled by the daily after-close run (markets-daily.yml). The
+# schedule is unchanged. NOTE: `curl -fsS` fails the step on the route's HTTP 500,
+# which the route now returns when ALL fetches fail (HO 227 failure-honesty) — so
+# a total FMP outage turns this Action red instead of silently 404-rotting.
 on:
   schedule:
     - cron: '0,30 13-21 * * 1-5'
@@ -19,8 +24,8 @@ jobs:
   tick:
     runs-on: ubuntu-latest
     steps:
-      - name: Hit markets endpoint (Stooq only)
+      - name: Hit markets endpoint (FMP indices)
         run: |
           curl -fsS -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://cbt-chi-silk.vercel.app/api/cron/markets?source=stooq"
+            "https://cbt-chi-silk.vercel.app/api/cron/markets?source=fmp"
