@@ -141,12 +141,17 @@ export function CartogramShell({
   summary,
   geometry,
   listSlot,
+  onStatePick,
 }: {
   variant: CartogramVariant;
   cells: CartogramCell[];
   summary: string;
   geometry: UsMapGeometry;
   listSlot: React.ReactNode;
+  // HO 225 (additive, /races only): when provided, clicking an active state
+  // calls this instead of pinning the inline report — the district modal opens.
+  // Omitted on /primaries, which keeps the pin→inline-card behavior unchanged.
+  onStatePick?: (abbr: string) => void;
 }) {
   const [view, setView] = useState<"map" | "list">("map");
   const [hovered, setHovered] = useState<string | null>(null);
@@ -236,7 +241,7 @@ export function CartogramShell({
       onMouseLeave: () => setHovered((h) => (h === abbr ? null : h)),
       onFocus: () => setHovered(abbr),
       onBlur: () => setHovered((h) => (h === abbr ? null : h)),
-      onClick: () => setPinned(abbr),
+      onClick: () => (onStatePick ? onStatePick(abbr) : setPinned(abbr)),
       tabIndex: 0,
       role: "button" as const,
       style: { cursor: "pointer" },
@@ -371,7 +376,14 @@ export function CartogramShell({
                         y={s.cy}
                         className="us-map-label"
                         fill={style.label}
-                        {...(active ? { onClick: () => setPinned(s.abbr) } : {})}
+                        {...(active
+                          ? {
+                              onClick: () =>
+                                onStatePick
+                                  ? onStatePick(s.abbr)
+                                  : setPinned(s.abbr),
+                            }
+                          : {})}
                       >
                         {labelText}
                       </text>

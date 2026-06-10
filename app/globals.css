@@ -3422,10 +3422,11 @@ body {
 .cart-legend {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px; /* HO 225: comfortable spacing on the national-map legend */
   flex-wrap: wrap;
   margin-bottom: var(--space-md);
-  font-size: 11px;
+  font-size: 12px; /* HO 225: readable labels, not fine print */
+  color: var(--text-muted);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -3436,8 +3437,8 @@ body {
   gap: 5px;
 }
 .cart-legend-swatch {
-  width: 12px;
-  height: 12px;
+  width: 15px; /* HO 225: larger swatches */
+  height: 15px;
   border: 1px solid transparent;
   display: inline-block;
 }
@@ -3872,4 +3873,326 @@ a.racecard-cand-name:hover {
 .primcard-field {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ---- /races district modal (HO 225) ---------------------------------- */
+/* Minimal centered modal shell (no shipped drawer existed to reuse): dimmed
+   backdrop + amber-bordered panel, ×/click-away/Esc. Map-as-control. */
+.rdm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.rdm-panel {
+  width: min(920px, 96vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: var(--bg-base);
+  border: 1px solid var(--accent-amber);
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+.rdm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+}
+.rdm-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-primary);
+}
+.rdm-sub {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+.rdm-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.rdm-close:hover {
+  color: var(--accent-amber-bright);
+}
+.rdm-maps {
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rdm-map {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+}
+.rdm-maploading {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+.rdm-dlabel {
+  font-size: 9px;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.rdm-pickrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-wrap: wrap;
+}
+.rdm-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+}
+.rdm-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+}
+.rdm-chip:hover {
+  border-color: var(--accent-amber);
+  color: var(--text-primary);
+}
+.rdm-chip[data-active="true"] {
+  border-color: var(--accent-amber-bright);
+  color: var(--accent-amber-bright);
+}
+.rdm-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.rdm-action {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+.rdm-action:hover:not(:disabled) {
+  color: var(--accent-amber-bright);
+}
+.rdm-action:disabled,
+.rdm-action--disabled {
+  color: var(--text-dim);
+  cursor: default;
+  pointer-events: none;
+}
+.rdm-detail {
+  padding: 14px 16px;
+  min-height: 180px;
+}
+.rdm-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  color: var(--text-dim);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+/* district-modal detail card (RaceDistrictCard) */
+.rdc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rdc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-wrap: wrap;
+}
+.rdc-idblock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rdc-seat {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+.rdc-signals {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.rdc-incumbent {
+  display: flex;
+  gap: 14px;
+}
+.rdc-face {
+  width: 84px;
+  height: 84px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+}
+.rdc-face--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+}
+.rdc-inc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.rdc-role {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.rdc-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+.rdc-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.rdc-bio {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.rdc-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 6px;
+}
+.rdc-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.rdc-stat-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.rdc-stat-val {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.rdc-memberlink {
+  font-size: 12px;
+  color: var(--accent-amber);
+  text-decoration: none;
+  margin-top: 4px;
+}
+.rdc-memberlink:hover {
+  color: var(--accent-amber-bright);
+}
+.rdc-noopp {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+.rdc-challengers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+.rdc-chal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.rdc-chal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.rdc-chal-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.rdc-chal-name {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+a.rdc-chal-name:hover {
+  color: var(--accent-amber-bright);
+}
+.rdc-chal-party {
+  font-size: 11px;
+}
+.rdc-chal-status {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.rdc-open {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rdc-open-head {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent-amber);
+  letter-spacing: 0.5px;
+}
+.rdc-open-explain {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 60ch;
 }

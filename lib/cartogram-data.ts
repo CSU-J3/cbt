@@ -36,9 +36,12 @@ export type CartogramContest = {
   incumbent: { name: string; bioguideId: string | null } | null;
   searchTerms: string[]; // raw strings the search box resolves against
   // ── RACES card (Pass 2) — undefined on primaries contests ──
+  raceId?: string; // HO 225: the getRacesIndex race id (= a House district's seatId), so the modal can match a clicked polygon's seatId to its contest
+  incumbentFirstElected?: number | null; // HO 225: earliest term startYear from members.terms_json; drives the district-modal card's tenure / FIRST ELECTED
   party?: PartyKey | null; // incumbent party (for the [party] chip)
   rating?: string | null; // consensus rating label
   ratingScore?: number | null; // consensus score (for chip color/sort)
+  raterSpread?: { cook: string | null; sabato: string | null; ie: string | null }; // HO 225: per-rater ratings for the district-modal card's 3-segment spread (consensus alone can't drive it)
   incumbentDepictionUrl?: string | null;
   incumbentCashOnHand?: number | null; // HO 212: cents; null = no FEC filing, 0 = filed-empty
   margin2024?: number | null; // HO 214: signed 2024 House margin (R+ / D−); null = none/RCV/Senate
@@ -102,6 +105,8 @@ export function buildRacesCartogram(
       chamber: r.chamber,
       meta,
       href: `/race/${r.raceId}`,
+      raceId: r.raceId,
+      incumbentFirstElected: r.incumbentFirstElected,
       incumbent: r.incumbentName
         ? { name: r.incumbentName, bioguideId: r.incumbentBioguideId }
         : null,
@@ -114,6 +119,11 @@ export function buildRacesCartogram(
       party: r.incumbentParty,
       rating: r.consensusRating,
       ratingScore: r.consensusScore,
+      raterSpread: {
+        cook: r.cookRating,
+        sabato: r.sabatoRating,
+        ie: r.ieRating,
+      },
       incumbentDepictionUrl: r.incumbentDepictionUrl,
       incumbentCashOnHand: r.incumbentCashOnHand,
       margin2024: r.margin2024,

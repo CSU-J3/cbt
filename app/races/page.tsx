@@ -4,11 +4,11 @@
 // (components/RaceListView) — severity rail, consensus chip, 3-segment rater
 // spread, Kalshi-vs-rater divergence flag, 2024 House margin, incumbent cash.
 // The MAP, the HO 219 hero band, and CartogramShell are untouched.
-import { CartogramShell } from "@/components/CartogramShell";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { RaceListView } from "@/components/RaceListView";
 import { RacesHeroBand } from "@/components/RacesHeroBand";
+import { RacesMap } from "@/components/RacesMap";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
@@ -64,8 +64,7 @@ export default async function RacesPage() {
           houseCount={house.length}
         />
 
-        <CartogramShell
-          variant="races"
+        <RacesMap
           cells={cartogram.cells}
           summary={cartogram.summary}
           geometry={geometry}

@@ -1523,6 +1523,10 @@ export type RaceIndexRow = {
   incumbentName: string | null;
   incumbentParty: PartyKey | null;
   incumbentBioguideId: string | null;
+  // HO 225: earliest term startYear from members.terms_json (min across terms).
+  // Drives the district-modal card's tenure / FIRST ELECTED. null when the
+  // incumbent is unmapped or terms_json is missing/unparseable.
+  incumbentFirstElected: number | null;
   // HO 221: retirement flag. 0 = incumbent not running (OPEN seat → amber OPEN
   // tag + ○ glyph + cash suppressed); NULL/1 = render as a normal defended
   // incumbent. NULL is NOT open (the honest uncurated default). Hand-seeded
@@ -1557,6 +1561,27 @@ export type RaceIndexRow = {
   consensusScore: number | null;
 };
 
+// HO 225: earliest term startYear across a member's terms_json (the raw terms
+// array stored by sync:members). Returns null on missing/unparseable JSON or no
+// numeric startYear — the card degrades (no FIRST ELECTED) rather than fakes.
+function firstElectedFromTerms(termsJson: string | null): number | null {
+  if (!termsJson) return null;
+  try {
+    const terms = JSON.parse(termsJson) as Array<{ startYear?: number | string }>;
+    if (!Array.isArray(terms)) return null;
+    let min: number | null = null;
+    for (const t of terms) {
+      const y = typeof t.startYear === "string" ? Number(t.startYear) : t.startYear;
+      if (typeof y === "number" && Number.isFinite(y) && (min === null || y < min)) {
+        min = y;
+      }
+    }
+    return min;
+  } catch {
+    return null;
+  }
+}
+
 // Index of every race with at least one rating row. INNER JOIN excludes
 // the 432 House stubs from backfill:races that have no ratings yet —
 // surfacing them all would be 90% noise on the page. Pivot the three
@@ -1573,6 +1598,7 @@ export const getRacesIndex = unstable_cache(
                    m.name AS incumbent_name,
                    m.party AS incumbent_party,
                    m.depiction_url AS incumbent_depiction_url,
+                   m.terms_json AS incumbent_terms_json,
                    mf.cash_on_hand AS incumbent_cash_on_hand,
                    ko.event_ticker AS ko_event_ticker,
                    ko.implied_pct AS ko_implied_pct,
@@ -1643,6 +1669,9 @@ export const getRacesIndex = unstable_cache(
         ),
         incumbentBioguideId:
           (row.incumbent_bioguide_id as string | null) ?? null,
+        incumbentFirstElected: firstElectedFromTerms(
+          row.incumbent_terms_json as string | null,
+        ),
         incumbentRunning:
           row.incumbent_running == null ? null : Number(row.incumbent_running),
         incumbentDepictionUrl:
