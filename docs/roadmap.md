@@ -209,3 +209,25 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 - Not a feature checklist. Items here are themes; handoffs are checklist work.
 - Not where polish lives. `docs/ui-plan.md` owns those.
 - Not a contract. Cross things off, reorder, kill items as the dashboard tells you what it actually needs.
+
+## Status
+
+> **As of HO 226 · 2026-06-09.** First time this block lands in the repo — it is now the **source of truth**. Future updates edit this block, not memory or off-repo notes.
+
+**Overall: ~96%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
+
+| Theme | % |
+|---|---|
+| Foundation | 95 |
+| Home | 95 |
+| Visualizations | 90 |
+| Weekly reports | 95 |
+| News signal | CLOSED |
+| Member depth | 90 |
+| Races | 98 |
+
+**Baseline provenance.** Foundation / Home / Weekly reports / Member depth (95 / 95 / 95 / 90) are **last-known values maintained off-repo through HO 221** — they were **NOT re-derived this pass**; verify them against live state on the next full audit. Only **Races (98)** and the **overall** reflect this arc (HO 222–226).
+
+**Shipped recently (HO 222–226):** /races LIST redesign · district-map geometry (Census cd119 + `lib/district-geo`) · /races district modal (incumbent-anchored 3-case card) · /primaries district modal (results-era 2-column card).
+
+**Banked / unbuilt:** metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
