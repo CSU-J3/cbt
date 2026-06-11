@@ -366,7 +366,9 @@ body {
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: var(--space-xl);
+  /* HO 230 (item 7): wider gutter between the title block and the lead-in
+     prose column (was --space-xl / 24px). */
+  gap: 44px;
   min-width: 0;
 }
 .home-header-title {
@@ -446,6 +448,13 @@ body {
 @media (min-width: 1024px) {
   .home-header-prompt-row .terminal-prompt {
     font-size: 36px;
+  }
+  /* HO 230 (item 7): drop the lead's first line to the 36px brand's cap height
+     (not its line-box top, which left the small prose floating up by the
+     ascent). Scoped to the desktop hero — at 700-1023 the brand is 18px and the
+     two top-align fine without a nudge. */
+  .home-header-lead {
+    margin-top: 9px;
   }
 }
 /* HO 178: lead prose sits to the RIGHT of the title and FULL-WRAPS — no clamp,

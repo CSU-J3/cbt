@@ -27,12 +27,19 @@ export async function HomeHeader() {
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            {/* HO 185: the dashboard adopts the shared breadcrumb path masthead
-                (`Congress Terminal:\ 119TH \ Dashboard >_`), sized to the 36px
-                hero via the .home-header-prompt-row scope. Its single blinking
-                caret rides the path end at ALL widths, replacing HO 178/179.1's
-                per-breakpoint prose-caret / title-caret split (both removed). */}
-            <BreadcrumbMasthead segments={["Dashboard"]} />
+            {/* HO 185 adopted the shared breadcrumb path masthead
+                (`Congress Terminal:\119TH\Dashboard>_`), sized to the 36px hero
+                via the .home-header-prompt-row scope. HO 230 (item 7): the
+                blinking caret moved to the END of the lead-in prose (below) — the
+                masthead's built-in caret is suppressed (`cursor={false}`), and a
+                <700 fallback caret rides the path end here (the lead is hidden
+                <700, so the caret falls back to the title). Exactly one caret at
+                any width: `.home-cursor-title` is CSS-gated hidden ≥700 / shown
+                <700, the prose caret rides its hidden-<700 parent. */}
+            <BreadcrumbMasthead segments={["Dashboard"]} cursor={false} />
+            <span className="home-cursor-caret home-cursor-title" aria-hidden>
+              _
+            </span>
           </div>
 
           {/* HO 157: subhead holds 11px at all bands; below 700px it
@@ -54,7 +61,12 @@ export async function HomeHeader() {
             grows the row taller as the window narrows. Removed entirely <700px
             (`.home-header-lead { display:none }`). HO 185: its trailing caret is
             gone — the single caret now lives at the breadcrumb path's `>_`. */}
-        <p className="home-header-lead">{lead?.text ?? ""}</p>
+        <p className="home-header-lead">
+          {lead?.text ?? ""}
+          <span className="home-cursor-caret" aria-hidden>
+            _
+          </span>
+        </p>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
