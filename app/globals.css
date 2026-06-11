@@ -784,7 +784,7 @@ body {
 }
 .stage-funnel-track {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   height: 16px;
   min-width: 0;
