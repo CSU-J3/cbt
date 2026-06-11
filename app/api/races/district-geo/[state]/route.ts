@@ -9,13 +9,35 @@
 // tag "district-geo" (invalidate only if the committed asset is ever replaced).
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
-import { getStateDistrictGeometry } from "@/lib/district-geo";
+import {
+  getStateDistrictGeometry,
+  type MetroPanelGeometry,
+} from "@/lib/district-geo";
+import { metroPanelsForState } from "@/lib/metro-panels";
 import { STATE_FIPS_TO_ABBR } from "@/lib/states";
 
 const VALID_ABBRS = new Set(Object.values(STATE_FIPS_TO_ABBR));
 
+// HO 236: the base overview geometry plus any configured metro inset panels,
+// each re-fit through the same subset parameter (no new projection path). Same
+// cache wrapper / tag / per-state key — extending the payload, not the key.
 const getCachedStateGeometry = unstable_cache(
-  async (abbr: string) => getStateDistrictGeometry(abbr),
+  async (abbr: string) => {
+    const base = getStateDistrictGeometry(abbr);
+    if (!base) return null;
+    const metros: MetroPanelGeometry[] = [];
+    for (const panel of metroPanelsForState(abbr)) {
+      const sub = getStateDistrictGeometry(abbr, new Set(panel.districtIds));
+      if (sub) {
+        metros.push({
+          label: panel.label,
+          viewBox: sub.viewBox,
+          polygons: sub.districts,
+        });
+      }
+    }
+    return { ...base, ...(metros.length > 0 ? { metros } : {}) };
+  },
   ["district-geo"],
   { revalidate: 60 * 60 * 24 * 30, tags: ["district-geo"] },
 );

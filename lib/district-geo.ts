@@ -32,11 +32,24 @@ export type DistrictShape = {
   cy: number; // projected centroid y
 };
 
+// HO 236: a metro inset panel — the same polygon shape as the overview (path +
+// seatId), re-fit to its own subset extent via getStateDistrictGeometry's
+// `subset`. The viewBox is the standard STATE_W×STATE_H canvas; the polygons
+// fill it at the subset's fitExtent.
+export type MetroPanelGeometry = {
+  label: string;
+  viewBox: string;
+  polygons: DistrictShape[];
+};
+
 export type StateDistrictGeometry = {
   abbr: string;
   viewBox: string;
   atLarge: boolean; // single "00" district → render as a state outline
   districts: DistrictShape[];
+  // HO 236: configured dense-state inset panels. Absent on stale 30-day cached
+  // payloads (pre-236) → clients MUST treat as optional and render no panels.
+  metros?: MetroPanelGeometry[];
 };
 
 // HO 224 step 5: 120th-Congress mid-decade redraw states. Their committed
