@@ -147,10 +147,15 @@ async function fetchFmp(symbol: MarketSymbol): Promise<FetchedQuote> {
 // walk had (a "." most-recent row must not fail the symbol when a real value sits
 // one row back). End-of-day only — labeled `eod` on the tape via source==='fred'.
 async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
-  const key = process.env.FRED_API_KEY;
-  if (!key) {
+  const rawKey = process.env.FRED_API_KEY;
+  if (!rawKey) {
     throw new FetchQuoteError(symbol.internal, `FRED_API_KEY not configured`);
   }
+  // Trim defensively: env values pasted via CLI/dashboard can pick up a
+  // trailing newline/space, which FRED rejects with a 400 ("not a 32
+  // character alpha-numeric lower-case string") even when the key itself is
+  // valid. The real key is 32 lowercase alphanumerics — trimming is safe.
+  const key = rawKey.trim();
   const url =
     `https://api.stlouisfed.org/fred/series/observations` +
     `?series_id=${encodeURIComponent(symbol.remote)}` +
@@ -159,8 +164,13 @@ async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
   if (!res.ok) {
     // Surface FRED's error body — a 400/403 here is actionable (bad/expired
     // api_key, malformed param) and otherwise invisible behind the status.
+    // keyLen (raw/trimmed) is non-secret and pinpoints whitespace vs a wrong
+    // value if the key is still rejected after the trim.
     const detail = (await res.text().catch(() => "")).slice(0, 160).replace(/\s+/g, " ").trim();
-    throw new FetchQuoteError(symbol.internal, `fred HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
+    throw new FetchQuoteError(
+      symbol.internal,
+      `fred HTTP ${res.status} (keyLen ${rawKey.length}/${key.length})${detail ? `: ${detail}` : ""}`,
+    );
   }
   const data: unknown = await res.json();
   const observations = (data as { observations?: unknown })?.observations;
