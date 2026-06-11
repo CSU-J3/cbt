@@ -451,6 +451,26 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_committee_members_committee ON committee_members(committee_system_code)`,
   `CREATE INDEX IF NOT EXISTS idx_committee_members_member ON committee_members(bioguide_id)`,
+  // HO 232: append-only stage-transition log (the rating_history precedent —
+  // HO 220). One row per ACTUAL stage move, written from the summarize step's
+  // existing `transitioned` branch right beside previous_stage/stage_changed_at.
+  // `bill_id` references bills.id (the '119-hr-1234' shape) but is NOT FK'd, same
+  // as committee_bills — the summarize UPDATE always has the row, and a hard FK
+  // would be redundant. `from_stage` is nullable: a bill first observed already
+  // past introduced (oldStage NULL → e.g. enacted) logs a NULL-from transition,
+  // matching what the bills slot records. This is a WRITE-ONLY plant — nothing
+  // reads it yet. It exists so the deferred MOVERS hop-count rank (+ the from→to
+  // arrow rendering) has an accruing series when that handoff comes; no backfill
+  // is possible (the single-slot previous_stage has no history to recover).
+  `CREATE TABLE IF NOT EXISTS stage_transitions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id TEXT NOT NULL,
+    from_stage TEXT,
+    to_stage TEXT NOT NULL,
+    changed_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_stage_transitions_bill ON stage_transitions(bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_stage_transitions_changed_at ON stage_transitions(changed_at DESC)`,
 ];
 
 async function ensureColumn(

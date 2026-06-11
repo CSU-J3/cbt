@@ -232,6 +232,7 @@ export async function runSummarize(
       const ceremonialArg =
         result.is_ceremonial === null ? null : result.is_ceremonial ? 1 : 0;
       if (transitioned) {
+        const changedAt = new Date().toISOString();
         await db.execute({
           sql: `UPDATE bills
                 SET summary = ?, summary_model = ?, summary_updated_at = ?,
@@ -246,11 +247,22 @@ export async function runSummarize(
             JSON.stringify(result.topics),
             result.stage,
             bill.oldStage,
-            new Date().toISOString(),
+            changedAt,
             ceremonialArg,
             out!.textLength,
             bill.id,
           ],
+        });
+        // HO 232: append-only stage-transition log (write-only plant). Same
+        // condition + same timestamp as the single-slot previous_stage/
+        // stage_changed_at write above — bill.oldStage may be NULL (first
+        // observed already past introduced), recorded as a NULL-from row.
+        // Nothing reads stage_transitions yet; it accrues for the deferred
+        // MOVERS hop-count rank. No backfill — the slot has no history.
+        await db.execute({
+          sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
+                VALUES (?, ?, ?, ?)`,
+          args: [bill.id, bill.oldStage, result.stage, changedAt],
         });
       } else {
         await db.execute({
