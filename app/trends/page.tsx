@@ -10,6 +10,15 @@ import { TopicMixByChamber } from "@/components/TopicMixByChamber";
 // home visit. Mobile collapses the section padding via the existing
 // .dashboard-pane responsive rules.
 
+// Render at request time, not build time. The two charts run corpus-wide
+// Turso aggregations that outgrew Next's 60s static-export ceiling (build
+// began failing on /trends prerender — confirmed pre-existing, a clean
+// redeploy of older code fails identically — surfaced by corpus growth +
+// DB latency). A live-data lens shouldn't be frozen at build anyway; this
+// matches `/`, already dynamic. The query layer's unstable_cache still
+// applies, so this is a small first-hit latency cost, not per-request load.
+export const dynamic = "force-dynamic";
+
 export default function TrendsPage() {
   return (
     <div className="flex min-h-screen flex-col">
