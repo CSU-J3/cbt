@@ -23,6 +23,7 @@
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { isMarketOpen } from "@/lib/market-hours";
 import type { MarketTick } from "@/lib/queries";
 import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
 
@@ -71,7 +72,18 @@ function formatChangePct(pct: number): string {
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
 }
 
-function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
+function TickItem({
+  tick,
+  stale,
+  closed,
+}: {
+  tick: MarketTick;
+  stale: boolean;
+  // HO 234: market-hours CLOSED wash. Mutually exclusive with `stale` (the
+  // caller only sets closed when !stale — STALE wins). Last-session values keep
+  // displaying; only the color flips to --ticker-closed.
+  closed: boolean;
+}) {
   const pct = tick.changePct;
   const dir =
     !stale && pct !== null
@@ -87,8 +99,11 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
   // poll (see the geometry note in globals.css).
   const arrow =
     dir === "up" ? "▲" : dir === "down" ? "▼" : dir === "flat" ? "•" : "";
-  const colorVar =
-    dir === "up"
+  // HO 234: when closed, prices + changes + arrows all wash to --ticker-closed
+  // (the directional glyph/value still shows last session's move, just dormant).
+  const colorVar = closed
+    ? "var(--ticker-closed)"
+    : dir === "up"
       ? "var(--market-up)"
       : dir === "down"
         ? "var(--market-down)"
@@ -123,7 +138,11 @@ function TickItem({ tick, stale }: { tick: MarketTick; stale: boolean }) {
         className="markets-tape-price"
         style={{
           minWidth: `${priceSlotCh}ch`,
-          color: stale ? "var(--text-dim)" : "var(--text-secondary)",
+          color: stale
+            ? "var(--text-dim)"
+            : closed
+              ? "var(--ticker-closed)"
+              : "var(--text-secondary)",
         }}
       >
         {formatPrice(tick.price, tick.format)}
@@ -252,6 +271,12 @@ export function MarketsTapeClient({
     };
   }, [currentTicks, now]);
 
+  // HO 234: market-hours CLOSED signal, recomputed off the same minute `now`
+  // tick so the strip flips live at 9:30/16:00 ET without a reload. STALE wins —
+  // a broken/lagged pipeline is a problem and must not read as a healthy closed
+  // wash, so `closed` is suppressed whenever stale is active.
+  const closed = useMemo(() => !isMarketOpen(new Date(now)), [now]) && !stale;
+
   // HO 168/172: measure the track-half width → marquee duration (~40px/sec).
   // HO 179: also compute how many COPIES of the symbol set each half needs so
   // the half is always >= the visible tape width — otherwise a short tape (the
@@ -312,7 +337,7 @@ export function MarketsTapeClient({
   // Stale and live both render the same item list; stale just freezes the
   // track and dims the colors (TickItem reads `stale` for its own swap).
   const items = currentTicks.map((t) => (
-    <TickItem key={t.symbol} tick={t} stale={stale} />
+    <TickItem key={t.symbol} tick={t} stale={stale} closed={closed} />
   ));
   // HO 179: each marquee half repeats the set `copies` times so the half always
   // fills the viewport (no blank stretch at the loop). Keyed Fragments scope the
@@ -324,7 +349,9 @@ export function MarketsTapeClient({
   return (
     <div
       ref={tapeRef}
-      className={`markets-tape${stale ? " markets-tape--stale" : ""}`}
+      className={`markets-tape${stale ? " markets-tape--stale" : ""}${
+        closed ? " markets-tape--closed" : ""
+      }`}
       aria-label="Markets"
     >
       {stale ? (
@@ -362,6 +389,8 @@ export function MarketsTapeClient({
             AS OF {formatInZone(latestTickedAt, zone)}
             {stale ? (
               <span className="markets-tape-stale-flag"> · STALE</span>
+            ) : closed ? (
+              <span className="markets-tape-closed-flag"> · CLOSED</span>
             ) : null}
           </span>
         </div>

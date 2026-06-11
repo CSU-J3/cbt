@@ -40,6 +40,11 @@
      vars so a future palette tweak can move them independently. */
   --market-up: #10b981;
   --market-down: #ef4444;
+  /* HO 234 (design item 1): the markets tape's CLOSED wash. Muted red, distinct
+     from --market-down (#ef4444, a real downward move) and from the STALE
+     treatment (--text-dim) — CLOSED means "markets aren't trading," not "data
+     failed." The only new palette token in the 10-item design arc. */
+  --ticker-closed: #9b3d3d;
 
   /* Bill-id rail (HO 125). Chamber-of-origin marker for the BillRow rail.
      Deliberately NOT reused from party or stage palettes — the chamber is
@@ -3596,6 +3601,14 @@ body {
 }
 .markets-tape-stale-flag {
   color: var(--accent-amber);
+}
+/* HO 234: the · CLOSED flag on the AS OF stamp. --ticker-closed, distinct from
+   the amber STALE flag — STALE = pipeline problem, CLOSED = markets not trading
+   (normal). The price/arrow wash is applied inline in MarketsTapeClient; symbols
+   and labels keep their normal treatment so a closed tape reads "dormant," not
+   "broken." */
+.markets-tape-closed-flag {
+  color: var(--ticker-closed);
 }
 .markets-tape--stale .markets-tape-symbol,
 .markets-tape--stale .markets-tape-price,
