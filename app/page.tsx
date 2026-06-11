@@ -8,6 +8,7 @@ import {
   DashboardTopicTreemap,
   type TopicDatum,
 } from "@/components/DashboardTopicTreemap";
+import { EnactedBanner } from "@/components/EnactedBanner";
 import { HomeHeader } from "@/components/HomeHeader";
 import { ReportSnapshot } from "@/components/ReportSnapshot";
 import { StageFunnel } from "@/components/StageFunnel";
@@ -88,6 +89,11 @@ export default async function DashboardPage({
         <div className="home-snapshot-slot">
           <ReportSnapshot />
         </div>
+
+        {/* HO 232 (design item 6): ENACTED THIS WEEK band, directly under the
+            weekly-report snapshot and above the grid. Always renders — the N=0
+            state is intentionally visible (muted). */}
+        <EnactedBanner />
 
         {/* HO 178: 56/44 two-column body. LEFT (56%): BREAKING → STAGE →
             TOPIC. RIGHT (44%): COMPETITIVE RACES (2×2 hover) → ACTIVITY. */}

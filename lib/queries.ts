@@ -4,6 +4,10 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import {
+  type EnactedBill,
+  queryEnactedThisWeek,
+} from "./enacted-this-week";
+import {
   MARKET_SYMBOLS,
   type MarketFormat,
   type MarketGroup,
@@ -3167,6 +3171,19 @@ export const getStageChangesCount = unstable_cache(
     };
   },
   ["getStageChangesCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// HO 232: bills that reached `enacted` in the last 7 days, for the dashboard
+// ENACTED THIS WEEK banner. Cached + tag "bills" (flushed by the sync cron's
+// revalidateTag), unlike the cron's raw read in lib/dashboard-lead.ts — both
+// share the queryEnactedThisWeek predicate.
+export const getEnactedThisWeek = unstable_cache(
+  async (): Promise<EnactedBill[]> => {
+    const db = getDb();
+    return queryEnactedThisWeek(db);
+  },
+  ["getEnactedThisWeek"],
   { revalidate: 3600, tags: ["bills"] },
 );
 

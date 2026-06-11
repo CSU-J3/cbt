@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
+import { queryEnactedThisWeek } from "./enacted-this-week";
 import { SUMMARY_MODEL } from "./summarize";
 
 const LEAD_KEY = "weekly_lead";
@@ -63,17 +64,13 @@ async function gatherLeadData(): Promise<LeadData> {
     )}`,
   }));
 
-  const enactRs = await db.execute(
-    `SELECT id, bill_type, bill_number FROM bills
-     WHERE ${NON_CEREMONIAL}
-       AND stage = 'enacted'
-       AND stage_changed_at IS NOT NULL
-       AND stage_changed_at > datetime('now', '-${LEAD_DAYS} days')
-     ORDER BY stage_changed_at DESC`,
-  );
-  const topEnactments = enactRs.rows
+  // HO 232: enacted-this-week is now the shared predicate (queryEnactedThisWeek)
+  // — same slice the ENACTED THIS WEEK banner renders. Raw read here so the
+  // cron sees post-summarize data, not a stale cache.
+  const enacted = await queryEnactedThisWeek(db, LEAD_DAYS);
+  const topEnactments = enacted
     .slice(0, 3)
-    .map((r) => formatBillId(r.bill_type as string, r.bill_number as number));
+    .map((b) => formatBillId(b.billType, b.billNumber));
 
   const introRs = await db.execute(
     `SELECT COUNT(*) AS n FROM bills
@@ -97,7 +94,7 @@ async function gatherLeadData(): Promise<LeadData> {
   return {
     transitionsCount: transRs.rows.length,
     topTransitions,
-    enactmentsCount: enactRs.rows.length,
+    enactmentsCount: enacted.length,
     topEnactments,
     introductionsCount: Number(introRs.rows[0]?.n ?? 0),
     topTopic: topicRow

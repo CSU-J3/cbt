@@ -2188,6 +2188,71 @@ body {
 .home-snapshot-read:hover {
   color: var(--accent-amber-bright);
 }
+
+/* HO 232 (design item 6) — ENACTED THIS WEEK band. Thin full-width strip
+   under the weekly-report snapshot, above the 56/44 grid. Enacted green
+   (--stage-enacted, reused — no new token). The N=0 variant stays visible,
+   muted, never hidden. */
+.enacted-banner {
+  border: 0.5px solid var(--border-soft);
+  background-color: var(--bg-panel);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm) var(--space-md);
+  font-family: var(--font-mono);
+}
+.enacted-banner-label {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--stage-enacted);
+  white-space: nowrap;
+}
+.enacted-banner-count {
+  color: var(--stage-enacted);
+}
+.enacted-banner-ids {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-sm) var(--space-md);
+  min-width: 0;
+}
+.enacted-banner-id {
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  color: var(--stage-enacted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.enacted-banner-id:hover {
+  color: var(--text-primary);
+}
+.enacted-banner-more {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.enacted-banner-more:hover {
+  color: var(--stage-enacted);
+}
+.enacted-banner--empty .enacted-banner-label {
+  color: var(--text-dim);
+}
+.enacted-banner-none {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 @media (max-width: 700px) {
   .report-row,
   .report-header-row {
