@@ -1228,6 +1228,123 @@ export async function getRunoffsForRace(
   return rs.rows.map((r) => rowToPrimary(r));
 }
 
+// ---- Dashboard primaries rollup (HO 233) --------------------------------
+
+export type PrimaryStripPoint = { date: string; count: number; soon: boolean };
+export type DashboardPrimaryCardSeat = { label: string; rated: boolean };
+export type DashboardPrimaryCard = {
+  date: string;
+  states: string[];
+  count: number;
+  seats: DashboardPrimaryCardSeat[];
+  moreSeats: number;
+};
+export type DashboardPrimariesData = {
+  windowStart: string;
+  windowEnd: string;
+  strip: PrimaryStripPoint[];
+  cards: DashboardPrimaryCard[];
+};
+
+const DASH_PRIMARY_WINDOW_MONTHS = 6;
+const DASH_PRIMARY_CARDS = 4;
+const DASH_PRIMARY_SEATS_PER_CARD = 3;
+
+// Derived seat id (state+district), matching the races.id / race_ratings.race_id
+// shape — NOT primaries.race_id, which is a dead link (3/907). Used to mark a
+// contest as "rated" (its seat carries a race_ratings row) for marquee ranking.
+function dashPrimarySeatId(p: PrimaryWithCandidates): string {
+  return p.chamber === "senate"
+    ? `S-${p.state}-2026`
+    : `${p.state}-${p.district ?? "00"}-2026`;
+}
+function dashPrimarySeatLabel(p: PrimaryWithCandidates): string {
+  const base =
+    p.chamber === "senate" ? `${p.state} SEN` : `${p.state}-${p.district ?? "00"}`;
+  return p.party === "open" ? base : `${base} ${p.party}`;
+}
+
+// HO 233: one rollup, two shapes, for the dashboard races panel's PRIMARIES tab.
+// Uncached plain db.execute — the primaries surfaces are deliberately uncached
+// (no revalidate tag exists to hang this on, verified live), so this matches
+// getUpcomingPrimaries et al. rather than inventing a tag. election_round =
+// 'primary' keeps runoffs out, same as the index helpers.
+export async function getDashboardPrimaries(): Promise<DashboardPrimariesData> {
+  const db = getDb();
+  const today = new Date();
+  const windowStart = today.toISOString().slice(0, 10);
+  const endDate = new Date(today);
+  endDate.setMonth(endDate.getMonth() + DASH_PRIMARY_WINDOW_MONTHS);
+  const windowEnd = endDate.toISOString().slice(0, 10);
+
+  // Windowed upcoming contests — same select shape the HO 226 card uses.
+  const rs = await db.execute({
+    sql: `${PRIMARY_SELECT}
+          WHERE p.primary_date >= ? AND p.primary_date <= ?
+            AND p.election_round = 'primary'
+          GROUP BY p.id
+          ORDER BY p.primary_date ASC, p.state ASC, p.party ASC`,
+    args: [windowStart, windowEnd],
+  });
+  const contests = rs.rows.map((r) => rowToPrimary(r));
+
+  // Rated-seat set for the 2026 cycle (marquee ranking signal).
+  const ratedRs = await db.execute(
+    "SELECT DISTINCT race_id FROM race_ratings WHERE cycle = 2026",
+  );
+  const ratedSet = new Set(ratedRs.rows.map((r) => r.race_id as string));
+
+  // Group contests by date (one tick / one card per date).
+  const byDate = new Map<string, PrimaryWithCandidates[]>();
+  for (const c of contests) {
+    if (!c.primary_date) continue;
+    const arr = byDate.get(c.primary_date) ?? [];
+    arr.push(c);
+    byDate.set(c.primary_date, arr);
+  }
+  const dates = [...byDate.keys()].sort();
+  const soonDates = new Set(dates.slice(0, DASH_PRIMARY_CARDS));
+
+  // (a) strip: contest count per date; the soonest DASH_PRIMARY_CARDS dates
+  // (= the card dates) are flagged `soon` so the strip's amber ticks line up
+  // with the cards below.
+  const strip: PrimaryStripPoint[] = dates.map((date) => ({
+    date,
+    count: byDate.get(date)!.length,
+    soon: soonDates.has(date),
+  }));
+
+  // (b) cards: the soonest dates, marquee seats rated-first then by field size.
+  const cards: DashboardPrimaryCard[] = dates
+    .slice(0, DASH_PRIMARY_CARDS)
+    .map((date) => {
+      const onDate = byDate.get(date)!;
+      const states = [...new Set(onDate.map((c) => c.state))].sort();
+      const ranked = [...onDate].sort(
+        (a, b) =>
+          Number(ratedSet.has(dashPrimarySeatId(b))) -
+            Number(ratedSet.has(dashPrimarySeatId(a))) ||
+          b.candidates.length - a.candidates.length ||
+          dashPrimarySeatLabel(a).localeCompare(dashPrimarySeatLabel(b)),
+      );
+      const seats = ranked
+        .slice(0, DASH_PRIMARY_SEATS_PER_CARD)
+        .map((c) => ({
+          label: dashPrimarySeatLabel(c),
+          rated: ratedSet.has(dashPrimarySeatId(c)),
+        }));
+      return {
+        date,
+        states,
+        count: onDate.length,
+        seats,
+        moreSeats: onDate.length - seats.length,
+      };
+    });
+
+  return { windowStart, windowEnd, strip, cards };
+}
+
 // ---- Races (handoff 62) -------------------------------------------------
 
 export type Race = {

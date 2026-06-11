@@ -50,34 +50,19 @@ function partyColor(party: PartyKey | null): string {
   return "var(--text-dim)";
 }
 
+// HO 233: the outer panel chrome + header moved to RacesPanelTabs (the tab strip
+// now owns the panel). This renders ONLY the 2×2 grid — cards, popovers, and the
+// HO 230 confinement are byte-identical, just hosted by the tab body now.
 export function CompetitiveRacesStrip({
   races,
   hubs,
-  cycle,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
-  cycle: number;
 }) {
   return (
-    <section className="dashboard-pane home-races-pane">
-      <div className="mb-2 flex items-baseline justify-between">
-        <p
-          className="text-[12px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--accent-amber)" }}
-        >
-          Competitive races · {cycle}
-        </p>
-        <p
-          className="text-[11px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-dim)" }}
-        >
-          {races.length} shown
-        </p>
-      </div>
-
-      <div className="competitive-races-grid">
-        {races.map((race, i) => {
+    <div className="competitive-races-grid">
+      {races.map((race, i) => {
           const hub = hubs[i] ?? null;
           // HO 230 (item 4): position keys for the popover flip — right-column
           // cards open the popover leftward, bottom-row cards open it upward, so
@@ -141,7 +126,6 @@ export function CompetitiveRacesStrip({
             </div>
           );
         })}
-      </div>
-    </section>
+    </div>
   );
 }

@@ -1,7 +1,10 @@
 import { CompetitiveRacesStrip } from "@/components/CompetitiveRacesStrip";
 import type { RaceHubData } from "@/components/CompetitiveRacesStrip";
+import { DashboardPrimaries } from "@/components/DashboardPrimaries";
+import { RacesPanelTabs } from "@/components/RacesPanelTabs";
 import {
   type CompetitiveRace,
+  getDashboardPrimaries,
   getMember,
   getMostCompetitiveRaces,
   getRace,
@@ -50,20 +53,35 @@ export async function CompetitiveRacesBlock({
   // queries are cached (tag `races`), so the dashboard's `races` revalidation
   // flushes these too. A race id that doesn't resolve yields a null hub (the
   // card still renders from its CompetitiveRace data; the popover is omitted).
-  const hubs: (RaceHubData | null)[] = await Promise.all(
-    races.map(async (r) => {
-      const race = await getRace(r.raceId);
-      if (!race) return null;
-      const [candidates, incumbent, runoffs] = await Promise.all([
-        getRaceCandidates(race.id),
-        race.incumbent_bioguide_id
-          ? getMember(race.incumbent_bioguide_id)
-          : Promise.resolve(null),
-        getRunoffsForRace(race.id),
-      ]);
-      return { race, incumbent, candidates, runoffs };
-    }),
-  );
+  const [hubs, primariesData] = await Promise.all([
+    Promise.all(
+      races.map(async (r) => {
+        const race = await getRace(r.raceId);
+        if (!race) return null;
+        const [candidates, incumbent, runoffs] = await Promise.all([
+          getRaceCandidates(race.id),
+          race.incumbent_bioguide_id
+            ? getMember(race.incumbent_bioguide_id)
+            : Promise.resolve(null),
+          getRunoffsForRace(race.id),
+        ]);
+        return { race, incumbent, candidates, runoffs } as RaceHubData;
+      }),
+    ),
+    // HO 233: the PRIMARIES tab's 6-month rollup. Fetched here alongside the
+    // competitive hubs so the tab island gets both views as server-rendered
+    // props.
+    getDashboardPrimaries(),
+  ]);
 
-  return <CompetitiveRacesStrip races={races} hubs={hubs} cycle={cycle} />;
+  const primariesCount = primariesData.strip.reduce((s, p) => s + p.count, 0);
+
+  return (
+    <RacesPanelTabs
+      competitiveContent={<CompetitiveRacesStrip races={races} hubs={hubs} />}
+      primariesContent={<DashboardPrimaries data={primariesData} />}
+      competitiveCount={races.length}
+      primariesCount={primariesCount}
+    />
+  );
 }

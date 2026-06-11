@@ -2387,6 +2387,125 @@ body {
   }
 }
 
+/* HO 233 — PRIMARIES tab on the races panel (design item 8). The tab body holds
+   a stable min-height so toggling COMPETITIVE/PRIMARIES doesn't shift the right
+   column (sized to the taller PRIMARIES view). */
+.races-panel-body {
+  min-height: 240px;
+}
+.dash-prim {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.dash-prim-empty {
+  padding: var(--space-md);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+/* Six-month calendar strip: axis 16px off the bottom, ticks grow up from it,
+   TODAY + month labels sit in the band below. */
+.dash-prim-strip {
+  position: relative;
+  height: 52px;
+}
+.dash-prim-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16px;
+  border-top: 1px solid var(--border-strong);
+}
+.dash-prim-nowline {
+  position: absolute;
+  left: 0;
+  bottom: 16px;
+  height: 26px;
+  border-left: 1px solid var(--accent-amber);
+}
+.dash-prim-today {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.dash-prim-month {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.dash-prim-tickwrap {
+  position: absolute;
+  bottom: 16px;
+  transform: translateX(-50%);
+  line-height: 0;
+}
+/* Suppress the tooltip-term dotted underline — it doesn't read on a vertical
+   tick (same suppression the bill-rail does). */
+.dash-prim-tickwrap .tooltip-term {
+  border-bottom: none;
+  cursor: pointer;
+}
+.dash-prim-tick {
+  display: block;
+  width: 3px;
+  border-radius: 1px 1px 0 0;
+  background: var(--text-dim);
+}
+.dash-prim-tick--soon {
+  background: var(--accent-amber-bright);
+}
+/* 2×2 per-date cards — pre-results (no ShareBar/★); same card chrome as the
+   competitive cells, shorter floor since the content is denser. */
+.dash-prim-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+.dash-prim-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 64px;
+  padding: var(--space-sm) var(--space-md);
+  border: 0.5px solid var(--border-soft);
+  border-radius: 2px;
+  background: var(--bg-base);
+  text-decoration: none;
+}
+.dash-prim-card:hover {
+  background: var(--bg-row-hover);
+  border-color: var(--border-strong);
+}
+.dash-prim-card-date {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+}
+.dash-prim-card-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.dash-prim-card-seats {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+@media (max-width: 700px) {
+  .dash-prim-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---- cluster index ----------------------------------------------------- */
 /* Columns: name+slug | count | example title */
 .cluster-row {
