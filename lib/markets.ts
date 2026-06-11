@@ -51,6 +51,16 @@
 //     resilience + the HO 227 failure-honesty surface any bad id within retention.
 // FRED-sourced symbols are EOD and labeled `eod` on the tape so a stale close is
 // never shown as a fresh intraday print (the same honesty as the cron-status fix).
+//
+// HO 228 — the "ticks fine in prod" assumption above was FALSE. An egress probe
+// showed `fredgraph.csv` is bot-walled from Vercel (times out at the fetch
+// timeout from the cloud IPs; reachable only from the laptop — the local-vs-egress
+// trap). ALL 5 FRED symbols had been dark, not just the 3 new commodities. Fix:
+// re-sourced fetchFred off `fredgraph.csv` → the official JSON API
+// `api.stlouisfed.org/fred/series/observations` (a distinct host-path that DOES
+// reach egress — confirmed clean 400 in ~200ms keyless for all 5 series), keyed by
+// `FRED_API_KEY` (Vercel PRODUCTION env). All 5 series verified live + fresh
+// (CBBTCUSD "Coinbase Bitcoin" updated Jun 9); none dropped, tape stays 8.
 
 export type MarketSource = "fmp" | "fred";
 export type MarketFormat = "index" | "yield" | "price";
@@ -123,22 +133,44 @@ async function fetchFmp(symbol: MarketSymbol): Promise<FetchedQuote> {
   return { price, marketDate };
 }
 
-// FRED's public fredgraph.csv returns full history with two columns
-// (observation_date, value). Series like DGS10 publish daily with empty
-// "." values on non-trading days. Take the most recent row whose value is
-// numeric. End-of-day only — fine for rates as a policy-effect signal.
+// FRED via the official JSON API (api.stlouisfed.org). HO 228 swapped this off
+// the old `fredgraph.csv` graph endpoint, which is bot-walled from Vercel egress
+// (it times out from the cloud IPs the cron actually runs on — confirmed by an
+// egress probe; the laptop-reachable graph CSV was the local-vs-egress trap that
+// broke HO 227). The JSON API is a distinct host-path that DOES reach egress
+// (probe: clean 400 in ~200ms keyless for all 5 series) and needs a free key in
+// `FRED_API_KEY` (Vercel PRODUCTION env, not the repo).
+//
+// `sort_order=desc` returns newest-first. FRED publishes "." as the missing-value
+// sentinel on non-trading days / not-yet-released dates, so we pull a small window
+// and walk to the first numeric observation — the same resilience the old CSV-tail
+// walk had (a "." most-recent row must not fail the symbol when a real value sits
+// one row back). End-of-day only — labeled `eod` on the tape via source==='fred'.
 async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
-  const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(symbol.remote)}`;
+  const key = process.env.FRED_API_KEY;
+  if (!key) {
+    throw new FetchQuoteError(symbol.internal, `FRED_API_KEY not configured`);
+  }
+  const url =
+    `https://api.stlouisfed.org/fred/series/observations` +
+    `?series_id=${encodeURIComponent(symbol.remote)}` +
+    `&api_key=${key}&file_type=json&sort_order=desc&limit=10`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new FetchQuoteError(symbol.internal, `fred HTTP ${res.status}`);
   }
-  const body = (await res.text()).trim();
-  const lines = body.split(/\r?\n/);
-  // Walk from the tail until we find a row with a numeric value.
-  for (let i = lines.length - 1; i >= 1; i--) {
-    const [date, value] = lines[i]!.split(",");
-    if (!date || !value) continue;
+  const data: unknown = await res.json();
+  const observations = (data as { observations?: unknown })?.observations;
+  if (!Array.isArray(observations)) {
+    throw new FetchQuoteError(symbol.internal, `fred no observations array`);
+  }
+  // Newest-first; walk to the first row with a numeric value (skip the "."
+  // missing-value sentinel rather than NaN-ing it into a tick).
+  for (const obs of observations) {
+    const date = (obs as { date?: unknown })?.date;
+    const value = (obs as { value?: unknown })?.value;
+    if (typeof date !== "string" || typeof value !== "string") continue;
+    if (value === ".") continue;
     const n = Number(value);
     if (!Number.isFinite(n)) continue;
     return { price: n, marketDate: date };
