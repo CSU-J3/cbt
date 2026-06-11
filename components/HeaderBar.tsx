@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
-import { DualMarketsTape } from "@/components/DualMarketsTape";
+import { MarketsTape } from "@/components/MarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
@@ -203,11 +203,10 @@ export async function HeaderBar({
           on one row, merging HO 185's separate masthead + nav rows. flex-wrap
           so a deep detail path bumps the nav to a second line rather than
           wrapping the path itself (the path is the identity).
-          The dual markets tape sits BELOW the title bar — HO 187 removed it
-          from inner pages, then HO 202 restored it app-wide (the dual
-          counter-scrolling pair, the same <DualMarketsTape> the dashboard's
-          HomeHeader mounts), matching the dashboard's masthead → tape → nav
-          order. */}
+          The markets tape sits BELOW the title bar — HO 187 removed it from
+          inner pages, HO 202 restored it app-wide, and HO 234 collapsed it to a
+          single combined <MarketsTape /> (the same one HomeHeader mounts) so the
+          tape is identical global chrome on every page. */}
       <div className="header-titlebar">
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
@@ -336,7 +335,7 @@ export async function HeaderBar({
           for the dashboard). Below the title bar to match the dashboard's
           masthead → tape → nav order. Hidden <700px by the global .markets-tape
           rule, same as the dashboard. */}
-      <DualMarketsTape />
+      <MarketsTape />
 
       {/* Transitional (HO 187): feed pages that haven't built their own band-3
           control strip yet (/changes, /stale until their sub-stage) still get

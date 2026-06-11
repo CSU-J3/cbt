@@ -3393,13 +3393,13 @@ body {
    by a pause toggle and auto-paused on prefers-reduced-motion. */
 .markets-tape {
   position: relative;
-  /* HO 179.1: z-index so a tape (incl. its hover popover) paints above the
+  /* HO 179.1: z-index so the tape (incl. its hover popover) paints above the
      following nav on every page. The popover can't escape via its own z-index
      because the marquee's animated `transform` makes .markets-tape-track a
-     stacking context that traps it — so ordering happens at the tape level. On
-     the dashboard, .markets-tape-block raises the top tape above the bottom (so
-     the top tape's downward popover clears the bottom tape). The HO 179 removal
-     of this z-index was the wrong element — the trap is the track, not here. */
+     stacking context that traps it — so ordering happens at the tape level. HO
+     234 collapsed the dual tape to one line, so the per-tape z ordering (the old
+     .markets-tape-block first/last-child rules) is gone; this single z-index:30
+     is all that's needed to clear the nav. */
   z-index: 30;
   display: flex;
   align-items: center;
@@ -3416,17 +3416,6 @@ body {
   overflow-y: visible;
   font-family: var(--font-mono);
   font-size: 14px;
-}
-/* HO 179.1: dashboard dual-tape wrapper. Orders the two tapes' stacking
-   contexts so the TOP (equities, first child) sits above the BOTTOM
-   (commodities) — the top tape's hover popover, which spills downward over the
-   bottom tape, then paints above it. Equal z (the HO 178 state) let the
-   later-DOM bottom tape win. Both stay >= the base z-index:30 (above the nav). */
-.markets-tape-block > .markets-tape:first-child {
-  z-index: 31;
-}
-.markets-tape-block > .markets-tape:last-child {
-  z-index: 30;
 }
 /* HO 156 follow-up: hide the tape <700px. It's a dense desktop strip that
    wraps poorly on phones, reads STALE on the daily-refresh cadence, and

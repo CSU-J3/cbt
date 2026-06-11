@@ -1,6 +1,6 @@
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
-import { DualMarketsTape } from "@/components/DualMarketsTape";
+import { MarketsTape } from "@/components/MarketsTape";
 import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
@@ -71,11 +71,12 @@ export async function HomeHeader() {
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      {/* HO 178: two counter-scrolling tapes — equities → , commodities/macro ←.
-          HO 185: extracted to the shared <DualMarketsTape> (same mount HeaderBar
-          now uses on every page) — the .markets-tape-block stacking, the
-          bottom-only AS OF stamp, and the HO 183 cycling zones all live there. */}
-      <DualMarketsTape />
+      {/* HO 234 (design item 1): the dashboard's HO 178/185 dual counter-scrolling
+          tapes collapsed to ONE combined line — the full symbol set, single AS OF
+          stamp, single direction — uniform with every other page (HeaderBar mounts
+          the same single <MarketsTape />). The cycling-zone stamp + HO 175 jump-
+          proofing live in MarketsTapeClient and ride this single line. */}
+      <MarketsTape />
 
       <PrimaryNav active="dashboard" variant="home" />
     </header>

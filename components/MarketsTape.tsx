@@ -1,12 +1,12 @@
 // HO 149 — markets ticker tape. Server parent fetches the MarketTicks, then
 // hands them to the client marquee for animation + staleness.
 //
-// HO 178 — the tape can render a single symbol GROUP. Both the dashboard
-// (HomeHeader) and every inner page (HeaderBar, via HO 202's restore) mount the
-// dual counter-scrolling pair through `<DualMarketsTape>`:
-// `<MarketsTape group="equities" />` + `<MarketsTape group="commodities" reverse />`.
-// The no-group "combined" form (one tape, all symbols, single direction) is left
-// in place but no longer mounted anywhere. `placeholderSymbols` (the group's full
+// HO 178 — the tape can render a single symbol GROUP. HO 234 (design item 1)
+// collapsed the dashboard's dual counter-scrolling pair back to ONE combined
+// line: both the dashboard (HomeHeader) and every inner page (HeaderBar) now
+// mount a single no-group `<MarketsTape />` (all symbols, one direction, single
+// AS OF) — uniform global chrome. The `group`/`reverse`/`showMeta` props are
+// retained for the grouped form but no longer used. `placeholderSymbols` (the group's full
 // internal-symbol list) drives both the no-data placeholder row and the client's
 // poll filter, so a tape only ever updates its own symbols.
 import { MarketsTapeClient } from "@/components/MarketsTapeClient";
