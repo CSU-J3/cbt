@@ -212,22 +212,22 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 
 ## Status
 
-> **As of HO 226 · 2026-06-09.** First time this block lands in the repo — it is now the **source of truth**. Future updates edit this block, not memory or off-repo notes.
+> **As of HO 235 · 2026-06-11.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
 
-**Overall: ~96%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
+**Overall: ~97%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
 
 | Theme | % |
 |---|---|
 | Foundation | 95 |
-| Home | 95 |
-| Visualizations | 90 |
+| Home | 98 |
+| Visualizations | 95 |
 | Weekly reports | 95 |
 | News signal | CLOSED |
 | Member depth | 90 |
 | Races | 98 |
 
-**Baseline provenance.** Foundation / Home / Weekly reports / Member depth (95 / 95 / 95 / 90) are **last-known values maintained off-repo through HO 221** — they were **NOT re-derived this pass**; verify them against live state on the next full audit. Only **Races (98)** and the **overall** reflect this arc (HO 222–226).
+**Baseline provenance.** Foundation / Weekly reports / Member depth (95 / 95 / 90) are **last-known values maintained off-repo through HO 221** — **NOT re-derived this pass**; verify against live state on the next full audit. **Home (95→98)** and **Visualizations (90→95)** were bumped this pass to reflect the completed dashboard design arc (HO 230–234); **Races (98)** reflects HO 222–226.
 
-**Shipped recently (HO 222–226):** /races LIST redesign · district-map geometry (Census cd119 + `lib/district-geo`) · /races district modal (incumbent-anchored 3-case card) · /primaries district modal (results-era 2-column card).
+**Shipped recently (HO 230–234, the dashboard design pass — completes the 10-item arc):** nav text-only path restyle + Bills rename · masthead cursor → lead-in prose end · stage-distribution left-anchor · races-popover re-confinement · topic-distribution treemap (replaced the bubble cluster) · MOVERS tab (ACTIVITY renamed in place) · `stage_transitions` write-only log · ENACTED THIS WEEK banner · PRIMARIES tab on the races panel · markets tape collapsed to one line + CLOSED market-hours state. *(HO 222–226 prior: /races LIST redesign · district-map geometry · /races + /primaries district modals.)*
 
-**Banked / unbuilt:** metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
+**Banked / unbuilt:** **MOVERS from→to display + hop-count sort** (gated on `stage_transitions` accrual, planted 2026-06-11) · metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
