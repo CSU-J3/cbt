@@ -515,13 +515,48 @@ body {
   color: var(--accent-amber-bright);
   border-bottom-color: var(--accent-amber);
 }
-.home-header-nav .nav-icon {
-  font-size: 16px;
-  line-height: 1;
+/* HO 230 (design items 9+10) — text-only PowerShell-path nav, shared by the
+   dashboard (.home-header-nav) and inner pages (.header-nav) via the
+   .primary-nav hook. `.primary-nav .pnav-item` is (0,2,0) so it beats the
+   wrapper-scoped `.home-header-nav a` (0,1,1) base rules above. */
+.primary-nav .pnav-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0;
+  padding: 10px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease;
 }
-.home-header-nav .nav-label {
-  font-size: 14px;
-  line-height: 1;
+.primary-nav .pnav-item:hover {
+  color: var(--text-primary);
+}
+.primary-nav .pnav-item[aria-current="page"] {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber);
+}
+.primary-nav .pnav-slash {
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+/* Brackets hold their space at rest (transparent) and light amber on the active
+   item, so switching the active item never shifts the row horizontally. */
+.primary-nav .pnav-bracket {
+  color: transparent;
+  padding-inline: 3px;
+}
+.primary-nav .pnav-item[aria-current="page"] .pnav-slash,
+.primary-nav .pnav-item[aria-current="page"] .pnav-bracket {
+  color: var(--accent-amber);
+}
+.primary-nav .pnav-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 16px;
+  background: var(--border-strong);
+  align-self: center;
 }
 .home-main {
   flex: 1;

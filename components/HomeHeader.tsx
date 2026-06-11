@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { DualMarketsTape } from "@/components/DualMarketsTape";
-import { NAV_ITEMS } from "@/components/HeaderBar";
+import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { getCorpusStats, getDashboardLead } from "@/lib/queries";
 
@@ -66,22 +65,7 @@ export async function HomeHeader() {
           bottom-only AS OF stamp, and the HO 183 cycling zones all live there. */}
       <DualMarketsTape />
 
-      <nav className="home-header-nav" aria-label="Primary navigation">
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.key}
-            href={item.href}
-            title={item.tooltip}
-            aria-label={item.tooltip}
-            aria-current={item.key === "dashboard" ? "page" : undefined}
-          >
-            <span className="nav-icon" aria-hidden>
-              {item.icon}
-            </span>
-            <span className="nav-label">{item.label}</span>
-          </Link>
-        ))}
-      </nav>
+      <PrimaryNav active="dashboard" variant="home" />
     </header>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { DualMarketsTape } from "@/components/DualMarketsTape";
@@ -40,7 +41,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
-  { key: "feed", href: "/bills", icon: "▤", label: "Bills|News", tooltip: "Bills, news, stage changes, and the president's desk" },
+  { key: "feed", href: "/bills", icon: "▤", label: "Bills", tooltip: "Bills, news, stage changes, and the president's desk" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "races", href: "/races", icon: "🗳", label: "Races", tooltip: "Competitive 2026 races and forecaster ratings" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
@@ -48,24 +49,52 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
 
-function HeaderNav({ active }: { active: NavItemKey | null }) {
-  const amber = "var(--accent-amber)";
+// HO 230 (design items 9+10) — text-only PowerShell-path nav. Shared by the
+// dashboard (HomeHeader, `variant="home"`) and inner pages (HeaderBar,
+// `variant="bar"`) so the two never diverge. Each item is `\LABEL` (dim slash,
+// no icons); the active item gets amber `[ \LABEL ]` brackets + amber-bright
+// label + amber-bright underline, with bracket space reserved on every item so
+// switching the active item causes no horizontal shift. Three groups split by
+// short vertical rules: \DASHBOARD | \BILLS \MEMBERS \RACES \PATTERNS |
+// \REPORTS \WATCHLIST (dividers before index 1 and 5). Styling lives under
+// `.primary-nav .pnav-*` in globals.css (specificity beats `.home-header-nav a`).
+export function PrimaryNav({
+  active,
+  variant,
+}: {
+  active: NavItemKey | null;
+  variant: "home" | "bar";
+}) {
+  const wrapperClass =
+    variant === "home"
+      ? "primary-nav home-header-nav"
+      : "primary-nav header-nav flex flex-wrap items-center gap-y-2 gap-x-3 text-[13px] uppercase tracking-[0.5px] whitespace-nowrap";
   return (
-    <nav
-      className="header-nav flex flex-wrap items-center gap-y-2 gap-4 text-[13px] uppercase tracking-[0.5px] whitespace-nowrap"
-      style={{ color: "var(--text-dim)" }}
-    >
-      {NAV_ITEMS.map((item) => (
-        <Link
-          key={item.key}
-          href={item.href}
-          title={item.tooltip}
-          aria-label={item.tooltip}
-          className="transition hover:text-[var(--text-secondary)]"
-          style={{ color: active === item.key ? amber : undefined }}
-        >
-          <span aria-hidden>{item.icon}</span> {item.label}
-        </Link>
+    <nav className={wrapperClass} aria-label="Primary navigation">
+      {NAV_ITEMS.map((item, i) => (
+        <Fragment key={item.key}>
+          {i === 1 || i === 5 ? (
+            <span className="pnav-divider" aria-hidden />
+          ) : null}
+          <Link
+            href={item.href}
+            title={item.tooltip}
+            aria-label={item.tooltip}
+            aria-current={active === item.key ? "page" : undefined}
+            className="pnav-item"
+          >
+            <span className="pnav-bracket" aria-hidden>
+              [
+            </span>
+            <span className="pnav-slash" aria-hidden>
+              {"\\"}
+            </span>
+            <span className="pnav-text">{item.label}</span>
+            <span className="pnav-bracket" aria-hidden>
+              ]
+            </span>
+          </Link>
+        </Fragment>
       ))}
     </nav>
   );
@@ -297,7 +326,7 @@ export async function HeaderBar({
           )}
         </span>
         <div className="header-titlebar-nav">
-          <HeaderNav active={pathToNavKey(basePath)} />
+          <PrimaryNav active={pathToNavKey(basePath)} variant="bar" />
           <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
         </div>
       </div>
