@@ -157,7 +157,10 @@ async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
     `&api_key=${key}&file_type=json&sort_order=desc&limit=10`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
-    throw new FetchQuoteError(symbol.internal, `fred HTTP ${res.status}`);
+    // Surface FRED's error body — a 400/403 here is actionable (bad/expired
+    // api_key, malformed param) and otherwise invisible behind the status.
+    const detail = (await res.text().catch(() => "")).slice(0, 160).replace(/\s+/g, " ").trim();
+    throw new FetchQuoteError(symbol.internal, `fred HTTP ${res.status}${detail ? `: ${detail}` : ""}`);
   }
   const data: unknown = await res.json();
   const observations = (data as { observations?: unknown })?.observations;
