@@ -79,8 +79,16 @@ export function CompetitiveRacesStrip({
       <div className="competitive-races-grid">
         {races.map((race, i) => {
           const hub = hubs[i] ?? null;
+          // HO 230 (item 4): position keys for the popover flip — right-column
+          // cards open the popover leftward, bottom-row cards open it upward, so
+          // it stays confined inside the panel (2×2 grid, row-major order).
           return (
-            <div key={race.raceId} className="competitive-race-cell">
+            <div
+              key={race.raceId}
+              className="competitive-race-cell"
+              data-col={i % 2 === 0 ? "left" : "right"}
+              data-row={i < 2 ? "top" : "bottom"}
+            >
               <Link
                 href={`/race/${race.raceId}`}
                 className="competitive-race-card"
