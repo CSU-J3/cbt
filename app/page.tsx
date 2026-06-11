@@ -5,9 +5,9 @@ import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { StageKey } from "@/components/ColorKeyStrip";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import {
-  type BubbleDatum,
-  DashboardBubbleChart,
-} from "@/components/DashboardBubbleChart";
+  DashboardTopicTreemap,
+  type TopicDatum,
+} from "@/components/DashboardTopicTreemap";
 import { HomeHeader } from "@/components/HomeHeader";
 import { ReportSnapshot } from "@/components/ReportSnapshot";
 import { StageFunnel } from "@/components/StageFunnel";
@@ -68,7 +68,7 @@ export default async function DashboardPage({
   // (per-topic colors mean the abbreviation alone no longer needs decoding from
   // a legend). The count rides the popover too; the old percentage-of-corpus
   // tooltip string was dropped with the native <title>.
-  const topicData: BubbleDatum[] = topicRows.map((t) => ({
+  const topicData: TopicDatum[] = topicRows.map((t) => ({
     id: t.topic,
     label: topicLabel(t.topic),
     count: t.count,
@@ -136,7 +136,7 @@ export default async function DashboardPage({
               {/* HO 180: the TOPICS group legend (TopicKey) was removed — bubbles
                   are now per-topic colored and the hover popover decodes them. */}
               <div className="home-quadrant-body">
-                <DashboardBubbleChart data={topicData} paramKey="topics" />
+                <DashboardTopicTreemap data={topicData} />
               </div>
             </section>
           </div>

@@ -692,9 +692,11 @@ body {
   flex: 0 0 auto;
   min-height: 220px;
 }
+/* HO 231: the treemap is a half-height strip (was the tall flex:1 bubble
+   cluster), so the topic panel hugs its content. align-items:start on the grid
+   (below) keeps the left column from stretch-gapping under the taller right. */
 .home-panel-topic {
-  flex: 1;
-  min-height: 320px;
+  flex: 0 0 auto;
 }
 .home-quadrant {
   display: flex;
@@ -2413,14 +2415,15 @@ body {
    of a fixed 480px height. */
 /* HO 180: relative wrapper so the bubble hover popover can position from a
    bubble's measured rect and sit above the chart. */
-.dashboard-bubble-wrap {
+/* HO 231: topic treemap container. width:100% / height:auto so the svg's 4:1
+   viewBox renders a strip ≈ half the bubble cluster's 2:1 height (recovers
+   vertical space). Replaces the HO 132/180 .dashboard-bubble-wrap/-svg. */
+.topic-treemap-wrap {
   position: relative;
-  flex: 1;
-  min-height: 0;
 }
-.dashboard-bubble-svg {
+.topic-treemap-svg {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
   background-color: var(--bg-panel);
 }
@@ -2456,44 +2459,39 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
-.dashboard-bubble {
+/* HO 231: treemap cell — abutting rects (no gaps). The selection/hover stroke
+   straddles the shared edge (1px each side), which reads fine as a highlight.
+   The label is a tonal dark shade of the cell's own hue (set inline via
+   darken()), so no light-on-fill halo is needed. */
+.topic-treemap-cell {
+  cursor: pointer;
   outline: none;
 }
-.dashboard-bubble.is-static {
-  cursor: default;
-}
-.dashboard-bubble:not(.is-static) {
-  cursor: pointer;
-}
-.dashboard-bubble circle {
-  transition: stroke 120ms ease, fill-opacity 120ms ease;
+.topic-treemap-cell rect {
+  transition: stroke 120ms ease;
   stroke: transparent;
-  stroke-width: 1.5;
+  stroke-width: 0;
 }
-.dashboard-bubble:not(.is-static):hover circle {
+.topic-treemap-cell:hover rect {
   stroke: var(--accent-amber);
   stroke-width: 2;
-  fill-opacity: 1;
 }
-.dashboard-bubble:focus-visible circle {
+.topic-treemap-cell:focus-visible rect,
+.topic-treemap-cell.selected rect {
   stroke: var(--accent-amber-bright);
   stroke-width: 2.5;
 }
-.dashboard-bubble.selected circle {
-  stroke: var(--accent-amber-bright);
-  stroke-width: 2.5;
-  fill-opacity: 1;
-}
-.dashboard-bubble text {
-  font-size: 11px;
-  fill: var(--text-primary);
+.topic-treemap-label {
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: 0.5px;
   pointer-events: none;
   user-select: none;
-  font-weight: 500;
-  /* HO 180: dark halo so the light label reads on any of the 24 per-topic
-     fills — including the lighter yellow-greens (BUDGET, EDUCATION). */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+.topic-treemap-count {
+  font-size: 11px;
+  pointer-events: none;
+  user-select: none;
 }
 .pattern-legend {
   display: flex;
