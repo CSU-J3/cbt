@@ -4221,6 +4221,40 @@ a.racecard-cand-name:hover {
   text-anchor: middle;
   dominant-baseline: central;
 }
+/* HO 236 (spec-3 Phase 2): metro inset panels — a horizontal row of labeled
+   re-fit district insets below the state overview, so dense-state districts that
+   render too small to click at the overview fit become clickable. ~160px-tall
+   boxes (top of the spec's 140-160 range, the size the diagnostic verified
+   against). Amber-idiom border consistent with the modal shell; label top-left
+   in the dim-caption style. Unconfigured states render no row (null-safe). */
+.rdm-metros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rdm-metro {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--accent-amber);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  padding: 5px 7px 7px;
+}
+.rdm-metro-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+}
+.rdm-metromap {
+  height: 160px;
+  width: auto;
+  max-width: 100%;
+}
 .rdm-pickrow {
   display: flex;
   align-items: center;

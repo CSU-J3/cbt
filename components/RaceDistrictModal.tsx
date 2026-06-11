@@ -15,7 +15,7 @@ import { useEffect, useState } from "react";
 import { RaceDistrictCard } from "@/components/RaceDistrictCard";
 import { formatCash } from "@/components/race-cells";
 import type { CartogramContest } from "@/lib/cartogram-data";
-import type { StateDistrictGeometry } from "@/lib/district-geo";
+import type { DistrictShape, StateDistrictGeometry } from "@/lib/district-geo";
 import { ratingColor } from "@/lib/race-colors";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
 
@@ -101,6 +101,58 @@ export function RaceDistrictModal({
   const districtCount = geo?.districts.length ?? null;
   const selectedContest = selected ? byRaceId.get(selected) ?? null : null;
 
+  // Shared polygon render — used by the state overview AND each metro inset, so
+  // both fill/select/hover identically and selection syncs across all of them.
+  const renderDistricts = (polys: DistrictShape[]) => (
+    <>
+      {polys.map((d) => {
+        const contest = d.seatId ? byRaceId.get(d.seatId) : undefined;
+        const comp = !!contest;
+        const sel = !!selected && d.seatId === selected;
+        const hov = !!hovered && d.seatId === hovered;
+        return (
+          <path
+            key={d.cd}
+            d={d.d}
+            fill={comp ? ratingColor(contest.rating) : "#1c2433"}
+            stroke={
+              sel
+                ? "var(--accent-amber-bright)"
+                : hov && comp
+                  ? "var(--accent-amber)"
+                  : "#0a0e14"
+            }
+            strokeWidth={sel ? 2 : hov && comp ? 1.5 : 0.6}
+            style={comp ? { cursor: "pointer" } : undefined}
+            onClick={comp ? () => setSelected(d.seatId) : undefined}
+            onMouseEnter={comp ? () => setHovered(d.seatId) : undefined}
+            onMouseLeave={comp ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
+          >
+            <title>
+              {d.cd}
+              {comp ? ` · ${contest.rating}` : ""}
+            </title>
+          </path>
+        );
+      })}
+      {polys.map((d) => {
+        const comp = d.seatId ? byRaceId.has(d.seatId) : false;
+        return (
+          <text
+            key={`l${d.cd}`}
+            x={d.cx}
+            y={d.cy}
+            className="rdm-dlabel"
+            fill={comp ? "#e5e7eb" : "#475569"}
+            pointerEvents="none"
+          >
+            {d.cd}
+          </text>
+        );
+      })}
+    </>
+  );
+
   return (
     <div className="rdm-backdrop" onClick={onClose}>
       <div
@@ -126,56 +178,33 @@ export function RaceDistrictModal({
         <div className="rdm-maps">
           {geo ? (
             <svg viewBox={geo.viewBox} className="rdm-map" role="group" aria-label={`${stateName} districts`}>
-              {geo.districts.map((d) => {
-                const contest = d.seatId ? byRaceId.get(d.seatId) : undefined;
-                const comp = !!contest;
-                const sel = !!selected && d.seatId === selected;
-                const hov = !!hovered && d.seatId === hovered;
-                return (
-                  <path
-                    key={d.cd}
-                    d={d.d}
-                    fill={comp ? ratingColor(contest.rating) : "#1c2433"}
-                    stroke={
-                      sel
-                        ? "var(--accent-amber-bright)"
-                        : hov && comp
-                          ? "var(--accent-amber)"
-                          : "#0a0e14"
-                    }
-                    strokeWidth={sel ? 2 : hov && comp ? 1.5 : 0.6}
-                    style={comp ? { cursor: "pointer" } : undefined}
-                    onClick={comp ? () => setSelected(d.seatId) : undefined}
-                    onMouseEnter={comp ? () => setHovered(d.seatId) : undefined}
-                    onMouseLeave={comp ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
-                  >
-                    <title>
-                      {d.cd}
-                      {comp ? ` · ${contest.rating}` : ""}
-                    </title>
-                  </path>
-                );
-              })}
-              {geo.districts.map((d) => {
-                const comp = d.seatId ? byRaceId.has(d.seatId) : false;
-                return (
-                  <text
-                    key={`l${d.cd}`}
-                    x={d.cx}
-                    y={d.cy}
-                    className="rdm-dlabel"
-                    fill={comp ? "#e5e7eb" : "#475569"}
-                    pointerEvents="none"
-                  >
-                    {d.cd}
-                  </text>
-                );
-              })}
+              {renderDistricts(geo.districts)}
             </svg>
           ) : (
             <div className="rdm-maploading">loading map…</div>
           )}
         </div>
+
+        {/* HO 236 (spec-3 Phase 2): metro inset panels for dense states. Below
+            the overview, a horizontal row of labeled re-fit insets so districts
+            too small to click at the overview fit become clickable. Same
+            seatId-keyed fill/hover/click as the overview, so selection syncs
+            overview ↔ panel ↔ chips for free. Null-safe: absent on stale caches
+            / unconfigured states → no panel row at all.
+            NOTE: this maps-band render is DUPLICATED in PrimaryDistrictModal
+            (different fill rule); a future extraction can share it — not here. */}
+        {geo?.metros?.length ? (
+          <div className="rdm-metros">
+            {geo.metros.map((m) => (
+              <div className="rdm-metro" key={m.label}>
+                <span className="rdm-metro-label">{m.label}</span>
+                <svg viewBox={m.viewBox} className="rdm-metromap" role="group" aria-label={m.label}>
+                  {renderDistricts(m.polygons)}
+                </svg>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="rdm-pickrow">
           <div className="rdm-chips">

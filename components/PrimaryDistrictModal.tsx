@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PrimaryDistrictCard } from "@/components/PrimaryDistrictCard";
 import type { CartogramContest } from "@/lib/cartogram-data";
-import type { StateDistrictGeometry } from "@/lib/district-geo";
+import type { DistrictShape, StateDistrictGeometry } from "@/lib/district-geo";
 import { formatDateLong } from "@/lib/format";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
 
@@ -128,6 +128,55 @@ export function PrimaryDistrictModal({
   const stateName = STATE_ABBR_TO_NAME[abbr] ?? abbr;
   const selectedContests = selected ? byDistrict.get(selected) ?? null : null;
 
+  // Shared polygon render (recency fill) — used by the state overview AND each
+  // HO 236 metro inset, so selection syncs across overview ↔ panels ↔ chips.
+  const renderDistricts = (polys: DistrictShape[]) => (
+    <>
+      {polys.map((d) => {
+        const cs = d.seatId ? byDistrict.get(d.seatId) : undefined;
+        const has = !!cs && cs.length > 0;
+        const voted = has && isVoted(cs);
+        const sel = !!selected && d.seatId === selected;
+        const hov = !!hovered && d.seatId === hovered;
+        return (
+          <path
+            key={d.cd}
+            d={d.d}
+            fill={!has ? "#11161f" : voted ? "#0e7490" : "#b45309"}
+            stroke={
+              sel ? "var(--accent-amber-bright)" : hov && has ? "var(--accent-amber)" : "#0a0e14"
+            }
+            strokeWidth={sel ? 2 : hov && has ? 1.5 : 0.6}
+            style={has ? { cursor: "pointer" } : undefined}
+            onClick={has ? () => setSelected(d.seatId) : undefined}
+            onMouseEnter={has ? () => setHovered(d.seatId) : undefined}
+            onMouseLeave={has ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
+          >
+            <title>
+              {d.cd}
+              {has ? (voted ? " · voted" : " · upcoming") : ""}
+            </title>
+          </path>
+        );
+      })}
+      {polys.map((d) => {
+        const has = d.seatId ? byDistrict.has(d.seatId) : false;
+        return (
+          <text
+            key={`l${d.cd}`}
+            x={d.cx}
+            y={d.cy}
+            className="rdm-dlabel"
+            fill={has ? "#e5e7eb" : "#475569"}
+            pointerEvents="none"
+          >
+            {d.cd}
+          </text>
+        );
+      })}
+    </>
+  );
+
   function downloadReport() {
     if (!selected || !selectedContests) return;
     const blob = new Blob([buildReport(selected, selectedContests)], { type: "text/markdown" });
@@ -170,53 +219,29 @@ export function PrimaryDistrictModal({
         <div className="rdm-maps">
           {geo ? (
             <svg viewBox={geo.viewBox} className="rdm-map" role="group" aria-label={`${stateName} districts`}>
-              {geo.districts.map((d) => {
-                const cs = d.seatId ? byDistrict.get(d.seatId) : undefined;
-                const has = !!cs && cs.length > 0;
-                const voted = has && isVoted(cs);
-                const sel = !!selected && d.seatId === selected;
-                const hov = !!hovered && d.seatId === hovered;
-                return (
-                  <path
-                    key={d.cd}
-                    d={d.d}
-                    fill={!has ? "#11161f" : voted ? "#0e7490" : "#b45309"}
-                    stroke={
-                      sel ? "var(--accent-amber-bright)" : hov && has ? "var(--accent-amber)" : "#0a0e14"
-                    }
-                    strokeWidth={sel ? 2 : hov && has ? 1.5 : 0.6}
-                    style={has ? { cursor: "pointer" } : undefined}
-                    onClick={has ? () => setSelected(d.seatId) : undefined}
-                    onMouseEnter={has ? () => setHovered(d.seatId) : undefined}
-                    onMouseLeave={has ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
-                  >
-                    <title>
-                      {d.cd}
-                      {has ? (voted ? " · voted" : " · upcoming") : ""}
-                    </title>
-                  </path>
-                );
-              })}
-              {geo.districts.map((d) => {
-                const has = d.seatId ? byDistrict.has(d.seatId) : false;
-                return (
-                  <text
-                    key={`l${d.cd}`}
-                    x={d.cx}
-                    y={d.cy}
-                    className="rdm-dlabel"
-                    fill={has ? "#e5e7eb" : "#475569"}
-                    pointerEvents="none"
-                  >
-                    {d.cd}
-                  </text>
-                );
-              })}
+              {renderDistricts(geo.districts)}
             </svg>
           ) : (
             <div className="rdm-maploading">loading map…</div>
           )}
         </div>
+
+        {/* HO 236 (spec-3 Phase 2): metro inset panels for dense states — same
+            band as the Races modal (DUPLICATED render, different fill rule; a
+            future extraction can share it). Null-safe: no panel row when the
+            payload carries no metros (stale cache / unconfigured state). */}
+        {geo?.metros?.length ? (
+          <div className="rdm-metros">
+            {geo.metros.map((m) => (
+              <div className="rdm-metro" key={m.label}>
+                <span className="rdm-metro-label">{m.label}</span>
+                <svg viewBox={m.viewBox} className="rdm-metromap" role="group" aria-label={m.label}>
+                  {renderDistricts(m.polygons)}
+                </svg>
+              </div>
+            ))}
+          </div>
+        ) : null}
 
         <div className="rdm-pickrow">
           <div className="rdm-chips">
