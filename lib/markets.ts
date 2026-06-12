@@ -87,6 +87,12 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities" },
   { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", fullName: "CBOE Volatility Index", format: "index", group: "commodities" },
   { internal: "BTC", source: "fred", remote: "CBBTCUSD", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price", group: "commodities" },
+  // Gold re-added via FMP `/stable/quote` (GCUSD). HO 227 dropped it as
+  // "no free programmatic source"; the FMP free tier now serves GCUSD live
+  // (probe-verified 2026-06-12: HTTP 200, intraday timestamp ~10min old). FMP-
+  // sourced so it carries NO `eod` tag (source==='fred' drives that) — correct,
+  // it's an intraday print like the indices. Tape 8 → 9.
+  { internal: "GOLD", source: "fmp", remote: "GCUSD", label: "Gold", fullName: "Gold Futures", format: "price", group: "commodities" },
 ] as const;
 
 export type FetchedQuote = {
