@@ -11,7 +11,8 @@
 // Minimal modal shell (no shipped drawer exists to reuse — HO 225 FLAG 1):
 // dimmed backdrop + amber-bordered panel + ×/click-away/Esc, existing tokens.
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { MetroLeaderLines, metroCenterX } from "@/components/MetroLeaderLines";
 import { RaceDistrictCard } from "@/components/RaceDistrictCard";
 import { formatCash } from "@/components/race-cells";
 import type { CartogramContest } from "@/lib/cartogram-data";
@@ -72,9 +73,17 @@ export function RaceDistrictModal({
   const [geo, setGeo] = useState<StateDistrictGeometry | null>(null);
   const [selected, setSelected] = useState<string | null>(null); // raceId
   const [hovered, setHovered] = useState<string | null>(null);
+  const bandRef = useRef<HTMLDivElement | null>(null);
+  const overviewSvgRef = useRef<SVGSVGElement | null>(null);
 
   const byRaceId = new Map<string, CartogramContest>();
   for (const c of contests) if (c.raceId) byRaceId.set(c.raceId, c);
+
+  // HO 237: order the inset row left→right by source-region x-center so the
+  // leader lines can't cross.
+  const orderedMetros = [...(geo?.metros ?? [])].sort(
+    (a, b) => metroCenterX(a) - metroCenterX(b),
+  );
 
   useEffect(() => {
     let alive = true;
@@ -175,36 +184,67 @@ export function RaceDistrictModal({
           </button>
         </div>
 
-        <div className="rdm-maps">
-          {geo ? (
-            <svg viewBox={geo.viewBox} className="rdm-map" role="group" aria-label={`${stateName} districts`}>
-              {renderDistricts(geo.districts)}
-            </svg>
-          ) : (
-            <div className="rdm-maploading">loading map…</div>
-          )}
-        </div>
-
-        {/* HO 236 (spec-3 Phase 2): metro inset panels for dense states. Below
-            the overview, a horizontal row of labeled re-fit insets so districts
-            too small to click at the overview fit become clickable. Same
-            seatId-keyed fill/hover/click as the overview, so selection syncs
-            overview ↔ panel ↔ chips for free. Null-safe: absent on stale caches
-            / unconfigured states → no panel row at all.
-            NOTE: this maps-band render is DUPLICATED in PrimaryDistrictModal
-            (different fill rule); a future extraction can share it — not here. */}
-        {geo?.metros?.length ? (
-          <div className="rdm-metros">
-            {geo.metros.map((m) => (
-              <div className="rdm-metro" key={m.label}>
-                <span className="rdm-metro-label">{m.label}</span>
-                <svg viewBox={m.viewBox} className="rdm-metromap" role="group" aria-label={m.label}>
-                  {renderDistricts(m.polygons)}
-                </svg>
-              </div>
-            ))}
+        {/* HO 237: positioned band wrapping the overview + insets so the
+            leader-line overlay can span both. */}
+        <div className="rdm-mapsband" ref={bandRef}>
+          <div className="rdm-maps">
+            {geo ? (
+              <svg
+                ref={overviewSvgRef}
+                viewBox={geo.viewBox}
+                className="rdm-map"
+                role="group"
+                aria-label={`${stateName} districts`}
+              >
+                {renderDistricts(geo.districts)}
+                {/* HO 237: source-region rect ringing each metro's cluster
+                    (overview viewBox coords; non-scaling stroke → crisp 1px). */}
+                {orderedMetros.map((m) =>
+                  m.overviewBox ? (
+                    <rect
+                      key={`src-${m.label}`}
+                      x={m.overviewBox.x}
+                      y={m.overviewBox.y}
+                      width={m.overviewBox.w}
+                      height={m.overviewBox.h}
+                      className="rdm-source-rect"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : null,
+                )}
+              </svg>
+            ) : (
+              <div className="rdm-maploading">loading map…</div>
+            )}
           </div>
-        ) : null}
+
+          {/* HO 236 metro insets (HO 237 reorders L→R by source x-center so the
+              leader lines never cross). Same seatId-keyed fill/hover/click as the
+              overview → selection syncs overview ↔ panel ↔ chips. Null-safe on
+              stale caches / unconfigured states. This band render is DUPLICATED
+              in PrimaryDistrictModal (different fill); not extracted here. */}
+          {orderedMetros.length ? (
+            <div className="rdm-metros">
+              {orderedMetros.map((m) => (
+                <div className="rdm-metro" key={m.label}>
+                  <span className="rdm-metro-label">{m.label}</span>
+                  <svg viewBox={m.viewBox} className="rdm-metromap" role="group" aria-label={m.label}>
+                    {renderDistricts(m.polygons)}
+                  </svg>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {/* HO 237: leader-line frustum overlay (render-only, pointer-events:none). */}
+          {orderedMetros.length ? (
+            <MetroLeaderLines
+              bandRef={bandRef}
+              overviewSvgRef={overviewSvgRef}
+              metros={orderedMetros}
+            />
+          ) : null}
+        </div>
 
         <div className="rdm-pickrow">
           <div className="rdm-chips">

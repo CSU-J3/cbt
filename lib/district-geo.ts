@@ -32,6 +32,10 @@ export type DistrictShape = {
   cy: number; // projected centroid y
 };
 
+// HO 237: a metro's source region in the OVERVIEW's viewBox coordinates — the
+// union bbox of its districts (padded), for the source rect + leader-line anchors.
+export type OverviewBox = { x: number; y: number; w: number; h: number };
+
 // HO 236: a metro inset panel — the same polygon shape as the overview (path +
 // seatId), re-fit to its own subset extent via getStateDistrictGeometry's
 // `subset`. The viewBox is the standard STATE_W×STATE_H canvas; the polygons
@@ -40,6 +44,9 @@ export type MetroPanelGeometry = {
   label: string;
   viewBox: string;
   polygons: DistrictShape[];
+  // HO 237: source-region bbox in OVERVIEW viewBox coords. Optional — stale
+  // pre-237 cached payloads omit it → no rect, no leader lines (null-safe).
+  overviewBox?: OverviewBox;
 };
 
 export type StateDistrictGeometry = {
@@ -159,5 +166,49 @@ export function getStateDistrictGeometry(
     viewBox: `0 0 ${STATE_W} ${STATE_H}`,
     atLarge,
     districts,
+  };
+}
+
+// HO 237: the union bbox of a subset's districts in the OVERVIEW projection
+// (whole-state fit), padded slightly — the source region a metro inset
+// magnifies. Same projection as getStateDistrictGeometry(abbr) with no subset,
+// so the box lands in the overview SVG's viewBox coordinates. Returns null for
+// an unknown state or empty subset.
+const OVERVIEW_BOX_PAD = 6;
+export function overviewBoxForSubset(
+  abbr: string,
+  subset: ReadonlySet<string>,
+): OverviewBox | null {
+  const feats = byState.get(abbr);
+  if (!feats || feats.length === 0) return null;
+  const projection = geoAlbers().fitExtent(
+    [
+      [PAD, PAD],
+      [STATE_W - PAD, STATE_H - PAD],
+    ],
+    { type: "FeatureCollection", features: feats } as never,
+  );
+  const path = geoPath(projection);
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  for (const f of feats) {
+    if (!subset.has(f.properties.CD119FP)) continue;
+    const [[x0, y0], [x1, y1]] = path.bounds(f as never);
+    minX = Math.min(minX, x0);
+    minY = Math.min(minY, y0);
+    maxX = Math.max(maxX, x1);
+    maxY = Math.max(maxY, y1);
+    any = true;
+  }
+  if (!any) return null;
+  return {
+    x: minX - OVERVIEW_BOX_PAD,
+    y: minY - OVERVIEW_BOX_PAD,
+    w: maxX - minX + 2 * OVERVIEW_BOX_PAD,
+    h: maxY - minY + 2 * OVERVIEW_BOX_PAD,
   };
 }

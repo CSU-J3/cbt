@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import {
   getStateDistrictGeometry,
   type MetroPanelGeometry,
+  overviewBoxForSubset,
 } from "@/lib/district-geo";
 import { metroPanelsForState } from "@/lib/metro-panels";
 import { STATE_FIPS_TO_ABBR } from "@/lib/states";
@@ -27,12 +28,16 @@ const getCachedStateGeometry = unstable_cache(
     if (!base) return null;
     const metros: MetroPanelGeometry[] = [];
     for (const panel of metroPanelsForState(abbr)) {
-      const sub = getStateDistrictGeometry(abbr, new Set(panel.districtIds));
+      const subset = new Set(panel.districtIds);
+      const sub = getStateDistrictGeometry(abbr, subset);
       if (sub) {
         metros.push({
           label: panel.label,
           viewBox: sub.viewBox,
           polygons: sub.districts,
+          // HO 237: source region in overview coords (the rect + leader-line
+          // anchor). Same projection as the base overview above.
+          overviewBox: overviewBoxForSubset(abbr, subset) ?? undefined,
         });
       }
     }

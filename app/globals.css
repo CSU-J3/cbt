@@ -4255,6 +4255,31 @@ a.racecard-cand-name:hover {
   width: auto;
   max-width: 100%;
 }
+/* HO 237: leader lines + source-region outlines. The band wraps the overview +
+   inset row so the frustum overlay (absolute) can span both. Amber at opacity
+   is a treatment, not a new token. */
+.rdm-mapsband {
+  position: relative;
+}
+.rdm-source-rect {
+  fill: none;
+  stroke: var(--accent-amber);
+  stroke-opacity: 0.55;
+  stroke-width: 1.5; /* non-scaling-stroke on the element → ~1.5px on screen */
+}
+.rdm-frustum {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none; /* render-only — never intercept a district/inset click */
+}
+.rdm-frustum line {
+  stroke: var(--accent-amber);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+}
 .rdm-pickrow {
   display: flex;
   align-items: center;
