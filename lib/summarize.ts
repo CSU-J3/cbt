@@ -30,6 +30,8 @@ Determine \`stage\` from the latest_action_text. The action text is ground truth
 6. action text contains "Referred to" with no further action mentioned → committee
 7. otherwise → introduced
 
+Two monotonicity guards on the rules above: (a) a bill never regresses to \`introduced\` once it has advanced past it — when torn between \`introduced\` and a later stage for a bill already in motion, choose the later stage; (b) post-passage procedural actions (e.g. "motion to reconsider laid on the table", "motion to table agreed to") mean the chamber has already acted on the bill — classify \`floor\` or later, never \`introduced\` or \`committee\`.
+
 The bill's content is written as a proposal even after it becomes law — never let that mislead you. If the action text says it became public law, the stage is enacted regardless of how the bill text reads.
 
 Respond in this exact format:

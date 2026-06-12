@@ -582,6 +582,16 @@ async function main() {
   // NOT open — only an explicit 0 lights the tag. `incumbent_bioguide_id IS
   // NULL` is a different concept (vacancy/unmapped), can't express retirement.
   await ensureColumn(db, "races", "incumbent_running", "INTEGER");
+  // HO 239: two-tick downgrade confirmation for the stage-monotonicity guard.
+  // A proposed BACKWARD stage move (other than the impossible *→introduced,
+  // which is hard-rejected outright) records the proposal here instead of
+  // moving the slot: `pending_stage` is the proposed lower stage, `pending_
+  // stage_at` its timestamp. The slot only moves if the NEXT classification of
+  // that bill proposes the SAME downgrade — genuine recommits reclassify
+  // stably, classifier flicker (HO 239 diagnostic) does not. Both NULL = no
+  // pending proposal, the state for every bill pre-239.
+  await ensureColumn(db, "bills", "pending_stage", "TEXT");
+  await ensureColumn(db, "bills", "pending_stage_at", "TEXT");
   console.log("migration complete");
 }
 

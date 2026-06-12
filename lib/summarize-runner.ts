@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
+import { stageRank } from "./enums";
 import { isRetryable, sleep, withGeminiRetry } from "./gemini-retry";
 import {
   fetchBillContext,
@@ -81,6 +82,34 @@ async function markBillFailed(
   return Number(rs.rows[0]?.summarize_attempts ?? 0);
 }
 
+// HO 239 stage-monotonicity guard. Given the bill's current stage, the stage
+// the classifier just proposed, and any pending downgrade already on record,
+// decide what the slot write should do. Rank order is the canonical
+// ALLOWED_STAGES one (lib/enums.ts `stageRank`).
+//   "advance" — move the slot + log it: a forward move, a first observation
+//               past introduced, or a backward move confirmed by a matching
+//               pending proposal (a genuine recommit reclassifies stably).
+//   "reject"  — an impossible *→introduced downgrade; never moves, always warns
+//               (a wrong answer that is stable is still wrong).
+//   "pend"    — a first-seen non-introduced downgrade; record it and wait for a
+//               second, matching vote before moving (flicker rarely repeats).
+//   "noop"    — no stage change (proposed equals current).
+export type StageDecision = "advance" | "reject" | "pend" | "noop";
+
+export function decideStage(
+  current: string | null,
+  proposed: string,
+  pending: string | null,
+): StageDecision {
+  if (current === null) return proposed === "introduced" ? "noop" : "advance";
+  if (proposed === current) return "noop";
+  if (stageRank(proposed) > stageRank(current)) return "advance";
+  // Backward from here.
+  if (proposed === "introduced") return "reject";
+  if (proposed === pending) return "advance"; // same downgrade twice → confirmed
+  return "pend";
+}
+
 export async function runSummarize(
   options: SummarizeOptions = {},
 ): Promise<SummarizeStats> {
@@ -108,7 +137,7 @@ export async function runSummarize(
     where.push(`bill_type IN (${options.types.map(() => "?").join(",")})`);
     args.push(...options.types);
   }
-  let sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage
+  let sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage
     FROM bills WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
   if (limit > 0) {
     sql += ` LIMIT ?`;
@@ -116,17 +145,20 @@ export async function runSummarize(
   }
   const rs = await db.execute({ sql, args });
 
-  const bills: Array<BillRow & { oldStage: string | null }> = rs.rows.map(
-    (r) => ({
-      id: r.id as string,
-      congress: r.congress as number,
-      bill_type: r.bill_type as string,
-      bill_number: r.bill_number as number,
-      title: r.title as string,
-      latest_action_text: (r.latest_action_text as string | null) ?? null,
-      oldStage: (r.stage as string | null) ?? null,
-    }),
-  );
+  const bills: Array<
+    BillRow & { oldStage: string | null; pendingStage: string | null }
+  > = rs.rows.map((r) => ({
+    id: r.id as string,
+    congress: r.congress as number,
+    bill_type: r.bill_type as string,
+    bill_number: r.bill_number as number,
+    title: r.title as string,
+    latest_action_text: (r.latest_action_text as string | null) ?? null,
+    oldStage: (r.stage as string | null) ?? null,
+    // HO 239: the bill's currently-pending downgrade proposal, if any. A
+    // second consecutive proposal of this same stage confirms the move.
+    pendingStage: (r.pending_stage as string | null) ?? null,
+  }));
 
   console.log(
     `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} ${deadlineMs ? `deadline=${new Date(deadlineMs).toISOString()} ` : ""}serial, ${PER_REQUEST_DELAY_MS}ms throttle, ${PER_BILL_TIMEOUT_MS}ms per-bill cap`,
@@ -222,23 +254,27 @@ export async function runSummarize(
       }
     } else {
       const result = out!.result!;
-      // First-time-seen non-`introduced` stage counts as a transition too:
-      // a bill arriving already past introduced (e.g. S 723 first observed
-      // at `enacted`) skipped earlier stages in our view and that's
-      // semantically a transition the report needs to surface.
-      const transitioned =
-        (bill.oldStage !== null && bill.oldStage !== result.stage) ||
-        (bill.oldStage === null && result.stage !== "introduced");
       const ceremonialArg =
         result.is_ceremonial === null ? null : result.is_ceremonial ? 1 : 0;
-      if (transitioned) {
+      // HO 239: the stage-monotonicity guard sits on the one slot-write point
+      // (shared with the HO 232 log). A first-time-seen non-`introduced` stage
+      // counts as a forward move too — a bill arriving already past introduced
+      // (e.g. S 723 first observed at `enacted`) skipped earlier stages in our
+      // view and that's a transition the report needs to surface.
+      const decision = decideStage(
+        bill.oldStage,
+        result.stage,
+        bill.pendingStage,
+      );
+      if (decision === "advance") {
         const changedAt = new Date().toISOString();
         await db.execute({
           sql: `UPDATE bills
                 SET summary = ?, summary_model = ?, summary_updated_at = ?,
                     topics = ?, stage = ?, previous_stage = ?, stage_changed_at = ?,
                     is_ceremonial = ?, text_length = ?,
-                    summarize_failed_at = NULL, summarize_attempts = 0
+                    summarize_failed_at = NULL, summarize_attempts = 0,
+                    pending_stage = NULL, pending_stage_at = NULL
                 WHERE id = ?`,
           args: [
             result.summary,
@@ -256,29 +292,55 @@ export async function runSummarize(
         // HO 232: append-only stage-transition log (write-only plant). Same
         // condition + same timestamp as the single-slot previous_stage/
         // stage_changed_at write above — bill.oldStage may be NULL (first
-        // observed already past introduced), recorded as a NULL-from row.
-        // Nothing reads stage_transitions yet; it accrues for the deferred
-        // MOVERS hop-count rank. No backfill — the slot has no history.
+        // observed already past introduced), recorded as a NULL-from row. A
+        // confirmed backward move logs honestly as a from→to setback row.
         await db.execute({
           sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
                 VALUES (?, ?, ?, ?)`,
           args: [bill.id, bill.oldStage, result.stage, changedAt],
         });
       } else {
+        // No slot move. "reject"/"pend" keep the current stage; "noop" persists
+        // the unchanged stage (== current, except a first-observed `introduced`
+        // where current is NULL — write the proposed `introduced` there). "pend"
+        // records the proposal; every other outcome clears any prior pending.
+        const stageToWrite =
+          decision === "noop" ? result.stage : bill.oldStage;
+        const pendStage = decision === "pend" ? result.stage : null;
+        const pendAt = decision === "pend" ? new Date().toISOString() : null;
+        if (decision === "reject")
+          console.warn(
+            "[stage] rejected impossible downgrade",
+            bill.id,
+            bill.oldStage,
+            "→",
+            result.stage,
+          );
+        else if (decision === "pend")
+          console.warn(
+            "[stage] downgrade pending",
+            bill.id,
+            bill.oldStage,
+            "→",
+            result.stage,
+          );
         await db.execute({
           sql: `UPDATE bills
                 SET summary = ?, summary_model = ?, summary_updated_at = ?,
                     topics = ?, stage = ?, is_ceremonial = ?, text_length = ?,
-                    summarize_failed_at = NULL, summarize_attempts = 0
+                    summarize_failed_at = NULL, summarize_attempts = 0,
+                    pending_stage = ?, pending_stage_at = ?
                 WHERE id = ?`,
           args: [
             result.summary,
             SUMMARY_MODEL,
             new Date().toISOString(),
             JSON.stringify(result.topics),
-            result.stage,
+            stageToWrite,
             ceremonialArg,
             out!.textLength,
+            pendStage,
+            pendAt,
             bill.id,
           ],
         });

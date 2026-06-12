@@ -64,6 +64,16 @@ export const ALLOWED_STAGES = [
 export type Stage = (typeof ALLOWED_STAGES)[number];
 export const ALLOWED_STAGES_SET = new Set<string>(ALLOWED_STAGES);
 
+// Canonical legislative-progression rank, derived from ALLOWED_STAGES order
+// (introduced=0 → … → enacted=5). Single source of truth for "does stage B sit
+// ahead of stage A in the pipeline" — used by the report's transition-direction
+// copy (lib/report-generation.ts) and the HO 239 stage-monotonicity guard
+// (lib/summarize-runner.ts). null/undefined/unlisted → -1.
+export function stageRank(stage: string | null | undefined): number {
+  if (stage == null) return -1;
+  return ALLOWED_STAGES.indexOf(stage as Stage);
+}
+
 // Display-name maps used by native `title` attributes for readability (HO
 // 123). Native tooltips are the right tool here — no JS, no a11y regression,
 // and the same pattern HO 118's `[+N]` pill already established. Surfaces

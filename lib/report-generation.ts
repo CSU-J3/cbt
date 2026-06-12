@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
-import { ALLOWED_TOPICS_SET } from "./enums";
+import { ALLOWED_TOPICS_SET, stageRank } from "./enums";
 import { formatBillId } from "./format";
 import { withGeminiRetry } from "./gemini-retry";
 import { SUMMARY_MODEL } from "./summarize";
@@ -118,22 +118,14 @@ function stageGlyph(stage: string | null): string {
   return `${prefix} ${label}`;
 }
 
-// Legislative-progression order. Drives stage-transition direction so the
-// prompt can tell the LLM a floor→committee move is a setback, not progress
-// (HO 112) — the LLM otherwise narrates every transition as forward.
-const STAGE_RANK: Record<string, number> = {
-  introduced: 0,
-  committee: 1,
-  floor: 2,
-  other_chamber: 3,
-  president: 4,
-  enacted: 5,
-};
-
+// Legislative-progression direction. Drives stage-transition copy so the prompt
+// can tell the LLM a floor→committee move is a setback, not progress (HO 112) —
+// the LLM otherwise narrates every transition as forward. Rank order is the
+// canonical one derived from ALLOWED_STAGES (HO 239 unified the two copies).
 function stageDirection(prev: string | null, next: string | null): string {
-  const p = prev ? STAGE_RANK[prev] : undefined;
-  const n = next ? STAGE_RANK[next] : undefined;
-  if (p === undefined || n === undefined) return "other";
+  const p = stageRank(prev);
+  const n = stageRank(next);
+  if (p < 0 || n < 0) return "other";
   if (n > p) return "forward";
   if (n < p) return "backward";
   return "other";
