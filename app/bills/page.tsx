@@ -26,6 +26,7 @@ import {
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
+  sanitizeNewsSignal,
   sanitizeNewsSource,
   sanitizeSort,
   sanitizeStage,
@@ -52,6 +53,7 @@ type SearchParams = {
   topic?: string;
   window?: string;
   bill?: string;
+  signal?: string;
   // Shared:
   page?: string;
 };
@@ -187,6 +189,7 @@ async function BillsView({
     topic: params.topic,
     window: params.window,
     bill: params.bill,
+    signal: params.signal,
   };
   for (const [k, v] of Object.entries(news)) {
     if (typeof v === "string" && v) carry.set(k, v);
@@ -389,9 +392,16 @@ async function NewsView({
   const topic = sanitizeTopic(params.topic);
   const windowHours = sanitizeWindowHours(params.window) ?? NEWS_DEFAULT_WINDOW;
   const billId = sanitizeBillId(params.bill);
+  const signal = sanitizeNewsSignal(params.signal);
 
-  const { mentions, page: currentPage, totalPages, total } = await getNewsFeed(
-    { source, topic, windowHours, billId },
+  const {
+    mentions,
+    page: currentPage,
+    totalPages,
+    total,
+    breakingCount,
+  } = await getNewsFeed(
+    { source, topic, windowHours, billId, signal },
     { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
   );
 
@@ -406,6 +416,7 @@ async function NewsView({
   if (topic) newsCarry.set("topic", topic);
   if (windowHours !== NEWS_DEFAULT_WINDOW) newsCarry.set("window", String(windowHours));
   if (billId) newsCarry.set("bill", billId);
+  if (signal) newsCarry.set("signal", signal);
   // BILLS-mode params kept in the URL for round-trip:
   for (const k of ["topics", "stage", "q", "sponsor", "sort", "chamber", "ceremonial", "cluster"] as const) {
     const v = params[k];
@@ -427,6 +438,10 @@ async function NewsView({
   if (topic) filterCarry.set("topic", topic);
   if (windowHours !== NEWS_DEFAULT_WINDOW) filterCarry.set("window", String(windowHours));
   if (billId) filterCarry.set("bill", billId);
+  // Seed signal so SOURCE/WINDOW/TOPIC chips preserve an active BREAKING
+  // selection; the ALL/BREAKING chips toggle it via a `signal` override
+  // (ALL passes `signal: undefined`, which buildHref deletes).
+  if (signal) filterCarry.set("signal", signal);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -451,6 +466,8 @@ async function NewsView({
             topic={topic}
             windowHours={windowHours}
             billId={billId}
+            signal={signal}
+            breakingCount={breakingCount}
             carry={filterCarry}
           />
           <Pagination

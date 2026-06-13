@@ -2030,6 +2030,11 @@ export type NewsMention = {
   // for getBreakingNews where the /news feed keeps the one-row-per-pair
   // shape.
   otherBills: string[];
+  // HO 241: true when the row meets the "breaking" predicate (confidence
+  // >= NEWS_FEED_MIN_CONFIDENCE AND within BREAKING_WINDOW_HOURS). Only
+  // getNewsFeed populates it; other NewsMention producers leave it
+  // undefined, so the NEWS SIGNAL rail+pill render only on the NEWS feed.
+  isBreaking?: boolean;
 };
 
 // Backs the home-page banner and /news route. Cached with the `news-breaking`
@@ -2310,6 +2315,28 @@ export const NEWS_DEFAULT_WINDOW: NewsWindowHours = 72;
 export const NEWS_FEED_PAGE_SIZE = 50;
 const NEWS_FEED_MIN_CONFIDENCE = 0.7;
 
+// HO 241 — the NEWS SIGNAL (ALL · BREAKING) filter. "Breaking" is a FIXED
+// 72h ceiling, deliberately equal to NEWS_DEFAULT_WINDOW so the word means
+// the same thing here as in the dashboard BREAKING block (BreakingNewsBlock,
+// getBreakingNews*). It is NOT the spec's 48h and NOT driven by the WINDOW
+// chip — the WINDOW chip still ANDs in, so the effective breaking window is
+// min(WINDOW, 72h) with confidence >= NEWS_FEED_MIN_CONFIDENCE always.
+const BREAKING_WINDOW_HOURS = NEWS_DEFAULT_WINDOW;
+// One predicate, reused three ways: the per-row is_breaking flag (so ALL
+// view marks qualifying rows), the signal=breaking filter, and the BREAKING
+// chip count. Both operands are trusted numeric module constants, so string
+// interpolation here is injection-safe and literally reuses the constants
+// (no fresh 0.7 / 72 literals, no extra bound params to order).
+const BREAKING_PREDICATE_SQL = `m.match_confidence >= ${NEWS_FEED_MIN_CONFIDENCE} AND m.published_at >= datetime('now', '-${BREAKING_WINDOW_HOURS} hours')`;
+
+export type NewsSignal = "breaking";
+
+export function sanitizeNewsSignal(
+  raw: string | null | undefined,
+): NewsSignal | undefined {
+  return raw === "breaking" ? "breaking" : undefined;
+}
+
 const NEWS_SOURCE_SLUGS: ReadonlySet<string> = new Set([
   "politico",
   "the_hill",
@@ -2338,6 +2365,7 @@ export type NewsFeedFilters = {
   topic?: string;
   windowHours?: NewsWindowHours;
   billId?: string;
+  signal?: NewsSignal;
 };
 
 function buildNewsFeedWhere(filters: NewsFeedFilters): {
@@ -2372,6 +2400,10 @@ export type NewsFeedPage = {
   page: number;
   pageSize: number;
   totalPages: number;
+  // HO 241 — size of the breaking set within the current SOURCE/WINDOW/TOPIC
+  // scope (independent of whether signal=breaking is active), for the
+  // BREAKING chip count.
+  breakingCount: number;
 };
 
 export const getNewsFeed = unstable_cache(
@@ -2386,6 +2418,13 @@ export const getNewsFeed = unstable_cache(
     const windowHours = filters.windowHours ?? NEWS_DEFAULT_WINDOW;
     const isBillScoped = !!filters.billId;
     const { whereExtra, args: filterArgs } = buildNewsFeedWhere(filters);
+
+    // HO 241 — when signal=breaking, AND the fixed-72h breaking predicate
+    // onto the feed. It stacks with WINDOW (→ min(WINDOW, 72h)) and with
+    // SOURCE/TOPIC/bill. No bound params: BREAKING_PREDICATE_SQL inlines the
+    // trusted numeric constants.
+    const signalClause =
+      filters.signal === "breaking" ? ` AND ${BREAKING_PREDICATE_SQL}` : "";
 
     // When the view is scoped to a single bill, drop the window + confidence
     // gates so a bill's full mention history is reachable (same as HO 130
@@ -2404,18 +2443,27 @@ export const getNewsFeed = unstable_cache(
     // Count uses the same dedup-by-article-key shape so the page-count
     // matches the visible rows when an article gets matched to several
     // bills (HO 133's distinct-article counting convention).
-    const countSql = `SELECT COUNT(DISTINCT COALESCE(
+    const distinctArticleExpr = `COUNT(DISTINCT COALESCE(
         m.article_url,
         m.article_title || '|' || m.source || '|' || m.published_at
-      )) AS n
+      ))`;
+    const countSql = `SELECT ${distinctArticleExpr} AS n
       FROM news_mentions m
       INNER JOIN bills b ON b.id = m.bill_id
-      WHERE ${baseWhere} ${whereExtra}`;
-    const countRs = await db.execute({
-      sql: countSql,
-      args: [...baseArgs, ...filterArgs],
-    });
+      WHERE ${baseWhere} ${whereExtra}${signalClause}`;
+    // BREAKING chip count: same SOURCE/WINDOW/TOPIC/bill scope, but the
+    // breaking predicate is ALWAYS applied (and signalClause is NOT) so the
+    // count is stable whether or not BREAKING is the active signal.
+    const breakingCountSql = `SELECT ${distinctArticleExpr} AS n
+      FROM news_mentions m
+      INNER JOIN bills b ON b.id = m.bill_id
+      WHERE ${baseWhere} ${whereExtra} AND ${BREAKING_PREDICATE_SQL}`;
+    const [countRs, breakingCountRs] = await Promise.all([
+      db.execute({ sql: countSql, args: [...baseArgs, ...filterArgs] }),
+      db.execute({ sql: breakingCountSql, args: [...baseArgs, ...filterArgs] }),
+    ]);
     const total = Number(countRs.rows[0]?.n ?? 0);
+    const breakingCount = Number(breakingCountRs.rows[0]?.n ?? 0);
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
     const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
     const offset = (clampedPage - 1) * pageSize;
@@ -2429,6 +2477,7 @@ export const getNewsFeed = unstable_cache(
           m.article_url,
           m.article_title,
           m.match_confidence,
+          CASE WHEN ${BREAKING_PREDICATE_SQL} THEN 1 ELSE 0 END AS is_breaking,
           b.title         AS bill_title,
           b.sponsor_name  AS bill_sponsor_name,
           b.sponsor_party AS bill_sponsor_party,
@@ -2445,7 +2494,7 @@ export const getNewsFeed = unstable_cache(
           ) AS rn
         FROM news_mentions m
         INNER JOIN bills b ON b.id = m.bill_id
-        WHERE ${baseWhere} ${whereExtra}
+        WHERE ${baseWhere} ${whereExtra}${signalClause}
       ),
       others AS (
         SELECT
@@ -2465,6 +2514,7 @@ export const getNewsFeed = unstable_cache(
         pm.article_title,
         pm.article_url,
         pm.published_at,
+        pm.is_breaking,
         COALESCE(o.other_bill_ids, '[]') AS other_bill_ids
       FROM ranked pm
       LEFT JOIN others o ON o.article_key = pm.article_key
@@ -2498,6 +2548,7 @@ export const getNewsFeed = unstable_cache(
         url: r.article_url as string,
         publishedAt: r.published_at as string,
         otherBills,
+        isBreaking: Number(r.is_breaking) === 1,
       };
     });
 
@@ -2507,6 +2558,7 @@ export const getNewsFeed = unstable_cache(
       page: clampedPage,
       pageSize,
       totalPages,
+      breakingCount,
     };
   },
   ["getNewsFeed"],

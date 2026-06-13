@@ -51,7 +51,7 @@ export function NewsRow({
   const otherBills = mention.otherBills ?? [];
 
   return (
-    <div className="news-row">
+    <div className={`news-row${mention.isBreaking ? " news-row--breaking" : ""}`}>
       <span className="bill-cell">
         <Link
           href={billHref}
@@ -71,19 +71,26 @@ export function NewsRow({
           </span>
         )}
       </span>
-      <a
-        href={mention.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={
-          showFullHeadline
-            ? "text-[14px] leading-snug"
-            : "truncate text-[14px]"
-        }
-        style={{ color: "var(--text-primary)" }}
-      >
-        {mention.title}
-      </a>
+      <span className="news-headline-cell">
+        {mention.isBreaking && (
+          <span className="news-breaking-pill" title="Breaking — high-signal mention in the last 72h">
+            BREAKING
+          </span>
+        )}
+        <a
+          href={mention.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={
+            showFullHeadline
+              ? "min-w-0 flex-1 text-[14px] leading-snug"
+              : "min-w-0 flex-1 truncate text-[14px]"
+          }
+          style={{ color: "var(--text-primary)" }}
+        >
+          {mention.title}
+        </a>
+      </span>
       <span className="source">{mention.source.replace(/_/g, " ")}</span>
       <span className="age" style={{ color: ageColor(hours) }}>
         {ageLabel}

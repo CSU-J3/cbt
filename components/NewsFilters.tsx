@@ -2,7 +2,11 @@ import Link from "next/link";
 import { formatBillId } from "@/lib/format";
 import { ALLOWED_TOPICS } from "@/lib/enums";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
-import { NEWS_WINDOW_HOURS, type NewsWindowHours } from "@/lib/queries";
+import {
+  NEWS_WINDOW_HOURS,
+  type NewsSignal,
+  type NewsWindowHours,
+} from "@/lib/queries";
 
 // HO 151 — filter bar for /bills?mode=news. Single-select chips for
 // SOURCE / TOPIC / WINDOW (the news universe is small enough today that
@@ -40,14 +44,19 @@ export function NewsFilters({
   topic,
   windowHours,
   billId,
+  signal,
+  breakingCount,
   carry,
 }: {
   source: string | undefined;
   topic: string | undefined;
   windowHours: NewsWindowHours;
   billId: string | undefined;
+  signal: NewsSignal | undefined;
+  /** Size of the breaking set in the current SOURCE/WINDOW/TOPIC scope. */
+  breakingCount: number;
   /** Params to preserve across chip clicks. Should already exclude
-   *  source / topic / window / bill / page — caller owns the policy. */
+   *  source / topic / window / bill / signal / page — caller owns the policy. */
   carry: URLSearchParams;
 }) {
   const buildHref = (overrides: Record<string, string | undefined>) => {
@@ -190,6 +199,64 @@ export function NewsFilters({
             </Link>
           );
         })}
+      </div>
+
+      <div className="filter-chips flex flex-wrap items-center gap-3">
+        <span
+          className="text-[12px] uppercase tracking-[0.5px]"
+          style={{ color: "var(--text-dim)" }}
+        >
+          Signal
+        </span>
+        <Link
+          href={buildHref({ signal: undefined })}
+          scroll={false}
+          className="rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+          style={
+            signal === undefined
+              ? {
+                  backgroundColor: "var(--bg-row-hover)",
+                  color: "var(--accent-amber-bright)",
+                  borderColor: "var(--accent-amber)",
+                }
+              : {
+                  color: "var(--text-muted)",
+                  borderColor: "var(--border-strong)",
+                }
+          }
+        >
+          All
+        </Link>
+        <Link
+          href={buildHref({ signal: signal === "breaking" ? undefined : "breaking" })}
+          scroll={false}
+          className="inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+          style={
+            signal === "breaking"
+              ? {
+                  backgroundColor: "var(--bg-row-hover)",
+                  color: "var(--accent-amber-bright)",
+                  borderColor: "var(--accent-amber)",
+                }
+              : {
+                  color: "var(--text-muted)",
+                  borderColor: "var(--border-strong)",
+                }
+          }
+        >
+          Breaking
+          <span
+            className="tabular-nums"
+            style={{
+              color:
+                signal === "breaking"
+                  ? "var(--accent-amber-bright)"
+                  : "var(--text-dim)",
+            }}
+          >
+            {breakingCount}
+          </span>
+        </Link>
       </div>
 
       <div className="filter-chips flex flex-wrap items-center gap-1">
