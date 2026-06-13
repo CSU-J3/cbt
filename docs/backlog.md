@@ -66,7 +66,16 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 *Audit findings, severity-tagged. P1 = wrong data shown · P2 = inconsistent across surfaces / misleading · P3 = cosmetic.*
 
 - **P1 · `/races` · S-OK-2026 shows the wrong incumbent.** Renders Lankford (Class-III / 2028); the 2026 OK seat is the Class-II Mullin seat, now held by appointee Armstrong (can't run) — a genuine open seat. *Ground-truth (Jun 12):* `incumbent_bioguide_id = L000575` (Lankford), `incumbent_running` NULL, not in `races-seed.json`. *Fix path (not done here):* member-data correction → then the HO 221 OPEN tag (held out of the seed until corrected).
-- *(Commit-2 audit findings appended below.)*
+
+*Commit-2 audit (2026-06-12, measure-only):*
+
+- **P2 · `/changes` · corpus-query latency near the HO 238 bound.** Prod renders 200 but in **6.69s** — within ~3.3s of the 10s `DB_REQUEST_TIMEOUT_MS`. The HO 238 bound converts *slow-but-working* into a hard 500: corpus growth or a slow tick would push this corpus-wide aggregation past 10s → 500, not just slow. Same latency clock as the `/trends` force-dynamic tombstone. *Mitigation:* the BANKED dashboard fan-out/caching pass. (`/patterns` prod 0.82s — fine.)
+- **P2 · masthead count + stamp incoherence.** Dashboard "**16,193** BILLS TRACKED" vs raw total **16,361** (different predicate); label TRACKED (dashboard) vs BILLS (inner); stamp "LAST SYNC 3:03 AM MT". Confirmed live Jun 12. Cross-references the QUEUED masthead diagnostic — not duplicated, this is the audit observation that the diagnostic resolves.
+- **P3 · local dev · `/changes` + `/patterns` 500 from the laptop.** The 10s HO 238 bound + laptop→Turso (us-west-2) latency makes these corpus pages unrenderable in local dev; both 200 in prod from pdx1 (co-located). Developer-experience caveat, not a user-facing bug — but worth knowing before chasing a phantom outage.
+
+*Audited and correct (no finding), recorded so the audit is legible:* tape 9/9 symbols, values match `market_ticks`, EOD tags FRED-only, GOLD live @4,235 (06-12) · funnel deltas explained by the non-ceremonial predicate (`is_ceremonial=0 OR NULL`) · `/members` 436+100=536 current · `/committees` 235 · `/races` 139 = competitive (rated ≠ Solid/Safe) · `/watchlist` 3 · `/news` 307→`/bills?mode=news` (intentional) · no server-render errors except the latency-timeouts above.
+
+*Coverage:* headline-numbers + tape + stamps + server-render checked on `/`, `/bills`, `/news`, `/changes`, `/members`, `/races`, `/committees`, `/watchlist`, `/patterns`, `/reports`, a member page, a bill page, search. **Not deep-audited** (rendered-200 only): client-side console capture (no CDP browser driven), interaction testing (clicks/hovers/modals/Esc), the race/primary state modals, a race hub, a report detail, a committee detail. Those remain open for a browser-driven pass.
 
 ## DONE
 
