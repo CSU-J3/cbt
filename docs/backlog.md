@@ -58,7 +58,6 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - **Cross-Congress historical members** (HO 124); 119th only today.
 - **External member scoring sources** (DW-NOMINATE etc.) (HO 124).
 - **`revalidateTag('primaries')` wiring** (HO 103) — *conditional, not pending:* only if primaries queries ever get `unstable_cache`-wrapped. They use plain `db.execute` today, so the tag isn't needed.
-- **Trends Congress-comparison overlay.** *Gate:* the TIMELINE base chart shipping (see QUEUED design-spec reconciliation (a)) AND prior-Congress introduction dates confirmed available.
 - **Candidate photos in the primaries expand.** *Gate:* a photo-coverage diagnostic for non-member challengers (members have photos; challengers' coverage is unknown).
 - **Rater spread on the map race card.** *Gate:* the next rich-card pass.
 
@@ -109,3 +108,4 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - ~~**Design-spec (b): Stale → MOST STALE bills sort + "301"**~~ — CLOSED 2026-06-13, no build. `/stale` stays standalone, not folded into Bills SORT (the query filters as well as orders); `SORT_KEYS` unchanged, no 301.
 - ~~**Design-spec (d): BillRow collapsed-row density redesign**~~ — CLOSED 2026-06-13, no build. Rail stays chamber-colored (HO 125); ID stays vertical type-over-number; party-rail + inline-ID reversals rejected after a side-by-side.
 - ~~**PRESIDENT sub-tab repoint**~~ — CLOSED 2026-06-13. `/president` stays the HO 151 redirect alias; a dedicated desk view, if ever wanted, is a fresh design pass — not a repoint of the deleted page (deleted HO 151/154).
+- ~~**Trends Congress-comparison overlay**~~ — DROPPED 2026-06-13, not deferred. Resolved in design-spec reconciliation (a) / HO 243: a true intro-vs-intro overlay needs a 118th-introductions backfill Design ruled not worth it. The 118-vs-119 *enacted-law* comparison already ships on `/reports` (`LawsEnactedComparison`), so the comparison need is met for enactments. Re-open only if a 118th-introductions backfill happens for some other reason.
