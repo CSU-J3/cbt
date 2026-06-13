@@ -500,14 +500,14 @@ Output in this exact format:
 LEAD:
 <2-3 sentences, max 60 words. Synthesis, per the rule above.>
 
-STAGE_COMMENTARY:
-<2-3 sentences on what advanced. Each transition carries a direction (forward / backward / other) — narrate a backward move honestly: a bill returning to committee from the floor is a setback, not progress. Output exactly "_No stage movements this week._" if the transition count is zero.>
-
 ENACTMENTS_COMMENTARY:
 <1-2 sentences on what the new laws DO — not which IDs they are; the list shows IDs. Output exactly "_No bills became law this week._" if the enactments count is zero.>
 
 MOST_TALKED_COMMENTARY:
-<2-3 sentences on what drew news coverage and why it might matter; reference specific bill IDs. Each bill carries a confidence label: for 'high', use assertive verbs ("drew coverage in", "was cited by", "received attention from"); for 'medium', hedge ("appeared in", "was mentioned by"). Never write the label itself. Output exactly "_No news mentions tracked for this week._" if the news mention count is zero.>`;
+<2-3 sentences on what drew news coverage and why it might matter; reference specific bill IDs. Each bill carries a confidence label: for 'high', use assertive verbs ("drew coverage in", "was cited by", "received attention from"); for 'medium', hedge ("appeared in", "was mentioned by"). Never write the label itself. Output exactly "_No news mentions tracked for this week._" if the news mention count is zero.>
+
+STAGE_COMMENTARY:
+<2-3 sentences on what advanced. Each transition carries a direction (forward / backward / other) — narrate a backward move honestly: a bill returning to committee from the floor is a setback, not progress. Output exactly "_No stage movements this week._" if the transition count is zero.>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
   // Each transition carries a derived direction so the LLM can narrate
@@ -590,11 +590,15 @@ type ReportCommentary = {
   mostTalkedCommentary: string;
 };
 
+// Order MUST match the SYSTEM_PROMPT output template + the assembleMarkdown
+// emit order (HO 242): the parse below finds each section's end by searching
+// forward for the NEXT marker in this array, so a mismatch would mis-slice
+// section boundaries.
 const REPORT_MARKERS = [
   "LEAD",
-  "STAGE_COMMENTARY",
   "ENACTMENTS_COMMENTARY",
   "MOST_TALKED_COMMENTARY",
+  "STAGE_COMMENTARY",
 ] as const;
 
 function parseReportResponse(text: string): ReportCommentary | null {
@@ -636,13 +640,16 @@ function parseReportResponse(text: string): ReportCommentary | null {
 
 // ---- markdown assembly -------------------------------------------------
 
-// Section order (HO 110) answers "WTF is going on in Congress?" strongest
-// signal first: lead synthesis, then news, what advanced, what became law,
-// what notable bills were filed, the topic rollup, and stalls (anti-news)
-// last. The handoff sketched a "New introductions count" trailing section —
-// no such section exists (the count lives in the lead), and "Notable
-// introductions" it omitted does exist, so the realized order keeps all six
-// real sections rather than inventing/dropping any.
+// Section order (HO 242, reordering HO 110): lead synthesis, then what became
+// law FIRST (Design leads the body with enactments), then news, what advanced,
+// what notable bills were filed, the topic rollup, and stalls (anti-news) last.
+// The SYSTEM_PROMPT output template + REPORT_MARKERS were reordered to match
+// this emit order (the parse keys section boundaries off REPORT_MARKERS, so the
+// prompt order and this push order must agree). The handoff sketched a "New
+// introductions count" trailing section — no such section exists (the count
+// lives in the lead), and "Notable introductions" it omitted does exist, so
+// the realized order keeps all six real sections rather than inventing/dropping
+// any.
 function assembleMarkdown(
   title: string,
   week: WeekRange,
@@ -653,10 +660,24 @@ function assembleMarkdown(
   lines.push(`# ${title}`, "");
   lines.push(c.lead, "");
 
-  // Most talked about — news signal leads the body. When news_mentions is
-  // empty for the week, emit the canonical fallback verbatim (the LLM
-  // occasionally drops the underscores from the literal template, breaking
-  // the italic styling); otherwise trust the LLM commentary.
+  // Enactments first (HO 242) — Design leads the body with what became law,
+  // ahead of news and movement. Trust the LLM commentary when bills became
+  // law; emit the canonical fallback verbatim otherwise.
+  lines.push(`## Enactments (${d.enactmentsCount})`, "");
+  if (d.enactments.length > 0) {
+    lines.push(c.enactmentsCommentary, "");
+    for (const e of d.enactments) {
+      lines.push(`- ${e.billId} — ${truncate(e.title, TITLE_TRUNCATE)}`);
+    }
+    lines.push("");
+  } else {
+    lines.push("_No bills became law this week._", "");
+  }
+
+  // Most talked about — the news signal. When news_mentions is empty for the
+  // week, emit the canonical fallback verbatim (the LLM occasionally drops the
+  // underscores from the literal template, breaking the italic styling);
+  // otherwise trust the LLM commentary.
   lines.push("## Most talked about", "");
   if (d.mostTalkedAbout.length > 0) {
     lines.push(c.mostTalkedCommentary, "");
@@ -697,19 +718,6 @@ function assembleMarkdown(
     );
   } else {
     lines.push("_No stage movements this week._", "");
-  }
-
-  // Enactments — trust the LLM commentary when bills became law; emit the
-  // canonical fallback verbatim otherwise.
-  lines.push(`## Enactments (${d.enactmentsCount})`, "");
-  if (d.enactments.length > 0) {
-    lines.push(c.enactmentsCommentary, "");
-    for (const e of d.enactments) {
-      lines.push(`- ${e.billId} — ${truncate(e.title, TITLE_TRUNCATE)}`);
-    }
-    lines.push("");
-  } else {
-    lines.push("_No bills became law this week._", "");
   }
 
   // Notable introductions
