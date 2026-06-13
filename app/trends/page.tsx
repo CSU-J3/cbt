@@ -1,3 +1,4 @@
+import { BillsIntroTimeline } from "@/components/BillsIntroTimeline";
 import { BillsTimeSeries } from "@/components/BillsTimeSeries";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
@@ -27,11 +28,23 @@ export default function TrendsPage() {
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="patterns" active="trends" />
 
+        {/* TIMELINE first — overall introduction volume on a true calendar
+            axis (HO 243), the headline trend above the per-topic split. */}
         <section
           className="dashboard-pane mb-3"
           style={{ backgroundColor: "var(--bg-panel)" }}
         >
-          <p className="dashboard-pane-label">Bills introduced per month</p>
+          <p className="dashboard-pane-label">Total introductions over time</p>
+          <BillsIntroTimeline />
+        </section>
+
+        <section
+          className="dashboard-pane mb-3"
+          style={{ backgroundColor: "var(--bg-panel)" }}
+        >
+          <p className="dashboard-pane-label">
+            Bills introduced per month, by topic
+          </p>
           <BillsTimeSeries />
         </section>
 
