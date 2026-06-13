@@ -13,6 +13,13 @@ export function ReportRow({
 }: {
   report: ReportListItemWithLead;
 }) {
+  // HO 242 — LAWS · INTRO · MOVES strip under the lead. Shown only when all
+  // three counts are present; a NULL (pre-backfill row) hides the strip
+  // rather than rendering a dash. After the backfill none should be NULL.
+  const hasStats =
+    report.lawsCount !== null &&
+    report.introCount !== null &&
+    report.movesCount !== null;
   return (
     <Link
       href={`/reports/${report.slug}`}
@@ -28,6 +35,21 @@ export function ReportRow({
         </span>
         {report.lead ? (
           <span className="report-row-lead">{report.lead}</span>
+        ) : null}
+        {hasStats ? (
+          <span className="report-row-stats tabular-nums">
+            <span>
+              <span className="report-stat-label">Laws</span> {report.lawsCount}
+            </span>
+            <span>
+              <span className="report-stat-label">Intro</span>{" "}
+              {report.introCount}
+            </span>
+            <span>
+              <span className="report-stat-label">Moves</span>{" "}
+              {report.movesCount}
+            </span>
+          </span>
         ) : null}
       </span>
       <span className="report-row-arrow uppercase tracking-[0.5px]">

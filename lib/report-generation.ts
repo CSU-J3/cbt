@@ -847,6 +847,11 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
   slug: string;
   title: string;
   content_md: string;
+  // HO 242: LLM-free per-week counts, persisted so the /reports index strip
+  // is queryable without prose-parsing content_md.
+  lawsCount: number;
+  introCount: number;
+  movesCount: number;
 }> {
   const geminiKey = process.env.GEMINI_API_KEY;
   if (!geminiKey) throw new Error("GEMINI_API_KEY is not set");
@@ -883,6 +888,9 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
     slug: week.start,
     title,
     content_md: assembleMarkdown(title, week, data, commentary),
+    lawsCount: data.enactmentsCount,
+    introCount: data.introductionsCount,
+    movesCount: data.transitionsCount,
   };
 }
 
@@ -895,17 +903,25 @@ export async function writeReport(report: {
   weekEnd: string;
   title: string;
   contentMd: string;
+  // HO 242: persisted per-week counts. Optional so a caller without them
+  // (none today) degrades to NULL rather than failing.
+  lawsCount?: number;
+  introCount?: number;
+  movesCount?: number;
 }): Promise<void> {
   const db = getDb();
   await db.execute({
-    sql: `INSERT INTO reports (slug, week_start, week_end, title, content_md, created_at)
-          VALUES (?, ?, ?, ?, ?, ?)
+    sql: `INSERT INTO reports (slug, week_start, week_end, title, content_md, created_at, laws_count, intro_count, moves_count)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(slug) DO UPDATE SET
             week_start = excluded.week_start,
             week_end = excluded.week_end,
             title = excluded.title,
             content_md = excluded.content_md,
-            created_at = excluded.created_at`,
+            created_at = excluded.created_at,
+            laws_count = excluded.laws_count,
+            intro_count = excluded.intro_count,
+            moves_count = excluded.moves_count`,
     args: [
       report.slug,
       report.weekStart,
@@ -913,6 +929,9 @@ export async function writeReport(report: {
       report.title,
       report.contentMd,
       new Date().toISOString(),
+      report.lawsCount ?? null,
+      report.introCount ?? null,
+      report.movesCount ?? null,
     ],
   });
 }

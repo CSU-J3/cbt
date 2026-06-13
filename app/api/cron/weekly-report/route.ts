@@ -58,6 +58,9 @@ async function handle(request: Request) {
       weekEnd: week.end,
       title: report.title,
       contentMd: report.content_md,
+      lawsCount: report.lawsCount,
+      introCount: report.introCount,
+      movesCount: report.movesCount,
     });
     revalidateTag("reports");
     return {

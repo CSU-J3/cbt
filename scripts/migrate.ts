@@ -592,6 +592,15 @@ async function main() {
   // pending proposal, the state for every bill pre-239.
   await ensureColumn(db, "bills", "pending_stage", "TEXT");
   await ensureColumn(db, "bills", "pending_stage_at", "TEXT");
+  // HO 242: per-week counts persisted on the report so the /reports index
+  // strip (LAWS · INTRO · MOVES) is queryable without prose-parsing
+  // content_md. All three are computed LLM-free at generation; existing rows
+  // are NULL until `scripts/backfill-report-counts.ts` recomputes them from
+  // each report's week range. NULL = not yet backfilled (the index hides the
+  // strip on any NULL); distinct from a real 0.
+  await ensureColumn(db, "reports", "laws_count", "INTEGER");
+  await ensureColumn(db, "reports", "intro_count", "INTEGER");
+  await ensureColumn(db, "reports", "moves_count", "INTEGER");
   console.log("migration complete");
 }
 

@@ -817,7 +817,15 @@ export const getReportCount = unstable_cache(
 // untouched per the handoff's "don't add a field for a display concern"
 // discipline. Selecting content_md per row is cheap at the table's
 // scale (weekly cadence, <60 rows in practice; the page caps at 20).
-export type ReportListItemWithLead = ReportListItem & { lead: string };
+// HO 242: the per-week counts ride the index row for the LAWS·INTRO·MOVES
+// strip. Each is `number | null` — NULL on rows not yet backfilled
+// (scripts/backfill-report-counts.ts); the row hides the strip on any NULL.
+export type ReportListItemWithLead = ReportListItem & {
+  lead: string;
+  lawsCount: number | null;
+  introCount: number | null;
+  movesCount: number | null;
+};
 
 export const getReportsWithLead = unstable_cache(
   async (
@@ -826,19 +834,25 @@ export const getReportsWithLead = unstable_cache(
   ): Promise<ReportListItemWithLead[]> => {
     const db = getDb();
     const rs = await db.execute({
-      sql: `SELECT slug, title, week_start, week_end, content_md
+      sql: `SELECT slug, title, week_start, week_end, content_md,
+                   laws_count, intro_count, moves_count
             FROM reports
             ORDER BY week_start DESC
             LIMIT ? OFFSET ?`,
       args: [limit, offset],
     });
     const { extractReportLead } = await import("./report-lead");
+    const num = (v: unknown): number | null =>
+      v === null || v === undefined ? null : Number(v);
     return rs.rows.map((r) => ({
       slug: r.slug as string,
       title: r.title as string,
       weekStart: r.week_start as string,
       weekEnd: r.week_end as string,
       lead: extractReportLead(r.content_md as string),
+      lawsCount: num(r.laws_count),
+      introCount: num(r.intro_count),
+      movesCount: num(r.moves_count),
     }));
   },
   ["getReportsWithLead"],
@@ -858,13 +872,16 @@ export const getDashboardReportSnapshot = unstable_cache(
   async (): Promise<DashboardReportSnapshot | null> => {
     const db = getDb();
     const rs = await db.execute(
-      `SELECT slug, title, week_start, week_end, content_md
+      `SELECT slug, title, week_start, week_end, content_md,
+              laws_count, intro_count, moves_count
        FROM reports
        ORDER BY week_start DESC
        LIMIT 1`,
     );
     if (rs.rows.length === 0) return null;
     const { extractReportLead } = await import("./report-lead");
+    const num = (v: unknown): number | null =>
+      v === null || v === undefined ? null : Number(v);
     const [head] = rs.rows;
     return {
       latest: {
@@ -873,6 +890,9 @@ export const getDashboardReportSnapshot = unstable_cache(
         weekStart: head!.week_start as string,
         weekEnd: head!.week_end as string,
         lead: extractReportLead(head!.content_md as string),
+        lawsCount: num(head!.laws_count),
+        introCount: num(head!.intro_count),
+        movesCount: num(head!.moves_count),
       },
     };
   },

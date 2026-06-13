@@ -27,6 +27,9 @@ async function main() {
     weekEnd: week.end,
     title: report.title,
     contentMd: report.content_md,
+    lawsCount: report.lawsCount,
+    introCount: report.introCount,
+    movesCount: report.movesCount,
   });
   console.log("Done.");
 }
