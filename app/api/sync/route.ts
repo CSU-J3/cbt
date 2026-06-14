@@ -24,6 +24,14 @@ export const maxDuration = 60;
 // the 60s function ceiling.
 const SYNC_BUDGET_MS = 30_000;
 
+// HO 241: the Gemini lead call is unbounded and variable (≈19s typical, but
+// observed >30s), and it sits before the homepage pre-warm. Left unbounded it
+// can push the route past wrapCronRoute's 55s soft timeout (504), skipping the
+// pre-warm and leaving the homepage cache cold — the exact 500 this fix exists
+// to prevent. Bound it so the pre-warm always runs; lead is best-effort (the
+// prior lead stays on timeout), so capping it is free.
+const LEAD_TIMEOUT_MS = 25_000;
+
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
@@ -73,11 +81,25 @@ async function handle(request: Request) {
     // dashboard keeps rendering it.
     const tLead = Date.now();
     try {
-      const lead = await generateDashboardLead();
-      await writeDashboardLead(lead);
-      revalidateTag("bills");
+      let leadTimer: ReturnType<typeof setTimeout> | undefined;
+      const leadTimeout = new Promise<never>((_, reject) => {
+        leadTimer = setTimeout(
+          () => reject(new Error(`lead generation exceeded ${LEAD_TIMEOUT_MS}ms`)),
+          LEAD_TIMEOUT_MS,
+        );
+      });
+      try {
+        const lead = await Promise.race([generateDashboardLead(), leadTimeout]);
+        await writeDashboardLead(lead);
+        revalidateTag("bills");
+      } finally {
+        if (leadTimer) clearTimeout(leadTimer);
+      }
     } catch (err) {
-      console.warn("[sync] lead generation failed; keeping prior lead", err);
+      console.warn(
+        "[sync] lead generation failed or timed out; keeping prior lead",
+        err,
+      );
     }
     timings.lead = Date.now() - tLead;
     console.log(`[sync] lead: ${timings.lead}ms`);
