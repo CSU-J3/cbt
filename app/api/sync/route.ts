@@ -5,6 +5,7 @@ import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
+import { prewarmHomeDashboard } from "@/lib/queries";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
@@ -51,6 +52,7 @@ async function handle(request: Request) {
     const timings: Record<string, number | null> = {
       sync: null,
       lead: null,
+      prewarm: null,
       trades: null,
     };
 
@@ -79,6 +81,15 @@ async function handle(request: Request) {
     }
     timings.lead = Date.now() - tLead;
     console.log(`[sync] lead: ${timings.lead}ms`);
+
+    // HO 241: repopulate the homepage's cached query entries now, while this
+    // route's sync reads have left Turso's bills pages warm — the recompute
+    // lands sub-second here instead of as a ~18-20s cold abort on the first
+    // post-invalidation user request. Best-effort (never throws).
+    const tPrewarm = Date.now();
+    await prewarmHomeDashboard();
+    timings.prewarm = Date.now() - tPrewarm;
+    console.log(`[sync] prewarm: ${timings.prewarm}ms`);
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck

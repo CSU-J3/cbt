@@ -18,6 +18,7 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
+import { prewarmHomeDashboard } from "@/lib/queries";
 import { runSummarize } from "@/lib/summarize-runner";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +54,9 @@ async function handle(request: Request) {
       deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
     });
     revalidateTag("bills");
+    // HO 241: pre-warm the homepage cache off the user path while Turso's
+    // bills pages are warm from the summarize reads. Best-effort.
+    await prewarmHomeDashboard();
 
     const payload = {
       summarized: stats.ok,

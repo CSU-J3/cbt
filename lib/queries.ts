@@ -36,6 +36,20 @@ const MENTION_SUBQUERY = `LEFT JOIN (
 ) nm ON nm.bill_id = bills.id`;
 const MENTION_SELECT = "COALESCE(nm.n, 0) AS mention_count_7d";
 
+// HO 241 (revised — migration abandoned, VACUUM is blocked on this Turso
+// primary so the raw_json split couldn't reclaim pages). Root cause of the
+// homepage cold-start 500: `/` fires ~9 cached bills/news query entries; on a
+// cold Turso page cache the recompute takes ~18-20s and ABORTS before it can
+// write the Data Cache, so populate-on-read can never self-heal (proven live:
+// two consecutive 500s, fixed only by warming `bills`). Fix = move the
+// recompute off the user request. The crons that flush these tags pre-warm
+// every homepage entry right after revalidateTag (see prewarmHomeDashboard),
+// and the backstop below is `false` so a timer can never re-arm that cold
+// recompute on a user — freshness is fully tag-driven (sync/summarize flush
+// "bills", news flushes "news-breaking"; the data only changes on those daily
+// crons, so an indefinite backstop can't serve stale-wrong data).
+const HOME_REVALIDATE = false as const;
+
 export const STALE_DAYS = 60;
 export const STALE_ELIGIBLE_STAGES = [
   "introduced",
@@ -411,7 +425,7 @@ export const getStageDistribution = unstable_cache(
     };
   },
   ["getStageDistribution"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 export type CorpusStats = {
@@ -480,7 +494,7 @@ export const getTopicDistribution = unstable_cache(
     return result;
   },
   ["getTopicDistribution"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 export type TopicChamberCount = {
@@ -2309,7 +2323,7 @@ export const getBreakingNewsForHome = unstable_cache(
     });
   },
   ["getBreakingNewsForHome"],
-  { revalidate: 600, tags: ["news-breaking"] },
+  { revalidate: HOME_REVALIDATE, tags: ["news-breaking"] },
 );
 
 // HO 133: deduped count of breaking-news articles inside the home-block
@@ -2355,7 +2369,7 @@ export const getBreakingNewsForHomeCount = unstable_cache(
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getBreakingNewsForHomeCount"],
-  { revalidate: 600, tags: ["news-breaking"] },
+  { revalidate: HOME_REVALIDATE, tags: ["news-breaking"] },
 );
 
 // ---- HO 151 NEWS-mode feed -------------------------------------------- //
@@ -2764,7 +2778,7 @@ export const getStaleBills = unstable_cache(
     return rs.rows.map(rowToFeedBill);
   },
   ["getStaleBills"],
-  { revalidate: 3600, tags: ["bills", "news-breaking"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills", "news-breaking"] },
 );
 
 function buildSponsorWhere(filters: SponsorFilters): {
@@ -3357,7 +3371,7 @@ export const getStageChanges = unstable_cache(
     }));
   },
   ["getStageChanges"],
-  { revalidate: 3600, tags: ["bills", "news-breaking"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills", "news-breaking"] },
 );
 
 export const getStageChangesCount = unstable_cache(
@@ -3396,7 +3410,7 @@ export const getStageChangesCount = unstable_cache(
     };
   },
   ["getStageChangesCount"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 // HO 232: bills that reached `enacted` in the last 7 days, for the dashboard
@@ -3409,7 +3423,7 @@ export const getEnactedThisWeek = unstable_cache(
     return queryEnactedThisWeek(db);
   },
   ["getEnactedThisWeek"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 export const getStaleCount = unstable_cache(
@@ -3435,6 +3449,52 @@ export const getStaleCount = unstable_cache(
   ["getStaleCount"],
   { revalidate: 3600, tags: ["bills"] },
 );
+
+// HO 241 (revised): pre-warm every cached query entry the homepage renders,
+// off the user request path. Called by the crons that flush the bills /
+// news-breaking tags, right after revalidateTag — their own reads leave
+// Turso's bills pages warm, so each recompute below runs warm (sub-second)
+// and writes the Data Cache. Users then read the cron-populated entries and
+// never trigger the ~18-20s cold recompute that aborts before it can populate.
+//
+// CRITICAL (key-match): every call MUST mirror a homepage default-render call
+// EXACTLY — same args produce the same unstable_cache key (key = keyParts +
+// JSON.stringify(args)). A mismatch populates a *different* entry and users
+// still hit a cold recompute. Default render has no stage/topic filter, so
+// `filters` serializes to `{}`. Call sites mirrored below:
+//   app/page.tsx (Promise.all):
+//     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters })
+//     getStageChangesCount({}, 7, filters)
+//     getStageDistribution(filters)
+//     getTopicDistribution(filters)
+//   components/ActivityTicker.tsx:
+//     getStageChanges({}, 7, 5, filters)   // CAP = 5
+//     getStageChangesCount({}, 7)          // 2-arg variant — distinct key
+//   components/TopStalls.tsx:        getStaleBills({}, 5)        // ROW_LIMIT = 5
+//   components/EnactedBanner.tsx:    getEnactedThisWeek()
+//   components/BreakingNewsBlock.tsx:
+//     getBreakingNewsForHome({ hours: 72, minConfidence: 0.7, limit: 5, filters })
+//     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters })
+// If a homepage default-render call changes, change the matching line here.
+// Best-effort: never throws, so a pre-warm hiccup can't fail the cron.
+export async function prewarmHomeDashboard(): Promise<void> {
+  const filters: DashboardFilters = {}; // default render: no stage/topic → "{}"
+  try {
+    await Promise.all([
+      getStageDistribution(filters),
+      getTopicDistribution(filters),
+      getStageChangesCount({}, 7, filters),
+      getStageChangesCount({}, 7),
+      getStageChanges({}, 7, 5, filters),
+      getStaleBills({}, 5),
+      getEnactedThisWeek(),
+      getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
+      getBreakingNewsForHome({ hours: 72, minConfidence: 0.7, limit: 5, filters }),
+    ]);
+  } catch (err) {
+    console.warn("[prewarm] home dashboard pre-warm failed", err);
+  }
+}
 
 function rowToFeedBill(r: Record<string, unknown>): FeedBill {
   return {
