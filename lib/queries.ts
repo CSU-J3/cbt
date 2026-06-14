@@ -449,7 +449,7 @@ export const getCorpusStats = unstable_cache(
     };
   },
   ["getCorpusStats"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 export type TopicCount = {
@@ -793,7 +793,7 @@ export const getDashboardLead = unstable_cache(
     };
   },
   ["getDashboardLead"],
-  { revalidate: 3600, tags: ["bills"] },
+  { revalidate: HOME_REVALIDATE, tags: ["bills"] },
 );
 
 export type ReportListItem = {
@@ -3472,6 +3472,7 @@ export const getStaleCount = unstable_cache(
 //     getStageChangesCount({}, 7)          // 2-arg variant — distinct key
 //   components/TopStalls.tsx:        getStaleBills({}, 5)        // ROW_LIMIT = 5
 //   components/EnactedBanner.tsx:    getEnactedThisWeek()
+//   components/HomeHeader.tsx:       getCorpusStats(), getDashboardLead()
 //   components/BreakingNewsBlock.tsx:
 //     getBreakingNewsForHome({ hours: 72, minConfidence: 0.7, limit: 5, filters })
 //     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters })
@@ -3488,6 +3489,8 @@ export async function prewarmHomeDashboard(): Promise<void> {
       getStageChanges({}, 7, 5, filters),
       getStaleBills({}, 5),
       getEnactedThisWeek(),
+      getCorpusStats(),
+      getDashboardLead(),
       getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
       getBreakingNewsForHome({ hours: 72, minConfidence: 0.7, limit: 5, filters }),
     ]);
