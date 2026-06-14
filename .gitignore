@@ -13,6 +13,10 @@ tsconfig.tsbuildinfo
 .env.local
 .env*.local
 .env.vercel
+.env.prod
+.env.production
+# keep the tracked template
+!.env.example
 
 # logs
 *.log
