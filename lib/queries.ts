@@ -2265,7 +2265,8 @@ export const getBreakingNewsForHome = unstable_cache(
                   )
                   ORDER BY m.match_confidence DESC, m.bill_id ASC
                 ) AS rn
-              FROM news_mentions m
+              FROM news_mentions m INDEXED BY idx_news_mentions_published
+              -- HO 241: forced — drive from the ~200-row news table (always constrained on published_at), not a ~16k bills scan (Turso blocks ANALYZE).
               INNER JOIN bills b ON b.id = m.bill_id
               WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
                 AND m.match_confidence >= ?
@@ -2359,7 +2360,8 @@ export const getBreakingNewsForHomeCount = unstable_cache(
               m.article_url,
               m.article_title || '|' || m.source || '|' || m.published_at
             )) AS n
-            FROM news_mentions m
+            FROM news_mentions m INDEXED BY idx_news_mentions_published
+            -- HO 241: forced — drive from the ~200-row news table (always constrained on published_at), not a ~16k bills scan (Turso blocks ANALYZE).
             INNER JOIN bills b ON b.id = m.bill_id
             WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
               AND m.match_confidence >= ?
@@ -2768,7 +2770,8 @@ export const getStaleBills = unstable_cache(
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
       ${MENTION_SELECT}
-      FROM bills
+      FROM bills INDEXED BY idx_bills_latest_action
+      -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial. buildStaleWhere always constrains latest_action_date.
       ${MENTION_SUBQUERY}
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
@@ -3357,7 +3360,8 @@ export const getStageChanges = unstable_cache(
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, previous_stage, stage_changed_at,
       ${MENTION_SELECT}
-      FROM bills
+      FROM bills INDEXED BY idx_bills_stage_changed_at
+      -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial and scans ~all rows (~20s). buildChangesWhere always constrains stage_changed_at.
       ${MENTION_SUBQUERY}
       WHERE ${clauses.join(" AND ")}
       ORDER BY stage_changed_at DESC
@@ -3396,12 +3400,15 @@ export const getStageChangesCount = unstable_cache(
       days,
       dashboard,
     );
+    // HO 241: force idx_bills_stage_changed_at on both counts — Turso blocks
+    // ANALYZE so the planner else scans via idx_bills_is_ceremonial (~20s).
+    // buildChangesWhere always constrains stage_changed_at, so it always applies.
     const totalRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${totalClauses.join(" AND ")}`,
       args: totalArgs,
     });
     const filteredRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${filteredClauses.join(" AND ")}`,
       args: filteredArgs,
     });
     return {
@@ -3433,6 +3440,10 @@ export const getStaleCount = unstable_cache(
       buildStaleWhere(filters);
     const { clauses: totalClauses, args: totalArgs } = buildStaleWhere({});
 
+    // HO 241: NOT forced. /stale-only (not on the homepage). An index can't help
+    // a COUNT of "stale" bills — latest_action_date > 60d ago matches most of the
+    // table, so the count must examine every stale row regardless of index.
+    // Fixable later with a covering partial index if /stale's cold-start matters.
     const totalRs = await db.execute({
       sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
       args: totalArgs,
