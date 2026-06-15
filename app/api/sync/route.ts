@@ -5,7 +5,6 @@ import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
-import { prewarmHomeDashboard } from "@/lib/queries";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
@@ -23,14 +22,6 @@ export const maxDuration = 60;
 // route start. Leaves ~25s for downstream steps (lead + trades) inside
 // the 60s function ceiling.
 const SYNC_BUDGET_MS = 30_000;
-
-// HO 241: the Gemini lead call is unbounded and variable (≈19s typical, but
-// observed >30s), and it sits before the homepage pre-warm. Left unbounded it
-// can push the route past wrapCronRoute's 55s soft timeout (504), skipping the
-// pre-warm and leaving the homepage cache cold — the exact 500 this fix exists
-// to prevent. Bound it so the pre-warm always runs; lead is best-effort (the
-// prior lead stays on timeout), so capping it is free.
-const LEAD_TIMEOUT_MS = 25_000;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -60,7 +51,6 @@ async function handle(request: Request) {
     const timings: Record<string, number | null> = {
       sync: null,
       lead: null,
-      prewarm: null,
       trades: null,
     };
 
@@ -81,37 +71,14 @@ async function handle(request: Request) {
     // dashboard keeps rendering it.
     const tLead = Date.now();
     try {
-      let leadTimer: ReturnType<typeof setTimeout> | undefined;
-      const leadTimeout = new Promise<never>((_, reject) => {
-        leadTimer = setTimeout(
-          () => reject(new Error(`lead generation exceeded ${LEAD_TIMEOUT_MS}ms`)),
-          LEAD_TIMEOUT_MS,
-        );
-      });
-      try {
-        const lead = await Promise.race([generateDashboardLead(), leadTimeout]);
-        await writeDashboardLead(lead);
-        revalidateTag("bills");
-      } finally {
-        if (leadTimer) clearTimeout(leadTimer);
-      }
+      const lead = await generateDashboardLead();
+      await writeDashboardLead(lead);
+      revalidateTag("bills");
     } catch (err) {
-      console.warn(
-        "[sync] lead generation failed or timed out; keeping prior lead",
-        err,
-      );
+      console.warn("[sync] lead generation failed; keeping prior lead", err);
     }
     timings.lead = Date.now() - tLead;
     console.log(`[sync] lead: ${timings.lead}ms`);
-
-    // HO 241: repopulate the homepage's cached query entries now, while this
-    // route's sync reads have left Turso's bills pages warm — the recompute
-    // lands sub-second here instead of as a ~18-20s cold abort on the first
-    // post-invalidation user request. Best-effort (never throws).
-    const tPrewarm = Date.now();
-    await prewarmHomeDashboard();
-    timings.prewarm = Date.now() - tPrewarm;
-    console.log(`[sync] prewarm: ${timings.prewarm}ms`);
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck

@@ -21,7 +21,6 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
-import { prewarmHomeDashboard } from "@/lib/queries";
 import { ingestNews } from "@/lib/news-ingest";
 
 export const dynamic = "force-dynamic";
@@ -84,10 +83,6 @@ async function handle(request: Request) {
 
     // Flush both /news and the HO 114 home block — same shared tag.
     revalidateTag("news-breaking");
-    // HO 241: the news-breaking flush also marks getStageChanges /
-    // getStaleBills stale (dual-tagged), so pre-warm the full homepage set
-    // off the user path while bills pages are warm. Best-effort.
-    await prewarmHomeDashboard();
 
     const payload = {
       timings,
