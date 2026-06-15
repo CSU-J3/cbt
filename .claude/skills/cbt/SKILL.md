@@ -112,6 +112,13 @@ CREATE INDEX idx_bills_latest_action ON bills(latest_action_date DESC);
 CREATE INDEX idx_bills_stage_changed_at ON bills(stage_changed_at DESC);
 CREATE INDEX idx_bills_is_ceremonial ON bills(is_ceremonial);
 CREATE INDEX idx_bills_cluster_id ON bills(cluster_id);
+-- HO 241: dashboard-aggregate covering indexes (homepage cold-start fix).
+-- Make getStageDistribution / getCorpusStats / getTopicDistribution index-only
+-- so they don't cold-scan the ~63MB bills table. The planner picks these on
+-- its own (a covering index beats the is_ceremonial OR scan). The feed queries
+-- need explicit INDEXED BY hints instead — see Query helpers below.
+CREATE INDEX idx_bills_dash_stage ON bills(is_ceremonial, stage, update_date);
+CREATE INDEX idx_bills_dash_topics ON bills(is_ceremonial, topics);
 
 -- HO 232: append-only stage-transition log (the rating_history precedent).
 -- WRITE-ONLY plant — nothing reads it yet; it accrues so the deferred MOVERS
@@ -613,6 +620,24 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 - `npm run sync:trades` — runs the stock-trades ingestion pipeline (handoff 70) locally via `ingestTrades`. Same code path as the cron, but capped at 20 pages per chamber (cron caps at 3). Reads `members` into memory, fetches FMP disclosure pages for senate + house, name-matches via `lib/matchMember.ts`, and `INSERT OR IGNORE`s into `stock_trades`. Stops early when an entire FMP page is all-seen. Prints `inserted / matched / total` per chamber plus a sample of unmatched names — the audit workflow for tightening the matcher.
 
 ### Query helpers (`lib/queries.ts`)
+
+> **Forced indexes on the homepage feed queries (HO 241).** `ANALYZE` and
+> `VACUUM` are **both blocked on hosted Turso** (`SQL_PARSE_ERROR: SQL not
+> allowed statement`), so the planner is permanently **statless** — it can't
+> learn that `(is_ceremonial = 0 OR IS NULL)` matches ~every row, so for a feed
+> query it grabs `idx_bills_is_ceremonial` and scans ~all 16k rows (~13–20s
+> **even warm** → 500s on the 10s `DB_REQUEST_TIMEOUT_MS` abort). Fix: explicit
+> `INDEXED BY` hints. `getStageChanges`/`getStageChangesCount` →
+> `idx_bills_stage_changed_at`; `getStaleBills` → `idx_bills_latest_action`;
+> `getBreakingNewsForHome`/`getBreakingNewsForHomeCount` →
+> `idx_news_mentions_published` (drives from the ~200-row `news_mentions`, not a
+> bills scan). Each hint is safe **only** because its query always constrains
+> the forced column — keep that constraint when editing, or SQLite throws "no
+> query solution". **Exception:** `getStaleCount` is deliberately *not* forced
+> (a COUNT of stale bills matches most of the table, so no index helps; it's
+> `/stale`-only, deferred). When adding a new feed-style query that filters a
+> date/selective column, assume you'll need an `INDEXED BY` hint — don't trust
+> the planner.
 
 - `getFeedBills(filters, {page, pageSize})` — main feed; returns `{ bills, total, page, pageSize, totalPages }`. `total` is the filtered count. The page passes `total` into `HeaderBar` via `feedFilteredCount` so the header doesn't need a second COUNT query. The unfiltered count for the "X of Y" header line comes from `getFeedStats().total`. SELECTs the HO 188 enrichment columns `sponsor_bioguide_id` + `cosponsor_count`, and (HO 192) `LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id` projecting `msp.depiction_url AS sponsor_depiction_url` for the sponsor hover card — plus **HO 194's `msp.first_name`/`last_name`/`district` (as `sponsor_first_name`/`sponsor_last_name`/`sponsor_district`)** for the refined card's natural-order name + district, all on the *same* JOIN (no new query). Mirrors `getSponsorProductivity`'s join; `members.bioguide_id` is the PK so it's 1:1 (no row multiplication, and `total` is a separate JOIN-free COUNT anyway). All of these ride on `FeedBill` and are wired into `getFeedBills` only, so they degrade to absent on the other feed-shaped queries (`/stale`/`/changes`/`/watchlist`).
 - `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
