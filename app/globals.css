@@ -603,12 +603,6 @@ body {
   align-items: start;
   min-height: 0;
 }
-/* HO 153 reserved slot — empty container below the grid. No chrome here;
-   HO 153 fills it with the weekly-report snapshot strip. */
-.home-snapshot-slot {
-  /* No visual rules — the slot only exists structurally so HO 153 can
-     drop into the same place without resurfacing layout decisions. */
-}
 .home-col-stack {
   display: flex;
   flex-direction: column;
@@ -697,25 +691,6 @@ body {
 .breaking-row:hover .breaking-row-age {
   visibility: hidden;
 }
-/* Col-1 stack: STAGE funnel (220px fixed) over TOPIC bubbles (flex-1).
-   The fixed-height panel uses flex-basis so the topic panel claims the
-   remaining vertical space — at 1440x900 with header ~200px and
-   --space-md=12 gaps, that leaves ~664px - 220 - 12 = 432px for the
-   topic bubble cell, well above the 320px min-height the handoff
-   prescribes. */
-.home-panel-stage {
-  /* HO 167: content-sized (was fixed 220px) so the STAGES panel-key sits
-     below the funnel without the body's overflow:hidden clipping a bar;
-     keeps a 220px floor for visual consistency. */
-  flex: 0 0 auto;
-  min-height: 220px;
-}
-/* HO 231: the treemap is a half-height strip (was the tall flex:1 bubble
-   cluster), so the topic panel hugs its content. align-items:start on the grid
-   (below) keeps the left column from stretch-gapping under the taller right. */
-.home-panel-topic {
-  flex: 0 0 auto;
-}
 .home-quadrant {
   display: flex;
   flex-direction: column;
@@ -746,62 +721,6 @@ body {
 }
 .home-quadrant-body--scroll {
   overflow-y: auto;
-}
-
-/* HO 167: the STAGES / TOPICS keys moved out of the (removed) dashboard footer
-   into their chart panels — each is a `.panel-key` strip rendered as a
-   panel-footer sibling AFTER `.home-quadrant-body` (so the body's
-   overflow:hidden can't clip it), separated from the chart by a top border.
-   Muted reference density, same swatch chips as the old footer legend. */
-.panel-key {
-  /* HO 167: now sits at the TOP of its panel (under the label, above the
-     chart body). flex:0 0 auto so the body's flex:1 can't squeeze it. */
-  flex: 0 0 auto;
-  margin-top: var(--space-sm);
-  padding-top: var(--space-sm);
-  border-top: 0.5px solid var(--border-soft);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.color-key-row {
-  display: grid;
-  grid-template-columns: 52px 1fr;
-  align-items: baseline;
-  column-gap: var(--space-sm);
-  min-width: 0;
-}
-.color-key-row-label {
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.color-key-row-subhead {
-  color: var(--text-dim);
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 10px;
-  margin-left: 2px;
-}
-.color-key-row-indicators {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px var(--space-sm);
-  min-width: 0;
-}
-.color-key-strip-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-  cursor: default;
-}
-.color-key-strip-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
 }
 
 /* Bottleneck funnel rendered in the col-1 stage panel. Each row is a
@@ -2189,138 +2108,6 @@ body {
   letter-spacing: 0.5px;
   color: var(--text-muted);
   text-transform: uppercase;
-}
-
-/* HO 153 — dashboard snapshot strip. Slim full-width pointer to the
-   latest weekly report; fills the HO 150-reserved .home-snapshot-slot
-   directly under the full-width BREAKING strip (HO 159). Lead text is the report's derived first
-   paragraph (lib/report-lead.ts), not a re-synthesis of the week. */
-.home-snapshot {
-  border: 0.5px solid var(--border-soft);
-  background-color: var(--bg-panel);
-  padding: var(--space-sm) var(--space-md);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.home-snapshot-main {
-  display: grid;
-  grid-template-columns: 160px 1fr auto;
-  align-items: baseline;
-  column-gap: var(--space-md);
-}
-.home-snapshot-left {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  white-space: nowrap;
-}
-.home-snapshot-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
-.home-snapshot-date {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--accent-amber);
-  text-decoration: none;
-}
-.home-snapshot-date:hover {
-  color: var(--accent-amber-bright);
-}
-.home-snapshot-lead {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-width: 0;
-}
-.home-snapshot-lead--empty {
-  color: var(--text-dim);
-  font-style: italic;
-}
-.home-snapshot-read {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--accent-amber);
-  text-decoration: none;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.home-snapshot-read:hover {
-  color: var(--accent-amber-bright);
-}
-
-/* HO 232 (design item 6) — ENACTED THIS WEEK band. Thin full-width strip
-   under the weekly-report snapshot, above the 56/44 grid. Enacted green
-   (--stage-enacted, reused — no new token). The N=0 variant stays visible,
-   muted, never hidden. */
-.enacted-banner {
-  border: 0.5px solid var(--border-soft);
-  background-color: var(--bg-panel);
-  padding: var(--space-sm) var(--space-md);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm) var(--space-md);
-  font-family: var(--font-mono);
-}
-.enacted-banner-label {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--stage-enacted);
-  white-space: nowrap;
-}
-.enacted-banner-count {
-  color: var(--stage-enacted);
-}
-.enacted-banner-ids {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm) var(--space-md);
-  min-width: 0;
-}
-.enacted-banner-id {
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  color: var(--stage-enacted);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.12s;
-}
-.enacted-banner-id:hover {
-  color: var(--text-primary);
-}
-.enacted-banner-more {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.12s;
-}
-.enacted-banner-more:hover {
-  color: var(--stage-enacted);
-}
-.enacted-banner--empty .enacted-banner-label {
-  color: var(--text-dim);
-}
-.enacted-banner-none {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
 }
 
 /* HO 244 (commit 2) — the weekly band. One full-width line directly under the
