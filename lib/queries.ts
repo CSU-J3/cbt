@@ -9,6 +9,7 @@ import {
 } from "./enacted-this-week";
 import {
   MARKET_SYMBOLS,
+  type MarketCadence,
   type MarketFormat,
   type MarketGroup,
 } from "./markets";
@@ -4992,8 +4993,13 @@ export type MarketTick = {
   marketDate: string;
   format: MarketFormat;
   group: MarketGroup;
-  // HO 227: true for FRED-sourced symbols (end-of-day). The tape labels these so
+  // HO 251: release cadence — drives the tape's per-symbol freshness model and
+  // the hover wording (daily="as of", monthly="as of {Mon}", kalshi="resolves").
+  cadence: MarketCadence;
+  // HO 227: true for FRED-sourced EOD symbols (10Y/WTI). The tape labels these so
   // a stale close is never shown as a fresh intraday print. FMP indices = false.
+  // HO 251: monthly FRED (CPI/UNEMP) and kalshi are NOT "EOD" — cadence carries
+  // their framing instead, so eod is daily-FRED only.
   eod: boolean;
 };
 
@@ -5025,7 +5031,8 @@ export const getLatestMarketTicks = unstable_cache(
         marketDate: row.market_date as string,
         format: meta.format,
         group: meta.group,
-        eod: meta.source === "fred",
+        cadence: meta.cadence,
+        eod: meta.source === "fred" && meta.cadence === "daily",
       });
     }
     // Preserve the in-code MARKET_SYMBOLS order so each tape renders in tape

@@ -22,16 +22,12 @@
 // arrow + change slots, so item width is invariant to values → track width is
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isMarketOpen } from "@/lib/market-hours";
 import type { MarketTick } from "@/lib/queries";
 import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
-// HO 168: target marquee speed. The duration is computed from the measured
-// track-half width (durationSec = width / this), so the crawl reads at a
-// constant ~40px/sec no matter how many symbols ship.
-const MARQUEE_PX_PER_SEC = 40;
 // HO 172: client poll interval for fresh prices.
 const POLL_MS = 60_000;
 
@@ -47,23 +43,56 @@ const POLL_MS = 60_000;
 // the 6 sector ETFs + SILVER + DXY were dropped). Indices NDQ/DOW are 5-digit
 // ("51,317.60" = 9ch); BTC 10ch (stable across $100,000); WTI 6ch (oil past
 // $100); VIX/TNX 5ch; NATGAS 5ch (~$3, headroom to teens).
+// HO 251: the 8-symbol econ/prediction set. Indices NDQ ~5-digit (9ch); SPX 8ch;
+// WTI 6ch (oil past $100); TNX 5ch; the four %-format symbols (CPI/UNEMP/SHUTDOWN/
+// FEDCUT) render "NN.N%" → 6ch.
 const PRICE_SLOT_CH: Record<string, number> = {
   SPX: 8,
   NDQ: 9,
-  DOW: 9,
-  WTI: 6,
-  NATGAS: 5,
-  VIX: 5,
   TNX: 5,
-  BTC: 10,
+  CPI: 5,
+  UNEMP: 5,
+  SHUTDOWN: 6, // "100.0%" headroom
+  FEDCUT: 5,
+  WTI: 6,
 };
 const DEFAULT_PRICE_SLOT_CH = 8;
 
+// HO 251 monthly-overdue threshold: a monthly print older than this reads as a
+// genuinely stalled series (the next month's release is well past due), so it
+// washes even though the cron keeps re-inserting it with a fresh tickedAt. ~40d
+// covers the normal <=~45d release lag without false-flagging a current print.
+const MONTHLY_OVERDUE_MS = 40 * 24 * 60 * 60 * 1000;
+
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
+  // HO 251: CPI/UNEMP/SHUTDOWN/FEDCUT — one decimal (4.2% / 49.0% / 2.0%).
+  if (format === "percent") return `${price.toFixed(1)}%`;
   return price.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  });
+}
+
+// HO 251: format the monthly print date as "May 2026" (from "2026-05-01"); the
+// kalshi resolution date as "Oct 1, 2026". Falls back to the raw string.
+function formatMonth(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+function formatResolveDate(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -123,15 +152,28 @@ function TickItem({
   // such a symbol first gets a value (next session) its width grows once — a
   // one-time settle, not the every-60s jump.
   const showSlots = dir !== "stale";
+  // HO 227/251: small per-symbol cadence tag. EOD = FRED end-of-day (10Y/WTI);
+  // MO = monthly econ print (CPI/UNEMP) so a non-moving monthly value doesn't
+  // read as broken. Kalshi probabilities carry no tag (the value is live odds).
+  const tagText = tick.eod ? "EOD" : tick.cadence === "monthly" ? "MO" : null;
+  const tagTitle = tick.eod
+    ? "End-of-day value"
+    : tick.cadence === "monthly"
+      ? "Monthly release"
+      : undefined;
+  // HO 251: cadence-aware freshness wording in the hover.
+  const freshnessText =
+    tick.cadence === "monthly"
+      ? `monthly · as of ${formatMonth(tick.marketDate)}`
+      : tick.cadence === "kalshi"
+        ? `resolves ${formatResolveDate(tick.marketDate)}`
+        : `as of ${tick.marketDate}${tick.eod ? " · end of day" : ""}`;
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
-      {/* HO 227: FRED-sourced symbols are end-of-day. A static per-symbol tag
-          (never toggles → width-invariant, the HO 175 jump fix stays dead) so an
-          EOD close is never read as a fresh intraday print. */}
-      {tick.eod ? (
-        <span className="markets-tape-eod" title="End-of-day value">
-          EOD
+      {tagText ? (
+        <span className="markets-tape-eod" title={tagTitle}>
+          {tagText}
         </span>
       ) : null}
       <span
@@ -165,10 +207,15 @@ function TickItem({
         <span className="markets-tape-detail-name">{tick.fullName}</span>
         <span className="markets-tape-detail-meta">
           {tick.label !== tick.fullName ? `${tick.label} · ` : ""}
-          <span style={{ color: colorVar }}>{detailChange}</span>
-          {" · as of "}
-          {tick.marketDate}
-          {tick.eod ? " · end of day" : ""}
+          {/* Change only for daily symbols — monthly/kalshi carry null (no
+              meaningful % move), so skip the "—" noise. */}
+          {pct !== null ? (
+            <>
+              <span style={{ color: colorVar }}>{detailChange}</span>
+              {" · "}
+            </>
+          ) : null}
+          {freshnessText}
         </span>
       </span>
     </span>
@@ -177,13 +224,10 @@ function TickItem({
 
 export function MarketsTapeClient({
   ticks,
-  reverse = false,
   placeholderSymbols,
   showMeta = true,
 }: {
   ticks: MarketTick[];
-  // HO 178: scroll this tape the opposite direction (the commodities tape).
-  reverse?: boolean;
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
   // the poll filter so a grouped tape only ever updates its own symbols.
   placeholderSymbols?: string[];
@@ -250,9 +294,13 @@ export function MarketsTapeClient({
     };
   }, [ownSymbols]);
 
-  const { latestTickedAt, stale } = useMemo(() => {
+  // HO 251: STRIP-level staleness = tape-wide on the freshest tickedAt. Catches a
+  // fully-dead cron (nothing ticked in 26h → whole strip washes + AS OF · STALE).
+  // It does NOT flag a monthly symbol that's simply unchanged (the cron re-inserts
+  // it daily with a fresh tickedAt) — that's the per-item monthly-overdue check.
+  const { latestTickedAt, stripStale } = useMemo(() => {
     if (currentTicks.length === 0) {
-      return { latestTickedAt: null as string | null, stale: false };
+      return { latestTickedAt: null as string | null, stripStale: false };
     }
     let max = 0;
     let latest: string | null = null;
@@ -264,68 +312,47 @@ export function MarketsTapeClient({
         latest = t.tickedAt;
       }
     }
-    if (latest === null) return { latestTickedAt: null, stale: false };
-    return {
-      latestTickedAt: latest,
-      stale: now - max > STALE_THRESHOLD_MS,
-    };
+    if (latest === null) return { latestTickedAt: null, stripStale: false };
+    return { latestTickedAt: latest, stripStale: now - max > STALE_THRESHOLD_MS };
   }, [currentTicks, now]);
 
-  // HO 234: market-hours CLOSED signal, recomputed off the same minute `now`
-  // tick so the strip flips live at 9:30/16:00 ET without a reload. STALE wins —
-  // a broken/lagged pipeline is a problem and must not read as a healthy closed
-  // wash, so `closed` is suppressed whenever stale is active.
-  const closed = useMemo(() => !isMarketOpen(new Date(now)), [now]) && !stale;
+  // HO 234: market-hours CLOSED signal, recomputed off the same minute `now` tick
+  // so the strip flips live at 9:30/16:00 ET without a reload. STALE wins — a
+  // broken pipeline must not read as a healthy closed wash.
+  const closed =
+    useMemo(() => !isMarketOpen(new Date(now)), [now]) && !stripStale;
 
-  // HO 168/172: measure the track-half width → marquee duration (~40px/sec).
-  // HO 179: also compute how many COPIES of the symbol set each half needs so
-  // the half is always >= the visible tape width — otherwise a short tape (the
-  // 9/8 split is narrower than a wide viewport) exposes blank track near the
-  // -50% loop point and reads sparse. copies = max(2, ceil(container/setWidth)).
-  // Deps are item COUNT, the stale↔live branch, and copies — NOT the tick
-  // values: a price refresh must not re-measure (which would restart the
-  // animation). Per-symbol pins make one set's width value-independent, so
-  // copies is constant across polls → the jump fix holds.
-  const halfRef = useRef<HTMLDivElement>(null);
-  const tapeRef = useRef<HTMLDivElement>(null);
-  const [marqueeDurationSec, setMarqueeDurationSec] = useState<number | null>(
-    null,
-  );
-  const [copies, setCopies] = useState(2);
-  const itemCount = currentTicks.length;
-  useEffect(() => {
-    const halfEl = halfRef.current;
-    const tapeEl = tapeRef.current;
-    if (!halfEl || !tapeEl) return;
-    const halfW = halfEl.offsetWidth; // = copies × one-set width
-    if (halfW <= 0) return;
-    const setW = halfW / copies;
-    const containerW = tapeEl.offsetWidth;
-    const needed = Math.max(2, Math.ceil(containerW / setW));
-    if (needed !== copies) {
-      setCopies(needed); // re-render, then this effect re-measures
-      return;
+  // HO 251: per-symbol state. Monthly (CPI/UNEMP) washes only when its print is
+  // genuinely overdue (>~40d) — never just for not moving; daily/kalshi follow the
+  // strip's 26h rule. The market-hours CLOSED wash applies only to daily symbols
+  // (CPI prints and Kalshi odds don't follow NYSE trading hours).
+  const itemState = (t: MarketTick): { stale: boolean; closed: boolean } => {
+    if (t.cadence === "monthly") {
+      const md = Date.parse(`${t.marketDate.slice(0, 10)}T00:00:00Z`);
+      const overdue = Number.isFinite(md) && now - md > MONTHLY_OVERDUE_MS;
+      return { stale: stripStale || overdue, closed: false };
     }
-    setMarqueeDurationSec(halfW / MARQUEE_PX_PER_SEC);
-  }, [itemCount, stale, copies]);
+    return { stale: stripStale, closed: closed && t.cadence === "daily" };
+  };
 
   // No-data branch — empty fetch or all rows had unparseable tickedAt.
   if (currentTicks.length === 0 || latestTickedAt === null) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
-        <div className="markets-tape-track-static">
-          {(placeholderSymbols ?? ["SPX", "WTI", "TNX", "GOLD", "VIX"]).map(
+        <div className="markets-tape-row markets-tape-row--placeholder">
+          {(placeholderSymbols ?? ["SPX", "NDQ", "TNX", "CPI", "WTI"]).map(
             (s) => (
-            <span key={s} className="markets-tape-item">
-              <span className="markets-tape-symbol">{s}</span>
-              <span
-                className="markets-tape-price"
-                style={{ color: "var(--text-dim)" }}
-              >
-                —
+              <span key={s} className="markets-tape-item">
+                <span className="markets-tape-symbol">{s}</span>
+                <span
+                  className="markets-tape-price"
+                  style={{ color: "var(--text-dim)" }}
+                >
+                  —
+                </span>
               </span>
-            </span>
-          ))}
+            ),
+          )}
         </div>
         {showMeta ? (
           <div className="markets-tape-meta">MARKET DATA UNAVAILABLE</div>
@@ -334,60 +361,54 @@ export function MarketsTapeClient({
     );
   }
 
-  // Stale and live both render the same item list; stale just freezes the
-  // track and dims the colors (TickItem reads `stale` for its own swap).
-  const items = currentTicks.map((t) => (
-    <TickItem key={t.symbol} tick={t} stale={stale} closed={closed} />
-  ));
-  // HO 179: each marquee half repeats the set `copies` times so the half always
-  // fills the viewport (no blank stretch at the loop). Keyed Fragments scope the
-  // per-symbol keys within each copy so they don't collide across copies.
-  const halfContent = Array.from({ length: copies }, (_, c) => (
-    <Fragment key={`copy-${c}`}>{items}</Fragment>
-  ));
+  // HO 251: STATIC full-width row — no marquee. The 8-symbol trim is what lets a
+  // non-crawling strip fit; dropping the crawl also drops all the HO 168/175/179
+  // geometry (duration/copies/double-track) since there's no scroll to keep
+  // jump-proof. Closed/STALE treatment is now per-item (itemState).
+  //
+  // Render the FULL owned set in order; a symbol with no tick at all (a brand-new
+  // symbol whose first fetch failed, or one the cron couldn't fetch and never
+  // seeded) shows N/A — never a fabricated zero, and the slot stays so the layout
+  // is stable. A previously-seeded symbol that later fails keeps its last value
+  // and washes to STALE via the 26h rule. The cron surfaces the miss in
+  // cron_runs either way (it doesn't insert on a fetch failure).
+  const bySymbol = new Map(currentTicks.map((t) => [t.symbol, t]));
+  const ordered = placeholderSymbols ?? currentTicks.map((t) => t.symbol);
+  const items = ordered.map((sym) => {
+    const t = bySymbol.get(sym);
+    if (!t) {
+      return (
+        <span key={sym} className="markets-tape-item">
+          <span className="markets-tape-symbol">{sym}</span>
+          <span
+            className="markets-tape-price"
+            style={{ color: "var(--text-dim)" }}
+            title="No data available"
+          >
+            N/A
+          </span>
+        </span>
+      );
+    }
+    const st = itemState(t);
+    return (
+      <TickItem key={t.symbol} tick={t} stale={st.stale} closed={st.closed} />
+    );
+  });
 
   return (
     <div
-      ref={tapeRef}
-      className={`markets-tape${stale ? " markets-tape--stale" : ""}${
-        closed ? " markets-tape--closed" : ""
-      }`}
+      className={`markets-tape markets-tape--static${
+        stripStale ? " markets-tape--stale" : ""
+      }${closed ? " markets-tape--closed" : ""}`}
       aria-label="Markets"
     >
-      {stale ? (
-        <div className="markets-tape-track-static">{items}</div>
-      ) : (
-        <div
-          className={`markets-tape-track${
-            reverse ? " markets-tape-track--reverse" : ""
-          }`}
-          // HO 168: measured-width duration (see MARQUEE_PX_PER_SEC) overrides
-          // the CSS fallback so the speed is constant for any symbol count.
-          // HO 172: hover-to-pause is CSS-only (.markets-tape-track:hover).
-          // HO 178: --reverse flips animation-direction for the second tape.
-          style={
-            marqueeDurationSec
-              ? { animationDuration: `${marqueeDurationSec}s` }
-              : undefined
-          }
-        >
-          {/* Double-track for a seamless wrap at any symbol count: the
-              animation translates 0 → -50% across the combined track, so the
-              second (identical) copy slides into view as the first slides out.
-              The first half is measured to scale the duration. */}
-          <div className="markets-tape-track-half" ref={halfRef}>
-            {halfContent}
-          </div>
-          <div className="markets-tape-track-half" aria-hidden>
-            {halfContent}
-          </div>
-        </div>
-      )}
+      <div className="markets-tape-row">{items}</div>
       {showMeta ? (
         <div className="markets-tape-meta">
           <span className="markets-tape-stamp">
             AS OF {formatInZone(latestTickedAt, zone)}
-            {stale ? (
+            {stripStale ? (
               <span className="markets-tape-stale-flag"> · STALE</span>
             ) : closed ? (
               <span className="markets-tape-closed-flag"> · CLOSED</span>

@@ -44,21 +44,28 @@ async function processSymbol(symbol: MarketSymbol): Promise<SymbolOutcome> {
   try {
     const quote = await fetchQuote(symbol);
     const db = getDb();
-    // Prior reference = most recent row whose market_date < the new tick's
-    // market_date. Skipping equal dates means an intraday refresh on the
-    // same trading day diffs against yesterday, not the morning print.
-    const prior = await db.execute({
-      sql: `SELECT price FROM market_ticks
-            WHERE symbol = ? AND market_date < ?
-            ORDER BY market_date DESC, ticked_at DESC
-            LIMIT 1`,
-      args: [symbol.internal, quote.marketDate],
-    });
-    const priorPrice = prior.rows[0]?.price as number | undefined;
-    const changePct =
-      priorPrice !== undefined && priorPrice !== 0
-        ? ((quote.price - priorPrice) / priorPrice) * 100
-        : null;
+    // HO 251: no change arrow for monthly econ stats or Kalshi probabilities. A
+    // PERCENT change of a YoY-rate or a probability misleads (CPI 3.8→4.2 reads
+    // as "+10%"; shutdown 45→49 as "+9%"). Skip the prior-diff entirely and store
+    // null → the tape renders no arrow for these. Daily symbols keep the diff.
+    let changePct: number | null = null;
+    if (symbol.cadence === "daily") {
+      // Prior reference = most recent row whose market_date < the new tick's
+      // market_date. Skipping equal dates means an intraday refresh on the
+      // same trading day diffs against yesterday, not the morning print.
+      const prior = await db.execute({
+        sql: `SELECT price FROM market_ticks
+              WHERE symbol = ? AND market_date < ?
+              ORDER BY market_date DESC, ticked_at DESC
+              LIMIT 1`,
+        args: [symbol.internal, quote.marketDate],
+      });
+      const priorPrice = prior.rows[0]?.price as number | undefined;
+      changePct =
+        priorPrice !== undefined && priorPrice !== 0
+          ? ((quote.price - priorPrice) / priorPrice) * 100
+          : null;
+    }
 
     await db.execute({
       sql: `INSERT INTO market_ticks (symbol, price, change_pct, ticked_at, market_date)

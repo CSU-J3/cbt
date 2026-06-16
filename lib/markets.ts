@@ -62,37 +62,59 @@
 // `FRED_API_KEY` (Vercel PRODUCTION env). All 5 series verified live + fresh
 // (CBBTCUSD "Coinbase Bitcoin" updated Jun 9); none dropped, tape stays 8.
 
-export type MarketSource = "fmp" | "fred";
-export type MarketFormat = "index" | "yield" | "price";
+// HO 251 — tape swapped to the econ/prediction spec set:
+//   S&P · NASDAQ · 10Y · CPI · UNEMP · SHUTDOWN ODDS · FED CUT · WTI
+// Dropped BTC/GOLD/DOW/NATGAS/VIX (the 8-symbol trim is what lets the row go
+// STATIC full-width, HO 244-deferred). S&P/NASDAQ stay FMP intraday; 10Y/WTI
+// stay FRED EOD; CPI/UNEMP are FRED monthly (CPI via units=pc1 → YoY %); SHUTDOWN
+// and FED CUT are Kalshi prediction-market probabilities (computed/dynamic — see
+// fetchKalshi). All four new symbols probed swap-ready from egress in HO 250.
+import { KALSHI_BASE } from "@/lib/kalshi";
+
+export type MarketSource = "fmp" | "fred" | "kalshi";
+export type MarketFormat = "index" | "yield" | "price" | "percent";
 export type MarketGroup = "equities" | "commodities";
+// HO 251 — release cadence, the input to the tape's per-symbol freshness model
+// (MarketsTapeClient). `daily` keeps the 26h tickedAt STALE wash; `monthly`
+// (CPI/UNEMP) is washed ONLY when its print is genuinely overdue (>~40d), so a
+// fresh-but-unchanged monthly value never reads as a dead pipeline; `kalshi` is
+// a live probability re-fetched each cron run (no change arrow — a % move on a
+// probability misleads).
+export type MarketCadence = "daily" | "monthly" | "kalshi";
 
 export type MarketSymbol = {
   internal: string;
   source: MarketSource;
-  remote: string;
+  remote: string; // FMP/FRED: the upstream series id. Kalshi: the SERIES ticker.
   label: string;
   fullName: string;
   format: MarketFormat;
   group: MarketGroup;
+  cadence: MarketCadence;
+  // FRED transform (e.g. CPI "pc1" → percent-change-from-year-ago = YoY %).
+  // Omitted = FRED's default (lin) units.
+  units?: string;
+  // Kalshi headline compute: "single-yes" = the one market's yes-price (SHUTDOWN);
+  // "cut-sum" = sum of the meeting's Cut* markets' yes-prices (FED CUT).
+  kalshiKind?: "single-yes" | "cut-sum";
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // Indices — FMP /stable/quote (intraday, free on the existing key). HO 227.
-  { internal: "SPX", source: "fmp", remote: "^GSPC", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities" },
-  { internal: "NDQ", source: "fmp", remote: "^IXIC", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities" },
-  { internal: "DOW", source: "fmp", remote: "^DJI", label: "Dow", fullName: "Dow Jones Industrial Average", format: "index", group: "equities" },
-  // Commodities + rates + VIX — FRED (end-of-day). HO 227 re-source.
-  { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities" },
-  { internal: "NATGAS", source: "fred", remote: "DHHNGSP", label: "Nat Gas", fullName: "Natural Gas (Henry Hub Spot)", format: "price", group: "commodities" },
-  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities" },
-  { internal: "VIX", source: "fred", remote: "VIXCLS", label: "Volatility (VIX)", fullName: "CBOE Volatility Index", format: "index", group: "commodities" },
-  { internal: "BTC", source: "fred", remote: "CBBTCUSD", label: "Bitcoin", fullName: "Bitcoin (USD)", format: "price", group: "commodities" },
-  // Gold re-added via FMP `/stable/quote` (GCUSD). HO 227 dropped it as
-  // "no free programmatic source"; the FMP free tier now serves GCUSD live
-  // (probe-verified 2026-06-12: HTTP 200, intraday timestamp ~10min old). FMP-
-  // sourced so it carries NO `eod` tag (source==='fred' drives that) — correct,
-  // it's an intraday print like the indices. Tape 8 → 9.
-  { internal: "GOLD", source: "fmp", remote: "GCUSD", label: "Gold", fullName: "Gold Futures", format: "price", group: "commodities" },
+  { internal: "SPX", source: "fmp", remote: "^GSPC", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities", cadence: "daily" },
+  { internal: "NDQ", source: "fmp", remote: "^IXIC", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities", cadence: "daily" },
+  // Rates — FRED EOD.
+  { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities", cadence: "daily" },
+  // Econ — FRED monthly. CPI uses units=pc1 → YoY % directly (the raw index ~334
+  // is meaningless on a tape, HO 250). UNEMP is already a %.
+  { internal: "CPI", source: "fred", remote: "CPIAUCSL", units: "pc1", label: "CPI (YoY)", fullName: "CPI Inflation, YoY", format: "percent", group: "commodities", cadence: "monthly" },
+  { internal: "UNEMP", source: "fred", remote: "UNRATE", label: "Unemployment", fullName: "Unemployment Rate", format: "percent", group: "commodities", cadence: "monthly" },
+  // Prediction markets — Kalshi (public/no-auth, same client as the race-odds
+  // cron). Dynamic nearest-open-event discovery + compute in fetchKalshi.
+  { internal: "SHUTDOWN", source: "kalshi", remote: "KXGOVTSHUTDOWN", kalshiKind: "single-yes", label: "Shutdown Odds", fullName: "Govt Shutdown Odds", format: "percent", group: "commodities", cadence: "kalshi" },
+  { internal: "FEDCUT", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", label: "Fed Cut Odds", fullName: "Fed Rate-Cut Odds", format: "percent", group: "commodities", cadence: "kalshi" },
+  // Commodities — FRED EOD.
+  { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities", cadence: "daily" },
 ] as const;
 
 export type FetchedQuote = {
@@ -162,10 +184,13 @@ async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
   // character alpha-numeric lower-case string") even when the key itself is
   // valid. The real key is 32 lowercase alphanumerics — trimming is safe.
   const key = rawKey.trim();
+  // HO 251: optional units transform (CPI = pc1 → YoY %). Default (omitted) =
+  // FRED's `lin` raw level.
+  const unitsParam = symbol.units ? `&units=${encodeURIComponent(symbol.units)}` : "";
   const url =
     `https://api.stlouisfed.org/fred/series/observations` +
     `?series_id=${encodeURIComponent(symbol.remote)}` +
-    `&api_key=${key}&file_type=json&sort_order=desc&limit=10`;
+    `&api_key=${key}&file_type=json&sort_order=desc&limit=10${unitsParam}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     // Surface FRED's error body — a 400/403 here is actionable (bad/expired
@@ -197,11 +222,141 @@ async function fetchFred(symbol: MarketSymbol): Promise<FetchedQuote> {
   throw new FetchQuoteError(symbol.internal, `fred returned no numeric rows`);
 }
 
+// Kalshi prediction-market probabilities (HO 251). Public/no-auth, same host as
+// the race-odds cron (HO 217/218). Two-step, because these markets are
+// date-bound and ephemeral — there is no permanent "shutdown"/"fed-cut" ticker:
+//   1. DISCOVER the nearest still-open event in the series (`events?series_ticker
+//      =<series>&status=open`, soonest by strike_date/close_time). FED CUT rolls
+//      from the Jun meeting to Jul automatically once Jun closes; SHUTDOWN tracks
+//      the live funding deadline.
+//   2. COMPUTE the headline from that event's markets — single-yes (SHUTDOWN =
+//      the one yes/no market's yes-price) or cut-sum (FED CUT = sum of the
+//      meeting's Cut* markets' yes-prices). last_price_dollars is a 0–1 string;
+//      ×100 = a percentage. marketDate = the event's resolution date (drives the
+//      hover's "resolves {date}" and an optional label). No change arrow: a % move
+//      on a probability misleads, so the cron nulls changePct for kalshi symbols.
+// The event's resolution date. Kalshi is inconsistent across series: FEDDECISION
+// events carry `strike_date`/`close_time` in the events-list response, but
+// SHUTDOWN events do NOT (the date lives only on the market, or in the ticker
+// suffix). So derive: prefer the event's own date fields, else parse the ticker
+// suffix — `-26OCT01` → 2026-10-01, `-26JUN` → 2026-06-01 (day defaults to 01).
+const KALSHI_MONTHS: Record<string, number> = {
+  JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6,
+  JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
+};
+function parseTickerDate(eventTicker: string): string | null {
+  const m = eventTicker.match(/-(\d{2})([A-Z]{3})(\d{2})?$/);
+  if (!m) return null;
+  const mon = KALSHI_MONTHS[m[2]!];
+  if (!mon) return null;
+  const yy = 2000 + Number(m[1]);
+  const dd = m[3] ? Number(m[3]) : 1;
+  return `${yy}-${String(mon).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+}
+function kalshiEventDate(e: {
+  event_ticker?: unknown;
+  strike_date?: unknown;
+  close_time?: unknown;
+}): string | null {
+  if (typeof e.strike_date === "string") return e.strike_date;
+  if (typeof e.close_time === "string") return e.close_time;
+  if (typeof e.event_ticker === "string") return parseTickerDate(e.event_ticker);
+  return null;
+}
+
+function kalshiYesPrice(m: Record<string, unknown>): number | null {
+  const lp = Number(m.last_price_dollars);
+  if (Number.isFinite(lp) && lp > 0) return lp;
+  // No recent trade → fall back to the bid/ask midpoint if quoted.
+  const bid = Number(m.yes_bid_dollars);
+  const ask = Number(m.yes_ask_dollars);
+  if ((Number.isFinite(bid) && bid > 0) || (Number.isFinite(ask) && ask > 0)) {
+    return (bid + ask) / 2;
+  }
+  return Number.isFinite(lp) ? lp : null; // a genuine 0¢ last is a valid 0%
+}
+
+async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
+  // 1. Discover the soonest open event in the series.
+  const evUrl =
+    `${KALSHI_BASE}/events?series_ticker=${encodeURIComponent(symbol.remote)}` +
+    `&status=open&limit=200`;
+  const evRes = await fetch(evUrl, { signal: AbortSignal.timeout(10_000) });
+  if (!evRes.ok) {
+    throw new FetchQuoteError(symbol.internal, `kalshi events HTTP ${evRes.status}`);
+  }
+  const evData: unknown = await evRes.json();
+  const events = (evData as { events?: unknown })?.events;
+  if (!Array.isArray(events)) {
+    throw new FetchQuoteError(symbol.internal, `kalshi no events array`);
+  }
+  const dated = events
+    .map((e) => {
+      const et = (e as { event_ticker?: unknown }).event_ticker;
+      const when = kalshiEventDate(e as Record<string, unknown>);
+      return typeof et === "string" && typeof when === "string"
+        ? { et, when, ms: Date.parse(when) }
+        : null;
+    })
+    .filter((e): e is { et: string; when: string; ms: number } => e !== null && Number.isFinite(e.ms))
+    .sort((a, b) => a.ms - b.ms);
+  const soonest = dated[0];
+  if (!soonest) {
+    throw new FetchQuoteError(symbol.internal, `kalshi no open event for ${symbol.remote}`);
+  }
+
+  // 2. Fetch that event's markets and compute the headline.
+  const mkRes = await fetch(
+    `${KALSHI_BASE}/markets?event_ticker=${encodeURIComponent(soonest.et)}`,
+    { signal: AbortSignal.timeout(10_000) },
+  );
+  if (!mkRes.ok) {
+    throw new FetchQuoteError(symbol.internal, `kalshi markets HTTP ${mkRes.status}`);
+  }
+  const mkData: unknown = await mkRes.json();
+  const markets = (mkData as { markets?: unknown })?.markets;
+  if (!Array.isArray(markets) || markets.length === 0) {
+    throw new FetchQuoteError(symbol.internal, `kalshi no markets for ${soonest.et}`);
+  }
+
+  let prob: number; // 0–1
+  if (symbol.kalshiKind === "cut-sum") {
+    // The meeting's Cut* legs (tickers end -C25 / -C26). Sum their yes-prices.
+    let sum = 0;
+    let found = false;
+    for (const m of markets) {
+      const t = (m as { ticker?: unknown }).ticker;
+      if (typeof t === "string" && /-C\d+$/.test(t)) {
+        const yp = kalshiYesPrice(m as Record<string, unknown>);
+        if (yp !== null) {
+          sum += yp;
+          found = true;
+        }
+      }
+    }
+    if (!found) {
+      throw new FetchQuoteError(symbol.internal, `kalshi no cut markets in ${soonest.et}`);
+    }
+    prob = sum;
+  } else {
+    // single-yes: the event's single yes/no market.
+    const yp = kalshiYesPrice(markets[0] as Record<string, unknown>);
+    if (yp === null) {
+      throw new FetchQuoteError(symbol.internal, `kalshi no price for ${soonest.et}`);
+    }
+    prob = yp;
+  }
+
+  return { price: prob * 100, marketDate: soonest.when.slice(0, 10) };
+}
+
 export async function fetchQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   switch (symbol.source) {
     case "fmp":
       return fetchFmp(symbol);
     case "fred":
       return fetchFred(symbol);
+    case "kalshi":
+      return fetchKalshi(symbol);
   }
 }

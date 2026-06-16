@@ -3385,48 +3385,36 @@ body {
     display: none;
   }
 }
-.markets-tape-track {
-  display: flex;
-  flex-wrap: nowrap;
-  width: max-content;
-  animation: markets-tape-scroll 22s linear infinite;
-  /* HO 172: NO padding here — it was 24px, which made translateX(-50%) land at
-     -(W+12) instead of -W (one half-width), jumping the seam every loop. The
-     right-edge fade is provided by .markets-tape-meta's own gradient. */
-}
-/* HO 172: hover-to-pause (replaced the click toggle). CSS-only — independent
-   of the inline animation-duration. */
-.markets-tape-track:hover {
-  animation-play-state: paused;
-}
-/* HO 178: the second (commodities) tape scrolls the opposite direction. The
-   jump-proof geometry (per-symbol pins) and the measured-width duration are
-   direction-agnostic, so flipping animation-direction is all that's needed. */
-.markets-tape-track--reverse {
-  animation-direction: reverse;
-}
-@media (prefers-reduced-motion: reduce) {
-  .markets-tape-track {
-    animation-play-state: paused;
-  }
-}
-.markets-tape-track-half {
-  display: flex;
-  flex-wrap: nowrap;
-  flex: 0 0 auto;
-}
-.markets-tape-track-static {
+/* HO 251: STATIC full-width row. The marquee crawl and all its HO 168/175/179
+   geometry (animation, double-track, per-symbol pin widths, copies) are gone —
+   the 8-symbol trim is what lets a non-crawling strip fit. The symbols spread
+   across the width via space-between; padding-right clears the position:absolute
+   AS OF meta so the last symbol isn't hidden under it. No animation → no
+   reduced-motion exception anymore. */
+.markets-tape-row {
   display: flex;
   flex-wrap: nowrap;
   flex: 1 1 auto;
-  overflow: hidden;
+  align-items: center;
+  justify-content: space-between;
+  /* Clear the position:absolute AS OF meta on the right edge (~"AS OF 7:23 PM
+     UTC" + the optional STALE/CLOSED flag). */
+  padding-right: 200px;
+  overflow: visible;
+  min-width: 0;
+}
+.markets-tape-row--placeholder {
+  justify-content: flex-start;
+  gap: 8px;
 }
 .markets-tape-item {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  /* HO 176: 18px (was 22px) — 44px between tickers read sparse. */
-  padding: 0 18px;
+  gap: 6px;
+  /* HO 176: 18px between tickers; HO 251 trimmed to 10px so the static 8-symbol
+     row fits full-width without clipping at standard desktop widths (the marquee
+     that needed the looser spacing is gone). */
+  padding: 0 10px;
   white-space: nowrap;
   /* HO 175: anchor for the absolutely-positioned hover-detail popover. */
   position: relative;
@@ -3470,9 +3458,9 @@ body {
 .markets-tape-change {
   font-size: 12px;
   letter-spacing: 0.3px;
-  /* Reserved even when empty (flat/stale) so presence never toggles width;
-     uniform across items (every change is ~6ch) so it doesn't read uneven. */
-  min-width: 7ch;
+  /* HO 251: only the 4 daily symbols render this slot now (monthly/kalshi carry
+     null change → no slot). 6ch fits "−0.44%" without padding the row. */
+  min-width: 6ch;
   text-align: right;
 }
 /* HO 175: hover-expand detail popover. position:absolute so it never reflows
@@ -3568,12 +3556,6 @@ body {
 .markets-tape--no-data .markets-tape-price {
   color: var(--text-dim);
 }
-
-@keyframes markets-tape-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
 
 /* ── HO 210: Races/Primaries cartogram index ──────────────────────────── */
 .cart-controls {
