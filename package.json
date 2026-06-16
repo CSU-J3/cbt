@@ -40,6 +40,7 @@
     "sync:rematch": "tsx scripts/sync-primaries.ts --rematch",
     "lead": "tsx scripts/generate-lead.ts",
     "report": "tsx scripts/generate-report.ts",
+    "verify:deploy": "tsx scripts/verify-deploy.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
