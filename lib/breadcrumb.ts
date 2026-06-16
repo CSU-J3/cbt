@@ -1,6 +1,6 @@
 // HO 185 — maps a page's basePath (the route identity every page already hands
 // to HeaderBar) to the PowerShell-path breadcrumb segments rendered in the
-// unified masthead: `Congress Terminal:\ 119TH \ <segments> >_`. Returns the
+// unified masthead: `Congressional Terminal:\ 119TH \ <segments> >_`. Returns the
 // SECTION segments only — the congress root ("119TH") is prepended by
 // BreadcrumbMasthead, and detail-page labels (HR 9081, a member last name, a
 // committee name, …) are appended via `opts.detail` since they need data the

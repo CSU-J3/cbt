@@ -4,7 +4,7 @@ import { getCurrentCongress, ordinal } from "@/lib/congress";
 // HO 185 — the unified PowerShell-path masthead shown on every page (the
 // dashboard via HomeHeader, all other pages via HeaderBar). Renders, with true
 // shell spacing (no spaces around the separators or before the caret):
-//   Congress Terminal:\119TH\<segments>>_   e.g. Congress Terminal:\119TH\Bills\HR 9081>_
+//   Congressional Terminal:\119TH\<segments>>_   e.g. Congressional Terminal:\119TH\Bills\HR 9081>_
 // The path glyphs (`:\`, the `\` separators, the trailing `>`) keep the
 // --accent-amber treatment from HO 162 via `.prompt-accent`; segment text is
 // --text-primary (inherited from `.terminal-prompt`); the blinking `_`

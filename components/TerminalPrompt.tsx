@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-// HO 153 — extracted from HomeHeader's inline `Congress Terminal:\>`
+// HO 153 — extracted from HomeHeader's inline `Congressional Terminal:\>`
 // prompt so /reports can wear the `Reports:\>` spec-6 masthead style
 // without duplicating CSS. Same `.terminal-prompt` / `.prompt-accent`
 // classes (HO 150 styling: mono 18px --text-primary with :\> in

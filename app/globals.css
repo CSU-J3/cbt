@@ -411,7 +411,7 @@ body {
 .terminal-prompt:hover .prompt-accent {
   color: var(--accent-amber-bright);
 }
-/* HO 185 — unified breadcrumb masthead path (`Congress Terminal:\ 119TH \ … >_`).
+/* HO 185 — unified breadcrumb masthead path (`Congressional Terminal:\ 119TH \ … >_`).
    Reuses .terminal-prompt sizing (18px in HeaderBar; 36px on the dashboard via
    the .home-header-prompt-row scope below) but overrides its nowrap/no-shrink so
    a deep path (e.g. Members \ Committees \ <name>) WRAPS on narrow widths rather
@@ -429,7 +429,7 @@ body {
 }
 /* True shell spacing: kill the 2px margin .terminal-prompt .prompt-accent adds
    before each accent glyph (and the caret's margin) so `:\`, the `\` separators,
-   and `>_` sit flush — `Congress Terminal:\119TH\Dashboard>_`. */
+   and `>_` sit flush — `Congressional Terminal:\119TH\Dashboard>_`. */
 .breadcrumb-path .prompt-accent,
 .breadcrumb-path .home-cursor-caret {
   margin-left: 0;
