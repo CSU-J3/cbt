@@ -438,6 +438,26 @@ export const getCorpusStats = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// HO 244: non-ceremonial bills introduced in the trailing 7 days — the NEW
+// BILLS metric on the dashboard weekly band. Same non-ceremonial convention as
+// the other dashboard aggregates; deliberately NOT summary-gated (a brand-new
+// introduction is usually unsummarized, and the band counts arrivals, not
+// summarized arrivals). Cached, tag "bills".
+export const getNewBillsThisWeekCount = unstable_cache(
+  async (): Promise<number> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT COUNT(*) AS n FROM bills
+       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+         AND introduced_date IS NOT NULL
+         AND introduced_date > date('now', '-7 days')`,
+    );
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getNewBillsThisWeekCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 export type TopicCount = {
   topic: Topic;
   count: number;

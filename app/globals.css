@@ -2310,6 +2310,75 @@ body {
   color: var(--text-dim);
 }
 
+/* HO 244 (commit 2) — the weekly band. One full-width line directly under the
+   races panel; the border-top IS the "divider rule above it" from the spec.
+   Folds in the former ENACTED banner (the green segment) and replaces the
+   report snapshot teaser (READ FULL → pushed to the right edge). */
+.weekly-band {
+  border-top: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.weekly-band-weekof {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.weekly-band-sep {
+  color: var(--text-dim);
+}
+.weekly-band-seg {
+  white-space: nowrap;
+}
+.weekly-band-num {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.weekly-band-enacted {
+  color: var(--stage-enacted);
+}
+.weekly-band-enacted .weekly-band-num,
+.weekly-band-dot {
+  color: var(--stage-enacted);
+}
+.weekly-band-ids {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-sm);
+  margin-left: 4px;
+}
+.weekly-band-id {
+  color: var(--stage-enacted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.weekly-band-id:hover {
+  color: var(--text-primary);
+}
+.weekly-band-id--more {
+  color: var(--text-muted);
+}
+.weekly-band-readfull {
+  margin-left: auto;
+  color: var(--accent-amber);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.weekly-band-readfull:hover {
+  color: var(--accent-amber-bright);
+}
+
 @media (max-width: 700px) {
   .report-row,
   .report-header-row {

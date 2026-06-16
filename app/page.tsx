@@ -8,11 +8,10 @@ import {
   DashboardTopicTreemap,
   type TopicDatum,
 } from "@/components/DashboardTopicTreemap";
-import { EnactedBanner } from "@/components/EnactedBanner";
 import { HomeHeader } from "@/components/HomeHeader";
-import { ReportSnapshot } from "@/components/ReportSnapshot";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
+import { WeeklyBand } from "@/components/WeeklyBand";
 import {
   type DashboardFilters,
   getBreakingNewsForHomeCount,
@@ -83,20 +82,22 @@ export default async function DashboardPage({
       <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
-        {/* HO 178 decision 2: the HO 153 weekly-report snapshot stays a
-            full-width band above the 56/44 grid (the spec didn't relocate it).
-            Returns null when zero reports exist, leaving the slot empty. */}
-        <div className="home-snapshot-slot">
-          <ReportSnapshot />
-        </div>
+        {/* HO 244 (commit 2): races moved to FULL WIDTH directly under the
+            header (was the right-column top in HO 178). Both COMPETITIVE /
+            PRIMARIES tabs (HO 233 RacesPanelTabs) move with it; no internal
+            card changes. */}
+        <CompetitiveRacesBlock />
 
-        {/* HO 232 (design item 6): ENACTED THIS WEEK band, directly under the
-            weekly-report snapshot and above the grid. Always renders — the N=0
-            state is intentionally visible (muted). */}
-        <EnactedBanner />
+        {/* HO 244 (commit 2): the weekly band — full-width, directly under
+            races, divider rule above (its border-top). Replaces the HO 153
+            ReportSnapshot teaser AND folds in the HO 232 standalone
+            EnactedBanner (both removed). */}
+        <WeeklyBand />
 
-        {/* HO 178: 56/44 two-column body. LEFT (56%): BREAKING → STAGE →
-            TOPIC. RIGHT (44%): COMPETITIVE RACES (2×2 hover) → ACTIVITY. */}
+        {/* HO 244 (commit 2): two-column body below the weekly band. LEFT
+            (56%): BREAKING → STAGE → TOPIC (the two distribution panels merge
+            into one tabbed panel in commit 3). RIGHT (44%): the feed
+            (MOVERS / TOP STALLS), now the only thing in the right column. */}
         <div className="home-grid">
           {/* LEFT column (56%) */}
           <div className="home-col-stack home-col-left">
@@ -147,13 +148,9 @@ export default async function DashboardPage({
             </section>
           </div>
 
-          {/* RIGHT column (44%) — dims to 0.4 while a BREAKING row is hovered
-              (HO 178: the overrun headline pops over it). */}
+          {/* RIGHT column (44%) — the feed. Dims to 0.4 while a BREAKING row is
+              hovered (HO 178: the overrun headline pops over it). */}
           <div className="home-col-stack home-col-right">
-            {/* HO 178: races moved from a full-width strip into the right
-                column; stage 4 converts it to a 2×2 grid + hover popover. */}
-            <CompetitiveRacesBlock />
-
             <section className="home-quadrant">
               <ActivityTabs
                 activityContent={<ActivityTicker filters={filters} />}
