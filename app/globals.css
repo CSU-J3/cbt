@@ -902,6 +902,19 @@ body {
   margin-left: 4px;
 }
 
+/* HO 244 (commit 3) — merged STAGE | TOPIC distributions panel. The body is a
+   FIXED height so the dense funnel and the (shorter, 4:1) treemap occupy the
+   same vertical space — the tab swap never jumps. Only the active pane is
+   mounted (DistributionsTabs), so the treemap renders at the panel width on
+   activation. flex column so StageFunnel's flex:1 fills the height; the treemap
+   sits top-aligned at its natural aspect (area-honest, not stretched). */
+.distributions-panel-body {
+  height: 230px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* HO 133 cap-with-expander footer. Replaces the prior
    .activity-ticker-footer pattern on BREAKING + ACTIVITY surfaces. The
    chrome is intentionally heavier than a textual "view all" footer

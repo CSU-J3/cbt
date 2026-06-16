@@ -2,12 +2,12 @@ import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
-import { StageKey } from "@/components/ColorKeyStrip";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
 import {
   DashboardTopicTreemap,
   type TopicDatum,
 } from "@/components/DashboardTopicTreemap";
+import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HomeHeader } from "@/components/HomeHeader";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
@@ -117,34 +117,17 @@ export default async function DashboardPage({
               <BreakingNewsBlock filters={filters} />
             </section>
 
-            <section className="home-quadrant home-panel-stage">
-              <p
-                className="home-quadrant-label"
-                title="All bills by current legislative stage"
-              >
-                Stage Distribution
-              </p>
-              {/* HO 167: STAGES key sits with the funnel it decodes — under
-                  the label, above the body, so it's visible without scrolling
-                  past the chart. */}
-              <StageKey />
-              <div className="home-quadrant-body">
-                <StageFunnel bars={stageDist.bars} />
-              </div>
-            </section>
-
-            <section className="home-quadrant home-panel-topic">
-              <p
-                className="home-quadrant-label"
-                title="All bills by topic tag"
-              >
-                Topic Distribution
-              </p>
-              {/* HO 180: the TOPICS group legend (TopicKey) was removed — bubbles
-                  are now per-topic colored and the hover popover decodes them. */}
-              <div className="home-quadrant-body">
-                <DashboardTopicTreemap data={topicData} />
-              </div>
+            {/* HO 244 (commit 3): the STAGE + TOPIC panels merge into ONE
+                tabbed panel (STAGE DISTRIBUTION | TOPIC DISTRIBUTION, amber
+                underline active) at a fixed compact height so the bars stay
+                dense and the tab swap doesn't jump. The stage pane drops its
+                StageKey legend — the funnel bars self-label. Neither chart is
+                rebuilt. */}
+            <section className="home-quadrant home-panel-distributions">
+              <DistributionsTabs
+                stageContent={<StageFunnel bars={stageDist.bars} />}
+                topicContent={<DashboardTopicTreemap data={topicData} />}
+              />
             </section>
           </div>
 
