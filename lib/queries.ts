@@ -446,8 +446,16 @@ export const getCorpusStats = unstable_cache(
 export const getNewBillsThisWeekCount = unstable_cache(
   async (): Promise<number> => {
     const db = getDb();
+    // HO 246: forced INDEXED BY idx_bills_introduced_date (introduced_date,
+    // is_ceremonial). Turso is statless (no ANALYZE), so without the hint the
+    // planner drives off idx_bills_is_ceremonial — the (=0 OR IS NULL) OR
+    // matches ~every row, so it post-filters introduced_date over ~16k rows
+    // (~6.8s warm, tipping the 10s DB_REQUEST_TIMEOUT cold: the HO 245
+    // cold-start 500). The hint range-scans the selective last-7-days slice and
+    // reads is_ceremonial from the same index (covering). Safe only because the
+    // query always constrains introduced_date — keep that clause if editing.
     const rs = await db.execute(
-      `SELECT COUNT(*) AS n FROM bills
+      `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date
        WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
          AND introduced_date IS NOT NULL
          AND introduced_date > date('now', '-7 days')`,

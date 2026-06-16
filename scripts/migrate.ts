@@ -516,6 +516,19 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_cluster_id ON bills(cluster_id)",
   );
   console.log("ok: idx_bills_cluster_id");
+  // HO 246: cover getNewBillsThisWeekCount's introduced_date filter. Before
+  // this, the only bills dashboard aggregate NOT on a covering index — the
+  // planner drove off idx_bills_is_ceremonial (the (=0 OR IS NULL) OR matches
+  // ~every row) and post-filtered introduced_date, ~6.8s warm and tipping the
+  // 10s DB_REQUEST_TIMEOUT cold (the HO 245 cold-start 500). Composite
+  // (introduced_date, is_ceremonial) so the COUNT is index-only (covering):
+  // range-scan the selective last-7-days slice, read is_ceremonial from the
+  // index. The query carries an INDEXED BY hint (lib/queries.ts) because Turso
+  // is statless (no ANALYZE) and otherwise still picks idx_bills_is_ceremonial.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_introduced_date ON bills(introduced_date, is_ceremonial)",
+  );
+  console.log("ok: idx_bills_introduced_date");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
