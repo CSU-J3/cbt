@@ -3,79 +3,107 @@ import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { MarketsTape } from "@/components/MarketsTape";
 import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
-import { getCorpusStats, getDashboardLead } from "@/lib/queries";
+import { getCorpusStats, getStageDistribution } from "@/lib/queries";
+import type { Stage } from "@/lib/enums";
 
-// Home-only header chrome. HO 178 reflow:
-//   Masthead row: brand prompt (36px desktop hero) + the META line stacked on
-//     the LEFT (fixed width); the weekly-summary LEAD prose sits
-//     to the RIGHT, fills the remaining width, full-wrap (NO clamp), and the row
-//     height follows the prose when it runs taller than the title block. The
-//     blinking `_` cursor rides the end of the prose. Below 700px the prose is
-//     removed and the cursor rides the end of the title (`Congress Terminal:\>_`).
-//   Tapes: two counter-scrolling markets tapes (equities one way, commodities/
-//     macro the other) between the masthead and the nav.
-//   Nav: full-width strip — 14px text, 16px icons, active = amber-bright + 2px
-//     amber bottom border.
+// Home-only header chrome. HO 244 redesign (commit 1):
+//   Line 1: the 20px brand path (`Congressional Terminal:\119TH\Dashboard>`)
+//     with, baseline-aligned after it, a 14px STAT READOUT — total + the four
+//     headline stage counts, each number in its own color token. The blinking
+//     amber cursor rides the END of the readout (desktop only).
+//   Line 2 (under the brand): `· LAST SYNC <cycling stamp>` at 11px. The total
+//     used to live here ("· N BILLS TRACKED") — it moved into the readout, so
+//     the meta line is sync-only now (no double-print of the corpus total).
+//   Tape: a single combined <MarketsTape /> between the masthead and the nav
+//     (HO 234). Nav: the shared text-only path PrimaryNav (HO 230).
+//
+// The prose lead-in (getDashboardLead) was REMOVED here — the stat readout +
+// the weekly band (commit 2) carry the glance answer, and the narrative
+// survives via the weekly band's READ FULL → report. getDashboardLead() and
+// its cron are intentionally LEFT INTACT (still generated each tick); they just
+// render nowhere now. ORPHAN / cleanup-candidate — see HO 244 ship report.
+//
+// Readout predicate (Phase-1 check 2): total = getCorpusStats (non-ceremonial,
+// includes unsummarized); the four segment counts = getStageDistribution.bars
+// (same non-ceremonial set — getStageDistribution.total + offPath ===
+// getCorpusStats.total by construction), so the readout is internally coherent.
+// The dashboard↔inner-page divergence (inner pages also gate summary IS NOT
+// NULL) is the pre-existing one the masthead-coherence diagnostic owns; not
+// aligned here.
 export async function HomeHeader() {
-  const [corpus, lead] = await Promise.all([
+  const [corpus, stageDist] = await Promise.all([
     getCorpusStats(),
-    getDashboardLead(),
+    getStageDistribution(),
   ]);
+
+  const stageCount = (stage: Stage) =>
+    stageDist.bars.find((b) => b.stage === stage)?.count ?? 0;
+  const committee = stageCount("committee");
+  const floor = stageCount("floor");
+  const otherChamber = stageCount("other_chamber");
+  const enacted = stageCount("enacted");
 
   return (
     <header className="home-header">
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            {/* HO 185 adopted the shared breadcrumb path masthead
-                (`Congress Terminal:\119TH\Dashboard>_`), sized to the 36px hero
-                via the .home-header-prompt-row scope. HO 230 (item 7): the
-                blinking caret moved to the END of the lead-in prose (below) — the
-                masthead's built-in caret is suppressed (`cursor={false}`), and a
-                <700 fallback caret rides the path end here (the lead is hidden
-                <700, so the caret falls back to the title). Exactly one caret at
-                any width: `.home-cursor-title` is CSS-gated hidden ≥700 / shown
-                <700, the prose caret rides its hidden-<700 parent. */}
+            {/* HO 244: the brand drops to 20px (was the 36px HO 162 hero) so the
+                stat readout fits baseline-aligned after it. cursor={false} — the
+                single caret now rides the readout end (below), not the path. */}
             <BreadcrumbMasthead segments={["Dashboard"]} cursor={false} />
-            <span className="home-cursor-caret home-cursor-title" aria-hidden>
-              _
-            </span>
+
+            <p className="home-stat-readout">
+              <span className="stat-num stat-total">
+                {corpus.total.toLocaleString()}
+              </span>{" "}
+              bills tracked
+              <span className="stat-sep"> · </span>
+              <span className="stat-num stat-committee">
+                {committee.toLocaleString()}
+              </span>{" "}
+              in committee
+              <span className="stat-sep"> · </span>
+              <span className="stat-num stat-floor">
+                {floor.toLocaleString()}
+              </span>{" "}
+              on the floor
+              <span className="stat-sep"> · </span>
+              <span className="stat-num stat-other">
+                {otherChamber.toLocaleString()}
+              </span>{" "}
+              other chamber
+              <span className="stat-sep"> · </span>
+              <span className="stat-num stat-enacted">
+                {enacted.toLocaleString()}
+              </span>{" "}
+              enacted
+              {/* Desktop-only blinking caret at the readout's end. */}
+              <span
+                className="home-cursor-caret home-readout-caret"
+                aria-hidden
+              >
+                _
+              </span>
+            </p>
           </div>
 
-          {/* HO 157: subhead holds 11px at all bands; below 700px it
-              abbreviates to `· HH:MM <ZONE> · N BILLS` by dropping the
-              LAST SYNC / TRACKED affixes via .show-desktop (no size change).
-              HO 183: the time token now cycles through US zones (ET→CT→MT→PT→
-              UTC) via CyclingTimestamp — the third named motion exception;
-              still cycles <700px (plain text, no cost). */}
+          {/* HO 157/183: 11px sync line; the time token cycles US zones
+              (ET→CT→MT→PT→UTC) via CyclingTimestamp — the third named motion
+              exception. Below 700px it drops the LAST SYNC affix via
+              .show-desktop. The corpus total moved up into the readout. */}
           <p className="home-header-meta">
             ·{" "}
             <span className="show-desktop">LAST SYNC </span>
-            <CyclingTimestamp iso={corpus.lastSync} /> ·{" "}
-            {corpus.total.toLocaleString()} BILLS
-            <span className="show-desktop"> TRACKED</span>
+            <CyclingTimestamp iso={corpus.lastSync} />
           </p>
         </div>
-
-        {/* HO 178: LEAD prose to the RIGHT of the path — full-wrap, no clamp,
-            grows the row taller as the window narrows. Removed entirely <700px
-            (`.home-header-lead { display:none }`). HO 185: its trailing caret is
-            gone — the single caret now lives at the breadcrumb path's `>_`. */}
-        <p className="home-header-lead">
-          {lead?.text ?? ""}
-          <span className="home-cursor-caret" aria-hidden>
-            _
-          </span>
-        </p>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      {/* HO 234 (design item 1): the dashboard's HO 178/185 dual counter-scrolling
-          tapes collapsed to ONE combined line — the full symbol set, single AS OF
-          stamp, single direction — uniform with every other page (HeaderBar mounts
-          the same single <MarketsTape />). The cycling-zone stamp + HO 175 jump-
-          proofing live in MarketsTapeClient and ride this single line. */}
+      {/* HO 234: one combined markets tape line (same single <MarketsTape />
+          HeaderBar mounts), between the masthead and the nav. */}
       <MarketsTape />
 
       <PrimaryNav active="dashboard" variant="home" />

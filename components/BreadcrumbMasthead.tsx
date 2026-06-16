@@ -35,9 +35,9 @@ export function BreadcrumbMasthead({
       <Link
         href="/"
         className="breadcrumb-root"
-        aria-label="Congress Terminal — dashboard"
+        aria-label="Congressional Terminal — dashboard"
       >
-        Congress Terminal<span className="prompt-accent">{":\\"}</span>
+        Congressional Terminal<span className="prompt-accent">{":\\"}</span>
       </Link>
       {parts.map((seg, i) => (
         <span key={`${i}-${seg}`}>

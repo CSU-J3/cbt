@@ -380,29 +380,17 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
 }
-/* HO 178: brand + the <700 title-cursor as one unit so the cursor sits tight
-   against `:\>` without the prompt-row's flex gap between them. */
-.home-header-brand {
-  display: inline-flex;
-  align-items: baseline;
-  min-width: 0;
-}
-/* The title-end cursor only appears <700px, where the prose (and its own
-   cursor) are removed — see the <700 rule below. HO 179: compound selector
-   (0,2,0) so it beats the base `.home-cursor-caret { display:inline-block }`
-   (0,1,0, defined later in the file) — otherwise BOTH cursors show at >=700. */
-.home-cursor-caret.home-cursor-title {
-  display: none;
-}
-/* HO 162: the prompt row now holds the 36px brand hero + the `?` legend
-   badge, vertically centered. The LEAD moved out to its own block below
-   (it used to share this row's baseline with the prompt). */
+/* HO 244: the prompt row holds the 20px brand path + the stat readout,
+   baseline-aligned (the brand drops from the HO 162 36px hero so the readout
+   fits after it). flex-wrap so the readout drops below the brand on narrow
+   widths rather than overflowing. */
 .home-header-prompt-row {
   display: flex;
-  align-items: center;
-  gap: var(--space-md);
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
   min-width: 0;
 }
 .terminal-prompt {
@@ -446,34 +434,59 @@ body {
 .breadcrumb-path .home-cursor-caret {
   margin-left: 0;
 }
-/* HO 162: the dashboard brand is the page hero at 36px on desktop. Scoped to
-   .home-header-prompt-row so the shared page-masthead .terminal-prompt on
-   other routes stays 18px, and gated >=1024 so the <700 grow-to-24px rule and
-   the 700-1023px 18px base are untouched. */
-@media (min-width: 1024px) {
-  .home-header-prompt-row .terminal-prompt {
-    font-size: 36px;
-  }
-  /* HO 230 (item 7): drop the lead's first line to the 36px brand's cap height
-     (not its line-box top, which left the small prose floating up by the
-     ascent). Scoped to the desktop hero — at 700-1023 the brand is 18px and the
-     two top-align fine without a nudge. */
-  .home-header-lead {
-    margin-top: 9px;
-  }
+/* HO 244: the dashboard brand drops from the HO 162 36px hero to 20px (the new
+   header type scale: title 20 / readout + nav 14 / tape + sync 11) so the stat
+   readout sits baseline-aligned after it on one line. word-spacing:-6px tightens
+   the "Congressional Terminal" gap (the only space in the path — the rest is
+   backslash-joined; dashboard-scoped so other routes' breadcrumb segments with
+   spaces, e.g. "HR 9081", aren't squeezed). Scoped to .home-header-prompt-row so
+   the shared HeaderBar breadcrumb stays 18px. */
+.home-header-prompt-row .terminal-prompt {
+  font-size: 20px;
+  word-spacing: -6px;
 }
-/* HO 178: lead prose sits to the RIGHT of the title and FULL-WRAPS — no clamp,
-   no ellipsis, no max-width cap. It fills the remaining masthead width and grows
-   the row taller as the window narrows. The blinking caret rides its end. The
-   HO 162 stacked-below layout + the 3/2/1 line-clamp media queries are retired.
-   Slightly larger than the old 15px per spec (13-14px range → 14px). */
-.home-header-lead {
-  flex: 1;
+/* HO 244: stat readout — sits baseline-aligned after the 20px brand on line 1
+   (replaces the HO 178 lead prose, now removed). 14px; connective words muted so
+   the colored numbers carry the glance. Each number takes its stage/party token
+   inline (set below). Wraps below the brand on narrow widths via the prompt
+   row's flex-wrap. */
+.home-stat-readout {
   min-width: 0;
   font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+.home-stat-readout .stat-num {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.home-stat-readout .stat-sep {
+  color: var(--text-dim);
+}
+.home-stat-readout .stat-total {
+  color: var(--party-democrat);
+}
+.home-stat-readout .stat-committee {
+  color: var(--party-republican);
+}
+.home-stat-readout .stat-floor {
+  color: var(--accent-amber-bright);
+}
+.home-stat-readout .stat-other {
+  color: var(--stage-other-chamber);
+}
+.home-stat-readout .stat-enacted {
+  color: var(--stage-enacted);
+}
+/* Desktop-only blinking caret at the readout's end. <700 the readout wraps and
+   the trailing caret would float oddly mid-stack — drop it there (the dashboard
+   keeps its caret only at desktop widths now). */
+@media (max-width: 700px) {
+  .home-readout-caret {
+    display: none;
+  }
 }
 /* Single-glyph cursor blink — the dashboard's "sole motion exception"
    alongside the HO 149 tape marquee. step-end so the blink is a hard
@@ -492,7 +505,7 @@ body {
   margin-top: var(--space-xs);
   font-size: 11px;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--text-dim);
   text-transform: uppercase;
 }
 /* Full-width nav row sibling of .home-header-top. Per the cleanup
@@ -930,24 +943,8 @@ body {
   .home-header {
     padding: var(--space-md);
   }
-  /* HO 157: the prompt grow is scoped to the dashboard hero only. The
-     per-page page-masthead reuses .terminal-prompt but must NOT grow — it
-     ships a GroupTabs strip directly beneath it, and two stacked growing
-     heroes would eat the top of a phone viewport. It holds at 18px. */
-  .home-header-prompt-row .terminal-prompt {
-    font-size: 24px;
-  }
-  /* HO 178: <700 — remove the LEAD prose (and its caret); the blinking cursor
-     instead rides the end of the title (`Congress Terminal:\>_`). This is the
-     intended relaxation of HO 157's no-motion-<1024 rule: one blinking
-     underscore, while the tapes stay hidden <700. */
-  .home-header-lead {
-    display: none;
-  }
-  /* HO 179: compound selector to match the >=700 hide rule's specificity. */
-  .home-cursor-caret.home-cursor-title {
-    display: inline-block;
-  }
+  /* HO 244: the brand holds at 20px across all bands (the readout sits below it
+     via the prompt row's flex-wrap on narrow widths). */
   .home-main {
     padding: var(--space-md);
   }
