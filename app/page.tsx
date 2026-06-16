@@ -9,12 +9,14 @@ import {
 } from "@/components/DashboardTopicTreemap";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HomeHeader } from "@/components/HomeHeader";
+import { NewThisWeek } from "@/components/NewThisWeek";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
   type DashboardFilters,
   getBreakingNewsForHomeCount,
+  getNewBillsThisWeekCount,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
@@ -52,7 +54,7 @@ export default async function DashboardPage({
     topic: sanitizeTopic(sp.topics),
   };
 
-  const [breakingCount, activityCount, stageDist, topicRows] =
+  const [breakingCount, activityCount, newBillsCount, stageDist, topicRows] =
     await Promise.all([
       getBreakingNewsForHomeCount({
         hours: 72,
@@ -60,6 +62,7 @@ export default async function DashboardPage({
         filters,
       }),
       getStageChangesCount({}, 7, filters),
+      getNewBillsThisWeekCount(),
       getStageDistribution(filters),
       getTopicDistribution(filters),
     ]);
@@ -138,8 +141,10 @@ export default async function DashboardPage({
               <ActivityTabs
                 activityContent={<ActivityTicker filters={filters} />}
                 stallsContent={<TopStalls />}
+                newContent={<NewThisWeek />}
                 activityCount={activityCount.total}
                 stallsCount={TOP_STALLS_COUNT}
+                newCount={newBillsCount}
               />
             </section>
           </div>

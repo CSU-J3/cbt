@@ -466,6 +466,37 @@ export const getNewBillsThisWeekCount = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+export const getNewBillsThisWeek = unstable_cache(
+  async (limit = 5): Promise<FeedBill[]> => {
+    const db = getDb();
+    // HO 249: row list for the NEW THIS WEEK feed tab. EXACT same predicate as
+    // getNewBillsThisWeekCount above — non-ceremonial, introduced in the last 7
+    // days — so the tab-label count and this list can't drift. Forced INDEXED
+    // BY idx_bills_introduced_date for the same reason the count is (HO 246):
+    // Turso is statless, so the planner else drives off idx_bills_is_ceremonial
+    // and scans the corpus. Safe only because the WHERE always constrains
+    // introduced_date — keep that clause if editing. ORDER BY introduced_date
+    // DESC rides the same index (reverse range walk), no temp sort.
+    const sql = `SELECT id, congress, bill_type, bill_number, title,
+      sponsor_name, sponsor_party, sponsor_state, introduced_date,
+      latest_action_date, latest_action_text, update_date,
+      summary, topics, stage, stage_changed_at,
+      ${MENTION_SELECT}
+      FROM bills INDEXED BY idx_bills_introduced_date
+      ${MENTION_SUBQUERY}
+      WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+        AND introduced_date IS NOT NULL
+        AND introduced_date > date('now', '-7 days')
+      ORDER BY introduced_date DESC
+      LIMIT ?`;
+
+    const rs = await db.execute({ sql, args: [limit] });
+    return rs.rows.map(rowToFeedBill);
+  },
+  ["getNewBillsThisWeek"],
+  { revalidate: 3600, tags: ["bills", "news-breaking"] },
+);
+
 export type TopicCount = {
   topic: Topic;
   count: number;

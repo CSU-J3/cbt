@@ -8,6 +8,12 @@
 // per-bill cache, and BillExpandedPanel's own /api/bill/[id]/panel fetch. The
 // panel is a block sibling of the row inside the <li> (the grid lives on the
 // row div), so it spans full width without grid-column gymnastics.
+//
+// HO 249 — generalized so the NEW THIS WEEK tab reuses this exact row (no
+// bespoke fork). `daysFrom` picks the right-aligned Xd metric's source:
+// "action" = days since latest_action_date with the staleness color thresholds
+// (TOP STALLS, the default); "intro" = days since introduced_date in a neutral
+// color (NEW THIS WEEK — newness isn't an alarm, so no threshold ramp).
 import { BillExpandedPanel } from "@/components/BillExpandedPanel";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import { BILL_TYPE_LABELS } from "@/lib/enums";
@@ -28,13 +34,23 @@ function chipChamberClass(billType: string): string {
   return SENATE_TYPES.has(billType) ? "bill-chip--senate" : "bill-chip--house";
 }
 
-export function TopStallsList({ bills }: { bills: FeedBill[] }) {
+export function TopStallsList({
+  bills,
+  daysFrom = "action",
+}: {
+  bills: FeedBill[];
+  daysFrom?: "action" | "intro";
+}) {
   const { expandedId, toggle, panelCache, handleLoaded } = useSingleOpenPanel();
 
   return (
     <ul>
       {bills.map((b) => {
-        const days = daysSince(b.latest_action_date);
+        const days = daysSince(
+          daysFrom === "intro" ? b.introduced_date : b.latest_action_date,
+        );
+        const dayColor =
+          daysFrom === "intro" ? "var(--text-secondary)" : daysColor(days);
         const label = formatBillId(b.bill_type, b.bill_number);
         const isOpen = expandedId === b.id;
         return (
@@ -69,7 +85,7 @@ export function TopStallsList({ bills }: { bills: FeedBill[] }) {
               </span>
               <span
                 className="text-right text-[13px] tabular-nums"
-                style={{ color: daysColor(days) }}
+                style={{ color: dayColor }}
               >
                 {days}d
               </span>

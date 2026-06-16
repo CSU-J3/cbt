@@ -19,18 +19,27 @@ import { type ReactNode, useState } from "react";
 // together in the future log-accrual handoff (stage_transitions, planted
 // write-only in this same HO). The activityContent/Count props keep their
 // names — they're the parent's wiring contract, not the tab's identity.
-type Tab = "movers" | "stalls";
+//
+// HO 249: third tab NEW THIS WEEK added (newContent/newCount), completing
+// the redesign spec's MOVERS / TOP STALLS / NEW THIS WEEK feed. newCount is
+// getNewBillsThisWeekCount — the same window its row list uses, so the label
+// can't drift from the rows. Still data-fetch-free here; content is wired in.
+type Tab = "movers" | "stalls" | "new";
 
 export function ActivityTabs({
   activityContent,
   stallsContent,
+  newContent,
   activityCount,
   stallsCount,
+  newCount,
 }: {
   activityContent: ReactNode;
   stallsContent: ReactNode;
+  newContent: ReactNode;
   activityCount: number;
   stallsCount: number;
+  newCount: number;
 }) {
   const [tab, setTab] = useState<Tab>("movers");
 
@@ -39,7 +48,7 @@ export function ActivityTabs({
       <nav
         className="search-tabs breaking-stalls-tabs"
         role="tablist"
-        aria-label="Movers or top stalls"
+        aria-label="Movers, top stalls, or new this week"
       >
         <button
           type="button"
@@ -59,10 +68,23 @@ export function ActivityTabs({
           Top Stalls
           <span className="count">({stallsCount.toLocaleString()})</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-current={tab === "new" ? "page" : undefined}
+          onClick={() => setTab("new")}
+        >
+          New This Week
+          <span className="count">({newCount.toLocaleString()})</span>
+        </button>
       </nav>
 
       <div className="flex flex-1 flex-col min-h-0">
-        {tab === "movers" ? activityContent : stallsContent}
+        {tab === "movers"
+          ? activityContent
+          : tab === "stalls"
+            ? stallsContent
+            : newContent}
       </div>
     </div>
   );
