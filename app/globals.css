@@ -2312,6 +2312,37 @@ body {
     grid-template-columns: 1fr;
   }
 }
+/* HO 245 (commit 2): on wide desktops the full-width races panel puts the 4
+   toss-up cards in ONE balanced row (was 2×2, which read sparse at full width).
+   2-up is the fallback below 1200px so the cards never crush on a narrower
+   laptop; <700 stays 1-up (mobile is a separate pass). Card width lands ~280px
+   (1200) → ~460px (1920) — no longer the ~675px floaters of the 2×2.
+   The popover confinement (HO 230) is keyed to the 2×2 (data-col/data-row set
+   by index in the TSX) and assumes a tall 2-row panel. In the single row those
+   no longer map to screen position and a downward popover would clip the short
+   row, so here: let it escape the pane, force downward open, and re-derive the
+   horizontal direction from actual column (nth-child). The 2-up/1-up paths keep
+   the original 2×2 confinement untouched. */
+@media (min-width: 1200px) {
+  .competitive-races-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .home-races-pane {
+    overflow: visible;
+  }
+  .competitive-race-cell[data-row="bottom"] .competitive-race-popover {
+    top: calc(100% + 6px);
+    bottom: auto;
+  }
+  .competitive-race-cell:nth-child(-n + 2) .competitive-race-popover {
+    left: 0;
+    right: auto;
+  }
+  .competitive-race-cell:nth-child(n + 3) .competitive-race-popover {
+    left: auto;
+    right: 0;
+  }
+}
 
 /* HO 233 — PRIMARIES tab on the races panel (design item 8). The tab body holds
    a stable min-height so toggling COMPETITIVE/PRIMARIES doesn't shift the right
