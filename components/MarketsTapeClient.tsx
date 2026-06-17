@@ -226,6 +226,7 @@ export function MarketsTapeClient({
   ticks,
   placeholderSymbols,
   showMeta = true,
+  kind = "markets",
 }: {
   ticks: MarketTick[];
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
@@ -235,6 +236,10 @@ export function MarketsTapeClient({
   // only the bottom tape shows the single shared stamp (top passes false).
   // Single-tape pages keep the default.
   showMeta?: boolean;
+  // HO 253: "signals" strips (Kalshi odds + monthly econ) have no market-hours
+  // close — they never wash/flag CLOSED and right-pin a green LIVE dot. STALE
+  // (a dead cron, 26h) still wins over LIVE.
+  kind?: "markets" | "signals";
 }) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
@@ -318,9 +323,11 @@ export function MarketsTapeClient({
 
   // HO 234: market-hours CLOSED signal, recomputed off the same minute `now` tick
   // so the strip flips live at 9:30/16:00 ET without a reload. STALE wins — a
-  // broken pipeline must not read as a healthy closed wash.
-  const closed =
-    useMemo(() => !isMarketOpen(new Date(now)), [now]) && !stripStale;
+  // broken pipeline must not read as a healthy closed wash. HO 253: a "signals"
+  // strip never closes (prediction/econ series run 24/7), so force it false —
+  // this also keeps every item out of the per-item closed wash below.
+  const marketHoursClosed = useMemo(() => !isMarketOpen(new Date(now)), [now]);
+  const closed = kind === "signals" ? false : marketHoursClosed && !stripStale;
 
   // HO 251: per-symbol state. Monthly (CPI/UNEMP) washes only when its print is
   // genuinely overdue (>~40d) — never just for not moving; daily/kalshi follow the
@@ -410,6 +417,16 @@ export function MarketsTapeClient({
             AS OF {formatInZone(latestTickedAt, zone)}
             {stripStale ? (
               <span className="markets-tape-stale-flag"> · STALE</span>
+            ) : kind === "signals" ? (
+              // HO 253: prediction/econ signals never close — a static green LIVE
+              // dot stands in for the MARKETS strip's · CLOSED.
+              <span className="markets-tape-live-flag">
+                {" · "}
+                <span className="markets-tape-live-dot" aria-hidden>
+                  ●
+                </span>{" "}
+                LIVE
+              </span>
             ) : closed ? (
               <span className="markets-tape-closed-flag"> · CLOSED</span>
             ) : null}

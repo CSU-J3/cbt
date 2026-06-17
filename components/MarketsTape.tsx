@@ -17,9 +17,21 @@ import { getLatestMarketTicks } from "@/lib/queries";
 export async function MarketsTape({
   group,
   showMeta = true,
+  symbols,
+  kind = "markets",
 }: {
   group?: MarketGroup;
   showMeta?: boolean;
+  // HO 253: the v2 two-tape split. `symbols` is an explicit internal-symbol
+  // allowlist (e.g. ["SPX","NDQ","TNX","WTI"]); when present it overrides the
+  // `group` filter and ALSO drives render ORDER (the client lays symbols out in
+  // this exact sequence), so MARKETS reads S&P / NASDAQ / 10Y / WTI and SIGNALS
+  // reads SHUTDOWN / FEDCUT / CPI / UNEMP regardless of MARKET_SYMBOLS order.
+  symbols?: readonly string[];
+  // `kind="signals"` tells the client this strip has no market-hours close
+  // (prediction + monthly-econ series run 24/7): it never washes/flags CLOSED
+  // and right-pins a green LIVE dot instead. STALE (dead cron) still applies.
+  kind?: "markets" | "signals";
 } = {}) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
@@ -27,15 +39,23 @@ export async function MarketsTape({
   } catch {
     // Swallow — the client falls through to the no-data state below.
   }
-  const groupTicks = group ? ticks.filter((t) => t.group === group) : ticks;
-  const placeholderSymbols = MARKET_SYMBOLS.filter(
-    (s) => !group || s.group === group,
-  ).map((s) => s.internal);
+  const symbolSet = symbols ? new Set(symbols) : null;
+  const groupTicks = symbolSet
+    ? ticks.filter((t) => symbolSet.has(t.symbol))
+    : group
+      ? ticks.filter((t) => t.group === group)
+      : ticks;
+  const placeholderSymbols = symbols
+    ? [...symbols]
+    : MARKET_SYMBOLS.filter((s) => !group || s.group === group).map(
+        (s) => s.internal,
+      );
   return (
     <MarketsTapeClient
       ticks={groupTicks}
       placeholderSymbols={placeholderSymbols}
       showMeta={showMeta}
+      kind={kind}
     />
   );
 }

@@ -361,6 +361,12 @@ export type StageDistribution = {
 export const getStageDistribution = unstable_cache(
   async (
     filters?: DashboardFilters,
+    // HO 253: gate on `summary IS NOT NULL` for the v2 read path so the v2
+    // masthead's four stage segments and the v2 body's stage chart sum to the
+    // same summary-gated corpus total as getCorpusStats(true). `/` calls this
+    // ungated, unchanged. No new args in the SQL — the clause is a literal — so
+    // the existing placeholder/arg ordering is untouched.
+    summaryGated = false,
   ): Promise<{
     bars: StageDistribution[];
     offPath: number;
@@ -372,13 +378,14 @@ export const getStageDistribution = unstable_cache(
       ? " AND EXISTS (SELECT 1 FROM json_each(bills.topics) WHERE value = ?)"
       : "";
     const topicArgs = topic ? [topic] : [];
+    const summaryClause = summaryGated ? " AND summary IS NOT NULL" : "";
 
     const placeholders = FUNNEL_STAGES.map(() => "?").join(", ");
     const rs = await db.execute({
       sql: `SELECT stage, COUNT(*) AS count
             FROM bills
             WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
-              AND stage IN (${placeholders})${topicClause}
+              AND stage IN (${placeholders})${summaryClause}${topicClause}
             GROUP BY stage`,
       args: [...FUNNEL_STAGES, ...topicArgs],
     });
@@ -402,7 +409,7 @@ export const getStageDistribution = unstable_cache(
     const offRs = await db.execute({
       sql: `SELECT COUNT(*) AS n FROM bills
             WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
-              AND (stage = 'other' OR stage IS NULL)${topicClause}`,
+              AND (stage = 'other' OR stage IS NULL)${summaryClause}${topicClause}`,
       args: [...topicArgs],
     });
     return {
@@ -421,13 +428,21 @@ export type CorpusStats = {
 };
 
 // Feeds the dashboard HeaderBar's "N bills tracked · last sync HH:MM MT" line.
+//
+// HO 253: `summaryGated` is the v2 corpus-count predicate. `/`'s HomeHeader calls
+// this with no arg (non-ceremonial, summary-or-not — the pre-existing dashboard
+// number); Dashboard v2 calls getCorpusStats(true) to add `summary IS NOT NULL`,
+// matching buildFeedWhere so the v2 readout agrees with the inner pages it links
+// to. unstable_cache keys on the arg, so the two variants get separate slots and
+// the live `/` number is untouched.
 export const getCorpusStats = unstable_cache(
-  async (): Promise<CorpusStats> => {
+  async (summaryGated = false): Promise<CorpusStats> => {
     const db = getDb();
+    const summaryClause = summaryGated ? " AND summary IS NOT NULL" : "";
     const rs = await db.execute(
       `SELECT COUNT(*) AS total, MAX(update_date) AS last_sync
        FROM bills
-       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)`,
+       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)${summaryClause}`,
     );
     const r = rs.rows[0];
     return {
@@ -512,16 +527,22 @@ export type TopicCount = {
 // `filters.stage` narrows the counts to bills at that stage. `filters.topic`
 // is NOT applied here — it only drives the component's selection state.
 export const getTopicDistribution = unstable_cache(
-  async (filters?: DashboardFilters): Promise<TopicCount[]> => {
+  async (
+    filters?: DashboardFilters,
+    // HO 253: v2 reads this summary-gated too, so the body's TOPIC panel draws
+    // from the same corpus as the gated headline total. `/` calls it ungated.
+    summaryGated = false,
+  ): Promise<TopicCount[]> => {
     const db = getDb();
     const stage = filters?.stage;
     const stageClause = stage ? " AND bills.stage = ?" : "";
     const stageArgs = stage ? [stage] : [];
+    const summaryClause = summaryGated ? " AND bills.summary IS NOT NULL" : "";
     const rs = await db.execute({
       sql: `SELECT je.value AS topic, COUNT(*) AS count
        FROM bills, json_each(bills.topics) je
        WHERE bills.topics IS NOT NULL
-         AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)${stageClause}
+         AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)${summaryClause}${stageClause}
        GROUP BY je.value
        ORDER BY count DESC`,
       args: [...stageArgs],

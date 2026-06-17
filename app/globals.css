@@ -611,6 +611,42 @@ body {
   min-height: 0;
 }
 
+/* ── HO 253: Dashboard v2 shell (the /dashboard-v2 route only) ───────────────
+   v2 reuses the home-* header, quadrant, weekly-band, and tape classes wholesale;
+   only three things are net-new here: the two-tape stack border collapse, and the
+   49/51 body grid (vs `/`'s 56/44 .home-grid). Scoped to dv2-* so `/` is
+   untouched. */
+.dv2-tapes {
+  display: flex;
+  flex-direction: column;
+}
+/* Two bordered strips stacked would double the rule between them (first's
+   border-bottom + second's border-top). Drop the second's top border so the pair
+   reads as one chrome block with a single divider between MARKETS and SIGNALS. */
+.dv2-tapes .markets-tape + .markets-tape {
+  border-top: none;
+}
+/* Design delta 4: left column 49% (was 56% on `/`). align-items:start so the two
+   columns take their natural heights and finish near the same line. */
+.dv2-grid {
+  display: grid;
+  grid-template-columns: 49fr 51fr;
+  gap: var(--space-lg);
+  align-items: start;
+  min-height: 0;
+}
+/* Mirror the HO 178 cross-column hover-overrun: the breaking row's full-headline
+   overlay spills rightward and the feed dims behind it. */
+.dv2-grid:has(.breaking-row:hover) .dv2-col-right {
+  opacity: 0.4;
+  transition: opacity 120ms ease;
+}
+@media (max-width: 900px) {
+  .dv2-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* HO 178 — BREAKING compact rows + cross-column hover-overrun.
    The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
    full-headline overlay can spill rightward across the gutter into the races
@@ -3549,6 +3585,16 @@ body {
    "broken." */
 .markets-tape-closed-flag {
   color: var(--ticker-closed);
+}
+/* HO 253: the SIGNALS strip's right-pin — a static green LIVE dot in place of
+   the MARKETS strip's · CLOSED (prediction + monthly-econ series run 24/7). The
+   dot is the green --market-up; the LIVE word stays muted like the AS OF stamp.
+   Not blinking — no new motion (the caret + tapes remain the only exceptions). */
+.markets-tape-live-flag {
+  color: var(--text-dim);
+}
+.markets-tape-live-dot {
+  color: var(--market-up);
 }
 .markets-tape--stale .markets-tape-symbol,
 .markets-tape--stale .markets-tape-price,
