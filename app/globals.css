@@ -2601,6 +2601,181 @@ body {
   color: var(--party-republican);
 }
 
+/* HO 257 — Dashboard v2 feed (MOVERS / TOP STALLS / NEW THIS WEEK) rows +
+   rich expand, per the docs/dashboard-2col mock's MOVERS box. v2-specific
+   (V2FeedList); `/`'s feed keeps the old BillRowList/TopStallsList. Prose
+   inherits the app's mono (no --sans in CBT); labels/ids stay mono. */
+.v2f-group.open {
+  background: var(--bg-row-hover);
+}
+.v2f-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 13px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+.v2f-row:hover {
+  background: var(--bg-row-hover);
+}
+.v2f-id {
+  font-size: 11px;
+  color: var(--accent-amber);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.v2f-id.house {
+  border-color: var(--rail-house);
+}
+.v2f-id.senate {
+  border-color: var(--rail-senate);
+}
+.v2f-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.v2f-metric {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.v2f-metric .v2f-ar {
+  color: var(--text-dim);
+}
+.v2f-chev {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+.v2f-group.open .v2f-chev {
+  color: var(--accent-amber);
+}
+.v2f-exp {
+  padding: 4px 16px 16px;
+  background: var(--bg-row-hover);
+  border-top: 1px solid var(--border-soft);
+}
+.v2f-topics {
+  font-size: 9px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  padding: 10px 0 12px;
+}
+.v2f-topics .v2f-tp {
+  color: var(--text-muted);
+}
+.v2f-topics .v2f-tp-sep {
+  color: var(--border-strong);
+  margin: 0 7px;
+}
+.v2f-grid {
+  display: grid;
+  grid-template-columns: 1fr 210px;
+  gap: 18px;
+}
+.v2f-pipe {
+  display: flex;
+  align-items: center;
+  margin-bottom: 13px;
+}
+.v2f-pn {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+  border: 2px solid var(--bg-row-hover);
+}
+.v2f-pc {
+  flex: 1;
+  height: 2px;
+}
+.v2f-pn.pcd,
+.v2f-pc.pcd {
+  background: var(--stage-enacted);
+}
+.v2f-pn.todo,
+.v2f-pc.pct {
+  background: var(--border-strong);
+}
+.v2f-pn.cur {
+  background: var(--stage-floor);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+.v2f-summary {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+.v2f-news {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 11px;
+}
+.v2f-news .v2f-nh {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.v2f-news .v2f-ni {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-bottom: 7px;
+  display: flex;
+  gap: 8px;
+}
+.v2f-news .v2f-ni .v2f-src {
+  font-size: 9px;
+  color: var(--text-dim);
+  flex: none;
+  padding-top: 2px;
+}
+.v2f-news .v2f-ni a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.v2f-news .v2f-ni a:hover {
+  color: var(--accent-amber-bright);
+}
+.v2f-side .v2f-sk {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin: 0 0 3px;
+}
+.v2f-side .v2f-sv {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.v2f-side .v2f-sv.mono {
+  font-size: 11px;
+}
+.v2f-side .v2f-sv-sub {
+  color: var(--text-dim);
+}
+.v2f-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.v2f-btns a {
+  font-size: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 6px 10px;
+  text-decoration: none;
+}
+.v2f-btns a:hover {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber-bright);
+}
+
 .dash-prim {
   display: flex;
   flex-direction: column;

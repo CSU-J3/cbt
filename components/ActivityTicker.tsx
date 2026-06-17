@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
+import { V2FeedList } from "@/components/V2FeedList";
 import {
   type DashboardFilters,
   getStageChanges,
@@ -20,8 +21,12 @@ const CAP = 5;
 // in either direction, topic narrows via json_each.
 export async function ActivityTicker({
   filters,
+  variant,
 }: {
   filters?: DashboardFilters;
+  // HO 257: "v2" renders the mock-matching V2FeedList (rich rows + expand);
+  // default keeps the `/` dashboard's compact BillRowList untouched.
+  variant?: "v2";
 }) {
   const [bills, counts, watchedIds] = await Promise.all([
     getStageChanges({}, 7, CAP, filters),
@@ -39,6 +44,8 @@ export async function ActivityTicker({
         >
           No stage changes in the last 7 days.
         </div>
+      ) : variant === "v2" ? (
+        <V2FeedList bills={bills} metricMode="movers" />
       ) : (
         // HO 164: compact rows that expand into the full BillExpandedPanel,
         // single-open within this tab (resets when you switch to TOP STALLS).

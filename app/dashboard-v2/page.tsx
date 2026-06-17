@@ -115,9 +115,9 @@ export default async function DashboardV2Page() {
           <div className="home-col-stack dv2-col-right">
             <section className="home-quadrant">
               <ActivityTabs
-                activityContent={<ActivityTicker />}
-                stallsContent={<TopStalls />}
-                newContent={<NewThisWeek />}
+                activityContent={<ActivityTicker variant="v2" />}
+                stallsContent={<TopStalls variant="v2" />}
+                newContent={<NewThisWeek variant="v2" />}
                 activityCount={activityCount.total}
                 stallsCount={TOP_STALLS_COUNT}
                 newCount={newBillsCount}

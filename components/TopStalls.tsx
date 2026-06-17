@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopStallsList } from "@/components/TopStallsList";
+import { V2FeedList } from "@/components/V2FeedList";
 import { getStaleBills } from "@/lib/queries";
 
 // HO 126 — home-page quadrant answering "what's stuck?" Pairs with
@@ -24,7 +25,7 @@ import { getStaleBills } from "@/lib/queries";
 
 const ROW_LIMIT = 5;
 
-export async function TopStalls() {
+export async function TopStalls({ variant }: { variant?: "v2" }) {
   const bills = await getStaleBills({}, ROW_LIMIT);
 
   if (bills.length === 0) {
@@ -40,7 +41,11 @@ export async function TopStalls() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <TopStallsList bills={bills} />
+      {variant === "v2" ? (
+        <V2FeedList bills={bills} metricMode="stalls" />
+      ) : (
+        <TopStallsList bills={bills} />
+      )}
       <Link href="/stale" className="home-expander">
         [ View all stale → ]
       </Link>

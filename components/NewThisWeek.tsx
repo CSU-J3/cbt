@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopStallsList } from "@/components/TopStallsList";
+import { V2FeedList } from "@/components/V2FeedList";
 import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
 
 // HO 249 — the third dashboard feed tab (MOVERS / TOP STALLS / NEW THIS WEEK),
@@ -13,7 +14,7 @@ import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
 // TopStallsList island.
 const ROW_LIMIT = 5;
 
-export async function NewThisWeek() {
+export async function NewThisWeek({ variant }: { variant?: "v2" }) {
   const [bills, total] = await Promise.all([
     getNewBillsThisWeek(ROW_LIMIT),
     getNewBillsThisWeekCount(),
@@ -33,7 +34,11 @@ export async function NewThisWeek() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <TopStallsList bills={bills} daysFrom="intro" />
+      {variant === "v2" ? (
+        <V2FeedList bills={bills} metricMode="new" />
+      ) : (
+        <TopStallsList bills={bills} daysFrom="intro" />
+      )}
       <Link href="/bills?sort=introduced" className="home-expander">
         {remaining > 0
           ? `[ + ${remaining.toLocaleString()} more → ]`
