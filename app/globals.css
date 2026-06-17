@@ -2515,6 +2515,17 @@ body {
 .cm-dot-wrap[data-chamber="house"] .cm-dot {
   border-radius: 2px;
 }
+/* HO 260 — battlefield marker cross-highlight (paired with .race-card.hl via
+   RaceCrossHighlight). The dot grows + gains an amber ring; the label lifts to
+   amber-bright (!important to beat the inline per-party color the dot/label
+   carry — the dot keeps its party fill, only the ring + label change). */
+.cm.hl .cm-dot {
+  transform: translateX(-50%) scale(1.35);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3);
+}
+.cm.hl .cm-lbl {
+  color: var(--accent-amber-bright) !important;
+}
 .cm-tick {
   position: absolute;
   top: 21px;
@@ -2599,6 +2610,198 @@ body {
 }
 .cm-pop-rt-r {
   color: var(--party-republican);
+}
+
+/* HO 260 — v2 COMPETITIVE rich race cards (the mock's `.race-card`). v2-only
+   (CompetitiveRacesStrip variant="v2"); `/` keeps the 2×2 popover cards. The
+   mock's --party-dem/--party-rep map to the app's --party-democrat/-republican;
+   the name stays mono (HO 257 established CBT has no --sans), distinguished by
+   size + --text-primary. .hl is the card↔battlefield-marker cross-highlight. */
+.race-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1100px) {
+  .race-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .race-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.race-card {
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 14px;
+  background: var(--bg-base);
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+.race-card.hot {
+  border-color: var(--accent-amber);
+}
+/* Cross-highlight (hover the card OR its battlefield marker). */
+.race-card.hl {
+  border-color: var(--accent-amber-bright);
+  box-shadow: 0 0 0 1px var(--accent-amber-bright);
+}
+.rc-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.rc-seat {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.07em;
+}
+.rc-margin {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.rc-inc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.rc-dot8 {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.rc-nm {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.rc-tag {
+  margin-left: auto;
+  font-size: 8.5px;
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 2px 5px;
+  letter-spacing: 0.5px;
+}
+/* HO 221 open-seat treatment: amber OPEN where INCUMBENT would sit. */
+.rc-tag-open {
+  color: var(--accent-amber-bright);
+  border-color: var(--accent-amber);
+}
+.rc-sub {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  padding-left: 16px;
+}
+.sb-wrap {
+  margin-bottom: 9px;
+}
+.sb-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.sb {
+  position: relative;
+  height: 16px;
+}
+.sb-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(59, 130, 246, 0.5),
+    rgba(100, 116, 139, 0.25) 50%,
+    rgba(239, 68, 68, 0.5)
+  );
+}
+.sb-cent {
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  width: 1px;
+  height: 10px;
+  background: var(--border-strong);
+}
+.sb-band {
+  position: absolute;
+  top: 5px;
+  height: 6px;
+  background: rgba(229, 231, 235, 0.16);
+  border-radius: 3px;
+}
+.sb-rater {
+  position: absolute;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  border: 1.5px solid var(--bg-base);
+  transform: translateX(-50%);
+}
+.sb-mkt {
+  position: absolute;
+  top: -2px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 1;
+}
+/* ◇ Kalshi (hollow, muted) vs ◆ Polymarket (solid, amber) — handoff semantics. */
+.sb-mkt-kals {
+  color: var(--text-muted);
+}
+.sb-mkt-poly {
+  color: var(--accent-amber-bright);
+}
+.rc-raters {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+.rc-diverge {
+  display: inline-block;
+  font-size: 8.5px;
+  color: var(--accent-amber-bright);
+  border: 1px solid var(--accent-amber);
+  border-radius: 2px;
+  padding: 1px 5px;
+  margin-top: 5px;
+}
+.rc-stats {
+  display: flex;
+  gap: 14px;
+  border-top: 1px solid var(--border-soft);
+  padding-top: 11px;
+  margin-top: auto;
+}
+.rc-stat {
+  flex: 1;
+}
+.rc-stat-k {
+  font-size: 8.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+.rc-stat-v {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 /* HO 257 — Dashboard v2 feed (MOVERS / TOP STALLS / NEW THIS WEEK) rows +

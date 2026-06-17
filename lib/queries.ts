@@ -21,6 +21,7 @@ import {
 } from "./enums";
 import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
 import type { ChamberControl, KalshiOdds } from "./kalshi";
+import type { PolymarketOdds } from "./polymarket";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
 // feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
@@ -1808,6 +1809,11 @@ export type RaceIndexRow = {
   // S-KY, which has only primary markets) — render nothing, same null-safe
   // absence as cash/margin.
   kalshiOdds: KalshiOdds | null;
+  // HO 260: per-seat Polymarket market odds (Senate seats — HO 256 writes 34/35),
+  // LEFT JOIN'd 1:1 from polymarket_odds. null when Polymarket runs no live seat
+  // market (every House seat — Polymarket only covers Senate — and the one
+  // uncovered Senate seat). Drives the v2 rich card's Polymarket diamond + cell.
+  polymarketOdds: PolymarketOdds | null;
   // Per-source ratings; null when that rater rated it Solid/Safe (and
   // therefore wasn't seeded) or hasn't rated the seat at all.
   cookRating: string | null;
@@ -1865,6 +1871,14 @@ export const getRacesIndex = unstable_cache(
                    ko.favorite_party AS ko_favorite_party,
                    ko.open_interest AS ko_open_interest,
                    ko.close_time AS ko_close_time,
+                   pm.implied_pct AS pm_implied_pct,
+                   pm.slug AS pm_slug,
+                   pm.favorite_label AS pm_favorite_label,
+                   pm.favorite_is_party AS pm_favorite_is_party,
+                   pm.favorite_party AS pm_favorite_party,
+                   pm.volume AS pm_volume,
+                   pm.liquidity AS pm_liquidity,
+                   pm.end_date AS pm_end_date,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
                    MAX(CASE WHEN rr.source = 'cook' THEN rr.rating_score END) AS cook_score,
                    MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
@@ -1877,6 +1891,7 @@ export const getRacesIndex = unstable_cache(
             LEFT JOIN member_fundraising mf
                    ON mf.bioguide_id = r.incumbent_bioguide_id AND mf.cycle = r.cycle
             LEFT JOIN kalshi_odds ko ON ko.race_id = r.id
+            LEFT JOIN polymarket_odds pm ON pm.race_id = r.id
             WHERE r.cycle = ?
             GROUP BY r.id`,
       args: [cycle],
@@ -1956,6 +1971,22 @@ export const getRacesIndex = unstable_cache(
                     ? null
                     : Number(row.ko_open_interest),
                 closeTime: (row.ko_close_time as string | null) ?? null,
+              },
+        polymarketOdds:
+          row.pm_implied_pct == null
+            ? null
+            : {
+                raceId: row.id as string,
+                slug: (row.pm_slug as string | null) ?? "",
+                impliedPct: Number(row.pm_implied_pct),
+                favoriteLabel: (row.pm_favorite_label as string | null) ?? "",
+                favoriteIsParty: Number(row.pm_favorite_is_party) === 1,
+                favoriteParty:
+                  (row.pm_favorite_party as "D" | "R" | "I" | null) ?? null,
+                volume: row.pm_volume == null ? null : Number(row.pm_volume),
+                liquidity:
+                  row.pm_liquidity == null ? null : Number(row.pm_liquidity),
+                endDate: (row.pm_end_date as string | null) ?? null,
               },
         cookRating,
         sabatoRating,

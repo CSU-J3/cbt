@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RaceCard } from "@/components/RaceCard";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import { RatingChip } from "@/components/RatingChip";
 import type {
@@ -8,6 +9,7 @@ import type {
   PrimaryWithCandidates,
   Race,
   RaceCandidate,
+  RaceIndexRow,
 } from "@/lib/queries";
 
 // HO 178 — the dashboard competitive-races surface, reflowed into a 2×2 grid in
@@ -56,10 +58,30 @@ function partyColor(party: PartyKey | null): string {
 export function CompetitiveRacesStrip({
   races,
   hubs,
+  // HO 260: v2 renders the rich race cards (the mock's `.race-card`) from the
+  // getRacesIndex rows aligned to `races`. `/` keeps the default variant — the
+  // 2×2 hover-popover cards below — untouched.
+  variant = "default",
+  rich,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
+  variant?: "default" | "v2";
+  rich?: (RaceIndexRow | null)[];
 }) {
+  if (variant === "v2") {
+    return (
+      <div className="race-grid">
+        {races.map((race, i) => {
+          const row = rich?.[i] ?? null;
+          // Every competitive seat is in getRacesIndex (the 61-seat ABS<=1 set ⊂
+          // the 137-seat rated set), so `row` resolves; the guard is belt-and-
+          // suspenders for an unrated edge.
+          return row ? <RaceCard key={race.raceId} row={row} /> : null;
+        })}
+      </div>
+    );
+  }
   return (
     <div className="competitive-races-grid">
       {races.map((race, i) => {

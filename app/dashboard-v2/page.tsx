@@ -82,7 +82,7 @@ export default async function DashboardV2Page() {
         {/* Full-width races strip directly under the header. HO 254 opts the
             D↔R battlefield axis in at the top of the COMPETITIVE tab (above the
             card grid, which is unchanged). `/` leaves it off. */}
-        <CompetitiveRacesBlock showBattlefield />
+        <CompetitiveRacesBlock showBattlefield variant="v2" />
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />

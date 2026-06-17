@@ -2,6 +2,7 @@ import { Battlefield } from "@/components/Battlefield";
 import { CompetitiveRacesStrip } from "@/components/CompetitiveRacesStrip";
 import type { RaceHubData } from "@/components/CompetitiveRacesStrip";
 import { DashboardPrimaries } from "@/components/DashboardPrimaries";
+import { RaceCrossHighlight } from "@/components/RaceCrossHighlight";
 import { RacesPanelTabs } from "@/components/RacesPanelTabs";
 import {
   type CompetitiveRace,
@@ -10,6 +11,7 @@ import {
   getMostCompetitiveRaces,
   getRace,
   getRaceCandidates,
+  getRacesIndex,
   getRunoffsForRace,
 } from "@/lib/queries";
 
@@ -45,15 +47,32 @@ export async function CompetitiveRacesBlock({
   // the extra getBattlefieldSeats query never runs for it. The card grid is
   // untouched either way.
   showBattlefield = false,
+  // HO 260: v2 renders the rich race cards (the mock's `.race-card`) instead of
+  // the 2×2 hover-popover cards. Default keeps `/` on the popover cards.
+  variant = "default",
 }: {
   cycle?: number;
   showBattlefield?: boolean;
+  variant?: "default" | "v2";
 }) {
   const pool = await getMostCompetitiveRaces(cycle, POOL);
   const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
   const house = pool.filter((r) => !isSenate(r)).slice(0, PER_CHAMBER);
   const races = [...senate, ...house]; // Senate-led order
   if (races.length === 0) return null;
+
+  // HO 260: for the v2 rich cards, pull the full rated-seat index (cached, tag
+  // `races`) and align each of the 4 cards to its rich row (incumbent join +
+  // cash + margin + 3 ratings + Kalshi + Polymarket). The 4 competitive seats
+  // are a subset of the 137 rated, so every lookup resolves.
+  const richRows =
+    variant === "v2"
+      ? await (async () => {
+          const index = await getRacesIndex(cycle);
+          const byId = new Map(index.map((r) => [r.raceId, r]));
+          return races.map((r) => byId.get(r.raceId) ?? null);
+        })()
+      : undefined;
 
   // Fetch each race's hub (race row + incumbent + candidates + runoffs) so the
   // hover popover renders from props. Mirrors /api/race/[id]/hub exactly; all
@@ -83,19 +102,32 @@ export async function CompetitiveRacesBlock({
 
   const primariesCount = primariesData.strip.reduce((s, p) => s + p.count, 0);
 
+  const strip = (
+    <CompetitiveRacesStrip
+      races={races}
+      hubs={hubs}
+      variant={variant}
+      rich={richRows}
+    />
+  );
+
+  // HO 260: v2 wraps the battlefield + rich cards in RaceCrossHighlight so a
+  // card hover lights its battlefield marker and vice versa (matched on the
+  // shared `data-seat` = raceId). `/` keeps its plain strip (no battlefield, no
+  // cross-highlight).
   return (
     <RacesPanelTabs
       competitiveContent={
         showBattlefield ? (
-          <>
+          <RaceCrossHighlight>
             <Battlefield
               cycle={cycle}
               featuredIds={races.map((r) => r.raceId)}
             />
-            <CompetitiveRacesStrip races={races} hubs={hubs} />
-          </>
+            {strip}
+          </RaceCrossHighlight>
         ) : (
-          <CompetitiveRacesStrip races={races} hubs={hubs} />
+          strip
         )
       }
       primariesContent={<DashboardPrimaries data={primariesData} />}
