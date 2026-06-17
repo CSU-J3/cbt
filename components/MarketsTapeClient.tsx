@@ -22,7 +22,7 @@
 // arrow + change slots, so item width is invariant to values → track width is
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isMarketOpen } from "@/lib/market-hours";
 import type { MarketTick } from "@/lib/queries";
 import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
@@ -57,6 +57,11 @@ const PRICE_SLOT_CH: Record<string, number> = {
   WTI: 6,
 };
 const DEFAULT_PRICE_SLOT_CH = 8;
+
+// HO 258: marquee scroll speed (px/sec), count-agnostic (HO 168 lesson) — the
+// animation duration is derived from the measured half-width / this, so a 4-symbol
+// SIGNALS strip and an 8-symbol set crawl at the same visual pace.
+const SCROLL_SPEED_PX_S = 42;
 
 // HO 251 monthly-overdue threshold: a monthly print older than this reads as a
 // genuinely stalled series (the next month's release is well past due), so it
@@ -227,6 +232,7 @@ export function MarketsTapeClient({
   placeholderSymbols,
   showMeta = true,
   kind = "markets",
+  scroll = false,
 }: {
   ticks: MarketTick[];
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
@@ -240,6 +246,12 @@ export function MarketsTapeClient({
   // close — they never wash/flag CLOSED and right-pin a green LIVE dot. STALE
   // (a dead cron, 26h) still wins over LIVE.
   kind?: "markets" | "signals";
+  // HO 258: restore the marquee crawl, scoped to v2's two tapes. Default false =
+  // the HO 251 static full-width row (so `/` + inner pages stay static and are
+  // NOT regressed). When true, the items render in a transform-animated double-
+  // track (seamless -50% loop, hover-pause, reduced-motion-safe via CSS). The
+  // CLOSED/LIVE/STALE meta + right-pin stay outside the scrolling track.
+  scroll?: boolean;
 }) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
@@ -298,6 +310,34 @@ export function MarketsTapeClient({
       window.clearInterval(id);
     };
   }, [ownSymbols]);
+
+  // HO 258: marquee geometry. Measure ONE set's width + the container width, then
+  // fill each of the two animated halves with enough copies to span the viewport
+  // (so a short SIGNALS set has no gap before the wrap) and derive the duration
+  // from the half-width so the pace is count-agnostic (HO 168). Set widths are
+  // value-invariant (HO 175/176 PRICE_SLOT_CH + always-render slots), so a poll
+  // never changes the geometry → the -50% loop can't jump. Re-measures on resize.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const setRef = useRef<HTMLDivElement>(null);
+  const [reps, setReps] = useState(2);
+  const [durationS, setDurationS] = useState(28);
+  useEffect(() => {
+    if (!scroll) return;
+    const measure = () => {
+      const setEl = setRef.current;
+      const cont = containerRef.current;
+      if (!setEl || !cont) return;
+      const setW = setEl.getBoundingClientRect().width;
+      const contW = cont.getBoundingClientRect().width;
+      if (setW < 1) return;
+      const r = Math.max(2, Math.ceil(contW / setW) + 1);
+      setReps(r);
+      setDurationS((r * setW) / SCROLL_SPEED_PX_S);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [scroll, currentTicks]);
 
   // HO 251: STRIP-level staleness = tape-wide on the freshest tickedAt. Catches a
   // fully-dead cron (nothing ticked in 26h → whole strip washes + AS OF · STALE).
@@ -403,36 +443,80 @@ export function MarketsTapeClient({
     );
   });
 
+  const metaNode = showMeta ? (
+    <div className="markets-tape-meta">
+      <span className="markets-tape-stamp">
+        AS OF {formatInZone(latestTickedAt, zone)}
+        {stripStale ? (
+          <span className="markets-tape-stale-flag"> · STALE</span>
+        ) : kind === "signals" ? (
+          // HO 253: prediction/econ signals never close — a static green LIVE
+          // dot stands in for the MARKETS strip's · CLOSED.
+          <span className="markets-tape-live-flag">
+            {" · "}
+            <span className="markets-tape-live-dot" aria-hidden>
+              ●
+            </span>{" "}
+            LIVE
+          </span>
+        ) : closed ? (
+          <span className="markets-tape-closed-flag"> · CLOSED</span>
+        ) : null}
+      </span>
+    </div>
+  ) : null;
+
+  // HO 258: marquee (v2 only). Two animated halves, each `reps` copies of the
+  // ordered set, translateX 0 → -50% so the second half lands exactly where the
+  // first began — a seamless, gapless wrap. Hover-pause + reduced-motion live in
+  // CSS. The meta sits outside the track (absolute, solid bg) so CLOSED/LIVE/STALE
+  // + the right-pin stay put while the items scroll behind it.
+  if (scroll) {
+    return (
+      <div
+        ref={containerRef}
+        className={`markets-tape markets-tape--scroll${
+          stripStale ? " markets-tape--stale" : ""
+        }${closed ? " markets-tape--closed" : ""}`}
+        aria-label="Markets"
+      >
+        <div
+          className="markets-tape-track"
+          style={{ animationDuration: `${durationS}s` }}
+        >
+          {[0, 1].map((half) => (
+            <div className="markets-tape-half" key={half}>
+              {Array.from({ length: reps }).map((_, i) => {
+                const canonical = half === 0 && i === 0;
+                return (
+                  <div
+                    key={i}
+                    className="markets-tape-set"
+                    ref={canonical ? setRef : undefined}
+                    aria-hidden={canonical ? undefined : true}
+                  >
+                    {items}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+        {metaNode}
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={containerRef}
       className={`markets-tape markets-tape--static${
         stripStale ? " markets-tape--stale" : ""
       }${closed ? " markets-tape--closed" : ""}`}
       aria-label="Markets"
     >
       <div className="markets-tape-row">{items}</div>
-      {showMeta ? (
-        <div className="markets-tape-meta">
-          <span className="markets-tape-stamp">
-            AS OF {formatInZone(latestTickedAt, zone)}
-            {stripStale ? (
-              <span className="markets-tape-stale-flag"> · STALE</span>
-            ) : kind === "signals" ? (
-              // HO 253: prediction/econ signals never close — a static green LIVE
-              // dot stands in for the MARKETS strip's · CLOSED.
-              <span className="markets-tape-live-flag">
-                {" · "}
-                <span className="markets-tape-live-dot" aria-hidden>
-                  ●
-                </span>{" "}
-                LIVE
-              </span>
-            ) : closed ? (
-              <span className="markets-tape-closed-flag"> · CLOSED</span>
-            ) : null}
-          </span>
-        </div>
-      ) : null}
+      {metaNode}
     </div>
   );
 }

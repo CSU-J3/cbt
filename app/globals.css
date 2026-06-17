@@ -3833,6 +3833,52 @@ body {
   justify-content: flex-start;
   gap: 8px;
 }
+/* HO 258: marquee crawl, RESTORED for v2's two tapes (gated by
+   .markets-tape--scroll). The HO 251 static .markets-tape-row path above is
+   untouched, so `/` + inner pages stay static — this only adds the animated
+   variant. Geometry: two halves, each `reps` copies of the ordered set
+   (measured client-side to span the viewport), animated translateX 0 → -50%, so
+   the second half lands exactly where the first began — a seamless, gapless
+   wrap with no seam jump. width:max-content + per-symbol fixed slot widths (the
+   surviving HO 175/176 fix) keep the track width value-invariant, so a 60s poll
+   can't shift the -50% offset (the bug 175 fixed; never reintroduced). Duration
+   is set inline from the measured half-width / SCROLL_SPEED_PX_S (count-agnostic,
+   HO 168). Hover pauses (so the item hover-popover anchors to a still target);
+   reduced-motion stops it. The AS OF meta is a sibling outside the track
+   (absolute, solid --bg-panel bg, z-index above), so the CLOSED/LIVE/STALE flag
+   + right-pin stay put while items scroll behind it. */
+.markets-tape-track {
+  display: flex;
+  flex: none;
+  width: max-content;
+  align-items: center;
+  animation-name: markets-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.markets-tape-track:hover {
+  animation-play-state: paused;
+}
+.markets-tape-half,
+.markets-tape-set {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+@keyframes markets-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .markets-tape-track {
+    animation: none;
+  }
+}
 .markets-tape-item {
   display: inline-flex;
   align-items: center;

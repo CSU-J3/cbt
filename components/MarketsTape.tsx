@@ -19,6 +19,7 @@ export async function MarketsTape({
   showMeta = true,
   symbols,
   kind = "markets",
+  scroll = false,
 }: {
   group?: MarketGroup;
   showMeta?: boolean;
@@ -32,6 +33,9 @@ export async function MarketsTape({
   // (prediction + monthly-econ series run 24/7): it never washes/flags CLOSED
   // and right-pins a green LIVE dot instead. STALE (dead cron) still applies.
   kind?: "markets" | "signals";
+  // HO 258: opt into the marquee crawl (v2's two tapes). Default static so `/`
+  // and inner pages stay on the HO 251 static row.
+  scroll?: boolean;
 } = {}) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
@@ -56,6 +60,7 @@ export async function MarketsTape({
       placeholderSymbols={placeholderSymbols}
       showMeta={showMeta}
       kind={kind}
+      scroll={scroll}
     />
   );
 }

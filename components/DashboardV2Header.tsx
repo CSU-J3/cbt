@@ -90,10 +90,11 @@ export function DashboardV2Header({
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      {/* Two stacked tapes — MARKETS (closes) over SIGNALS (always LIVE). */}
+      {/* Two stacked tapes — MARKETS (closes) over SIGNALS (always LIVE). HO 258:
+          each its own marquee (scroll), per Design's two-tape spec. */}
       <div className="dv2-tapes">
-        <MarketsTape symbols={MARKETS_TAPE} kind="markets" />
-        <MarketsTape symbols={SIGNALS_TAPE} kind="signals" />
+        <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll />
+        <MarketsTape symbols={SIGNALS_TAPE} kind="signals" scroll />
       </div>
 
       <PrimaryNav active="dashboard" variant="home" />
