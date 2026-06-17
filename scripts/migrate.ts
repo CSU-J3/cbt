@@ -230,6 +230,28 @@ const statements = [
     close_time TEXT,
     updated_at TEXT NOT NULL
   )`,
+  // HO 256: per-seat Polymarket Senate odds, parallel to kalshi_odds. Source is
+  // the Gamma read API (gamma-api.polymarket.com, public/no-auth, egress-
+  // reachable — HO 255 probe). Per-seat Senate coverage is 34/35 seats (only AL
+  // absent). `slug` is the Gamma event slug (~ kalshi's event_ticker). volume +
+  // liquidity (event-level, USD) are stored as REAL so a downstream card can
+  // flag thin markets; true ghosts are excluded at fetch. favorite_is_party=1
+  // for a bare party-word outcome; favorite_party is set from a "(R)" suffix or
+  // party word, null for a name-only label (resolved at render). Written by the
+  // same per-seat odds cron as kalshi (/api/cron/kalshi). Loose race_id link.
+  `CREATE TABLE IF NOT EXISTS polymarket_odds (
+    race_id TEXT PRIMARY KEY,
+    cycle INTEGER NOT NULL,
+    slug TEXT NOT NULL,
+    implied_pct INTEGER NOT NULL,
+    favorite_label TEXT NOT NULL,
+    favorite_is_party INTEGER NOT NULL,
+    favorite_party TEXT,
+    volume REAL,
+    liquidity REAL,
+    end_date TEXT,
+    updated_at TEXT NOT NULL
+  )`,
   // handoff 71: race ratings from third-party forecasters (Cook v1; Sabato
   // and Inside Elections layer in later as additional rows). Composite id
   // = race_id-source so re-seeding upserts in place. race_id is a loose

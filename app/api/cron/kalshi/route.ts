@@ -11,6 +11,7 @@ import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
 import { fetchChamberControl, fetchKalshiSeatOdds } from "@/lib/kalshi";
+import { fetchPolymarketSeatOdds } from "@/lib/polymarket";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -79,10 +80,52 @@ async function handle(request: Request) {
       args: [JSON.stringify(control), now],
     });
 
+    // HO 256: per-seat Polymarket Senate odds, parallel to kalshi_odds. A scan
+    // of all 35 Senate-2026 seats by Gamma slug (~34 hit today). Non-fatal — a
+    // Polymarket failure leaves the prior polymarket_odds in place and never
+    // breaks the Kalshi write above. Batched upsert, same as kalshi_odds.
+    let polySeats = 0;
+    try {
+      const poly = await fetchPolymarketSeatOdds();
+      polySeats = poly.length;
+      const polyStmts = poly.map((p) => ({
+        sql: `INSERT INTO polymarket_odds
+                (race_id, cycle, slug, implied_pct, favorite_label,
+                 favorite_is_party, favorite_party, volume, liquidity, end_date, updated_at)
+              VALUES (?, 2026, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(race_id) DO UPDATE SET
+                slug = excluded.slug,
+                implied_pct = excluded.implied_pct,
+                favorite_label = excluded.favorite_label,
+                favorite_is_party = excluded.favorite_is_party,
+                favorite_party = excluded.favorite_party,
+                volume = excluded.volume,
+                liquidity = excluded.liquidity,
+                end_date = excluded.end_date,
+                updated_at = excluded.updated_at`,
+        args: [
+          p.raceId,
+          p.slug,
+          p.impliedPct,
+          p.favoriteLabel,
+          p.favoriteIsParty ? 1 : 0,
+          p.favoriteParty,
+          p.volume,
+          p.liquidity,
+          p.endDate,
+          now,
+        ],
+      }));
+      if (polyStmts.length > 0) await db.batch(polyStmts, "write");
+    } catch (err) {
+      console.warn("[cron/kalshi] polymarket fetch failed (non-fatal):", err);
+    }
+
     revalidateTag("races");
     return {
       payload: {
         seats: odds.length,
+        polymarketSeats: polySeats,
         house: control.house,
         senate: control.senate,
       },
