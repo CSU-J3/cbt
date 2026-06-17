@@ -106,6 +106,88 @@ function formatChangePct(pct: number): string {
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
 }
 
+// HO 259: the meeting/deadline MONTH for a dual-source label ("FED CUT JUL"),
+// derived from the primary tick's resolution date — no new data.
+function monthAbbrUpper(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d
+    .toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
+    .toUpperCase();
+}
+
+// HO 259: a dual-source SIGNALS pair. `primary` is the Kalshi symbol (the "K"
+// half), `secondary` the Polymarket symbol (the "P" half). The secondary is
+// fetched/polled like any symbol but is NOT drawn standalone — it renders inside
+// the primary's item. `label` is the base display text; `showMonth` appends the
+// resolution month (FED CUT → "FED CUT JUL").
+export type TapePair = {
+  primary: string;
+  secondary: string;
+  label: string;
+  showMonth?: boolean;
+};
+
+// HO 259: one dual-source item — `LABEL K x% P y%`. A missing source (no tick:
+// stale-out or a ghost market that never ticked) renders dim `N/A` in its slot
+// and the pair stays intact, so a designated dual-source item never collapses to
+// single-source. Reuses the .markets-tape-price slot (fixed-width, tabular-nums)
+// so a daily value change can't jump the marquee. The hover spells out both full
+// source names, each value, and the resolve date.
+function PairItem({
+  pair,
+  primary,
+  secondary,
+  stale,
+}: {
+  pair: TapePair;
+  primary: MarketTick | undefined;
+  secondary: MarketTick | undefined;
+  stale: boolean;
+}) {
+  const month =
+    pair.showMonth && primary ? monthAbbrUpper(primary.marketDate) : "";
+  const display = month ? `${pair.label} ${month}` : pair.label;
+  const kVal = primary ? formatPrice(primary.price, primary.format) : "N/A";
+  const pVal = secondary ? formatPrice(secondary.price, secondary.format) : "N/A";
+  const valColor = (present: boolean) =>
+    stale || !present ? "var(--text-dim)" : "var(--text-secondary)";
+  const resolveSrc = primary ?? secondary;
+  const resolve = resolveSrc ? formatResolveDate(resolveSrc.marketDate) : null;
+  return (
+    <span className="markets-tape-item">
+      <span className="markets-tape-symbol">{display}</span>
+      <span className="markets-tape-pair-grp">
+        <span className="markets-tape-src">K</span>
+        <span
+          className="markets-tape-price"
+          style={{ minWidth: "5ch", color: valColor(!!primary) }}
+        >
+          {kVal}
+        </span>
+      </span>
+      <span className="markets-tape-pair-grp">
+        <span className="markets-tape-src">P</span>
+        <span
+          className="markets-tape-price"
+          style={{ minWidth: "5ch", color: valColor(!!secondary) }}
+        >
+          {pVal}
+        </span>
+      </span>
+      <span className="markets-tape-detail" aria-hidden>
+        <span className="markets-tape-detail-name">
+          {primary?.fullName ?? display}
+        </span>
+        <span className="markets-tape-detail-meta">
+          Kalshi {kVal} · Polymarket {pVal}
+          {resolve ? ` · resolves ${resolve}` : ""}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function TickItem({
   tick,
   stale,
@@ -232,6 +314,7 @@ export function MarketsTapeClient({
   placeholderSymbols,
   showMeta = true,
   kind = "markets",
+  pairs,
   scroll = false,
 }: {
   ticks: MarketTick[];
@@ -246,6 +329,9 @@ export function MarketsTapeClient({
   // close — they never wash/flag CLOSED and right-pin a green LIVE dot. STALE
   // (a dead cron, 26h) still wins over LIVE.
   kind?: "markets" | "signals";
+  // HO 259: dual-source pairs (v2 SIGNALS). Each entry's `secondary` symbol is
+  // owned/polled but rendered inside the `primary`'s item as the "P" half.
+  pairs?: readonly TapePair[];
   // HO 258: restore the marquee crawl, scoped to v2's two tapes. Default false =
   // the HO 251 static full-width row (so `/` + inner pages stay static and are
   // NOT regressed). When true, the items render in a transform-animated double-
@@ -420,8 +506,27 @@ export function MarketsTapeClient({
   // and washes to STALE via the 26h rule. The cron surfaces the miss in
   // cron_runs either way (it doesn't insert on a fetch failure).
   const bySymbol = new Map(currentTicks.map((t) => [t.symbol, t]));
-  const ordered = placeholderSymbols ?? currentTicks.map((t) => t.symbol);
+  // HO 259: dual-source pairs. The secondary (Polymarket) symbols are owned for
+  // fetch+poll but never drawn standalone — they render inside their primary's
+  // PairItem. Drop them from the render order; map each primary to its pair.
+  const pairByPrimary = new Map((pairs ?? []).map((p) => [p.primary, p]));
+  const secondarySet = new Set((pairs ?? []).map((p) => p.secondary));
+  const ordered = (placeholderSymbols ?? currentTicks.map((t) => t.symbol)).filter(
+    (sym) => !secondarySet.has(sym),
+  );
   const items = ordered.map((sym) => {
+    const pair = pairByPrimary.get(sym);
+    if (pair) {
+      return (
+        <PairItem
+          key={sym}
+          pair={pair}
+          primary={bySymbol.get(pair.primary)}
+          secondary={bySymbol.get(pair.secondary)}
+          stale={stripStale}
+        />
+      );
+    }
     const t = bySymbol.get(sym);
     if (!t) {
       return (

@@ -3918,6 +3918,21 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+/* HO 259: dual-source SIGNALS pairing (K = Kalshi / P = Polymarket). The dim
+   source tag mirrors the mock's `.src` — small, mono, --text-dim (no new token).
+   Each [tag value] sits in its own tight group inside the existing
+   .markets-tape-item flex (6px gap separates symbol / K-group / P-group). N/A in
+   a value slot reuses the --text-dim treatment (set inline in PairItem). */
+.markets-tape-src {
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.markets-tape-pair-grp {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
 .markets-tape-arrow {
   display: inline-flex;
   align-items: baseline;

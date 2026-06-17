@@ -20,7 +20,23 @@ import type { CorpusStats } from "@/lib/queries";
 
 // The two-tape symbol split (HO 251's 8-symbol set). Order here IS render order.
 const MARKETS_TAPE = ["SPX", "NDQ", "TNX", "WTI"];
-const SIGNALS_TAPE = ["SHUTDOWN", "FEDCUT", "CPI", "UNEMP"];
+// HO 259: SIGNALS carries the Polymarket "P" symbols alongside the Kalshi "K"
+// ones so both ticks flow to the client; the pairs spec renders SHUTDOWN/FEDCUT
+// as dual-source items (`LABEL K x% P y%`) and the POLY-* symbols are not drawn
+// standalone. CPI/UNEMP stay bare (single-source). Order = SHUTDOWN, FED CUT,
+// CPI, UNEMP (the POLY-* entries are render-skipped, so order is preserved).
+const SIGNALS_TAPE = [
+  "SHUTDOWN",
+  "POLY-SHUTDOWN",
+  "FEDCUT",
+  "POLY-FEDCUT",
+  "CPI",
+  "UNEMP",
+];
+const SIGNALS_PAIRS = [
+  { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN", label: "SHUTDOWN" },
+  { primary: "FEDCUT", secondary: "POLY-FEDCUT", label: "FED CUT", showMonth: true },
+];
 
 export function DashboardV2Header({
   corpus,
@@ -94,7 +110,12 @@ export function DashboardV2Header({
           each its own marquee (scroll), per Design's two-tape spec. */}
       <div className="dv2-tapes">
         <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll />
-        <MarketsTape symbols={SIGNALS_TAPE} kind="signals" scroll />
+        <MarketsTape
+          symbols={SIGNALS_TAPE}
+          pairs={SIGNALS_PAIRS}
+          kind="signals"
+          scroll
+        />
       </div>
 
       <PrimaryNav active="dashboard" variant="home" />

@@ -69,9 +69,18 @@
 // stay FRED EOD; CPI/UNEMP are FRED monthly (CPI via units=pc1 → YoY %); SHUTDOWN
 // and FED CUT are Kalshi prediction-market probabilities (computed/dynamic — see
 // fetchKalshi). All four new symbols probed swap-ready from egress in HO 250.
+// HO 259 — Polymarket macro signals (POLY-FEDCUT / POLY-SHUTDOWN) join the tape
+// as a second source paired against the Kalshi macro ticks, for the v2 SIGNALS
+// strip only. They write to market_ticks like every other symbol, but the bare
+// `<MarketsTape />` on `/` + inner pages excludes source="polymarket" (see
+// MarketsTape) so only the v2 paired tape surfaces them.
 import { KALSHI_BASE } from "@/lib/kalshi";
+import {
+  fetchPolymarketFedCut,
+  fetchPolymarketShutdown,
+} from "@/lib/polymarket";
 
-export type MarketSource = "fmp" | "fred" | "kalshi";
+export type MarketSource = "fmp" | "fred" | "kalshi" | "polymarket";
 export type MarketFormat = "index" | "yield" | "price" | "percent";
 export type MarketGroup = "equities" | "commodities";
 // HO 251 — release cadence, the input to the tape's per-symbol freshness model
@@ -97,6 +106,8 @@ export type MarketSymbol = {
   // Kalshi headline compute: "single-yes" = the one market's yes-price (SHUTDOWN);
   // "cut-sum" = sum of the meeting's Cut* markets' yes-prices (FED CUT).
   kalshiKind?: "single-yes" | "cut-sum";
+  // HO 259: which Polymarket macro market this symbol reads (source="polymarket").
+  polyKind?: "fed" | "shutdown";
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
@@ -113,6 +124,12 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // cron). Dynamic nearest-open-event discovery + compute in fetchKalshi.
   { internal: "SHUTDOWN", source: "kalshi", remote: "KXGOVTSHUTDOWN", kalshiKind: "single-yes", label: "Shutdown Odds", fullName: "Govt Shutdown Odds", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "FEDCUT", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", label: "Fed Cut Odds", fullName: "Fed Rate-Cut Odds", format: "percent", group: "commodities", cadence: "kalshi" },
+  // HO 259: Polymarket macro pairs — same questions as the Kalshi macro above,
+  // rendered as the "P" half of the v2 SIGNALS pair. Excluded from the bare tape
+  // on `/` + inner pages via source="polymarket" (MarketsTape). remote is unused
+  // (discovery is by Gamma search in fetchPolymarket*); polyKind selects which.
+  { internal: "POLY-SHUTDOWN", source: "polymarket", remote: "", polyKind: "shutdown", label: "Shutdown (Polymarket)", fullName: "Govt Shutdown Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
+  { internal: "POLY-FEDCUT", source: "polymarket", remote: "", polyKind: "fed", label: "Fed Cut (Polymarket)", fullName: "Fed Rate-Cut Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // Commodities — FRED EOD.
   { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities", cadence: "daily" },
 ] as const;
@@ -350,6 +367,28 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
   return { price: prob * 100, marketDate: soonest.when.slice(0, 10) };
 }
 
+// HO 259: Polymarket macro quote. Reads only the one market this symbol needs
+// (fed or shutdown). A null result (no liquid same-question market — e.g. the
+// shutdown ghost) THROWS so processSymbol writes no tick → the tape's P slot reads
+// N/A, never a fabricated zero. A previously-good value persists (last tick stays)
+// and washes STALE after 26h if it goes dark — the same degrade as every symbol.
+async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
+  const q =
+    symbol.polyKind === "fed"
+      ? await fetchPolymarketFedCut()
+      : await fetchPolymarketShutdown();
+  if (!q) {
+    throw new FetchQuoteError(
+      symbol.internal,
+      `polymarket ${symbol.polyKind} N/A (no liquid same-question market)`,
+    );
+  }
+  return {
+    price: q.pct,
+    marketDate: q.resolveDate ?? new Date().toISOString().slice(0, 10),
+  };
+}
+
 export async function fetchQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   switch (symbol.source) {
     case "fmp":
@@ -358,5 +397,7 @@ export async function fetchQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
       return fetchFred(symbol);
     case "kalshi":
       return fetchKalshi(symbol);
+    case "polymarket":
+      return fetchPolymarketMacroQuote(symbol);
   }
 }

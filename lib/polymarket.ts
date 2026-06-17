@@ -164,6 +164,123 @@ async function gammaGet<T>(url: string): Promise<T> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// HO 259: Polymarket macro signals (fed-cut + shutdown) for the v2 SIGNALS tape,
+// paired against the Kalshi macro ticks. One headline % each, normalized to the
+// SAME question Kalshi answers so the K/P pair is apples-to-apples (verified live
+// at wire time, not assumed — see the per-market notes below).
+export type PolymarketMacroQuote = {
+  pct: number; // 0-100 headline probability
+  resolveDate: string | null; // the market's resolution date (YYYY-MM-DD)
+};
+export type PolymarketMacro = {
+  fed: PolymarketMacroQuote | null;
+  shutdown: PolymarketMacroQuote | null;
+};
+
+// Macro markets demand a STRICTER ghost gate than the seats. The seat gate is an
+// AND (reject only when liquidity AND volume are both sub-threshold), which lets a
+// thin-but-live seat through on liquidity alone. But Polymarket's same-question
+// shutdown market is a $39-volume / $3.7K-liquidity shell (HO 255 probe, re-
+// confirmed at wire) — it passes the seat AND-gate on liquidity yet is dead. A
+// macro pair must NOT show a price off an untraded shell, so require BOTH floors
+// (reject if EITHER is below). The live fed market clears these by ~1000×.
+const MACRO_MIN_VOLUME = 25_000;
+const MACRO_MIN_LIQUIDITY = 10_000;
+
+type GSearch = { events?: GEvent[] };
+
+// Discover via Gamma's search (purpose-built, slug-change-proof — the per-meeting
+// fed slug rolls july→september and the shutdown slug carries a timestamp suffix)
+// and read the nested markets from the SAME response (search returns them inline,
+// confirmed live). closed-out and wrong-question events are filtered by slug.
+async function searchEvents(query: string): Promise<GEvent[]> {
+  const url =
+    `${GAMMA_BASE}/public-search?q=${encodeURIComponent(query)}` +
+    `&limit_per_type=20&events_status=active`;
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(20_000),
+    headers: { accept: "application/json", "user-agent": "cbt/1.0" },
+  });
+  if (!res.ok) throw new Error(`gamma search HTTP ${res.status}`);
+  const data = (await res.json()) as GSearch;
+  return Array.isArray(data?.events) ? data.events : [];
+}
+
+function endMs(e: GEvent): number {
+  return e.endDate ? Date.parse(e.endDate) : Number.POSITIVE_INFINITY;
+}
+function marketYes(m: GMarket): number | null {
+  const outcomes = parseJsonArray(m.outcomes);
+  const prices = parseJsonArray(m.outcomePrices);
+  const yesIdx = outcomes.findIndex((o) => o.toLowerCase() === "yes");
+  const yes = parseFloat(prices[yesIdx >= 0 ? yesIdx : 0] ?? "");
+  return Number.isFinite(yes) ? yes : null;
+}
+
+// FED CUT — P(any cut) at the next FOMC decision, to MATCH Kalshi's cut-sum
+// (KXFEDDECISION). Polymarket's per-meeting "fed-decision-in-{month}" event is
+// multi-outcome (No change / 25 bps inc / 50+ inc / 25 bps dec / 50+ dec), so the
+// cut probability is the SUM of the two "decrease" legs' Yes prices — not a single
+// market. Pick the soonest still-open decision event so K and P track the same
+// meeting as they roll (today both resolve 2026-07-29 = July; verified live).
+export async function fetchPolymarketFedCut(): Promise<PolymarketMacroQuote | null> {
+  const events = await searchEvents("fed decision");
+  const decisions = events
+    .filter((e) => e.slug && /^fed-decision-in-[a-z]+(-\d+)?$/.test(e.slug) && !e.closed)
+    .sort((a, b) => endMs(a) - endMs(b));
+  const next = decisions[0];
+  if (!next) return null;
+  let sum = 0;
+  let found = false;
+  for (const m of next.markets ?? []) {
+    const title = m.groupItemTitle || m.question || "";
+    if (!/decrease/i.test(title)) continue; // the cut legs only
+    const yes = marketYes(m);
+    if (yes !== null) {
+      sum += yes;
+      found = true;
+    }
+  }
+  if (!found) return null;
+  return { pct: sum * 100, resolveDate: next.endDate?.slice(0, 10) ?? null };
+}
+
+// SHUTDOWN — P(government shutdown by the funding deadline), to MATCH Kalshi's
+// KXGOVTSHUTDOWN single-yes. Polymarket's same-question market
+// ("government-shutdown-by-{deadline}") is a single Yes/No binary. Pair ONLY when
+// it clears the macro ghost floors AND is that same question; the lone liquid
+// shutdown-adjacent market ("...house-winner...") asks a DIFFERENT question and is
+// excluded by the slug filter. Today the same-question market is a $39 ghost → this
+// returns null → the tape's P slot reads N/A (the designed fallback).
+export async function fetchPolymarketShutdown(): Promise<PolymarketMacroQuote | null> {
+  const events = await searchEvents("government shutdown");
+  const cands = events
+    .filter((e) => e.slug && /^government-shutdown-by-/.test(e.slug) && !e.closed)
+    .sort((a, b) => endMs(a) - endMs(b));
+  const ev = cands[0];
+  if (!ev) return null;
+  const volume = num(ev.volume);
+  const liquidity = num(ev.liquidity);
+  if ((volume ?? 0) < MACRO_MIN_VOLUME || (liquidity ?? 0) < MACRO_MIN_LIQUIDITY) {
+    return null; // ghost shell — degrade to N/A, never price off it
+  }
+  const m = (ev.markets ?? [])[0];
+  if (!m) return null;
+  const yes = marketYes(m);
+  if (yes === null) return null;
+  return { pct: yes * 100, resolveDate: ev.endDate?.slice(0, 10) ?? null };
+}
+
+// Both macro signals, each non-fatal (a failure → null → N/A, never throws the
+// pair). Parallel — the two are independent markets.
+export async function fetchPolymarketMacro(): Promise<PolymarketMacro> {
+  const [fed, shutdown] = await Promise.all([
+    fetchPolymarketFedCut().catch(() => null),
+    fetchPolymarketShutdown().catch(() => null),
+  ]);
+  return { fed, shutdown };
+}
+
 // Scan all 35 Senate-2026 seats by slug and return the favored outcome for every
 // seat Polymarket runs a live, non-ghost general market on. A per-seat fetch
 // (not a feed scan) because Gamma has no reliable "all 2026 Senate" filter and
