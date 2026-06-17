@@ -79,10 +79,10 @@ export default async function DashboardV2Page() {
       <DashboardV2Header corpus={corpus} stageDist={stageDist} />
 
       <main className="home-main">
-        {/* Full-width races strip directly under the header — the existing
-            CompetitiveRacesBlock unchanged (the battlefield handoff replaces
-            this slot). */}
-        <CompetitiveRacesBlock />
+        {/* Full-width races strip directly under the header. HO 254 opts the
+            D↔R battlefield axis in at the top of the COMPETITIVE tab (above the
+            card grid, which is unchanged). `/` leaves it off. */}
+        <CompetitiveRacesBlock showBattlefield />
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />

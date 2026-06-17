@@ -1987,6 +1987,105 @@ export const getRacesIndex = unstable_cache(
   { revalidate: 3600, tags: ["race-ratings", "races"] },
 );
 
+// ---- Battlefield axis (HO 254) ------------------------------------------
+
+export type BattlefieldSeat = {
+  raceId: string;
+  chamber: "house" | "senate";
+  // Compact seat label for the axis marker / band popover: "PA-SEN" / "NC-13".
+  label: string;
+  // Rater-consensus lean on the [-3, +3] fine scale (D negative, R positive),
+  // averaged across the sources present. Drives the marker's x position.
+  consensus: number;
+  // Marker fill. From races.incumbent_bioguide_id → members.party (the per-seat
+  // incumbent), so on an OPEN seat this is the party that held it going in —
+  // exactly the handoff's "party that held the seat going in"; null = neutral.
+  incumbentParty: PartyKey | null;
+  // HO 221 retirement flag surfaced for the marker's open treatment.
+  isOpen: boolean;
+};
+
+// Bucket string → signed fine-scale numeric (D negative / R positive). Read
+// from the LIVE rating string, NOT race_ratings.rating_score: the stored score
+// flattens IE's Tilt to ±1, but the battlefield wants Tilt at ±0.5 (it sits
+// between Toss-up and Lean). Mapping (verified against the live vocab, HO 254):
+//   Toss Up → 0 · Tilt D/R → ∓0.5 · Lean D/R → ∓1 · Likely D/R → ∓2 ·
+//   Solid D/R (Cook, IE) / Safe D/R (Sabato) → ∓3.
+function battlefieldScale(rating: string): number | null {
+  if (rating === "Toss Up") return 0;
+  const dir = rating.endsWith(" D") ? -1 : rating.endsWith(" R") ? 1 : null;
+  if (dir === null) return null;
+  if (rating.startsWith("Tilt")) return dir * 0.5;
+  if (rating.startsWith("Lean")) return dir * 1;
+  if (rating.startsWith("Likely")) return dir * 2;
+  if (rating.startsWith("Solid") || rating.startsWith("Safe")) return dir * 3;
+  return null;
+}
+
+// Compact axis label from a deterministic race id: S-PA-2026 → "PA-SEN",
+// PA-13-2026 → "PA-13". Falls back to the raw id for any other shape.
+function battlefieldLabel(raceId: string): string {
+  if (raceId.startsWith("S-")) {
+    const state = raceId.split("-")[1];
+    return state ? `${state}-SEN` : raceId;
+  }
+  const m = raceId.match(/^([A-Z]{2})-(\d{2})-\d{4}$/);
+  if (m) return `${m[1]}-${m[2]}`;
+  return raceId;
+}
+
+// HO 254: every seat with ≥1 rating, mapped to a consensus lean for the D↔R
+// battlefield axis. Additive — does NOT touch getMostCompetitiveRaces or
+// getRacesIndex. Same INNER JOIN universe as getRacesIndex (rated seats only,
+// 137-ish), but returns the AVERAGED fine-scale consensus rather than the
+// pick-most-competitive score. Seats whose ratings don't map (none today) drop.
+export const getBattlefieldSeats = unstable_cache(
+  async (cycle: number): Promise<BattlefieldSeat[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT r.id, r.chamber, r.incumbent_running,
+                   m.party AS incumbent_party,
+                   MAX(CASE WHEN rr.source = 'cook' THEN rr.rating END) AS cook_rating,
+                   MAX(CASE WHEN rr.source = 'sabato' THEN rr.rating END) AS sabato_rating,
+                   MAX(CASE WHEN rr.source = 'inside_elections' THEN rr.rating END) AS ie_rating
+            FROM races r
+            INNER JOIN race_ratings rr ON rr.race_id = r.id AND rr.cycle = r.cycle
+            LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
+            WHERE r.cycle = ?
+            GROUP BY r.id`,
+      args: [cycle],
+    });
+
+    const out: BattlefieldSeat[] = [];
+    for (const row of rs.rows) {
+      const mapped = [row.cook_rating, row.sabato_rating, row.ie_rating]
+        .filter((x): x is string => typeof x === "string")
+        .map(battlefieldScale)
+        .filter((x): x is number => x !== null);
+      if (mapped.length === 0) continue; // unmappable ratings → drop the seat
+      const consensus = mapped.reduce((a, b) => a + b, 0) / mapped.length;
+      const chamberRaw = row.chamber as string;
+      const raceId = row.id as string;
+      out.push({
+        raceId,
+        chamber: chamberRaw === "senate" ? "senate" : "house",
+        label: battlefieldLabel(raceId),
+        consensus,
+        incumbentParty: normalizePartyVariant(
+          (row.incumbent_party as string | null) ?? null,
+        ),
+        // HO 221 rule: NULL is NOT open (the honest uncurated default) — only an
+        // explicit 0 lights it. Number(null) === 0 would wrongly flag every
+        // uncurated seat, so guard the null first.
+        isOpen: row.incumbent_running != null && Number(row.incumbent_running) === 0,
+      });
+    }
+    return out;
+  },
+  ["getBattlefieldSeats"],
+  { revalidate: 3600, tags: ["race-ratings", "races"] },
+);
+
 // HO 219: Kalshi chamber-control (House/Senate balance of power) for the /races
 // hero band. Reads the single dashboard_state JSON blob the Kalshi cron writes;
 // null (or a null chamber) when no blob exists yet → the band cell degrades.

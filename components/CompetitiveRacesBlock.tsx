@@ -1,3 +1,4 @@
+import { Battlefield } from "@/components/Battlefield";
 import { CompetitiveRacesStrip } from "@/components/CompetitiveRacesStrip";
 import type { RaceHubData } from "@/components/CompetitiveRacesStrip";
 import { DashboardPrimaries } from "@/components/DashboardPrimaries";
@@ -39,8 +40,14 @@ const PER_CHAMBER = 2;
 
 export async function CompetitiveRacesBlock({
   cycle = 2026,
+  // HO 254: Dashboard v2 opts the D↔R battlefield axis in at the top of the
+  // COMPETITIVE tab. Default off so `/` (app/page.tsx) renders unchanged AND
+  // the extra getBattlefieldSeats query never runs for it. The card grid is
+  // untouched either way.
+  showBattlefield = false,
 }: {
   cycle?: number;
+  showBattlefield?: boolean;
 }) {
   const pool = await getMostCompetitiveRaces(cycle, POOL);
   const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
@@ -78,7 +85,19 @@ export async function CompetitiveRacesBlock({
 
   return (
     <RacesPanelTabs
-      competitiveContent={<CompetitiveRacesStrip races={races} hubs={hubs} />}
+      competitiveContent={
+        showBattlefield ? (
+          <>
+            <Battlefield
+              cycle={cycle}
+              featuredIds={races.map((r) => r.raceId)}
+            />
+            <CompetitiveRacesStrip races={races} hubs={hubs} />
+          </>
+        ) : (
+          <CompetitiveRacesStrip races={races} hubs={hubs} />
+        )
+      }
       primariesContent={<DashboardPrimaries data={primariesData} />}
       competitiveCount={races.length}
       primariesCount={primariesCount}

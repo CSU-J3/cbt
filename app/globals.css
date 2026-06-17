@@ -2386,6 +2386,221 @@ body {
 .races-panel-body {
   min-height: 240px;
 }
+
+/* HO 254 — competitive battlefield (D↔R lean axis). Layout + styling per the
+   docs/dashboard-2col mock: a single-row axis where featured/card races sit as
+   labeled dots and the competitive field rolls up into lean-tier aggregate
+   ticks with hover popovers. No new color tokens; only state is :hover. */
+.battlefield {
+  padding: 16px 8px 0;
+}
+.ctl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  margin: 0 8px 8px;
+}
+.ctl-legend {
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+.ctl-sw {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  vertical-align: -1px;
+  margin: 0 4px 0 10px;
+}
+.ctl-sw-sq {
+  border-radius: 2px;
+}
+.ctl-sw-tick {
+  width: 2px;
+  height: 9px;
+  border-radius: 0;
+  background: var(--text-dim);
+  margin-left: 14px;
+  vertical-align: 0;
+}
+.ctl-eday {
+  font-size: 9.5px;
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+}
+.ctl-eday-t {
+  color: var(--accent-amber-bright);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+.ctl-eday-cd {
+  color: var(--accent-amber);
+}
+.ctl {
+  position: relative;
+  height: 74px;
+  margin: 0 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.ctl-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 25px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    rgba(59, 130, 246, 0.5),
+    rgba(100, 116, 139, 0.22) 50%,
+    rgba(239, 68, 68, 0.5)
+  );
+}
+.ctl-axis {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 58px;
+  font-size: 8.5px;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+.ctl-axis span {
+  position: absolute;
+}
+/* one marker slot (featured dot or aggregate tick), centered on its x. The wide
+   slot is pointer-transparent so overlapping slots don't block each other; the
+   interactive children re-enable pointer events (and propagate :hover up). */
+.cm {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 86px;
+  text-align: center;
+  z-index: 2;
+  pointer-events: none;
+}
+.cm-lbl,
+.cm-dot,
+.cm-tick,
+.cm-cnt,
+.cm-pop {
+  pointer-events: auto;
+}
+.cm-lbl {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.cm-dot {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-panel);
+  box-sizing: content-box;
+}
+.cm-dot-wrap[data-chamber="house"] .cm-dot {
+  border-radius: 2px;
+}
+.cm-tick {
+  position: absolute;
+  top: 21px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 12px;
+  background: var(--text-dim);
+}
+.cm-cnt {
+  position: absolute;
+  top: 41px;
+  left: 0;
+  right: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+  white-space: nowrap;
+}
+.cm-agg:hover .cm-tick {
+  background: var(--text-secondary);
+}
+.cm-agg:hover .cm-cnt {
+  color: var(--text-secondary);
+}
+.cm-pop {
+  position: absolute;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  min-width: 168px;
+  max-height: 230px;
+  overflow-y: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 8px 10px 6px;
+  display: none;
+  z-index: 50;
+  text-align: left;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+}
+.cm-agg:hover .cm-pop {
+  display: block;
+}
+.cm-pop-h {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+.cm-pop-r {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  white-space: nowrap;
+  padding: 2px 0;
+}
+.cm-pd {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.cm-pd[data-chamber="house"] {
+  border-radius: 1px;
+}
+.cm-pop-seat {
+  color: var(--text-secondary);
+}
+.cm-pop-rt {
+  margin-left: auto;
+  padding-left: 14px;
+  color: var(--text-dim);
+}
+.cm-pop-rt-tu {
+  color: var(--accent-amber-bright);
+}
+.cm-pop-rt-d {
+  color: var(--party-democrat);
+}
+.cm-pop-rt-r {
+  color: var(--party-republican);
+}
+
 .dash-prim {
   display: flex;
   flex-direction: column;

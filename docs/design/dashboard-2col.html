@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CBT — dashboard (B)</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root{
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24; --ticker-closed:#9b3d3d;
+  --stage-intro:#94a3b8; --stage-committee:#06b6d4; --stage-floor:#fbbf24; --stage-other:#f59e0b; --stage-president:#fb923c; --stage-enacted:#10b981;
+  --party-rep:#ef4444; --party-dem:#3b82f6; --party-ind:#a78bfa;
+  --rail-house:#06b6d4; --rail-senate:#a78bfa; --pos:#10b981; --neg:#ef4444;
+  --mono: ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Consolas,monospace;
+  --sans: system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg-base);color:var(--text-primary)}
+body{font-family:var(--mono);font-size:13px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1700px;margin:0 auto}
+
+.header{border-bottom:1px solid var(--border-strong)}
+.mast{padding:16px 22px 13px}
+.mast-line{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+.brand{font-family:var(--mono);font-size:20px;color:var(--text-primary);white-space:nowrap;word-spacing:-6px}
+.brand .g{color:var(--accent-amber)}
+.readout{font-family:var(--mono);font-size:14px;color:var(--text-dim)} .readout b{font-weight:600}
+.readout .total{color:var(--party-dem)} .readout .cmte{color:var(--party-rep)} .readout .floor{color:var(--accent-amber-bright)} .readout .other{color:var(--stage-other)} .readout .enac{color:var(--stage-enacted)}
+.cur{color:var(--accent-amber);animation:blink 1.1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.sync{margin-top:7px;font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap}
+/* two tapes: MARKETS close (CLOSED state), SIGNALS never close */
+.tape{display:flex;align-items:center;flex-wrap:wrap;gap:0 20px;padding:8px 22px;background:var(--bg-panel);border-top:1px solid var(--border-soft);font-size:11px;color:var(--text-dim)}
+.tape .lbl{font-size:9px;letter-spacing:.14em;color:var(--text-dim);margin-right:4px}
+.tape .tk{white-space:nowrap} .tape .tk .v{color:var(--text-secondary)} .tape .up{color:var(--pos)} .tape .down{color:var(--neg)}
+.tape .st{margin-left:auto;font-size:9px;letter-spacing:.08em;color:var(--text-dim);white-space:nowrap}
+.tape .st .closed{color:var(--ticker-closed)}
+.tape .st .live{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--stage-enacted);margin-right:5px;vertical-align:0}
+.nav{display:flex;flex-wrap:wrap;align-items:center;padding:11px 22px;background:var(--bg-panel);border-top:1px solid var(--border-soft);font-size:14px}
+.nav a{color:var(--text-dim);text-decoration:none;padding:0 11px} .nav a.active{color:var(--accent-amber-bright)} .nav .dv{color:var(--border-strong);padding:0 8px}
+.weekly{display:flex;flex-wrap:wrap;align-items:center;margin:14px 22px 0;padding:11px 2px;border-top:1px solid var(--border-strong);font-size:11px;color:var(--text-muted)}
+.weekly .wk{color:var(--accent-amber)} .weekly .sep{color:var(--border-strong);margin:0 13px} .weekly .en{color:var(--stage-enacted)} .weekly .bid{color:var(--accent-amber)} .weekly .arr{color:var(--text-dim)} .weekly .more{color:var(--text-dim);margin-left:auto} .weekly .wk-d{color:var(--text-dim);font-size:.85em;margin-left:4px}
+.weekly .wk-metric{position:relative;cursor:default}
+.weekly .wk-pop{position:absolute;top:calc(100% + 8px);left:0;display:none;z-index:40;background:var(--bg-panel);border:1px solid var(--accent-amber);border-radius:3px;padding:9px 11px;white-space:nowrap;box-shadow:0 8px 22px rgba(0,0,0,.55)}
+.weekly .wk-metric:hover .wk-pop{display:block}
+.weekly .wk-pop .h{display:block;color:var(--text-dim);font-size:8.5px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px}
+.weekly .wk-pop .d{display:block;color:var(--text-dim);font-size:9px;white-space:normal;max-width:210px;line-height:1.45;margin-bottom:7px}
+.weekly .wk-pop .r{display:flex;justify-content:space-between;gap:24px;font-size:10.5px;color:var(--text-secondary);line-height:1.75}
+.weekly .wk-pop .r .v{color:var(--text-primary)}
+.weekly .wk-pop .r.dl{border-top:1px solid var(--border-soft);margin-top:4px;padding-top:5px} .weekly .wk-pop .r.dl .v{color:var(--text-dim)}
+
+.fullrow{margin:18px 22px 0}
+.body2{display:flex;gap:16px;margin:16px 22px 0;align-items:flex-start}
+.col-l{flex:0 0 49%;display:flex;flex-direction:column;gap:16px}
+.col-r{flex:1 1 auto;display:flex;flex-direction:column;gap:16px}
+
+.panel{border:1px solid var(--border-strong);border-radius:3px;background:var(--bg-panel)}
+
+/* races */
+.races-tabs,.feed-tabs,.dtabs{display:flex;align-items:center;gap:26px;padding:11px 16px 0;font-size:12px}
+.rtab,.ftab,.dtab{color:var(--text-dim);cursor:pointer;padding-bottom:8px;border-bottom:2px solid transparent;letter-spacing:.04em}
+.rtab .ct,.ftab .ct{color:var(--text-dim)} .rtab.active,.ftab.active,.dtab.active{color:var(--text-primary);border-bottom-color:var(--accent-amber)}
+.races-body{padding:18px 16px 16px}
+.ctl-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 8px 8px}
+.ctl-legend{font-size:9.5px;color:var(--text-dim)}
+.ctl-legend .sw{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--text-secondary);vertical-align:-1px;margin:0 4px 0 10px}
+.ctl-legend .sw.sq{border-radius:2px} .ctl-legend .sw.sm{width:2px;height:9px;border-radius:0;background:var(--text-dim);margin-left:14px;vertical-align:0}
+.ctl{position:relative;height:74px;margin:0 8px 22px;border-bottom:1px solid var(--border-soft)}
+.ctl-track{position:absolute;left:0;right:0;top:25px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(59,130,246,.5),rgba(100,116,139,.22) 50%,rgba(239,68,68,.5))}
+.ctl-axis{position:absolute;left:0;right:0;top:58px;font-size:8.5px;letter-spacing:.07em;color:var(--text-dim)} .ctl-axis span{position:absolute}
+.ctl-eday{font-size:9.5px;color:var(--text-dim);text-align:right} .ctl-eday .t{color:var(--accent-amber-bright);font-weight:600;letter-spacing:.05em} .ctl-eday .cd{color:var(--accent-amber)}
+.cm{position:absolute;top:0;bottom:0;transform:translateX(-50%);width:86px;text-align:center;z-index:2;pointer-events:none}
+.cm .dot,.cm .lbl,.cm .tick,.cm .cnt,.cm .dt{pointer-events:auto}
+.cm .lbl{position:absolute;top:0;left:0;right:0;font-size:10px;line-height:1;white-space:nowrap}
+.cm .lbl .more{color:var(--text-dim);font-weight:400}
+.cm .dot{position:absolute;top:22px;left:50%;transform:translateX(-50%);width:10px;height:10px;border-radius:50%;border:2px solid var(--bg-panel)}
+.cm .tick{position:absolute;top:21px;left:50%;transform:translateX(-50%);width:2px;height:12px;background:var(--text-dim)}
+.cm .cnt{position:absolute;top:41px;left:0;right:0;font-size:10px;color:var(--text-muted);line-height:1;white-space:nowrap}
+.cm .dt{position:absolute;top:57px;left:0;right:0;font-size:9px;color:var(--text-dim)}
+.cm.dem .lbl{color:var(--party-dem);font-weight:600} .cm.dem .dot{background:var(--party-dem)}
+.cm.rep .lbl{color:var(--party-rep);font-weight:600} .cm.rep .dot{background:var(--party-rep)}
+.cm.hou .dot{border-radius:2px}
+.cm.agg:hover .tick{background:var(--text-secondary)} .cm.agg:hover .cnt{color:var(--text-secondary)}
+.cm-pop{position:absolute;left:50%;bottom:48px;transform:translateX(-50%);min-width:158px;background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:3px;padding:8px 10px 6px;display:none;z-index:50;text-align:left;box-shadow:0 8px 22px rgba(0,0,0,.55);pointer-events:auto}
+.cm.agg:hover .cm-pop{display:block}
+.cm-pop::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--border-strong)}
+.cm-pop .ph{font-size:9px;color:var(--text-dim);margin-bottom:6px;white-space:nowrap}
+.cm-pop .pr{display:flex;align-items:center;gap:7px;font-size:10px;white-space:nowrap;padding:2px 0}
+.cm-pop .pr .pd{width:6px;height:6px;border-radius:50%;flex:none} .cm-pop .pr .pd.hou{border-radius:1px}
+.cm-pop .pr .pd.dem{background:var(--party-dem)} .cm-pop .pr .pd.rep{background:var(--party-rep)}
+.cm-pop .pr .seat{color:var(--text-secondary)} .cm-pop .pr .rt{margin-left:auto;padding-left:14px;color:var(--text-dim)}
+.cm-pop .pr .rt.tu{color:var(--accent-amber-bright)} .cm-pop .pr .rt.d{color:var(--party-dem)} .cm-pop .pr .rt.r{color:var(--party-rep)}
+.cm.hl .dot{transform:translateX(-50%) scale(1.3);box-shadow:0 0 0 3px rgba(251,191,36,.3)}
+.cm.hl .lbl{color:var(--accent-amber-bright)} .cm.hl .dt{color:var(--text-secondary)}
+.cfinish{position:absolute;right:0;top:3px;height:48px;border-right:2px solid var(--accent-amber-bright);padding-right:9px;text-align:right;display:flex;flex-direction:column;gap:3px;z-index:2}
+.cfinish .t{font-size:10px;color:var(--accent-amber-bright);font-weight:600} .cfinish .d{font-size:9px;color:var(--text-dim)} .cfinish .cd{font-size:9px;color:var(--accent-amber)}
+.race-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.race-card{border:1px solid var(--border-strong);border-radius:3px;padding:14px;background:var(--bg-base);display:flex;flex-direction:column}
+.race-card.hot{border-color:var(--accent-amber)} .race-card.hl{border-color:var(--accent-amber-bright);box-shadow:0 0 0 1px var(--accent-amber-bright)}
+.rc-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+.rc-seat{font-size:11px;color:var(--text-dim);letter-spacing:.07em}
+.rc-margin{font-size:10px;color:var(--text-dim)} .rc-margin .v{font-weight:600} .rc-margin .d{color:var(--party-dem)} .rc-margin .r{color:var(--party-rep)}
+.rc-inc{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.rc-inc .dot8{width:8px;height:8px;border-radius:50%;flex:none} .rc-inc .dem{background:var(--party-dem)} .rc-inc .rep{background:var(--party-rep)}
+.rc-inc .nm{font-family:var(--sans);font-size:14px;color:var(--text-primary)}
+.rc-inc .tag{margin-left:auto;font-size:8.5px;color:var(--text-dim);border:1px solid var(--border-strong);border-radius:2px;padding:2px 5px}
+.rc-sub{font-size:10px;color:var(--text-dim);margin-bottom:14px;padding-left:16px}
+.sb-wrap{margin-bottom:9px} .sb-ends{display:flex;justify-content:space-between;font-size:9px;color:var(--text-dim);margin-bottom:4px}
+.sb{position:relative;height:16px}
+.sb-track{position:absolute;left:0;right:0;top:6px;height:4px;border-radius:2px;background:linear-gradient(90deg,rgba(59,130,246,.5),rgba(100,116,139,.25) 50%,rgba(239,68,68,.5))}
+.sb-cent{position:absolute;left:50%;top:3px;width:1px;height:10px;background:var(--border-strong)}
+.sb-band{position:absolute;top:5px;height:6px;background:rgba(229,231,235,.16);border-radius:3px}
+.sb-rater{position:absolute;top:4px;width:8px;height:8px;border-radius:50%;background:var(--text-secondary);border:1.5px solid var(--bg-base);transform:translateX(-50%)}
+.sb-mkt{position:absolute;top:-2px;transform:translateX(-50%);color:var(--accent-amber-bright);font-size:12px;line-height:1}
+.rc-raters{font-size:10px;color:var(--text-dim);margin-bottom:12px;line-height:1.6}
+.rc-raters .ld{color:var(--party-dem)} .rc-raters .tu{color:var(--accent-amber-bright)} .rc-raters .lr{color:var(--party-rep)}
+.rc-diverge{display:inline-block;font-size:8.5px;color:var(--accent-amber-bright);border:1px solid var(--accent-amber);border-radius:2px;padding:1px 5px;margin-top:5px}
+.rc-stats{display:flex;gap:14px;border-top:1px solid var(--border-soft);padding-top:11px;margin-top:auto}
+.rc-stat{flex:1} .rc-stat .k{font-size:8.5px;color:var(--text-dim);text-transform:uppercase;margin-bottom:3px} .rc-stat .v{font-size:12px;color:var(--text-secondary)} .rc-stat .v.d{color:var(--party-dem)} .rc-stat .v.r{color:var(--party-rep)} .rc-stat .v.dim{color:var(--text-dim)}
+
+/* breaking box */
+.brk-head{display:flex;align-items:baseline;justify-content:space-between;padding:13px 16px 10px}
+.brk-head .h{font-size:11px;letter-spacing:.1em;color:var(--accent-amber-bright)}
+.brk-head .ct{color:var(--text-dim);font-size:11px}
+.brk-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--border-soft);border-left:2px solid var(--accent-amber);background:linear-gradient(90deg,rgba(217,119,6,.05),transparent 40%)}
+.brk-row .bid{font-size:11px;color:var(--accent-amber);border:1px solid var(--border-strong);border-radius:2px;padding:2px 7px;white-space:nowrap}
+.brk-row .bh{font-family:var(--sans);font-size:12.5px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brk-row .ba{font-size:10px;color:var(--text-dim)}
+.brk-foot{text-align:center;font-size:10.5px;color:var(--text-dim);letter-spacing:.06em;padding:10px 0;border-top:1px solid var(--border-soft);cursor:pointer} .brk-foot:hover{color:var(--accent-amber-bright)}
+
+/* dist tabbed — compact fixed height */
+.dbody{height:230px;display:flex;flex-direction:column}
+.dpane{display:none;flex:1;flex-direction:column;min-height:0} .dpane.active{display:flex}
+.bars{flex:1;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between}
+.brow{display:grid;grid-template-columns:90px 1fr 56px;align-items:center;gap:10px}
+.brow .bl{font-size:11px;color:var(--text-secondary)} .btrack{height:18px;position:relative}
+.bfill{position:absolute;left:0;top:0;bottom:0;border-radius:2px;min-width:6px} .brow .bv{font-size:12px;color:var(--text-primary);text-align:right}
+.tm{flex:1;display:flex;min-height:0;padding:12px} .tm svg{display:block;width:100%;height:100%}
+.cell-label{font-family:var(--mono);pointer-events:none} .cell-name{font-weight:700} .cell-val{opacity:.85}
+
+/* feed */
+.fgroup{border-top:1px solid var(--border-soft)}
+.frow{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:13px;padding:9px 16px;cursor:pointer}
+.frow:hover{background:var(--bg-row-hover)}
+.fid{font-size:11px;color:var(--accent-amber);border:1px solid var(--border-strong);border-radius:2px;padding:2px 7px;white-space:nowrap}
+.fid.house{border-color:var(--rail-house)} .fid.senate{border-color:var(--rail-senate)}
+.ftitle{font-family:var(--sans);font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fmetric{font-size:10.5px;color:var(--text-muted);white-space:nowrap} .fmetric .ar{color:var(--text-dim)}
+.fchev{color:var(--text-dim);font-size:10px} .fgroup.open .fchev{color:var(--accent-amber)}
+.fexp{display:none;padding:4px 16px 16px;background:var(--bg-row-hover);border-top:1px solid var(--border-soft)} .fgroup.open .fexp{display:block}
+.fe-topics{font-size:9px;color:var(--text-dim);letter-spacing:.06em;padding:10px 0 12px} .fe-topics .tp{color:var(--text-muted)} .fe-topics .tp-sep{color:var(--border-strong);margin:0 7px}
+.fe-grid{display:grid;grid-template-columns:1fr 210px;gap:18px}
+.pipe{display:flex;align-items:center;margin-bottom:13px}
+.pipe .pn{width:11px;height:11px;border-radius:50%;flex:none;border:2px solid var(--bg-row-hover)} .pipe .pc{flex:1;height:2px}
+.pipe .pcd{background:var(--stage-enacted)} .pipe .pct{background:var(--border-strong)} .pipe .cur{background:var(--stage-floor);box-shadow:0 0 0 3px rgba(251,191,36,.2)} .pipe .todo{background:var(--border-strong)}
+.fe-summary{font-family:var(--sans);font-size:12.5px;line-height:1.55;color:var(--text-secondary);margin-bottom:14px}
+.fe-news{border-top:1px solid var(--border-soft);padding-top:11px} .fe-news .nh{font-size:9px;letter-spacing:.08em;color:var(--text-dim);margin-bottom:8px}
+.fe-news .ni{font-family:var(--sans);font-size:11.5px;color:var(--text-secondary);margin-bottom:7px;display:flex;gap:8px} .fe-news .ni .src{font-family:var(--mono);font-size:9px;color:var(--text-dim);flex:none;padding-top:2px}
+.fe-side .sk{font-size:9px;color:var(--text-dim);margin:0 0 3px} .fe-side .sv{font-family:var(--sans);font-size:12px;color:var(--text-secondary);margin-bottom:12px} .fe-side .sv.mono{font-family:var(--mono);font-size:11px}
+.fe-btns{display:flex;gap:8px;margin-top:6px} .fe-btns a{font-size:10px;color:var(--text-secondary);border:1px solid var(--border-strong);border-radius:2px;padding:6px 10px;text-decoration:none}
+.fe-btns a:hover{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+.feed-foot{text-align:center;font-size:10.5px;color:var(--text-dim);letter-spacing:.06em;padding:11px 0;border-top:1px solid var(--border-soft);cursor:pointer} .feed-foot:hover{color:var(--accent-amber-bright)}
+.footer{height:50px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div class="mast">
+      <div class="mast-line">
+        <span class="brand">Congressional Terminal<span class="g">:\</span>119TH<span class="g">\</span>Dashboard<span class="g">></span></span>
+        <span class="readout"><b class="total">16,290</b> bills tracked · <b class="cmte">14,616</b> in committee · <b class="floor">755</b> on the floor · <b class="other">54</b> other chamber · <b class="enac">92</b> enacted<span class="cur">_</span></span>
+      </div>
+      <div class="sync">LAST SYNC 4:05 AM ET</div>
+    </div>
+    <div class="tape" data-tape-mkt></div>
+    <div class="tape" data-tape-odds></div>
+    <div class="nav" data-nav></div>
+  </div>
+
+  <div class="fullrow"><div class="panel" data-races></div></div>
+
+  <div class="weekly" data-weekly></div>
+
+  <div class="body2">
+    <div class="col-l">
+      <div class="panel" data-breaking></div>
+      <div class="panel" data-dist></div>
+    </div>
+    <div class="col-r"><div class="panel" data-feed></div></div>
+  </div>
+
+  <div class="footer"></div>
+</div>
+
+<script>
+const tapeMktHTML=`<span class="lbl">MARKETS</span><span class="tk">S&P 500 <span class="v">5,431</span> <span class="up">▲0.4%</span></span><span class="tk">NASDAQ <span class="v">17,688</span> <span class="up">▲0.6%</span></span><span class="tk">10Y <span class="v">4.21%</span> <span class="down">▼0.02</span></span><span class="tk">WTI <span class="v">$78.40</span> <span class="up">▲1.1%</span></span><span class="st">AS OF 4:43 PM ET · <span class="closed">CLOSED</span></span>`;
+const tapeOddsHTML=`<span class="lbl">SIGNALS</span><span class="tk">SHUTDOWN ODDS <span class="v">18%</span></span><span class="tk">FED CUT JUL <span class="v">42%</span></span><span class="tk">CPI <span class="v">3.1%</span></span><span class="tk">UNEMP <span class="v">4.0%</span></span><span class="st"><span class="live"></span>LIVE</span>`;
+const navHTML=`<a class="active">[ \\DASHBOARD ]</a><span class="dv">|</span><a>\\BILLS</a><a>\\MEMBERS</a><a>\\RACES</a><a>\\PATTERNS</a><span class="dv">|</span><a>\\REPORTS</a><a>\\WATCHLIST</a>`;
+const weeklyHTML=`<span class="wk">WEEK OF JUN 01</span><span class="sep">|</span><span class="en">● 1 ENACTED · <span class="bid">S 2</span></span><span class="sep">|</span><span class="wk-metric">122 NEW BILLS<span class="wk-d">▲24</span><span class="wk-pop"><span class="h">New bills · wk vs last</span><span class="d">Bills introduced during this week's window.</span><span class="r"><span>This week</span><span class="v">122</span></span><span class="r"><span>Last week</span><span class="v">98</span></span><span class="r dl"><span>Change</span><span class="v">▲ 24</span></span></span></span><span class="sep">|</span><span class="wk-metric">64 STAGE TRANSITIONS<span class="wk-d">▼9</span><span class="wk-pop"><span class="h">Stage transitions · wk vs last</span><span class="d">Bills that advanced to a new stage this week.</span><span class="r"><span>This week</span><span class="v">64</span></span><span class="r"><span>Last week</span><span class="v">73</span></span><span class="r dl"><span>Change</span><span class="v">▼ 9</span></span></span></span><span class="sep">|</span>20 IN GOV-OPS<span class="sep">|</span><span class="bid">S 162</span> <span class="arr">→</span> FLOOR<span class="sep">|</span><span class="bid">HR 7892</span> <span class="arr">→</span> FLOOR<span class="more">READ FULL →</span>`;
+
+const racesHTML=`
+  <div class="races-tabs"><div class="rtab active">COMPETITIVE <span class="ct">(4)</span></div><div class="rtab">PRIMARIES <span class="ct">(390)</span></div></div>
+  <div class="races-body">
+    <div class="ctl-head"><div class="ctl-legend">TOSS-UPS <span class="sw"></span> SEN <span class="sw sq"></span> HOUSE · <span class="sw sm"></span> field by lean</div><div class="ctl-eday"><span class="t">ELECTION DAY</span> · NOV 3 · <span class="cd">141 DAYS</span> · ~50 competitive seats</div></div>
+    <div class="ctl">
+      <div class="ctl-track"></div>
+      <div class="cm dem sen" data-seat="GA" style="left:36%"><div class="lbl">GA</div><div class="dot"></div></div>
+      <div class="cm dem hou" data-seat="FL-23" style="left:46%"><div class="lbl">FL-23</div><div class="dot"></div></div>
+      <div class="cm rep sen" data-seat="ME" style="left:60%"><div class="lbl">ME</div><div class="dot"></div></div>
+      <div class="cm rep hou" data-seat="NJ-07" style="left:68%"><div class="lbl">NJ-07</div><div class="dot"></div></div>
+      <div class="cm agg" style="left:16%"><div class="tick"></div><div class="cnt">14 RACES</div><div class="cm-pop"><div class="ph">LEAN D · 14 SEATS</div><div class="pr"><span class="pd dem"></span><span class="seat">VA-02 HOUSE</span><span class="rt d">Lean D</span></div><div class="pr"><span class="pd dem"></span><span class="seat">NV SENATE</span><span class="rt d">Lean D</span></div><div class="pr"><span class="pd hou dem"></span><span class="seat">NM-02 HOUSE</span><span class="rt d">Lean D</span></div></div></div>
+      <div class="cm agg" style="left:28%"><div class="tick"></div><div class="cnt">9 RACES</div><div class="cm-pop"><div class="ph">TILT D · 9 SEATS</div><div class="pr"><span class="pd hou dem"></span><span class="seat">OH-13 HOUSE</span><span class="rt d">Tilt D</span></div><div class="pr"><span class="pd hou dem"></span><span class="seat">PA-07 HOUSE</span><span class="rt d">Tilt D</span></div></div></div>
+      <div class="cm agg" style="left:50%"><div class="tick"></div><div class="cnt">11 RACES</div><div class="cm-pop"><div class="ph">TOSS UP · 11 SEATS</div><div class="pr"><span class="pd hou rep"></span><span class="seat">AZ-06 HOUSE</span><span class="rt tu">Toss Up</span></div><div class="pr"><span class="pd hou dem"></span><span class="seat">CO-08 HOUSE</span><span class="rt tu">Toss Up</span></div><div class="pr"><span class="pd dem"></span><span class="seat">WI SENATE</span><span class="rt tu">Toss Up</span></div></div></div>
+      <div class="cm agg" style="left:72%"><div class="tick"></div><div class="cnt">8 RACES</div><div class="cm-pop"><div class="ph">TILT R · 8 SEATS</div><div class="pr"><span class="pd hou rep"></span><span class="seat">MI-07 HOUSE</span><span class="rt r">Tilt R</span></div><div class="pr"><span class="pd hou rep"></span><span class="seat">IA-03 HOUSE</span><span class="rt r">Tilt R</span></div></div></div>
+      <div class="cm agg" style="left:86%"><div class="tick"></div><div class="cnt">8 RACES</div><div class="cm-pop"><div class="ph">LEAN R · 8 SEATS</div><div class="pr"><span class="pd rep"></span><span class="seat">MT SENATE</span><span class="rt r">Lean R</span></div><div class="pr"><span class="pd hou rep"></span><span class="seat">NE-02 HOUSE</span><span class="rt r">Lean R</span></div></div></div>
+      <div class="ctl-axis"><span style="left:0">LEAN D</span><span style="left:50%;transform:translateX(-50%)">TOSS UP</span><span style="right:0">LEAN R</span></div>
+    </div>
+    <div class="race-grid">
+      <div class="race-card" data-seat="GA"><div class="rc-top"><div class="rc-seat">GA SENATE</div></div><div class="rc-inc"><span class="dot8 dem"></span><span class="nm">Jon Ossoff</span><span class="tag">INCUMBENT</span></div><div class="rc-sub">Democrat · since 2021</div><div class="sb-wrap"><div class="sb-ends"><span>D</span><span>TOSS UP</span><span>R</span></div><div class="sb"><div class="sb-track"></div><div class="sb-cent"></div><div class="sb-band" style="left:25%;width:25%"></div><div class="sb-rater" style="left:25%"></div><div class="sb-rater" style="left:50%"></div><div class="sb-mkt" style="left:46%">◆</div></div></div><div class="rc-raters">COOK <span class="ld">Lean D</span> · SABATO <span class="tu">Toss Up</span> · IE <span class="tu">Toss Up</span></div><div class="rc-stats"><div class="rc-stat"><div class="k">War Chest</div><div class="v">$4.2M</div></div><div class="rc-stat"><div class="k">Kalshi</div><div class="v d">D 56%</div></div></div></div>
+      <div class="race-card" data-seat="ME"><div class="rc-top"><div class="rc-seat">ME SENATE</div></div><div class="rc-inc"><span class="dot8 rep"></span><span class="nm">Susan M. Collins</span><span class="tag">INCUMBENT</span></div><div class="rc-sub">Republican · since 1997</div><div class="sb-wrap"><div class="sb-ends"><span>D</span><span>TOSS UP</span><span>R</span></div><div class="sb"><div class="sb-track"></div><div class="sb-cent"></div><div class="sb-band" style="left:50%;width:12%"></div><div class="sb-rater" style="left:50%"></div><div class="sb-rater" style="left:62%"></div><div class="sb-mkt" style="left:53%">◆</div></div></div><div class="rc-raters">COOK <span class="tu">Toss Up</span> · SABATO <span class="lr">Tilt R</span> · IE <span class="tu">Toss Up</span></div><div class="rc-stats"><div class="rc-stat"><div class="k">War Chest</div><div class="v">$5.1M</div></div><div class="rc-stat"><div class="k">Kalshi</div><div class="v r">R 51%</div></div></div></div>
+      <div class="race-card" data-seat="FL-23"><div class="rc-top"><div class="rc-seat">FL-23 HOUSE</div><div class="rc-margin">2024 <span class="v d">D+5.4</span></div></div><div class="rc-inc"><span class="dot8 dem"></span><span class="nm">Jared Moskowitz</span><span class="tag">INCUMBENT</span></div><div class="rc-sub">Democrat · since 2023</div><div class="sb-wrap"><div class="sb-ends"><span>D</span><span>TOSS UP</span><span>R</span></div><div class="sb"><div class="sb-track"></div><div class="sb-cent"></div><div class="sb-band" style="left:38%;width:12%"></div><div class="sb-rater" style="left:38%"></div><div class="sb-rater" style="left:50%"></div></div></div><div class="rc-raters">COOK <span class="ld">Tilt D</span> · SABATO <span class="tu">Toss Up</span></div><div class="rc-stats"><div class="rc-stat"><div class="k">War Chest</div><div class="v">$1.8M</div></div><div class="rc-stat"><div class="k">Kalshi</div><div class="v dim">N/A</div></div></div></div>
+      <div class="race-card hot" data-seat="NJ-07"><div class="rc-top"><div class="rc-seat">NJ-07 HOUSE</div><div class="rc-margin">2024 <span class="v r">R+0.4</span></div></div><div class="rc-inc"><span class="dot8 rep"></span><span class="nm">Thomas H. Kean, Jr.</span><span class="tag">INCUMBENT</span></div><div class="rc-sub">Republican · since 2023</div><div class="sb-wrap"><div class="sb-ends"><span>D</span><span>TOSS UP</span><span>R</span></div><div class="sb"><div class="sb-track"></div><div class="sb-cent"></div><div class="sb-band" style="left:50%;width:12%"></div><div class="sb-rater" style="left:50%"></div><div class="sb-rater" style="left:62%"></div><div class="sb-mkt" style="left:40%">◆</div></div></div><div class="rc-raters">COOK <span class="lr">Tilt R</span> · SABATO <span class="tu">Toss Up</span><br><span class="rc-diverge">◆ MARKET BREAKS D</span></div><div class="rc-stats"><div class="rc-stat"><div class="k">War Chest</div><div class="v">$2.9M</div></div><div class="rc-stat"><div class="k">Kalshi</div><div class="v d">D 53%</div></div></div></div>
+    </div>
+  </div>`;
+
+const breakingHTML=`
+  <div class="brk-head"><span class="h">BREAKING · LAST 72H</span><span class="ct">(5)</span></div>
+  <div class="brk-row"><span class="bid">HR 9171</span><span class="bh">Clears Rules Committee, floor vote expected Thursday</span><span class="ba">4h</span></div>
+  <div class="brk-row"><span class="bid">S 162</span><span class="bh">Parliamentarian strikes three provisions from reconciliation package</span><span class="ba">6h</span></div>
+  <div class="brk-row"><span class="bid">HR 7892</span><span class="bh">Reported favorably out of committee, 24-19</span><span class="ba">1d</span></div>
+  <div class="brk-row"><span class="bid">S 2</span><span class="bh">White House signals veto threat ahead of conference</span><span class="ba">1d</span></div>
+  <div class="brk-row"><span class="bid">HR 4410</span><span class="bh">Appropriations markup slips to next week amid GOV-OPS backlog</span><span class="ba">2d</span></div>
+  <div class="brk-foot">[ VIEW ALL NEWS → ]</div>`;
+
+const distHTML=`
+  <div class="dtabs"><div class="dtab active" data-pane="stage">STAGE DISTRIBUTION</div><div class="dtab" data-pane="topic">TOPIC DISTRIBUTION</div></div>
+  <div class="dbody">
+    <div class="dpane active" data-pane-body="stage"><div class="bars" id="sb0"></div></div>
+    <div class="dpane" data-pane-body="topic"><div class="tm"><svg id="tt0"></svg></div></div>
+  </div>`;
+
+const feedHTML=`
+  <div class="feed-tabs"><div class="ftab active">MOVERS <span class="ct">(53)</span></div><div class="ftab">TOP STALLS <span class="ct">(5)</span></div><div class="ftab">NEW THIS WEEK <span class="ct">(122)</span></div></div>
+  <div class="fgroup open">
+    <div class="frow"><span class="fid house">HR 9171</span><span class="ftitle">Securing American Semiconductor Manufacturing Act of 2026</span><span class="fmetric">CMTE <span class="ar">→</span> FLOOR · 4h</span><span class="fchev">▾</span></div>
+    <div class="fexp">
+      <div class="fe-topics"><span class="tp">GOV</span><span class="tp-sep">·</span><span class="tp">TECH</span><span class="tp-sep">·</span><span class="tp">CONS</span></div>
+      <div class="fe-grid">
+        <div>
+          <div class="pipe"><span class="pn pcd"></span><span class="pc pcd"></span><span class="pn pcd"></span><span class="pc pcd"></span><span class="pn cur"></span><span class="pc pct"></span><span class="pn todo"></span><span class="pc pct"></span><span class="pn todo"></span></div>
+          <div class="fe-summary">Directs Commerce to stand up a domestic semiconductor manufacturing program with grants and loan guarantees for fabrication facilities. Reported out of Energy and Commerce 24-19 and placed on the calendar; a floor vote is expected within the week.</div>
+          <div class="fe-news"><div class="nh">RELATED NEWS</div><div class="ni"><span class="src">REUTERS · 4h</span><span>House panel advances chip-manufacturing bill over cost objections</span></div><div class="ni"><span class="src">POLITICO · 1d</span><span>Leadership eyes Thursday floor slot for semiconductor package</span></div></div>
+        </div>
+        <div class="fe-side"><div class="sk">SPONSOR</div><div class="sv">Rep. Marcy Kaptur (D-OH-9)</div><div class="sk">COMMITTEE</div><div class="sv">Energy and Commerce</div><div class="sk">INTRODUCED</div><div class="sv mono">MAR 12, 2026</div><div class="sk">LATEST ACTION</div><div class="sv mono">Placed on Union Calendar · 4h</div><div class="fe-btns"><a>FULL BILL PAGE</a><a>CONGRESS.GOV ↗</a></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fgroup"><div class="frow"><span class="fid senate">S 162</span><span class="ftitle">Restoring Fiscal Responsibility Reconciliation Act</span><span class="fmetric">FLOOR <span class="ar">→</span> OTHER · 9h</span><span class="fchev">▾</span></div><div class="fexp"></div></div>
+  <div class="fgroup"><div class="frow"><span class="fid house">HR 7892</span><span class="ftitle">Veterans Telehealth Expansion and Modernization Act</span><span class="fmetric">CMTE <span class="ar">→</span> FLOOR · 1d</span><span class="fchev">▾</span></div><div class="fexp"></div></div>
+  <div class="fgroup"><div class="frow"><span class="fid senate">S 2</span><span class="ftitle">Border Security and Enforcement Act of 2026</span><span class="fmetric">PRES <span class="ar">→</span> ENACTED · 2d</span><span class="fchev">▾</span></div><div class="fexp"></div></div>
+  <div class="fgroup"><div class="frow"><span class="fid house">HR 4410</span><span class="ftitle">Clean Energy Workforce Development Act</span><span class="fmetric">INTRO <span class="ar">→</span> CMTE · 2d</span><span class="fchev">▾</span></div><div class="fexp"></div></div>
+  <div class="feed-foot">[ + 47 MORE → ]</div>`;
+
+document.querySelector('[data-tape-mkt]').innerHTML=tapeMktHTML;
+document.querySelector('[data-tape-odds]').innerHTML=tapeOddsHTML;
+document.querySelector('[data-nav]').innerHTML=navHTML;
+document.querySelector('[data-weekly]').innerHTML=weeklyHTML;
+document.querySelector('[data-races]').innerHTML=racesHTML;
+document.querySelector('[data-breaking]').innerHTML=breakingHTML;
+document.querySelector('[data-dist]').innerHTML=distHTML;
+document.querySelector('[data-feed]').innerHTML=feedHTML;
+
+const luminance=hex=>{const c=hex.replace('#','');const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);return (0.299*r+0.587*g+0.114*b)/255;};
+const textOn=hex=>luminance(hex)>0.6?'#0a0e14':'#f5f7fa';
+const stages=[{n:'COMMITTEE',v:14613,c:'#06b6d4'},{n:'FLOOR',v:755,c:'#fbbf24'},{n:'INTRO',v:527,c:'#94a3b8'},{n:'ENACTED',v:92,c:'#10b981'},{n:'OTHER',v:56,c:'#f59e0b'},{n:'PRESIDENT',v:0,c:'#fb923c'}];
+const topics=[{n:'GOV',v:4755,c:'#e0696e'},{n:'HLTH',v:2524,c:'#e0696e'},{n:'CIV',v:1901,c:'#5fbf5f'},{n:'TECH',v:1820,c:'#e8743b'},{n:'ENV',v:1692,c:'#d94fd0'},{n:'CONS',v:1519,c:'#6cc04a'},{n:'FRGN',v:1343,c:'#e07a45'},{n:'CRIM',v:1294,c:'#9b7fd4'},{n:'EDU',v:1263,c:'#9ccc4a'},{n:'TAX',v:1102,c:'#8a6dce'},{n:'DEF',v:1062,c:'#e8943b'},{n:'FIN',v:979,c:'#3b82f6'},{n:'LAB',v:955,c:'#4a90e2'},{n:'VET',v:923,c:'#3fd0c9'},{n:'ENRG',v:912,c:'#5ad0a0'},{n:'IMM',v:674,c:'#6cc04a'},{n:'TRADE',v:612,c:'#4a90e2'},{n:'AGRI',v:548,c:'#5fbf5f'},{n:'HOUS',v:503,c:'#d94fd0'},{n:'SS',v:476,c:'#c4e04a'}];
+function drawTreemap(sel,data,W,H){const svg=d3.select(sel).attr('viewBox',`0 0 ${W} ${H}`).attr('preserveAspectRatio','none');svg.selectAll('*').remove();const root=d3.hierarchy({children:data}).sum(d=>d.v).sort((a,b)=>b.value-a.value);d3.treemap().tile(d3.treemapSquarify).size([W,H]).paddingInner(2)(root);const g=svg.selectAll('g').data(root.leaves()).join('g').attr('transform',d=>`translate(${d.x0},${d.y0})`);g.append('rect').attr('width',d=>Math.max(0,d.x1-d.x0)).attr('height',d=>Math.max(0,d.y1-d.y0)).attr('fill',d=>d.data.c);g.each(function(d){const w=d.x1-d.x0,h=d.y1-d.y0;if(w<38||h<26)return;const t=textOn(d.data.c);const node=d3.select(this);node.append('text').attr('class','cell-label cell-name').attr('x',8).attr('y',18).attr('fill',t).attr('font-size',13).text(d.data.n);if(h>40)node.append('text').attr('class','cell-label cell-val').attr('x',8).attr('y',34).attr('fill',t).attr('font-size',12).text(d.data.v.toLocaleString());});}
+function drawBars(sel){const maxv=Math.max(...stages.map(s=>s.v));const order=['INTRO','COMMITTEE','FLOOR','OTHER','PRESIDENT','ENACTED'];const byName=Object.fromEntries(stages.map(s=>[s.n,s]));const host=document.querySelector(sel);host.innerHTML='';order.forEach(name=>{const s=byName[name];const pct=s.v>0?Math.sqrt(s.v)/Math.sqrt(maxv)*100:0;const row=document.createElement('div');row.className='brow';row.innerHTML=`<div class="bl">${name}</div><div class="btrack"><div class="bfill" style="width:${pct}%;background:${s.c}"></div></div><div class="bv">${s.v.toLocaleString()}</div>`;host.appendChild(row);});}
+
+drawBars('#sb0');
+function sizeTreemap(){const db=document.querySelector('.dbody');const W=Math.max(200,db.clientWidth-24);const H=Math.max(160,db.clientHeight-24);drawTreemap('#tt0',topics,W,H);}
+requestAnimationFrame(()=>requestAnimationFrame(sizeTreemap));
+window.addEventListener('resize',()=>requestAnimationFrame(sizeTreemap));
+
+document.querySelectorAll('[data-dist]').forEach(panel=>{
+  panel.querySelectorAll('.dtab').forEach(tab=>tab.addEventListener('click',()=>{
+    panel.querySelectorAll('.dtab').forEach(t=>t.classList.remove('active'));
+    panel.querySelectorAll('.dpane').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    panel.querySelector('[data-pane-body="'+tab.dataset.pane+'"]').classList.add('active');
+    if(tab.dataset.pane==='topic')requestAnimationFrame(sizeTreemap);
+  }));
+});
+document.querySelectorAll('[data-races]').forEach(rc=>{
+  rc.querySelectorAll('.race-card[data-seat]').forEach(card=>{
+    const marker=rc.querySelector('.cm[data-seat="'+CSS.escape(card.dataset.seat)+'"]');
+    if(!marker)return;
+    const on=()=>{marker.classList.add('hl');card.classList.add('hl');};
+    const off=()=>{marker.classList.remove('hl');card.classList.remove('hl');};
+    card.addEventListener('mouseenter',on);card.addEventListener('mouseleave',off);
+    marker.querySelectorAll('.dot,.lbl').forEach(e=>{e.addEventListener('mouseenter',on);e.addEventListener('mouseleave',off);});
+  });
+});
+document.querySelectorAll('[data-feed]').forEach(fc=>{fc.querySelectorAll('.frow').forEach(r=>r.addEventListener('click',()=>r.parentElement.classList.toggle('open')));});
+</script>
+</body>
+</html>
