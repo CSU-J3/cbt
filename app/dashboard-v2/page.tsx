@@ -9,6 +9,7 @@ import {
 import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { NewThisWeek } from "@/components/NewThisWeek";
+import { OnTheHillBand } from "@/components/OnTheHillBand";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
@@ -86,6 +87,11 @@ export default async function DashboardV2Page() {
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />
+
+        {/* HO 269: the ON THE HILL band — moved here from `/` (HO 266 placed it
+            on `/` in error; v2 is the dashboard heading toward the `/` swap).
+            Same reading-order slot: races → weekly → on the hill → body. */}
+        <OnTheHillBand />
 
         {/* 49/51 two-column body. LEFT: breaking over the tabbed STAGE | TOPIC
             distributions (gated). RIGHT: the feed (shared expand). */}
