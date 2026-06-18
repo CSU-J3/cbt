@@ -540,9 +540,12 @@ CREATE TABLE polymarket_odds (
 -- Congress.gov committee-meeting/{congress}/{chamber} (HO 261 probe). **NO
 -- raw_json column** on either data table — the bills-table raw_json bloat caused
 -- the HO 241 cold-scan 500, so only extracted columns are stored. video_url is
--- the EXTRACTED watch link (the videos[] entry whose host is NOT api.congress.gov:
--- YouTube for House, senate.gov/isvp for Senate), null when absent (~76% House /
--- ~94% Senate carry one). committee_system_code = first committee from committees[].
+-- the EXTRACTED watch link: videos[] carries TWO entries per event — the
+-- congress.gov event-page referrer (api. AND www., both excluded) and the real
+-- broadcast URL — so extractVideoUrl skips ANY congress.gov subdomain and returns
+-- the youtube.com (House) / senate.gov-isvp (Senate) link, null when there's no
+-- videos[] (HO 263 backfill: youtube=1300, isvp=787, 0 referrer leaks, 361 null).
+-- committee_system_code = first committee from committees[].
 CREATE TABLE committee_meetings (
   event_id TEXT PRIMARY KEY,
   congress INTEGER NOT NULL,
