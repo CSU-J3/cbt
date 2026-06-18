@@ -10,6 +10,7 @@ import {
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HomeHeader } from "@/components/HomeHeader";
 import { NewThisWeek } from "@/components/NewThisWeek";
+import { OnTheHillBand } from "@/components/OnTheHillBand";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
@@ -96,6 +97,12 @@ export default async function DashboardPage({
             ReportSnapshot teaser AND folds in the HO 232 standalone
             EnactedBanner (both removed). */}
         <WeeklyBand />
+
+        {/* HO 266 (Piece 3 of 5): the ON THE HILL band — full-width this-week
+            (Mon–Fri) committee calendar, below the weekly band and leading the
+            two-column body. Preserves the reading order races → weekly → on the
+            hill → body (electoral → delta → schedule → legislative). */}
+        <OnTheHillBand />
 
         {/* HO 244 (commit 2): two-column body below the weekly band. LEFT
             (56%): BREAKING → STAGE → TOPIC (the two distribution panels merge

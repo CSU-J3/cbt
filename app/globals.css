@@ -5830,3 +5830,163 @@ a.hearing-watch:hover {
 .hearings-embed-link:hover {
   color: var(--accent-amber-bright);
 }
+
+/* ---- dashboard ON THE HILL band (HO 266, Piece 3 of 5) ---------------
+   Full-width this-week (Mon–Fri) compact committee calendar between the weekly
+   band and the two-column body. Static; reuses Piece 1's markup tint + the
+   watchState LIVE rule. Existing tokens only. The border-top is the divider
+   above it (matches .weekly-band). */
+.hill-band {
+  border-top: 0.5px solid var(--border-strong);
+}
+.hill-band-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--bg-panel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hill-band-title {
+  color: var(--accent-amber);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hill-band-live {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  color: var(--stage-enacted);
+  text-decoration: none;
+}
+.hill-band-live:hover {
+  text-decoration: underline;
+}
+.hill-band-live-title {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hill-band-right {
+  margin-left: auto;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.hill-band-right .tabular-nums {
+  color: var(--text-secondary);
+}
+.hill-band-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.hill-band-link:hover {
+  color: var(--accent-amber-bright);
+}
+.hill-band-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: var(--space-sm) var(--space-md) var(--space-md);
+}
+.hill-day {
+  display: flex;
+  flex-direction: column;
+  min-height: 92px;
+  border: 0.5px solid var(--border-strong);
+  border-top: 2px solid transparent; /* reserve today edge — no row shift */
+  background-color: var(--bg-base);
+}
+.hill-day.is-today {
+  border-top-color: var(--accent-amber);
+}
+.hill-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 7px;
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hill-day-head .dom {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.hill-day-head .cnt {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.hill-day.is-today .dow,
+.hill-day.is-today .dom {
+  color: var(--accent-amber);
+}
+.hill-day-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  opacity: 0.5;
+  font-size: 14px;
+}
+.hill-line {
+  display: grid;
+  grid-template-columns: 9px 46px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 3px;
+  padding: 2px 7px 2px 5px;
+  border-left: 2px solid var(--border-strong);
+  font-size: 11px;
+}
+.hill-line.is-markup {
+  border-left-color: var(--accent-amber);
+}
+.hill-line-dot {
+  color: var(--stage-enacted);
+  font-size: 8px;
+  line-height: 1;
+}
+.hill-line-time {
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hill-line-title {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hill-line-bills {
+  color: var(--accent-amber);
+  white-space: nowrap;
+}
+.hill-more {
+  display: block;
+  padding: 3px 7px 2px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.hill-more:hover {
+  color: var(--accent-amber);
+}
+@media (max-width: 720px) {
+  .hill-band-grid {
+    grid-template-columns: 1fr;
+  }
+}

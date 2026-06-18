@@ -59,7 +59,13 @@ export function HearingsList({
               const first = day.meetings[0]!;
               const rel = etRelativeDay(first.meetingDate, nowMs);
               return (
-                <div key={day.key} className="hearings-list">
+                // id anchor so the dashboard ON THE HILL band's "+N more" /
+                // LIVE callout (HO 266) can deep-link to a specific day group.
+                <div
+                  key={day.key}
+                  id={`hill-day-${day.key}`}
+                  className="hearings-list"
+                >
                   <div className="hearings-day-head">
                     <span>
                       {etDayLabel(first.meetingDate)}
