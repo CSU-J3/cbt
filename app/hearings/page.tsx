@@ -7,13 +7,16 @@
 // state / day math can't drift between render and hydration.
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { HearingsCalendar } from "@/components/HearingsCalendar";
 import { HearingsList, type HearingsBand } from "@/components/HearingsList";
 import { getCurrentCongress, ordinal } from "@/lib/congress";
 import {
   hearingBadge,
   sanitizeHearingType,
+  sanitizeHearingView,
   typeFilterBadge,
   type HearingTypeFilter,
+  type HearingView,
 } from "@/lib/hearings";
 import {
   getCommitteesIndex,
@@ -28,9 +31,15 @@ const RECENT_DAYS = 7;
 const WEEK_MS = 7 * 86_400_000;
 
 type SearchParams = {
+  view?: string;
   type?: string;
   chamber?: string;
 };
+
+const VIEW_OPTS: ReadonlyArray<{ value: HearingView; label: string }> = [
+  { value: "list", label: "LIST" },
+  { value: "cal", label: "CALENDAR" },
+];
 
 const TYPE_OPTS: ReadonlyArray<{ value: HearingTypeFilter | ""; label: string }> =
   [
@@ -46,8 +55,15 @@ const CHAMBER_OPTS: ReadonlyArray<{ value: Chamber | ""; label: string }> = [
   { value: "senate", label: "SENATE" },
 ];
 
-function buildHref(next: { type?: string; chamber?: string }): string {
+// view/type/chamber all round-trip through the URL; LIST is the default so it's
+// omitted (the canonical /hearings URL stays clean).
+function buildHref(next: {
+  view?: HearingView;
+  type?: string;
+  chamber?: string;
+}): string {
   const sp = new URLSearchParams();
+  if (next.view && next.view !== "list") sp.set("view", next.view);
   if (next.type) sp.set("type", next.type);
   if (next.chamber) sp.set("chamber", next.chamber);
   const qs = sp.toString();
@@ -92,6 +108,7 @@ export default async function HearingsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const view = sanitizeHearingView(params.view);
   const type = sanitizeHearingType(params.type);
   const chamber = sanitizeChamber(params.chamber);
 
@@ -168,14 +185,23 @@ export default async function HearingsPage({
           </span>
         </div>
 
-        {/* Filter bar — TYPE + CHAMBER, state in the URL */}
+        {/* Filter bar — VIEW toggle (left) + TYPE + CHAMBER, state in the URL.
+            Filters stay applied across both views (HO 265 Phase 1 decision). */}
         <div className="hearings-filterbar">
+          <FilterGroup
+            label="VIEW"
+            opts={VIEW_OPTS}
+            current={view}
+            hrefFor={(value) =>
+              buildHref({ view: (value || "list") as HearingView, type, chamber })
+            }
+          />
           <FilterGroup
             label="TYPE"
             opts={TYPE_OPTS}
             current={type}
             hrefFor={(value) =>
-              buildHref({ type: value || undefined, chamber })
+              buildHref({ view, type: value || undefined, chamber })
             }
           />
           <FilterGroup
@@ -183,7 +209,7 @@ export default async function HearingsPage({
             opts={CHAMBER_OPTS}
             current={chamber}
             hrefFor={(value) =>
-              buildHref({ type, chamber: value || undefined })
+              buildHref({ view, type, chamber: value || undefined })
             }
           />
           <span className="hearings-filter-count">
@@ -191,11 +217,15 @@ export default async function HearingsPage({
           </span>
         </div>
 
-        <HearingsList
-          bands={bands}
-          committeeNames={committeeNames}
-          nowMs={nowMs}
-        />
+        {view === "cal" ? (
+          <HearingsCalendar meetings={shown} nowMs={nowMs} />
+        ) : (
+          <HearingsList
+            bands={bands}
+            committeeNames={committeeNames}
+            nowMs={nowMs}
+          />
+        )}
       </main>
     </div>
   );

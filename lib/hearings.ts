@@ -72,6 +72,17 @@ export function typeFilterBadge(t: HearingTypeFilter): HearingBadge {
   return "BUSINESS";
 }
 
+// HO 265: LIST|CALENDAR view toggle (?view=). LIST is the default — an unknown
+// or absent value falls back to it.
+export const HEARING_VIEWS = ["list", "cal"] as const;
+export type HearingView = (typeof HEARING_VIEWS)[number];
+
+export function sanitizeHearingView(
+  raw: string | null | undefined,
+): HearingView {
+  return raw === "cal" ? "cal" : "list";
+}
+
 // ---- ET (DC time) formatting -------------------------------------------
 // Hearings are DC events; the spec's "9:30a" is the ET reading of a 13:30Z
 // meeting_date. All grouping + display is in America/New_York so day boundaries
@@ -125,6 +136,63 @@ export function etDayLabel(iso: string): string {
   if (Number.isNaN(t)) return "";
   // "Wed, Jun 17" -> "WED JUN 17"
   return etHeaderFmt.format(t).replace(",", "").toUpperCase();
+}
+
+// ---- ET calendar-week math (HO 265) ------------------------------------
+// Date-key arithmetic for the two-week Mon–Fri grid. A bare key is YYYY-MM-DD;
+// all math anchors at NOON UTC so adding/subtracting whole days never trips a
+// DST boundary and never reconverts through ET (the Phase-1 off-by-one: parsing
+// an ET key as UTC midnight and re-running etDayKey shifts it back a day). Keys
+// produced here are read with a UTC formatter, so the calendar parts match the
+// key exactly — the ET conversion happens once, in etDayKey, on real timestamps.
+
+const utcDowFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+});
+const utcMonFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+});
+
+function keyAnchor(dayKey: string): number {
+  return Date.parse(`${dayKey}T12:00:00Z`);
+}
+
+// The ET calendar day (YYYY-MM-DD) that `nowMs` falls in.
+export function etTodayKey(nowMs: number): string {
+  return etDayKeyFmt.format(nowMs);
+}
+
+// Shift a day-key by whole days, returning a new YYYY-MM-DD key.
+export function addDaysToKey(dayKey: string, n: number): string {
+  return new Date(keyAnchor(dayKey) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+// 0=Sun … 6=Sat for the given key.
+export function weekdayOfKey(dayKey: string): number {
+  return new Date(keyAnchor(dayKey)).getUTCDay();
+}
+
+// The Monday-key of the week containing `dayKey`.
+export function mondayOfKey(dayKey: string): string {
+  const sinceMon = (weekdayOfKey(dayKey) + 6) % 7;
+  return addDaysToKey(dayKey, -sinceMon);
+}
+
+// Display parts for a bare day-key, read in UTC so they match the key exactly.
+// e.g. "2026-06-24" -> { dow: "WED", mon: "JUN", dom: 24 }.
+export function dayKeyParts(dayKey: string): {
+  dow: string;
+  mon: string;
+  dom: number;
+} {
+  const a = keyAnchor(dayKey);
+  return {
+    dow: utcDowFmt.format(a).toUpperCase(),
+    mon: utcMonFmt.format(a).toUpperCase(),
+    dom: Number(dayKey.slice(8, 10)),
+  };
 }
 
 // "TODAY" / "TOMORROW" / "YESTERDAY" or null, comparing ET calendar days. Both
