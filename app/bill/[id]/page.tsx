@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { HeaderBar } from "@/components/HeaderBar";
+import {
+  HearingMeetingsEmbed,
+  type HearingEmbedGroup,
+} from "@/components/HearingMeetingsEmbed";
 import { PartyTag } from "@/components/PartyTag";
 import { StageIndicator } from "@/components/StageIndicator";
 import { TopicTags } from "@/components/TopicTags";
@@ -17,8 +21,15 @@ import {
   type BillCommitteeRow,
   getBillById,
   getBillCommittees,
+  getCommitteesIndex,
+  getMeetingsForBill,
   isInWatchlist,
 } from "@/lib/queries";
+
+// HO 267 Phase 1: max meetings on a single bill = 5 (p90=2, none >8). Cap at 8
+// so today every bill shows in full; the "see all on /hearings" out only arms
+// if a future bill blows past it.
+const BILL_MEETINGS_CAP = 8;
 
 const labelStyle: React.CSSProperties = {
   color: "var(--text-dim)",
@@ -115,10 +126,22 @@ export default async function BillDetailPage({
   const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const [onWatchlist, committees] = await Promise.all([
+  const [onWatchlist, committees, meetings, committeeIndex] = await Promise.all([
     isInWatchlist(bill.id),
     getBillCommittees(bill.id),
+    getMeetingsForBill(bill.id),
+    getCommitteesIndex(),
   ]);
+  // systemCode → name so each hearing row shows its committee (the meetings
+  // span different committees on the bill cut, unlike the committee page).
+  const committeeNames: Record<string, string> = {};
+  for (const c of committeeIndex) committeeNames[c.systemCode] = c.name;
+  const nowMs = Date.now();
+  const shownMeetings = meetings.slice(0, BILL_MEETINGS_CAP);
+  const meetingOverflow = meetings.length - shownMeetings.length;
+  const meetingGroups: HearingEmbedGroup[] = [
+    { key: "all", meetings: shownMeetings },
+  ];
   const url = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
   const topics = parseTopics(bill.topics);
   let formattedRaw = bill.raw_json;
@@ -215,6 +238,37 @@ export default async function BillDetailPage({
                   />
                 ))}
               </ul>
+            </>
+          ) : null}
+
+          {meetings.length > 0 ? (
+            <>
+              <Divider />
+              <div
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
+                style={labelStyle}
+              >
+                Hearings covering this bill ({meetings.length})
+              </div>
+              <div
+                className="border"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
+                <HearingMeetingsEmbed
+                  groups={meetingGroups}
+                  committeeNames={committeeNames}
+                  nowMs={nowMs}
+                  hideBills
+                />
+                {meetingOverflow > 0 ? (
+                  <div className="hearings-embed-foot">
+                    {meetingOverflow} more ·{" "}
+                    <Link href="/hearings" className="hearings-embed-link">
+                      see all on /hearings →
+                    </Link>
+                  </div>
+                ) : null}
+              </div>
             </>
           ) : null}
 

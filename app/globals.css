@@ -5462,6 +5462,10 @@ a.pdc-cand-name:hover {
   outline: 1px solid var(--accent-amber);
   outline-offset: -2px;
 }
+/* HO 267 bill cut: drop the bill-chip column (the bill is the current bill). */
+.hearing-row-btn--nobills {
+  grid-template-columns: 14px 50px 90px minmax(0, 1fr);
+}
 .hearing-caret {
   color: var(--text-dim);
   font-size: 11px;
@@ -5792,4 +5796,37 @@ a.hearing-watch:hover {
   .hearings-cal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ---- hearings secondary cuts (HO 267, Piece 4 of 5) ------------------
+   The Piece 1 row embedded in a scoped section (committee detail + bill hub).
+   Reuses .hearing-row* wholesale; this adds only the group subheader + the
+   "see all" footer. Existing tokens only. */
+.hearings-embed-grouphead {
+  padding: 5px 12px;
+  border-top: 0.5px solid var(--border-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background-color: var(--bg-panel);
+}
+.hearings-embed-group:first-child .hearings-embed-grouphead {
+  border-top: none;
+}
+.hearings-embed-foot {
+  padding: 7px 12px;
+  border-top: 0.5px solid var(--border-soft);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hearings-embed-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.hearings-embed-link:hover {
+  color: var(--accent-amber-bright);
 }

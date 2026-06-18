@@ -8,6 +8,10 @@ import { CommitteeActivityChart } from "@/components/CommitteeActivityChart";
 import { CommitteeTopicDistribution } from "@/components/CommitteeTopicDistribution";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import {
+  HearingMeetingsEmbed,
+  type HearingEmbedGroup,
+} from "@/components/HearingMeetingsEmbed";
 import { daysSince } from "@/lib/format";
 import {
   type CommitteeMember,
@@ -15,11 +19,16 @@ import {
   getCommitteeBySystemCode,
   getCommitteeMembers,
   getCommitteeSubcommittees,
+  getMeetingsByCommittee,
   getWatchedBillIds,
 } from "@/lib/queries";
 
 const RECENT_LIMIT = 25;
 const RECENT_DAYS = 30;
+// HO 267 Phase 1: per-committee meetings reach 84 (p90=28) but UPCOMING is ≤2;
+// so UPCOMING shows in full and RECENT (the big, newest-first band) caps here,
+// with a "see all on /hearings" out when there's more.
+const RECENT_MEETINGS_CAP = 10;
 
 function chamberLabel(chamber: "house" | "senate" | "joint"): string {
   if (chamber === "house") return "HOUSE";
@@ -146,7 +155,7 @@ export default async function CommitteeDetailPage({
     );
   }
 
-  const [parent, subcommittees, members, bills, watchedIds] =
+  const [parent, subcommittees, members, bills, watchedIds, meetings] =
     await Promise.all([
       committee.parentSystemCode
         ? getCommitteeBySystemCode(committee.parentSystemCode)
@@ -155,8 +164,28 @@ export default async function CommitteeDetailPage({
       getCommitteeMembers(committee.systemCode),
       getCommitteeBills(committee.systemCode, RECENT_LIMIT, RECENT_DAYS),
       getWatchedBillIds(),
+      getMeetingsByCommittee(committee.systemCode),
     ]);
   const watchedSet = new Set(watchedIds);
+
+  // HO 267 committee cut: split this committee's meetings into UPCOMING (soonest
+  // first, uncapped — ≤2 in practice) and RECENT (newest first, capped). The
+  // helper returns newest-first; re-sort the upcoming slice ascending so the
+  // nearest meeting reads at the top of its band.
+  const nowMs = Date.now();
+  const meetingNames = { [committee.systemCode]: committee.name };
+  const upcomingMeetings = meetings
+    .filter((m) => Date.parse(m.meetingDate) >= nowMs)
+    .sort((a, b) => Date.parse(a.meetingDate) - Date.parse(b.meetingDate));
+  const recentMeetingsAll = meetings.filter(
+    (m) => Date.parse(m.meetingDate) < nowMs,
+  );
+  const recentMeetings = recentMeetingsAll.slice(0, RECENT_MEETINGS_CAP);
+  const recentOverflow = recentMeetingsAll.length - recentMeetings.length;
+  const meetingGroups: HearingEmbedGroup[] = [
+    { key: "upcoming", label: "Upcoming", meetings: upcomingMeetings },
+    { key: "recent", label: "Recently held", meetings: recentMeetings },
+  ].filter((g) => g.meetings.length > 0);
 
   const majorityCount = members.filter(
     (m) => m.partySide === "majority",
@@ -413,6 +442,47 @@ export default async function CommitteeDetailPage({
             )}
           </section>
         </div>
+
+        {meetingGroups.length > 0 ? (
+          <section
+            className="mt-4 border"
+            style={{ borderColor: "var(--border-strong)" }}
+          >
+            <div
+              className="border-b px-3 py-2"
+              style={{
+                backgroundColor: "var(--bg-panel)",
+                borderColor: "var(--border-strong)",
+              }}
+            >
+              <span
+                className="text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Hearings &amp; meetings
+              </span>
+              <span
+                className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {meetings.length} total
+              </span>
+            </div>
+            <HearingMeetingsEmbed
+              groups={meetingGroups}
+              committeeNames={meetingNames}
+              nowMs={nowMs}
+            />
+            {recentOverflow > 0 ? (
+              <div className="hearings-embed-foot">
+                {recentOverflow} more held ·{" "}
+                <Link href="/hearings" className="hearings-embed-link">
+                  see all on /hearings →
+                </Link>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
       </main>
     </div>
   );
