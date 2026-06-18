@@ -27,6 +27,10 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/bills") return [mode === "news" ? "News" : "Bills"];
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return ["Bills"];
   if (basePath === "/changes") return ["Bills", "Changes"];
+  // HO 264: /hearings standalone section (the later calendar/detail pieces
+  // append their own segment via opts.detail).
+  if (basePath === "/hearings" || basePath.startsWith("/hearings/"))
+    return ["Hearings"];
   if (basePath === "/watchlist") return ["Watchlist"];
   if (basePath === "/members" || basePath.startsWith("/members/"))
     return ["Members"];

@@ -5297,3 +5297,374 @@ a.pdc-cand-name:hover {
   font-size: 12px;
   color: var(--text-dim);
 }
+
+/* ---- hearings list (HO 264, Piece 1 of 5) ----------------------------
+   /hearings grouped chronological list. The <li> is the grid: a click-to-
+   expand button covers caret|time|type|title+meta|bills (the row identity),
+   and the WATCH cell is a real external <a> sibling on the right (mirrors the
+   feed-row star pattern — a nested <a> inside the button would be invalid).
+   The expanded panel spans both columns below. Existing tokens only. */
+.hearings-page-masthead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.hearings-prompt {
+  font-family: var(--font-mono);
+  font-size: 25px;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+.hearings-prompt .prompt-accent {
+  color: var(--accent-amber);
+}
+.hearings-subhead {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hearings-subhead .num {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* filter bar */
+.hearings-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.hearings-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hearings-filter-label {
+  color: var(--text-dim);
+}
+.hearings-filter-opt {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+  /* reserve bracket space so the active [ ] adds no horizontal shift */
+  padding: 0 2px;
+}
+.hearings-filter-opt::before,
+.hearings-filter-opt::after {
+  content: "\00a0";
+  color: transparent;
+}
+.hearings-filter-opt:hover {
+  color: var(--text-secondary);
+}
+.hearings-filter-opt.is-active {
+  color: var(--accent-amber-bright);
+}
+.hearings-filter-opt.is-active::before {
+  content: "[";
+  color: var(--accent-amber);
+}
+.hearings-filter-opt.is-active::after {
+  content: "]";
+  color: var(--accent-amber);
+}
+.hearings-filter-count {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* bands + day subheaders */
+.hearings-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 20px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+}
+.hearings-band-head:first-child {
+  margin-top: 0;
+}
+.hearings-band-rule {
+  flex: 1;
+  height: 0;
+  border-top: 0.5px solid var(--border-soft);
+}
+.hearings-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 12px;
+  background-color: var(--bg-panel);
+  border-top: 0.5px solid var(--border-soft);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hearings-day-head .today {
+  color: var(--accent-amber);
+}
+.hearings-day-head .day-count {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hearings-list {
+  border: 0.5px solid var(--border-strong);
+  border-top: none;
+}
+.hearing-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  border-top: 0.5px solid var(--border-soft);
+}
+.hearing-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.hearing-row.is-open {
+  background-color: var(--bg-row-hover);
+}
+.hearing-row-btn {
+  display: grid;
+  grid-template-columns: 14px 50px 90px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.hearing-row-btn:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: -2px;
+}
+.hearing-caret {
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1;
+  display: inline-block;
+  transition: transform 120ms ease, color 120ms ease;
+}
+.hearing-caret.is-open {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
+}
+.hearing-time {
+  font-size: 12px;
+  text-align: right;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hearing-type {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.hearing-type.is-markup {
+  color: var(--accent-amber);
+}
+.hearing-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.hearing-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hearing-row.is-open .hearing-title {
+  white-space: normal;
+  overflow: visible;
+}
+.hearing-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 8px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  min-width: 0;
+}
+.hearing-meta .chamber-h {
+  color: var(--rail-house);
+}
+.hearing-meta .chamber-s {
+  color: var(--rail-senate);
+}
+.hearing-meta .sep {
+  color: var(--border-strong);
+}
+.hearing-bills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.hearing-chip {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-amber);
+  letter-spacing: 0.3px;
+}
+.hearing-bills-more {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.hearing-watch {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.hearing-watch.state-live {
+  color: var(--stage-enacted);
+}
+.hearing-watch.state-watch {
+  color: var(--accent-amber-bright);
+}
+.hearing-watch.state-stream {
+  color: var(--text-muted);
+}
+a.hearing-watch:hover {
+  text-decoration: underline;
+}
+
+/* expanded panel */
+.hearing-panel {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 12px 16px 38px;
+  border-top: 0.5px solid var(--border-soft);
+}
+.hearing-panel-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hearing-panel-cap {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hearing-panel-watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--accent-amber-bright);
+}
+.hearing-panel-watch:hover {
+  text-decoration: underline;
+}
+.hearing-panel-watch.state-live {
+  color: var(--stage-enacted);
+}
+.hearing-panel-watch.state-stream {
+  color: var(--text-muted);
+}
+.hearing-panel-watch-note {
+  color: var(--text-dim);
+}
+.hearing-bill-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 13px;
+  padding: 3px 0;
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.hearing-bill-line:last-child {
+  border-bottom: none;
+}
+.hearing-bill-line .bill-id {
+  color: var(--accent-amber);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hearing-bill-line .bill-id:hover {
+  color: var(--accent-amber-bright);
+}
+.hearing-bill-line .bill-title {
+  color: var(--text-secondary);
+  text-decoration: none;
+  min-width: 0;
+}
+.hearing-bill-line a.bill-title:hover {
+  color: var(--text-primary);
+}
+.hearing-bill-line .bill-sponsor {
+  color: var(--text-muted);
+}
+.hearing-panel-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.hearing-panel-details .k {
+  color: var(--text-muted);
+}
+.hearing-panel-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.hearing-panel-link:hover {
+  color: var(--accent-amber-bright);
+}
+.hearings-empty {
+  padding: 48px 12px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  border: 0.5px solid var(--border-strong);
+}

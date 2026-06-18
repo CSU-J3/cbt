@@ -52,7 +52,9 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
 };
 
 // "races" is no longer listed separately — it's a Group as of HO 173.
-export type NavKey = "dashboard" | Group | "reports" | "watchlist";
+// "hearings" (HO 264) is a standalone top-nav target with no group tabs, same
+// shape as "watchlist".
+export type NavKey = "dashboard" | Group | "hearings" | "reports" | "watchlist";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page passes in. /watchlist is a standalone
@@ -80,6 +82,10 @@ export type NavKey = "dashboard" | Group | "reports" | "watchlist";
 // URL so this fallback is just defensive.
 export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/watchlist") return "watchlist";
+  // HO 264: /hearings (standalone, no group tabs). startsWith covers the later
+  // pieces' sub-routes (calendar etc.) so they keep the tab lit.
+  if (basePath === "/hearings" || basePath.startsWith("/hearings/"))
+    return "hearings";
   if (basePath === "/reports" || basePath.startsWith("/reports/"))
     return "reports";
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";

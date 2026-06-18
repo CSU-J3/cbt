@@ -42,6 +42,7 @@ export type NavItem = {
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
   { key: "feed", href: "/bills", icon: "▤", label: "Bills", tooltip: "Bills, news, stage changes, and the president's desk" },
+  { key: "hearings", href: "/hearings", icon: "▦", label: "Hearings", tooltip: "Committee hearings, markups, and business meetings" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "races", href: "/races", icon: "🗳", label: "Races", tooltip: "Competitive 2026 races and forecaster ratings" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
@@ -55,8 +56,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // no icons); the active item gets amber `[ \LABEL ]` brackets + amber-bright
 // label + amber-bright underline, with bracket space reserved on every item so
 // switching the active item causes no horizontal shift. Three groups split by
-// short vertical rules: \DASHBOARD | \BILLS \MEMBERS \RACES \PATTERNS |
-// \REPORTS \WATCHLIST (dividers before index 1 and 5). Styling lives under
+// short vertical rules: \DASHBOARD | \BILLS \HEARINGS \MEMBERS \RACES \PATTERNS
+// | \REPORTS \WATCHLIST (dividers before index 1 and 6 — HO 264 inserted
+// \HEARINGS into the middle group, bumping \REPORTS from 5 to 6). Styling lives under
 // `.primary-nav .pnav-*` in globals.css (specificity beats `.home-header-nav a`).
 export function PrimaryNav({
   active,
@@ -73,7 +75,7 @@ export function PrimaryNav({
     <nav className={wrapperClass} aria-label="Primary navigation">
       {NAV_ITEMS.map((item, i) => (
         <Fragment key={item.key}>
-          {i === 1 || i === 5 ? (
+          {i === 1 || i === 6 ? (
             <span className="pnav-divider" aria-hidden />
           ) : null}
           <Link
