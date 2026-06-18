@@ -212,22 +212,25 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 
 ## Status
 
-> **As of HO 235 · 2026-06-11.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
+> **As of HO 269 · 2026-06-18.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
 
 **Overall: ~97%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
 
 | Theme | % |
 |---|---|
 | Foundation | 95 |
-| Home | 98 |
+| Home | 99 |
 | Visualizations | 95 |
-| Weekly reports | 95 |
+| Weekly reports | 96 |
 | News signal | CLOSED |
 | Member depth | 90 |
 | Races | 98 |
+| Committee activity / hearings | 98 |
 
-**Baseline provenance.** Foundation / Weekly reports / Member depth (95 / 95 / 90) are **last-known values maintained off-repo through HO 221** — **NOT re-derived this pass**; verify against live state on the next full audit. **Home (95→98)** and **Visualizations (90→95)** were bumped this pass to reflect the completed dashboard design arc (HO 230–234); **Races (98)** reflects HO 222–226.
+**Baseline provenance.** Foundation / Member depth (95 / 90) are **last-known values maintained off-repo through HO 221** — **NOT re-derived this pass**; verify against live state on the next full audit. **Home (98→99)** and **Weekly reports (95→96)** were bumped this pass for the committee-activity / hearings arc (the /dashboard-v2 On the Hill band touches Home; the weekly-report COMMITTEE ACTIVITY section touches Weekly reports). **Committee activity / hearings (98, new this pass)** is **effectively complete** — the full 263–269 arc shipped; the open remainder is the two banked items below. *(Prior pass: Home 95→98 + Visualizations 90→95 for the HO 230–234 design arc; Races 98 reflects HO 222–226.)*
 
-**Shipped recently (HO 230–234, the dashboard design pass — completes the 10-item arc):** nav text-only path restyle + Bills rename · masthead cursor → lead-in prose end · stage-distribution left-anchor · races-popover re-confinement · topic-distribution treemap (replaced the bubble cluster) · MOVERS tab (ACTIVITY renamed in place) · `stage_transitions` write-only log · ENACTED THIS WEEK banner · PRIMARIES tab on the races panel · markets tape collapsed to one line + CLOSED market-hours state. *(HO 222–226 prior: /races LIST redesign · district-map geometry · /races + /primaries district modals.)*
+**Shipped recently (HO 263–269, the committee-activity / hearings arc — effectively complete):** committee-meetings data layer (263) · standalone `/hearings` with grouped list + two-week Mon–Fri calendar (264 / 265) · `/dashboard-v2` On the Hill band (266, corrected onto v2 in 269 so it survives the `/` swap) · committee-detail + bill-hub meeting embeds reusing the list row (267) · weekly-report COMMITTEE ACTIVITY section, fallback variant — markup blocks at current stage, no VIA tags (268). *(HO 230–234 prior: the dashboard design pass; HO 222–226: /races LIST + district maps/modals.)*
 
-**Banked / unbuilt:** **MOVERS from→to display + hop-count sort** (gated on `stage_transitions` accrual, planted 2026-06-11) · metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
+**Banked / unbuilt:** **strong VIA-markup report attribution** (blocked, not deferred — `stage_changed_at` history began 2026-05-11, 52 committee→floor moves all-time, no markup-date alignment → 0 clean joins; HO 268 Gate A; revisit once the history matures) · **MARKUPS column on the reports index stat strip** (queued from 268 — needs a new persisted column + migration + backfill) · **MOVERS from→to display + hop-count sort** (gated on `stage_transitions` accrual, planted 2026-06-11) · metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
+
+**Owed eyeball:** **hearings LIVE state** — the ● LIVE badge (v2 band callout + `/hearings` list/calendar glyph) was never exercised against a real streaming meeting (0 live in every build sample); confirm it renders correctly the next time a committee meeting is actually live.
