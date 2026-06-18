@@ -4715,6 +4715,194 @@ export const getCommitteeBills = unstable_cache(
   { tags: ["committees"], revalidate: 3600 },
 );
 
+// HO 263: committee meetings (hearings) read layer. Each meeting carries its
+// associated bills (from meeting_bills → bills) for chips. Cached, tag `meetings`
+// (the 12th tag; /api/cron/committees revalidates it after the meetings step).
+export type CommitteeMeeting = {
+  eventId: string;
+  chamber: "house" | "senate";
+  meetingDate: string;
+  meetingType: string;
+  meetingStatus: string;
+  title: string;
+  building: string | null;
+  room: string | null;
+  videoUrl: string | null;
+  committeeSystemCode: string | null;
+  bills: FeedBill[]; // from meeting_bills join; may be empty (sparse by nature)
+};
+
+const MEETING_COL_LIST = [
+  "event_id",
+  "chamber",
+  "meeting_date",
+  "meeting_type",
+  "meeting_status",
+  "title",
+  "location_building",
+  "location_room",
+  "video_url",
+  "committee_system_code",
+];
+const MEETING_COLS = MEETING_COL_LIST.join(", ");
+const MEETING_COLS_M = MEETING_COL_LIST.map((c) => `m.${c}`).join(", ");
+
+function rowToMeetingBase(
+  r: Record<string, unknown>,
+): Omit<CommitteeMeeting, "bills"> {
+  return {
+    eventId: r.event_id as string,
+    chamber: (r.chamber as string) === "senate" ? "senate" : "house",
+    meetingDate: (r.meeting_date as string | null) ?? "",
+    meetingType: (r.meeting_type as string | null) ?? "",
+    meetingStatus: (r.meeting_status as string | null) ?? "",
+    title: (r.title as string | null) ?? "",
+    building: (r.location_building as string | null) ?? null,
+    room: (r.location_room as string | null) ?? null,
+    videoUrl: (r.video_url as string | null) ?? null,
+    committeeSystemCode: (r.committee_system_code as string | null) ?? null,
+  };
+}
+
+// Attach each meeting's associated bills with ONE extra query (the join is in
+// SQL; only the group-into-arrays step is JS — not an N+1 per meeting). A
+// meeting_bills row pointing at a not-yet-synced bill drops out of the INNER
+// JOIN (no chip), which is the honest degrade.
+async function attachMeetingBills(
+  bases: Omit<CommitteeMeeting, "bills">[],
+): Promise<CommitteeMeeting[]> {
+  if (bases.length === 0) return [];
+  const db = getDb();
+  const ids = bases.map((b) => b.eventId);
+  const placeholders = ids.map(() => "?").join(",");
+  const rs = await db.execute({
+    sql: `SELECT mb.event_id,
+                 bills.id, bills.congress, bills.bill_type, bills.bill_number,
+                 bills.title, bills.sponsor_name, bills.sponsor_party,
+                 bills.sponsor_state, bills.introduced_date,
+                 bills.latest_action_date, bills.latest_action_text,
+                 bills.update_date, bills.summary, bills.topics, bills.stage,
+                 bills.previous_stage, bills.stage_changed_at,
+                 ${MENTION_SELECT}
+          FROM meeting_bills mb
+          JOIN bills ON bills.id = mb.bill_id
+          ${MENTION_SUBQUERY}
+          WHERE mb.event_id IN (${placeholders})
+          ORDER BY bills.latest_action_date DESC`,
+    args: ids,
+  });
+  const byEvent = new Map<string, FeedBill[]>();
+  for (const r of rs.rows) {
+    const ev = r.event_id as string;
+    const arr = byEvent.get(ev) ?? [];
+    arr.push(rowToFeedBill(r as Record<string, unknown>));
+    byEvent.set(ev, arr);
+  }
+  return bases.map((b) => ({ ...b, bills: byEvent.get(b.eventId) ?? [] }));
+}
+
+// Calendar spine: meetings dated from now forward (this/next week — the source
+// only runs ~2 weeks ahead, HO 261), nearest first.
+export const getUpcomingMeetings = unstable_cache(
+  async (opts?: {
+    days?: number;
+    chamber?: string;
+    type?: string;
+  }): Promise<CommitteeMeeting[]> => {
+    const db = getDb();
+    const where = ["meeting_date IS NOT NULL", "meeting_date >= ?"];
+    const args: (string | number)[] = [new Date().toISOString()];
+    if (opts?.days) {
+      where.push("meeting_date <= ?");
+      args.push(new Date(Date.now() + opts.days * 86_400_000).toISOString());
+    }
+    if (opts?.chamber) {
+      where.push("chamber = ?");
+      args.push(opts.chamber);
+    }
+    if (opts?.type) {
+      where.push("meeting_type = ?");
+      args.push(opts.type);
+    }
+    const rs = await db.execute({
+      sql: `SELECT ${MEETING_COLS} FROM committee_meetings
+            WHERE ${where.join(" AND ")}
+            ORDER BY meeting_date ASC`,
+      args,
+    });
+    return attachMeetingBills(rs.rows.map(rowToMeetingBase));
+  },
+  ["getUpcomingMeetings"],
+  { tags: ["meetings"], revalidate: 3600 },
+);
+
+// Record of recently-held meetings: meeting_date in [now - days, now), newest first.
+export const getRecentMeetings = unstable_cache(
+  async (days = 7): Promise<CommitteeMeeting[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT ${MEETING_COLS} FROM committee_meetings
+            WHERE meeting_date IS NOT NULL
+              AND meeting_date < ?
+              AND meeting_date >= ?
+            ORDER BY meeting_date DESC`,
+      args: [
+        new Date().toISOString(),
+        new Date(Date.now() - days * 86_400_000).toISOString(),
+      ],
+    });
+    return attachMeetingBills(rs.rows.map(rowToMeetingBase));
+  },
+  ["getRecentMeetings"],
+  { tags: ["meetings"], revalidate: 3600 },
+);
+
+// Committee-detail "what's this committee doing" cut (HO 143 precedent). upcomingOnly
+// → only future meetings, nearest first; otherwise all of the committee's
+// meetings, newest first.
+export const getMeetingsByCommittee = unstable_cache(
+  async (
+    systemCode: string,
+    opts?: { upcomingOnly?: boolean },
+  ): Promise<CommitteeMeeting[]> => {
+    const db = getDb();
+    const where = ["committee_system_code = ?", "meeting_date IS NOT NULL"];
+    const args: string[] = [systemCode];
+    if (opts?.upcomingOnly) {
+      where.push("meeting_date >= ?");
+      args.push(new Date().toISOString());
+    }
+    const order = opts?.upcomingOnly ? "ASC" : "DESC";
+    const rs = await db.execute({
+      sql: `SELECT ${MEETING_COLS} FROM committee_meetings
+            WHERE ${where.join(" AND ")}
+            ORDER BY meeting_date ${order}`,
+      args,
+    });
+    return attachMeetingBills(rs.rows.map(rowToMeetingBase));
+  },
+  ["getMeetingsByCommittee"],
+  { tags: ["meetings"], revalidate: 3600 },
+);
+
+// Reverse lookup for the bill hub: which meetings cover this bill (newest first).
+export const getMeetingsForBill = unstable_cache(
+  async (billId: string): Promise<CommitteeMeeting[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT ${MEETING_COLS_M}
+            FROM committee_meetings m
+            JOIN meeting_bills mb ON mb.event_id = m.event_id
+            WHERE mb.bill_id = ?
+            ORDER BY m.meeting_date DESC NULLS LAST`,
+      args: [billId],
+    });
+    return attachMeetingBills(rs.rows.map(rowToMeetingBase));
+  },
+  ["getMeetingsForBill"],
+  { tags: ["meetings"], revalidate: 3600 },
+);
+
 // HO 146: chart helpers for /committee/[systemCode]. Both aggregate in SQL
 // against the same indices `getCommitteeBills` rides on; no per-row fan-out.
 export type CommitteeActivityBucket =

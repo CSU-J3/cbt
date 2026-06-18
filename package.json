@@ -9,6 +9,7 @@
     "start": "next start",
     "migrate": "tsx scripts/migrate.ts",
     "sync": "tsx scripts/sync.ts",
+    "sync:meetings": "tsx scripts/sync-meetings.ts",
     "summarize": "tsx scripts/summarize.ts",
     "classify-ceremonial": "tsx scripts/classify-ceremonial.ts",
     "backfill-clusters": "tsx scripts/backfill-clusters.ts",

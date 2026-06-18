@@ -493,6 +493,54 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_stage_transitions_bill ON stage_transitions(bill_id)`,
   `CREATE INDEX IF NOT EXISTS idx_stage_transitions_changed_at ON stage_transitions(changed_at DESC)`,
+
+  // HO 263: committee meetings (hearings) data layer — Phase 1, no UI. Spine is
+  // Congress.gov committee-meeting/{congress}/{chamber} (HO 261 probe). NO
+  // raw_json blob (the bills-table raw_json bloat caused the HO 241 cold-scan
+  // 500) — extracted columns only. `video_url` is the EXTRACTED watch link (the
+  // videos[] entry whose host is NOT api.congress.gov: YouTube for House,
+  // senate.gov/isvp for Senate), null when absent. `committee_system_code` is the
+  // first/primary committee from committees[]. `update_date` is the sync cursor.
+  `CREATE TABLE IF NOT EXISTS committee_meetings (
+    event_id TEXT PRIMARY KEY,
+    congress INTEGER NOT NULL,
+    chamber TEXT NOT NULL,
+    meeting_date TEXT,
+    meeting_type TEXT,
+    meeting_status TEXT,
+    title TEXT,
+    location_building TEXT,
+    location_room TEXT,
+    video_url TEXT,
+    committee_system_code TEXT,
+    update_date TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_meetings_date ON committee_meetings(meeting_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_meetings_committee ON committee_meetings(committee_system_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_meetings_update ON committee_meetings(update_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_committee_meetings_chamber_date ON committee_meetings(chamber, meeting_date)`,
+
+  // Meeting↔bill join, from relatedItems.bills[] only (the structured
+  // {congress,type,number} → {congress}-{type.toLowerCase()}-{number} id; the
+  // messier meetingDocuments PDF-name parse is deliberately NOT used in v1, HO
+  // 261). bill_id loose-linked (not FK'd — a meeting can reference a bill not yet
+  // synced). Sparse by nature (~20% House / ~12% Senate carry any bill).
+  `CREATE TABLE IF NOT EXISTS meeting_bills (
+    event_id TEXT NOT NULL,
+    bill_id TEXT NOT NULL,
+    UNIQUE(event_id, bill_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_meeting_bills_bill ON meeting_bills(bill_id)`,
+
+  // Per-chamber sync watermark (HO 116/143 cursor pattern). One row per chamber;
+  // update_date = the newest event update_date fully synced. The list endpoint is
+  // updateDate-DESC with no server-side date filter, so the sync collects events
+  // newer than this watermark, processes them oldest-first, and advances per
+  // completed event so a deadline-interrupted tick keeps its progress.
+  `CREATE TABLE IF NOT EXISTS meeting_sync_state (
+    chamber TEXT PRIMARY KEY,
+    update_date TEXT NOT NULL
+  )`,
 ];
 
 async function ensureColumn(

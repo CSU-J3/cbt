@@ -24,6 +24,7 @@ import {
   syncCommitteesList,
 } from "@/lib/committees-sync";
 import { wrapCronRoute } from "@/lib/cron-log";
+import { syncMeetings } from "@/lib/meetings-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -32,6 +33,11 @@ export const maxDuration = 60;
 // route start. 55s wrapper soft timeout - 10s buffer for finalize = 45s
 // deadline for the bills loop.
 const BILLS_BUDGET_MS = 45_000;
+// HO 263: the meetings step rides this cron AFTER the committee sync. Its own
+// deadline (50s of the function's lifetime) so it can't push the route toward
+// the 60s ceiling; the heavy ~2,400-call backfill is manual (npm run
+// sync:meetings), so the daily delta here is a handful of events.
+const MEETINGS_BUDGET_MS = 50_000;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -70,6 +76,28 @@ async function handle(request: Request) {
     });
     timings.bills = Date.now() - t3;
 
+    // HO 263: committee meetings (hearings) daily delta. Non-fatal — a meetings
+    // error is logged and never fails the committees run. Deadline-guarded and
+    // capped so it can't blow the budget (the backfill is manual, not here).
+    const t4 = Date.now();
+    let meetings: Awaited<ReturnType<typeof syncMeetings>> | null = null;
+    let meetingsErr: string | undefined;
+    try {
+      meetings = await syncMeetings({
+        deadlineMs: routeStart + MEETINGS_BUDGET_MS,
+        perTickLimit: 300,
+      });
+    } catch (err) {
+      meetingsErr = err instanceof Error ? err.message : String(err);
+      console.warn("[committees] meetings step failed (non-fatal):", meetingsErr);
+    }
+    timings.meetings = Date.now() - t4;
+    if (meetings) {
+      console.log(
+        `[meetings] upserted=${meetings.meetingsUpserted} billRows=${meetings.billRowsUpserted} errors=${meetings.fetchErrors} deadlineHit=${meetings.deadlineHit}`,
+      );
+    }
+
     console.log(
       `[committees] list: pages=${list.pages} upserted=${list.upserted}`,
     );
@@ -86,6 +114,7 @@ async function handle(request: Request) {
     );
 
     revalidateTag("committees");
+    revalidateTag("meetings"); // HO 263
 
     const payload = {
       timings,
@@ -96,6 +125,7 @@ async function handle(request: Request) {
         unknownCommittees: members.unknownCommittees,
       },
       bills,
+      meetings,
     };
 
     // Chronic-err pattern (HO 139): non-fatal conditions surface in
@@ -108,6 +138,11 @@ async function handle(request: Request) {
     }
     if (bills.fetchErrors > 0) {
       parts.push(`bill committee fetch errors: ${bills.fetchErrors}`);
+    }
+    if (meetingsErr) {
+      parts.push(`meetings step error: ${meetingsErr}`);
+    } else if (meetings && meetings.fetchErrors > 0) {
+      parts.push(`meeting detail fetch errors: ${meetings.fetchErrors}`);
     }
     const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
 
