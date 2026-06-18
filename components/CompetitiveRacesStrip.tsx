@@ -63,11 +63,16 @@ export function CompetitiveRacesStrip({
   // 2×2 hover-popover cards below — untouched.
   variant = "default",
   rich,
+  // HO 272: { raceId → latest rating-move date } for the featured seats; only
+  // races that have moved appear. Threaded into each v2 RaceCard for its MOVED
+  // indicator. v2-only; `/` never passes it.
+  moves,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
   variant?: "default" | "v2";
   rich?: (RaceIndexRow | null)[];
+  moves?: Record<string, string>;
 }) {
   if (variant === "v2") {
     return (
@@ -77,7 +82,13 @@ export function CompetitiveRacesStrip({
           // Every competitive seat is in getRacesIndex (the 61-seat ABS<=1 set ⊂
           // the 137-seat rated set), so `row` resolves; the guard is belt-and-
           // suspenders for an unrated edge.
-          return row ? <RaceCard key={race.raceId} row={row} /> : null;
+          return row ? (
+            <RaceCard
+              key={race.raceId}
+              row={row}
+              lastMoveAt={moves?.[race.raceId]}
+            />
+          ) : null;
         })}
       </div>
     );

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import { formatDollarsCompact } from "@/lib/format";
 import type { PartyKey, RaceIndexRow } from "@/lib/queries";
 import {
@@ -61,7 +62,16 @@ function marketCell(
   return { text: `${surname(label)} ${pct}%`, color: "var(--text-secondary)" };
 }
 
-export function RaceCard({ row }: { row: RaceIndexRow }) {
+export function RaceCard({
+  row,
+  // HO 272: ISO date of this race's latest rating MOVE (getRecentRaceMoves);
+  // undefined when it hasn't moved. The client RaceMovedIndicator compares it to
+  // the per-browser last-RACES-open time to show MOVED + feed the tab badge.
+  lastMoveAt,
+}: {
+  row: RaceIndexRow;
+  lastMoveAt?: string | null;
+}) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
   const roster: RosterEntry[] = row.incumbentName
@@ -158,6 +168,12 @@ export function RaceCard({ row }: { row: RaceIndexRow }) {
         {open ? " · retiring" : ""}
         {row.incumbentFirstElected ? ` · since ${row.incumbentFirstElected}` : ""}
       </div>
+
+      <RaceMovedIndicator
+        raceId={row.raceId}
+        lastMoveAt={lastMoveAt}
+        lean={row.consensusRating}
+      />
 
       <div className="sb-wrap">
         <div className="sb-ends">

@@ -1693,6 +1693,41 @@ export type CompetitiveRace = {
 // "Toss Up" rating from any forecaster floats the race to the top). Ties
 // break on the most recently updated rating per race so freshly-moved
 // races surface ahead of stale ones at the same lean.
+// HO 272: latest real rating-MOVE date per race, for the v2 RACES-tab MOVES
+// badge. rating_history (HO 220) appends a row only when a (race_id, source)'s
+// rating actually changes, BUT the first run logs a baseline row per pair — so a
+// "move" is any row whose observed_at is later than that pair's earliest
+// observed_at. Returns { raceId: latestMoveDate } only for races that have moved
+// at least once (races with no real move are absent → no badge). The client
+// compares each against the per-browser "last opened RACES" timestamp
+// (localStorage) to count moves-since-last-view. Tagged `races` so a ratings
+// refresh flushes it alongside the rest of the races surface.
+export const getRecentRaceMoves = unstable_cache(
+  async (raceIds: string[]): Promise<Record<string, string>> => {
+    if (raceIds.length === 0) return {};
+    const db = getDb();
+    const placeholders = raceIds.map(() => "?").join(",");
+    const rs = await db.execute({
+      sql: `SELECT rh.race_id, MAX(rh.observed_at) AS last_move
+            FROM rating_history rh
+            WHERE rh.race_id IN (${placeholders})
+              AND rh.observed_at > (
+                SELECT MIN(r2.observed_at) FROM rating_history r2
+                WHERE r2.race_id = rh.race_id AND r2.source = rh.source
+              )
+            GROUP BY rh.race_id`,
+      args: raceIds,
+    });
+    const out: Record<string, string> = {};
+    for (const r of rs.rows) {
+      out[r.race_id as string] = r.last_move as string;
+    }
+    return out;
+  },
+  ["getRecentRaceMoves"],
+  { revalidate: 3600, tags: ["races"] },
+);
+
 export const getMostCompetitiveRaces = unstable_cache(
   async (cycle: number, limit: number): Promise<CompetitiveRace[]> => {
     const db = getDb();

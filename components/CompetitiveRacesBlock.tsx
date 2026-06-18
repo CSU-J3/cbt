@@ -12,6 +12,7 @@ import {
   getRace,
   getRaceCandidates,
   getRacesIndex,
+  getRecentRaceMoves,
   getRunoffsForRace,
 } from "@/lib/queries";
 
@@ -74,6 +75,13 @@ export async function CompetitiveRacesBlock({
         })()
       : undefined;
 
+  // HO 272: latest rating-move date per featured seat, for the v2 cards' MOVED
+  // indicators (and, summed, the RACES-tab MOVES badge). v2-only.
+  const moves =
+    variant === "v2"
+      ? await getRecentRaceMoves(races.map((r) => r.raceId))
+      : undefined;
+
   // Fetch each race's hub (race row + incumbent + candidates + runoffs) so the
   // hover popover renders from props. Mirrors /api/race/[id]/hub exactly; all
   // queries are cached (tag `races`), so the dashboard's `races` revalidation
@@ -108,6 +116,7 @@ export async function CompetitiveRacesBlock({
       hubs={hubs}
       variant={variant}
       rich={richRows}
+      moves={moves}
     />
   );
 

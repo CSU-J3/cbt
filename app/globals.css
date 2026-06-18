@@ -704,6 +704,52 @@ body {
   color: var(--text-dim);
 }
 
+/* HO 272 — RACES-tab update badges (MOVES live; NEW dark until the news→race
+   linkage). Outlined + ~16% tint fill, mono ~11px uppercase, riding the tab
+   label. The NEW red is --ticker-closed (#9b3d3d, HO 234) — deliberately NOT
+   --party-republican (#ef4444), so a red badge on a races tab doesn't read as a
+   party cue. */
+.rbx-badge {
+  margin-left: 6px;
+  padding: 1px 5px;
+  border: 0.5px solid currentColor;
+  border-radius: 2px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  vertical-align: baseline;
+}
+.rbx-badge-moves {
+  color: var(--accent-amber-bright);
+  background-color: color-mix(
+    in srgb,
+    var(--accent-amber-bright) 16%,
+    transparent
+  );
+}
+.rbx-badge-new {
+  color: var(--ticker-closed);
+  background-color: color-mix(in srgb, var(--ticker-closed) 16%, transparent);
+}
+/* Per-card MOVED indicator (COMPETITIVE rich cards). Amber-bright, no red. */
+.rc-moved {
+  align-self: flex-start;
+  margin: 2px 0;
+  padding: 1px 5px;
+  border: 0.5px solid var(--accent-amber-bright);
+  border-radius: 2px;
+  background-color: color-mix(
+    in srgb,
+    var(--accent-amber-bright) 16%,
+    transparent
+  );
+  color: var(--accent-amber-bright);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 /* HO 178 — BREAKING compact rows + cross-column hover-overrun.
    The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
    full-headline overlay can spill rightward across the gutter into the races
