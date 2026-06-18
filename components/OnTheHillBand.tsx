@@ -33,7 +33,15 @@ function dayHref(dayKey: string): string {
   return `/hearings#hill-day-${dayKey}`;
 }
 
-export async function OnTheHillBand() {
+// HO 271: `embedded` houses the band inside the v2 HEARINGS tab — the tab label
+// carries the section name, so the standalone `On the Hill · This week` title is
+// suppressed and the band's own top-divider drops (the box supplies the chrome).
+// The live callout + `N meetings · → Hearings` sub-bar and the grid are unchanged.
+export async function OnTheHillBand({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const nowMs = Date.now();
   const todayKey = etTodayKey(nowMs);
   const monKey = mondayOfKey(todayKey);
@@ -74,9 +82,14 @@ export async function OnTheHillBand() {
     : null;
 
   return (
-    <section className="hill-band" aria-label="On the Hill — this week">
+    <section
+      className={`hill-band${embedded ? " hill-band--embedded" : ""}`}
+      aria-label="On the Hill — this week"
+    >
       <div className="hill-band-head">
-        <span className="hill-band-title">On the Hill · This week</span>
+        {embedded ? null : (
+          <span className="hill-band-title">On the Hill · This week</span>
+        )}
 
         {live ? (
           <Link

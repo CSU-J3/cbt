@@ -88,22 +88,17 @@ export default async function DashboardV2Page() {
             temporarily defaults to RACES so no empty default ships; 271 fills
             HEARINGS, flips the default, and removes the standalone band below). */}
         <RacesBoxTabs
-          defaultTab="races"
-          hearingsContent={
-            <div className="dv2-racesbox-placeholder">
-              Committee schedule loads here.
-            </div>
-          }
+          defaultTab="hearings"
+          hearingsContent={<OnTheHillBand embedded />}
           racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
         />
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />
 
-        {/* HO 269: the ON THE HILL band — moved here from `/` (HO 266 placed it
-            on `/` in error; v2 is the dashboard heading toward the `/` swap).
-            Same reading-order slot: races → weekly → on the hill → body. */}
-        <OnTheHillBand />
+        {/* HO 271: the standalone On the Hill band (HO 269, below-weekly slot) is
+            removed — hearings now lives as the default HEARINGS tab in the races
+            box above. The below-weekly slot is vacated; do not re-add the band. */}
 
         {/* 49/51 two-column body. LEFT: breaking over the tabbed STAGE | TOPIC
             distributions (gated). RIGHT: the feed (shared expand). */}

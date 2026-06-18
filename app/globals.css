@@ -5896,6 +5896,11 @@ a.hearing-watch:hover {
 .hill-band {
   border-top: 0.5px solid var(--border-strong);
 }
+/* HO 271: embedded in the v2 HEARINGS tab — the box supplies the chrome, so
+   drop the standalone top divider. */
+.hill-band--embedded {
+  border-top: none;
+}
 .hill-band-head {
   display: flex;
   flex-wrap: wrap;
