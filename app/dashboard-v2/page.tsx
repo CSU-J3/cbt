@@ -10,6 +10,7 @@ import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { NewThisWeek } from "@/components/NewThisWeek";
 import { OnTheHillBand } from "@/components/OnTheHillBand";
+import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
@@ -80,10 +81,21 @@ export default async function DashboardV2Page() {
       <DashboardV2Header corpus={corpus} stageDist={stageDist} />
 
       <main className="home-main">
-        {/* Full-width races strip directly under the header. HO 254 opts the
-            D↔R battlefield axis in at the top of the COMPETITIVE tab (above the
-            card grid, which is unchanged). `/` leaves it off. */}
-        <CompetitiveRacesBlock showBattlefield variant="v2" />
+        {/* HO 270 (Piece 1 of 3): the races strip becomes a tabbed box —
+            HEARINGS | RACES — in the same above-the-weekly-line slot. RACES
+            re-houses the existing battlefield + cards + COMPETITIVE|PRIMARIES
+            sub-tabs UNCHANGED. HEARINGS content lands in 271 (this commit
+            temporarily defaults to RACES so no empty default ships; 271 fills
+            HEARINGS, flips the default, and removes the standalone band below). */}
+        <RacesBoxTabs
+          defaultTab="races"
+          hearingsContent={
+            <div className="dv2-racesbox-placeholder">
+              Committee schedule loads here.
+            </div>
+          }
+          racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
+        />
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />

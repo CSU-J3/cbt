@@ -647,6 +647,63 @@ body {
   }
 }
 
+/* HO 270 — v2 races box → tabbed (HEARINGS | RACES). The box is the outer
+   chrome (bg-panel + border); the top-tab header strip sits above the panels.
+   The RACES panel re-houses the existing .home-races-pane unchanged, so its own
+   pane frame is neutralized here (border/bg/padding stripped) to blend into the
+   box body — position/overflow stay so the COMPETITIVE hover-popover containment
+   is preserved. Existing tokens only. */
+.dv2-racesbox {
+  border: 0.5px solid var(--border-soft);
+  background-color: var(--bg-panel);
+}
+.dv2-racesbox-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-md);
+  padding: 0 var(--space-md);
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.dv2-racesbox-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent; /* reserve the active rule — no shift */
+  margin-bottom: -0.5px; /* overlap the strip's border so the active rule sits on it */
+  padding: var(--space-sm) 2px;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.dv2-racesbox-tab:hover {
+  color: var(--text-secondary);
+}
+.dv2-racesbox-tab.is-active {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber);
+}
+.dv2-racesbox-tab:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+/* Re-housed races pane: drop its standalone frame, keep popover containment. */
+.dv2-racesbox .home-races-pane {
+  border: none;
+  background: transparent;
+}
+.dv2-racesbox-placeholder {
+  padding: var(--space-lg) var(--space-md);
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 /* HO 178 — BREAKING compact rows + cross-column hover-overrun.
    The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
    full-headline overlay can spill rightward across the gutter into the races
