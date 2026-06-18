@@ -49,7 +49,7 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - **rating-history sparkline.** *Gate:* `rating_history` accruing weeks of inflection data (change-detect logging live since HO 220).
 - **Backfill ~26 bills that lost a topic tag during the HO 120 drain.** *Gate:* analyst view depends on full tag coverage.
 - **Topic taxonomy expansion.** *Gate:* unmapped category counts exceed a useful threshold (HO 121).
-- **Intraday VIX source.** EOD VIX shipped (FRED `VIXCLS`, HO 178); intraday is unsourced (Stooq doesn't carry it, Yahoo unauthed too unstable). *Gate:* a free intraday source emerges or a paid plan covers it incidentally.
+- **~~Intraday VIX source~~ — MOOT as of HO 251.** The tape swap (HO 251) **dropped VIX from the tape entirely** (along with DOW/NATGAS/BTC) for the econ/prediction set — VIX is no longer displayed at all, EOD or intraday. The "intraday VIX" gate is therefore moot unless VIX is ever re-added. Tombstone unless a future tape revision brings VIX back.
 - **News-as-retirement-research feed.** Loose "possible retirement mentions" scan of `news_mentions` near a member name, as research input to the hand-curated retirement seed — NOT a rendered signal. *Gate:* only if the OPEN-seat tag (HO 221) proves valuable first.
 - **Relative cash-thin signal on race cards.** Incumbent cash-on-hand ships dim (HO 212); an amber "thin-cash" highlight was cut (smooth gradient, no natural absolute threshold). *Constraint if revisited:* must be RELATIVE (bottom-quartile / rank-within-chamber), never an absolute dollar cutoff.
 - **Cross-Congress historical members** (HO 124); 119th only today.
