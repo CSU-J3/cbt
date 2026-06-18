@@ -3,6 +3,7 @@ import { getDb } from "./db";
 import { ALLOWED_TOPICS_SET, stageRank } from "./enums";
 import { formatBillId } from "./format";
 import { withGeminiRetry } from "./gemini-retry";
+import { hearingBadge } from "./hearings";
 import { SUMMARY_MODEL } from "./summarize";
 
 // HO 160: transient-retry backoff for the weekly-report Gemini call. Truncated
@@ -24,6 +25,11 @@ const DEAD_BILLS_PER_TOPIC = 3;
 const DEAD_STALE_DAYS = 60;
 const NOTABLE_LIMIT = 5;
 const TOPIC_BREAKDOWN_LIMIT = 7;
+// HO 268: markup blocks lead the COMMITTEE ACTIVITY section (the bill-movers).
+// Only markups carrying bills get a block; cap the block count + bills/block so
+// a dense week doesn't wall the report. ~4 markups-with-bills/week observed.
+const MARKUP_BLOCK_LIMIT = 6;
+const MARKUP_BILLS_LIMIT = 5;
 const MOST_TALKED_LIMIT = 5;
 // HO 111: news-signal confidence gate. Every news_mentions row is
 // matched_via='llm_match'; the matcher emits match_confidence bimodally — a
@@ -78,6 +84,18 @@ const titleFormatter = new Intl.DateTimeFormat("en-US", {
 // "May 11, 2026" — used as `Week of ${formatWeekTitle(weekStart)}`.
 export function formatWeekTitle(weekStart: string): string {
   return titleFormatter.format(new Date(`${weekStart}T00:00:00Z`));
+}
+
+// "Jun 17" — short UTC date for a markup block header (HO 268). UTC to match the
+// report's week-granular date math; time-of-day is dropped (a weekly digest).
+const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "short",
+  day: "numeric",
+});
+function formatShortDate(iso: string): string {
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? "" : shortDateFormatter.format(t);
 }
 
 // ---- text helpers ------------------------------------------------------
@@ -184,9 +202,36 @@ type MostTalkedAbout = {
   sampleHeadlines: string[];
 };
 
+// HO 268: COMMITTEE ACTIVITY. Fallback version (Gate A probe found no reliable
+// markup→stage-change join — bills.stage_changed_at tracking began 2026-05-11
+// and doesn't align with markup dates), so markup blocks show bills at their
+// CURRENT stage and the firehose VIA annotations are dropped.
+type MarkupBill = {
+  billId: string;
+  title: string;
+  stage: string | null;
+};
+type MarkupBlock = {
+  committeeName: string | null;
+  committeeSystemCode: string | null;
+  date: string; // ISO meeting date
+  videoUrl: string | null;
+  bills: MarkupBill[]; // capped to MARKUP_BILLS_LIMIT for display
+  billTotal: number; // pre-cap count, for "+N more"
+};
+type CommitteeActivity = {
+  meetingsCount: number;
+  hearings: number;
+  markups: number;
+  business: number;
+  committees: number;
+  markupBlocks: MarkupBlock[];
+};
+
 type ReportData = {
   transitionsCount: number;
   stageMovements: StageMovement[];
+  committeeActivity: CommitteeActivity;
   // Earliest date(stage_changed_at) in the corpus, or null if nothing has
   // ever been tracked. stage_changed_at is never backfilled, so a report
   // whose week ends before this date legitimately predates tracking — the
@@ -416,9 +461,108 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
     };
   });
 
+  // 8. Committee activity (HO 268) — meetings held this week, the type mix, and
+  // the markups that carried bills (the bill-movers that lead the section). The
+  // committee name is LEFT JOIN'd; meeting dates compared via date() in UTC, the
+  // same week-boundary convention as every other query here.
+  // Indexed range on the raw ISO timestamp (idx_committee_meetings_date) rather
+  // than date(meeting_date) BETWEEN, which wraps the column and forces a scan.
+  // meeting_date is ISO-UTC ("2026-05-11T14:30:00Z"), so a lexical range over
+  // [start T00:00, end T23:59:59] covers the same Mon–Sun week.
+  const meetingsRs = await db.execute({
+    sql: `SELECT m.event_id, m.committee_system_code, c.name AS committee_name,
+                 m.meeting_date, m.meeting_type, m.video_url
+          FROM committee_meetings m
+          LEFT JOIN committees c ON c.system_code = m.committee_system_code
+          WHERE m.meeting_date >= ? AND m.meeting_date <= ?`,
+    args: [`${week.start}T00:00:00Z`, `${week.end}T23:59:59Z`],
+  });
+  let hearings = 0;
+  let markups = 0;
+  let business = 0;
+  const committeeSet = new Set<string>();
+  const markupEvents: {
+    eventId: string;
+    committeeName: string | null;
+    committeeSystemCode: string | null;
+    date: string;
+    videoUrl: string | null;
+  }[] = [];
+  for (const r of meetingsRs.rows) {
+    const badge = hearingBadge(r.meeting_type as string | null);
+    if (badge === "HEARING") hearings += 1;
+    else if (badge === "MARKUP") markups += 1;
+    else business += 1;
+    const code = r.committee_system_code as string | null;
+    if (code) committeeSet.add(code);
+    if (badge === "MARKUP") {
+      markupEvents.push({
+        eventId: r.event_id as string,
+        committeeName: (r.committee_name as string | null) ?? null,
+        committeeSystemCode: code,
+        date: r.meeting_date as string,
+        videoUrl: (r.video_url as string | null) ?? null,
+      });
+    }
+  }
+
+  // Bills on this week's markup agendas → group by event. Only markups with at
+  // least one bill become blocks (the bill-movers); newest first, capped.
+  const billsByEvent = new Map<string, MarkupBill[]>();
+  if (markupEvents.length > 0) {
+    const ids = markupEvents.map((m) => m.eventId);
+    const placeholders = ids.map(() => "?").join(",");
+    const mbRs = await db.execute({
+      sql: `SELECT mb.event_id, b.bill_type, b.bill_number, b.title, b.stage
+            FROM meeting_bills mb
+            JOIN bills b ON b.id = mb.bill_id
+            WHERE mb.event_id IN (${placeholders})
+            ORDER BY b.stage_changed_at DESC NULLS LAST`,
+      args: ids,
+    });
+    for (const r of mbRs.rows) {
+      const ev = r.event_id as string;
+      const arr = billsByEvent.get(ev) ?? [];
+      arr.push({
+        billId: formatBillId(r.bill_type as string, r.bill_number as number),
+        title: r.title as string,
+        stage: (r.stage as string | null) ?? null,
+      });
+      billsByEvent.set(ev, arr);
+    }
+  }
+  const markupBlocks: MarkupBlock[] = markupEvents
+    .map((m) => {
+      const all = billsByEvent.get(m.eventId) ?? [];
+      return {
+        committeeName: m.committeeName,
+        committeeSystemCode: m.committeeSystemCode,
+        date: m.date,
+        videoUrl: m.videoUrl,
+        bills: all.slice(0, MARKUP_BILLS_LIMIT),
+        billTotal: all.length,
+      };
+    })
+    .filter((b) => b.billTotal > 0)
+    .sort(
+      (a, b) =>
+        b.billTotal - a.billTotal || Date.parse(b.date) - Date.parse(a.date),
+    )
+    .slice(0, MARKUP_BLOCK_LIMIT);
+
+  const committeeActivity: CommitteeActivity = {
+    meetingsCount: meetingsRs.rows.length,
+    hearings,
+    markups,
+    business,
+    committees: committeeSet.size,
+    markupBlocks,
+  };
+
   return {
     transitionsCount: transRs.rows.length,
     stageMovements,
+    committeeActivity,
     stageTrackingStart,
     enactmentsCount: enactments.length,
     enactments,
@@ -506,6 +650,9 @@ ENACTMENTS_COMMENTARY:
 MOST_TALKED_COMMENTARY:
 <2-3 sentences on what drew news coverage and why it might matter; reference specific bill IDs. Each bill carries a confidence label: for 'high', use assertive verbs ("drew coverage in", "was cited by", "received attention from"); for 'medium', hedge ("appeared in", "was mentioned by"). Never write the label itself. Output exactly "_No news mentions tracked for this week._" if the news mention count is zero.>
 
+COMMITTEE_COMMENTARY:
+<2-3 sentences on the week's committee work: how many meetings, and which markups put bills on their agenda — name the standout markup by committee and a bill ID it took up. Do NOT claim a markup "advanced" or "reported" a bill to the floor unless the stage-movement data shows it; the markup list tells you a committee took bills up, not where they ended. Output exactly "_No committee meetings tracked for this week._" if the meetings count is zero.>
+
 STAGE_COMMENTARY:
 <2-3 sentences on what advanced. Each transition carries a direction (forward / backward / other) — narrate a backward move honestly: a bill returning to committee from the floor is a setback, not progress. Output exactly "_No stage movements this week._" if the transition count is zero.>`;
 
@@ -570,6 +717,23 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
   const introDelta =
     d.introductionsCount - d.priorIntroductionsCount >= 0 ? "up" : "down";
 
+  // Committee activity (HO 268). The markup list names committee + bill count +
+  // a couple of bill IDs so the LLM can cite the standout markup; it is NOT told
+  // the bills moved to the floor (the fallback shows current stage only).
+  const ca = d.committeeActivity;
+  const markupContext =
+    ca.markupBlocks.length > 0
+      ? ca.markupBlocks
+          .map((b) => {
+            const ids = b.bills
+              .slice(0, 3)
+              .map((x) => x.billId)
+              .join(", ");
+            return `  - ${b.committeeName ?? b.committeeSystemCode ?? "committee"} markup (${b.billTotal} bill${b.billTotal === 1 ? "" : "s"}: ${ids})`;
+          })
+          .join("\n")
+      : "  - (no markups carried bills this week)";
+
   return `WEEK DATA (${week.start} to ${week.end}):
 - New bill introductions: ${d.introductionsCount} (prior week: ${d.priorIntroductionsCount} — ${introDelta})
 - Most active topics by introductions: ${topTopics}
@@ -579,6 +743,8 @@ ${transitionLines}
 ${enactmentLines}
 - Most talked about (tracked news mentions, confidence-filtered):
 ${mostTalkedLines}
+- Committee meetings this week: ${ca.meetingsCount} (${ca.hearings} hearings, ${ca.markups} markups, ${ca.business} business; ${ca.committees} committees). Markups that took up bills:
+${markupContext}
 
 Write the report sections:`;
 }
@@ -588,16 +754,18 @@ type ReportCommentary = {
   stageCommentary: string;
   enactmentsCommentary: string;
   mostTalkedCommentary: string;
+  committeeCommentary: string;
 };
 
 // Order MUST match the SYSTEM_PROMPT output template + the assembleMarkdown
-// emit order (HO 242): the parse below finds each section's end by searching
-// forward for the NEXT marker in this array, so a mismatch would mis-slice
-// section boundaries.
+// emit order (HO 242, +COMMITTEE_COMMENTARY HO 268): the parse below finds each
+// section's end by searching forward for the NEXT marker in this array, so a
+// mismatch would mis-slice section boundaries.
 const REPORT_MARKERS = [
   "LEAD",
   "ENACTMENTS_COMMENTARY",
   "MOST_TALKED_COMMENTARY",
+  "COMMITTEE_COMMENTARY",
   "STAGE_COMMENTARY",
 ] as const;
 
@@ -622,12 +790,14 @@ function parseReportResponse(text: string): ReportCommentary | null {
     STAGE_COMMENTARY,
     ENACTMENTS_COMMENTARY,
     MOST_TALKED_COMMENTARY,
+    COMMITTEE_COMMENTARY,
   } = values;
   if (
     !LEAD ||
     !STAGE_COMMENTARY ||
     !ENACTMENTS_COMMENTARY ||
-    !MOST_TALKED_COMMENTARY
+    !MOST_TALKED_COMMENTARY ||
+    !COMMITTEE_COMMENTARY
   )
     return null;
   return {
@@ -635,6 +805,7 @@ function parseReportResponse(text: string): ReportCommentary | null {
     stageCommentary: STAGE_COMMENTARY,
     enactmentsCommentary: ENACTMENTS_COMMENTARY,
     mostTalkedCommentary: MOST_TALKED_COMMENTARY,
+    committeeCommentary: COMMITTEE_COMMENTARY,
   };
 }
 
@@ -690,6 +861,43 @@ function assembleMarkdown(
     lines.push("");
   } else {
     lines.push("_No news mentions tracked for this week._", "");
+  }
+
+  // Committee activity (HO 268) — placed between the news signal and the stage
+  // firehose it feeds into. Markup blocks lead (the bill-movers); fallback
+  // version shows bills at their CURRENT stage (no VIA tags — Gate A found no
+  // reliable markup→stage-change join). Count strip is an inline-code span so
+  // ReportMarkdown renders it amber. When the week had no meetings, assembly
+  // owns the zero copy (the LLM commentary is ignored, same as enactments).
+  const ca = d.committeeActivity;
+  lines.push(`## Committee activity (${ca.meetingsCount})`, "");
+  if (ca.meetingsCount > 0) {
+    lines.push(c.committeeCommentary, "");
+    lines.push(
+      `\`${ca.hearings} HEARINGS · ${ca.markups} MARKUPS · ${ca.business} BUSINESS · ${ca.committees} COMMITTEES\``,
+      "",
+    );
+    for (const b of ca.markupBlocks) {
+      const name = b.committeeName ?? b.committeeSystemCode ?? "Committee";
+      const committeePart = b.committeeSystemCode
+        ? `[${name}](/committee/${b.committeeSystemCode})`
+        : name;
+      const recording = b.videoUrl ? ` · [▶ recording](${b.videoUrl})` : "";
+      lines.push(
+        `${committeePart} · MARKUP · ${formatShortDate(b.date)}${recording}`,
+        "",
+      );
+      for (const bill of b.bills) {
+        lines.push(
+          `- ${bill.billId} — ${truncate(bill.title, TITLE_TRUNCATE)} · ${stageGlyph(bill.stage)}`,
+        );
+      }
+      const more = b.billTotal - b.bills.length;
+      if (more > 0) lines.push(`- _+${more} more_`);
+      lines.push("");
+    }
+  } else {
+    lines.push("_No committee meetings tracked for this week._", "");
   }
 
   // Stage movements. The zero case is split (HO 110): a week that predates
