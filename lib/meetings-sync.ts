@@ -152,9 +152,13 @@ async function fetchMeetingDetail(
 // The watch link is the videos[] entry whose host is NOT api.congress.gov (that
 // one's the API referrer). House → youtube.com, Senate → senate.gov/isvp. Null
 // when no videos[] or only the referrer is present (HO 261).
+// videos[] carries TWO entries per event: the congress.gov event-page referrer
+// (api. OR www.) and the actual broadcast link — youtube.com (House) or
+// senate.gov/isvp (Senate). Skip ANY congress.gov host and return the first
+// real watch link; null when there's no videos[] (no broadcast on record).
 function extractVideoUrl(videos: ApiMeeting["videos"]): string | null {
   for (const v of videos ?? []) {
-    if (v.url && !/(^|\/\/)api\.congress\.gov/i.test(v.url)) return v.url;
+    if (v.url && !/(^|\/\/)([a-z0-9-]+\.)*congress\.gov/i.test(v.url)) return v.url;
   }
   return null;
 }
