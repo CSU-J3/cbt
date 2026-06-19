@@ -2984,8 +2984,19 @@ export const getFeedBills = unstable_cache(
     const { clauses, args } = buildFeedWhere(filters);
     const where = clauses.join(" AND ");
 
+    // HO 279: the feed COUNT is the same summary-gated COUNT mis-plan as
+    // getFeedStats — buildFeedWhere always carries `summary IS NOT NULL`, and the
+    // statless planner otherwise drives off idx_bills_is_ceremonial (MULTI-INDEX
+    // OR over the fat bills table, ~7.7–11s cold, the /bills 500 risk the 278
+    // scout flagged). Force the 277 partial index idx_bills_summary_feed on the
+    // gated path (SCAN USING INDEX, 7.7s → 30ms). EXCEPT ?cluster=, which bypasses
+    // the ceremonial gate and is far more selective on idx_bills_cluster_id (same
+    // conditional-hint care as getFeedStats). Only the COUNT — the row-returning
+    // SELECT below needs a filter+sort+columns covering index and stays a backlog
+    // WATCH. The hint is the COUNT's table access only; the WHERE is unchanged.
+    const countHint = filters.cluster ? "" : " INDEXED BY idx_bills_summary_feed";
     const countRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${where}`,
+      sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
       args: [...args],
     });
     const total = Number(countRs.rows[0]?.n ?? 0);
