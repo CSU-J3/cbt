@@ -212,7 +212,7 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 
 ## Status
 
-> **As of HO 269 · 2026-06-18.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
+> **As of HO 275 · 2026-06-19.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
 
 **Overall: ~97%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
 
@@ -232,6 +232,8 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 **Shipped recently (HO 263–269, the committee-activity / hearings arc — effectively complete):** committee-meetings data layer (263) · standalone `/hearings` with grouped list + two-week Mon–Fri calendar (264 / 265) · `/dashboard-v2` On the Hill band (266, corrected onto v2 in 269 so it survives the `/` swap) · committee-detail + bill-hub meeting embeds reusing the list row (267) · weekly-report COMMITTEE ACTIVITY section, fallback variant — markup blocks at current stage, no VIA tags (268). *(HO 230–234 prior: the dashboard design pass; HO 222–226: /races LIST + district maps/modals.)*
 
 **Also (HO 270–272), v2 refinements:** the `/dashboard-v2` races strip became a `HEARINGS | RACES` tabbed box with hearings the default tab (270/271) — superseding the standalone On the Hill band — plus a live `MOVES n` badge on the RACES tab (per-card `MOVED · <lean>`; `NEW` dark until the news→race join, 272). Refinements to the already-counted v2 Home + Races surfaces — **no theme-% change** (Home 99 / Races 98 unchanged).
+
+**Also (HO 273–275), v2 coherence sweep — Home redesign now build-complete + coherent.** The `/dashboard-v2` surface was reconciled against the mock (`docs/design/dashboard-2col.html`): hearing meeting titles cleaned at render (273); race-card Kalshi/Polymarket odds party-normalized via the full candidate roster + battlefield/card-dot color reconciled to the incumbent party + MARKETS/SIGNALS tape labels pinned outside the marquee + a ±8% implausible-move tape guard (274); doc sweep (275). All v2 surfaces — hearings, races, tape, feed — now match the mock. **Home held at 99, not bumped to 100:** the residual 1% is the v2→`/` swap, now gated **solely on the `/dashboard-v2` cold-start 500** (backlog OPEN LOOPS, BLOCKER — the HO 238 fan-out cold-abort `/` would inherit on the swap), **not** on any remaining coherence gap. No other theme-% change.
 
 **Banked / unbuilt:** **strong VIA-markup report attribution** (blocked, not deferred — `stage_changed_at` history began 2026-05-11, 52 committee→floor moves all-time, no markup-date alignment → 0 clean joins; HO 268 Gate A; revisit once the history matures) · **MARKUPS column on the reports index stat strip** (queued from 268 — needs a new persisted column + migration + backfill) · **MOVERS from→to display + hop-count sort** (gated on `stage_transitions` accrual, planted 2026-06-11) · metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
 
