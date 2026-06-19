@@ -663,7 +663,13 @@ export const getSponsorProductivity = unstable_cache(
           THEN 1 ELSE 0
         END) AS advanced_count,
         SUM(CASE WHEN b.stage = 'enacted' THEN 1 ELSE 0 END) AS enacted_count
-      FROM bills b
+      -- HO 277: forced INDEXED BY idx_bills_sponsor_agg (same mis-plan as
+      -- billsAggCte — MULTI-INDEX OR on idx_bills_is_ceremonial otherwise). The
+      -- index covers the GROUP-BY key + stage + is_ceremonial + congress, so the
+      -- per-sponsor aggregate is index-only and pre-ordered (EXPLAIN flips to
+      -- SEARCH USING COVERING INDEX; ~460ms → 82ms). Safe: the query always
+      -- constrains sponsor_bioguide_id (IS NOT NULL).
+      FROM bills b INDEXED BY idx_bills_sponsor_agg
       LEFT JOIN members m ON m.bioguide_id = b.sponsor_bioguide_id
       WHERE b.congress = (SELECT MAX(congress) FROM bills)
         AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
@@ -3234,7 +3240,15 @@ function billsAggCte(includeCeremonial: boolean): string {
       SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
       CAST(SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS REAL)
         / COUNT(*) AS passrate
-    FROM bills
+    -- HO 277: forced INDEXED BY idx_bills_sponsor_agg
+    -- (sponsor_bioguide_id, is_ceremonial, stage, congress). The statless Turso
+    -- planner otherwise drives off idx_bills_is_ceremonial (MULTI-INDEX OR over
+    -- ~every row + TEMP-B-TREE GROUP BY) — ~3.85s warm, tipping the 10s DB abort
+    -- cold (the /members 500, digest 4101894172). The hint makes the GROUP BY
+    -- index-only + already-ordered (EXPLAIN: SEARCH USING COVERING INDEX, 96ms).
+    -- Safe only because the query always constrains sponsor_bioguide_id (IS NOT
+    -- NULL) — keep that clause if editing.
+    FROM bills INDEXED BY idx_bills_sponsor_agg
     WHERE sponsor_bioguide_id IS NOT NULL${ceremonial}
     GROUP BY sponsor_bioguide_id
   )`;

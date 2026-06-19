@@ -599,6 +599,22 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_introduced_date ON bills(introduced_date, is_ceremonial)",
   );
   console.log("ok: idx_bills_introduced_date");
+  // HO 277: cover the per-sponsor aggregate behind /members (the live 500 —
+  // digest 4101894172, a 10s DB-abort timeout). billsAggCte (getMembersRanked)
+  // and getSponsorProductivity both GROUP BY sponsor_bioguide_id and read stage +
+  // is_ceremonial (+ congress for productivity) per bill; the planner drove off
+  // idx_bills_is_ceremonial with a MULTI-INDEX OR over the fat bills table (the
+  // (=0 OR IS NULL) OR matches ~every row), materialized + TEMP-B-TREE GROUP BY,
+  // ~3.85s warm and tipping the 10s abort cold. Composite leading on the GROUP
+  // key so the scan is index-only (covering: stage + is_ceremonial + congress)
+  // AND already ordered by sponsor_bioguide_id (no temp-b-tree GROUP BY). Both
+  // queries carry an INDEXED BY hint (lib/queries.ts) — Turso is statless (no
+  // ANALYZE) and otherwise still picks idx_bills_is_ceremonial (verified: the
+  // unhinted plan kept the MULTI-INDEX OR even with this index present).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_agg ON bills(sponsor_bioguide_id, is_ceremonial, stage, congress)",
+  );
+  console.log("ok: idx_bills_sponsor_agg");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
