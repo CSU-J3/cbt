@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import { formatDollarsCompact } from "@/lib/format";
-import type { PartyKey, RaceIndexRow } from "@/lib/queries";
+import type { PartyKey, RaceCandidate, RaceIndexRow } from "@/lib/queries";
 import {
   kalshiActive,
   partyColor,
@@ -64,19 +64,33 @@ function marketCell(
 
 export function RaceCard({
   row,
+  // HO 274: the seat's full candidate roster (getRaceCandidates), so a
+  // candidate-named Kalshi/Polymarket market (e.g. ME "Graham Platner", NJ-07
+  // "Rebecca Bennett") resolves to its party lean rather than falling through to
+  // the surname. Incumbent-only resolution left the K/P pair uncomparable
+  // (candidate label beside a party label). v2 general-election cards only.
+  candidates = [],
   // HO 272: ISO date of this race's latest rating MOVE (getRecentRaceMoves);
   // undefined when it hasn't moved. The client RaceMovedIndicator compares it to
   // the per-browser last-RACES-open time to show MOVED + feed the tab badge.
   lastMoveAt,
 }: {
   row: RaceIndexRow;
+  candidates?: RaceCandidate[];
   lastMoveAt?: string | null;
 }) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
-  const roster: RosterEntry[] = row.incumbentName
-    ? [{ name: row.incumbentName, party: row.incumbentParty }]
-    : [];
+  // Roster = incumbent + challengers, so a candidate-named market resolves to a
+  // party. Filtered to entries that carry a name (RosterEntry requires it).
+  const roster: RosterEntry[] = [
+    ...(row.incumbentName
+      ? [{ name: row.incumbentName, party: row.incumbentParty }]
+      : []),
+    ...candidates
+      .filter((c) => c.name)
+      .map((c) => ({ name: c.name, party: c.party })),
+  ];
 
   // Spread-bar rater dots: one per present rater at its mapped axis position.
   const raterPositions = [row.cookRating, row.sabatoRating, row.ieRating]

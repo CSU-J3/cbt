@@ -86,6 +86,9 @@ export function CompetitiveRacesStrip({
             <RaceCard
               key={race.raceId}
               row={row}
+              // HO 274: pass the seat's roster so candidate-named markets resolve
+              // to party lean on the K/P stat cells (the hub is pre-fetched here).
+              candidates={hubs[i]?.candidates ?? []}
               lastMoveAt={moves?.[race.raceId]}
             />
           ) : null;
