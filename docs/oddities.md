@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The gated-aggregate mis-plan class — "cold-start 500" was a misnomer (HO 277–279, Jun 2026)
+
+Three live `/members`, `/dashboard-v2`, and `/bills` 500s in a row turned out to be one class, not three bugs. Adding a gating predicate (`summary IS NOT NULL`) to a fat-`bills` COUNT/aggregate makes the statless Turso planner (ANALYZE blocked) intermittently drop it onto a `MULTI-INDEX OR` over `idx_bills_is_ceremonial` (≈ a full table scan, since `(is_ceremonial=0 OR IS NULL)` matches ~every row). The tell that it isn't a cold-start problem: it's **slow even fully warm and wildly nondeterministic** — the dashboard-v2 corpus COUNT swung 112ms ↔ 18s+ across consecutive warm hits. When a roll lands past the 10s DB abort, `boundedFetch` aborts + retries (~20s) and the page 500s; when it lands fast, 200. That variance is exactly the "transient 500, 2 tries then 200" signature. Remedy: a partial/covering index matching the predicate (e.g. `… WHERE summary IS NOT NULL`) **plus** a gated `INDEXED BY` hint — the planner refuses the index unhinted every time. `getFeedStats` (the masthead count) was the sneaky one: it runs on every HeaderBar page, so the same mis-plan was an app-wide 500 risk, not route-local.
+
+## Over-gating an INDEXED BY hint forces the wrong index on a sibling path (HO 279, Jun 2026)
+
+A forced `INDEXED BY` doesn't just fix the path you aimed at — it overrides the planner for *every* query that shares the function, including ones where the planner was already choosing a better index. HO 279's first cut hinted `getFeedBills`'s COUNT onto `idx_bills_summary_feed` for every non-`cluster` path. The bare `/bills` COUNT went 44s → 30ms (the win), but `/bills?stage=` regressed: the planner had been picking `idx_bills_summary_stage` (a clean `SEARCH (stage=?)`, 152ms), and the blanket hint forced a full partial-index SCAN + per-row fetch instead (8.5s cold). The cold test caught it; the fix was narrowing the hint to the *bare* gated case. Lesson: gate a hint to the exact WHERE shape it helps, and **re-measure the filtered/sibling paths after adding it**, not just the target.
+
 ## A non-breaking space silently defeated the title-prefix strip (HO 273, Jun 2026)
 
 Committee meeting titles render verbatim from Congress.gov, and Senate ones lead with procedural boilerplate ("Hearings to examine the nomination of…"). `cleanMeetingTitle` strips those lead-ins with literal-space regexes — except a chunk of titles carry a non-breaking space (U+00A0) or narrow NBSP (U+202F) between words (notably between "examine" and the topic), so `to examine ` never matched and the prefix passed through uncleaned. They look identical in a terminal; the tell is only in the bytes. Fix: normalize `[  ] → " "` before any prefix matching. The lesson generalizes — any prefix/substring match against text sourced from a government feed should NBSP-normalize first.
