@@ -451,9 +451,18 @@ export const getCorpusStats = unstable_cache(
   async (summaryGated = false): Promise<CorpusStats> => {
     const db = getDb();
     const summaryClause = summaryGated ? " AND summary IS NOT NULL" : "";
+    // HO 278: the v2 gated path (getCorpusStats(true)) is the same summary-gated
+    // COUNT+MAX as getFeedStats — the statless planner otherwise drives off
+    // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat table, ~6.9s cold, the
+    // dashboard-v2 swap blocker). Force the 277 partial index idx_bills_summary_feed
+    // (is_ceremonial, update_date) WHERE summary IS NOT NULL → index-only COUNT+MAX
+    // (6.9s → 34ms; EXPLAIN: SCAN USING INDEX). ONLY on the gated path — the
+    // ungated `/` call has no `summary IS NOT NULL` clause, so the partial index
+    // is unusable there (would be "no query solution").
+    const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_feed" : "";
     const rs = await db.execute(
       `SELECT COUNT(*) AS total, MAX(update_date) AS last_sync
-       FROM bills
+       FROM bills${fromHint}
        WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)${summaryClause}`,
     );
     const r = rs.rows[0];
