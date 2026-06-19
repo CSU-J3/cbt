@@ -640,6 +640,15 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_stage ON bills(stage, is_ceremonial) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_stage");
+  // HO 278: cover dashboard-v2's gated topic distribution (getTopicDistribution
+  // (undefined, true)). `topics` is in the index so the bills scan feeding
+  // json_each is index-only (no fat-table fetch for topics/summary); the planner
+  // refused it unhinted (kept MULTI-INDEX OR), so it's forced via INDEXED BY on the
+  // gated path. 175ms → 38ms.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_summary_topics ON bills(is_ceremonial, topics) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_summary_topics");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");

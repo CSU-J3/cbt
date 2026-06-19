@@ -569,9 +569,17 @@ export const getTopicDistribution = unstable_cache(
     const stageClause = stage ? " AND bills.stage = ?" : "";
     const stageArgs = stage ? [stage] : [];
     const summaryClause = summaryGated ? " AND bills.summary IS NOT NULL" : "";
+    // HO 278: force the partial covering index idx_bills_summary_topics
+    // (is_ceremonial, topics) WHERE summary IS NOT NULL on the v2 gated path, so
+    // the bills scan feeding json_each is index-only (reads topics + is_ceremonial
+    // from the index, no fat-table fetch) instead of the planner's MULTI-INDEX OR
+    // on idx_bills_is_ceremonial; 175ms → 38ms. The json_each GROUP/ORDER temp
+    // b-trees remain (24 groups, unavoidable + cheap). Gated-only — the ungated
+    // `/` call lacks the `summary IS NOT NULL` clause the partial index requires.
+    const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_topics" : "";
     const rs = await db.execute({
       sql: `SELECT je.value AS topic, COUNT(*) AS count
-       FROM bills, json_each(bills.topics) je
+       FROM bills${fromHint}, json_each(bills.topics) je
        WHERE bills.topics IS NOT NULL
          AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)${summaryClause}${stageClause}
        GROUP BY je.value
