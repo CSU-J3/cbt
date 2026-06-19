@@ -5982,6 +5982,26 @@ a.hearing-watch:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* HO 273: non-live fallback — NEXT upcoming meeting (understated vs the green
+   LIVE callout) and a muted empty state, so the sub-bar's left side is never
+   blank through the long stretches with nothing live. */
+.hill-band-next {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.hill-band-next:hover {
+  text-decoration: underline;
+}
+.hill-band-next .tabular-nums {
+  color: var(--text-secondary);
+}
+.hill-band-none {
+  color: var(--text-dim);
+}
 .hill-band-right {
   margin-left: auto;
   color: var(--text-dim);

@@ -82,6 +82,18 @@ export async function OnTheHillBand({
     ? (committeeNames[live.committeeSystemCode] ?? null)
     : null;
 
+  // Non-live fallback (most of the day): the next upcoming meeting this week, so
+  // the sub-bar's left side never sits empty. `upcoming` is meeting_date >= now
+  // ASC, so the first this-week entry is the soonest. If nothing's left this
+  // week, the render falls through to a muted NO MEETINGS SCHEDULED.
+  const nextUp = live
+    ? null
+    : (upcoming.find(
+        (m) =>
+          weekKeySet.has(etDayKey(m.meetingDate)) &&
+          Date.parse(m.meetingDate) >= nowMs,
+      ) ?? null);
+
   return (
     <section
       className={`hill-band${embedded ? " hill-band--embedded" : ""}`}
@@ -105,7 +117,24 @@ export async function OnTheHillBand({
             </span>
             {liveCommittee ? ` · ${liveCommittee}` : ""}
           </Link>
-        ) : null}
+        ) : nextUp ? (
+          <Link
+            href={dayHref(etDayKey(nextUp.meetingDate))}
+            className="hill-band-next"
+          >
+            NEXT ·{" "}
+            <span className="tabular-nums">
+              {dayKeyParts(etDayKey(nextUp.meetingDate)).dow}{" "}
+              {etTimeLabel(nextUp.meetingDate)}
+            </span>{" "}
+            ·{" "}
+            <span className="hill-band-live-title">
+              {cleanMeetingTitle(nextUp.title)}
+            </span>
+          </Link>
+        ) : (
+          <span className="hill-band-none">NO MEETINGS SCHEDULED</span>
+        )}
 
         <span className="hill-band-right">
           <span className="tabular-nums">{total.toLocaleString()}</span> meetings
