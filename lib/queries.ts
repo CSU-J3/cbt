@@ -313,9 +313,20 @@ export const getFeedStats = unstable_cache(
   ): Promise<FeedStats> => {
     const db = getDb();
     const { clauses, args } = buildFeedWhere({ includeCeremonial, cluster });
+    // HO 277: force the partial covering index idx_bills_summary_feed
+    // (is_ceremonial, update_date) WHERE summary IS NOT NULL. This count runs in
+    // HeaderBar on every inner page; the statless Turso planner otherwise drives
+    // off idx_bills_is_ceremonial (MULTI-INDEX OR over the fat bills table) —
+    // measured 12.1s cold against prod, the residual /members 500 (digest
+    // 4101894172). `summary IS NOT NULL` is buildFeedWhere's always-present base
+    // clause, so the partial index is always usable. EXCEPTION: a ?cluster=
+    // filter bypasses the ceremonial gate and is far more selective on
+    // idx_bills_cluster_id, so skip the hint there (don't force a partial-index
+    // scan + row-fetch when a selective index exists).
+    const fromHint = cluster ? "" : " INDEXED BY idx_bills_summary_feed";
     const r = await db.execute({
       sql: `SELECT COUNT(*) AS total, MAX(update_date) AS last
-            FROM bills WHERE ${clauses.join(" AND ")}`,
+            FROM bills${fromHint} WHERE ${clauses.join(" AND ")}`,
       args,
     });
     const row = r.rows[0];

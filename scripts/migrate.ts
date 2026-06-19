@@ -615,6 +615,21 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_agg ON bills(sponsor_bioguide_id, is_ceremonial, stage, congress)",
   );
   console.log("ok: idx_bills_sponsor_agg");
+  // HO 277: cover getFeedStats — the HeaderBar count (COUNT(*) + MAX(update_date)
+  // over `summary IS NOT NULL AND (is_ceremonial=0 OR IS NULL)`), which runs on
+  // EVERY inner page incl. /members. Same summary-gated mis-plan as HO 276's
+  // dashboard-v2 corpus_gated: the covering indexes carry no `summary`, so the
+  // planner falls to a MULTI-INDEX OR over the fat bills table — measured 12.1s
+  // cold against prod, the residual /members 500. A PARTIAL index `WHERE summary
+  // IS NOT NULL` (= the always-present base clause) keyed (is_ceremonial,
+  // update_date) makes the default COUNT+MAX index-only over a small partial set
+  // (~15k rows, 2 tiny cols) → 38ms. getFeedStats forces it via INDEXED BY
+  // (statless planner won't take it unhinted) EXCEPT when ?cluster= is set, where
+  // idx_bills_cluster_id is the better path (see lib/queries.ts).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_summary_feed ON bills(is_ceremonial, update_date) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_summary_feed");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
