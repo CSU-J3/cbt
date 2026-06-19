@@ -3316,7 +3316,12 @@ export const getMembersRanked = unstable_cache(
     }));
   },
   ["getMembersRanked"],
-  { revalidate: 3600, tags: ["members", "bills"] },
+  // HO 277: revalidate aligned to the refresh cadence (daily) rather than hourly.
+  // The `bills` + `members` tags are the real freshness trigger — the daily sync
+  // cron revalidateTag("bills")s, flushing this — so the timer is just a backstop.
+  // Lengthening it keeps the cache the default instead of letting a per-hour
+  // expiry land a cold recompute inside a user request (the slow path that 500'd).
+  { revalidate: 86400, tags: ["members", "bills"] },
 );
 
 export const getMembersRankedCount = unstable_cache(
@@ -3330,7 +3335,8 @@ export const getMembersRankedCount = unstable_cache(
     return Number(rs.rows[0]?.n ?? 0);
   },
   ["getMembersRankedCount"],
-  { revalidate: 3600, tags: ["members", "bills"] },
+  // HO 277: daily revalidate, cron-tag-flush is the real refresh (see getMembersRanked).
+  { revalidate: 86400, tags: ["members", "bills"] },
 );
 
 // Distinct state codes among currently-serving members, alphabetical, for
