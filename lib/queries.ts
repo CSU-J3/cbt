@@ -391,11 +391,19 @@ export const getStageDistribution = unstable_cache(
       : "";
     const topicArgs = topic ? [topic] : [];
     const summaryClause = summaryGated ? " AND summary IS NOT NULL" : "";
+    // HO 278: force the partial covering index idx_bills_summary_stage
+    // (stage, is_ceremonial) WHERE summary IS NOT NULL on the v2 gated path. The
+    // statless planner otherwise picks idx_bills_dash_stage (no `summary` column →
+    // MULTI-INDEX OR + TEMP-B-TREE GROUP BY, row-fetch for summary). The
+    // stage-leading partial index makes the GROUP BY index-only AND pre-ordered
+    // (no temp b-tree); 860ms → 32ms. Gated-only — the ungated `/` call lacks the
+    // `summary IS NOT NULL` clause the partial index requires.
+    const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_stage" : "";
 
     const placeholders = FUNNEL_STAGES.map(() => "?").join(", ");
     const rs = await db.execute({
       sql: `SELECT stage, COUNT(*) AS count
-            FROM bills
+            FROM bills${fromHint}
             WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
               AND stage IN (${placeholders})${summaryClause}${topicClause}
             GROUP BY stage`,
@@ -419,7 +427,9 @@ export const getStageDistribution = unstable_cache(
     });
 
     const offRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills
+      // HO 278: same idx_bills_summary_stage hint (leading stage covers the
+      // 'other'/NULL range index-only on the gated path).
+      sql: `SELECT COUNT(*) AS n FROM bills${fromHint}
             WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
               AND (stage = 'other' OR stage IS NULL)${summaryClause}${topicClause}`,
       args: [...topicArgs],

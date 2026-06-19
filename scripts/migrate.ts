@@ -630,6 +630,16 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_feed ON bills(is_ceremonial, update_date) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_feed");
+  // HO 278: cover dashboard-v2's gated stage distribution (getStageDistribution
+  // (undefined, true) — the v2 swap blocker). Same summary-gated class: the
+  // planner picks idx_bills_dash_stage (no `summary` → MULTI-INDEX OR + TEMP-B-TREE
+  // GROUP BY, row-fetch). Partial, leading `stage` so the GROUP BY is index-only +
+  // pre-ordered (no temp b-tree) and the offPath ('other'/NULL) range is covered;
+  // 860ms → 32ms. Forced via INDEXED BY on the gated path (lib/queries.ts).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_summary_stage ON bills(stage, is_ceremonial) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_summary_stage");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
