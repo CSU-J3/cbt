@@ -3038,7 +3038,14 @@ export const getFeedBills = unstable_cache(
     };
   },
   ["getFeedBills"],
-  { revalidate: 3600, tags: ["bills", "news-breaking"] },
+  // HO 279: daily revalidate (was hourly), aligned to the refresh cadence. The
+  // `bills` + `news-breaking` tags are the real freshness trigger (the daily sync
+  // + news crons revalidateTag these), so the timer is just a backstop —
+  // lengthening it keeps the cache the default rather than letting a per-hour
+  // expiry land a cold COUNT+SELECT inside a user request. Mirrors /members
+  // (getMembersRanked). The HO 279 index makes the cold COUNT sub-second anyway;
+  // this keeps the slow path out of requests even if the feed regrows.
+  { revalidate: 86400, tags: ["bills", "news-breaking"] },
 );
 
 export type FeedCount = {
