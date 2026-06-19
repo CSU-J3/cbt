@@ -2984,17 +2984,27 @@ export const getFeedBills = unstable_cache(
     const { clauses, args } = buildFeedWhere(filters);
     const where = clauses.join(" AND ");
 
-    // HO 279: the feed COUNT is the same summary-gated COUNT mis-plan as
-    // getFeedStats — buildFeedWhere always carries `summary IS NOT NULL`, and the
-    // statless planner otherwise drives off idx_bills_is_ceremonial (MULTI-INDEX
-    // OR over the fat bills table, ~7.7–11s cold, the /bills 500 risk the 278
-    // scout flagged). Force the 277 partial index idx_bills_summary_feed on the
-    // gated path (SCAN USING INDEX, 7.7s → 30ms). EXCEPT ?cluster=, which bypasses
-    // the ceremonial gate and is far more selective on idx_bills_cluster_id (same
-    // conditional-hint care as getFeedStats). Only the COUNT — the row-returning
-    // SELECT below needs a filter+sort+columns covering index and stays a backlog
-    // WATCH. The hint is the COUNT's table access only; the WHERE is unchanged.
-    const countHint = filters.cluster ? "" : " INDEXED BY idx_bills_summary_feed";
+    // HO 279: the BARE feed COUNT (no user filter) is the summary-gated mis-plan
+    // the 278 scout flagged — buildFeedWhere always carries `summary IS NOT NULL`,
+    // and with no narrower predicate the statless planner drives off
+    // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat bills table, 44s cold,
+    // the every-/bills-load 500 risk). Force the 277 partial idx_bills_summary_feed
+    // there → index-only COUNT (44s → 30ms). ONLY when bare: with a user filter the
+    // planner already picks a better index (stage → the 278 idx_bills_summary_stage,
+    // 152ms; cluster → idx_bills_cluster_id), and forcing summary_feed would make
+    // it SCAN the whole partial set + row-fetch the filter column (measured 8.5s
+    // cold for ?stage= — a regression). chamber/q have no selective index and were
+    // already mis-planning pre-279 (untouched here → backlog WATCH, with the
+    // row-returning SELECT below). includeCeremonial only DROPS the ceremonial
+    // clause, so it stays bare-eligible.
+    const bareGated =
+      !filters.stage &&
+      !filters.sponsor &&
+      !filters.q &&
+      !filters.chamber &&
+      !filters.cluster &&
+      (!filters.topics || filters.topics.length === 0);
+    const countHint = bareGated ? " INDEXED BY idx_bills_summary_feed" : "";
     const countRs = await db.execute({
       sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
       args: [...args],
