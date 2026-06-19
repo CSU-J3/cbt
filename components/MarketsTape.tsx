@@ -32,6 +32,7 @@ export async function MarketsTape({
   pairs,
   kind = "markets",
   scroll = false,
+  label,
 }: {
   group?: MarketGroup;
   showMeta?: boolean;
@@ -52,6 +53,8 @@ export async function MarketsTape({
   // HO 258: opt into the marquee crawl (v2's two tapes). Default static so `/`
   // and inner pages stay on the HO 251 static row.
   scroll?: boolean;
+  // HO 274: left-pinned strip label ("MARKETS" / "SIGNALS"), v2 two-tape only.
+  label?: string;
 } = {}) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
@@ -80,6 +83,7 @@ export async function MarketsTape({
       showMeta={showMeta}
       kind={kind}
       scroll={scroll}
+      label={label}
     />
   );
 }

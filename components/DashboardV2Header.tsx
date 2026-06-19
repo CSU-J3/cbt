@@ -109,12 +109,13 @@ export function DashboardV2Header({
       {/* Two stacked tapes — MARKETS (closes) over SIGNALS (always LIVE). HO 258:
           each its own marquee (scroll), per Design's two-tape spec. */}
       <div className="dv2-tapes">
-        <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll />
+        <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll label="MARKETS" />
         <MarketsTape
           symbols={SIGNALS_TAPE}
           pairs={SIGNALS_PAIRS}
           kind="signals"
           scroll
+          label="SIGNALS"
         />
       </div>
 

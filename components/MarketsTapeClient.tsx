@@ -334,6 +334,7 @@ export function MarketsTapeClient({
   kind = "markets",
   pairs,
   scroll = false,
+  label,
 }: {
   ticks: MarketTick[];
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
@@ -356,6 +357,12 @@ export function MarketsTapeClient({
   // track (seamless -50% loop, hover-pause, reduced-motion-safe via CSS). The
   // CLOSED/LIVE/STALE meta + right-pin stay outside the scrolling track.
   scroll?: boolean;
+  // HO 274: a strip label ("MARKETS" / "SIGNALS") pinned to the LEFT, OUTSIDE the
+  // scrolling track, so it stays visible instead of crawling off with the ticks
+  // (the mock pins it; a live v2 capture led with a bare "4.49%"). Mirrors the
+  // right-pinned AS OF meta. Only v2's two marquee tapes pass it; `/` + inner
+  // pages omit it (no label, unchanged static row).
+  label?: string;
 }) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
@@ -486,10 +493,16 @@ export function MarketsTapeClient({
     return { stale: stripStale, closed: closed && t.cadence === "daily" };
   };
 
+  // HO 274: left-pinned strip label (outside the track), mirroring the right meta.
+  const labelNode = label ? (
+    <div className="markets-tape-label">{label}</div>
+  ) : null;
+
   // No-data branch — empty fetch or all rows had unparseable tickedAt.
   if (currentTicks.length === 0 || latestTickedAt === null) {
     return (
       <div className="markets-tape markets-tape--no-data" aria-label="Markets">
+        {labelNode}
         <div className="markets-tape-row markets-tape-row--placeholder">
           {(placeholderSymbols ?? ["SPX", "NDQ", "TNX", "CPI", "WTI"]).map(
             (s) => (
@@ -603,6 +616,7 @@ export function MarketsTapeClient({
         }${closed ? " markets-tape--closed" : ""}`}
         aria-label="Markets"
       >
+        {labelNode}
         <div
           className="markets-tape-track"
           style={{ animationDuration: `${durationS}s` }}
@@ -638,6 +652,7 @@ export function MarketsTapeClient({
       }${closed ? " markets-tape--closed" : ""}`}
       aria-label="Markets"
     >
+      {labelNode}
       <div className="markets-tape-row">{items}</div>
       {metaNode}
     </div>

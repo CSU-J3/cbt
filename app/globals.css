@@ -4328,6 +4328,39 @@ body {
   background: linear-gradient(to right, transparent, var(--bg-panel));
   pointer-events: none;
 }
+/* HO 274: the LEFT-pinned strip label (MARKETS / SIGNALS), the mirror image of
+   the right .markets-tape-meta — absolute + opaque + above the track, so the
+   ticks crawl behind it instead of the label scrolling off. Only v2's two
+   marquee tapes render it (a `label` prop); `/` + inner pages have none. The
+   ::after fades the track out just RIGHT of the label (the meta's ::before does
+   the same on the left), so symbols dissolve under it rather than hard-cutting.
+   9px / wide tracking matches the mock's `.lbl`. */
+.markets-tape-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 0 4px 0 12px;
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.markets-tape-label::after {
+  content: "";
+  position: absolute;
+  left: 100%;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  background: linear-gradient(to left, transparent, var(--bg-panel));
+  pointer-events: none;
+}
 .markets-tape-stamp {
   white-space: nowrap;
   text-transform: uppercase;
