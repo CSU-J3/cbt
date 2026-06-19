@@ -6,6 +6,7 @@
 // the markup tint reuse Piece 1's rules via the shared lib.
 import {
   addDaysToKey,
+  cleanMeetingTitle,
   dayKeyParts,
   etDayKey,
   etTimeLabel,
@@ -33,6 +34,7 @@ function Block({ m, nowMs }: { m: CommitteeMeeting; nowMs: number }) {
   const badge = hearingBadge(m.meetingType);
   const ws = watchState(m, nowMs);
   const n = m.bills.length;
+  const title = cleanMeetingTitle(m.title);
   return (
     <div className={`hearings-cal-block${badge === "MARKUP" ? " is-markup" : ""}`}>
       <div className="hearings-cal-block-top">
@@ -49,8 +51,8 @@ function Block({ m, nowMs }: { m: CommitteeMeeting; nowMs: number }) {
           </span>
         ) : null}
       </div>
-      <div className="hearings-cal-block-title" title={m.title}>
-        {m.title || "(untitled meeting)"}
+      <div className="hearings-cal-block-title" title={title}>
+        {title || "(untitled meeting)"}
       </div>
     </div>
   );

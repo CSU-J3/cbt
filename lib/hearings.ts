@@ -22,6 +22,59 @@ export function hearingBadge(
   return "BUSINESS";
 }
 
+// HO 273: meeting titles render verbatim from Congress.gov, so Senate events
+// especially lead with procedural boilerplate ("Hearings to examine the
+// nomination of...", "Business meeting to consider...", "To receive a closed
+// briefing on...") where the mock shows clean topic titles. cleanMeetingTitle
+// strips that lead-in at render time (the raw title stays recoverable in the
+// DB). String rules only — no LLM. The meeting TYPE is already carried by the
+// badge + markup tint, so dropping "Hearings to examine" loses nothing.
+//
+// Calibrated against the live corpus (scripts/diagnostic/hearing-titles-273.ts,
+// 2,448 titles): these prefixes cover ~900 Senate-style rows; House titles are
+// already topic-shaped (often quoted) and match no prefix, passing through as-is.
+const TITLE_PREFIXES: readonly RegExp[] = [
+  /^(?:closed |organizational )?business meeting to consider /i,
+  /^executive session to consider /i,
+  /^(?:closed )?hearings? to (?:examine|consider) /i,
+  /^to receive a (?:closed )?briefing (?:on|regarding) /i,
+  /^an oversight hearing to examine /i,
+  /^legislative field hearing on /i,
+  /^(?:full committee |subcommittee )?markup of /i,
+  /^(?:oversight|legislative|field) hearing (?:on|titled):?\s+/i,
+  /^hearing on /i,
+];
+
+export function cleanMeetingTitle(raw: string | null | undefined): string {
+  // Some Congress.gov titles carry a non-breaking space (U+00A0) — notably
+  // between "examine" and the topic — which a literal-space prefix won't match.
+  // Normalize NBSP/narrow-NBSP to a plain space so the prefixes apply uniformly.
+  const original = (raw ?? "").replace(/[\u00a0\u202f]/g, " ").trim();
+  if (!original) return original;
+
+  let s = original;
+  let stripped = false;
+  for (const re of TITLE_PREFIXES) {
+    if (re.test(s)) {
+      s = s.replace(re, "");
+      stripped = true;
+      break;
+    }
+  }
+
+  if (stripped) {
+    // a leading "the " left by the strip reads better gone ("the state of rural
+    // health care" -> "State of rural health care"); leave "a"/"an" in place.
+    s = s.replace(/^the /i, "");
+    // re-capitalize the first alpha char — the prefix took the original capital.
+    s = s.replace(/^([a-z])/, (c) => c.toUpperCase());
+  }
+
+  s = s.trim();
+  // never render an empty title — fall back to the raw string unchanged.
+  return s ? s : original;
+}
+
 // Watch state for the row's right cell + Piece 3's LIVE NOW callout.
 export type WatchState = "live" | "watch" | "stream" | "none";
 

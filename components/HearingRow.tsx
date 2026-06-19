@@ -13,6 +13,7 @@ import Link from "next/link";
 import { PartyTag } from "@/components/PartyTag";
 import { StageIndicator } from "@/components/StageIndicator";
 import {
+  cleanMeetingTitle,
   etDayLabel,
   etTimeLabel,
   hearingBadge,
@@ -172,6 +173,7 @@ export function HearingRow({
 }) {
   const badge = hearingBadge(m.meetingType);
   const loc = locationText(m);
+  const title = cleanMeetingTitle(m.title);
   const shown = m.bills.slice(0, BILL_CHIP_CAP);
   const moreCount = m.bills.length - shown.length;
 
@@ -200,8 +202,8 @@ export function HearingRow({
           {badge}
         </span>
         <span className="hearing-main">
-          <span className="hearing-title" title={m.title}>
-            {m.title || "(untitled meeting)"}
+          <span className="hearing-title" title={title}>
+            {title || "(untitled meeting)"}
           </span>
           <span className="hearing-meta">
             <span className={m.chamber === "house" ? "chamber-h" : "chamber-s"}>

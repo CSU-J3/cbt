@@ -7,6 +7,7 @@
 import Link from "next/link";
 import {
   addDaysToKey,
+  cleanMeetingTitle,
   dayKeyParts,
   etDayKey,
   etTimeLabel,
@@ -98,7 +99,10 @@ export async function OnTheHillBand({
           >
             <span aria-hidden>●</span> LIVE NOW ·{" "}
             <span className="tabular-nums">{etTimeLabel(live.meetingDate)}</span>{" "}
-            · <span className="hill-band-live-title">{live.title}</span>
+            ·{" "}
+            <span className="hill-band-live-title">
+              {cleanMeetingTitle(live.title)}
+            </span>
             {liveCommittee ? ` · ${liveCommittee}` : ""}
           </Link>
         ) : null}
@@ -138,11 +142,12 @@ export async function OnTheHillBand({
                   {shown.map((m) => {
                     const badge = hearingBadge(m.meetingType);
                     const isLive = watchState(m, nowMs) === "live";
+                    const title = cleanMeetingTitle(m.title);
                     return (
                       <div
                         key={m.eventId}
                         className={`hill-line${badge === "MARKUP" ? " is-markup" : ""}`}
-                        title={m.title}
+                        title={title}
                       >
                         <span className="hill-line-dot" aria-hidden>
                           {isLive ? "●" : ""}
@@ -151,7 +156,7 @@ export async function OnTheHillBand({
                           {etTimeLabel(m.meetingDate)}
                         </span>
                         <span className="hill-line-title">
-                          {m.title || "(untitled)"}
+                          {title || "(untitled)"}
                         </span>
                         {m.bills.length > 0 ? (
                           <span className="hill-line-bills">
