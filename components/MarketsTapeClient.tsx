@@ -69,6 +69,16 @@ const SCROLL_SPEED_PX_S = 42;
 // covers the normal <=~45d release lag without false-flagging a current print.
 const MONTHLY_OVERDUE_MS = 40 * 24 * 60 * 60 * 1000;
 
+// HO 274: implausible-daily-move guard. A daily change beyond ±8% on a major
+// index/commodity/rate is almost certainly bad data, not a real session move.
+// The concrete trigger: FRED's WTI series (DCOILWTICO) publishes with a multi-day
+// lag, so the markets cron's "prior session" diff can compare against a row that's
+// a week stale — printing a 7-day move (95.0 → 84.65 = −10.9%) as if it were one
+// session. The faithful PRICE still shows; only the misleading change is suppressed
+// (the cron has no clean way to know its prior row was stale, so the guard lives at
+// render where it also covers already-stored rows + every future lag-jump).
+const MAX_PLAUSIBLE_DAILY_MOVE_PCT = 8;
+
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
   // HO 251: CPI/UNEMP/SHUTDOWN/FEDCUT — one decimal (4.2% / 49.0% / 2.0%).
@@ -200,7 +210,15 @@ function TickItem({
   // displaying; only the color flips to --ticker-closed.
   closed: boolean;
 }) {
-  const pct = tick.changePct;
+  // HO 274: suppress an implausible daily move (see MAX_PLAUSIBLE_DAILY_MOVE_PCT)
+  // — render the price but no arrow/change, the same shape as a no-prior-reference
+  // symbol. Daily-cadence only; monthly/kalshi already carry a null change.
+  const rawPct = tick.changePct;
+  const implausible =
+    tick.cadence === "daily" &&
+    rawPct !== null &&
+    Math.abs(rawPct) > MAX_PLAUSIBLE_DAILY_MOVE_PCT;
+  const pct = implausible ? null : rawPct;
   const dir =
     !stale && pct !== null
       ? pct > 0
