@@ -740,6 +740,47 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > date/selective column, assume you'll need an `INDEXED BY` hint — don't trust
 > the planner.
 
+> **The gated-aggregate mis-plan class + its indexes (HO 277–279).** The same
+> statless-planner trap hit a whole class of **summary-gated** fat-table
+> COUNT/aggregates — adding `AND summary IS NOT NULL` to a `bills` aggregate makes
+> the planner drop it onto `idx_bills_is_ceremonial` (a `MULTI-INDEX OR` over
+> ~every row, or a full scan), **slow even fully warm and wildly nondeterministic
+> cold** (one query swung 112ms↔18s+ across hits). It surfaced as live 10s-abort
+> 500s on `/members` (HO 277), `/dashboard-v2` (HO 278, the swap blocker), and
+> `/bills` (HO 279). The covering indexes (all `bills`, additive; in `migrate.ts`):
+> - **`idx_bills_summary_feed (is_ceremonial, update_date) WHERE summary IS NOT NULL`** —
+>   the SHARED partial for the summary-gated `COUNT(*)`/`MAX(update_date)` shape:
+>   `getFeedStats` (HO 277), `getCorpusStats(true)` (HO 278), and **`getFeedBills`'s
+>   COUNT** (HO 279) all `INDEXED BY` onto it (their default WHERE all carry
+>   `summary IS NOT NULL`). 12.1s → 38ms.
+> - **`idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL`** —
+>   the gated stage distribution (HO 278); leading `stage` kills the temp-b-tree
+>   GROUP BY. 860ms → 32ms. (The planner ALSO picks this one on its own for a
+>   `?stage=` feed COUNT — see the gating note below.)
+> - **`idx_bills_summary_topics (is_ceremonial, topics) WHERE summary IS NOT NULL`** —
+>   the gated topic distribution (HO 278); `topics` in the index feeds `json_each`
+>   index-only. 175ms → 38ms.
+> - **`idx_bills_sponsor_agg (sponsor_bioguide_id, is_ceremonial, stage, congress)`** —
+>   the per-sponsor GROUP BY behind `/members` (HO 277): `billsAggCte`
+>   (`getMembersRanked`) + `getSponsorProductivity`. 3850ms → 96ms.
+>
+> **The hint is MANDATORY — index alone is never enough** (the statless planner
+> refused every one of these unhinted; confirmed 5×). **And gate the hint NARROWLY
+> to the exact path whose WHERE matches the partial's predicate.** A too-broad hint
+> forces the WRONG index on a sibling path: HO 279's first cut hinted `getFeedBills`'s
+> COUNT on every non-`cluster` path, which pessimized `/bills?stage=` (the planner's
+> natural `idx_bills_summary_stage` SEARCH at 152ms → a forced `summary_feed`
+> SCAN+row-fetch at 8.5s cold). Fixed by narrowing to the BARE gated case (no
+> `stage`/`sponsor`/`q`/`chamber`/`topics`/`cluster`). **Verify the filtered/sibling
+> paths after adding any hint**, not just the one you targeted.
+>
+> **`getFeedStats` is app-wide:** it's the masthead count rendered by `HeaderBar` on
+> EVERY inner page, so its mis-plan was an app-wide 500 risk, not route-local —
+> fixing it (HO 277) protected every inner page at once. **Still WATCH (latent,
+> under the abort):** `getFeedBills`'s row-returning SELECT, `getSponsorsRanked`
+> (COALESCE GROUP BY blocks a clean index → rewrite), `searchBills` (LIKE over a fat
+> column → wants FTS, not an index) — a deliberate systemic pass, see backlog.
+
 - `getFeedBills(filters, {page, pageSize})` — main feed; returns `{ bills, total, page, pageSize, totalPages }`. `total` is the filtered count. The page passes `total` into `HeaderBar` via `feedFilteredCount` so the header doesn't need a second COUNT query. The unfiltered count for the "X of Y" header line comes from `getFeedStats().total`. SELECTs the HO 188 enrichment columns `sponsor_bioguide_id` + `cosponsor_count`, and (HO 192) `LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id` projecting `msp.depiction_url AS sponsor_depiction_url` for the sponsor hover card — plus **HO 194's `msp.first_name`/`last_name`/`district` (as `sponsor_first_name`/`sponsor_last_name`/`sponsor_district`)** for the refined card's natural-order name + district, all on the *same* JOIN (no new query). Mirrors `getSponsorProductivity`'s join; `members.bioguide_id` is the PK so it's 1:1 (no row multiplication, and `total` is a separate JOIN-free COUNT anyway). All of these ride on `FeedBill` and are wired into `getFeedBills` only, so they degrade to absent on the other feed-shaped queries (`/stale`/`/changes`/`/watchlist`).
 - `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
 - **President desk-time view** — `/president` redirects to `/bills?stage=president` (HO 151). The dedicated `getPresidentBills` / `getPresidentCount` / `buildPresidentWhere` helpers were **deleted in HO 154.1** as orphans of that redirect; do not reference them. The desk-time column + oldest-at-desk ordering now ride `getFeedBills`: when the feed page detects `stage=president` as the sole active stage with no explicit `?sort`, it passes `direction: "asc"` (→ `ORDER BY latest_action_date ASC NULLS LAST, id DESC`, oldest at desk first — closest to the 10-day veto deadline) and `daysSinceMode="desk-time"` to `BillRowList`. `FeedFilters.direction` is internal-only — never written by URL params, never surfaced in `SortDropdown`.
