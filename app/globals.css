@@ -55,6 +55,15 @@
   --rail-house: #22d3ee;
   --rail-senate: #c084fc;
 
+  /* HO 287 source-tag brand tokens (chip family). Scoped STRICTLY to the
+     tier-3 source tags (.source-tag) and the B2 odds hover box — never a
+     general palette color. --poly (#2E5CFF) sits near --party-democrat
+     (#3b82f6), so the mitigation is structural: P is always rendered beside
+     the turquoise K (the markets SIGNALS pair, the B2 odds row), never alone
+     in a party context where blue would read as "Democrat". */
+  --kalshi: #4de4b2;
+  --poly: #2e5cff;
+
   /* HO 131 spacing scale. Use in place of ad-hoc px values for block-level
      rhythm (gap, padding, margin). Inner-row paddings (.feed-row, etc.)
      keep their custom values — those drive per-row density, not block
@@ -4291,16 +4300,18 @@ body {
   color: var(--text-dim);
   letter-spacing: 0.5px;
 }
-/* HO 227: end-of-day tag for FRED-sourced symbols — a stale close must never
-   read as a fresh intraday print. Dim + small so it labels without shouting. */
-.markets-tape-eod {
-  font-size: 8px;
+/* HO 287 — tier-3 QUALIFIER micro-tag (chip family), shared via <MicroTag>.
+   A tiny bordered uppercase label qualifying a value's cadence/kind (EOD, MO).
+   9px / --text-dim / 1px --border-strong border / 2px radius — the smallest rung
+   of the size ladder. Replaced the tape-only .markets-tape-eod (HO 227, was
+   8px); the markets tape is the one consumer today. */
+.micro-tag {
+  font-size: 9px;
   letter-spacing: 0.5px;
   color: var(--text-dim);
   border: 1px solid var(--border-strong);
   border-radius: 2px;
   padding: 0 2px;
-  margin-left: 1px;
 }
 /* HO 175/176: fixed-width slots so an item's width never changes as its value
    moves (price digit crossing, change toggling, arrow flat↔directional) — the
@@ -4314,15 +4325,16 @@ body {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-/* HO 259: dual-source SIGNALS pairing (K = Kalshi / P = Polymarket). The dim
-   source tag mirrors the mock's `.src` — small, mono, --text-dim (no new token).
-   Each [tag value] sits in its own tight group inside the existing
-   .markets-tape-item flex (6px gap separates symbol / K-group / P-group). N/A in
-   a value slot reuses the --text-dim treatment (set inline in PairItem). */
-.markets-tape-src {
-  font-size: 9px;
+/* HO 287 — tier-3 SOURCE tag (chip family), shared via <SourceTag>. A single
+   brand-colored letter (K = Kalshi --kalshi, P = Polymarket --poly), weight 600,
+   10px, no border. Replaced the tape-only .markets-tape-src (HO 259, was 9px
+   dim) — the K/P pair is now spec-coloured. The per-source color is set inline
+   by <SourceTag>; the dual-source SIGNALS pair (HO 259) is the one consumer
+   today, each [tag value] sitting in its own .markets-tape-pair-grp. */
+.source-tag {
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: 0.5px;
-  color: var(--text-dim);
 }
 .markets-tape-pair-grp {
   display: inline-flex;

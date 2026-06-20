@@ -23,6 +23,8 @@
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { MicroTag } from "@/components/MicroTag";
+import { SourceTag } from "@/components/SourceTag";
 import { isMarketOpen } from "@/lib/market-hours";
 import type { MarketTick } from "@/lib/queries";
 import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
@@ -168,7 +170,7 @@ function PairItem({
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{display}</span>
       <span className="markets-tape-pair-grp">
-        <span className="markets-tape-src">K</span>
+        <SourceTag source="kalshi" />
         <span
           className="markets-tape-price"
           style={{ minWidth: "5ch", color: valColor(!!primary) }}
@@ -177,7 +179,7 @@ function PairItem({
         </span>
       </span>
       <span className="markets-tape-pair-grp">
-        <span className="markets-tape-src">P</span>
+        <SourceTag source="polymarket" />
         <span
           className="markets-tape-price"
           style={{ minWidth: "5ch", color: valColor(!!secondary) }}
@@ -276,11 +278,7 @@ function TickItem({
   return (
     <span className="markets-tape-item">
       <span className="markets-tape-symbol">{tick.symbol}</span>
-      {tagText ? (
-        <span className="markets-tape-eod" title={tagTitle}>
-          {tagText}
-        </span>
-      ) : null}
+      {tagText ? <MicroTag label={tagText} title={tagTitle} /> : null}
       <span
         className="markets-tape-price"
         style={{
