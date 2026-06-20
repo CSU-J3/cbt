@@ -7,6 +7,8 @@
 import { NextResponse } from "next/server";
 import {
   getBillCommittees,
+  getCommitteeBySystemCode,
+  getMeetingsForBill,
   getNewsForBill,
   sanitizeBillId,
 } from "@/lib/queries";
@@ -23,10 +25,29 @@ export async function GET(
     return NextResponse.json({ error: "invalid bill id" }, { status: 400 });
   }
 
-  const [committees, news] = await Promise.all([
+  const [committees, news, meetings] = await Promise.all([
     getBillCommittees(billId),
     getNewsForBill(billId, NEWS_LIMIT),
+    getMeetingsForBill(billId),
   ]);
+
+  // HO 299: resolve committee names for the meetings' system codes (cached
+  // single-row lookups; a bill usually has 1–2 distinct committees, so this is a
+  // couple of cached reads, not an N+1).
+  const codes = [
+    ...new Set(
+      meetings
+        .map((m) => m.committeeSystemCode)
+        .filter((c): c is string => !!c),
+    ),
+  ];
+  const nameByCode = new Map<string, string>();
+  await Promise.all(
+    codes.map(async (code) => {
+      const c = await getCommitteeBySystemCode(code);
+      if (c) nameByCode.set(code, c.name);
+    }),
+  );
 
   return NextResponse.json({
     committees: committees.map((c) => ({
@@ -43,6 +64,14 @@ export async function GET(
       source: n.source,
       url: n.url,
       publishedAt: n.publishedAt,
+    })),
+    meetings: meetings.map((m) => ({
+      eventId: m.eventId,
+      meetingDate: m.meetingDate,
+      committeeSystemCode: m.committeeSystemCode,
+      committeeName: m.committeeSystemCode
+        ? (nameByCode.get(m.committeeSystemCode) ?? null)
+        : null,
     })),
   });
 }

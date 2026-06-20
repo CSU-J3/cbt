@@ -228,6 +228,7 @@ function StageBar({ bill }: { bill: FeedBill }) {
 function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
   const committee = panel?.committees[0]?.name ?? (panel ? "—" : "loading…");
   const news = panel?.news ?? [];
+  const meetings = panel?.meetings ?? [];
   const cgUrl = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
 
   // HO 297: the topic tags moved to the collapsed rowhead (TopicChips); the old
@@ -238,28 +239,62 @@ function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
         <div>
           <StageBar bill={bill} />
           {bill.summary ? <div className="v2f-summary">{bill.summary}</div> : null}
-          {/* RELATED NEWS — conditional: omit the whole section when the bill
-              has no mentions (handoff: mentions are sparse). */}
-          {news.length > 0 ? (
-            <div className="v2f-news">
-              <div className="v2f-nh">RELATED NEWS</div>
-              {news.map((n) => (
-                <div key={n.id} className="v2f-ni">
-                  <span className="v2f-src">
-                    {n.source.toUpperCase()} · {formatRelativeAge(n.publishedAt)}
-                  </span>
+          {/* RELATED (HO 299): NEWS always (empty state when none), HEARINGS only
+              when the bill has meetings, ODDS omitted (no bill↔market data). */}
+          <div className="v2f-related">
+            <div className="v2f-rel-block">
+              <div className="v2f-rel-h">RELATED NEWS</div>
+              {news.length > 0 ? (
+                news.map((n) => (
                   <a
+                    key={n.id}
+                    className="v2f-rel-news"
                     href={n.url}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    {n.title}
+                    <span className="v2f-rel-news-title">{n.title}</span>
+                    <span className="v2f-rel-news-meta">
+                      {" · "}
+                      {n.source.toUpperCase()} · {formatRelativeAge(n.publishedAt)}
+                    </span>
                   </a>
-                </div>
-              ))}
+                ))
+              ) : panel !== null ? (
+                // Only show the empty state once loaded — avoids a flash on
+                // bills that DO have news. News is sparse on the live slices, so
+                // most rows land here, per the mock.
+                <div className="v2f-rel-empty">NO RELATED NEWS</div>
+              ) : null}
             </div>
-          ) : null}
+
+            {meetings.length > 0 ? (
+              <div className="v2f-rel-block">
+                <div className="v2f-rel-h">HEARINGS</div>
+                {meetings.map((m) => (
+                  <a
+                    key={m.eventId}
+                    className="v2f-rel-hearing"
+                    href={
+                      m.committeeSystemCode
+                        ? `/committee/${m.committeeSystemCode}`
+                        : "/hearings"
+                    }
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="v2f-rel-hwhen">
+                      {formatDateShort(m.meetingDate)}
+                    </span>
+                    <span className="v2f-rel-hcom">
+                      {m.committeeName ?? "Committee"}
+                    </span>
+                    <span className="v2f-rel-harrow">hearing →</span>
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <div className="v2f-side">
@@ -329,7 +364,11 @@ export function V2FeedList({
       })
       .catch(() => {
         // leave uncached → committee shows "—", news omitted; non-fatal
-        if (!cancelled) setCache((c) => ({ ...c, [openId]: { committees: [], news: [] } }));
+        if (!cancelled)
+          setCache((c) => ({
+            ...c,
+            [openId]: { committees: [], news: [], meetings: [] },
+          }));
       });
     return () => {
       cancelled = true;

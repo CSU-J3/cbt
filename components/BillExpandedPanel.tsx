@@ -40,9 +40,19 @@ export type PanelNews = {
   publishedAt: string;
 };
 
+// HO 299: meetings (hearings) covering this bill, for the v2 expand's RELATED
+// HEARINGS sub-block. The committee name is resolved in the panel route.
+export type PanelMeeting = {
+  eventId: string;
+  meetingDate: string;
+  committeeName: string | null;
+  committeeSystemCode: string | null;
+};
+
 export type PanelData = {
   committees: PanelCommittee[];
   news: PanelNews[];
+  meetings: PanelMeeting[];
 };
 
 // Pipeline positions, left→right. Label + the matching --stage-* token so the

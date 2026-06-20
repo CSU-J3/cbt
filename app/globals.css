@@ -3255,40 +3255,85 @@ body {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+/* HO 299: summary on the sans face. */
 .v2f-summary {
-  font-size: 12.5px;
-  line-height: 1.55;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.5;
   color: var(--text-secondary);
   margin-bottom: 14px;
 }
-.v2f-news {
+/* HO 299 — RELATED block: NEWS (always) then HEARINGS (when present). Each
+   sub-block has a small dim header; ODDS is omitted (no bill↔market data). */
+.v2f-related {
   border-top: 1px solid var(--border-soft);
   padding-top: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.v2f-news .v2f-nh {
+.v2f-rel-h {
   font-size: 9px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   color: var(--text-dim);
   margin-bottom: 8px;
 }
-.v2f-news .v2f-ni {
-  font-size: 11.5px;
-  color: var(--text-secondary);
-  margin-bottom: 7px;
-  display: flex;
-  gap: 8px;
-}
-.v2f-news .v2f-ni .v2f-src {
-  font-size: 9px;
+.v2f-rel-empty {
+  font-size: 11px;
   color: var(--text-dim);
-  flex: none;
-  padding-top: 2px;
 }
-.v2f-news .v2f-ni a {
+/* news item — sans headline + a mono dim "· source · age" tail; hover amber. */
+.v2f-rel-news {
+  display: block;
+  margin-bottom: 7px;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+.v2f-rel-news:last-child {
+  margin-bottom: 0;
+}
+.v2f-rel-news-title {
+  font-family: var(--sans);
+  font-size: 12.5px;
+}
+.v2f-rel-news-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.v2f-rel-news:hover .v2f-rel-news-title {
+  color: var(--accent-amber-bright);
+}
+/* hearing item — date in amber, committee name, "hearing →". */
+.v2f-rel-hearing {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
   color: var(--text-secondary);
   text-decoration: none;
 }
-.v2f-news .v2f-ni a:hover {
+.v2f-rel-hearing:last-child {
+  margin-bottom: 0;
+}
+.v2f-rel-hwhen {
+  flex: none;
+  color: var(--accent-amber);
+  font-variant-numeric: tabular-nums;
+}
+.v2f-rel-hcom {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v2f-rel-harrow {
+  flex: none;
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.v2f-rel-hearing:hover .v2f-rel-harrow {
   color: var(--accent-amber-bright);
 }
 .v2f-side .v2f-sk {
