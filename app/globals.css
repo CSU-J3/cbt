@@ -74,6 +74,12 @@
   --space-lg: 16px;
   --space-xl: 24px;
 
+  /* HO 297 (B6): the FIRST sans face in CBT — prose/titles only, a deliberate
+     departure from the mono-only convention (per the b6 mock). Mono stays for
+     all chrome: chips, ids, metrics, labels. First use is the v2 feed-row title;
+     everything else stays `var(--font-mono)`. */
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
   /* Home-header height. Drives the no-scroll calc on .home-grid:
      `height: calc(100vh - var(--home-header-height) - 24px)`. The
      home-dashboard-cleanup restructure put the LEGEND BOX next to the
@@ -670,7 +676,11 @@ body {
    columns take their natural heights and finish near the same line. */
 .dv2-grid {
   display: grid;
-  grid-template-columns: 49fr 51fr;
+  /* minmax(0,…) not bare fr: a bare-fr track keeps min-width:auto, so the RIGHT
+     column would grow to the longest feed title's intrinsic width and the title
+     never ellipsizes (HO 297). minmax(0,…) lets the column shrink so the v2 feed
+     title's flex-shrink + overflow:hidden can truncate. */
+  grid-template-columns: minmax(0, 49fr) minmax(0, 51fr);
   gap: var(--space-lg);
   align-items: start;
   min-height: 0;
@@ -3013,9 +3023,11 @@ body {
 .v2f-group.open {
   background: var(--bg-row-hover);
 }
+/* HO 297 (B6): collapsed rowhead = id chip · title · topic tag(s) · [spacer] ·
+   metric · caret. Flex so the title ellipsizes and `margin-left:auto` on the
+   metric is the spacer pushing metric+caret to the right edge. */
 .v2f-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  display: flex;
   align-items: center;
   gap: 13px;
   padding: 9px 16px;
@@ -3024,28 +3036,104 @@ body {
 .v2f-row:hover {
   background: var(--bg-row-hover);
 }
+/* ID chip — plain amber (HO 297, chip-family tier-1 ID). The chamber-color
+   border override is dropped: the HR/S prefix already reads chamber, so the
+   color was redundant. */
 .v2f-id {
+  flex: none;
   font-size: 11px;
+  font-weight: 600;
   color: var(--accent-amber);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--accent-amber);
   border-radius: 2px;
   padding: 2px 7px;
   white-space: nowrap;
 }
-.v2f-id.house {
-  border-color: var(--rail-house);
-}
-.v2f-id.senate {
-  border-color: var(--rail-senate);
+/* Title — the first --sans use; ellipsizes; a full-title popover arms only when
+   truncated (the .truncated class, set by markTrunc in JS). The wrapper is the
+   relative anchor (no overflow clip) so the popover isn't cut by the inner
+   span's overflow:hidden. */
+.v2f-title-wrap {
+  flex: 0 1 auto;
+  min-width: 0;
+  position: relative;
 }
 .v2f-title {
-  font-size: 13px;
+  display: block;
+  font-family: var(--sans);
+  font-size: 14px;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.title-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: none;
+  max-width: 520px;
+  white-space: normal;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-primary);
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 7px 10px;
+  pointer-events: none;
+}
+.v2f-title-wrap.truncated:hover .title-pop {
+  display: block;
+}
+/* Topic tag(s) — relocated from the expand to the rowhead (HO 297). Chip-family
+   topic treatment: topic color text + that color @45% as border. Per-chip hover
+   popover ("CODE · Full name"). */
+.v2f-topics-inline {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.v2f-topic {
+  position: relative;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  cursor: help;
+}
+.topic-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: none;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: normal;
+  color: var(--text-primary);
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 5px 9px;
+  pointer-events: none;
+}
+.v2f-topic:hover .topic-pop {
+  display: block;
+}
 .v2f-metric {
+  flex: none;
+  margin-left: auto;
   font-size: 10.5px;
   color: var(--text-muted);
   white-space: nowrap;
@@ -3065,19 +3153,8 @@ body {
   background: var(--bg-row-hover);
   border-top: 1px solid var(--border-soft);
 }
-.v2f-topics {
-  font-size: 9px;
-  color: var(--text-dim);
-  letter-spacing: 0.06em;
-  padding: 10px 0 12px;
-}
-.v2f-topics .v2f-tp {
-  color: var(--text-muted);
-}
-.v2f-topics .v2f-tp-sep {
-  color: var(--border-strong);
-  margin: 0 7px;
-}
+/* HO 297: the expand's .v2f-topics block was removed (topics moved to the
+   collapsed rowhead — see .v2f-topics-inline above). */
 .v2f-grid {
   display: grid;
   grid-template-columns: 1fr 210px;

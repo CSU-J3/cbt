@@ -12,7 +12,13 @@
 // Committee + news lazy-load from the existing /api/bill/[id]/panel endpoint
 // (the same one BillExpandedPanel uses); every other field rides on the FeedBill
 // the server already fetched.
-import { Fragment, useCallback, useEffect, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   congressGovUrl,
   daysSince,
@@ -22,7 +28,7 @@ import {
 } from "@/lib/format";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 import { parseTopics } from "@/lib/format";
-import { topicLabel } from "@/lib/topic-colors";
+import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import type { FeedBill } from "@/lib/queries";
 import type { PanelData } from "@/components/BillExpandedPanel";
 
@@ -38,9 +44,58 @@ const STAGE_ABBR: Record<string, string> = {
   enacted: "ENACTED",
 };
 
-const HOUSE_TYPES = new Set(["hr", "hjres", "hconres", "hres"]);
-function isHouse(billType: string): boolean {
-  return HOUSE_TYPES.has(billType.toLowerCase());
+// HO 297: title cell with markTrunc — the full-title popover (.title-pop) arms
+// only when the title actually ellipsizes (scrollWidth > clientWidth). Re-checks
+// on resize so the arm state tracks the column width.
+function TitleCell({ title }: { title: string }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  const [truncated, setTruncated] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setTruncated(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [title]);
+  return (
+    <span className={`v2f-title-wrap${truncated ? " truncated" : ""}`}>
+      <span ref={ref} className="v2f-title">
+        {title}
+      </span>
+      <span className="title-pop">{title}</span>
+    </span>
+  );
+}
+
+// HO 297: collapsed-row topic chips (relocated from the expand). Chip-family
+// topic treatment — topic color text + that color @45% alpha border — with a
+// "CODE · Full name" hover popover per chip.
+function TopicChips({ topics }: { topics: string[] }) {
+  if (topics.length === 0) return null;
+  return (
+    <span className="v2f-topics-inline">
+      {topics.map((t) => {
+        const color = topicColor(t);
+        return (
+          <span
+            key={t}
+            className="v2f-topic"
+            style={{
+              color,
+              borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
+            }}
+          >
+            {topicLabel(t)}
+            <span className="topic-pop">
+              {topicLabel(t)} · {topicFullLabel(t)}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 // Per-tab right-side indicator. Movers show the abbreviated last transition
@@ -97,24 +152,14 @@ function Pipe({ stage }: { stage: string | null | undefined }) {
 }
 
 function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
-  const topics = parseTopics(bill.topics);
   const committee = panel?.committees[0]?.name ?? (panel ? "—" : "loading…");
   const news = panel?.news ?? [];
   const cgUrl = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
 
+  // HO 297: the topic tags moved to the collapsed rowhead (TopicChips); the old
+  // .v2f-topics block here is removed so there's no stray duplicate.
   return (
     <div className="v2f-exp">
-      {topics.length > 0 ? (
-        <div className="v2f-topics">
-          {topics.map((t, i) => (
-            <span key={t}>
-              {i > 0 ? <span className="v2f-tp-sep">·</span> : null}
-              <span className="v2f-tp">{topicLabel(t)}</span>
-            </span>
-          ))}
-        </div>
-      ) : null}
-
       <div className="v2f-grid">
         <div>
           <Pipe stage={bill.stage} />
@@ -241,10 +286,11 @@ export function V2FeedList({
                 }
               }}
             >
-              <span className={`v2f-id ${isHouse(bill.bill_type) ? "house" : "senate"}`}>
+              <span className="v2f-id">
                 {formatBillId(bill.bill_type, bill.bill_number)}
               </span>
-              <span className="v2f-title">{bill.title}</span>
+              <TitleCell title={bill.title} />
+              <TopicChips topics={parseTopics(bill.topics)} />
               <Metric bill={bill} mode={metricMode} />
               <span className="v2f-chev">▾</span>
             </div>

@@ -51,7 +51,9 @@ async function main() {
   console.log("market/odds tables:", t.rows.map((r) => r.name).join(", "));
   for (const tbl of ["market_ticks", "kalshi_odds", "polymarket_odds"]) {
     const c = await db.execute(`PRAGMA table_info(${tbl})`);
-    const hasBill = c.rows.some((r) => /bill/i.test(String((r as { name: unknown }).name)));
+    const hasBill = c.rows.some((r) =>
+      /bill/i.test(String((r as Record<string, unknown>).name)),
+    );
     console.log(`  ${tbl}: bill_id column? ${hasBill}`);
   }
 
