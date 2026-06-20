@@ -1102,6 +1102,83 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
   };
 }
 
+// ---- daily catch-up (HO 285) -------------------------------------------
+
+// How many most-recent completed weeks the daily catch-up inspects. The 284
+// probe showed the weekly Monday cron drops a report on any transient hiccup
+// (Turso cold-stall, Gemini 503, slow-Gemini >55s) with no retry. This window
+// is the safety net: the daily route re-checks the last few weeks and fills
+// the most recent missing one, so a dropped week lands on a later day instead
+// of being lost. 4 weeks tolerates a multi-week outage without unbounded
+// history scanning.
+const CATCHUP_WINDOW_WEEKS = 4;
+
+export type CatchupResult = {
+  // Weeks inspected (= CATCHUP_WINDOW_WEEKS).
+  checked: number;
+  // How many of those weeks have no report row.
+  missing: number;
+  // The week-start slug generated this run, or null when nothing was missing
+  // (or a gen was attempted but threw — the caller treats that as non-fatal
+  // and the row stays missing for the next day's run).
+  generated: string | null;
+};
+
+// Returns the last CATCHUP_WINDOW_WEEKS completed Mon-Sun weeks, most recent
+// first. getPriorWeek(now) is the most recent week that has fully closed, so
+// every entry is safe to generate (past generateWeeklyReport's incomplete-week
+// guard) by construction.
+function recentCompletedWeeks(now: Date): WeekRange[] {
+  const firstStart = getPriorWeek(now).start;
+  const weeks: WeekRange[] = [];
+  for (let i = 0; i < CATCHUP_WINDOW_WEEKS; i++) {
+    const start = addDays(firstStart, -7 * i);
+    weeks.push({ start, end: addDays(start, 6) });
+  }
+  return weeks;
+}
+
+// Daily catch-up: inspect the last few completed weeks, and if any report row
+// is missing, regenerate exactly ONE — the most recent missing week, so the
+// dashboard's READ FULL target is restored first. Idempotent: only generates
+// when the row is absent, never overwrites. One gen per run (~15-29s) keeps a
+// single daily tick bounded; a multi-week gap fills over consecutive days.
+//
+// Reuses generateWeeklyReport / writeReport wholesale — no forked gen logic.
+// Does NOT revalidate (kept free of next/cache so the lib stays import-safe);
+// the caller revalidates the `reports` tag when `generated` is non-null.
+export async function runReportCatchup(
+  now: Date = new Date(),
+): Promise<CatchupResult> {
+  const weeks = recentCompletedWeeks(now);
+  const db = getDb();
+  const placeholders = weeks.map(() => "?").join(",");
+  const rs = await db.execute({
+    sql: `SELECT slug FROM reports WHERE slug IN (${placeholders})`,
+    args: weeks.map((w) => w.start),
+  });
+  const have = new Set(rs.rows.map((r) => r.slug as string));
+  // weeks is already most-recent-first, so the first miss is the newest gap.
+  const missing = weeks.filter((w) => !have.has(w.start));
+  if (missing.length === 0) {
+    return { checked: weeks.length, missing: 0, generated: null };
+  }
+
+  const target = missing[0]!;
+  const report = await generateWeeklyReport(target);
+  await writeReport({
+    slug: report.slug,
+    weekStart: target.start,
+    weekEnd: target.end,
+    title: report.title,
+    contentMd: report.content_md,
+    lawsCount: report.lawsCount,
+    introCount: report.introCount,
+    movesCount: report.movesCount,
+  });
+  return { checked: weeks.length, missing: missing.length, generated: target.start };
+}
+
 // Upserts the report keyed by slug (the ISO week-start date). Re-running the
 // CLI for the same week overwrites rather than erroring. created_at is
 // JS-side ISO, matching the rest of the codebase.

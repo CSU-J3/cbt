@@ -5,6 +5,7 @@ import {
   generateDashboardLead,
   writeDashboardLead,
 } from "@/lib/dashboard-lead";
+import { runReportCatchup } from "@/lib/report-generation";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
@@ -49,10 +50,40 @@ async function handle(request: Request) {
     // cron_runs.payload so a future "step X is overrunning its share of the
     // budget" investigation has data without an instrumentation pass first.
     const timings: Record<string, number | null> = {
+      reportCatchup: null,
       sync: null,
       lead: null,
       trades: null,
     };
+
+    // Weekly-report daily catch-up (HO 285). Runs FIRST, ahead of the
+    // resumable bill sync and the orphaned dashboard lead — a deliberate
+    // deviation from the handoff's "after the normal sync work". The 284
+    // budget read showed this route already runs 33-55s and soft-times-out
+    // ~1 day in 5, so a 15-29s gen appended after sync+lead+trades would
+    // never fit under the 55s soft cap on exactly the (gap) days it must run.
+    // On the common no-op day this is a single indexed PK lookup (~tens of
+    // ms); on a rare gap day the report gen gets full headroom and the
+    // self-resuming sync simply continues next tick. Non-fatal: a transient
+    // gen failure leaves the row missing for the next day's catch-up.
+    const tCatchup = Date.now();
+    try {
+      const catchup = await runReportCatchup();
+      if (catchup.generated) {
+        revalidateTag("reports");
+        console.log(
+          `[sync] report catch-up: generated ${catchup.generated} ` +
+            `(${catchup.missing}/${catchup.checked} weeks missing)`,
+        );
+      } else {
+        console.log(
+          `[sync] report catch-up: nothing missing (${catchup.checked} weeks checked)`,
+        );
+      }
+    } catch (err) {
+      console.warn("[sync] report catch-up failed; will retry next tick", err);
+    }
+    timings.reportCatchup = Date.now() - tCatchup;
 
     const tSync = Date.now();
     const sync = await runSync({ deadlineMs: routeStart + SYNC_BUDGET_MS });
