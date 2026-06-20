@@ -116,12 +116,26 @@ export function RacesBoxTabs({
         </nav>
 
         {/* Both mounted; inactive hidden so nested sub-tab state + the hidden
-            RACES cards' move-registration persist. */}
-        <div className="dv2-racesbox-panel" hidden={tab !== "hearings"}>
-          {hearingsContent}
-        </div>
-        <div className="dv2-racesbox-panel" hidden={tab !== "races"}>
-          {racesContent}
+            RACES cards' move-registration persist. HO 282: RACES stays in normal
+            flow at all times (hidden via aria-hidden + CSS, not the `hidden`
+            attribute) so it pins the box height to its own footprint; at desktop
+            the HEARINGS panel overlays absolutely and fills that height, so
+            switching tabs never resizes the box or shifts the week strip below.
+            (On mobile CSS collapses RACES to display:none when inactive — still
+            mounted, so move-registration keeps working.) */}
+        <div className="dv2-racesbox-panels">
+          <div
+            className="dv2-racesbox-panel dv2-racesbox-panel--hearings"
+            hidden={tab !== "hearings"}
+          >
+            {hearingsContent}
+          </div>
+          <div
+            className="dv2-racesbox-panel dv2-racesbox-panel--races"
+            aria-hidden={tab !== "races"}
+          >
+            {racesContent}
+          </div>
         </div>
       </section>
     </RacesUpdatesContext.Provider>

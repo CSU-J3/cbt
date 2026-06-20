@@ -24,8 +24,9 @@ import {
 } from "@/lib/queries";
 
 // Phase 1: max single weekday this week = 8 (median ~4-5); cap keeps the columns
-// compact and uniform, overflow drills into /hearings on that day.
-const DAY_CAP = 5;
+// compact and uniform, overflow drills into /hearings on that day. HO 282 lifts
+// the cap 5→6 now that the embedded calendar fills the box's pinned height.
+const DAY_CAP = 6;
 const RECENT_DAYS = 7;
 
 // "+N more" and the LIVE callout deep-link to the list view's day group; the
@@ -163,9 +164,9 @@ export async function OnTheHillBand({
                 <span className="cnt">{meetings.length || ""}</span>
               </div>
               {meetings.length === 0 ? (
-                <div className="hill-day-empty" aria-hidden>
-                  –
-                </div>
+                // HO 282: per-day empty-column label (distinct from the sub-bar's
+                // NO MEETINGS SCHEDULED fallback) — reads as a quiet day.
+                <div className="hill-day-empty">NO MEETINGS</div>
               ) : (
                 <>
                   {shown.map((m) => {

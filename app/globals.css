@@ -734,6 +734,49 @@ body {
   text-transform: uppercase;
   color: var(--text-dim);
 }
+/* HO 282 — equal tab height + calendar fill. The box height is pinned to the
+   RACES footprint, not a hardcoded value: RACES (.--races) is always laid out,
+   so the panels wrapper is always as tall as the RACES tab. When inactive it's
+   hidden — display:none on mobile (still mounted → cards keep registering MOVES),
+   but at desktop it stays in flow as visibility:hidden so it keeps setting the
+   height, and the HEARINGS panel overlays it absolutely and fills that height.
+   Switching HEARINGS↔RACES therefore never resizes the box or shifts the week
+   strip (B5) below it. */
+.dv2-racesbox-panels {
+  position: relative;
+}
+.dv2-racesbox-panel--races[aria-hidden="true"] {
+  display: none;
+}
+@media (min-width: 721px) {
+  /* RACES inactive: keep it in flow (invisible) so it pins the height. */
+  .dv2-racesbox-panel--races[aria-hidden="true"] {
+    display: block;
+    visibility: hidden;
+  }
+  /* HEARINGS active: overlay the RACES-defined box and fill it top to bottom.
+     :not([hidden]) so the RACES tab's [hidden] display:none still wins there. */
+  .dv2-racesbox-panel--hearings:not([hidden]) {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  /* The hill calendar stretches to the box bottom: head fixed, day grid grows,
+     and each day column's single grid row takes the leftover height (1fr) so the
+     bordered cells reach the bottom instead of leaving dead space below. */
+  .dv2-racesbox-panel--hearings .hill-band {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .dv2-racesbox-panel--hearings .hill-band-grid {
+    flex: 1;
+    grid-auto-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+}
 
 /* HO 272 — RACES-tab update badges (MOVES live; NEW dark until the news→race
    linkage). Outlined + ~16% tint fill, mono ~11px uppercase, riding the tab
@@ -6122,22 +6165,23 @@ a.hearing-watch:hover {
 .hill-day.is-today .dom {
   color: var(--accent-amber);
 }
+/* HO 282: per-day empty label, top-aligned (not centered) so an empty column
+   reads as a quiet day, matching the light-day top-alignment. */
 .hill-day-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  padding: 8px 7px;
   color: var(--text-dim);
-  opacity: 0.5;
-  font-size: 14px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 .hill-line {
   display: grid;
   grid-template-columns: 9px 46px minmax(0, 1fr) auto;
   align-items: baseline;
   gap: 5px;
-  margin-top: 3px;
-  padding: 2px 7px 2px 5px;
+  /* HO 282: comfortable row spacing so a busy (near-cap) day fills its column. */
+  margin-top: 5px;
+  padding: 3px 7px 3px 5px;
   border-left: 2px solid var(--border-strong);
   font-size: 11px;
 }
