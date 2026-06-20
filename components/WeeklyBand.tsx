@@ -23,9 +23,32 @@ import {
   getEnactedThisWeek,
   getNewBillsThisWeekCount,
   getStageChangesCount,
+  getWeeklyBandPriorWeek,
 } from "@/lib/queries";
 
 const ENACTED_ID_CAP = 3;
+
+// HO 283: the week-over-week delta that rides after each metric's value+label.
+// ▲ up (--market-up green) / ▼ down (--market-down red) — the tape's directional
+// tokens, so the color convention matches — and a dim ±0 when unchanged. The
+// magnitude is abs(diff); the arrow carries direction. No popover here (that's
+// 284); the hover detail comes later.
+function WeekDelta({ now, prior }: { now: number; prior: number }) {
+  const diff = now - prior;
+  const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+  return (
+    <span
+      className={`weekly-band-delta weekly-band-delta--${dir}`}
+      aria-label={`${
+        dir === "up" ? "up" : dir === "down" ? "down" : "no change"
+      } ${Math.abs(diff).toLocaleString()} vs last week`}
+    >
+      {dir === "flat"
+        ? "±0"
+        : `${dir === "up" ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}`}
+    </span>
+  );
+}
 
 // Monday of the current week, UTC, as YYYY-MM-DD (matches the reports' weekStart
 // format). Day-granular; a glance label, not a boundary used for any query.
@@ -43,10 +66,11 @@ function currentWeekStartISO(): string {
 }
 
 export async function WeeklyBand() {
-  const [enacted, transitions, newBills, snap] = await Promise.all([
+  const [enacted, transitions, newBills, prior, snap] = await Promise.all([
     getEnactedThisWeek(),
     getStageChangesCount({}, 7),
     getNewBillsThisWeekCount(),
+    getWeeklyBandPriorWeek(),
     getDashboardReportSnapshot(),
   ]);
 
@@ -72,7 +96,7 @@ export async function WeeklyBand() {
         <span className="weekly-band-num">
           {enacted.length.toLocaleString()}
         </span>{" "}
-        enacted
+        enacted <WeekDelta now={enacted.length} prior={prior.enacted} />
         {enactedShown.length > 0 ? (
           <span className="weekly-band-ids">
             <span aria-hidden>·</span>
@@ -103,7 +127,7 @@ export async function WeeklyBand() {
 
       <span className="weekly-band-seg">
         <span className="weekly-band-num">{newBills.toLocaleString()}</span> new
-        bills
+        bills <WeekDelta now={newBills} prior={prior.newBills} />
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
@@ -114,7 +138,8 @@ export async function WeeklyBand() {
         <span className="weekly-band-num">
           {transitions.total.toLocaleString()}
         </span>{" "}
-        stage transitions
+        stage transitions{" "}
+        <WeekDelta now={transitions.total} prior={prior.transitions} />
       </span>
 
       {snap ? (

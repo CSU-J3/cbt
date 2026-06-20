@@ -5,6 +5,7 @@ import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import {
   type EnactedBill,
+  queryEnactedPriorWeekCount,
   queryEnactedThisWeek,
 } from "./enacted-this-week";
 import {
@@ -3748,6 +3749,49 @@ export const getEnactedThisWeek = unstable_cache(
     return queryEnactedThisWeek(db);
   },
   ["getEnactedThisWeek"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// HO 283: prior-week (days 7–14 ago) counterparts to the weekly band's three
+// this-week aggregates — ENACTED, NEW BILLS, TRANSITIONS — for the WoW deltas.
+// Each mirrors its this-week predicate EXACTLY (so the delta is a true like-for-
+// like change), shifted to the immediately preceding 7-day window:
+//   - enacted: queryEnactedPriorWeekCount (shares the enacted-this-week predicate)
+//   - new bills: same non-ceremonial introduced_date slice as getNewBillsThisWeekCount
+//   - transitions: buildChangesWhere({}, 14) — the IDENTICAL predicate to
+//     getStageChangesCount (summary + non-ceremonial + stage_changed_at) — capped
+//     to (-14d, -7d] so it can't drift from the this-week count.
+// One cached read (three COUNTs); tag "bills" so the sync cron flushes it.
+export const getWeeklyBandPriorWeek = unstable_cache(
+  async (): Promise<{
+    enacted: number;
+    newBills: number;
+    transitions: number;
+  }> => {
+    const db = getDb();
+    const { clauses: txClauses, args: txArgs } = buildChangesWhere({}, 14);
+    txClauses.push("stage_changed_at <= datetime('now', '-7 days')");
+    const [enacted, newBillsRs, txRs] = await Promise.all([
+      queryEnactedPriorWeekCount(db),
+      db.execute(
+        `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date
+         WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+           AND introduced_date IS NOT NULL
+           AND introduced_date > date('now', '-14 days')
+           AND introduced_date <= date('now', '-7 days')`,
+      ),
+      db.execute({
+        sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${txClauses.join(" AND ")}`,
+        args: txArgs,
+      }),
+    ]);
+    return {
+      enacted,
+      newBills: Number(newBillsRs.rows[0]?.n ?? 0),
+      transitions: Number(txRs.rows[0]?.n ?? 0),
+    };
+  },
+  ["getWeeklyBandPriorWeek"],
   { revalidate: 3600, tags: ["bills"] },
 );
 

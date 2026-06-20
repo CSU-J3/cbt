@@ -36,3 +36,23 @@ export async function queryEnactedThisWeek(
     billNumber: r.bill_number as number,
   }));
 }
+
+// HO 283: prior-week count of the SAME enacted slice, for the weekly band's
+// week-over-week delta. Mirrors queryEnactedThisWeek's predicate exactly (kept
+// in this file so the two can't drift), shifted to the immediately preceding
+// 7-day window — (now-2*days, now-days] — adjacent to the this-week window with
+// no overlap or gap. Count only; the band needs the number, not the rows.
+export async function queryEnactedPriorWeekCount(
+  db: ReturnType<typeof getDb>,
+  days = ENACTED_THIS_WEEK_DAYS,
+): Promise<number> {
+  const rs = await db.execute(
+    `SELECT COUNT(*) AS n FROM bills
+     WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+       AND stage = 'enacted'
+       AND stage_changed_at IS NOT NULL
+       AND stage_changed_at > datetime('now', '-${days * 2} days')
+       AND stage_changed_at <= datetime('now', '-${days} days')`,
+  );
+  return Number(rs.rows[0]?.n ?? 0);
+}

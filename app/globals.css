@@ -2381,6 +2381,22 @@ body {
 .weekly-band-id--more {
   color: var(--text-muted);
 }
+/* HO 283: week-over-week delta riding after each metric. Reuses the tape's
+   directional tokens (--market-up / --market-down) so the ▲/▼ color convention
+   matches the markets tape; ±0 is dim. tabular-nums keeps the magnitude steady. */
+.weekly-band-delta {
+  margin-left: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.weekly-band-delta--up {
+  color: var(--market-up);
+}
+.weekly-band-delta--down {
+  color: var(--market-down);
+}
+.weekly-band-delta--flat {
+  color: var(--text-dim);
+}
 .weekly-band-readfull {
   margin-left: auto;
   color: var(--accent-amber);
