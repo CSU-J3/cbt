@@ -19,10 +19,10 @@ import type { CorpusStats } from "@/lib/queries";
 // `/` (app/page.tsx + HomeHeader) is untouched.
 
 // The two-tape symbol split. Order here IS render order. HO 289 (B2) expanded
-// MARKETS with tech + defense equities between the indices and the rate/oil
-// pair: S&P · NASDAQ · NVDA · AAPL · MSFT · GOOGL · LMT · 10Y · WTI. The strip
-// is a scrolling marquee (scroll prop), so the longer roster crawls rather than
-// clipping the static bare row.
+// MARKETS with tech + defense equities; HO 290 moved the econ readings (CPI/UNEMP,
+// FRED-monthly → MO badge) here off the second strip, which is now ODDS (markets
+// → indices · equities · 10Y · WTI · CPI · UNEMP). The strip is a scrolling marquee
+// (scroll prop), so the longer roster crawls rather than clipping the static row.
 const MARKETS_TAPE = [
   "SPX",
   "NDQ",
@@ -33,23 +33,26 @@ const MARKETS_TAPE = [
   "LMT",
   "TNX",
   "WTI",
+  "CPI",
+  "UNEMP",
 ];
-// HO 259: SIGNALS carries the Polymarket "P" symbols alongside the Kalshi "K"
-// ones so both ticks flow to the client; the pairs spec renders SHUTDOWN/FEDCUT
-// as dual-source items (`LABEL K x% P y%`) and the POLY-* symbols are not drawn
-// standalone. CPI/UNEMP stay bare (single-source). Order = SHUTDOWN, FED CUT,
-// CPI, UNEMP (the POLY-* entries are render-skipped, so order is preserved).
-const SIGNALS_TAPE = [
+// HO 290: the second strip is ODDS — prediction markets ONLY (no econ). Each
+// Kalshi "K" symbol is paired with its Polymarket "P" half so both ticks flow to
+// the client and render as a dual-source item (`LABEL K x% P y%`); the POLY-*
+// entries are render-skipped (drawn inside the primary). Order = SHUTDOWN, FED
+// CUT, RECESSION. CPI/UNEMP moved to MARKETS above.
+const ODDS_TAPE = [
   "SHUTDOWN",
   "POLY-SHUTDOWN",
   "FEDCUT",
   "POLY-FEDCUT",
-  "CPI",
-  "UNEMP",
+  "RECESSION",
+  "POLY-RECESSION",
 ];
-const SIGNALS_PAIRS = [
+const ODDS_PAIRS = [
   { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN", label: "SHUTDOWN" },
   { primary: "FEDCUT", secondary: "POLY-FEDCUT", label: "FED CUT", showMonth: true },
+  { primary: "RECESSION", secondary: "POLY-RECESSION", label: "RECESSION" },
 ];
 
 export function DashboardV2Header({
@@ -120,16 +123,17 @@ export function DashboardV2Header({
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
-      {/* Two stacked tapes — MARKETS (closes) over SIGNALS (always LIVE). HO 258:
-          each its own marquee (scroll), per Design's two-tape spec. */}
+      {/* Two stacked tapes — MARKETS (closes) over ODDS (prediction markets, always
+          LIVE). HO 258: each its own marquee (scroll); HO 290 relabelled the second
+          strip ODDS and made it prediction-markets-only (CPI/UNEMP moved up). */}
       <div className="dv2-tapes">
         <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll label="MARKETS" />
         <MarketsTape
-          symbols={SIGNALS_TAPE}
-          pairs={SIGNALS_PAIRS}
+          symbols={ODDS_TAPE}
+          pairs={ODDS_PAIRS}
           kind="signals"
           scroll
-          label="SIGNALS"
+          label="ODDS"
         />
       </div>
 
