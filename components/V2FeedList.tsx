@@ -13,7 +13,7 @@
 // (the same one BillExpandedPanel uses); every other field rides on the FeedBill
 // the server already fetched.
 import {
-  Fragment,
+  type CSSProperties,
   useCallback,
   useEffect,
   useRef,
@@ -24,6 +24,7 @@ import {
   daysSince,
   formatBillId,
   formatDateLong,
+  formatDateShort,
   formatRelativeAge,
 } from "@/lib/format";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
@@ -128,23 +129,96 @@ function Metric({ bill, mode }: { bill: FeedBill; mode: V2MetricMode }) {
   return <span className="v2f-metric">INTRO · {formatRelativeAge(bill.introduced_date)}</span>;
 }
 
-// 6-stage progress pipe (intro → committee → floor → other → president →
-// enacted), filled through the current stage. Suppressed when stage is null or
-// off-path (`other`) — an all-todo strip would falsely read as "reached
-// nothing", same guard as BillExpandedPanel. Mock colors: done = enacted-green,
-// current = floor-amber + glow, future = border-strong.
-function Pipe({ stage }: { stage: string | null | undefined }) {
-  const cur = stage ? ALLOWED_STAGES.indexOf(stage as Stage) : -1;
+// HO 298 — the 6-node stage bar (replaces the HO 257 Pipe): dated nodes, stage-
+// colored connectors, and a current-node treatment that pings / parks / completes
+// from the BILL'S data (not the tab) so it reads right on any tab. Suppressed when
+// stage is null or off-path (`other`, indexOf → −1) — an all-future strip would
+// falsely read "reached nothing", same guard as BillExpandedPanel.
+const STAGE_BAR_LABEL: Record<string, string> = {
+  introduced: "INTRO",
+  committee: "COMMITTEE",
+  floor: "FLOOR",
+  other_chamber: "OTHER CHAMBER",
+  president: "PRESIDENT",
+  enacted: "ENACTED",
+};
+const STAGE_BAR_COLOR: Record<string, string> = {
+  introduced: "var(--stage-introduced)",
+  committee: "var(--stage-committee)",
+  floor: "var(--stage-floor)",
+  other_chamber: "var(--stage-other-chamber)",
+  president: "var(--stage-president)",
+  enacted: "var(--stage-enacted)",
+};
+const STAGE_BAR_STALE_DAYS = 60; // matches getStaleBills' threshold
+
+function StageBar({ bill }: { bill: FeedBill }) {
+  const cur = bill.stage ? ALLOWED_STAGES.indexOf(bill.stage as Stage) : -1;
   if (cur < 0) return null;
+
+  // Current-node state from bill data: enacted = done (no ping); past the stale
+  // threshold = parked (static glow, no ping); else moving (ping ring).
+  const isEnacted = bill.stage === "enacted";
+  const stale =
+    !isEnacted && daysSince(bill.latest_action_date) >= STAGE_BAR_STALE_DAYS;
+  const curState = isEnacted ? "done" : stale ? "parked" : "moving";
+
+  const introDate = bill.introduced_date
+    ? formatDateShort(bill.introduced_date)
+    : "";
+  // Current-node date = when it reached the stage (stage_changed_at), else the
+  // latest action date if that's all we have.
+  const curRaw = bill.stage_changed_at ?? bill.latest_action_date;
+  const curDate = curRaw ? formatDateShort(curRaw) : "";
+
   return (
-    <div className="v2f-pipe" aria-label="Bill stage">
-      {ALLOWED_STAGES.map((_, i) => {
-        const dotCls = i < cur ? "pcd" : i === cur ? "cur" : "todo";
+    <div className="v2f-bar" aria-label="Bill stage">
+      {ALLOWED_STAGES.map((st, i) => {
+        const reached = i <= cur;
+        const isCur = i === cur;
+        const color = STAGE_BAR_COLOR[st]!;
+        // Connector to the LEFT of node i, colored node i's stage color when
+        // node i is reached, else --border-strong.
+        const connColor = reached ? color : "var(--border-strong)";
+        // Date only under INTRO (introduced) and the current node.
+        const date = i === 0 ? introDate : isCur ? curDate : "";
+        const dotCls = isCur
+          ? `v2f-bdot cur ${curState}`
+          : reached
+            ? "v2f-bdot reached"
+            : "v2f-bdot future";
         return (
-          <Fragment key={i}>
-            {i > 0 ? <span className={`v2f-pc ${i <= cur ? "pcd" : "pct"}`} /> : null}
-            <span className={`v2f-pn ${dotCls}`} />
-          </Fragment>
+          <div
+            key={st}
+            className="v2f-bnode"
+            style={
+              { "--bc": connColor, "--sc": color } as CSSProperties
+            }
+          >
+            <span className="v2f-bdotwrap">
+              {isCur && curState === "moving" ? (
+                <span className="v2f-bping" aria-hidden />
+              ) : null}
+              <span
+                className={dotCls}
+                style={reached ? { backgroundColor: color } : undefined}
+              />
+            </span>
+            <span
+              className={`v2f-blabel${isCur ? " cur" : reached ? " reached" : " future"}`}
+              style={isCur ? { color } : undefined}
+            >
+              {STAGE_BAR_LABEL[st]}
+            </span>
+            {date ? (
+              <span
+                className="v2f-bdate"
+                style={isCur ? { color } : undefined}
+              >
+                {date}
+              </span>
+            ) : null}
+          </div>
         );
       })}
     </div>
@@ -162,7 +236,7 @@ function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
     <div className="v2f-exp">
       <div className="v2f-grid">
         <div>
-          <Pipe stage={bill.stage} />
+          <StageBar bill={bill} />
           {bill.summary ? <div className="v2f-summary">{bill.summary}</div> : null}
           {/* RELATED NEWS — conditional: omit the whole section when the bill
               has no mentions (handoff: mentions are sparse). */}
