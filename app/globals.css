@@ -4394,11 +4394,16 @@ body {
   letter-spacing: 0.3px;
   pointer-events: none;
 }
-/* HO 293: the portal instance — fixed at the parent-computed (left, top), above
-   the strips AND the nav so it occludes whatever's beneath instead of blending. */
+/* HO 293/294: the portal instance — fixed at the parent-computed (left, top),
+   above the strips AND the nav (z-1000) so it occludes cleanly. HO 294 anchors
+   `top` to the box's BOTTOM edge and grows the box UPWARD (translateY(-100%)) so
+   it pops OVER the ticker strips instead of below the tape+nav block — the box is
+   taller than the thin strips, so growing up is what keeps it off the nav. The
+   translateX(-50%) still centers it on the item x. */
 .markets-tape-detail--portal {
   position: fixed;
   z-index: 1000;
+  transform: translate(-50%, -100%);
 }
 .markets-tape-detail-name {
   display: block;

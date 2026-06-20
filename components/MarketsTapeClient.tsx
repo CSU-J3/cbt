@@ -422,11 +422,15 @@ export function MarketsTapeClient({
   // when showMeta is false (top tape) — hooks must not be conditional.
   const zone = useZoneCycle();
 
-  // HO 293: hover-detail box. Portaled to <body> and anchored below the WHOLE
-  // two-strip tape block (the .dv2-tapes wrapper) at the hovered item's x — so it
-  // floats in clear space, opaque + above the strips and nav, instead of dropping
-  // onto the sibling strip (where it was trapped behind it and only the bottom
-  // line showed). Falls back to this strip's own bottom on the bare single tape.
+  // HO 293/294: hover-detail box. Portaled to <body>, opaque, z-1000 (293) — so
+  // it can OVERLAY the ticker cleanly (it paints on top). HO 294 re-anchors it to
+  // pop OVER the strips near the hovered item instead of dropping below the whole
+  // tape block (which landed over the nav / page content). The box is taller than
+  // the two thin strips, so dropping it DOWN would spill onto the nav for either
+  // strip; instead anchor its BOTTOM just above the ticker block's bottom (the
+  // nav boundary) and grow UPWARD over the strips (the --portal CSS adds
+  // translateY(-100%)). Uniform for items on both strips; never over the nav.
+  // `.dv2-tapes` is the two-strip block; falls back to this strip on the bare tape.
   const [detail, setDetail] = useState<{
     node: ReactNode;
     left: number;
@@ -441,11 +445,16 @@ export function MarketsTapeClient({
     const block =
       (el.closest(".dv2-tapes") as HTMLElement | null) ??
       (el.closest(".markets-tape") as HTMLElement | null);
-    const bottom = block ? block.getBoundingClientRect().bottom : rect.bottom;
+    const blockBottom = block
+      ? block.getBoundingClientRect().bottom
+      : rect.bottom;
     const cx = rect.left + rect.width / 2;
     // Clamp x so an edge item's box (~150px each side) stays on-screen.
     const left = Math.max(160, Math.min(cx, window.innerWidth - 160));
-    setDetail({ node, left, top: bottom + 8 });
+    // `top` is the box's BOTTOM edge (the --portal transform pulls it up by its
+    // own height); −4 leaves a hair of the ticker visible under the box, clear of
+    // the nav.
+    setDetail({ node, left, top: blockBottom - 4 });
   }, []);
   const detailPortal =
     detail && typeof document !== "undefined"
