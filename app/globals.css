@@ -115,7 +115,8 @@ body {
 }
 .header-titlebar .breadcrumb-path {
   /* HO 187: the path is the page identity — it must read as the title and
-     dominate the bar. Clearly larger than the nav (13px) to its right. */
+     dominate the bar, clearly larger than the nav to its right. 20px is the
+     mobile value; HO 281 lifts it to 26 at desktop (min-width:701px block). */
   font-size: 20px;
 }
 .header-titlebar-nav {
@@ -434,9 +435,10 @@ body {
 .breadcrumb-path .home-cursor-caret {
   margin-left: 0;
 }
-/* HO 244: the dashboard brand drops from the HO 162 36px hero to 20px (the new
-   header type scale: title 20 / readout + nav 14 / tape + sync 11) so the stat
-   readout sits baseline-aligned after it on one line. word-spacing:-6px tightens
+/* HO 244: the dashboard brand drops from the HO 162 36px hero to 20px (HO 281
+   then lifts it to 26 at desktop — see the min-width:701px block below; this
+   20px is now the mobile value). The stat readout sits baseline-aligned after it
+   on one line; readout (14) + sync (11) do not scale. word-spacing:-6px tightens
    the "Congressional Terminal" gap (the only space in the path — the rest is
    backslash-joined; dashboard-scoped so other routes' breadcrumb segments with
    spaces, e.g. "HR 9081", aren't squeezed). Scoped to .home-header-prompt-row so
@@ -511,7 +513,9 @@ body {
 /* Full-width nav row sibling of .home-header-top. Per the cleanup
    handoff: 14px text, 10px vertical padding, 16px icons, active state
    = amber-bright text + 2px amber bottom border. The 30px column gap
-   reads as one coherent strip rather than scattered links. */
+   reads as one coherent strip rather than scattered links. (HO 281 lifts
+   text→16, padding→14, gap→28 at desktop via the min-width:701px block;
+   these stay the mobile values.) */
 .home-header-nav {
   margin-top: var(--space-sm);
   border-top: 0.5px solid var(--border-soft);
@@ -584,6 +588,33 @@ body {
   height: 16px;
   background: var(--border-strong);
   align-self: center;
+}
+/* HO 281 — B1 + B3 header type scale, DESKTOP ONLY. The base rules above hold
+   the HO 244 sizes (title 20 / readout + nav 14 / sync 11), which mobile keeps
+   untouched; this block lifts only the desktop scale to title 26 > nav 16 >
+   counts 14 > tape/sync 11. Type size + the listed nav padding/gap only — no
+   color/structure change (the active amber + 2px underline are already on the
+   base rules). It rides the shared chrome (HO 185), so both the dashboard
+   (.home-header-prompt-row) and inner pages (.header-titlebar) pick it up.
+   701px = one past the repo's 700px mobile breakpoint. */
+@media (min-width: 701px) {
+  /* B1 — masthead title 26 (up from 20). The readout (14) and sync (11) are
+     separate rules and deliberately do NOT scale with it. */
+  .home-header-prompt-row .terminal-prompt,
+  .header-titlebar .breadcrumb-path {
+    font-size: 26px;
+  }
+  /* B3 — nav items 16 (up from 14), ~14px vertical row padding. */
+  .primary-nav .pnav-item {
+    font-size: 16px;
+    padding: 14px 0;
+  }
+  /* B3 — ~28px between items on the dashboard's own full-width nav row. Inner
+     pages keep their tighter titlebar gap (the nav shares that row with the
+     path + sync, where the extra gap would force a wrap). */
+  .home-header-nav {
+    column-gap: 28px;
+  }
 }
 .home-main {
   flex: 1;
