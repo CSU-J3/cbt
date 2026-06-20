@@ -31,21 +31,33 @@ export function computeTooltipPosition({
   panelHeight,
   viewportWidth,
   viewportHeight,
+  preferBelow = false,
 }: {
   trigger: TriggerRect;
   panelWidth: number;
   panelHeight: number;
   viewportWidth: number;
   viewportHeight: number;
+  // HO 286: bias the panel BELOW the trigger (the default is above, flip-below).
+  // Used by the weekly band so each metric's detail drops downward off the thin
+  // strip rather than popping up over the races panel. Still flips to above if
+  // below can't fit. Default false keeps every existing caller's behavior byte-
+  // for-byte.
+  preferBelow?: boolean;
 }): TooltipPosition {
-  // Vertical: default above, flip below when above can't fit.
   const wantedTopAbove = trigger.top - panelHeight - GAP;
+  const wantedTopBelow = trigger.top + trigger.height + GAP;
   const fitsAbove = wantedTopAbove >= EDGE_PAD;
-  const placement: TooltipPlacement = fitsAbove ? "top" : "bottom";
-  const top =
-    placement === "top"
-      ? wantedTopAbove
-      : trigger.top + trigger.height + GAP;
+  const fitsBelow = wantedTopBelow + panelHeight <= viewportHeight - EDGE_PAD;
+  // Default: above, flip below when above can't fit. preferBelow inverts it.
+  const placement: TooltipPlacement = preferBelow
+    ? fitsBelow || !fitsAbove
+      ? "bottom"
+      : "top"
+    : fitsAbove
+      ? "top"
+      : "bottom";
+  const top = placement === "top" ? wantedTopAbove : wantedTopBelow;
 
   // Horizontal: center on the trigger, then clamp inside [EDGE_PAD,
   // viewportWidth - panelWidth - EDGE_PAD]. Caret tracks the trigger center

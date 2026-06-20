@@ -3795,6 +3795,42 @@ export const getWeeklyBandPriorWeek = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// HO 286: this-week + prior-week committee-meeting counts for the weekly band's
+// fourth metric (HEARINGS) and its WoW delta. Trailing-7-day windows matching
+// the band's other metrics — this week is getRecentMeetings' [now-7d, now)
+// bound (held meetings only, so upcoming calendar entries don't inflate it),
+// prior is the immediately preceding [now-14d, now-7d). meeting_date is ISO-UTC,
+// so bound with JS ISO strings exactly like getRecentMeetings — a like-for-like
+// lexical compare (NOT datetime('now'), whose space-separated form mis-sorts
+// against the stored 'T'/'Z' timestamps). Tag "meetings" (the committees cron
+// flushes it), NOT "bills". Prior-week data is retained back to 2025-01, so the
+// delta is real, never a fabricated ±0.
+export const getWeeklyBandHearings = unstable_cache(
+  async (): Promise<{ thisWeek: number; priorWeek: number }> => {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const d7 = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const d14 = new Date(Date.now() - 14 * 86_400_000).toISOString();
+    const countWindow = (lo: string, hi: string) =>
+      db.execute({
+        sql: `SELECT COUNT(*) AS n FROM committee_meetings
+              WHERE meeting_date IS NOT NULL
+                AND meeting_date < ? AND meeting_date >= ?`,
+        args: [hi, lo],
+      });
+    const [thisRs, priorRs] = await Promise.all([
+      countWindow(d7, now),
+      countWindow(d14, d7),
+    ]);
+    return {
+      thisWeek: Number(thisRs.rows[0]?.n ?? 0),
+      priorWeek: Number(priorRs.rows[0]?.n ?? 0),
+    };
+  },
+  ["getWeeklyBandHearings"],
+  { revalidate: 3600, tags: ["meetings"] },
+);
+
 export const getStaleCount = unstable_cache(
   async (filters: FeedFilters): Promise<FeedCount> => {
     const db = getDb();

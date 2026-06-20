@@ -18,11 +18,14 @@
 // rather than fabricated. Event callouts (top stage-movers) are likewise
 // omitted — they ride stage_transitions, still thin (planted write-only HO 232).
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { Tooltip } from "@/components/Tooltip";
 import {
   getDashboardReportSnapshot,
   getEnactedThisWeek,
   getNewBillsThisWeekCount,
   getStageChangesCount,
+  getWeeklyBandHearings,
   getWeeklyBandPriorWeek,
 } from "@/lib/queries";
 
@@ -50,37 +53,95 @@ function WeekDelta({ now, prior }: { now: number; prior: number }) {
   );
 }
 
-// Monday of the current week, UTC, as YYYY-MM-DD (matches the reports' weekStart
-// format). Day-granular; a glance label, not a boundary used for any query.
-function currentWeekStartISO(): string {
+// Monday of `weeksAgo` weeks back, UTC, as YYYY-MM-DD (matches the reports'
+// weekStart format). Day-granular glance labels, not query boundaries:
+// weekStartISO(0) is the band's "Week of" header; weekStartISO(1) is the prior
+// week's start shown in each popover's "last week (DATE)". (The counts behind
+// the deltas are trailing-7-day windows, not Mon–Sun — the same label-vs-window
+// convention the band has carried since HO 244.)
+function weekStartISO(weeksAgo = 0): string {
   const now = new Date();
   const sinceMonday = (now.getUTCDay() + 6) % 7; // 0=Mon … 6=Sun
   const monday = new Date(
     Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
-      now.getUTCDate() - sinceMonday,
+      now.getUTCDate() - sinceMonday - 7 * weeksAgo,
     ),
   );
   return monday.toISOString().slice(0, 10);
 }
 
+// HO 286: the popover body — full this/last-week breakdown for one metric.
+// `This week X · last week (DATE) Y · ▲/▼Δ`, DATE = prior week's Monday. The
+// ▲/▼/±0 glyph mirrors WeekDelta (the directional color lives on the strip).
+function metricBreakdown(
+  now: number,
+  prior: number,
+  priorWeekStart: string,
+): string {
+  const diff = now - prior;
+  const delta =
+    diff > 0
+      ? `▲${Math.abs(diff).toLocaleString()}`
+      : diff < 0
+        ? `▼${Math.abs(diff).toLocaleString()}`
+        : "±0";
+  return `This week ${now.toLocaleString()} · last week (${priorWeekStart}) ${prior.toLocaleString()} · ${delta}`;
+}
+
+// HO 286: wraps a metric's inline value+label+delta in the HO 147 tooltip
+// primitive (term variant), dropping the breakdown popover BELOW the strip
+// (preferBelow). The strip stays one thin line; the panel portals to body so
+// nothing clips.
+function MetricTip({
+  label,
+  now,
+  prior,
+  priorWeekStart,
+  children,
+}: {
+  label: string;
+  now: number;
+  prior: number;
+  priorWeekStart: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip
+      variant="term"
+      preferBelow
+      ariaLabel={`${label}: this week ${now}, last week ${prior}`}
+      content={{
+        kind: "text",
+        label,
+        body: metricBreakdown(now, prior, priorWeekStart),
+      }}
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
 export async function WeeklyBand() {
-  const [enacted, transitions, newBills, prior, snap] = await Promise.all([
-    getEnactedThisWeek(),
-    getStageChangesCount({}, 7),
-    getNewBillsThisWeekCount(),
-    getWeeklyBandPriorWeek(),
-    getDashboardReportSnapshot(),
-  ]);
+  const [enacted, transitions, newBills, hearings, prior, snap] =
+    await Promise.all([
+      getEnactedThisWeek(),
+      getStageChangesCount({}, 7),
+      getNewBillsThisWeekCount(),
+      getWeeklyBandHearings(),
+      getWeeklyBandPriorWeek(),
+      getDashboardReportSnapshot(),
+    ]);
 
   const enactedShown = enacted.slice(0, ENACTED_ID_CAP);
   const enactedMore = enacted.length - enactedShown.length;
+  const priorWeekStart = weekStartISO(1);
 
   return (
     <section className="weekly-band" aria-label="This week">
       <span className="weekly-band-weekof">
-        Week of <span className="tabular-nums">{currentWeekStartISO()}</span>
+        Week of <span className="tabular-nums">{weekStartISO()}</span>
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
@@ -88,15 +149,23 @@ export async function WeeklyBand() {
       </span>
 
       {/* Enacted segment — folds in the former EnactedBanner. The N=0 state is
-          visible by design (`● 0 enacted`), never hidden. */}
+          visible by design (`● 0 enacted`), never hidden. The popover wraps the
+          metric core; the bill-id links trail outside it, still clickable. */}
       <span className="weekly-band-seg weekly-band-enacted">
-        <span className="weekly-band-dot" aria-hidden>
-          ●
-        </span>{" "}
-        <span className="weekly-band-num">
-          {enacted.length.toLocaleString()}
-        </span>{" "}
-        enacted <WeekDelta now={enacted.length} prior={prior.enacted} />
+        <MetricTip
+          label="ENACTED"
+          now={enacted.length}
+          prior={prior.enacted}
+          priorWeekStart={priorWeekStart}
+        >
+          <span className="weekly-band-dot" aria-hidden>
+            ●
+          </span>{" "}
+          <span className="weekly-band-num">
+            {enacted.length.toLocaleString()}
+          </span>{" "}
+          enacted <WeekDelta now={enacted.length} prior={prior.enacted} />
+        </MetricTip>
         {enactedShown.length > 0 ? (
           <span className="weekly-band-ids">
             <span aria-hidden>·</span>
@@ -126,8 +195,15 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-seg">
-        <span className="weekly-band-num">{newBills.toLocaleString()}</span> new
-        bills <WeekDelta now={newBills} prior={prior.newBills} />
+        <MetricTip
+          label="NEW BILLS"
+          now={newBills}
+          prior={prior.newBills}
+          priorWeekStart={priorWeekStart}
+        >
+          <span className="weekly-band-num">{newBills.toLocaleString()}</span>{" "}
+          new bills <WeekDelta now={newBills} prior={prior.newBills} />
+        </MetricTip>
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
@@ -135,11 +211,41 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-seg">
-        <span className="weekly-band-num">
-          {transitions.total.toLocaleString()}
-        </span>{" "}
-        stage transitions{" "}
-        <WeekDelta now={transitions.total} prior={prior.transitions} />
+        <MetricTip
+          label="STAGE TRANSITIONS"
+          now={transitions.total}
+          prior={prior.transitions}
+          priorWeekStart={priorWeekStart}
+        >
+          <span className="weekly-band-num">
+            {transitions.total.toLocaleString()}
+          </span>{" "}
+          stage transitions{" "}
+          <WeekDelta now={transitions.total} prior={prior.transitions} />
+        </MetricTip>
+      </span>
+
+      <span className="weekly-band-sep" aria-hidden>
+        |
+      </span>
+
+      {/* HO 286: HEARINGS — fourth metric, committee-meeting count over the
+          trailing-7-day window (held meetings only), same shape as the others.
+          Sourced from getWeeklyBandHearings (committee_meetings); tag "meetings",
+          so the committees cron flushes it independent of the bills tag. */}
+      <span className="weekly-band-seg">
+        <MetricTip
+          label="HEARINGS"
+          now={hearings.thisWeek}
+          prior={hearings.priorWeek}
+          priorWeekStart={priorWeekStart}
+        >
+          <span className="weekly-band-num">
+            {hearings.thisWeek.toLocaleString()}
+          </span>{" "}
+          hearings{" "}
+          <WeekDelta now={hearings.thisWeek} prior={hearings.priorWeek} />
+        </MetricTip>
       </span>
 
       {snap ? (

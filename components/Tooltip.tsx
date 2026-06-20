@@ -44,6 +44,8 @@ type CommonProps = {
   content: TooltipContent;
   /** Pre-rendered label fallback when content carries no label. */
   ariaLabel?: string;
+  /** HO 286: bias the panel below the trigger (weekly band). Default above. */
+  preferBelow?: boolean;
 };
 
 type TermProps = CommonProps & {
@@ -203,9 +205,10 @@ export function Tooltip(props: TooltipProps) {
       panelHeight: pr.height,
       viewportWidth: window.innerWidth,
       viewportHeight: window.innerHeight,
+      preferBelow: props.preferBelow,
     });
     setPosition(pos);
-  }, [open]);
+  }, [open, props.preferBelow]);
 
   const sharedTriggerProps = {
     ref: triggerRef,
