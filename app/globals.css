@@ -4411,6 +4411,19 @@ body {
   font-size: 12px;
   color: var(--text-muted);
 }
+/* HO 292: the curated policy/Congress angle line (POLICY_HOOKS), dim tertiary
+   under the name + meta. white-space:normal + max-width lets the long hooks
+   (e.g. SHUTDOWN's) wrap to 2 lines instead of forcing the nowrap box wide; the
+   box width stays driven by the name/meta lines, so positioning is unchanged. */
+.markets-tape-detail-hook {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-dim);
+  white-space: normal;
+  max-width: 240px;
+}
 .markets-tape-meta {
   position: absolute;
   right: 0;

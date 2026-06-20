@@ -26,6 +26,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MicroTag } from "@/components/MicroTag";
 import { SourceTag } from "@/components/SourceTag";
 import { isMarketOpen } from "@/lib/market-hours";
+import { policyHook } from "@/lib/policy-hooks";
 import type { MarketTick } from "@/lib/queries";
 import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
 
@@ -195,6 +196,11 @@ function PairItem({
           Kalshi {kVal} · Polymarket {pVal}
           {resolve ? ` · resolves ${resolve}` : ""}
         </span>
+        {policyHook(pair.primary) ? (
+          <span className="markets-tape-detail-hook">
+            {policyHook(pair.primary)}
+          </span>
+        ) : null}
       </span>
     </span>
   );
@@ -320,6 +326,11 @@ function TickItem({
           ) : null}
           {freshnessText}
         </span>
+        {policyHook(tick.symbol) ? (
+          <span className="markets-tape-detail-hook">
+            {policyHook(tick.symbol)}
+          </span>
+        ) : null}
       </span>
     </span>
   );
