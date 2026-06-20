@@ -37,6 +37,7 @@ export async function MarketsTape({
   pairs,
   kind = "markets",
   scroll = false,
+  reverse = false,
   label,
 }: {
   group?: MarketGroup;
@@ -58,6 +59,8 @@ export async function MarketsTape({
   // HO 258: opt into the marquee crawl (v2's two tapes). Default static so `/`
   // and inner pages stay on the HO 251 static row.
   scroll?: boolean;
+  // HO 291: reverse the marquee direction (counter-scroll). v2 ODDS strip only.
+  reverse?: boolean;
   // HO 274: left-pinned strip label ("MARKETS" / "SIGNALS"), v2 two-tape only.
   label?: string;
 } = {}) {
@@ -88,6 +91,7 @@ export async function MarketsTape({
       showMeta={showMeta}
       kind={kind}
       scroll={scroll}
+      reverse={reverse}
       label={label}
     />
   );

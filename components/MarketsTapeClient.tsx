@@ -332,6 +332,7 @@ export function MarketsTapeClient({
   kind = "markets",
   pairs,
   scroll = false,
+  reverse = false,
   label,
 }: {
   ticks: MarketTick[];
@@ -355,6 +356,10 @@ export function MarketsTapeClient({
   // track (seamless -50% loop, hover-pause, reduced-motion-safe via CSS). The
   // CLOSED/LIVE/STALE meta + right-pin stay outside the scrolling track.
   scroll?: boolean;
+  // HO 291: counter-scroll — reverse the marquee direction (left-to-right) so the
+  // two stacked v2 tapes move oppositely. Only meaningful with scroll; the bare
+  // static tape ignores it.
+  reverse?: boolean;
   // HO 274: a strip label ("MARKETS" / "SIGNALS") pinned to the LEFT, OUTSIDE the
   // scrolling track, so it stays visible instead of crawling off with the ticks
   // (the mock pins it; a live v2 capture led with a bare "4.49%"). Mirrors the
@@ -616,7 +621,7 @@ export function MarketsTapeClient({
       >
         {labelNode}
         <div
-          className="markets-tape-track"
+          className={`markets-tape-track${reverse ? " markets-tape-track--reverse" : ""}`}
           style={{ animationDuration: `${durationS}s` }}
         >
           {[0, 1].map((half) => (

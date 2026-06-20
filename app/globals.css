@@ -4265,6 +4265,17 @@ body {
 .markets-tape-track:hover {
   animation-play-state: paused;
 }
+/* HO 291: counter-scroll. The two v2 marquees move in OPPOSITE directions so they
+   read as distinct feeds — MARKETS right-to-left (the base translateX 0 → -50%),
+   ODDS left-to-right via animation-direction: reverse (plays -50% → 0). The
+   double-track is periodic (the -50% frame shows content identical to 0), so the
+   reverse loop is just as seamless as the forward one. The pinned label/meta sit
+   OUTSIDE the track (absolute siblings), so the direction flip doesn't move them
+   or the K/P tags riding in the content. Reduced-motion pins both (animation:none
+   above), so this never animates there. */
+.markets-tape-track--reverse {
+  animation-direction: reverse;
+}
 .markets-tape-half,
 .markets-tape-set {
   display: flex;
@@ -4429,6 +4440,20 @@ body {
   width: 28px;
   background: linear-gradient(to right, transparent, var(--bg-panel));
   pointer-events: none;
+}
+/* HO 291: edge-fade. On the SCROLLING tapes the ticks should DISSOLVE in/out at
+   the container bounds, not hard-cut. The opaque label (left) + meta (right) are
+   the container ends; widening their gradient skirts from 28px → 72px turns the
+   abrupt cut into a soft fade ahead of each pinned chrome box (so the label/meta
+   themselves stay fully opaque). Scoped to .markets-tape--scroll so the static
+   bare row on `/` + inner pages keeps its tight 28px. A literal transparent
+   mask-image is deliberately NOT used: masking the translating max-content track
+   moves the fade off-screen, and masking the fixed strip would fade the pinned
+   label or clip the hover popover — this opaque-edge dissolve is the same idiom
+   the label/meta already use, just wider. */
+.markets-tape--scroll .markets-tape-label::after,
+.markets-tape--scroll .markets-tape-meta::before {
+  width: 72px;
 }
 /* HO 274: the LEFT-pinned strip label (MARKETS / SIGNALS), the mirror image of
    the right .markets-tape-meta — absolute + opaque + above the track, so the

@@ -133,6 +133,7 @@ export function DashboardV2Header({
           pairs={ODDS_PAIRS}
           kind="signals"
           scroll
+          reverse
           label="ODDS"
         />
       </div>
