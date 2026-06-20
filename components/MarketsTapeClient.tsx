@@ -22,7 +22,15 @@
 // arrow + change slots, so item width is invariant to values → track width is
 // constant after first paint → -50% is stable. TickItem below renders the
 // always-present slots; the hover-detail popover is also added here (HO 175).
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { MicroTag } from "@/components/MicroTag";
 import { SourceTag } from "@/components/SourceTag";
 import { isMarketOpen } from "@/lib/market-hours";
@@ -141,6 +149,11 @@ export type TapePair = {
   showMonth?: boolean;
 };
 
+// HO 293: an item reports its hover-detail content + anchor element up to the
+// parent, which positions ONE portal'd box below the whole tape block (so it
+// never lands on the sibling strip or the nav). null clears it.
+type HoverHandler = (node: ReactNode, el: HTMLElement | null) => void;
+
 // HO 259: one dual-source item — `LABEL K x% P y%`. A missing source (no tick:
 // stale-out or a ghost market that never ticked) renders dim `N/A` in its slot
 // and the pair stays intact, so a designated dual-source item never collapses to
@@ -152,11 +165,13 @@ function PairItem({
   primary,
   secondary,
   stale,
+  onHover,
 }: {
   pair: TapePair;
   primary: MarketTick | undefined;
   secondary: MarketTick | undefined;
   stale: boolean;
+  onHover: HoverHandler;
 }) {
   const month =
     pair.showMonth && primary ? monthAbbrUpper(primary.marketDate) : "";
@@ -167,8 +182,26 @@ function PairItem({
     stale || !present ? "var(--text-dim)" : "var(--text-secondary)";
   const resolveSrc = primary ?? secondary;
   const resolve = resolveSrc ? formatResolveDate(resolveSrc.marketDate) : null;
+  const hook = policyHook(pair.primary);
+  // The hover-detail content; positioned + portaled by the parent (HO 293).
+  const detailNode = (
+    <>
+      <span className="markets-tape-detail-name">
+        {primary?.fullName ?? display}
+      </span>
+      <span className="markets-tape-detail-meta">
+        Kalshi {kVal} · Polymarket {pVal}
+        {resolve ? ` · resolves ${resolve}` : ""}
+      </span>
+      {hook ? <span className="markets-tape-detail-hook">{hook}</span> : null}
+    </>
+  );
   return (
-    <span className="markets-tape-item">
+    <span
+      className="markets-tape-item"
+      onMouseEnter={(e) => onHover(detailNode, e.currentTarget)}
+      onMouseLeave={() => onHover(null, null)}
+    >
       <span className="markets-tape-symbol">{display}</span>
       <span className="markets-tape-pair-grp">
         <SourceTag source="kalshi" />
@@ -188,20 +221,6 @@ function PairItem({
           {pVal}
         </span>
       </span>
-      <span className="markets-tape-detail" aria-hidden>
-        <span className="markets-tape-detail-name">
-          {primary?.fullName ?? display}
-        </span>
-        <span className="markets-tape-detail-meta">
-          Kalshi {kVal} · Polymarket {pVal}
-          {resolve ? ` · resolves ${resolve}` : ""}
-        </span>
-        {policyHook(pair.primary) ? (
-          <span className="markets-tape-detail-hook">
-            {policyHook(pair.primary)}
-          </span>
-        ) : null}
-      </span>
     </span>
   );
 }
@@ -210,6 +229,7 @@ function TickItem({
   tick,
   stale,
   closed,
+  onHover,
 }: {
   tick: MarketTick;
   stale: boolean;
@@ -217,6 +237,7 @@ function TickItem({
   // caller only sets closed when !stale — STALE wins). Last-session values keep
   // displaying; only the color flips to --ticker-closed.
   closed: boolean;
+  onHover: HoverHandler;
 }) {
   // HO 274: suppress an implausible daily move (see MAX_PLAUSIBLE_DAILY_MOVE_PCT)
   // — render the price but no arrow/change, the same shape as a no-prior-reference
@@ -281,8 +302,34 @@ function TickItem({
       : tick.cadence === "kalshi"
         ? `resolves ${formatResolveDate(tick.marketDate)}`
         : `as of ${tick.marketDate}${tick.eod ? " · end of day" : ""}`;
+  const hook = policyHook(tick.symbol);
+  // HO 175/177/292: the hover-detail content — full name, a meta line (group
+  // label · change · freshness), and the 292 policy hook. Positioned + portaled
+  // by the parent (HO 293) below the whole tape block, so it never lands on the
+  // sibling strip or the nav. aria-hidden: decorative (the symbol + price are
+  // already in the accessible row).
+  const detailNode = (
+    <>
+      <span className="markets-tape-detail-name">{tick.fullName}</span>
+      <span className="markets-tape-detail-meta">
+        {tick.label !== tick.fullName ? `${tick.label} · ` : ""}
+        {pct !== null ? (
+          <>
+            <span style={{ color: colorVar }}>{detailChange}</span>
+            {" · "}
+          </>
+        ) : null}
+        {freshnessText}
+      </span>
+      {hook ? <span className="markets-tape-detail-hook">{hook}</span> : null}
+    </>
+  );
   return (
-    <span className="markets-tape-item">
+    <span
+      className="markets-tape-item"
+      onMouseEnter={(e) => onHover(detailNode, e.currentTarget)}
+      onMouseLeave={() => onHover(null, null)}
+    >
       <span className="markets-tape-symbol">{tick.symbol}</span>
       {tagText ? <MicroTag label={tagText} title={tagTitle} /> : null}
       <span
@@ -306,32 +353,6 @@ function TickItem({
           </span>
         </span>
       ) : null}
-      {/* HO 175/177: hover-expand detail. HO 177 promotes the full instrument
-          name (tick.fullName) to the prominent line; the short group label sits
-          in the meta line with change + as-of, dropped when it just repeats the
-          name (e.g. SPX where label === fullName). No range — market_ticks
-          stores only price + change. aria-hidden: decorative hover enhancement
-          (the symbol + price are already in the accessible row). */}
-      <span className="markets-tape-detail" aria-hidden>
-        <span className="markets-tape-detail-name">{tick.fullName}</span>
-        <span className="markets-tape-detail-meta">
-          {tick.label !== tick.fullName ? `${tick.label} · ` : ""}
-          {/* Change only for daily symbols — monthly/kalshi carry null (no
-              meaningful % move), so skip the "—" noise. */}
-          {pct !== null ? (
-            <>
-              <span style={{ color: colorVar }}>{detailChange}</span>
-              {" · "}
-            </>
-          ) : null}
-          {freshnessText}
-        </span>
-        {policyHook(tick.symbol) ? (
-          <span className="markets-tape-detail-hook">
-            {policyHook(tick.symbol)}
-          </span>
-        ) : null}
-      </span>
     </span>
   );
 }
@@ -400,6 +421,45 @@ export function MarketsTapeClient({
   // reflow the track. Reduced-motion pins it to MT. Called unconditionally even
   // when showMeta is false (top tape) — hooks must not be conditional.
   const zone = useZoneCycle();
+
+  // HO 293: hover-detail box. Portaled to <body> and anchored below the WHOLE
+  // two-strip tape block (the .dv2-tapes wrapper) at the hovered item's x — so it
+  // floats in clear space, opaque + above the strips and nav, instead of dropping
+  // onto the sibling strip (where it was trapped behind it and only the bottom
+  // line showed). Falls back to this strip's own bottom on the bare single tape.
+  const [detail, setDetail] = useState<{
+    node: ReactNode;
+    left: number;
+    top: number;
+  } | null>(null);
+  const handleHover = useCallback<HoverHandler>((node, el) => {
+    if (!node || !el) {
+      setDetail(null);
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const block =
+      (el.closest(".dv2-tapes") as HTMLElement | null) ??
+      (el.closest(".markets-tape") as HTMLElement | null);
+    const bottom = block ? block.getBoundingClientRect().bottom : rect.bottom;
+    const cx = rect.left + rect.width / 2;
+    // Clamp x so an edge item's box (~150px each side) stays on-screen.
+    const left = Math.max(160, Math.min(cx, window.innerWidth - 160));
+    setDetail({ node, left, top: bottom + 8 });
+  }, []);
+  const detailPortal =
+    detail && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="markets-tape-detail markets-tape-detail--portal"
+            style={{ left: detail.left, top: detail.top }}
+            aria-hidden
+          >
+            {detail.node}
+          </div>,
+          document.body,
+        )
+      : null;
 
   // Re-check staleness every minute so a long-lived dashboard tab eventually
   // flips to stale without needing a reload at the 26h boundary.
@@ -569,6 +629,7 @@ export function MarketsTapeClient({
           primary={bySymbol.get(pair.primary)}
           secondary={bySymbol.get(pair.secondary)}
           stale={stripStale}
+          onHover={handleHover}
         />
       );
     }
@@ -589,7 +650,13 @@ export function MarketsTapeClient({
     }
     const st = itemState(t);
     return (
-      <TickItem key={t.symbol} tick={t} stale={st.stale} closed={st.closed} />
+      <TickItem
+        key={t.symbol}
+        tick={t}
+        stale={st.stale}
+        closed={st.closed}
+        onHover={handleHover}
+      />
     );
   });
 
@@ -654,6 +721,7 @@ export function MarketsTapeClient({
           ))}
         </div>
         {metaNode}
+        {detailPortal}
       </div>
     );
   }
@@ -669,6 +737,7 @@ export function MarketsTapeClient({
       {labelNode}
       <div className="markets-tape-row">{items}</div>
       {metaNode}
+      {detailPortal}
     </div>
   );
 }

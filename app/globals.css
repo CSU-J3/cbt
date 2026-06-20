@@ -4369,20 +4369,17 @@ body {
   min-width: 6ch;
   text-align: right;
 }
-/* HO 175: hover-expand detail popover. position:absolute so it never reflows
-   the track (which would re-trigger the geometry jump). Pure CSS :hover — no JS
-   state, no re-render. Composes with hover-pause (.markets-tape-track:hover):
-   the scroll is paused while hovering, so the popover anchors to a stationary
-   item. The tape's overflow-x:clip/overflow-y:visible lets it spill below. */
+/* HO 175/293: hover-detail popover. HO 293 moved it from a CSS-:hover box nested
+   in the item (which was trapped in the strip's z-30 stacking context — the later
+   ODDS strip painted over it, so only the bottom line showed) to a JS-driven box
+   PORTALED to <body> (.markets-tape-detail--portal). The base styling (opaque
+   --bg-row-hover surface, border, shadow) is shared; the portal variant overrides
+   position/display/z so it floats below the whole tape block, above everything.
+   transform:translateX(-50%) centers it on the inline `left` x. pointer-events:
+   none — it's a decorative preview, so leaving the item to reach it (and clearing
+   it) is fine. */
 .markets-tape-detail {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
   transform: translateX(-50%);
-  /* HO 178: above the nav (which follows the tapes in the DOM) so the popover
-     drops cleanly over it instead of the nav bleeding through. */
-  z-index: 60;
-  display: none;
   white-space: nowrap;
   /* HO 176/178: legibility — --bg-row-hover reads as a solid raised surface,
      more distinct from the tape (--bg-panel) and the page (--bg-base) than the
@@ -4397,8 +4394,11 @@ body {
   letter-spacing: 0.3px;
   pointer-events: none;
 }
-.markets-tape-item:hover .markets-tape-detail {
-  display: block;
+/* HO 293: the portal instance — fixed at the parent-computed (left, top), above
+   the strips AND the nav so it occludes whatever's beneath instead of blending. */
+.markets-tape-detail--portal {
+  position: fixed;
+  z-index: 1000;
 }
 .markets-tape-detail-name {
   display: block;
