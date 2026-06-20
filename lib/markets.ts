@@ -108,12 +108,30 @@ export type MarketSymbol = {
   kalshiKind?: "single-yes" | "cut-sum";
   // HO 259: which Polymarket macro market this symbol reads (source="polymarket").
   polyKind?: "fed" | "shutdown";
+  // HO 289: keep this symbol OFF the bare static tape (/ + inner pages). The HO
+  // 251 static row is sized for exactly 8 symbols, so the expanded B2 roster (the
+  // tech/defense equities) renders on v2's SCROLLING MARKETS strip only — same
+  // "extended roster, v2-only" treatment the polymarket "P" halves already get
+  // (excluded by source). Default (omitted) = on the bare tape.
+  bareTape?: boolean;
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // Indices — FMP /stable/quote (intraday, free on the existing key). HO 227.
   { internal: "SPX", source: "fmp", remote: "^GSPC", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities", cadence: "daily" },
   { internal: "NDQ", source: "fmp", remote: "^IXIC", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities", cadence: "daily" },
+  // HO 289 (B2): individual equities — tech + defense — via FMP /stable/quote
+  // (intraday, same key/endpoint as the indices; HO 288 confirmed all five return
+  // clean price + change from prod egress). RTX/NOC/GD were specced but 402 on the
+  // FMP free tier (tier-determined, confirmed in 288) so they're out. Intraday like
+  // the indices → eod=false → NO EOD micro-tag (an EOD tag on a live intraday print
+  // would be the exact mislabel the tag exists to prevent). bareTape:false keeps
+  // them on v2's scrolling MARKETS strip only (the static bare row fits 8).
+  { internal: "NVDA", source: "fmp", remote: "NVDA", label: "Nvidia", fullName: "NVIDIA Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
+  { internal: "AAPL", source: "fmp", remote: "AAPL", label: "Apple", fullName: "Apple Inc.", format: "price", group: "equities", cadence: "daily", bareTape: false },
+  { internal: "MSFT", source: "fmp", remote: "MSFT", label: "Microsoft", fullName: "Microsoft Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
+  { internal: "GOOGL", source: "fmp", remote: "GOOGL", label: "Alphabet", fullName: "Alphabet Inc.", format: "price", group: "equities", cadence: "daily", bareTape: false },
+  { internal: "LMT", source: "fmp", remote: "LMT", label: "Lockheed", fullName: "Lockheed Martin Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
   // Rates — FRED EOD.
   { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities", cadence: "daily" },
   // Econ — FRED monthly. CPI uses units=pc1 → YoY % directly (the raw index ~334

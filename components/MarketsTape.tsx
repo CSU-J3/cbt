@@ -17,12 +17,17 @@ import {
 import { MARKET_SYMBOLS, type MarketGroup } from "@/lib/markets";
 import { getLatestMarketTicks } from "@/lib/queries";
 
-// HO 259: source="polymarket" symbols are the v2 SIGNALS pair's "P" half — they
-// only belong on a tape that explicitly lists them (the v2 SIGNALS strip). The
-// bare `<MarketsTape />` on `/` + inner pages must NOT surface them, so the
-// no-`symbols`/no-`group` default filters them out. Keeps `/`'s tape unchanged.
-const PAIRED_SYMBOLS = new Set(
-  MARKET_SYMBOLS.filter((s) => s.source === "polymarket").map((s) => s.internal),
+// Symbols kept OFF the bare `<MarketsTape />` (/ + inner pages), surfaced only on
+// the v2 explicit-symbol tapes. Two cohorts:
+//   - HO 259: source="polymarket" — the v2 SIGNALS pair's "P" half.
+//   - HO 289: bareTape===false — the B2 tech/defense equities (v2 MARKETS strip
+//     only; the HO 251 static bare row is sized for 8 symbols).
+// Both are listed in MARKET_SYMBOLS (fetched + stored) but the bare no-`symbols`/
+// no-`group` default filters them so `/`'s static tape stays unchanged.
+const BARE_TAPE_EXCLUDED = new Set(
+  MARKET_SYMBOLS.filter(
+    (s) => s.source === "polymarket" || s.bareTape === false,
+  ).map((s) => s.internal),
 );
 
 export async function MarketsTape({
@@ -67,13 +72,13 @@ export async function MarketsTape({
     ? ticks.filter((t) => symbolSet.has(t.symbol))
     : group
       ? ticks.filter((t) => t.group === group)
-      : // bare default — exclude the v2 paired-only symbols (HO 259)
-        ticks.filter((t) => !PAIRED_SYMBOLS.has(t.symbol));
+      : // bare default — exclude the v2-only symbols (polymarket halves + equities)
+        ticks.filter((t) => !BARE_TAPE_EXCLUDED.has(t.symbol));
   const placeholderSymbols = symbols
     ? [...symbols]
     : MARKET_SYMBOLS.filter(
         (s) =>
-          (!group || s.group === group) && !PAIRED_SYMBOLS.has(s.internal),
+          (!group || s.group === group) && !BARE_TAPE_EXCLUDED.has(s.internal),
       ).map((s) => s.internal);
   return (
     <MarketsTapeClient

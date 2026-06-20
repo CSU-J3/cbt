@@ -18,8 +18,22 @@ import type { CorpusStats } from "@/lib/queries";
 //      each a presentation split of the one getLatestMarketTicks() feed.
 // `/` (app/page.tsx + HomeHeader) is untouched.
 
-// The two-tape symbol split (HO 251's 8-symbol set). Order here IS render order.
-const MARKETS_TAPE = ["SPX", "NDQ", "TNX", "WTI"];
+// The two-tape symbol split. Order here IS render order. HO 289 (B2) expanded
+// MARKETS with tech + defense equities between the indices and the rate/oil
+// pair: S&P · NASDAQ · NVDA · AAPL · MSFT · GOOGL · LMT · 10Y · WTI. The strip
+// is a scrolling marquee (scroll prop), so the longer roster crawls rather than
+// clipping the static bare row.
+const MARKETS_TAPE = [
+  "SPX",
+  "NDQ",
+  "NVDA",
+  "AAPL",
+  "MSFT",
+  "GOOGL",
+  "LMT",
+  "TNX",
+  "WTI",
+];
 // HO 259: SIGNALS carries the Polymarket "P" symbols alongside the Kalshi "K"
 // ones so both ticks flow to the client; the pairs spec renders SHUTDOWN/FEDCUT
 // as dual-source items (`LABEL K x% P y%`) and the POLY-* symbols are not drawn
