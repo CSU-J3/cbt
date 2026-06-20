@@ -271,6 +271,29 @@ export async function fetchPolymarketShutdown(): Promise<PolymarketMacroQuote | 
   return { pct: yes * 100, resolveDate: ev.endDate?.slice(0, 10) ?? null };
 }
 
+// RECESSION — P(US recession by end of 2026), to pair with Kalshi's KXRECSSNBER-26
+// single-yes (HO 290). The same-question market is the fixed-slug
+// "us-recession-by-end-of-{year}" Yes/No binary (288 probe: vol ~$1.6M, liq ~$31k,
+// Yes 12.5%). Soonest by end date, ghost floors like the other macro pairs.
+export async function fetchPolymarketRecession(): Promise<PolymarketMacroQuote | null> {
+  const events = await searchEvents("recession");
+  const cands = events
+    .filter((e) => e.slug && /^us-recession-by-end-of-\d{4}$/.test(e.slug) && !e.closed)
+    .sort((a, b) => endMs(a) - endMs(b));
+  const ev = cands[0];
+  if (!ev) return null;
+  const volume = num(ev.volume);
+  const liquidity = num(ev.liquidity);
+  if ((volume ?? 0) < MACRO_MIN_VOLUME || (liquidity ?? 0) < MACRO_MIN_LIQUIDITY) {
+    return null; // ghost shell — degrade to N/A, never price off it
+  }
+  const m = (ev.markets ?? [])[0];
+  if (!m) return null;
+  const yes = marketYes(m);
+  if (yes === null) return null;
+  return { pct: yes * 100, resolveDate: ev.endDate?.slice(0, 10) ?? null };
+}
+
 // Both macro signals, each non-fatal (a failure → null → N/A, never throws the
 // pair). Parallel — the two are independent markets.
 export async function fetchPolymarketMacro(): Promise<PolymarketMacro> {

@@ -77,6 +77,7 @@
 import { KALSHI_BASE } from "@/lib/kalshi";
 import {
   fetchPolymarketFedCut,
+  fetchPolymarketRecession,
   fetchPolymarketShutdown,
 } from "@/lib/polymarket";
 
@@ -106,8 +107,8 @@ export type MarketSymbol = {
   // Kalshi headline compute: "single-yes" = the one market's yes-price (SHUTDOWN);
   // "cut-sum" = sum of the meeting's Cut* markets' yes-prices (FED CUT).
   kalshiKind?: "single-yes" | "cut-sum";
-  // HO 259: which Polymarket macro market this symbol reads (source="polymarket").
-  polyKind?: "fed" | "shutdown";
+  // HO 259/290: which Polymarket macro market this symbol reads (source="polymarket").
+  polyKind?: "fed" | "shutdown" | "recession";
   // HO 289: keep this symbol OFF the bare static tape (/ + inner pages). The HO
   // 251 static row is sized for exactly 8 symbols, so the expanded B2 roster (the
   // tech/defense equities) renders on v2's SCROLLING MARKETS strip only — same
@@ -142,6 +143,15 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // cron). Dynamic nearest-open-event discovery + compute in fetchKalshi.
   { internal: "SHUTDOWN", source: "kalshi", remote: "KXGOVTSHUTDOWN", kalshiKind: "single-yes", label: "Shutdown Odds", fullName: "Govt Shutdown Odds", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "FEDCUT", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", label: "Fed Cut Odds", fullName: "Fed Rate-Cut Odds", format: "percent", group: "commodities", cadence: "kalshi" },
+  // HO 290 (B2 ODDS): recession, dual-source. Kalshi series KXRECSSNBER discovers
+  // the soonest open event (the year-only parseTickerDate fix picks -26 over -27);
+  // single-yes = "Recession this year?" yes-price. Polymarket reads the fixed-slug
+  // us-recession-by-end-of-2026 binary (polyKind "recession"). bareTape:false keeps
+  // the Kalshi half off the static bare tape (v2 ODDS strip only); the Polymarket
+  // half is excluded by source. cadence "kalshi" → no change arrow (a % move on a
+  // probability misleads), same as shutdown/fed.
+  { internal: "RECESSION", source: "kalshi", remote: "KXRECSSNBER", kalshiKind: "single-yes", label: "Recession Odds", fullName: "US Recession Odds (2026)", format: "percent", group: "commodities", cadence: "kalshi", bareTape: false },
+  { internal: "POLY-RECESSION", source: "polymarket", remote: "", polyKind: "recession", label: "Recession (Polymarket)", fullName: "US Recession Odds (2026) — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // HO 259: Polymarket macro pairs — same questions as the Kalshi macro above,
   // rendered as the "P" half of the v2 SIGNALS pair. Excluded from the bare tape
   // on `/` + inner pages via source="polymarket" (MarketsTape). remote is unused
@@ -281,12 +291,22 @@ const KALSHI_MONTHS: Record<string, number> = {
 };
 function parseTickerDate(eventTicker: string): string | null {
   const m = eventTicker.match(/-(\d{2})([A-Z]{3})(\d{2})?$/);
-  if (!m) return null;
-  const mon = KALSHI_MONTHS[m[2]!];
-  if (!mon) return null;
-  const yy = 2000 + Number(m[1]);
-  const dd = m[3] ? Number(m[3]) : 1;
-  return `${yy}-${String(mon).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+  if (m) {
+    const mon = KALSHI_MONTHS[m[2]!];
+    if (mon) {
+      const yy = 2000 + Number(m[1]);
+      const dd = m[3] ? Number(m[3]) : 1;
+      return `${yy}-${String(mon).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
+    }
+  }
+  // HO 290: year-only suffix (e.g. KXRECSSNBER-26) — a year-long "recession by
+  // end of YEAR" market with no month/date in the ticker AND no strike_date/
+  // close_time on the event (verified in the 288 probe). Resolve to end-of-year so
+  // the soonest-open selection orders -26 ahead of -27 and the resolveDate reads
+  // right. Shutdown/fed events never reach this (month suffix or date fields).
+  const y = eventTicker.match(/-(\d{2})$/);
+  if (y) return `20${y[1]}-12-31`;
+  return null;
 }
 function kalshiEventDate(e: {
   event_ticker?: unknown;
@@ -394,7 +414,9 @@ async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQ
   const q =
     symbol.polyKind === "fed"
       ? await fetchPolymarketFedCut()
-      : await fetchPolymarketShutdown();
+      : symbol.polyKind === "recession"
+        ? await fetchPolymarketRecession()
+        : await fetchPolymarketShutdown();
   if (!q) {
     throw new FetchQuoteError(
       symbol.internal,
