@@ -126,7 +126,9 @@ export default async function DashboardV2Page() {
           </div>
 
           <div className="home-col-stack dv2-col-right">
-            <section className="home-quadrant">
+            {/* home-feed-panel: overflow-visible (HO 300) so the expanded row's
+                sponsor hover card can escape the quadrant's overflow:hidden. */}
+            <section className="home-quadrant home-feed-panel">
               <ActivityTabs
                 activityContent={<ActivityTicker variant="v2" />}
                 stallsContent={<TopStalls variant="v2" />}

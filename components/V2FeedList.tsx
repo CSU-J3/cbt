@@ -29,6 +29,7 @@ import {
 } from "@/lib/format";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 import { parseTopics } from "@/lib/format";
+import { stateName } from "@/lib/states";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import type { FeedBill } from "@/lib/queries";
 import type { PanelData } from "@/components/BillExpandedPanel";
@@ -225,8 +226,126 @@ function StageBar({ bill }: { bill: FeedBill }) {
   );
 }
 
+// HO 300 — the SPONSOR hover card (v2 meta column). Mirrors SponsorHoverName's
+// logic (natural name, party color, initials fallback) but with the v2 mock's
+// sizing + a "State · Chamber" meta line + an inline party tag. Sponsor chamber
+// == the bill's originating chamber, so bill_type gives Rep./Sen.
+const V2_SENATE_TYPES = new Set(["s", "sjres", "sconres", "sres"]);
+function v2PartyColor(party: string | null | undefined): string {
+  if (!party) return "var(--text-muted)";
+  const u = party.trim().toUpperCase();
+  if (u === "R") return "var(--party-republican)";
+  if (u === "D") return "var(--party-democrat)";
+  return "var(--party-independent)";
+}
+function v2Initials(name: string): string {
+  const np = name
+    .replace(/^(Rep\.|Sen\.|Del\.|Res\.)\s*/i, "")
+    .replace(/\s*\[.*\]$/, "")
+    .trim();
+  const p = np.split(/[\s,]+/).filter(Boolean);
+  return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function SponsorPhoto({
+  url,
+  name,
+  color,
+}: {
+  url: string | null;
+  name: string;
+  color: string;
+}) {
+  const [errored, setErrored] = useState(false);
+  if (!url || errored) {
+    return (
+      <span
+        className="v2f-sc-photo v2f-sc-photo--fb"
+        style={{ color }}
+        aria-hidden
+      >
+        {v2Initials(name)}
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="v2f-sc-photo"
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
+function SponsorCell({ bill }: { bill: FeedBill }) {
+  const raw = bill.sponsor_name ?? "";
+  if (!raw) return null;
+  const isSenate = V2_SENATE_TYPES.has(bill.bill_type);
+  const color = v2PartyColor(bill.sponsor_party);
+  const district = bill.sponsor_district ?? null;
+  const haveName = bill.sponsor_first_name && bill.sponsor_last_name;
+  const name = haveName
+    ? `${isSenate ? "Sen." : "Rep."} ${bill.sponsor_first_name} ${bill.sponsor_last_name}`
+    : raw;
+  // inline party tag " · D-AZ"
+  const partyState =
+    bill.sponsor_party && bill.sponsor_state
+      ? `${bill.sponsor_party}-${bill.sponsor_state}`
+      : (bill.sponsor_party ?? bill.sponsor_state ?? "");
+  // card bracket [D-AZ] / [R-CA-5] / [R-WY-AL]
+  const dSeg = district != null ? `-${district}` : isSenate ? "" : "-AL";
+  const bracket =
+    bill.sponsor_party || bill.sponsor_state
+      ? `[${bill.sponsor_party ?? "?"}-${bill.sponsor_state ?? "?"}${dSeg}]`
+      : null;
+  const meta = bill.sponsor_state
+    ? `${stateName(bill.sponsor_state)} · ${isSenate ? "Senate" : "House"}`
+    : isSenate
+      ? "Senate"
+      : "House";
+
+  return (
+    <span className="v2f-sponsor">
+      {bill.sponsor_bioguide_id ? (
+        <a
+          className="v2f-sponsor-name"
+          href={`/members/${bill.sponsor_bioguide_id}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {name}
+        </a>
+      ) : (
+        <span className="v2f-sponsor-name v2f-sponsor-name--plain">{name}</span>
+      )}
+      {partyState ? (
+        <span className="v2f-sponsor-tag"> · {partyState}</span>
+      ) : null}
+      <span className="v2f-sc-card" role="tooltip">
+        <SponsorPhoto
+          url={bill.sponsor_depiction_url ?? null}
+          name={raw}
+          color={color}
+        />
+        <span className="v2f-sc-info">
+          <span className="v2f-sc-name">{name}</span>
+          {bracket ? (
+            <span className="v2f-sc-party" style={{ color }}>
+              {bracket}
+            </span>
+          ) : null}
+          <span className="v2f-sc-meta">{meta}</span>
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
-  const committee = panel?.committees[0]?.name ?? (panel ? "—" : "loading…");
+  const committee0 = panel?.committees[0] ?? null;
+  const committeeText = committee0?.name ?? (panel ? "—" : "loading…");
   const news = panel?.news ?? [];
   const meetings = panel?.meetings ?? [];
   const cgUrl = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
@@ -301,14 +420,45 @@ function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
           {bill.sponsor_name ? (
             <>
               <div className="v2f-sk">SPONSOR</div>
-              {/* sponsor_name already carries the full "Rep. Last, First
-                  [R-AR-3]" descriptor (title + party-state-district), so it's
-                  rendered as-is — no redundant party-state append. */}
-              <div className="v2f-sv">{bill.sponsor_name}</div>
+              <div className="v2f-sv">
+                <SponsorCell bill={bill} />
+              </div>
+            </>
+          ) : null}
+          {bill.cosponsor_count != null ? (
+            <>
+              <div className="v2f-sk">COSPONSORS</div>
+              <div className="v2f-sv">
+                {bill.cosponsor_count.toLocaleString()} cosponsor
+                {bill.cosponsor_count === 1 ? "" : "s"}
+              </div>
             </>
           ) : null}
           <div className="v2f-sk">COMMITTEE</div>
-          <div className="v2f-sv">{committee}</div>
+          <div className="v2f-sv">
+            {committee0 ? (
+              <>
+                <a
+                  className="v2f-cmte-link"
+                  href={`/committee/${committee0.systemCode}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {committee0.name}
+                </a>
+                {committee0.activityType ? (
+                  <span className="v2f-cmte-meta">
+                    {" · "}
+                    {committee0.activityType}
+                    {committee0.activityDate
+                      ? ` · ${formatRelativeAge(committee0.activityDate)}`
+                      : ""}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              committeeText
+            )}
+          </div>
           {bill.introduced_date ? (
             <>
               <div className="v2f-sk">INTRODUCED</div>

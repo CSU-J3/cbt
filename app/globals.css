@@ -3370,6 +3370,105 @@ body {
   color: var(--accent-amber-bright);
 }
 
+/* HO 300 — sponsor hover card (v2 meta column). Inline trigger = the name
+   (dim-underlined, cursor:help, a member link) + a dim " · D-AZ" party tag. The
+   card opens below the name; it's right-anchored (the meta column is at the
+   viewport's right edge) and the feed quadrant is overflow-visible (.home-feed-
+   panel) so the ~252px card isn't clipped (the HO 293 lesson). */
+.v2f-sponsor {
+  position: relative;
+  display: inline;
+}
+.v2f-sponsor-name {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-dim);
+  cursor: help;
+}
+.v2f-sponsor-name:hover {
+  color: var(--accent-amber-bright);
+}
+.v2f-sponsor-tag {
+  color: var(--text-dim);
+}
+.v2f-sc-card {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 80;
+  display: none;
+  width: 252px;
+  gap: 11px;
+  padding: 11px;
+  text-transform: none;
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+.v2f-sponsor:hover .v2f-sc-card,
+.v2f-sponsor:focus-within .v2f-sc-card {
+  display: flex;
+}
+.v2f-sc-photo {
+  flex: none;
+  width: 80px;
+  height: 94px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--bg-panel);
+}
+.v2f-sc-photo--fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--bg-panel), var(--border-strong));
+}
+.v2f-sc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.v2f-sc-name {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+.v2f-sc-party {
+  font-size: 12px;
+  font-weight: 600;
+}
+.v2f-sc-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* COMMITTEE link + dim status·age tail. */
+.v2f-cmte-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-strong);
+}
+.v2f-cmte-link:hover {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber);
+}
+.v2f-cmte-meta {
+  color: var(--text-dim);
+}
+
+/* HO 300 — feed quadrant overflow-visible so the sponsor hover card escapes.
+   Safe: the feed has no max-height (the quadrant grows to fit its rows), so
+   nothing else was being clipped. Compound selector beats .home-quadrant's
+   single-class overflow:hidden. */
+.home-quadrant.home-feed-panel {
+  overflow: visible;
+}
+
 .dash-prim {
   display: flex;
   flex-direction: column;

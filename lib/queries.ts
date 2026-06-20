@@ -39,6 +39,22 @@ const MENTION_SUBQUERY = `LEFT JOIN (
 ) nm ON nm.bill_id = bills.id`;
 const MENTION_SELECT = "COALESCE(nm.n, 0) AS mention_count_7d";
 
+// HO 300: sponsor member-data enrichment for the v2 feed sponsor card — the same
+// LEFT JOIN + columns getFeedBills carries (HO 188/192/194), added to the v2 feed
+// queries (getStageChanges / getStaleBills / getNewBillsThisWeek) so the MOVERS /
+// TOP STALLS / NEW rows get the sponsor's photo, natural name, district, and
+// cosponsor count (rowToFeedBill reads these when present). The members PK join is
+// 1:1 so it never multiplies rows; it does NOT disturb the bills INDEXED BY hint.
+// The other consumers of these queries (/changes, /stale, ActivityTicker) just
+// gain the same enrichment, harmlessly.
+const SPONSOR_ENRICH_SELECT = `bills.sponsor_bioguide_id, bills.cosponsor_count,
+      msp.depiction_url AS sponsor_depiction_url,
+      msp.first_name AS sponsor_first_name,
+      msp.last_name AS sponsor_last_name,
+      msp.district AS sponsor_district`;
+const SPONSOR_ENRICH_JOIN =
+  "LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id";
+
 export const STALE_DAYS = 60;
 export const STALE_ELIGIBLE_STAGES = [
   "introduced",
@@ -529,9 +545,11 @@ export const getNewBillsThisWeek = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
+      ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY idx_bills_introduced_date
       ${MENTION_SUBQUERY}
+      ${SPONSOR_ENRICH_JOIN}
       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
         AND introduced_date IS NOT NULL
         AND introduced_date > date('now', '-7 days')
@@ -3074,10 +3092,12 @@ export const getStaleBills = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
+      ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY idx_bills_latest_action
       -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial. buildStaleWhere always constrains latest_action_date.
       ${MENTION_SUBQUERY}
+      ${SPONSOR_ENRICH_JOIN}
       WHERE ${clauses.join(" AND ")}
       ORDER BY latest_action_date ASC
       LIMIT ?`;
@@ -3678,10 +3698,12 @@ export const getStageChanges = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, previous_stage, stage_changed_at,
+      ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY idx_bills_stage_changed_at
       -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial and scans ~all rows (~20s). buildChangesWhere always constrains stage_changed_at.
       ${MENTION_SUBQUERY}
+      ${SPONSOR_ENRICH_JOIN}
       WHERE ${clauses.join(" AND ")}
       ORDER BY stage_changed_at DESC
       LIMIT ?`;
