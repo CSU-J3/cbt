@@ -331,15 +331,44 @@ function kalshiYesPrice(m: Record<string, unknown>): number | null {
   return Number.isFinite(lp) ? lp : null; // a genuine 0¢ last is a valid 0%
 }
 
+// HO 290: the markets cron fetches every same-source symbol in parallel
+// (Promise.all). With THREE Kalshi symbols (SHUTDOWN/FEDCUT/RECESSION) that's 6
+// concurrent calls (events+markets each), which trips Kalshi's public-API rate
+// limit (429) — adding RECESSION as the 3rd is what pushed it over. Retry 429 (and
+// transient 5xx) with a short JITTERED backoff so the concurrent burst drains and
+// each symbol still ticks. Jitter (per-attempt, derived from the symbol so it's
+// stable per call) spreads the 3 symbols' retries so they don't re-collide.
+const KALSHI_RETRY_BACKOFF_MS = [400, 1200, 2600];
+async function kalshiFetch(
+  url: string,
+  symbol: MarketSymbol,
+  what: string,
+): Promise<Response> {
+  const jitter = (symbol.internal.length * 53) % 250; // 0–249ms, stable per symbol
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (
+      (res.status === 429 || res.status === 503) &&
+      attempt < KALSHI_RETRY_BACKOFF_MS.length
+    ) {
+      await new Promise((r) =>
+        setTimeout(r, KALSHI_RETRY_BACKOFF_MS[attempt]! + jitter),
+      );
+      continue;
+    }
+    if (!res.ok) {
+      throw new FetchQuoteError(symbol.internal, `kalshi ${what} HTTP ${res.status}`);
+    }
+    return res;
+  }
+}
+
 async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
   // 1. Discover the soonest open event in the series.
   const evUrl =
     `${KALSHI_BASE}/events?series_ticker=${encodeURIComponent(symbol.remote)}` +
     `&status=open&limit=200`;
-  const evRes = await fetch(evUrl, { signal: AbortSignal.timeout(10_000) });
-  if (!evRes.ok) {
-    throw new FetchQuoteError(symbol.internal, `kalshi events HTTP ${evRes.status}`);
-  }
+  const evRes = await kalshiFetch(evUrl, symbol, "events");
   const evData: unknown = await evRes.json();
   const events = (evData as { events?: unknown })?.events;
   if (!Array.isArray(events)) {
@@ -361,13 +390,11 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
   }
 
   // 2. Fetch that event's markets and compute the headline.
-  const mkRes = await fetch(
+  const mkRes = await kalshiFetch(
     `${KALSHI_BASE}/markets?event_ticker=${encodeURIComponent(soonest.et)}`,
-    { signal: AbortSignal.timeout(10_000) },
+    symbol,
+    "markets",
   );
-  if (!mkRes.ok) {
-    throw new FetchQuoteError(symbol.internal, `kalshi markets HTTP ${mkRes.status}`);
-  }
   const mkData: unknown = await mkRes.json();
   const markets = (mkData as { markets?: unknown })?.markets;
   if (!Array.isArray(markets) || markets.length === 0) {
