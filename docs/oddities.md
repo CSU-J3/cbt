@@ -6,6 +6,22 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Feed-style queries need the full sponsor enrichment or the sponsor card degrades (HO 300, Jun 2026)
+
+The v2 feed-row sponsor hover card reads `depiction_url` / `first_name` / `last_name` / `district` / `cosponsor_count`. `getFeedBills` already projected those (the `SPONSOR_ENRICH` select+join), but the OTHER feed-shaped queries — `getStageChanges` / `getStaleBills` / `getNewBillsThisWeek`, which back the v2 MOVERS / TOP STALLS / NEW THIS WEEK tabs — did not. Without the enrichment the card silently degrades: raw `Last, First` name, wrong district, initials instead of the photo, no cosponsors. Fix is a JOIN-projection add (the same `SPONSOR_ENRICH_SELECT`/`JOIN`), not a plan change, so the `INDEXED BY` hints stay untouched. Lesson: any query that feeds a row component must carry that component's FULL column dependency, or the row degrades without erroring.
+
+## A bare `fr` grid track won't shrink — ellipsis is inert without `minmax(0, …)` (HO 297, Jun 2026)
+
+A `fr` grid column defaults to `min-width: auto`, which means it refuses to shrink below its content's intrinsic width — so a long unbreakable title in an `1fr` track blows the track wide instead of ellipsizing, and the `text-overflow: ellipsis` you set never fires (the box never gets narrow enough to overflow). Fix: `minmax(0, 1fr)` (or `minmax(0, auto)`) to let the track shrink below content. The tell is "my ellipsis does nothing" on a grid child — it's the track, not the text rule.
+
+## `scripts/**` is in tsconfig — a throwaway probe that doesn't typecheck fails the Vercel build (HO 297, Jun 2026)
+
+`scripts/` is inside the `tsconfig.json` include, so `tsc` (and the Vercel build's typecheck) compiles every diagnostic/probe script — even ones that never run in prod and exist only to capture a number. A throwaway probe with a type error reds the whole deploy. Keep probe scripts compiling (or delete them before pushing). The build doesn't care that the script is "just a throwaway."
+
+## Backticks in a commit message trigger shell command substitution (HO 297, Jun 2026)
+
+Passing `git commit -m "...\`getFeedBills\`..."` through a shell runs the backticked text as a command (substitution) and mangles the message — or errors. Commit via a message FILE (`git commit -F msgfile` / a heredoc) when the message contains backticks (which CBT's code-referencing messages always do). The bash tool's commit guidance bans backtick `git commit -m` for exactly this reason.
+
 ## A box taller than the thin tape strips spills onto the nav if dropped downward (HO 294, Jun 2026)
 
 Once the markets-tape hover box was portaled (293), anchoring it below the whole two-strip tape block dropped it over the nav — the nav sits right under the tapes. The box (~80px, 3 lines) is taller than the two thin strips (~76px), so there's no clean "below" that clears both the sibling strip and the nav. The anchor that works for items on either strip: pin the box's BOTTOM ~at the ticker block's bottom and grow it UPWARD (`translateY(-100%)`) so it overlays the strips, never the nav. Lesson: when a popover is taller than its anchor row, "drop below" has nowhere to land — overlay upward instead.
@@ -38,9 +54,9 @@ After bumping the desktop masthead title to 26px / nav to 16px, the header's sin
 
 The v2 HEARINGS|RACES tabbed box keeps RACES in normal flow as the height anchor and overlays HEARINGS absolutely on desktop (`display:none`-but-mounted on mobile, which preserves the per-browser MOVES-since-last-open badge state). Both tabs hold the box at 468px so switching doesn't jump. The mounted-but-hidden mobile branch is deliberate — unmounting would reset the badge.
 
-## Kill lingering dev servers before a clean `.next` restart (HO 282, Jun 2026)
+## Kill lingering dev servers before a clean `.next` restart (HO 282, reaffirmed HO 300, Jun 2026)
 
-`npm run dev` zombies accumulate across sessions (a killed terminal doesn't always reap the node child), and a stale one can keep serving an old bundle — the HO 212 stale-CSS trap by another door. Before a fresh `rm -rf .next` + restart, `pkill -f "next dev"` (and any `next-server`) first, or you eyeball a stale render and chase a phantom.
+`npm run dev` zombies accumulate across sessions (a killed terminal doesn't always reap the node child), and a stale one can keep serving an old bundle — the HO 212 stale-CSS trap by another door. Before a fresh `rm -rf .next` + restart, `pkill -f "next dev"` (and any `next-server`) first, or you eyeball a stale render and chase a phantom. **HO 300 recurrence + nuance:** an over-broad `pkill node` (vs the scoped `pkill -f "next dev"`) is its own trap — on Windows/Git-Bash it can leave a half-killed process **holding the port**, so the next `npm run dev` binds 3001+ and you eyeball the wrong server. Clean with `taskkill` (`taskkill //F //IM node.exe` when nothing else needs node) and verify the restart is actually on a fresh server + the expected port.
 
 ## The gated-aggregate mis-plan class — "cold-start 500" was a misnomer (HO 277–279, Jun 2026)
 
