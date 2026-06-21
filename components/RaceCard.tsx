@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import { formatDollarsCompact } from "@/lib/format";
 import type { PartyKey, RaceCandidate, RaceIndexRow } from "@/lib/queries";
@@ -8,8 +9,8 @@ import {
   ratingColor,
   resolveKalshiFavoriteParty,
   type RosterEntry,
-  surname,
 } from "@/lib/race-colors";
+import { deriveMatchup, displaySurname, marketFavorite } from "@/lib/race-matchup";
 import {
   axisPos,
   divergenceChip,
@@ -38,28 +39,37 @@ function seatLabel(raceId: string): string {
   return raceId;
 }
 
-// Title-case party word for the sub-line ("Democrat · since 2021").
-function partyLong(p: PartyKey | null): string {
-  if (p === "R") return "Republican";
-  if (p === "D") return "Democrat";
-  if (p === "I") return "Independent";
-  return "—";
+// Single-letter party for the dense meta lines ("D · inc. 2021").
+function partyLetter(p: PartyKey | null): string {
+  return p === "R" || p === "D" || p === "I" ? p : "—";
 }
 
-// A market stat cell value ("D 56%" colored, surname for a name market, dim N/A
-// when absent). `party` is the resolved favored party (null for a name/Indy
-// market the roster couldn't place).
-function marketCell(
-  present: boolean,
-  party: PartyKey | null,
-  label: string,
-  pct: number,
-): { text: string; color: string } {
-  if (!present) return { text: "N/A", color: "var(--text-dim)" };
-  if (party === "D" || party === "R" || party === "I") {
-    return { text: `${party} ${pct}%`, color: partyColor(party) };
-  }
-  return { text: `${surname(label)} ${pct}%`, color: "var(--text-secondary)" };
+// One market strip cell: "{MARKET} {favorite name} {pct}", the name party-
+// colored. Absent market (House Polymarket) → dim "n/a".
+function MarketStat({
+  label,
+  fav,
+  pct,
+}: {
+  label: string;
+  fav: { name: string; party: PartyKey | null } | null;
+  pct: number | null;
+}) {
+  return (
+    <div className="rc-stat">
+      <div className="rc-stat-k">{label}</div>
+      {fav ? (
+        <div className="rc-stat-v">
+          <span style={{ color: partyColor(fav.party) }}>{fav.name}</span>{" "}
+          {pct}%
+        </div>
+      ) : (
+        <div className="rc-stat-v" style={{ color: "var(--text-dim)" }}>
+          n/a
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function RaceCard({
@@ -74,19 +84,28 @@ export function RaceCard({
   // undefined when it hasn't moved. The client RaceMovedIndicator compares it to
   // the per-browser last-RACES-open time to show MOVED + feed the tab badge.
   lastMoveAt,
+  // HO 305: page-level ambiguous surnames (e.g. "collins" — Susan Collins ME +
+  // Mike Collins GA). Surnames in this set render with a first initial. Computed
+  // once by CompetitiveRacesStrip across all four cards.
+  ambiguous = new Set<string>(),
 }: {
   row: RaceIndexRow;
   candidates?: RaceCandidate[];
   lastMoveAt?: string | null;
+  ambiguous?: Set<string>;
 }) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
-  // HO 304: House cards carry a "2024 R+5.4" margin badge in the top row; the v3
-  // mock swaps the INCUMBENT badge for that margin, so a card shows ONE badge,
-  // not two — drop INCUMBENT wherever the margin shows. OPEN still overrides.
-  const hasMarginBadge = !isSenate && row.margin2024 != null;
-  // Roster = incumbent + challengers, so a candidate-named market resolves to a
-  // party. Filtered to entries that carry a name (RosterEntry requires it).
+
+  // HO 305: incumbent-vs-challenger matchup. Active roster + market favorite →
+  // the challenger line shape + which line carries the edge accent.
+  const matchup = deriveMatchup(row, candidates);
+  const { challenger, favoredIsIncumbent, favorite } = matchup;
+  const edgeColor = favorite ? partyColor(favorite.party) : null;
+  const sn = (name: string) => displaySurname(name, ambiguous);
+
+  // Roster (incumbent + challengers) for the spread-bar diamonds (HO 274) — kept
+  // separate from the matchup roster (different shape).
   const roster: RosterEntry[] = [
     ...(row.incumbentName
       ? [{ name: row.incumbentName, party: row.incumbentParty }]
@@ -120,24 +139,23 @@ export function RaceCard({
 
   const diverge = divergenceChip(kalshiDot, polyDot, row.consensusScore);
 
-  // Stat cells.
+  // HO 305: incumbent cash folds onto the incumbent line; suppressed on an open
+  // seat (no incumbent-cash story — HO 221). Challenger cash is never shown.
   const cashText =
-    row.incumbentCashOnHand == null
+    open || row.incumbentCashOnHand == null
       ? null
       : formatDollarsCompact(row.incumbentCashOnHand);
-  const kalshiParty = kalshiDot?.party ?? null;
-  const kalshiCell = marketCell(
-    kalshiActive(row.kalshiOdds),
-    kalshiParty,
-    row.kalshiOdds?.favoriteLabel ?? "",
-    row.kalshiOdds?.impliedPct ?? 0,
-  );
-  const polyCell = marketCell(
-    !!row.polymarketOdds,
-    polyDot?.party ?? null,
-    row.polymarketOdds?.favoriteLabel ?? "",
-    row.polymarketOdds?.impliedPct ?? 0,
-  );
+
+  // Market strip favorites — named + party-colored. Kalshi rides both chambers;
+  // Polymarket is Senate-only (House renders a dim n/a cell).
+  const kalshiFav = kalshiActive(row.kalshiOdds)
+    ? marketFavorite(row.kalshiOdds, matchup.roster)
+    : null;
+  const kalshiPct = row.kalshiOdds?.impliedPct ?? null;
+  const polyFav = row.polymarketOdds
+    ? marketFavorite(row.polymarketOdds, matchup.roster)
+    : null;
+  const polyPct = row.polymarketOdds?.impliedPct ?? null;
 
   // Per-rater pills (present raters only), each colored by its own rating.
   const raterPills = [
@@ -145,6 +163,67 @@ export function RaceCard({
     { src: "SABATO", rating: row.sabatoRating },
     { src: "IE", rating: row.ieRating },
   ].filter((p) => p.rating);
+
+  // The challenger line content, one of four shapes (HO 305). The market-favored
+  // challenger gets the dagger; cash never appears here (the missing figure is
+  // the signal).
+  const dot = (party: PartyKey | null) => (
+    <span className="rc-dot8" style={{ background: partyColor(party) }} />
+  );
+  let challengerInner: ReactNode;
+  if (challenger.kind === "empty") {
+    challengerInner = (
+      <>
+        <span className="rc-dot8 is-hollow" />
+        <span className="rc-nm rc-nm--empty">no challenger filed</span>
+        <span className="rc-line-meta">—</span>
+      </>
+    );
+  } else if (challenger.kind === "nominee") {
+    challengerInner = (
+      <>
+        {dot(challenger.party)}
+        <span className="rc-nm">{sn(challenger.fullName)}</span>
+        <span className="rc-line-meta">
+          {partyLetter(challenger.party)} · nominee
+        </span>
+      </>
+    );
+  } else if (challenger.kind === "leader") {
+    const other =
+      challenger.others.length === 1
+        ? sn(challenger.others[0]!)
+        : `${challenger.others.length} others`;
+    challengerInner = (
+      <>
+        {dot(challenger.party)}
+        <span className="rc-nm">
+          {challenger.fullName}
+          <span className="rc-dagger">†</span>
+        </span>
+        <span className="rc-line-meta">
+          <span className="rc-meta-lead">
+            {partyLetter(challenger.party)} · leads
+          </span>{" "}
+          · {other}
+        </span>
+      </>
+    );
+  } else {
+    // no-lead: surnames dot-joined, degrading to "{N} candidates" when long.
+    const joined = challenger.fullNames.map(sn).join(" · ");
+    const label = joined.length > 24 ? `${challenger.count} candidates` : joined;
+    challengerInner = (
+      <>
+        {dot(challenger.party)}
+        <span className="rc-nm">{label}</span>
+        <span className="rc-line-meta">
+          {partyLetter(challenger.party)} · primary ({challenger.count})
+        </span>
+      </>
+    );
+  }
+  const challengerEdge = !favoredIsIncumbent && favorite != null;
 
   return (
     <Link
@@ -169,22 +248,50 @@ export function RaceCard({
         ) : null}
       </div>
 
-      <div className="rc-inc">
-        <span
-          className="rc-dot8"
-          style={{ background: partyColor(row.incumbentParty) }}
-        />
-        <span className="rc-nm">{row.incumbentName ?? "Open seat"}</span>
-        {open ? (
-          <span className="rc-tag rc-tag-open">OPEN</span>
-        ) : row.incumbentName && !hasMarginBadge ? (
-          <span className="rc-tag">INCUMBENT</span>
-        ) : null}
-      </div>
-      <div className="rc-sub">
-        {partyLong(row.incumbentParty)}
-        {open ? " · retiring" : ""}
-        {row.incumbentFirstElected ? ` · since ${row.incumbentFirstElected}` : ""}
+      <div className="rc-matchup">
+        {/* Incumbent line: dot · name · {P} · inc. {YYYY} · cash right-aligned.
+            The subhead + cash fold up here so the card doesn't grow (the
+            INCUMBENT badge is gone — HO 305 supersedes the HO 304 swap). */}
+        <div
+          className={`rc-line${favoredIsIncumbent ? " rc-line--edge" : ""}`}
+          style={
+            favoredIsIncumbent && edgeColor
+              ? { borderLeftColor: edgeColor }
+              : undefined
+          }
+        >
+          {dot(row.incumbentParty)}
+          <span className="rc-nm">{row.incumbentName ?? "Open seat"}</span>
+          <span className="rc-line-meta">
+            {partyLetter(row.incumbentParty)}
+            {open
+              ? " · retiring"
+              : row.incumbentFirstElected
+                ? ` · inc. ${row.incumbentFirstElected}`
+                : " · inc."}
+          </span>
+          {cashText ? (
+            <span className="rc-cash">
+              <span className="rc-cash-k">CASH</span>
+              <span className="rc-cash-v">{cashText}</span>
+            </span>
+          ) : open ? (
+            <span className="rc-open-tag">OPEN</span>
+          ) : null}
+        </div>
+
+        {/* Challenger line: one of four shapes; the favored line carries the
+            edge accent (exactly one per card). */}
+        <div
+          className={`rc-line${challengerEdge ? " rc-line--edge" : ""}`}
+          style={
+            challengerEdge && edgeColor
+              ? { borderLeftColor: edgeColor }
+              : undefined
+          }
+        >
+          {challengerInner}
+        </div>
       </div>
 
       <RaceMovedIndicator
@@ -250,30 +357,16 @@ export function RaceCard({
         ) : null}
       </div>
 
+      {/* HO 305: market strip — names the favorite (party-colored) per market.
+          Cash moved up to the incumbent line. Senate KALSHI + POLYMARKET; House
+          KALSHI + dim n/a. */}
       <div className="rc-stats">
-        <div className="rc-stat">
-          <div className="rc-stat-k">War Chest</div>
-          <div
-            className="rc-stat-v"
-            style={cashText ? undefined : { color: "var(--text-dim)" }}
-          >
-            {cashText ?? "N/A"}
-          </div>
-        </div>
-        <div className="rc-stat">
-          <div className="rc-stat-k">Kalshi</div>
-          <div className="rc-stat-v" style={{ color: kalshiCell.color }}>
-            {kalshiCell.text}
-          </div>
-        </div>
-        {isSenate ? (
-          <div className="rc-stat">
-            <div className="rc-stat-k">Polymarket</div>
-            <div className="rc-stat-v" style={{ color: polyCell.color }}>
-              {polyCell.text}
-            </div>
-          </div>
-        ) : null}
+        <MarketStat label="KALSHI" fav={kalshiFav} pct={kalshiPct} />
+        <MarketStat
+          label="POLYMARKET"
+          fav={isSenate ? polyFav : null}
+          pct={isSenate ? polyPct : null}
+        />
       </div>
     </Link>
   );

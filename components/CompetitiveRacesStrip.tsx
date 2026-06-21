@@ -11,6 +11,12 @@ import type {
   RaceCandidate,
   RaceIndexRow,
 } from "@/lib/queries";
+import {
+  activeChallengers,
+  ambiguousSurnames,
+  deriveMatchup,
+  partyAdjective,
+} from "@/lib/race-matchup";
 
 // HO 178 — the dashboard competitive-races surface, reflowed into a 2×2 grid in
 // the 44% right column with a TICKER-STYLE HOVER POPOVER (like the markets tape)
@@ -75,25 +81,55 @@ export function CompetitiveRacesStrip({
   moves?: Record<string, string>;
 }) {
   if (variant === "v2") {
+    // HO 305: page-level passes for the matchup block. (1) Ambiguous surnames —
+    // a surname shared by ≥2 distinct people across the four cards (Susan Collins
+    // ME + Mike Collins GA) renders with a first initial. (2) Presumptive parties
+    // — a contested-leader card (ME → Platner†) drives one footnote below the
+    // grid. Both need cross-card knowledge a single card can't see.
+    const displayedNames: string[] = [];
+    const presumptive: PartyKey[] = [];
+    races.forEach((race, i) => {
+      const row = rich?.[i];
+      if (!row) return;
+      const cands = hubs[i]?.candidates ?? [];
+      if (row.incumbentName) displayedNames.push(row.incumbentName);
+      for (const c of activeChallengers(cands, row.incumbentBioguideId))
+        displayedNames.push(c.name);
+      const p = deriveMatchup(row, cands).presumptiveParty;
+      if (p && !presumptive.includes(p)) presumptive.push(p);
+    });
+    const ambiguous = ambiguousSurnames(displayedNames);
+
     return (
-      <div className="race-grid">
-        {races.map((race, i) => {
-          const row = rich?.[i] ?? null;
-          // Every competitive seat is in getRacesIndex (the 61-seat ABS<=1 set ⊂
-          // the 137-seat rated set), so `row` resolves; the guard is belt-and-
-          // suspenders for an unrated edge.
-          return row ? (
-            <RaceCard
-              key={race.raceId}
-              row={row}
-              // HO 274: pass the seat's roster so candidate-named markets resolve
-              // to party lean on the K/P stat cells (the hub is pre-fetched here).
-              candidates={hubs[i]?.candidates ?? []}
-              lastMoveAt={moves?.[race.raceId]}
-            />
-          ) : null;
-        })}
-      </div>
+      <>
+        <div className="race-grid">
+          {races.map((race, i) => {
+            const row = rich?.[i] ?? null;
+            // Every competitive seat is in getRacesIndex (the 61-seat ABS<=1 set ⊂
+            // the 137-seat rated set), so `row` resolves; the guard is belt-and-
+            // suspenders for an unrated edge.
+            return row ? (
+              <RaceCard
+                key={race.raceId}
+                row={row}
+                // HO 274: pass the seat's roster so candidate-named markets
+                // resolve to party lean; HO 305 also derives the matchup shape +
+                // names the market favorites from it.
+                candidates={hubs[i]?.candidates ?? []}
+                ambiguous={ambiguous}
+                lastMoveAt={moves?.[race.raceId]}
+              />
+            ) : null;
+          })}
+        </div>
+        {presumptive.length > 0 ? (
+          <p className="race-grid-foot">
+            † presumptive —{" "}
+            {presumptive.map(partyAdjective).join(" and ")} primar
+            {presumptive.length > 1 ? "ies" : "y"} unresolved
+          </p>
+        ) : null}
+      </>
     );
   }
   return (
