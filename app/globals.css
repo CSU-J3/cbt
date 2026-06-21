@@ -6997,6 +6997,11 @@ a.hearing-watch:hover {
   position: fixed;
   z-index: 1000;
   width: 340px;
+  /* HO 308: bound the card to the viewport — an omnibus agenda title or a long
+     related-bills list scrolls internally instead of eating the screen. The 306
+     JS measures the (now-bounded) height to clamp/flip, so positioning holds. */
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
   padding: 11px 12px;
   border: 0.5px solid var(--border-strong);
   background-color: var(--bg-row-hover);
@@ -7017,6 +7022,13 @@ a.hearing-watch:hover {
   font-size: 13px;
   line-height: 1.35;
   color: var(--text-primary);
+  /* HO 308: clamp a giant agenda-title so the structured sections below it
+     (COMMITTEE / DETAILS / RELATED BILLS) stay reachable. The full agenda already
+     lives in RELATED BILLS, so clamping loses nothing the card doesn't show. */
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .hcal-card-sec {
   margin-top: 8px;
