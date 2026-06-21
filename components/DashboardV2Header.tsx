@@ -46,12 +46,17 @@ const ODDS_TAPE = [
   "POLY-SHUTDOWN",
   "FEDCUT",
   "POLY-FEDCUT",
+  "FEDCUT-SEP",
+  "POLY-FEDCUT-SEP",
   "RECESSION",
   "POLY-RECESSION",
 ];
 const ODDS_PAIRS = [
   { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN", label: "SHUTDOWN" },
+  // FED CUT JUL / FED CUT SEP — same label, disambiguated by showMonth, which
+  // appends each pair's resolution month (from its primary symbol's marketDate).
   { primary: "FEDCUT", secondary: "POLY-FEDCUT", label: "FED CUT", showMonth: true },
+  { primary: "FEDCUT-SEP", secondary: "POLY-FEDCUT-SEP", label: "FED CUT", showMonth: true },
   { primary: "RECESSION", secondary: "POLY-RECESSION", label: "RECESSION" },
 ];
 

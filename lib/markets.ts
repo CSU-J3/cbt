@@ -109,6 +109,12 @@ export type MarketSymbol = {
   kalshiKind?: "single-yes" | "cut-sum";
   // HO 259/290: which Polymarket macro market this symbol reads (source="polymarket").
   polyKind?: "fed" | "shutdown" | "recession";
+  // HO 302: pin a SPECIFIC Kalshi event (a Fed-meeting horizon) instead of the
+  // series' soonest-open. e.g. "KXFEDDECISION-26SEP" for FED CUT SEP.
+  kalshiEvent?: string;
+  // HO 302: pin the Polymarket fed-decision MONTH slug (e.g. "september") so a
+  // second fed symbol targets a later meeting than the soonest (July).
+  polyMonth?: string;
   // HO 289: keep this symbol OFF the bare static tape (/ + inner pages). The HO
   // 251 static row is sized for exactly 8 symbols, so the expanded B2 roster (the
   // tech/defense equities) renders on v2's SCROLLING MARKETS strip only — same
@@ -143,6 +149,12 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // cron). Dynamic nearest-open-event discovery + compute in fetchKalshi.
   { internal: "SHUTDOWN", source: "kalshi", remote: "KXGOVTSHUTDOWN", kalshiKind: "single-yes", label: "Shutdown Odds", fullName: "Govt Shutdown Odds", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "FEDCUT", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", label: "Fed Cut Odds", fullName: "Fed Rate-Cut Odds", format: "percent", group: "commodities", cadence: "kalshi" },
+  // HO 302 (B2 ODDS): the SEPTEMBER Fed-cut horizon alongside July. Same
+  // KXFEDDECISION series + cut-sum compute, but PINNED to the Sep event
+  // (kalshiEvent) so it doesn't collide with FEDCUT's soonest-open discovery
+  // (which resolves to July). bareTape:false → v2 ODDS strip only (one Fed-cut
+  // on the bare `/` tape is enough; the strip disambiguates JUL/SEP via showMonth).
+  { internal: "FEDCUT-SEP", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", kalshiEvent: "KXFEDDECISION-26SEP", label: "Fed Cut Odds (Sep)", fullName: "Fed Rate-Cut Odds — September", format: "percent", group: "commodities", cadence: "kalshi", bareTape: false },
   // HO 290 (B2 ODDS): recession, dual-source. Kalshi series KXRECSSNBER discovers
   // the soonest open event (the year-only parseTickerDate fix picks -26 over -27);
   // single-yes = "Recession this year?" yes-price. Polymarket reads the fixed-slug
@@ -158,6 +170,11 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // (discovery is by Gamma search in fetchPolymarket*); polyKind selects which.
   { internal: "POLY-SHUTDOWN", source: "polymarket", remote: "", polyKind: "shutdown", label: "Shutdown (Polymarket)", fullName: "Govt Shutdown Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "POLY-FEDCUT", source: "polymarket", remote: "", polyKind: "fed", label: "Fed Cut (Polymarket)", fullName: "Fed Rate-Cut Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
+  // HO 302: the Polymarket "P" half of FED CUT SEP. Same fed-decision discovery
+  // as POLY-FEDCUT but pinned to the September meeting via polyMonth ("september"
+  // → slug fed-decision-in-september-762); without the pin it would resolve to
+  // July (the soonest-open) and duplicate POLY-FEDCUT.
+  { internal: "POLY-FEDCUT-SEP", source: "polymarket", remote: "", polyKind: "fed", polyMonth: "september", label: "Fed Cut Sep (Polymarket)", fullName: "Fed Rate-Cut Odds — September — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // Commodities — FRED EOD.
   { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities", cadence: "daily" },
 ] as const;
@@ -364,41 +381,62 @@ async function kalshiFetch(
 }
 
 async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
-  // 1. Discover the soonest open event in the series.
-  const evUrl =
-    `${KALSHI_BASE}/events?series_ticker=${encodeURIComponent(symbol.remote)}` +
-    `&status=open&limit=200`;
-  const evRes = await kalshiFetch(evUrl, symbol, "events");
-  const evData: unknown = await evRes.json();
-  const events = (evData as { events?: unknown })?.events;
-  if (!Array.isArray(events)) {
-    throw new FetchQuoteError(symbol.internal, `kalshi no events array`);
-  }
-  const dated = events
-    .map((e) => {
-      const et = (e as { event_ticker?: unknown }).event_ticker;
-      const when = kalshiEventDate(e as Record<string, unknown>);
-      return typeof et === "string" && typeof when === "string"
-        ? { et, when, ms: Date.parse(when) }
-        : null;
-    })
-    .filter((e): e is { et: string; when: string; ms: number } => e !== null && Number.isFinite(e.ms))
-    .sort((a, b) => a.ms - b.ms);
-  const soonest = dated[0];
-  if (!soonest) {
-    throw new FetchQuoteError(symbol.internal, `kalshi no open event for ${symbol.remote}`);
+  // 1. Resolve the target event. A PINNED event (kalshiEvent — a specific Fed
+  // meeting horizon, HO 302) skips the series discovery; otherwise discover the
+  // soonest open event in the series.
+  let eventTicker: string;
+  let when: string;
+  if (symbol.kalshiEvent) {
+    eventTicker = symbol.kalshiEvent;
+    // marketDate drives the tape's month suffix (showMonth → "SEP") + the hover
+    // resolve date; the ticker's month is enough (day defaults to 01).
+    when =
+      parseTickerDate(symbol.kalshiEvent) ??
+      new Date().toISOString().slice(0, 10);
+  } else {
+    const evUrl =
+      `${KALSHI_BASE}/events?series_ticker=${encodeURIComponent(symbol.remote)}` +
+      `&status=open&limit=200`;
+    const evRes = await kalshiFetch(evUrl, symbol, "events");
+    const evData: unknown = await evRes.json();
+    const events = (evData as { events?: unknown })?.events;
+    if (!Array.isArray(events)) {
+      throw new FetchQuoteError(symbol.internal, `kalshi no events array`);
+    }
+    const dated = events
+      .map((e) => {
+        const et = (e as { event_ticker?: unknown }).event_ticker;
+        const w = kalshiEventDate(e as Record<string, unknown>);
+        return typeof et === "string" && typeof w === "string"
+          ? { et, w, ms: Date.parse(w) }
+          : null;
+      })
+      .filter(
+        (e): e is { et: string; w: string; ms: number } =>
+          e !== null && Number.isFinite(e.ms),
+      )
+      .sort((a, b) => a.ms - b.ms);
+    const soonest = dated[0];
+    if (!soonest) {
+      throw new FetchQuoteError(
+        symbol.internal,
+        `kalshi no open event for ${symbol.remote}`,
+      );
+    }
+    eventTicker = soonest.et;
+    when = soonest.w;
   }
 
   // 2. Fetch that event's markets and compute the headline.
   const mkRes = await kalshiFetch(
-    `${KALSHI_BASE}/markets?event_ticker=${encodeURIComponent(soonest.et)}`,
+    `${KALSHI_BASE}/markets?event_ticker=${encodeURIComponent(eventTicker)}`,
     symbol,
     "markets",
   );
   const mkData: unknown = await mkRes.json();
   const markets = (mkData as { markets?: unknown })?.markets;
   if (!Array.isArray(markets) || markets.length === 0) {
-    throw new FetchQuoteError(symbol.internal, `kalshi no markets for ${soonest.et}`);
+    throw new FetchQuoteError(symbol.internal, `kalshi no markets for ${eventTicker}`);
   }
 
   let prob: number; // 0–1
@@ -417,19 +455,19 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
       }
     }
     if (!found) {
-      throw new FetchQuoteError(symbol.internal, `kalshi no cut markets in ${soonest.et}`);
+      throw new FetchQuoteError(symbol.internal, `kalshi no cut markets in ${eventTicker}`);
     }
     prob = sum;
   } else {
     // single-yes: the event's single yes/no market.
     const yp = kalshiYesPrice(markets[0] as Record<string, unknown>);
     if (yp === null) {
-      throw new FetchQuoteError(symbol.internal, `kalshi no price for ${soonest.et}`);
+      throw new FetchQuoteError(symbol.internal, `kalshi no price for ${eventTicker}`);
     }
     prob = yp;
   }
 
-  return { price: prob * 100, marketDate: soonest.when.slice(0, 10) };
+  return { price: prob * 100, marketDate: when.slice(0, 10) };
 }
 
 // HO 259: Polymarket macro quote. Reads only the one market this symbol needs
@@ -440,7 +478,7 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
 async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   const q =
     symbol.polyKind === "fed"
-      ? await fetchPolymarketFedCut()
+      ? await fetchPolymarketFedCut(symbol.polyMonth)
       : symbol.polyKind === "recession"
         ? await fetchPolymarketRecession()
         : await fetchPolymarketShutdown();

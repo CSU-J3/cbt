@@ -223,10 +223,19 @@ function marketYes(m: GMarket): number | null {
 // cut probability is the SUM of the two "decrease" legs' Yes prices — not a single
 // market. Pick the soonest still-open decision event so K and P track the same
 // meeting as they roll (today both resolve 2026-07-29 = July; verified live).
-export async function fetchPolymarketFedCut(): Promise<PolymarketMacroQuote | null> {
+//
+// HO 302: pass `monthSlug` (e.g. "september") to pin a SPECIFIC meeting horizon
+// instead of the soonest-open. That lets a second fed-cut symbol target the Sep
+// decision (fed-decision-in-september-762) alongside the default July one.
+export async function fetchPolymarketFedCut(
+  monthSlug?: string,
+): Promise<PolymarketMacroQuote | null> {
   const events = await searchEvents("fed decision");
+  const slugRe = monthSlug
+    ? new RegExp(`^fed-decision-in-${monthSlug}(-\\d+)?$`)
+    : /^fed-decision-in-[a-z]+(-\d+)?$/;
   const decisions = events
-    .filter((e) => e.slug && /^fed-decision-in-[a-z]+(-\d+)?$/.test(e.slug) && !e.closed)
+    .filter((e) => e.slug && slugRe.test(e.slug) && !e.closed)
     .sort((a, b) => endMs(a) - endMs(b));
   const next = decisions[0];
   if (!next) return null;
