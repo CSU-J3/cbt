@@ -36,7 +36,7 @@ import { SourceTag } from "@/components/SourceTag";
 import { isMarketOpen } from "@/lib/market-hours";
 import { policyHook } from "@/lib/policy-hooks";
 import type { MarketTick } from "@/lib/queries";
-import { formatInZone, useZoneCycle } from "@/lib/zone-cycle";
+import { formatInZone, useZoneCycle, type ZoneSpec } from "@/lib/zone-cycle";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
 // HO 172: client poll interval for fresh prices.
@@ -100,23 +100,14 @@ function formatPrice(price: number, format: MarketTick["format"]): string {
   });
 }
 
-// HO 251: format the monthly print date as "May 2026" (from "2026-05-01"); the
-// kalshi resolution date as "Oct 1, 2026". Falls back to the raw string.
+// HO 251: format the monthly print date as "May 2026" (from "2026-05-01"). Falls
+// back to the raw string. (HO 303 dropped formatResolveDate — the odds hover no
+// longer prints a resolve date, only "Live · prediction market".)
 function formatMonth(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("en-US", {
     month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-function formatResolveDate(iso: string): string {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
     year: "numeric",
     timeZone: "UTC",
   });
@@ -178,22 +169,48 @@ function PairItem({
   const display = month ? `${pair.label} ${month}` : pair.label;
   const kVal = primary ? formatPrice(primary.price, primary.format) : "N/A";
   const pVal = secondary ? formatPrice(secondary.price, secondary.format) : "N/A";
+  // HO 303: live numbers are white (--text-primary) to match the tape/hover
+  // convention; a missing or stale source stays dim.
   const valColor = (present: boolean) =>
-    stale || !present ? "var(--text-dim)" : "var(--text-secondary)";
-  const resolveSrc = primary ?? secondary;
-  const resolve = resolveSrc ? formatResolveDate(resolveSrc.marketDate) : null;
+    stale || !present ? "var(--text-dim)" : "var(--text-primary)";
   const hook = policyHook(pair.primary);
-  // The hover-detail content; positioned + portaled by the parent (HO 293).
+  // HO 303: richer hover — name (amber) + sector, optional note, a K/P figure
+  // (brand letters, white numbers), and a "Live · prediction market" freshness
+  // line. Positioned + portaled by the parent (HO 293).
   const detailNode = (
     <>
-      <span className="markets-tape-detail-name">
-        {primary?.fullName ?? display}
+      <span className="markets-tape-detail-head">
+        <span className="markets-tape-detail-name">
+          {primary?.fullName ?? display}
+        </span>
+        {hook ? (
+          <span className="markets-tape-detail-sector">{hook.sector}</span>
+        ) : null}
       </span>
-      <span className="markets-tape-detail-meta">
-        Kalshi {kVal} · Polymarket {pVal}
-        {resolve ? ` · resolves ${resolve}` : ""}
+      {hook?.note ? (
+        <span className="markets-tape-detail-note">{hook.note}</span>
+      ) : null}
+      <span className="markets-tape-detail-figure">
+        <span className="markets-tape-detail-odds-grp">
+          <span
+            className="markets-tape-detail-src"
+            style={{ color: "var(--kalshi)" }}
+          >
+            K
+          </span>
+          <span className="markets-tape-detail-value">{kVal}</span>
+        </span>
+        <span className="markets-tape-detail-odds-grp">
+          <span
+            className="markets-tape-detail-src"
+            style={{ color: "var(--poly)" }}
+          >
+            P
+          </span>
+          <span className="markets-tape-detail-value">{pVal}</span>
+        </span>
       </span>
-      {hook ? <span className="markets-tape-detail-hook">{hook}</span> : null}
+      <span className="markets-tape-detail-fresh">Live · prediction market</span>
     </>
   );
   return (
@@ -229,6 +246,7 @@ function TickItem({
   tick,
   stale,
   closed,
+  zone,
   onHover,
 }: {
   tick: MarketTick;
@@ -237,6 +255,9 @@ function TickItem({
   // caller only sets closed when !stale — STALE wins). Last-session values keep
   // displaying; only the color flips to --ticker-closed.
   closed: boolean;
+  // HO 303: the cycling zone, so the hover's freshness time renders in the same
+  // zone as the strip's AS OF stamp.
+  zone: ZoneSpec;
   onHover: HoverHandler;
 }) {
   // HO 274: suppress an implausible daily move (see MAX_PLAUSIBLE_DAILY_MOVE_PCT)
@@ -295,33 +316,61 @@ function TickItem({
     : tick.cadence === "monthly"
       ? "Monthly release"
       : undefined;
-  // HO 251: cadence-aware freshness wording in the hover.
+  // HO 303: real freshness, derived per cadence/source — NOT a uniform "EOD".
+  // FRED-daily (10Y/WTI) → "EOD · {time}"; intraday indices → bare as-of time
+  // (no EOD label); FRED-monthly (CPI/UNEMP) → "FRED · monthly · released
+  // {month}"; kalshi (defensive — odds render via PairItem) → live.
   const freshnessText =
     tick.cadence === "monthly"
-      ? `monthly · as of ${formatMonth(tick.marketDate)}`
+      ? `FRED · monthly · released ${formatMonth(tick.marketDate)}`
       : tick.cadence === "kalshi"
-        ? `resolves ${formatResolveDate(tick.marketDate)}`
-        : `as of ${tick.marketDate}${tick.eod ? " · end of day" : ""}`;
+        ? "Live · prediction market"
+        : tick.eod
+          ? `EOD · ${formatInZone(tick.tickedAt, zone)}`
+          : formatInZone(tick.tickedAt, zone);
+  // HO 303: figure colors — value is white; the change carries the up/down hue
+  // with a ▲/▼ glyph (independent of the closed/stale wash, which only dims the
+  // inline tape value). A null-change item (monthly/kalshi) shows the value alone.
+  const figureColor =
+    pct === null
+      ? null
+      : pct > 0
+        ? "var(--market-up)"
+        : pct < 0
+          ? "var(--market-down)"
+          : "var(--text-muted)";
+  const figureArrow = pct === null ? "" : pct > 0 ? "▲" : pct < 0 ? "▼" : "";
   const hook = policyHook(tick.symbol);
-  // HO 175/177/292: the hover-detail content — full name, a meta line (group
-  // label · change · freshness), and the 292 policy hook. Positioned + portaled
-  // by the parent (HO 293) below the whole tape block, so it never lands on the
-  // sibling strip or the nav. aria-hidden: decorative (the symbol + price are
-  // already in the accessible row).
+  // HO 303: richer hover — name (amber) + dim sector, optional note, a figure
+  // (white value + colored change), and a real freshness line. Positioned +
+  // portaled by the parent (HO 293) below the whole tape block, so it never
+  // lands on the sibling strip or the nav. aria-hidden: decorative (the symbol +
+  // price are already in the accessible row).
   const detailNode = (
     <>
-      <span className="markets-tape-detail-name">{tick.fullName}</span>
-      <span className="markets-tape-detail-meta">
-        {tick.label !== tick.fullName ? `${tick.label} · ` : ""}
-        {pct !== null ? (
-          <>
-            <span style={{ color: colorVar }}>{detailChange}</span>
-            {" · "}
-          </>
+      <span className="markets-tape-detail-head">
+        <span className="markets-tape-detail-name">{tick.fullName}</span>
+        {hook ? (
+          <span className="markets-tape-detail-sector">{hook.sector}</span>
         ) : null}
-        {freshnessText}
       </span>
-      {hook ? <span className="markets-tape-detail-hook">{hook}</span> : null}
+      {hook?.note ? (
+        <span className="markets-tape-detail-note">{hook.note}</span>
+      ) : null}
+      <span className="markets-tape-detail-figure">
+        <span className="markets-tape-detail-value">
+          {formatPrice(tick.price, tick.format)}
+        </span>
+        {pct !== null ? (
+          <span
+            className="markets-tape-detail-change"
+            style={{ color: figureColor ?? undefined }}
+          >
+            {figureArrow} {detailChange}
+          </span>
+        ) : null}
+      </span>
+      <span className="markets-tape-detail-fresh">{freshnessText}</span>
     </>
   );
   return (
@@ -340,7 +389,7 @@ function TickItem({
             ? "var(--text-dim)"
             : closed
               ? "var(--ticker-closed)"
-              : "var(--text-secondary)",
+              : "var(--text-primary)",
         }}
       >
         {formatPrice(tick.price, tick.format)}
@@ -664,6 +713,7 @@ export function MarketsTapeClient({
         tick={t}
         stale={st.stale}
         closed={st.closed}
+        zone={zone}
         onHover={handleHover}
       />
     );

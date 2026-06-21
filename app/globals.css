@@ -4596,7 +4596,10 @@ body {
   position: relative;
 }
 .markets-tape-symbol {
-  color: var(--text-dim);
+  /* HO 303: the item code is amber-bright (was dim) so the tape and its hover
+     box read consistently — code amber, value white. The STALE/no-data wash
+     below still overrides this to dim. */
+  color: var(--accent-amber-bright);
   letter-spacing: 0.5px;
 }
 /* HO 287 — tier-3 QUALIFIER micro-tag (chip family), shared via <MicroTag>.
@@ -4620,7 +4623,9 @@ body {
    than a flat global max, so small values (VIX/WTI) aren't padded to SPX width.
    Right-align + tabular-nums so digits sit against the arrow and never reflow. */
 .markets-tape-price {
-  color: var(--text-secondary);
+  /* HO 303: the value is white (was --text-secondary) — code amber, value white.
+     The live color is also set inline per item (stale→dim, closed→washed). */
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -4693,29 +4698,72 @@ body {
   z-index: 1000;
   transform: translate(-50%, -100%);
 }
+/* HO 303: richer hover box — four stacked parts (head, note, figure, freshness).
+   Restructured from the HO 175/292 name + meta + hook lines per b2-tape-labels. */
+/* 1. Head: item name (amber-bright) with a small dim uppercase sector beside it. */
+.markets-tape-detail-head {
+  display: block;
+}
 .markets-tape-detail-name {
-  display: block;
   font-size: 14px;
-  color: var(--text-primary);
+  /* HO 303: amber-bright (was white) so the name matches the tape's item code. */
+  color: var(--accent-amber-bright);
 }
-.markets-tape-detail-meta {
-  display: block;
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-/* HO 292: the curated policy/Congress angle line (POLICY_HOOKS), dim tertiary
-   under the name + meta. white-space:normal + max-width lets the long hooks
-   (e.g. SHUTDOWN's) wrap to 2 lines instead of forcing the nowrap box wide; the
-   box width stays driven by the name/meta lines, so positioning is unchanged. */
-.markets-tape-detail-hook {
-  display: block;
-  margin-top: 5px;
-  font-size: 11px;
-  line-height: 1.35;
+.markets-tape-detail-sector {
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
   color: var(--text-dim);
+}
+/* 2. Note: the curated policy/Congress angle (POLICY_HOOKS.note), muted. Omitted
+   when the item has none. white-space:normal + max-width lets the longer notes
+   wrap instead of forcing the nowrap box wide; box width stays driven by the
+   head/figure rows, so positioning is unchanged. */
+.markets-tape-detail-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
   white-space: normal;
   max-width: 240px;
+}
+/* 3. Figure: the value (white) + change (up/down hue, ▲/▼) for markets; the K/P
+   odds grouping (brand letters, white numbers) for prediction markets. */
+.markets-tape-detail-figure {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.markets-tape-detail-value {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.markets-tape-detail-change {
+  font-size: 12px;
+}
+.markets-tape-detail-odds-grp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.markets-tape-detail-src {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+/* 4. Freshness: a dim bottom line with a top border, showing the item's real
+   freshness (EOD · time / as-of time / FRED monthly release / live odds). */
+.markets-tape-detail-fresh {
+  display: block;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-strong);
+  font-size: 10px;
+  color: var(--text-dim);
 }
 .markets-tape-meta {
   position: absolute;
