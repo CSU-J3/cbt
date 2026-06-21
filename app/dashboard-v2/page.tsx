@@ -8,8 +8,8 @@ import {
 } from "@/components/DashboardTopicTreemap";
 import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
+import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
-import { OnTheHillBand } from "@/components/OnTheHillBand";
 import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
@@ -89,7 +89,7 @@ export default async function DashboardV2Page() {
             HEARINGS, flips the default, and removes the standalone band below). */}
         <RacesBoxTabs
           defaultTab="hearings"
-          hearingsContent={<OnTheHillBand embedded />}
+          hearingsContent={<HearingsTab />}
           racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
         />
 

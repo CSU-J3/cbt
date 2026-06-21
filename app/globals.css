@@ -781,18 +781,25 @@ body {
     display: flex;
     flex-direction: column;
   }
-  /* The hill calendar stretches to the box bottom: head fixed, day grid grows,
-     and each day column's single grid row takes the leftover height (1fr) so the
-     bordered cells reach the bottom instead of leaving dead space below. */
-  .dv2-racesbox-panel--hearings .hill-band {
+  /* HO 306: the shared .hcal calendar fills the pinned box — filter bar fixed,
+     the week + its day grid grow, each day's single grid row takes the leftover
+     height (1fr) so the bordered cells reach the bottom (no dead space). */
+  .dv2-racesbox-panel--hearings .hcal {
+    flex: 1;
+    min-height: 0;
+  }
+  .dv2-racesbox-panel--hearings .hcal-week {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
   }
-  .dv2-racesbox-panel--hearings .hill-band-grid {
+  .dv2-racesbox-panel--hearings .hcal-grid {
     flex: 1;
     grid-auto-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
+  .dv2-racesbox-panel--hearings .hcal-day {
     min-height: 0;
   }
 }
@@ -6739,5 +6746,384 @@ a.hearing-watch:hover {
 @media (max-width: 720px) {
   .hill-band-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* HO 306 — shared hearings calendar (.hcal): the /hearings calendar-only view
+   AND the dashboard-v2 HEARINGS tab (embedded, height-pinned to the RACES
+   footprint). Filter bar + week header (WoW stat) + week grid with rich entries;
+   all detail floats in a portaled card so the grid never reflows. Tokens only;
+   today-wash is the existing amber at ~4.5% alpha. */
+.hcal {
+  display: flex;
+  flex-direction: column;
+}
+.hcal-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  padding: 7px 10px;
+  margin-bottom: 12px;
+  border: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+}
+.hcal-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.hcal-filter-label {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hcal-filter-opt {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.hcal-filter-opt:hover {
+  color: var(--text-secondary);
+}
+.hcal-filter-opt.is-active {
+  color: var(--accent-amber-bright);
+}
+.hcal-filter-opt.is-active::before {
+  content: "[";
+  color: var(--accent-amber);
+}
+.hcal-filter-opt.is-active::after {
+  content: "]";
+  color: var(--accent-amber);
+}
+.hcal-week {
+  margin-bottom: 18px;
+}
+.hcal-week:last-of-type {
+  margin-bottom: 0;
+}
+.hcal-weekhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.hcal-weekof {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hcal-weekstat {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: default;
+}
+.hcal-weekstat-n {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.hcal-weekstat-delta {
+  font-variant-numeric: tabular-nums;
+}
+.hcal-weekstat-delta.delta-up {
+  color: var(--market-up);
+}
+.hcal-weekstat-delta.delta-down {
+  color: var(--market-down);
+}
+.hcal-weekstat-delta.delta-flat {
+  color: var(--text-dim);
+}
+.hcal-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.hcal-day {
+  display: flex;
+  flex-direction: column;
+  min-height: 150px;
+  border: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+}
+.hcal-day.is-today {
+  background-color: color-mix(in srgb, var(--accent-amber) 4.5%, var(--bg-panel));
+}
+.hcal-dayhead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 0.5px solid var(--border-soft);
+  box-shadow: inset 0 -2px 0 transparent;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hcal-dayhead .dow {
+  color: var(--text-dim);
+}
+.hcal-dayhead .dom {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.hcal-dayhead .cnt {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.hcal-dayhead .today-tag {
+  color: var(--accent-amber-bright);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.hcal-day.is-today .hcal-dayhead {
+  box-shadow: inset 0 -2px 0 var(--accent-amber-bright);
+}
+.hcal-day.is-today .dow {
+  color: var(--accent-amber);
+}
+.hcal-day.is-today .dom {
+  color: var(--accent-amber-bright);
+}
+.hcal-day-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.hcal-day-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+.hcal-entry {
+  padding: 4px 7px;
+  border-left: 2px solid transparent;
+  background-color: var(--bg-base);
+  cursor: pointer;
+}
+.hcal-entry:hover {
+  background-color: var(--bg-row-hover);
+}
+.hcal-entry.has-bills {
+  border-left-color: var(--accent-amber);
+}
+.hcal-entry.is-markup .hcal-entry-kind {
+  color: var(--accent-amber);
+}
+.hcal-entry-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hcal-entry-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hcal-entry-kind {
+  color: var(--text-dim);
+}
+.hcal-entry-badges {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+}
+.hcal-badge-bills {
+  color: var(--accent-amber-bright);
+}
+.hcal-badge-live {
+  color: #ef4444;
+}
+.hcal-entry-title {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hcal-more {
+  padding: 2px 7px;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.hcal-more:hover {
+  color: var(--accent-amber);
+}
+.hcal-drill {
+  align-self: flex-start;
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.hcal-drill:hover {
+  color: var(--accent-amber-bright);
+}
+.hcal-card {
+  position: fixed;
+  z-index: 1000;
+  width: 340px;
+  padding: 11px 12px;
+  border: 0.5px solid var(--border-strong);
+  background-color: var(--bg-row-hover);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  font-size: 11px;
+}
+.hcal-card-chamber {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 1px 5px;
+  border: 0.5px solid var(--border-strong);
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.hcal-card-title {
+  margin-bottom: 9px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.hcal-card-sec {
+  margin-top: 8px;
+}
+.hcal-card-cap {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hcal-card-watch {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.hcal-card-watch:hover {
+  text-decoration: underline;
+}
+.hcal-card-watch.status-live {
+  color: #ef4444;
+}
+.hcal-card-watch.is-none {
+  color: var(--text-dim);
+}
+.hcal-card-link {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.hcal-card-link:hover {
+  color: var(--accent-amber-bright);
+}
+.hcal-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-secondary);
+}
+.hcal-card-details .k {
+  display: inline-block;
+  min-width: 44px;
+  color: var(--text-dim);
+}
+.hcal-card-details .is-live {
+  color: #ef4444;
+}
+.hcal-card-bills {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.hcal-card-bill {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.hcal-card-billid {
+  flex: none;
+  color: var(--accent-amber);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.hcal-card-billtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.hcal-card-billid:hover,
+.hcal-card-billtitle:hover {
+  color: var(--accent-amber-bright);
+}
+.hcal-stat-tip {
+  position: fixed;
+  z-index: 1000;
+  width: 280px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+.hcal-stat-tip-label {
+  font-size: 8.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+}
+.hcal-stat-tip-body {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.hcal--embedded {
+  height: 100%;
+}
+.hcal--embedded .hcal-filterbar {
+  margin-bottom: 8px;
+}
+@media (max-width: 720px) {
+  .hcal-grid {
+    grid-template-columns: 1fr;
+  }
+  .hcal-card {
+    width: min(340px, calc(100vw - 24px));
   }
 }
