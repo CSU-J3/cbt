@@ -6533,6 +6533,13 @@ a.hearing-watch:hover {
 .hill-band-none {
   color: var(--text-dim);
 }
+/* HO 304: the left subhead slot is the week date range ("JUN 15 – 19"), matching
+   the v3 mock — a quiet temporal label for the Mon–Fri grid, not a today status. */
+.hill-band-week {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .hill-band-right {
   margin-left: auto;
   color: var(--text-dim);

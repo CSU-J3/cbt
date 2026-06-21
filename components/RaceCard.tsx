@@ -81,6 +81,10 @@ export function RaceCard({
 }) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
+  // HO 304: House cards carry a "2024 R+5.4" margin badge in the top row; the v3
+  // mock swaps the INCUMBENT badge for that margin, so a card shows ONE badge,
+  // not two — drop INCUMBENT wherever the margin shows. OPEN still overrides.
+  const hasMarginBadge = !isSenate && row.margin2024 != null;
   // Roster = incumbent + challengers, so a candidate-named market resolves to a
   // party. Filtered to entries that carry a name (RosterEntry requires it).
   const roster: RosterEntry[] = [
@@ -173,7 +177,7 @@ export function RaceCard({
         <span className="rc-nm">{row.incumbentName ?? "Open seat"}</span>
         {open ? (
           <span className="rc-tag rc-tag-open">OPEN</span>
-        ) : row.incumbentName ? (
+        ) : row.incumbentName && !hasMarginBadge ? (
           <span className="rc-tag">INCUMBENT</span>
         ) : null}
       </div>

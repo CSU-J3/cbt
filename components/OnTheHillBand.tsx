@@ -17,7 +17,6 @@ import {
   watchState,
 } from "@/lib/hearings";
 import {
-  getCommitteesIndex,
   getRecentMeetings,
   getUpcomingMeetings,
   type CommitteeMeeting,
@@ -50,13 +49,23 @@ export async function OnTheHillBand({
   const weekKeys = Array.from({ length: 5 }, (_, i) => addDaysToKey(monKey, i));
   const weekKeySet = new Set(weekKeys);
 
-  const [upcoming, recent, committees] = await Promise.all([
+  // HO 304 — the left subhead slot is the WEEK DATE RANGE the grid displays (the
+  // v3 mock: "JUN 15 – 19"), spanning the same Mon–Fri window as the columns.
+  // It previously pulled a today/empty status (LIVE NOW / NEXT / NO MEETINGS
+  // SCHEDULED), which read "NO MEETINGS SCHEDULED" on a weekend even while the
+  // grid showed the week's meetings below it. The grid's per-day ● still marks a
+  // live meeting; the right side keeps the "N meetings · → Hearings" count.
+  const monParts = dayKeyParts(monKey);
+  const friParts = dayKeyParts(addDaysToKey(monKey, 4));
+  const weekRange =
+    monParts.mon === friParts.mon
+      ? `${monParts.mon} ${monParts.dom} – ${friParts.dom}`
+      : `${monParts.mon} ${monParts.dom} – ${friParts.mon} ${friParts.dom}`;
+
+  const [upcoming, recent] = await Promise.all([
     getUpcomingMeetings(),
     getRecentMeetings(RECENT_DAYS),
-    getCommitteesIndex(),
   ]);
-  const committeeNames: Record<string, string> = {};
-  for (const c of committees) committeeNames[c.systemCode] = c.name;
 
   // this week's meetings only, bucketed by ET day, each day time-sorted asc.
   const byDay = new Map<string, CommitteeMeeting[]>();
@@ -73,28 +82,6 @@ export async function OnTheHillBand({
     arr.sort((a, b) => Date.parse(a.meetingDate) - Date.parse(b.meetingDate));
   }
 
-  // LIVE NOW callout — the first meeting live right now under Piece 1's rule.
-  const live =
-    [...upcoming, ...recent]
-      .filter((m) => weekKeySet.has(etDayKey(m.meetingDate)))
-      .sort((a, b) => Date.parse(a.meetingDate) - Date.parse(b.meetingDate))
-      .find((m) => watchState(m, nowMs) === "live") ?? null;
-  const liveCommittee = live?.committeeSystemCode
-    ? (committeeNames[live.committeeSystemCode] ?? null)
-    : null;
-
-  // Non-live fallback (most of the day): the next upcoming meeting this week, so
-  // the sub-bar's left side never sits empty. `upcoming` is meeting_date >= now
-  // ASC, so the first this-week entry is the soonest. If nothing's left this
-  // week, the render falls through to a muted NO MEETINGS SCHEDULED.
-  const nextUp = live
-    ? null
-    : (upcoming.find(
-        (m) =>
-          weekKeySet.has(etDayKey(m.meetingDate)) &&
-          Date.parse(m.meetingDate) >= nowMs,
-      ) ?? null);
-
   return (
     <section
       className={`hill-band${embedded ? " hill-band--embedded" : ""}`}
@@ -105,37 +92,7 @@ export async function OnTheHillBand({
           <span className="hill-band-title">On the Hill · This week</span>
         )}
 
-        {live ? (
-          <Link
-            href={dayHref(etDayKey(live.meetingDate))}
-            className="hill-band-live"
-          >
-            <span aria-hidden>●</span> LIVE NOW ·{" "}
-            <span className="tabular-nums">{etTimeLabel(live.meetingDate)}</span>{" "}
-            ·{" "}
-            <span className="hill-band-live-title">
-              {cleanMeetingTitle(live.title)}
-            </span>
-            {liveCommittee ? ` · ${liveCommittee}` : ""}
-          </Link>
-        ) : nextUp ? (
-          <Link
-            href={dayHref(etDayKey(nextUp.meetingDate))}
-            className="hill-band-next"
-          >
-            NEXT ·{" "}
-            <span className="tabular-nums">
-              {dayKeyParts(etDayKey(nextUp.meetingDate)).dow}{" "}
-              {etTimeLabel(nextUp.meetingDate)}
-            </span>{" "}
-            ·{" "}
-            <span className="hill-band-live-title">
-              {cleanMeetingTitle(nextUp.title)}
-            </span>
-          </Link>
-        ) : (
-          <span className="hill-band-none">NO MEETINGS SCHEDULED</span>
-        )}
+        <span className="hill-band-week">{weekRange}</span>
 
         <span className="hill-band-right">
           <span className="tabular-nums">{total.toLocaleString()}</span> meetings
