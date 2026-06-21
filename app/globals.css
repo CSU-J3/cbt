@@ -3022,6 +3022,16 @@ body {
    inherits the app's mono (no --sans in CBT); labels/ids stay mono. */
 .v2f-group.open {
   background: var(--bg-row-hover);
+  /* HO 303 (B6 coherence): amber frame on the open row — the mock's expanded-row
+     rule. Muted --accent-amber (#d97706), NOT --accent-amber-bright — bright is
+     reserved for the active-tab underline + primary-button text. margin:-1px 0 +
+     position/z-index pull the border over the neighbors so it reads as a single
+     clean line, painting above the sibling rows. */
+  border: 1px solid var(--accent-amber);
+  border-radius: 2px;
+  margin: -1px 0;
+  position: relative;
+  z-index: 1;
 }
 /* HO 297 (B6): collapsed rowhead = id chip · title · topic tag(s) · [spacer] ·
    metric · caret. Flex so the title ellipsizes and `margin-left:auto` on the
@@ -3368,6 +3378,13 @@ body {
 .v2f-btns a:hover {
   border-color: var(--accent-amber);
   color: var(--accent-amber-bright);
+}
+/* HO 303 (B6 coherence): FULL BILL PAGE is the amber primary (bright text +
+   muted-amber border, per the mock's primary-button rule). CONGRESS.GOV keeps
+   the default gray .v2f-btns a above with its ↗. */
+.v2f-btns a.v2f-btn-primary {
+  color: var(--accent-amber-bright);
+  border-color: var(--accent-amber);
 }
 
 /* HO 300 — sponsor hover card (v2 meta column). Inline trigger = the name

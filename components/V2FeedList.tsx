@@ -164,13 +164,15 @@ function StageBar({ bill }: { bill: FeedBill }) {
     !isEnacted && daysSince(bill.latest_action_date) >= STAGE_BAR_STALE_DAYS;
   const curState = isEnacted ? "done" : stale ? "parked" : "moving";
 
+  // HO 303 (B6 coherence): ISO dates (formatDateLong, YYYY-MM-DD) to match the
+  // meta column's INTRODUCED on the same card — not the MM-DD-YY formatDateShort.
   const introDate = bill.introduced_date
-    ? formatDateShort(bill.introduced_date)
+    ? formatDateLong(bill.introduced_date)
     : "";
   // Current-node date = when it reached the stage (stage_changed_at), else the
   // latest action date if that's all we have.
   const curRaw = bill.stage_changed_at ?? bill.latest_action_date;
-  const curDate = curRaw ? formatDateShort(curRaw) : "";
+  const curDate = curRaw ? formatDateLong(curRaw) : "";
 
   return (
     <div className="v2f-bar" aria-label="Bill stage">
@@ -475,8 +477,12 @@ function Expand({ bill, panel }: { bill: FeedBill; panel: PanelData | null }) {
             </>
           ) : null}
           <div className="v2f-btns">
-            <a href={`/bill/${bill.id}`} onClick={(e) => e.stopPropagation()}>
-              FULL BILL PAGE
+            <a
+              className="v2f-btn-primary"
+              href={`/bill/${bill.id}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              FULL BILL PAGE →
             </a>
             <a
               href={cgUrl}
