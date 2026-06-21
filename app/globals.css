@@ -798,9 +798,19 @@ body {
     flex: 1;
     grid-auto-rows: minmax(0, 1fr);
     min-height: 0;
+    overflow: hidden; /* HO 309: backstop — no column paints outside the box */
   }
   .dv2-racesbox-panel--hearings .hcal-day {
     min-height: 0;
+    overflow: hidden;
+  }
+  /* HO 309: the rows fill + clip; "+N more" (a sibling) stays pinned + visible
+     at the column bottom. The lowered dashboard cap keeps the shown rows whole;
+     this clip is the backstop so a tall day can never escape the pinned box. */
+  .dv2-racesbox-panel--hearings .hcal-day-list {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 }
 
@@ -6972,6 +6982,7 @@ a.hearing-watch:hover {
   overflow: hidden;
 }
 .hcal-more {
+  flex: none; /* HO 309: never shrink — stays a visible, clickable bottom row */
   padding: 2px 7px;
   font-size: 10px;
   letter-spacing: 0.3px;

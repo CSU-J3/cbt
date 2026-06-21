@@ -11,7 +11,10 @@ import {
 } from "@/lib/queries";
 
 const RECENT_DAYS = 14;
-const DAY_CAP = 6;
+// HO 309: the pinned grid region holds ~5 whole two-line rows (live-measured:
+// ~321px list area / 56px row) plus the bottom-pinned "+N more". Six chopped the
+// 6th row mid-height. Five shows whole rows + a visible "+N more" inside the box.
+const DAY_CAP = 5;
 
 export async function HearingsTab() {
   const [upcoming, recent, committees] = await Promise.all([

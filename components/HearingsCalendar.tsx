@@ -477,6 +477,7 @@ export function HearingsCalendar({
                 return (
                   <div
                     key={dayKey}
+                    id={`hcal-day-${dayKey}`}
                     className={`hcal-day${isToday ? " is-today" : ""}`}
                   >
                     <div className="hcal-dayhead">
@@ -488,22 +489,30 @@ export function HearingsCalendar({
                     {dm.length === 0 ? (
                       <div className="hcal-day-empty">No meetings</div>
                     ) : (
-                      <div className="hcal-day-list">
-                        {shown.map((m) => (
-                          <Entry
-                            key={m.eventId}
-                            m={m}
-                            nowMs={nowMs}
-                            onOpen={onOpen}
-                            onLeave={scheduleClose}
-                          />
-                        ))}
+                      <>
+                        {/* HO 309: the list fills + clips inside the dashboard's
+                            pinned column; "+N more" is a SIBLING pinned at the
+                            column bottom so the clip can't eat it. */}
+                        <div className="hcal-day-list">
+                          {shown.map((m) => (
+                            <Entry
+                              key={m.eventId}
+                              m={m}
+                              nowMs={nowMs}
+                              onOpen={onOpen}
+                              onLeave={scheduleClose}
+                            />
+                          ))}
+                        </div>
                         {more > 0 ? (
-                          <Link href="/hearings" className="hcal-more">
+                          <Link
+                            href={`/hearings#hcal-day-${dayKey}`}
+                            className="hcal-more"
+                          >
                             +{more} more
                           </Link>
                         ) : null}
-                      </div>
+                      </>
                     )}
                   </div>
                 );
