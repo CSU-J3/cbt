@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
+import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { MarketsTape } from "@/components/MarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
@@ -12,6 +13,7 @@ import { formatLastUpdated } from "@/lib/format";
 import {
   type FeedCount,
   type FeedFilters,
+  getCorpusStats,
   getFeedStats,
 } from "@/lib/queries";
 
@@ -160,6 +162,11 @@ export async function HeaderBar({
   const includeCeremonial = !!feedFilters?.includeCeremonial;
   const cluster = feedFilters?.cluster;
   const stats = await getFeedStats(includeCeremonial, cluster);
+  // HO 325: the LAST SYNC subhead reads the dashboard's EXACT source —
+  // getCorpusStats(true).lastSync (global, filter-independent) — so the inner-page
+  // time can't drift from the dashboard's on filtered pages (getFeedStats's
+  // lastUpdated varies with includeCeremonial/cluster; this doesn't).
+  const corpus = await getCorpusStats(true);
   const showSearch = !!feedFilters;
   // Suppressed on /watchlist and /bill/[id] (no feedFilters threaded in).
   // Also suppressed when a cluster is active — cluster bypasses the
@@ -225,6 +232,17 @@ export async function HeaderBar({
           cursor
         />
       </div>
+
+      {/* HO 325 — LAST SYNC subhead on its own line, between the title row and the
+          nav row, matching the dashboard's `· LAST SYNC <time>` exactly: same
+          label, the HO 183 zone-cycling time (CyclingTimestamp), reading the same
+          global source (getCorpusStats(true).lastSync). No caret (the dashboard's
+          subhead has none). The count does NOT return (HO 323). */}
+      <p className="header-sync-sub">
+        ·{" "}
+        <span className="show-desktop">LAST SYNC </span>
+        <CyclingTimestamp iso={corpus.lastSync} />
+      </p>
 
       {/* Nav on its own full-width row, matching the dashboard: PrimaryNav
           variant="home" = the `.home-header-nav` styling (bracketed active item,

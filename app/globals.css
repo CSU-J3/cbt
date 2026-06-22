@@ -137,6 +137,17 @@ body {
   padding: 0 var(--space-lg);
   border-bottom: 1px solid var(--border-strong);
 }
+/* HO 325 — LAST SYNC subhead between the title row and the nav row. Matches the
+   dashboard's `.home-header-meta` (11px dim uppercase, leading ·) + the inner
+   `--space-lg` padding so title / subhead / nav share a left edge. No border (the
+   nav row's top border is the single rule under it). */
+.header-sync-sub {
+  padding: 2px var(--space-lg) 8px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
 .header-titlebar .breadcrumb-path {
   /* HO 187: the path is the page identity — it must read as the title and
      dominate the bar, clearly larger than the nav to its right. 20px is the
