@@ -7,7 +7,7 @@ import { MediaAttentionCell } from "@/components/MediaAttentionCell";
 import { PartyTag } from "@/components/PartyTag";
 import { SponsorHoverName } from "@/components/SponsorHoverName";
 import { StagePillStrip } from "@/components/StagePillStrip";
-import { TopicTags } from "@/components/TopicTags";
+import { TopicChips } from "@/components/TopicChips";
 import { WatchStar } from "@/components/WatchStar";
 import { daysSince, parseTopics } from "@/lib/format";
 import type { FeedBill } from "@/lib/queries";
@@ -128,7 +128,7 @@ export function BillRow({
           {sponsorBlock}
           {topics.length > 0 ? (
             <span className="inline-flex">
-              <TopicTags topics={topics} responsive />
+              <TopicChips topics={topics} responsive />
             </span>
           ) : null}
           {expandable ? (
