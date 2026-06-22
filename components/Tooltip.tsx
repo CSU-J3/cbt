@@ -53,6 +53,10 @@ type TermProps = CommonProps & {
   /** The inline text being marked. Keeps its own color; only gains the
    *  dotted underline. */
   children: ReactNode;
+  /** HO 316: suppress the dotted-underline trigger styling. Use when the
+   *  wrapped element already carries its own affordance (e.g. a bordered topic
+   *  chip — a dotted underline under a bordered box reads wrong). Default true. */
+  underline?: boolean;
 };
 
 type BadgeProps = CommonProps & {
@@ -250,7 +254,7 @@ export function Tooltip(props: TooltipProps) {
       <>
         <span
           {...sharedTriggerProps}
-          className="tooltip-term"
+          className={`tooltip-term${props.underline === false ? " tooltip-term--plain" : ""}`}
           aria-label={props.ariaLabel}
         >
           {props.children}

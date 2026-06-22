@@ -3214,9 +3214,11 @@ body {
 .v2f-title-wrap.truncated:hover .title-pop {
   display: block;
 }
-/* Topic tag(s) — relocated from the expand to the rowhead (HO 297). Chip-family
-   topic treatment: topic color text + that color @45% as border. Per-chip hover
-   popover ("CODE · Full name"). */
+/* Topic chip — the ONE shared bordered chip (HO 316, was HO 297's private fn).
+   Chip-family topic treatment: topic color text + that color @45% as border. The
+   "CODE · Full name" hover now routes through the shared Tooltip primitive
+   (underline-free term variant), so the bespoke .topic-pop is retired. Used by
+   both the dashboard feed (V2FeedList) and /bills BillRow via TopicChips.tsx. */
 .v2f-topics-inline {
   flex: none;
   display: flex;
@@ -3234,27 +3236,14 @@ body {
   white-space: nowrap;
   cursor: help;
 }
-.topic-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 60;
-  display: none;
-  white-space: nowrap;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: normal;
-  color: var(--text-primary);
-  background-color: var(--bg-row-hover);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  padding: 5px 9px;
-  pointer-events: none;
-}
-.v2f-topic:hover .topic-pop {
-  display: block;
+/* HO 316: responsive overflow — the mobile "+N" after the first chip (the
+   single overflow path, carried from TopicTags's responsive mode). */
+.v2f-topic-more {
+  margin-left: 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
 }
 .v2f-metric {
   flex: none;
@@ -4503,6 +4492,15 @@ body {
 }
 .tooltip-term:focus-visible {
   border-bottom-color: var(--accent-amber);
+}
+/* HO 316: underline-free term trigger — the wrapped element carries its own
+   affordance (e.g. the bordered topic chip), so the dotted underline is wrong. */
+.tooltip-term--plain {
+  border-bottom: none;
+}
+.tooltip-term--plain:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 2px;
 }
 
 /* HO 154.6: BillIdRail's tooltip-term wraps a two-line vertical block
