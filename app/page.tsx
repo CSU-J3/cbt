@@ -1,3 +1,4 @@
+import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
@@ -15,56 +16,71 @@ import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
+  type DashboardFilters,
   getBreakingNewsForHomeCount,
   getCorpusStats,
   getNewBillsThisWeekCount,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
+  sanitizeStage,
+  sanitizeTopic,
 } from "@/lib/queries";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 const TOP_STALLS_COUNT = 5;
 
-// Dynamic render: the dashboard reads live DB aggregates, and the reused
-// distribution blocks (StageFunnel / DashboardTopicTreemap) call
-// useSearchParams() even in staticMode, so declare dynamic — otherwise Next
-// tries to statically prerender and the useSearchParams() CSR-bailout fails the
-// build. (The page itself takes no searchParams.)
+// Dynamic render: the dashboard reads live DB aggregates AND awaits searchParams
+// for the distributions click-to-filter (below), both of which opt the route out
+// of static prerender.
 export const dynamic = "force-dynamic";
 
 // HO 311 — the dashboard. This is the v2 redesign (HOs 253–310), promoted from
 // the parallel `/dashboard-v2` route to `/`. The old `/` dashboard is preserved
-// unlinked at `/dashboard-classic`; `/dashboard-v2` now permanently redirects
-// here.
+// unlinked at `/dashboard-classic`; `/dashboard-v2` permanently redirects here.
 //
 // Masthead-count decision (HO 253): every corpus count is read through the
 // summary-gated predicate — the headline total, its four stage segments, and the
 // body's stage + topic panels — so `/`'s "tracked" number agrees with the inner
 // pages it links to (getFeedStats / buildFeedWhere also gate `summary IS NOT
-// NULL`). Fetched once here, fed to both header and body. This is intentionally
-// the gated (~15.2k) number, not the old non-gated getCorpusStats (~16.2k); `/`
-// now matches /bills and the rest.
+// NULL`). This is intentionally the gated (~15.2k) number, not the old non-gated
+// getCorpusStats (~16.2k); `/` now matches /bills and the rest.
 //
-// Static distributions (HO 311 swap decision): the page takes no searchParams,
-// so the funnel + treemap render in `staticMode` — a clean non-interactive chart
-// (no router.push, no ?stage=/?topics= written, no selected/dimmed state). The
-// old `/`'s click-to-filter lives on at /dashboard-classic; porting it into this
-// composition is a future handoff (open loop).
-export default async function DashboardPage() {
+// Distributions click-to-filter (HO 320, ported from /dashboard-classic): the
+// funnel + treemap push `?stage=` / `?topics=` and the page rebases the STAGE +
+// TOPIC distributions, the MOVERS feed, and BREAKING to that slice (with
+// `ActiveFilterStrip` + × CLEAR + VIEW IN /bills →). The distributions stay
+// summary-gated (`true` arg) so the gated count agreement holds while filtered.
+// TWO stage distributions: the header's four segments stay corpus-wide
+// (`stageDistFull`); the funnel rebases (`stageDistFiltered`). The masthead total
+// and TOP STALLS / NEW THIS WEEK stay corpus-wide (classic parity — those two
+// feed queries don't take DashboardFilters).
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stage?: string; topics?: string }>;
+}) {
+  const sp = await searchParams;
+  const filters: DashboardFilters = {
+    stage: sanitizeStage(sp.stage),
+    topic: sanitizeTopic(sp.topics),
+  };
+
   const [
     corpus,
-    stageDist,
+    stageDistFull,
+    stageDistFiltered,
     topicRows,
     breakingCount,
     activityCount,
     newBillsCount,
   ] = await Promise.all([
     getCorpusStats(true),
-    getStageDistribution(undefined, true),
-    getTopicDistribution(undefined, true),
-    getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7 }),
-    getStageChangesCount({}, 7),
+    getStageDistribution(undefined, true), // header segments — corpus-wide
+    getStageDistribution(filters, true), // funnel — rebases on TOPIC
+    getTopicDistribution(filters, true), // treemap — rebases on STAGE
+    getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
+    getStageChangesCount({}, 7, filters),
     getNewBillsThisWeekCount(),
   ]);
 
@@ -78,7 +94,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="home-shell">
-      <DashboardV2Header corpus={corpus} stageDist={stageDist} />
+      <DashboardV2Header corpus={corpus} stageDist={stageDistFull} />
+      <ActiveFilterStrip filters={filters} />
 
       <main className="home-main">
         {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
@@ -93,7 +110,7 @@ export default async function DashboardPage() {
         <WeeklyBand />
 
         {/* 49/51 two-column body. LEFT: breaking over the tabbed STAGE | TOPIC
-            distributions (gated, static). RIGHT: the feed (shared expand). */}
+            distributions (gated, interactive click-to-filter). RIGHT: the feed. */}
         <div className="dv2-grid">
           <div className="home-col-stack dv2-col-left">
             <section className="home-quadrant home-breaking-panel">
@@ -106,15 +123,13 @@ export default async function DashboardPage() {
                   ({breakingCount.toLocaleString()})
                 </span>
               </p>
-              <BreakingNewsBlock />
+              <BreakingNewsBlock filters={filters} />
             </section>
 
             <section className="home-quadrant home-panel-distributions">
               <DistributionsTabs
-                stageContent={<StageFunnel bars={stageDist.bars} staticMode />}
-                topicContent={
-                  <DashboardTopicTreemap data={topicData} staticMode />
-                }
+                stageContent={<StageFunnel bars={stageDistFiltered.bars} />}
+                topicContent={<DashboardTopicTreemap data={topicData} />}
               />
             </section>
           </div>
@@ -124,7 +139,9 @@ export default async function DashboardPage() {
                 sponsor hover card can escape the quadrant's overflow:hidden. */}
             <section className="home-quadrant home-feed-panel">
               <ActivityTabs
-                activityContent={<ActivityTicker variant="v2" />}
+                activityContent={
+                  <ActivityTicker variant="v2" filters={filters} />
+                }
                 stallsContent={<TopStalls variant="v2" />}
                 newContent={<NewThisWeek variant="v2" />}
                 activityCount={activityCount.total}
