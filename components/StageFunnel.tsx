@@ -53,10 +53,24 @@ const STAGE_COLORS: Record<Stage, string> = {
 // if the track gets very narrow at small viewports.
 const MIN_BAR_PCT = 2.2;
 
-export function StageFunnel({ bars }: { bars: StageBar[] }) {
+// `basePath` is the dashboard route the funnel filters against (default `/`).
+// `/dashboard-classic` passes its own path so its click-to-filter rebases itself,
+// not the v2 `/`. `staticMode` (the v2 `/` swap, HO 311) renders a non-interactive
+// chart: no router.push, no `?stage=` written, no selected/dimmed state — the v2
+// page doesn't read searchParams, so an interactive funnel there would be a
+// misleading half-state. Defaults preserve the original interactive behavior.
+export function StageFunnel({
+  bars,
+  basePath = "/",
+  staticMode = false,
+}: {
+  bars: StageBar[];
+  basePath?: string;
+  staticMode?: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
-  const currentStage = params.get("stage");
+  const currentStage = staticMode ? null : params.get("stage");
 
   const maxCount = bars.reduce((m, b) => Math.max(m, b.count), 0);
   const sqrtMax = Math.sqrt(maxCount) || 1;
@@ -66,7 +80,7 @@ export function StageFunnel({ bars }: { bars: StageBar[] }) {
     if (isSelected) next.delete("stage");
     else next.set("stage", stage);
     const qs = next.toString();
-    return qs ? `/?${qs}` : "/";
+    return qs ? `${basePath}?${qs}` : basePath;
   }
 
   function handleClick(e: MouseEvent<HTMLAnchorElement>, href: string) {
@@ -87,34 +101,51 @@ export function StageFunnel({ bars }: { bars: StageBar[] }) {
         const dimmed = anySelected && !isSelected;
         const rawPct = (Math.sqrt(b.count) / sqrtMax) * 100;
         const widthPct = Math.max(rawPct, MIN_BAR_PCT);
-        const href = buildHref(b.stage, isSelected);
-        const tooltip = `${STAGE_TOOLTIP_LABELS[b.stage]} · ${b.count.toLocaleString()} bills · ${b.percentage.toFixed(1)}% of corpus · click to filter`;
+        const tooltipBase = `${STAGE_TOOLTIP_LABELS[b.stage]} · ${b.count.toLocaleString()} bills · ${b.percentage.toFixed(1)}% of corpus`;
+        const tooltip = staticMode
+          ? tooltipBase
+          : `${tooltipBase} · click to filter`;
+        const inner = (
+          <>
+            <span className="stage-funnel-label">
+              {STAGE_LABELS[b.stage]}
+            </span>
+            <span className="stage-funnel-track">
+              <span
+                className="stage-funnel-bar"
+                style={{
+                  width: `${widthPct}%`,
+                  backgroundColor: STAGE_COLORS[b.stage],
+                }}
+                aria-hidden
+              />
+            </span>
+            <span className="stage-funnel-count">
+              {b.count.toLocaleString()}
+            </span>
+          </>
+        );
         return (
           <li key={b.stage}>
-            <a
-              href={href}
-              onClick={(e) => handleClick(e, href)}
-              title={tooltip}
-              aria-label={tooltip}
-              className={`stage-funnel-row${isSelected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
-            >
-              <span className="stage-funnel-label">
-                {STAGE_LABELS[b.stage]}
-              </span>
-              <span className="stage-funnel-track">
-                <span
-                  className="stage-funnel-bar"
-                  style={{
-                    width: `${widthPct}%`,
-                    backgroundColor: STAGE_COLORS[b.stage],
-                  }}
-                  aria-hidden
-                />
-              </span>
-              <span className="stage-funnel-count">
-                {b.count.toLocaleString()}
-              </span>
-            </a>
+            {staticMode ? (
+              <div
+                title={tooltip}
+                aria-label={tooltip}
+                className="stage-funnel-row is-static"
+              >
+                {inner}
+              </div>
+            ) : (
+              <a
+                href={buildHref(b.stage, isSelected)}
+                onClick={(e) => handleClick(e, buildHref(b.stage, isSelected))}
+                title={tooltip}
+                aria-label={tooltip}
+                className={`stage-funnel-row${isSelected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}`}
+              >
+                {inner}
+              </a>
+            )}
           </li>
         );
       })}

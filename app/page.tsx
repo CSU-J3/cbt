@@ -1,4 +1,3 @@
-import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
@@ -7,70 +6,68 @@ import {
   DashboardTopicTreemap,
   type TopicDatum,
 } from "@/components/DashboardTopicTreemap";
+import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
-import { HomeHeader } from "@/components/HomeHeader";
+import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
+import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
-  type DashboardFilters,
   getBreakingNewsForHomeCount,
+  getCorpusStats,
   getNewBillsThisWeekCount,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
-  sanitizeStage,
-  sanitizeTopic,
 } from "@/lib/queries";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 const TOP_STALLS_COUNT = 5;
 
-// HO 150 layout: chrome stack (masthead + tape + nav) → full-width BREAKING
-// strip → two-equal-column grid (left: STAGE over TOPIC bubbles; right:
-// ACTIVITY / TOP STALLS tabs) → HO 153 reports-snapshot slot (reserved,
-// empty). The HO 131/133/134 three-column no-scroll grid is gone — spec 1
-// preserves the answer-above-fold (masthead prose + BREAKING) but lets the
-// page scroll so the bubbles can breathe at full half-width.
+// Dynamic render: the dashboard reads live DB aggregates, and the reused
+// distribution blocks (StageFunnel / DashboardTopicTreemap) call
+// useSearchParams() even in staticMode, so declare dynamic — otherwise Next
+// tries to statically prerender and the useSearchParams() CSR-bailout fails the
+// build. (The page itself takes no searchParams.)
+export const dynamic = "force-dynamic";
+
+// HO 311 — the dashboard. This is the v2 redesign (HOs 253–310), promoted from
+// the parallel `/dashboard-v2` route to `/`. The old `/` dashboard is preserved
+// unlinked at `/dashboard-classic`; `/dashboard-v2` now permanently redirects
+// here.
 //
-// Click-to-filter (HO 132) is unchanged: funnel bars and topic bubbles
-// push ?stage= / ?topics=; ACTIVITY and BREAKING both rebase to the
-// filtered slice; bubble sizes rebase when STAGE is selected; the funnel
-// rebases when TOPIC is selected. Lead stays corpus-wide.
-type SearchParams = {
-  stage?: string;
-  topics?: string;
-};
+// Masthead-count decision (HO 253): every corpus count is read through the
+// summary-gated predicate — the headline total, its four stage segments, and the
+// body's stage + topic panels — so `/`'s "tracked" number agrees with the inner
+// pages it links to (getFeedStats / buildFeedWhere also gate `summary IS NOT
+// NULL`). Fetched once here, fed to both header and body. This is intentionally
+// the gated (~15.2k) number, not the old non-gated getCorpusStats (~16.2k); `/`
+// now matches /bills and the rest.
+//
+// Static distributions (HO 311 swap decision): the page takes no searchParams,
+// so the funnel + treemap render in `staticMode` — a clean non-interactive chart
+// (no router.push, no ?stage=/?topics= written, no selected/dimmed state). The
+// old `/`'s click-to-filter lives on at /dashboard-classic; porting it into this
+// composition is a future handoff (open loop).
+export default async function DashboardPage() {
+  const [
+    corpus,
+    stageDist,
+    topicRows,
+    breakingCount,
+    activityCount,
+    newBillsCount,
+  ] = await Promise.all([
+    getCorpusStats(true),
+    getStageDistribution(undefined, true),
+    getTopicDistribution(undefined, true),
+    getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7 }),
+    getStageChangesCount({}, 7),
+    getNewBillsThisWeekCount(),
+  ]);
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<SearchParams>;
-}) {
-  const sp = await searchParams;
-  const filters: DashboardFilters = {
-    stage: sanitizeStage(sp.stage),
-    topic: sanitizeTopic(sp.topics),
-  };
-
-  const [breakingCount, activityCount, newBillsCount, stageDist, topicRows] =
-    await Promise.all([
-      getBreakingNewsForHomeCount({
-        hours: 72,
-        minConfidence: 0.7,
-        filters,
-      }),
-      getStageChangesCount({}, 7, filters),
-      getNewBillsThisWeekCount(),
-      getStageDistribution(filters),
-      getTopicDistribution(filters),
-    ]);
-
-  // HO 180: each bubble carries its full category name for the hover popover
-  // (per-topic colors mean the abbreviation alone no longer needs decoding from
-  // a legend). The count rides the popover too; the old percentage-of-corpus
-  // tooltip string was dropped with the native <title>.
   const topicData: TopicDatum[] = topicRows.map((t) => ({
     id: t.topic,
     label: topicLabel(t.topic),
@@ -81,32 +78,24 @@ export default async function DashboardPage({
 
   return (
     <div className="home-shell">
-      <HomeHeader />
-      <ActiveFilterStrip filters={filters} />
+      <DashboardV2Header corpus={corpus} stageDist={stageDist} />
 
       <main className="home-main">
-        {/* HO 244 (commit 2): races moved to FULL WIDTH directly under the
-            header (was the right-column top in HO 178). Both COMPETITIVE /
-            PRIMARIES tabs (HO 233 RacesPanelTabs) move with it; no internal
-            card changes. */}
-        <CompetitiveRacesBlock />
+        {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
+            re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}
+        <RacesBoxTabs
+          defaultTab="hearings"
+          hearingsContent={<HearingsTab />}
+          racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
+        />
 
-        {/* HO 244 (commit 2): the weekly band — full-width, directly under
-            races, divider rule above (its border-top). Replaces the HO 153
-            ReportSnapshot teaser AND folds in the HO 232 standalone
-            EnactedBanner (both removed). */}
+        {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />
 
-        {/* HO 244 (commit 2): two-column body below the weekly band. LEFT
-            (56%): BREAKING → STAGE → TOPIC (the two distribution panels merge
-            into one tabbed panel in commit 3). RIGHT (44%): the feed
-            (MOVERS / TOP STALLS), now the only thing in the right column. */}
-        <div className="home-grid">
-          {/* LEFT column (56%) */}
-          <div className="home-col-stack home-col-left">
-            {/* HO 178: BREAKING moved from the full-width strip into the left
-                column. home-breaking-panel marks it for the stage-5 hover-
-                overrun (overflow override + cross-column dim). */}
+        {/* 49/51 two-column body. LEFT: breaking over the tabbed STAGE | TOPIC
+            distributions (gated, static). RIGHT: the feed (shared expand). */}
+        <div className="dv2-grid">
+          <div className="home-col-stack dv2-col-left">
             <section className="home-quadrant home-breaking-panel">
               <p
                 className="home-quadrant-label"
@@ -117,31 +106,27 @@ export default async function DashboardPage({
                   ({breakingCount.toLocaleString()})
                 </span>
               </p>
-              <BreakingNewsBlock filters={filters} />
+              <BreakingNewsBlock />
             </section>
 
-            {/* HO 244 (commit 3): the STAGE + TOPIC panels merge into ONE
-                tabbed panel (STAGE DISTRIBUTION | TOPIC DISTRIBUTION, amber
-                underline active) at a fixed compact height so the bars stay
-                dense and the tab swap doesn't jump. The stage pane drops its
-                StageKey legend — the funnel bars self-label. Neither chart is
-                rebuilt. */}
             <section className="home-quadrant home-panel-distributions">
               <DistributionsTabs
-                stageContent={<StageFunnel bars={stageDist.bars} />}
-                topicContent={<DashboardTopicTreemap data={topicData} />}
+                stageContent={<StageFunnel bars={stageDist.bars} staticMode />}
+                topicContent={
+                  <DashboardTopicTreemap data={topicData} staticMode />
+                }
               />
             </section>
           </div>
 
-          {/* RIGHT column (44%) — the feed. Dims to 0.4 while a BREAKING row is
-              hovered (HO 178: the overrun headline pops over it). */}
-          <div className="home-col-stack home-col-right">
-            <section className="home-quadrant">
+          <div className="home-col-stack dv2-col-right">
+            {/* home-feed-panel: overflow-visible (HO 300) so the expanded row's
+                sponsor hover card can escape the quadrant's overflow:hidden. */}
+            <section className="home-quadrant home-feed-panel">
               <ActivityTabs
-                activityContent={<ActivityTicker filters={filters} />}
-                stallsContent={<TopStalls />}
-                newContent={<NewThisWeek />}
+                activityContent={<ActivityTicker variant="v2" />}
+                stallsContent={<TopStalls variant="v2" />}
+                newContent={<NewThisWeek variant="v2" />}
                 activityCount={activityCount.total}
                 stallsCount={TOP_STALLS_COUNT}
                 newCount={newBillsCount}

@@ -3,11 +3,14 @@ import type { DashboardFilters } from "@/lib/queries";
 
 // Renders between HeaderBar and the dashboard grid. Hidden entirely when no
 // filter is active. Provides the two escapes from a filtered dashboard:
-// clear back to /, or carry the filters into the full /bills list.
+// clear back to the dashboard (`basePath`, default `/`; `/dashboard-classic`
+// passes its own path post-HO-311 swap), or carry the filters into /bills.
 export function ActiveFilterStrip({
   filters,
+  basePath = "/",
 }: {
   filters: DashboardFilters;
+  basePath?: string;
 }) {
   const { stage, topic } = filters;
   if (!stage && !topic) return null;
@@ -41,7 +44,7 @@ export function ActiveFilterStrip({
         ) : null}
       </span>
       <span className="active-filter-actions">
-        <Link href="/" className="active-filter-link">
+        <Link href={basePath} className="active-filter-link">
           × Clear
         </Link>
         <Link href={feedHref} className="active-filter-link">

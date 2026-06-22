@@ -58,10 +58,25 @@ function darken(hex: string, f = 0.4): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-export function DashboardTopicTreemap({ data }: { data: TopicDatum[] }) {
+// `basePath` is the dashboard route the treemap toggles its `?topics=` against
+// (default `/`); `/dashboard-classic` passes its own path. `staticMode` (the v2
+// `/` swap, HO 311) drops the click-to-filter entirely — cells render as plain
+// non-anchor `<g>`s with the hover peek intact but no router.push, no URL write,
+// and no selected state — since the v2 page ignores searchParams. The `/bills`
+// deep-link escape only exists in the interactive path. Defaults preserve the
+// original behavior.
+export function DashboardTopicTreemap({
+  data,
+  basePath = "/",
+  staticMode = false,
+}: {
+  data: TopicDatum[];
+  basePath?: string;
+  staticMode?: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
-  const currentValue = params.get("topics");
+  const currentValue = staticMode ? null : params.get("topics");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
 
@@ -92,12 +107,12 @@ export function DashboardTopicTreemap({ data }: { data: TopicDatum[] }) {
   }, [data]);
 
   const buildHref = useCallback(
-    (basePath: "/" | "/bills", value: string | null): string => {
+    (path: string, value: string | null): string => {
       const next = new URLSearchParams(params.toString());
       if (value === null) next.delete("topics");
       else next.set("topics", value);
       const qs = next.toString();
-      return qs ? `${basePath}?${qs}` : basePath;
+      return qs ? `${path}?${qs}` : path;
     },
     [params],
   );
@@ -139,8 +154,50 @@ export function DashboardTopicTreemap({ data }: { data: TopicDatum[] }) {
           const labeled = w >= LABEL_MIN_W && h >= LABEL_MIN_H;
           const labelFill = darken(datum.color);
           const ariaLabel = `${datum.label}, ${datum.count.toLocaleString()} bills`;
+          const cellInner = (
+            <>
+              <rect x={x} y={y} width={w} height={h} fill={datum.color} />
+              {labeled ? (
+                <>
+                  <text
+                    className="topic-treemap-label"
+                    x={x + 6}
+                    y={y + 16}
+                    fill={labelFill}
+                  >
+                    {datum.label}
+                  </text>
+                  <text
+                    className="topic-treemap-count"
+                    x={x + 6}
+                    y={y + 30}
+                    fill={labelFill}
+                  >
+                    {datum.count.toLocaleString()}
+                  </text>
+                </>
+              ) : null}
+            </>
+          );
+
+          if (staticMode) {
+            return (
+              <g
+                key={datum.id}
+                className="topic-treemap-cell is-static"
+                aria-label={ariaLabel}
+                onMouseEnter={(e) => showHover(e, datum)}
+                onMouseLeave={clearHover}
+              >
+                {cellInner}
+              </g>
+            );
+          }
+
           const feedHref = buildHref("/bills", datum.id);
-          const dashboardHref = isSelected ? buildHref("/", null) : buildHref("/", datum.id);
+          const dashboardHref = isSelected
+            ? buildHref(basePath, null)
+            : buildHref(basePath, datum.id);
 
           return (
             <a
@@ -154,27 +211,7 @@ export function DashboardTopicTreemap({ data }: { data: TopicDatum[] }) {
                 onMouseEnter={(e) => showHover(e, datum)}
                 onMouseLeave={clearHover}
               >
-                <rect x={x} y={y} width={w} height={h} fill={datum.color} />
-                {labeled ? (
-                  <>
-                    <text
-                      className="topic-treemap-label"
-                      x={x + 6}
-                      y={y + 16}
-                      fill={labelFill}
-                    >
-                      {datum.label}
-                    </text>
-                    <text
-                      className="topic-treemap-count"
-                      x={x + 6}
-                      y={y + 30}
-                      fill={labelFill}
-                    >
-                      {datum.count.toLocaleString()}
-                    </text>
-                  </>
-                ) : null}
+                {cellInner}
               </g>
             </a>
           );

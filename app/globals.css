@@ -1002,6 +1002,14 @@ body {
 .stage-funnel-row:hover {
   background-color: var(--bg-row-hover);
 }
+/* HO 311: the v2 `/` funnel is non-interactive (staticMode) — no hover bg, no
+   pointer cursor, so it never reads as clickable when it can't filter. */
+.stage-funnel-row.is-static {
+  cursor: default;
+}
+.stage-funnel-row.is-static:hover {
+  background-color: transparent;
+}
 .stage-funnel-row.is-dimmed {
   opacity: 0.4;
 }
@@ -3850,6 +3858,12 @@ body {
 .topic-treemap-cell {
   cursor: pointer;
   outline: none;
+}
+/* HO 311: the v2 `/` treemap is non-interactive (staticMode) — keep the hover
+   stroke + popover as an informational peek, but drop the pointer cursor since
+   there's no click target. */
+.topic-treemap-cell.is-static {
+  cursor: default;
 }
 .topic-treemap-cell rect {
   transition: stroke 120ms ease;
