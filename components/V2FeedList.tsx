@@ -30,7 +30,7 @@ import {
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 import { parseTopics } from "@/lib/format";
 import { stateName } from "@/lib/states";
-import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
+import { TopicChips } from "@/components/TopicChips";
 import type { FeedBill } from "@/lib/queries";
 import type { PanelData } from "@/components/BillExpandedPanel";
 
@@ -71,34 +71,8 @@ function TitleCell({ title }: { title: string }) {
   );
 }
 
-// HO 297: collapsed-row topic chips (relocated from the expand). Chip-family
-// topic treatment — topic color text + that color @45% alpha border — with a
-// "CODE · Full name" hover popover per chip.
-function TopicChips({ topics }: { topics: string[] }) {
-  if (topics.length === 0) return null;
-  return (
-    <span className="v2f-topics-inline">
-      {topics.map((t) => {
-        const color = topicColor(t);
-        return (
-          <span
-            key={t}
-            className="v2f-topic"
-            style={{
-              color,
-              borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-            }}
-          >
-            {topicLabel(t)}
-            <span className="topic-pop">
-              {topicLabel(t)} · {topicFullLabel(t)}
-            </span>
-          </span>
-        );
-      })}
-    </span>
-  );
-}
+// HO 297/316: collapsed-row topic chips. The chip now lives in the shared
+// components/TopicChips.tsx (HO 316 consolidation); V2FeedList just renders it.
 
 // Per-tab right-side indicator. Movers show the abbreviated last transition
 // (FROM → TO · ago); stalls show stuck duration; new shows time since intro.
