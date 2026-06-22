@@ -209,135 +209,32 @@ export async function HeaderBar({
           inner pages, HO 202 restored it app-wide, and HO 234 collapsed it to a
           single combined <MarketsTape /> (the same one HomeHeader mounts) so the
           tape is identical global chrome on every page. */}
+      {/* HO 323 — standardized inner-page chrome: TITLE ROW (breadcrumb path
+          ONLY) → NAV ROW (its own full-width row, the dashboard nav styling) →
+          page content. The markets tape and the inline count/sync metadata were
+          removed from inner pages (tickers + the stat readout are dashboard-only
+          now); the blink caret falls back to the breadcrumb path end on every
+          page. The now-unused count/sync computations + call-site props
+          (pageCount/pageTitle/countMode/staleCounts/.../cursorAtEnd/
+          liftSyncContrast) and the orphaned `.header-titlebar-sync` /
+          `.header-titlebar-nav` classes are flagged for the backlog cleanup, not
+          swept here. */}
       <div className="header-titlebar">
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
-          cursor={!cursorAtEnd}
+          cursor
         />
-        {/* HO 189: sync inline after the breadcrumb cursor
-            (`…Bills>_ · N BILLS · UPDATED MT`); the HO 187 standalone band is
-            gone. The span ALWAYS renders with `flex: 1 1 0` — basis 0 so its
-            content width never triggers the nav to wrap; it grows to fill the
-            path→nav gap and ellipsis-truncates when the gap is tight (the sync
-            gives first; the nav wraps only when path+nav alone overflow). Empty
-            on detail pages (deep paths, corpus count isn't page-specific) — it
-            still flex-grows to keep the nav right-aligned, just shows nothing
-            (no dangling ellipsis). */}
-        <span
-          className="header-titlebar-sync"
-          style={
-            liftSyncContrast ? { color: "var(--text-muted)" } : undefined
-          }
-        >
-          {detail ? null : (
-            <>
-            {" · "}
-            {pageTitle ? (
-              <>
-                <span style={{ color: "var(--accent-amber)" }}>
-                  {pageTitle}
-                </span>
-                {pageCount !== undefined ? (
-                  <>
-                    <span> · </span>
-                    <span
-                      className="tabular-nums"
-                      style={{ color: "var(--accent-amber-bright)" }}
-                    >
-                      {pageCount.toLocaleString()}
-                    </span>
-                    <span> {pageCountLabel}</span>
-                  </>
-                ) : null}
-              </>
-            ) : counts && (isFiltering || isStaleMode || isChangesMode || isPresidentMode || isSponsorMode) ? (
-              <>
-                <span
-                  style={{
-                    color: useAccentBright
-                      ? "var(--accent-amber-bright)"
-                      : "var(--accent-amber)",
-                  }}
-                >
-                  {counts.filtered.toLocaleString()}
-                </span>
-                <span> of </span>
-                <span>
-                  {counts.total.toLocaleString()}{" "}
-                  {isStaleMode
-                    ? "stale bills"
-                    : isChangesMode
-                      ? "stage changes"
-                      : isPresidentMode
-                        ? "bills at desk"
-                        : isSponsorMode
-                          ? "sponsors"
-                          : "bills"}
-                </span>
-                {q ? (
-                  <>
-                    <span> · </span>
-                    <span style={{ color: "var(--text-secondary)" }}>
-                      &quot;{q}&quot;
-                    </span>
-                  </>
-                ) : null}
-                {sponsor && !isSponsorMode ? (
-                  <>
-                    <span> · </span>
-                    <span style={{ color: "var(--accent-amber)" }}>
-                      sponsored by {sponsor}
-                    </span>
-                  </>
-                ) : null}
-                {clusterName ? (
-                  <>
-                    <span> · </span>
-                    <span style={{ color: "var(--accent-amber)" }}>
-                      in {clusterName}
-                    </span>
-                  </>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <span
-                  style={
-                    liftSyncContrast
-                      ? { color: "var(--text-secondary)" }
-                      : undefined
-                  }
-                >
-                  {stats.total.toLocaleString()}
-                </span>{" "}
-                bills
-              </>
-            )}
-            <span> · </span>
-            updated {formatLastUpdated(stats.lastUpdated)}
-            {/* HO 195: on Members the caret trails the full sync string
-                (cursor suppressed on the breadcrumb `>`) — a deliberate
-                divergence from Bills, where it stays glued to `>`. */}
-            {cursorAtEnd ? (
-              <span aria-hidden className="home-cursor-caret">
-                {" _"}
-              </span>
-            ) : null}
-            </>
-          )}
-        </span>
-        <div className="header-titlebar-nav">
-          <PrimaryNav active={pathToNavKey(basePath)} variant="bar" />
-          <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
-        </div>
       </div>
 
-      {/* HO 202: the dual markets tape, restored to every inner page (one mount
-          here reaches all HeaderBar pages, mirroring HomeHeader's single mount
-          for the dashboard). Below the title bar to match the dashboard's
-          masthead → tape → nav order. Hidden <700px by the global .markets-tape
-          rule, same as the dashboard. */}
-      <MarketsTape />
+      {/* Nav on its own full-width row, matching the dashboard: PrimaryNav
+          variant="home" = the `.home-header-nav` styling (bracketed active item,
+          group dividers, reserved bracket space → no horizontal jump, the subtle
+          top-border separator). `.header-nav-row` adds the inner-page `--space-lg`
+          padding so it aligns with the title + page content. */}
+      <div className="header-nav-row">
+        <PrimaryNav active={pathToNavKey(basePath)} variant="home" />
+      </div>
+      <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
 
       {/* Transitional (HO 187): feed pages that haven't built their own band-3
           control strip yet (/changes, /stale until their sub-stage) still get

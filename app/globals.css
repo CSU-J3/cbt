@@ -126,6 +126,15 @@ body {
      for the wrapped-nav case. */
   gap: var(--space-xs) 0;
   padding: 10px var(--space-lg);
+}
+/* HO 323 — inner-page NAV ROW: its own full-width row below the title, mirroring
+   the dashboard's nav row. PrimaryNav variant="home" inside brings the
+   `.home-header-nav` styling (subtle border-top separator + items); this wrapper
+   adds the inner-page `--space-lg` padding so the nav aligns with the title +
+   content, and carries the chrome's strong bottom edge (the title bar's old
+   border-bottom moved here, below the nav, to avoid a doubled rule). */
+.header-nav-row {
+  padding: 0 var(--space-lg);
   border-bottom: 1px solid var(--border-strong);
 }
 .header-titlebar .breadcrumb-path {
