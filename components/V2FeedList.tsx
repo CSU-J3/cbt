@@ -4,20 +4,19 @@
 // collapsed rowhead (id chip · sans title · shared TopicChips · per-tab metric ·
 // caret) plus the expanded panel.
 //
-// HO 317: the rich expand was extracted to the shared components/BillExpandPanel
-// (rendered identically on /bills), and the dashboard now expands on HOVER (CSS
-// :hover / :focus-within, the panel mounted nested in the row) instead of click —
-// single-open is automatic (one row hovered at a time). Panel data (committees /
-// news / meetings) lazy-loads the first time a row is hovered or focused, cached
-// per bill, so the 35 mounted-but-hidden panels don't each fire a fetch. Touch
-// (no hover) + the keyboard path are noted in the handoff — focus-within covers
-// keyboard; touch expand lands with the mobile redesign.
+// HO 317 extracted the rich expand to the shared components/BillExpandPanel
+// (rendered identically on /bills). HO 319 reverts the dashboard trigger from
+// hover back to CLICK — the hover model was transient (the panel collapsed before
+// you could read it) and dead on touch. Both surfaces now expand on click via the
+// same shared single-open pattern (useSingleOpenPanel): single-open, panel a
+// sibling below the row, data lazy-loaded on expand, cached per bill. The shared
+// BillExpandPanel / BillStageBar are unchanged — only the trigger + mount.
 import { useEffect, useRef, useState } from "react";
 import { daysSince, formatBillId, formatRelativeAge, parseTopics } from "@/lib/format";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { TopicChips } from "@/components/TopicChips";
+import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import type { FeedBill } from "@/lib/queries";
-import type { PanelData } from "@/components/BillExpandedPanel";
 
 export type V2MetricMode = "movers" | "stalls" | "new";
 
@@ -93,58 +92,63 @@ export function V2FeedList({
   bills: FeedBill[];
   metricMode: V2MetricMode;
 }) {
-  const [cache, setCache] = useState<Record<string, PanelData>>({});
-  const [hoverId, setHoverId] = useState<string | null>(null);
+  // Same click single-open contract /bills uses (HO 319): one row open at a time,
+  // panel data cached per bill.
+  const { expandedId, toggle, panelCache, handleLoaded } = useSingleOpenPanel();
 
-  // Lazy-load committee + news + meetings for the hovered/focused bill (once;
-  // cached thereafter). The panel renders summary + stage bar + meta from the
-  // FeedBill immediately; this fills the committee / news / hearing slots.
+  // Lazy-load committees / news / meetings for the open bill on expand (cached
+  // thereafter). The panel renders summary + stage bar + meta from the FeedBill
+  // immediately; this fills the committee / news / hearing slots.
   useEffect(() => {
-    if (!hoverId || cache[hoverId]) return;
+    if (!expandedId || panelCache.has(expandedId)) return;
     let cancelled = false;
-    fetch(`/api/bill/${encodeURIComponent(hoverId)}/panel`)
-      .then((r) => (r.ok ? (r.json() as Promise<PanelData>) : Promise.reject(r.status)))
+    fetch(`/api/bill/${encodeURIComponent(expandedId)}/panel`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((json) => {
-        if (!cancelled) setCache((c) => ({ ...c, [hoverId]: json }));
+        if (!cancelled) handleLoaded(expandedId, json);
       })
       .catch(() => {
-        // leave the slots in their empty/loading state; non-fatal
         if (!cancelled)
-          setCache((c) => ({
-            ...c,
-            [hoverId]: { committees: [], news: [], meetings: [] },
-          }));
+          handleLoaded(expandedId, { committees: [], news: [], meetings: [] });
       });
     return () => {
       cancelled = true;
     };
-  }, [hoverId, cache]);
+  }, [expandedId, panelCache, handleLoaded]);
 
   return (
     <div className="v2f">
-      {bills.map((bill) => (
-        <div
-          key={bill.id}
-          className="v2f-group"
-          tabIndex={0}
-          aria-label={`${formatBillId(bill.bill_type, bill.bill_number)} — ${bill.title}`}
-          onMouseEnter={() => setHoverId(bill.id)}
-          onFocus={() => setHoverId(bill.id)}
-        >
-          <div className="v2f-row">
-            <span className="v2f-id">
-              {formatBillId(bill.bill_type, bill.bill_number)}
-            </span>
-            <TitleCell title={bill.title} />
-            <TopicChips topics={parseTopics(bill.topics)} />
-            <Metric bill={bill} mode={metricMode} />
-            <span className="v2f-chev">▾</span>
+      {bills.map((bill) => {
+        const open = expandedId === bill.id;
+        return (
+          <div key={bill.id} className={`v2f-group${open ? " open" : ""}`}>
+            <div
+              className="v2f-row"
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              onClick={() => toggle(bill.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggle(bill.id);
+                }
+              }}
+            >
+              <span className="v2f-id">
+                {formatBillId(bill.bill_type, bill.bill_number)}
+              </span>
+              <TitleCell title={bill.title} />
+              <TopicChips topics={parseTopics(bill.topics)} />
+              <Metric bill={bill} mode={metricMode} />
+              <span className="v2f-chev">▾</span>
+            </div>
+            {open ? (
+              <BillExpandPanel bill={bill} panel={panelCache.get(bill.id) ?? null} />
+            ) : null}
           </div>
-          <div className="bxp-exp">
-            <BillExpandPanel bill={bill} panel={cache[bill.id] ?? null} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

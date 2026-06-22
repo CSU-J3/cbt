@@ -3784,27 +3784,11 @@ body {
   border-color: var(--accent-amber);
   color: var(--accent-amber-bright);
 }
-/* dashboard `/` hover-to-expand: the .bxp is mounted hidden in every row and
-   revealed on hover / focus-within; the open row takes the mock's amber frame +
-   gutter inset (margin 5px 7px). /bills mounts the same .bxp on click. */
-.bxp-exp {
-  display: none;
-}
-.v2f-group:hover .bxp-exp,
-.v2f-group:focus-within .bxp-exp {
-  display: block;
-}
-.v2f-group:hover,
-.v2f-group:focus-within {
-  background: var(--bg-row-hover);
-  border: 1px solid var(--accent-amber);
-  border-radius: 3px;
-  margin: 5px 7px;
-}
-.v2f-group:hover .v2f-chev,
-.v2f-group:focus-within .v2f-chev {
-  color: var(--accent-amber);
-}
+/* HO 319: the dashboard expands on CLICK (reverted from the HO 317 hover model —
+   it was transient + dead on touch). The open row uses the existing
+   .v2f-group.open frame (amber border, above) and the shared .bxp panel renders
+   as its direct child when open; no hover / focus-within reveal. /bills already
+   worked this way (.feed-row.is-open + click). */
 
 /* HO 300 — feed quadrant overflow-visible so the sponsor hover card escapes.
    Safe: the feed has no max-height (the quadrant grows to fit its rows), so
