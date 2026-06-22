@@ -2780,13 +2780,19 @@ body {
 .cm-agg:hover .cm-cnt {
   color: var(--text-secondary);
 }
+/* HO 310 — opens DOWNWARD into the card row. The lean axis sits high (under the
+   nav + the two tab rows), so the HO 254 upward default (bottom:48px) lets a tall
+   cluster (17-seat toss-up / LEAN R) overshoot the top edge and paint over the
+   nav. Anchor just below the count instead; the count (pointer-events:auto) then
+   bridges the tick→popover move so hover survives. Height cap is viewport-relative
+   so a long list scrolls internally and the box can't run past the bottom edge. */
 .cm-pop {
   position: absolute;
   left: 50%;
-  bottom: 48px;
+  top: 52px;
   transform: translateX(-50%);
   min-width: 168px;
-  max-height: 230px;
+  max-height: min(230px, 50vh);
   overflow-y: auto;
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
