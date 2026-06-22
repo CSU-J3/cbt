@@ -481,7 +481,7 @@ export const getCorpusStats = unstable_cache(
     // HO 278: the v2 gated path (getCorpusStats(true)) is the same summary-gated
     // COUNT+MAX as getFeedStats — the statless planner otherwise drives off
     // idx_bills_is_ceremonial (MULTI-INDEX OR over the fat table, ~6.9s cold, the
-    // dashboard-v2 swap blocker). Force the 277 partial index idx_bills_summary_feed
+    // v2→`/` swap blocker — v2 is now `/`). Force the 277 partial index idx_bills_summary_feed
     // (is_ceremonial, update_date) WHERE summary IS NOT NULL → index-only COUNT+MAX
     // (6.9s → 34ms; EXPLAIN: SCAN USING INDEX). ONLY on the gated path — the
     // ungated `/` call has no `summary IS NOT NULL` clause, so the partial index

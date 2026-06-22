@@ -1,4 +1,5 @@
-// HO 278 Step 0 — re-verify dashboard-v2's three summary-gated aggregates against
+// HO 278 Step 0 — re-verify the v2 dashboard's three summary-gated aggregates (the
+// surface now at `/`) against
 // prod Turso AS THEY STAND post-277 (no new indexes yet). EXPLAIN + repeated
 // timing. Read-only. Run: npx tsx scripts/diagnostic/v2gated-278.ts
 import "dotenv/config";

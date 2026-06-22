@@ -657,7 +657,7 @@ body {
   min-height: 0;
 }
 
-/* ── HO 253: Dashboard v2 shell (the /dashboard-v2 route only) ───────────────
+/* ── HO 253: Dashboard v2 shell (now `/`; was the /dashboard-v2 route, HO 311) ──
    v2 reuses the home-* header, quadrant, weekly-band, and tape classes wholesale;
    only three things are net-new here: the two-tape stack border collapse, and the
    49/51 body grid (vs `/`'s 56/44 .home-grid). Scoped to dv2-* so `/` is
@@ -6780,7 +6780,7 @@ a.hearing-watch:hover {
 }
 
 /* HO 306 — shared hearings calendar (.hcal): the /hearings calendar-only view
-   AND the dashboard-v2 HEARINGS tab (embedded, height-pinned to the RACES
+   AND the dashboard (`/`) HEARINGS tab (embedded, height-pinned to the RACES
    footprint). Filter bar + week header (WoW stat) + week grid with rich entries;
    all detail floats in a portaled card so the grid never reflows. Tokens only;
    today-wash is the existing amber at ~4.5% alpha. */

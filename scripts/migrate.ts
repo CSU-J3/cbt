@@ -618,7 +618,7 @@ async function main() {
   // HO 277: cover getFeedStats — the HeaderBar count (COUNT(*) + MAX(update_date)
   // over `summary IS NOT NULL AND (is_ceremonial=0 OR IS NULL)`), which runs on
   // EVERY inner page incl. /members. Same summary-gated mis-plan as HO 276's
-  // dashboard-v2 corpus_gated: the covering indexes carry no `summary`, so the
+  // then-`/dashboard-v2` corpus_gated (v2 is now `/`): the covering indexes carry no `summary`, so the
   // planner falls to a MULTI-INDEX OR over the fat bills table — measured 12.1s
   // cold against prod, the residual /members 500. A PARTIAL index `WHERE summary
   // IS NOT NULL` (= the always-present base clause) keyed (is_ceremonial,
@@ -630,8 +630,8 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_feed ON bills(is_ceremonial, update_date) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_feed");
-  // HO 278: cover dashboard-v2's gated stage distribution (getStageDistribution
-  // (undefined, true) — the v2 swap blocker). Same summary-gated class: the
+  // HO 278: cover the dashboard's gated stage distribution (getStageDistribution
+  // (undefined, true) — the v2→`/` swap blocker; v2 is now `/`). Same summary-gated class: the
   // planner picks idx_bills_dash_stage (no `summary` → MULTI-INDEX OR + TEMP-B-TREE
   // GROUP BY, row-fetch). Partial, leading `stage` so the GROUP BY is index-only +
   // pre-ordered (no temp b-tree) and the offPath ('other'/NULL) range is covered;
@@ -640,7 +640,7 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_stage ON bills(stage, is_ceremonial) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_stage");
-  // HO 278: cover dashboard-v2's gated topic distribution (getTopicDistribution
+  // HO 278: cover the dashboard's gated topic distribution (getTopicDistribution
   // (undefined, true)). `topics` is in the index so the bills scan feeding
   // json_each is index-only (no fat-table fetch for topics/summary); the planner
   // refused it unhinted (kept MULTI-INDEX OR), so it's forced via INDEXED BY on the

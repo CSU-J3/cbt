@@ -2,7 +2,7 @@
 
 // HO 306 — the shared hearings calendar. ONE client component renders both
 // /hearings (calendar-only view, free height, two-week stack) and the
-// /dashboard-v2 HEARINGS tab (embedded, single week, height-pinned to the RACES
+// dashboard (`/`) HEARINGS tab (embedded, single week, height-pinned to the RACES
 // footprint). Replaces the two prior components (HearingsCalendar server grid +
 // OnTheHillBand) so the surfaces can't drift.
 //

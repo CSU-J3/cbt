@@ -1,4 +1,4 @@
-// HO 306 — the dashboard-v2 HEARINGS tab content. Server wrapper that fetches
+// HO 306 — the dashboard (`/`) HEARINGS tab content. Server wrapper that fetches
 // the meetings (recent widened to 14d for the week stat's prior-week delta) and
 // renders the SHARED HearingsCalendar in embedded mode: single week, capped per
 // day, height-pinned to the RACES footprint by the B4 box CSS. Replaces the
