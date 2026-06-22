@@ -1319,6 +1319,9 @@ body {
 }
 
 .feed-row .row-title {
+  /* HO 317: the collapsed title moves to the sans face (the mock's row title),
+     matching the dashboard feed. Folded in here per the handoff's verify step. */
+  font-family: var(--sans);
   font-size: 18px;
   font-weight: 500;
   color: var(--text-primary);
@@ -1496,6 +1499,18 @@ body {
 }
 .feed-row.is-open {
   background-color: var(--bg-row-hover);
+  /* HO 317: amber frame on the open /bills row — the mock's expanded-row rule
+     (the dashboard `/` gets the equivalent on .v2f-group:hover). */
+  border: 1px solid var(--accent-amber);
+  border-radius: 3px;
+}
+/* HO 317: the shared .bxp panel spans the full /bills feed-row grid (the old
+   .bill-expanded-panel did this via grid-column). On the dashboard it sits in a
+   flex group, so this only needs to apply inside the feed row. */
+.feed-row .bxp {
+  grid-column: 1 / -1;
+  border-top: 0.5px solid var(--border-soft);
+  margin-top: 8px;
 }
 .feed-row .row-chevron {
   margin-left: auto;
@@ -3580,6 +3595,215 @@ body {
 }
 .v2f-cmte-meta {
   color: var(--text-dim);
+}
+
+/* ── HO 317: the ONE shared unified expand panel (.bxp), rendered on BOTH the
+   dashboard `/` (hover) and /bills (click). Visual source of truth:
+   docs/design/expanded-panel-unified.html. The stage bar (.v2f-bar / .v2f-bdot /
+   .v2f-bping above) and the sponsor hover card (.v2f-sc-* above) are lifted +
+   reused; the body grid + boxed meta below are new to match the mock. NOTE: the
+   old per-surface .v2f-exp / .v2f-grid / .v2f-summary / .v2f-related / .v2f-rel-* /
+   .v2f-side / .v2f-sk / .v2f-sv / .v2f-cmte-* / .v2f-btns / .v2f-sponsor* rules
+   above are now DEAD (the private Expand was removed) — sweep in a follow-up. */
+.bxp {
+  padding: 14px 16px 16px;
+}
+.bxp-body {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0;
+}
+.bxp-left {
+  padding-right: 28px;
+  min-width: 0;
+}
+.bxp-summary {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  margin: 0;
+}
+.bxp-relblock {
+  margin-top: 16px;
+}
+.bxp-relhdr {
+  font-size: 9.5px;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin: 0 0 6px;
+}
+.bxp-relempty {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+/* hearing — minimal block (rich slot deferred): pip + committee link + arrow +
+   date. Pip is dim (scheduled); LIVE-green awaits the deferred rich slot. */
+.bxp-hrow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 5px;
+}
+.bxp-hrow:last-child {
+  margin-bottom: 0;
+}
+.bxp-hpip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  margin-right: 7px;
+  flex: none;
+}
+.bxp-hcom {
+  font-size: 12px;
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bxp-hcom:hover {
+  color: var(--accent-amber-bright);
+}
+.bxp-harrow {
+  color: var(--accent-amber);
+  font-size: 10px;
+  margin-left: 3px;
+}
+.bxp-hmeta {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* related news item — sans headline + dim mono tail; hover amber. */
+.bxp-relnews {
+  display: block;
+  margin-bottom: 7px;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+.bxp-relnews:last-child {
+  margin-bottom: 0;
+}
+.bxp-relnews-title {
+  font-family: var(--sans);
+  font-size: 12.5px;
+}
+.bxp-relnews-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.bxp-relnews:hover .bxp-relnews-title {
+  color: var(--accent-amber-bright);
+}
+/* right column — boxed meta card with hairline dividers between every row. */
+.bxp-metabox {
+  align-self: start;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  padding: 1px 14px;
+}
+.bxp-mrow {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border-strong);
+}
+.bxp-mlabel {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.bxp-mval {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.bxp-clnk {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bxp-clnk:hover {
+  color: var(--accent-amber-bright);
+}
+.bxp-dim {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+/* sponsor meta: name link (dim underline) + party-colored bracket; the lifted
+   .v2f-sc-card hover card opens off the name. */
+.bxp-sponsor {
+  position: relative;
+  display: inline;
+}
+.bxp-sponsor-name {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-decoration-color: #39424f;
+  text-underline-offset: 2px;
+}
+.bxp-sponsor-name:hover {
+  color: var(--accent-amber-bright);
+}
+.bxp-sponsor-bracket {
+  font-weight: 600;
+}
+.bxp-sponsor:hover .v2f-sc-card,
+.bxp-sponsor:focus-within .v2f-sc-card {
+  display: flex;
+}
+.bxp-btns {
+  display: flex;
+  gap: 10px;
+  padding: 13px 0 4px;
+}
+.bxp-btn {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  padding: 8px 11px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.bxp-btn--primary {
+  color: var(--accent-amber);
+  border: 1px solid var(--accent-amber);
+}
+.bxp-btn--primary:hover {
+  color: var(--accent-amber-bright);
+}
+.bxp-btn--secondary {
+  color: var(--text-muted);
+  border: 1px solid var(--border-strong);
+}
+.bxp-btn--secondary:hover {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber-bright);
+}
+/* dashboard `/` hover-to-expand: the .bxp is mounted hidden in every row and
+   revealed on hover / focus-within; the open row takes the mock's amber frame +
+   gutter inset (margin 5px 7px). /bills mounts the same .bxp on click. */
+.bxp-exp {
+  display: none;
+}
+.v2f-group:hover .bxp-exp,
+.v2f-group:focus-within .bxp-exp {
+  display: block;
+}
+.v2f-group:hover,
+.v2f-group:focus-within {
+  background: var(--bg-row-hover);
+  border: 1px solid var(--accent-amber);
+  border-radius: 3px;
+  margin: 5px 7px;
+}
+.v2f-group:hover .v2f-chev,
+.v2f-group:focus-within .v2f-chev {
+  color: var(--accent-amber);
 }
 
 /* HO 300 — feed quadrant overflow-visible so the sponsor hover card escapes.
