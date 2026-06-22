@@ -85,6 +85,64 @@ function Metric({ bill, mode }: { bill: FeedBill; mode: V2MetricMode }) {
   return <span className="v2f-metric">INTRO · {formatRelativeAge(bill.introduced_date)}</span>;
 }
 
+function partyColor(party: string | null | undefined): string {
+  const u = (party ?? "").trim().toUpperCase();
+  if (u === "R") return "var(--party-republican)";
+  if (u === "D") return "var(--party-democrat)";
+  return "var(--party-independent)";
+}
+
+// HO 321: collapsed-row line 2 — sponsor LASTNAME (links to the member page, the
+// same `/members/[bioguide]` route the expand's sponsor card resolves to) + a
+// party-colored [party-state] bracket + a middot + the shared TopicChips
+// (relocated from line 1, unchanged). All three sponsor fields ride the FeedBill
+// via the HO 300 SPONSOR_ENRICH join — no query change.
+function SubLine({ bill }: { bill: FeedBill }) {
+  const last = (
+    bill.sponsor_last_name ??
+    bill.sponsor_name?.split(",")[0] ??
+    ""
+  ).trim();
+  const topics = parseTopics(bill.topics);
+  const bracket =
+    bill.sponsor_party || bill.sponsor_state
+      ? `[${bill.sponsor_party ?? "?"}-${bill.sponsor_state ?? "?"}]`
+      : null;
+  if (!last && topics.length === 0) return null;
+
+  return (
+    <div className="v2f-subline">
+      {last ? (
+        bill.sponsor_bioguide_id ? (
+          <a
+            className="v2f-sponsor-last"
+            href={`/members/${bill.sponsor_bioguide_id}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {last.toUpperCase()}
+          </a>
+        ) : (
+          <span className="v2f-sponsor-last v2f-sponsor-last--plain">
+            {last.toUpperCase()}
+          </span>
+        )
+      ) : null}
+      {last && bracket ? (
+        <span
+          className="v2f-subline-bracket"
+          style={{ color: partyColor(bill.sponsor_party) }}
+        >
+          {bracket}
+        </span>
+      ) : null}
+      {last && topics.length > 0 ? (
+        <span className="v2f-subline-sep">·</span>
+      ) : null}
+      {topics.length > 0 ? <TopicChips topics={topics} responsive /> : null}
+    </div>
+  );
+}
+
 export function V2FeedList({
   bills,
   metricMode,
@@ -138,8 +196,10 @@ export function V2FeedList({
               <span className="v2f-id">
                 {formatBillId(bill.bill_type, bill.bill_number)}
               </span>
-              <TitleCell title={bill.title} />
-              <TopicChips topics={parseTopics(bill.topics)} />
+              <div className="v2f-main">
+                <TitleCell title={bill.title} />
+                <SubLine bill={bill} />
+              </div>
               <Metric bill={bill} mode={metricMode} />
               <span className="v2f-chev">▾</span>
             </div>

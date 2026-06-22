@@ -3163,18 +3163,64 @@ body {
   position: relative;
   z-index: 1;
 }
-/* HO 297 (B6): collapsed rowhead = id chip · title · topic tag(s) · [spacer] ·
-   metric · caret. Flex so the title ellipsizes and `margin-left:auto` on the
-   metric is the spacer pushing metric+caret to the right edge. */
+/* HO 297 (B6) + HO 321: the collapsed rowhead is now TWO lines, matching /bills —
+   grid [ id-chip | main(1fr) | metric | caret ]; `main` stacks line 1 (title) over
+   line 2 (sponsor + [party-state] + topic chips). align-items:start so the metric
+   + caret sit at line-1 height, not centered across both lines. Line 2 aligns
+   under the title (left edge of main); the id column stays empty on line 2. */
 .v2f-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 13px;
+  align-items: start;
   padding: 9px 16px;
   cursor: pointer;
 }
 .v2f-row:hover {
   background: var(--bg-row-hover);
+}
+.v2f-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* line 2: sponsor LASTNAME (member link) + [party-state] bracket + middot + the
+   shared TopicChips (relocated from line 1). overflow:hidden clips a long
+   sponsor + chips on desktop — no measured fit-to-width (the HO 316 decision;
+   bills carry ≤3 topics). */
+.v2f-subline {
+  margin-top: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.v2f-sponsor-last {
+  flex: none;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: #39424f;
+  text-underline-offset: 2px;
+}
+.v2f-sponsor-last:hover {
+  color: var(--accent-amber-bright);
+}
+.v2f-sponsor-last--plain {
+  text-decoration: none;
+  cursor: default;
+}
+.v2f-subline-bracket {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.v2f-subline-sep {
+  flex: none;
+  color: var(--text-dim);
+  font-size: 11px;
 }
 /* ID chip — plain amber (HO 297, chip-family tier-1 ID). The chamber-color
    border override is dropped: the HR/S prefix already reads chamber, so the
