@@ -3699,9 +3699,6 @@ body {
   display: flex;
   align-items: center;
   gap: 0;
-  margin-bottom: 5px;
-}
-.bxp-hrow:last-child {
   margin-bottom: 0;
 }
 .bxp-hpip {
@@ -3726,10 +3723,34 @@ body {
   margin-left: 3px;
 }
 .bxp-hmeta {
+  display: block;
+  margin-top: 4px;
   font-size: 10.5px;
   letter-spacing: 0.02em;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+}
+/* HO 324: green pip when the hearing is LIVE (the watchState time-window). */
+.bxp-hpip--live {
+  background: var(--stage-enacted);
+}
+/* HO 324 line 3: WATCH livestream + AGENDA bill links — mono dim labels with
+   amber links. */
+.bxp-hlinks {
+  margin-top: 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-dim);
+}
+.bxp-hlinks .bxp-hlink-em {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bxp-hlinks .bxp-hlink-em:hover {
+  color: var(--accent-amber-bright);
+}
+.bxp-hsep {
+  color: var(--text-dim);
 }
 /* related news item — sans headline + dim mono tail; hover amber. */
 .bxp-relnews {

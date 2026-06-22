@@ -24,9 +24,16 @@ import {
   formatRelativeAge,
 } from "@/lib/format";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
+import {
+  LIVE_WINDOW_MS,
+  etDayLabel,
+  etTimeLabel,
+  hearingBadge,
+  watchState,
+} from "@/lib/hearings";
 import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
-import type { PanelData } from "@/components/BillExpandedPanel";
+import type { PanelData, PanelMeeting } from "@/components/BillExpandedPanel";
 
 // ---- shared stage bar (HO 298, lifted) --------------------------------------
 
@@ -225,6 +232,137 @@ function SponsorMeta({ bill }: { bill: FeedBill }) {
   );
 }
 
+// ---- HEARING slot (HO 324) --------------------------------------------------
+
+// Always-on, rich HEARING block. Selects the soonest current-or-upcoming meeting
+// (not fully past — within the LIVE_WINDOW from the meeting start), so an
+// in-progress hearing surfaces as LIVE; strictly-past-only bills fall to the
+// empty state. LIVE is the hearings `watchState` time-window rule (no
+// meetingStatus LIVE signal exists — it's planning-state). Reuses the hearings
+// badge + ET time/day formatters; renders nothing pre-load (panel === null),
+// then the empty state or the three populated lines.
+function HearingBlock({
+  meetings,
+  currentBillId,
+  loaded,
+}: {
+  meetings: PanelMeeting[];
+  currentBillId: string;
+  loaded: boolean;
+}) {
+  const now = Date.now();
+  const m =
+    meetings
+      .map((mt) => ({ mt, t: Date.parse(mt.meetingDate) }))
+      .filter((x) => Number.isFinite(x.t) && x.t + LIVE_WINDOW_MS >= now)
+      .sort((a, b) => a.t - b.t)[0]?.mt ?? null;
+
+  return (
+    <div className="bxp-relblock">
+      <div className="bxp-relhdr">Hearing</div>
+      {m ? (
+        <PopulatedHearing meeting={m} currentBillId={currentBillId} now={now} />
+      ) : loaded ? (
+        <div className="bxp-relempty">NO RELATED HEARINGS</div>
+      ) : null}
+    </div>
+  );
+}
+
+function PopulatedHearing({
+  meeting: m,
+  currentBillId,
+  now,
+}: {
+  meeting: PanelMeeting;
+  currentBillId: string;
+  now: number;
+}) {
+  const ws = watchState(
+    {
+      meetingDate: m.meetingDate,
+      meetingStatus: m.meetingStatus,
+      videoUrl: m.videoUrl,
+    },
+    now,
+  );
+  const isLive = ws === "live";
+  const room = [m.room, m.building].filter(Boolean).join(" ");
+  const meta = [
+    hearingBadge(m.meetingType),
+    m.meetingStatus.toUpperCase(),
+    etDayLabel(m.meetingDate),
+    `${etTimeLabel(m.meetingDate)} ET`,
+    room,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const agenda = m.agenda.filter((a) => a.id !== currentBillId);
+  const showWatch = ws !== "none" && !!m.videoUrl;
+
+  return (
+    <>
+      <div className="bxp-hrow">
+        <span
+          className={`bxp-hpip${isLive ? " bxp-hpip--live" : ""}`}
+          aria-hidden
+        />
+        <a
+          className="bxp-hcom"
+          href={
+            m.committeeSystemCode
+              ? `/committee/${m.committeeSystemCode}`
+              : "/hearings"
+          }
+          onClick={(e) => e.stopPropagation()}
+        >
+          {m.committeeName ?? "Committee"}
+        </a>
+        <span className="bxp-harrow">↗</span>
+      </div>
+      <div className="bxp-hmeta">{meta}</div>
+      {showWatch || agenda.length > 0 ? (
+        <div className="bxp-hlinks">
+          {showWatch ? (
+            <span>
+              WATCH{" "}
+              <a
+                className="bxp-hlink-em"
+                href={m.videoUrl!}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                livestream ↗
+              </a>
+            </span>
+          ) : null}
+          {showWatch && agenda.length > 0 ? (
+            <span className="bxp-hsep"> · </span>
+          ) : null}
+          {agenda.length > 0 ? (
+            <span>
+              AGENDA{" "}
+              {agenda.map((a, i) => (
+                <span key={a.id}>
+                  {i > 0 ? " · " : ""}
+                  <a
+                    className="bxp-hlink-em"
+                    href={`/bill/${a.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {a.label}
+                  </a>
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 // ---- the shared panel -------------------------------------------------------
 
 export function BillExpandPanel({
@@ -248,34 +386,12 @@ export function BillExpandPanel({
         <div className="bxp-left">
           {bill.summary ? <p className="bxp-summary">{bill.summary}</p> : null}
 
-          {/* HEARING — minimal block (rich slot deferred, backlog). Leads when a
-              meeting exists; omitted entirely when none. */}
-          {meetings.length > 0 ? (
-            <div className="bxp-relblock">
-              <div className="bxp-relhdr">Hearing</div>
-              {meetings.map((m) => (
-                <div key={m.eventId} className="bxp-hrow">
-                  <span className="bxp-hpip" aria-hidden />
-                  <a
-                    className="bxp-hcom"
-                    href={
-                      m.committeeSystemCode
-                        ? `/committee/${m.committeeSystemCode}`
-                        : "/hearings"
-                    }
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {m.committeeName ?? "Committee"}
-                  </a>
-                  <span className="bxp-harrow">↗</span>
-                  <span className="bxp-hmeta">
-                    {" · "}
-                    {formatDateLong(m.meetingDate)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          {/* HEARING — always-on, rich (HO 324). Leads the related block. */}
+          <HearingBlock
+            meetings={meetings}
+            currentBillId={bill.id}
+            loaded={panel !== null}
+          />
 
           {/* RELATED NEWS — always; empty state once loaded. */}
           <div className="bxp-relblock">

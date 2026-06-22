@@ -5,6 +5,7 @@
 // only; BillRowList caches the result per row so re-expanding the same
 // row is free.
 import { NextResponse } from "next/server";
+import { formatBillId } from "@/lib/format";
 import {
   getBillCommittees,
   getCommitteeBySystemCode,
@@ -65,6 +66,10 @@ export async function GET(
       url: n.url,
       publishedAt: n.publishedAt,
     })),
+    // HO 324: widened from {eventId, meetingDate, committeeName/Code} to the full
+    // shape the rich always-on HEARING slot needs — type/status/room/video + the
+    // meeting's agenda bills (id + formatted label; the component drops the
+    // current bill).
     meetings: meetings.map((m) => ({
       eventId: m.eventId,
       meetingDate: m.meetingDate,
@@ -72,6 +77,15 @@ export async function GET(
       committeeName: m.committeeSystemCode
         ? (nameByCode.get(m.committeeSystemCode) ?? null)
         : null,
+      meetingType: m.meetingType,
+      meetingStatus: m.meetingStatus,
+      building: m.building,
+      room: m.room,
+      videoUrl: m.videoUrl,
+      agenda: m.bills.map((b) => ({
+        id: b.id,
+        label: formatBillId(b.bill_type, b.bill_number),
+      })),
     })),
   });
 }

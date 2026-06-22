@@ -40,13 +40,22 @@ export type PanelNews = {
   publishedAt: string;
 };
 
-// HO 299: meetings (hearings) covering this bill, for the v2 expand's RELATED
-// HEARINGS sub-block. The committee name is resolved in the panel route.
+// HO 299: meetings (hearings) covering this bill, for the expand's HEARING slot.
+// The committee name is resolved in the panel route. HO 324 widened the shape
+// (was {eventId, meetingDate, committeeName, committeeSystemCode}) to carry the
+// rich detail the always-on HEARING slot renders: type/status/room/video + the
+// meeting's agenda bills (pre-formatted id + label).
 export type PanelMeeting = {
   eventId: string;
   meetingDate: string;
   committeeName: string | null;
   committeeSystemCode: string | null;
+  meetingType: string;
+  meetingStatus: string;
+  building: string | null;
+  room: string | null;
+  videoUrl: string | null;
+  agenda: { id: string; label: string }[];
 };
 
 export type PanelData = {
