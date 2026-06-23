@@ -148,22 +148,11 @@ export type FeedFilters = {
 
 export type PartyKey = "R" | "D" | "I";
 
-export type Sponsor = {
-  sponsor_bioguide_id: string | null;
-  sponsor_name: string;
-  sponsor_party: string | null;
-  sponsor_state: string | null;
-  bill_count: number;
-  latest_action_date: string | null;
-};
-
-export type SponsorFilters = {
-  party?: PartyKey;
-  state?: string;
-  q?: string;
-  chamber?: Chamber;
-  includeCeremonial?: boolean;
-};
+// HO 335: types `Sponsor` and `SponsorFilters`, plus buildSponsorWhere and the
+// getSponsors / getSponsorCount / getSponsorsRanked / getSponsorPassRates helpers
+// (further down), deleted as dead code — orphaned by the HO 328 members/committees
+// merge. The live sponsor surface is getSponsorStats / getSponsorTopTopics /
+// getSponsorRecentBills (the /members?expanded card) and getSponsorStates.
 
 export function normalizePartyVariant(party: string | null): PartyKey | null {
   if (!party) return null;
@@ -644,7 +633,10 @@ export const getTopicMixByChamber = unstable_cache(
               THEN 1 ELSE 0 END) AS house_count,
         SUM(CASE WHEN bills.bill_type IN ('s','sjres','sconres','sres')
               THEN 1 ELSE 0 END) AS senate_count
-      FROM bills, json_each(bills.topics) je
+      -- HO 335: force idx_bills_chamber_topics (is_ceremonial, topics, bill_type)
+      -- so the json_each driver is index-only incl. bill_type (else the statless
+      -- planner MULTI-INDEX ORs idx_bills_is_ceremonial + row-fetches ~14k rows).
+      FROM bills INDEXED BY idx_bills_chamber_topics, json_each(bills.topics) je
       WHERE bills.topics IS NOT NULL
         AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)
       GROUP BY je.value
@@ -697,7 +689,11 @@ export const getBillsByMonth = unstable_cache(
         substr(introduced_date, 1, 7) AS month,
         COALESCE(json_extract(topics, '$[0]'), 'other') AS topic,
         COUNT(*) AS count
-      FROM bills
+      -- HO 335: force the partial idx_bills_trends_month (congress, is_ceremonial,
+      -- introduced_date, topics) WHERE topics IS NOT NULL → index-only congress
+      -- scan carrying topics for the topics[0] split (else idx_bills_is_ceremonial
+      -- MULTI-INDEX OR + ~14k row-fetch). Shared with getIntroductionsByMonth.
+      FROM bills INDEXED BY idx_bills_trends_month
       WHERE introduced_date IS NOT NULL
         AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
         AND topics IS NOT NULL
@@ -734,7 +730,10 @@ export const getIntroductionsByMonth = unstable_cache(
       SELECT
         substr(introduced_date, 1, 7) AS month,
         COUNT(*) AS n
-      FROM bills
+      -- HO 335: same partial idx_bills_trends_month as getBillsByMonth — covers
+      -- this histogram index-only (congress lookup, is_ceremonial + introduced_date
+      -- from the index; topics column unused here but the partial filter applies).
+      FROM bills INDEXED BY idx_bills_trends_month
       WHERE introduced_date IS NOT NULL
         AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
         AND topics IS NOT NULL
@@ -780,8 +779,11 @@ export const getLawsEnactedBySessionWeek = unstable_cache(
     const h118 = await db.execute(
       "SELECT enacted_date AS d FROM historical_laws WHERE congress = 118",
     );
+    // HO 335: force the partial idx_bills_enacted (congress, latest_action_date)
+    // WHERE stage='enacted'. Unhinted this was a full SCAN of 16k for ~95 rows
+    // (the audit's worst plan); the partial makes it a covering congress lookup.
     const h119 = await db.execute(
-      `SELECT latest_action_date AS d FROM bills
+      `SELECT latest_action_date AS d FROM bills INDEXED BY idx_bills_enacted
          WHERE congress = 119 AND stage = 'enacted'
            AND latest_action_date IS NOT NULL`,
     );
@@ -2306,8 +2308,7 @@ export type NewsMention = {
   // Companion bill IDs matched to the same article (HO 118). Populated by
   // getBreakingNewsForHome where rows are deduped by article so a single
   // headline matched to multiple bills shows once with a [+N] pill. Empty
-  // for getBreakingNews where the /news feed keeps the one-row-per-pair
-  // shape.
+  // for getNewsForBill / searchNews, which keep the one-row-per-mention shape.
   otherBills: string[];
   // HO 241: true when the row meets the "breaking" predicate (confidence
   // >= NEWS_FEED_MIN_CONFIDENCE AND within BREAKING_WINDOW_HOURS). Only
@@ -2316,52 +2317,9 @@ export type NewsMention = {
   isBreaking?: boolean;
 };
 
-// Backs the home-page banner and /news route. Cached with the `news-breaking`
-// tag separately from `bills` because news ingest runs at the tail of the
-// cron and we want a tight invalidation surface — `bills` flushes ten times
-// per sync, `news-breaking` only when new mentions actually land. The
-// 600s revalidate is a backstop; the explicit revalidateTag from /api/sync
-// is what keeps this fresh in practice.
-//
-// INNER JOIN on bills lets the row render bill id + title + sponsor without
-// a second query. Ceremonial bills excluded (NULL counts as visible during
-// backfill, same convention as buildFeedWhere).
-export const getBreakingNews = unstable_cache(
-  async (
-    windowHours: number,
-    limit: number,
-  ): Promise<NewsMention[]> => {
-    const db = getDb();
-    const rs = await db.execute({
-      sql: `SELECT m.id, m.bill_id, m.source, m.article_title, m.article_url,
-              m.published_at,
-              b.title AS bill_title,
-              b.sponsor_name AS bill_sponsor_name,
-              b.sponsor_party AS bill_sponsor_party
-            FROM news_mentions m
-            INNER JOIN bills b ON b.id = m.bill_id
-            WHERE m.published_at >= datetime('now', '-' || ? || ' hours')
-              AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
-            ORDER BY m.published_at DESC, m.id DESC
-            LIMIT ?`,
-      args: [windowHours, limit],
-    });
-    return rs.rows.map((r) => ({
-      id: Number(r.id),
-      billId: r.bill_id as string,
-      billTitle: r.bill_title as string,
-      billSponsorName: (r.bill_sponsor_name as string | null) ?? null,
-      billSponsorParty: (r.bill_sponsor_party as string | null) ?? null,
-      source: r.source as string,
-      title: r.article_title as string,
-      url: r.article_url as string,
-      publishedAt: r.published_at as string,
-      otherBills: [],
-    }));
-  },
-  ["getBreakingNews"],
-  { revalidate: 600, tags: ["news-breaking"] },
-);
+// HO 335: getBreakingNews deleted as dead code — no callers (the live home block
+// is getBreakingNewsForHome; the /news route is getNewsFeed). Same call HO 331
+// made on the dead `OR sponsor_name` branch: remove, don't optimize.
 
 // HO 130 /news?bill=<id> filter. Returns all mentions for a single bill,
 // ignoring the trailing-hours window since the user has explicitly opted
@@ -2721,6 +2679,15 @@ export const getNewsFeed = unstable_cache(
       ? []
       : [windowHours, NEWS_FEED_MIN_CONFIDENCE];
 
+    // HO 335: drive from the 227-row news_mentions side, not the 16k bills side.
+    // The windowed (non-bill-scoped) form filters on m.published_at, so force
+    // idx_news_mentions_published — the same hint getBreakingNewsForHome carries;
+    // without it the stateless planner drives from bills via idx_bills_is_ceremonial
+    // (MULTI-INDEX OR over ~every non-ceremonial row, the HO 332 cold-abort class).
+    // The bill-scoped form has m.bill_id = ? (selective) and keeps the natural
+    // idx_news_mentions_bill point lookup, so it takes NO hint.
+    const mHint = isBillScoped ? "" : " INDEXED BY idx_news_mentions_published";
+
     // Count uses the same dedup-by-article-key shape so the page-count
     // matches the visible rows when an article gets matched to several
     // bills (HO 133's distinct-article counting convention).
@@ -2729,14 +2696,14 @@ export const getNewsFeed = unstable_cache(
         m.article_title || '|' || m.source || '|' || m.published_at
       ))`;
     const countSql = `SELECT ${distinctArticleExpr} AS n
-      FROM news_mentions m
+      FROM news_mentions m${mHint}
       INNER JOIN bills b ON b.id = m.bill_id
       WHERE ${baseWhere} ${whereExtra}${signalClause}`;
     // BREAKING chip count: same SOURCE/WINDOW/TOPIC/bill scope, but the
     // breaking predicate is ALWAYS applied (and signalClause is NOT) so the
     // count is stable whether or not BREAKING is the active signal.
     const breakingCountSql = `SELECT ${distinctArticleExpr} AS n
-      FROM news_mentions m
+      FROM news_mentions m${mHint}
       INNER JOIN bills b ON b.id = m.bill_id
       WHERE ${baseWhere} ${whereExtra} AND ${BREAKING_PREDICATE_SQL}`;
     const [countRs, breakingCountRs] = await Promise.all([
@@ -2773,7 +2740,7 @@ export const getNewsFeed = unstable_cache(
             )
             ORDER BY m.match_confidence DESC, m.bill_id ASC
           ) AS rn
-        FROM news_mentions m
+        FROM news_mentions m${mHint}
         INNER JOIN bills b ON b.id = m.bill_id
         WHERE ${baseWhere} ${whereExtra}${signalClause}
       ),
@@ -2926,10 +2893,9 @@ export const getFeedBills = unstable_cache(
     // planner already picks a better index (stage → the 278 idx_bills_summary_stage,
     // 152ms; cluster → idx_bills_cluster_id), and forcing summary_feed would make
     // it SCAN the whole partial set + row-fetch the filter column (measured 8.5s
-    // cold for ?stage= — a regression). chamber/q have no selective index and were
-    // already mis-planning pre-279 (untouched here → backlog WATCH, with the
-    // row-returning SELECT below). includeCeremonial only DROPS the ceremonial
-    // clause, so it stays bare-eligible.
+    // cold for ?stage= — a regression). HO 335 closes the chamber case below via
+    // idx_bills_chamber_feed; ?q has no usable index (LIKE) and stays a WATCH.
+    // includeCeremonial only DROPS the ceremonial clause, so it stays bare-eligible.
     const bareGated =
       !filters.stage &&
       !filters.sponsor &&
@@ -2937,7 +2903,22 @@ export const getFeedBills = unstable_cache(
       !filters.chamber &&
       !filters.cluster &&
       (!filters.topics || filters.topics.length === 0);
-    const countHint = bareGated ? " INDEXED BY idx_bills_summary_feed" : "";
+    // HO 335: chamber as the SOLE filter — force the partial idx_bills_chamber_feed
+    // (bill_type, is_ceremonial) WHERE summary IS NOT NULL for an index-only count
+    // (else idx_bills_is_ceremonial MULTI-INDEX OR). Excludes the stage/cluster
+    // combos so a more selective index (summary_stage / cluster_id) still wins.
+    const chamberOnly =
+      !!filters.chamber &&
+      !filters.stage &&
+      !filters.sponsor &&
+      !filters.q &&
+      !filters.cluster &&
+      (!filters.topics || filters.topics.length === 0);
+    const countHint = bareGated
+      ? " INDEXED BY idx_bills_summary_feed"
+      : chamberOnly
+        ? " INDEXED BY idx_bills_chamber_feed"
+        : "";
     const countRs = await db.execute({
       sql: `SELECT COUNT(*) AS n FROM bills${countHint} WHERE ${where}`,
       args: [...args],
@@ -2954,6 +2935,23 @@ export const getFeedBills = unstable_cache(
     // dateless rows out of the way regardless of direction.
     const sortDir = filters.direction === "asc" ? "ASC" : "DESC";
 
+    // HO 335: the bare /bills SELECT (and the chamber-only SELECT) otherwise
+    // MULTI-INDEX OR idx_bills_is_ceremonial + TEMP-B-TREE sort ~14k rows (HO 279
+    // left the bare row-SELECT as WATCH; the count above was already hinted). Force
+    // the index matching the active sort so the walk is pre-ordered (DESC) and the
+    // LIMIT short-circuits — idx_bills_latest_action / idx_bills_introduced_date
+    // both serve `<col> DESC NULLS LAST` via a reverse walk, row-filtering
+    // summary/ceremonial(/bill_type) as they go. Only when bare or chamber-only: a
+    // ?stage/?cluster filter already plans GOOD on its own selective index and
+    // forcing this would regress it. These paths are always sortDir=DESC
+    // (direction='asc' only rides the /president alias, which is ?stage= → neither).
+    const selectHint =
+      bareGated || chamberOnly
+        ? filters.sort === "introduced"
+          ? " INDEXED BY idx_bills_introduced_date"
+          : " INDEXED BY idx_bills_latest_action"
+        : "";
+
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
@@ -2964,7 +2962,7 @@ export const getFeedBills = unstable_cache(
       msp.last_name AS sponsor_last_name,
       msp.district AS sponsor_district,
       ${MENTION_SELECT}
-      FROM bills
+      FROM bills${selectHint}
       ${MENTION_SUBQUERY}
       LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id
       WHERE ${where}
@@ -3023,107 +3021,8 @@ export const getStaleBills = unstable_cache(
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
 );
 
-function buildSponsorWhere(filters: SponsorFilters): {
-  clauses: string[];
-  args: (string | number)[];
-} {
-  const clauses: string[] = [
-    "summary IS NOT NULL",
-    "sponsor_name IS NOT NULL",
-  ];
-  const args: (string | number)[] = [];
-
-  if (filters.party === "R" || filters.party === "D") {
-    clauses.push("UPPER(sponsor_party) = ?");
-    args.push(filters.party);
-  } else if (filters.party === "I") {
-    clauses.push("UPPER(sponsor_party) NOT IN ('R', 'D')");
-    clauses.push("sponsor_party IS NOT NULL");
-  }
-
-  if (filters.state) {
-    clauses.push("sponsor_state = ?");
-    args.push(filters.state.toUpperCase());
-  }
-
-  const q = filters.q?.trim();
-  if (q) {
-    clauses.push("LOWER(sponsor_name) LIKE ?");
-    args.push(`%${q.toLowerCase()}%`);
-  }
-
-  if (filters.chamber === "house") {
-    clauses.push(`bill_type IN (${HOUSE_BILL_TYPES})`);
-  } else if (filters.chamber === "senate") {
-    clauses.push(`bill_type IN (${SENATE_BILL_TYPES})`);
-  }
-
-  // Sponsor rankings should reflect substantive work by default. Unclassified
-  // rows (NULL) stay visible so the page doesn't go dark during backfill.
-  if (!filters.includeCeremonial) {
-    clauses.push("(is_ceremonial = 0 OR is_ceremonial IS NULL)");
-  }
-
-  return { clauses, args };
-}
-
-export async function getSponsors(
-  filters: SponsorFilters,
-  limit = 600,
-): Promise<Sponsor[]> {
-  const db = getDb();
-  const { clauses, args } = buildSponsorWhere(filters);
-  args.push(limit);
-
-  const sql = `SELECT
-      COALESCE(sponsor_bioguide_id, sponsor_name) AS group_key,
-      MAX(sponsor_bioguide_id) AS sponsor_bioguide_id,
-      MAX(sponsor_name) AS sponsor_name,
-      MAX(sponsor_party) AS sponsor_party,
-      MAX(sponsor_state) AS sponsor_state,
-      COUNT(*) AS bill_count,
-      MAX(latest_action_date) AS latest_action_date
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    GROUP BY group_key
-    ORDER BY bill_count DESC, sponsor_name ASC
-    LIMIT ?`;
-
-  const rs = await db.execute({ sql, args });
-  return rs.rows.map((r) => ({
-    sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
-    sponsor_name: r.sponsor_name as string,
-    sponsor_party: (r.sponsor_party as string | null) ?? null,
-    sponsor_state: (r.sponsor_state as string | null) ?? null,
-    bill_count: Number(r.bill_count ?? 0),
-    latest_action_date: (r.latest_action_date as string | null) ?? null,
-  }));
-}
-
-export async function getSponsorCount(
-  filters: SponsorFilters,
-): Promise<FeedCount> {
-  const db = getDb();
-  const { clauses: filteredClauses, args: filteredArgs } =
-    buildSponsorWhere(filters);
-  const { clauses: totalClauses, args: totalArgs } = buildSponsorWhere({});
-
-  const totalSql = `SELECT COUNT(*) AS n FROM (
-    SELECT 1 FROM bills WHERE ${totalClauses.join(" AND ")}
-    GROUP BY COALESCE(sponsor_bioguide_id, sponsor_name)
-  )`;
-  const filteredSql = `SELECT COUNT(*) AS n FROM (
-    SELECT 1 FROM bills WHERE ${filteredClauses.join(" AND ")}
-    GROUP BY COALESCE(sponsor_bioguide_id, sponsor_name)
-  )`;
-
-  const totalRs = await db.execute({ sql: totalSql, args: totalArgs });
-  const filteredRs = await db.execute({ sql: filteredSql, args: filteredArgs });
-  return {
-    total: Number(totalRs.rows[0]?.n ?? 0),
-    filtered: Number(filteredRs.rows[0]?.n ?? 0),
-  };
-}
+// HO 335: buildSponsorWhere, getSponsors, getSponsorCount deleted as dead code
+// (see the Sponsor-types note above) — orphaned by the HO 328 merge.
 
 export const SPONSOR_SORTS = ["volume", "passrate"] as const;
 export type SponsorSort = (typeof SPONSOR_SORTS)[number];
@@ -3136,23 +3035,12 @@ export function sanitizeSponsorSort(
   return "volume";
 }
 
-export type SponsorRanking = {
-  sponsor_bioguide_id: string | null;
-  sponsor_name: string;
-  sponsor_party: string | null;
-  sponsor_state: string | null;
-  total: number;
-  enacted: number;
-  passrate: number;
-};
-
 // HO 124: page-shape replacement for the sponsor-only roster. Driven from
 // members LEFT JOIN bills_agg, so all 536 current members surface — including
 // the handful (Pelosi, Hoyer, special-election arrivals like Armstrong /
 // Mejia) who haven't sponsored anything yet. `passrate` is intentionally
 // NULL when total=0 so the UI can render an em-dash instead of "0%", which
-// reads as a real 0-of-N pass rate; existing SponsorRanking keeps the
-// number-only shape because its rows have at least one bill by construction.
+// reads as a real 0-of-N pass rate.
 export type MemberRanking = {
   bioguide_id: string;
   name: string;
@@ -3475,91 +3363,8 @@ export const getCommitteeRoster = unstable_cache(
   { revalidate: 86400, tags: ["committees", "bills"] },
 );
 
-export const getSponsorsRanked = unstable_cache(
-  async (
-    filters: SponsorFilters,
-    sort: SponsorSort = "volume",
-    limit = 100,
-  ): Promise<SponsorRanking[]> => {
-    const db = getDb();
-    const { clauses, args } = buildSponsorWhere(filters);
-    const sql = `SELECT
-        COALESCE(sponsor_bioguide_id, sponsor_name) AS group_key,
-        MAX(sponsor_bioguide_id) AS sponsor_bioguide_id,
-        MAX(sponsor_name) AS sponsor_name,
-        MAX(sponsor_party) AS sponsor_party,
-        MAX(sponsor_state) AS sponsor_state,
-        COUNT(*) AS total,
-        SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
-        CAST(SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS REAL)
-          / COUNT(*) AS passrate
-      FROM bills
-      WHERE ${clauses.join(" AND ")}
-      GROUP BY group_key
-      ORDER BY
-        CASE WHEN ? = 'passrate' THEN passrate END DESC,
-        CASE WHEN ? = 'passrate' THEN total END DESC,
-        CASE WHEN ? = 'volume' THEN total END DESC,
-        sponsor_name ASC
-      LIMIT ?`;
-    const rs = await db.execute({
-      sql,
-      args: [...args, sort, sort, sort, limit],
-    });
-    return rs.rows.map((r) => ({
-      sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
-      sponsor_name: r.sponsor_name as string,
-      sponsor_party: (r.sponsor_party as string | null) ?? null,
-      sponsor_state: (r.sponsor_state as string | null) ?? null,
-      total: Number(r.total ?? 0),
-      enacted: Number(r.enacted ?? 0),
-      passrate: Number(r.passrate ?? 0),
-    }));
-  },
-  ["getSponsorsRanked"],
-  { revalidate: 3600, tags: ["bills"] },
-);
-
-export type SponsorPassRate = {
-  sponsor_bioguide_id: string | null;
-  sponsor_name: string;
-  sponsor_party: string | null;
-  sponsor_state: string | null;
-  total: number;
-  enacted: number;
-};
-
-export async function getSponsorPassRates(
-  filters: SponsorFilters,
-  minTotal = 5,
-  limit = 100,
-): Promise<SponsorPassRate[]> {
-  const db = getDb();
-  const { clauses, args } = buildSponsorWhere(filters);
-  const sql = `SELECT
-      COALESCE(sponsor_bioguide_id, sponsor_name) AS group_key,
-      MAX(sponsor_bioguide_id) AS sponsor_bioguide_id,
-      MAX(sponsor_name) AS sponsor_name,
-      MAX(sponsor_party) AS sponsor_party,
-      MAX(sponsor_state) AS sponsor_state,
-      COUNT(*) AS total,
-      SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted
-    FROM bills
-    WHERE ${clauses.join(" AND ")}
-    GROUP BY group_key
-    HAVING total >= ?
-    ORDER BY (CAST(enacted AS REAL) / total) DESC, total DESC
-    LIMIT ?`;
-  const rs = await db.execute({ sql, args: [...args, minTotal, limit] });
-  return rs.rows.map((r) => ({
-    sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
-    sponsor_name: r.sponsor_name as string,
-    sponsor_party: (r.sponsor_party as string | null) ?? null,
-    sponsor_state: (r.sponsor_state as string | null) ?? null,
-    total: Number(r.total ?? 0),
-    enacted: Number(r.enacted ?? 0),
-  }));
-}
+// HO 335: type SponsorPassRate + getSponsorsRanked + getSponsorPassRates deleted
+// as dead code (see the Sponsor-types note above) — orphaned by the HO 328 merge.
 
 export async function getSponsorStates(): Promise<string[]> {
   const db = getDb();
@@ -3889,33 +3694,14 @@ export const getWeeklyBandHearings = unstable_cache(
   { revalidate: 3600, tags: ["meetings"] },
 );
 
-export const getStaleCount = unstable_cache(
-  async (filters: FeedFilters): Promise<FeedCount> => {
-    const db = getDb();
-    const { clauses: filteredClauses, args: filteredArgs } =
-      buildStaleWhere(filters);
-    const { clauses: totalClauses, args: totalArgs } = buildStaleWhere({});
-
-    // HO 241: NOT forced. /stale-only (not on the homepage). An index can't help
-    // a COUNT of "stale" bills — latest_action_date > 60d ago matches most of the
-    // table, so the count must examine every stale row regardless of index.
-    // Fixable later with a covering partial index if /stale's cold-start matters.
-    const totalRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${totalClauses.join(" AND ")}`,
-      args: totalArgs,
-    });
-    const filteredRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${filteredClauses.join(" AND ")}`,
-      args: filteredArgs,
-    });
-    return {
-      total: Number(totalRs.rows[0]?.n ?? 0),
-      filtered: Number(filteredRs.rows[0]?.n ?? 0),
-    };
-  },
-  ["getStaleCount"],
-  { revalidate: 3600, tags: ["bills"] },
-);
+// HO 335: getStaleCount deleted as dead code — grep-confirmed zero callers (its
+// /stale count-badge consumer was removed in HO 323 and the call deleted in HO
+// 326; the function was left orphaned). HO 335 first proposed forcing a new
+// idx_bills_stale_count here, but the Group-D rule wins: a dead query gets
+// deleted, not indexed (and the index isn't created — nothing maintains write
+// cost for an uncalled COUNT). This closes the HO 241 banked /stale-count loop by
+// removal. getStaleBills (the live /stale row list) is unaffected — it keeps its
+// own idx_bills_latest_action hint and shares buildStaleWhere below.
 
 function rowToFeedBill(r: Record<string, unknown>): FeedBill {
   return {
@@ -4280,8 +4066,12 @@ export const searchBillsCount = unstable_cache(
     if (!q) return 0;
     const db = getDb();
     const { clause } = billsSearchSqlFragment();
+    // HO 335: force the partial idx_bills_summary_feed (the fragment always leads
+    // with `summary IS NOT NULL`) to collapse the planner's idx_bills_is_ceremonial
+    // MULTI-INDEX OR to one index scan. The LIKE still row-fetches, but off a
+    // single ordered walk, not a double-walk union (HO 332 class).
     const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE ${clause}`,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_feed WHERE ${clause}`,
       args: billsSearchArgs(q),
     });
     return Number(rs.rows[0]?.n ?? 0);
@@ -4300,7 +4090,7 @@ export const searchBills = unstable_cache(
                    sponsor_name, sponsor_party, sponsor_state, introduced_date,
                    latest_action_date, latest_action_text, update_date,
                    summary, topics, stage, stage_changed_at
-            FROM bills
+            FROM bills INDEXED BY idx_bills_summary_feed
             WHERE ${clause}
             ORDER BY latest_action_date DESC NULLS LAST, id DESC
             LIMIT ?`,
@@ -4388,7 +4178,11 @@ export const searchNewsCount = unstable_cache(
     const db = getDb();
     const like = `%${q.toLowerCase()}%`;
     const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM news_mentions m
+      // HO 335: drive from the 227-row news side. Without the hint the stateless
+      // planner drives from bills via idx_bills_is_ceremonial (MULTI-INDEX OR over
+      // ~16k rows). The LIKE has no usable index either way, but forcing m as the
+      // driver collapses the fat-table OR to a 227-row scan + bills PK join.
+      sql: `SELECT COUNT(*) AS n FROM news_mentions m INDEXED BY idx_news_mentions_published
             INNER JOIN bills b ON b.id = m.bill_id
             WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
               AND (LOWER(m.article_title) LIKE ?
@@ -4413,7 +4207,7 @@ export const searchNews = unstable_cache(
                    b.title AS bill_title,
                    b.sponsor_name AS bill_sponsor_name,
                    b.sponsor_party AS bill_sponsor_party
-            FROM news_mentions m
+            FROM news_mentions m INDEXED BY idx_news_mentions_published
             INNER JOIN bills b ON b.id = m.bill_id
             WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
               AND (LOWER(m.article_title) LIKE ?

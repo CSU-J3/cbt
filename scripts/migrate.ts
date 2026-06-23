@@ -661,6 +661,48 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_topics ON bills(sponsor_bioguide_id, is_ceremonial, topics) WHERE topics IS NOT NULL",
   );
   console.log("ok: idx_bills_sponsor_topics");
+  // HO 335 (closes the HO 332 audit). Five covering/partial indexes for the
+  // last cold-start misplanners. Each is forced via INDEXED BY in lib/queries.ts
+  // (Turso is statless — no ANALYZE — so the planner won't take them unhinted)
+  // and proven by an EXPLAIN flip off idx_bills_is_ceremonial / a fat SCAN.
+  //
+  // getLawsEnactedBySessionWeek (/reports) was a full SCAN of 16k for the ~95
+  // enacted-119 rows — the worst plan in the audit. Partial WHERE stage='enacted'
+  // keyed (congress, latest_action_date) → a covering ~95-row congress lookup.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_enacted ON bills(congress, latest_action_date) WHERE stage = 'enacted'",
+  );
+  console.log("ok: idx_bills_enacted");
+  // (HO 335 considered idx_bills_stale_count for getStaleCount, but that helper
+  // was dead code — grep-confirmed zero callers since HO 323/326 — and was deleted
+  // instead of indexed. No index here; nothing maintains write cost for it.)
+  // getFeedBills ?chamber count (/bills?chamber=) — partial WHERE summary IS NOT
+  // NULL keyed (bill_type, is_ceremonial) → index-only COUNT over the chamber's
+  // bill_type IN-list (else MULTI-INDEX OR on idx_bills_is_ceremonial).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_chamber_feed ON bills(bill_type, is_ceremonial) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_chamber_feed");
+  // getBillsByMonth + getIntroductionsByMonth (/trends) — both group the current-
+  // Congress, non-ceremonial, topic-bearing corpus by introduced-month. Partial
+  // WHERE topics IS NOT NULL keyed (congress, is_ceremonial, introduced_date,
+  // topics): congress lookup → index-only scan carrying is_ceremonial +
+  // introduced_date + topics (topics[0] feeds getBillsByMonth's per-topic split),
+  // so the full-corpus aggregate carries no random row I/O. One index, two queries.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_trends_month ON bills(congress, is_ceremonial, introduced_date, topics) WHERE topics IS NOT NULL",
+  );
+  console.log("ok: idx_bills_trends_month");
+  // getTopicMixByChamber (/trends) — full non-ceremonial corpus, json_each over
+  // topics, split house/senate by bill_type. NOT summary-gated (counts unsummarized
+  // too), so non-partial. Keyed (is_ceremonial, topics, bill_type) so the scan
+  // feeding json_each is index-only including bill_type (idx_bills_dash_topics
+  // lacks bill_type → would row-fetch ~14k; the planner else MULTI-INDEX ORs
+  // idx_bills_is_ceremonial).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_chamber_topics ON bills(is_ceremonial, topics, bill_type)",
+  );
+  console.log("ok: idx_bills_chamber_topics");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
