@@ -3444,6 +3444,123 @@ export const getMemberStates = unstable_cache(
   { revalidate: 86400, tags: ["members"] },
 );
 
+// HO 328: per-member topic counts for the merged /members two-pane browser's
+// topic-mix bar. ONE json_each fanout grouped by (sponsor_bioguide_id, topic) —
+// NOT an N+1 across ~536 members (the premise-1 gate). Returns a FLAT array
+// (NOT a Map — unstable_cache JSON-serializes; a Map round-trips to {}). The
+// page groups by bioguide and derives each member's top-3 + OTHR shares. Forces
+// idx_bills_sponsor_topics (HO 277-279 pattern — statless Turso won't pick it);
+// safe because the query always constrains sponsor_bioguide_id + topics.
+export type MemberTopicCount = {
+  bioguideId: string;
+  topic: string;
+  count: number;
+};
+
+export const getMembersTopicMix = unstable_cache(
+  async (includeCeremonial = false): Promise<MemberTopicCount[]> => {
+    const db = getDb();
+    const ceremonial = includeCeremonial
+      ? ""
+      : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+    const rs = await db.execute(
+      `SELECT sponsor_bioguide_id AS bid, je.value AS topic, COUNT(*) AS n
+       FROM bills INDEXED BY idx_bills_sponsor_topics, json_each(bills.topics) je
+       WHERE sponsor_bioguide_id IS NOT NULL
+         AND topics IS NOT NULL${ceremonial}
+       GROUP BY sponsor_bioguide_id, je.value`,
+    );
+    return rs.rows.map((r) => ({
+      bioguideId: r.bid as string,
+      topic: r.topic as string,
+      count: Number(r.n ?? 0),
+    }));
+  },
+  ["getMembersTopicMix"],
+  // Daily revalidate, cron-tag-flush is the real refresh (mirrors getMembersRanked).
+  { revalidate: 86400, tags: ["bills"] },
+);
+
+// HO 328: scoped committee roster for the merged browser's right pane. Joins
+// committee_members → members → the same billsAggCte the /members ranked list
+// uses, so a roster row carries volume/enacted/passrate AND the member's role
+// (chair/ranking). Order: chair first, ranking second (role-detected), then the
+// rest by the active metric (volume DESC default, passrate when sort=passrate).
+// Cheap — ≤61 roster rows (premise-2 gate: 3,839 committee_members total).
+export type CommitteeRosterMember = MemberRanking & {
+  role: string | null;
+  partySide: "majority" | "minority" | null;
+};
+
+export const getCommitteeRoster = unstable_cache(
+  async (
+    systemCode: string,
+    sort: SponsorSort = "volume",
+    includeCeremonial = false,
+  ): Promise<CommitteeRosterMember[]> => {
+    const db = getDb();
+    // role_rank pins chair (0) then ranking (1) ahead of rank-and-file (2);
+    // the metric ORDER BY only applies within the rank-and-file block because
+    // role_rank is the primary sort key.
+    const sql = `
+      WITH ${billsAggCte(includeCeremonial)}
+      SELECT
+        m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
+        cm.role, cm.party_side,
+        COALESCE(b.total,   0) AS total,
+        COALESCE(b.enacted, 0) AS enacted,
+        b.passrate             AS passrate,
+        ps.grade               AS palestine_grade,
+        ps.rank                AS palestine_rank,
+        ps.total_score         AS palestine_score,
+        CASE
+          WHEN LOWER(COALESCE(cm.role, '')) LIKE '%chair%' THEN 0
+          WHEN LOWER(COALESCE(cm.role, '')) LIKE '%ranking%' THEN 1
+          ELSE 2
+        END AS role_rank
+      FROM committee_members cm
+      JOIN members m ON m.bioguide_id = cm.bioguide_id
+      LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
+      LEFT JOIN palestine_scorecard ps ON ps.bioguide_id = m.bioguide_id
+      WHERE cm.committee_system_code = ?
+      ORDER BY
+        role_rank ASC,
+        CASE WHEN ? = 'passrate' THEN passrate END DESC,
+        CASE WHEN ? = 'passrate' THEN total    END DESC,
+        CASE WHEN ? = 'volume'   THEN total    END DESC,
+        m.name ASC
+    `;
+    const rs = await db.execute({
+      sql,
+      args: [systemCode, sort, sort, sort],
+    });
+    return rs.rows.map((r) => ({
+      bioguide_id: r.bioguide_id as string,
+      name: r.name as string,
+      party: (r.party as string | null) ?? null,
+      state: (r.state as string | null) ?? null,
+      chamber: r.chamber as Chamber,
+      district: (r.district as number | null) ?? null,
+      total: Number(r.total ?? 0),
+      enacted: Number(r.enacted ?? 0),
+      passrate:
+        r.passrate === null || r.passrate === undefined
+          ? null
+          : Number(r.passrate),
+      palestineGrade: (r.palestine_grade as string | null) ?? null,
+      palestineRank:
+        r.palestine_rank === null || r.palestine_rank === undefined
+          ? null
+          : Number(r.palestine_rank),
+      palestineScore: (r.palestine_score as string | null) ?? null,
+      role: (r.role as string | null) ?? null,
+      partySide: (r.party_side as "majority" | "minority" | null) ?? null,
+    }));
+  },
+  ["getCommitteeRoster"],
+  { revalidate: 86400, tags: ["committees", "bills"] },
+);
+
 export const getSponsorsRanked = unstable_cache(
   async (
     filters: SponsorFilters,

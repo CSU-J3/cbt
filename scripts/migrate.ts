@@ -649,6 +649,18 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_topics ON bills(is_ceremonial, topics) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_topics");
+  // HO 328: cover getMembersTopicMix — the per-member top-3-topics bar on the
+  // merged /members two-pane browser needs each member's topic counts in ONE
+  // json_each fanout grouped by (sponsor_bioguide_id, topic). Without the index
+  // the statless Turso planner drives off idx_bills_is_ceremonial and the fanout
+  // is ~5s cold (tipping the 10s DB abort); the covering index makes the bills
+  // scan feeding json_each index-only. Forced via INDEXED BY in the helper. Safe
+  // only because the query always constrains sponsor_bioguide_id IS NOT NULL +
+  // topics IS NOT NULL — keep both clauses if editing.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_topics ON bills(sponsor_bioguide_id, is_ceremonial, topics) WHERE topics IS NOT NULL",
+  );
+  console.log("ok: idx_bills_sponsor_topics");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");

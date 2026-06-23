@@ -137,17 +137,17 @@ export default async function CommitteeDetailPage({
   if (!committee) {
     return (
       <div className="flex min-h-screen flex-col">
-        <HeaderBar basePath="/committees" detail="Not found" />
+        <HeaderBar basePath={`/committee/${code}`} detail="Not found" />
         <main className="w-full flex-1 px-4 py-4">
-          <GroupTabs group="members" active="committees" />
+          <GroupTabs group="members" active="members" />
           <p
             className="mt-6 text-[13px]"
             style={{ color: "var(--text-dim)" }}
           >
             No committee with system code{" "}
             <span style={{ color: "var(--text-secondary)" }}>{systemCode}</span>
-            . <Link href="/committees" style={{ color: "var(--accent-amber)" }}>
-              ← Back to committees
+            . <Link href="/members" style={{ color: "var(--accent-amber)" }}>
+              ← Back to members
             </Link>
           </p>
         </main>
@@ -206,9 +206,9 @@ export default async function CommitteeDetailPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar basePath="/committees" detail={committee.name} />
+      <HeaderBar basePath={`/committee/${committee.systemCode}`} detail={committee.name} />
       <main className="w-full flex-1 px-4 py-4">
-        <GroupTabs group="members" active="committees" />
+        <GroupTabs group="members" active="members" />
 
         <section
           className="mb-4 border p-4"

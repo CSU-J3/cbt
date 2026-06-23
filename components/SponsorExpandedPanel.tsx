@@ -24,6 +24,10 @@ import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 // slices — no new queries.
 const RECENT_BILLS_CAP = 7;
 const COMMITTEE_CAP = 8;
+// HO 328: the merged /members two-pane browser passes committeeCap={Infinity}
+// to uncap the COMMITTEES column (the rail is the committee index now, so the
+// expanded card shows a member's full committee set). Members-only component, so
+// the prop is the minimal change; defaults to the HO 198 cap of 8 everywhere else.
 
 const STAGE_BADGES: {
   key: keyof SponsorStats;
@@ -74,6 +78,7 @@ export function SponsorExpandedPanel({
   palestineRank = null,
   palestineScore = null,
   includeCeremonial = false,
+  committeeCap = COMMITTEE_CAP,
 }: {
   sponsorKey: string;
   sponsorName: string;
@@ -92,6 +97,7 @@ export function SponsorExpandedPanel({
   palestineRank?: number | null;
   palestineScore?: string | null;
   includeCeremonial?: boolean;
+  committeeCap?: number;
 }) {
   const partyColor = partyColorFor(sponsorParty);
   const enactedPct =
@@ -102,7 +108,7 @@ export function SponsorExpandedPanel({
   const prefix = chamber === "senate" ? "Sen." : "Rep.";
 
   const shownBills = recentBills.slice(0, RECENT_BILLS_CAP);
-  const shownCommittees = committees.slice(0, COMMITTEE_CAP);
+  const shownCommittees = committees.slice(0, committeeCap);
   const moreCommittees = committees.length - shownCommittees.length;
 
   return (

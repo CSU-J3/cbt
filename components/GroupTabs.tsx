@@ -31,10 +31,11 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
     { slug: "president", label: "President", href: "/president" },
     { slug: "reports", label: "Reports", href: "/reports" },
   ],
-  members: [
-    { slug: "members", label: "Members", href: "/members" },
-    { slug: "committees", label: "Committees", href: "/committees" },
-  ],
+  // HO 328: Committees merged into the /members two-pane browser (the committee
+  // rail IS the index now), so the Members group is a single tab — nothing left
+  // to switch between. /committees redirects to /members; /committee/[code]
+  // detail stays, linked from the rail and lighting Members via pathToNavKey.
+  members: [{ slug: "members", label: "Members", href: "/members" }],
   // HO 173: electoral surfaces split out of the members group into their
   // own sub-nav. Keyed "races" (not "electoral") so the group key unifies
   // with the existing top-nav `races` NavItem — pathToNavKey's group loop
