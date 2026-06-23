@@ -154,30 +154,6 @@ body {
      mobile value; HO 281 lifts it to 26 at desktop (min-width:701px block). */
   font-size: 20px;
 }
-.header-titlebar-nav {
-  display: flex;
-  align-items: center;
-  /* HO 189: protected — never shrinks and no auto-margin (the sync's flex-grow
-     fills the gap and pushes the nav right). */
-  flex-shrink: 0;
-}
-/* HO 189: sync line, now INLINE in the title bar after the cursor (the HO 187
-   standalone band is gone). Lowest-priority element — flex:0 1 auto + min-width:0
-   + ellipsis so it truncates/collapses before the nav wraps (nav flex-shrink:0)
-   or the path gives. 10px dim uppercase, matching the old band's text. */
-.header-titlebar-sync {
-  /* basis 0 so the sync's content width never forces the nav to wrap; grows to
-     fill the path→nav gap and ellipsis-truncates when the gap is tight. */
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
 /* Band 3 — CONTROL STRIP (bills, in <main>) + the transitional legacy-controls
    band (in HeaderBar, full-width). flex-wrap is the 1280px safety: degrade by
    wrapping, never clip. */

@@ -52,12 +52,7 @@ export default async function HearingsPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        basePath="/hearings"
-        pageTitle="HEARINGS"
-        pageCount={total}
-        pageCountLabel="meetings"
-      />
+      <HeaderBar basePath="/hearings" />
 
       <main className="w-full flex-1 px-4 py-4">
         <div className="hearings-page-masthead">

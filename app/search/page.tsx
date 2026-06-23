@@ -80,12 +80,7 @@ export default async function SearchPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        basePath="/search"
-        pageTitle="Search"
-        pageCount={q ? total : undefined}
-        pageCountLabel={total === 1 ? "result" : "results"}
-      />
+      <HeaderBar basePath="/search" />
 
       <main className="w-full flex-1 px-4 py-4">
         <div className="search-layout">

@@ -244,12 +244,7 @@ export default async function CommitteesPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        basePath="/committees"
-        pageTitle="COMMITTEES"
-        pageCount={rows.length}
-        pageCountLabel="committees"
-      />
+      <HeaderBar basePath="/committees" />
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="committees" />
 

@@ -3,21 +3,11 @@ import { Fragment } from "react";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
-import { MarketsTape } from "@/components/MarketsTape";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { SearchBox } from "@/components/SearchBox";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
-import { getClusterPattern } from "@/lib/cluster-patterns";
-import { formatLastUpdated } from "@/lib/format";
-import {
-  type FeedCount,
-  type FeedFilters,
-  getCorpusStats,
-  getFeedStats,
-} from "@/lib/queries";
-
-type CountMode = "feed" | "stale" | "changes" | "president" | "sponsors";
+import { type FeedFilters, getCorpusStats } from "@/lib/queries";
 
 // HO 131 / 134: shared nav-item config consumed by both HeaderNav
 // (top-right chrome on /bills-shaped pages) and HomeHeader (under-title
@@ -107,37 +97,13 @@ export function PrimaryNav({
 export async function HeaderBar({
   feedFilters,
   basePath = "/",
-  countMode = "feed",
-  staleCounts,
-  changesCounts,
-  presidentCounts,
-  sponsorCounts,
-  feedFilteredCount,
-  pageTitle,
-  pageCount,
-  pageCountLabel = "items",
   detail,
   mode,
   presidentAlias,
   pageOwnsControls,
-  cursorAtEnd,
-  liftSyncContrast,
 }: {
   feedFilters?: FeedFilters;
   basePath?: string;
-  countMode?: CountMode;
-  staleCounts?: FeedCount;
-  changesCounts?: FeedCount;
-  presidentCounts?: FeedCount;
-  sponsorCounts?: FeedCount;
-  // Filtered count for the feed view, provided by the page so HeaderBar
-  // doesn't need to re-run the same COUNT(*) query getFeedBills already did.
-  feedFilteredCount?: number;
-  // For non-feed pages that still want the standard header chrome with a
-  // distinct title and count (e.g. /news). Bypasses the bill-count line.
-  pageTitle?: string;
-  pageCount?: number;
-  pageCountLabel?: string;
   // HO 185 breadcrumb inputs: `detail` is the detail-page last segment
   // (HR 9081, member last name, committee name, …); `mode` lets /bills pick
   // Bills vs News; `presidentAlias` adds the "President" segment for the
@@ -147,21 +113,13 @@ export async function HeaderBar({
   presidentAlias?: boolean;
   // HO 187: when a page renders its own band-3 control strip (compact search +
   // ceremonial + filters), it passes this so HeaderBar suppresses the
-  // transitional legacy-controls band below the sync strip. /bills owns its
+  // transitional legacy-controls band below the nav row. /bills owns its
   // controls; /changes + /stale flip this in their sub-stage. TRANSITIONAL —
   // remove the prop + the legacy band once every feed page owns its controls.
   pageOwnsControls?: boolean;
-  // HO 195: Members-only chrome divergences. `cursorAtEnd` moves the blinking
-  // caret off the breadcrumb `>` (suppressed there) to the END of the inline
-  // sync string. `liftSyncContrast` lifts the sync run to --text-muted and the
-  // count number to --text-secondary. Both default off — every other page keeps
-  // the cursor glued to `>` and the dim sync (no regression).
-  cursorAtEnd?: boolean;
-  liftSyncContrast?: boolean;
 }) {
   const includeCeremonial = !!feedFilters?.includeCeremonial;
   const cluster = feedFilters?.cluster;
-  const stats = await getFeedStats(includeCeremonial, cluster);
   // HO 325: the LAST SYNC subhead reads the dashboard's EXACT source —
   // getCorpusStats(true).lastSync (global, filter-independent) — so the inner-page
   // time can't drift from the dashboard's on filtered pages (getFeedStats's
@@ -172,60 +130,18 @@ export async function HeaderBar({
   // Also suppressed when a cluster is active — cluster bypasses the
   // ceremonial gate, so the toggle would be a dead control.
   const showCeremonialToggle = !!feedFilters && !cluster;
-  const clusterName = cluster ? getClusterPattern(cluster)?.name ?? cluster : null;
-  const counts = showSearch
-    ? countMode === "stale"
-      ? (staleCounts ?? null)
-      : countMode === "changes"
-        ? (changesCounts ?? null)
-        : countMode === "president"
-          ? (presidentCounts ?? null)
-          : countMode === "sponsors"
-            ? (sponsorCounts ?? null)
-            : feedFilteredCount !== undefined
-              ? ({
-                  total: stats.total,
-                  filtered: feedFilteredCount,
-                } as FeedCount)
-              : null
-    : null;
-  const q = feedFilters?.q?.trim() ?? "";
-  const sponsor = feedFilters?.sponsor?.trim() ?? "";
-  const isFiltering =
-    showSearch &&
-    (!!q ||
-      !!feedFilters?.stage ||
-      !!feedFilters?.sponsor ||
-      !!cluster ||
-      (feedFilters?.topics?.length ?? 0) > 0);
-  const isStaleMode = countMode === "stale";
-  const isChangesMode = countMode === "changes";
-  const isPresidentMode = countMode === "president";
-  const isSponsorMode = countMode === "sponsors";
-  const useAccentBright =
-    isStaleMode || isChangesMode || isPresidentMode || isSponsorMode;
 
   return (
     <header style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
-      {/* Inner-page chrome (HO 187 band consolidation):
-          Band 1 — TITLE BAR: the PowerShell path (left) + the main nav (right)
-          on one row, merging HO 185's separate masthead + nav rows. flex-wrap
-          so a deep detail path bumps the nav to a second line rather than
-          wrapping the path itself (the path is the identity).
-          The markets tape sits BELOW the title bar — HO 187 removed it from
-          inner pages, HO 202 restored it app-wide, and HO 234 collapsed it to a
-          single combined <MarketsTape /> (the same one HomeHeader mounts) so the
-          tape is identical global chrome on every page. */}
       {/* HO 323 — standardized inner-page chrome: TITLE ROW (breadcrumb path
-          ONLY) → NAV ROW (its own full-width row, the dashboard nav styling) →
-          page content. The markets tape and the inline count/sync metadata were
-          removed from inner pages (tickers + the stat readout are dashboard-only
-          now); the blink caret falls back to the breadcrumb path end on every
-          page. The now-unused count/sync computations + call-site props
-          (pageCount/pageTitle/countMode/staleCounts/.../cursorAtEnd/
-          liftSyncContrast) and the orphaned `.header-titlebar-sync` /
-          `.header-titlebar-nav` classes are flagged for the backlog cleanup, not
-          swept here. */}
+          ONLY) → LAST SYNC subhead (HO 325) → NAV ROW (its own full-width row,
+          the dashboard nav styling) → page content. The markets tape and the
+          inline count metadata were removed from inner pages (tickers + the stat
+          readout are dashboard-only now); the blink caret falls back to the
+          breadcrumb path end on every page. HO 326 swept the dead count path:
+          the count/stats computations, the call-site count props, and the
+          orphaned `.header-titlebar-sync` / `.header-titlebar-nav` classes are
+          gone. */}
       <div className="header-titlebar">
         <BreadcrumbMasthead
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}

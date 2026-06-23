@@ -171,16 +171,11 @@ export default async function MembersPage({
   return (
     <div className="flex min-h-screen flex-col">
       {/* HO 195: pageOwnsControls drops the redundant legacy "search bills…"
-          band (the page has its own "search members…" below); feedFilters stays
-          so the inline sync line still renders. cursorAtEnd + liftSyncContrast
-          are the Members-only masthead divergences. */}
+          band (the page has its own "search members…" below). */}
       <HeaderBar
         feedFilters={headerFilters}
         basePath="/members"
-        countMode="sponsors"
         pageOwnsControls
-        cursorAtEnd
-        liftSyncContrast
       />
 
       <main className="w-full flex-1 px-4 py-4">

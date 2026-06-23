@@ -165,7 +165,7 @@ async function BillsView({
   };
 
   const [
-    { bills, page: currentPage, totalPages, total: filteredCount },
+    { bills, page: currentPage, totalPages },
     watchedIds,
   ] = await Promise.all([
     getFeedBills(feedFilters, { page: requestedPage, pageSize: FEED_PAGE_SIZE }),
@@ -229,7 +229,6 @@ async function BillsView({
           its transitional search/ceremonial — they live in band 3 below. */}
       <HeaderBar
         feedFilters={feedFilters}
-        feedFilteredCount={filteredCount}
         basePath="/bills"
         mode="bills"
         presidentAlias={isPresidentAlias}
@@ -398,7 +397,6 @@ async function NewsView({
     mentions,
     page: currentPage,
     totalPages,
-    total,
     breakingCount,
   } = await getNewsFeed(
     { source, topic, windowHours, billId, signal },
@@ -445,13 +443,7 @@ async function NewsView({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        basePath="/bills"
-        mode="news"
-        pageTitle="News mentions"
-        pageCount={total}
-        pageCountLabel="mentions"
-      />
+      <HeaderBar basePath="/bills" mode="news" />
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="news" />

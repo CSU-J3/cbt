@@ -13,7 +13,6 @@ import { StageLegend } from "@/components/StageLegend";
 import { TopicFilter } from "@/components/TopicFilter";
 import {
   getStaleBills,
-  getStaleCount,
   getWatchedBillIds,
   sanitizeChamber,
   sanitizeClusterId,
@@ -62,9 +61,8 @@ export default async function StalePage({
   if (includeCeremonial) carry.set("ceremonial", "1");
   if (cluster) carry.set("cluster", cluster);
 
-  const [bills, counts, watchedIds] = await Promise.all([
+  const [bills, watchedIds] = await Promise.all([
     getStaleBills(feedFilters, 50),
-    getStaleCount(feedFilters),
     getWatchedBillIds(),
   ]);
 
@@ -79,13 +77,7 @@ export default async function StalePage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        feedFilters={feedFilters}
-        basePath="/stale"
-        countMode="stale"
-        staleCounts={counts}
-        pageOwnsControls
-      />
+      <HeaderBar feedFilters={feedFilters} basePath="/stale" pageOwnsControls />
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="patterns" active="stale" />

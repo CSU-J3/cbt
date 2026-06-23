@@ -43,12 +43,7 @@ export default async function ReportsPage({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <HeaderBar
-        basePath="/reports"
-        pageTitle="Weekly Reports"
-        pageCount={count}
-        pageCountLabel={count === 1 ? "report" : "reports"}
-      />
+      <HeaderBar basePath="/reports" />
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="reports" />

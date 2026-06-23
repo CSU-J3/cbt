@@ -76,8 +76,6 @@ export default async function ChangesPage({
       <HeaderBar
         feedFilters={feedFilters}
         basePath="/changes"
-        countMode="changes"
-        changesCounts={counts}
         pageOwnsControls
       />
 

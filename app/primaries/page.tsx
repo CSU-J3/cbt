@@ -121,10 +121,7 @@ export default async function PrimariesPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* HO 203: match the Members/Races chrome — cursor trails the full inline
-          sync string, sync contrast lifted. (No search band to drop: /primaries
-          passes no feedFilters, so there was never a `search bills…` input.) */}
-      <HeaderBar basePath="/primaries" cursorAtEnd liftSyncContrast />
+      <HeaderBar basePath="/primaries" />
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="races" active="primaries" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
