@@ -582,10 +582,19 @@ async function main() {
   );
   console.log("ok: idx_bills_is_ceremonial");
   await ensureColumn(db, "bills", "cluster_id", "TEXT");
+  // HO 340: idx_bills_cluster_agg (cluster_id, is_ceremonial, stage) supersedes
+  // the old single-column idx_bills_cluster_id. Leading cluster_id serves every
+  // `cluster_id = ?` / `IS NULL` / `IS NOT NULL` lookup the old one did, AND
+  // covers is_ceremonial + stage so getUnmatchedClusterCount's ~15k-row
+  // `cluster_id IS NULL` COUNT and the getClusterStats GROUP BY go index-only
+  // (no row-fetch) — the /patterns 20s→fast fix. Both force it via INDEXED BY.
+  // The old index is dropped below (every consumer seeks the covering one).
   await db.execute(
-    "CREATE INDEX IF NOT EXISTS idx_bills_cluster_id ON bills(cluster_id)",
+    "CREATE INDEX IF NOT EXISTS idx_bills_cluster_agg ON bills(cluster_id, is_ceremonial, stage)",
   );
-  console.log("ok: idx_bills_cluster_id");
+  console.log("ok: idx_bills_cluster_agg");
+  await db.execute("DROP INDEX IF EXISTS idx_bills_cluster_id");
+  console.log("ok: dropped idx_bills_cluster_id (superseded by idx_bills_cluster_agg)");
   // HO 246: cover getNewBillsThisWeekCount's introduced_date filter. Before
   // this, the only bills dashboard aggregate NOT on a covering index — the
   // planner drove off idx_bills_is_ceremonial (the (=0 OR IS NULL) OR matches

@@ -3932,13 +3932,19 @@ export type ClusterStat = {
 export const getClusterStats = unstable_cache(
   async (): Promise<ClusterStat[]> => {
     const db = getDb();
+    // HO 340: force the covering idx_bills_cluster_agg (cluster_id, is_ceremonial,
+    // stage). The SUMs read stage + is_ceremonial, both in the index, so the
+    // GROUP BY over the clustered rows goes index-only + pre-ordered by cluster_id
+    // (no row-fetch, no temp b-tree) — ~4.7s cold → tens of ms. Shares the index
+    // with getUnmatchedClusterCount above; this agg is cached so it doesn't 500 on
+    // its own, but it rides /patterns' Promise.all and the fix is free here.
     const aggRs = await db.execute(
       `SELECT cluster_id,
               COUNT(*) AS total,
               SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee,
               SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
               SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial
-       FROM bills WHERE cluster_id IS NOT NULL GROUP BY cluster_id`,
+       FROM bills INDEXED BY idx_bills_cluster_agg WHERE cluster_id IS NOT NULL GROUP BY cluster_id`,
     );
     type Agg = { total: number; pastCommittee: number; enacted: number; ceremonial: number };
     const aggByPattern = new Map<string, Agg>();
@@ -3995,8 +4001,16 @@ export const getUnmatchedClusterCount = unstable_cache(
     const ceremonialClause = includeCeremonial
       ? ""
       : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+    // HO 340: force the covering idx_bills_cluster_agg (cluster_id, is_ceremonial,
+    // stage). `cluster_id IS NULL` matches ~15.1k of 16.5k rows (most bills are
+    // unclustered); the old plan seeked idx_bills_cluster_id then ROW-FETCHED
+    // is_ceremonial for all 15k (it's not in that index) → ~20s, tripping the 10s
+    // abort, and since the populate never finishes the unstable_cache never fills →
+    // a permanent /patterns 500. With is_ceremonial in the index the COUNT is
+    // index-only (EXPLAIN: SCAN USING COVERING INDEX). The plain-index plan read
+    // GOOD to the HO 332 EXPLAIN audit — the row-fetch cost only shows in timing.
     const rs = await db.execute(
-      `SELECT COUNT(*) AS n FROM bills
+      `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_cluster_agg
        WHERE cluster_id IS NULL${ceremonialClause}`,
     );
     return Number(rs.rows[0]?.n ?? 0);

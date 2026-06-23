@@ -57,7 +57,7 @@ type Q = {
   accept?: boolean;
 };
 
-function badPlan(plan: string[]): { bad: boolean; why: string } {
+function badPlan(plan: string[], sql: string): { bad: boolean; warn: boolean; why: string } {
   // The HO 332/335 failure signal, exactly: (a) the planner fell to
   // idx_bills_is_ceremonial (always a fat row-fetch — it carries only that one
   // column), or (b) a SCAN of the fat table with no index. A MULTI-INDEX OR is
@@ -74,7 +74,30 @@ function badPlan(plan: string[]): { bad: boolean; why: string } {
       reasons.push("SCAN bills (no index)");
     }
   }
-  return { bad: reasons.length > 0, why: reasons.join(", ") };
+  if (reasons.length > 0) return { bad: true, warn: false, why: reasons.join(", ") };
+
+  // HO 340: the row-fetch blindspot. A non-COVERING `USING INDEX` over bills that
+  // EXPLAIN renders as a clean `(col=?)` seek can still row-fetch a huge fraction
+  // of the corpus when the predicate is low-selectivity — `cluster_id IS NULL`
+  // (~15k rows) rendered identically to a point lookup and read GOOD for two
+  // audits while running 20s. EXPLAIN can't show selectivity, so the probe can't
+  // prove these fast. WARN (not pass) for an AGGREGATE (COUNT/SUM/GROUP BY/DISTINCT,
+  // no LIMIT to bound the row-fetch) whose bills access is a non-COVERING index —
+  // it reads every matched row, so a wide predicate = a hidden full row-fetch.
+  // The reviewer resolves a WARN with a cold timing run, never on EXPLAIN alone.
+  const isUnboundedAggregate =
+    /\b(COUNT|SUM|GROUP BY|DISTINCT)\b/i.test(sql) && !/\bLIMIT\b/i.test(sql);
+  const nonCoveringBillsIndex = plan.some(
+    (l) => /(SEARCH|SCAN) (bills|b )/i.test(l) && /USING INDEX/i.test(l) && !/COVERING/i.test(l),
+  );
+  if (isUnboundedAggregate && nonCoveringBillsIndex) {
+    return {
+      bad: false,
+      warn: true,
+      why: "non-COVERING USING INDEX in an unbounded aggregate — row-fetch risk, TIMING-CHECK (EXPLAIN can't price it)",
+    };
+  }
+  return { bad: false, warn: false, why: "" };
 }
 
 async function plan(sql: string, args: (string | number)[]): Promise<string[]> {
@@ -229,9 +252,9 @@ async function main() {
     { fn: "searchBills", route: "/search?tab=bills", cache: "10m, tag bills",
       sql: `SELECT ${FEED_COLS} FROM bills INDEXED BY idx_bills_summary_feed WHERE summary IS NOT NULL${CER_AND} AND (LOWER(id) LIKE ? OR LOWER(title) LIKE ? OR LOWER(sponsor_name) LIKE ? OR LOWER(summary) LIKE ? OR REPLACE(LOWER(id),'-','') LIKE ?) ORDER BY latest_action_date DESC NULLS LAST, id DESC LIMIT ?`, args: ["%tax%", "%tax%", "%tax%", "%tax%", "%tax%", 50] },
     { fn: "getClusterStats agg", route: "/patterns", cache: "1h, tag bills",
-      sql: `SELECT cluster_id, COUNT(*) AS total, SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee FROM bills WHERE cluster_id IS NOT NULL GROUP BY cluster_id`, args: [] },
+      sql: `SELECT cluster_id, COUNT(*) AS total, SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee, SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial FROM bills INDEXED BY idx_bills_cluster_agg WHERE cluster_id IS NOT NULL GROUP BY cluster_id`, args: [] },
     { fn: "getUnmatchedClusterCount", route: "/patterns", cache: "1h, tag bills",
-      sql: `SELECT COUNT(*) AS n FROM bills WHERE cluster_id IS NULL${CER_AND}`, args: [] },
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_cluster_agg WHERE cluster_id IS NULL${CER_AND}`, args: [] },
     { fn: "getClusterDrilldown headline", route: "/patterns drill-in", cache: "1h, tag bills",
       sql: `SELECT COUNT(*) AS total, SUM(CASE WHEN stage='enacted' THEN 1 ELSE 0 END) AS enacted FROM bills WHERE cluster_id = ?`, args: [CLUSTER] },
     { fn: "getClusterDrilldown recent", route: "/patterns drill-in", cache: "1h, tag bills",
@@ -269,6 +292,7 @@ async function main() {
   // After HO 335 this list should be EMPTY. The 4 `accept`-flagged entries still
   // print as BAD-ACCEPTED (selective or covering on the dying /dashboard-classic).
   const bads: { fn: string; route: string; cache: string; why: string }[] = [];
+  const warns: { fn: string; route: string; cache: string; why: string; sql: string; args: (string | number)[] }[] = [];
   for (const q of Q) {
     let p: string[];
     try {
@@ -277,21 +301,59 @@ async function main() {
       console.log(`\n[ERR] ${q.fn}: ${(e as Error).message}`);
       continue;
     }
-    const v = badPlan(p);
+    const v = badPlan(p, q.sql);
     // Covering vs non-covering is read straight off the plan text: "USING
     // COVERING INDEX idx_bills_dash_*" is index-only (fast even when MULTI-INDEX
     // OR); "USING INDEX idx_bills_is_ceremonial" / "SCAN bills" row-fetch the fat
-    // table (the cold-abort signature). EXPLAIN-only — no heavy query execution.
-    const tag = !v.bad ? "GOOD" : q.accept ? `BAD-ACCEPTED (${v.why})` : `BAD (${v.why})`;
+    // table (the cold-abort signature). WARN = HO 340's row-fetch blindspot — a
+    // non-covering index access in an unbounded aggregate that EXPLAIN can't price;
+    // resolve with a cold timing run, not by reading the plan. EXPLAIN-only here.
+    const tag = v.bad
+      ? q.accept
+        ? `BAD-ACCEPTED (${v.why})`
+        : `BAD (${v.why})`
+      : v.warn
+        ? `WARN (${v.why})`
+        : "GOOD";
     console.log(`\n${tag}  ${q.fn}  [${q.route}]  (${q.cache})`);
     for (const line of p) console.log(`    ${line}`);
     if (v.bad && !q.accept) bads.push({ fn: q.fn, route: q.route, cache: q.cache, why: v.why });
+    if (v.warn) warns.push({ fn: q.fn, route: q.route, cache: q.cache, why: v.why, sql: q.sql, args: q.args });
   }
 
   console.log(`\n=== 3. SUMMARY: ${bads.length} UNEXPECTED BAD of ${Q.length} (target: 0) ===`);
   if (bads.length === 0) console.log("  none — every fixed query plans index-only; accepted set unchanged.");
   for (const b of bads) {
     console.log(`  REGRESSION  ${b.fn}  [${b.route}]  (${b.cache})  -> ${b.why}`);
+  }
+  console.log(`\n  ${warns.length} WARN (HO 340 row-fetch blindspot — EXPLAIN can't price these; non-COVERING USING INDEX in an unbounded aggregate):`);
+  for (const w of warns) {
+    console.log(`  WARN  ${w.fn}  [${w.route}]`);
+  }
+
+  // HO 340: resolve the WARNs by TIMING (the only thing that distinguishes an
+  // index-only partial scan SQLite labels "USING INDEX" from a wide row-fetch).
+  // Gated behind TIME_WARN=1 so the default run is plan-only (no heavy execution);
+  // set it to get a verdict. SLOW_MS is the row-fetch-trap threshold.
+  if (process.env.TIME_WARN && warns.length > 0) {
+    const SLOW_MS = 2000;
+    console.log(`\n=== 4. TIMING the ${warns.length} WARNs (warm, 2 runs; >${SLOW_MS}ms = row-fetch trap) ===`);
+    await db.execute("SELECT 1"); // pay connection warm-up once
+    const slow: string[] = [];
+    for (const w of warns) {
+      let ms = 0;
+      for (let i = 0; i < 2; i++) {
+        const s = Date.now();
+        try { await db.execute({ sql: w.sql, args: w.args }); ms = Date.now() - s; }
+        catch { ms = -1; }
+      }
+      const verdict = ms < 0 ? "ABORTED" : ms > SLOW_MS ? `SLOW ${ms}ms ⟵ row-fetch trap` : `ok ${ms}ms`;
+      if (ms < 0 || ms > SLOW_MS) slow.push(`${w.fn} (${ms}ms)`);
+      console.log(`  ${verdict.padEnd(28)} ${w.fn}`);
+    }
+    console.log(`\n  ${slow.length} WARN resolved SLOW: ${slow.join(", ") || "none — all index-only/selective"}`);
+  } else {
+    console.log("  (set TIME_WARN=1 to resolve these by timing)");
   }
 }
 
