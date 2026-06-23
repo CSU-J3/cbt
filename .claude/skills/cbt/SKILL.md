@@ -825,6 +825,20 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > request-path statement against prod, flags the failure signal, target 0 BAD); run
 > it after adding or changing any `bills` query.
 >
+> **The bar is `USING COVERING INDEX`, not just `USING INDEX` (HO 340).** A plain
+> `USING INDEX` that EXPLAIN renders as a clean `(col=?)` seek can still **row-fetch
+> a huge fraction of the corpus** when the predicate is low-selectivity —
+> `getUnmatchedClusterCount`'s `cluster_id IS NULL` matched ~15k of 16.5k rows,
+> rendered identically to a point lookup, and ran 20s while reading GOOD to two
+> audits. EXPLAIN cannot show selectivity, so a non-COVERING index scan in an
+> **unbounded aggregate** (COUNT/SUM/GROUP BY/DISTINCT, no LIMIT) is a *timing*
+> question, not a plan one. The probe now emits **WARN** for that shape (run it with
+> `TIME_WARN=1` to resolve each WARN by a warm timing — >2s = the row-fetch trap).
+> Fix = a covering index that carries the aggregated/filtered columns (HO 340:
+> `idx_bills_cluster_agg (cluster_id, is_ceremonial, stage)` made both /patterns
+> cluster queries index-only, 20s/4.7s → ~35ms). Same lesson as the /search LIKE,
+> generalized: a clean plan ≠ a fast query; an unbounded aggregate must be COVERING.
+>
 > **Full-text search goes through `bills_fts` (FTS5), NEVER a LIKE over title/summary
 > (HO 336).** A leading-`%` `LIKE '%term%'` over the fat text columns full-scans all
 > 16k rows and cold-aborts past the 10s limit regardless of any index (no index
