@@ -803,11 +803,9 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > Plus hints onto EXISTING indexes (no new write cost): `getFeedBills`'s bare- and
 > chamber-only row-SELECT → `idx_bills_latest_action` / `idx_bills_introduced_date`
 > chosen by sort key (pre-ordered walk, LIMIT short-circuits — closes the HO 279
-> row-SELECT WATCH); `searchBills` → `idx_bills_summary_feed` (collapses the
-> MULTI-INDEX OR to one scan; the LIKE still row-fetches — **`/search?q=`
-> nonetheless still cold-aborts on common terms: the leading-`%` LIKE scan over
-> `title`/`summary` is itself >10s, a pre-existing limit no index fixes, tracked as
-> an OPEN LOOP for FTS/a cheaper count**); `getNewsFeed` (×3) +
+> row-SELECT WATCH); `searchBills` → was hinted to `idx_bills_summary_feed` (HO
+> 335) but the title/summary LIKE itself was the >10s wall — **HO 336 replaced it
+> with the `bills_fts` FTS5 index** (see the Full-text search box below); `getNewsFeed` (×3) +
 > `searchNews` → `news_mentions m INDEXED BY idx_news_mentions_published` (drive
 > from the 227-row news side, not the 16k bills side — the drive-order trap, see
 > oddities). **Dead code deleted, not indexed** (the Group-D rule HO 331 set):
@@ -826,6 +824,28 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > **`scripts/diagnostic/cold-start-audit-332.ts`** (EXPLAINs every bills/news_mentions
 > request-path statement against prod, flags the failure signal, target 0 BAD); run
 > it after adding or changing any `bills` query.
+>
+> **Full-text search goes through `bills_fts` (FTS5), NEVER a LIKE over title/summary
+> (HO 336).** A leading-`%` `LIKE '%term%'` over the fat text columns full-scans all
+> 16k rows and cold-aborts past the 10s limit regardless of any index (no index
+> serves a leading wildcard). `bills_fts` is an external-content FTS5 index over
+> `title/summary/sponsor_name` (NOT `id` — its tokens 119/hr/number are in ~every id,
+> so a prefix like `1*` expands to the whole index and blows up); `searchBills`/
+> `searchBillsCount` build a prefix-token `MATCH` (`buildBillsFtsMatch`: alphanumeric
+> tokens, `len>=3` → `tok*`, shorter → exact) and rank by `bm25`. Triggers
+> (`bills_fts_ai/ad/au`) keep it synced across the sync upsert + the summarize UPDATE.
+> Populate in **500-row rowid chunks**, never a one-shot `INSERT INTO bills_fts(bills_fts)
+> VALUES('rebuild')` — that reindexes 16k in one statement and the 10s `boundedFetch`
+> aborts it mid-flight, leaving the external-content index `SQLITE_CORRUPT` (HO 336
+> learned this twice). Recovery: `scripts/diagnostic/recover-fts-336.ts`.
+>
+> **Audit refinement (HO 336): the EXPLAIN probe is blind to full-corpus scans by
+> construction.** `cold-start-audit-332.ts` prices the *plan*, and a leading-`%` LIKE
+> or an unbounded aggregate has a plan that reads fine (a single index/table SCAN) —
+> the cost is the runtime wall-time of scanning every row, which EXPLAIN doesn't show.
+> That's why the 332 audit passed `searchBills` while it 500'd. Plan-clean ≠ fast:
+> any query that touches the whole corpus by design needs a **runtime bounded-fetch
+> timing check**, not just an EXPLAIN.
 
 - `getFeedBills(filters, {page, pageSize})` — main feed; returns `{ bills, total, page, pageSize, totalPages }`. `total` is the filtered count. The page passes `total` into `HeaderBar` via `feedFilteredCount` so the header doesn't need a second COUNT query. The unfiltered count for the "X of Y" header line comes from `getFeedStats().total`. SELECTs the HO 188 enrichment columns `sponsor_bioguide_id` + `cosponsor_count`, and (HO 192) `LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id` projecting `msp.depiction_url AS sponsor_depiction_url` for the sponsor hover card — plus **HO 194's `msp.first_name`/`last_name`/`district` (as `sponsor_first_name`/`sponsor_last_name`/`sponsor_district`)** for the refined card's natural-order name + district, all on the *same* JOIN (no new query). Mirrors `getSponsorProductivity`'s join; `members.bioguide_id` is the PK so it's 1:1 (no row multiplication, and `total` is a separate JOIN-free COUNT anyway). All of these ride on `FeedBill` and are wired into `getFeedBills` only, so they degrade to absent on the other feed-shaped queries (`/stale`/`/changes`/`/watchlist`).
 - `getStaleBills(filters, limit)` — `/stale` page row list. Composes `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. Sorted `latest_action_date ASC`, forced `INDEXED BY idx_bills_latest_action`. **`getStaleCount` was deleted in HO 335** (dead since HO 323/326 removed the count badge + its call) — `/stale` shows no count.
@@ -1011,7 +1031,7 @@ Two surfaces (HO 129): inline page filters on `/bills` and `/members` (where the
 
 - `components/SearchBox.tsx` is the only client search island. Reads `usePathname()` to decide where to route: paths starting with `/bills` or `/members` stay inline (preserves filter state via `searchParams.toString()`), everything else `router.push(/search?q=…)`. When already on `/search`, the active `tab` carries across keystrokes so a user mid-tab doesn't get bounced back to bills. 250ms debounce; `×` clear button triggers the same effect via `setValue("")`. The `basePath` prop now only matters for the inline-stay destination.
 - `/search` (HO 129) — global tabbed search at `app/search/page.tsx`. Reads `?q` (sanitized via `sanitizeQ` — trim + 200-char cap) and `?tab` (sanitized via `sanitizeSearchTab` against `SEARCH_TABS = ["bills","members","news","reports"]`; invalid falls back to `bills`). Runs all four `search<Entity>Count(q)` queries in parallel via `Promise.all`; only the active tab's `search<Entity>(q)` result fetch runs. Header shows `SEARCH · <total> results`. Below header: inline `SearchBox`, count line (`145 RESULTS IN BILLS · "education"`, numerator in `--accent-amber`), `SearchTabs` strip (active tab gets `aria-current="page"` and amber bottom border, zero-count tabs get `data-empty="true"` for 50% opacity), then the active tab's results. Empty active tab with non-empty siblings renders `NO MATCHES IN MEMBERS · TRY BILLS (1,200 MATCHES) →` linked to the highest-count non-empty tab. Empty `?q=` shows the centered hint and zero counts. Backed by 8 cached helpers in `lib/queries.ts` (`searchBills`/`searchBillsCount`/`searchMembers`/…), each tagged with the matching invalidation tag (`bills`, `members`, `news-breaking`, `reports`).
-- Bills search semantics: same OR clause as `buildFeedWhere`'s `q` clause (`LOWER(id|title|sponsor_name|summary) LIKE ?` + normalized bill-id `REPLACE(LOWER(id),'-','')`). **Global**: ignores stage/topic/cluster/chamber filters by design. Ceremonial filter and `summary IS NOT NULL` stay on.
+- Bills search semantics (**HO 336 — FTS5, was a LIKE**): `searchBills`/`searchBillsCount` `MATCH` the `bills_fts` FTS5 index (external content over `title/summary/sponsor_name`), join back to `bills` by rowid, gate on `summary IS NOT NULL` + non-ceremonial, and order by `bm25`. The match string is built by `buildBillsFtsMatch` (alphanumeric tokens, `len>=3` → prefix `tok*`, shorter → exact; AND across terms, OR across columns). **Global**: ignores stage/topic/cluster/chamber by design. **Behavior change from the LIKE:** `id` is no longer searchable in global /search (id tokens blew up the FTS — see the Full-text search box above; id-substring search was already 500/non-functional under the LIKE); matching is token-prefix, not substring (so "tax" no longer matches inside "syntax"). The leading-`%` LIKE was the HO 335 `/search` 500. `/bills?q=` is a SEPARATE inline filter (`buildFeedWhere`) that **still LIKEs and still 500s** on common terms (same cold-abort, confirmed HO 336) — its own OPEN LOOP (it's the shared feed path with stage/topic/sort/pagination, so wiring `bills_fts` in is more than a helper swap).
 - Bill ID normalization: query and id are both lowercased and stripped of spaces/dashes before comparison, so `HR 2702`, `hr2702`, `hr-2702`, `2702`, and `119hr2702` all match `119-hr-2702`.
 - Members search: `members.name OR members.state_name` LIKE-matched, `is_current=1` gate. Returns name + party + state + chamber + sponsored bill count. Reuses `bills_agg` CTE for the count. Rows link to `/members/[bioguide_id]`.
 - News search: `news_mentions.article_title OR article_summary OR source`, INNER JOIN on bills with ceremonial gate. Reuses `NewsMention` shape so `SearchResultsNews` renders through the existing `NewsRow` (with `linkBillToDetail` so the bill rail jumps to `/bill/[id]` rather than `/bills`'s expand panel — search intent is "find this thing").
