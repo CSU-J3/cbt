@@ -4038,41 +4038,47 @@ export function sanitizeSearchTab(
 
 const SEARCH_LIMIT = 50;
 
-// Bills: same OR shape as buildFeedWhere's q clause, but intentionally
-// IGNORES topic/stage/cluster/chamber filters — global search is global.
-// Ceremonial bills stay hidden by default (matches the rest of the app's
-// default). Summary-null bills stay hidden (matches buildFeedWhere).
-function billsSearchSqlFragment(): { clause: string; argsCount: 5 } {
-  return {
-    clause: `summary IS NOT NULL
-        AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
-        AND (LOWER(id) LIKE ?
-          OR LOWER(title) LIKE ?
-          OR LOWER(sponsor_name) LIKE ?
-          OR LOWER(summary) LIKE ?
-          OR REPLACE(LOWER(id), '-', '') LIKE ?)`,
-    argsCount: 5,
-  };
+// HO 336: bills search runs through the FTS5 index `bills_fts` (external content
+// over title/summary/sponsor_name — see scripts/migrate.ts), NOT a LIKE. A
+// leading-`%` LIKE over title/summary full-scanned the 16k corpus and cold-aborted
+// past the 10s DB limit on common terms (the HO 335 /search 500); FTS turns the
+// match into an index lookup. Global search ignores topic/stage/cluster/chamber
+// filters; ceremonial + summary-null bills stay hidden (matches buildFeedWhere).
+//
+// NOTE: `id` is deliberately NOT in the FTS. Bill-id tokens (119, hr, the number)
+// appear in ~every id, so prefix terms like `1*` / `119*` expand to ~the whole
+// index and blow up (a "119-hr-1" search hit a 20s abort while id was indexed).
+// id-substring search in global /search was already non-functional (it rode the
+// same LIKE 500), so it's dropped here rather than special-cased.
+//
+// Build a safe FTS5 MATCH string from untrusted input: extract alphanumeric
+// tokens (drops FTS operators / quotes / punctuation → injection-safe). Prefix-
+// match tokens of length >= 3 (`tax*` matches taxation); 1-2 char tokens match
+// exactly (a short prefix like `a*` / `1*` expands to a huge posting list).
+// Implicit AND across terms, OR across the indexed columns; bm25 ranks. Returns
+// null when the query has no usable tokens (caller returns empty).
+function buildBillsFtsMatch(q: string): string | null {
+  const tokens = q.toLowerCase().match(/[a-z0-9]+/g);
+  if (!tokens || tokens.length === 0) return null;
+  return tokens.map((t) => (t.length >= 3 ? `${t}*` : t)).join(" ");
 }
 
-function billsSearchArgs(q: string): string[] {
-  const like = `%${q.toLowerCase()}%`;
-  const idLike = `%${normalizeBillIdQuery(q)}%`;
-  return [like, like, like, like, idLike];
-}
+// Shared FROM/WHERE: join the FTS match set back to bills by rowid, then apply
+// the same visibility gate the LIKE path used (summary present, non-ceremonial).
+const BILLS_FTS_FROM = `FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
+      WHERE bills_fts MATCH ?
+        AND bills.summary IS NOT NULL
+        AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)`;
 
 export const searchBillsCount = unstable_cache(
   async (q: string): Promise<number> => {
     if (!q) return 0;
+    const match = buildBillsFtsMatch(q);
+    if (!match) return 0;
     const db = getDb();
-    const { clause } = billsSearchSqlFragment();
-    // HO 335: force the partial idx_bills_summary_feed (the fragment always leads
-    // with `summary IS NOT NULL`) to collapse the planner's idx_bills_is_ceremonial
-    // MULTI-INDEX OR to one index scan. The LIKE still row-fetches, but off a
-    // single ordered walk, not a double-walk union (HO 332 class).
     const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_feed WHERE ${clause}`,
-      args: billsSearchArgs(q),
+      sql: `SELECT COUNT(*) AS n ${BILLS_FTS_FROM}`,
+      args: [match],
     });
     return Number(rs.rows[0]?.n ?? 0);
   },
@@ -4083,18 +4089,18 @@ export const searchBillsCount = unstable_cache(
 export const searchBills = unstable_cache(
   async (q: string): Promise<FeedBill[]> => {
     if (!q) return [];
+    const match = buildBillsFtsMatch(q);
+    if (!match) return [];
     const db = getDb();
-    const { clause } = billsSearchSqlFragment();
     const rs = await db.execute({
-      sql: `SELECT id, congress, bill_type, bill_number, title,
-                   sponsor_name, sponsor_party, sponsor_state, introduced_date,
-                   latest_action_date, latest_action_text, update_date,
-                   summary, topics, stage, stage_changed_at
-            FROM bills INDEXED BY idx_bills_summary_feed
-            WHERE ${clause}
-            ORDER BY latest_action_date DESC NULLS LAST, id DESC
+      sql: `SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number, bills.title,
+                   bills.sponsor_name, bills.sponsor_party, bills.sponsor_state, bills.introduced_date,
+                   bills.latest_action_date, bills.latest_action_text, bills.update_date,
+                   bills.summary, bills.topics, bills.stage, bills.stage_changed_at
+            ${BILLS_FTS_FROM}
+            ORDER BY bm25(bills_fts)
             LIMIT ?`,
-      args: [...billsSearchArgs(q), SEARCH_LIMIT],
+      args: [match, SEARCH_LIMIT],
     });
     return rs.rows.map(rowToFeedBill);
   },

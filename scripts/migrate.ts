@@ -703,6 +703,68 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_chamber_topics ON bills(is_ceremonial, topics, bill_type)",
   );
   console.log("ok: idx_bills_chamber_topics");
+  // HO 336: FTS5 full-text search over bills for /search's BILLS tab. A leading-%
+  // LIKE over title/summary full-scanned all 16k rows and cold-aborted past the
+  // 10s DB limit on common terms (e.g. "tax" → 1290 matches) — no index helps a
+  // leading wildcard, so HO 335's hint collapsed the plan but the scan was the
+  // wall. External-content FTS5 (content='bills' — indexes, does NOT copy the
+  // corpus) over title/summary/sponsor_name; searchBills/searchBillsCount MATCH it
+  // + rank by bm25. `id` is deliberately EXCLUDED — its tokens (119, hr, number)
+  // are in ~every id, so a prefix term like `1*` expands to ~the whole index and
+  // blows up (a "119-hr-1" search hit a 20s abort while id was indexed). Triggers
+  // keep it consistent across BOTH bills write paths: the sync upsert (INSERT /
+  // ON CONFLICT DO UPDATE, lib/sync.ts) and the summarize UPDATE
+  // (lib/summarize-runner.ts). bills is rarely deleted, but the delete trigger is
+  // there for correctness. content_rowid='rowid' works because bills is a normal
+  // (rowid) table — its PK is TEXT, not WITHOUT ROWID.
+  await db.execute(
+    "CREATE VIRTUAL TABLE IF NOT EXISTS bills_fts USING fts5(title, summary, sponsor_name, content='bills', content_rowid='rowid')",
+  );
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS bills_fts_ai AFTER INSERT ON bills BEGIN
+    INSERT INTO bills_fts(rowid, title, summary, sponsor_name)
+    VALUES (new.rowid, new.title, new.summary, new.sponsor_name);
+  END`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS bills_fts_ad AFTER DELETE ON bills BEGIN
+    INSERT INTO bills_fts(bills_fts, rowid, title, summary, sponsor_name)
+    VALUES ('delete', old.rowid, old.title, old.summary, old.sponsor_name);
+  END`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS bills_fts_au AFTER UPDATE ON bills BEGIN
+    INSERT INTO bills_fts(bills_fts, rowid, title, summary, sponsor_name)
+    VALUES ('delete', old.rowid, old.title, old.summary, old.sponsor_name);
+    INSERT INTO bills_fts(rowid, title, summary, sponsor_name)
+    VALUES (new.rowid, new.title, new.summary, new.sponsor_name);
+  END`);
+  // Populate once from the existing corpus, guarded on empty. NOT a single
+  // `INSERT INTO bills_fts(bills_fts) VALUES('rebuild')`: that reindexes all 16k
+  // docs in one statement and exceeds the 10s boundedFetch (lib/db.ts, HO 238) —
+  // it aborts+retries+throws even though the server finishes (HO 336 found this
+  // the hard way). Rowid chunks keep each statement well under the limit. The
+  // empty-guard means a re-run is a no-op (and avoids double-indexing rows).
+  // Cheap existence check, NOT COUNT(*): a bare `COUNT(*) FROM bills_fts`
+  // iterates the whole index and can itself exceed the 10s bound (HO 336).
+  const ftsHasRows =
+    (await db.execute("SELECT 1 FROM bills_fts LIMIT 1")).rows.length > 0;
+  if (!ftsHasRows) {
+    const maxRowid = Number(
+      (await db.execute("SELECT COALESCE(MAX(rowid), 0) AS m FROM bills")).rows[0]?.m ?? 0,
+    );
+    // 500, not 1000: indexing 1000 bills' title+summary measured up to ~10.7s on
+    // prod (HO 336 recovery) — over the 10s boundedFetch. 500 keeps each atomic
+    // chunk to ~5s with margin; an abort would just roll back + retry the chunk.
+    const CHUNK = 500;
+    for (let lo = 0; lo < maxRowid; lo += CHUNK) {
+      await db.execute({
+        sql: `INSERT INTO bills_fts(rowid, title, summary, sponsor_name)
+              SELECT rowid, title, summary, sponsor_name FROM bills
+              WHERE rowid > ? AND rowid <= ?`,
+        args: [lo, lo + CHUNK],
+      });
+    }
+    console.log(`ok: bills_fts populated (chunked to rowid ${maxRowid})`);
+  } else {
+    console.log("ok: bills_fts already populated");
+  }
+  console.log("ok: bills_fts + triggers");
   // handoff 59: enrichment fields. Both nullable; NULL = "not yet populated"
   // (distinguishable from 0, which is a real "no cosponsors" / "empty text").
   await ensureColumn(db, "bills", "cosponsor_count", "INTEGER");
