@@ -38,21 +38,6 @@ export function formatDateLong(iso: string | null | undefined): string {
   return part;
 }
 
-// "h:MM AM/PM MT" in America/Denver — header bar last-updated (HO 169: 12-hour)
-const mountainTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/Denver",
-  hour: "numeric",
-  minute: "2-digit",
-  hour12: true,
-});
-
-export function formatLastUpdated(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return `${mountainTimeFormatter.format(d)} MT`;
-}
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // Relative-age string for news mentions. Sub-hour → "Xm"; sub-day → "Xh";
