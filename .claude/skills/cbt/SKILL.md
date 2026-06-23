@@ -784,18 +784,53 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 >
 > **`getFeedStats` is app-wide:** it's the masthead count rendered by `HeaderBar` on
 > EVERY inner page, so its mis-plan was an app-wide 500 risk, not route-local —
-> fixing it (HO 277) protected every inner page at once. **Still WATCH (latent,
-> under the abort):** `getFeedBills`'s row-returning SELECT, `getSponsorsRanked`
-> (COALESCE GROUP BY blocks a clean index → rewrite), `searchBills` (LIKE over a fat
-> column → wants FTS, not an index) — a deliberate systemic pass, see backlog.
+> fixing it (HO 277) protected every inner page at once.
+>
+> **HO 335 closed the rest of the class (the HO 332 site-wide EXPLAIN audit — all
+> 53 bills/news_mentions request-path statements).** Four more covering/partial
+> `bills` indexes (in `migrate.ts`), each forced via `INDEXED BY`:
+> - **`idx_bills_enacted (congress, latest_action_date) WHERE stage='enacted'`** —
+>   `getLawsEnactedBySessionWeek` (`/reports`) was a full SCAN of 16k for ~95 rows
+>   (the audit's worst plan); now a covering congress lookup.
+> - **`idx_bills_chamber_feed (bill_type, is_ceremonial) WHERE summary IS NOT NULL`** —
+>   `getFeedBills`'s `?chamber=` COUNT, index-only.
+> - **`idx_bills_trends_month (congress, is_ceremonial, introduced_date, topics) WHERE topics IS NOT NULL`** —
+>   shared by `getBillsByMonth` + `getIntroductionsByMonth` (`/trends`), index-only.
+> - **`idx_bills_chamber_topics (is_ceremonial, topics, bill_type)`** —
+>   `getTopicMixByChamber` (`/trends`); non-partial (the query is ungated); covering
+>   incl. `bill_type` so the `json_each` driver is index-only.
+>
+> Plus hints onto EXISTING indexes (no new write cost): `getFeedBills`'s bare- and
+> chamber-only row-SELECT → `idx_bills_latest_action` / `idx_bills_introduced_date`
+> chosen by sort key (pre-ordered walk, LIMIT short-circuits — closes the HO 279
+> row-SELECT WATCH); `searchBills` → `idx_bills_summary_feed` (collapses the
+> MULTI-INDEX OR to one scan; the LIKE still row-fetches); `getNewsFeed` (×3) +
+> `searchNews` → `news_mentions m INDEXED BY idx_news_mentions_published` (drive
+> from the 227-row news side, not the 16k bills side — the drive-order trap, see
+> oddities). **Dead code deleted, not indexed** (the Group-D rule HO 331 set):
+> `getBreakingNews`, `getSponsorsRanked`, `getSponsorPassRates`, `getSponsors`,
+> `getSponsorCount`, and **`getStaleCount`** — the last closes the HO 241 banked
+> `/stale`-count loop by removal (no caller since HO 323/326; deleting beats
+> indexing dead code). The 3 ungated `/dashboard-classic` dashboard reads are
+> covering index-only MULTI-INDEX ORs (acceptable) and ride that route's sunset loop.
+>
+> **Discipline — the merge-time check that ends the whack-a-mole:** any query that
+> touches `bills` MUST EXPLAIN to an index-only plan (covering-index point lookup,
+> index range, or covering-index scan) — never an `idx_bills_is_ceremonial`
+> MULTI-INDEX OR or a fat-table SCAN. A *covering* MULTI-INDEX OR (both
+> `(is_ceremonial=0 OR IS NULL)` branches on a covering non-ceremonial index) is
+> fine — it's index-only. The standing probe is
+> **`scripts/diagnostic/cold-start-audit-332.ts`** (EXPLAINs every bills/news_mentions
+> request-path statement against prod, flags the failure signal, target 0 BAD); run
+> it after adding or changing any `bills` query.
 
 - `getFeedBills(filters, {page, pageSize})` — main feed; returns `{ bills, total, page, pageSize, totalPages }`. `total` is the filtered count. The page passes `total` into `HeaderBar` via `feedFilteredCount` so the header doesn't need a second COUNT query. The unfiltered count for the "X of Y" header line comes from `getFeedStats().total`. SELECTs the HO 188 enrichment columns `sponsor_bioguide_id` + `cosponsor_count`, and (HO 192) `LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id` projecting `msp.depiction_url AS sponsor_depiction_url` for the sponsor hover card — plus **HO 194's `msp.first_name`/`last_name`/`district` (as `sponsor_first_name`/`sponsor_last_name`/`sponsor_district`)** for the refined card's natural-order name + district, all on the *same* JOIN (no new query). Mirrors `getSponsorProductivity`'s join; `members.bioguide_id` is the PK so it's 1:1 (no row multiplication, and `total` is a separate JOIN-free COUNT anyway). All of these ride on `FeedBill` and are wired into `getFeedBills` only, so they degrade to absent on the other feed-shaped queries (`/stale`/`/changes`/`/watchlist`).
-- `getStaleBills(filters, limit)` / `getStaleCount(filters)` — `/stale` page. Compose `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. `total` is the count of all stale bills; `filtered` adds stage/topics/q. Sorted by `latest_action_date ASC`.
+- `getStaleBills(filters, limit)` — `/stale` page row list. Composes `buildStaleWhere` on top of the shared `buildFeedWhere`; the stale criteria (`latest_action_date IS NOT NULL`, `< date('now', '-60 days')`, `stage IN (introduced, committee, floor, other_chamber, other)`) are added to whatever the user filtered by. Sorted `latest_action_date ASC`, forced `INDEXED BY idx_bills_latest_action`. **`getStaleCount` was deleted in HO 335** (dead since HO 323/326 removed the count badge + its call) — `/stale` shows no count.
 - **President desk-time view** — `/president` redirects to `/bills?stage=president` (HO 151). The dedicated `getPresidentBills` / `getPresidentCount` / `buildPresidentWhere` helpers were **deleted in HO 154.1** as orphans of that redirect; do not reference them. The desk-time column + oldest-at-desk ordering now ride `getFeedBills`: when the feed page detects `stage=president` as the sole active stage with no explicit `?sort`, it passes `direction: "asc"` (→ `ORDER BY latest_action_date ASC NULLS LAST, id DESC`, oldest at desk first — closest to the 10-day veto deadline) and `daysSinceMode="desk-time"` to `BillRowList`. `FeedFilters.direction` is internal-only — never written by URL params, never surfaced in `SortDropdown`.
 - `getStageChanges(filters, days=7, limit=200, dashboard?)` / `getStageChangesCount(filters, days)` — `/changes` page and the dashboard's `ActivityTicker` (the **MOVERS** tab as of HO 232). `buildChangesWhere` composes on `buildFeedWhere` (stripping `filters.stage`) and adds `stage_changed_at` within the last `days`, sorted `stage_changed_at DESC`. Excludes ceremonial by default like everything built on `buildFeedWhere`, so the ticker calls it with empty `filters` + `limit: 15`. The optional 4th `DashboardFilters` arg carries the dashboard's click-to-filter state: `stage` matches transitions where `stage = ? OR previous_stage = ?` (either direction), `topic` narrows via `json_each` EXISTS. `/changes` ignores the 4th arg.
 - `getEnactedThisWeek()` (HO 232) — bills that reached `enacted` in the last 7 days. `unstable_cache` tag `bills`. The predicate lives in `lib/enacted-this-week.ts::queryEnactedThisWeek` (the single source) — **two consumers, deliberately split:** the dashboard-lead cron reads it **raw** (it runs post-summarize, pre-`revalidateTag`, so a cached read would be stale), while the dashboard reads this **cached** helper. **HO 244 folded the standalone `EnactedBanner` into the new `WeeklyBand`** (`EnactedBanner.tsx` deleted) — the enacted count + first ≤3 IDs now render as the band's `● n ENACTED · S n` segment (`--stage-enacted` green, linking `/bills?stage=enacted`); the N=0 state still renders visibly by design. `WeeklyBand` is the lone consumer now.
 - `getDashboardPrimaries()` (HO 233) — the PRIMARIES tab's 6-month rollup (`RacesPanelTabs` → `DashboardPrimaries`). **UNCACHED plain `db.execute`** — the primaries surfaces are deliberately untagged (no revalidate tag exists, verified live), so this matches the `getUpcomingPrimaries` convention rather than inventing one. Returns `{ strip, cards, windowStart, windowEnd }` from one windowed `PRIMARY_SELECT` read: the strip is `primary_date → contest count` over `today..+6mo` (the soonest 4 dates flagged `soon`); the cards are those 4 dates with states + count + marquee seats. **"Rated" rides a derived seatId → `race_ratings` EXISTS, NOT `primaries.race_id`** (a dead link, 3/907 populated).
-- `getSponsors(filters, limit)` / `getSponsorCount(filters)` — `/members` page. `SponsorFilters` is `{ party?: 'R'|'D'|'I', state?, q? }`; `q` matches `sponsor_name LIKE`, not bill text. Aggregates `bills` by `(sponsor_name, sponsor_party, sponsor_state)` with `COUNT(*)` and `MAX(latest_action_date)`. Inherits `summary IS NOT NULL` from the same convention `buildFeedWhere` uses, so unsummarized bills don't pad sponsor counts. `party='I'` matches any non-R, non-D variant (`UPPER(sponsor_party) NOT IN ('R','D')`) — Bernie Sanders' `ID`, hypothetical `IND`, etc. `getSponsorCount` wraps the GROUP BY in a subquery to count distinct sponsor groups.
+- `getSponsors` / `getSponsorCount` / `getSponsorsRanked` / `getSponsorPassRates` + the `SponsorFilters`/`Sponsor`/`SponsorRanking`/`SponsorPassRate` types and `buildSponsorWhere` — **all deleted in HO 335** (dead code, orphaned by the HO 328 members/committees merge). The live `/members` roster is `getMembersRanked` (members ⟕ `billsAggCte`); the live per-sponsor surface is `getSponsorStats`/`getSponsorTopTopics`/`getSponsorRecentBills` (expand card) + `getSponsorStates` (dropdown).
 - `getSponsorStates()` — distinct non-null `sponsor_state` values (alphabetical) for the State dropdown.
 - `getSponsorStats(key, includeCeremonial)` / `getSponsorTopTopics(key, limit, includeCeremonial)` / `getSponsorRecentBills(key, includeCeremonial)` — the three per-sponsor aggregates behind the `/members` expand panel (5-query `Promise.all`). **`key` is a `bioguide_id` (HO 331).** Each filters `sponsor_bioguide_id = ?` and is **forced `INDEXED BY`** a covering index — `idx_bills_sponsor_agg` (stats + recent-bills) / `idx_bills_sponsor_topics` (top-topics). **HO 331 retired the old `(sponsor_bioguide_id = ? OR sponsor_name = ?)` fallback:** the `sponsor_name` branch was unindexed and dead (the sole caller always passes a bioguide), and it dropped the statless planner onto `idx_bills_is_ceremonial` (MULTI-INDEX OR over ~every non-ceremonial row → cold-abort 500, the HO 277/329 misplan class). **Do NOT reintroduce an `OR sponsor_name` branch** — it walks the fat table again. The hint is mandatory (the planner won't pick it unhinted); keep the `sponsor_bioguide_id` constraint or SQLite throws "no query solution". All three `unstable_cache` tag `bills`.
 - `normalizePartyVariant(party)` — collapses any sponsor party string to `'R' | 'D' | 'I' | null`. Use this both for filtering and for badge rendering so `R`, `D`, and everything-else-non-null map to the three party colors.
