@@ -804,7 +804,10 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > chamber-only row-SELECT → `idx_bills_latest_action` / `idx_bills_introduced_date`
 > chosen by sort key (pre-ordered walk, LIMIT short-circuits — closes the HO 279
 > row-SELECT WATCH); `searchBills` → `idx_bills_summary_feed` (collapses the
-> MULTI-INDEX OR to one scan; the LIKE still row-fetches); `getNewsFeed` (×3) +
+> MULTI-INDEX OR to one scan; the LIKE still row-fetches — **`/search?q=`
+> nonetheless still cold-aborts on common terms: the leading-`%` LIKE scan over
+> `title`/`summary` is itself >10s, a pre-existing limit no index fixes, tracked as
+> an OPEN LOOP for FTS/a cheaper count**); `getNewsFeed` (×3) +
 > `searchNews` → `news_mentions m INDEXED BY idx_news_mentions_published` (drive
 > from the 227-row news side, not the 16k bills side — the drive-order trap, see
 > oddities). **Dead code deleted, not indexed** (the Group-D rule HO 331 set):
