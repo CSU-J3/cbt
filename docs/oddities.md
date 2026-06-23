@@ -14,7 +14,7 @@ Two FTS5 gotchas hit while building it (HO 336), both worth not relearning:
 - **Don't index `id` in the FTS.** Bill-id tokens (`119`, `hr`, the number) appear in ~every id, so a prefix term like `1*` or `119*` expands to ~the whole index → a `119-hr-1` search 20s-aborted. Index only the prose columns (`title/summary/sponsor_name`). Short query tokens (len 1-2) match exactly, not as prefixes, for the same expansion reason.
 - **Don't populate an external-content FTS with a one-shot `INSERT INTO bills_fts(bills_fts) VALUES('rebuild')`.** Reindexing 16k docs is one long statement; the 10s `boundedFetch` (HO 238) aborts it mid-flight and the index lands `SQLITE_CORRUPT` (MATCH then returns 0 or errors). Populate in **small rowid chunks** (500), each well under the bound. And check population with an existence probe (`SELECT 1 FROM bills_fts LIMIT 1`), NOT `SELECT COUNT(*) FROM bills_fts` — a bare fts count iterates the whole index and can itself blow the bound.
 
-The same LIKE 500 still lives on `/bills?q=` (the inline feed filter, `buildFeedWhere`) — confirmed, its own OPEN LOOP; HO 336 only swapped the standalone `/search` helpers.
+The same LIKE 500 also hit `/bills?q=` (the inline feed filter, `buildFeedWhere`); HO 338 wired that path to `bills_fts` too. Note the FTS-vs-sort-index conflict it exposed: `getFeedBills` carries HO 335's forced sort-index hint, but an FTS `MATCH` must drive from `bills_fts` — you can't force the sort index AND drive from FTS, so the query **branches on `q`** (q-present = FTS drive, no hint; q-absent = HO 335 sort-walk). Forcing the sort hint onto the q path silently re-breaks it back to a scan.
 
 ## An `OR sponsor_name` fallback on a `bills` query walks the whole fat table (HO 329/331, Jun 2026)
 
