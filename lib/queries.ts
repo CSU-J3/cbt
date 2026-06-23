@@ -3582,15 +3582,20 @@ export const getSponsorRecentBills = unstable_cache(
     const ceremonialClause = includeCeremonial
       ? ""
       : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
+    // HO 331: bioguide-only + forced index. The old `OR sponsor_name = ?` branch
+    // was unindexed and dead (the sole caller passes a bioguide; a bioguide never
+    // equals a sponsor_name), and it dropped the planner onto idx_bills_is_ceremonial
+    // (MULTI-INDEX OR over ~every non-ceremonial row → cold-abort 500, HO 277/329
+    // misplan class). INDEXED BY is mandatory — the statless planner won't pick it.
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at
-      FROM bills
-      WHERE summary IS NOT NULL
-        AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}
+      FROM bills INDEXED BY idx_bills_sponsor_agg
+      WHERE sponsor_bioguide_id = ?
+        AND summary IS NOT NULL${ceremonialClause}
       ORDER BY latest_action_date DESC NULLS LAST`;
-    const rs = await db.execute({ sql, args: [sponsorKey, sponsorKey] });
+    const rs = await db.execute({ sql, args: [sponsorKey] });
     return rs.rows.map(rowToFeedBill);
   },
   ["getSponsorRecentBills"],
@@ -3625,9 +3630,9 @@ export const getSponsorStats = unstable_cache(
           SUM(CASE WHEN stage = 'floor' THEN 1 ELSE 0 END) AS floor_count,
           SUM(CASE WHEN stage = 'other_chamber' THEN 1 ELSE 0 END) AS other_chamber,
           SUM(CASE WHEN stage = 'president' THEN 1 ELSE 0 END) AS president
-        FROM bills
-        WHERE (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}`,
-      args: [sponsorKey, sponsorKey],
+        FROM bills INDEXED BY idx_bills_sponsor_agg
+        WHERE sponsor_bioguide_id = ?${ceremonialClause}`,
+      args: [sponsorKey],
     });
     const r = rs.rows[0];
     return {
@@ -3657,10 +3662,10 @@ export const getSponsorTopTopics = unstable_cache(
       ? ""
       : " AND (is_ceremonial = 0 OR is_ceremonial IS NULL)";
     const rs = await db.execute({
-      sql: `SELECT topics FROM bills
-            WHERE topics IS NOT NULL
-              AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${ceremonialClause}`,
-      args: [sponsorKey, sponsorKey],
+      sql: `SELECT topics FROM bills INDEXED BY idx_bills_sponsor_topics
+            WHERE sponsor_bioguide_id = ?
+              AND topics IS NOT NULL${ceremonialClause}`,
+      args: [sponsorKey],
     });
     const counts = new Map<string, number>();
     for (const row of rs.rows) {
