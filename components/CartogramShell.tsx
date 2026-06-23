@@ -34,6 +34,11 @@ type FillStyle = { fill: string; label: string };
 
 const INACTIVE: FillStyle = { fill: "#1a2030", label: "#475569" };
 
+// HO 333: timeline-selected states paint amber over whatever competitive fill
+// they had; the in-map label flips to --bg-base for contrast on the bright fill.
+const HIGHLIGHT_FILL = "#fbbf24"; // --accent-amber-bright
+const HIGHLIGHT_LABEL = "#0a0e14"; // --bg-base
+
 // RACES — purple ramp by competitive-race COUNT (brightened so count-1 reads
 // against the base; 27 states sit at count-1).
 function racesFill(count: number): FillStyle {
@@ -76,6 +81,14 @@ function RacesLegend() {
           style={{ background: INACTIVE.fill, borderColor: "#2a3344" }}
         />
         none
+      </span>
+      {/* HO 333: the timeline-highlight key sits with the map legend. */}
+      <span className="cart-legend-item" style={{ marginLeft: 8 }}>
+        <span
+          className="cart-legend-swatch"
+          style={{ background: HIGHLIGHT_FILL }}
+        />
+        votes selected date
       </span>
     </div>
   );
@@ -148,6 +161,8 @@ export function CartogramShell({
   listSlot,
   onStatePick,
   dimmedStates,
+  highlightedStates,
+  previewStates,
 }: {
   variant: CartogramVariant;
   cells: CartogramCell[];
@@ -161,6 +176,14 @@ export function CartogramShell({
   // HO 226 (additive, /primaries only): states NOT in the active scrubber month
   // are dimmed. Undefined (e.g. /races) → no dimming.
   dimmedStates?: ReadonlySet<string>;
+  // HO 333 (additive, /electoral only): the primary-calendar timeline drives
+  // these. `highlightedStates` paint amber (--accent-amber-bright) over the
+  // purple competitive fill, label flipped to --bg-base. `previewStates` get a
+  // transient amber OUTLINE (stroke-only, raised) for the timeline-hover peek.
+  // Both undefined elsewhere → the purple base is byte-identical. No dimming of
+  // the rest, no transitions — React re-renders instantly on prop change.
+  highlightedStates?: ReadonlySet<string>;
+  previewStates?: readonly string[] | null;
 }) {
   const [view, setView] = useState<"map" | "list">("map");
   const [hovered, setHovered] = useState<string | null>(null);
@@ -341,10 +364,16 @@ export function CartogramShell({
               {geometry.states.map((s) => {
                 const cell = cellByState.get(s.abbr) ?? null;
                 const active = !!cell?.active;
-                const style =
+                const baseStyle =
                   variant === "races"
                     ? racesFill(cell?.count ?? 0)
                     : primariesFill(cell?.band ?? null);
+                // HO 333: amber highlight wins over the competitive fill.
+                const isHi = highlightedStates?.has(s.abbr) ?? false;
+                const style = isHi
+                  ? { fill: HIGHLIGHT_FILL, label: HIGHLIGHT_LABEL }
+                  : baseStyle;
+                const stroke = isHi ? HIGHLIGHT_FILL : "#0a0e14";
                 const isLeader = leaderSet.has(s.abbr);
                 const isDC = s.abbr === "DC";
                 const handlers = tileHandlers(s.abbr, active);
@@ -369,7 +398,7 @@ export function CartogramShell({
                         width={12}
                         height={12}
                         fill={style.fill}
-                        stroke="#0a0e14"
+                        stroke={stroke}
                         strokeWidth={0.75}
                         className={active ? "us-map-state" : "us-map-state--inactive"}
                         {...handlers}
@@ -378,7 +407,7 @@ export function CartogramShell({
                       <path
                         d={s.d}
                         fill={style.fill}
-                        stroke="#0a0e14"
+                        stroke={stroke}
                         strokeWidth={0.75}
                         className={active ? "us-map-state" : "us-map-state--inactive"}
                         aria-label={`${STATE_ABBR_TO_NAME[s.abbr] ?? s.abbr}`}
@@ -413,7 +442,14 @@ export function CartogramShell({
                 const cell = cellByState.get(l.abbr) ?? null;
                 const active = !!cell?.active;
                 const handlers = tileHandlers(l.abbr, active);
-                const labelColor = active ? "#e5e7eb" : "#475569";
+                // HO 333: a highlighted NE state's gutter label reads amber
+                // (the bg-base flip is for labels sitting ON the amber fill; a
+                // gutter label sits on the dark background, so amber, not bg).
+                const labelColor = (highlightedStates?.has(l.abbr) ?? false)
+                  ? HIGHLIGHT_FILL
+                  : active
+                    ? "#e5e7eb"
+                    : "#475569";
                 const labelText =
                   variant === "races" && active && hovered === l.abbr && cell?.count
                     ? `${l.abbr} ${cell.count}`
@@ -446,6 +482,37 @@ export function CartogramShell({
                   </g>
                 );
               })}
+
+              {/* HO 333: timeline-hover preview — a transient amber OUTLINE
+                  (stroke only) for that date's states, raised over the fills. */}
+              {previewStates && previewStates.length > 0
+                ? geometry.states
+                    .filter((s) => previewStates.includes(s.abbr))
+                    .map((s) =>
+                      s.abbr === "DC" ? (
+                        <rect
+                          key={`prev-${s.abbr}`}
+                          x={s.cx - 6}
+                          y={s.cy - 6}
+                          width={12}
+                          height={12}
+                          fill="none"
+                          stroke={HIGHLIGHT_FILL}
+                          strokeWidth={2}
+                          pointerEvents="none"
+                        />
+                      ) : (
+                        <path
+                          key={`prev-${s.abbr}`}
+                          d={s.d}
+                          fill="none"
+                          stroke={HIGHLIGHT_FILL}
+                          strokeWidth={2}
+                          pointerEvents="none"
+                        />
+                      ),
+                    )
+                : null}
             </svg>
 
             {peekStyle && hoveredCell ? (

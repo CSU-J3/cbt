@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electoral — races map + primary timeline (click to highlight)</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --amber:#d97706; --amber-bright:#fbbf24;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg-base);color:var(--text-primary);
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;}
+  .page{max-width:1200px;margin:0 auto;padding:24px 28px 70px;}
+  .topnote{background:#161108;border:1px solid #3a2a0a;color:#d9a441;padding:8px 12px;font-size:11px;border-radius:3px;margin-bottom:22px;}
+
+  .hdr .title{font-size:22px;color:var(--text-primary);letter-spacing:1px;}
+  .hdr .title .slash{color:var(--amber);}
+  .hdr .sub{color:var(--text-dim);font-size:11px;margin-top:5px;}
+  .navrow{display:flex;gap:22px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border-strong);padding:12px 0 11px;margin:14px 0 0;}
+  .navrow .on{color:var(--amber-bright);}
+
+  .hero{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid var(--border-strong);border-radius:3px;margin:16px 0 0;}
+  .hero .cell{padding:11px 14px;border-right:1px solid var(--border-soft);} .hero .cell:last-child{border-right:none;}
+  .hero .lab{font-size:10px;color:var(--text-dim);letter-spacing:.5px;}
+  .hero .big{font-size:22px;color:var(--text-primary);margin-top:3px;}
+  .hero .row{margin-top:5px;font-size:12px;}
+  .dem{color:#3b82f6;} .rep{color:#ef4444;} .dim{color:var(--text-dim);}
+  .live{font-size:9px;color:var(--amber-bright);border:1px solid var(--amber);border-radius:2px;padding:1px 4px;margin-left:6px;}
+
+  .usmap{display:block;}
+  .mapwrap{height:418px;margin:14px auto 0;display:flex;justify-content:center;}
+  .mapwrap .usmap{width:auto;height:100%;}
+  .legend{display:flex;gap:16px;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);padding:6px 2px 2px;flex-wrap:wrap;}
+  .legend .sw{display:inline-block;width:13px;height:13px;border-radius:2px;vertical-align:-2px;margin-right:6px;}
+  .maperr{color:var(--text-dim);font-size:12px;align-self:center;}
+
+  .tl-band{border:1px solid var(--border-strong);border-radius:3px;margin-top:14px;padding:11px 14px 9px;background:var(--bg-base);}
+  .tl-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;}
+  .tl-h .t{color:var(--amber-bright);font-size:12px;letter-spacing:.5px;}
+  .tl-h .leg{font-size:10px;color:var(--text-muted);}
+  .tl-h .leg .sw{display:inline-block;width:11px;height:11px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 12px;}
+  .readout{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--text-secondary);border-top:1px solid var(--border-soft);margin-top:8px;padding-top:9px;}
+  .readout .mark{color:var(--amber-bright);}
+  .readout .states{color:var(--amber-bright);}
+  .readout .hint{color:var(--text-dim);}
+  .readout .clear{cursor:pointer;color:var(--text-dim);border:1px solid var(--border-strong);border-radius:2px;padding:1px 7px;font-size:10px;margin-left:auto;}
+  .readout .clear:hover{color:var(--amber-bright);border-color:var(--amber);}
+
+  .tip{position:fixed;pointer-events:none;background:#050709;border:1px solid var(--amber);color:var(--text-primary);font-size:11px;padding:4px 8px;border-radius:3px;opacity:0;z-index:50;}
+  .caption{color:var(--text-dim);font-size:11px;margin:12px 2px 0;max-width:920px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topnote">Layout mockup — primary dates and contest counts are illustrative. Click a bar in the timeline to highlight that date's states on the map.</div>
+
+  <div class="hdr">
+    <div class="title">Congress Terminal<span class="slash">:\</span>119TH<span class="slash">\</span>Electoral<span class="slash">&gt;</span></div>
+    <div class="sub">· LAST SYNC 9:06 PM CT</div>
+  </div>
+  <div class="navrow">
+    <span>\DASHBOARD</span><span>\BILLS</span><span>\HEARINGS</span><span>\MEMBERS</span>
+    <span class="on">[ \ELECTORAL ]</span><span>\PATTERNS</span><span>\REPORTS</span><span>\WATCHLIST</span>
+  </div>
+
+  <div class="hero">
+    <div class="cell"><div class="lab">KALSHI HOUSE CONTROL <span class="live">LIVE</span></div><div class="row">→ <span class="dem">D 79%</span> &nbsp; <span class="dim">R 22%</span></div></div>
+    <div class="cell"><div class="lab">KALSHI SENATE CONTROL</div><div class="row">→ <span class="rep">R 58%</span> &nbsp; <span class="dim">D 43%</span></div></div>
+    <div class="cell"><div class="lab">SEATS IN PLAY</div><div class="big">139</div><div class="row dim">29 SEN · 110 HOUSE</div></div>
+  </div>
+
+  <div class="mapwrap"><div id="map"></div></div>
+  <div class="legend">
+    <span style="color:var(--text-dim);margin-right:4px;">COMPETITIVE RACES</span>
+    <span><span class="sw" style="background:#3b3585"></span>1</span>
+    <span><span class="sw" style="background:#5048b0"></span>2</span>
+    <span><span class="sw" style="background:#6a60d0"></span>3</span>
+    <span><span class="sw" style="background:#8b82e8"></span>4+</span>
+    <span><span class="sw" style="background:#1a2030;border:1px solid #2a3344"></span>NONE</span>
+    <span style="margin-left:8px;"><span class="sw" style="background:#fbbf24"></span>VOTES SELECTED DATE</span>
+  </div>
+
+  <div class="tl-band">
+    <div class="tl-h">
+      <span class="t">PRIMARY CALENDAR · 2026</span>
+      <span class="leg">872 contests · 352 voted<span class="sw" style="background:#0e7490"></span>VOTED<span class="sw" style="background:#b45309"></span>UPCOMING</span>
+    </div>
+    <div id="timeline"></div>
+    <div class="readout" id="readout"></div>
+  </div>
+
+  <div class="caption">Map carries the competitive picture, the bars carry the calendar. Click Aug 4 and AZ KS MI MO WA turn amber; click Aug 11 too and CT MN VT WI join them. Highlights stack so you can build a window across several dates. Hover previews as an outline, clicking a selected bar drops it, CLEAR ALL resets. Non-matching states keep their competitive shade.</div>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+const FIPS={ "01":"AL","02":"AK","04":"AZ","05":"AR","06":"CA","08":"CO","09":"CT","10":"DE","11":"DC",
+"12":"FL","13":"GA","15":"HI","16":"ID","17":"IL","18":"IN","19":"IA","20":"KS","21":"KY","22":"LA",
+"23":"ME","24":"MD","25":"MA","26":"MI","27":"MN","28":"MS","29":"MO","30":"MT","31":"NE","32":"NV",
+"33":"NH","34":"NJ","35":"NM","36":"NY","37":"NC","38":"ND","39":"OH","40":"OK","41":"OR","42":"PA",
+"44":"RI","45":"SC","46":"SD","47":"TN","48":"TX","49":"UT","50":"VT","51":"VA","53":"WA","54":"WV",
+"55":"WI","56":"WY" };
+const DATA={
+ AL:{r:1,n:16}, AK:{r:3,n:4}, AZ:{r:3,n:18}, AR:{r:2,n:10}, CA:{r:4,n:52}, CO:{r:2,n:18},
+ CT:{r:1,n:10}, DE:{r:0,n:4}, FL:{r:2,n:58}, GA:{r:3,n:30}, HI:{r:0,n:4}, ID:{r:1,n:6},
+ IL:{r:3,n:36}, IN:{r:2,n:18}, IA:{r:2,n:10}, KS:{r:2,n:10}, KY:{r:1,n:14}, LA:{r:3,n:8},
+ ME:{r:2,n:6}, MD:{r:1,n:16}, MA:{r:1,n:20}, MI:{r:3,n:28}, MN:{r:2,n:18}, MS:{r:0,n:10},
+ MO:{r:2,n:16}, MT:{r:3,n:6}, NE:{r:2,n:8}, NV:{r:2,n:8}, NH:{r:1,n:6}, NJ:{r:2,n:26},
+ NM:{r:1,n:8}, NY:{r:2,n:52}, NC:{r:3,n:30}, ND:{r:0,n:2}, OH:{r:2,n:32}, OK:{r:1,n:12},
+ OR:{r:2,n:14}, PA:{r:3,n:34}, RI:{r:1,n:6}, SC:{r:2,n:16}, SD:{r:1,n:4}, TN:{r:1,n:20},
+ TX:{r:2,n:78}, UT:{r:0,n:8}, VT:{r:1,n:2}, VA:{r:2,n:24}, WA:{r:3,n:10}, WV:{r:1,n:4},
+ WI:{r:2,n:16}, WY:{r:1,n:4}
+};
+const SMALL=new Set(['VT','NH','MA','RI','CT','NJ','DE','MD']);
+const MON=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+const EVENTS=[
+  {date:'2026-03-03',states:['CA','TX','AL','AR','NC','TN']},
+  {date:'2026-03-17',states:['IL','OH']},
+  {date:'2026-05-19',states:['ID','KY','OR','GA','PA']},
+  {date:'2026-06-02',states:['IA','MT','NM','SD','NJ']},
+  {date:'2026-06-09',states:['ME','NV','SC','ND']},
+  {date:'2026-06-23',states:['NY','CO','UT']},
+  {date:'2026-08-04',states:['AZ','KS','MI','MO','WA']},
+  {date:'2026-08-11',states:['CT','MN','VT','WI']},
+  {date:'2026-08-18',states:['AK','FL','WY']},
+  {date:'2026-09-08',states:['DE','NH','RI']},
+  {date:'2026-09-15',states:['MA','MD']}
+];
+const NOW=new Date('2026-06-23T00:00:00');
+const tip=d3.select('#tip');
+function racesFill(r){ return r>=4?'#8b82e8': r===3?'#6a60d0': r===2?'#5048b0': r===1?'#3b3585':'#1a2030'; }
+
+let paths=null, labels=null, rects=null, rows=null;
+const locked=new Set();
+
+function lockedStates(){ const s=new Set(); locked.forEach(i=>EVENTS[i].states.forEach(ab=>s.add(ab))); return s; }
+
+function paint(){
+  if(!paths) return;
+  const sel=lockedStates();
+  paths.attr('fill',function(){ const ab=this.getAttribute('data-ab'); return sel.has(ab)?'#fbbf24':racesFill(DATA[ab].r); })
+       .attr('stroke',function(){ const ab=this.getAttribute('data-ab'); if(sel.has(ab)) return '#fbbf24'; return DATA[ab].r===0?'#2a3344':'#0a0e14'; })
+       .attr('stroke-width',function(){ return sel.has(this.getAttribute('data-ab'))?1:0.8; });
+  labels.attr('fill',function(){ const ab=this.getAttribute('data-ab'); return sel.has(ab)?'#0a0e14':'#e5e7eb'; });
+  if(rects) rects.attr('stroke',(d,i)=> locked.has(i)?'#fbbf24':'none').attr('stroke-width',(d,i)=> locked.has(i)?1.5:0).attr('opacity',1);
+  const ro=document.getElementById('readout');
+  if(locked.size===0){ ro.innerHTML=`<span class="mark">▸</span> <span class="hint">click primary dates to stack which states vote then · click again to drop one</span>`; }
+  else{
+    const idx=[...locked].sort((a,b)=>a-b);
+    const dates=idx.map(i=>{ const d=new Date(EVENTS[i].date+'T00:00:00'); return `${MON[d.getMonth()]} ${d.getDate()}`; }).join(' · ');
+    const tot=idx.reduce((a,i)=>a+EVENTS[i].states.reduce((x,s)=>x+DATA[s].n,0),0);
+    ro.innerHTML=`<span class="mark">▸</span> <span class="states">${dates}</span> — ${sel.size} states · ${tot} contests <span class="clear" onclick="clearSel()">CLEAR ALL</span>`;
+  }
+}
+function clearSel(){ locked.clear(); paint(); }
+function preview(states){
+  paint();
+  paths.filter(function(){ return states.includes(this.getAttribute('data-ab')); })
+    .attr('stroke','#fbbf24').attr('stroke-width',2).raise();
+}
+
+function buildMap(feats, path){
+  const W=1120,H=610;
+  const svg=d3.select('#map').append('svg').attr('class','usmap').attr('viewBox',`0 0 ${W} ${H}`);
+  const g=svg.append('g');
+  const fs=feats.filter(f=>FIPS[f.id]&&DATA[FIPS[f.id]]);
+  const cents={}; fs.forEach(f=>cents[FIPS[f.id]]=path.centroid(f));
+  paths=g.selectAll('path').data(fs).join('path').attr('d',path)
+    .attr('data-ab',f=>FIPS[f.id]).style('cursor','pointer');
+
+  const labelData=[];
+  Object.keys(cents).forEach(ab=>{ if(SMALL.has(ab))return; const c=cents[ab]; labelData.push({ab,x:c[0],y:c[1]+3,anchor:'middle'}); });
+  const smalls=Object.keys(cents).filter(ab=>SMALL.has(ab)).sort((a,b)=>cents[a][1]-cents[b][1]);
+  const top=120,bot=345,colX=1000;
+  smalls.forEach((ab,i)=>{ const ty=smalls.length>1?top+i*(bot-top)/(smalls.length-1):(top+bot)/2; const c=cents[ab];
+    g.append('line').attr('x1',c[0]).attr('y1',c[1]).attr('x2',colX-7).attr('y2',ty).attr('stroke','#475569').attr('stroke-width',0.6);
+    labelData.push({ab,x:colX,y:ty+3,anchor:'start'}); });
+  labels=g.selectAll('text.lbl').data(labelData).join('text').attr('class','lbl')
+    .attr('x',d=>d.x).attr('y',d=>d.y).attr('text-anchor',d=>d.anchor).attr('data-ab',d=>d.ab)
+    .attr('font-size',12).attr('font-family','ui-monospace,monospace').style('pointer-events','none')
+    .text(d=>d.ab);
+
+  paths.on('mousemove',function(ev){ const ab=this.getAttribute('data-ab'),d=DATA[ab];
+      tip.html(`${ab} · ${d.r>=4?'4+':d.r} competitive`).style('opacity',1).style('left',(ev.clientX+12)+'px').style('top',(ev.clientY+12)+'px'); })
+    .on('mouseleave',function(){ tip.style('opacity',0); });
+}
+
+function drawTimeline(feats){
+  const W=1100,H=165,m={t:22,r:18,b:28,l:18};
+  const svg=d3.select('#timeline').append('svg').attr('viewBox',`0 0 ${W} ${H}`).style('width','100%').style('height','auto');
+  const g=svg.append('g');
+  rows=EVENTS.map(e=>({date:new Date(e.date+'T00:00:00'),states:e.states,total:d3.sum(e.states,s=>DATA[s].n)}));
+  const x=d3.scaleTime().domain([new Date('2026-03-01T00:00:00'),new Date('2026-09-30T00:00:00')]).range([m.l,W-m.r]);
+  const y=d3.scaleLinear().domain([0,d3.max(rows,d=>d.total)]).range([H-m.b,m.t]);
+  const months=d3.timeMonths(new Date('2026-03-01'),new Date('2026-10-01'));
+  g.selectAll('line.mo').data(months).join('line').attr('x1',d=>x(d)).attr('x2',d=>x(d)).attr('y1',m.t-4).attr('y2',H-m.b).attr('stroke','#111820');
+  g.selectAll('text.mo').data(months).join('text').attr('x',d=>x(d)+4).attr('y',H-m.b+15).attr('fill','#6b7280').attr('font-size',11).attr('font-family','ui-monospace,monospace').text(d=>MON[d.getMonth()]);
+  g.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',H-m.b).attr('y2',H-m.b).attr('stroke','#1f2937');
+  const bw=9;
+  rects=g.selectAll('rect.bar').data(rows).join('rect').attr('class','bar')
+    .attr('x',d=>x(d.date)-bw/2).attr('width',bw).attr('y',d=>y(d.total)).attr('height',d=>H-m.b-y(d.total))
+    .attr('fill',d=>d.date<=NOW?'#0e7490':'#b45309').style('cursor','pointer')
+    .on('mouseenter',(ev,d)=>preview(d.states))
+    .on('mousemove',(ev,d)=>{ tip.html(`${MON[d.date.getMonth()]} ${d.date.getDate()} · ${d.states.length} states · ${d.total} contests`).style('opacity',1).style('left',(ev.clientX+12)+'px').style('top',(ev.clientY+12)+'px'); })
+    .on('mouseleave',()=>{ paint(); tip.style('opacity',0); })
+    .on('click',(ev,d)=>{ const i=rows.indexOf(d); if(locked.has(i)) locked.delete(i); else locked.add(i); paint(); });
+  g.selectAll('text.cnt').data(rows.filter(d=>d.total>=60)).join('text').attr('x',d=>x(d.date)).attr('y',d=>y(d.total)-5).attr('text-anchor','middle').attr('fill','#cbd5e1').attr('font-size',10).attr('font-family','ui-monospace,monospace').text(d=>d.total);
+  g.append('line').attr('x1',x(NOW)).attr('x2',x(NOW)).attr('y1',m.t-10).attr('y2',H-m.b).attr('stroke','#fbbf24').attr('stroke-width',1).attr('stroke-dasharray','3 3');
+  g.append('text').attr('x',x(NOW)).attr('y',m.t-13).attr('text-anchor','middle').attr('fill','#fbbf24').attr('font-size',10).attr('font-family','ui-monospace,monospace').text('TODAY');
+}
+
+(async function(){
+  try{
+    const us=await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json').then(r=>r.json());
+    const feats=topojson.feature(us, us.objects.states).features;
+    const path=d3.geoPath();
+    buildMap(feats, path);
+    drawTimeline(feats);
+    paint();
+  }catch(err){
+    document.getElementById('map').innerHTML='<div class="maperr">map failed to load — check connection and refresh</div>';
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>

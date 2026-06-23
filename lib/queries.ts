@@ -1355,6 +1355,51 @@ export async function getRunoffsForRace(
   return rs.rows.map((r) => rowToPrimary(r));
 }
 
+// ---- Full-cycle primary calendar (HO 333) -------------------------------
+
+export type PrimaryCalendarDate = {
+  date: string; // ISO primary date
+  states: string[]; // postal codes voting that date (distinct, sorted)
+  contestCount: number; // SUM of contests that date (Sen + House COMBINED)
+};
+
+// The WHOLE cycle window, past AND future — one row per primary date. Backs the
+// Electoral surface's primary-calendar timeline (the cyan VOTED / amber UPCOMING
+// bars). NOT forward-filtered: passed dates are required for the VOTED half.
+// VOTED-vs-UPCOMING is a render-time `date <= today` comparison in the timeline,
+// so this returns raw dates and lets the component color them.
+//
+// UNCACHED plain db.execute — the primaries surfaces are deliberately untagged
+// (no revalidate tag exists, verified live; CLAUDE.md: the primaries helpers use
+// plain db.execute so the cron does no revalidateTag), so this matches
+// getDashboardPrimaries / getUpcomingPrimaries rather than inventing a tag.
+// `election_round = 'primary'` keeps runoff rows out, same as the index helpers.
+export async function getPrimaryCalendar(
+  cycle = 2026,
+): Promise<PrimaryCalendarDate[]> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT primary_date AS date,
+                 COUNT(*) AS contest_count,
+                 GROUP_CONCAT(DISTINCT state) AS states
+          FROM primaries
+          WHERE election_round = 'primary'
+            AND primary_date IS NOT NULL
+            AND primary_date >= ? AND primary_date < ?
+          GROUP BY primary_date
+          ORDER BY primary_date ASC`,
+    args: [`${cycle}-01-01`, `${cycle + 1}-01-01`],
+  });
+  return rs.rows.map((r) => ({
+    date: r.date as string,
+    contestCount: Number(r.contest_count),
+    states: ((r.states as string | null) ?? "")
+      .split(",")
+      .filter(Boolean)
+      .sort(),
+  }));
+}
+
 // ---- Dashboard primaries rollup (HO 233) --------------------------------
 
 export type PrimaryStripPoint = { date: string; count: number; soon: boolean };

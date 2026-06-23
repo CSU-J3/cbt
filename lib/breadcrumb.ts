@@ -39,9 +39,13 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/committees") return ["Members", "Committees"];
   if (basePath === "/committee" || basePath.startsWith("/committee/"))
     return ["Members", "Committees"];
-  if (basePath === "/races") return ["Races"];
-  if (basePath.startsWith("/race/")) return ["Races"];
-  if (basePath === "/primaries") return ["Races", "Primaries"];
+  // HO 333: Races + Primaries consolidated into one Electoral surface. /races
+  // and /primaries 308-redirect to /electoral (so their crumbs are dead), but
+  // /race/[id] still renders and lights Electoral.
+  if (basePath === "/electoral") return ["Electoral"];
+  if (basePath === "/races") return ["Electoral"];
+  if (basePath.startsWith("/race/")) return ["Electoral"];
+  if (basePath === "/primaries") return ["Electoral"];
   if (basePath === "/patterns") return ["Patterns"];
   if (basePath === "/trends") return ["Patterns", "Trends"];
   if (basePath === "/stale") return ["Patterns", "Stale"];

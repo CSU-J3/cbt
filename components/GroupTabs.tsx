@@ -36,15 +36,12 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
   // to switch between. /committees redirects to /members; /committee/[code]
   // detail stays, linked from the rail and lighting Members via pathToNavKey.
   members: [{ slug: "members", label: "Members", href: "/members" }],
-  // HO 173: electoral surfaces split out of the members group into their
-  // own sub-nav. Keyed "races" (not "electoral") so the group key unifies
-  // with the existing top-nav `races` NavItem — pathToNavKey's group loop
-  // then returns "races" for both /races and /primaries with no extra
-  // matcher, and /primaries lights the Races top-nav tab.
-  races: [
-    { slug: "races", label: "Races", href: "/races" },
-    { slug: "primaries", label: "Primaries", href: "/primaries" },
-  ],
+  // HO 333: Races + Primaries consolidated into ONE Electoral surface — the
+  // sub-nav group collapses to a single member, so the electoral page renders
+  // no GroupTabs strip. The entry survives only as the canonical record (the
+  // top-nav key stays "races", now labeled "Electoral"); pathToNavKey resolves
+  // the electoral routes via an explicit matcher, not this loop.
+  races: [{ slug: "electoral", label: "Electoral", href: "/electoral" }],
   patterns: [
     { slug: "patterns", label: "Patterns", href: "/patterns" },
     { slug: "trends", label: "Trends", href: "/trends" },
@@ -98,11 +95,16 @@ export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/bills") return "feed";
   if (basePath.startsWith("/members/")) return "members";
   if (basePath.startsWith("/committee/")) return "members";
-  // `/race/[id]` detail → Races. The `/races` index and `/primaries` are
-  // left to the group loop below: both live in the `races` GROUP_TABS group
-  // (HO 173), so the loop returns "races" for them. This matcher only needs
-  // to catch the dynamic detail route, which has no exact GROUP_TABS href.
-  if (basePath.startsWith("/race/")) return "races";
+  // HO 333: every electoral route lights the Electoral top-nav item (key still
+  // "races"). /electoral is canonical; /races + /primaries 308-redirect to it
+  // (matched here for completeness); /race/[id] is the per-race detail hub.
+  if (
+    basePath === "/electoral" ||
+    basePath === "/races" ||
+    basePath === "/primaries" ||
+    basePath.startsWith("/race/")
+  )
+    return "races";
   for (const group of Object.keys(GROUP_TABS) as Group[]) {
     if (GROUP_TABS[group].some((t) => t.href === basePath)) {
       return group;

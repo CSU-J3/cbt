@@ -119,7 +119,7 @@ export function DashboardPrimaries({ data }: { data: DashboardPrimariesData }) {
               ? `${c.states.slice(0, MAX_CARD_STATES).join(" · ")} +${c.states.length - MAX_CARD_STATES}`
               : c.states.join(" · ");
           return (
-            <Link key={c.date} href="/primaries" className="dash-prim-card">
+            <Link key={c.date} href="/electoral" className="dash-prim-card">
               <span className="dash-prim-card-date">{fmtDate(c.date)}</span>
               <span className="dash-prim-card-meta">
                 {states} · {c.count} contest{c.count === 1 ? "" : "s"}
@@ -150,7 +150,7 @@ export function DashboardPrimaries({ data }: { data: DashboardPrimariesData }) {
         })}
       </div>
 
-      <Link href="/primaries" className="home-expander">
+      <Link href="/electoral" className="home-expander">
         [ All primaries → ]
       </Link>
     </div>
