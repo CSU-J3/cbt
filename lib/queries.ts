@@ -166,28 +166,38 @@ function normalizeBillIdQuery(q: string): string {
   return q.toLowerCase().replace(/[\s-]/g, "");
 }
 
-function buildFeedWhere(filters: FeedFilters): {
+// HO 338: `opts.prefix` qualifies every bill-column reference (e.g. "bills.") so
+// the same clauses can ride the FTS join in getFeedBills, where `summary` /
+// `title` / `sponsor_name` are otherwise ambiguous against bills_fts's shadow
+// columns. `opts.skipQ` omits the title/summary LIKE: the q path matches via
+// bills_fts MATCH instead (see getFeedBills). Both default off, so every other
+// caller (getStaleBills, getStageChanges, the count helpers) is byte-unchanged.
+function buildFeedWhere(
+  filters: FeedFilters,
+  opts: { prefix?: string; skipQ?: boolean } = {},
+): {
   clauses: string[];
   args: (string | number)[];
 } {
+  const p = opts.prefix ?? "";
   // Intentional: feed hides un-summarized rows (they read as broken to users).
   // Header counts derive from this same WHERE, so the displayed total always
   // matches what the feed renders. Don't drop without picking a placeholder UX.
-  const clauses: string[] = ["summary IS NOT NULL"];
+  const clauses: string[] = [`${p}summary IS NOT NULL`];
   const args: (string | number)[] = [];
 
   if (filters.stage) {
-    clauses.push("stage = ?");
+    clauses.push(`${p}stage = ?`);
     args.push(filters.stage);
   }
 
   if (filters.sponsor) {
-    clauses.push("(sponsor_bioguide_id = ? OR sponsor_name = ?)");
+    clauses.push(`(${p}sponsor_bioguide_id = ? OR ${p}sponsor_name = ?)`);
     args.push(filters.sponsor, filters.sponsor);
   }
 
   if (filters.topics && filters.topics.length > 0) {
-    const topicClauses = filters.topics.map(() => "topics LIKE ?");
+    const topicClauses = filters.topics.map(() => `${p}topics LIKE ?`);
     clauses.push(`(${topicClauses.join(" OR ")})`);
     for (const t of filters.topics) {
       args.push(`%"${t}"%`);
@@ -195,30 +205,30 @@ function buildFeedWhere(filters: FeedFilters): {
   }
 
   const q = filters.q?.trim();
-  if (q) {
+  if (q && !opts.skipQ) {
     const like = `%${q.toLowerCase()}%`;
     const idLike = `%${normalizeBillIdQuery(q)}%`;
     clauses.push(
-      `(LOWER(id) LIKE ? OR LOWER(title) LIKE ? OR LOWER(sponsor_name) LIKE ? OR LOWER(summary) LIKE ? OR REPLACE(LOWER(id), '-', '') LIKE ?)`,
+      `(LOWER(${p}id) LIKE ? OR LOWER(${p}title) LIKE ? OR LOWER(${p}sponsor_name) LIKE ? OR LOWER(${p}summary) LIKE ? OR REPLACE(LOWER(${p}id), '-', '') LIKE ?)`,
     );
     args.push(like, like, like, like, idLike);
   }
 
   if (filters.chamber === "house") {
-    clauses.push(`bill_type IN (${HOUSE_BILL_TYPES})`);
+    clauses.push(`${p}bill_type IN (${HOUSE_BILL_TYPES})`);
   } else if (filters.chamber === "senate") {
-    clauses.push(`bill_type IN (${SENATE_BILL_TYPES})`);
+    clauses.push(`${p}bill_type IN (${SENATE_BILL_TYPES})`);
   }
 
   // Cluster filter bypasses the ceremonial gate: most clusters are mostly
   // ceremonial, and opting into a cluster means asking to see all of it.
   if (filters.cluster) {
-    clauses.push("cluster_id = ?");
+    clauses.push(`${p}cluster_id = ?`);
     args.push(filters.cluster);
   } else if (!filters.includeCeremonial) {
     // Hide ceremonial bills by default. NULL (unclassified) treated as visible
     // so the dashboard doesn't go dark during backfill.
-    clauses.push("(is_ceremonial = 0 OR is_ceremonial IS NULL)");
+    clauses.push(`(${p}is_ceremonial = 0 OR ${p}is_ceremonial IS NULL)`);
   }
 
   return { clauses, args };
@@ -2881,6 +2891,68 @@ export const getFeedBills = unstable_cache(
     }: { page?: number; pageSize?: number } = {},
   ): Promise<FeedPage> => {
     const db = getDb();
+
+    // HO 338: when q is present, drive from the bills_fts FTS5 MATCH (the narrow,
+    // selective side) instead of the leading-`%` LIKE that full-scanned title/
+    // summary and 500'd `/bills?q=` (~20s, the /search 500 class — HO 335/336).
+    // Join bills by rowid, AND the other feed filters (qualified "bills." + skipQ
+    // so buildFeedWhere drops the LIKE), date-sort + paginate the matched set, and
+    // count off the match (no second scan). **No HO 335 sort-index hint on this
+    // path** — a forced INDEXED BY makes the planner drive from the sort index,
+    // which blocks the FTS join from driving and lands back on a scan. The
+    // q-ABSENT path below is HO 335 verbatim and must stay byte-unchanged.
+    const ftsQ = filters.q?.trim();
+    if (ftsQ) {
+      const match = buildBillsFtsMatch(ftsQ);
+      // No usable (alphanumeric) tokens (e.g. q="!!!") → no matches, no DB hit.
+      if (!match) {
+        return { bills: [], total: 0, page: 1, pageSize, totalPages: 1 };
+      }
+      const { clauses: qClauses, args: qArgs } = buildFeedWhere(filters, {
+        prefix: "bills.",
+        skipQ: true,
+      });
+      const qWhere = qClauses.join(" AND ");
+      const countRs = await db.execute({
+        sql: `SELECT COUNT(*) AS n FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
+              WHERE bills_fts MATCH ? AND ${qWhere}`,
+        args: [match, ...qArgs],
+      });
+      const total = Number(countRs.rows[0]?.n ?? 0);
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const clampedPage = Math.min(Math.max(1, Math.trunc(page)), totalPages);
+      const offset = (clampedPage - 1) * pageSize;
+      const sortColumn =
+        filters.sort === "introduced"
+          ? "bills.introduced_date"
+          : "bills.latest_action_date";
+      const sortDir = filters.direction === "asc" ? "ASC" : "DESC";
+      const sql = `SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number, bills.title,
+        bills.sponsor_name, bills.sponsor_party, bills.sponsor_state, bills.introduced_date,
+        bills.latest_action_date, bills.latest_action_text, bills.update_date,
+        bills.summary, bills.topics, bills.stage, bills.stage_changed_at,
+        bills.sponsor_bioguide_id, bills.cosponsor_count,
+        msp.depiction_url AS sponsor_depiction_url,
+        msp.first_name AS sponsor_first_name,
+        msp.last_name AS sponsor_last_name,
+        msp.district AS sponsor_district,
+        ${MENTION_SELECT}
+        FROM bills_fts JOIN bills ON bills.rowid = bills_fts.rowid
+        ${MENTION_SUBQUERY}
+        LEFT JOIN members msp ON msp.bioguide_id = bills.sponsor_bioguide_id
+        WHERE bills_fts MATCH ? AND ${qWhere}
+        ORDER BY ${sortColumn} ${sortDir} NULLS LAST, bills.id DESC
+        LIMIT ? OFFSET ?`;
+      const rs = await db.execute({ sql, args: [match, ...qArgs, pageSize, offset] });
+      return {
+        bills: rs.rows.map(rowToFeedBill),
+        total,
+        page: clampedPage,
+        pageSize,
+        totalPages,
+      };
+    }
+
     const { clauses, args } = buildFeedWhere(filters);
     const where = clauses.join(" AND ");
 
