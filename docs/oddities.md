@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The `/members` rail shows UPCOMING HEARINGS, not LIVE NOW — the mock can't be built honestly (HO 328, Jun 2026)
+
+The HO 328 design mock (`docs/design/members-committees-live.html`) shows a "LIVE NOW" rail group — committees *in session this minute*. Prod ships **UPCOMING HEARINGS** instead. This is intentional, not drift: the schema has **no hearing end-time / in-progress signal** (`committee_meetings` carries a start `meetingDate` + a raw `meetingStatus`, but no "live now" flag), and the page is **daily-cached**, so "in session now" can't be derived honestly at request time. UPCOMING (real scheduled starts, `getUpcomingMeetings({days:7})`, soonest-per-committee) is the honest surface. A future reader comparing the LIVE NOW mock to prod should know the swap was a deliberate honesty call. (Same family as the hearings ● LIVE badge that's never been exercised against a real streaming meeting — roadmap "Owed eyeball.")
+
+## `MemberTopicBar`'s bar length is dual-scale — same width means two different things (HO 328)
+
+The per-member topic-mix bar on `/members` scales its total length to `pageMax`, which is **the global filtered max on the full ranked list** but **the roster max when a committee is scoped** (`?committee=`). So a bar that fills, say, 60% of the row means "60% of the busiest member in Congress" unscoped, but "60% of the busiest member on THIS committee" scoped — the same rendered width encodes a different denominator in the two states. Intentional (a scoped roster of 10 members would otherwise render as a row of near-empty stubs against the global max), but worth knowing before reading absolute volume off the bar across a scope change.
+
 ## GitHub Actions scheduled crons are best-effort — they silently drop most slots (HO 313/314, Jun 2026)
 
 The markets tape froze for ~1.7 days and the leading theory was a dead data source. It wasn't: every source ticked fine when the cron ran. The cron just wasn't running. `markets-tick` (`0,30 13-21 * * 1-5` = 18 weekday slots) was delivering only **~3–5 (~20%)** of them on a good day, firing hours late (a 21:00Z slot landed 23:14Z), and on some weekdays **zero** times — workflow files unchanged + `state: active`, repo public (Actions free/unlimited), so it's purely GitHub's scheduler dropping the events. The control that nailed it: `cron_runs` showed Vercel's declared crons hitting their slots reliably (8+ daily) while the GitHub ones went dark. Lesson: **don't put a freshness-critical pipeline on a GitHub Actions schedule.** Back it with a reliable trigger (HO 314: a Vercel daily cron floor at 21:30 UTC). `gh run list --workflow=<f>` is the source of truth for whether a scheduled Action actually fired.

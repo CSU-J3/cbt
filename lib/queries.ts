@@ -671,96 +671,10 @@ export const getTopicMixByChamber = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
-export type SponsorProductivityRow = {
-  bioguideId: string | null;
-  name: string;
-  party: PartyKey | null;
-  state: string | null;
-  // HO 152: chamber comes from a LEFT JOIN on members so rows whose sponsor
-  // doesn't resolve to a current member (rare unresolved bills) get null
-  // and silently drop from both chamber scatters.
-  chamber: Chamber | null;
-  billCount: number;
-  advancedCount: number;
-  enactedCount: number;
-  passRate: number; // 0-1
-};
-
-// Feeds the /members productivity scatter (handoff 67, split-by-chamber HO
-// 152). Pass rate denominator excludes `stage IS NULL` (unsummarized) and
-// `stage = 'other'` (off-path) so the chart only reflects bills with a real
-// classifier verdict. Numerator counts anything past introduction.
-// `enactedCount` lights up the per-dot tooltip's "K enacted" suffix.
-// Sponsors with <3 bills are dropped — one-shot rates compress to 0 or 100
-// and add no signal.
-//
-// Scoped to current Congress via MAX(congress) so this rolls over without
-// touching code. Tag `bills` for unified cache invalidation.
-export const getSponsorProductivity = unstable_cache(
-  async (): Promise<SponsorProductivityRow[]> => {
-    const db = getDb();
-    // HO 199: group on the stable bioguide_id and source the display fields
-    // (name/party/state/chamber) from the canonical `members` row, NOT the
-    // denormalized bill columns. Grouping on `sponsor_name` split a member into
-    // two rows when their bills carried two name spellings under one bioguide
-    // (Begich: 27 "Nicholas J." + 7 "Nicholas"). `members.bioguide_id` is the
-    // PK so m.* is single-valued per group; m.party is already the normalized
-    // R/D/I. No null-bioguide bills exist, so grouping by bioguide drops
-    // nothing (the WHERE now gates on bioguide instead of sponsor_name).
-    const rs = await db.execute(`
-      SELECT
-        b.sponsor_bioguide_id AS bioguide_id,
-        m.name AS name,
-        m.party AS party_raw,
-        m.state AS state,
-        m.chamber AS chamber,
-        COUNT(*) AS bill_count,
-        SUM(CASE
-          WHEN b.stage IN ('committee','floor','other_chamber','president','enacted')
-          THEN 1 ELSE 0
-        END) AS advanced_count,
-        SUM(CASE WHEN b.stage = 'enacted' THEN 1 ELSE 0 END) AS enacted_count
-      -- HO 277: forced INDEXED BY idx_bills_sponsor_agg (same mis-plan as
-      -- billsAggCte — MULTI-INDEX OR on idx_bills_is_ceremonial otherwise). The
-      -- index covers the GROUP-BY key + stage + is_ceremonial + congress, so the
-      -- per-sponsor aggregate is index-only and pre-ordered (EXPLAIN flips to
-      -- SEARCH USING COVERING INDEX; ~460ms → 82ms). Safe: the query always
-      -- constrains sponsor_bioguide_id (IS NOT NULL).
-      FROM bills b INDEXED BY idx_bills_sponsor_agg
-      LEFT JOIN members m ON m.bioguide_id = b.sponsor_bioguide_id
-      WHERE b.congress = (SELECT MAX(congress) FROM bills)
-        AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
-        AND b.stage IS NOT NULL
-        AND b.stage != 'other'
-        AND b.sponsor_bioguide_id IS NOT NULL
-      GROUP BY b.sponsor_bioguide_id
-      HAVING COUNT(*) >= 3
-      ORDER BY bill_count DESC
-    `);
-    return rs.rows.map((r) => {
-      const billCount = Number(r.bill_count ?? 0);
-      const advancedCount = Number(r.advanced_count ?? 0);
-      const enactedCount = Number(r.enacted_count ?? 0);
-      const chamberRaw = r.chamber as string | null;
-      return {
-        bioguideId: (r.bioguide_id as string | null) ?? null,
-        name: r.name as string,
-        party: normalizePartyVariant(r.party_raw as string | null),
-        state: (r.state as string | null) ?? null,
-        chamber:
-          chamberRaw === "house" || chamberRaw === "senate"
-            ? (chamberRaw as Chamber)
-            : null,
-        billCount,
-        advancedCount,
-        enactedCount,
-        passRate: billCount > 0 ? advancedCount / billCount : 0,
-      };
-    });
-  },
-  ["getSponsorProductivity"],
-  { revalidate: 86400, tags: ["bills"] },
-);
+// HO 328: getSponsorProductivity + SponsorProductivityRow deleted here — the
+// /members productivity scatter (MemberProductivityScatter) was their only
+// consumer and the HO 328 two-pane merge dropped it. The covering index
+// idx_bills_sponsor_agg they relied on stays (billsAggCte still uses it).
 
 export type BillsByMonthRow = {
   month: string; // 'YYYY-MM'
