@@ -33,7 +33,14 @@ export default async function PatternsPage({
     getUnmatchedClusterCount(includeCeremonial),
   ]);
 
+  // HO 346 — meta-line figures, computed live (both move every sync). Denominator
+  // is the page's OWN matched + unmatched (≈16,469), NOT the corpus / BILLS
+  // TRACKED figure (≈16,538) — using the corpus count makes the 8.6% stop
+  // reconciling with the unmatched number. The one-offs stay implied by total.
   const matched = stats.reduce((s, c) => s + c.count, 0);
+  const patternTotal = matched + unmatched;
+  const matchedPct =
+    patternTotal > 0 ? ((matched / patternTotal) * 100).toFixed(1) : "0.0";
 
   // Right column when a pattern is selected: top-10 recent bills, with
   // watchlist membership pre-resolved so the inline star renders correctly
@@ -53,23 +60,23 @@ export default async function PatternsPage({
             className="text-[14px] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
-            Bill patterns
+            Legislative patterns
           </h1>
           <span
             className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
-            {stats.length} patterns · {matched.toLocaleString()} bills matched ·{" "}
-            {unmatched.toLocaleString()} unmatched
+            {matched.toLocaleString()} measures in {stats.length} forms · out of{" "}
+            {patternTotal.toLocaleString()} · {matchedPct}%
           </span>
         </div>
 
         <p
           className="mb-3 text-[12px] leading-snug"
-          style={{ color: "var(--text-muted)" }}
+          style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}
         >
-          Pattern-matched cluster identities for bills that share a structural
-          pattern. Click a bubble to drill in; click again to deselect.
+          The same forms of legislation, filed again and again. Click one to see
+          the measures.
         </p>
 
         <div className="patterns-layout">
