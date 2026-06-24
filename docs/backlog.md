@@ -29,6 +29,8 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 
 - ~~**`/bills?q=` inline-filter cold-abort 500 (LIKE-scan)**~~ — CLOSED HO 338. Wired `getFeedBills`'s q path to drive from `bills_fts` (FTS5 MATCH + rowid join), q ANDs cleanly with stage/topic/chamber/sort/pagination; `/bills?q=tax` ~20s/500 → sub-second 200. q-absent path left as HO 335. See DONE → HO 338.
 
+- **Stale momentum layer** — opened Jun 24 (HO 357, carried from the HO 345 arc). *Owner:* Corey/design. *Close:* an enriched-row design mock lands, turning this into a build handoff. The *data* is **scoped and wired** — HO 345 #5–6 are live: the current-cosponsor rank and the hearing-then-silent `meeting_bills` join (a bill that drew a hearing then went quiet) both compute today. What's missing is the **row presentation** — how the momentum signal renders on a `/stale` row — which needs a design pass. Back in the design chat's court. (Was tracked in the HO 345 handoff, not previously in this ledger.)
+
 ## QUEUED
 
 *Next builds, roughly ordered. Pull from here when picking up work.*
@@ -70,6 +72,7 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - **`primaries.race_id` backfill-or-drop.** Dead link — *ground-truth (Jun 12):* **3/875 populated** (was 3/907; total drifted). The working pattern is the derived seatId (`S-{ST}-2026` / `{ST}-{DD}-2026`) joined to `race_ratings`/`races` (HO 233 `getDashboardPrimaries`; same as `getRacesIndex`). Backfill properly or drop the column. Low priority — the derived join covers every live consumer.
 - **race→news linkage arc.** No race→news join exists (`news_mentions` is bill-keyed; a race has no bills) — the wall every modal/list/card hit across HO 222/225/226. A real pipeline build (race↔news mapping), not a UI pass. **Now also has a waiting consumer:** the v2 RACES-tab `NEW` badge + per-card `NEW` indicator (HO 272) are wired but **dark** — the framework, count plumbing, and the `--ticker-closed` red are in place; whoever builds this linkage populates the NEW count (mirror `getRecentRaceMoves`/`RaceMovedIndicator`) and the badge lights up. *(roadmap STATUS.)*
 - **primaries-map results-coloring.** Later layer over `primary_candidates.vote_pct` (self-filling May→Sept); the HO 226 map is recency-only by design (HO 205 verdict). *(roadmap STATUS.)*
+- **`cosponsor_history` table** (HO 357, from the HO 345 arc). Needed for the dropped support-delta signal — "backed it, then it died" (a bill that gained cosponsors and then stalled). Append-only, accruing from now on the `stage_transitions` / `rating_history` precedent; **no backfill possible** — the single `bills.cosponsor_count` slot has no history. *Gate:* the table existing — shelved until then; the support-delta surface builds on top once it accrues.
 - **rating-history sparkline.** *Gate:* `rating_history` accruing weeks of inflection data (change-detect logging live since HO 220).
 - **Backfill ~26 bills that lost a topic tag during the HO 120 drain.** *Gate:* analyst view depends on full tag coverage.
 - **Topic taxonomy expansion.** *Gate:* unmapped category counts exceed a useful threshold (HO 121).

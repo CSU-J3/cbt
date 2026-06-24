@@ -212,16 +212,16 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 
 ## Status
 
-> **As of HO 322 · 2026-06-22.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
+> **As of HO 352 · 2026-06-24.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes.
 
 **Overall: ~98%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
 
 | Theme | % |
 |---|---|
-| Foundation | 95 |
+| Foundation | 96 |
 | Home | 100 |
-| Visualizations | 95 |
-| Weekly reports | 96 |
+| Visualizations | 97 |
+| Weekly reports | 97 |
 | News signal | CLOSED |
 | Member depth | 93 |
 | Races | 99 |
@@ -250,6 +250,8 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 **Also (HO 328), the Members + Committees merge — one surface.** `/members` became a two-pane browser: a committee rail (the former `/committees` index — that route now `redirect("/members")`) + the member list, the chamber filter driving both panes, click-a-committee scoping the roster, per-member topic-mix bars (`MemberTopicBar`), and an UPCOMING HEARINGS rail group. The HO 152/197 productivity scatters were dropped (`getSponsorProductivity` + `SponsorProductivityRow` deleted, HO 330); a new `idx_bills_sponsor_topics` covering index serves the topic-mix bar. **Member depth 90 → 93** — the committee index, member roster, and per-member committee membership now read from one consolidated surface, with committees folded in from the retired standalone index. The member-expand cold-start 500 is under separate diagnosis (HO 329, fix pending). No other theme-% change.
 
 **Also (HO 333), the Electoral consolidation — Races + Primaries → one surface.** `/races` + `/primaries` collapsed into a single **`/electoral`** surface (both 308-redirect in): the competitive map on top + a NEW primary-calendar **timeline band** below it (`PrimaryTimeline` + the `ElectoralBoard` wrapper), wired so clicking a timeline date paints that date's voting states amber on the map (selections accumulate / drop-on-reclick / CLEAR ALL; hover previews an outline). Sen+House COMBINED per date; data via the new **uncached `getPrimaryCalendar(2026)`** (no primaries cache tag exists, matches `getDashboardPrimaries`). The electoral GroupTabs sub-nav (HO 173) is retired; the nav item is relabeled **Electoral**. **State-click → the HO 225 district modal was KEPT** (Corey's call — a deliberate deviation from the handoff's "read-only map," preserving the district drill + HO 236/237 metro panels). The HO 226 primaries recency-map + its modal/scrubber are superseded by the timeline (`PrimariesMap`/`PrimaryDistrictModal`/`RacesMap` left unreferenced — backlog open loop). **Races 98 → 99.** No other theme-% change.
+
+**Also (HO 346–352), the Patterns / Trends / Stale / Reports refinement arc.** **346** reframed the `/patterns` meta line as **LEGISLATIVE PATTERNS** with a new blurb; **347** replaced the `PatternBubbleSVG` bubble cluster with ranked horizontal bars (`PatternBars`, length = bill count, color = % past committee) that also absorbed the old ALL PATTERNS table; **348** added the collapsible **Filler Watch** strip (CEREMONIAL · NON-BINDING) between the meta line and the blurb, every number live-interpolated; **349** cut the redundant TOTAL INTRODUCTIONS line chart from `/trends` (the stacked-by-topic chart already carries that envelope). **350** reframed `/stale` as a **stage-led** surface — default PAST COMMITTEE (`floor`/`other_chamber`/`president`, enacted excluded), sorted legislative-stage-DESC then furthest-action-first, atop the 60-day floor — plus a curated procedural-housekeeping filter (frozen opening-week IDs + an `electing members%` live pattern + a blocklist) with an INCLUDE PROCEDURAL escape hatch and a committee-backlog footer; the ship build's 73s cold query was fixed in `339f8fc` (a CASE `ORDER BY` defeating the date index — oddities). **351** added a **filler-share bar** to the dashboard `WeeklyBand` (broad `is_ceremonial=1 OR cluster IN (four)` definition). **352** added a **stage-movements ladder** by destination stage to the weekly report. **Visualizations 95 → 97** (the `/patterns` bars + filler strip + `/trends` trim), **Foundation 95 → 96** (the `/stale` reframe), **Weekly reports 96 → 97** (the report stage ladder); Home held at 100 (the WeeklyBand filler bar renders on the already-complete home). **Overall holds at ~98** — these are within-theme refinements; Member depth (93) anchors the remainder. No other theme-% change.
 
 **Banked / unbuilt:** **strong VIA-markup report attribution** (blocked, not deferred — `stage_changed_at` history began 2026-05-11, 52 committee→floor moves all-time, no markup-date alignment → 0 clean joins; HO 268 Gate A; revisit once the history matures) · **MARKUPS column on the reports index stat strip** (queued from 268 — needs a new persisted column + migration + backfill) · **MOVERS from→to display + hop-count sort** (gated on `stage_transitions` accrual, planted 2026-06-11) · metro-zoom panels (spec-3 Phase 2) · race→news linkage (`news_mentions` is bill-keyed — the wall every surface hits) · primaries-map results-coloring (recency-only today) · rating-history sparkline (logging live since HO 220; chart awaits weeks of data).
 
