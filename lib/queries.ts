@@ -23,6 +23,11 @@ import {
 import { NEWS_CONFIDENCE_FLOOR } from "./report-generation";
 import type { ChamberControl, KalshiOdds } from "./kalshi";
 import type { PolymarketOdds } from "./polymarket";
+import {
+  STALE_PROCEDURAL_BLOCKLIST,
+  STALE_PROCEDURAL_IDS,
+  STALE_PROCEDURAL_TITLE_PATTERN,
+} from "./stale-procedural";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
 // feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
@@ -70,6 +75,15 @@ export const STALE_FILTER_STAGES = [
   "other_chamber",
 ] as const;
 const STALE_FILTER_STAGES_SET = new Set<string>(STALE_FILTER_STAGES);
+
+// HO 350: the /stale DEFAULT group (no explicit ?stage). "Past committee" =
+// advanced past the committee wall, enacted excluded (became law, not stalled).
+// president is in the legislative-order sort but currently holds 0 bills.
+export const STALE_PAST_COMMITTEE_STAGES = [
+  "floor",
+  "other_chamber",
+  "president",
+] as const;
 
 export type FeedBill = {
   id: string;
@@ -138,6 +152,10 @@ export type FeedFilters = {
   sort?: SortKey;
   chamber?: Chamber;
   includeCeremonial?: boolean;
+  // HO 350: /stale only — when true, the procedural-housekeeping rows
+  // (opening-week frozen IDs + the recurring "Electing Members…" family,
+  // minus the blocklist) are NOT filtered out. Off by default.
+  includeProcedural?: boolean;
   cluster?: string;
   // HO 151: set to "asc" when /bills?stage=president is the sole stage and
   // no explicit ?sort is provided — preserves the legacy /president
@@ -279,6 +297,14 @@ export function sanitizeIncludeCeremonial(
   return raw === "1";
 }
 
+// HO 350: /stale INCLUDE PROCEDURAL toggle. '1' → show the filtered
+// housekeeping rows; anything else → keep them hidden (the default).
+export function sanitizeIncludeProcedural(
+  raw: string | null | undefined,
+): boolean {
+  return raw === "1";
+}
+
 // HO 130: validates `?bill=` for the /news filter. Format is
 // `<congress>-<billtype>-<number>`, e.g. `119-hr-1234`. Lowercase normalized.
 // Invalid → undefined so the page falls back to the unfiltered view.
@@ -298,6 +324,12 @@ export function sanitizeClusterId(
   return CLUSTER_IDS.has(raw) ? raw : undefined;
 }
 
+// HO 350 — stage-led /stale. buildFeedWhere already adds `stage = ?` when the
+// user picks a stage from the dropdown; only when NO stage is picked do we apply
+// the default PAST COMMITTEE group (floor/other_chamber/president). The 60-day
+// staleness gate stays (subtitle: "STALLED 60+ DAYS"). Procedural housekeeping
+// is filtered unless includeProcedural — frozen IDs OR the recurring
+// "Electing Members…" title pattern, minus the blocklist.
 function buildStaleWhere(filters: FeedFilters): {
   clauses: string[];
   args: (string | number)[];
@@ -305,9 +337,26 @@ function buildStaleWhere(filters: FeedFilters): {
   const { clauses, args } = buildFeedWhere(filters);
   clauses.push("latest_action_date IS NOT NULL");
   clauses.push(`latest_action_date < date('now', '-${STALE_DAYS} days')`);
-  const placeholders = STALE_ELIGIBLE_STAGES.map(() => "?").join(", ");
-  clauses.push(`stage IN (${placeholders})`);
-  for (const s of STALE_ELIGIBLE_STAGES) args.push(s);
+
+  if (!filters.stage) {
+    const placeholders = STALE_PAST_COMMITTEE_STAGES.map(() => "?").join(", ");
+    clauses.push(`stage IN (${placeholders})`);
+    for (const s of STALE_PAST_COMMITTEE_STAGES) args.push(s);
+  }
+
+  if (!filters.includeProcedural) {
+    const idPlaceholders = STALE_PROCEDURAL_IDS.map(() => "?").join(", ");
+    const blockPlaceholders = STALE_PROCEDURAL_BLOCKLIST.map(() => "?").join(
+      ", ",
+    );
+    clauses.push(
+      `NOT ((id IN (${idPlaceholders}) OR lower(title) LIKE ?) AND id NOT IN (${blockPlaceholders}))`,
+    );
+    for (const id of STALE_PROCEDURAL_IDS) args.push(id);
+    args.push(STALE_PROCEDURAL_TITLE_PATTERN);
+    for (const id of STALE_PROCEDURAL_BLOCKLIST) args.push(id);
+  }
+
   return { clauses, args };
 }
 
@@ -3129,7 +3178,18 @@ export const getStaleBills = unstable_cache(
       ${MENTION_SUBQUERY}
       ${SPONSOR_ENRICH_JOIN}
       WHERE ${clauses.join(" AND ")}
-      ORDER BY latest_action_date ASC
+      -- HO 350: stage-led, furthest-first. Legislative order DESC (president →
+      -- other_chamber → floor; committee/introduced/NULL last), then the longest
+      -- time since last action within a stage (oldest latest_action_date first).
+      ORDER BY
+        CASE stage
+          WHEN 'president' THEN 4
+          WHEN 'other_chamber' THEN 3
+          WHEN 'floor' THEN 2
+          WHEN 'committee' THEN 1
+          ELSE 0
+        END DESC,
+        latest_action_date ASC
       LIMIT ?`;
 
     const rs = await db.execute({ sql, args });
@@ -3137,6 +3197,24 @@ export const getStaleBills = unstable_cache(
   },
   ["getStaleBills"],
   { revalidate: 3600, tags: ["bills", "news-breaking"] },
+);
+
+// HO 350 — the committee backlog size for the /stale footer line ("the committee
+// wall sits one click away under STAGE → COMMITTEE"). Raw stage='committee'
+// count (the whole backlog, ceremonial included), computed live. Forced onto the
+// covering idx_bills_dash_stage (is_ceremonial, stage, update_date) so it's an
+// index-only scan, not a fat-table scan (the statless-planner / 10s-abort rule).
+export const getStaleCommitteeCount = unstable_cache(
+  async (): Promise<number> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_dash_stage
+       WHERE stage = 'committee'`,
+    );
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getStaleCommitteeCount"],
+  { revalidate: 3600, tags: ["bills"] },
 );
 
 // HO 335: buildSponsorWhere, getSponsors, getSponsorCount deleted as dead code
