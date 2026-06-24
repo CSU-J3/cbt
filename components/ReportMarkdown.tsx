@@ -26,6 +26,35 @@ function linkifyBillIds(md: string): string {
   );
 }
 
+// HO 360 — floor-vote outcome verbs get an outcome color on the WEB render only.
+// A `<strong>` whose text is EXACTLY one of these tokens is mapped; everything
+// else (the default below) stays --text-secondary, so a bolded prose word never
+// false-matches. content_md carries no color/HTML — just `**FAILED**` — so the
+// `.md` download is plain bold. Reuses the red party token for "decided no"
+// semantics; safe because the party-split labels render as plain text, never a
+// colored `R`, so a red FAILED never sits beside a red party label.
+const OUTCOME_COLOR: Record<string, string> = {
+  PASSED: "var(--stage-enacted)",
+  CONFIRMED: "var(--stage-enacted)",
+  ADVANCED: "var(--stage-floor)",
+  FAILED: "var(--party-republican)",
+  BLOCKED: "var(--party-republican)",
+  REJECTED: "var(--party-republican)",
+};
+
+// Exact text of a `<strong>` node, only when it's a single plain-text child.
+function strongText(children: React.ReactNode): string | null {
+  if (typeof children === "string") return children;
+  if (
+    Array.isArray(children) &&
+    children.length === 1 &&
+    typeof children[0] === "string"
+  ) {
+    return children[0];
+  }
+  return null;
+}
+
 // Renders a report's Markdown body with terminal-aesthetic overrides.
 // Server component — react-markdown renders fine without client JS.
 export function ReportMarkdown({ content }: { content: string }) {
@@ -117,11 +146,12 @@ export function ReportMarkdown({ content }: { content: string }) {
             {children}
           </em>
         ),
-        strong: ({ children }) => (
-          <strong style={{ color: "var(--text-secondary)" }}>
-            {children}
-          </strong>
-        ),
+        strong: ({ children }) => {
+          const token = strongText(children);
+          const color =
+            (token && OUTCOME_COLOR[token]) || "var(--text-secondary)";
+          return <strong style={{ color }}>{children}</strong>;
+        },
       }}
     >
       {linkifyBillIds(content)}

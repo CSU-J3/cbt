@@ -160,10 +160,15 @@ function topicLabel(topic: string): string {
 
 // ---- floor-votes helpers (HO 358) --------------------------------------
 
-// Show the party split when the losing position took at least this share of
-// yea+nay — i.e. the vote was contested, not lopsided/bipartisan. One knob
-// (the mock shows splits on 49–51 / 60–40, omits on 412–18 / 88–12).
-const CONTESTED_LOSING_SHARE = 0.25;
+// HO 360 split knob: show the party split when the parties DIVERGE (D and R
+// majorities point opposite ways) OR the overall margin is tight (|yea−nay| /
+// (yea+nay) within this share); omit for lopsided bipartisan votes. One tunable
+// threshold — the mock shows 49–51 (tight) and 60–40 (diverges, party-line) and
+// omits 412–18 / 88–12 (lopsided bipartisan).
+const SPLIT_TIGHT_MARGIN = 0.15;
+// HO 360: cap the rendered named-vote list; the remainder rolls into the
+// collapse line. Render-only — the lead/prompt see the full (uncapped) counts.
+const NAMED_VOTE_CAP = 8;
 const NOMINEE_POSITION_TRUNCATE = 56;
 const VOTE_TITLE_TRUNCATE = 60;
 
@@ -182,9 +187,21 @@ function classifyVote(row: {
   const res = row.result ?? "";
   const q = row.question ?? "";
   if (res === "Nomination Confirmed") return { verb: "CONFIRMED", isCloture: false };
+  // HO 360: a failed up-or-down confirmation → REJECTED (the contested-failure
+  // counterpart to CONFIRMED). No such rows exist in the corpus today (every
+  // nomination vote confirmed); the Senate's symmetric result string is the
+  // honest, future-proof match — it names nothing until a nomination actually
+  // fails on the floor.
+  if (res === "Nomination Rejected") return { verb: "REJECTED", isCloture: false };
   // Successful cloture / cloture on the motion to proceed → ADVANCED.
   if (/^Cloture\b/i.test(res) && /Agreed to$/i.test(res)) {
     return { verb: "ADVANCED", isCloture: true };
+  }
+  // HO 360: a decisively-failed cloture (filibuster sustained) → BLOCKED, the
+  // counterpart to ADVANCED. Live results: "Cloture Motion Rejected" /
+  // "Cloture on the Motion to Proceed Rejected".
+  if (/^Cloture\b/i.test(res) && /Rejected$/i.test(res)) {
+    return { verb: "BLOCKED", isCloture: true };
   }
   // Senate self-classifying passage / adoption / defeat.
   if (
@@ -243,6 +260,33 @@ function chamberLetter(chamber: string): string {
   return chamber === "senate" ? "S" : "H";
 }
 
+// HO 360 — show the party split when the parties diverge OR the margin is tight
+// (the SPLIT_TIGHT_MARGIN knob). Needs the split populated (party divergence is
+// read off it); a tight overall margin shows even without a split.
+function shouldShowSplit(v: FloorVote): boolean {
+  const totalPos = v.yea + v.nay;
+  if (totalPos === 0) return false;
+  if (Math.abs(v.yea - v.nay) / totalPos <= SPLIT_TIGHT_MARGIN) return true;
+  const s = v.split;
+  if (!s) return false;
+  const dVoted = s.D.yea + s.D.nay > 0;
+  const rVoted = s.R.yea + s.R.nay > 0;
+  if (!dVoted || !rVoted) return false;
+  return s.D.yea > s.D.nay !== s.R.yea > s.R.nay;
+}
+
+// HO 360 — render `I y–n` only when an independent broke from the winning side
+// (at least one I vote with the losing position) or the I bloc was decisive (its
+// net margin covers the overall margin). Not on every vote.
+function independentsNotable(v: FloorVote): boolean {
+  const s = v.split;
+  if (!s || s.I.yea + s.I.nay === 0) return false;
+  const winnerIsYea = v.yea >= v.nay;
+  const iAgainstWinner = winnerIsYea ? s.I.nay : s.I.yea;
+  if (iAgainstWinner > 0) return true;
+  return Math.abs(s.I.yea - s.I.nay) >= Math.abs(v.yea - v.nay);
+}
+
 // One named-vote markdown line (HO 358). Bold outcome · chamber · bill (ID
 // linkifies to amber at render) or nominee → position · margin (cloture-prefixed
 // for ADVANCED) · party split when contested. Plain markdown — the (b) vanilla
@@ -258,7 +302,7 @@ function formatVoteLine(v: FloorVote): string {
   if (v.contested && v.split) {
     const s = v.split;
     const parts = [`D ${s.D.yea}–${s.D.nay}`, `R ${s.R.yea}–${s.R.nay}`];
-    if (s.I.yea + s.I.nay > 0) parts.push(`I ${s.I.yea}–${s.I.nay}`);
+    if (independentsNotable(v)) parts.push(`I ${s.I.yea}–${s.I.nay}`);
     line += ` · ${parts.join(" · ")}`;
   }
   return line;
@@ -306,7 +350,7 @@ type PartySplit = { yea: number; nay: number };
 type FloorVote = {
   id: string;
   chamber: "house" | "senate";
-  verb: "PASSED" | "FAILED" | "ADVANCED" | "CONFIRMED";
+  verb: "PASSED" | "FAILED" | "ADVANCED" | "CONFIRMED" | "BLOCKED" | "REJECTED";
   billId: string | null; // formatted "S 880" (linkified at render) or null
   title: string | null; // bill title, or null for nominations
   nominee: string | null; // nomination name, or null for bills
@@ -470,9 +514,11 @@ async function gatherFloorVotes(
   // is the most recent.
   const PRIORITY: Record<FloorVote["verb"], number> = {
     CONFIRMED: 2,
+    REJECTED: 2,
     PASSED: 2,
     FAILED: 2,
     ADVANCED: 1,
+    BLOCKED: 1,
   };
   const bestByKey = new Map<
     string,
@@ -513,9 +559,6 @@ async function gatherFloorVotes(
       }
       const yea = Number(r.yea_count ?? 0);
       const nay = Number(r.nay_count ?? 0);
-      const totalPos = yea + nay;
-      const contested =
-        totalPos > 0 && Math.min(yea, nay) / totalPos >= CONTESTED_LOSING_SHARE;
       return {
         id: r.id as string,
         chamber: r.chamber as "house" | "senate",
@@ -527,7 +570,7 @@ async function gatherFloorVotes(
         yea,
         nay,
         isCloture,
-        contested,
+        contested: false, // HO 360: decided after the split join (shouldShowSplit)
         split: null,
       };
     },
@@ -540,9 +583,20 @@ async function gatherFloorVotes(
       (v) =>
         v.billId !== null || (v.nominee !== null && v.nominee.trim() !== ""),
     );
-  // Legislation (carries a bill) before nominations; stable sort preserves the
-  // date-DESC order within each group.
-  named.sort((a, b) => (a.billId ? 0 : 1) - (b.billId ? 0 : 1));
+  // HO 360 ordering: failed/blocked/rejected first (the "decided no" signal the
+  // stage ladder can't carry), then by margin closeness (|yea − nay| ascending);
+  // confirmations sort in by margin like everything else.
+  const NEGATIVE_VERBS = new Set<FloorVote["verb"]>([
+    "FAILED",
+    "BLOCKED",
+    "REJECTED",
+  ]);
+  named.sort((a, b) => {
+    const an = NEGATIVE_VERBS.has(a.verb) ? 0 : 1;
+    const bn = NEGATIVE_VERBS.has(b.verb) ? 0 : 1;
+    if (an !== bn) return an - bn;
+    return Math.abs(a.yea - a.nay) - Math.abs(b.yea - b.nay);
+  });
 
   // Party split — scoped to the named vote IDs only.
   if (named.length > 0) {
@@ -575,7 +629,11 @@ async function gatherFloorVotes(
       else if (r.pos === "nay") bucket.nay += n;
       splitMap.set(vid, s);
     }
-    for (const v of named) v.split = splitMap.get(v.id) ?? null;
+    // HO 360: split is needed to test party divergence, so decide contested here.
+    for (const v of named) {
+      v.split = splitMap.get(v.id) ?? null;
+      v.contested = shouldShowSplit(v);
+    }
   }
 
   let houseRecess: FloorVotes["houseRecess"] = null;
@@ -1031,7 +1089,7 @@ STAGE_COMMENTARY:
 <2-3 sentences on stage movement. Most weeks are routine committee referrals — lead with whether anything advanced PAST committee (floor, other chamber, president, enacted) and name those bills by ID; that is the signal. If every transition was a committee referral, say so plainly and do not imply otherwise. A bill that moved backward (returned to committee from a later stage) is a setback, not progress — narrate it honestly if the data shows one. Do not invent a count of referrals. Output exactly "_No stage movements this week._" if the transition count is zero.>
 
 VOTES_COMMENTARY:
-<PROSE ONLY — 2-4 sentences, no bulleted or numbered list and no per-vote lines (the named votes are rendered as a list BELOW your prose; reproducing them duplicates the section). Cover the week's floor votes: the per-chamber vote counts, the closest or most consequential vote, and what cleared (bills passed or failed, nominations confirmed). Reference one or two bill IDs in the prose. Use the structured counts and named-vote list provided as your source — do not count off them yourself. Note a chamber in recess if the data says so. Output exactly "_Both chambers were in recess this week. No floor votes._" if there were no votes at all.>`;
+<PROSE ONLY — 2-4 sentences, no bulleted or numbered list and no per-vote lines (the named votes are rendered as a list BELOW your prose; reproducing them duplicates the section). Cover the week's floor votes: the per-chamber vote counts, the closest or most consequential vote, and what cleared or did not (bills passed, failed, or blocked at cloture; nominations confirmed or rejected) — lead with a failure or blocked cloture if the data has one. Reference one or two bill IDs in the prose. Use the structured counts and named-vote list provided as your source — do not count off them yourself. Note a chamber in recess if the data says so. Output exactly "_Both chambers were in recess this week. No floor votes._" if there were no votes at all.>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
   // HO 352: the stage context is the ladder by destination, not a from→to row
@@ -1163,7 +1221,7 @@ ${enactmentLines}
 ${mostTalkedLines}
 - Committee meetings this week: ${ca.meetingsCount} (${ca.hearings} hearings, ${ca.markups} markups, ${ca.business} business; ${ca.committees} committees). Markups that took up bills:
 ${markupContext}
-- Floor votes this week: ${fv.total} recorded (House ${fv.houseCount}, Senate ${fv.senateCount}; ${fv.named.length} named final-passage/cloture/confirmation, ${fv.collapsedCount} procedural/amendment).${recessNote} Named votes:
+- Floor votes this week: ${fv.total} recorded (House ${fv.houseCount}, Senate ${fv.senateCount}; ${fv.named.length} named decisive votes — passage, cloture, or confirmation, including failures (FAILED/BLOCKED/REJECTED) — and ${fv.collapsedCount} procedural/amendment).${recessNote} Named votes:
 ${namedVoteLines}
 
 Write the report sections:`;
@@ -1394,10 +1452,19 @@ function assembleMarkdown(
     lines.push(c.votesCommentary, "");
     const recessLine = formatRecessLine(fv);
     if (recessLine) lines.push(recessLine, "");
-    for (const v of fv.named) lines.push(`- ${formatVoteLine(v)}`);
-    if (fv.collapsedCount > 0) {
+    // HO 360: cap the displayed named list; the remainder rolls into the collapse
+    // line (V minus listed). Render-only — the lead/prompt see the full fv.named.
+    const display = fv.named.slice(0, NAMED_VOTE_CAP);
+    for (const v of display) lines.push(`- ${formatVoteLine(v)}`);
+    const remainder = fv.total - display.length;
+    if (remainder > 0) {
+      // "(procedural and amendment)" only holds when no named votes were capped
+      // into the remainder; once they are, drop the qualifier so it can't
+      // mislabel a real passage/confirmation as procedural.
+      const qualifier =
+        display.length === fv.named.length ? " (procedural and amendment)" : "";
       lines.push(
-        `- _+ ${fv.collapsedCount} more recorded vote${fv.collapsedCount === 1 ? "" : "s"} (procedural and amendment)_`,
+        `- _+ ${remainder} more recorded vote${remainder === 1 ? "" : "s"}${qualifier}_`,
       );
     }
     lines.push("");
