@@ -25,6 +25,7 @@ import {
   getEnactedThisWeek,
   getNewBillsThisWeekCount,
   getStageChangesCount,
+  getWeeklyBandFiller,
   getWeeklyBandHearings,
   getWeeklyBandPriorWeek,
 } from "@/lib/queries";
@@ -124,12 +125,13 @@ function MetricTip({
 }
 
 export async function WeeklyBand() {
-  const [enacted, transitions, newBills, hearings, prior, snap] =
+  const [enacted, transitions, newBills, hearings, filler, prior, snap] =
     await Promise.all([
       getEnactedThisWeek(),
       getStageChangesCount({}, 7),
       getNewBillsThisWeekCount(),
       getWeeklyBandHearings(),
+      getWeeklyBandFiller(),
       getWeeklyBandPriorWeek(),
       getDashboardReportSnapshot(),
     ]);
@@ -137,6 +139,13 @@ export async function WeeklyBand() {
   const enactedShown = enacted.slice(0, ENACTED_ID_CAP);
   const enactedMore = enacted.length - enactedShown.length;
   const priorWeekStart = weekStartISO(1);
+
+  // HO 351 — filler share of THIS WEEK's total introductions (ceremonial
+  // INCLUDED — that's the right denominator for a share; NOT the NEW BILLS
+  // count). The segment carries both the % and the n/total so the /total
+  // doesn't read as inconsistent with the NEW BILLS figure beside it.
+  const fillerPct =
+    filler.total > 0 ? Math.round((filler.filler / filler.total) * 100) : 0;
 
   return (
     <section className="weekly-band" aria-label="This week">
@@ -246,6 +255,24 @@ export async function WeeklyBand() {
           hearings{" "}
           <WeekDelta now={hearings.thisWeek} prior={hearings.priorWeek} />
         </MetricTip>
+      </span>
+
+      {/* HO 351 — filler-share bar, right-pinned (margin-left:auto) just before
+          READ FULL. One muted segment + its own % and n/total. */}
+      <span
+        className="weekly-band-filler"
+        title={`Filler this week: ${filler.filler.toLocaleString()} of ${filler.total.toLocaleString()} introductions (ceremonial or one of the four ceremonial patterns)`}
+      >
+        <span className="weekly-band-filler-track" aria-hidden>
+          <span
+            className="weekly-band-filler-fill"
+            style={{ width: `${fillerPct}%` }}
+          />
+        </span>
+        <span className="weekly-band-filler-label">
+          filler <span className="weekly-band-num">{fillerPct}%</span> ·{" "}
+          {filler.filler.toLocaleString()}/{filler.total.toLocaleString()}
+        </span>
       </span>
 
       {snap ? (

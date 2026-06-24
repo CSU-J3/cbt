@@ -529,6 +529,41 @@ export const getNewBillsThisWeekCount = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// HO 351 — the dashboard WeeklyBand filler bar. ONE pass over the trailing-7-day
+// introductions window (the SAME window as getNewBillsThisWeekCount).
+//   total   = ALL introductions this week, CEREMONIAL INCLUDED — deliberately
+//             NOT the strip's NEW BILLS count (non-ceremonial), which would be
+//             the wrong denominator for a filler SHARE.
+//   filler  = broad definition: is_ceremonial = 1 OR cluster_id in the four
+//             ceremonial patterns. One row per bill, so the SUM is distinct-by-id.
+// Forced INDEXED BY idx_bills_introduced_date (introduced_date, is_ceremonial) —
+// same statless-planner reason as getNewBillsThisWeekCount; the window narrows to
+// ~dozens of rows, so the cluster_id row-fetch for the filler SUM is trivial.
+export type WeeklyBandFiller = { total: number; filler: number };
+
+export const getWeeklyBandFiller = unstable_cache(
+  async (): Promise<WeeklyBandFiller> => {
+    const db = getDb();
+    const placeholders = FILLER_WATCH_PATTERNS.map(() => "?").join(",");
+    const rs = await db.execute({
+      sql: `SELECT
+              COUNT(*) AS total,
+              SUM(CASE WHEN is_ceremonial = 1 OR cluster_id IN (${placeholders}) THEN 1 ELSE 0 END) AS filler
+            FROM bills INDEXED BY idx_bills_introduced_date
+            WHERE introduced_date IS NOT NULL
+              AND introduced_date > date('now', '-7 days')`,
+      args: [...FILLER_WATCH_PATTERNS],
+    });
+    const row = rs.rows[0];
+    return {
+      total: Number(row?.total ?? 0),
+      filler: Number(row?.filler ?? 0),
+    };
+  },
+  ["getWeeklyBandFiller"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 export const getNewBillsThisWeek = unstable_cache(
   async (limit = 5): Promise<FeedBill[]> => {
     const db = getDb();

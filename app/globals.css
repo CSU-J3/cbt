@@ -2452,8 +2452,35 @@ body {
 .weekly-band-delta--flat {
   color: var(--text-dim);
 }
-.weekly-band-readfull {
+/* HO 351 — filler-share bar. margin-left:auto pins it (and READ FULL, which
+   follows it) to the right; READ FULL no longer needs its own auto since the
+   filler segment always renders before it. Compact so flex-wrap doesn't kick
+   it to a second row. */
+.weekly-band-filler {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.weekly-band-filler-track {
+  width: 40px;
+  height: 8px;
+  background-color: var(--bg-base);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  display: inline-block;
+}
+.weekly-band-filler-fill {
+  display: block;
+  height: 100%;
+  background-color: var(--text-dim);
+}
+.weekly-band-filler-label {
+  color: var(--text-muted);
+}
+.weekly-band-readfull {
   color: var(--accent-amber);
   text-decoration: none;
   white-space: nowrap;
