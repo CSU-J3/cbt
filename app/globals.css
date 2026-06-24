@@ -4260,6 +4260,77 @@ body {
   flex-direction: column;
 }
 
+/* HO 348 — Filler Watch strip (between the meta line and the blurb). Low-weight,
+   factual; amber frame + row-hover fill when expanded (the bill-panel idiom). */
+.filler-watch {
+  margin-bottom: 12px;
+  border: 1px solid var(--border-soft);
+}
+.filler-watch.open {
+  border-color: var(--accent-amber);
+}
+.filler-watch-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.filler-watch.open .filler-watch-row {
+  background-color: var(--bg-row-hover);
+}
+.filler-watch-label {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.filler-watch-summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+}
+.fw-punch {
+  color: var(--text-primary);
+}
+.fw-texture {
+  color: var(--text-muted);
+}
+.filler-watch-chevron {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+.filler-watch-body {
+  padding: 10px 12px;
+  background-color: var(--bg-row-hover);
+  border-top: 0.5px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+}
+.fw-attrition {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.fw-register {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.fw-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 @media (max-width: 700px) {
   .patterns-layout {
     grid-template-columns: minmax(0, 1fr);

@@ -1,4 +1,5 @@
 import { BillRow } from "@/components/BillRow";
+import { FillerWatchStrip } from "@/components/FillerWatchStrip";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { PatternBars } from "@/components/PatternBars";
@@ -7,6 +8,7 @@ import { PatternLegend } from "@/components/PatternLegend";
 import {
   getClusterDrilldown,
   getClusterStats,
+  getFillerWatch,
   getUnmatchedClusterCount,
   getWatchedBillIds,
   sanitizeClusterId,
@@ -26,9 +28,10 @@ export default async function PatternsPage({
   const params = await searchParams;
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
 
-  const [stats, unmatched] = await Promise.all([
+  const [stats, unmatched, filler] = await Promise.all([
     getClusterStats(),
     getUnmatchedClusterCount(includeCeremonial),
+    getFillerWatch(),
   ]);
 
   // HO 347 — auto-select the top (highest-count) pattern when the URL carries
@@ -73,6 +76,9 @@ export default async function PatternsPage({
             {patternTotal.toLocaleString()} · {matchedPct}%
           </span>
         </div>
+
+        {/* HO 348 — Filler Watch strip: between the meta line and the blurb. */}
+        <FillerWatchStrip data={filler} />
 
         <p
           className="mb-3 text-[12px] leading-snug"

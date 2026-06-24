@@ -4009,6 +4009,62 @@ export const getClusterStats = unstable_cache(
   { revalidate: 3600, tags: ["bills"] },
 );
 
+// HO 348 — Filler Watch strip on /patterns. The four CEREMONIAL / NON-BINDING
+// patterns ONLY (cra-disapproval is a real tool, excluded). One selective scan
+// over the ~1,225 clustered rows (cluster_id IN seek, then a small row-fetch for
+// sponsor_party — fine at this volume). past_committee is the filler-watch
+// definition (stage IN floor/other_chamber/president, enacted excluded); the
+// caller derives died-in-committee = filed − past_committee − enacted, and the
+// party split from d/r/i (NULL sponsor_party dropped, non-D/R folded to IND).
+export const FILLER_WATCH_PATTERNS = [
+  "awareness-designation",
+  "honoring-resolution",
+  "facility-naming",
+  "sense-of-congress",
+] as const;
+
+export type FillerWatchData = {
+  filed: number;
+  pastCommittee: number;
+  enacted: number;
+  nonBinding: number; // non-facility of the four (can't become law by nature)
+  d: number;
+  r: number;
+  i: number;
+};
+
+export const getFillerWatch = unstable_cache(
+  async (): Promise<FillerWatchData> => {
+    const db = getDb();
+    const placeholders = FILLER_WATCH_PATTERNS.map(() => "?").join(",");
+    const rs = await db.execute({
+      sql: `SELECT
+              COUNT(*) AS filed,
+              SUM(CASE WHEN stage IN ('floor','other_chamber','president') THEN 1 ELSE 0 END) AS past_committee,
+              SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
+              SUM(CASE WHEN cluster_id <> 'facility-naming' THEN 1 ELSE 0 END) AS non_binding,
+              SUM(CASE WHEN UPPER(TRIM(sponsor_party)) = 'D' THEN 1 ELSE 0 END) AS d,
+              SUM(CASE WHEN UPPER(TRIM(sponsor_party)) = 'R' THEN 1 ELSE 0 END) AS r,
+              SUM(CASE WHEN sponsor_party IS NOT NULL AND UPPER(TRIM(sponsor_party)) NOT IN ('D','R') THEN 1 ELSE 0 END) AS i
+            FROM bills
+            WHERE cluster_id IN (${placeholders})`,
+      args: [...FILLER_WATCH_PATTERNS],
+    });
+    const row = rs.rows[0];
+    return {
+      filed: Number(row?.filed ?? 0),
+      pastCommittee: Number(row?.past_committee ?? 0),
+      enacted: Number(row?.enacted ?? 0),
+      nonBinding: Number(row?.non_binding ?? 0),
+      d: Number(row?.d ?? 0),
+      r: Number(row?.r ?? 0),
+      i: Number(row?.i ?? 0),
+    };
+  },
+  ["getFillerWatch"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 export const getUnmatchedClusterCount = unstable_cache(
   async (includeCeremonial: boolean = false): Promise<number> => {
     const db = getDb();
