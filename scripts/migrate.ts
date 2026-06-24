@@ -26,10 +26,18 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_bills_update_date ON bills(update_date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_bills_latest_action ON bills(latest_action_date DESC)`,
+  // HO 356 (A2): per-user watchlist. Composite PK (user_id, bill_id) — one row
+  // per (user, bill), so two users can both watch the same bill. FK to users(id)
+  // (HO 355). Existing single-user prod rows were rebuilt + seeded to the lone
+  // users.id by scripts/migrate-watchlist-userid.ts; this canonical shape makes
+  // fresh DBs born correct. The composite PK covers `WHERE user_id = ?`, so the
+  // read drive order needs no extra index.
   `CREATE TABLE IF NOT EXISTS watchlist (
-    bill_id TEXT PRIMARY KEY REFERENCES bills(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    bill_id TEXT NOT NULL REFERENCES bills(id),
     added_at TEXT NOT NULL,
-    notes TEXT
+    notes TEXT,
+    PRIMARY KEY (user_id, bill_id)
   )`,
   // Key-value store for cron-generated dashboard content. Flexible so future
   // dashboard state (other generated text, cached aggregates) needs no further

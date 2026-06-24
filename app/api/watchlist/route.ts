@@ -1,5 +1,5 @@
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { addToWatchlist, getBillById, removeFromWatchlist } from "@/lib/queries";
 
 type Body = {
@@ -8,6 +8,15 @@ type Body = {
 };
 
 export async function POST(request: Request) {
+  // HO 356 (A2): the watchlist is the one auth-gated surface. Anonymous → 401;
+  // the client (use-watch-toggle) reacts to the 401 by sending the user to
+  // GitHub sign-in. Authed → write under session.user.id.
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) {
+    return NextResponse.json({ error: "sign in required" }, { status: 401 });
+  }
+
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -30,10 +39,12 @@ export async function POST(request: Request) {
   }
 
   if (action === "add") {
-    await addToWatchlist(billId);
+    await addToWatchlist(userId, billId);
   } else {
-    await removeFromWatchlist(billId);
+    await removeFromWatchlist(userId, billId);
   }
-  revalidateTag("watchlist");
+  // No revalidateTag: the read helpers (getWatchlistBills / getWatchedBillIds)
+  // are uncached now (HO 356), so there's no cached tag to flush. The client's
+  // router.refresh() re-runs the now-uncached server reads after a write.
   return NextResponse.json({ ok: true, billId, action });
 }

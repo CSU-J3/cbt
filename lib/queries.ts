@@ -3,6 +3,7 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
+import { auth } from "../auth";
 import {
   type EnactedBill,
   queryEnactedPriorWeekCount,
@@ -3581,17 +3582,9 @@ export const getCommitteeRoster = unstable_cache(
 // HO 335: type SponsorPassRate + getSponsorsRanked + getSponsorPassRates deleted
 // as dead code (see the Sponsor-types note above) — orphaned by the HO 328 merge.
 
-export async function getSponsorStates(): Promise<string[]> {
-  const db = getDb();
-  const rs = await db.execute(
-    `SELECT DISTINCT sponsor_state FROM bills
-     WHERE summary IS NOT NULL AND sponsor_state IS NOT NULL AND sponsor_state != ''
-     ORDER BY sponsor_state ASC`,
-  );
-  return rs.rows
-    .map((r) => (r.sponsor_state as string | null) ?? null)
-    .filter((s): s is string => !!s);
-}
+// HO 356: getSponsorStates deleted — HO 354 re-confirmed zero callers
+// (/members uses getMemberStates). Printed before delete; the cold-start-audit
+// standalone EXPLAIN of its SQL is harmless and left in place.
 
 export const getSponsorRecentBills = unstable_cache(
   async (
@@ -4015,46 +4008,62 @@ export async function getBillById(id: string): Promise<BillDetail | null> {
   };
 }
 
+// HO 356 (A2): per-user. Reads the session internally (call sites unchanged);
+// anonymous → false. Composite-PK point lookup.
 export async function isInWatchlist(billId: string): Promise<boolean> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return false;
   const db = getDb();
   const rs = await db.execute({
-    sql: "SELECT 1 FROM watchlist WHERE bill_id = ? LIMIT 1",
-    args: [billId],
+    sql: "SELECT 1 FROM watchlist WHERE user_id = ? AND bill_id = ? LIMIT 1",
+    args: [userId, billId],
   });
   return rs.rows.length > 0;
 }
 
-// HO 127 — bulk read of every watched bill_id for the current "user" (the
-// app is single-user, so the whole table is the answer). List pages call
-// this once and pass the array through to BillRow → WatchStar so each row
-// renders the correct ★/☆ glyph without an N-query fan-out. The watchlist
-// table is personal-sized (<100 rows in practice); fetching the full list
-// per render is cheap. Returns an array (not Set) because unstable_cache
-// serializes its result and Set doesn't round-trip cleanly; callers Set-ify
-// at the call site.
-export const getWatchedBillIds = unstable_cache(
-  async (): Promise<string[]> => {
-    const db = getDb();
-    const rs = await db.execute("SELECT bill_id FROM watchlist");
-    return rs.rows.map((r) => r.bill_id as string);
-  },
-  ["getWatchedBillIds"],
-  { revalidate: 3600, tags: ["watchlist"] },
-);
+// HO 127 — bulk read of every watched bill_id, so list pages render each row's
+// ★/☆ glyph without an N-query fan-out. HO 356: scoped to the signed-in user,
+// read from the session INTERNALLY so the 10 call sites stay unchanged;
+// anonymous → [] (empty stars, no error). NOT unstable_cache anymore: that
+// helper has no request-scoped cookie access, and a global cache would leak one
+// user's stars to another. The query is tiny (`WHERE user_id = ?` on the PK), so
+// uncached is cheap; the 10s boundedFetch abort (HO 238) still applies. Returns
+// an array (callers Set-ify at the call site).
+export async function getWatchedBillIds(): Promise<string[]> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return [];
+  const db = getDb();
+  const rs = await db.execute({
+    sql: "SELECT bill_id FROM watchlist WHERE user_id = ?",
+    args: [userId],
+  });
+  return rs.rows.map((r) => r.bill_id as string);
+}
 
-export async function addToWatchlist(billId: string): Promise<void> {
+// HO 356: write helpers take an explicit userId (the /api/watchlist route reads
+// the session and passes session.user.id). The read/write asymmetry is
+// deliberate — reads self-resolve the session, writes are handed the id.
+export async function addToWatchlist(
+  userId: string,
+  billId: string,
+): Promise<void> {
   const db = getDb();
   await db.execute({
-    sql: "INSERT OR IGNORE INTO watchlist (bill_id, added_at) VALUES (?, ?)",
-    args: [billId, new Date().toISOString()],
+    sql: "INSERT OR IGNORE INTO watchlist (user_id, bill_id, added_at) VALUES (?, ?, ?)",
+    args: [userId, billId, new Date().toISOString()],
   });
 }
 
-export async function removeFromWatchlist(billId: string): Promise<void> {
+export async function removeFromWatchlist(
+  userId: string,
+  billId: string,
+): Promise<void> {
   const db = getDb();
   await db.execute({
-    sql: "DELETE FROM watchlist WHERE bill_id = ?",
-    args: [billId],
+    sql: "DELETE FROM watchlist WHERE user_id = ? AND bill_id = ?",
+    args: [userId, billId],
   });
 }
 
@@ -4596,26 +4605,38 @@ export const searchReports = unstable_cache(
   { revalidate: 600, tags: ["reports"] },
 );
 
-// Tagged with both "watchlist" (membership changes from toggle) and "bills"
-// (underlying row data changes from sync), so either trigger invalidates.
-export const getWatchlistBills = unstable_cache(
-  async (sort: SortKey = "action", chamber?: Chamber): Promise<FeedBill[]> => {
-    const db = getDb();
-    const sortColumn =
-      sort === "introduced" ? "b.introduced_date" : "b.latest_action_date";
-    const chamberClause =
-      chamber === "house"
-        ? ` AND b.bill_type IN (${HOUSE_BILL_TYPES})`
-        : chamber === "senate"
-          ? ` AND b.bill_type IN (${SENATE_BILL_TYPES})`
-          : "";
-    const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
+// HO 356 (A2): per-user watchlist, reading the session INTERNALLY (call sites
+// unchanged); anonymous → []. NOT unstable_cache (no request-scoped cookies +
+// no cross-user cache bleed). Folds the HO 342 drive-order fix that HO 354 found
+// was never shipped: FORCE the drive from `watchlist w` (small, user-filtered)
+// with INDEXED BY on the composite PK, then bills by PK — the statless Turso
+// planner otherwise drives `FROM bills b` (a 16k-row scan), the ~27s cold-500
+// risk on a populated watchlist. The composite PK leads on user_id, so the
+// `WHERE w.user_id = ?` lookup is index-only. The 10s boundedFetch abort still
+// applies. Was tagged watchlist/bills/news-breaking for the old cache — gone now.
+export async function getWatchlistBills(
+  sort: SortKey = "action",
+  chamber?: Chamber,
+): Promise<FeedBill[]> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return [];
+  const db = getDb();
+  const sortColumn =
+    sort === "introduced" ? "b.introduced_date" : "b.latest_action_date";
+  const chamberClause =
+    chamber === "house"
+      ? ` AND b.bill_type IN (${HOUSE_BILL_TYPES})`
+      : chamber === "senate"
+        ? ` AND b.bill_type IN (${SENATE_BILL_TYPES})`
+        : "";
+  const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
       b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
       b.latest_action_date, b.latest_action_text, b.update_date,
       b.summary, b.topics, b.stage, b.stage_changed_at,
       COALESCE(nm.n, 0) AS mention_count_7d
-      FROM bills b
-      INNER JOIN watchlist w ON w.bill_id = b.id
+      FROM watchlist w INDEXED BY sqlite_autoindex_watchlist_1
+      INNER JOIN bills b ON b.id = w.bill_id
       LEFT JOIN (
         SELECT bill_id, COUNT(*) AS n
         FROM news_mentions
@@ -4623,14 +4644,11 @@ export const getWatchlistBills = unstable_cache(
           AND match_confidence >= ${NEWS_CONFIDENCE_FLOOR}
         GROUP BY bill_id
       ) nm ON nm.bill_id = b.id
-      WHERE 1=1${chamberClause}
+      WHERE w.user_id = ?${chamberClause}
       ORDER BY ${sortColumn} DESC NULLS LAST, b.id DESC`;
-    const rs = await db.execute(sql);
-    return rs.rows.map(rowToFeedBill);
-  },
-  ["getWatchlistBills"],
-  { revalidate: 3600, tags: ["watchlist", "bills", "news-breaking"] },
-);
+  const rs = await db.execute({ sql, args: [userId] });
+  return rs.rows.map(rowToFeedBill);
+}
 
 // ---- Votes (handoff 77) -------------------------------------------------
 

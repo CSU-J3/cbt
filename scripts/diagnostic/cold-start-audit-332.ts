@@ -274,8 +274,12 @@ async function main() {
       sql: `SELECT bill_id, COUNT(*) AS n FROM news_mentions WHERE published_at >= datetime('now', '-${MENTION_WINDOW_DAYS} days') AND match_confidence >= ${NEWS_FLOOR} GROUP BY bill_id`, args: [] },
 
     // ===== bills joined via PK from a small driver (expected GOOD) =====
-    { fn: "getWatchlistBills", route: "/watchlist", cache: "1h, tag watchlist,bills",
-      sql: `SELECT b.id, b.title, COALESCE(nm.n,0) AS mention_count_7d FROM bills b INNER JOIN watchlist w ON w.bill_id = b.id LEFT JOIN (SELECT bill_id, COUNT(*) AS n FROM news_mentions WHERE published_at >= datetime('now', '-${MENTION_WINDOW_DAYS} days') AND match_confidence >= ${NEWS_FLOOR} GROUP BY bill_id) nm ON nm.bill_id = b.id WHERE 1=1 ORDER BY b.latest_action_date DESC NULLS LAST, b.id DESC`, args: [] },
+    // HO 356: per-user + drive-order forced (the HO 342 fix A2 shipped). Drives
+    // from watchlist (small, user-filtered, covering composite PK) then bills by
+    // PK — NOT a bills scan. Uncached now (session-scoped). args = a sample
+    // user_id; EXPLAIN cares about shape, not the value.
+    { fn: "getWatchlistBills", route: "/watchlist", cache: "uncached, per-user",
+      sql: `SELECT b.id, b.title, COALESCE(nm.n,0) AS mention_count_7d FROM watchlist w INDEXED BY sqlite_autoindex_watchlist_1 INNER JOIN bills b ON b.id = w.bill_id LEFT JOIN (SELECT bill_id, COUNT(*) AS n FROM news_mentions WHERE published_at >= datetime('now', '-${MENTION_WINDOW_DAYS} days') AND match_confidence >= ${NEWS_FLOOR} GROUP BY bill_id) nm ON nm.bill_id = b.id WHERE w.user_id = ? ORDER BY b.latest_action_date DESC NULLS LAST, b.id DESC`, args: ["00000000-0000-0000-0000-000000000000"] },
     { fn: "getMemberVotes (LEFT JOIN bills)", route: "/members/[id] votes", cache: "1h, tag votes",
       sql: `SELECT v.id, v.bill_id, b.title AS bill_title, mv.position FROM votes v LEFT JOIN bills b ON b.id = v.bill_id INNER JOIN member_votes mv ON mv.vote_id = v.id WHERE mv.bioguide_id = ? ORDER BY v.vote_date DESC, v.id DESC LIMIT ? OFFSET ?`, args: [HEAVY, 25, 0] },
     { fn: "getCommitteeBills (JOIN bills PK)", route: "/committee/[code]", cache: "1h, tag committees",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { useState, useTransition } from "react";
 
 // HO 127 — shared client hook for the watchlist toggle. Both surfaces that
@@ -39,10 +40,17 @@ export function useWatchToggle(
         body: JSON.stringify({ billId, action }),
       });
       if (!res.ok) {
+        setIsOn(!next); // revert the optimistic flip either way
+        // HO 356: anonymous writes 401. Send the user to GitHub sign-in rather
+        // than surfacing an error — clicking a star IS the "sign in to save"
+        // affordance for logged-out users. Other errors keep the visible revert.
+        if (res.status === 401) {
+          void signIn("github");
+          return;
+        }
         const body = await res.text();
         setError(`ERR ${res.status}`);
         console.error(body);
-        setIsOn(!next); // revert
         return;
       }
       startTransition(() => {

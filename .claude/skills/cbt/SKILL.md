@@ -7,7 +7,7 @@ description: Use this skill when working on CBT (Congress Bill Terminal), the pe
 
 ## What this is
 
-A personal dashboard that pulls bills from the Congress.gov API, runs them through an LLM for plain-English summaries, and shows a filtered feed plus a watchlist. Built for one user (no auth, no accounts). Not a public-facing product yet.
+A personal dashboard that pulls bills from the Congress.gov API, runs them through an LLM for plain-English summaries, and shows a filtered feed plus a watchlist. **Logged-out is the demo — every page renders anonymously; auth (GitHub OAuth, HO 355) only gates the per-user watchlist (HO 356).** The multi-user arc is A1 (auth) + A2 (per-user watchlist) shipped; a prominent landing CTA (B1) is pending a Design mock. Not a broadly public product yet.
 
 ## Stack
 
@@ -154,10 +154,21 @@ CREATE TABLE stage_transitions (
 CREATE INDEX idx_stage_transitions_bill ON stage_transitions(bill_id);
 CREATE INDEX idx_stage_transitions_changed_at ON stage_transitions(changed_at DESC);
 
+-- HO 356 (A2): per-user. Composite PK (user_id, bill_id) — two users can both
+-- watch the same bill. FK to users(id). Read helpers (getWatchlistBills,
+-- getWatchedBillIds, isInWatchlist) read the session INTERNALLY (anonymous →
+-- empty/false) and are UNCACHED (unstable_cache has no request-scoped cookies +
+-- would bleed one user's stars to another). The composite PK covers WHERE
+-- user_id = ?, so getWatchlistBills forces the drive from watchlist (small,
+-- user-filtered) then bills by PK (INDEXED BY sqlite_autoindex_watchlist_1 —
+-- folds in the HO 342 drive-order fix). Single-user prod rows were rebuilt +
+-- seeded by scripts/migrate-watchlist-userid.ts.
 CREATE TABLE watchlist (
-  bill_id TEXT PRIMARY KEY REFERENCES bills(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  bill_id TEXT NOT NULL REFERENCES bills(id),
   added_at TEXT NOT NULL,
-  notes TEXT
+  notes TEXT,
+  PRIMARY KEY (user_id, bill_id)
 );
 
 -- HO 355: identity for the multi-user arc (A1). Auth: NextAuth v5, GitHub OAuth,
@@ -1282,7 +1293,7 @@ The dashboard `/` feed (`components/V2FeedList.tsx`, a client island; was `/dash
 - All pages are server components and query Turso via `lib/queries.ts`.
 - The dashboard at `/` is server-rendered apart from a small set of client islands: `DashboardTopicTreemap` (HO 231, URL-driven topic filter — replaced the deleted `DashboardBubbleChart`), `DistributionsTabs` (**HO 244**, STAGE | TOPIC tab state — merges the two former separate distribution panels), `RacesPanelTabs` (HO 233, COMPETITIVE·PRIMARIES tab state), `ActivityTabs` (local tab state; its left tab is MOVERS as of HO 232), `MarketsTapeClient` (HO 149 marquee + HO 234 closed-state), and the accordion wrappers `BillRowList` (HO 148 — feed-shaped pages, and as of **HO 164** the dashboard MOVERS ticker via `<BillRowList compact>`) plus `TopStallsList` (**HO 164**, the dashboard TOP STALLS accordion). `DashboardPrimaries` and the new `WeeklyBand` (HO 244) are server components; **`EnactedBanner` was DELETED in HO 244** (folded into `WeeklyBand`). Charts (`TopicMixByChamber`, `BillsTimeSeries`, etc.) remain static server components — but note `StageFunnel`, despite being a chart, is a `"use client"` island.
 - The full `"use client"` set is ~53 components (grep `^"use client"` under `components/` to refresh — minus the two hook files `useSingleOpenPanel.ts` / `use-watch-toggle.ts` that the same grep catches; `PrimaryRow.tsx` also co-locates a second client export, `PrimaryExpandProvider` (the primaries single-open context), in the same file — one file, not a separate island; this list drifted to just two for several handoffs before the HO 160 sweep, then carried an inaccurate 28-name list until the HO 161 sweep; `TopStallsList` added in HO 164, `CompetitiveRacesStrip` added in HO 166 then **dropped in HO 178** when the races strip went client→server; `CyclingTimestamp` added in HO 183; **HO 187–189 added none** — the topic-hover is CSS, the bill-row enrichment is server/column-level, the inner-chrome rework is layout; **HO 191 added none** — the stage pipeline + avatar are nested inside `BillExpandedPanel`/`SponsorHoverName`, not new islands; **HO 192 added `SponsorHoverName`**; **HO 194–200 added none** — 194 refined `SponsorHoverName`, and 195–200 (Members chrome/list/scatter/dedupe/3-column card) are all server-component, page, or query changes; **HO 202 added none** — the tape mount went into existing `HeaderBar`; **HO 203 added `PrimaryRow`** for the primaries candidate-field row + single-open expand; **HO 210 added the `CartogramShell` / `RaceMapCard` / `PrimaryMapCard` map islands** for the map-first /races + /primaries surfaces; **HO 328 added `CommitteeRailRow` + `RosterShowAll` for the merged `/members` rail and deleted `MemberProductivityScatter`**): filter/URL chips `StageFilter` `PartyFilter` `StateFilter` `CeremonialToggle` `SortDropdown` `SearchBox` `SearchTabs`; feed + dashboard accordions `BillRowList` `BillRow` `BillExpandedPanel` `TopStallsList`; interactive charts `DashboardTopicTreemap` `StageFunnel` (the HO 347 `PatternBars` that replaced the deleted `PatternBubbleSVG` is a **server** component, not an island); the races-panel tab island `RacesPanelTabs`; chrome `MarketsTapeClient` `CyclingTimestamp` `ActivityTabs` `Tooltip` `MobileNavDrawer` (dormant); and row affordances `WatchlistToggle` `WatchStar` `MediaAttentionCell` `MemberHeader` `RaceIncumbentCard` `StateFlag` `SponsorPhoto` `SponsorHoverName` `PrimaryRow`; and the race/primary map islands `CartogramShell` `RaceMapCard` `PrimaryMapCard`; and the HO 328 `/members` rail islands `CommitteeRailRow` `RosterShowAll`. `TopicFilter`, `SegmentedToggle`, `NewsFilters`, `Pagination`, `MemberTopicBar` (HO 328), `PatternDrilldownPanel`, `MarketsTape`, `BreadcrumbMasthead`, `GroupTabs`, `DashboardPrimaries`, `WeeklyBand`, and `ActiveFilterStrip` are server components despite their interactive feel — they render `<Link>`s and let the router carry state. (**HO 244 DELETED `EnactedBanner`** — folded into `WeeklyBand` — and **DELETED `ReportSnapshot`** + `StageKey`/`TopicKey`/`ColorKeyStrip` + `lib/color-key.ts`; **HO 244 added the `DistributionsTabs` client island** (STAGE | TOPIC merge). **HO 234 DELETED `DualMarketsTape`** — the dual-tape wrapper is gone; **HO 231 DELETED `DashboardBubbleChart`** — replaced by `DashboardTopicTreemap`. **HO 233 added the `RacesPanelTabs` client island.** **Dashboard v2 (HO 253–260) added two client islands — `V2FeedList` (HO 257 movers rows + rich expand) and `RaceCrossHighlight` (HO 260 card↔marker hover) — while `DashboardV2Header`, `Battlefield`, `RaceCard`, `NewThisWeek`, `ActivityTicker`, `TopStalls` are all server components.** The curated count above has drifted (the live `^"use client"` count is 55 grep matches = ~53 islands + the 2 hook files, as of HO 328) — re-grep under `components/` to refresh.) Most client islands exist only to push/replace URL state; `WatchlistToggle` is the lone POST.
-- The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`.
+- The watchlist toggle is the only POST: `/api/watchlist` with `{billId, action: "add" | "remove"}`. **HO 356: 401s when anonymous** — the route reads `auth()`, passes `session.user.id` into the write helpers, and `use-watch-toggle.ts` reacts to a 401 by calling `signIn("github")` (clicking a star IS the "sign in to save" affordance). No `revalidateTag` anymore (the read helpers are uncached).
 
 ### Tooltip primitive (HO 147)
 
@@ -1499,7 +1510,7 @@ When sources disagree — legal reality vs. data source, vendor docs vs. third-p
 
 ## What not to do
 
-- Don't add user accounts or auth. This is single-user.
+- Auth exists now (GitHub OAuth, HO 355/356) but stays MINIMAL: it gates only the per-user watchlist. Logged-out is the demo — don't gate routes, add a SessionProvider, or pull in the Auth.js DB adapter. Keep the asymmetry: read helpers self-resolve the session, write helpers take an explicit `userId`.
 - Don't fetch bills live from the browser. Everything reads from Turso.
 - Don't store the LLM prompt in the database. Keep it in source so it's versioned with the code.
 - Don't summarize every bill in Congress. Summarize on demand: a bill gets a summary the first time it appears in the feed query window with a topic match.

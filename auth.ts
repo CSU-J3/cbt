@@ -1,6 +1,8 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
-import { getDb } from "@/lib/db";
+// Relative (not @/lib/db): auth.ts is reachable from tsx scripts via
+// lib/queries.ts → ../auth (HO 356), and tsx doesn't resolve the @/ alias.
+import { getDb } from "./lib/db";
 
 // HO 355 (A1 of the multi-user arc). NextAuth v5 / GitHub OAuth, JWT session
 // strategy, NO Auth.js DB adapter: the session lives entirely in the signed

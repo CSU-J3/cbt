@@ -4,8 +4,10 @@ import {
   SegmentedToggle,
 } from "@/components/SegmentedToggle";
 import { HeaderBar } from "@/components/HeaderBar";
+import { SignInButton } from "@/components/SignInButton";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
+import { auth } from "@/auth";
 import {
   getWatchlistBills,
   sanitizeChamber,
@@ -25,7 +27,14 @@ export default async function WatchlistPage({
   const params = await searchParams;
   const sort = sanitizeSort(params.sort);
   const chamber = sanitizeChamber(params.chamber);
-  const bills = await getWatchlistBills(sort, chamber);
+  // HO 356: getWatchlistBills is per-user (anonymous → []). Read the session here
+  // too so the empty state can tell "signed in, nothing watched yet" from "signed
+  // out" and show the right copy.
+  const [bills, session] = await Promise.all([
+    getWatchlistBills(sort, chamber),
+    auth(),
+  ]);
+  const isSignedIn = !!session?.user?.id;
 
   const carry = new URLSearchParams();
   if (sort && sort !== "action") carry.set("sort", sort);
@@ -73,10 +82,25 @@ export default async function WatchlistPage({
               color: "var(--text-dim)",
             }}
           >
-            <p style={{ color: "var(--text-muted)" }}>No bills on watchlist</p>
-            <p className="mt-2 normal-case tracking-normal">
-              Add bills from any bill detail page by clicking ★ Watch.
-            </p>
+            {isSignedIn ? (
+              <>
+                <p style={{ color: "var(--text-muted)" }}>No bills on watchlist</p>
+                <p className="mt-2 normal-case tracking-normal">
+                  Add bills from any bill detail page by clicking ★ Watch.
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={{ color: "var(--text-muted)" }}>
+                  Sign in to save bills to your watchlist
+                </p>
+                <p className="mt-2 normal-case tracking-normal">
+                  Your watched bills are tied to your account. Logged-out browsing
+                  is the demo — sign in to keep a personal list.
+                </p>
+                <SignInButton />
+              </>
+            )}
           </div>
         ) : (
           <div
