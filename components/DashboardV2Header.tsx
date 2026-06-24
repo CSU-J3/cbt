@@ -1,3 +1,5 @@
+import { auth } from "@/auth";
+import { AuthButton } from "@/components/AuthButton";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
@@ -60,7 +62,7 @@ const ODDS_PAIRS = [
   { primary: "RECESSION", secondary: "POLY-RECESSION", label: "RECESSION" },
 ];
 
-export function DashboardV2Header({
+export async function DashboardV2Header({
   corpus,
   stageDist,
 }: {
@@ -69,6 +71,10 @@ export function DashboardV2Header({
   // also carries percentage) is assignable here.
   stageDist: { bars: { stage: Stage; count: number }[] };
 }) {
+  // HO 355: identity for the AuthButton island (no SessionProvider). A1 gates
+  // nothing — the dashboard renders identically logged-out. This is the LIVE `/`
+  // header (HomeHeader backs only the unlinked /dashboard-classic).
+  const session = await auth();
   const stageCount = (stage: Stage) =>
     stageDist.bars.find((b) => b.stage === stage)?.count ?? 0;
   const committee = stageCount("committee");
@@ -124,6 +130,12 @@ export function DashboardV2Header({
             <CyclingTimestamp iso={corpus.lastSync} />
           </p>
         </div>
+
+        {/* HO 355: auth affordance pinned top-right of the masthead. The
+            prominent landing CTA is a later handoff (B1). */}
+        <span style={{ marginLeft: "auto", flexShrink: 0 }}>
+          <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+        </span>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
