@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Fragment } from "react";
+import { auth } from "@/auth";
+import { AuthButton } from "@/components/AuthButton";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
@@ -125,6 +127,9 @@ export async function HeaderBar({
   // time can't drift from the dashboard's on filtered pages (getFeedStats's
   // lastUpdated varies with includeCeremonial/cluster; this doesn't).
   const corpus = await getCorpusStats(true);
+  // HO 355: read identity server-side and hand it to the AuthButton island (no
+  // SessionProvider). A1 gates nothing — anonymous browsing is unaffected.
+  const session = await auth();
   const showSearch = !!feedFilters;
   // Suppressed on /watchlist and /bill/[id] (no feedFilters threaded in).
   // Also suppressed when a cluster is active — cluster bypasses the
@@ -147,6 +152,9 @@ export async function HeaderBar({
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
           cursor
         />
+        <span style={{ marginLeft: "auto" }}>
+          <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+        </span>
       </div>
 
       {/* HO 325 — LAST SYNC subhead on its own line, between the title row and the

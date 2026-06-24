@@ -541,6 +541,22 @@ const statements = [
     chamber TEXT PRIMARY KEY,
     update_date TEXT NOT NULL
   )`,
+
+  // HO 355: identity table for the multi-user arc (A1). NextAuth v5 / GitHub
+  // OAuth with the JWT session strategy and NO Auth.js DB adapter — sessions
+  // live in the signed cookie, this is our own minimal user record, upserted on
+  // sign-in by the auth.ts jwt callback. `id` is a UUID we mint (A2's per-user
+  // watchlist FKs to it). `github_id` is GitHub's numeric account id as TEXT
+  // (profile.id — stable, unlike the login), the unique sign-in lookup key.
+  // email is nullable (GitHub may not expose one).
+  `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    github_id TEXT NOT NULL UNIQUE,
+    email TEXT,
+    name TEXT,
+    image TEXT,
+    created_at TEXT NOT NULL
+  )`,
 ];
 
 async function ensureColumn(

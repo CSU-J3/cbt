@@ -29,6 +29,8 @@
     "components/**/*.tsx",
     "lib/**/*.ts",
     "scripts/**/*.ts",
+    "types/**/*.d.ts",
+    "auth.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": ["node_modules"]

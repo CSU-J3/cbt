@@ -1,3 +1,5 @@
+import { auth } from "@/auth";
+import { AuthButton } from "@/components/AuthButton";
 import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { MarketsTape } from "@/components/MarketsTape";
@@ -31,9 +33,12 @@ import type { Stage } from "@/lib/enums";
 // NULL) is the pre-existing one the masthead-coherence diagnostic owns; not
 // aligned here.
 export async function HomeHeader() {
-  const [corpus, stageDist] = await Promise.all([
+  const [corpus, stageDist, session] = await Promise.all([
     getCorpusStats(),
     getStageDistribution(),
+    // HO 355: identity for the AuthButton island (no SessionProvider). A1 gates
+    // nothing — the dashboard renders identically logged-out.
+    auth(),
   ]);
 
   const stageCount = (stage: Stage) =>
@@ -98,6 +103,13 @@ export async function HomeHeader() {
             <CyclingTimestamp iso={corpus.lastSync} />
           </p>
         </div>
+
+        {/* HO 355: auth affordance pinned top-right of the masthead. marginLeft
+            auto pushes it past the flex-1 title block; the prominent landing CTA
+            is a later handoff (B1). */}
+        <span style={{ marginLeft: "auto", flexShrink: 0 }}>
+          <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+        </span>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />

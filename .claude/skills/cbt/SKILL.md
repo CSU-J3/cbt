@@ -160,6 +160,20 @@ CREATE TABLE watchlist (
   notes TEXT
 );
 
+-- HO 355: identity for the multi-user arc (A1). Auth: NextAuth v5, GitHub OAuth,
+-- JWT session strategy, own `users` table (NO Auth.js adapter — session lives in
+-- the signed cookie; auth.ts's jwt callback upserts here on sign-in). `id` is a
+-- UUID we mint (A2's per-user watchlist FKs to it); `github_id` is GitHub's
+-- numeric account id as TEXT (stable, unlike the login). A1 gates no routes.
+CREATE TABLE users (
+  id TEXT PRIMARY KEY,
+  github_id TEXT NOT NULL UNIQUE,
+  email TEXT,
+  name TEXT,
+  image TEXT,
+  created_at TEXT NOT NULL
+);
+
 -- Key-value store for cron-generated dashboard content. Flexible so future
 -- dashboard state needs no further migration. Currently holds the one row
 -- key = 'weekly_lead' (the LLM-generated dashboard lead).
