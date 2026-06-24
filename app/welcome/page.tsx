@@ -1,19 +1,29 @@
 import type { Metadata } from "next";
+import { BreakingTicker } from "@/components/BreakingTicker";
 import { LandingCTAs } from "@/components/LandingCTAs";
+import { formatRelativeAge } from "@/lib/format";
+import {
+  type FeedBill,
+  type MarketTick,
+  getCorpusStats,
+  getLatestMarketTicks,
+  getStageChanges,
+  getStageChangesCount,
+  getStageDistribution,
+  normalizePartyVariant,
+} from "@/lib/queries";
 import { topicColor, topicLabel } from "@/lib/topic-colors";
 import styles from "./landing.module.css";
 
-// HO 361 (B1, the last piece of the multi-user arc) — the split-layout landing.
-// Built from the signed-off mock docs/design/landing.html. Static server
-// component (no DB, no auth, no searchParams) so the most-hit anonymous URL
-// prerenders. The cursor blink, live-dot, and tape marquee are pure CSS; the
-// only client JS is the two CTA buttons (components/LandingCTAs.tsx).
-//
-// Proof-of-life is STATIC by design (HO 361 decision) — the rows/tape/breaking
-// strip are a presentational replica, NOT the live BillRow/MarketsTape (that
-// would import the star→signIn path + cron-flake risk onto the landing for no
-// gain). The ONE thing sourced live: chip colors + labels, pulled from
-// lib/topic-colors.ts so they match the real feed.
+// HO 361 (B1, last piece of the multi-user arc) — the split-layout landing.
+// Built from the signed-off mock docs/design/landing.html. The LIVE panel is
+// real: MOVERS rows + readout stats + markets tape all read the same cached
+// Turso queries the `/` dashboard serves (reuse, don't recompute). Only the
+// BREAKING strip is invented — a rotating evergreen flavor ticker (the deadpan
+// red tag is the joke). Rows use the mock's compact markup (no star/expand/media
+// column), NOT the live BillRow. force-dynamic so the cached reads stay fresh
+// (revalidated by the sync cron's tags), same as the dashboard.
+export const dynamic = "force-dynamic";
 
 const SUBLINE =
   "A live feed of the current Congress: every bill summarized and staged, every member tracked, every competitive race rated.";
@@ -29,131 +39,123 @@ export const metadata: Metadata = {
   },
 };
 
-type Party = "r" | "d" | "i";
-type Stage = "cmte" | "floor" | "enacted";
+// Real stages span all six; the mock had only cmte/floor/enacted. Labels are the
+// mock's compact form; colors are the existing --stage-* tokens (no new var),
+// driven into the module's generalized .metric .st via inline --st-color.
+const STAGE_META: Record<string, { label: string; color: string }> = {
+  introduced: { label: "INTRO", color: "var(--stage-introduced)" },
+  committee: { label: "CMTE", color: "var(--stage-committee)" },
+  floor: { label: "FLOOR", color: "var(--stage-floor)" },
+  other_chamber: { label: "OTHER", color: "var(--stage-other-chamber)" },
+  president: { label: "PRES", color: "var(--stage-president)" },
+  enacted: { label: "ENACTED", color: "var(--stage-enacted)" },
+};
 
-const ROWS: {
-  id: string;
-  title: string;
-  sponsor: string;
-  party: Party;
-  partyTag: string;
-  topics: string[];
-  stage: Stage;
-  stageLabel: string;
-  age: string;
-}[] = [
-  {
-    id: "HR 4521",
-    title: "American Innovation and Competitiveness Act of 2025",
-    sponsor: "LOFGREN",
-    party: "d",
-    partyTag: "[D-CA]",
-    topics: ["technology", "financial_services"],
-    stage: "floor",
-    stageLabel: "FLOOR",
-    age: "2h",
-  },
-  {
-    id: "S 1020",
-    title: "Veterans Health Care Improvement Act",
-    sponsor: "MORAN",
-    party: "r",
-    partyTag: "[R-KS]",
-    topics: ["veterans", "healthcare"],
-    stage: "enacted",
-    stageLabel: "ENACTED",
-    age: "1d",
-  },
-  {
-    id: "HR 138",
-    title: "Lowering Costs for Caregivers Act of 2025",
-    sponsor: "STEFANIK",
-    party: "r",
-    partyTag: "[R-NY]",
-    topics: ["healthcare", "labor"],
-    stage: "cmte",
-    stageLabel: "CMTE",
-    age: "4h",
-  },
-  {
-    id: "HR 2890",
-    title: "Federal Permitting Modernization Act",
-    sponsor: "GREEN",
-    party: "r",
-    partyTag: "[R-TN]",
-    topics: ["government_operations", "environment"],
-    stage: "floor",
-    stageLabel: "FLOOR",
-    age: "8h",
-  },
-  {
-    id: "S 4483",
-    title:
-      "A bill to streamline agricultural permit applications and reduce processing time",
-    sponsor: "SMITH",
-    party: "d",
-    partyTag: "[D-MN]",
-    topics: ["agriculture"],
-    stage: "cmte",
-    stageLabel: "CMTE",
-    age: "6h",
-  },
-  {
-    id: "S 770",
-    title: "Rural Broadband Access Act",
-    sponsor: "KLOBUCHAR",
-    party: "d",
-    partyTag: "[D-MN]",
-    topics: ["technology"],
-    stage: "cmte",
-    stageLabel: "CMTE",
-    age: "11h",
-  },
-  {
-    id: "HR 901",
-    title: "Small Business Tax Relief and Simplification Act",
-    sponsor: "FITZPATRICK",
-    party: "r",
-    partyTag: "[R-PA]",
-    topics: ["financial_services"],
-    stage: "cmte",
-    stageLabel: "CMTE",
-    age: "14h",
-  },
+// The mock's 8 tape symbols, mapped to live internal market symbols. Keep the
+// mock's short labels; pull values live, omit a symbol whose tick is missing.
+const TAPE_SLOTS = [
+  { label: "S&P 500", sym: "SPX" },
+  { label: "NASDAQ", sym: "NDQ" },
+  { label: "10Y", sym: "TNX" },
+  { label: "CPI", sym: "CPI" },
+  { label: "UNEMP", sym: "UNEMP" },
+  { label: "SHUTDOWN", sym: "SHUTDOWN" },
+  { label: "FED CUT", sym: "FEDCUT" },
+  { label: "WTI", sym: "WTI" },
 ];
 
-type TapeItem = { l: string; v?: string; k: "up" | "dn" | "odds" | "badge"; c: string };
+function sponsorSurname(b: FeedBill): string {
+  if (b.sponsor_last_name) return b.sponsor_last_name.toUpperCase();
+  const n = b.sponsor_name ?? "";
+  const last = n.split(",")[0]?.trim();
+  return (last || n).toUpperCase();
+}
 
-const TAPE: TapeItem[] = [
-  { l: "S&P 500", v: "6,412.88", k: "up", c: "▲0.38%" },
-  { l: "NASDAQ", v: "21,030.44", k: "up", c: "▲0.61%" },
-  { l: "10Y", v: "4.21%", k: "dn", c: "▼0.03" },
-  { l: "CPI", v: "4.2%", k: "badge", c: "MO" },
-  { l: "UNEMP", v: "4.3%", k: "badge", c: "MO" },
-  { l: "SHUTDOWN", k: "odds", c: "49%" },
-  { l: "FED CUT", k: "odds", c: "62%" },
-  { l: "WTI", v: "78.40", k: "up", c: "▲1.10%" },
-];
+function billTopics(b: FeedBill): string[] {
+  if (!b.topics) return [];
+  try {
+    const arr = JSON.parse(b.topics) as unknown;
+    return Array.isArray(arr) ? (arr as string[]).slice(0, 2) : [];
+  } catch {
+    return [];
+  }
+}
 
-function TapeRun({ keyPrefix }: { keyPrefix: string }) {
+function formatTapeValue(t: MarketTick): string {
+  if (t.format === "index" || t.format === "price") {
+    return t.price.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  if (t.format === "yield") return `${t.price.toFixed(2)}%`;
+  // percent — kalshi odds round to whole %, monthly econ keeps a decimal.
+  if (t.cadence === "kalshi") return `${Math.round(t.price)}%`;
+  return `${t.price.toFixed(1)}%`;
+}
+
+// HO 274 parity: suppress an implausible daily move (FRED DCOILWTICO lags
+// multi-day, so a fresh value diffed against a week-stale row reads as a huge
+// jump). The dashboard tape applies this at render too — match it so a symbol's
+// change agrees across both surfaces; render the price with no arrow/change.
+const MAX_PLAUSIBLE_DAILY_MOVE_PCT = 8;
+
+function TapeItem({ label, tick }: { label: string; tick: MarketTick }) {
+  const value = formatTapeValue(tick);
+  const isOdds = tick.cadence === "kalshi";
+  const isMonthly = tick.cadence === "monthly";
+  const rawPct = tick.changePct;
+  const implausible =
+    tick.cadence === "daily" &&
+    rawPct !== null &&
+    Math.abs(rawPct) > MAX_PLAUSIBLE_DAILY_MOVE_PCT;
+  const pct = implausible ? null : rawPct;
+  const dir = pct == null ? null : pct >= 0 ? "up" : "dn";
   return (
-    <>
-      {TAPE.map((t, i) => (
-        <span key={`${keyPrefix}-${i}`}>
-          <span className={styles.ti}>
-            <span className={styles.tl}>{t.l}</span>
-            {t.v ? <span className={styles.tv}>{t.v}</span> : null}
-            <span className={styles[t.k] ?? ""}>{t.c}</span>
-          </span>
-          <span className={styles.tsep}>·</span>
-        </span>
-      ))}
-    </>
+    <span className={styles.ti}>
+      <span className={styles.tl}>{label}</span>
+      {isOdds ? (
+        <span className={styles.odds}>{value}</span>
+      ) : (
+        <>
+          <span className={styles.tv}>{value}</span>
+          {isMonthly ? (
+            <span className={styles.badge}>MO</span>
+          ) : dir ? (
+            <span className={styles[dir] ?? ""}>
+              {dir === "up" ? "▲" : "▼"}
+              {Math.abs(pct as number).toFixed(2)}%
+            </span>
+          ) : null}
+        </>
+      )}
+    </span>
   );
 }
 
-export default function WelcomePage() {
+export default async function WelcomePage() {
+  const [movers, moversCount, corpus, stageDist, ticks] = await Promise.all([
+    getStageChanges({}, 7, 7),
+    getStageChangesCount({}, 7),
+    getCorpusStats(true),
+    getStageDistribution(undefined, true),
+    // The tape must never block or error the landing render — a cached read
+    // already serves last-known values on cron lag, and any failure degrades to
+    // an empty tape rather than a 500.
+    getLatestMarketTicks().catch(() => [] as MarketTick[]),
+  ]);
+
+  const introduced = corpus.total;
+  const enacted = stageDist.bars.find((b) => b.stage === "enacted")?.count ?? 0;
+  const lawRatio = introduced > 0 ? (enacted / introduced) * 100 : 0;
+  const moved7d = moversCount.total;
+
+  const tickBySym = new Map(ticks.map((t) => [t.symbol, t]));
+  const liveSlots = TAPE_SLOTS.flatMap((s) => {
+    const tick = tickBySym.get(s.sym);
+    return tick ? [{ label: s.label, tick }] : [];
+  });
+
   return (
     <div className={styles.split}>
       <section className={styles.pitch}>
@@ -166,17 +168,17 @@ export default function WelcomePage() {
         <p className={styles.sub}>{SUBLINE}</p>
         <div className={styles.readout}>
           <div className={styles.stat}>
-            <div className={styles.num}>15,903</div>
+            <div className={styles.num}>{introduced.toLocaleString()}</div>
             <div className={styles.lbl}>Introduced</div>
           </div>
           <div className={styles.stat}>
-            <div className={styles.num}>91</div>
+            <div className={styles.num}>{enacted.toLocaleString()}</div>
             <div className={styles.lbl}>
-              Became law <span className={styles.pct}>0.6%</span>
+              Became law <span className={styles.pct}>{lawRatio.toFixed(1)}%</span>
             </div>
           </div>
           <div className={styles.stat}>
-            <div className={styles.num}>448</div>
+            <div className={styles.num}>{moved7d.toLocaleString()}</div>
             <div className={styles.lbl}>Moved / 7d</div>
           </div>
         </div>
@@ -201,65 +203,100 @@ export default function WelcomePage() {
             119TH CONGRESS · LIVE FEED
           </div>
           <div className={styles.wr}>
-            <span className={styles.n}>12</span> IN LAST HR · SYNC 02:05 MT
+            <span className={styles.n}>{moved7d.toLocaleString()}</span> MOVED ·
+            7D
           </div>
         </div>
         <div className={styles.breaking}>
           <span className={styles.tag}>BREAKING</span>
-          <span className={styles.txt}>
-            Government funding lapses in <span className={styles.cd}>14 days</span>{" "}
-            · shutdown odds <span className={styles.odds}>49%</span> and climbing
-          </span>
+          <BreakingTicker
+            txtClassName={styles.txt ?? ""}
+            lineClassName={styles.flavorLine ?? ""}
+          />
         </div>
         <div className={styles.tape}>
-          <div className={styles.ttrack}>
-            <TapeRun keyPrefix="a" />
-            <TapeRun keyPrefix="b" />
-          </div>
+          {liveSlots.length > 0 ? (
+            <div className={styles.ttrack}>
+              {[0, 1].map((run) => (
+                <span key={run}>
+                  {liveSlots.map((s, i) => (
+                    <span key={`${run}-${i}`}>
+                      <TapeItem label={s.label} tick={s.tick} />
+                      <span className={styles.tsep}>·</span>
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.ti}>
+              <span className={styles.tl}>MARKET DATA UNAVAILABLE</span>
+            </div>
+          )}
         </div>
         <div className={styles.feedhead}>
           <span className={`${styles.tab} ${styles.active}`}>
-            MOVERS<span className={styles.ct}>(35)</span>
+            MOVERS<span className={styles.ct}>({moversCount.total})</span>
           </span>
-          <span className={styles.tab}>
-            TOP STALLS<span className={styles.ct}>(5)</span>
-          </span>
-          <span className={styles.tab}>
-            NEW<span className={styles.ct}>(59)</span>
-          </span>
+          {/* The other two tabs are decorative + non-interactive on the landing;
+              they carry no fabricated count (only MOVERS is wired). */}
+          <span className={styles.tab}>TOP STALLS</span>
+          <span className={styles.tab}>NEW</span>
         </div>
         <div className={styles.feed}>
-          {ROWS.map((r) => (
-            <div className={styles.row} key={r.id}>
-              <span className={styles.idchip}>{r.id}</span>
-              <div className={styles.main}>
-                <div className={styles.title}>{r.title}</div>
-                <div className={styles.subline}>
-                  <span className={styles.sponsor}>{r.sponsor}</span>
-                  <span className={`${styles.party} ${styles[r.party]}`}>
-                    {r.partyTag}
-                  </span>
-                  <span className={styles.sep}>·</span>
-                  {r.topics.map((t) => (
-                    <span
-                      key={t}
-                      className={styles.chip}
-                      style={{ ["--tc" as string]: topicColor(t) }}
-                    >
-                      {topicLabel(t)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className={styles.metric}>
-                <span className={`${styles.st} ${styles[r.stage]}`}>
-                  {r.stageLabel}
+          {movers.map((b) => {
+            const stage = b.stage ? STAGE_META[b.stage] : undefined;
+            const party = normalizePartyVariant(b.sponsor_party);
+            const topics = billTopics(b);
+            return (
+              <div className={styles.row} key={b.id}>
+                <span className={styles.idchip}>
+                  {b.bill_type.toUpperCase()} {b.bill_number}
                 </span>
-                <span className={styles.age}> · {r.age}</span>
+                <div className={styles.main}>
+                  <div className={styles.title}>{b.title}</div>
+                  <div className={styles.subline}>
+                    <span className={styles.sponsor}>{sponsorSurname(b)}</span>
+                    {party ? (
+                      <span
+                        className={`${styles.party} ${styles[party.toLowerCase()] ?? ""}`}
+                      >
+                        [{party}
+                        {b.sponsor_state ? `-${b.sponsor_state}` : ""}]
+                      </span>
+                    ) : null}
+                    {topics.length > 0 ? (
+                      <span className={styles.sep}>·</span>
+                    ) : null}
+                    {topics.map((t) => (
+                      <span
+                        key={t}
+                        className={styles.chip}
+                        style={{ ["--tc" as string]: topicColor(t) }}
+                      >
+                        {topicLabel(t)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.metric}>
+                  {stage ? (
+                    <span
+                      className={styles.st}
+                      style={{ ["--st-color" as string]: stage.color }}
+                    >
+                      {stage.label}
+                    </span>
+                  ) : null}
+                  <span className={styles.age}>
+                    {" "}
+                    · {formatRelativeAge(b.stage_changed_at ?? b.latest_action_date)}
+                  </span>
+                </div>
+                <span className={styles.caret}>▾</span>
               </div>
-              <span className={styles.caret}>▾</span>
-            </div>
-          ))}
+            );
+          })}
           <div className={styles.fade} />
         </div>
       </aside>

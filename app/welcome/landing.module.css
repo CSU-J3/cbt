@@ -96,15 +96,23 @@
 .chip{font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:2px 5px;
       border-radius:2px;line-height:1;border:1px solid color-mix(in srgb,var(--tc) 48%,transparent);color:var(--tc)}
 .metric{font-family:var(--font-mono);font-size:11px;white-space:nowrap;justify-self:end;letter-spacing:.02em;padding-top:2px}
-.metric .st.cmte{color:var(--stage-committee)}.metric .st.floor{color:var(--stage-floor)}.metric .st.enacted{color:var(--stage-enacted)}
+/* HO 361 live data: the mock had 3 stage classes (cmte/floor/enacted); real
+   movers span all 6 stages, so color is driven by an inline --st-color set from
+   the existing --stage-* tokens in page.tsx (no new token, same hues). */
+.metric .st{color:var(--st-color,var(--text-dim))}
 .metric .age{color:var(--text-dim)}
 .caret{font-family:var(--font-mono);color:var(--text-dim);font-size:10px;justify-self:center;padding-top:3px}
 .feed .fade{position:absolute;left:0;right:0;bottom:0;height:60px;
             background:linear-gradient(180deg,transparent,var(--bg-panel) 90%);pointer-events:none}
+
+/* HO 361 — the rotating BREAKING flavor line (components/BreakingTicker.tsx).
+   Each cycle remounts the keyed inner span, replaying this subtle fade-in. */
+.flavorLine{display:inline-block;animation:landingFlavorFade .5s ease}
+@keyframes landingFlavorFade{from{opacity:0}to{opacity:1}}
 
 @media (max-width:860px){
   .split{grid-template-columns:1fr}
   .pitch{padding:38px 26px}
   .live{border-left:none;border-top:1px solid var(--border-strong)}
 }
-@media (prefers-reduced-motion:reduce){.cur,.ttrack,.winbar .wl .livedot{animation:none}.cur{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.cur,.ttrack,.winbar .wl .livedot,.flavorLine{animation:none}.cur{opacity:.55}}
