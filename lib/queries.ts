@@ -3167,29 +3167,48 @@ export const getStaleBills = unstable_cache(
     const { clauses, args } = buildStaleWhere(filters);
     args.push(limit);
 
+    // HO 350 — index + sort are chosen by whether a SINGLE stage is picked.
+    //
+    //  • Single stage (?stage=…, incl. STAGE → COMMITTEE): the legislative-order
+    //    CASE is degenerate (all rows share one stage), so order by
+    //    latest_action_date ASC and force idx_bills_latest_action — the index
+    //    PROVIDES the order, so the LIMIT short-circuits after 50 (43ms even on
+    //    the 14.8k committee backlog).
+    //
+    //  • Default past-committee group (no stage, floor/other_chamber/president):
+    //    the CASE sort can't ride a date index, so drive off the SELECTIVE
+    //    idx_bills_summary_stage (stage, is_ceremonial) WHERE summary IS NOT NULL
+    //    — it seeks the ~845 group rows, then a temp-b-tree sorts that small set
+    //    (~1.6s). Forcing idx_bills_latest_action HERE was the HO 350-ship bug:
+    //    it scanned the whole `latest_action_date < cutoff` range (~most of the
+    //    corpus) into a temp b-tree — 73s, tripping the 10s abort → cold 500.
+    const singleStage = !!filters.stage;
+    const fromHint = singleStage
+      ? "idx_bills_latest_action"
+      : "idx_bills_summary_stage";
+    const orderBy = singleStage
+      ? "ORDER BY latest_action_date ASC"
+      : `ORDER BY
+          CASE stage
+            WHEN 'president' THEN 4
+            WHEN 'other_chamber' THEN 3
+            WHEN 'floor' THEN 2
+            WHEN 'committee' THEN 1
+            ELSE 0
+          END DESC,
+          latest_action_date ASC`;
+
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
-      FROM bills INDEXED BY idx_bills_latest_action
-      -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial. buildStaleWhere always constrains latest_action_date.
+      FROM bills INDEXED BY ${fromHint}
       ${MENTION_SUBQUERY}
       ${SPONSOR_ENRICH_JOIN}
       WHERE ${clauses.join(" AND ")}
-      -- HO 350: stage-led, furthest-first. Legislative order DESC (president →
-      -- other_chamber → floor; committee/introduced/NULL last), then the longest
-      -- time since last action within a stage (oldest latest_action_date first).
-      ORDER BY
-        CASE stage
-          WHEN 'president' THEN 4
-          WHEN 'other_chamber' THEN 3
-          WHEN 'floor' THEN 2
-          WHEN 'committee' THEN 1
-          ELSE 0
-        END DESC,
-        latest_action_date ASC
+      ${orderBy}
       LIMIT ?`;
 
     const rs = await db.execute({ sql, args });
