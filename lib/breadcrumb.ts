@@ -27,6 +27,10 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/bills") return [mode === "news" ? "News" : "Bills"];
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return ["Bills"];
   if (basePath === "/changes") return ["Bills", "Changes"];
+  // HO 359: /president is now a real in-surface page (the president's-desk
+  // sub-tab), not the redirect alias — filed under Bills to match its sibling
+  // Changes and the /bills?stage=president alias crumb (both "Bills \ President").
+  if (basePath === "/president") return ["Bills", "President"];
   // HO 264: /hearings standalone section (the later calendar/detail pieces
   // append their own segment via opts.detail).
   if (basePath === "/hearings" || basePath.startsWith("/hearings/"))
