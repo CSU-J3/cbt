@@ -702,7 +702,7 @@ export const getBillsByMonth = unstable_cache(
       -- HO 335: force the partial idx_bills_trends_month (congress, is_ceremonial,
       -- introduced_date, topics) WHERE topics IS NOT NULL → index-only congress
       -- scan carrying topics for the topics[0] split (else idx_bills_is_ceremonial
-      -- MULTI-INDEX OR + ~14k row-fetch). Shared with getIntroductionsByMonth.
+      -- MULTI-INDEX OR + ~14k row-fetch).
       FROM bills INDEXED BY idx_bills_trends_month
       WHERE introduced_date IS NOT NULL
         AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
@@ -721,44 +721,10 @@ export const getBillsByMonth = unstable_cache(
   { revalidate: 86400, tags: ["bills"] },
 );
 
-export type IntroductionsByMonthRow = {
-  month: string; // 'YYYY-MM'
-  count: number;
-};
-
-// HO 243 — total introductions per month for the calendar-axis TIMELINE on
-// /trends. SAME universe as getBillsByMonth (current Congress, non-ceremonial,
-// topics NOT NULL) minus the per-topic split, so the single line equals the
-// envelope of the BillsTimeSeries stacked chart it sits beside. Do NOT derive
-// this by summing getBillsByMonth — that's safe here because both share the
-// `topics IS NOT NULL` gate, but a dedicated COUNT keeps the contract explicit
-// and survives any later divergence of the per-topic query's filters.
-export const getIntroductionsByMonth = unstable_cache(
-  async (): Promise<IntroductionsByMonthRow[]> => {
-    const db = getDb();
-    const rs = await db.execute(`
-      SELECT
-        substr(introduced_date, 1, 7) AS month,
-        COUNT(*) AS n
-      -- HO 335: same partial idx_bills_trends_month as getBillsByMonth — covers
-      -- this histogram index-only (congress lookup, is_ceremonial + introduced_date
-      -- from the index; topics column unused here but the partial filter applies).
-      FROM bills INDEXED BY idx_bills_trends_month
-      WHERE introduced_date IS NOT NULL
-        AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
-        AND topics IS NOT NULL
-        AND congress = (SELECT MAX(congress) FROM bills)
-      GROUP BY month
-      ORDER BY month
-    `);
-    return rs.rows.map((r) => ({
-      month: r.month as string,
-      count: Number(r.n ?? 0),
-    }));
-  },
-  ["getIntroductionsByMonth"],
-  { revalidate: 86400, tags: ["bills"] },
-);
+// HO 349 — getIntroductionsByMonth + IntroductionsByMonthRow removed with the
+// /trends TOTAL INTRODUCTIONS OVER TIME line chart (its sole consumer,
+// BillsIntroTimeline). The line redrew the sum of the per-topic stacked bars
+// below it. idx_bills_trends_month stays — still used by getBillsByMonth.
 
 export type LawsByWeekRow = {
   congress: 118 | 119;

@@ -219,8 +219,7 @@ async function main() {
       sql: `SELECT je.value AS topic, SUM(CASE WHEN bills.bill_type IN (${HOUSE}) THEN 1 ELSE 0 END) AS house_count, SUM(CASE WHEN bills.bill_type IN ('s','sjres','sconres','sres') THEN 1 ELSE 0 END) AS senate_count FROM bills INDEXED BY idx_bills_chamber_topics, json_each(bills.topics) je WHERE bills.topics IS NOT NULL AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL) GROUP BY je.value ORDER BY (house_count + senate_count) DESC`, args: [] },
     { fn: "getBillsByMonth", route: "/trends time series", cache: "1d, tag bills",
       sql: `SELECT substr(introduced_date,1,7) AS month, COALESCE(json_extract(topics,'$[0]'),'other') AS topic, COUNT(*) AS count FROM bills INDEXED BY idx_bills_trends_month WHERE introduced_date IS NOT NULL${CER_AND} AND topics IS NOT NULL AND congress = (SELECT MAX(congress) FROM bills) GROUP BY month, topic ORDER BY month, topic`, args: [] },
-    { fn: "getIntroductionsByMonth", route: "/trends timeline", cache: "1d, tag bills",
-      sql: `SELECT substr(introduced_date,1,7) AS month, COUNT(*) AS n FROM bills INDEXED BY idx_bills_trends_month WHERE introduced_date IS NOT NULL${CER_AND} AND topics IS NOT NULL AND congress = (SELECT MAX(congress) FROM bills) GROUP BY month ORDER BY month`, args: [] },
+    // getIntroductionsByMonth deleted in HO 349 (the /trends timeline line was cut).
     { fn: "getLawsEnactedBySessionWeek (119)", route: "/reports laws chart", cache: "1d, tag bills",
       sql: `SELECT latest_action_date AS d FROM bills INDEXED BY idx_bills_enacted WHERE congress = 119 AND stage = 'enacted' AND latest_action_date IS NOT NULL`, args: [] },
     { fn: "getMemberStats", route: "/members/[id] hub", cache: "1d, tag members",

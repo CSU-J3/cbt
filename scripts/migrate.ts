@@ -692,12 +692,12 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_chamber_feed ON bills(bill_type, is_ceremonial) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_chamber_feed");
-  // getBillsByMonth + getIntroductionsByMonth (/trends) — both group the current-
-  // Congress, non-ceremonial, topic-bearing corpus by introduced-month. Partial
-  // WHERE topics IS NOT NULL keyed (congress, is_ceremonial, introduced_date,
-  // topics): congress lookup → index-only scan carrying is_ceremonial +
-  // introduced_date + topics (topics[0] feeds getBillsByMonth's per-topic split),
-  // so the full-corpus aggregate carries no random row I/O. One index, two queries.
+  // getBillsByMonth (/trends) groups the current-Congress, non-ceremonial,
+  // topic-bearing corpus by introduced-month. Partial WHERE topics IS NOT NULL
+  // keyed (congress, is_ceremonial, introduced_date, topics): congress lookup →
+  // index-only scan carrying is_ceremonial + introduced_date + topics (topics[0]
+  // feeds the per-topic split), so the full-corpus aggregate carries no random
+  // row I/O. (HO 349 removed getIntroductionsByMonth, the index's second reader.)
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_trends_month ON bills(congress, is_ceremonial, introduced_date, topics) WHERE topics IS NOT NULL",
   );
