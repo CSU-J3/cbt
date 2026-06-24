@@ -1,0 +1,197 @@
+<!doctype html>
+<!--
+  HO 358 — Floor votes section, design reference.
+
+  This mock reflects the SHIPPED render — option (b) "vanilla markdown" (the one
+  decision in the handoff): plain markdown into content_md, web-rendered by
+  ReportMarkdown (no rehype-raw, no custom line-renderer) and served byte-identical
+  as the .md download. The two high-value cues come for free — the BOLD outcome
+  verb (markdown `**…**`) and the AMBER bill link (bare `S 880` → linkified to
+  /bill/119-s-880). The rest is uniform --text-secondary. The finer per-span tints
+  in the original concept (dim chamber/separators, primary-weighted margin) are NOT
+  implemented; the report has no custom line-renderer (same wall HO 352's ladder
+  hit). Treat per-span tinting as an optional report-wide follow-up — option (a).
+
+  Each state below shows the rendered web output and, under it, the LITERAL
+  content_md target (the .md download carries exactly those lines).
+
+  Example lines are real, generated against live data (weeks of 2026-06-08,
+  2026-06-15). Bill links auto-linkify from bare IDs; the .md source shows bare IDs.
+  Tokens used: --text-primary/-secondary/-muted/-dim, --accent-amber. No new tokens.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>HO 358 — Floor votes section</title>
+    <style>
+      :root {
+        --bg-base: #0a0e14;
+        --bg-panel: #050709;
+        --border-soft: #111820;
+        --border-strong: #1f2937;
+        --text-primary: #e5e7eb;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+        --text-dim: #6b7280;
+        --accent-amber: #d97706;
+        --accent-amber-bright: #fbbf24;
+      }
+      body {
+        background: var(--bg-base);
+        color: var(--text-primary);
+        font-family: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        margin: 0;
+        padding: 32px;
+      }
+      .wrap { max-width: 900px; margin: 0 auto; }
+      h1.page {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-soft);
+        padding-bottom: 8px;
+      }
+      .state { margin: 40px 0; }
+      .state > .caption {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--accent-amber);
+        margin-bottom: 12px;
+      }
+      .panel-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-dim);
+        margin: 14px 0 6px;
+      }
+      /* rendered web output */
+      .rendered { padding: 4px 0; }
+      .rendered h2 {
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-secondary);
+        margin: 0 0 12px;
+      }
+      .rendered p { color: var(--text-primary); margin: 0 0 12px; }
+      .rendered ul { list-style: none; padding: 0; margin: 0; }
+      .rendered li {
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+      }
+      .rendered li::before { content: "·"; color: var(--text-dim); margin-right: 8px; }
+      .rendered b { color: var(--text-secondary); font-weight: 600; } /* markdown ** → strong */
+      .rendered a { color: var(--accent-amber); text-decoration: none; }
+      .rendered .recess { color: var(--text-secondary); margin: 0 0 12px; }
+      .rendered .collapse, .rendered em { color: var(--text-muted); font-style: italic; }
+      /* markdown source panel */
+      pre.md {
+        background: var(--bg-panel);
+        border: 1px solid var(--border-strong);
+        border-radius: 4px;
+        padding: 12px 14px;
+        color: var(--text-muted);
+        font-size: 12.5px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1 class="page">HO 358 · Floor votes section · render reference</h1>
+
+      <!-- ───────────────────── STATE 1 ───────────────────── -->
+      <section class="state">
+        <div class="caption">State 1 — sitting week, named votes + collapse (wk 2026-06-08)</div>
+
+        <div class="panel-label">Rendered (web)</div>
+        <div class="rendered">
+          <h2>Floor votes (22)</h2>
+          <p>The House cleared eight bills, including the one-vote passage of S 2; the Senate confirmed three judicial nominees.</p>
+          <ul>
+            <li><b>PASSED</b> · H · <a href="#">HR 5408</a> Faster Labor Contracts Act · 230–193 · D 210–0 · R 20–192 · I 0–1</li>
+            <li><b>PASSED</b> · H · <a href="#">S 2</a> Secure America Act · 214–212 · D 0–211 · R 214–0 · I 0–1</li>
+            <li><b>PASSED</b> · H · <a href="#">HR 8428</a> Federal Fraud Prevention Workforce Training Act · 393–0</li>
+            <li><b>ADVANCED</b> · S · Justin D. Smith → U.S. Circuit Judge for the Eighth Circuit · cloture 47–43 · D 0–41 · R 47–0 · I 0–2</li>
+            <li><b>CONFIRMED</b> · S · Brock Dahl → Legal Adviser of the Department of State · 49–44 · D 1–42 · R 48–0 · I 0–2</li>
+            <li class="collapse">+ 9 more recorded votes (procedural and amendment)</li>
+          </ul>
+        </div>
+
+        <div class="panel-label">content_md (literal — .md download carries this)</div>
+        <pre class="md">## Floor votes (22)
+
+The House cleared eight bills, including the one-vote passage of S 2; the Senate confirmed three judicial nominees.
+
+- **PASSED** · H · HR 5408 Faster Labor Contracts Act · 230–193 · D 210–0 · R 20–192 · I 0–1
+- **PASSED** · H · S 2 Secure America Act · 214–212 · D 0–211 · R 214–0 · I 0–1
+- **PASSED** · H · HR 8428 Federal Fraud Prevention Workforce Training Act · 393–0
+- **ADVANCED** · S · Justin D. Smith → U.S. Circuit Judge for the Eighth Circuit · cloture 47–43 · D 0–41 · R 47–0 · I 0–2
+- **CONFIRMED** · S · Brock Dahl → Legal Adviser of the Department of State · 49–44 · D 1–42 · R 48–0 · I 0–2
+- _+ 9 more recorded votes (procedural and amendment)_</pre>
+      </section>
+
+      <!-- ───────────────────── STATE 2 ───────────────────── -->
+      <section class="state">
+        <div class="caption">State 2 — one chamber in recess (wk 2026-06-15, House dark)</div>
+
+        <div class="panel-label">Rendered (web)</div>
+        <div class="rendered">
+          <h2>Floor votes (10)</h2>
+          <p>With the House in recess, the Senate carried the week — invoking cloture on HR 6644 and confirming three nominees.</p>
+          <p class="recess">HOUSE · in recess this week (last vote Jun 11, returned Jun 23)</p>
+          <ul>
+            <li><b>ADVANCED</b> · S · <a href="#">HR 6644</a> 21st Century ROAD to Housing Act · cloture 84–8</li>
+            <li><b>CONFIRMED</b> · S · Michelle Steel → Ambassador of the United States of America to the… · 55–39 · D 2–38 · R 52–0 · I 1–1</li>
+            <li class="collapse">+ 6 more recorded votes (procedural and amendment)</li>
+          </ul>
+        </div>
+
+        <div class="panel-label">content_md (literal)</div>
+        <pre class="md">## Floor votes (10)
+
+With the House in recess, the Senate carried the week — invoking cloture on HR 6644 and confirming three nominees.
+
+HOUSE · in recess this week (last vote Jun 11, returned Jun 23)
+
+- **ADVANCED** · S · HR 6644 21st Century ROAD to Housing Act · cloture 84–8
+- **CONFIRMED** · S · Michelle Steel → Ambassador of the United States of America to the… · 55–39 · D 2–38 · R 52–0 · I 1–1
+- _+ 6 more recorded votes (procedural and amendment)_</pre>
+      </section>
+
+      <!-- ───────────────────── STATE 3 ───────────────────── -->
+      <section class="state">
+        <div class="caption">State 3 — quiet / both-recess (assembly-owned copy, no LLM lead)</div>
+
+        <div class="panel-label">Rendered (web) — both chambers in recess</div>
+        <div class="rendered">
+          <h2>Floor votes (0)</h2>
+          <ul><li class="collapse">Both chambers were in recess this week. No floor votes.</li></ul>
+        </div>
+
+        <div class="panel-label">content_md (literal)</div>
+        <pre class="md">## Floor votes (0)
+
+_Both chambers were in recess this week. No floor votes._</pre>
+
+        <div class="panel-label">Rendered (web) — both in session, no named votes</div>
+        <div class="rendered">
+          <h2>Floor votes (14)</h2>
+          <p>Both chambers were in session but took no final-passage or confirmation votes; all 14 recorded votes were procedural or on amendments.</p>
+        </div>
+
+        <div class="panel-label">content_md (literal)</div>
+        <pre class="md">## Floor votes (14)
+
+Both chambers were in session but took no final-passage or confirmation votes; all 14 recorded votes were procedural or on amendments.</pre>
+      </section>
+    </div>
+  </body>
+</html>
