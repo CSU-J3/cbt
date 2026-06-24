@@ -15,7 +15,24 @@ const REPORT_RETRY_BACKOFF_MS = [2000, 4000, 8000];
 const NON_CEREMONIAL = "(is_ceremonial = 0 OR is_ceremonial IS NULL)";
 
 const TITLE_TRUNCATE = 80;
-const STAGE_MOVEMENT_LIMIT = 10;
+// HO 352: stage-movements ladder. Rungs in canonical destination order; the
+// committee rung is routine referrals (count-only), advance rungs name their
+// bills. introduced is NOT a rung — a fresh intro has no "advance into" story.
+const LADDER_STAGES = [
+  "committee",
+  "floor",
+  "other_chamber",
+  "president",
+  "enacted",
+] as const;
+const ADVANCE_STAGES = new Set<string>([
+  "floor",
+  "other_chamber",
+  "president",
+  "enacted",
+]);
+// Advances are few; list them all. Cap with "+N more" only if a week runs long.
+const ADVANCE_BILLS_LIMIT = 8;
 // HO 110: "Newly stalled" trimmed from a 10-topic ID-wall to the top 3 topics
 // by stall volume, max 3 bill IDs each (<=9 IDs total). Stalls earn a place
 // in the report but not the bulk they had.
@@ -136,47 +153,24 @@ function stageGlyph(stage: string | null): string {
   return `${prefix} ${label}`;
 }
 
-// Legislative-progression direction. Drives stage-transition copy so the prompt
-// can tell the LLM a floor→committee move is a setback, not progress (HO 112) —
-// the LLM otherwise narrates every transition as forward. Rank order is the
-// canonical one derived from ALLOWED_STAGES (HO 239 unified the two copies).
-function stageDirection(prev: string | null, next: string | null): string {
-  const p = stageRank(prev);
-  const n = stageRank(next);
-  if (p < 0 || n < 0) return "other";
-  if (n > p) return "forward";
-  if (n < p) return "backward";
-  return "other";
-}
-
 function topicLabel(topic: string): string {
   const spaced = topic.replace(/_/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-function sponsorSuffix(
-  name: string | null,
-  party: string | null,
-  state: string | null,
-): string {
-  if (!name) return "";
-  const partyState = party && state ? `, ${party}-${state}` : "";
-  return ` (${name}${partyState})`;
-}
-
 // ---- data gathering ----------------------------------------------------
 
-type StageMovement = {
-  billId: string;
-  title: string;
-  prevStage: string | null;
-  newStage: string | null;
-  sponsorName: string | null;
-  sponsorParty: string | null;
-  sponsorState: string | null;
-};
-
 type Enactment = { billId: string; title: string };
+
+// HO 352: one ladder rung per destination stage. `bills` is populated only for
+// advance stages (floor+); committee rung is count-only. `billTotal` is the
+// pre-cap count for the "+N more" tail.
+type LadderRung = {
+  stage: string;
+  count: number;
+  bills: Enactment[];
+  billTotal: number;
+};
 
 type DeadTopic = { topic: string; count: number; billIds: string[] };
 
@@ -230,7 +224,13 @@ type CommitteeActivity = {
 
 type ReportData = {
   transitionsCount: number;
-  stageMovements: StageMovement[];
+  // HO 352: the week's transitions bucketed by destination stage (the ladder).
+  stageLadder: LadderRung[];
+  // Transitions whose destination is past committee — the "what advanced" signal.
+  advancedCount: number;
+  // Transitions that moved backward (a later stage → an earlier one). A setback,
+  // surfaced to the prompt so the LLM narrates it honestly (HO 112 carryover).
+  backwardCount: number;
   committeeActivity: CommitteeActivity;
   // Earliest date(stage_changed_at) in the corpus, or null if nothing has
   // ever been tracked. stage_changed_at is never backfilled, so a report
@@ -256,10 +256,13 @@ type ReportData = {
 async function gatherReportData(week: WeekRange): Promise<ReportData> {
   const db = getDb();
 
-  // 1. Stage transitions within the week.
+  // 1. Stage transitions within the week, bucketed by DESTINATION stage into the
+  // ladder (HO 352). Sponsor columns are no longer selected — the ladder names
+  // bills by ID + title only (the doubled party/state was dropped). previous_stage
+  // is kept solely to detect backward moves. ORDER BY stage_changed_at DESC so a
+  // capped advance rung lists its most-recent bills first.
   const transRs = await db.execute({
-    sql: `SELECT id, bill_type, bill_number, title, previous_stage, stage,
-            sponsor_name, sponsor_party, sponsor_state
+    sql: `SELECT bill_type, bill_number, title, previous_stage, stage
           FROM bills
           WHERE stage_changed_at IS NOT NULL
             AND date(stage_changed_at) BETWEEN ? AND ?
@@ -267,17 +270,39 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
           ORDER BY stage_changed_at DESC`,
     args: [week.start, week.end],
   });
-  const stageMovements: StageMovement[] = transRs.rows
-    .slice(0, STAGE_MOVEMENT_LIMIT)
-    .map((r) => ({
-      billId: formatBillId(r.bill_type as string, r.bill_number as number),
-      title: r.title as string,
-      prevStage: (r.previous_stage as string | null) ?? null,
-      newStage: (r.stage as string | null) ?? null,
-      sponsorName: (r.sponsor_name as string | null) ?? null,
-      sponsorParty: (r.sponsor_party as string | null) ?? null,
-      sponsorState: (r.sponsor_state as string | null) ?? null,
-    }));
+  const stageCount = new Map<string, number>();
+  const billsByStage = new Map<string, Enactment[]>();
+  let backwardCount = 0;
+  for (const r of transRs.rows) {
+    const dest = (r.stage as string | null) ?? null;
+    const prev = (r.previous_stage as string | null) ?? null;
+    const dr = stageRank(dest);
+    const pr = stageRank(prev);
+    if (dr >= 0 && pr >= 0 && dr < pr) backwardCount += 1;
+    if (!dest) continue;
+    stageCount.set(dest, (stageCount.get(dest) ?? 0) + 1);
+    if (ADVANCE_STAGES.has(dest)) {
+      const arr = billsByStage.get(dest) ?? [];
+      arr.push({
+        billId: formatBillId(r.bill_type as string, r.bill_number as number),
+        title: r.title as string,
+      });
+      billsByStage.set(dest, arr);
+    }
+  }
+  const stageLadder: LadderRung[] = LADDER_STAGES.map((s) => {
+    const all = billsByStage.get(s) ?? [];
+    return {
+      stage: s,
+      count: stageCount.get(s) ?? 0,
+      bills: all.slice(0, ADVANCE_BILLS_LIMIT),
+      billTotal: all.length,
+    };
+  });
+  const advancedCount = [...ADVANCE_STAGES].reduce(
+    (n, s) => n + (stageCount.get(s) ?? 0),
+    0,
+  );
 
   // 1b. Earliest tracked stage transition in the corpus. Lets assembleMarkdown
   // tell "this week predates stage tracking" apart from "this week was quiet".
@@ -561,7 +586,9 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
 
   return {
     transitionsCount: transRs.rows.length,
-    stageMovements,
+    stageLadder,
+    advancedCount,
+    backwardCount,
     committeeActivity,
     stageTrackingStart,
     enactmentsCount: enactments.length,
@@ -654,27 +681,37 @@ COMMITTEE_COMMENTARY:
 <2-3 sentences on the week's committee work: how many meetings, and which markups put bills on their agenda — name the standout markup by committee and a bill ID it took up. Do NOT claim a markup "advanced" or "reported" a bill to the floor unless the stage-movement data shows it; the markup list tells you a committee took bills up, not where they ended. Output exactly "_No committee meetings tracked for this week._" if the meetings count is zero.>
 
 STAGE_COMMENTARY:
-<2-3 sentences on what advanced. Each transition carries a direction (forward / backward / other) — narrate a backward move honestly: a bill returning to committee from the floor is a setback, not progress. Output exactly "_No stage movements this week._" if the transition count is zero.>`;
+<2-3 sentences on stage movement. Most weeks are routine committee referrals — lead with whether anything advanced PAST committee (floor, other chamber, president, enacted) and name those bills by ID; that is the signal. If every transition was a committee referral, say so plainly and do not imply otherwise. A bill that moved backward (returned to committee from a later stage) is a setback, not progress — narrate it honestly if the data shows one. Do not invent a count of referrals. Output exactly "_No stage movements this week._" if the transition count is zero.>`;
 
 function buildUserPrompt(week: WeekRange, d: ReportData): string {
-  // Each transition carries a derived direction so the LLM can narrate
-  // backward moves honestly (HO 112). "Leading" — not "top 5" — so the LLM
-  // does not anchor on a count it cannot verify against the rendered list.
-  const transitionLines =
-    d.stageMovements.length > 0
-      ? d.stageMovements
-          .slice(0, 5)
-          .map(
-            (t) =>
-              `  - ${t.billId}: ${truncate(t.title, 70)} (${stageGlyph(
-                t.prevStage,
-              )} → ${stageGlyph(t.newStage)}, direction: ${stageDirection(
-                t.prevStage,
-                t.newStage,
-              )})`,
-          )
+  // HO 352: the stage context is the ladder by destination, not a from→to row
+  // list. The LLM is told the committee-referral count, the bills that advanced
+  // past committee (the signal), and the backward-move count — enough to write
+  // "all referrals, nothing advanced" or to name what moved, without anchoring
+  // on a number it can't verify against the rendered ladder.
+  const committeeCount =
+    d.stageLadder.find((r) => r.stage === "committee")?.count ?? 0;
+  // Per-rung TRUE count + a few example IDs. The count is the rung's full count
+  // (not the capped bills array) so the LLM can state "19 advanced to the floor"
+  // without miscounting a sample — the bills array is capped, the count is not.
+  const advancedRungs = d.stageLadder.filter(
+    (r) => ADVANCE_STAGES.has(r.stage) && r.count > 0,
+  );
+  const advancedContext =
+    advancedRungs.length > 0
+      ? advancedRungs
+          .map((r) => {
+            const sample = r.bills
+              .slice(0, 5)
+              .map((b) => b.billId)
+              .join(", ");
+            const ellipsis = r.count > 5 ? ", …" : "";
+            return `  - ${STAGE_LABEL[r.stage] ?? r.stage}: ${r.count} bill${
+              r.count === 1 ? "" : "s"
+            } (${sample}${ellipsis})`;
+          })
           .join("\n")
-      : "  - (none)";
+      : "  - (none — every transition was a committee referral)";
   // ID + title, so the LLM can write what the new laws DO rather than recite
   // their IDs (the rendered list already carries the IDs).
   const enactmentLines =
@@ -737,8 +774,8 @@ function buildUserPrompt(week: WeekRange, d: ReportData): string {
   return `WEEK DATA (${week.start} to ${week.end}):
 - New bill introductions: ${d.introductionsCount} (prior week: ${d.priorIntroductionsCount} — ${introDelta})
 - Most active topics by introductions: ${topTopics}
-- Stage transitions this week: ${d.transitionsCount}. Leading transitions:
-${transitionLines}
+- Stage transitions this week: ${d.transitionsCount} (committee referrals: ${committeeCount}; advanced past committee: ${d.advancedCount}; backward moves: ${d.backwardCount}). Bills that advanced past committee:
+${advancedContext}
 - Bills enacted into law this week: ${d.enactmentsCount}
 ${enactmentLines}
 - Most talked about (tracked news mentions, confidence-filtered):
@@ -900,21 +937,34 @@ function assembleMarkdown(
     lines.push("_No committee meetings tracked for this week._", "");
   }
 
-  // Stage movements. The zero case is split (HO 110): a week that predates
-  // stage tracking is not a quiet week. stage_changed_at is never backfilled,
-  // so a report whose week ends before the first tracked transition has no
-  // data — say so rather than implying Congress was idle. When there are
-  // movements, the LLM commentary leads; when zero, assembly owns the copy
-  // (c.stageCommentary is ignored, same as the enactments zero case).
+  // Stage movements — a ladder by destination stage (HO 352), replacing the
+  // per-transition row list. One rung per canonical destination; the committee
+  // rung is count-only (routine referrals), advance rungs name their bills as
+  // nested items (bill ID linkifies to amber). Zero-count rungs stay, dimmed
+  // (em → muted), with a `·` where the count would be — the flat rungs above a
+  // tall committee count are the "nothing advanced" signal. No `? →` from-stage
+  // and no sponsor party/state anywhere. The zero case is split (HO 110): a week
+  // that predates stage tracking is not a quiet week. When there are movements
+  // the LLM commentary leads; when zero, assembly owns the copy.
   lines.push(`## Stage movements (${d.transitionsCount})`, "");
-  if (d.stageMovements.length > 0) {
+  if (d.transitionsCount > 0) {
     lines.push(c.stageCommentary, "");
-    for (const m of d.stageMovements) {
-      lines.push(
-        `- ${m.billId} — ${stageGlyph(m.prevStage)} → ${stageGlyph(
-          m.newStage,
-        )}${sponsorSuffix(m.sponsorName, m.sponsorParty, m.sponsorState)}`,
-      );
+    for (const rung of d.stageLadder) {
+      const label = stageGlyph(rung.stage); // e.g. "▸ COMMITTEE", "✓ ENACTED"
+      if (rung.count === 0) {
+        // dimmed zero rung — render the full ladder so the shape reads
+        lines.push(`- _${label}  ·_`);
+        continue;
+      }
+      lines.push(`- ${label}  ${rung.count}`);
+      // committee is routine referrals (count-only); advance rungs name bills
+      if (rung.stage !== "committee") {
+        for (const b of rung.bills) {
+          lines.push(`  - ${b.billId} — ${truncate(b.title, TITLE_TRUNCATE)}`);
+        }
+        const more = rung.billTotal - rung.bills.length;
+        if (more > 0) lines.push(`  - _+${more} more_`);
+      }
     }
     lines.push("");
   } else if (d.stageTrackingStart === null || week.end < d.stageTrackingStart) {
