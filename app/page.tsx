@@ -1,3 +1,6 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
@@ -60,6 +63,16 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ stage?: string; topics?: string }>;
 }) {
+  // HO 361 — first-touch landing gate (no middleware; A1 deliberately added none).
+  // An anonymous visitor with no `ct_seen` cookie is bounced to /welcome; the
+  // landing's "Enter terminal" sets that cookie (and "Sign in" gives a session),
+  // so both paths return here without a loop. A returning cookie OR a session
+  // renders the terminal directly.
+  const [cookieStore, session] = await Promise.all([cookies(), auth()]);
+  if (!cookieStore.get("ct_seen") && !session) {
+    redirect("/welcome");
+  }
+
   const sp = await searchParams;
   const filters: DashboardFilters = {
     stage: sanitizeStage(sp.stage),
