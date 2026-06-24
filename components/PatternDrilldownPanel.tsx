@@ -34,11 +34,9 @@ export async function PatternDrilldownPanel({
   if (!pattern) return null;
 
   const drill = await getClusterDrilldown(clusterId);
-  const { total, pastCommittee, enacted, ceremonial } = drill.headline;
+  const { total, pastCommittee, enacted } = drill.headline;
   const pastPct =
     total > 0 ? Math.round((pastCommittee / total) * 100) : 0;
-  const ceremonialPct =
-    total > 0 ? Math.round((ceremonial / total) * 100) : 0;
 
   const maxSponsorCount = drill.topSponsors.reduce(
     (m, s) => Math.max(m, s.count),
@@ -65,7 +63,7 @@ export async function PatternDrilldownPanel({
           style={{ color: "var(--text-muted)" }}
         >
           {total.toLocaleString()} bills · {pastPct}% past committee ·{" "}
-          {enacted} enacted · {ceremonialPct}% ceremonial
+          {enacted} enacted
         </span>
       </header>
 

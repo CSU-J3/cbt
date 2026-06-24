@@ -3950,9 +3950,14 @@ export const getClusterStats = unstable_cache(
     // with getUnmatchedClusterCount above; this agg is cached so it doesn't 500 on
     // its own, but it rides /patterns' Promise.all and the fix is free here.
     const aggRs = await db.execute(
+      // HO 347: past_committee is the FILLER-WATCH definition — stage IN
+      // (floor, other_chamber, president), enacted EXCLUDED (it became law, it
+      // didn't merely advance). Matches the HO 344/345 diagnostics and the
+      // /stale stage-led group (HO 350). The covering idx_bills_cluster_agg
+      // carries stage, so the IN-list stays index-only.
       `SELECT cluster_id,
               COUNT(*) AS total,
-              SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee,
+              SUM(CASE WHEN stage IN ('floor','other_chamber','president') THEN 1 ELSE 0 END) AS past_committee,
               SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
               SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial
        FROM bills INDEXED BY idx_bills_cluster_agg WHERE cluster_id IS NOT NULL GROUP BY cluster_id`,
@@ -4056,8 +4061,11 @@ export const getClusterDrilldown = unstable_cache(
 
     const [headlineRs, sponsorsRs, recentRs] = await Promise.all([
       db.execute({
+        // HO 347: past_committee = stage IN (floor, other_chamber, president),
+        // enacted EXCLUDED — same filler-watch definition as getClusterStats so
+        // the drill-in strip's "% past committee" matches the bar above it.
         sql: `SELECT COUNT(*) AS total,
-                     SUM(CASE WHEN stage IS NOT NULL AND stage <> 'introduced' AND stage <> 'committee' THEN 1 ELSE 0 END) AS past_committee,
+                     SUM(CASE WHEN stage IN ('floor','other_chamber','president') THEN 1 ELSE 0 END) AS past_committee,
                      SUM(CASE WHEN stage = 'enacted' THEN 1 ELSE 0 END) AS enacted,
                      SUM(CASE WHEN is_ceremonial = 1 THEN 1 ELSE 0 END) AS ceremonial
               FROM bills WHERE cluster_id = ?`,
