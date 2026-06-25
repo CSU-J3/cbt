@@ -92,7 +92,7 @@ export default async function FeedPage({
       current={mode}
       ariaLabel="Feed mode"
       segments={[
-        { value: "bills", label: "BILLS" },
+        { value: "bills", label: "LEGISLATION" },
         { value: "news", label: "NEWS" },
       ]}
       buildHref={buildModeHref}

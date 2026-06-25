@@ -7,13 +7,15 @@
 // page already fetched (no new queries).
 //
 // IA notes baked in here: Committees nests under Members; Primaries under
-// Races; Trends/Stale under Patterns; Changes + President are bill views
-// (Bills \ Changes / Bills \ President); Reports is its own top-level section.
+// Races; Trends/Stale under Patterns; Changes + President are legislation views
+// (Legislation \ Changes / Legislation \ President); Reports is its own top-level
+// section. NOTE: the display label is "Legislation" (HO 362 rename); the route
+// stays /bills and the `mode`/key identifiers stay "bills".
 
 export type BreadcrumbOpts = {
-  // /bills tracks its toggle: bills → "Bills", news → "News".
+  // /bills tracks its toggle: bills → "Legislation", news → "News".
   mode?: "bills" | "news";
-  // The /bills?stage=president alias view → "Bills \ President".
+  // The /bills?stage=president alias view → "Legislation \ President".
   presidentAlias?: boolean;
   // Detail-page last segment (bill number, member last name, race label,
   // committee name, report title). Appended after the section.
@@ -24,13 +26,14 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/") return ["Dashboard"];
   // "/bills" exact must precede the "/bill/" detail prefix; note "/bills" does
   // not start with "/bill/" (the char after "/bill" is "s"), so order is safe.
-  if (basePath === "/bills") return [mode === "news" ? "News" : "Bills"];
-  if (basePath === "/bill" || basePath.startsWith("/bill/")) return ["Bills"];
-  if (basePath === "/changes") return ["Bills", "Changes"];
+  if (basePath === "/bills") return [mode === "news" ? "News" : "Legislation"];
+  if (basePath === "/bill" || basePath.startsWith("/bill/")) return ["Legislation"];
+  if (basePath === "/changes") return ["Legislation", "Changes"];
   // HO 359: /president is now a real in-surface page (the president's-desk
-  // sub-tab), not the redirect alias — filed under Bills to match its sibling
-  // Changes and the /bills?stage=president alias crumb (both "Bills \ President").
-  if (basePath === "/president") return ["Bills", "President"];
+  // sub-tab), not the redirect alias — filed under Legislation to match its
+  // sibling Changes and the /bills?stage=president alias crumb (both
+  // "Legislation \ President").
+  if (basePath === "/president") return ["Legislation", "President"];
   // HO 264: /hearings standalone section (the later calendar/detail pieces
   // append their own segment via opts.detail).
   if (basePath === "/hearings" || basePath.startsWith("/hearings/"))

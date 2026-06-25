@@ -23,7 +23,7 @@ type SearchParams = {
 };
 
 const TAB_LABELS: Record<SearchTab, string> = {
-  bills: "BILLS",
+  bills: "LEGISLATION",
   members: "MEMBERS",
   news: "NEWS",
   reports: "REPORTS",

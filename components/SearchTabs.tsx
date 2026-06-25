@@ -4,7 +4,7 @@ import Link from "next/link";
 import { SEARCH_TABS, type SearchTab } from "@/lib/queries";
 
 const TAB_LABELS: Record<SearchTab, string> = {
-  bills: "Bills",
+  bills: "Legislation",
   members: "Members",
   news: "News",
   reports: "Reports",

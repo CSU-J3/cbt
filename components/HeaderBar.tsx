@@ -35,7 +35,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
-  { key: "feed", href: "/bills", icon: "▤", label: "Bills", tooltip: "Bills, news, stage changes, and the president's desk" },
+  { key: "feed", href: "/bills", icon: "▤", label: "Legislation", tooltip: "Legislation, news, stage changes, and the president's desk" },
   { key: "hearings", href: "/hearings", icon: "▦", label: "Hearings", tooltip: "Committee hearings, markups, and business meetings" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "races", href: "/electoral", icon: "🗳", label: "Electoral", tooltip: "Competitive 2026 races, forecaster ratings, and the primary calendar" },
