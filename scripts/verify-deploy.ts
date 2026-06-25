@@ -8,7 +8,7 @@
 // and the ship report's last line is the live-verified SHA.
 import { execSync } from "node:child_process";
 
-const PROD_URL = "https://cbt-chi-silk.vercel.app";
+const PROD_URL = "https://congressional-terminal-chi-silk.vercel.app";
 const VERSION_ENDPOINT = `${PROD_URL}/api/version`;
 const POLL_INTERVAL_MS = 10_000;
 const TIMEOUT_MS = 5 * 60_000;

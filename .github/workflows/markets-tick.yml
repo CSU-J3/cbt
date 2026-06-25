@@ -28,4 +28,4 @@ jobs:
         run: |
           curl -fsS -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://cbt-chi-silk.vercel.app/api/cron/markets?source=fmp"
+            "https://congressional-terminal-chi-silk.vercel.app/api/cron/markets?source=fmp"
