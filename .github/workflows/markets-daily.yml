@@ -1,22 +1,51 @@
-name: Markets Daily (session close)
+name: Markets Full-Roster Refresh
 
-# HO 172: once-a-day after-close run that fetches ALL 8 symbols (incl. the FRED
-# end-of-day symbols TNX + VIX, which the intraday Stooq run skips). 22:00 UTC
-# is after the 4pm ET close in both DST regimes (close = 20 UTC summer / 21 UTC
-# winter), so Stooq's Close field is the official session close — this row is
-# the prior-session baseline the next day's intraday change_pct diffs against.
-# CRON_SECRET must be set as a repo secret (same value as Vercel's env var).
+# Full-roster /api/cron/markets refresh — the ONLY writer of the non-FMP tape
+# symbols: FRED EOD (TNX/WTI) + FRED monthly (CPI/UNEMP) + the Kalshi & Polymarket
+# prediction-market ODDS (SHUTDOWN/FEDCUT/FEDCUT-SEP/RECESSION + their POLY-*
+# halves). The intraday markets-tick.yml only hits ?source=fmp, so these ride
+# here. CRON_SECRET must be a repo secret matching Vercel's env var.
+#
+# HO 362 — was `0 22 * * 1-5` (a SINGLE once-a-day, weekday-only slot). That made
+# the run a single point of failure for the v2 ODDS strip, which is 24/7
+# prediction-market data washing STALE at 26h (lib/MarketsTapeClient):
+#   1. The ODDS strip's freshest tickedAt comes only from this run; FMP keeps the
+#      MARKETS strip fresh but writes none of these symbols, so when this run
+#      stops the ODDS strip alone goes STALE while MARKETS looks fine.
+#   2. GitHub-Actions scheduled crons are best-effort and DROP slots (HO 313:
+#      ~20% delivery). A single daily slot routinely misses, and two misses in a
+#      row = >26h = STALE.
+#   3. weekday-only (`1-5`) left Fri→Mon uncovered for a market that trades 24/7.
+#   4. The intended reliable backstop — the Vercel daily cron floor at 21:30 UTC
+#      (vercel.json, HO 314) — is NOT firing (every other Vercel cron fires
+#      daily; this one has no run at 21:xx UTC). Verify in the Vercel dashboard
+#      Cron tab; until it does, this GitHub schedule is the only floor.
+# Plus the proximate trigger of the Jun-2026 freeze: the curls hit the old host
+# cbt-chi-silk, which now 307-redirects, and `curl -fsS` (no -L) returns the 307
+# without following it — a silent green no-op. HO 364 repointed the URL to the
+# canonical host (below); this widens the cadence so a dropped slot can't strand
+# the 24/7 odds.
+#
+# Now: every 4 hours, every day (6 slots/day vs the old 1). At GitHub's flaky
+# delivery the run still lands well within 26h, and weekends are covered. Bare
+# (no ?source) = the full roster; re-fetching the FMP intraday symbols here is
+# harmless (a few extra rows on a history table kept as charting fuel anyway).
 on:
   schedule:
-    - cron: '0 22 * * 1-5'
+    - cron: '0 */4 * * *'
   workflow_dispatch: {}
 
 jobs:
-  close:
+  refresh:
     runs-on: ubuntu-latest
     steps:
-      - name: Hit markets endpoint (all 8)
+      - name: Hit markets endpoint (full roster — FRED + Kalshi + Polymarket + FMP)
+        # -L so a host redirect (e.g. cbt-chi-silk's 307) is FOLLOWED, not
+        # silently returned as a green no-op (the proximate Jun-2026 freeze):
+        # `curl -fsS` without -L treats a 307 as success (3xx < 400) and never
+        # runs the route. With -L the redirect is followed and -f still fails on a
+        # real 4xx/5xx at the final target.
         run: |
-          curl -fsS -X POST \
+          curl -fsSL -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://congressional-terminal-chi-silk.vercel.app/api/cron/markets
