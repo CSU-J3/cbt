@@ -5417,15 +5417,36 @@ body {
   /* HO 175: anchor for the absolutely-positioned hover-detail popover. */
   position: relative;
 }
-/* HO 363 (B2 restyle): on the SCROLLING B2 strips, the inter-instrument gap is
-   the chunking fix — ~28px between instruments (14px each side) vs the 6px
-   within. No pipe, no dot; the wide gap alone separates instruments. Scoped to
-   --scroll so the static bare tape (/dashboard-classic) keeps its tight 10px and
-   doesn't clip its full-width 8-symbol row (HO 251). The padding is outside each
-   item's pinned price-width box and is per-symbol constant, so it never reflows
-   the marquee on a poll. */
+/* HO 363 (B2 restyle) + pipe revision: on the SCROLLING B2 strips, instruments
+   are separated by a dim vertical pipe centered in the inter-item air. The air is
+   ~22px (11px each side) vs the 6px within an instrument; the pipe sits on each
+   item's right box-boundary (= the centre of the 22px gap, since items are flush
+   flex children with no set-level gap). Scoped to --scroll so the static bare
+   tape (/dashboard-classic) keeps its tight 10px and doesn't clip its full-width
+   8-symbol row (HO 251). The padding is outside each item's pinned price-width
+   box and is per-symbol constant, so it never reflows the marquee on a poll. */
 .markets-tape--scroll .markets-tape-item {
-  padding: 0 14px;
+  padding: 0 11px;
+}
+/* The divider: a TRAILING ::after pipe on EVERY scroll item (not a leading
+   ::before on :not(:first-child)). The track is set(×reps)×half(×2) — each set
+   repeats the full item list — so a leading-on-:not(:first-child) pipe would drop
+   at every set boundary (each set's first item is :first-child), leaving the loop
+   seam un-piped. Trailing-on-all puts exactly one pipe between every adjacent pair
+   INCLUDING the set/loop seams, is periodic (seamless), and never renders before
+   the first item / against the pinned label. It is `position: absolute` (the item
+   is position:relative, HO 175) so it is OUT OF FLOW: zero effect on the item
+   width, the track's max-content width, or the ch price-pin — the marquee
+   geometry is untouched. A short text glyph at the line, not a full-height rule. */
+.markets-tape--scroll .markets-tape-item::after {
+  content: "\2502"; /* │ U+2502 BOX DRAWINGS LIGHT VERTICAL */
+  position: absolute;
+  top: 50%;
+  right: 0; /* the item's right box-edge = the boundary with the next item */
+  transform: translate(50%, -50%); /* centre the glyph on that boundary */
+  color: var(--text-dim);
+  opacity: 0.5;
+  pointer-events: none;
 }
 .markets-tape-symbol {
   /* HO 363 (B2 restyle): the item code/name is --accent-amber, weight 500 —
