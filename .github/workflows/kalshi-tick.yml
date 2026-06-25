@@ -19,6 +19,6 @@ jobs:
     steps:
       - name: Hit Kalshi odds endpoint
         run: |
-          curl -fsS -X POST \
+          curl -fsSL -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://congressional-terminal-chi-silk.vercel.app/api/cron/kalshi"

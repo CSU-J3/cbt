@@ -26,6 +26,6 @@ jobs:
     steps:
       - name: Hit markets endpoint (FMP indices)
         run: |
-          curl -fsS -X POST \
+          curl -fsSL -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             "https://congressional-terminal-chi-silk.vercel.app/api/cron/markets?source=fmp"
