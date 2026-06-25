@@ -215,7 +215,7 @@ function PairItem({
   );
   return (
     <span
-      className="markets-tape-item"
+      className="markets-tape-item markets-tape-item--pair"
       onMouseEnter={(e) => onHover(detailNode, e.currentTarget)}
       onMouseLeave={() => onHover(null, null)}
     >

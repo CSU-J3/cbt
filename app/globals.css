@@ -5504,7 +5504,28 @@ body {
 .markets-tape-pair-grp {
   display: inline-flex;
   align-items: center;
+  /* gap-inner: the source letter sits 3px off its number, identical on K and P. */
   gap: 3px;
+}
+/* HO 363 K/P spacing fix. An ODDS instrument is NAME · K val · P val with TWO gap
+   sizes: gap-inner (3px, the pair-grp gap above) and gap-pair (the item flex gap
+   below). The pair item overrides the 6px MARKETS item gap to 10px so NAME→K and
+   K-pair→P-pair read as the wider "two distinct units" gap, while MARKETS keeps 6px
+   (scoped via the --pair modifier, set only on PairItem). */
+.markets-tape-item--pair {
+  gap: 10px;
+}
+/* The pair VALUE is left-aligned: with text-align:right (the MARKETS default, kept
+   for those — the value floats right against the Δ arrow) a sub-5ch odds value
+   floated to the right of its 5ch min-width slot, leaving variable slack BETWEEN
+   the source letter and the number — so K (e.g. 9.0%, 4ch) and P (11.0%, 5ch)
+   detached by different amounts. Left-align makes the number hug the letter at the
+   fixed 3px gap-inner on BOTH pairs (mirror-symmetric); the min-width slack now
+   lands trailing (in the gap-pair), which is the less-critical "separator" gap.
+   min-width is untouched, so the marquee width-pin is unaffected (text-align does
+   not change the box width). */
+.markets-tape-pair-grp .markets-tape-price {
+  text-align: left;
 }
 .markets-tape-arrow {
   display: inline-flex;
