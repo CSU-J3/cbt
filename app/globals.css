@@ -2498,6 +2498,149 @@ body {
   color: var(--accent-amber-bright);
 }
 
+/* ── HO 365: weekly-band rich hover card (WeeklyBandMetricCard) ──────────────
+   The trigger is the inline metric; the card portals to <body> and is
+   position:fixed (left/top/width set inline), so it overlays the dashboard
+   cleanly above the z-30 tapes + dv2-grid. Static — no transitions/animation.
+   Outside .weekly-band, so it does NOT inherit the strip's uppercase/ls; casing
+   is set per element. */
+.wb-metric {
+  cursor: help;
+}
+.wb-card {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+/* upward caret — a rotated square at the card's top-left, near the metric. */
+.wb-card-arrow {
+  position: absolute;
+  top: -5px;
+  left: 16px;
+  width: 8px;
+  height: 8px;
+  background: var(--bg-row-hover);
+  border-left: 1px solid var(--border-strong);
+  border-top: 1px solid var(--border-strong);
+  transform: rotate(45deg);
+}
+.wb-card-head {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+}
+.wb-card-valrow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 4px;
+}
+.wb-card-val {
+  font-size: 20px;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.wb-card-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.wb-card-divider {
+  height: 1px;
+  background: var(--border-strong);
+  margin: 8px 0;
+}
+.wb-card-section {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.wb-card-section-label {
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wb-card-section-stat {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.wb-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 24px;
+  margin-top: 6px;
+}
+.wb-spark-bar {
+  width: 7px;
+  flex: none;
+  border-radius: 1px;
+}
+.wb-bd {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wb-bd > .wb-card-section-label {
+  margin-bottom: 2px;
+}
+.wb-bd-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wb-bd-row.wb-bd-zero {
+  color: var(--text-dim);
+}
+.wb-bd-row.wb-bd-zero .wb-bd-label,
+.wb-bd-row.wb-bd-zero .wb-bd-count {
+  color: var(--text-dim);
+}
+.wb-tick {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 2px;
+}
+.wb-bd-label {
+  flex: 1;
+  color: var(--text-secondary);
+}
+.wb-bd-count {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.wb-bd-inline {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wb-bd-inline-val {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.wb-bd-degrade {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 @media (max-width: 700px) {
   .report-row,
   .report-header-row {

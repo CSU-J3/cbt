@@ -3902,6 +3902,215 @@ export const getWeeklyBandHearings = unstable_cache(
   { revalidate: 3600, tags: ["meetings"] },
 );
 
+// ── HO 365: weekly-band rich hover-card data ──────────────────────────────
+// All running-week breakdowns use the SAME trailing-7d windows as the strip
+// headline helpers (per the approved plan — NOT calendar week-to-date), so each
+// breakdown SUMS to its headline metric. Two of these hit the fat `bills` table
+// and MUST keep their INDEXED BY hint (the statless planner else mis-plans to a
+// MULTI-INDEX OR and cold-500s through unstable_cache).
+
+// STAGE TRANSITIONS "where they went": destination-stage split of the SAME
+// predicate as getStageChangesCount({},7) — buildChangesWhere({},7) + GROUP BY
+// stage, forced onto idx_bills_stage_changed_at — so the rows sum to the
+// headline .total. Returns a sparse stage→count map; the card renders the fixed
+// 5-row ladder (committee/floor/other_chamber/president/enacted) reading 0 for
+// absent stages.
+export const getWeeklyBandTransitionLadder = unstable_cache(
+  async (): Promise<Record<string, number>> => {
+    const db = getDb();
+    const { clauses, args } = buildChangesWhere({}, 7);
+    const rs = await db.execute({
+      sql: `SELECT stage, COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at
+            WHERE ${clauses.join(" AND ")} GROUP BY stage`,
+      args,
+    });
+    const out: Record<string, number> = {};
+    for (const r of rs.rows) {
+      if (r.stage != null) out[r.stage as string] = Number(r.n);
+    }
+    return out;
+  },
+  ["getWeeklyBandTransitionLadder"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// NEW BILLS "by chamber" + top-3 topics, over the SAME trailing-7d introductions
+// window as getNewBillsThisWeekCount (non-ceremonial, INDEXED BY
+// idx_bills_introduced_date). house+senate sum to that headline (all 8 bill_type
+// values are house/senate, no orphan). topTopics returns RAW topic enum values +
+// counts; the card formats them via topicLabel() (kept out of this server module).
+export type WeeklyBandNewBills = {
+  house: number;
+  senate: number;
+  topTopics: { topic: string; n: number }[];
+};
+export const getWeeklyBandNewBillsBreakdown = unstable_cache(
+  async (): Promise<WeeklyBandNewBills> => {
+    const db = getDb();
+    const [chRs, topRs] = await Promise.all([
+      db.execute(
+        `SELECT
+           SUM(CASE WHEN bill_type IN (${HOUSE_BILL_TYPES}) THEN 1 ELSE 0 END) AS house,
+           SUM(CASE WHEN bill_type IN (${SENATE_BILL_TYPES}) THEN 1 ELSE 0 END) AS senate
+         FROM bills INDEXED BY idx_bills_introduced_date
+         WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
+           AND introduced_date IS NOT NULL
+           AND introduced_date > date('now', '-7 days')`,
+      ),
+      db.execute(
+        `SELECT je.value AS topic, COUNT(*) AS n
+         FROM bills b INDEXED BY idx_bills_introduced_date, json_each(b.topics) je
+         WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
+           AND b.introduced_date IS NOT NULL
+           AND b.introduced_date > date('now', '-7 days')
+           AND b.topics IS NOT NULL
+         GROUP BY je.value ORDER BY n DESC LIMIT 3`,
+      ),
+    ]);
+    return {
+      house: Number(chRs.rows[0]?.house ?? 0),
+      senate: Number(chRs.rows[0]?.senate ?? 0),
+      topTopics: topRs.rows.map((r) => ({
+        topic: r.topic as string,
+        n: Number(r.n),
+      })),
+    };
+  },
+  ["getWeeklyBandNewBillsBreakdown"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// The complete 9→3 meeting_type bucket map (HO 364 probe — the spec draft dropped
+// Closed Hearing + Closed Markup Session; this covers all 9 distinct values, no
+// orphan). Shared constant so the bucketing lives in one place.
+const MEETING_TYPE_BUCKETS: Record<string, "HEARINGS" | "MARKUPS" | "BUSINESS"> =
+  {
+    Hearing: "HEARINGS",
+    "Open Hearing": "HEARINGS",
+    "Closed Hearing": "HEARINGS",
+    Markup: "MARKUPS",
+    "Open Markup Session": "MARKUPS",
+    "Closed Markup Session": "MARKUPS",
+    Meeting: "BUSINESS",
+    "Open Business Meeting": "BUSINESS",
+    "Closed Business Meeting": "BUSINESS",
+  };
+
+// HEARINGS "by type" + chamber, over the SAME [now-7d, now) ISO window as
+// getWeeklyBandHearings (so byType sums to that headline; byChamber too — chamber
+// is house|senate). committee_meetings is small + indexed on (meeting_date) — no
+// fat-table hint needed.
+export type WeeklyBandHearingBreakdown = {
+  byType: { HEARINGS: number; MARKUPS: number; BUSINESS: number };
+  byChamber: { house: number; senate: number };
+};
+export const getWeeklyBandHearingBreakdown = unstable_cache(
+  async (): Promise<WeeklyBandHearingBreakdown> => {
+    const db = getDb();
+    const now = new Date().toISOString();
+    const d7 = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const rs = await db.execute({
+      sql: `SELECT meeting_type, chamber, COUNT(*) AS n FROM committee_meetings
+            WHERE meeting_date IS NOT NULL AND meeting_date < ? AND meeting_date >= ?
+            GROUP BY meeting_type, chamber`,
+      args: [now, d7],
+    });
+    const byType = { HEARINGS: 0, MARKUPS: 0, BUSINESS: 0 };
+    const byChamber = { house: 0, senate: 0 };
+    for (const r of rs.rows) {
+      const n = Number(r.n);
+      const bucket = MEETING_TYPE_BUCKETS[r.meeting_type as string];
+      if (bucket) byType[bucket] += n;
+      const ch = r.chamber as string;
+      if (ch === "house") byChamber.house += n;
+      else if (ch === "senate") byChamber.senate += n;
+    }
+    return { byType, byChamber };
+  },
+  ["getWeeklyBandHearingBreakdown"],
+  { revalidate: 3600, tags: ["meetings"] },
+);
+
+// Sparkline history: the up-to-7 most-recent FINALIZED reports, oldest→newest.
+// enacted/newBills/transitions read the FROZEN report columns; hearings is counted
+// live per each report's [week_start, week_end] from committee_meetings (one
+// grouped query over the span, bucketed in JS — small table, immutable past weeks
+// so no drift). The card appends the running-week live headline as the 8th point.
+export type WeeklyBandHistoryPoint = {
+  weekStart: string;
+  enacted: number;
+  newBills: number;
+  transitions: number;
+  hearings: number;
+};
+export const getWeeklyBandHistory = unstable_cache(
+  async (): Promise<WeeklyBandHistoryPoint[]> => {
+    const db = getDb();
+    const rep = await db.execute(
+      `SELECT week_start, week_end, laws_count, intro_count, moves_count
+       FROM reports ORDER BY week_start DESC LIMIT 7`,
+    );
+    const rows = rep.rows.slice().reverse(); // oldest → newest
+    if (rows.length === 0) return [];
+    const minStart = rows[0]!.week_start as string;
+    const maxEnd = rows[rows.length - 1]!.week_end as string;
+    const endExcl = new Date(`${maxEnd}T00:00:00Z`);
+    endExcl.setUTCDate(endExcl.getUTCDate() + 1);
+    const mtg = await db.execute({
+      sql: `SELECT substr(meeting_date, 1, 10) AS d, COUNT(*) AS n
+            FROM committee_meetings
+            WHERE meeting_date >= ? AND meeting_date < ?
+            GROUP BY d`,
+      args: [minStart, endExcl.toISOString().slice(0, 10)],
+    });
+    const perDay = new Map<string, number>();
+    for (const r of mtg.rows) perDay.set(r.d as string, Number(r.n));
+    return rows.map((r) => {
+      const ws = r.week_start as string;
+      const we = r.week_end as string;
+      let hearings = 0;
+      for (const [d, n] of perDay) if (d >= ws && d <= we) hearings += n;
+      return {
+        weekStart: ws,
+        enacted: Number(r.laws_count ?? 0),
+        newBills: Number(r.intro_count ?? 0),
+        transitions: Number(r.moves_count ?? 0),
+        hearings,
+      };
+    });
+  },
+  ["getWeeklyBandHistory"],
+  { revalidate: 3600, tags: ["reports", "meetings"] },
+);
+
+// Most-recent enacted bill, for the ENACTED card's 0-week degrade
+// (NONE REACHED THE PRESIDENT · LAST ENACTED …). latest_action_date is the
+// enactment-date proxy (HO 364 probe). LIMIT 1, low cost.
+export type MostRecentEnacted = {
+  billType: string;
+  billNumber: number;
+  date: string;
+} | null;
+export const getMostRecentEnacted = unstable_cache(
+  async (): Promise<MostRecentEnacted> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT bill_type, bill_number, latest_action_date FROM bills
+       WHERE stage = 'enacted' AND latest_action_date IS NOT NULL
+       ORDER BY latest_action_date DESC LIMIT 1`,
+    );
+    const r = rs.rows[0];
+    if (!r) return null;
+    return {
+      billType: r.bill_type as string,
+      billNumber: r.bill_number as number,
+      date: r.latest_action_date as string,
+    };
+  },
+  ["getMostRecentEnacted"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 // HO 335: getStaleCount deleted as dead code — grep-confirmed zero callers (its
 // /stale count-badge consumer was removed in HO 323 and the call deleted in HO
 // 326; the function was left orphaned). HO 335 first proposed forcing a new
