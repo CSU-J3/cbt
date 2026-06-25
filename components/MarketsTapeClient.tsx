@@ -380,7 +380,6 @@ function TickItem({
       onMouseLeave={() => onHover(null, null)}
     >
       <span className="markets-tape-symbol">{tick.symbol}</span>
-      {tagText ? <MicroTag label={tagText} title={tagTitle} /> : null}
       <span
         className="markets-tape-price"
         style={{
@@ -402,6 +401,10 @@ function TickItem({
           </span>
         </span>
       ) : null}
+      {/* HO 363: QUAL micro-tag (EOD/MO) TRAILS the quote — was between SYM and
+          VALUE, the placement that read as visual noise. Per-symbol constant, so
+          moving it doesn't affect the marquee width-pin. */}
+      {tagText ? <MicroTag label={tagText} title={tagTitle} /> : null}
     </span>
   );
 }

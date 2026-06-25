@@ -5407,6 +5407,7 @@ body {
 .markets-tape-item {
   display: inline-flex;
   align-items: center;
+  /* HO 363 (B2 restyle): within-instrument gap stays 6px (SYM·VALUE·Δ·QUAL). */
   gap: 6px;
   /* HO 176: 18px between tickers; HO 251 trimmed to 10px so the static 8-symbol
      row fits full-width without clipping at standard desktop widths (the marquee
@@ -5416,11 +5417,23 @@ body {
   /* HO 175: anchor for the absolutely-positioned hover-detail popover. */
   position: relative;
 }
+/* HO 363 (B2 restyle): on the SCROLLING B2 strips, the inter-instrument gap is
+   the chunking fix — ~28px between instruments (14px each side) vs the 6px
+   within. No pipe, no dot; the wide gap alone separates instruments. Scoped to
+   --scroll so the static bare tape (/dashboard-classic) keeps its tight 10px and
+   doesn't clip its full-width 8-symbol row (HO 251). The padding is outside each
+   item's pinned price-width box and is per-symbol constant, so it never reflows
+   the marquee on a poll. */
+.markets-tape--scroll .markets-tape-item {
+  padding: 0 14px;
+}
 .markets-tape-symbol {
-  /* HO 303: the item code is amber-bright (was dim) so the tape and its hover
-     box read consistently — code amber, value white. The STALE/no-data wash
-     below still overrides this to dim. */
-  color: var(--accent-amber-bright);
+  /* HO 363 (B2 restyle): the item code/name is --accent-amber, weight 500 —
+     the VALUE is now the bright element (white, weight 600 below), so the code
+     steps back to the dimmer amber. (HO 303 had made it amber-bright; the B2
+     design pulls it back.) The STALE/no-data wash below still overrides to dim. */
+  color: var(--accent-amber);
+  font-weight: 500;
   letter-spacing: 0.5px;
 }
 /* HO 287 — tier-3 QUALIFIER micro-tag (chip family), shared via <MicroTag>.
@@ -5447,6 +5460,12 @@ body {
   /* HO 303: the value is white (was --text-secondary) — code amber, value white.
      The live color is also set inline per item (stale→dim, closed→washed). */
   color: var(--text-primary);
+  /* HO 363 (B2 restyle): the VALUE is the bright element — weight 600. Safe for
+     the marquee width-pin: the per-symbol min-width is `ch` set INLINE on THIS
+     same span, and the app font is monospace (constant advance across weights),
+     so the ch unit and the rendered digits scale together at 600 — no reflow,
+     no clip. tabular-nums stays. */
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
@@ -5470,6 +5489,10 @@ body {
   display: inline-flex;
   align-items: baseline;
   gap: 4px;
+  /* HO 363 (B2 restyle): Δ glyph + change at weight 600 (children inherit). Color
+     is set inline per item (--market-up green / --market-down red = the spec's
+     green-up/red-down; the level/no-change series render no arrow span at all). */
+  font-weight: 600;
 }
 .markets-tape-arrow-glyph {
   min-width: 1.2ch;
@@ -5647,6 +5670,9 @@ body {
   align-items: center;
   padding: 0 4px 0 12px;
   background: var(--bg-panel);
+  /* HO 363 (B2 restyle): a 2px --accent-amber left border on the MARKETS / ODDS
+     label cell. Label text stays --text-dim / uppercase (size unchanged at 9px). */
+  border-left: 2px solid var(--accent-amber);
   color: var(--text-dim);
   font-size: 9px;
   letter-spacing: 0.14em;
