@@ -32,6 +32,19 @@ import {
 
 const ENACTED_ID_CAP = 3;
 
+// HO 365: MON DD formatter (uppercased by the band's text-transform) for the
+// "WEEK OF JUN 22" header and the "JUN 15 REPORT →" link. UTC, to match the
+// YYYY-MM-DD week-start strings.
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+function monDd(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
 // HO 283: the week-over-week delta that rides after each metric's value+label.
 // ▲ up (--market-up green) / ▼ down (--market-down red) — the tape's directional
 // tokens, so the color convention matches — and a dim ±0 when unchanged. The
@@ -150,11 +163,11 @@ export async function WeeklyBand() {
   return (
     <section className="weekly-band" aria-label="This week">
       <span className="weekly-band-weekof">
-        Week of <span className="tabular-nums">{weekStartISO()}</span>
+        Week of <span className="tabular-nums">{monDd(weekStartISO())}</span>
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
-        |
+        ·
       </span>
 
       {/* Enacted segment — folds in the former EnactedBanner. The N=0 state is
@@ -200,7 +213,7 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
-        |
+        ·
       </span>
 
       <span className="weekly-band-seg">
@@ -216,7 +229,7 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
-        |
+        ·
       </span>
 
       <span className="weekly-band-seg">
@@ -235,7 +248,7 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-sep" aria-hidden>
-        |
+        ·
       </span>
 
       {/* HO 286: HEARINGS — fourth metric, committee-meeting count over the
@@ -257,8 +270,13 @@ export async function WeeklyBand() {
         </MetricTip>
       </span>
 
-      {/* HO 351 — filler-share bar, right-pinned (margin-left:auto) just before
-          READ FULL. One muted segment + its own % and n/total. */}
+      <span className="weekly-band-sep" aria-hidden>
+        ·
+      </span>
+
+      {/* HO 351 — filler-share bar. HO 365 folded it INTO the metric run (after
+          HEARINGS, joined by a middot — no longer right-pinned); the mini bar
+          stays (the one composition stat). It gets no hover card. */}
       <span
         className="weekly-band-filler"
         title={`Filler this week: ${filler.filler.toLocaleString()} of ${filler.total.toLocaleString()} introductions (ceremonial or one of the four ceremonial patterns)`}
@@ -280,7 +298,7 @@ export async function WeeklyBand() {
           href={`/reports/${snap.latest.slug}`}
           className="weekly-band-readfull"
         >
-          read full →
+          {monDd(snap.latest.weekStart)} report →
         </Link>
       ) : null}
     </section>

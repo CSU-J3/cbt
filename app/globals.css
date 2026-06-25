@@ -2389,7 +2389,9 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-xs) var(--space-md);
+  /* HO 365: ~14px between the middot-separated metrics (the sep span is a flex
+     item, so the column gap is the air on each side of the `·`). */
+  gap: var(--space-xs) 14px;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.5px;
@@ -2409,6 +2411,8 @@ body {
 .weekly-band-num {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  /* HO 365: the value is the bright/large element (14px) beside its 11px label. */
+  font-size: 14px;
 }
 .weekly-band-enacted {
   color: var(--stage-enacted);
@@ -2416,6 +2420,10 @@ body {
 .weekly-band-enacted .weekly-band-num,
 .weekly-band-dot {
   color: var(--stage-enacted);
+}
+/* HO 365: render the leading ● as a ~6px dot (an 8px glyph reads ~6px filled). */
+.weekly-band-dot {
+  font-size: 8px;
 }
 .weekly-band-ids {
   display: inline-flex;
@@ -2452,12 +2460,10 @@ body {
 .weekly-band-delta--flat {
   color: var(--text-dim);
 }
-/* HO 351 — filler-share bar. margin-left:auto pins it (and READ FULL, which
-   follows it) to the right; READ FULL no longer needs its own auto since the
-   filler segment always renders before it. Compact so flex-wrap doesn't kick
-   it to a second row. */
+/* HO 351 — filler-share bar. HO 365 folded it into the metric run (no longer
+   right-pinned — margin-left:auto moved to the report link); the mini bar stays.
+   Compact so flex-wrap doesn't kick it to a second row. */
 .weekly-band-filler {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2481,6 +2487,8 @@ body {
   color: var(--text-muted);
 }
 .weekly-band-readfull {
+  /* HO 365: the report link is the lone right-cluster item (space-between). */
+  margin-left: auto;
   color: var(--accent-amber);
   text-decoration: none;
   white-space: nowrap;
