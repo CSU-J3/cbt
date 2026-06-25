@@ -18,6 +18,7 @@ A personal dashboard that pulls bills from the Congress.gov API, runs them throu
 - Turso (libSQL) for the database, accessed via `@libsql/client`
 - Google GenAI SDK (`@google/genai`) for summarization on Gemini's free tier (`gemini-2.5-flash`)
 - Vercel for hosting, Vercel Cron for the sync schedule
+- NextAuth v5 (Auth.js) for **GitHub** OAuth — JWT sessions, our own minimal `users` table (no DB adapter); gates only the per-user watchlist (HO 355/356). Logged-out is the demo.
 
 Do not introduce additional frameworks, ORMs, or state management libraries without checking in. The whole point is to keep this small.
 
@@ -84,6 +85,14 @@ THOMAS-style committee codes (used in the unitedstates YAML) map to Congress.gov
 
 SQLite/libSQL. Keep it flat and simple. Don't over-normalize.
 
+> **Coverage note (HO 363).** This block documents the load-bearing tables. The live
+> DB has ~34 tables; **`scripts/migrate.ts` is the canonical schema.** Not transcribed
+> here (niche / pipeline-internal): `member_donors`, `member_industries`,
+> `member_fundraising` (theme-6 donor pipeline), `kalshi_odds`, `rating_history`
+> (logged — see "Rating-history logging"), `palestine_scorecard`, `historical_laws`
+> (118th-vs-119th enacted comparison), `sync_state` (vestigial — see oddities). Add a
+> table here only when it becomes load-bearing for app code.
+
 ```sql
 CREATE TABLE bills (
   id TEXT PRIMARY KEY,              -- e.g. "119-hr-1234"
@@ -120,7 +129,10 @@ CREATE INDEX idx_bills_update_date ON bills(update_date DESC);
 CREATE INDEX idx_bills_latest_action ON bills(latest_action_date DESC);
 CREATE INDEX idx_bills_stage_changed_at ON bills(stage_changed_at DESC);
 CREATE INDEX idx_bills_is_ceremonial ON bills(is_ceremonial);
-CREATE INDEX idx_bills_cluster_id ON bills(cluster_id);
+-- HO 340: idx_bills_cluster_agg supersedes (and DROPs) the old single-column
+-- idx_bills_cluster_id — leading cluster_id serves the same lookups AND covers
+-- is_ceremonial/stage so /patterns' cluster COUNT + GROUP BY go index-only.
+CREATE INDEX idx_bills_cluster_agg ON bills(cluster_id, is_ceremonial, stage);
 -- HO 241: dashboard-aggregate covering indexes (homepage cold-start fix).
 -- Make getStageDistribution / getCorpusStats / getTopicDistribution index-only
 -- so they don't cold-scan the ~63MB bills table. The planner picks these on
@@ -132,6 +144,11 @@ CREATE INDEX idx_bills_dash_topics ON bills(is_ceremonial, topics);
 -- won't pick it on its own (it kept choosing idx_bills_is_ceremonial), so
 -- getNewBillsThisWeekCount forces it via INDEXED BY — see Query helpers.
 CREATE INDEX idx_bills_introduced_date ON bills(introduced_date, is_ceremonial);
+-- NOTE: the above are the early/dashboard bills indexes only. The cold-start arc
+-- (HO 277–342) added ~10 more covering/partial bills indexes + the bills_fts FTS5
+-- index, each forced via INDEXED BY — not transcribed here (they'd drift).
+-- Canonical list: scripts/migrate.ts. Rationale + which query forces which: the
+-- "forced-index box" under Query helpers below.
 
 -- HO 232: append-only stage-transition log (the rating_history precedent).
 -- WRITE-ONLY plant — nothing reads it yet; it accrues so the deferred MOVERS
@@ -1372,7 +1389,7 @@ The hub holds the thesis. Sub-pages hold focused deep cuts. Curiosity drives nav
 
 - **Bill hub** (`/bill/[id]`): "What does this bill do and how is it moving?" Summary, status, sponsor link, watchlist toggle. Sub-page links for similar bills, news mentions, votes, full text (out to congress.gov).
 - **Member hub** (`/members/[bioguideId]`): "What does this person work on in Congress?" Voting record, sponsored bills, committee assignments, badges. Header indicators link to the race surface when applicable; donor and stock data live on sub-pages.
-- **Race hub** (`/race/[id]`, planned): "Who's contesting this seat and where does it stand?" Sabato rating, third-party Cook ratings (handoff 71), seat-up year, candidate roster, incumbent link back to their member hub.
+- **Race hub** (`/race/[id]`): "Who's contesting this seat and where does it stand?" Multi-source forecaster ratings (Cook / Sabato / Inside Elections), seat-up year, candidate roster + Kalshi/Polymarket odds, incumbent link back to their member hub. (Shipped via the HO 222–260 race arc — no longer "planned.")
 
 ### The rule
 
