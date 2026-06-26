@@ -8,7 +8,7 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ## A news-cron error at ~20s elapsed = a stalled Turso call, not the news budget (Jun 2026)
 
-`/api/cron/news` has a 45s `NEWS_BUDGET_MS` under a 60s function ceiling, but any single Turso request is bounded by HO 238's `DB_REQUEST_TIMEOUT_MS` (10s) plus retry-once, so a stuck DB call aborts the **whole route** at ~20.2s (2× 10s). A `cron_runs` row with `status=error` and `elapsed ≈ 20,200ms` means a specific query is stalling (a mis-plan against a fat table), **not** the ingest budget or the function timeout. Fix the query plan; leave the timeout alone. (Same statless-planner family as the gated-aggregate / cluster row-fetch entries below.)
+`/api/cron/news` has a 45s `NEWS_BUDGET_MS` under a 60s function ceiling, but any single Turso request is bounded by HO 238's `DB_REQUEST_TIMEOUT_MS` (10s) plus retry-once, so a stuck DB call aborts the **whole route** at ~20.2s (2× 10s). A `cron_runs` row with `status=error` and `elapsed ≈ 20,200ms` means a specific query is stalling (a mis-plan against a fat table), **not** the ingest budget or the function timeout. **Confirmed HO 369 (2026-06-26):** `getCandidateBills` was driving off `idx_bills_is_ceremonial` (`is_ceremonial = 0` ≈ the whole corpus) instead of `idx_bills_latest_action` — the `(is_ceremonial = 0 OR is_ceremonial IS NULL)` clause lured the statless planner into a `MULTI-INDEX OR` + temp-b-tree sort. Fix is an `INDEXED BY idx_bills_latest_action` hint, **not** a timeout bump. Fix the query plan; leave the timeout alone. (Same statless-planner family as the gated-aggregate / cluster row-fetch entries below.)
 
 ## A report's outcome-verb color is render-only — it CANNOT live in `content_md` (HO 360, Jun 2026)
 
