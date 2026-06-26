@@ -26,8 +26,10 @@ import {
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
 import {
   LIVE_WINDOW_MS,
+  etDateLabelFull,
   etDayLabel,
   etTimeLabel,
+  etTimeLabelFull,
   hearingBadge,
   watchState,
 } from "@/lib/hearings";
@@ -310,11 +312,15 @@ function PopulatedHearing({
   );
   const isLive = ws === "live";
   const room = [m.room, m.building].filter(Boolean).join(" ");
+  // HO 372: momentum mode (silentDays set, /stale) surfaces a PAST hearing, so
+  // show the full "MAR 25, 2025" date (year disambiguates) + clean "10:00 AM"
+  // time. The HO 324 upcoming path keeps the weekday/compact form.
+  const momentum = silentDays != null;
   const meta = [
     hearingBadge(m.meetingType),
     m.meetingStatus.toUpperCase(),
-    etDayLabel(m.meetingDate),
-    `${etTimeLabel(m.meetingDate)} ET`,
+    momentum ? etDateLabelFull(m.meetingDate) : etDayLabel(m.meetingDate),
+    `${momentum ? etTimeLabelFull(m.meetingDate) : etTimeLabel(m.meetingDate)} ET`,
     room,
   ]
     .filter(Boolean)

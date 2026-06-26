@@ -191,6 +191,32 @@ export function etDayLabel(iso: string): string {
   return etHeaderFmt.format(t).replace(",", "").toUpperCase();
 }
 
+// HO 372: full date with YEAR and no weekday — "MAR 25, 2025". Used by the
+// /stale momentum hearing line, where the hearing is months/years PAST: the
+// weekday-only etDayLabel ("TUE MAR 25") reads like an upcoming event, and the
+// year is exactly what disambiguates a past hearing under the "then silent"
+// line. The HO 324 upcoming path keeps etDayLabel.
+const etDateFullFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: ET,
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+}); // -> "Mar 25, 2025"
+export function etDateLabelFull(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  return etDateFullFmt.format(t).toUpperCase(); // "MAR 25, 2025"
+}
+
+// HO 372: clean "10:00 AM" (with AM/PM, no compaction) for the momentum hearing
+// line — etTimeLabel's compact "10:00a" reads as malformed next to the full
+// date. Appended " ET" by the caller.
+export function etTimeLabelFull(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  return etTimeFmt.format(t); // "10:00 AM"
+}
+
 // ---- ET calendar-week math (HO 265) ------------------------------------
 // Date-key arithmetic for the two-week Mon–Fri grid. A bare key is YYYY-MM-DD;
 // all math anchors at NOON UTC so adding/subtracting whole days never trips a
