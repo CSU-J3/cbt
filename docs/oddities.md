@@ -6,6 +6,10 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## A news-cron error at ~20s elapsed = a stalled Turso call, not the news budget (Jun 2026)
+
+`/api/cron/news` has a 45s `NEWS_BUDGET_MS` under a 60s function ceiling, but any single Turso request is bounded by HO 238's `DB_REQUEST_TIMEOUT_MS` (10s) plus retry-once, so a stuck DB call aborts the **whole route** at ~20.2s (2× 10s). A `cron_runs` row with `status=error` and `elapsed ≈ 20,200ms` means a specific query is stalling (a mis-plan against a fat table), **not** the ingest budget or the function timeout. Fix the query plan; leave the timeout alone. (Same statless-planner family as the gated-aggregate / cluster row-fetch entries below.)
+
 ## A report's outcome-verb color is render-only — it CANNOT live in `content_md` (HO 360, Jun 2026)
 
 The weekly report is one pure-markdown string (`content_md`), and the web render (`components/ReportMarkdown.tsx`) and the `.md` download are meant to be identical — with ONE deliberate exception. `ReportMarkdown` colors floor-vote outcome verbs by **exact-text match** on the bolded token (`PASSED`/`CONFIRMED` → `--stage-enacted`, `ADVANCED` → `--stage-floor`, `FAILED`/`BLOCKED`/`REJECTED` → `--party-republican`; every other `<strong>` stays `--text-secondary`). This color is **render-layer only** — the stored markdown carries just `**FAILED**`, no color/HTML — so a future "make the `.md` match the web" instinct that tries to push the color into `content_md` **can't** (markdown has no color), and shouldn't: the `.md` is plain-bold by design, the web color is the **single** intended divergence. The mechanism is an exact-token map keyed on the strong node's text (not a class or a wrapper element), which is what keeps a bolded prose word from false-matching — and the same rule could later re-color the HO 352 stage-movements ladder's stage labels (banked). This is the report's one deliberate web-vs-file gap; sits beside the HO 352 prose-undercount lesson below.
