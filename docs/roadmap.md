@@ -212,7 +212,7 @@ That's roughly six months of work at a CBT pace if you ship 2–4 handoffs a wee
 
 ## Status
 
-> **As of HO 367 · 2026-06-25.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes. *(Prose reconciled through the B5 arc + this sweep; the header consolidations HO 366–367 and the HO 364 brand rename shipped — see git log — but their STATUS entries are deferred to their own sweep.)*
+> **As of HO 370 · 2026-06-26.** This block is the **source of truth**. Future updates edit this block, not memory or off-repo notes. *(Prose reconciled through the B5 arc; the HO 364 brand rename and the HO 366/367 `/hearings` + `/members` header consolidations are within-theme polish — Home / Foundation / Member depth — that minted no new theme bars, so they're accounted-for here, not deferred. The Foundation and Member-depth baselines remain off-repo last-known values, still owed a re-derivation at the next full audit.)*
 
 **Overall: ~98%.** CCBT (the Colorado sister project) is downstream port work, **not** a CBT roadmap theme — excluded from this figure.
 

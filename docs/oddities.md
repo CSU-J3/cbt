@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Tape freshness reads `MAX(ticked_at)` across all symbols — one fresh feed masks N dead ones (HO 370, Jun 2026)
+
+The markets-tape staleness check reads `MAX(ticked_at)` over the whole roster, so a single live symbol hides any number of stale ones — the strip reads "fresh" while a dead feed sits frozen behind it. The honest health read is **per-source `MAX(ticked_at)`** (FMP vs FRED vs Kalshi vs Polymarket), not a global max. Latent trap when diagnosing "is the tape actually live": the green AS-OF stamp only proves *something* ticked, not that everything did.
+
+## Markets cron silent-307 after the domain rename — `curl` needs `-L` or the function never runs (HO 370, Jun 2026)
+
+After the brand/URL rename (HO 364), a `curl` in GitHub Actions that doesn't follow redirects stops at the **307** to the canonical host without ever reaching the function — so no tick lands and the run still looks "successful" (the curl exits 0 on the redirect). All markets curls now carry **`-fsSL`**. The Vercel **21:30Z daily floor** is the backstop and fires independently of GitHub Actions — which is exactly why this was masked: Actions had been silently carrying the intraday load until it wasn't. (Pairs with the silent-307 note in the markets cron-reliability memory.)
+
 ## A news-cron error at ~20s elapsed = a stalled Turso call, not the news budget (Jun 2026)
 
 `/api/cron/news` has a 45s `NEWS_BUDGET_MS` under a 60s function ceiling, but any single Turso request is bounded by HO 238's `DB_REQUEST_TIMEOUT_MS` (10s) plus retry-once, so a stuck DB call aborts the **whole route** at ~20.2s (2× 10s). A `cron_runs` row with `status=error` and `elapsed ≈ 20,200ms` means a specific query is stalling (a mis-plan against a fat table), **not** the ingest budget or the function timeout. **Confirmed HO 369 (2026-06-26):** `getCandidateBills` was driving off `idx_bills_is_ceremonial` (`is_ceremonial = 0` ≈ the whole corpus) instead of `idx_bills_latest_action` — the `(is_ceremonial = 0 OR is_ceremonial IS NULL)` clause lured the statless planner into a `MULTI-INDEX OR` + temp-b-tree sort. Fix is an `INDEXED BY idx_bills_latest_action` hint, **not** a timeout bump. Fix the query plan; leave the timeout alone. (Same statless-planner family as the gated-aggregate / cluster row-fetch entries below.)
