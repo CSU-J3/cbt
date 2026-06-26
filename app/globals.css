@@ -4789,9 +4789,16 @@ body {
   letter-spacing: 0.5px;
   color: var(--accent-amber-bright);
 }
+/* HO 367: chamber-split readout — muted chamber labels, emphasis-color numbers,
+   tabular so the counts don't jitter as filters narrow them. */
 .mc-fbar-count {
   font-size: 11px;
-  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mc-fbar-n {
+  color: var(--text-secondary);
 }
 .mc-fbar-spacer {
   flex: 1;

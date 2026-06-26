@@ -27,7 +27,6 @@ import {
   getMemberAffiliations,
   getMemberCommittees,
   getMembersRanked,
-  getMembersRankedCount,
   getMembersTopicMix,
   getMemberStates,
   getUpcomingMeetings,
@@ -118,11 +117,10 @@ export default async function MembersPage({
   const filters = { chamber, party, state, q, includeCeremonial };
 
   // Shared across both panes / both modes.
-  const [railCommittees, upcoming, topicMixRows, total] = await Promise.all([
+  const [railCommittees, upcoming, topicMixRows] = await Promise.all([
     getCommitteesIndex({ chamber }),
     getUpcomingForRail(chamber),
     getMembersTopicMix(includeCeremonial),
-    getMembersRankedCount(filters),
   ]);
 
   // Group the flat topic-mix rows into per-member counts → bar segments.
@@ -162,6 +160,19 @@ export default async function MembersPage({
   }
 
   const pageMax = rows.reduce((m, r) => Math.max(m, r.total), 0);
+
+  // HO 367 filter-bar readout: chamber split of the CURRENTLY-SHOWN list. Bucketed
+  // from `rows` (always the complete result set — unscoped ≤600 covers all 536,
+  // scoped = the full roster), so it honors chamber/party/state/search AND
+  // committee scope, and always describes exactly what the member list renders.
+  // (The old `getMembersRankedCount` total ignored committee scope, so it can't
+  // serve this — it's now orphaned; see docs/backlog.md.)
+  let houseCount = 0;
+  let senateCount = 0;
+  for (const r of rows) {
+    if (r.chamber === "house") houseCount++;
+    else if (r.chamber === "senate") senateCount++;
+  }
 
   // Expanded member + its panel data (must be in the rendered set).
   const expandedMember = expandedParam
@@ -383,9 +394,22 @@ export default async function MembersPage({
 
         {/* ---- Filter bar (full-width strip; connects to the pane) ---- */}
         <div className="mc-fbar">
-          <span className="mc-fbar-title">MEMBERS</span>
+          {/* HO 367: redundant MEMBERS title + congress number dropped (both live
+              in the breadcrumb). Left edge is now the live chamber-split readout. */}
           <span className="mc-fbar-count">
-            {total.toLocaleString()} of the 119th
+            {chamber !== "senate" ? (
+              <>
+                <span className="mc-fbar-n">{houseCount.toLocaleString()}</span>{" "}
+                HOUSE
+              </>
+            ) : null}
+            {!chamber ? <span aria-hidden> · </span> : null}
+            {chamber !== "house" ? (
+              <>
+                <span className="mc-fbar-n">{senateCount.toLocaleString()}</span>{" "}
+                SENATE
+              </>
+            ) : null}
           </span>
           <span className="mc-fbar-spacer" />
           <SegmentedToggle<"" | Chamber>
