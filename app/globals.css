@@ -7810,17 +7810,42 @@ a.hearing-watch:hover {
   content: "]";
   color: var(--accent-amber);
 }
+/* HO 366: filter-reactive corpus readout, right-aligned on the filter bar.
+   Mirrors the active TYPE/CHAMBER filter; the range qualifier marks it a window
+   (visible calendar scope), not the full-Congress total. /hearings only. */
+.hcal-corpus {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.hcal-corpus-n {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.hcal-corpus-noun {
+  color: var(--text-dim);
+}
+.hcal-corpus-tag {
+  color: var(--text-muted);
+}
+.hcal-corpus-range {
+  color: var(--text-dim);
+}
 .hcal-week {
   margin-bottom: 18px;
 }
 .hcal-week:last-of-type {
   margin-bottom: 0;
 }
+/* HO 366: clustered — WEEK OF label, middot, then the bare stat, left-aligned.
+   The right edge clears (the count readout moved up to the filter bar). */
 .hcal-weekhead {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 6px;
   margin-bottom: 6px;
 }
 .hcal-weekof {
@@ -7829,6 +7854,10 @@ a.hearing-watch:hover {
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+.hcal-weekhead-mid {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 .hcal-weekstat {
   font-size: 11px;

@@ -231,16 +231,16 @@ function DetailCard({
   return createPortal(card, document.body);
 }
 
-// ── week stat (count + noun + WoW delta), hover opens the breakdown ──
+// ── week stat (count + WoW delta), hover opens the breakdown ──
+// HO 366: bare — the noun dropped (it now lives in the filter-bar corpus readout,
+// reactive to TYPE), the stat clusters immediately after the WEEK OF label.
 function WeekStat({
   count,
-  noun,
   delta,
   onEnter,
   onLeave,
 }: {
   count: number;
-  noun: string;
   delta: number | null;
   onEnter: (rect: DOMRect) => void;
   onLeave: () => void;
@@ -257,7 +257,7 @@ function WeekStat({
       }}
       onMouseLeave={onLeave}
     >
-      <span className="hcal-weekstat-n">{count.toLocaleString()}</span> {noun}
+      <span className="hcal-weekstat-n">{count.toLocaleString()}</span>
       {dir ? (
         <span className={`hcal-weekstat-delta delta-${dir}`}>
           {dir === "flat"
@@ -330,6 +330,7 @@ export function HearingsCalendar({
   weeks = 2,
   embedded = false,
   cap,
+  showCorpus = false,
 }: {
   meetings: CommitteeMeeting[];
   committeeNames: Record<string, string>;
@@ -337,6 +338,10 @@ export function HearingsCalendar({
   weeks?: number;
   embedded?: boolean;
   cap?: number;
+  // HO 366: render the filter-reactive corpus readout on the filter bar's right
+  // edge. /hearings only — the dashboard HEARINGS tab is height-pinned + never
+  // carried this count, so it stays gated off there.
+  showCorpus?: boolean;
 }) {
   const [type, setType] = useState<TypeFilter>("");
   const [chamber, setChamber] = useState<ChamberFilter>("");
@@ -411,6 +416,29 @@ export function HearingsCalendar({
   const priorCount = weekCount(priorMon);
   const noun = TYPE_NOUN[type];
 
+  // HO 366 corpus readout (gated to /hearings). It's a WINDOW, not the full
+  // 119th-Congress total: the count is the visible calendar scope (the rendered
+  // weeks, Mon–Fri), filtered by the same TYPE/CHAMBER state that drives the grid.
+  // It reconciles with the on-screen week stats (its total === the sum of the
+  // week strips). The range qualifier makes that window explicit.
+  const visibleDays = new Set<string>();
+  for (const mon of weekMons)
+    for (let i = 0; i < 5; i++) visibleDays.add(addDaysToKey(mon, i));
+  let corpusTotal = 0;
+  let corpusHouse = 0;
+  let corpusSenate = 0;
+  for (const m of filtered) {
+    if (!visibleDays.has(etDayKey(m.meetingDate))) continue;
+    corpusTotal++;
+    if (m.chamber === "house") corpusHouse++;
+    else if (m.chamber === "senate") corpusSenate++;
+  }
+  const firstMon = weekMons[0]!;
+  const lastFri = addDaysToKey(weekMons[weekMons.length - 1]!, 4);
+  const fp = dayKeyParts(firstMon);
+  const lp = dayKeyParts(lastFri);
+  const rangeLabel = `${fp.mon} ${fp.dom}–${lp.mon} ${lp.dom}`;
+
   return (
     <div className={`hcal${embedded ? " hcal--embedded" : ""}`}>
       {/* Filter bar: TYPE + CHAMBER, client-state. Active = amber bracketed. */}
@@ -443,6 +471,35 @@ export function HearingsCalendar({
             </button>
           ))}
         </span>
+
+        {showCorpus ? (
+          <span className="hcal-corpus">
+            <span className="hcal-corpus-n">{corpusTotal.toLocaleString()}</span>{" "}
+            <span className="hcal-corpus-noun">{noun}</span>
+            {chamber === "" ? (
+              <>
+                {" · "}
+                <span className="hcal-corpus-n">
+                  {corpusHouse.toLocaleString()}
+                </span>{" "}
+                <span className="hcal-corpus-tag">HOUSE</span>
+                {" / "}
+                <span className="hcal-corpus-n">
+                  {corpusSenate.toLocaleString()}
+                </span>{" "}
+                <span className="hcal-corpus-tag">SENATE</span>
+              </>
+            ) : (
+              <>
+                {" · "}
+                <span className="hcal-corpus-tag">
+                  {chamber === "house" ? "HOUSE" : "SENATE"}
+                </span>
+              </>
+            )}
+            <span className="hcal-corpus-range"> · {rangeLabel}</span>
+          </span>
+        ) : null}
       </div>
 
       {weekMons.map((monKey, wi) => {
@@ -456,9 +513,11 @@ export function HearingsCalendar({
               <span className="hcal-weekof">
                 WEEK OF {p.mon} {p.dom}
               </span>
+              <span className="hcal-weekhead-mid" aria-hidden>
+                ·
+              </span>
               <WeekStat
                 count={count}
-                noun={noun}
                 delta={isCurrent ? delta : null}
                 onEnter={(rect) =>
                   setStatOpen({ rect, count, priorCount, priorMon })
