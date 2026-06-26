@@ -5936,6 +5936,16 @@ export type MarketTick = {
   // HO 251: monthly FRED (CPI/UNEMP) and kalshi are NOT "EOD" — cadence carries
   // their framing instead, so eod is daily-FRED only.
   eod: boolean;
+  // HO 374: 7d hover enrichment, folded into this cached object (no separate
+  // per-hover fetch). `spark` is the symbol's own 7d series, oldest→newest, for the
+  // hover sparkline (the consumer gates on ≥2 points; monthly CPI/UNEMP fall out
+  // with ~0–1 points). `delta1w` is the 1-week change — PERCENT for markets/FRED-
+  // daily, percentage-POINTS for kalshi odds (the price is already a probability) —
+  // or null when no 7d anchor within +2d tolerance exists (the <7d cohort). POLY-*
+  // never carry a spark: the odds sparkline draws from the deeper Kalshi series
+  // (HO 251), so the empty Poly key (POLY-SHUTDOWN has zero rows) is a non-issue.
+  spark: { t: number; p: number }[];
+  delta1w: number | null;
 };
 
 export const getLatestMarketTicks = unstable_cache(
@@ -5950,12 +5960,81 @@ export const getLatestMarketTicks = unstable_cache(
         GROUP BY symbol
       ) latest ON m.symbol = latest.symbol AND m.ticked_at = latest.max_t
       ORDER BY m.symbol`);
+
+    // HO 374: the 7d sparkline series + the 1W delta anchor, in ONE batched query
+    // folded into this cached object (HO 374: no separate per-hover fetch — a
+    // route-level `revalidate` is inert in Next 15, so the cache lives at the query
+    // layer). Pull a 9-DAY window (2d past the 7d mark) so the delta anchor — the
+    // nearest row at-or-before now−7d, accepted within the +2d tolerance — is
+    // captured in the same scan; the sparkline itself uses only the ≤7d slice. POLY-*
+    // are excluded: the odds sparkline draws from the deeper Kalshi series (HO 251),
+    // never the Polymarket half (POLY-SHUTDOWN has zero rows anyway). ~500 rows, well
+    // inside the 10s abort.
+    const sparkKeys = MARKET_SYMBOLS.filter((s) => s.source !== "polymarket").map(
+      (s) => s.internal,
+    );
+    const seriesRs = await db.execute({
+      sql: `SELECT symbol, price, ticked_at
+            FROM market_ticks
+            WHERE symbol IN (${sparkKeys.map(() => "?").join(",")})
+              AND julianday(ticked_at) >= julianday('now','-9 day')
+            ORDER BY symbol, ticked_at`,
+      args: sparkKeys,
+    });
+    const nowMs = Date.now();
+    const windowStartMs = nowMs - 7 * 86_400_000;
+    const anchorFloorMs = windowStartMs - 2 * 86_400_000; // now − 9d (the +2d tolerance)
+    const seriesBySymbol = new Map<string, { t: number; p: number }[]>();
+    for (const r of seriesRs.rows) {
+      const sym = r.symbol as string;
+      const t = Date.parse(r.ticked_at as string);
+      const p = r.price as number;
+      if (!Number.isFinite(t) || typeof p !== "number" || !Number.isFinite(p)) {
+        continue;
+      }
+      let arr = seriesBySymbol.get(sym);
+      if (!arr) seriesBySymbol.set(sym, (arr = []));
+      arr.push({ t, p });
+    }
+
     const symbolMap = new Map(MARKET_SYMBOLS.map((s) => [s.internal, s]));
     const out: MarketTick[] = [];
     for (const row of rs.rows) {
       const internal = row.symbol as string;
       const meta = symbolMap.get(internal);
       if (!meta) continue; // unknown internal symbol — skip rather than crash
+
+      // HO 374: spark = the ≤7d slice; 1W anchor = the nearest row in the tolerance
+      // window [now−9d, now−7d]. The series is time-ascending, so the LAST qualifying
+      // point is the one nearest the 7d mark. No anchor → the <7d cohort → delta null.
+      //
+      // HO 373 premise correction: the monthly cohort (CPI/UNEMP) is NOT ~0–1 points
+      // in 7d as that handoff assumed — the markets cron re-inserts the same monthly
+      // value every run with a fresh ticked_at (HO 251 washing), so the table holds
+      // ~11 SAME-PRICE rows in 7d. Drawn literally that's a meaningless flat
+      // sparkline + a "1W +0.0%" delta. A monthly print is one real observation, so
+      // suppress BOTH for monthly → it renders figure + freshness only (HO 374's
+      // intended monthly behavior, just not the auto-gate the handoff expected).
+      const monthly = meta.cadence === "monthly";
+      const series = monthly ? [] : seriesBySymbol.get(internal) ?? [];
+      const spark = series.filter((pt) => pt.t >= windowStartMs);
+      let anchorPrice: number | null = null;
+      for (const pt of series) {
+        if (pt.t <= windowStartMs && pt.t >= anchorFloorMs) anchorPrice = pt.p;
+      }
+      const nowPrice = row.price as number;
+      let delta1w: number | null = null;
+      if (anchorPrice !== null) {
+        // kalshi → percentage points (the price is already a probability); else
+        // percent (guard the divide-by-zero, though a 0 market price is implausible).
+        delta1w =
+          meta.cadence === "kalshi"
+            ? nowPrice - anchorPrice
+            : anchorPrice !== 0
+              ? ((nowPrice - anchorPrice) / anchorPrice) * 100
+              : null;
+      }
+
       out.push({
         symbol: internal,
         label: meta.label,
@@ -5968,6 +6047,8 @@ export const getLatestMarketTicks = unstable_cache(
         group: meta.group,
         cadence: meta.cadence,
         eod: meta.source === "fred" && meta.cadence === "daily",
+        spark,
+        delta1w,
       });
     }
     // Preserve the in-code MARKET_SYMBOLS order so each tape renders in tape

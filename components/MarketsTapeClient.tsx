@@ -118,6 +118,98 @@ function formatChangePct(pct: number): string {
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
 }
 
+// HO 374: the 1W delta string. Kalshi odds move in percentage POINTS (the price is
+// already a probability, so a percent-of-a-percent misleads); everything else in
+// percent. Mirrors formatChangePct's explicit sign + U+2212 minus.
+function formatDelta1w(value: number, cadence: MarketTick["cadence"]): string {
+  const sign = value >= 0 ? "+" : "−";
+  const abs = Math.abs(value).toFixed(1);
+  return cadence === "kalshi" ? `${sign}${abs}pts` : `${sign}${abs}%`;
+}
+
+// HO 374: the 7d hover sparkline. Stroke-only, direction-colored, no axis/fill/
+// labels. x = time-normalized over the SERIES' own extent so a <7d item spans its
+// lifetime and an equity's weekend shows as a wide flat span — not a compressed or
+// broken step (HO 373 settled time-based x). y = price min→max, SVG-inverted; a
+// flat series (min==max) draws a centered line (guard the divide-by-zero). The
+// viewBox is a fixed 100×22 with preserveAspectRatio:none so the path stretches to
+// the box width; vector-effect:non-scaling-stroke keeps the 1px true despite the
+// x-stretch. Caller gates on ≥2 points. Color from existing tokens — no new CSS var.
+function Sparkline({ series }: { series: MarketTick["spark"] }) {
+  const VBW = 100;
+  const VBH = 22;
+  const PAD = 1.5;
+  let tMin = Infinity;
+  let tMax = -Infinity;
+  let pMin = Infinity;
+  let pMax = -Infinity;
+  for (const s of series) {
+    if (s.t < tMin) tMin = s.t;
+    if (s.t > tMax) tMax = s.t;
+    if (s.p < pMin) pMin = s.p;
+    if (s.p > pMax) pMax = s.p;
+  }
+  const tSpan = tMax - tMin || 1;
+  const pSpan = pMax - pMin;
+  const x = (t: number) => ((t - tMin) / tSpan) * VBW;
+  const y = (p: number) =>
+    pSpan === 0 ? VBH / 2 : PAD + (1 - (p - pMin) / pSpan) * (VBH - 2 * PAD);
+  const d = series
+    .map((s, i) => `${i === 0 ? "M" : "L"}${x(s.t).toFixed(2)} ${y(s.p).toFixed(2)}`)
+    .join(" ");
+  const up = series[series.length - 1]!.p >= series[0]!.p;
+  return (
+    <svg
+      className="markets-tape-detail-spark"
+      viewBox={`0 0 ${VBW} ${VBH}`}
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      <path
+        d={d}
+        fill="none"
+        stroke={up ? "var(--market-up)" : "var(--market-down)"}
+        strokeWidth={1}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
+// HO 374: the two new hover rows — the 1W delta (gated on a server-computed
+// anchor) and the 7d sparkline (gated on ≥2 points) — inserted between the figure
+// and the freshness line. Both omit cleanly when their gate fails (the <7d cohort
+// shows a lifetime spark but no delta; CPI/UNEMP show neither).
+function HoverEnrichment({
+  delta1w,
+  spark,
+  cadence,
+}: {
+  delta1w: number | null;
+  spark: MarketTick["spark"];
+  cadence: MarketTick["cadence"];
+}) {
+  return (
+    <>
+      {delta1w !== null ? (
+        <span className="markets-tape-detail-delta">
+          <span className="markets-tape-detail-delta-label">1W</span>
+          <span
+            style={{
+              color: delta1w >= 0 ? "var(--market-up)" : "var(--market-down)",
+            }}
+          >
+            {formatDelta1w(delta1w, cadence)}
+          </span>
+        </span>
+      ) : null}
+      {spark.length >= 2 ? <Sparkline series={spark} /> : null}
+    </>
+  );
+}
+
 // HO 259: the meeting/deadline MONTH for a dual-source label ("FED CUT JUL"),
 // derived from the primary tick's resolution date — no new data.
 function monthAbbrUpper(iso: string): string {
@@ -210,6 +302,14 @@ function PairItem({
           <span className="markets-tape-detail-value">{pVal}</span>
         </span>
       </span>
+      {/* HO 374: the odds 1W delta (pts) + 7d spark draw from the KALSHI series
+          only (the deeper venue, HO 251) — Polymarket stays the secondary figure
+          number, never a second line. `primary` is the Kalshi tick. */}
+      <HoverEnrichment
+        delta1w={primary?.delta1w ?? null}
+        spark={primary?.spark ?? []}
+        cadence={primary?.cadence ?? "kalshi"}
+      />
       <span className="markets-tape-detail-fresh">Live · prediction market</span>
     </>
   );
@@ -370,6 +470,11 @@ function TickItem({
           </span>
         ) : null}
       </span>
+      <HoverEnrichment
+        delta1w={tick.delta1w}
+        spark={tick.spark}
+        cadence={tick.cadence}
+      />
       <span className="markets-tape-detail-fresh">{freshnessText}</span>
     </>
   );

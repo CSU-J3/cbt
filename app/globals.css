@@ -5887,6 +5887,32 @@ body {
   font-weight: 600;
   letter-spacing: 0.5px;
 }
+/* HO 374: the 1W delta row — a dim "1W" label + the up/down-hued change (pts for
+   odds, % for markets), sitting between the figure and the freshness line. Omitted
+   when no 7d anchor exists (the <7d cohort). */
+.markets-tape-detail-delta {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.markets-tape-detail-delta-label {
+  margin-right: 6px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+/* HO 374: the 7d sparkline — stroke-only, stretches to the box width, ~22px tall.
+   The SVG itself carries the direction-colored path (existing market-up/down
+   tokens, no new var); viewBox is fixed 100×22 with non-scaling-stroke so the 1px
+   line holds across the width-stretch. */
+.markets-tape-detail-spark {
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin-top: 6px;
+}
 /* 4. Freshness: a dim bottom line with a top border, showing the item's real
    freshness (EOD · time / as-of time / FRED monthly release / live odds). */
 .markets-tape-detail-fresh {
