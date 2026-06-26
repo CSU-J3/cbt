@@ -5,7 +5,7 @@
 // inline trigger (passed as children) and, on hover/focus, shows a static card
 // PORTALED to <body> at a fixed position below the metric (upward pointer). The
 // portal is the proven pattern for this strip (the markets tape + the old
-// MetricTip both portal) — the dashboard has stacking complexity (z-30 tapes,
+// flat popover both portal) — the dashboard has stacking complexity (z-30 tapes,
 // :has hover overlays) and dv2-grid paints after the band, so an in-flow
 // absolute card would be occluded. Static: no transitions/animation.
 import {
