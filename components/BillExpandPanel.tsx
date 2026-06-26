@@ -245,23 +245,43 @@ function HearingBlock({
   meetings,
   currentBillId,
   loaded,
+  silentDays,
 }: {
   meetings: PanelMeeting[];
   currentBillId: string;
   loaded: boolean;
+  // HO 371: when set (/stale), append the "then silent" line under a populated
+  // hearing — Nd since last action. null on every other surface.
+  silentDays: number | null;
 }) {
   const now = Date.now();
+  // HO 371: in momentum mode (/stale, silentDays set) the "life" being surfaced
+  // is a PAST hearing — these bills are 60+ days stale, so HO 324's
+  // current-or-upcoming filter (3h window) would drop every one and the block
+  // would read NO RELATED HEARINGS even when the collapsed HEARD badge is lit.
+  // So pick the most-recent hearing regardless of past/future, matching the
+  // badge + the "then silent" story. Non-momentum surfaces keep HO 324's
+  // soonest-current-or-upcoming selection unchanged.
+  const dated = meetings
+    .map((mt) => ({ mt, t: Date.parse(mt.meetingDate) }))
+    .filter((x) => Number.isFinite(x.t));
   const m =
-    meetings
-      .map((mt) => ({ mt, t: Date.parse(mt.meetingDate) }))
-      .filter((x) => Number.isFinite(x.t) && x.t + LIVE_WINDOW_MS >= now)
-      .sort((a, b) => a.t - b.t)[0]?.mt ?? null;
+    silentDays != null
+      ? (dated.sort((a, b) => b.t - a.t)[0]?.mt ?? null)
+      : (dated
+          .filter((x) => x.t + LIVE_WINDOW_MS >= now)
+          .sort((a, b) => a.t - b.t)[0]?.mt ?? null);
 
   return (
     <div className="bxp-relblock">
       <div className="bxp-relhdr">Hearing</div>
       {m ? (
-        <PopulatedHearing meeting={m} currentBillId={currentBillId} now={now} />
+        <PopulatedHearing
+          meeting={m}
+          currentBillId={currentBillId}
+          now={now}
+          silentDays={silentDays}
+        />
       ) : loaded ? (
         <div className="bxp-relempty">NO RELATED HEARINGS</div>
       ) : null}
@@ -273,10 +293,12 @@ function PopulatedHearing({
   meeting: m,
   currentBillId,
   now,
+  silentDays,
 }: {
   meeting: PanelMeeting;
   currentBillId: string;
   now: number;
+  silentDays: number | null;
 }) {
   const ws = watchState(
     {
@@ -359,23 +381,43 @@ function PopulatedHearing({
           ) : null}
         </div>
       ) : null}
+      {silentDays != null ? (
+        <div className="bxp-hsilent">NO ACTION IN {silentDays}d</div>
+      ) : null}
     </>
   );
 }
 
 // ---- the shared panel -------------------------------------------------------
 
+// HO 371: cosponsor support bar — 5 segments span 1–50 (segment width 10), the
+// >50 tail caps at full. Mirrors the collapsed figure's magnitude read.
+function cosponsorSegments(count: number): number {
+  return Math.min(5, Math.ceil(count / 10));
+}
+
 export function BillExpandPanel({
   bill,
   panel,
+  showMomentum = false,
 }: {
   bill: FeedBill;
   panel: PanelData | null;
+  // HO 371: /stale-only momentum overlay (see BillRowList). Adds the cosponsor
+  // support bar to the COSPONSORS row and the "then silent" line under a
+  // populated hearing; gated so it never leaks to the dashboard / /bills panels.
+  showMomentum?: boolean;
 }) {
   const committee0 = panel?.committees[0] ?? null;
   const news = panel?.news ?? [];
   const meetings = panel?.meetings ?? [];
   const cgUrl = congressGovUrl(bill.congress, bill.bill_type, bill.bill_number);
+  // The "then silent" payload — days since last action, shown only under a
+  // populated hearing on /stale.
+  const silentDays =
+    showMomentum && bill.latest_action_date
+      ? daysSince(bill.latest_action_date)
+      : null;
 
   return (
     <div className="bxp">
@@ -391,6 +433,7 @@ export function BillExpandPanel({
             meetings={meetings}
             currentBillId={bill.id}
             loaded={panel !== null}
+            silentDays={silentDays}
           />
 
           {/* RELATED NEWS — always; empty state once loaded. */}
@@ -439,10 +482,30 @@ export function BillExpandPanel({
           {bill.cosponsor_count != null ? (
             <div className="bxp-mrow">
               <div className="bxp-mlabel">Cosponsors</div>
-              <div className="bxp-mval tabular-nums">
-                {bill.cosponsor_count.toLocaleString()} cosponsor
-                {bill.cosponsor_count === 1 ? "" : "s"}
-              </div>
+              {showMomentum ? (
+                <div className="bxp-mval bxp-cosrow">
+                  <span className="bxp-cosval tabular-nums">
+                    {bill.cosponsor_count.toLocaleString()}
+                  </span>
+                  <span className="bxp-cosbar" aria-hidden>
+                    {Array.from({ length: 5 }, (_, i) => (
+                      <span
+                        key={i}
+                        className={`bxp-cosseg${
+                          i < cosponsorSegments(bill.cosponsor_count!)
+                            ? " bxp-cosseg--on"
+                            : ""
+                        }`}
+                      />
+                    ))}
+                  </span>
+                </div>
+              ) : (
+                <div className="bxp-mval tabular-nums">
+                  {bill.cosponsor_count.toLocaleString()} cosponsor
+                  {bill.cosponsor_count === 1 ? "" : "s"}
+                </div>
+              )}
             </div>
           ) : null}
 

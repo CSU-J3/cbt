@@ -1257,6 +1257,54 @@ body {
   grid-template-columns: 1fr 90px 40px 36px;
 }
 
+/* HO 371 — /stale momentum overlay. The support figure + reserved HEARD slot
+   sit in an `auto` column between the row content and the age column. /stale
+   always carries has-days-since, so this combined rule (specificity 0,0,3) wins
+   over the has-days-since rule above. */
+.feed-row.has-momentum.has-days-since {
+  grid-template-columns: 1fr auto 90px 40px 36px;
+}
+.feed-row .row-momentum {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 10px 14px 10px 0;
+}
+.feed-row .row-support {
+  min-width: 40px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
+.feed-row .row-support.high {
+  color: var(--accent-amber-bright);
+  font-weight: 600;
+}
+.feed-row .row-support.mid {
+  color: var(--text-secondary);
+}
+.feed-row .row-support.low,
+.feed-row .row-support.nul {
+  color: var(--text-dim);
+}
+/* Fixed 52px so rows with and without the badge stay column-aligned. */
+.feed-row .row-hslot {
+  width: 52px;
+  display: flex;
+  justify-content: flex-end;
+}
+.feed-row .heard-badge {
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 2px;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 /* HO 130 media-attention cell. Just the number in --accent-amber when
    populated; blank slot otherwise. Sits between the Link/days-since and
    the star so its own click target doesn't nest inside the row's anchor. */
@@ -3963,6 +4011,38 @@ body {
   margin-top: 4px;
   line-height: 1.45;
 }
+/* HO 371 — /stale momentum: COSPONSORS row gets an amber count + a 5-segment
+   support bar (segment width 10, capped at 5). */
+.bxp-cosrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.bxp-cosval {
+  color: var(--accent-amber-bright);
+  font-weight: 600;
+}
+.bxp-cosbar {
+  display: inline-flex;
+  gap: 2px;
+}
+.bxp-cosseg {
+  width: 6px;
+  height: 9px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+.bxp-cosseg--on {
+  background: var(--accent-amber-bright);
+}
+/* HO 371 — the "then silent" line under a populated hearing on /stale. */
+.bxp-hsilent {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--accent-amber-bright);
+  text-transform: uppercase;
+}
 .bxp-clnk {
   color: var(--accent-amber);
   text-decoration: none;
@@ -5275,6 +5355,13 @@ body {
   .feed-row.has-days-since {
     grid-template-columns: 1fr 32px;
   }
+  /* HO 371 — keep the /stale grid at 1fr 32px on mobile; this ties the desktop
+     has-momentum.has-days-since rule (0,0,3) and wins by being later in the
+     file. The support figure + HEARD are dropped (the age is conveyed via the
+     current pill's time-since, same as the days-since column). */
+  .feed-row.has-momentum.has-days-since {
+    grid-template-columns: 1fr 32px;
+  }
   .feed-row.feed-row--compact {
     grid-template-columns: 1fr 28px;
   }
@@ -5283,6 +5370,7 @@ body {
     gap: 0 10px;
   }
   .feed-row .row-days-since,
+  .feed-row .row-momentum,
   .feed-row .row-media {
     display: none;
   }

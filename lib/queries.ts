@@ -126,6 +126,11 @@ export type FeedBill = {
   sponsor_first_name?: string | null;
   sponsor_last_name?: string | null;
   sponsor_district?: number | null;
+  // HO 371: true when the bill has ≥1 committee_bills hearing row. Selected
+  // (via a correlated EXISTS) by getStaleBills ONLY, for the /stale momentum
+  // overlay's HEARD badge; undefined-safe in rowToFeedBill so every other
+  // feed-shape query degrades to undefined (no badge off /stale).
+  heard?: boolean;
 };
 
 export type BillDetail = FeedBill & {
@@ -3211,6 +3216,7 @@ export const getStaleBills = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_changed_at,
+      EXISTS (SELECT 1 FROM meeting_bills mb WHERE mb.bill_id = bills.id) AS heard,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY ${fromHint}
@@ -4188,6 +4194,9 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
       r.sponsor_district === undefined || r.sponsor_district === null
         ? null
         : Number(r.sponsor_district),
+    // HO 371: undefined-safe — only getStaleBills SELECTs the EXISTS column
+    // (returns 0/1). Other feed queries leave it undefined → no HEARD badge.
+    heard: r.heard === undefined ? undefined : Boolean(r.heard),
   };
 }
 

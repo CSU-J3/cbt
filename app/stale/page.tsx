@@ -223,6 +223,7 @@ export default async function StalePage({
               bills={bills}
               watchedIds={watchedIds}
               daysSinceMode="staleness"
+              showMomentum
             />
           )}
         </div>

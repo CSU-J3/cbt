@@ -29,12 +29,18 @@ export function BillRowList({
   daysSinceMode,
   className,
   compact = false,
+  showMomentum = false,
 }: {
   bills: FeedBill[];
   watchedIds: string[];
   daysSinceMode?: DaysSinceMode;
   className?: string;
   compact?: boolean;
+  // HO 371: gate the /stale momentum overlay (collapsed support figure + HEARD,
+  // expand cosponsor bar + "then silent" line). True only from the /stale page —
+  // BillRow + BillExpandPanel are shared across surfaces, so without this the
+  // overlay would leak everywhere.
+  showMomentum?: boolean;
 }) {
   const watchedSet = useMemo(() => new Set(watchedIds), [watchedIds]);
   const { expandedId, toggle, panelCache, handleLoaded } = useSingleOpenPanel();
@@ -69,6 +75,7 @@ export function BillRowList({
             bill={b}
             compact={compact}
             daysSinceMode={daysSinceMode}
+            showMomentum={showMomentum}
             onWatchlist={watchedSet.has(b.id)}
             isOpen={isOpen}
             onToggle={() => toggle(b.id)}
@@ -82,7 +89,11 @@ export function BillRowList({
                     onLoaded={(data) => handleLoaded(b.id, data)}
                   />
                 ) : (
-                  <BillExpandPanel bill={b} panel={panelCache.get(b.id) ?? null} />
+                  <BillExpandPanel
+                    bill={b}
+                    panel={panelCache.get(b.id) ?? null}
+                    showMomentum={showMomentum}
+                  />
                 )
               ) : null
             }

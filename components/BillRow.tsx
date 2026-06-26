@@ -32,6 +32,19 @@ function shortSponsor(name: string | null): string {
   return lastName ?? noPrefix;
 }
 
+// HO 371 — /stale momentum overlay. The cosponsor support figure, banded by the
+// tuned live-distribution thresholds (n=515 non-null: p75=12, p90=32). high lands
+// ≈ top 11%. NULL renders an em-dash (not stored), not the 0-cosponsor value.
+function supportFigure(count: number | null | undefined): {
+  cls: "high" | "mid" | "low" | "nul";
+  text: string;
+} {
+  if (count == null) return { cls: "nul", text: "—" };
+  if (count >= 30) return { cls: "high", text: `+${count}` };
+  if (count >= 10) return { cls: "mid", text: `+${count}` };
+  return { cls: "low", text: `+${count}` };
+}
+
 // HO 148 — when an `onToggle` callback is provided (rows wrapped in
 // BillRowList), the rail+content becomes a div-role-button click target
 // that fires `onToggle` and the row renders `expandedPanel` below itself
@@ -51,6 +64,7 @@ export function BillRow({
   bill,
   daysSinceMode,
   compact = false,
+  showMomentum = false,
   onWatchlist = false,
   isOpen = false,
   onToggle,
@@ -59,6 +73,10 @@ export function BillRow({
   bill: FeedBill;
   daysSinceMode?: DaysSinceMode;
   compact?: boolean;
+  // HO 371: /stale-only momentum overlay (see BillRowList). Adds the line-1
+  // support figure + HEARD slot before the age cell; gated so it never leaks to
+  // the other shared BillRow surfaces.
+  showMomentum?: boolean;
   onWatchlist?: boolean;
   isOpen?: boolean;
   onToggle?: () => void;
@@ -100,12 +118,18 @@ export function BillRow({
   const rowClass = [
     "feed-row",
     daysSinceMode ? "has-days-since" : "",
+    showMomentum ? "has-momentum" : "",
     compact ? "feed-row--compact" : "",
     expandable ? "feed-row--expandable" : "",
     isOpen ? "is-open" : "",
   ]
     .filter(Boolean)
     .join(" ");
+
+  // HO 371: collapsed-row momentum cluster — support figure + reserved HEARD slot
+  // (always 52px so rows with/without the badge stay column-aligned). Renders
+  // before the age cell; /stale-only.
+  const support = showMomentum ? supportFigure(bill.cosponsor_count) : null;
 
   const inner = (
     <>
@@ -172,6 +196,15 @@ export function BillRow({
   return (
     <li className={rowClass}>
       {navigableShell}
+
+      {support ? (
+        <span className="row-momentum">
+          <span className={`row-support ${support.cls}`}>{support.text}</span>
+          <span className="row-hslot">
+            {bill.heard ? <span className="heard-badge">HEARD</span> : null}
+          </span>
+        </span>
+      ) : null}
 
       {daysSinceMode ? (
         <span
