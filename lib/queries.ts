@@ -2940,8 +2940,16 @@ export async function getCandidateBills(
 ): Promise<CandidateBill[]> {
   const db = getDb();
   const rs = await db.execute({
+    // HO 369: force idx_bills_latest_action. Without the hint the
+    // `(is_ceremonial = 0 OR is_ceremonial IS NULL)` clause lures the statless
+    // Turso planner into a MULTI-INDEX OR over idx_bills_is_ceremonial
+    // (is_ceremonial=0 ≈ the whole 16.5k-row corpus) + a temp-b-tree sort —
+    // ~20s, past the HO 238 abort, which timed out the news cron 5 days
+    // straight. The hint drives the ~30-day window off the date index in its
+    // own DESC order (no temp sort); is_ceremonial/summary become residual
+    // filters. Same gated-aggregate mis-plan family as HO 277–279/329/335.
     sql: `SELECT id, title, summary
-          FROM bills
+          FROM bills INDEXED BY idx_bills_latest_action
           WHERE latest_action_date >= date('now', ?)
             AND summary IS NOT NULL
             AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
