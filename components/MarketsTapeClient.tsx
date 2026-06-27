@@ -26,6 +26,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -36,6 +37,10 @@ import { SourceTag } from "@/components/SourceTag";
 import { isMarketOpen } from "@/lib/market-hours";
 import { policyHook } from "@/lib/policy-hooks";
 import type { MarketTick } from "@/lib/queries";
+import {
+  computeTooltipPosition,
+  type TriggerRect,
+} from "@/lib/tooltip-position";
 import { formatInZone, useZoneCycle, type ZoneSpec } from "@/lib/zone-cycle";
 
 const STALE_THRESHOLD_MS = 26 * 60 * 60 * 1000;
@@ -579,46 +584,75 @@ export function MarketsTapeClient({
   // when showMeta is false (top tape) — hooks must not be conditional.
   const zone = useZoneCycle();
 
-  // HO 293/294: hover-detail box. Portaled to <body>, opaque, z-1000 (293) — so
-  // it can OVERLAY the ticker cleanly (it paints on top). HO 294 re-anchors it to
-  // pop OVER the strips near the hovered item instead of dropping below the whole
-  // tape block (which landed over the nav / page content). The box is taller than
-  // the two thin strips, so dropping it DOWN would spill onto the nav for either
-  // strip; instead anchor its BOTTOM just above the ticker block's bottom (the
-  // nav boundary) and grow UPWARD over the strips (the --portal CSS adds
-  // translateY(-100%)). Uniform for items on both strips; never over the nav.
-  // `.dv2-tapes` is the two-strip block; falls back to this strip on the bare tape.
+  // HO 293/294/375: hover-detail box. Portaled to <body>, opaque, z-1000 (293) so
+  // it OVERLAYS the ticker cleanly. HO 375 replaced the HO 294 grow-upward anchor
+  // (which tucked the now-taller HO 374 box — sparkline + 1W delta — up under the
+  // sticky masthead, and only roughly clamped x) with the shared popover helper:
+  // measure the rendered box, then clamp ALL FOUR edges to the viewport and drop
+  // it BELOW the whole tape block (preferBelow) so it stays clear of the masthead.
+  // The trigger rect is horizontal = the hovered item (so the box centers on it),
+  // vertical = the tape block (so it drops below both stacked strips on one
+  // baseline). `.dv2-tapes` is the two-strip block; falls back to this strip on
+  // the bare tape.
   const [detail, setDetail] = useState<{
     node: ReactNode;
+    trigger: TriggerRect;
+  } | null>(null);
+  const [detailPos, setDetailPos] = useState<{
     left: number;
     top: number;
   } | null>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
   const handleHover = useCallback<HoverHandler>((node, el) => {
     if (!node || !el) {
       setDetail(null);
+      setDetailPos(null);
       return;
     }
     const rect = el.getBoundingClientRect();
     const block =
       (el.closest(".dv2-tapes") as HTMLElement | null) ??
       (el.closest(".markets-tape") as HTMLElement | null);
-    const blockBottom = block
-      ? block.getBoundingClientRect().bottom
-      : rect.bottom;
-    const cx = rect.left + rect.width / 2;
-    // Clamp x so an edge item's box (~150px each side) stays on-screen.
-    const left = Math.max(160, Math.min(cx, window.innerWidth - 160));
-    // `top` is the box's BOTTOM edge (the --portal transform pulls it up by its
-    // own height); −4 leaves a hair of the ticker visible under the box, clear of
-    // the nav.
-    setDetail({ node, left, top: blockBottom - 4 });
+    const blockRect = block ? block.getBoundingClientRect() : rect;
+    setDetail({
+      node,
+      trigger: {
+        left: rect.left,
+        width: rect.width,
+        top: blockRect.top,
+        height: blockRect.height,
+      },
+    });
+    setDetailPos(null); // hidden until measured (below)
   }, []);
+  // HO 375: measure the box and clamp it via the shared helper. useLayoutEffect
+  // runs before paint, so the hidden→placed step is invisible (no flicker).
+  useLayoutEffect(() => {
+    if (!detail) return;
+    const box = detailRef.current;
+    if (!box || typeof window === "undefined") return;
+    const { width, height } = box.getBoundingClientRect();
+    const p = computeTooltipPosition({
+      trigger: detail.trigger,
+      panelWidth: width,
+      panelHeight: height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      preferBelow: true,
+    });
+    setDetailPos({ left: p.left, top: p.top });
+  }, [detail]);
   const detailPortal =
     detail && typeof document !== "undefined"
       ? createPortal(
           <div
+            ref={detailRef}
             className="markets-tape-detail markets-tape-detail--portal"
-            style={{ left: detail.left, top: detail.top }}
+            style={{
+              left: detailPos?.left ?? 0,
+              top: detailPos?.top ?? 0,
+              visibility: detailPos ? "visible" : "hidden",
+            }}
             aria-hidden
           >
             {detail.node}
