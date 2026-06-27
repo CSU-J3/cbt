@@ -6,6 +6,22 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The monthly cohort re-ticks the same value daily — point-counts/sparklines/deltas must special-case it (HO 374, Jun 2026)
+
+CPI/UNEMP (FRED `cadence:"monthly"`) re-insert the SAME monthly value into `market_ticks` on every cron run — ~11 identical-price rows per week — because the cron writes a fresh `ticked_at` each tick even when the underlying monthly print hasn't changed (the same thing that keeps a fresh-but-unchanged monthly value from reading STALE; see the per-item monthly-overdue check). So any point-count, sparkline, or 1W delta computed over `market_ticks` MUST special-case the monthly cadence (suppress the spark + delta) or it draws a dead-flat line and a misleading `1W +0.0%`. HO 374 handles it by gating: the ≥2-points / 7d-anchor gates drop the monthly cohort out automatically. (Corrects the HO 374-era premise that every roster symbol has a usable 7d series.)
+
+## The odds close/resolution date is already in `market_ticks.market_date` — no new store needed (HO 375, Jun 2026)
+
+For the Kalshi/Polymarket odds symbols, the event resolution/close date is ALREADY persisted. `fetchKalshi` returns it AS `marketDate` (its `when` = `strike_date` / `close_time` / a parsed ticker suffix); `fetchPolymarketMacroQuote` returns `q.resolveDate` as `marketDate`. Both land in `market_ticks.market_date` and are exposed as `MarketTick.marketDate` (the tape already uses it for the `showMonth` suffix). So the HO 375 odds-hover `closes <MON DD>` line was **render-only** — no `market_meta` table, no schema column, no latest-markets query change. This supersedes the HO 374/375 assumption that surfacing a close date would need a new per-symbol store. Note `marketDate` means different things per source — the trading day for FMP/FRED, the resolution date for odds — but for the odds cohort it IS the close date.
+
+## POLY-SHUTDOWN returns no rows — the hover degrades to N/A (HO 374/375, Jun 2026)
+
+The Polymarket shutdown half (`POLY-SHUTDOWN`) returns no liquid same-question market, so `fetchPolymarketMacroQuote` throws → no tick is written → the ODDS pair's P slot reads dim `N/A` and the pair stays intact. The SHUTDOWN sparkline draws from the Kalshi `SHUTDOWN` series (Polymarket never drives a spark), so the empty Poly key costs nothing. Known gap, handled gracefully — not a regression. Open question (backlog): whether the Polymarket shutdown contract id is wrong vs. the market genuinely having no liquidity.
+
+## `market_ticks` holds dead symbols from prior roster swaps — key reads off the displayed roster, not `SELECT DISTINCT symbol` (HO 373, Jun 2026)
+
+~13 stale symbols (old roster members from the Stooq→FMP/FRED swap and the HO 251 tape swap) still sit in `market_ticks` with frozen history. Any tape/series read must key off the CURRENTLY-DISPLAYED roster's internal keys (`MARKET_SYMBOLS` / the tape's `placeholderSymbols`), never `SELECT DISTINCT symbol FROM market_ticks` — the latter resurrects dead instruments. (Settled in the HO 373 sparkline-source probe.)
+
 ## Tape freshness reads `MAX(ticked_at)` across all symbols — one fresh feed masks N dead ones (HO 370, Jun 2026)
 
 The markets-tape staleness check reads `MAX(ticked_at)` over the whole roster, so a single live symbol hides any number of stale ones — the strip reads "fresh" while a dead feed sits frozen behind it. The honest health read is **per-source `MAX(ticked_at)`** (FMP vs FRED vs Kalshi vs Polymarket), not a global max. Latent trap when diagnosing "is the tape actually live": the green AS-OF stamp only proves *something* ticked, not that everything did.
