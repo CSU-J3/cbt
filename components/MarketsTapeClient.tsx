@@ -123,6 +123,24 @@ function formatChangePct(pct: number): string {
   return `${pct >= 0 ? "+" : "−"}${abs}%`;
 }
 
+// HO 375 Pt 2: the odds resolution/close date — "Oct 1" — for the hover freshness
+// line. fetchKalshi already returns the event's resolution date AS marketDate (its
+// `when` = strike_date / close_time / ticker-suffix), persisted to
+// market_ticks.market_date and exposed here as MarketTick.marketDate — so no new
+// store/query is needed; the date is already in hand. Short month+day matches the
+// box's existing date style (formatMonth's "May 2026"). Returns null on a
+// missing/unparseable date so the caller degrades to a bare "Live".
+function formatCloseDate(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 // HO 374: the 1W delta string. Kalshi odds move in percentage POINTS (the price is
 // already a probability, so a percent-of-a-percent misleads); everything else in
 // percent. Mirrors formatChangePct's explicit sign + U+2212 minus.
@@ -315,7 +333,15 @@ function PairItem({
         spark={primary?.spark ?? []}
         cadence={primary?.cadence ?? "kalshi"}
       />
-      <span className="markets-tape-detail-fresh">Live · prediction market</span>
+      {/* HO 375 Pt 2: show when the bet closes (the Kalshi event's resolution
+          date), replacing the redundant "prediction market" clause — the head's
+          sector tag already reads PREDICTION MARKET. Degrades to bare "Live" if
+          the date is missing. */}
+      <span className="markets-tape-detail-fresh">
+        {primary && formatCloseDate(primary.marketDate)
+          ? `Live · closes ${formatCloseDate(primary.marketDate)}`
+          : "Live"}
+      </span>
     </>
   );
   return (
@@ -425,11 +451,17 @@ function TickItem({
   // FRED-daily (10Y/WTI) → "EOD · {time}"; intraday indices → bare as-of time
   // (no EOD label); FRED-monthly (CPI/UNEMP) → "FRED · monthly · released
   // {month}"; kalshi (defensive — odds render via PairItem) → live.
+  // HO 375 Pt 2: odds (kalshi) freshness shows the close date instead of the
+  // redundant "prediction market" (the head sector tag already says it); the
+  // Kalshi marketDate IS the event resolution date. Degrades to bare "Live".
+  const oddsClose = tick.cadence === "kalshi" ? formatCloseDate(tick.marketDate) : null;
   const freshnessText =
     tick.cadence === "monthly"
       ? `FRED · monthly · released ${formatMonth(tick.marketDate)}`
       : tick.cadence === "kalshi"
-        ? "Live · prediction market"
+        ? oddsClose
+          ? `Live · closes ${oddsClose}`
+          : "Live"
         : tick.eod
           ? `EOD · ${formatInZone(tick.tickedAt, zone)}`
           : formatInZone(tick.tickedAt, zone);
