@@ -77,7 +77,8 @@ const DEFAULT_PRICE_SLOT_CH = 8;
 // HO 258: marquee scroll speed (px/sec), count-agnostic (HO 168 lesson) — the
 // animation duration is derived from the measured half-width / this, so a 4-symbol
 // SIGNALS strip and an 8-symbol set crawl at the same visual pace.
-const SCROLL_SPEED_PX_S = 42;
+// HO 376: slowed ~1.75x (42 → 24) for a calmer read; single tunable, dial later.
+const SCROLL_SPEED_PX_S = 24;
 
 // HO 251 monthly-overdue threshold: a monthly print older than this reads as a
 // genuinely stalled series (the next month's release is well past due), so it
@@ -94,6 +95,21 @@ const MONTHLY_OVERDUE_MS = 40 * 24 * 60 * 60 * 1000;
 // (the cron has no clean way to know its prior row was stale, so the guard lives at
 // render where it also covers already-stored rows + every future lag-jump).
 const MAX_PLAUSIBLE_DAILY_MOVE_PCT = 8;
+
+// HO 376: Fisher-Yates shuffle (returns a new array; does not mutate the input).
+// Used once per mount to randomize each scrolling strip's item order so the loop
+// doesn't always start from the same SPX run and the two stacked strips don't
+// scroll in lockstep. Called only post-mount (the hydration trap — Math.random()
+// during SSR/first render mismatches server vs client), so first paint renders
+// the stable source order.
+function shuffle<T>(arr: readonly T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
 
 function formatPrice(price: number, format: MarketTick["format"]): string {
   if (format === "yield") return `${price.toFixed(2)}%`;
@@ -701,6 +717,25 @@ export function MarketsTapeClient({
     return () => window.clearInterval(id);
   }, []);
 
+  // HO 376: shuffle this strip's render order ONCE on mount (scrolling tapes only),
+  // so reloads don't always start the loop from the same SPX run and the two
+  // stacked strips (each its own instance → its own shuffle) look uncorrelated.
+  // null until mounted → first paint uses the stable source order (the hydration
+  // trap: Math.random() during SSR/first render mismatches server vs client).
+  // The static bare tape is left untouched (no scroll → no shuffle).
+  const [shuffledOrder, setShuffledOrder] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!scroll) return;
+    const secondary = new Set((pairs ?? []).map((p) => p.secondary));
+    const base = (placeholderSymbols ?? ticks.map((t) => t.symbol)).filter(
+      (sym) => !secondary.has(sym),
+    );
+    setShuffledOrder(shuffle(base));
+    // Mount-only: the roster (placeholderSymbols/pairs) is stable for a strip;
+    // re-shuffling on a poll would re-order live, so deps are intentionally empty.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // HO 172: poll for fresh numbers and update values in place (no remount).
   useEffect(() => {
     let cancelled = false;
@@ -848,9 +883,14 @@ export function MarketsTapeClient({
   // PairItem. Drop them from the render order; map each primary to its pair.
   const pairByPrimary = new Map((pairs ?? []).map((p) => [p.primary, p]));
   const secondarySet = new Set((pairs ?? []).map((p) => p.secondary));
-  const ordered = (placeholderSymbols ?? currentTicks.map((t) => t.symbol)).filter(
-    (sym) => !secondarySet.has(sym),
-  );
+  // HO 376: post-mount the scrolling strips use the shuffled order; first paint
+  // (and the static tape) use the stable source order. Same array drives both
+  // duplicated marquee halves, so the seamless -50% wrap is preserved.
+  const ordered =
+    shuffledOrder ??
+    (placeholderSymbols ?? currentTicks.map((t) => t.symbol)).filter(
+      (sym) => !secondarySet.has(sym),
+    );
   const items = ordered.map((sym) => {
     const pair = pairByPrimary.get(sym);
     if (pair) {
