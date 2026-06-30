@@ -18,6 +18,7 @@ import "dotenv/config";
 import { getDb } from "../lib/db";
 import {
   type FecResolveInput,
+  fetchFecBySize,
   fetchFecTotals,
   logResolvedFecKey,
   resolveFecCandidateId,
@@ -39,6 +40,7 @@ type MemberRow = {
   fecCandidateId: string | null;
   fecResolvedAt: string | null;
   fundraisingIngestedAt: string | null;
+  bySizePresent: boolean; // member_fundraising.small_dollar already populated
 };
 
 function sleep(ms: number): Promise<void> {
@@ -53,7 +55,8 @@ async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
   const r = await db.execute({
     sql: `SELECT m.bioguide_id, m.name, m.first_name, m.last_name, m.state,
                  m.chamber, m.fec_candidate_id, m.fec_resolved_at,
-                 mf.ingested_at AS fundraising_ingested_at
+                 mf.ingested_at AS fundraising_ingested_at,
+                 mf.small_dollar AS small_dollar
           FROM members m
           LEFT JOIN member_fundraising mf
                  ON mf.bioguide_id = m.bioguide_id AND mf.cycle = ?
@@ -73,6 +76,7 @@ async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
     fecResolvedAt: (row.fec_resolved_at as string | null) ?? null,
     fundraisingIngestedAt:
       (row.fundraising_ingested_at as string | null) ?? null,
+    bySizePresent: (row.small_dollar as number | null) != null,
   }));
 }
 
@@ -135,6 +139,8 @@ async function main(): Promise<void> {
   let totalsFailed = 0;
   let totalsUpserted = 0;
   let totalsSkippedFresh = 0;
+  let bySizeUpserted = 0;
+  let bySizeFailed = 0;
 
   for (const m of members) {
     if (!m.state || !m.lastName) {
@@ -142,9 +148,12 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Skip if the totals row is fresh (cron-ish behavior; lets the script
-    // double as a "refresh stale rows" workflow without flags).
-    if (ageInDays(m.fundraisingIngestedAt) < STALE_DAYS) {
+    // Skip only when there's nothing left to do — totals fresh AND the by_size
+    // split already stored. A fresh-totals row missing its split (the HO 390
+    // backfill case) still falls through and fetches by_size below without
+    // re-pulling totals.
+    const totalsFresh = ageInDays(m.fundraisingIngestedAt) < STALE_DAYS;
+    if (totalsFresh && m.bySizePresent) {
       totalsSkippedFresh++;
       continue;
     }
@@ -199,37 +208,63 @@ async function main(): Promise<void> {
       cachedHit++;
     }
 
-    await sleep(DELAY_MS);
-    const totals = await fetchFecTotals(candidateId, CYCLE);
-    if (!totals) {
-      totalsFailed++;
-      continue;
+    // Totals — refresh only when stale (idempotent upsert). A fresh-totals
+    // member that's only here for the by_size backfill skips this call.
+    if (!totalsFresh) {
+      await sleep(DELAY_MS);
+      const totals = await fetchFecTotals(candidateId, CYCLE);
+      if (!totals) {
+        totalsFailed++;
+        continue;
+      }
+
+      await db.execute({
+        sql: UPSERT_FUNDRAISING_SQL,
+        args: [
+          m.bioguideId,
+          CYCLE,
+          totals.totalRaised,
+          totals.totalSpent,
+          totals.cashOnHand,
+          totals.debts,
+          totals.sourceUrl,
+          new Date().toISOString(),
+          totals.coverageEndDate,
+        ],
+      });
+      totalsUpserted++;
+      if (totalsUpserted % 25 === 0) {
+        console.log(`  upserted ${totalsUpserted} fundraising rows`);
+      }
     }
 
-    await db.execute({
-      sql: UPSERT_FUNDRAISING_SQL,
-      args: [
-        m.bioguideId,
-        CYCLE,
-        totals.totalRaised,
-        totals.totalSpent,
-        totals.cashOnHand,
-        totals.debts,
-        totals.sourceUrl,
-        new Date().toISOString(),
-        totals.coverageEndDate,
-      ],
-    });
-    totalsUpserted++;
-    if (totalsUpserted % 25 === 0) {
-      console.log(`  upserted ${totalsUpserted} fundraising rows`);
+    // HO 390 — small/large-dollar split, NON-FATAL (a by_size failure must
+    // never fail the run or undo the totals upsert). Updates the row in place
+    // (it exists: either just upserted above, or fresh from a prior run).
+    // Same candidate_id — by_candidate aggregates the authorized committees.
+    try {
+      await sleep(DELAY_MS);
+      const bySize = await fetchFecBySize(candidateId, CYCLE);
+      if (bySize) {
+        await db.execute({
+          sql: `UPDATE member_fundraising
+                SET small_dollar = ?, large_dollar = ?
+                WHERE bioguide_id = ? AND cycle = ?`,
+          args: [bySize.smallDollar, bySize.largeDollar, m.bioguideId, CYCLE],
+        });
+        bySizeUpserted++;
+      }
+    } catch (err) {
+      bySizeFailed++;
+      console.warn(`by_size ${m.name}: ${(err as Error).message}`);
     }
   }
 
   console.log(
     `\ndone — resolved_new=${resolved} cached=${cachedHit} no_match=${noMatch} ` +
       `api_errors=${apiErrors} totals_upserted=${totalsUpserted} ` +
-      `totals_failed=${totalsFailed} skipped_fresh=${totalsSkippedFresh}`,
+      `totals_failed=${totalsFailed} skipped_fresh=${totalsSkippedFresh} ` +
+      `bysize_upserted=${bySizeUpserted} bysize_failed=${bySizeFailed}`,
   );
 }
 

@@ -852,6 +852,13 @@ async function main() {
   // member_fundraising rather than its own table because every fundraising
   // total inherently has one coverage window.
   await ensureColumn(db, "member_fundraising", "coverage_end_date", "TEXT");
+  // HO 390: small/large-dollar donor split from FEC Schedule A by_size. Both
+  // INTEGER cents, nullable (NULL = by_size not yet fetched for this row,
+  // distinct from a real 0). small_dollar = the <$200 unitemized bucket
+  // (FEC size=0); large_dollar = the itemized $200+ buckets (200/500/1000/2000)
+  // summed. The honest, free donor cut (HO 388) — industry rollup stays parked.
+  await ensureColumn(db, "member_fundraising", "small_dollar", "INTEGER");
+  await ensureColumn(db, "member_fundraising", "large_dollar", "INTEGER");
   // handoff 115: summarize failure tracking. Summarize moved to its own cron
   // (/api/cron/summarize). `summarize_failed_at` gates the runner's selector —
   // a bill that just failed is skipped for 24h so a stuck bill can't burn

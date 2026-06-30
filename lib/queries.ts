@@ -2489,6 +2489,8 @@ export type MemberFundraising = {
   coverageEndDate: string | null;
   sourceUrl: string | null;
   ingestedAt: string;
+  smallDollar: number | null; // cents, <$200 unitemized (FEC by_size bucket 0)
+  largeDollar: number | null; // cents, itemized $200+ buckets summed
 };
 
 // Single most-recent cycle's fundraising row for a member. Returns null
@@ -2501,7 +2503,8 @@ export const getMemberFundraising = unstable_cache(
     const db = getDb();
     const rs = await db.execute({
       sql: `SELECT cycle, total_raised, total_spent, cash_on_hand, debts,
-                   coverage_end_date, source_url, ingested_at
+                   coverage_end_date, source_url, ingested_at,
+                   small_dollar, large_dollar
             FROM member_fundraising
             WHERE bioguide_id = ?
             ORDER BY cycle DESC
@@ -2519,6 +2522,8 @@ export const getMemberFundraising = unstable_cache(
       coverageEndDate: (row.coverage_end_date as string | null) ?? null,
       sourceUrl: (row.source_url as string | null) ?? null,
       ingestedAt: row.ingested_at as string,
+      smallDollar: (row.small_dollar as number | null) ?? null,
+      largeDollar: (row.large_dollar as number | null) ?? null,
     };
   },
   ["getMemberFundraising"],

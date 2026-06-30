@@ -258,6 +258,49 @@ function trimDate(iso: string | null | undefined): string | null {
   return iso.slice(0, 10);
 }
 
+// HO 390 — small/large-dollar split from Schedule A by_size, keyed on the
+// candidate_id we already cache (the by_candidate endpoint aggregates across
+// the candidate's authorized committees, so no committee-id resolution is
+// needed — verified live, HO 390 probe). FEC's `size` bucket floors are
+// 0/200/500/1000/2000; size=0 is the unitemized (<$200) small-dollar bucket,
+// the rest are itemized $200+ large-dollar. Returns cents, or null on a
+// transient API failure / no Schedule A rows (the caller leaves the columns
+// untouched — honest gap, no fabricated split).
+export type FecBySize = {
+  smallDollar: number; // cents, FEC size bucket 0 (<$200 unitemized)
+  largeDollar: number; // cents, itemized $200+ buckets summed
+};
+
+type FecBySizeRow = { size?: number; total?: number };
+type FecBySizeResponse = { results?: FecBySizeRow[] };
+
+export async function fetchFecBySize(
+  candidateId: string,
+  cycle: number,
+): Promise<FecBySize | null> {
+  const apiKey = fecApiKey();
+  const params = new URLSearchParams({
+    candidate_id: candidateId,
+    cycle: String(cycle),
+    per_page: "20",
+    api_key: apiKey,
+  });
+  const url = `${FEC_BASE}/schedules/schedule_a/by_size/by_candidate/?${params.toString()}`;
+  const json = await fetchJson<FecBySizeResponse>(url);
+  if (json === null) return null; // transient failure — don't persist
+  const rows = json.results ?? [];
+  if (rows.length === 0) return null; // no Schedule A data — honest gap
+  let small = 0;
+  let large = 0;
+  for (const r of rows) {
+    const cents = dollarsToCents(r.total) ?? 0;
+    if (r.size === 0) small += cents;
+    else large += cents;
+  }
+  if (small + large === 0) return null; // nothing to show, skip the degenerate split
+  return { smallDollar: small, largeDollar: large };
+}
+
 export async function fetchFecTotals(
   candidateId: string,
   cycle: number,
