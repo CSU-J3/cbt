@@ -62,6 +62,7 @@
     "us-atlas": "^3.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/d3-geo": "^3.1.0",
     "@types/d3-hierarchy": "^3.1.7",
