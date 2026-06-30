@@ -266,6 +266,29 @@ async function main(): Promise<void> {
       `totals_failed=${totalsFailed} skipped_fresh=${totalsSkippedFresh} ` +
       `bysize_upserted=${bySizeUpserted} bysize_failed=${bySizeFailed}`,
   );
+
+  // Flush the member-hub fundraising line so freshly-written totals + the HO 390
+  // small/large split appear without waiting out the 24h cache TTL. CLI scripts
+  // can't revalidateTag the Next runtime directly, so POST the deployed
+  // /api/revalidate route (same pattern as backfill-report-counts /
+  // classify-ceremonial). Soft-fail when the env isn't configured.
+  const revalidateUrl = process.env.REVALIDATE_URL;
+  const secret = process.env.CRON_SECRET;
+  if (revalidateUrl && secret) {
+    try {
+      await fetch(`${revalidateUrl}?tag=member-fundraising`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      console.log("Flushed `member-fundraising` cache tag.");
+    } catch (e) {
+      console.warn("Revalidate POST failed (non-fatal):", e);
+    }
+  } else {
+    console.log(
+      "REVALIDATE_URL / CRON_SECRET not set — flush the `member-fundraising` tag manually.",
+    );
+  }
 }
 
 main().catch((err) => {
