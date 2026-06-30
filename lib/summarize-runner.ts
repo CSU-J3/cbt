@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
-import { stageRank } from "./enums";
+import { computeStage, stageRank } from "./enums";
 import { isRetryable, sleep, withGeminiRetry } from "./gemini-retry";
 import {
   fetchBillContext,
@@ -137,15 +137,19 @@ export async function runSummarize(
     where.push(`bill_type IN (${options.types.map(() => "?").join(",")})`);
     args.push(...options.types);
   }
-  let sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage
+  // HO 383: fetch the full eligible set (no SQL LIMIT) so we can PRIORITIZE by
+  // the stage computed live from latest_action_text — a presented/enacted bill
+  // must summarize ahead of the ~1.4k introduced backlog, and its STORED stage
+  // is stale by definition (that is the bug), so a stored-stage sort would never
+  // surface it. The set is small and this runs with no request cap, so the full
+  // fetch + app-side sort is trivial (trap 1: never ORDER BY CASE in SQL — it
+  // defeats the index short-circuit). The per-tick `limit` is applied in TS
+  // after the priority sort, below.
+  const sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage
     FROM bills WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
-  if (limit > 0) {
-    sql += ` LIMIT ?`;
-    args.push(limit);
-  }
   const rs = await db.execute({ sql, args });
 
-  const bills: Array<
+  const eligible: Array<
     BillRow & { oldStage: string | null; pendingStage: string | null }
   > = rs.rows.map((r) => ({
     id: r.id as string,
@@ -159,6 +163,16 @@ export async function runSummarize(
     // second consecutive proposal of this same stage confirms the move.
     pendingStage: (r.pending_stage as string | null) ?? null,
   }));
+
+  // HO 383: stable sort by computed-stage rank DESC (enacted/president first).
+  // Array.sort is stable, so within an equal stage the SQL's update_date-DESC
+  // order is preserved (newest first). Then take the per-tick cap.
+  eligible.sort(
+    (a, b) =>
+      stageRank(computeStage(b.latest_action_text)) -
+      stageRank(computeStage(a.latest_action_text)),
+  );
+  const bills = limit > 0 ? eligible.slice(0, limit) : eligible;
 
   console.log(
     `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} ${deadlineMs ? `deadline=${new Date(deadlineMs).toISOString()} ` : ""}serial, ${PER_REQUEST_DELAY_MS}ms throttle, ${PER_BILL_TIMEOUT_MS}ms per-bill cap`,
@@ -254,6 +268,11 @@ export async function runSummarize(
       }
     } else {
       const result = out!.result!;
+      // HO 383: stage is derived deterministically from latest_action_text via
+      // computeStage — NOT from the LLM's result.stage (still emitted by the
+      // prompt, now ignored; stripping it from the prompt is banked). Same
+      // helper as sync, so the two write paths can't disagree.
+      const computedStage = computeStage(bill.latest_action_text);
       const ceremonialArg =
         result.is_ceremonial === null ? null : result.is_ceremonial ? 1 : 0;
       // HO 239: the stage-monotonicity guard sits on the one slot-write point
@@ -263,7 +282,7 @@ export async function runSummarize(
       // view and that's a transition the report needs to surface.
       const decision = decideStage(
         bill.oldStage,
-        result.stage,
+        computedStage,
         bill.pendingStage,
       );
       if (decision === "advance") {
@@ -281,7 +300,7 @@ export async function runSummarize(
             SUMMARY_MODEL,
             new Date().toISOString(),
             JSON.stringify(result.topics),
-            result.stage,
+            computedStage,
             bill.oldStage,
             changedAt,
             ceremonialArg,
@@ -297,7 +316,7 @@ export async function runSummarize(
         await db.execute({
           sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
                 VALUES (?, ?, ?, ?)`,
-          args: [bill.id, bill.oldStage, result.stage, changedAt],
+          args: [bill.id, bill.oldStage, computedStage, changedAt],
         });
       } else {
         // No slot move. "reject"/"pend" keep the current stage; "noop" persists
@@ -305,8 +324,8 @@ export async function runSummarize(
         // where current is NULL — write the proposed `introduced` there). "pend"
         // records the proposal; every other outcome clears any prior pending.
         const stageToWrite =
-          decision === "noop" ? result.stage : bill.oldStage;
-        const pendStage = decision === "pend" ? result.stage : null;
+          decision === "noop" ? computedStage : bill.oldStage;
+        const pendStage = decision === "pend" ? computedStage : null;
         const pendAt = decision === "pend" ? new Date().toISOString() : null;
         if (decision === "reject")
           console.warn(
@@ -314,7 +333,7 @@ export async function runSummarize(
             bill.id,
             bill.oldStage,
             "→",
-            result.stage,
+            computedStage,
           );
         else if (decision === "pend")
           console.warn(
@@ -322,7 +341,7 @@ export async function runSummarize(
             bill.id,
             bill.oldStage,
             "→",
-            result.stage,
+            computedStage,
           );
         await db.execute({
           sql: `UPDATE bills

@@ -74,6 +74,60 @@ export function stageRank(stage: string | null | undefined): number {
   return ALLOWED_STAGES.indexOf(stage as Stage);
 }
 
+// HO 383: deterministic stage from the bill's latest_action_text — the single
+// source of truth for stage, ported from the LLM summarization prompt's stage
+// rules (lib/summarize.ts SYSTEM_PROMPT). Both write paths now derive stage from
+// this (summarize-runner's slot write; sync's gap-window refresh) instead of
+// trusting the LLM's emitted `stage`, which only runs at summarize time and so
+// leaves stored stage stale between an action advance and re-summarization (the
+// 119-s-2393 "Presented to President." bill stuck at `floor`). Matching is
+// case-insensitive; returns the FIRST rule that hits, in progression order.
+//
+// Pure function of the action text. The prompt's two monotonicity guards split:
+// guard (b) — post-passage procedural motions imply a floor vote already
+// happened, so never fall back below `floor` — is encoded here; guard (a) —
+// never regress once advanced — is a cross-state concern enforced at the write
+// sites (decideStage in summarize-runner; the monotonic guard in sync's upsert).
+export function computeStage(latestActionText: string | null | undefined): Stage {
+  const t = (latestActionText ?? "").toLowerCase();
+  if (!t) return "introduced";
+
+  // 1. signed into law
+  if (t.includes("became public law") || t.includes("signed by president"))
+    return "enacted";
+  // 2. on the president's desk. "Presented to President." is the canonical
+  // phrasing; the looser "to the President" alt excludes the Senate-officer
+  // false positives ("President of the Senate", "President pro tempore").
+  if (t.includes("presented to president")) return "president";
+  if (
+    t.includes("to the president") &&
+    !t.includes("president of the senate") &&
+    !t.includes("president pro tempore")
+  )
+    return "president";
+  // 3. cleared both chambers
+  const passedSenate = t.includes("passed senate");
+  const passedHouse = t.includes("passed house");
+  if (passedSenate && passedHouse) return "other_chamber";
+  // 4. passed one chamber
+  if (passedSenate || passedHouse) return "floor";
+  // guard (b): a post-passage procedural motion means the chamber already
+  // acted — classify `floor`, never the committee/introduced rules below.
+  if (
+    t.includes("motion to reconsider") ||
+    t.includes("motion to table") ||
+    t.includes("laid on the table")
+  )
+    return "floor";
+  // 5. acted on in committee ("reported" also covers "Ordered Reported")
+  if (t.includes("reported") || t.includes("committee consideration"))
+    return "committee";
+  // 6. referred in
+  if (t.includes("referred to")) return "committee";
+  // 7. default
+  return "introduced";
+}
+
 // Display-name maps used by native `title` attributes for readability (HO
 // 123). Native tooltips are the right tool here — no JS, no a11y regression,
 // and the same pattern HO 118's `[+N]` pill already established. Surfaces

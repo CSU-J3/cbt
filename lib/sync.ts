@@ -1,6 +1,7 @@
 import { classifyCluster } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
+import { computeStage, stageRank } from "./enums";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -183,7 +184,19 @@ ON CONFLICT(id) DO UPDATE SET
   -- Clear the failure timestamp and attempt counter so the 24h-skip clause in
   -- runSummarize doesn't strand a re-synced bill on its prior failure record.
   summarize_failed_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summarize_failed_at END,
-  summarize_attempts = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.summarize_attempts END
+  summarize_attempts = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.summarize_attempts END,
+  -- HO 383: keep STORED stage fresh the moment an action advances, before
+  -- re-summarization, so non-gated stage views (/bills?stage=, the funnel) are
+  -- correct in the gap window. The advance decision (real update_date change +
+  -- monotonic-only) is computed in TS (see upsertBill) and passed as a single
+  -- nullable stage arg: non-null = advance to it, null = keep bills.stage. The
+  -- SET RHS all read the OLD row, so previous_stage captures the pre-advance
+  -- stage. When sync advances here it also logs the transition (HO 232/239)
+  -- right after the upsert, so the later re-summarization noops and never
+  -- double-logs.
+  previous_stage = CASE WHEN ? IS NOT NULL THEN bills.stage ELSE bills.previous_stage END,
+  stage_changed_at = COALESCE(?, bills.stage_changed_at),
+  stage = COALESCE(?, bills.stage)
 `;
 
 async function upsertBill(
@@ -200,6 +213,28 @@ async function upsertBill(
   const billType = String(detail.type).toLowerCase();
   const clusterId = classifyCluster(detail.title, billType);
   const cosponsorCount = detail.cosponsors?.count ?? null;
+
+  // HO 383: decide whether this sync advances the stored stage. Read the prior
+  // row first so we can (a) gate on a real update_date change — the same trigger
+  // that nulls the summary — and (b) advance monotonically only (never regress;
+  // the runner still owns LLM-disagreement downgrades via its pending logic). A
+  // brand-new bill (no prior row) keeps the INSERT default stage (NULL) and is
+  // staged by the runner at first summary, exactly as before.
+  const computedStage = computeStage(detail.latestAction?.text ?? null);
+  const prior = (
+    await db.execute({
+      sql: "SELECT stage, update_date FROM bills WHERE id = ?",
+      args: [id],
+    })
+  ).rows[0];
+  const priorStage = (prior?.stage as string | null) ?? null;
+  const stageAdvanced =
+    prior !== undefined &&
+    (prior.update_date as string | null) !== update &&
+    stageRank(computedStage) > stageRank(priorStage);
+  const stageChangedAt = stageAdvanced ? new Date().toISOString() : null;
+  const newStageArg = stageAdvanced ? computedStage : null;
+
   await db.execute({
     sql: UPSERT_SQL,
     args: [
@@ -219,8 +254,23 @@ async function upsertBill(
       JSON.stringify(detail),
       clusterId,
       cosponsorCount,
+      // HO 383 stage trio (previous_stage gate, stage_changed_at, stage).
+      newStageArg,
+      stageChangedAt,
+      newStageArg,
     ],
   });
+
+  // HO 383: append the transition log (HO 232) when sync is the first to observe
+  // the advance. Same shape/timestamp as the runner's write, so a transition is
+  // logged exactly once regardless of which path sees it first.
+  if (stageAdvanced) {
+    await db.execute({
+      sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
+            VALUES (?, ?, ?, ?)`,
+      args: [id, priorStage, computedStage, stageChangedAt],
+    });
+  }
 }
 
 export type RunSyncOptions = {
