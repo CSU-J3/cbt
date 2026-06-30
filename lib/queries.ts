@@ -469,7 +469,20 @@ export const getStageDistribution = unstable_cache(
     // stage-leading partial index makes the GROUP BY index-only AND pre-ordered
     // (no temp b-tree); 860ms → 32ms. Gated-only — the ungated `/` call lacks the
     // `summary IS NOT NULL` clause the partial index requires.
-    const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_stage" : "";
+    //
+    // HO 382: when a TOPIC filter is active (the /?topics= stage funnel rebasing),
+    // the EXISTS(json_each(topics)) clause has no usable column on
+    // idx_bills_summary_stage, so topics was row-fetched over the whole ~15k corpus
+    // (defense 28s → the /?topics= filtered-view 500). Swap to
+    // idx_bills_summary_stage_topics (stage, is_ceremonial, topics): the EXISTS
+    // fanout reads topics index-resident while stage still serves the GROUP BY
+    // (defense 28s → 0.6s, every topic tens of ms). Topic-absent keeps the bare
+    // idx_bills_summary_stage. Both gated-only (partial summary index).
+    const fromHint = summaryGated
+      ? topic
+        ? " INDEXED BY idx_bills_summary_stage_topics"
+        : " INDEXED BY idx_bills_summary_stage"
+      : "";
 
     const placeholders = FUNNEL_STAGES.map(() => "?").join(", ");
     const rs = await db.execute({
@@ -684,7 +697,20 @@ export const getTopicDistribution = unstable_cache(
     // on idx_bills_is_ceremonial; 175ms → 38ms. The json_each GROUP/ORDER temp
     // b-trees remain (24 groups, unavoidable + cheap). Gated-only — the ungated
     // `/` call lacks the `summary IS NOT NULL` clause the partial index requires.
-    const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_topics" : "";
+    //
+    // HO 382: when a STAGE filter is active (the /?stage= topic treemap rebasing),
+    // idx_bills_summary_topics has no `stage`, so the `bills.stage = ?` predicate
+    // row-fetched stage over the whole ~15k corpus before json_each narrowed it
+    // (committee 24s, president 36s → the /?stage= filtered-view 500). Swap to
+    // idx_bills_summary_stage_topics (stage, is_ceremonial, topics): stage leads
+    // (seek to the stage slice) and topics still feeds json_each index-resident
+    // (committee 24s → 0.6s, every other stage tens of ms). Stage-absent keeps the
+    // full-fanout idx_bills_summary_topics. Both gated-only (partial summary index).
+    const fromHint = summaryGated
+      ? stage
+        ? " INDEXED BY idx_bills_summary_stage_topics"
+        : " INDEXED BY idx_bills_summary_topics"
+      : "";
     const rs = await db.execute({
       sql: `SELECT je.value AS topic, COUNT(*) AS count
        FROM bills${fromHint}, json_each(bills.topics) je
@@ -2974,6 +3000,22 @@ export async function getCandidateBills(
 // (BILLS mode only; NEWS uses NEWS_FEED_PAGE_SIZE).
 export const FEED_PAGE_SIZE = 25;
 
+// HO 382: above this matched-row count, the feed SELECT drives the pre-ordered
+// date index instead of the planner's natural (selective stage-index + TEMP-
+// B-TREE sort) plan. The only stage bucket this large is `committee` (~94% of
+// the corpus): its natural plan sorts all ~14.8k matched rows (~26s warm → the
+// /bills?stage=committee 500). When the matched set is a large fraction of the
+// corpus, walking the date index in sort order and short-circuiting at the page
+// LIMIT is far cheaper (committee 26s → 0.7s). The threshold gates this to the
+// giant bucket ONLY — forcing the date index on a SELECTIVE stage walks the
+// whole 16k index row-filtering for the few matches (president, 0 rows → 25s),
+// so those keep the natural plan. 2000 sits well clear of the next-largest
+// bucket (floor, ~800) with headroom for corpus growth.
+//
+// Margin (live corpus ~16.6k): committee ~14.8k is the ONLY bucket above 2000;
+// next-largest floor ~0.8k sits well below it, so the threshold can't misfire.
+const FEED_DATE_DRIVE_MIN = 2000;
+
 export type FeedPage = {
   bills: FeedBill[];
   total: number;
@@ -3126,8 +3168,20 @@ export const getFeedBills = unstable_cache(
     // ?stage/?cluster filter already plans GOOD on its own selective index and
     // forcing this would regress it. These paths are always sortDir=DESC
     // (direction='asc' only rides the /president alias, which is ?stage= → neither).
+    //
+    // HO 382: a high-cardinality FILTERED bucket (only `committee`) gets the
+    // SAME pre-ordered date-index drive. Its natural plan (idx_bills_summary_stage
+    // + sort all ~14.8k matched rows) is the /bills?stage=committee 500; the date
+    // walk + LIMIT short-circuit is 0.7s. Gated on `total` (the matched count,
+    // computed just above) so it ONLY fires for the giant bucket — a selective
+    // stage stays on its fast natural plan (forcing the date index there scans the
+    // whole 16k index for the few matches, e.g. president 0 rows -> 25s). Excluded
+    // when direction='asc' (the /president alias, always low-card) since the
+    // DESC-defined index can't short-circuit an ASC walk.
+    const highCardSelect =
+      total > FEED_DATE_DRIVE_MIN && filters.direction !== "asc";
     const selectHint =
-      bareGated || chamberOnly
+      bareGated || chamberOnly || highCardSelect
         ? filters.sort === "introduced"
           ? " INDEXED BY idx_bills_introduced_date"
           : " INDEXED BY idx_bills_latest_action"

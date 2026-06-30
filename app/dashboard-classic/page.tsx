@@ -67,8 +67,17 @@ export default async function DashboardClassicPage({
       }),
       getStageChangesCount({}, 7, filters),
       getNewBillsThisWeekCount(),
-      getStageDistribution(filters),
-      getTopicDistribution(filters),
+      // HO 382: gated (`true`) so the FILTERED distributions use the partial
+      // idx_bills_summary_stage_topics (WHERE summary IS NOT NULL) — the fix for the
+      // /dashboard-classic?stage=committee / ?topics= 500. Ungated, the stage/topic
+      // filter row-fetched the missing fat column over the whole corpus (no partial
+      // index is usable without the summary clause). The headline getCorpusStats
+      // count stays NON-gated, so the classic distributions now read ~the gated
+      // (summarized) corpus while its total reads the full one — a small, accepted
+      // divergence on this unlinked, sunsetting route (vs. breaking `/`'s index-only
+      // plan with a non-partial index).
+      getStageDistribution(filters, true),
+      getTopicDistribution(filters, true),
     ]);
 
   const topicData: TopicDatum[] = topicRows.map((t) => ({

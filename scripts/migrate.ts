@@ -682,6 +682,26 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_summary_topics ON bills(is_ceremonial, topics) WHERE summary IS NOT NULL",
   );
   console.log("ok: idx_bills_summary_topics");
+  // HO 382: cover the dashboard's FILTERED distributions — the /?stage= topic
+  // treemap (getTopicDistribution(filters,true)) and the /?topics= stage funnel
+  // (getStageDistribution(filters,true)). idx_bills_summary_stage covers stage but
+  // not topics, idx_bills_summary_topics covers topics but not stage — so a
+  // STAGE-filtered topic-dist or a TOPIC-filtered stage-dist row-fetched the
+  // missing fat column over the whole ~15k corpus (committee topic-dist 24s,
+  // defense stage-dist 28s → the filtered-view 10s-abort 500s). This index carries
+  // BOTH: stage leads (seek for the topic treemap; ordered GROUP BY for the funnel)
+  // and topics trails so the json_each fanout is index-resident (committee 24s →
+  // 0.6s, defense 28s → 0.6s; every other stage/topic tens of ms). Like the other
+  // json_each(table.col) paths, EXPLAIN labels it `USING INDEX` not `COVERING`
+  // (SQLite never marks a table-valued-function plan covering) — but it IS
+  // index-resident: the 42× speedup over the no-topics index proves topics is read
+  // from the index, there is no INTEGER PRIMARY KEY row-fetch, and the partial
+  // `WHERE summary IS NOT NULL` handles the summary gate without any table access.
+  // Forced via INDEXED BY on the gated path in both helpers.
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_summary_stage_topics ON bills(stage, is_ceremonial, topics) WHERE summary IS NOT NULL",
+  );
+  console.log("ok: idx_bills_summary_stage_topics");
   // HO 328: cover getMembersTopicMix — the per-member top-3-topics bar on the
   // merged /members two-pane browser needs each member's topic counts in ONE
   // json_each fanout grouped by (sponsor_bioguide_id, topic). Without the index
