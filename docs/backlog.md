@@ -53,6 +53,7 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - **SVG primitive extraction across chart components** (HO 100).
 - **HO 157 font-table ≥701px reconciliation** (carryover, flagged HO 327, still banked through HO 330). The SKILL HO 157 font-size table shows mobile base values per column; HO 281's `≥701px` desktop lifts (title→26, nav→16) were never reconciled into its breakpoint columns, and the ~1097 prompt-row + ~1106 breadcrumb-sizing bullet also drifted. A small type-scale-table reconciliation; confirm sizes against live CSS first. Doc-only; low priority.
 - **MARKUPS column on the reports index stat strip** (deferred from HO 268). The strip is `LAWS · INTRO · MOVES`, read from persisted `reports.{laws,intro,moves}_count`; adding MARKUPS needs a new `markups_count` column + migration + a backfill (NULL for the existing reports, so the strip hides it on those — same forward-only shape as HO 242). Optional parity with the new COMMITTEE ACTIVITY report section; left out of 268 to keep that commit to the report body.
+- **Donor small/large-dollar split on the member hub (HO 390, written).** FEC Schedule A `by_size` rendered beside the existing `MemberFundraisingLine` — the one honest donor cut free on the current key (HO 388). Industry/employer rollup explicitly stays BANKED. Sequenced after HO 389.
 
 ## BANKED
 
@@ -91,6 +92,7 @@ Owners: **Corey** (human action) · **Code** (a build/run) · **cron** (happens 
 - **`revalidateTag('primaries')` wiring** (HO 103) — *conditional, not pending:* only if primaries queries ever get `unstable_cache`-wrapped. They use plain `db.execute` today, so the tag isn't needed.
 - **Candidate photos in the primaries expand.** *Gate:* a photo-coverage diagnostic for non-member challengers (members have photos; challengers' coverage is unknown).
 - **Rater spread on the map race card.** *Gate:* the next rich-card pass.
+- **Donor industry/employer breakdown — OpenSecrets-style rollup.** FEC totals (raised + CoH) ship today (HO 83, `member_fundraising`). The who's-funding-them breakdown stays gated: HO 388 probed FEC Schedule A live (`by_size`/`by_employer`/`by_occupation`, all free on the existing `FEC_API_KEY`) and confirmed employer/occupation come back as raw strings dominated by NOT EMPLOYED/SELF/RETIRED/NULL, not industries (Schumer probe: NOT EMPLOYED was the top "employer" at $171k; first real one, Roblox, $7k). OpenSecrets' value was the hand-built employer→industry map; it died Apr 2025 and no free classified replacement exists (CRP bulk is paid, OpenFEC is string-only). Reproducing it = build + maintain our own employer→industry classifier, the project HO 65 reverted away from. The empty `member_donors`/`member_industries` tables (reverted-HO-65 scaffolding) are reusable when this lands. *Gate:* a revenue/feature reason worth a classifier's build + maintenance cost.
 
 ## WATCH
 
