@@ -2383,6 +2383,101 @@ export const getMemberTradeCount = unstable_cache(
   { revalidate: 3600, tags: ["member-trades"] },
 );
 
+// HO 389 — the corpus-wide /trades index. Shares the `member-trades` tag so the
+// trades cron's revalidateTag("member-trades") (app/api/sync/route.ts) flushes
+// these too. The recency feed forces idx_trades_disclosure_date on the unfiltered
+// path (pre-ordered walk down the date index, LIMIT short-circuits); the
+// member-scoped path drops the hint so the planner uses idx_trades_bioguide.
+// Amount bands stay raw strings — no min/max parse in v1 (schema note).
+export const getRecentTrades = unstable_cache(
+  async (
+    opts: { bioguideId?: string; page?: number; pageSize?: number } = {},
+  ): Promise<{
+    trades: StockTrade[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> => {
+    const db = getDb();
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = opts.pageSize ?? 50;
+    const offset = (page - 1) * pageSize;
+    const cols = `id, bioguide_id, member_name_raw, chamber, ticker,
+        asset_description, transaction_type, transaction_date,
+        disclosure_date, amount, owner`;
+
+    const [rs, countRs] = opts.bioguideId
+      ? await Promise.all([
+          db.execute({
+            sql: `SELECT ${cols} FROM stock_trades
+                  WHERE bioguide_id = ?
+                  ORDER BY disclosure_date DESC, transaction_date DESC, id DESC
+                  LIMIT ? OFFSET ?`,
+            args: [opts.bioguideId, pageSize, offset],
+          }),
+          db.execute({
+            sql: `SELECT COUNT(*) AS n FROM stock_trades WHERE bioguide_id = ?`,
+            args: [opts.bioguideId],
+          }),
+        ])
+      : await Promise.all([
+          db.execute({
+            sql: `SELECT ${cols} FROM stock_trades INDEXED BY idx_trades_disclosure_date
+                  ORDER BY disclosure_date DESC, id DESC
+                  LIMIT ? OFFSET ?`,
+            args: [pageSize, offset],
+          }),
+          db.execute("SELECT COUNT(*) AS n FROM stock_trades"),
+        ]);
+
+    const total = Number(countRs.rows[0]?.n ?? 0);
+    return {
+      trades: rs.rows.map(rowToStockTrade),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
+  },
+  ["getRecentTrades"],
+  { revalidate: 3600, tags: ["member-trades"] },
+);
+
+// HO 389 — most-traded tickers over a trailing window, for the /trades index
+// rollup. memberCount = COUNT(DISTINCT bioguide_id), so NULL-bioguide (unmatched)
+// trades lift tradeCount but not the member tally — an honest cut. N/A/NULL
+// tickers (cash, options shells) dropped. stock_trades is small (hundreds of
+// rows), but the date-index hint keeps the windowed scan disciplined.
+export const getMostTradedTickers = unstable_cache(
+  async (
+    days = 90,
+    limit = 12,
+  ): Promise<{ ticker: string; tradeCount: number; memberCount: number }[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT UPPER(ticker) AS ticker,
+              COUNT(*) AS trade_count,
+              COUNT(DISTINCT bioguide_id) AS member_count
+            FROM stock_trades INDEXED BY idx_trades_disclosure_date
+            WHERE disclosure_date >= date('now', ?)
+              AND ticker IS NOT NULL
+              AND UPPER(ticker) <> 'N/A'
+            GROUP BY UPPER(ticker)
+            ORDER BY trade_count DESC, member_count DESC
+            LIMIT ?`,
+      args: [`-${days} days`, limit],
+    });
+    return rs.rows.map((r) => ({
+      ticker: String(r.ticker ?? "").toUpperCase(),
+      tradeCount: Number(r.trade_count ?? 0),
+      memberCount: Number(r.member_count ?? 0),
+    }));
+  },
+  ["getMostTradedTickers"],
+  { revalidate: 3600, tags: ["member-trades"] },
+);
+
 // ---- FEC fundraising (handoff 83) ---------------------------------------
 
 export type MemberFundraising = {

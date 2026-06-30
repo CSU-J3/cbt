@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatDateShort } from "@/lib/format";
 import type { StockTrade } from "@/lib/queries";
 
@@ -20,7 +21,17 @@ function ownerLabel(raw: string | null): string | null {
   return raw.toUpperCase();
 }
 
-export function TradeRow({ trade }: { trade: StockTrade }) {
+// `showMember` adds a leading member cell — used on the cross-member /trades
+// index (HO 389). On the member hub the member is implicit, so it stays off.
+// Honest-gap rule: a NULL-bioguide trade has no hub to link to, so it renders
+// the raw disclosed name as plain text rather than dropping the row.
+export function TradeRow({
+  trade,
+  showMember = false,
+}: {
+  trade: StockTrade;
+  showMember?: boolean;
+}) {
   const klass = txnClass(trade.transactionType);
   const txnClassName =
     klass === "buy" ? "txn-buy" : klass === "sell" ? "txn-sell" : "txn-other";
@@ -28,9 +39,26 @@ export function TradeRow({ trade }: { trade: StockTrade }) {
   const chamberChip = trade.chamber === "senate" ? "SEN" : "HOU";
 
   return (
-    <div className="trade-row">
+    <div className={`trade-row${showMember ? " trade-row--with-member" : ""}`}>
+      {showMember ? (
+        <span className="trade-member truncate">
+          {trade.bioguideId ? (
+            <Link
+              href={`/members/${trade.bioguideId}`}
+              className="transition hover:text-[var(--accent-amber-bright)]"
+              style={{ color: "var(--accent-amber)" }}
+            >
+              {trade.memberNameRaw}
+            </Link>
+          ) : (
+            <span style={{ color: "var(--text-muted)" }}>
+              {trade.memberNameRaw}
+            </span>
+          )}
+        </span>
+      ) : null}
       <span
-        className="tabular-nums"
+        className="trade-date tabular-nums"
         style={{ color: "var(--text-secondary)" }}
       >
         {formatDateShort(trade.disclosureDate)}

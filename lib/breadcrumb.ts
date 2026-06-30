@@ -41,6 +41,10 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/watchlist") return ["Watchlist"];
   if (basePath === "/members" || basePath.startsWith("/members/"))
     return ["Members"];
+  // HO 389: the corpus-wide stock-trades index. A member attribute (the only
+  // entry point is the member hub's "View all trades →"), so it nests under
+  // Members like Committees does.
+  if (basePath === "/trades") return ["Members", "Trades"];
   // "/committees" exact precedes the "/committee/" detail prefix (same
   // trailing-char safety as bills/bill).
   if (basePath === "/committees") return ["Members", "Committees"];

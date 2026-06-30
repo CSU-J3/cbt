@@ -2037,6 +2037,17 @@ body {
   text-align: right;
 }
 
+/* HO 389 — the /trades index adds a leading member cell. Same column ladder
+   on the row and its header so they stay aligned. */
+.trade-row--with-member,
+.trade-header-row--with-member {
+  grid-template-columns: 160px 60px 40px 80px 1fr 110px 110px;
+}
+
+.trade-row .trade-member {
+  font-size: 13px;
+}
+
 @media (max-width: 700px) {
   .trade-row {
     grid-template-columns: 60px 80px 110px 80px;
@@ -2050,6 +2061,17 @@ body {
   }
   .trade-header-row .chamber-chip,
   .trade-header-row .asset-description {
+    display: none;
+  }
+
+  /* Member variant on mobile: member · ticker · type · amount (drop the date
+     too, alongside the base chamber/asset hide). */
+  .trade-row--with-member,
+  .trade-header-row--with-member {
+    grid-template-columns: 100px 80px 1fr 90px;
+  }
+  .trade-row--with-member .trade-date,
+  .trade-header-row--with-member .trade-date {
     display: none;
   }
 }

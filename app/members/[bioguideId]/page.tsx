@@ -474,12 +474,13 @@ export default async function MemberPage({
                   Recent trades · {tradeCount.toLocaleString()} disclosed
                 </h2>
                 {tradeCount > trades.length ? (
-                  <span
-                    className="text-[12px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--text-dim)" }}
+                  <Link
+                    href={`/trades?member=${encodeURIComponent(member.bioguideId)}`}
+                    className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+                    style={{ color: "var(--accent-amber)" }}
                   >
                     View all {tradeCount.toLocaleString()} trades →
-                  </span>
+                  </Link>
                 ) : null}
               </div>
 
