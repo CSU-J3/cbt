@@ -88,12 +88,23 @@ export function stageRank(stage: string | null | undefined): number {
 // happened, so never fall back below `floor` — is encoded here; guard (a) —
 // never regress once advanced — is a cross-state concern enforced at the write
 // sites (decideStage in summarize-runner; the monotonic guard in sync's upsert).
+// Floor-rung semantics (resolved in HO 385): `floor` means a bill PASSED (or had
+// a recorded vote/motion on) its originating chamber's floor — NOT merely "reached
+// floor stage". This is consistent with the existing "Passed House/Senate" → floor
+// and "Reported" → committee rules, and with how the LLM majority-stored these
+// texts. So calendar placement (reported-out, awaiting a floor vote) maps to
+// `committee`, not `floor`.
 export function computeStage(latestActionText: string | null | undefined): Stage {
   const t = (latestActionText ?? "").toLowerCase();
   if (!t) return "introduced";
 
-  // 1. signed into law
-  if (t.includes("became public law") || t.includes("signed by president"))
+  // 1. signed into law. HO 385: "Became Private Law" is also enacted law (a
+  // private law is narrow but still enacted) — the LLM stored these enacted.
+  if (
+    t.includes("became public law") ||
+    t.includes("became private law") ||
+    t.includes("signed by president")
+  )
     return "enacted";
   // 2. on the president's desk. "Presented to President." is the canonical
   // phrasing; the looser "to the President" alt excludes the Senate-officer
@@ -105,11 +116,18 @@ export function computeStage(latestActionText: string | null | undefined): Stage
     !t.includes("president pro tempore")
   )
     return "president";
-  // 3. cleared both chambers
+  // 3. passed to the other chamber.
   const passedSenate = t.includes("passed senate");
   const passedHouse = t.includes("passed house");
   if (passedSenate && passedHouse) return "other_chamber";
-  // 4. passed one chamber
+  // HO 385: cross-chamber receipt. A measure "Received in the Senate/House" was
+  // passed by its originating chamber and is now before the second chamber, so it
+  // has passed to the other chamber. 384's would-regress review showed the LLM
+  // under-read these as floor/committee. Sits above the floor + committee rules so
+  // a trailing "...and referred to the Committee on X" can't pin it to committee.
+  if (t.includes("received in the senate") || t.includes("received in the house"))
+    return "other_chamber";
+  // 4. acted on the originating chamber's floor.
   if (passedSenate || passedHouse) return "floor";
   // guard (b): a post-passage procedural motion means the chamber already
   // acted — classify `floor`, never the committee/introduced rules below.
@@ -119,9 +137,39 @@ export function computeStage(latestActionText: string | null | undefined): Stage
     t.includes("laid on the table")
   )
     return "floor";
-  // 5. acted on in committee ("reported" also covers "Ordered Reported")
+  // HO 385: floor-stage dispositions the rules above miss. A resolution "agreed
+  // to" on the floor, a suspension-of-the-rules passage vote, a cloture or
+  // motion-to-proceed vote, and a failed passage are all floor votes/motions.
+  if (
+    t.includes("considered, and agreed to") ||
+    t.includes("considered and agreed to") ||
+    t.includes("agreed to in senate") ||
+    t.includes("agreed to in house") ||
+    t.includes("on agreeing to") ||
+    t.includes("suspend the rules") ||
+    t.includes("cloture") ||
+    t.includes("motion to proceed") ||
+    t.includes("failed of passage")
+  )
+    return "floor";
+  // HO 385: "Held at the desk" implies the originating chamber passed the measure
+  // (it has been messaged over). Conservatively `floor` — the bare phrase names no
+  // chamber, so we do not assert other_chamber.
+  if (t.includes("held at the desk")) return "floor";
+  // 5. acted on in committee ("reported" also covers "Ordered Reported").
   if (t.includes("reported") || t.includes("committee consideration"))
     return "committee";
+  // HO 385: committee-activity patterns the rules above miss. Calendar placement
+  // (reported-out, per the floor-rung note); subcommittee activity; named-committee
+  // actions ("Committee on X. Hearings held."); markups; discharge petitions (the
+  // bill is still in committee). "committee on" is used rather than bare "committee"
+  // so floor "Committee of the Whole" actions are not swept in.
+  if (t.includes("placed on") && t.includes("calendar")) return "committee";
+  if (t.includes("hearings held")) return "committee";
+  if (t.includes("subcommittee")) return "committee";
+  if (t.includes("committee on")) return "committee";
+  if (t.includes("markup") || t.includes("mark up")) return "committee";
+  if (t.includes("motion to discharge")) return "committee";
   // 6. referred in
   if (t.includes("referred to")) return "committee";
   // 7. default
