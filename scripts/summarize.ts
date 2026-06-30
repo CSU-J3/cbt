@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { runSummarize, type SummarizeOptions } from "../lib/summarize-runner";
+import { computeStage } from "../lib/enums";
 
 function getFlag(name: string): string | undefined {
   const idx = process.argv.indexOf(`--${name}`);
@@ -41,7 +42,9 @@ async function main() {
       console.log(`\n[${s.bill.id}] ${s.bill.title}`);
       console.log(`SUMMARY: ${s.result.summary}`);
       console.log(`TOPICS:  ${s.result.topics.join(", ")}`);
-      console.log(`STAGE:   ${s.result.stage}`);
+      // HO 386: the LLM no longer emits stage; show the deterministic stage the
+      // runner actually writes (computeStage from latest_action_text).
+      console.log(`STAGE:   ${computeStage(s.bill.latest_action_text)}`);
     }
   }
 }

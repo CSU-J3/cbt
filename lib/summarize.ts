@@ -1,7 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import {
   ALLOWED_STAGES,
-  ALLOWED_STAGES_SET,
   ALLOWED_TOPICS,
   ALLOWED_TOPICS_SET,
   TOPIC_ALIASES,
@@ -17,22 +16,7 @@ const SYSTEM_PROMPT = `You are summarizing a US Congress bill for a personal tra
 
 Then output a JSON block with:
 - topics: array of 1-3 topic tags from this list: [${ALLOWED_TOPICS.join(", ")}]
-- stage: one of [introduced, committee, floor, other_chamber, president, enacted]
 - is_ceremonial: true if the bill's primary purpose is symbolic (awareness days/weeks/months, renaming federal buildings/post offices/highways/installations, recognizing achievements or anniversaries, congratulatory or memorial resolutions, expressing the sense of Congress with no legal effect); false if it changes law, appropriates funds, creates or modifies programs, alters rights, sets policy, or directs an agency — even narrowly scoped.
-
-Determine \`stage\` from the latest_action_text. The action text is ground truth; do NOT infer stage from the bill's content or title. Apply these rules in order and stop at the first match:
-
-1. action text contains "Became Public Law" or "Signed by President" → enacted
-2. action text contains "Presented to President" or "to the President" → president
-3. action text contains BOTH "Passed Senate" AND "Passed House" → other_chamber
-4. action text contains "Passed Senate" or "Passed House" (only one) → floor
-5. action text contains "Reported", "Ordered Reported", or "Committee Consideration" → committee
-6. action text contains "Referred to" with no further action mentioned → committee
-7. otherwise → introduced
-
-Two monotonicity guards on the rules above: (a) a bill never regresses to \`introduced\` once it has advanced past it — when torn between \`introduced\` and a later stage for a bill already in motion, choose the later stage; (b) post-passage procedural actions (e.g. "motion to reconsider laid on the table", "motion to table agreed to") mean the chamber has already acted on the bill — classify \`floor\` or later, never \`introduced\` or \`committee\`.
-
-The bill's content is written as a proposal even after it becomes law — never let that mislead you. If the action text says it became public law, the stage is enacted regardless of how the bill text reads.
 
 Respond in this exact format:
 
@@ -40,7 +24,7 @@ SUMMARY:
 <2-3 sentences>
 
 JSON:
-{"topics": [...], "stage": "...", "is_ceremonial": true|false}`;
+{"topics": [...], "is_ceremonial": true|false}`;
 
 export type BillRow = {
   id: string;
@@ -51,10 +35,12 @@ export type BillRow = {
   latest_action_text: string | null;
 };
 
+// HO 386: `stage` is no longer emitted by the LLM. computeStage(latest_action_text)
+// is the sole stage authority (since HO 383); the runner derives + writes stage
+// from it, so the prompt no longer asks for stage and the parse no longer reads it.
 export type SummarizeResult = {
   summary: string;
   topics: string[];
-  stage: string;
   is_ceremonial: boolean | null;
 };
 
@@ -198,20 +184,18 @@ function parseResponse(text: string): SummarizeResult | null {
   if (!parsed || typeof parsed !== "object") return null;
   const obj = parsed as {
     topics?: unknown;
-    stage?: unknown;
     is_ceremonial?: unknown;
   };
   const topics = Array.isArray(obj.topics)
     ? obj.topics.filter((t): t is string => typeof t === "string")
     : null;
-  const stage = typeof obj.stage === "string" ? obj.stage : null;
-  if (!topics || topics.length === 0 || !stage) return null;
+  if (!topics || topics.length === 0) return null;
   // Defensive: if the field is missing or not a boolean, leave it NULL so the
   // backfill script can pick it up later. Don't guess.
   const is_ceremonial =
     typeof obj.is_ceremonial === "boolean" ? obj.is_ceremonial : null;
 
-  return { summary, topics, stage, is_ceremonial };
+  return { summary, topics, is_ceremonial };
 }
 
 export type SummarizeOutput = {
@@ -294,17 +278,10 @@ Bill text (truncated): ${context.billText || "(text not yet available)"}`;
   }
   const topics = valid.length > 0 ? valid : ["other"];
 
-  let stage = parsed.stage;
-  if (!ALLOWED_STAGES_SET.has(stage)) {
-    console.warn(`invalid-stage ${bill.id}: dropped ${stage}`);
-    stage = "introduced";
-  }
-
   return {
     result: {
       summary: parsed.summary,
       topics,
-      stage,
       is_ceremonial: parsed.is_ceremonial,
     },
     promptTokens,

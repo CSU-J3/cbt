@@ -1004,7 +1004,6 @@ You are summarizing a US Congress bill for a personal tracking dashboard. Write 
 
 Then output a JSON block with:
 - topics: array of 1-3 topic tags from this list: [healthcare, immigration, taxes, defense, energy, environment, education, labor, technology, civil_rights, criminal_justice, agriculture, trade, housing, transportation, foreign_policy, veterans, elections, budget, financial_services, government_operations, consumer_protection, social_security, other]
-- stage: one of [introduced, committee, floor, other_chamber, president, enacted]
 - is_ceremonial: true if symbolic (awareness days, building renamings, recognitions, sense-of-Congress); false if it changes law, appropriates funds, or directs an agency
 
 Bill title: {title}
@@ -1018,8 +1017,10 @@ SUMMARY:
 <2-3 sentences>
 
 JSON:
-{"topics": [...], "stage": "...", "is_ceremonial": true|false}
+{"topics": [...], "is_ceremonial": true|false}
 ```
+
+**The prompt does NOT emit `stage` (HO 386).** `stage` is owned entirely by `computeStage(latest_action_text)` (HO 383, sole authority; coverage rules extended HO 385) — the LLM's stage field was generated-parsed-discarded dead weight and was removed from the prompt, the JSON shape, and the parse. The summarize JSON contract is now `{topics, is_ceremonial}`; the runner derives + writes stage from `computeStage` independently.
 
 Parse the response by splitting on `JSON:` and parsing the second half. If parsing fails, log the bill ID and skip it; don't crash the sync. The `is_ceremonial` field is defensive: if the model omits it or returns a non-boolean, the parser writes NULL so the standalone backfill (`npm run classify-ceremonial`) can pick it up later. Title-only re-classification lives in `lib/classify-ceremonial.ts`; the sync `UPSERT_SQL` clears `is_ceremonial` along with `summary` whenever `update_date` changes so re-classification rides through the inline summarize path with no extra Gemini call.
 
@@ -1027,9 +1028,9 @@ The prompt will need iteration. Expect to revise it 5-10 times. Common failure m
 
 ### Stage-monotonicity guard (HO 239)
 
-The LLM classifies `stage` from `latest_action_text`, but the text can be ambiguous and the model can regress a bill. Two guards keep `stage` monotonic — it only advances:
+`stage` is computed deterministically from `latest_action_text` by `computeStage` (`lib/enums.ts`) — the sole authority since HO 383; the LLM no longer classifies stage (its dead stage output was removed in HO 386). Two guards keep `stage` monotonic — it only advances:
 
-- **Prompt-side** (`lib/summarize.ts`, in the stage-rules block): (a) a bill never regresses to `introduced` once it has advanced past it — when torn between `introduced` and a later stage for a bill already in motion, choose the later; (b) post-passage procedural actions (e.g. "motion to reconsider laid on the table", "motion to table agreed to") mean the chamber has already acted — classify `floor` or later, never `introduced`/`committee`. (The live prompt also carries explicit *ordered* action-text→stage rules — "Became Public Law"→enacted, "Presented to President"→president, both-chambers-passed→other_chamber, one-passed→floor, "Reported"/"Referred to"→committee, else introduced — fuller than the simplified `JSON` template shown above; the template is stale on this and flagged for a future prompt-section refresh.)
+- **Compute-side** (`computeStage`, `lib/enums.ts`): the ordered action-text→stage ladder (enacted → president → other_chamber → floor → committee → introduced, first match wins) plus the embedded guard (b) — post-passage procedural actions like "motion to reconsider laid on the table" mean the chamber already acted, so classify `floor`, never `introduced`/`committee`. HO 385 extended the ladder to cover the patterns the old LLM stage implicitly caught (cross-chamber receipt → other_chamber; "agreed to"/cloture/suspension/"held at the desk" → floor; calendar placement/hearings/subcommittee/markup/discharge → committee; private law → enacted), closing all but a documented ~124-row residual of cases uncatchable from latest-action text alone. **Floor-rung semantics:** `floor` = passed/voted-on a chamber's floor, so calendar placement (reported-out, awaiting a floor vote) maps to `committee`, not `floor`. Guard (a) — never regress once advanced — is enforced code-side, not here.
 - **Code-side** (`lib/summarize-runner.ts::decideStage(current, proposed, pending)` → `"advance" | "reject" | "pend" | "noop"`): ranks via `stageRank` (`lib/enums.ts` — `ALLOWED_STAGES.indexOf`, introduced=0 … enacted=5, unlisted/null=−1). `proposed` ahead of `current` → **advance**, the ONLY path that writes `stage`/`previous_stage`/`stage_changed_at` and appends a `stage_transitions` row. A downgrade **to `introduced`** → **reject** (impossible regression; keeps the old stage, clears any pending, logs `[stage] rejected impossible downgrade`). Any **other** downgrade → **pend**: parked in `pending_stage`/`pending_stage_at`, and the slot does NOT move until a SECOND matching proposal confirms it (`proposed === pending` → advance) — a two-tick vote so one noisy classification can't drag a bill backward. `noop` when unchanged or first-seen-`introduced`. On anything but `advance`, nothing touches `stage`/`previous_stage`/`stage_changed_at`/`stage_transitions`.
 
 ## Dashboard lead generation
