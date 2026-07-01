@@ -1,8 +1,14 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import { formatDollarsCompact } from "@/lib/format";
-import type { PartyKey, RaceCandidate, RaceIndexRow } from "@/lib/queries";
+import type {
+  PacIeRow,
+  PartyKey,
+  RaceCandidate,
+  RaceIndexRow,
+} from "@/lib/queries";
 import {
   kalshiActive,
   partyColor,
@@ -88,11 +94,16 @@ export function RaceCard({
   // Mike Collins GA). Surnames in this set render with a first initial. Computed
   // once by CompetitiveRacesStrip across all four cards.
   ambiguous = new Set<string>(),
+  // HO 393: UDP IE direction rows for this seat → the non-linked PAC SPENDING
+  // glance line (the card is a whole <Link>, so no nested FEC anchors here; the
+  // clickable version lives on the /race hub + /electoral expands).
+  pac,
 }: {
   row: RaceIndexRow;
   candidates?: RaceCandidate[];
   lastMoveAt?: string | null;
   ambiguous?: Set<string>;
+  pac?: PacIeRow[];
 }) {
   const isSenate = row.chamber === "senate";
   const open = row.incumbentRunning === 0; // HO 221: explicit 0 only
@@ -368,6 +379,10 @@ export function RaceCard({
           pct={isSenate ? polyPct : null}
         />
       </div>
+
+      {/* HO 393: PAC SPENDING glance line — non-linked (whole card is a
+          <Link>). Renders only when the seat carries UDP IE rows. */}
+      <PacSpendingLine rows={pac} variant="glance" />
     </Link>
   );
 }

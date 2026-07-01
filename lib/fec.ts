@@ -301,6 +301,78 @@ export async function fetchFecBySize(
   return { smallDollar: small, largeDollar: large };
 }
 
+// HO 393 — raw Schedule E (independent expenditures) for a committee × cycle.
+// One row per reported expenditure; we do NOT sum (Schedule E has no clean
+// dollar source — see docs/oddities.md). The consumer collapses to distinct
+// (candidate × support/oppose) with MIN/MAX(expenditure_date) — direction +
+// span are per-row facts, unaffected by the double-counting that breaks dollar
+// aggregation. Seek pagination (last_index + last_expenditure_date) is FEC's
+// prescribed way to page Schedule E. Returns null on ANY page failure so the
+// caller never writes a partial pull (a missed page would corrupt the MIN
+// date / drop a target); the daily cadence makes a skipped tick cheap.
+export type FecScheduleERow = {
+  candidate_id?: string | null;
+  candidate_name?: string | null;
+  support_oppose_indicator?: string | null; // 'S' | 'O'
+  expenditure_date?: string | null; // ISO date
+  candidate_office?: string | null; // 'H' | 'S' | 'P'
+  candidate_office_state?: string | null; // two-letter
+  candidate_office_district?: string | null; // 2-digit zero-padded, '00' at-large/Senate
+};
+
+type FecScheduleEResponse = {
+  results?: FecScheduleERow[];
+  pagination?: {
+    count?: number;
+    last_indexes?: {
+      last_index?: string | null;
+      last_expenditure_date?: string | null;
+    } | null;
+  };
+};
+
+export async function fetchScheduleE(
+  committeeId: string,
+  cycle: number,
+): Promise<FecScheduleERow[] | null> {
+  const apiKey = fecApiKey();
+  if (!apiKey) {
+    throw new Error("FEC_API_KEY or CONGRESS_API_KEY must be set");
+  }
+  const perPage = 100;
+  const all: FecScheduleERow[] = [];
+  let lastIndex: string | undefined;
+  let lastDate: string | undefined;
+  // Guard the loop generously; the UDP feed is ~1-2 pages, but a larger spender
+  // could grow. 100 pages × 100 rows = 10k, far past any single-committee cycle.
+  for (let page = 0; page < 100; page++) {
+    const params = new URLSearchParams({
+      committee_id: committeeId,
+      cycle: String(cycle),
+      per_page: String(perPage),
+      sort: "-expenditure_date",
+      api_key: apiKey,
+    });
+    if (lastIndex && lastDate) {
+      params.set("last_index", lastIndex);
+      params.set("last_expenditure_date", lastDate);
+    }
+    const url = `${FEC_BASE}/schedules/schedule_e/?${params.toString()}`;
+    const json = await fetchJson<FecScheduleEResponse>(url);
+    if (json === null) return null; // transient failure — skip the whole tick
+    const rows = json.results ?? [];
+    all.push(...rows);
+    const li = json.pagination?.last_indexes;
+    if (rows.length < perPage || !li?.last_index || !li?.last_expenditure_date) {
+      break;
+    }
+    lastIndex = li.last_index;
+    lastDate = li.last_expenditure_date;
+    await sleep(300); // api.data.gov politeness (shared 1000/hr budget)
+  }
+  return all;
+}
+
 export async function fetchFecTotals(
   candidateId: string,
   cycle: number,

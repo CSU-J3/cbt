@@ -4,6 +4,7 @@ import { raceLabelCompact } from "@/components/RaceHeader";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import {
   getMember,
+  getPacIeSpending,
   getRace,
   getRaceCandidates,
   getRaceRatings,
@@ -55,14 +56,17 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs] = await Promise.all([
-    getRaceCandidates(race.id),
-    race.incumbent_bioguide_id
-      ? getMember(race.incumbent_bioguide_id)
-      : Promise.resolve(null),
-    getRaceRatings(race.id),
-    getRunoffsForRace(race.id),
-  ]);
+  const [candidates, incumbent, ratings, runoffs, pacByRace] = await Promise.all(
+    [
+      getRaceCandidates(race.id),
+      race.incumbent_bioguide_id
+        ? getMember(race.incumbent_bioguide_id)
+        : Promise.resolve(null),
+      getRaceRatings(race.id),
+      getRunoffsForRace(race.id),
+      getPacIeSpending(race.cycle),
+    ],
+  );
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -83,6 +87,7 @@ export default async function RacePage({
           incumbent={incumbent}
           ratings={ratings}
           runoffs={runoffs}
+          pac={pacByRace[race.id]}
         />
       </main>
     </div>

@@ -35,6 +35,7 @@
     "sync:votes": "tsx scripts/sync-votes.ts",
     "sync:senate-votes": "tsx scripts/sync-senate-votes.ts",
     "sync:fec": "tsx scripts/sync-fec.ts",
+    "sync:pac-ie": "tsx scripts/sync-pac-ie.ts",
     "sync:palestine": "tsx scripts/sync-palestine.ts",
     "sync:primaries": "tsx scripts/sync-primaries.ts",
     "sync:house-primaries": "tsx scripts/sync-primaries.ts",

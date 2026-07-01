@@ -1844,6 +1844,51 @@ export const getRecentRaceMoves = unstable_cache(
   { revalidate: 3600, tags: ["races"] },
 );
 
+// HO 393 — pro-Israel-PAC independent-expenditure DIRECTION per race, for the
+// competitive race card's PAC SPENDING line. One row per (spender, target,
+// support/oppose); grouped by race_id so a card can render every direction on a
+// seat (e.g. KY-04 backing Gallrein + opposing Massie). Rides the `races` tag
+// (the sync revalidates it), so no new cache tag. `support_oppose DESC` puts 'S'
+// (backing) before 'O' (opposing) — the card's intended read order.
+export type PacIeRow = {
+  raceId: string;
+  committeeId: string;
+  candidateId: string;
+  candidateName: string;
+  supportOppose: "S" | "O";
+  earliestDate: string | null;
+};
+
+export const getPacIeSpending = unstable_cache(
+  async (cycle: number): Promise<Record<string, PacIeRow[]>> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT race_id, committee_id, candidate_id, candidate_name,
+                   support_oppose, earliest_date
+            FROM pac_ie_spending
+            WHERE cycle = ?
+            ORDER BY race_id, support_oppose DESC, earliest_date ASC`,
+      args: [cycle],
+    });
+    const out: Record<string, PacIeRow[]> = {};
+    for (const row of rs.rows) {
+      const raceId = row.race_id as string;
+      const so = (row.support_oppose as string) === "O" ? "O" : "S";
+      (out[raceId] ??= []).push({
+        raceId,
+        committeeId: row.committee_id as string,
+        candidateId: row.candidate_id as string,
+        candidateName: row.candidate_name as string,
+        supportOppose: so,
+        earliestDate: (row.earliest_date as string | null) ?? null,
+      });
+    }
+    return out;
+  },
+  ["getPacIeSpending"],
+  { revalidate: 3600, tags: ["races"] },
+);
+
 export const getMostCompetitiveRaces = unstable_cache(
   async (cycle: number, limit: number): Promise<CompetitiveRace[]> => {
     const db = getDb();

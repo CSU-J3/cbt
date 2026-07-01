@@ -24,6 +24,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine, MarginBar, SpreadBar, formatCash } from "@/components/race-cells";
 import {
   kalshiDivergesFromConsensus,
@@ -32,7 +33,7 @@ import {
   ratingColor,
   type RosterEntry,
 } from "@/lib/race-colors";
-import type { RaceIndexRow } from "@/lib/queries";
+import type { PacIeRow, RaceIndexRow } from "@/lib/queries";
 
 function seatLabel(r: RaceIndexRow): string {
   if (r.chamber === "senate") return `${r.state} SEN`;
@@ -96,10 +97,12 @@ function RaterLine({ src, rating }: { src: string; rating: string | null }) {
 
 function RaceListRow({
   race,
+  pac,
   open,
   onToggle,
 }: {
   race: RaceIndexRow;
+  pac: PacIeRow[] | undefined;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -218,6 +221,7 @@ function RaceListRow({
             <RaterLine src="Inside" rating={race.ieRating} />
           </div>
           <KalshiLine odds={race.kalshiOdds} roster={roster} />
+          <PacSpendingLine rows={pac} />
           <Link
             href={`/race/${race.raceId}`}
             className="racecard-hublink"
@@ -234,11 +238,13 @@ function RaceListRow({
 function Section({
   title,
   races,
+  pacByRace,
   openId,
   setOpenId,
 }: {
   title: string;
   races: RaceIndexRow[];
+  pacByRace: Record<string, PacIeRow[]>;
   openId: string | null;
   setOpenId: (id: string | null) => void;
 }) {
@@ -257,6 +263,7 @@ function Section({
             <RaceListRow
               key={r.raceId}
               race={r}
+              pac={pacByRace[r.raceId]}
               open={openId === r.raceId}
               onToggle={() =>
                 setOpenId(openId === r.raceId ? null : r.raceId)
@@ -272,9 +279,12 @@ function Section({
 export function RaceListView({
   senate,
   house,
+  // HO 393: race_id → UDP IE direction rows, for the expand's PAC SPENDING line.
+  pacByRace = {},
 }: {
   senate: RaceIndexRow[];
   house: RaceIndexRow[];
+  pacByRace?: Record<string, PacIeRow[]>;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const all = [...senate, ...house];
@@ -320,10 +330,17 @@ export function RaceListView({
       <Section
         title="Senate"
         races={senate}
+        pacByRace={pacByRace}
         openId={openId}
         setOpenId={setOpenId}
       />
-      <Section title="House" races={house} openId={openId} setOpenId={setOpenId} />
+      <Section
+        title="House"
+        races={house}
+        pacByRace={pacByRace}
+        openId={openId}
+        setOpenId={setOpenId}
+      />
     </div>
   );
 }

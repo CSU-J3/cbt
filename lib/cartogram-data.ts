@@ -12,6 +12,7 @@
 import { formatDateShort } from "@/lib/format";
 import type { KalshiOdds } from "@/lib/kalshi";
 import type {
+  PacIeRow,
   PartyKey,
   PrimaryWithCandidates,
   RaceCandidate,
@@ -48,6 +49,7 @@ export type CartogramContest = {
   kalshiOdds?: KalshiOdds | null; // HO 218: per-seat market odds; null = no Kalshi general market
   isOpen?: boolean; // HO 221: incumbent not running (retirement flag) → OPEN seat
   challengers?: CartogramChallenger[]; // race_candidates (mostly empty today)
+  pacIe?: PacIeRow[]; // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line); undefined/empty on seats with no tracked spend
   // ── PRIMARIES card (Pass 2) — undefined on races contests ──
   primary?: PrimaryWithCandidates; // raw row for the HO 207 ShareBar / sched list
 };
@@ -75,6 +77,9 @@ function seatLabel(chamber: "house" | "senate", state: string, district: number 
 export function buildRacesCartogram(
   rows: RaceIndexRow[],
   candidates: RaceCandidate[] = [],
+  // HO 393: race_id → UDP IE direction rows, so a state's pinned card can render
+  // the PAC SPENDING line. Pure builder — the page fetches getPacIeSpending.
+  pacByRace: Record<string, PacIeRow[]> = {},
 ): CartogramData {
   // Group the flat candidate list (challengers; the incumbent stays on the race
   // row) by race_id for the card's expanded view.
@@ -130,6 +135,7 @@ export function buildRacesCartogram(
       kalshiOdds: r.kalshiOdds,
       isOpen: r.incumbentRunning === 0,
       challengers: challengersByRace.get(r.raceId) ?? [],
+      pacIe: pacByRace[r.raceId],
     };
     const arr = byState.get(r.state);
     if (arr) arr.push(contest);

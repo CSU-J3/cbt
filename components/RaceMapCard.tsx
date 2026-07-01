@@ -10,6 +10,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine, MarginBar } from "@/components/race-cells";
 import type { CartogramChallenger, CartogramContest } from "@/lib/cartogram-data";
 import { formatDollarsCompact } from "@/lib/format";
@@ -232,6 +233,11 @@ function RaceCardRow({
               ),
             ]}
           />
+
+          {/* HO 393: PAC SPENDING direction line — renders only when the seat
+              carries UDP IE rows (no empty slot). Each direction deep-links to
+              the live FEC filings. */}
+          <PacSpendingLine rows={contest.pacIe} />
 
           {contest.href ? (
             <Link href={contest.href} className="racecard-hublink">

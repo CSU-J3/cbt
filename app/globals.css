@@ -6610,6 +6610,64 @@ a.racecard-cand-name:hover {
   color: var(--accent-amber-bright);
 }
 
+/* HO 393 — PAC SPENDING direction line (race-card expand: RaceListView +
+   RaceMapCard). Neutral label + FEC deep-links; fits the rating-chip idiom. */
+.rc-pac {
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.rc-pac-k {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.rc-pac-line {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.rc-pac-spender {
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+.rc-pac-sep {
+  padding: 0 3px;
+}
+.rc-pac-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-dim);
+}
+.rc-pac-link:hover {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber-bright);
+}
+.rc-pac-verb {
+  color: var(--text-dim);
+}
+.rc-pac-arrow {
+  color: var(--text-dim);
+}
+.rc-pac-link:hover .rc-pac-verb,
+.rc-pac-link:hover .rc-pac-arrow {
+  color: var(--accent-amber-bright);
+}
+.rc-pac-since {
+  color: var(--text-dim);
+}
+/* Dashboard RaceCard glance line — non-linked snapshot (whole card is a
+   <Link>), one compact row. */
+.rc-pac--glance {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.rc-pac-glance-dirs {
+  color: var(--text-secondary);
+}
+
 /* HO 210 Pass 2 — PRIMARIES pinned card */
 .primcard-list {
   display: flex;

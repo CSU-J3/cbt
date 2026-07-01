@@ -13,6 +13,7 @@ import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   getChamberControl,
+  getPacIeSpending,
   getPrimaryCalendar,
   getRaceCandidatesForCycle,
   getRacesIndex,
@@ -21,18 +22,21 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ElectoralPage() {
-  const [races, raceCandidates, chamberControl, calendar] = await Promise.all([
-    getRacesIndex(2026),
-    getRaceCandidatesForCycle(2026),
-    getChamberControl(),
-    getPrimaryCalendar(2026),
-  ]);
+  const [races, raceCandidates, chamberControl, calendar, pacByRace] =
+    await Promise.all([
+      getRacesIndex(2026),
+      getRaceCandidatesForCycle(2026),
+      getChamberControl(),
+      getPrimaryCalendar(2026),
+      getPacIeSpending(2026),
+    ]);
   const senate = races.filter((r) => r.chamber === "senate");
   const house = races.filter((r) => r.chamber === "house");
 
   // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
   // tile count === the number of rows the LIST shows for that state.
-  const cartogram = buildRacesCartogram(races, raceCandidates);
+  // HO 393: pacByRace threads the UDP IE direction rows onto each contest.
+  const cartogram = buildRacesCartogram(races, raceCandidates, pacByRace);
   const geometry = getUsMapGeometry();
   const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -73,7 +77,9 @@ export default async function ElectoralPage() {
           geometry={geometry}
           calendar={calendar}
           todayISO={todayISO}
-          listSlot={<RaceListView senate={senate} house={house} />}
+          listSlot={
+            <RaceListView senate={senate} house={house} pacByRace={pacByRace} />
+          }
         />
       </main>
     </div>

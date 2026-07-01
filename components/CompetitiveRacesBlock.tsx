@@ -9,6 +9,7 @@ import {
   getDashboardPrimaries,
   getMember,
   getMostCompetitiveRaces,
+  getPacIeSpending,
   getRace,
   getRaceCandidates,
   getRacesIndex,
@@ -82,6 +83,11 @@ export async function CompetitiveRacesBlock({
       ? await getRecentRaceMoves(races.map((r) => r.raceId))
       : undefined;
 
+  // HO 393: UDP IE direction rows per race, for the v2 rich card's non-linked
+  // PAC SPENDING glance line (the clickable version lives on the /race hub +
+  // /electoral expands). v2-only.
+  const pacByRace = variant === "v2" ? await getPacIeSpending(cycle) : undefined;
+
   // Fetch each race's hub (race row + incumbent + candidates + runoffs) so the
   // hover popover renders from props. Mirrors /api/race/[id]/hub exactly; all
   // queries are cached (tag `races`), so the dashboard's `races` revalidation
@@ -117,6 +123,7 @@ export async function CompetitiveRacesBlock({
       variant={variant}
       rich={richRows}
       moves={moves}
+      pacByRace={pacByRace}
     />
   );
 

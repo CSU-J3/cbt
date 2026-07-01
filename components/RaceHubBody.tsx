@@ -1,3 +1,4 @@
+import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceCandidates } from "@/components/RaceCandidates";
 import { RaceHeader } from "@/components/RaceHeader";
 import { RaceIncumbentCard } from "@/components/RaceIncumbentCard";
@@ -5,6 +6,7 @@ import { RaceRunoffs } from "@/components/RaceRunoffs";
 import { formatDateLong } from "@/lib/format";
 import type {
   Member,
+  PacIeRow,
   PrimaryWithCandidates,
   Race,
   RaceCandidate,
@@ -49,6 +51,7 @@ export function RaceHubBody({
   incumbent,
   ratings,
   runoffs,
+  pac,
   preview = false,
 }: {
   race: Race;
@@ -56,6 +59,12 @@ export function RaceHubBody({
   incumbent: Member | null;
   ratings: RaceRating[];
   runoffs: PrimaryWithCandidates[];
+  // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line). Full
+  // hub only — gated `!preview`, so the dashboard popover doesn't need it. This
+  // is the surface that actually renders IL-07/KY-04 (competitive PRIMARIES with
+  // UDP spend but no forecaster GENERAL rating → absent from the competitive
+  // map/list, which is rated-only via getRacesIndex).
+  pac?: PacIeRow[];
   // HO 170: drawer-only trim. When true, drops the incumbent photo card and
   // the source/last-verified footer (those stay on /race/[id], which renders
   // with no `preview` prop). Keeps RaceHeader (name + countdown + multi-source
@@ -103,6 +112,12 @@ export function RaceHubBody({
               </span>
             ) : null}
           </span>
+        </div>
+      ) : null}
+
+      {!preview && pac && pac.length > 0 ? (
+        <div className="mt-5">
+          <PacSpendingLine rows={pac} />
         </div>
       ) : null}
 

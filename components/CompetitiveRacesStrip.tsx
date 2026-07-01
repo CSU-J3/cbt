@@ -5,6 +5,7 @@ import { RatingChip } from "@/components/RatingChip";
 import type {
   CompetitiveRace,
   Member,
+  PacIeRow,
   PartyKey,
   PrimaryWithCandidates,
   Race,
@@ -73,12 +74,16 @@ export function CompetitiveRacesStrip({
   // races that have moved appear. Threaded into each v2 RaceCard for its MOVED
   // indicator. v2-only; `/` never passes it.
   moves,
+  // HO 393: { raceId → UDP IE direction rows } for the v2 card's PAC SPENDING
+  // glance line. v2-only.
+  pacByRace,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
   variant?: "default" | "v2";
   rich?: (RaceIndexRow | null)[];
   moves?: Record<string, string>;
+  pacByRace?: Record<string, PacIeRow[]>;
 }) {
   if (variant === "v2") {
     // HO 305: page-level passes for the matchup block. (1) Ambiguous surnames —
@@ -118,6 +123,7 @@ export function CompetitiveRacesStrip({
                 candidates={hubs[i]?.candidates ?? []}
                 ambiguous={ambiguous}
                 lastMoveAt={moves?.[race.raceId]}
+                pac={pacByRace?.[race.raceId]}
               />
             ) : null;
           })}

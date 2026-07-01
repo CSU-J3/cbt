@@ -127,6 +127,32 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_race_candidates_race ON race_candidates(race_id)`,
   `CREATE INDEX IF NOT EXISTS idx_race_candidates_bioguide ON race_candidates(bioguide_id)`,
+  // HO 393: pro-Israel-PAC independent-expenditure DIRECTION on competitive race
+  // cards. One row per (committee, target, support/oppose, cycle) — ~8-12 rows,
+  // UDP-only (C00799031) in v1. We ship DIRECTION (who's backed/opposed), a
+  // per-row fact from raw FEC Schedule E that needs no dedup; the magnitude is
+  // delivered by deep-linking each direction to the live FEC filings, so the app
+  // never asserts a dollar total it can't stand behind (see docs/oddities.md —
+  // Schedule E has no clean dollar source). `amount` is NULLABLE + unpopulated in
+  // v1, reserved so an audited dollar backfill can layer in without a rebuild.
+  // race_id resolved at sync time by table lookup (office/state/district →
+  // races). earliest/latest_date = MIN/MAX(expenditure_date) over the group.
+  `CREATE TABLE IF NOT EXISTS pac_ie_spending (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    committee_id TEXT NOT NULL,
+    spender TEXT NOT NULL,
+    race_id TEXT NOT NULL,
+    candidate_id TEXT NOT NULL,
+    candidate_name TEXT NOT NULL,
+    support_oppose TEXT NOT NULL,
+    amount REAL,
+    earliest_date TEXT,
+    latest_date TEXT,
+    cycle INTEGER NOT NULL,
+    as_of TEXT NOT NULL,
+    UNIQUE(committee_id, candidate_id, support_oppose, cycle)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_pac_ie_race ON pac_ie_spending(race_id, cycle)`,
   // handoff 64: news signal pipeline. One row per (bill_id, article_url)
   // — the UNIQUE constraint makes re-ingestion idempotent. A single article
   // can match multiple bills, generating one row per pair. `matched_via`
