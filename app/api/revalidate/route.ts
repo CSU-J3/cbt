@@ -25,6 +25,9 @@ const ALLOWED_TAGS = new Set([
   "race-ratings",
   "news-breaking",
   "member-trades",
+  // HO 390: sync:fec flushes the member-hub fundraising line (totals + the
+  // small/large-dollar split) after a backfill.
+  "member-fundraising",
 ]);
 
 export async function POST(request: Request) {
