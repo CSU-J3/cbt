@@ -6,6 +6,22 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## A new cache tag must be allowlisted on the revalidate route or the first flush silently 400s (HO 390, Jun 2026)
+
+The `/api/revalidate` route gates on an `ALLOWED_TAGS` set — a tag not in it returns `400 "tag must be one of: …"` and never flushes. HO 390 hit this: `sync:fec` POSTed `?tag=member-fundraising` to publish the new donor split, but the tag wasn't in the allowlist, so the first flush 400'd and the split stayed invisible until the tag was added (`3e57740`). (`member-trades` was already wired, so the HO 389 trades path never tripped it.) **Second time this class of gap has surfaced** — when you add an `unstable_cache` tag AND a CLI/cron writer that flushes it, allowlisting the tag on the revalidate route is a required second step, not an afterthought.
+
+## FEC `by_size` works off the cached candidate-id — no committee resolution (HO 390, Jun 2026)
+
+The small/large-dollar donor split pulls FEC Schedule A `schedules/schedule_a/by_size/by_candidate/`, which aggregates across a candidate's authorized committees and is keyed by **`candidate_id`** — the same `fec_candidate_id` already cached on `members` from the HO 83 totals path. So `fetchFecBySize` needed **no committee-id resolution step**, contrary to the HO 390 handoff's assumption (it expected a committee lookup). Size-bucket floors are 0/200/500/1000/2000; `size=0` is the <$200 unitemized small-dollar bucket, the rest are itemized $200+ large-dollar. A transient failure / no Schedule A rows returns null and the columns stay untouched (honest gap — no fabricated split; totals still land).
+
+## `COUNT(DISTINCT bioguide_id)` on the ticker rollup — NULL-bioguide trades lift trades, not members (HO 389, Jun 2026)
+
+`getMostTradedTickers` counts trades with `COUNT(*)` but members with `COUNT(DISTINCT bioguide_id)`. Because unmatched FMP disclosures land with `bioguide_id = NULL` (the best-effort matcher), a ticker's **trade count can exceed what its member tally would imply** — the NULL-bioguide rows lift the trade count but contribute nothing to the distinct-member count. That's an honest cut, not a bug: the trade happened (count it) but we don't know whose it is (don't invent a member). Same NULL-bioguide honesty as the `/trades` feed rendering the raw disclosed name for unmatched rows rather than dropping them.
+
+## FMP congressional-trading is NOT dead — it moved to `/stable/{senate,house}-latest` (HO 388, records the stale premise)
+
+Recorded so the pipeline isn't re-scoped as dead: FMP's `/api/v4/` congressional-trading endpoints died Aug 2025, and HO 70 **rebuilt the trades pipeline onto `/stable/senate-latest` + `/stable/house-latest`**, which are live and bioguide-keyed (via senateID). HO 388's source probe confirmed it healthy — **548 rows, 0 unmatched, syncing daily**. Do not re-chase this as a dead source; the `/api/v4/` obituary is about the old paths, not the current pipeline. (The free-tier pagination cap — page 0 only, ~100 rows/chamber/run — is the real limit; see SKILL "Things to watch for.")
+
 ## A 1-row 500 can still be a full-corpus scan — size-independent in failure, not in work (HO 382, Jun 2026)
 
 A filtered view returning HTTP 500 on a result set of **one row** is not necessarily a logic throw — it can be an unbounded scan/aggregation over the *whole* corpus that's size-independent in its failure but very much not in its work (the giant `committee` bucket / a `?stage=`+`?topics=` distribution recompute that never short-circuits). The one-row result tells you nothing about how many rows the query *touched*. To split the two classes, reproduce via `getDb()` locally against **prod Turso** (no 10s `boundedFetch` cap): a **timeout-class** query runs slow and *completes* (you see it return after 15–30s); a **logic-class** query *throws its real message immediately*. HO 382's home-filter 500 was misdiagnosed as a logic bug for exactly this reason — the small filtered result masked a corpus-wide scan, and only the uncapped local run against prod data showed it completing-but-slow rather than throwing. (Same statless-planner / unbounded-aggregate family as the gated-aggregate and CASE-sort entries below; the new tell is *a tiny result set is no alibi for a fast query*.)
