@@ -19,27 +19,33 @@ import { SUMMARY_MODEL } from "./summarize";
 const MAX_CANDIDATES_PER_CALL = 30;
 const MIN_WORD_LENGTH_FOR_OVERLAP = 5;
 
-const SYSTEM_PROMPT = `You are matching a US news article to specific US Congress bills it is about.
+// HO 394: reframed from bill-only matching to typed-entity extraction. The
+// SAME one call now emits bills (unchanged contract) PLUS the members of
+// Congress and the committees/caucuses the article is about. `people`/`orgs`
+// are raw name strings; a deterministic resolver (lib/news-to-observation.ts)
+// canonicalizes them to bioguide_ids / system_codes with precision-over-recall.
+// Extracting names here (not ids) is deliberate: the model can't know
+// bioguide_ids, and a wrong id poisons the join — so the model proposes, the
+// code resolves.
+const SYSTEM_PROMPT = `You are analyzing a US Congress news article and extracting what it is ABOUT: the specific bills, the members of Congress, and the congressional committees or caucuses.
 
-The article TITLE is the primary signal — it states what the article is actually about. The article summary is context only: do NOT match a bill if the connection to it exists solely in the summary teaser and is not reflected in the title's subject.
+The article TITLE is the primary signal — it states what the article is actually about. The summary is context only.
 
-Reject matches based on topical adjacency. A bill must be what the article is ABOUT, not what it is NEAR. If the headline is about topic X and a bill addresses topic Y, do not match that bill even if the summary briefly mentions Y.
+Reject topical adjacency in every category. An entity must be what the article is ABOUT, not merely NEAR or mentioned as background.
 
-A bill IS what the article is about when it directly enacts, funds, or governs the specific policy or fight the headline covers — match it even if the article never cites it by name. A bill is merely NEAR when it only shares a broad subject area. (A "ballroom security funding" headline is about the bills that fund or authorize that ballroom; a "people losing health coverage" headline is NOT about an unrelated new health-grant program.)
+BILLS:
+A bill IS what the article is about when it directly enacts, funds, or governs the specific policy or fight the headline covers — match it even if the article never cites it by name. A bill is merely NEAR when it only shares a broad subject area. (A "ballroom security funding" headline is about the bills that fund that ballroom; a "people losing health coverage" headline is NOT about an unrelated new health-grant program.) Use ONLY bill IDs from the candidate list; never invent IDs. Per matched bill assign confidence: "high" (title directly references the bill's subject), "medium" (title implies it, summary corroborates), "low" (uncertain but defensible — prefer omitting over "low").
 
-For each bill you match, assign a confidence:
-- "high": the article title directly references the bill's subject.
-- "medium": the title implies the subject but isn't explicit, and the summary corroborates.
-- "low": an uncertain but defensible match — prefer omitting a bill over including it at "low".
+PEOPLE:
+Only current US Representatives and Senators the article is about. Give the person's name as commonly written, preferring the full name ("Mike Lawler", "Ruben Gallego") but a bare surname is acceptable when that is all the article gives ("Slotkin", "Kean"). Do NOT include the President, executive-branch officials, private citizens, staffers, or non-members — only sitting members of Congress. Do NOT guess a member who is not clearly a subject.
+
+ORGS:
+Congressional committees and caucuses the article is about, by name or by clear context. If the headline says "House panel" or "Senate committee" and the specific committee is determinable ("House Oversight", "Senate Ethics Committee"), name that committee. Include caucuses ("Congressional Black Caucus", "House Freedom Caucus") when they are the subject. Do NOT include executive agencies, parties, or advocacy groups.
 
 Return ONLY a JSON object of this exact shape — no prose, no markdown fences, no commentary:
-{"matches": [{"bill_id": "119-hr-1234", "confidence": "high"}]}
+{"matches": [{"bill_id": "119-hr-1234", "confidence": "high"}], "people": ["Mike Lawler", "Jamie Raskin"], "orgs": ["House Oversight Committee"]}
 
-Return {"matches": []} if no candidate is clearly the subject of the article.
-
-Rules:
-- Use only bill IDs from the candidate list. Never invent IDs.
-- Do not include bills that are only tangential or mentioned as background context.`;
+Every array may be empty. Return all three keys always. If the article is not about Congress at all (e.g. a health or weather story), return {"matches": [], "people": [], "orgs": []}.`;
 
 function normalizeWords(s: string): Set<string> {
   const out = new Set<string>();
@@ -86,11 +92,33 @@ export type MatchConfidence = "high" | "medium" | "low";
 
 export type BillMatch = { billId: string; confidence: MatchConfidence };
 
+// HO 394: raw entity-name mentions the model extracted (unresolved). The caller
+// resolves people → bioguide_id and orgs → committee system_code / caucus slug.
+export type ExtractedNames = { people: string[]; orgs: string[] };
+
 export type MatchOutcome =
-  | { kind: "no_pre_filter_hits" }
-  | { kind: "matched"; matches: BillMatch[] }
-  | { kind: "no_match" }
+  | { kind: "no_pre_filter_hits" } // no LLM call → no extraction
+  | { kind: "matched"; matches: BillMatch[]; extracted: ExtractedNames }
+  | { kind: "no_match"; extracted: ExtractedNames }
   | { kind: "api_error"; reason: string };
+
+// Coerce a parsed JSON value to a clean string[] of trimmed, non-empty,
+// de-duplicated names (defensive against the model returning junk shapes).
+function toNameArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of value) {
+    if (typeof v !== "string") continue;
+    const s = v.trim();
+    if (!s || s.length > 120) continue; // guard against pathological output
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+  }
+  return out;
+}
 
 export async function matchBillsToArticle(
   client: GoogleGenAI,
@@ -148,13 +176,14 @@ ${candidateList}`;
   } catch {
     return { kind: "api_error", reason: `unparseable: ${text.slice(0, 80)}` };
   }
-  const rawMatches =
-    parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>).matches
-      : undefined;
-  if (!Array.isArray(rawMatches)) {
-    return { kind: "api_error", reason: "no matches array in response" };
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { kind: "api_error", reason: "response is not a JSON object" };
   }
+  const obj = parsed as Record<string, unknown>;
+  // A missing `matches` key is treated as an empty match set (→ no_match), NOT
+  // an api_error — so the extraction still lands. news_mentions behavior is
+  // unchanged either way (both write zero bill rows).
+  const rawMatches = Array.isArray(obj.matches) ? obj.matches : [];
   // Validate every id against the candidate set we passed — guards against
   // hallucinated ids (Gemini Flash occasionally invents plausibly-shaped ids
   // when uncertain). A missing/garbled confidence falls back to "low" rather
@@ -174,7 +203,14 @@ ${candidateList}`;
       c === "high" || c === "medium" || c === "low" ? c : "low";
     matches.push({ billId, confidence });
   }
+
+  // HO 394: raw people/org name mentions — resolved downstream, kept even when
+  // unresolvable (auditable). Bill matches keep their exact prior semantics.
+  const extracted: ExtractedNames = {
+    people: toNameArray(obj.people),
+    orgs: toNameArray(obj.orgs),
+  };
   return matches.length > 0
-    ? { kind: "matched", matches }
-    : { kind: "no_match" };
+    ? { kind: "matched", matches, extracted }
+    : { kind: "no_match", extracted };
 }

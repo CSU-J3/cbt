@@ -10,6 +10,12 @@ export interface RssItem {
   url: string;
   summary: string | null;
   publishedAt: string; // ISO 8601
+  // HO 394: the source's own stable id — RSS <guid> or Atom <id>. Verified
+  // stable + non-tracking on all three feeds (Politico opaque CMS id; The Hill /
+  // Roll Call WordPress `?p=<postid>` permalinks). Powers the deterministic
+  // Observation.obs_id (native_id-first) so re-ingest upserts instead of
+  // duplicating. Null when the feed omits it (obs_id then falls back to url).
+  nativeId: string | null;
 }
 
 const parser = new XMLParser({
@@ -116,11 +122,15 @@ function parseRss2Items(parsed: Record<string, unknown>): RssItem[] {
     if (!title || !url) continue;
     const descRaw = asText(r.description);
     const summary = descRaw ? stripHtml(descRaw) : null;
+    // RSS <guid> may be a bare string or { _text, isPermaLink } (attrs); asText
+    // handles both. Fall back to the link so obs_id always has a stable basis.
+    const nativeId = asText(r.guid) || url || null;
     items.push({
       title: stripHtml(title),
       url,
       summary,
       publishedAt: toIso(asText(r.pubDate) || asText(r.date)),
+      nativeId,
     });
   }
   return items;
@@ -139,11 +149,14 @@ function parseAtomItems(parsed: Record<string, unknown>): RssItem[] {
     const url = pickAtomLink(e.link);
     if (!title || !url) continue;
     const summary = asText(e.summary) || asText(e.content) || "";
+    // Atom <id> is the stable native id; fall back to the resolved link.
+    const nativeId = asText(e.id) || url || null;
     items.push({
       title: stripHtml(title),
       url,
       summary: summary ? stripHtml(summary) : null,
       publishedAt: toIso(asText(e.published) || asText(e.updated)),
+      nativeId,
     });
   }
   return items;

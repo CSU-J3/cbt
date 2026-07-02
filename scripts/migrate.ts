@@ -591,6 +591,56 @@ const statements = [
     image TEXT,
     created_at TEXT NOT NULL
   )`,
+  // HO 394: news-as-observations pilot (ADDITIVE, reversible). The watchcore
+  // Observation contract (lib/observation.ts) stored SQLite-style: scalar fields
+  // as columns, `source`/`raw`/`entities`/`geo`/`tags` as JSON TEXT. Full
+  // contract column set incl. reserved fields (geo/valid_from/valid_to/confidence
+  // — unused for news) so a later surface needs no migration. `news_mentions`
+  // stays the live UI source + the rollback path; nothing migrates. Rollback =
+  // DROP both tables + remove the dual-write hook in lib/news-ingest.ts.
+  `CREATE TABLE IF NOT EXISTS observations (
+    obs_id TEXT PRIMARY KEY,
+    schema_version INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    obs_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    reliability TEXT NOT NULL,
+    credibility INTEGER NOT NULL,
+    raw TEXT NOT NULL,
+    summary TEXT,
+    entities TEXT,
+    geo TEXT,
+    tags TEXT,
+    valid_from TEXT,
+    valid_to TEXT,
+    confidence TEXT,
+    content_hash TEXT,
+    cluster_id TEXT,
+    first_seen TEXT,
+    last_seen TEXT,
+    supersedes TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_observations_observed ON observations(observed_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_observations_type ON observations(obs_type)`,
+  `CREATE INDEX IF NOT EXISTS idx_observations_cluster ON observations(cluster_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_observations_content_hash ON observations(content_hash)`,
+  // Flattened, indexed entity index — the join layer (member→news, race→news).
+  // json_extract joins over observations.entities would be the wrong tool. One
+  // row per (observation, extracted entity); entity_value nullable (orgs with no
+  // id, and unresolved/ambiguous person/committee mentions kept for audit).
+  // Idempotent via delete-then-insert per obs_id (the primary_candidates idiom).
+  `CREATE TABLE IF NOT EXISTS observation_entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    obs_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_value TEXT,
+    entity_name TEXT NOT NULL,
+    role TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_obs_entities_type_value ON observation_entities(entity_type, entity_value)`,
+  `CREATE INDEX IF NOT EXISTS idx_obs_entities_obs ON observation_entities(obs_id)`,
 ];
 
 async function ensureColumn(

@@ -17,8 +17,14 @@
 import { GoogleGenAI } from "@google/genai";
 import { extractBillIds } from "./bill-id-extract";
 import { getDb } from "./db";
-import { type MatchConfidence, matchBillsToArticle } from "./news-matcher";
+import {
+  type ExtractedNames,
+  type MatchConfidence,
+  matchBillsToArticle,
+} from "./news-matcher";
 import { NEWS_SOURCES } from "./news-sources";
+// HO 394: additive dual-write of each article as a watchcore Observation.
+import { dualWriteObservation, loadEntityLookups } from "./news-to-observation";
 import { getCandidateBills } from "./queries";
 import { fetchAndParseRss } from "./rss-parse";
 
@@ -96,6 +102,11 @@ export async function ingestNews(
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const llmClient = geminiKey ? new GoogleGenAI({ apiKey: geminiKey }) : null;
   const candidates = llmClient ? await getCandidateBills(30) : [];
+
+  // HO 394: entity-resolution lookups (members + committees), loaded once per
+  // run like `candidates` and reused across articles, for the observation
+  // dual-write's deterministic resolver.
+  const lookups = await loadEntityLookups(db);
 
   async function recordMention(
     billId: string,
@@ -200,6 +211,17 @@ export async function ingestNews(
           extractBillIds(text).map((id) => ({ billId: id, confidence: null }));
         let matchedVia: "bill_id_regex" | "llm_match" = "bill_id_regex";
 
+        // HO 394: entity extraction rides the SAME LLM call. `extracted` holds
+        // the raw people/org name mentions; `obsTags` records why the LLM was
+        // NOT called (so the coverage diagnostic can size the population that
+        // extraction never sees — the only thing decoupling the gate would fix).
+        let extracted: ExtractedNames = { people: [], orgs: [] };
+        let obsTags: string[] = [];
+        if (billMatches.length > 0) {
+          // Regex fast-path: LLM skipped, so no member/committee extraction.
+          obsTags = ["no_llm_call:regex"];
+        }
+
         // LLM fallback fires only when regex misses AND we have a key set.
         // No-pre-filter-hits short-circuits BEFORE counting an LLM call so
         // the llmCalls metric reflects actual Gemini round-trips.
@@ -230,12 +252,15 @@ export async function ingestNews(
               confidence: CONFIDENCE_REAL[m.confidence],
             }));
             matchedVia = "llm_match";
+            extracted = outcome.extracted;
             await sleep(LLM_INTERVAL_MS);
           } else if (outcome.kind === "no_match") {
             result.llmCalls++;
+            extracted = outcome.extracted;
             await sleep(LLM_INTERVAL_MS);
           } else if (outcome.kind === "api_error") {
             result.llmCalls++;
+            obsTags = ["llm_error"];
             if (ac.signal.aborted) {
               result.llmTimeouts++;
               result.errors.push(
@@ -246,22 +271,56 @@ export async function ingestNews(
               result.errors.push(`llm match: ${outcome.reason}`);
             }
             await sleep(LLM_INTERVAL_MS);
+          } else {
+            // no_pre_filter_hits: no LLM call, no metric bump, no sleep.
+            obsTags = ["no_llm_call:prefilter"];
           }
-          // no_pre_filter_hits: no LLM call, no metric bump, no sleep
+        } else if (billMatches.length === 0) {
+          // No LLM client / no candidates → no call could be made.
+          obsTags = ["no_llm_call:no_client"];
         }
 
-        if (billMatches.length === 0) continue;
+        // news_mentions write — UNCHANGED (bill-keyed, the live UI source). Only
+        // articles with a bill match write a mention; the rest fall through.
+        const recordedBillIds: string[] = [];
+        if (billMatches.length > 0) {
+          for (const m of billMatches) {
+            const inserted = await recordMention(
+              m.billId,
+              source.slug,
+              item,
+              matchedVia,
+              m.confidence,
+            );
+            if (inserted) {
+              result.mentionsInserted++;
+              recordedBillIds.push(m.billId);
+            } else {
+              result.mentionsSkippedUnknownBill++;
+            }
+          }
+        }
 
-        for (const m of billMatches) {
-          const inserted = await recordMention(
-            m.billId,
-            source.slug,
+        // HO 394 dual-write: EVERY article becomes one Observation (incl. the
+        // ~76% news_mentions drops — the rescue population). Bill entities are
+        // the ids that actually exist (recordMention-confirmed). Guarded so a
+        // mapper/store failure can never break the news cron (Gate C) — the
+        // news_mentions write above has already succeeded.
+        try {
+          await dualWriteObservation(
+            db,
             item,
-            matchedVia,
-            m.confidence,
+            source,
+            recordedBillIds,
+            extracted,
+            lookups,
+            ingestedAt,
+            obsTags,
           );
-          if (inserted) result.mentionsInserted++;
-          else result.mentionsSkippedUnknownBill++;
+        } catch (err) {
+          result.errors.push(
+            `obs write (${item.title.slice(0, 40)}): ${(err as Error).message}`,
+          );
         }
       }
     } catch (err) {
