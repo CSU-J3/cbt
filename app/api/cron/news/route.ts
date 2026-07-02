@@ -83,6 +83,10 @@ async function handle(request: Request) {
 
     // Flush both /news and the HO 114 home block — same shared tag.
     revalidateTag("news-breaking");
+    // HO 398: flush the race-detail news section (getRaceNews) — new obs from
+    // this tick may mention a race incumbent. Tag must also be allowlisted on
+    // /api/revalidate or its first manual flush 400s (oddities, HO 390).
+    revalidateTag("race-news");
 
     const payload = {
       timings,

@@ -7,6 +7,7 @@ import {
   getPacIeSpending,
   getRace,
   getRaceCandidates,
+  getRaceNews,
   getRaceRatings,
   getRunoffsForRace,
 } from "@/lib/queries";
@@ -56,8 +57,8 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs, pacByRace] = await Promise.all(
-    [
+  const [candidates, incumbent, ratings, runoffs, pacByRace, news] =
+    await Promise.all([
       getRaceCandidates(race.id),
       race.incumbent_bioguide_id
         ? getMember(race.incumbent_bioguide_id)
@@ -65,8 +66,12 @@ export default async function RacePage({
       getRaceRatings(race.id),
       getRunoffsForRace(race.id),
       getPacIeSpending(race.cycle),
-    ],
-  );
+      // Null guard: open seat → no join key, skip the query and let RaceHubBody
+      // render the open-seat empty state (HO 398).
+      race.incumbent_bioguide_id
+        ? getRaceNews(race.incumbent_bioguide_id, 8)
+        : Promise.resolve([]),
+    ]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -88,6 +93,7 @@ export default async function RacePage({
           ratings={ratings}
           runoffs={runoffs}
           pac={pacByRace[race.id]}
+          news={news}
         />
       </main>
     </div>

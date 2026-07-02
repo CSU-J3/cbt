@@ -2,6 +2,7 @@ import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceCandidates } from "@/components/RaceCandidates";
 import { RaceHeader } from "@/components/RaceHeader";
 import { RaceIncumbentCard } from "@/components/RaceIncumbentCard";
+import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { RaceRunoffs } from "@/components/RaceRunoffs";
 import { formatDateLong } from "@/lib/format";
 import type {
@@ -10,6 +11,7 @@ import type {
   PrimaryWithCandidates,
   Race,
   RaceCandidate,
+  RaceNewsItem,
   RaceRating,
 } from "@/lib/queries";
 
@@ -52,6 +54,7 @@ export function RaceHubBody({
   ratings,
   runoffs,
   pac,
+  news,
   preview = false,
 }: {
   race: Race;
@@ -65,6 +68,12 @@ export function RaceHubBody({
   // UDP spend but no forecaster GENERAL rating → absent from the competitive
   // map/list, which is rated-only via getRacesIndex).
   pac?: PacIeRow[];
+  // HO 398: news around this race's incumbent (the observation join). Full hub
+  // only — gated `!preview` like `pac`, and fetched by the server page, so the
+  // dashboard drawer (which renders no `news`) stays a pure prop render. An
+  // empty array renders the empty state; the open-seat (null-incumbent) case is
+  // distinguished off `race.incumbent_bioguide_id`.
+  news?: RaceNewsItem[];
   // HO 170: drawer-only trim. When true, drops the incumbent photo card and
   // the source/last-verified footer (those stay on /race/[id], which renders
   // with no `preview` prop). Keeps RaceHeader (name + countdown + multi-source
@@ -181,6 +190,46 @@ export function RaceHubBody({
           </div>
         </section>
       )}
+
+      {!preview ? (
+        <section
+          className="mt-6 border"
+          style={{ borderColor: "var(--border-strong)" }}
+        >
+          <div
+            className="px-4 py-3"
+            style={{
+              backgroundColor: "var(--bg-panel)",
+              borderBottom: "0.5px solid var(--border-strong)",
+            }}
+          >
+            <h2
+              className="text-[12px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              News · around the incumbent
+            </h2>
+          </div>
+          <div className="px-4 py-2">
+            {news && news.length > 0 ? (
+              <div>
+                {news.map((n) => (
+                  <RaceNewsRow key={n.obsId} item={n} />
+                ))}
+              </div>
+            ) : (
+              <p
+                className="py-2 text-[13px]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {race.incumbent_bioguide_id
+                  ? "No recent news linked to this race's incumbent."
+                  : "Open seat — no incumbent to track news for."}
+              </p>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       {!preview ? (
         race.source_url ? (

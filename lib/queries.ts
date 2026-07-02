@@ -1889,6 +1889,62 @@ export const getPacIeSpending = unstable_cache(
   { revalidate: 3600, tags: ["races"] },
 );
 
+// HO 398 — race → news, the first surface off the observation join (HO 394/395).
+// `observation_entities` links each news observation to the people it names; a
+// race's incumbent is keyed by `entity_value = incumbent_bioguide_id` at
+// `entity_type='person'`. Honest v1: the join is by bioguide, so this catches
+// news mentioning the INCUMBENT (a challenger only if they're a sitting member,
+// rare) — the surface labels/empties reflect that. `source` and the article url
+// live in the observation's JSON `source` blob (ObsSource: publisher/url), so
+// they're json_extract-ed. GROUP BY o.obs_id dedupes the rare case where one
+// article resolves the same member twice. Plan (EXPLAIN, live Turso): driver is
+// SEARCH oe USING idx_obs_entities_type_value → PK lookup on observations; the
+// GROUP BY/ORDER temp b-trees are over the ~handful of matched rows, not a scan
+// — the planner doesn't stray, so no INDEXED BY hint (HO 398 gate).
+export type RaceNewsItem = {
+  obsId: string;
+  title: string;
+  publisher: string;
+  url: string;
+  observedAt: string;
+};
+
+export const getRaceNews = unstable_cache(
+  async (
+    incumbentBioguideId: string,
+    limit = 8,
+  ): Promise<RaceNewsItem[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT o.obs_id,
+                   o.title AS title,
+                   json_extract(o.source, '$.publisher') AS publisher,
+                   json_extract(o.source, '$.url') AS url,
+                   o.observed_at AS observed_at
+            FROM observation_entities oe
+            JOIN observations o ON o.obs_id = oe.obs_id
+            WHERE oe.entity_type = 'person' AND oe.entity_value = ?
+            GROUP BY o.obs_id
+            ORDER BY o.observed_at DESC
+            LIMIT ?`,
+      args: [incumbentBioguideId, limit],
+    });
+    return rs.rows
+      .map((r) => ({
+        obsId: r.obs_id as string,
+        title: r.title as string,
+        publisher: (r.publisher as string | null) ?? "",
+        url: (r.url as string | null) ?? "",
+        observedAt: r.observed_at as string,
+      }))
+      // A well-formed news observation always carries a url; guard anyway so a
+      // malformed source blob can't render a dead headline link.
+      .filter((n) => n.url.length > 0);
+  },
+  ["getRaceNews"],
+  { revalidate: 3600, tags: ["race-news"] },
+);
+
 export const getMostCompetitiveRaces = unstable_cache(
   async (cycle: number, limit: number): Promise<CompetitiveRace[]> => {
     const db = getDb();

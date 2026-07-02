@@ -2192,6 +2192,13 @@ body {
   border-left-color: var(--accent-amber);
 }
 
+/* HO 398 — race-news variant: same row idiom minus the bill-id cell (an
+   observation keyed to a race incumbent has no bill). Headline · source · age.
+   Two-class specificity beats the base + mobile `.news-row` grid rules. */
+.news-row--no-bill {
+  grid-template-columns: 1fr 120px 64px;
+}
+
 /* Headline cell holds the optional BREAKING pill + the headline so the pill
    prefixes the text without pushing its truncation. */
 .news-row .news-headline-cell {
