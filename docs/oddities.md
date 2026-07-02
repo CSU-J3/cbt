@@ -6,6 +6,18 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## News rescue tops out at ~35% joinable, not the ~76% the pilot aspired to — and that's correct precision (HO 394/395, Jul 2026)
+
+The observation dual-write was meant to "rescue" the ~76% of Congress-news articles that name no bill by tagging them to a member/committee instead. It doesn't reach 76%, and shouldn't: rescue is **bounded by how much Congress news is actually attributable to a sitting member or committee**. Executive-branch actors (Vought/OMB, Rubio/Witkoff), local figures (Mamdani/NYC), and genuinely subjectless items legitimately resolve to **zero entities**. The ~42% zero-entity rate is mostly **correct precision** (no over-tagging), not resolver misses — person resolution ran 27/27 with 0% wrong-drop, and the committee "44% drop" is largely correct rejections ("House of Representatives" / "House Democrats" aren't committees → `entity_value` NULL). Do **not** re-litigate the rescue rate as a resolver failure; a lower joinable rate with zero mis-tags is the design goal (precision over recall — a wrong `bioguide_id` poisons the member→news join).
+
+## Native-id upsert makes the obs delta < items-fetched on overlapping runs (HO 395, Jul 2026)
+
+`observations` upserts on `obs_id` (native_id-first). A re-ingest of an already-seen article bumps `last_seen` (ON CONFLICT DO UPDATE) and inserts nothing — so the row delta from a tick is **only the genuinely-new articles**, not the count fetched. The Gate C deployed tick wrote **+15 obs from 55 fetched** because a ~1h-earlier local run had already inserted the overlap. Expected, not a lost-write — when auditing obs growth, compare against *new* articles since the last tick, not items-fetched.
+
+## `the_hill` gets budget-starved when `politico` runs long (HO 395, Jul 2026)
+
+Feeds ingest sequentially under one ~45s route budget (`NEWS_BUDGET_MS`). On the Gate C tick, politico alone ran **32.4s** and `the_hill` hit `budgetStopped:true` (roll_call never reached). This is pre-existing HO 117 budget behavior surfacing on the observation path — later feeds can be **partially or fully skipped** on a slow tick, so a single tick's per-feed counts aren't a feed-health signal. Tracked as a soak in `backlog.md`; if the_hill is *systematically* skipped the fix is per-feed budget carving or feed-order rotation (HO 117 territory), not a timeout raise.
+
 ## A new cache tag must be allowlisted on the revalidate route or the first flush silently 400s (HO 390, Jun 2026)
 
 The `/api/revalidate` route gates on an `ALLOWED_TAGS` set — a tag not in it returns `400 "tag must be one of: …"` and never flushes. HO 390 hit this: `sync:fec` POSTed `?tag=member-fundraising` to publish the new donor split, but the tag wasn't in the allowlist, so the first flush 400'd and the split stayed invisible until the tag was added (`3e57740`). (`member-trades` was already wired, so the HO 389 trades path never tripped it.) **Second time this class of gap has surfaced** — when you add an `unstable_cache` tag AND a CLI/cron writer that flushes it, allowlisting the tag on the revalidate route is a required second step, not an afterthought.

@@ -357,6 +357,53 @@ CREATE INDEX idx_news_mentions_bill ON news_mentions(bill_id);
 CREATE INDEX idx_news_mentions_published ON news_mentions(published_at DESC);
 CREATE INDEX idx_news_mentions_source ON news_mentions(source);
 
+-- Entity-resolved news layer (HO 394, adopted + live 4fd9c9d). The news cron
+-- DUAL-WRITES: `news_mentions` (bill-keyed, unchanged) AND one `observation`
+-- per fetched article with resolved entities. This is the generic watchcore
+-- envelope — obs_type is "news" in the pilot, reserved for extension. Several
+-- envelope fields are INERT constants today (see the note after the DDL); they
+-- are reserved, not signal. `lib/observation.ts` (shape + validateObservation),
+-- `lib/news-to-observation.ts` (resolver + dual-write).
+CREATE TABLE observations (
+  obs_id TEXT PRIMARY KEY,          -- hash(collector|native_id); observed_at folded in ONLY in the guid+url-absent fallback
+  schema_version INTEGER,           -- INERT (reserved lineage)
+  source TEXT,                      -- JSON {collector, source_type, publisher?, url?, native_id?}
+  fetched_at TEXT,                  -- UTC-ISO, enforced by validateObservation
+  observed_at TEXT,                 -- UTC-ISO (RSS pubDate via toIso); validateObservation rejects non-ISO
+  obs_type TEXT,                    -- "news" (pilot); reserved for extension
+  title TEXT,
+  reliability TEXT,                 -- INERT: all sources 'B' currently
+  credibility INTEGER,              -- INERT: all sources 2 currently
+  raw TEXT,                         -- JSON best-available source payload; written ONCE, never mutated on upsert
+  summary TEXT,
+  entities TEXT,                    -- JSON resolved-pass entities (audit trail incl. value=NULL); can't drift from the table (one pass fills both)
+  geo TEXT,                         -- JSON; unused in the news pilot
+  tags TEXT,                        -- JSON; obsTags records why the LLM was/wasn't called + ts_violation soft-flag
+  valid_from TEXT, valid_to TEXT, confidence TEXT,   -- unused in the news pilot
+  content_hash TEXT,                -- hash(title|summary)
+  cluster_id TEXT,                  -- = content_hash (stage-one, no MinHash yet) — INERT as a real cluster signal
+  first_seen TEXT, last_seen TEXT,  -- last_seen bumped on re-ingest upsert; first_seen/raw/entities frozen
+  supersedes TEXT                   -- INERT lineage
+);
+CREATE INDEX idx_observations_observed ON observations(observed_at DESC);
+CREATE INDEX idx_observations_type ON observations(obs_type);
+CREATE INDEX idx_observations_cluster ON observations(cluster_id);
+CREATE INDEX idx_observations_content_hash ON observations(content_hash);
+
+-- Flattened resolved-entity join (delete-then-insert per obs_id, idempotent).
+-- Powers member→news / race→news joins; joins to races via members.next_election
+-- / incumbent_bioguide_id. entity_value NULL = honestly unjoinable (kept, not dropped).
+CREATE TABLE observation_entities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  obs_id TEXT NOT NULL,             -- references observations.obs_id; not FK'd (committee_bills precedent)
+  entity_type TEXT NOT NULL,        -- bill | person | org | committee | location | other
+  entity_value TEXT,                -- resolved id (bioguide / system_code / caucus slug); NULL when honestly unjoinable
+  entity_name TEXT,                 -- canonical / as-extracted name
+  role TEXT
+);
+CREATE INDEX idx_obs_entities_type_value ON observation_entities(entity_type, entity_value);
+CREATE INDEX idx_obs_entities_obs ON observation_entities(obs_id);
+
 -- Stock trade disclosures (handoff 70). Source: Financial Modeling Prep
 -- (FMP) free tier. Composite `id` because FMP doesn't return a stable
 -- filing id (bioguide-disclosure_date-ticker-transaction_date-amount).
@@ -1423,6 +1470,17 @@ Decide the hub's thesis before the second sub-page link ships, or the hub turns 
 v1 covers three RSS feeds: Politico, The Hill, Roll Call. URLs in `lib/news-sources.ts`. Cron tick fetches all three after sync + summarize + lead generation, regex-matches bill ids in `title + summary`, looks up against the `bills` table, and writes (bill_id, article_url) rows to `news_mentions`. Ingestion is best-effort — RSS errors are logged in the cron output and never fail the run. Local test: `npm run sync:news`.
 
 The matching layer is `lib/bill-id-extract.ts` — a permissive regex covering all 8 bill types with whitespace and dot variants (`HR 1234`, `H.R. 1234`, `H. R. 1234`, `S.Res. 5`, `HJRes 12`, etc.). Bare-`S` matches require a context word (`bill`, `senate`, `legislation`, `act`, `amendment`, `measure`) or at least one dot to cut the obvious noise; everything else gets through and the false-positive rate gets measured formally in handoff 65 (matching accuracy validation against a hand-labeled sample). Fuzzy title matching, LLM disambiguation, and UI surfaces are explicitly deferred.
+
+### Observation layer (HO 394–395, adopted + live `4fd9c9d`)
+
+The `news_mentions` write above is bill-keyed and only captures the ~13/55 articles that name a bill. The observation layer is the entity-resolved superset: every fetched article becomes one `observation` with resolved member / committee / caucus / bill entities, so member→news and race→news joins become buildable. Store shape in `lib/observation.ts`; resolver + dual-write in `lib/news-to-observation.ts`. Verified on a deployed tick (Gate C): +15 obs, 45.8s, status success, **0** dual-write errors.
+
+- **Dual-write.** News ingest writes `news_mentions` (unchanged) AND one `observation` per fetched article, in that order. The observation call is wrapped in a **guarded try/catch** (`lib/news-ingest.ts`) so a mapper/store failure lands in `cron_runs.payload.feeds[].errors` as an `obs write (...)` line but can **never break the news cron** — the `news_mentions` write has already committed.
+- **Resolver determinism.** The one Gemini Flash call (thinkingBudget 0) **proposes** raw people/org names; **code resolves** them to IDs against `members` / `committees` / caucus-config. Never let the LLM emit IDs — it can't know `bioguide_id` or `system_code`. Person: full-name match, else unique surname; ambiguous → drop. Committee: all distinctive tokens present, parent (standing) committee preferred, unique-only. Caucus → org via the 4 caucus-config `fullName`s; off-config (CBC etc.) → org with `entity_value = NULL` (honestly unjoinable; identity caucuses deferred). Unresolved names are **kept** in `observations.entities` JSON for audit — both the JSON and `observation_entities` are populated from ONE resolved pass, so they can't drift.
+- **obs_id.** native_id-first: `hash(collector|native_id)`. `observed_at` is folded into the id ONLY in the guid+url-absent fallback. All 3 feeds (Politico / The Hill / Roll Call) verified to emit a stable `<guid>` / Atom `<id>`; `native_id` extracted in `rss-parse.ts`. Re-ingest of the same article upserts (bumps `last_seen`), so obs delta < items-fetched on overlapping runs.
+- **observed_at.** RFC-822 → UTC-ISO at the `RssItem.publishedAt` boundary (`toIso`, `rss-parse.ts`), referenced at consumption in `news-to-observation.ts`. Load-bearing: `validateObservation` rejects a non-ISO `observed_at`, so a regression here writes **zero** obs (not silently-wrong ones).
+- **Extraction gate.** The LLM name-extraction fires when the bill pre-filter passes. The no-LLM-call buckets (regex / prefilter / no_client / llm_error) were all 0 on the current feeds, so the same gate captures every article; `obsTags` records which path ran. Decoupling extraction from the bill gate gains nothing today — revisit only if a member-only-no-bill feed is added.
+- **Inert fields.** `reliability` / `credibility` / `cluster_id` / `supersedes` / `schema_version` are reserved constants (all sources B/2; `cluster_id = content_hash`, no MinHash). They are **not signal** — activate when a second collector or a real consumer arrives.
 
 ## Race surface
 
