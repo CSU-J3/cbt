@@ -666,8 +666,14 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // is kept solely to detect backward moves. ORDER BY stage_changed_at DESC so a
   // capped advance rung lists its most-recent bills first.
   const transRs = await db.execute({
+    // HO 407: INDEXED BY forces the stage_changed_at index. Unhinted, the
+    // stateless Turso planner MULTI-INDEX-ORs idx_bills_is_ceremonial over ~the
+    // whole 16k corpus + a temp b-tree sort and cold-aborts at the 10+10s
+    // boundedFetch wall (the weekly-report + catch-up killer). The index gives
+    // the ~689-row stage_changed_at IS NOT NULL subset in DESC order (serves the
+    // ORDER BY, no temp sort); date()+ceremonial are cheap residual filters.
     sql: `SELECT bill_type, bill_number, title, previous_stage, stage
-          FROM bills
+          FROM bills INDEXED BY idx_bills_stage_changed_at
           WHERE stage_changed_at IS NOT NULL
             AND date(stage_changed_at) BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}
@@ -734,14 +740,18 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // 3. New introductions count — this week and the week before, so the LEAD
   // can synthesize a trend ("introductions rose/fell") rather than recite a
   // bare number (HO 112).
+  // HO 407: idx_bills_introduced_date (introduced_date, is_ceremonial) makes both
+  // week-window COUNTs index-only/covering. Unhinted they MULTI-INDEX-OR
+  // idx_bills_is_ceremonial over the corpus and cold-abort at the 20s wall — the
+  // exact HO 246 getNewBillsThisWeekCount pattern, which forces this same index.
   const introRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date
           WHERE introduced_date BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}`,
     args: [week.start, week.end],
   });
   const priorIntroRs = await db.execute({
-    sql: `SELECT COUNT(*) AS n FROM bills
+    sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date
           WHERE introduced_date BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}`,
     args: [addDays(week.start, -7), addDays(week.start, -1)],
@@ -755,8 +765,13 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // whip-count problems, a different phenomenon. json_each UNNESTs the
   // topics array, same pattern as getTopicDistribution.
   const deadRs = await db.execute({
+    // HO 407: force idx_bills_latest_action so the driver seeks the narrow ~6-day
+    // window 60 days back (DESC index serves the ASC order via reverse scan) and
+    // json_each fans out over that small set — instead of the unhinted
+    // MULTI-INDEX-OR on idx_bills_dash_stage over the corpus + temp b-tree (20s
+    // cold-abort). stage/ceremonial/topics become residual filters.
     sql: `SELECT je.value AS topic, b.bill_type, b.bill_number
-          FROM bills b, json_each(b.topics) je
+          FROM bills b INDEXED BY idx_bills_latest_action, json_each(b.topics) je
           WHERE b.topics IS NOT NULL
             AND ${NON_CEREMONIAL.replace(/is_ceremonial/g, "b.is_ceremonial")}
             AND b.stage IN ('introduced', 'committee')
@@ -795,10 +810,14 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // gates; NULL is kept so the filter doesn't go empty during backfill.
   // Cosponsor NULLs sort last; they should be rare once the backfill runs.
   const notableRs = await db.execute({
+    // HO 407: force idx_bills_introduced_date so the driver seeks one week of
+    // intros (~hundreds) and residual-filters + temp-sorts that small set, not
+    // the unhinted MULTI-INDEX-OR on idx_bills_is_ceremonial over the corpus +
+    // temp b-tree (19.9s even warm; cold-aborts).
     sql: `SELECT bill_type, bill_number, title,
             sponsor_name, sponsor_party, sponsor_state,
             cosponsor_count, text_length
-          FROM bills
+          FROM bills INDEXED BY idx_bills_introduced_date
           WHERE introduced_date BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}
             AND (cluster_id IS NULL OR cluster_id = 'cra-disapproval')
@@ -823,8 +842,14 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // (Previously used stage_changed_at, which returned empty when bug 1's
   // first-time-enactment case bypassed the transition write.)
   const topicRs = await db.execute({
+    // HO 407: force idx_bills_introduced_date so the driver seeks the week's
+    // intros and json_each fans out over that small set (topics row-fetched per
+    // row). Unhinted this MULTI-INDEX-ORs idx_bills_is_ceremonial over the corpus
+    // + two temp b-trees (GROUP BY + ORDER BY) and cold-aborts at the 20s wall.
+    // This is the json_each+GROUP BY shape HO 407 flagged as re-plan-prone —
+    // EXPLAIN-verified to hold the hint cold before ship.
     sql: `SELECT je.value AS topic, COUNT(*) AS n
-          FROM bills b, json_each(b.topics) je
+          FROM bills b INDEXED BY idx_bills_introduced_date, json_each(b.topics) je
           WHERE b.topics IS NOT NULL
             AND ${NON_CEREMONIAL.replace(/is_ceremonial/g, "b.is_ceremonial")}
             AND b.introduced_date BETWEEN ? AND ?

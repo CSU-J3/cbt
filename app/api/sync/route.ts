@@ -67,8 +67,19 @@ async function handle(request: Request) {
     // self-resuming sync simply continues next tick. Non-fatal: a transient
     // gen failure leaves the row missing for the next day's catch-up.
     const tCatchup = Date.now();
+    // HO 407: capture the catch-up outcome as a machine-keyable signal. Before
+    // this the failure was swallowed by console.warn and the route still
+    // returned success, so a catch-up failing EVERY day (the gatherReportData
+    // cold-stall) was invisible in cron_runs for two weeks. Surfaced two ways: a
+    // distinct `payload.reportCatchup.ok` field, AND via chronicErr into the
+    // cron_runs.error_message column with a stable `report-catchup-failed:`
+    // prefix — so a status-level cron-health audit keys on either without
+    // parsing payload JSON by hand. Still non-fatal: the route stays success.
+    let reportCatchupError: string | null = null;
+    let reportCatchupGenerated: string | null = null;
     try {
       const catchup = await runReportCatchup();
+      reportCatchupGenerated = catchup.generated;
       if (catchup.generated) {
         revalidateTag("reports");
         console.log(
@@ -81,6 +92,7 @@ async function handle(request: Request) {
         );
       }
     } catch (err) {
+      reportCatchupError = err instanceof Error ? err.message : String(err);
       console.warn("[sync] report catch-up failed; will retry next tick", err);
     }
     timings.reportCatchup = Date.now() - tCatchup;
@@ -134,7 +146,21 @@ async function handle(request: Request) {
     console.log(`[sync] total: ${elapsedMs}ms`);
 
     return {
-      payload: { timings, sync },
+      payload: {
+        timings,
+        sync,
+        // HO 407: machine-keyable catch-up health. ok=false → the daily report
+        // backfill threw this tick (see error for the message).
+        reportCatchup: {
+          ok: reportCatchupError === null,
+          generated: reportCatchupGenerated,
+          error: reportCatchupError,
+        },
+      },
+      // Non-fatal surfacing into cron_runs.error_message (status stays success).
+      chronicErr: reportCatchupError
+        ? `report-catchup-failed: ${reportCatchupError}`
+        : undefined,
     };
   });
 
