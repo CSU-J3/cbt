@@ -1530,7 +1530,7 @@ The `news_mentions` write above is bill-keyed and only captures the ~13/55 artic
 
 ## Race surface
 
-v1 covers the upcoming cycle for every sitting member's seat. Stubs come from `npm run backfill:races` (one-shot derivation from `members`). Ratings + candidate rosters are hand-curated in `data/races-seed.json` from Sabato's Crystal Ball (paywalled Cook and Inside Elections are skipped for v1), applied via `npm run seed:races`. Refresh quarterly. Polling, FEC fundraising, and district demographics are deferred sub-pages.
+v1 covers the upcoming cycle for every sitting member's seat. Stubs come from `npm run backfill:races` (one-shot derivation from `members`). Ratings + candidate rosters are hand-curated in `data/races-seed.json` from Sabato's Crystal Ball (paywalled Cook and Inside Elections are skipped for v1), applied via `npm run seed:races`. Refresh quarterly. **`seed-races.ts` also applies a curated `incumbent_bioguide_id` override** (from `races-seed.json`) layered over `backfill-races.ts`'s `next_election_year`-derived incumbent — a conditional UPDATE that sets only that column + `last_verified` when present, never clobbering rating/source/roster. Use it to correct any mis-derived race incumbent, not just S-OK (first use: `S-OK-2026` → appointee Armstrong `A000383`, HO 408). Polling, FEC fundraising, and district demographics are deferred sub-pages.
 
 Race IDs are deterministic from member data (`raceIdFromMember` in `lib/race-id.ts`): House is `<STATE>-<DD>-<YYYY>` with a zero-padded district; Senate is `S-<STATE>-<YYYY>`. The backfill SQL is a translation of that function — if the format changes, update both. Members with `chamber='house'` and `district IS NULL` are excluded from the backfill so the id can never be malformed.
 
