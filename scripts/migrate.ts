@@ -507,6 +507,46 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_committee_members_committee ON committee_members(committee_system_code)`,
   `CREATE INDEX IF NOT EXISTS idx_committee_members_member ON committee_members(bioguide_id)`,
+
+  // HO 402: ID crosswalk from unitedstates/congress-legislators. Enrichment of
+  // the existing bioguide-keyed roster; NEVER a source of new members (the sync
+  // gates on known bioguides). Both tables FK to members(bioguide_id) — but
+  // libSQL runs foreign_keys OFF, so REFERENCES is documentation, not enforced;
+  // the "never a new member" guarantee is the sync gate, not the constraint.
+  `CREATE TABLE IF NOT EXISTS member_ids (
+    bioguide_id       TEXT PRIMARY KEY REFERENCES members(bioguide_id),
+    icpsr             INTEGER,
+    govtrack          INTEGER,
+    lis               TEXT,
+    thomas            TEXT,
+    cspan             INTEGER,
+    votesmart         INTEGER,
+    wikidata          TEXT,
+    wikipedia_title   TEXT,
+    ballotpedia_title TEXT,
+    google_entity_id  TEXT,
+    opensecrets       TEXT,
+    maplight          INTEGER,
+    house_history     INTEGER,
+    pictorial         INTEGER,
+    raw_json          TEXT NOT NULL,
+    fetched_at        TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_member_ids_icpsr ON member_ids(icpsr)`,
+
+  // `fec` is an ARRAY of FEC *candidate* IDs upstream (one member -> several IDs,
+  // one per office sought over a career). Flattened into a child table so
+  // candidate_id -> member reverse lookup is indexed, same reason HO 394
+  // flattened entities instead of json_extract-ing. Column is fec_candidate_id
+  // to match the existing members.fec_candidate_id (single, fuzzy-resolved) it
+  // upgrades.
+  `CREATE TABLE IF NOT EXISTS member_fec_ids (
+    bioguide_id      TEXT NOT NULL REFERENCES members(bioguide_id),
+    fec_candidate_id TEXT NOT NULL,
+    PRIMARY KEY (bioguide_id, fec_candidate_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_member_fec_ids_cand ON member_fec_ids(fec_candidate_id)`,
+
   // HO 232: append-only stage-transition log (the rating_history precedent —
   // HO 220). One row per ACTUAL stage move, written from the summarize step's
   // existing `transitioned` branch right beside previous_stage/stage_changed_at.

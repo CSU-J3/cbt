@@ -20,6 +20,7 @@
     "reingest:primary-slate": "tsx scripts/reingest-primary-slate.ts",
     "backfill:laws": "tsx scripts/backfill-historical-laws.ts",
     "sync:members": "tsx scripts/sync-members.ts",
+    "sync:crosswalk": "tsx scripts/sync-crosswalk.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",
     "backfill:races": "tsx scripts/backfill-races.ts",
     "backfill:race-challengers": "tsx scripts/backfill-race-challengers.ts",
