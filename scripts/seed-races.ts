@@ -36,6 +36,12 @@ interface RaceSeed {
   // HO 221: 0 = incumbent not running (OPEN seat), 1 = running, omit = leave
   // unchanged. A retirement-only entry carries just `id` + `incumbent_running`.
   incumbent_running?: number | null;
+  // HO 408: override the derived incumbent. backfill-races sets
+  // incumbent_bioguide_id from members.next_election_year, so a wrong-class
+  // member year mis-derives it (S-OK-2026 pointed at Lankford/Class-III instead
+  // of the Class-II appointee-caretaker open seat). Additive: sets ONLY this
+  // column (+ last_verified) when present, never clobbers other row data.
+  incumbent_bioguide_id?: string | null;
   candidates?: CandidateSeed[];
 }
 
@@ -51,6 +57,7 @@ async function main() {
   let missingRaces = 0;
   let invalidRatings = 0;
   let flagged = 0;
+  let incumbentSet = 0;
 
   for (const race of (seed.races as RaceSeed[]) ?? []) {
     if (!knownIds.has(race.id)) {
@@ -99,6 +106,17 @@ async function main() {
       flagged++;
     }
 
+    // HO 408: incumbent override — additive, sets ONLY incumbent_bioguide_id (+
+    // last_verified), so a curated correction to a mis-derived incumbent never
+    // clobbers rating/source/roster on the row.
+    if (race.incumbent_bioguide_id != null) {
+      await db.execute({
+        sql: `UPDATE races SET incumbent_bioguide_id = ?, last_verified = ? WHERE id = ?`,
+        args: [race.incumbent_bioguide_id, today, race.id],
+      });
+      incumbentSet++;
+    }
+
     for (const c of race.candidates ?? []) {
       await db.execute({
         sql: `INSERT INTO race_candidates
@@ -123,7 +141,7 @@ async function main() {
   }
 
   console.log(
-    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
+    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} incumbent_bioguide_set=${incumbentSet} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
   );
 }
 
