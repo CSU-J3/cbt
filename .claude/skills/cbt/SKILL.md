@@ -608,6 +608,51 @@ CREATE TABLE committee_members (
 CREATE INDEX idx_committee_members_committee ON committee_members(committee_system_code);
 CREATE INDEX idx_committee_members_member ON committee_members(bioguide_id);
 
+-- HO 402: bioguide → external-ID crosswalk from unitedstates/congress-legislators
+-- (legislators-current.yaml `id` block). Additive ENRICHMENT of the bioguide-keyed
+-- roster — never a source of new members (the sync gate skips any bioguide not
+-- already in `members`). Scalar external IDs, one row per member. `raw_json` keeps
+-- the full upstream id-block for fidelity/future fields; `maplight`/`house_history`/
+-- `pictorial`/`icpsr`/`govtrack`/`cspan`/`votesmart` are INTEGER to match the source
+-- type. The `REFERENCES members(bioguide_id)` FK is DOCUMENTATION ONLY under libSQL
+-- (foreign_keys is off) — the real enforcement is the sync gate, not the engine.
+CREATE TABLE member_ids (
+  bioguide_id       TEXT PRIMARY KEY REFERENCES members(bioguide_id),
+  icpsr             INTEGER,               -- Voteview (native ~60% coverage)
+  govtrack          INTEGER,
+  lis               TEXT,
+  thomas            TEXT,
+  cspan             INTEGER,
+  votesmart         INTEGER,
+  wikidata          TEXT,
+  wikipedia_title   TEXT,                  -- pageviews (~full coverage)
+  ballotpedia_title TEXT,
+  google_entity_id  TEXT,
+  opensecrets       TEXT,
+  maplight          INTEGER,
+  house_history     INTEGER,
+  pictorial         INTEGER,
+  raw_json          TEXT NOT NULL,         -- full upstream id-block, fidelity copy
+  fetched_at        TEXT NOT NULL
+);
+CREATE INDEX idx_member_ids_icpsr ON member_ids(icpsr);
+
+-- Upstream `fec` is an ARRAY of FEC *candidate* IDs (one member → several IDs, one
+-- per office sought over a career). Flattened into this child table so the
+-- candidate_id → member reverse lookup is indexed (same reason HO 394 flattened
+-- observation_entities instead of json_extract-ing). Column is `fec_candidate_id`
+-- to match the single, fuzzy-resolved `members.fec_candidate_id` it upgrades — a
+-- future `sync-fec` switch reads the authoritative array here to correct the fuzzy
+-- pick. Caveat: the array is NOT reliably every career ID (often just the latest
+-- registration), so it can't be assumed complete when disambiguating (see oddities).
+-- FK is documentation-only (foreign_keys off); the sync gate is the enforcement.
+CREATE TABLE member_fec_ids (
+  bioguide_id      TEXT NOT NULL REFERENCES members(bioguide_id),
+  fec_candidate_id TEXT NOT NULL,
+  PRIMARY KEY (bioguide_id, fec_candidate_id)
+);
+CREATE INDEX idx_member_fec_ids_cand ON member_fec_ids(fec_candidate_id);
+
 -- HO 256: per-seat Polymarket Senate odds (mirrors kalshi_odds, also undocumented
 -- here historically — both live in scripts/migrate.ts). One row per Senate-2026
 -- race_id; loose-linked (no FK). favorite_is_party 1 = a bare party outcome, 0 =
@@ -782,6 +827,7 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 - `npm run backfill:bioguide-ids` — pure SQL `json_extract` from `raw_json` into `sponsor_bioguide_id`. JSON path `$.sponsors[0].bioguideId`. Modern syncs already write this field directly so the script is a safety net for older rows; coverage is ~100% on the live corpus.
 - `npm run backfill:primary-results` — lights up `primary_candidates.vote_pct` from Ballotpedia (HO 206; source verified HO 205). **One page per seat, UPDATE keyed on exact `(primary_id, name)`** — same-source names (the roster came from the same parse), so no fuzzy match; it does NOT delete/re-insert rosters, so candidate counts are unchanged and only un-voted primaries stay NULL (writes only when the scraped share is non-NULL). **Scoped-votebox rule (the gotcha):** `parseVotebox` reads the share from the SAME already-isolated **2026-primary** votebox the roster came from (`parseCandidatesPage` slices the "Candidates and election results" section + keeps only primary boxes) — NOT a page-wide `percentage_number` scan, because each Ballotpedia page also carries historical 2024/2022 general/primary/runoff voteboxes with identical markup (HO 205 caught a cached "AL-1 78.4%" that was a 2024 *general*). `votePct` prefers the high-precision bar-`width:` style over the rounded `percentage_number`. **Live re-fetch required:** the `.cache/ballotpedia` HTML is pre-results (scraped ~May 20), so the house path passes `bypassCache` (senate is already cache-free) — a cached read backfills zeros. Default pass = past-dated rostered seats; `-- --all` does every seat. First run: 246 seats → 1,166 candidate rows across 382 primaries (of 422 past-rostered; the ~40 gap is name-drift / no-posted-results). **Coverage reality:** ~47% of all primaries today → ~full by September as the rest vote (the forward sync — `lib/primaries-sync.ts`, `vote_pct` folded into the roster INSERT — fills each contest as it votes, prod fetching live). **Unblocks** the HO 203 candidate-field share bar and the design-chat results-colored primaries map.
 - `npm run sync:members` — refreshes `members` from the Congress.gov 119th-Congress roster (HO 94). Pages `/member/congress/119` (full roster, 551) and `/member/congress/119?currentMember=true` (currently serving, 536), then fetches `/member/{bioguideId}` detail for each and upserts. ~560 API calls, ~90 seconds. **Do NOT use `/member?congress=119`** — that query param does not filter by Congress and returns ~2,700 historical members back to Barney Frank. Roster members absent from the `currentMember=true` set (deaths, resignations, members who took another office) are kept as rows with `is_current = 0` — never deleted, so historical "who held this seat" lookups still resolve. Before HO 94 this seeded only from distinct `bills.sponsor_bioguide_id`, which structurally missed current members who hadn't sponsored a bill (special-election winners, senior members like Pelosi/Hoyer who rarely sponsor). Not in the cron — **re-run after any known special election or redraw; quarterly at minimum otherwise.** The script derives `chamber` from the latest term and computes `current_term_end_year` as `startYear + 2` (House) or `+ 6` (Senate) because the API omits `endYear` on active terms. `party` comes from `partyHistory` (most recent entry); the script accepts both abbreviation form (`R`, `D`, `I`) and full name (`Republican`, `Democratic`, `Independent`).
+- `npm run sync:crosswalk` — HO 402: populates `member_ids` + `member_fec_ids` from unitedstates/congress-legislators. Mirrors `sync-members`'s shape (dotenv-first, `getDb`, ONE YAML GET of `legislators-current.yaml` + local parse, per-row upsert, **no `batch()`**) — source is that repo's YAML only, not Congress.gov. **Manual cadence; run right AFTER `sync:members`** (it's enrichment of the bioguide-keyed roster). The **gate** loads every known `members.bioguide_id` up front and skips+counts any legislator not in that set (surfaced as `skipped_no_member`), so it can NEVER invent a member — a mid-Congress special-election winner absent from `members` stays absent here until `sync:members` adds them (Gallagher CA-01 was the HO 402 instance: `skipped_no_member` until the members re-sync, then picked up). Not in the cron. Companion read-only diagnostic `scripts/diagnostic/crosswalk-coverage-402.ts` reports coverage + the fuzzy-vs-authoritative `fec_candidate_id` disagreements (see backlog/oddities for the 3 open ones).
 - `npm run sync:rematch` — re-runs the House incumbent matcher (`scripts/sync-primaries.ts --rematch`) over existing `primary_candidates` rows without re-scraping Ballotpedia. Run it after `sync:members` so refreshed roster data flows into the `primary_candidates.bioguide_id` linkage. Prints match-rate deltas and HO 94 spot-checks.
 - `npm run seed:affiliations` — loads caucus rosters from `data/affiliations-seed.json` into the `affiliations` table. No API calls (pure JSON read + upsert). Idempotent via `INSERT ... ON CONFLICT(bioguide_id, org) DO UPDATE`. Rosters whose bioguide_id isn't in the `members` table yet get warn-and-skip, not abort. Re-running after editing the JSON is the refresh workflow — refresh quarterly by hand.
 - `npm run backfill:races` — one-shot derivation of stub race rows from `members`. `INSERT OR IGNORE` so re-runs don't clobber hand-curated rating + candidate data. Expected ~435 House + ~33 Senate ≈ ~468 rows on first run; second run prints `Inserted: 0`. The SQL `id` expression is a translation of `raceIdFromMember` in `lib/race-id.ts` — keep them in sync.
