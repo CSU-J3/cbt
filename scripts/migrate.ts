@@ -26,6 +26,22 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_bills_update_date ON bills(update_date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_bills_latest_action ON bills(latest_action_date DESC)`,
+  // HO 406: bound the summarize queue read to the unsummarized set. HO 383
+  // dropped the SQL LIMIT to fetch the full null set for app-side stage-priority
+  // sorting; at 1,374 nulls that read became `SCAN bills USING INDEX
+  // idx_bills_update_date` over all 16,623 rows (the summarize doom loop — cost
+  // scales with the backlog). Partial `WHERE summary IS NULL` keyed
+  // `update_date DESC` so the read is a ~null-count partial-index scan that ALSO
+  // serves the existing `ORDER BY update_date DESC` with no sort step; the fat
+  // columns (title, latest_action_text, …) row-look-up per null row. The
+  // app-side computeStage priority sort is preserved (stored `stage` is stale by
+  // design — that is HO 383's bug — so an SQL stage sort can't replace it).
+  // runSummarize's queue read (lib/summarize-runner.ts) forces it via INDEXED BY
+  // (statless Turso planner won't take a partial index unhinted). Predicate is
+  // `summary IS NULL` only — the
+  // summarize_failed_at defer + is_ceremonial exclusion are cheap residual
+  // filters over the ~1,374 scanned rows.
+  `CREATE INDEX IF NOT EXISTS idx_bills_summarize_queue ON bills(update_date DESC) WHERE summary IS NULL`,
   // HO 356 (A2): per-user watchlist. Composite PK (user_id, bill_id) — one row
   // per (user, bill), so two users can both watch the same bill. FK to users(id)
   // (HO 355). Existing single-user prod rows were rebuilt + seeded to the lone

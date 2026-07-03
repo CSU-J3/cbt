@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
 import { computeStage, stageRank } from "./enums";
-import { isRetryable, sleep, withGeminiRetry } from "./gemini-retry";
+import { isRetryable, withGeminiRetry } from "./gemini-retry";
 import {
   fetchBillContext,
   summarizeBill,
@@ -10,9 +10,19 @@ import {
   type SummarizeResult,
 } from "./summarize";
 
-const PER_REQUEST_DELAY_MS = 400;
 const RETRY_BACKOFF_MS = [2000, 4000, 8000, 16000];
 const DEFAULT_LIMIT = 50;
+// HO 406: bounded concurrency for the per-bill Gemini+write work. Serial at
+// ~1.9s/bill cleared only ~23 bills/45s (always the budget wall, never the cap),
+// ~7/day underwater against ~30/day inflow — the backlog couldn't drain. C=5
+// turns ~23/tick into ~100+/tick. Guards: Turso is single-writer so the UPDATEs
+// serialize at the DB (ms-scale, fine); Gemini 2.5 Flash RPM has ample headroom
+// at ~2.6 req/s; the runner holds no shared mutable state that a concurrent
+// worker corrupts (Node is single-threaded — stats/counter increments are atomic
+// between awaits). The per-bill 15s AbortController is unchanged, so up to C
+// bills in flight when the deadline hits still tail out in <=15s (they run
+// concurrently), NOT C*15s — the 45+15=60s function ceiling holds.
+const CONCURRENCY = 5;
 // HO 115: hard wall-clock cap per bill. Combined with the route's 45s
 // "stop starting new bills" deadline (passed via deadlineMs), 45s + 15s
 // guarantees the cron function never crosses Vercel's 60s ceiling — even
@@ -131,22 +141,36 @@ export async function runSummarize(
   const where: string[] = [
     "summary IS NULL",
     `(summarize_failed_at IS NULL OR summarize_failed_at < datetime('now', '-${FAILURE_DEFER_HOURS} hours'))`,
+    // HO 406: ceremonial exclusion, matching the feed predicate. NOTE (verified
+    // against prod): this currently removes ZERO rows — is_ceremonial is only set
+    // by the summarize step and sync resets it to NULL on every update
+    // (lib/sync.ts), so every summary-IS-NULL row is is_ceremonial IS NULL by
+    // construction and matches via the IS NULL branch. It's kept as a zero-cost
+    // defensive alignment with the feed (and future-correct if a pre-summary
+    // ceremonial classifier is ever added); it is NOT the inflow reduction HO
+    // 406's brief assumed. Cheap residual over the bounded partial-index scan.
+    "(is_ceremonial = 0 OR is_ceremonial IS NULL)",
   ];
   const args: (string | number)[] = [];
   if (options.types && options.types.length > 0) {
     where.push(`bill_type IN (${options.types.map(() => "?").join(",")})`);
     args.push(...options.types);
   }
-  // HO 383: fetch the full eligible set (no SQL LIMIT) so we can PRIORITIZE by
-  // the stage computed live from latest_action_text — a presented/enacted bill
-  // must summarize ahead of the ~1.4k introduced backlog, and its STORED stage
-  // is stale by definition (that is the bug), so a stored-stage sort would never
-  // surface it. The set is small and this runs with no request cap, so the full
-  // fetch + app-side sort is trivial (trap 1: never ORDER BY CASE in SQL — it
+  // HO 383: fetch the full eligible null set (no SQL LIMIT) so we can PRIORITIZE
+  // by the stage computed live from latest_action_text — a presented/enacted
+  // bill must summarize ahead of the ~1.4k introduced backlog, and its STORED
+  // stage is stale by definition (that is the bug), so a stored-stage SQL sort
+  // would never surface it (trap 1: never ORDER BY CASE in SQL either — it
   // defeats the index short-circuit). The per-tick `limit` is applied in TS
   // after the priority sort, below.
+  // HO 406: bound that full-null-set read. INDEXED BY idx_bills_summarize_queue
+  // (partial `WHERE summary IS NULL`, keyed update_date DESC) turns the old
+  // `SCAN bills USING INDEX idx_bills_update_date` over all 16,623 rows into a
+  // ~null-count partial-index scan that also serves the ORDER BY — the statless
+  // Turso planner won't take the partial index unhinted. The app-side priority
+  // sort below is unchanged; only the corpus scan is corrected.
   const sql = `SELECT id, congress, bill_type, bill_number, title, latest_action_text, stage, pending_stage
-    FROM bills WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
+    FROM bills INDEXED BY idx_bills_summarize_queue WHERE ${where.join(" AND ")} ORDER BY update_date DESC`;
   const rs = await db.execute({ sql, args });
 
   const eligible: Array<
@@ -175,7 +199,7 @@ export async function runSummarize(
   const bills = limit > 0 ? eligible.slice(0, limit) : eligible;
 
   console.log(
-    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} ${deadlineMs ? `deadline=${new Date(deadlineMs).toISOString()} ` : ""}serial, ${PER_REQUEST_DELAY_MS}ms throttle, ${PER_BILL_TIMEOUT_MS}ms per-bill cap`,
+    `processing ${bills.length} bill(s) ${limit > 0 ? `(limit ${limit})` : "(all)"} ${deadlineMs ? `deadline=${new Date(deadlineMs).toISOString()} ` : ""}concurrency=${CONCURRENCY}, ${PER_BILL_TIMEOUT_MS}ms per-bill cap`,
   );
 
   const stats: SummarizeStats = {
@@ -189,19 +213,18 @@ export async function runSummarize(
     budgetStopped: false,
   };
   let gaveUpRetryable = 0;
+  // HO 406: shared progress counter across the worker pool (replaces the serial
+  // `i`). Node is single-threaded, so `processed++` between awaits is atomic.
+  let processed = 0;
 
-  for (let i = 0; i < bills.length; i++) {
-    // Deadline check before starting a new bill, so the 15s per-bill cap
-    // is the only thing that can push us past `deadlineMs`.
-    if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
-      stats.budgetStopped = true;
-      console.log(
-        `budget reached after ${i}/${bills.length} bill(s); stopping`,
-      );
-      break;
-    }
-
-    const bill = bills[i]!;
+  // HO 406: the full per-bill unit — Gemini fetch+summarize under the 15s
+  // AbortController, then the stage-guarded write and stats bookkeeping. Extracted
+  // verbatim from the old serial loop body so the pool workers can run C of these
+  // at once. All shared state it touches (stats.*, gaveUpRetryable, samples) is
+  // mutated between awaits, so the single-threaded runtime keeps it consistent.
+  async function processBill(
+    bill: (typeof bills)[number],
+  ): Promise<void> {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), PER_BILL_TIMEOUT_MS);
 
@@ -215,7 +238,9 @@ export async function runSummarize(
       // re-thrown for classification below.
       out = await withGeminiRetry(
         async () => {
-          const ctx = await fetchBillContext(bill, congressKey, ac.signal);
+          // congressKey is guarded non-null at the top of runSummarize; the
+          // assertion just carries that past the processBill closure boundary.
+          const ctx = await fetchBillContext(bill, congressKey!, ac.signal);
           return summarizeBill(client, bill, ctx, ac.signal);
         },
         {
@@ -368,17 +393,41 @@ export async function runSummarize(
       if (stats.samples.length < 5) stats.samples.push({ bill, result });
     }
 
-    const seen = i + 1;
-    if (seen % 50 === 0 || seen === bills.length) {
+    processed++;
+    if (processed % 25 === 0 || processed === bills.length) {
       console.log(
-        `progress: ${seen}/${bills.length} ok=${stats.ok} fail=${stats.failed} timeout=${stats.timedOut} (retry-give-ups=${gaveUpRetryable}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
+        `progress: ${processed}/${bills.length} ok=${stats.ok} fail=${stats.failed} timeout=${stats.timedOut} (retry-give-ups=${gaveUpRetryable}) tokens=${stats.promptTokens}/${stats.outputTokens}`,
       );
     }
+  }
 
-    if (i + 1 < bills.length) {
-      await sleep(PER_REQUEST_DELAY_MS);
+  // HO 406: bounded worker pool. Each worker pulls the next bill off a shared
+  // cursor and checks the deadline BEFORE claiming it — so the 15s per-bill cap
+  // is still the only thing that can push a started bill past `deadlineMs`. Up to
+  // CONCURRENCY bills are in flight when the budget hits, but they run
+  // concurrently under their own 15s caps, so the tail is <=15s (45+15=60s), not
+  // CONCURRENCY*15s. (The 400ms inter-bill throttle is gone — the pool bounds the
+  // request rate; C=5 at ~1.9s/bill is ~2.6 req/s, well under Gemini's limits.)
+  let cursor = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
+        if (!stats.budgetStopped) {
+          stats.budgetStopped = true;
+          console.log(
+            `budget reached after ${processed}/${bills.length} bill(s); stopping`,
+          );
+        }
+        return;
+      }
+      const i = cursor++;
+      if (i >= bills.length) return;
+      await processBill(bills[i]!);
     }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(CONCURRENCY, bills.length) }, () => worker()),
+  );
 
   console.log(
     `final: ok=${stats.ok} fail=${stats.failed} timeout=${stats.timedOut} retry-give-ups=${gaveUpRetryable} budgetStopped=${stats.budgetStopped} chronic=${stats.chronicFailures.length}`,

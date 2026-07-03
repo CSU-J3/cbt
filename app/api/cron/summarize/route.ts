@@ -50,6 +50,13 @@ async function handle(request: Request) {
   const result = await wrapCronRoute("/api/cron/summarize", async () => {
     const routeStart = Date.now();
     const stats = await runSummarize({
+      // HO 406: raise the per-tick cap from the DEFAULT_LIMIT of 50 to 200 so the
+      // 45s budget — not an arbitrary count — is the wall. At C=5 concurrency the
+      // budget clears ~100-120 bills/tick, well above the ~30/day inflow, so a
+      // single tick self-heals the queue after any outage instead of only
+      // steady-state trickling. The 45s deadlineMs still stops it before 200; the
+      // per-bill 15s cap keeps the function under 60s regardless.
+      limit: 200,
       deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
     });
     revalidateTag("bills");
