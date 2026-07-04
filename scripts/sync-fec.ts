@@ -26,7 +26,19 @@ import {
 
 const CYCLE = 2026;
 const STALE_DAYS = 7;
-const DELAY_MS = 300;
+// api.data.gov standard tier is 60 req/hr — the K0Ue key never got the 1000/hr
+// upgrade (HO 416; upgrade needs an email to their support, no ETA). Two guards
+// keep a run inside that ceiling:
+//   DELAY_MS — pace every call ~1.1s apart so the run spreads across the window
+//     instead of bursting (a burst is what trips the internal 429 retry in
+//     lib/fec.ts, which then fans one logical call into up-to-4 uncounted hits).
+//   CALL_CAP — hard stop at 55 logical calls (resolve + totals + by_size all
+//     count), leaving ~5 of the 60 as headroom for stray totals-failed retries
+//     that share the same rolling hour. When hit, the run exits cleanly and the
+//     existing skipped_fresh skip acts as the resume cursor: the next window
+//     picks up only the still-missing set, spending zero calls on what landed.
+const DELAY_MS = 1100;
+const CALL_CAP = 55;
 
 type Db = ReturnType<typeof getDb>;
 
@@ -41,6 +53,7 @@ type MemberRow = {
   fecResolvedAt: string | null;
   fundraisingIngestedAt: string | null;
   bySizePresent: boolean; // member_fundraising.small_dollar already populated
+  nextElectionYear: number | null; // HO 411 class-derived + specials-aware cycle
 };
 
 function sleep(ms: number): Promise<void> {
@@ -55,6 +68,7 @@ async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
   const r = await db.execute({
     sql: `SELECT m.bioguide_id, m.name, m.first_name, m.last_name, m.state,
                  m.chamber, m.fec_candidate_id, m.fec_resolved_at,
+                 m.next_election_year AS next_election_year,
                  mf.ingested_at AS fundraising_ingested_at,
                  mf.small_dollar AS small_dollar
           FROM members m
@@ -77,6 +91,7 @@ async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
     fundraisingIngestedAt:
       (row.fundraising_ingested_at as string | null) ?? null,
     bySizePresent: (row.small_dollar as number | null) != null,
+    nextElectionYear: (row.next_election_year as number | null) ?? null,
   }));
 }
 
@@ -140,7 +155,10 @@ async function main(): Promise<void> {
   let totalsUpserted = 0;
   let totalsSkippedFresh = 0;
   let bySizeUpserted = 0;
+  let bySizeEmpty = 0; // valid ID, correct cycle, but FEC has no Schedule A rows
   let bySizeFailed = 0;
+  let apiCalls = 0; // logical FEC calls this run — gated against CALL_CAP
+  let capped = false;
 
   for (const m of members) {
     if (!m.state || !m.lastName) {
@@ -170,7 +188,12 @@ async function main(): Promise<void> {
         continue;
       }
 
+      if (apiCalls >= CALL_CAP) {
+        capped = true;
+        break;
+      }
       await sleep(DELAY_MS);
+      apiCalls++;
       const input: FecResolveInput = {
         lastName: m.lastName,
         firstName: m.firstName ?? "",
@@ -211,10 +234,18 @@ async function main(): Promise<void> {
     // Totals — refresh only when stale (idempotent upsert). A fresh-totals
     // member that's only here for the by_size backfill skips this call.
     if (!totalsFresh) {
+      if (apiCalls >= CALL_CAP) {
+        capped = true;
+        break;
+      }
       await sleep(DELAY_MS);
+      apiCalls++;
       const totals = await fetchFecTotals(candidateId, CYCLE);
       if (!totals) {
         totalsFailed++;
+        // Name the failures so the sweep can tell a stable staleness thread
+        // (same members every pass) from transient retry churn.
+        console.log(`  totals empty @${CYCLE}: ${m.name} (${m.state}) [${candidateId}]`);
         continue;
       }
 
@@ -243,8 +274,24 @@ async function main(): Promise<void> {
     // (it exists: either just upserted above, or fresh from a prior run).
     // Same candidate_id — by_candidate aggregates the authorized committees.
     try {
+      if (apiCalls >= CALL_CAP) {
+        capped = true;
+        break;
+      }
       await sleep(DELAY_MS);
-      const bySize = await fetchFecBySize(candidateId, CYCLE);
+      apiCalls++;
+      // HO 417 — schedule_a/by_size/by_candidate is keyed to the candidate's
+      // ELECTION cycle, not the 2026 reporting cycle. Off-cycle senators (Classes
+      // 1 & 3, up 2028/2030) file their current Schedule A under 2028/2030, so a
+      // fixed cycle=2026 query returned empty for all 67 of them (HO 416
+      // diagnosis). members.next_election_year is HO 411's single source of truth
+      // — class-derived AND specials-aware, so OH/FL 2026 specials (Husted/Moody,
+      // Class 3) correctly read 2026 here rather than their class default 2030.
+      // House + Class-2 senators already resolve to 2026, so they're untouched.
+      // Totals stay on CYCLE (2026): that endpoint is reporting-cycle keyed and
+      // already returns the rolling data — only by_size needed the election cycle.
+      const bySizeCycle = m.nextElectionYear ?? CYCLE;
+      const bySize = await fetchFecBySize(candidateId, bySizeCycle);
       if (bySize) {
         await db.execute({
           sql: `UPDATE member_fundraising
@@ -253,6 +300,14 @@ async function main(): Promise<void> {
           args: [bySize.smallDollar, bySize.largeDollar, m.bioguideId, CYCLE],
         });
         bySizeUpserted++;
+      } else {
+        // Correct cycle, still no rows — a genuine floor (hasn't filed / no
+        // itemized Schedule A breakdown), not a cycle-key miss. Name off-cycle
+        // cases so the residual floor is auditable by member.
+        bySizeEmpty++;
+        if (bySizeCycle !== CYCLE) {
+          console.log(`  by_size empty @${bySizeCycle}: ${m.name} (${m.state})`);
+        }
       }
     } catch (err) {
       bySizeFailed++;
@@ -264,7 +319,10 @@ async function main(): Promise<void> {
     `\ndone — resolved_new=${resolved} cached=${cachedHit} no_match=${noMatch} ` +
       `api_errors=${apiErrors} totals_upserted=${totalsUpserted} ` +
       `totals_failed=${totalsFailed} skipped_fresh=${totalsSkippedFresh} ` +
-      `bysize_upserted=${bySizeUpserted} bysize_failed=${bySizeFailed}`,
+      `bysize_upserted=${bySizeUpserted} bysize_empty=${bySizeEmpty} ` +
+      `bysize_failed=${bySizeFailed} ` +
+      `api_calls=${apiCalls}/${CALL_CAP}` +
+      `${capped ? " (CAPPED — rerun next window to resume)" : ""}`,
   );
 
   // Flush the member-hub fundraising line so freshly-written totals + the HO 390
