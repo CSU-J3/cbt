@@ -6,6 +6,16 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## FEC `by_size` is election-cycle-keyed, totals are reporting-cycle-keyed — plus the member FEC-identity override machinery (HO 415/416, Jul 2026)
+
+Five field notes from the FEC member-fundraising completion arc:
+
+- **`by_size` keys to the election cycle; totals key to the reporting cycle — opposite axes.** `schedules/schedule_a/by_size/by_candidate/` returns a candidate's Schedule A split **at their election cycle**, so an off-cycle senator (Class 1/3, up 2028/2030) is **empty at the current year 2026** and populated at their election year — query it via `nextElectionYear ?? CYCLE`. Totals (`/candidate/{id}/totals/`) are the **inverse**: they resolve at the reporting cycle regardless of class (Alsobrooks, Class 1/2030, has `totals@2026`). **Do not extend the cycle logic to the totals path** — it's a fix for a bug that isn't there. Barrasso empty at **both** 2026 and 2030 confirmed totals aren't cycle-keyed (his is an upstream FEC gap). This keying bug — not rate-limiting — was the entire "463/530 by_size coverage gap"; fixed to floor 0.
+- **No totals ⇒ no by_size (structural gate).** `sync-fec` fetches by_size **only after a fresh/successful totals call**, so a member with an upstream totals gap can't get by_size populated even when it's independently available — totals fails first and short-circuits the loop iteration. Barrasso is the worked example (valid id, by_size unreachable because totals returns empty).
+- **Member FEC identity overrides live in `data/fec-candidate-overrides.json`**, consulted by `sync-fec` **before** the chamber-derived resolve — the **second** `data/` override the resolver consults after `senate-special-elections.json` (both are "the resolver checks a `data/` file before its default"). Two reasons a member lands there: a **House→Senate switcher** (the resolver keys office off `chamber='house'` and re-finds the dormant House id forever), or a **scoring tie** between a stale and a live id (Marshall — his House-era `H6KS01179` and live `S0KS00315` both classify office=S and tie at 6 in `scoreCandidate`, so first-wins re-picks stale; a plain re-resolve can't break the tie). Entries are **time-bound** — drop on bid-exit / departure.
+- **The switcher display tag is computed, not stored.** The "Senate 2026 campaign" tag on the fundraising line derives from the resolved `fec_candidate_id` being **S-prefix while `members.chamber='house'`** — no hand-maintained flag. Correctly-chambered senators (Marshall, `chamber='senate'`) render plain; the tag keys off the **mismatch**, not off override-file membership.
+- **Departed members drop out of FEC sync via `is_current=1`** on `fetchPendingMembers` (mirrors HO 411's `backfill:races` guard). Verified `sync:members` flips departed members to `is_current=0` correctly (Grijalva deceased, Greene resigned — both read 0), so the filter is the whole fix — **no upstream staleness bug** (this was the HO 402-family worry; settled).
+
 ## Senator election years derive from `senate_class`, not term math; `backfill:races` self-heals incumbents (HO 411/412, Jul 2026)
 
 Three field notes from the integrity arc that closed HO 404 — the non-obvious parts a future session would trip on:
