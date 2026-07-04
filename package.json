@@ -29,7 +29,6 @@
     "seed:ratings": "tsx scripts/seed-race-ratings.ts",
     "seed:runoffs": "tsx scripts/seed-runoffs.ts",
     "sync:race-ratings": "tsx scripts/sync-race-ratings.ts",
-    "fix:senate-term-years": "tsx scripts/fix-senate-term-years.ts",
     "sync:news": "tsx scripts/sync-news.ts",
     "sync:trades": "tsx scripts/sync-trades.ts",
     "log:rating-history": "tsx scripts/log-rating-history.ts",

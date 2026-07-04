@@ -1,14 +1,22 @@
-// Pure term-math helpers (handoff 63). Single source of truth for
-// translating Congress.gov term data into `current_term_end_year` +
-// `next_election_year`. Used by scripts/sync-members.ts (live sync) and
-// scripts/fix-senate-term-years.ts (one-shot fix-up).
+// Pure term-math helpers (handoff 63; senate role narrowed by HO 411).
+// Translates Congress.gov term data into `current_term_end_year` +
+// `next_election_year`. Consumed by scripts/sync-members.ts (live sync).
 //
-// Congress.gov returns ONE entry per Congress (2-year block), not one per
-// 6-year senate term. So a senator currently in their second term may
-// appear as 4+ contiguous senate entries spanning multiple terms. The
-// derivation handoff 60 used (`latest.startYear + 6`) collapses every
-// sitting senator to next_election_year = 2030 — that bug is what this
-// helper exists to fix.
+// HO 411 REPLACED the senate primary derivation: current senators now derive
+// their year-pair from Senate class (senateYearsFromClass, below) — the
+// startYear-based senate helpers (senateTermStart / senateNextElection /
+// senateTermEnd) survive ONLY as the fallback for departed senators absent from
+// legislators-current.yaml (no class available). HO 412 deleted the old
+// scripts/fix-senate-term-years.ts consumer, which re-ran this startYear path
+// over ALL senators and dropped stale senate races — it re-introduced the exact
+// drift 411 fixed and its "races-seed.json is empty for senate" premise is now
+// false (there's the S-OK curated override + seeded senate ratings).
+//
+// Why the fallback math is non-trivial: Congress.gov returns ONE entry per
+// Congress (2-year block), not one per 6-year senate term, so a continuously
+// serving senator appears as 4+ contiguous senate entries. Naive
+// `latest.startYear + 6` (handoff 60) collapsed every sitting senator to
+// next_election_year = 2030 — the bug senateTermStart exists to work around.
 
 export interface Term {
   startYear?: number;
