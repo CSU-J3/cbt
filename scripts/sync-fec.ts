@@ -15,6 +15,7 @@
 // tail (retirees, post-resignation appointees who haven't filed) doesn't
 // keep burning API calls.
 import "dotenv/config";
+import fecOverridesData from "../data/fec-candidate-overrides.json";
 import { getDb } from "../lib/db";
 import {
   type FecResolveInput,
@@ -60,11 +61,29 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// HO 416 — bioguide -> live FEC candidate_id override for members whose active
+// committee the chamber-derived resolver can't reach (House members running for
+// Senate). Consulted before resolution, the parallel of the specials file in
+// sync-members.ts. The `_comment`-only leading row has no bioguide/id and is
+// skipped, same convention as senate-special-elections.json.
+type FecOverride = { bioguide?: string; fec_candidate_id?: string; name?: string };
+function loadFecOverrides(): Map<string, string> {
+  const raw = fecOverridesData as FecOverride[];
+  const map = new Map<string, string>();
+  for (const e of raw) {
+    if (!e.bioguide || !e.fec_candidate_id) continue;
+    map.set(e.bioguide, e.fec_candidate_id);
+  }
+  return map;
+}
+
 async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
   // Drive off `members` — sync:members already filters to currentMember-ish
-  // (it pulls only sponsors of 119th bills). No `in_office` column exists;
-  // chamber-not-null is a proxy because state/chamber are required to even
-  // submit an FEC search.
+  // (it pulls only sponsors of 119th bills). is_current=1 excludes departed
+  // members (HO 416: Grijalva deceased, Greene resigned — both flipped to 0 by
+  // sync:members) so a stale cached candidate_id can't keep re-pulling a
+  // departed member's fundraising. chamber-not-null is required because
+  // state/chamber must be present to even submit an FEC search.
   const r = await db.execute({
     sql: `SELECT m.bioguide_id, m.name, m.first_name, m.last_name, m.state,
                  m.chamber, m.fec_candidate_id, m.fec_resolved_at,
@@ -76,6 +95,7 @@ async function fetchPendingMembers(db: Db): Promise<MemberRow[]> {
                  ON mf.bioguide_id = m.bioguide_id AND mf.cycle = ?
           WHERE m.chamber IN ('house', 'senate')
             AND m.state IS NOT NULL
+            AND m.is_current = 1
           ORDER BY m.last_name, m.first_name`,
     args: [CYCLE],
   });
@@ -159,11 +179,32 @@ async function main(): Promise<void> {
   let bySizeFailed = 0;
   let apiCalls = 0; // logical FEC calls this run — gated against CALL_CAP
   let capped = false;
+  let overridesApplied = 0; // HO 416 cached-id corrections written this run
+
+  const fecOverrides = loadFecOverrides();
+  console.log(`FEC candidate_id overrides loaded: ${fecOverrides.size}`);
 
   for (const m of members) {
     if (!m.state || !m.lastName) {
       // Can't even submit a search without state + last name; skip silently.
       continue;
+    }
+
+    // HO 416 — a sitting rep's active FEC committee may be a Senate one the
+    // chamber-derived resolver can't reach. Correct the cached id up front (a
+    // DB write, not an FEC call — free against CALL_CAP) so the totals/by_size
+    // calls below hit the live committee. Idempotent: once written, a later run
+    // sees it already set and, after populating, lands in skipped_fresh.
+    const overrideId = fecOverrides.get(m.bioguideId);
+    if (overrideId && m.fecCandidateId !== overrideId) {
+      await db.execute({
+        sql: `UPDATE members SET fec_candidate_id = ?, fec_resolved_at = ?
+              WHERE bioguide_id = ?`,
+        args: [overrideId, new Date().toISOString(), m.bioguideId],
+      });
+      m.fecCandidateId = overrideId;
+      overridesApplied++;
+      console.log(`  override applied: ${m.name} -> ${overrideId}`);
     }
 
     // Skip only when there's nothing left to do — totals fresh AND the by_size
@@ -319,6 +360,7 @@ async function main(): Promise<void> {
     `\ndone — resolved_new=${resolved} cached=${cachedHit} no_match=${noMatch} ` +
       `api_errors=${apiErrors} totals_upserted=${totalsUpserted} ` +
       `totals_failed=${totalsFailed} skipped_fresh=${totalsSkippedFresh} ` +
+      `overrides_applied=${overridesApplied} ` +
       `bysize_upserted=${bySizeUpserted} bysize_empty=${bySizeEmpty} ` +
       `bysize_failed=${bySizeFailed} ` +
       `api_calls=${apiCalls}/${CALL_CAP}` +

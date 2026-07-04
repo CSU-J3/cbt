@@ -2635,6 +2635,11 @@ export type MemberFundraising = {
   ingestedAt: string;
   smallDollar: number | null; // cents, <$200 unitemized (FEC by_size bucket 0)
   largeDollar: number | null; // cents, itemized $200+ buckets summed
+  // HO 416 — true when the resolved committee is a Senate one (S-prefix id) but
+  // the member sits in the House: a race-switcher whose fundraising is their
+  // Senate-campaign money. Drives the "Senate <cycle> campaign" tag on the hub.
+  // Derived from members.chamber + members.fec_candidate_id, not a stored flag.
+  isSenateCampaign: boolean;
 };
 
 // Single most-recent cycle's fundraising row for a member. Returns null
@@ -2646,17 +2651,23 @@ export const getMemberFundraising = unstable_cache(
   async (bioguideId: string): Promise<MemberFundraising | null> => {
     const db = getDb();
     const rs = await db.execute({
-      sql: `SELECT cycle, total_raised, total_spent, cash_on_hand, debts,
-                   coverage_end_date, source_url, ingested_at,
-                   small_dollar, large_dollar
-            FROM member_fundraising
-            WHERE bioguide_id = ?
-            ORDER BY cycle DESC
+      sql: `SELECT mf.cycle, mf.total_raised, mf.total_spent, mf.cash_on_hand,
+                   mf.debts, mf.coverage_end_date, mf.source_url, mf.ingested_at,
+                   mf.small_dollar, mf.large_dollar,
+                   m.chamber, m.fec_candidate_id
+            FROM member_fundraising mf
+            JOIN members m ON m.bioguide_id = mf.bioguide_id
+            WHERE mf.bioguide_id = ?
+            ORDER BY mf.cycle DESC
             LIMIT 1`,
       args: [bioguideId],
     });
     const row = rs.rows[0];
     if (!row) return null;
+    // HO 416 switcher tag: House member whose resolved committee is a Senate one.
+    const chamber = (row.chamber as string | null) ?? "";
+    const candidateId = (row.fec_candidate_id as string | null) ?? "";
+    const isSenateCampaign = chamber === "house" && candidateId.startsWith("S");
     return {
       cycle: Number(row.cycle),
       totalRaised: (row.total_raised as number | null) ?? null,
@@ -2668,6 +2679,7 @@ export const getMemberFundraising = unstable_cache(
       ingestedAt: row.ingested_at as string,
       smallDollar: (row.small_dollar as number | null) ?? null,
       largeDollar: (row.large_dollar as number | null) ?? null,
+      isSenateCampaign,
     };
   },
   ["getMemberFundraising"],

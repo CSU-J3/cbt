@@ -39,6 +39,20 @@ export function MemberFundraisingLine({
         <span style={{ color: "var(--text-muted)" }}>
           {fundraising.cycle} fundraising
         </span>
+        {/* HO 416 — flag the race-switcher case: a House member whose resolved
+            committee is their Senate campaign, so the figures read as Senate,
+            not House, fundraising. */}
+        {fundraising.isSenateCampaign ? (
+          <span
+            className="ml-1.5 rounded-[2px] px-1 py-px text-[10px] font-medium"
+            style={{
+              color: "var(--accent-amber-bright)",
+              border: "1px solid var(--accent-amber)",
+            }}
+          >
+            Senate {fundraising.cycle} campaign
+          </span>
+        ) : null}
         {" · "}
         <span style={{ color: "var(--text-secondary)" }}>
           {formatDollarsCompact(raised)} raised

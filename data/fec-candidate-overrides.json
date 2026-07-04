@@ -1,0 +1,23 @@
+[
+  {
+    "_comment": "HO 416. Members whose active FEC committee is NOT reachable by sync-fec's chamber-derived candidate search, because their seated chamber differs from the office they are currently running for. All entries here are sitting House members (chamber='house') running for US Senate in 2026: resolveFecCandidateId keys office off members.chamber='house' and so re-finds their dormant House committee every run — the live Senate committee must be supplied explicitly. Keyed by bioguide (read from the members table, not typed from memory); fec_candidate_id is the live Senate 2026 id captured by read-only FEC candidate search during HO 416 classification. Consulted BEFORE the chamber-derived resolve in sync-fec.ts, mirroring how senate-special-elections.json is consulted before the class default in sync-members.ts (one source of truth for a member's effective FEC identity). Remove an entry when the member drops the Senate bid or leaves office. Product note: these are sitting Representatives — surfacing Senate-campaign fundraising on the member hub is a display decision, tracked in HO 416, not settled by this file.",
+    "bioguide": "B001282",
+    "name": "Andy Barr",
+    "state": "KY",
+    "fec_candidate_id": "S6KY00286"
+  },
+  { "bioguide": "C001103", "name": "Earl L. \"Buddy\" Carter", "state": "GA", "fec_candidate_id": "S6GA00374" },
+  { "bioguide": "C001129", "name": "Mike Collins", "state": "GA", "fec_candidate_id": "S6GA00390" },
+  { "bioguide": "H001095", "name": "Wesley Hunt", "state": "TX", "fec_candidate_id": "S6TX00511" },
+  { "bioguide": "P000614", "name": "Chris Pappas", "state": "NH", "fec_candidate_id": "S6NH00141" },
+  { "bioguide": "H001096", "name": "Harriet M. Hageman", "state": "WY", "fec_candidate_id": "S6WY00209" },
+  { "bioguide": "M001212", "name": "Barry Moore", "state": "AL", "fec_candidate_id": "S6AL00476" },
+  { "bioguide": "M001196", "name": "Seth Moulton", "state": "MA", "fec_candidate_id": "S6MA00296" },
+  {
+    "_comment": "HO 416. Marshall is NOT a chamber-switcher — he is a sitting senator (chamber='senate') carrying his original House-era candidate_id H6KS01179 as a stale cache; his live Senate committee is S0KS00315. He needs the override for a different reason than the switchers above: BOTH ids classify as office=S and tie in scoreCandidate (last +1, first-prefix +3, incumbent +2 = 6), so the resolver's first-wins re-picks the stale H6 id — a plain re-resolve does NOT self-correct a scoring tie. Because chamber='senate', the member-hub Senate-campaign tag (derived from S-prefix id AND chamber='house') correctly does NOT apply to him; his line renders plain.",
+    "bioguide": "M001198",
+    "name": "Roger Marshall",
+    "state": "KS",
+    "fec_candidate_id": "S0KS00315"
+  }
+]
