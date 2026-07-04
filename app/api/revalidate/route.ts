@@ -26,6 +26,8 @@ const ALLOWED_TAGS = new Set([
   "news-breaking",
   // HO 398: race-detail news section (getRaceNews), flushed by the news cron.
   "race-news",
+  // HO 414: member-hub news section (getMemberNews), same news-cron flush.
+  "member-news",
   "member-trades",
   // HO 390: sync:fec flushes the member-hub fundraising line (totals + the
   // small/large-dollar split) after a backfill.

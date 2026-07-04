@@ -1945,6 +1945,49 @@ export const getRaceNews = unstable_cache(
   { revalidate: 3600, tags: ["race-news"] },
 );
 
+// HO 414 — member→news: the sibling of getRaceNews keyed on the member's own
+// bioguide (the member hub is the second consumer of the observation join).
+// Cold-EXPLAINed clean: same idx_obs_entities_type_value drive + PK join +
+// two small temp b-trees, GROUP BY doesn't replan the drive order.
+//
+// DEBT (generalize on the 3rd obs-consumer, not the 2nd): this reuses
+// RaceNewsItem as the return shape and duplicates getRaceNews's SQL verbatim.
+// Both reads are the same observation-news projection; when a third consumer
+// lands, fold them into one getObservationNews(bioguide, limit) + a neutral
+// item type. Two callers isn't enough to earn the abstraction yet.
+export const getMemberNews = unstable_cache(
+  async (bioguideId: string, limit = 8): Promise<RaceNewsItem[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT o.obs_id,
+                   o.title AS title,
+                   json_extract(o.source, '$.publisher') AS publisher,
+                   json_extract(o.source, '$.url') AS url,
+                   o.observed_at AS observed_at
+            FROM observation_entities oe
+            JOIN observations o ON o.obs_id = oe.obs_id
+            WHERE oe.entity_type = 'person' AND oe.entity_value = ?
+            GROUP BY o.obs_id
+            ORDER BY o.observed_at DESC
+            LIMIT ?`,
+      args: [bioguideId, limit],
+    });
+    return rs.rows
+      .map((r) => ({
+        obsId: r.obs_id as string,
+        title: r.title as string,
+        publisher: (r.publisher as string | null) ?? "",
+        url: (r.url as string | null) ?? "",
+        observedAt: r.observed_at as string,
+      }))
+      // A well-formed news observation always carries a url; guard anyway so a
+      // malformed source blob can't render a dead headline link.
+      .filter((n) => n.url.length > 0);
+  },
+  ["getMemberNews"],
+  { revalidate: 3600, tags: ["member-news"] },
+);
+
 export const getMostCompetitiveRaces = unstable_cache(
   async (cycle: number, limit: number): Promise<CompetitiveRace[]> => {
     const db = getDb();

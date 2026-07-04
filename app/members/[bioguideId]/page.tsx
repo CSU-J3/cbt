@@ -7,6 +7,7 @@ import { MemberHeader } from "@/components/MemberHeader";
 import { MemberStats } from "@/components/MemberStats";
 import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
+import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
 import { daysUntil, formatDateShort } from "@/lib/format";
@@ -16,6 +17,7 @@ import {
   getMemberBills,
   getMemberCommittees,
   getMemberFundraising,
+  getMemberNews,
   getMemberStats,
   getMemberTradeCount,
   getMemberTrades,
@@ -144,6 +146,7 @@ export default async function MemberPage({
     scorecard,
     committeeAssignments,
     watchedIds,
+    news,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -157,6 +160,10 @@ export default async function MemberPage({
     getPalestineScorecard(bioguideId),
     getMemberCommittees(bioguideId),
     getWatchedBillIds(),
+    // HO 414: observation news keyed on the member's own bioguide. The route
+    // param is always a string (no open-seat/null-key case), so this always
+    // runs; an unknown bioguide just returns [] → the empty state.
+    getMemberNews(bioguideId, 8),
   ]);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
@@ -510,6 +517,42 @@ export default async function MemberPage({
                   </ul>
                 </>
               )}
+            </section>
+
+            <section
+              className="mt-6 border"
+              style={{ borderColor: "var(--border-strong)" }}
+            >
+              <div
+                className="px-4 py-3"
+                style={{
+                  backgroundColor: "var(--bg-panel)",
+                  borderBottom: "0.5px solid var(--border-strong)",
+                }}
+              >
+                <h2
+                  className="text-[12px] uppercase tracking-[0.5px]"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  News · in the press
+                </h2>
+              </div>
+              <div className="px-4 py-2">
+                {news.length > 0 ? (
+                  <div>
+                    {news.map((n) => (
+                      <RaceNewsRow key={n.obsId} item={n} />
+                    ))}
+                  </div>
+                ) : (
+                  <p
+                    className="py-2 text-[13px]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    No recent news linked to this member.
+                  </p>
+                )}
+              </div>
             </section>
           </>
         ) : (

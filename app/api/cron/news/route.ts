@@ -87,6 +87,9 @@ async function handle(request: Request) {
     // this tick may mention a race incumbent. Tag must also be allowlisted on
     // /api/revalidate or its first manual flush 400s (oddities, HO 390).
     revalidateTag("race-news");
+    // HO 414: same tick, member-hub news section (getMemberNews) keyed on the
+    // member's bioguide. Also allowlisted on /api/revalidate (same 400 gotcha).
+    revalidateTag("member-news");
 
     const payload = {
       timings,
