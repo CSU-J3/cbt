@@ -89,3 +89,58 @@ export function houseTermEnd(latestStartYear: number): number {
 export function houseNextElection(termEnd: number): number {
   return termEnd - 1;
 }
+
+// ── HO 411: derive the senator year-pair from Senate class, not term math ──
+//
+// A senator's Senate class fixes their election cycle exactly; the old
+// startYear+6 / contiguous-run derivation drifted (18 of 100 senators carried a
+// next_election_year that disagreed with their class — HO 410). Class comes from
+// the last terms[] entry in legislators-current.yaml, ingested into
+// members.senate_class by sync:members.
+//
+// Residues mod 6: class 1 ≡ 2 (…2024, 2030, 2036), class 2 ≡ 4 (…2026, 2032),
+// class 3 ≡ 0 (…2028, 2034). The next election for a class is the smallest year
+// ≥ the current cycle whose value mod 6 equals the residue — computed from
+// `now`, NOT hardcoded, so it doesn't re-rot after November.
+const CLASS_RESIDUE: Record<number, number> = { 1: 2, 2: 4, 3: 0 };
+
+// US federal general election day: the Tuesday after the first Monday of
+// November. Returns true when `now` is strictly past that day in its own year —
+// the boundary that rolls a class off the just-completed cycle onto the next.
+export function isPastElectionDay(now: Date): boolean {
+  const year = now.getUTCFullYear();
+  const nov1Dow = new Date(Date.UTC(year, 10, 1)).getUTCDay(); // 0=Sun..6=Sat
+  const firstMonday = 1 + ((8 - nov1Dow) % 7); // day-of-month of first Monday
+  const electionDay = firstMonday + 1; // the Tuesday after
+  const election = Date.UTC(year, 10, electionDay, 23, 59, 59);
+  return now.getTime() > election;
+}
+
+// The next regular general-election year for a Senate class, as of `now`.
+export function nextElectionForClass(
+  senateClass: number,
+  now: Date,
+): number | null {
+  const residue = CLASS_RESIDUE[senateClass];
+  if (residue === undefined) return null;
+  const currentYear = now.getUTCFullYear();
+  let y = currentYear;
+  while (y % 6 !== residue) y++;
+  // If this class's year is the current year but the election has already
+  // happened, the next one is a full cycle out.
+  if (y === currentYear && isPastElectionDay(now)) y += 6;
+  return y;
+}
+
+// Full regular-seat year-pair from class: election year + the term end the
+// following January (ney = ctey − 1). Special elections (OH/FL 2026) legitimately
+// break this invariant and are handled by data/senate-special-elections.json
+// ahead of this call — see sync-members.ts.
+export function senateYearsFromClass(
+  senateClass: number,
+  now: Date,
+): { nextElection: number; termEnd: number } | null {
+  const ney = nextElectionForClass(senateClass, now);
+  if (ney === null) return null;
+  return { nextElection: ney, termEnd: ney + 1 };
+}

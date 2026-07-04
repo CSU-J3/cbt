@@ -20,19 +20,76 @@
 // Manual: `npm run sync:members`. ~90s. Re-run after any special election or
 // redraw; quarterly at minimum otherwise.
 import "dotenv/config";
+import yaml from "js-yaml";
+import specialElectionsData from "../data/senate-special-elections.json";
 import { getDb } from "../lib/db";
 import {
   houseNextElection,
   houseTermEnd,
+  isPastElectionDay,
   senateNextElection,
   senateTermEnd,
   senateTermStart,
+  senateYearsFromClass,
 } from "../lib/derive-term";
 import { stateAbbr } from "../lib/states";
 
 const CONGRESS = 119;
 const PAGE_LIMIT = 250;
 const DELAY_MS = 150;
+
+const LEGISLATORS_YAML =
+  "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/legislators-current.yaml";
+
+// The legislators-current.yaml term block (last entry is the sitting term).
+// Only `type`/`class` are consumed here — Congress.gov omits Senate class, so
+// this YAML is the sole source for it (same file sync:crosswalk reads).
+type YamlTerm = { type?: string; class?: number };
+type YamlLegislator = { id?: { bioguide?: string }; terms?: YamlTerm[] };
+
+// data/senate-special-elections.json — cycle-scoped exceptions checked (by
+// bioguide) before the class default. See that file's _comment for the rules.
+type SpecialElection = {
+  state?: string;
+  bioguide?: string;
+  cycle?: number;
+  next_election_year?: number;
+  current_term_end_year?: number;
+};
+
+// bioguide → Senate class (1|2|3) from the last terms[] entry of each current
+// senator. One GET + local parse; House members / non-senators are absent.
+async function fetchSenateClasses(): Promise<Map<string, number>> {
+  const res = await fetch(LEGISLATORS_YAML);
+  if (!res.ok) throw new Error(`legislators-current.yaml HTTP ${res.status}`);
+  const records = yaml.load(await res.text()) as YamlLegislator[];
+  if (!Array.isArray(records) || records.length === 0)
+    throw new Error("parsed legislators-current.yaml is empty — aborting");
+  const classes = new Map<string, number>();
+  for (const rec of records) {
+    const bio = rec.id?.bioguide;
+    const last = rec.terms?.[rec.terms.length - 1];
+    if (!bio || !last || last.type !== "sen") continue;
+    if (typeof last.class === "number") classes.set(bio, last.class);
+  }
+  return classes;
+}
+
+// Load the special-election exceptions, keyed by bioguide, dropping any that
+// have already voted (their cycle is at or below the effective floor — after
+// election day the current year no longer counts as "upcoming"). Expired
+// entries fall through to the class default (OH/FL revert to Class-3 → 2028).
+function loadSpecialElections(now: Date): Map<string, SpecialElection> {
+  const raw = specialElectionsData as SpecialElection[];
+  const floor = now.getUTCFullYear() + (isPastElectionDay(now) ? 1 : 0);
+  const map = new Map<string, SpecialElection>();
+  for (const e of raw) {
+    if (!e.bioguide || e.next_election_year == null) continue; // skip _comment-only rows
+    if (e.next_election_year < floor) continue; // already voted → expired
+    map.set(e.bioguide, e);
+  }
+  return map;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -118,17 +175,41 @@ function pickCurrentParty(history: PartyHistoryEntry[] | undefined): string | nu
   return sorted[0]?.partyAbbreviation ?? sorted[0]?.partyName ?? null;
 }
 
-// Term math is split by chamber and delegated to lib/derive-term.ts. Senate
-// needs the 3-Congress modular walkback (Congress.gov returns one entry per
-// 2-year Congress, not per 6-year term — naive `startYear + 6` collapses
-// every continuously-serving senator to the same term boundary). House is
-// straightforward: one Congress = one term.
+// Term math is delegated to lib/derive-term.ts. HO 411 replaced the Senate
+// derivation: the year-pair now comes deterministically from the senator's
+// class (the old startYear+6 / 3-Congress modular walkback drifted on 18 of 100
+// senators — HO 410), consulting the special-election list first. House is
+// unchanged — one Congress = one term.
 function deriveTermYears(
   chamber: "house" | "senate" | null,
   terms: Term[],
   latestTermStartYear: number | undefined,
+  ctx: {
+    senateClass: number | null;
+    special: SpecialElection | undefined;
+    now: Date;
+  },
 ): { endYear: number | null; nextElection: number | null } {
   if (chamber === "senate") {
+    // 1. Special election (OH/FL 2026) — explicit pair; legitimately breaks the
+    //    ney = ctey-1 invariant, so it must win over the class default.
+    if (ctx.special) {
+      return {
+        endYear: ctx.special.current_term_end_year ?? null,
+        nextElection: ctx.special.next_election_year ?? null,
+      };
+    }
+    // 2. Class default — deterministic from Senate class (the durable fix).
+    if (ctx.senateClass !== null) {
+      const y = senateYearsFromClass(ctx.senateClass, ctx.now);
+      return {
+        endYear: y?.termEnd ?? null,
+        nextElection: y?.nextElection ?? null,
+      };
+    }
+    // 3. No class in the yaml (departed senator absent from
+    //    legislators-current) — keep the legacy modular derivation so
+    //    is_current=0 rows keep a sensible year-pair instead of nulling.
     const ts = senateTermStart(terms);
     if (ts === null) return { endYear: null, nextElection: null };
     return { endYear: senateTermEnd(ts), nextElection: senateNextElection(ts) };
@@ -192,6 +273,17 @@ async function main() {
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
 
   const db = getDb();
+  const now = new Date();
+
+  // HO 411: Senate class + special-election list drive the year-pair. Fetch the
+  // class map once (Congress.gov has no class) and load the cycle-scoped
+  // exceptions before iterating the roster.
+  const senateClasses = await fetchSenateClasses();
+  const specials = loadSpecialElections(now);
+  console.log(
+    `Senate class map: ${senateClasses.size} senators; ` +
+      `active special elections: ${specials.size} (${[...specials.keys()].join(", ") || "none"})`,
+  );
 
   // Snapshot the table before touching it so the report can distinguish
   // newly-added members from updates.
@@ -225,8 +317,16 @@ async function main() {
       const terms = member.terms ?? [];
       const currentTerm = pickCurrentTerm(terms);
       const chamber = deriveChamber(currentTerm);
+      const senateClass =
+        chamber === "senate"
+          ? (senateClasses.get(bioguideId) ?? null)
+          : null;
       const { endYear: currentTermEndYear, nextElection: nextElectionYear } =
-        deriveTermYears(chamber, terms, currentTerm?.startYear);
+        deriveTermYears(chamber, terms, currentTerm?.startYear, {
+          senateClass,
+          special: specials.get(bioguideId),
+          now,
+        });
       const stateName = currentTerm?.stateName ?? member.state ?? null;
       const fallbackName =
         [member.firstName, member.lastName].filter(Boolean).join(" ") ||
@@ -244,9 +344,9 @@ async function main() {
         sql: `INSERT INTO members (
                 bioguide_id, name, first_name, last_name, party, state, state_name,
                 district, chamber, birth_year, depiction_url,
-                current_term_end_year, next_election_year, terms_json,
+                current_term_end_year, next_election_year, senate_class, terms_json,
                 raw_json, is_current, fetched_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(bioguide_id) DO UPDATE SET
                 name = excluded.name,
                 first_name = excluded.first_name,
@@ -260,6 +360,7 @@ async function main() {
                 depiction_url = excluded.depiction_url,
                 current_term_end_year = excluded.current_term_end_year,
                 next_election_year = excluded.next_election_year,
+                senate_class = excluded.senate_class,
                 terms_json = excluded.terms_json,
                 raw_json = excluded.raw_json,
                 is_current = excluded.is_current,
@@ -278,6 +379,7 @@ async function main() {
           member.depiction?.imageUrl ?? null,
           currentTermEndYear,
           nextElectionYear,
+          senateClass,
           JSON.stringify(terms),
           JSON.stringify(member),
           isCurrent,

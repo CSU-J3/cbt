@@ -1,0 +1,19 @@
+[
+  {
+    "_comment": "HO 411. Cycle-scoped Senate special elections that legitimately break the ney = ctey-1 invariant. Checked (keyed by bioguide) BEFORE the class default in sync-members.ts. OH + FL are Class-3 seats up early in 2026 via special, filling remainder terms that end Jan 2029. These entries EXPIRE after the 2026 cycle: once the 2026 election passes, sync-members stops applying them (cycle < effective floor) and both seats revert to Class-3 regular (next election 2028). Remove them after Nov 2026. Bioguides read from the members table, not typed from memory.",
+    "state": "OH",
+    "bioguide": "H001104",
+    "name": "Jon Husted",
+    "cycle": 2026,
+    "next_election_year": 2026,
+    "current_term_end_year": 2029
+  },
+  {
+    "state": "FL",
+    "bioguide": "M001244",
+    "name": "Ashley Moody",
+    "cycle": 2026,
+    "next_election_year": 2026,
+    "current_term_end_year": 2029
+  }
+]

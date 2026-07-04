@@ -90,6 +90,7 @@ const statements = [
     depiction_url TEXT,
     current_term_end_year INTEGER,
     next_election_year INTEGER,
+    senate_class INTEGER,
     terms_json TEXT,
     raw_json TEXT NOT NULL,
     fetched_at TEXT NOT NULL
@@ -1042,6 +1043,12 @@ async function main() {
   await ensureColumn(db, "reports", "laws_count", "INTEGER");
   await ensureColumn(db, "reports", "intro_count", "INTEGER");
   await ensureColumn(db, "reports", "moves_count", "INTEGER");
+  // HO 411: Senate class (1|2|3) ingested from legislators-current.yaml by
+  // sync:members. The year-pair (next_election_year / current_term_end_year)
+  // now derives from this deterministically instead of the drift-prone
+  // startYear+6 / term-selection math. House rows stay NULL (correct — House
+  // has no class). See lib/derive-term.ts + data/senate-special-elections.json.
+  await ensureColumn(db, "members", "senate_class", "INTEGER");
   console.log("migration complete");
 }
 

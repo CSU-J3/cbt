@@ -35,6 +35,12 @@ async function main() {
       WHERE m.next_election_year IS NOT NULL
         AND m.state IS NOT NULL
         AND m.chamber IS NOT NULL
+        -- HO 411: only currently-serving members seed a race incumbent. A
+        -- departed senator (is_current=0) keeps a legacy fallback year-pair,
+        -- so without this a future resignation could put two members at the
+        -- same S-<state>-2026 id and recreate the two-at-2026 ambiguity that
+        -- HO 410 caught on the CO card. The audit §3 population matches this.
+        AND m.is_current = 1
         AND (m.chamber = 'senate' OR m.district IS NOT NULL)
     `,
     args: [today],
