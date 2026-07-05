@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Voteview member CSVs — the `bioname` comma-shift trap, native `bioguide_id`, and the full-`members` gate (HO 419, Jul 2026)
+
+Three field notes from the Voteview DW-NOMINATE data layer:
+
+- **Voteview member CSVs shift every column right of `bioname` on a naive split.** `bioname` is a quoted field with an embedded comma (`"ROGERS, Mike Dennis"`) positioned **before** `bioguide_id` and every `nominate_*` field, so `line.split(',')` reads first-name fragments into `bioguide_id` and slides `number_of_votes` into `conditional` — **silent** score corruption, no error thrown. Quote-aware parsing + **header-keyed** column indexing (never by position) is mandatory; `scripts/voteview-source.ts` does both. Demonstrated live during HO 419: a verification `awk -F,` split produced fake "duplicate bioguides" (first-name fragments like `Mike"`, `Adam"`) and 400-plus `conditional` values (shifted vote counts) — the corruption looks like real data.
+- **Voteview carries `bioguide_id` natively — join `member_ideology` to `members` on bioguide directly.** The HO 402 crosswalk's ICPSR bridge is **not** the path for ideology; that was the pre-verification assumption (the "~60% via ICPSR" figure was measuring the crosswalk's ICPSR *fill*, not this join) and it's retired. `icpsr` is still stored in `member_ideology` — but for a **future** join to Voteview's `votes` / `rollcalls` files (roll-call positions, `HSall_votes.csv` on `icpsr`), not for the members join.
+- **`sync-ideology` gates on the full `members` table, not `is_current=1` — the asymmetry with `sync-fec` is deliberate.** The gate is `bioguide_id IN (SELECT bioguide_id FROM members)`, so a member who served in the 119th, voted, then departed (still in `members` with `is_current=0`) **keeps** their DW-NOMINATE row — historical scores are valid and useful. That's why matched (**552**) exceeds `is_current` (**537**) and why the coverage diagnostic reads **over 100%** against the `is_current` denominator. `sync-fec` does the **opposite** (filters `is_current=1`, departed members drop out — see the FEC note below) because campaign-finance rows are current-cycle-scoped. Don't "reconcile" the ideology gate to `is_current`; the two syncs answer different questions.
+
 ## FEC `by_size` is election-cycle-keyed, totals are reporting-cycle-keyed — plus the member FEC-identity override machinery (HO 415/416, Jul 2026)
 
 Five field notes from the FEC member-fundraising completion arc:
