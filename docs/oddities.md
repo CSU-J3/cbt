@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Voteview `party_code` follows caucus, not registration — the ideology diagnostic false-positives on independents (HO 422, Jul 2026)
+
+DW-NOMINATE's `party_code` (100=D / 200=R / 328=I) reflects a member's **caucus / voting coalition**, not their legal party registration. So an **independent who caucuses with a major party reads as that party** in Voteview, and it *disagrees* with `members.party` (which follows registration) for exactly those members — and **both sides are correct**, not a data error.
+
+- **Kevin Kiley (K000401, CA-03)** is the current instance and the whole reason HO 420 mis-logged a "Kiley party bug." He **switched Republican → Independent on 2026-03-09** — confirmed by **both** Congress.gov `partyHistory` (a `{partyAbbreviation: "I", startYear: 2026}` entry ahead of his `{R, 2023–2026}` one) **and** congress-legislators `party_affiliations` (`2026-03-09 → 2027-01-03: Independent, caucus: Republican`). He **caucuses Republican**, so `members.party='I'` (registration, correct) and Voteview `party_code=200`/R (caucus, also correct). `sync:members`' `pickCurrentParty` → `normalizeParty` derived `I` faithfully from the most-recent `partyHistory` entry — **no derivation bug.**
+- **King (I-ME) and Sanders (I-VT) are the standing Senate pattern** — registered independents who caucus Democratic, coded 100/D by Voteview. Any future independent trips the same gap.
+- **Consequence for the diagnostic:** `scripts/diagnostic/ideology-coverage-419.ts` compares `party_code`→letter against `members.party` by **string equality**, so it has a **structural false-positive class** — it flags every such independent as a "disagreement" on every run. The fix is to compare `party_code` against **caucus**, not registration (backlog QUEUED). **Do NOT** "correct" `members.party` to match Voteview for these members — that would overwrite the accurate registration with the caucus label (the HO 422 trap that was almost walked into).
+
 ## Voteview member CSVs — the `bioname` comma-shift trap, native `bioguide_id`, and the full-`members` gate (HO 419, Jul 2026)
 
 Three field notes from the Voteview DW-NOMINATE data layer:
