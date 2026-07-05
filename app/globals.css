@@ -1041,6 +1041,96 @@ body {
   color: var(--text-secondary);
 }
 
+/* HO 421: member-hub DW-NOMINATE 1-D axis, vertically banded. Elements are
+   point-on-axis (positioned by left%, inset 2%..98% by the component so extremes
+   don't clip). The band split is the disambiguator for the common case where a
+   member sits on their own party median (same color AND same x): party-median
+   ticks live STRICTLY ABOVE the rail, the member's identity CARET lives STRICTLY
+   BELOW it, so they never share vertical space. A secondary member bar sits above
+   the rail too; the median ticks carry a thin contrasting core so a same-color
+   median still reads when it coincides with that bar. Rail at y=13 of a 26px box:
+   top band 1–13 (bar + median ticks), bottom band 14–20 (caret). */
+.ideology-axis {
+  margin-top: 6px;
+}
+.ideology-axis-track {
+  position: relative;
+  display: block;
+  height: 26px;
+  overflow: visible;
+}
+/* the rail: the horizontal reference line the bands sit above/below */
+.ideology-axis-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 13px;
+  height: 1px;
+  background-color: var(--border-strong);
+}
+/* center-zero reference: a short tick in the top band at the 0.0 midpoint */
+.ideology-axis-zero {
+  position: absolute;
+  top: 3px;
+  height: 10px;
+  left: 50%;
+  width: 1px;
+  background-color: var(--border-strong);
+  opacity: 0.6;
+}
+/* party median: a short tick ABOVE the rail (top band only), colored by party,
+   with a thin contrasting core so it stays visible when the same-color member
+   bar sits directly behind it. z above the bar. */
+.ideology-axis-median {
+  position: absolute;
+  top: 1px;
+  height: 12px;
+  width: 3px;
+  transform: translateX(-1.5px);
+  z-index: 3;
+}
+.ideology-axis-median-core {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1px;
+  width: 1px;
+  background-color: var(--text-secondary);
+}
+/* member secondary bar: ABOVE the rail, full top-band height, below the medians */
+.ideology-axis-bar {
+  position: absolute;
+  top: 1px;
+  height: 12px;
+  width: 3px;
+  transform: translateX(-1.5px);
+  z-index: 2;
+}
+/* member identity caret: BELOW the rail, an up-pointing triangle at the member's
+   x. borderBottomColor is set inline to the member's party color. This is the
+   mark that reads as "the member" even when the above-rail bar coincides with a
+   same-color median tick. */
+.ideology-axis-caret {
+  position: absolute;
+  top: 14px;
+  width: 0;
+  height: 0;
+  transform: translateX(-4px);
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid;
+  z-index: 4;
+}
+.ideology-axis-ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
 /* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
    bottom on active, dim text otherwise) but renders <button>s and a
    tighter margin since the strip lives inside a quadrant, not a page-

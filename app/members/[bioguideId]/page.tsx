@@ -4,6 +4,7 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { MemberAffiliations } from "@/components/MemberAffiliations";
 import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
 import { MemberHeader } from "@/components/MemberHeader";
+import { MemberIdeology } from "@/components/MemberIdeology";
 import { MemberStats } from "@/components/MemberStats";
 import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
@@ -17,6 +18,7 @@ import {
   getMemberBills,
   getMemberCommittees,
   getMemberFundraising,
+  getMemberIdeology,
   getMemberNews,
   getMemberStats,
   getMemberTradeCount,
@@ -147,6 +149,7 @@ export default async function MemberPage({
     committeeAssignments,
     watchedIds,
     news,
+    ideology,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -164,6 +167,9 @@ export default async function MemberPage({
     // param is always a string (no open-seat/null-key case), so this always
     // runs; an unknown bioguide just returns [] → the empty state.
     getMemberNews(bioguideId, 8),
+    // HO 421: DW-NOMINATE ideology; null when the member has no member_ideology
+    // row → the component renders its empty state.
+    getMemberIdeology(bioguideId),
   ]);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
@@ -352,6 +358,9 @@ export default async function MemberPage({
 
               <div className="px-4 py-3">
                 <MemberVoteStats stats={voteStats} chamber={member.chamber} />
+                <div className="mt-3">
+                  <MemberIdeology ideology={ideology} party={member.party} />
+                </div>
               </div>
 
               {recentVotes.votes.length > 0 ? (

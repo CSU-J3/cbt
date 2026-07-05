@@ -2686,6 +2686,80 @@ export const getMemberFundraising = unstable_cache(
   { revalidate: 86400, tags: ["member-fundraising"] },
 );
 
+// HO 421: DW-NOMINATE ideology readout for the member hub. `dim1` is the
+// headline economic left/right axis (DW-NOMINATE domain ≈ −1..+1, negative =
+// left; NULL when a member has too few votes to estimate). `demMedian`/
+// `repMedian` are the member's-chamber party medians, computed app-side (an
+// honest center for a skewed distribution — NOT AVG). Both null if that party's
+// dim1 set is somehow empty.
+export type MemberIdeology = {
+  dim1: number | null;
+  dim2: number | null;
+  numberOfVotes: number | null;
+  conditional: number | null;
+  chamber: string; // Voteview's 'House' | 'Senate'
+  demMedian: number | null;
+  repMedian: number | null;
+};
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const hi = sorted[mid] as number;
+  return sorted.length % 2 === 0 ? ((sorted[mid - 1] as number) + hi) / 2 : hi;
+}
+
+export const getMemberIdeology = unstable_cache(
+  async (bioguideId: string): Promise<MemberIdeology | null> => {
+    const db = getDb();
+
+    // The member's own row (PK lookup). No row → no ideology surface at all.
+    const own = await db.execute({
+      sql: `SELECT nominate_dim1, nominate_dim2, number_of_votes, conditional, chamber
+            FROM member_ideology WHERE bioguide_id = ?`,
+      args: [bioguideId],
+    });
+    const row = own.rows[0];
+    if (!row) return null;
+    const chamber = row.chamber as string;
+
+    // The chamber's D/R dim1 sets, for the two party medians. Joins to members
+    // for party (Voteview's numeric party_code isn't stored). Filters on the
+    // member's OWN chamber value (member_ideology.chamber) so it's one source.
+    // ~535-row scan — no INDEXED BY, no new index (small-table judgment).
+    const context = await db.execute({
+      sql: `SELECT mi.nominate_dim1 AS dim1, m.party AS party
+            FROM member_ideology mi
+            JOIN members m ON m.bioguide_id = mi.bioguide_id
+            WHERE mi.chamber = ?
+              AND mi.nominate_dim1 IS NOT NULL
+              AND m.party IN ('D','R')`,
+      args: [chamber],
+    });
+    const dem: number[] = [];
+    const rep: number[] = [];
+    for (const r of context.rows) {
+      const v = r.dim1 as number | null;
+      if (v == null) continue;
+      if (r.party === "D") dem.push(v);
+      else if (r.party === "R") rep.push(v);
+    }
+
+    return {
+      dim1: (row.nominate_dim1 as number | null) ?? null,
+      dim2: (row.nominate_dim2 as number | null) ?? null,
+      numberOfVotes: (row.number_of_votes as number | null) ?? null,
+      conditional: (row.conditional as number | null) ?? null,
+      chamber,
+      demMedian: median(dem),
+      repMedian: median(rep),
+    };
+  },
+  ["getMemberIdeology"],
+  { revalidate: 86400, tags: ["member-ideology"] },
+);
+
 // ---- Breaking news (handoff 69) -----------------------------------------
 
 export type NewsMention = {
