@@ -564,6 +564,31 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_member_fec_ids_cand ON member_fec_ids(fec_candidate_id)`,
 
+  // HO 419: member ideology — Voteview DW-NOMINATE, 119th. Additive, current-
+  // scoped enrichment of the bioguide-keyed roster (the member_* family, same
+  // shape judgment as the HO 402 crosswalk). The sync joins Voteview -> members on
+  // bioguide_id DIRECTLY (the member file carries bioguide_id natively; the ICPSR
+  // bridge is NOT this path) and GATES on known bioguides, so it's never a source
+  // of new members. `icpsr` is kept for a future Voteview votes/rollcalls join.
+  // nominate_dim1 (headline, economic left/right) is NULLABLE — a member with zero
+  // votes has no estimate yet. No secondary index: ~535 rows, the PK covers the
+  // join and a full scan is sub-millisecond (same call as the /dashboard-classic
+  // reads). Manual/periodic, paired with sync:members -> sync:crosswalk; NOT on
+  // the daily cron.
+  `CREATE TABLE IF NOT EXISTS member_ideology (
+    bioguide_id       TEXT PRIMARY KEY,
+    icpsr             INTEGER NOT NULL,
+    congress          INTEGER NOT NULL,
+    chamber           TEXT    NOT NULL,
+    nominate_dim1     REAL,
+    nominate_dim2     REAL,
+    nokken_poole_dim1 REAL,
+    nokken_poole_dim2 REAL,
+    number_of_votes   INTEGER,
+    conditional       INTEGER,
+    updated_at        TEXT    NOT NULL
+  )`,
+
   // HO 232: append-only stage-transition log (the rating_history precedent —
   // HO 220). One row per ACTUAL stage move, written from the summarize step's
   // existing `transitioned` branch right beside previous_stage/stage_changed_at.
