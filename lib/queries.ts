@@ -2830,6 +2830,44 @@ export const getPolarizationBand = unstable_cache(
   { revalidate: 86400, tags: ["member-ideology"] },
 );
 
+// HO 425: the scored DW-NOMINATE population for the /members polarization dotplot
+// (ideology surface 2 of 3). Every member with a dim1 estimate — the cloud the
+// strip draws. Returns the full BOTH-chamber population once (chamber-independent
+// → one cache entry); the page scopes to the live chamber toggle and the strip
+// component derives the strict-D/R medians from exactly the dots it draws, so the
+// ticks agree with the HO 424 band's rails by construction (same method, same
+// data). ~552 rows, no index (the small-table member_ideology regime, as HO 421/
+// 424). `chamber` is members.chamber (lowercase), aligned to the ?chamber param.
+export type IdeologyDot = {
+  bioguideId: string;
+  name: string;
+  party: string | null; // normalized 'R' | 'D' | 'I'
+  chamber: string; // 'house' | 'senate'
+  dim1: number;
+};
+
+export const getIdeologyStrip = unstable_cache(
+  async (): Promise<IdeologyDot[]> => {
+    const db = getDb();
+    const res = await db.execute(
+      `SELECT mi.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
+              m.chamber AS chamber, mi.nominate_dim1 AS dim1
+         FROM member_ideology mi
+         JOIN members m ON m.bioguide_id = mi.bioguide_id
+        WHERE mi.nominate_dim1 IS NOT NULL`,
+    );
+    return res.rows.map((r) => ({
+      bioguideId: r.bioguideId as string,
+      name: r.name as string,
+      party: (r.party as string | null) ?? null,
+      chamber: r.chamber as string,
+      dim1: r.dim1 as number,
+    }));
+  },
+  ["getIdeologyStrip"],
+  { revalidate: 86400, tags: ["member-ideology"] },
+);
+
 // ---- Breaking news (handoff 69) -----------------------------------------
 
 export type NewsMention = {

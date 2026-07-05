@@ -3,6 +3,7 @@ import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { CommitteeRailRow } from "@/components/CommitteeRailRow";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
+import { IdeologyStrip } from "@/components/IdeologyStrip";
 import { MemberTopicBar } from "@/components/MemberTopicBar";
 import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
@@ -24,6 +25,7 @@ import {
   getCommitteeBySystemCode,
   getCommitteeRoster,
   getCommitteesIndex,
+  getIdeologyStrip,
   getMemberAffiliations,
   getMemberCommittees,
   getMembersRanked,
@@ -117,11 +119,21 @@ export default async function MembersPage({
   const filters = { chamber, party, state, q, includeCeremonial };
 
   // Shared across both panes / both modes.
-  const [railCommittees, upcoming, topicMixRows] = await Promise.all([
-    getCommitteesIndex({ chamber }),
-    getUpcomingForRail(chamber),
-    getMembersTopicMix(includeCeremonial),
-  ]);
+  const [railCommittees, upcoming, topicMixRows, ideologyDots] =
+    await Promise.all([
+      getCommitteesIndex({ chamber }),
+      getUpcomingForRail(chamber),
+      getMembersTopicMix(includeCeremonial),
+      getIdeologyStrip(),
+    ]);
+
+  // HO 425 polarization strip: scope to the live chamber toggle ONLY (built off
+  // the full population, separate from the filtered browser query, so party /
+  // state / sort / search can't touch it — a party filter would collapse the
+  // two-hump comparison the strip exists to show).
+  const stripDots = chamber
+    ? ideologyDots.filter((d) => d.chamber === chamber)
+    : ideologyDots;
 
   // Group the flat topic-mix rows into per-member counts → bar segments.
   const mixByMember = new Map<string, { topic: string; count: number }[]>();
@@ -391,6 +403,11 @@ export default async function MembersPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="members" />
+
+        {/* HO 425 — polarization dotplot: the population shape + party gap before
+            you scroll into the browser. Above the filter bar; only the chamber
+            toggle rescopes it. */}
+        <IdeologyStrip dots={stripDots} />
 
         {/* ---- Filter bar (full-width strip; connects to the pane) ---- */}
         <div className="mc-fbar">

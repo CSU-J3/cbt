@@ -1271,6 +1271,58 @@ body {
   color: var(--accent-amber-bright);
 }
 
+/* HO 425: /members polarization dotplot strip. ~180px = header (~26) + SVG (132)
+   + footer (~14). Amber left accent; hand-rolled SVG dotplot inside (see
+   IdeologyStrip.tsx). Chrome mirrors the .pol-band-* family. */
+.ideo-strip {
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 2px 0 0 var(--accent-amber);
+  background-color: var(--bg-panel);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.ideo-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+.ideo-strip-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.ideo-strip-desc {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.ideo-strip-spacer {
+  flex: 1;
+}
+.ideo-strip-how {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--accent-amber);
+  cursor: help;
+  white-space: nowrap;
+}
+.ideo-strip-svg {
+  display: block;
+  width: 100%;
+  height: 132px;
+}
+.ideo-strip-foot {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+}
+.ideo-strip-foot-hint {
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
 /* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
    bottom on active, dim text otherwise) but renders <button>s and a
    tighter margin since the strip lives inside a quadrant, not a page-
