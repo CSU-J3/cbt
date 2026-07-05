@@ -1131,6 +1131,146 @@ body {
   color: var(--text-dim);
 }
 
+/* HO 424: chamber polarization band. Full-width dashboard surface reusing the
+   HO 421 positioned-tick-on-a-fixed-track idiom at chamber-aggregate scale: two
+   party-median ticks per rail with an amber gap line between them, no per-member
+   marker. Two rails (HOUSE over SENATE), each a
+   [64px label+nums] [1fr track] [96px GAP] grid. Existing tokens only. */
+.pol-band {
+  border-top: 1px solid var(--border-strong);
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--bg-panel);
+}
+.pol-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.pol-band-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.pol-band-desc {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.pol-band-rail {
+  display: grid;
+  grid-template-columns: 64px 1fr 96px;
+  align-items: center;
+  column-gap: var(--space-md);
+  padding: var(--space-xs) 0;
+}
+.pol-band-rail-label {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.pol-band-chamber {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.pol-band-nums {
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* the track: a fixed −1..+1 domain with a dim center tick, 2% inset (the marks
+   are positioned by the component's pos()). Height holds the ticks + gap line. */
+.pol-band-track {
+  position: relative;
+  height: 22px;
+  overflow: visible;
+}
+.pol-band-track-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  height: 1px;
+  background-color: var(--border-strong);
+}
+.pol-band-track-zero {
+  position: absolute;
+  top: 5px;
+  height: 12px;
+  left: 50%;
+  width: 1px;
+  background-color: var(--border-strong);
+  opacity: 0.6;
+}
+/* amber dimension line spanning the two party medians (left/width set inline) */
+.pol-band-gapline {
+  position: absolute;
+  top: 10px;
+  height: 3px;
+  background-color: var(--accent-amber);
+  border-radius: 1px;
+  z-index: 1;
+}
+/* a party median tick, colored inline; sits above the gap line */
+.pol-band-tick {
+  position: absolute;
+  top: 3px;
+  height: 16px;
+  width: 3px;
+  transform: translateX(-1.5px);
+  z-index: 2;
+}
+.pol-band-gap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.05;
+}
+.pol-band-gap-figure {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--accent-amber-bright);
+}
+.pol-band-gap-empty {
+  font-size: 19px;
+  color: var(--text-dim);
+}
+.pol-band-gap-label {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+/* shared axis under both rails, aligned to the 1fr track column */
+.pol-band-axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 96px 0 calc(64px + var(--space-md));
+  padding: 0 calc(2% );
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.pol-band-foot {
+  margin-top: var(--space-sm);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+}
+.pol-band-link {
+  margin-left: var(--space-sm);
+  color: var(--accent-amber);
+}
+.pol-band-link:hover {
+  color: var(--accent-amber-bright);
+}
+
 /* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
    bottom on active, dim text otherwise) but renders <button>s and a
    tighter margin since the strip lives inside a quadrant, not a page-

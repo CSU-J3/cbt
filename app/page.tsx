@@ -14,6 +14,7 @@ import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
+import { PolarizationBand } from "@/components/PolarizationBand";
 import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
@@ -23,6 +24,7 @@ import {
   getBreakingNewsForHomeCount,
   getCorpusStats,
   getNewBillsThisWeekCount,
+  getPolarizationBand,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
@@ -87,6 +89,7 @@ export default async function DashboardPage({
     breakingCount,
     activityCount,
     newBillsCount,
+    polarization,
   ] = await Promise.all([
     getCorpusStats(true),
     getStageDistribution(undefined, true), // header segments — corpus-wide
@@ -95,6 +98,7 @@ export default async function DashboardPage({
     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
     getStageChangesCount({}, 7, filters),
     getNewBillsThisWeekCount(),
+    getPolarizationBand(),
   ]);
 
   const topicData: TopicDatum[] = topicRows.map((t) => ({
@@ -118,6 +122,13 @@ export default async function DashboardPage({
           hearingsContent={<HearingsTab />}
           racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
         />
+
+        {/* HO 424 — chamber polarization band (ideology surface 1 of 3), full
+            width below the races/battlefield box. Placement corrected from the
+            handoff's literal "below the battlefield block": the battlefield now
+            lives inside RacesBoxTabs' non-default RACES tab, so the band sits
+            under the box (always visible), not nested in a hidden tab. */}
+        <PolarizationBand band={polarization} />
 
         {/* Weekly line, full width, divider rule above (its own border-top). */}
         <WeeklyBand />

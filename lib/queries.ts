@@ -2760,6 +2760,76 @@ export const getMemberIdeology = unstable_cache(
   { revalidate: 86400, tags: ["member-ideology"] },
 );
 
+// HO 424: chamber polarization band (ideology surface 1 of 3). Party-median
+// distance on DW-NOMINATE dim1, per chamber — the aggregate cousin of the HO 421
+// member readout. `getMemberIdeology` is member-CHAMBER-scoped (one D/R pair for
+// the member's own chamber), so the band needs its own query for all four
+// medians. Medians are computed app-side (an honest center for a skewed
+// distribution — NOT AVG), reusing the HO 421 `median()` helper. Two ~535-row
+// scans folded into one (grouped by chamber in JS), no INDEXED BY / no new index
+// (the small-table `member_ideology` regime, as in HO 421). `gap` = |rep − dem|.
+export type PolarizationRail = {
+  dem: number | null;
+  rep: number | null;
+  gap: number | null;
+};
+export type PolarizationBand = {
+  house: PolarizationRail;
+  senate: PolarizationRail;
+  scored: number;
+  unscored: number;
+};
+
+function rail(dem: number[], rep: number[]): PolarizationRail {
+  const d = median(dem);
+  const r = median(rep);
+  return { dem: d, rep: r, gap: d != null && r != null ? Math.abs(r - d) : null };
+}
+
+export const getPolarizationBand = unstable_cache(
+  async (): Promise<PolarizationBand> => {
+    const db = getDb();
+    // One scan over member_ideology joined to members for party. `scored` /
+    // `unscored` (too few votes → NULL dim1) come off the same table without the
+    // NOT-NULL filter, so a separate count query isn't needed.
+    const res = await db.execute(
+      `SELECT mi.chamber AS chamber, mi.nominate_dim1 AS dim1, m.party AS party
+         FROM member_ideology mi
+         JOIN members m ON m.bioguide_id = mi.bioguide_id`,
+    );
+
+    const houseDem: number[] = [];
+    const houseRep: number[] = [];
+    const senateDem: number[] = [];
+    const senateRep: number[] = [];
+    let scored = 0;
+    let unscored = 0;
+
+    for (const r of res.rows) {
+      const v = r.dim1 as number | null;
+      if (v == null) {
+        unscored += 1;
+        continue;
+      }
+      scored += 1;
+      const party = r.party as string | null;
+      if (party !== "D" && party !== "R") continue;
+      const house = r.chamber === "House";
+      if (party === "D") (house ? houseDem : senateDem).push(v);
+      else (house ? houseRep : senateRep).push(v);
+    }
+
+    return {
+      house: rail(houseDem, houseRep),
+      senate: rail(senateDem, senateRep),
+      scored,
+      unscored,
+    };
+  },
+  ["getPolarizationBand"],
+  { revalidate: 86400, tags: ["member-ideology"] },
+);
+
 // ---- Breaking news (handoff 69) -----------------------------------------
 
 export type NewsMention = {
