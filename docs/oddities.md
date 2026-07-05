@@ -6,6 +6,17 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The Senate is as polarized as the House on dim1 — both chamber gaps read 0.92 (119th), against the "calmer chamber" assumption (HO 424/425, Jul 2026)
+
+The chamber polarization band (HO 424) and the `/members` dotplot (HO 425) both measure the D-median-to-R-median distance on DW-NOMINATE `dim1` for the 119th, and **both chambers come out at 0.92** — the Senate is not the calmer chamber the common assumption expects, and the two surfaces agree by construction (band-vs-strip cross-checked, 0 `member_ideology.chamber`-vs-`members.chamber` mismatches across 552 rows). Two consequences:
+
+- **Don't hardcode the over-time mockup's illustrative caption** (Senate 0.81 / House 0.88) — those were made-up endpoints for the ship-3 mockup and don't match real data. The over-time chart's right-edge dots must read the **live** current-Congress gaps from `getPolarizationBand` (`0.92`/`0.92`), not the mockup numbers (backlog, ship 3).
+- Coverage at ship: **551 scored / 1 unscored** (the single known NULL-`dim1` member, too few votes).
+
+## A client-island chart can't import `lib/queries`' `median()` or any server helper — it drags `next/cache` into the client bundle (HO 425, Jul 2026)
+
+`IdeologyStrip` is a `"use client"` island (it needs hover + click interaction), and it derives strict-D/R median ticks from exactly the dots it draws. It **cannot** reuse the server-side `median()` in `lib/queries.ts` (or any of that module's helpers) because `lib/queries.ts` imports `next/cache` (`unstable_cache`), which is server-only — importing it into a client component pulls server code into the browser bundle. So the strip **pins the identical strict-D/R method inline** (sort ascending; odd → middle, even → mean of the two middle; independents plot as dots but sit in neither median) rather than sharing the function. The numbers still agree with the band's server-computed rails because the *method* is identical, not because the code is shared. The next client-island chart does the same — copy the method, keep it identical to the server version, so the two never drift.
+
 ## Voteview `party_code` follows caucus, not registration — the ideology diagnostic false-positives on independents (HO 422, Jul 2026)
 
 DW-NOMINATE's `party_code` (100=D / 200=R / 328=I) reflects a member's **caucus / voting coalition**, not their legal party registration. So an **independent who caucuses with a major party reads as that party** in Voteview, and it *disagrees* with `members.party` (which follows registration) for exactly those members — and **both sides are correct**, not a data error.
