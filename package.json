@@ -22,6 +22,7 @@
     "sync:members": "tsx scripts/sync-members.ts",
     "sync:crosswalk": "tsx scripts/sync-crosswalk.ts",
     "sync:ideology": "tsx scripts/sync-ideology.ts",
+    "sync:polarization-history": "tsx scripts/sync-polarization-history.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",
     "backfill:races": "tsx scripts/backfill-races.ts",
     "backfill:race-challengers": "tsx scripts/backfill-race-challengers.ts",

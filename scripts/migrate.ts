@@ -589,6 +589,27 @@ const statements = [
     updated_at        TEXT    NOT NULL
   )`,
 
+  // HO 427: per-Congress, per-chamber D/R medians of DW-NOMINATE dim1 — the data
+  // gate for ship 3, the polarization-over-time chart. Aggregated from Voteview's
+  // full HSall_members.csv history (~50k member-rows) down to a few hundred median
+  // rows (2 chambers x the covered Congresses); the raw file is read once and
+  // discarded, never stored per-member. Party is by Voteview party_code (100=D /
+  // 200=R = CAUCUS) end-to-end — the only option historically (departed members of
+  // past Congresses aren't in `members`), which differs from getPolarizationBand's
+  // members.party (REGISTRATION) filter; the two agree in the aggregate but not on
+  // caucusing independents (Kiley/King/Sanders), see the coverage diagnostic. `gap`
+  // is NOT stored — derived as |rep_median - dem_median| in the chart query, one
+  // gap formula shared with the band. chamber normalized lowercase to match the
+  // app convention. PK covers every read; no secondary index. Manual sync
+  // (sync:polarization-history), NOT on the daily cron.
+  `CREATE TABLE IF NOT EXISTS polarization_history (
+    congress    INTEGER NOT NULL,
+    chamber     TEXT    NOT NULL,
+    dem_median  REAL,
+    rep_median  REAL,
+    PRIMARY KEY (congress, chamber)
+  )`,
+
   // HO 232: append-only stage-transition log (the rating_history precedent —
   // HO 220). One row per ACTUAL stage move, written from the summarize step's
   // existing `transitioned` branch right beside previous_stage/stage_changed_at.
