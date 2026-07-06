@@ -7,6 +7,7 @@ import { IdeologyStrip } from "@/components/IdeologyStrip";
 import { MemberTopicBar } from "@/components/MemberTopicBar";
 import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
+import { PolarizationOverTime } from "@/components/PolarizationOverTime";
 import { RosterShowAll } from "@/components/RosterShowAll";
 import { SearchBox } from "@/components/SearchBox";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
@@ -27,6 +28,8 @@ import {
   getCommitteesIndex,
   getIdeologyStrip,
   getMemberAffiliations,
+  getPolarizationBand,
+  getPolarizationHistory,
   getMemberCommittees,
   getMembersRanked,
   getMembersTopicMix,
@@ -119,13 +122,21 @@ export default async function MembersPage({
   const filters = { chamber, party, state, q, includeCeremonial };
 
   // Shared across both panes / both modes.
-  const [railCommittees, upcoming, topicMixRows, ideologyDots] =
-    await Promise.all([
-      getCommitteesIndex({ chamber }),
-      getUpcomingForRail(chamber),
-      getMembersTopicMix(includeCeremonial),
-      getIdeologyStrip(),
-    ]);
+  const [
+    railCommittees,
+    upcoming,
+    topicMixRows,
+    ideologyDots,
+    polarizationHistory,
+    polarizationBand,
+  ] = await Promise.all([
+    getCommitteesIndex({ chamber }),
+    getUpcomingForRail(chamber),
+    getMembersTopicMix(includeCeremonial),
+    getIdeologyStrip(),
+    getPolarizationHistory(),
+    getPolarizationBand(),
+  ]);
 
   // HO 425 polarization strip: scope to the live chamber toggle ONLY (built off
   // the full population, separate from the filtered browser query, so party /
@@ -403,6 +414,16 @@ export default async function MembersPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="members" active="members" />
+
+        {/* HO 428 — polarization over time: the historical D/R gap curve, the
+            close of the ideology arc. Collapsed by default so the ~384px chart
+            doesn't bury the browser; its chamber toggle inits to the page's
+            chamber (House when ALL) and toggles independently after. */}
+        <PolarizationOverTime
+          history={polarizationHistory}
+          current={{ house: polarizationBand.house, senate: polarizationBand.senate }}
+          initialChamber={chamber === "senate" ? "senate" : "house"}
+        />
 
         {/* HO 425 — polarization dotplot: the population shape + party gap before
             you scroll into the browser. Above the filter bar; only the chamber

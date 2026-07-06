@@ -2868,6 +2868,43 @@ export const getIdeologyStrip = unstable_cache(
   { revalidate: 86400, tags: ["member-ideology"] },
 );
 
+// HO 428: the polarization-over-time chart (ideology surface 3 of 3). Every
+// `polarization_history` row (both chambers, ~190) — the client island filters to
+// the toggled chamber and draws the historical D/R median lines, so no refetch on
+// toggle. `year` is derived from `congress` (1789 + 2*(congress-1)). Caucus-based
+// (party_code 100/200) per HO 427; the page pairs this history with the live
+// `getPolarizationBand` (registration) for the current-Congress dot — the two agree
+// to three decimals at the 119th (Kiley the only differing member). Small-table
+// read (~190 rows), PK-covered, no index. Same daily-TTL + `member-ideology` tag as
+// the band/strip (nothing flushes it on a cron either way).
+export type PolarizationHistoryRow = {
+  congress: number;
+  chamber: string; // 'house' | 'senate'
+  year: number;
+  demMedian: number | null;
+  repMedian: number | null;
+};
+
+export const getPolarizationHistory = unstable_cache(
+  async (): Promise<PolarizationHistoryRow[]> => {
+    const db = getDb();
+    const res = await db.execute(
+      `SELECT congress, chamber, dem_median AS demMedian, rep_median AS repMedian
+         FROM polarization_history
+        ORDER BY congress ASC`,
+    );
+    return res.rows.map((r) => ({
+      congress: r.congress as number,
+      chamber: r.chamber as string,
+      year: 1789 + 2 * ((r.congress as number) - 1),
+      demMedian: (r.demMedian as number | null) ?? null,
+      repMedian: (r.repMedian as number | null) ?? null,
+    }));
+  },
+  ["getPolarizationHistory"],
+  { revalidate: 86400, tags: ["member-ideology"] },
+);
+
 // ---- Breaking news (handoff 69) -----------------------------------------
 
 export type NewsMention = {

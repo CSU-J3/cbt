@@ -1323,6 +1323,123 @@ body {
   opacity: 0.75;
 }
 
+/* HO 428: polarization-over-time chart (ideology surface 3 of 3). Collapsed by
+   default at the top of /members, above the dotplot strip, so the ~384px chart
+   doesn't bury the member browser. Panel chrome mirrors .ideo-strip. */
+.pol-time {
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 2px 0 0 var(--accent-amber);
+  background-color: var(--bg-panel);
+  margin-bottom: var(--space-md);
+}
+.pol-time-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+.pol-time-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.pol-time-chev {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.pol-time-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.pol-time-desc {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.pol-time-spacer {
+  flex: 1;
+}
+.pol-time-collapsed-hint {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.pol-time-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  font-size: 10px;
+}
+.pol-time-seg button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  padding: 3px 11px;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+.pol-time-seg button + button {
+  border-left: 1px solid var(--border-strong);
+}
+.pol-time-seg button[data-on="true"] {
+  background: var(--bg-row-hover);
+  color: var(--accent-amber-bright);
+}
+.pol-time-body {
+  padding: var(--space-xs) var(--space-sm) 0;
+}
+.pol-time-foot {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-xs) var(--space-md) var(--space-sm);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+}
+.pol-time-foot .src {
+  margin-left: auto;
+}
+.pol-time-foot .d {
+  color: var(--party-democrat);
+}
+.pol-time-foot .r {
+  color: var(--party-republican);
+}
+.pol-time-tip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 50;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  padding: 5px 9px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.pol-time-tip .h {
+  color: var(--text-dim);
+}
+.pol-time-tip .d {
+  color: var(--party-democrat);
+}
+.pol-time-tip .r {
+  color: var(--party-republican);
+}
+
 /* HO 133 tabbed quadrant. Reuses .search-tabs visual chrome (border-
    bottom on active, dim text otherwise) but renders <button>s and a
    tighter margin since the strip lives inside a quadrant, not a page-
