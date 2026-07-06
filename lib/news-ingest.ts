@@ -25,6 +25,9 @@ import {
 import { NEWS_SOURCES } from "./news-sources";
 // HO 394: additive dual-write of each article as a watchcore Observation.
 import { dualWriteObservation, loadEntityLookups } from "./news-to-observation";
+// HO 432: recompute an article's deterministic obs_id to dedup already-seen
+// articles out of the LLM matcher (see the seen-check in the item loop).
+import { makeObsId } from "./observation";
 import { getCandidateBills } from "./queries";
 import { fetchAndParseRss } from "./rss-parse";
 
@@ -61,6 +64,11 @@ export interface IngestResult {
   // fired (signal.aborted true at catch). Defensive metric — observed 0
   // in Phase 1 measurement.
   llmTimeouts: number;
+  // HO 432: articles whose LLM matcher was skipped because they were already
+  // ingested (obs_id present, no prior llm_error). This is what makes a tighter
+  // cron cadence near-free: the same in-window RSS items aren't re-matched every
+  // tick. A high value here vs a low llmCalls is the expected steady state.
+  llmSkippedSeen: number;
   // HO 117: wall-clock for this feed (RSS fetch + per-article loop + DB
   // writes). Surfaced into cron_runs.payload.timings by the route caller.
   wallMs: number;
@@ -161,6 +169,7 @@ export async function ingestNews(
         llmMatches: 0,
         llmErrors: 0,
         llmTimeouts: 0,
+        llmSkippedSeen: 0,
         wallMs: 0,
         budgetStopped: true,
         errors: ["budget reached before feed started"],
@@ -178,6 +187,7 @@ export async function ingestNews(
       llmMatches: 0,
       llmErrors: 0,
       llmTimeouts: 0,
+      llmSkippedSeen: 0,
       wallMs: 0,
       budgetStopped: false,
       errors: [],
@@ -222,10 +232,43 @@ export async function ingestNews(
           obsTags = ["no_llm_call:regex"];
         }
 
-        // LLM fallback fires only when regex misses AND we have a key set.
-        // No-pre-filter-hits short-circuits BEFORE counting an LLM call so
-        // the llmCalls metric reflects actual Gemini round-trips.
+        // HO 432: dedup already-ingested articles out of the LLM matcher. An
+        // article's obs_id is deterministic (makeObsId over collector/nativeId/
+        // url/title/observedAt), and storeObservation freezes entities on first
+        // insert — the re-ingest path only bumps last_seen — so re-running Gemini
+        // on a seen article can't change anything downstream; it's pure token
+        // waste, which a sub-daily cadence would multiply ~50×. Skip the matcher
+        // when the obs already exists, EXCEPT when its first pass errored (tags
+        // carry "llm_error"), which we still want to retry.
+        let skipLlm = false;
         if (billMatches.length === 0 && llmClient && candidates.length > 0) {
+          const obsId = makeObsId({
+            collector: `news_${source.slug}`,
+            nativeId: item.nativeId,
+            url: item.url,
+            title: item.title,
+            observedAt: item.publishedAt,
+          });
+          const seen = await db.execute({
+            sql: "SELECT tags FROM observations WHERE obs_id = ? LIMIT 1",
+            args: [obsId],
+          });
+          if (seen.rows.length > 0) {
+            const priorTags = (seen.rows[0]!.tags as string | null) ?? "";
+            if (!priorTags.includes("llm_error")) skipLlm = true;
+          }
+        }
+
+        // LLM fallback fires only when regex misses AND we have a key set AND the
+        // article is new (HO 432). No-pre-filter-hits short-circuits BEFORE
+        // counting an LLM call so the llmCalls metric reflects actual Gemini
+        // round-trips.
+        if (
+          billMatches.length === 0 &&
+          !skipLlm &&
+          llmClient &&
+          candidates.length > 0
+        ) {
           // HO 117: per-article AbortController. The 8s cap is enforced by
           // the timer; on abort the matcher's catch returns api_error, and
           // the post-call signal.aborted check separates a timeout from a
@@ -275,6 +318,12 @@ export async function ingestNews(
             // no_pre_filter_hits: no LLM call, no metric bump, no sleep.
             obsTags = ["no_llm_call:prefilter"];
           }
+        } else if (skipLlm) {
+          // HO 432: matcher skipped — article already ingested. Entities and
+          // mentions were frozen on first sight; the dualWrite below just bumps
+          // last_seen (its update path never rewrites entities).
+          result.llmSkippedSeen++;
+          obsTags = ["no_llm_call:seen"];
         } else if (billMatches.length === 0) {
           // No LLM client / no candidates → no call could be made.
           obsTags = ["no_llm_call:no_client"];

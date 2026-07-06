@@ -76,7 +76,7 @@ async function handle(request: Request) {
           `mentions=${r.mentionsInserted} skipped_unknown_bill=${r.mentionsSkippedUnknownBill} ` +
           `llm_calls=${r.llmCalls} llm_matches=${r.llmMatches} ` +
           `llm_errors=${r.llmErrors} llm_timeouts=${r.llmTimeouts} ` +
-          `budgetStopped=${r.budgetStopped}`,
+          `llm_skipped_seen=${r.llmSkippedSeen} budgetStopped=${r.budgetStopped}`,
       );
       for (const e of r.errors) console.warn(`[news] ${r.source} error: ${e}`);
     }

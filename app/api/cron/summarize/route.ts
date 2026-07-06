@@ -17,7 +17,8 @@
 // cron_runs.error_message column on success rows.
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
-import { wrapCronRoute } from "@/lib/cron-log";
+import { claimCronLock, releaseCronLock } from "@/lib/cron-lock";
+import { type CronHandlerResult, wrapCronRoute } from "@/lib/cron-log";
 import { runSummarize } from "@/lib/summarize-runner";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,17 @@ export const maxDuration = 60;
 // The 15s per-bill AbortController in runSummarize bounds the in-flight
 // bill on top of this. 45 + 15 = 60, the Vercel function ceiling.
 const SUMMARIZE_BUDGET_MS = 45_000;
+
+// HO 432: overlap guard for the */10 cadence. The 45s budget means a run can't
+// overrun into the next scheduled tick, but Vercel Cron is best-effort
+// at-least-once and can deliver one tick twice near-simultaneously — and the
+// drain isn't overlap-safe (two invocations both SELECT the same summary-IS-NULL
+// rows → duplicate Gemini spend + duplicate append-only stage_transitions rows).
+// The advisory lock lets exactly one proceed; the other no-ops. TTL is > the 55s
+// cron soft-timeout so a clean run always releases before its own claim expires,
+// and a SIGKILLed run's claim ages out instead of wedging the queue.
+const SUMMARIZE_LOCK_KEY = "cron_lock:summarize";
+const SUMMARIZE_LOCK_TTL_MS = 120_000;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -47,40 +59,58 @@ async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
 
-  const result = await wrapCronRoute("/api/cron/summarize", async () => {
-    const routeStart = Date.now();
-    const stats = await runSummarize({
-      // HO 406: raise the per-tick cap from the DEFAULT_LIMIT of 50 to 200 so the
-      // 45s budget — not an arbitrary count — is the wall. At C=5 concurrency the
-      // budget clears ~100-120 bills/tick, well above the ~30/day inflow, so a
-      // single tick self-heals the queue after any outage instead of only
-      // steady-state trickling. The 45s deadlineMs still stops it before 200; the
-      // per-bill 15s cap keeps the function under 60s regardless.
-      limit: 200,
-      deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
-    });
-    revalidateTag("bills");
+  const result = await wrapCronRoute("/api/cron/summarize", async (): Promise<
+    CronHandlerResult<Record<string, unknown>>
+  > => {
+    // HO 432: bail if another drain is already in flight (Vercel at-least-once
+    // double-delivery). Non-fatal — status stays success, this tick just no-ops.
+    const claimed = await claimCronLock(
+      SUMMARIZE_LOCK_KEY,
+      SUMMARIZE_LOCK_TTL_MS,
+    );
+    if (!claimed) {
+      console.log("[summarize] another drain in flight; skipping this tick");
+      return { payload: { skipped: "overlap" as const } };
+    }
 
-    const payload = {
-      summarized: stats.ok,
-      failed: stats.failed,
-      timedOut: stats.timedOut,
-      budgetStopped: stats.budgetStopped,
-      promptTokens: stats.promptTokens,
-      outputTokens: stats.outputTokens,
-      chronicFailures: stats.chronicFailures,
-    };
+    try {
+      const routeStart = Date.now();
+      const stats = await runSummarize({
+        // HO 406: raise the per-tick cap from the DEFAULT_LIMIT of 50 to 200 so the
+        // 45s budget — not an arbitrary count — is the wall. At C=5 concurrency the
+        // budget clears ~100-120 bills/tick, well above the ~30/day inflow, so a
+        // single tick self-heals the queue after any outage instead of only
+        // steady-state trickling. The 45s deadlineMs still stops it before 200; the
+        // per-bill 15s cap keeps the function under 60s regardless.
+        limit: 200,
+        deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
+      });
+      revalidateTag("bills");
 
-    // Chronic-failure surfacing: bills with >= 3 cumulative summarize
-    // attempts get written into the cron_runs error_message column so the
-    // log shows them past the 30-minute live-log window. Status stays
-    // "success" — these aren't fatal to the tick, just worth eyeballing.
-    const chronicErr =
-      stats.chronicFailures.length > 0
-        ? `chronic summarize failures (>=3 attempts): ${stats.chronicFailures.join(", ")}`
-        : undefined;
+      const payload = {
+        summarized: stats.ok,
+        failed: stats.failed,
+        timedOut: stats.timedOut,
+        budgetStopped: stats.budgetStopped,
+        promptTokens: stats.promptTokens,
+        outputTokens: stats.outputTokens,
+        chronicFailures: stats.chronicFailures,
+      };
 
-    return { payload, chronicErr };
+      // Chronic-failure surfacing: bills with >= 3 cumulative summarize
+      // attempts get written into the cron_runs error_message column so the
+      // log shows them past the 30-minute live-log window. Status stays
+      // "success" — these aren't fatal to the tick, just worth eyeballing.
+      const chronicErr =
+        stats.chronicFailures.length > 0
+          ? `chronic summarize failures (>=3 attempts): ${stats.chronicFailures.join(", ")}`
+          : undefined;
+
+      return { payload, chronicErr };
+    } finally {
+      // Release even on throw/soft-timeout; a killed function's claim ages out.
+      await releaseCronLock(SUMMARIZE_LOCK_KEY);
+    }
   });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
