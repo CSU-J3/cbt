@@ -28,6 +28,17 @@ function partyLetter(code: number | null): "D" | "R" | "I" {
   return "I";
 }
 
+// Independents who caucus with a major party. DW-NOMINATE's party_code follows
+// CAUCUS, not registration, so these disagree with members.party='I' by design
+// (e.g. Kiley switched R->I 2026-03-09 but still caucuses R, so Voteview codes 200).
+// Only independents caucusing with a major party need an entry; a newly seated one
+// surfaces as a disagreement until added — intended fail-loud, not a silent skip.
+const INDEPENDENT_CAUCUS: Record<string, "D" | "R"> = {
+  K000383: "D", // Angus King (ME) -> caucuses Democratic
+  S000033: "D", // Bernie Sanders (VT) -> caucuses Democratic
+  K000401: "R", // Kevin Kiley (CA) -> reg I since 2026-03-09, caucuses Republican
+};
+
 async function main() {
   const db = getDb();
 
@@ -78,7 +89,12 @@ async function main() {
   for (const m of best.values()) {
     const mem = party.get(m.bioguide_id) ?? null;
     const vv = partyLetter(m.party_code);
-    if (mem && mem !== vv) {
+    const caucus = INDEPENDENT_CAUCUS[m.bioguide_id];
+    // Flag only when Voteview's letter matches NEITHER registration NOR caucus.
+    // This suppresses the structural reg-vs-caucus gap (King/Sanders VV=I=reg;
+    // Kiley VV=R=caucus) while still catching a genuine sync/ID mismatch
+    // (VV=D but reg=R and caucus=R -> matches neither -> flagged).
+    if (mem && vv !== mem && vv !== caucus) {
       disagreements.push({
         bioguide: m.bioguide_id,
         name: nameOf.get(m.bioguide_id) ?? m.bioname,
@@ -107,7 +123,7 @@ async function main() {
     `off-roster skips (Voteview 119th not in members)  ${offRoster}   <- departed mid-term / President`,
   );
   console.log(
-    `party_code vs members.party disagreements . ${disagreements.length}   <- ICPSR party-switch quirks (note, not fixed here)`,
+    `party_code vs members.party disagreements . ${disagreements.length}   <- genuine party mismatches (registration/caucus gap suppressed)`,
   );
   for (const d of disagreements) {
     console.log(
