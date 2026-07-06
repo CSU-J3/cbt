@@ -22,16 +22,9 @@
 import "dotenv/config";
 import { getDb } from "../../lib/db";
 import { fetchVoteview119 } from "../voteview-source";
+import { median } from "../../lib/median";
 
 type Db = ReturnType<typeof getDb>;
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const hi = sorted[mid] as number;
-  return sorted.length % 2 === 0 ? ((sorted[mid - 1] as number) + hi) / 2 : hi;
-}
 
 function fmt(v: number | null): string {
   return v == null ? "  null " : (v >= 0 ? "+" : "") + v.toFixed(3);

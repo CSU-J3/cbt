@@ -3,6 +3,7 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
+import { median } from "./median";
 import { auth } from "../auth";
 import {
   type EnactedBill,
@@ -2701,14 +2702,6 @@ export type MemberIdeology = {
   demMedian: number | null;
   repMedian: number | null;
 };
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const hi = sorted[mid] as number;
-  return sorted.length % 2 === 0 ? ((sorted[mid - 1] as number) + hi) / 2 : hi;
-}
 
 export const getMemberIdeology = unstable_cache(
   async (bioguideId: string): Promise<MemberIdeology | null> => {

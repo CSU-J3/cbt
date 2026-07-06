@@ -22,14 +22,7 @@
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { fetchVoteviewHSall } from "./voteview-source";
-
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  const hi = sorted[mid] as number;
-  return sorted.length % 2 === 0 ? ((sorted[mid - 1] as number) + hi) / 2 : hi;
-}
+import { median } from "../lib/median";
 
 // Voteview 'House' | 'Senate' -> the app's lowercase convention. 'President' rows
 // (party medians undefined for a single executive) are dropped by returning null.

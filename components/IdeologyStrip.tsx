@@ -16,6 +16,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { IdeologyDot } from "@/lib/queries";
+import { median } from "@/lib/median";
 
 // viewBox geometry (from the mockup). NO 2% inset — the inset is the band/hub
 // rail rule; the cloud runs full width.
@@ -32,15 +33,6 @@ const BINW = 0.02;
 
 function xs(v: number): number {
   return L + ((v + 1) / 2) * IW;
-}
-
-// Strict D/R median, pinned to the band's method.
-function median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  const hi = s[mid] as number;
-  return s.length % 2 === 0 ? ((s[mid - 1] as number) + hi) / 2 : hi;
 }
 
 const PARTY_FILL: Record<string, string> = {
