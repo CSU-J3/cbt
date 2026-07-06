@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The polarization-over-time chart has a caucus/registration seam — two party sources, deliberately not line-connected (HO 428, Jul 2026)
+
+`PolarizationOverTime` draws its curve from two different party sources and does **not** bridge them. The historical **line** (through the 118th / 2023) reads `polarization_history` — Voteview `party_code` 100/200, i.e. **caucus**. The **current-Congress dot** (2025 / 119th) is a separate live pair from `getPolarizationBand` — `members.party`, i.e. **registration**. They agree to three decimals (both gaps 0.92 — Kiley is the only member who differs between caucus and registration, and one member doesn't move a median; see the 0.92/0.92 entry below), so the seam doesn't visibly render. But the line and the dot are **not connected across 2023→2025** — connecting them would draw one continuous curve through two different party rules. This is deliberate, not a data gap: the history table can only be caucus (departed members of past Congresses aren't in `members` to read a registration from), while the live band is registration by design. Same caucus-vs-registration distinction the Kiley finding surfaced at HO 422 (Voteview follows caucus).
+
+## The midcentury polarization low is per-chamber, not the mockup's shared 1961 (HO 428, Jul 2026)
+
+`PolarizationOverTime` places its dashed "midcentury low" guide at the **min-gap Congress computed live from the drawn line, per chamber** — not a hardcoded year. On real Voteview data that's **House 1947 (gap 0.50)** and **Senate 1943 (gap 0.47)**: the minima differ by chamber and both predate the mockup's single hardcoded **1961** guide. Same lesson as the mock-window entries — an illustrative mock value is not the data. (Confirmed via `scripts/diagnostic/polarization-history-coverage.ts` + a read-only min-gap query over congress 46–118, the drawn range.)
+
 ## The Senate is as polarized as the House on dim1 — both chamber gaps read 0.92 (119th), against the "calmer chamber" assumption (HO 424/425, Jul 2026)
 
 The chamber polarization band (HO 424) and the `/members` dotplot (HO 425) both measure the D-median-to-R-median distance on DW-NOMINATE `dim1` for the 119th, and **both chambers come out at 0.92** — the Senate is not the calmer chamber the common assumption expects, and the two surfaces agree by construction (band-vs-strip cross-checked, 0 `member_ideology.chamber`-vs-`members.chamber` mismatches across 552 rows). Two consequences:
