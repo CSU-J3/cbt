@@ -1,6 +1,13 @@
 // HO 146 Chart A — committee activity over time. Stacked monthly bar chart,
 // hand-rolled SVG, same idiom as BillsTimeSeries. Forked rather than
 // parameterized because BillsTimeSeries is hardwired to getBillsByMonth().
+import {
+  CHART_HEIGHT,
+  CHART_PAD as PAD,
+  CHART_VB_WIDTH as VB_WIDTH,
+  ChartFrame,
+} from "@/components/svg/ChartFrame";
+import { SvgAxisX } from "@/components/svg/SvgAxisX";
 import { SvgGridY } from "@/components/svg/SvgGridY";
 import { SvgLegend } from "@/components/svg/SvgLegend";
 import {
@@ -8,9 +15,6 @@ import {
   getCommitteeActivityByPeriod,
 } from "@/lib/queries";
 
-const CHART_HEIGHT = 240;
-const PAD = { top: 20, right: 16, bottom: 36, left: 40 };
-const VB_WIDTH = 1000;
 const MIN_ROWS = 5;
 
 // Throughput funnel mapping: arriving → working → leaving → noise.
@@ -99,77 +103,65 @@ export async function CommitteeActivityChart({
   );
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${VB_WIDTH} ${CHART_HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        className="h-auto w-full"
-        role="img"
-        aria-label="Committee activity per month, stacked by activity type"
-      >
-        <SvgGridY
-          padLeft={PAD.left}
-          padTop={PAD.top}
-          innerWidth={innerWidth}
-          innerHeight={innerHeight}
-          max={yAxisMax}
-          format={(v) => Math.round(v).toLocaleString()}
+    <ChartFrame
+      ariaLabel="Committee activity per month, stacked by activity type"
+      legend={
+        <SvgLegend
+          items={presentBuckets.map((bucket) => ({
+            label: bucket,
+            color: BUCKET_COLORS[bucket],
+          }))}
         />
-
-        {months.map((month, i) => {
-          const x = PAD.left + i * barWidth + barGap / 2;
-          let cursorY = PAD.top + innerHeight;
-          return (
-            <g key={month}>
-              {STACK_ORDER.map((bucket) => {
-                const value = stack[month]![bucket] ?? 0;
-                if (value === 0) return null;
-                const segHeight = (value / yAxisMax) * innerHeight;
-                cursorY -= segHeight;
-                return (
-                  <rect
-                    key={bucket}
-                    x={x}
-                    y={cursorY}
-                    width={drawBarWidth}
-                    height={segHeight}
-                    fill={BUCKET_COLORS[bucket]}
-                  >
-                    <title>
-                      {formatMonthLabel(month)} · {bucket} · {value}
-                    </title>
-                  </rect>
-                );
-              })}
-            </g>
-          );
-        })}
-
-        {months.map((month, i) => {
-          if (i % labelStep !== 0 && i !== months.length - 1) return null;
-          const x = PAD.left + i * barWidth + barWidth / 2;
-          return (
-            <text
-              key={month}
-              x={x}
-              y={CHART_HEIGHT - PAD.bottom + 18}
-              textAnchor="middle"
-              fontSize="11"
-              fill="var(--text-muted)"
-              fontFamily="var(--font-mono)"
-            >
-              {formatMonthLabel(month)}
-            </text>
-          );
-        })}
-      </svg>
-
-      <SvgLegend
-        items={presentBuckets.map((bucket) => ({
-          label: bucket,
-          color: BUCKET_COLORS[bucket],
-        }))}
+      }
+    >
+      <SvgGridY
+        padLeft={PAD.left}
+        padTop={PAD.top}
+        innerWidth={innerWidth}
+        innerHeight={innerHeight}
+        max={yAxisMax}
+        format={(v) => Math.round(v).toLocaleString()}
       />
-    </div>
+
+      {months.map((month, i) => {
+        const x = PAD.left + i * barWidth + barGap / 2;
+        let cursorY = PAD.top + innerHeight;
+        return (
+          <g key={month}>
+            {STACK_ORDER.map((bucket) => {
+              const value = stack[month]![bucket] ?? 0;
+              if (value === 0) return null;
+              const segHeight = (value / yAxisMax) * innerHeight;
+              cursorY -= segHeight;
+              return (
+                <rect
+                  key={bucket}
+                  x={x}
+                  y={cursorY}
+                  width={drawBarWidth}
+                  height={segHeight}
+                  fill={BUCKET_COLORS[bucket]}
+                >
+                  <title>
+                    {formatMonthLabel(month)} · {bucket} · {value}
+                  </title>
+                </rect>
+              );
+            })}
+          </g>
+        );
+      })}
+
+        <SvgAxisX
+          y={CHART_HEIGHT - PAD.bottom + 18}
+          items={months
+            .map((month, i) => ({ month, i }))
+            .filter(({ i }) => i % labelStep === 0 || i === months.length - 1)
+            .map(({ month, i }) => ({
+              x: PAD.left + i * barWidth + barWidth / 2,
+              label: formatMonthLabel(month),
+            }))}
+        />
+    </ChartFrame>
   );
 }

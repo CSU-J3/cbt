@@ -1,12 +1,16 @@
+import {
+  CHART_HEIGHT,
+  CHART_PAD as PAD,
+  CHART_VB_WIDTH as VB_WIDTH,
+  ChartFrame,
+} from "@/components/svg/ChartFrame";
+import { SvgAxisX } from "@/components/svg/SvgAxisX";
 import { SvgGridY } from "@/components/svg/SvgGridY";
 import { SvgLegend } from "@/components/svg/SvgLegend";
 import { getBillsByMonth } from "@/lib/queries";
 import { topicColor, topicLabel } from "@/lib/topic-colors";
 
 const TOP_N_TOPICS = 6;
-const CHART_HEIGHT = 240;
-const PAD = { top: 20, right: 16, bottom: 36, left: 40 };
-const VB_WIDTH = 1000;
 
 function sumValues(obj: Record<string, number>): number {
   let s = 0;
@@ -77,77 +81,65 @@ export async function BillsTimeSeries() {
   const labelStep = Math.max(1, Math.ceil(months.length / 8));
 
   return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${VB_WIDTH} ${CHART_HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        className="h-auto w-full"
-        role="img"
-        aria-label="Bills introduced per month stacked by topic"
-      >
-        <SvgGridY
-          padLeft={PAD.left}
-          padTop={PAD.top}
-          innerWidth={innerWidth}
-          innerHeight={innerHeight}
-          max={yAxisMax}
-          format={(v) => Math.round(v).toLocaleString()}
+    <ChartFrame
+      ariaLabel="Bills introduced per month stacked by topic"
+      legend={
+        <SvgLegend
+          items={stackOrder.map((topic) => ({
+            label: topicLabel(topic),
+            color: topicColor(topic),
+          }))}
         />
-
-        {months.map((month, i) => {
-          const x = PAD.left + i * barWidth + barGap / 2;
-          let cursorY = PAD.top + innerHeight;
-          return (
-            <g key={month}>
-              {stackOrder.map((topic) => {
-                const value = stack[month]![topic] ?? 0;
-                if (value === 0) return null;
-                const segHeight = (value / yAxisMax) * innerHeight;
-                cursorY -= segHeight;
-                return (
-                  <rect
-                    key={topic}
-                    x={x}
-                    y={cursorY}
-                    width={drawBarWidth}
-                    height={segHeight}
-                    fill={topicColor(topic)}
-                  >
-                    <title>
-                      {formatMonthLabel(month)} · {topicLabel(topic)} · {value}
-                    </title>
-                  </rect>
-                );
-              })}
-            </g>
-          );
-        })}
-
-        {months.map((month, i) => {
-          if (i % labelStep !== 0 && i !== months.length - 1) return null;
-          const x = PAD.left + i * barWidth + barWidth / 2;
-          return (
-            <text
-              key={month}
-              x={x}
-              y={CHART_HEIGHT - PAD.bottom + 18}
-              textAnchor="middle"
-              fontSize="11"
-              fill="var(--text-muted)"
-              fontFamily="var(--font-mono)"
-            >
-              {formatMonthLabel(month)}
-            </text>
-          );
-        })}
-      </svg>
-
-      <SvgLegend
-        items={stackOrder.map((topic) => ({
-          label: topicLabel(topic),
-          color: topicColor(topic),
-        }))}
+      }
+    >
+      <SvgGridY
+        padLeft={PAD.left}
+        padTop={PAD.top}
+        innerWidth={innerWidth}
+        innerHeight={innerHeight}
+        max={yAxisMax}
+        format={(v) => Math.round(v).toLocaleString()}
       />
-    </div>
+
+      {months.map((month, i) => {
+        const x = PAD.left + i * barWidth + barGap / 2;
+        let cursorY = PAD.top + innerHeight;
+        return (
+          <g key={month}>
+            {stackOrder.map((topic) => {
+              const value = stack[month]![topic] ?? 0;
+              if (value === 0) return null;
+              const segHeight = (value / yAxisMax) * innerHeight;
+              cursorY -= segHeight;
+              return (
+                <rect
+                  key={topic}
+                  x={x}
+                  y={cursorY}
+                  width={drawBarWidth}
+                  height={segHeight}
+                  fill={topicColor(topic)}
+                >
+                  <title>
+                    {formatMonthLabel(month)} · {topicLabel(topic)} · {value}
+                  </title>
+                </rect>
+              );
+            })}
+          </g>
+        );
+      })}
+
+        <SvgAxisX
+          y={CHART_HEIGHT - PAD.bottom + 18}
+          items={months
+            .map((month, i) => ({ month, i }))
+            .filter(({ i }) => i % labelStep === 0 || i === months.length - 1)
+            .map(({ month, i }) => ({
+              x: PAD.left + i * barWidth + barWidth / 2,
+              label: formatMonthLabel(month),
+            }))}
+        />
+    </ChartFrame>
   );
 }
