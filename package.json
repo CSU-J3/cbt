@@ -21,6 +21,7 @@
     "backfill:laws": "tsx scripts/backfill-historical-laws.ts",
     "sync:members": "tsx scripts/sync-members.ts",
     "sync:crosswalk": "tsx scripts/sync-crosswalk.ts",
+    "sync:lda": "tsx scripts/sync-lda.ts",
     "sync:ideology": "tsx scripts/sync-ideology.ts",
     "sync:polarization-history": "tsx scripts/sync-polarization-history.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",

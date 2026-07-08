@@ -744,6 +744,65 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_obs_entities_type_value ON observation_entities(entity_type, entity_value)`,
   `CREATE INDEX IF NOT EXISTS idx_obs_entities_obs ON observation_entities(obs_id)`,
+  // HO 435: LDA lobbying data layer. Three additive tables, surface-agnostic —
+  // they hold what both planned HO-436 surfaces need (bill-keyed lobbying +
+  // issue-code "what's being lobbied") so the surface HO needs no re-ingest.
+  // Ingested by lib/lda-sync.ts from the lda.gov LD-2 quarterly reports.
+  //
+  // Filing: one LD-2 quarterly activity report (types Q1..Q4 + amendments
+  // 1A..4A; each amendment is its own filing_uuid). income/expenses are mutually
+  // exclusive (firm reports income, in-house reports expenses); stored as
+  // parsed REAL dollars for SUM-able spend surfaces. dt_posted is the sync's
+  // resume frontier — the sync derives MAX(dt_posted) per (year,type) from the
+  // DB rather than a stored cursor (see lib/lda-sync.ts).
+  `CREATE TABLE IF NOT EXISTS lda_filings (
+    filing_uuid TEXT PRIMARY KEY,
+    filing_type TEXT NOT NULL,
+    filing_year INTEGER NOT NULL,
+    filing_period TEXT,
+    registrant_name TEXT,
+    registrant_id INTEGER,
+    client_name TEXT,
+    client_id INTEGER,
+    income REAL,
+    expenses REAL,
+    dt_posted TEXT NOT NULL,
+    ingested_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_lda_filings_dt_posted ON lda_filings(dt_posted DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_lda_filings_year ON lda_filings(filing_year)`,
+  // HO 435 rev: the sync derives its resume frontier per (filing_year,
+  // filing_type) as MAX(dt_posted) + COUNT(*). This composite makes that an
+  // index seek instead of a ~20k-row scan per combo (32 combos/run).
+  `CREATE INDEX IF NOT EXISTS idx_lda_filings_year_type_dt ON lda_filings(filing_year, filing_type, dt_posted DESC)`,
+  // Activity: the LD-2 lobbying_activities array is unkeyed, so activity_ordinal
+  // is assigned on ingest (0-based, rebuilt on re-ingest). description is the
+  // FULL specific-issues free text — the raw signal, and what phase-2 short-
+  // title matching (HO note) will need. bill_ids is the extractBillIds() JSON
+  // (stored always); the subset that resolves to a real bills row is denormalized
+  // into lda_activity_bills.
+  `CREATE TABLE IF NOT EXISTS lda_activities (
+    filing_uuid TEXT NOT NULL REFERENCES lda_filings(filing_uuid),
+    activity_ordinal INTEGER NOT NULL,
+    general_issue_code TEXT,
+    general_issue_code_display TEXT,
+    description TEXT,
+    bill_ids TEXT,
+    PRIMARY KEY (filing_uuid, activity_ordinal)
+  )`,
+  // Issue-code index serves the "what's being lobbied" surface (bucket counts)
+  // even where no bill parses.
+  `CREATE INDEX IF NOT EXISTS idx_lda_activities_issue ON lda_activities(general_issue_code)`,
+  // Bill link at activity granularity so a link carries its issue code +
+  // description. One row per (activity, joinable bill). idx on bill_id serves
+  // the "who lobbied bill X" surface.
+  `CREATE TABLE IF NOT EXISTS lda_activity_bills (
+    filing_uuid TEXT NOT NULL,
+    activity_ordinal INTEGER NOT NULL,
+    bill_id TEXT NOT NULL REFERENCES bills(id),
+    PRIMARY KEY (filing_uuid, activity_ordinal, bill_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_lda_activity_bills_bill ON lda_activity_bills(bill_id)`,
 ];
 
 async function ensureColumn(
