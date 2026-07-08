@@ -6,6 +6,26 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## `lda_filings.dt_posted` is posting-date, not filing-period — which is exactly why resume-from-frontier is gap-safe (HO 435, Jul 2026)
+
+`dt_posted` is when the LD-2 was *posted*, not the quarter it covers, so a late-filed old-quarter report posts in the current period. The sync's resume frontier is `MAX(dt_posted)` per `(filing_year, filing_type)` — trustworthy precisely because every shortfall is **trailing** (a new filing always posts at "now"), never interior: an arrival can only land *past* the frontier, never behind it. So the per-combo `MAX(dt_posted)` is a safe frontier over the offset-based DRF pagination — no stored cursor needed.
+
+## The 40-row LDA residual (0.037%) is DRF count-vs-enumerable drift, not a gap — the forward cron won't chase it (HO 435, Jul 2026)
+
+On the four closed 2025 quarters the DRF `count` header exceeds what pagination enumerates by 40 rows total — withdrawn/superseded filings counted but not paginated. Not a coverage gap: the DB holds the newest filing in each quarter, and since the sync resumes at `MAX(dt_posted)` it never re-walks closed quarters. Accepted; a targeted per-quarter rescan is a cheap future option if the exact count ever matters.
+
+## A sub-100% LDA bill-join rate is a corpus boundary, not extraction failure (HO 435, Jul 2026)
+
+277 distinct non-joining bill IDs, **0 malformed**. ~64% are prior-Congress references the current-window extractor stamped 119th; ~36% are unsynced/withdrawn 119th bills. So activities-with-a-bill topping out below 100% reflects the `bills`-table boundary (current-Congress synced bills), not a parse miss — don't chase it as an `extractBillIds` bug.
+
+## Sustained LDA backfill against prod Turso surfaces as ~3-min all-timeout windows, not `SQLITE_BUSY` — it's latency, not locks (HO 435, Jul 2026)
+
+A heavy paced backfill against the shared prod Turso periodically hits ~3-minute windows where every request (reads **and** writes) times out — never a `SQLITE_BUSY` / lock error. It's connection latency under contention, not lock contention. Burst-and-rest pacing (FLUSH_AT 100, dbRetry 8, `loadValidBillIds` 20-attempt at-startup SPOF budget, pageDelay 400ms, 45s cooldown every 500 filings) dodges what a continuous grind trips — writes arrive in bursts with recovery gaps. This is the standing tuning profile for any heavy prod-Turso backfill.
+
+## LDA "most-lobbied bill" must count distinct filers, not raw activities — `119-hr-1` skews ~8:1 (HO 435, Jul 2026)
+
+`119-hr-1` carries **11,567 raw activities from only 1,506 distinct filers** — one flagship bill draws many near-duplicate activity rows across a registrant's clients/periods. Any "most-lobbied" ranking off raw `lda_activity_bills` / activity counts is dominated by this skew; count **distinct filers** instead. (Feeds the HO 437 filer-weighting thread.)
+
 ## The polarization-over-time chart has a caucus/registration seam — two party sources, deliberately not line-connected (HO 428, Jul 2026)
 
 `PolarizationOverTime` draws its curve from two different party sources and does **not** bridge them. The historical **line** (through the 118th / 2023) reads `polarization_history` — Voteview `party_code` 100/200, i.e. **caucus**. The **current-Congress dot** (2025 / 119th) is a separate live pair from `getPolarizationBand` — `members.party`, i.e. **registration**. They agree to three decimals (both gaps 0.92 — Kiley is the only member who differs between caucus and registration, and one member doesn't move a median; see the 0.92/0.92 entry below), so the seam doesn't visibly render. But the line and the dot are **not connected across 2023→2025** — connecting them would draw one continuous curve through two different party rules. This is deliberate, not a data gap: the history table can only be caucus (departed members of past Congresses aren't in `members` to read a registration from), while the live band is registration by design. Same caucus-vs-registration distinction the Kiley finding surfaced at HO 422 (Voteview follows caucus).
