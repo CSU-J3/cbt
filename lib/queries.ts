@@ -4,9 +4,13 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import {
+  aggregateBillDrill,
   hydrateFilings,
+  LDA_BILL_DRILL_KEY,
   LDA_ROLLUP_KEY,
   rowToFilingSummary,
+  type BillDrill,
+  type BillDrillBlob,
   type FilingSummary,
   type IssueDrill,
   type IssueStat,
@@ -2639,7 +2643,7 @@ export const getMostTradedTickers = unstable_cache(
 // (the page/component convention), not two modules. The per-issue drill is served
 // from the blob (rollup.drill[code]) — there is no live drill query (bounded-per-
 // code was measured >25s cold for the top codes; see lib/lda-rollup.ts).
-export type { FilingSummary, IssueDrill, IssueStat, LobbyingRollup, LobbyingStats };
+export type { BillDrill, FilingSummary, IssueDrill, IssueStat, LobbyingRollup, LobbyingStats };
 
 // The issue-code-first aggregate (stats + issue bars + per-issue drill) is
 // PRECOMPUTED into dashboard_state by the LDA cron / `npm run lda:rollup` — NOT
@@ -2695,6 +2699,86 @@ export const getRecentFilings = unstable_cache(
     return { items, page, pageSize };
   },
   ["getRecentFilings"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// The per-bill drill blob (HO 440) — the fat-tail bills (>=BILL_DRILL_MIN_FILINGS
+// distinct filings) precomputed by the cron. Parsed once per hour, shared across
+// every bill lookup below. Separate key from the /lobbying rollup so this ~560KB
+// read only lands on bill pages. {} before the first rollup — every bill then
+// falls through to the live path.
+const getBillDrillBlob = unstable_cache(
+  async (): Promise<Record<string, BillDrill>> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: "SELECT value FROM dashboard_state WHERE key = ? LIMIT 1",
+      args: [LDA_BILL_DRILL_KEY],
+    });
+    const raw = rs.rows[0]?.value as string | undefined;
+    if (!raw) return {};
+    try {
+      return (JSON.parse(raw) as BillDrillBlob).drill;
+    } catch {
+      return {};
+    }
+  },
+  ["getBillDrillBlob"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// Lobbying for one bill — the /bill/[id] LOBBYING section. Hybrid (HO 440, off
+// the cost probe): the fat tail (>=threshold filings, worst case 44.5s cold —
+// blows the 10s getDb cap) is served O(1) from the precomputed blob; everything
+// below threshold is served LIVE through getDb (<=1 hydrate chunk, measured 2.3s
+// cold for the 149-filing boundary). Zero-link bills return null and the section
+// hides. Same bounded-IN hydration pattern as getRecentFilings.
+export const getBillLobbying = unstable_cache(
+  async (billId: string): Promise<BillDrill | null> => {
+    const blob = await getBillDrillBlob();
+    const precomputed = blob[billId];
+    if (precomputed) return precomputed; // fat-tail bill, O(1)
+
+    // Miss → below-threshold-with-links or zero-link. The live drill is bounded
+    // by getDb's 10s cap and, below threshold, is fast (~2.3s cold at the 149
+    // boundary — HO 440). But this runs inside the bill page's Promise.all, so
+    // any throw here (a getDb timeout, a transient DB error) would 500 the whole
+    // page. The real trigger: on a quarterly burst the rollup gate skips (stale
+    // blob) while a bill crosses 150 filings — that freshly-heavy bill isn't in
+    // the blob yet and hits the 44s path → cap. Degrade to a hidden section
+    // (null), never propagate. Not cap-and-show: a top-200-of-8,048 ranking is
+    // wrong, worse than absent.
+    try {
+      const db = getDb();
+      const seek = await db.execute({
+        sql: "SELECT filing_uuid FROM lda_activity_bills WHERE bill_id = ?",
+        args: [billId],
+      });
+      const uuids = [...new Set(seek.rows.map((r) => String(r.filing_uuid)))];
+      if (uuids.length === 0) return null; // zero-link → section hides
+
+      // Fetch filing rows (bounded PK-IN, chunked) + hydrate codes/bills, then
+      // aggregate with the shared helper so the shape matches the precomputed blob.
+      const HYDRATE_CHUNK = 400;
+      const rows: FilingSummary[] = [];
+      const { codes, bills } = await hydrateFilings(db, uuids);
+      for (let i = 0; i < uuids.length; i += HYDRATE_CHUNK) {
+        const chunk = uuids.slice(i, i + HYDRATE_CHUNK);
+        const ph = chunk.map(() => "?").join(",");
+        const rs = await db.execute({
+          sql: `SELECT filing_uuid, registrant_name, client_name, dt_posted,
+                       filing_type, filing_period, income, expenses
+                FROM lda_filings WHERE filing_uuid IN (${ph})`,
+          args: chunk,
+        });
+        for (const r of rs.rows) rows.push(rowToFilingSummary(r, codes, bills));
+      }
+      return aggregateBillDrill(billId, rows);
+    } catch (e) {
+      console.error(`[lda] getBillLobbying live miss for ${billId}: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getBillLobbying"],
   { revalidate: 3600, tags: ["lda"] },
 );
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BillLobbying } from "@/components/BillLobbying";
 import { HeaderBar } from "@/components/HeaderBar";
 import {
   HearingMeetingsEmbed,
@@ -21,6 +22,7 @@ import {
   type BillCommitteeRow,
   getBillById,
   getBillCommittees,
+  getBillLobbying,
   getCommitteesIndex,
   getMeetingsForBill,
   isInWatchlist,
@@ -126,12 +128,14 @@ export default async function BillDetailPage({
   const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const [onWatchlist, committees, meetings, committeeIndex] = await Promise.all([
-    isInWatchlist(bill.id),
-    getBillCommittees(bill.id),
-    getMeetingsForBill(bill.id),
-    getCommitteesIndex(),
-  ]);
+  const [onWatchlist, committees, meetings, committeeIndex, lobbying] =
+    await Promise.all([
+      isInWatchlist(bill.id),
+      getBillCommittees(bill.id),
+      getMeetingsForBill(bill.id),
+      getCommitteesIndex(),
+      getBillLobbying(bill.id),
+    ]);
   // systemCode → name so each hearing row shows its committee (the meetings
   // span different committees on the bill cut, unlike the committee page).
   const committeeNames: Record<string, string> = {};
@@ -269,6 +273,19 @@ export default async function BillDetailPage({
                   </div>
                 ) : null}
               </div>
+            </>
+          ) : null}
+
+          {lobbying ? (
+            <>
+              <Divider />
+              <div
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
+                style={labelStyle}
+              >
+                Lobbying ({lobbying.distinctFilings.toLocaleString()} filings)
+              </div>
+              <BillLobbying drill={lobbying} />
             </>
           ) : null}
 
