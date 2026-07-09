@@ -13,6 +13,13 @@ import {
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
+// The corpus feed is a RECENCY window, capped so the OFFSET stays cheap. A deep
+// OFFSET can't short-circuit the idx_lda_filings_dt_posted walk — it scans up to
+// all ~108k rows (measured 12.3s at the tail, HO 437), which trips the 10s
+// boundedFetch cap → 500 (and the pager would even link to that tail page). 40
+// pages = the 1,000 most-recent filings (offset ≤ 975, sub-second). The full
+// corpus stays explorable via the issue bars → per-issue drill.
+const MAX_FEED_PAGES = 40;
 
 type SearchParams = { issue?: string; page?: string };
 
@@ -27,12 +34,10 @@ export default async function LobbyingPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const page = parsePage(params.page);
 
-  const [rollup, feed] = await Promise.all([
-    getLobbyingRollup(),
-    getRecentFilings({ page, pageSize: PAGE_SIZE }),
-  ]);
+  // Rollup first (O(1) blob) — its stats.filings sizes the pager, so we can clamp
+  // the requested page BEFORE the feed query and never issue a tail-of-table OFFSET.
+  const rollup = await getLobbyingRollup();
 
   // The rollup blob is precomputed by the LDA cron / `npm run lda:rollup`. Before
   // the first rollup lands it's null — render an honest empty state.
@@ -58,9 +63,14 @@ export default async function LobbyingPage({
   const { stats, issues, drill } = rollup;
   const selected = sanitizeIssueCode(params.issue) ?? issues[0]?.code ?? null;
   const selectedDrill = selected ? (drill[selected] ?? null) : null;
-
-  const totalPages = Math.max(1, Math.ceil(stats.filings / PAGE_SIZE));
   const billLinkedPct = stats.billLinkedPct.toFixed(1);
+
+  const totalPages = Math.min(
+    Math.max(1, Math.ceil(stats.filings / PAGE_SIZE)),
+    MAX_FEED_PAGES,
+  );
+  const page = Math.min(Math.max(1, parsePage(params.page)), totalPages);
+  const feed = await getRecentFilings({ page, pageSize: PAGE_SIZE });
 
   return (
     <div className="flex min-h-screen flex-col">
