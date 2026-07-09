@@ -6,6 +6,18 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## The oversized side tables invert the row-fetch-vs-sequential-scan calculus — precompute into a blob beats request-time SQL (HO 437, Jul 2026)
+
+HO 340 established that a non-covering `USING INDEX` row-fetches (a clean plan ≠ a fast query; an unbounded aggregate must be COVERING) — on the 16k `bills` table that was ~20s. The `lda_*` tables are **7–14× `bills`** (108k filings / 233k activities / 174k links), and at that scale random-row-fetch and sequential-scan cost **diverge hard**, which is why the `/lobbying` surface (HO 437) is served from a precomputed blob, not request-time SQL:
+
+- **Whole-table aggregates that row-fetch (non-covering): 30–90s+ cold** — `COUNT(DISTINCT registrant_name/client_name)` 34–45s; the issue-bars `GROUP BY` over 233k >90s.
+- **Per-code drill queries that join back to `lda_filings` + hydrate: >25s cold even at `LIMIT 10`** (the auto-selected top code would 500) — same trap, one table deep.
+- **Covering indexes DO flip stats/bars to `USING COVERING INDEX`** (verified) **but do NOT rescue the join-with-row-fetch drill** — it crosses `lda_activities → lda_filings`, and no single-table covering index spans a join.
+- **Three full SEQUENTIAL reads are fine:** filings 40.8s + activities (index-only) 16.6s + activity_bills 39.1s ≈ 96s, then JS does the whole join + aggregation in memory. The shape this Turso is fast at.
+- **Deep OFFSET on a live feed is unsafe regardless of index:** `OFFSET (page-1)*n` walks everything before the window; the 108k-row tail measured **12.3s > the 10s cap** → 500 (the pager even linked to it). Clamp live feeds to a recency window.
+
+**The durable rule for the next oversized side table: full-read-plus-JS-precompute into a `dashboard_state` blob beats clever request-time SQL — start there, don't relearn it.** Generalizes the HO 340 `USING INDEX ≠ USING COVERING INDEX` entry: its covering-index fix holds within one table; across a join on oversized tables, precompute is the answer.
+
 ## `lda_filings.dt_posted` is posting-date, not filing-period — which is exactly why resume-from-frontier is gap-safe (HO 435, Jul 2026)
 
 `dt_posted` is when the LD-2 was *posted*, not the quarter it covers, so a late-filed old-quarter report posts in the current period. The sync's resume frontier is `MAX(dt_posted)` per `(filing_year, filing_type)` — trustworthy precisely because every shortfall is **trailing** (a new filing always posts at "now"), never interior: an arrival can only land *past* the frontier, never behind it. So the per-combo `MAX(dt_posted)` is a safe frontier over the offset-based DRF pagination — no stored cursor needed.
