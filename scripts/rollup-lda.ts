@@ -11,21 +11,31 @@
 //   curl -X POST -H "Authorization: Bearer $CRON_SECRET" "$BASE/api/revalidate?tag=lda"
 import "dotenv/config";
 import {
-  computeLdaRollup,
+  computeBillDrill,
+  computeIssueRollup,
+  readLdaTables,
   uncappedLdaClient,
+  writeLdaBillDrill,
   writeLdaRollup,
 } from "../lib/lda-rollup";
 
 async function main() {
   const db = uncappedLdaClient();
   const t0 = Date.now();
-  const rollup = await computeLdaRollup(db, new Date().toISOString());
+  // HO 440 — one read feeds both the issue rollup and the per-bill drill (same
+  // as the cron), so a manual run populates BOTH dashboard_state blobs at once.
+  const generatedAt = new Date().toISOString();
+  const tables = await readLdaTables(db);
+  const rollup = computeIssueRollup(tables, generatedAt);
   await writeLdaRollup(db, rollup);
+  const billBlob = computeBillDrill(tables, generatedAt);
+  await writeLdaBillDrill(db, billBlob);
   db.close();
   const { stats } = rollup;
   console.log(
-    `[lda:rollup] wrote blob in ${Date.now() - t0}ms — ` +
-      `${rollup.issues.length} issue codes, ${Object.keys(rollup.drill).length} drills; ` +
+    `[lda:rollup] wrote blobs in ${Date.now() - t0}ms — ` +
+      `${rollup.issues.length} issue codes, ${Object.keys(rollup.drill).length} drills, ` +
+      `${Object.keys(billBlob.drill).length} bill drills; ` +
       `stats: ${stats.filings} filings / ${stats.activities} activities / ` +
       `${stats.registrants} registrants / ${stats.clients} clients / ` +
       `${stats.billLinkedPct.toFixed(1)}% bill-linked`,

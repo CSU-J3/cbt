@@ -17,6 +17,16 @@
 import { createClient, type Client, type Row } from "@libsql/client";
 
 export const LDA_ROLLUP_KEY = "lda_lobbying_rollup";
+// HO 440 — the bill-keyed drill blob (a second dashboard_state key so the
+// /lobbying 286KB read stays lean). Precomputes only the fat-tail bills; the
+// long tail of small bills is served live (getBillLobbying's fallback).
+export const LDA_BILL_DRILL_KEY = "lda_bill_drill";
+// Threshold confirmed by measurement (HO 440): bills with >= this many distinct
+// filings are precomputed; everything below goes live at <=1 hydrate chunk. The
+// probe's p99 knee is 159, so this precomputes ~the top 1% — exactly the bills a
+// live query can't serve under the 10s getDb cap. One source of truth for the
+// cron (what to precompute) and the doc sweep.
+export const BILL_DRILL_MIN_FILINGS = 150;
 const HYDRATE_CHUNK = 400; // stay well under SQLite's ~999 bound-param limit
 const DRILL_TOP_N = 5;
 const DRILL_RECENT_N = 8; // keeps the blob comfortably under ~250KB
@@ -62,6 +72,22 @@ export interface LobbyingRollup {
   stats: LobbyingStats;
   issues: IssueStat[];
   drill: Record<string, IssueDrill>;
+}
+// HO 440 — the per-bill drill. The IssueDrill shape minus the issue-code fields
+// (code/display/activities): a bill IS the key, and "bill-linked" is trivially
+// 100% (every filing here links this bill), so those drop out. Ranked by
+// distinct filings (the HO 435 rule), same as the issue drill.
+export interface BillDrill {
+  billId: string;
+  distinctFilings: number;
+  distinctClients: number;
+  topClients: { name: string; filings: number }[];
+  topFirms: { name: string; filings: number }[];
+  recent: FilingSummary[];
+}
+export interface BillDrillBlob {
+  generatedAt: string;
+  drill: Record<string, BillDrill>;
 }
 
 // A dedicated UNCAPPED libSQL client. getDb() injects lib/db.ts's boundedFetch
@@ -359,5 +385,97 @@ export async function writeLdaRollup(
           VALUES (?, ?, ?)
           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     args: [LDA_ROLLUP_KEY, JSON.stringify(rollup), rollup.generatedAt],
+  });
+}
+
+// HO 440 — the per-bill drill, computed from the SAME LdaTables the issue rollup
+// reads (piggybacks the ~96s scan; this is pure in-memory grouping). Groups by
+// bill_id deduped to distinct filing_uuid, keeps bills with >= threshold distinct
+// filings (the fat tail a live query can't serve), and emits the same top-firms/
+// clients + recent shape as the issue drill. The long tail below threshold is
+// served live by getBillLobbying's fallback — never precomputed here.
+export function computeBillDrill(
+  tables: LdaTables,
+  generatedAt: string,
+  threshold: number = BILL_DRILL_MIN_FILINGS,
+): BillDrillBlob {
+  const { filings, billsByUuid, codesByUuid } = tables;
+
+  // Invert billsByUuid → distinct filing_uuids per bill.
+  const uuidsByBill = new Map<string, Set<string>>();
+  for (const [uuid, billIds] of billsByUuid) {
+    for (const billId of billIds) {
+      (uuidsByBill.get(billId) ?? uuidsByBill.set(billId, new Set()).get(billId)!).add(uuid);
+    }
+  }
+
+  const drill: Record<string, BillDrill> = {};
+  for (const [billId, uuids] of uuidsByBill) {
+    if (uuids.size < threshold) continue;
+    const summaries: FilingSummary[] = [...uuids]
+      .map((uuid) => ({ uuid, f: filings.get(uuid) }))
+      .filter((x): x is { uuid: string; f: FilingRec } => !!x.f)
+      .map(({ uuid, f }) => ({
+        filingUuid: uuid,
+        registrantName: f.registrantName,
+        clientName: f.clientName,
+        dtPosted: f.dtPosted,
+        filingType: f.filingType,
+        filingPeriod: f.filingPeriod,
+        income: f.income,
+        expenses: f.expenses,
+        issueCodes: codesByUuid.get(uuid) ?? [],
+        billIds: billsByUuid.get(uuid) ?? [],
+      }));
+    drill[billId] = aggregateBillDrill(billId, summaries);
+  }
+
+  return { generatedAt, drill };
+}
+
+// Shared aggregation for one bill's filings → BillDrill. The SINGLE source of the
+// bill-drill shape, used by BOTH the precompute (computeBillDrill) and the live
+// fallback (getBillLobbying): top firms/clients ranked by distinct filings (one
+// FilingSummary = one distinct filing), plus the most-recent DRILL_RECENT_N.
+export function aggregateBillDrill(
+  billId: string,
+  filings: FilingSummary[],
+): BillDrill {
+  const clientTally = new Map<string, number>();
+  const firmTally = new Map<string, number>();
+  const clientDistinct = new Set<string>();
+  for (const f of filings) {
+    if (f.clientName) {
+      clientTally.set(f.clientName, (clientTally.get(f.clientName) ?? 0) + 1);
+      clientDistinct.add(f.clientName);
+    }
+    if (f.registrantName) {
+      firmTally.set(f.registrantName, (firmTally.get(f.registrantName) ?? 0) + 1);
+    }
+  }
+  const recent = [...filings]
+    .sort((a, b) =>
+      a.dtPosted < b.dtPosted ? 1 : a.dtPosted > b.dtPosted ? -1 : a.filingUuid < b.filingUuid ? -1 : 1,
+    )
+    .slice(0, DRILL_RECENT_N);
+  return {
+    billId,
+    distinctFilings: filings.length,
+    distinctClients: clientDistinct.size,
+    topClients: topN(clientTally),
+    topFirms: topN(firmTally),
+    recent,
+  };
+}
+
+export async function writeLdaBillDrill(
+  db: Client,
+  blob: BillDrillBlob,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO dashboard_state (key, value, updated_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    args: [LDA_BILL_DRILL_KEY, JSON.stringify(blob), blob.generatedAt],
   });
 }

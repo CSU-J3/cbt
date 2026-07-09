@@ -23,8 +23,11 @@ import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncLda } from "@/lib/lda-sync";
 import {
-  computeLdaRollup,
+  computeBillDrill,
+  computeIssueRollup,
+  readLdaTables,
   uncappedLdaClient,
+  writeLdaBillDrill,
   writeLdaRollup,
 } from "@/lib/lda-rollup";
 
@@ -80,20 +83,31 @@ async function handle(request: Request) {
 
       // HO 437 — recompute the /lobbying rollup blob (non-fatal; a failure here
       // never fails the sync). Budget-gated so it can't push past the 300s wall.
-      let rollup: { ran: boolean; ok?: boolean; ms?: number } = { ran: false };
+      // HO 440 — the per-bill drill blob piggybacks the SAME table read: one
+      // readLdaTables feeds both computeIssueRollup + computeBillDrill, so the
+      // bill drill adds only an in-memory grouping pass + one atomic upsert (no
+      // second ~96s scan). Both share the single revalidateTag("lda").
+      let rollup: { ran: boolean; ok?: boolean; ms?: number; billDrills?: number } = {
+        ran: false,
+      };
       const msLeft = ROUTE_CEILING_MS - (Date.now() - routeStart);
       if (msLeft >= ROLLUP_RESERVE_MS) {
         const t0 = Date.now();
         try {
           const client = uncappedLdaClient();
-          const blob = await computeLdaRollup(client, new Date().toISOString());
+          const generatedAt = new Date().toISOString();
+          const tables = await readLdaTables(client);
+          const blob = computeIssueRollup(tables, generatedAt);
           await writeLdaRollup(client, blob);
+          const billBlob = computeBillDrill(tables, generatedAt);
+          await writeLdaBillDrill(client, billBlob);
           client.close();
           revalidateTag("lda");
-          rollup = { ran: true, ok: true, ms: Date.now() - t0 };
+          const billDrills = Object.keys(billBlob.drill).length;
+          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills };
           console.log(
             `[lda] rollup ok in ${rollup.ms}ms: ${blob.issues.length} issues, ` +
-              `${Object.keys(blob.drill).length} drills`,
+              `${Object.keys(blob.drill).length} drills, ${billDrills} bill drills`,
           );
         } catch (e) {
           rollup = { ran: true, ok: false, ms: Date.now() - t0 };
