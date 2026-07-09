@@ -60,6 +60,8 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/patterns") return ["Patterns"];
   if (basePath === "/trends") return ["Patterns", "Trends"];
   if (basePath === "/stale") return ["Patterns", "Stale"];
+  // HO 437: /lobbying — standalone analytical surface (like Patterns).
+  if (basePath === "/lobbying") return ["Lobbying"];
   if (basePath === "/reports" || basePath.startsWith("/reports/"))
     return ["Reports"];
   if (basePath === "/search") return ["Search"];

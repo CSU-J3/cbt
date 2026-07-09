@@ -52,7 +52,13 @@ export const GROUP_TABS: Record<Group, readonly GroupTab[]> = {
 // "races" is no longer listed separately — it's a Group as of HO 173.
 // "hearings" (HO 264) is a standalone top-nav target with no group tabs, same
 // shape as "watchlist".
-export type NavKey = "dashboard" | Group | "hearings" | "reports" | "watchlist";
+export type NavKey =
+  | "dashboard"
+  | Group
+  | "hearings"
+  | "reports"
+  | "watchlist"
+  | "lobbying";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page passes in. /watchlist is a standalone
@@ -86,6 +92,9 @@ export function pathToNavKey(basePath: string): NavKey | null {
     return "hearings";
   if (basePath === "/reports" || basePath.startsWith("/reports/"))
     return "reports";
+  // HO 437: /lobbying — standalone analytical surface, no group tabs (like
+  // /hearings / /watchlist).
+  if (basePath === "/lobbying") return "lobbying";
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
   // HO 184: /bills (the Bills|News landing) no longer has a GROUP_TABS entry —
   // Bills/News were dropped from the feed sub-nav (the segmented toggle owns

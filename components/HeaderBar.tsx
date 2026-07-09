@@ -40,6 +40,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
   { key: "races", href: "/electoral", icon: "🗳", label: "Electoral", tooltip: "Competitive 2026 races, forecaster ratings, and the primary calendar" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
+  { key: "lobbying", href: "/lobbying", icon: "$", label: "Lobbying", tooltip: "What's being lobbied — LD-2 filings by issue area, and who's paying" },
   { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
@@ -51,8 +52,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // label + amber-bright underline, with bracket space reserved on every item so
 // switching the active item causes no horizontal shift. Three groups split by
 // short vertical rules: \DASHBOARD | \BILLS \HEARINGS \MEMBERS \RACES \PATTERNS
-// | \REPORTS \WATCHLIST (dividers before index 1 and 6 — HO 264 inserted
-// \HEARINGS into the middle group, bumping \REPORTS from 5 to 6). Styling lives under
+// \LOBBYING | \REPORTS \WATCHLIST (dividers before index 1 and 7 — HO 264 inserted
+// \HEARINGS and HO 437 inserted \LOBBYING into the middle group, bumping \REPORTS
+// from 5 → 6 → 7). Styling lives under
 // `.primary-nav .pnav-*` in globals.css (specificity beats `.home-header-nav a`).
 export function PrimaryNav({
   active,
@@ -69,7 +71,7 @@ export function PrimaryNav({
     <nav className={wrapperClass} aria-label="Primary navigation">
       {NAV_ITEMS.map((item, i) => (
         <Fragment key={item.key}>
-          {i === 1 || i === 6 ? (
+          {i === 1 || i === 7 ? (
             <span className="pnav-divider" aria-hidden />
           ) : null}
           <Link
