@@ -3,6 +3,16 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
+import {
+  hydrateFilings,
+  LDA_ROLLUP_KEY,
+  rowToFilingSummary,
+  type FilingSummary,
+  type IssueDrill,
+  type IssueStat,
+  type LobbyingRollup,
+  type LobbyingStats,
+} from "./lda-rollup";
 import { median } from "./median";
 import { auth } from "../auth";
 import {
@@ -2622,6 +2632,81 @@ export const getMostTradedTickers = unstable_cache(
   ["getMostTradedTickers"],
   { revalidate: 3600, tags: ["member-trades"] },
 );
+
+// ---- LDA lobbying / the /lobbying surface (handoff 437) ------------------
+
+// Re-export the rollup types so the surface imports everything from @/lib/queries
+// (the page/component convention), not two modules. The per-issue drill is served
+// from the blob (rollup.drill[code]) — there is no live drill query (bounded-per-
+// code was measured >25s cold for the top codes; see lib/lda-rollup.ts).
+export type { FilingSummary, IssueDrill, IssueStat, LobbyingRollup, LobbyingStats };
+
+// The issue-code-first aggregate (stats + issue bars + per-issue drill) is
+// PRECOMPUTED into dashboard_state by the LDA cron / `npm run lda:rollup` — NOT
+// queried at request time: COUNT(DISTINCT) over the 108k/233k-row LDA tables is
+// 30-90s cold on this Turso (HO 437), which would blow the 10s boundedFetch every
+// hour the cache expires. This read is an O(1) blob parse. Returns null before the
+// first rollup lands (the page renders an empty state). Tag "lda" is flushed by
+// the cron after each recompute; the 1h TTL is the fallback.
+export const getLobbyingRollup = unstable_cache(
+  async (): Promise<LobbyingRollup | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: "SELECT value FROM dashboard_state WHERE key = ? LIMIT 1",
+      args: [LDA_ROLLUP_KEY],
+    });
+    const raw = rs.rows[0]?.value as string | undefined;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as LobbyingRollup;
+    } catch {
+      return null;
+    }
+  },
+  ["getLobbyingRollup"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// The corpus-wide "what's new in lobbying" feed — the ONE LDA read that's cold-safe
+// live: a clean idx_lda_filings_dt_posted ordered walk that short-circuits at
+// LIMIT, then a bounded batched hydration (PK-seek IN() over ≤pageSize uuids). No
+// COUNT here — pagination total comes from the rollup's stats.filings, so the
+// page never runs the (marginal, 5s-cold) full-table COUNT.
+export const getRecentFilings = unstable_cache(
+  async (
+    opts: { page?: number; pageSize?: number } = {},
+  ): Promise<{ items: FilingSummary[]; page: number; pageSize: number }> => {
+    const db = getDb();
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = opts.pageSize ?? 25;
+    const offset = (page - 1) * pageSize;
+    const rs = await db.execute({
+      sql: `SELECT filing_uuid, registrant_name, client_name, dt_posted,
+                   filing_type, filing_period, income, expenses
+            FROM lda_filings INDEXED BY idx_lda_filings_dt_posted
+            ORDER BY dt_posted DESC LIMIT ? OFFSET ?`,
+      args: [pageSize, offset],
+    });
+    const uuids = rs.rows.map((r) => String(r.filing_uuid));
+    const { codes, bills } = uuids.length
+      ? await hydrateFilings(db, uuids)
+      : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
+    const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
+    return { items, page, pageSize };
+  },
+  ["getRecentFilings"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// Validate `?issue=` — LDA general_issue_codes are 2-8 uppercase letters (BUD,
+// TAX, HCR, TRD…). Invalid → null so the page auto-selects the top code.
+export function sanitizeIssueCode(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const up = raw.trim().toUpperCase();
+  return /^[A-Z]{2,8}$/.test(up) ? up : null;
+}
 
 // ---- FEC fundraising (handoff 83) ---------------------------------------
 

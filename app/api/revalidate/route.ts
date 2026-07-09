@@ -32,6 +32,9 @@ const ALLOWED_TAGS = new Set([
   // HO 390: sync:fec flushes the member-hub fundraising line (totals + the
   // small/large-dollar split) after a backfill.
   "member-fundraising",
+  // HO 437: the /lobbying surface (getLobbyingRollup + getRecentFilings). Flushed
+  // by the LDA cron after it recomputes the rollup blob, and by a manual backfill.
+  "lda",
 ]);
 
 export async function POST(request: Request) {
