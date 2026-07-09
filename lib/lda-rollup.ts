@@ -83,6 +83,14 @@ const numOrNull = (v: unknown): number | null => (v == null ? null : Number(v));
 const str = (v: unknown): string => String(v ?? "");
 const strOrNull = (v: unknown): string | null => (v == null ? null : String(v));
 
+// Top-N names by distinct-filing count, name-tiebroken. Shared by the issue drill
+// and the bill drill (both rank firms/clients by distinct filings — HO 435).
+const topN = (m: Map<string, number>) =>
+  [...m.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, DRILL_TOP_N)
+    .map(([name, filings]) => ({ name, filings }));
+
 // Hydrate a set of filing_uuids with their distinct issue codes + resolved bill
 // ids, in chunked batched queries (never per-row). Used by the LIVE getRecentFilings
 // feed (lib/queries.ts) — the rollup hydrates in-memory instead. getDb()'s client
@@ -151,12 +159,27 @@ type FilingRec = {
   expenses: number | null;
 };
 
-// Read all three LDA tables SEQUENTIALLY (the shape this Turso is fast at) and do
-// the whole join + aggregation in JS. ~96s of reads + trivial in-memory work.
-export async function computeLdaRollup(
-  db: Client,
-  generatedAt: string,
-): Promise<LobbyingRollup> {
+// The shared intermediate — every map both the issue rollup and the bill drill
+// need, built from ONE sequential pass over the three tables (HO 440). The cron
+// reads once and feeds both computeIssueRollup + computeBillDrill; neither runs
+// a second ~96s scan.
+export interface LdaTables {
+  filings: Map<string, FilingRec>;
+  registrantSet: Set<string>;
+  clientSet: Set<string>;
+  billsByUuid: Map<string, string[]>;
+  linkedUuids: Set<string>;
+  codesByUuid: Map<string, string[]>;
+  uuidsByCode: Map<string, Set<string>>;
+  displayByCode: Map<string, string>;
+  activityCountByCode: Map<string, number>;
+  activityRowCount: number; // every activity carries a code (stats.activities)
+}
+
+// Read all three LDA tables SEQUENTIALLY (the shape this Turso is fast at) into
+// the in-memory maps. ~96s of reads. The join + aggregation is the consumers'
+// trivial in-memory work.
+export async function readLdaTables(db: Client): Promise<LdaTables> {
   const [fRes, aRes, bRes] = [
     await db.execute(
       `SELECT filing_uuid, registrant_name, client_name, dt_posted,
@@ -213,9 +236,52 @@ export async function computeLdaRollup(
     if (!displayByCode.has(code)) displayByCode.set(code, str(r.general_issue_code_display));
   }
 
+  return {
+    filings,
+    registrantSet,
+    clientSet,
+    billsByUuid,
+    linkedUuids,
+    codesByUuid,
+    uuidsByCode,
+    displayByCode,
+    activityCountByCode,
+    activityRowCount: aRes.rows.length,
+  };
+}
+
+// Read + compute the issue rollup in one call — the idiom the CLI (rollup-lda.ts)
+// and existing callers use. The cron uses readLdaTables + computeIssueRollup
+// directly so it can also feed computeBillDrill off the same read.
+export async function computeLdaRollup(
+  db: Client,
+  generatedAt: string,
+): Promise<LobbyingRollup> {
+  return computeIssueRollup(await readLdaTables(db), generatedAt);
+}
+
+// The issue-code-first aggregate (stats + issue bars + per-code drill). Byte-
+// identical to the pre-HO-440 inline compute — same maps, same sorts, same order.
+export function computeIssueRollup(
+  tables: LdaTables,
+  generatedAt: string,
+): LobbyingRollup {
+  const {
+    filings,
+    registrantSet,
+    clientSet,
+    billsByUuid,
+    linkedUuids,
+    codesByUuid,
+    uuidsByCode,
+    displayByCode,
+    activityCountByCode,
+    activityRowCount,
+  } = tables;
+
   const stats: LobbyingStats = {
     filings: filings.size,
-    activities: aRes.rows.length, // every activity carries a code (verified HO 437)
+    activities: activityRowCount, // every activity carries a code (verified HO 437)
     registrants: registrantSet.size,
     clients: clientSet.size,
     billLinkedPct: filings.size > 0 ? (100 * linkedUuids.size) / filings.size : 0,
@@ -229,12 +295,6 @@ export async function computeLdaRollup(
       activities: activityCountByCode.get(code) ?? 0,
     }))
     .sort((a, b) => b.filings - a.filings);
-
-  const topN = (m: Map<string, number>) =>
-    [...m.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, DRILL_TOP_N)
-      .map(([name, filings]) => ({ name, filings }));
 
   const drill: Record<string, IssueDrill> = {};
   for (const s of issues) {
