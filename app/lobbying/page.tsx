@@ -1,4 +1,5 @@
 import { FilingRow } from "@/components/FilingRow";
+import { FirmsLeaderboard } from "@/components/FirmsLeaderboard";
 import { HeaderBar } from "@/components/HeaderBar";
 import { IssueBars } from "@/components/IssueBars";
 import { IssueDrill } from "@/components/IssueDrill";
@@ -6,6 +7,7 @@ import { Pagination } from "@/components/Pagination";
 import {
   getLobbyingRollup,
   getRecentFilings,
+  getTopFirms,
   sanitizeIssueCode,
 } from "@/lib/queries";
 
@@ -37,7 +39,12 @@ export default async function LobbyingPage({
 
   // Rollup first (O(1) blob) — its stats.filings sizes the pager, so we can clamp
   // the requested page BEFORE the feed query and never issue a tail-of-table OFFSET.
-  const rollup = await getLobbyingRollup();
+  // topFirms is a second O(1) blob (HO 442); both are null together pre-first-cron,
+  // so the rollup null-guard below covers the leaderboard too.
+  const [rollup, topFirms] = await Promise.all([
+    getLobbyingRollup(),
+    getTopFirms(),
+  ]);
 
   // The rollup blob is precomputed by the LDA cron / `npm run lda:rollup`. Before
   // the first rollup lands it's null — render an honest empty state.
@@ -124,7 +131,15 @@ export default async function LobbyingPage({
           </aside>
         </div>
 
-        {/* Section 3 — corpus-wide recent filings (the daily pulse) */}
+        {/* Section 3 — corpus-wide top-firms leaderboard (HO 442) */}
+        {topFirms?.firms.length ? (
+          <FirmsLeaderboard
+            firms={topFirms.firms}
+            totalRegistrants={topFirms.totalRegistrants}
+          />
+        ) : null}
+
+        {/* Section 4 — corpus-wide recent filings (the daily pulse) */}
         <section className="mt-6">
           <h2
             className="mb-2 text-[12px] uppercase tracking-[0.5px]"
