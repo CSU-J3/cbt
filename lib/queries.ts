@@ -8,6 +8,7 @@ import {
   hydrateFilings,
   LDA_BILL_DRILL_KEY,
   LDA_ROLLUP_KEY,
+  LDA_TOP_FIRMS_KEY,
   rowToFilingSummary,
   type BillDrill,
   type BillDrillBlob,
@@ -16,6 +17,8 @@ import {
   type IssueStat,
   type LobbyingRollup,
   type LobbyingStats,
+  type TopFirm,
+  type TopFirmsBlob,
 } from "./lda-rollup";
 import { median } from "./median";
 import { auth } from "../auth";
@@ -2643,7 +2646,16 @@ export const getMostTradedTickers = unstable_cache(
 // (the page/component convention), not two modules. The per-issue drill is served
 // from the blob (rollup.drill[code]) — there is no live drill query (bounded-per-
 // code was measured >25s cold for the top codes; see lib/lda-rollup.ts).
-export type { BillDrill, FilingSummary, IssueDrill, IssueStat, LobbyingRollup, LobbyingStats };
+export type {
+  BillDrill,
+  FilingSummary,
+  IssueDrill,
+  IssueStat,
+  LobbyingRollup,
+  LobbyingStats,
+  TopFirm,
+  TopFirmsBlob,
+};
 
 // The issue-code-first aggregate (stats + issue bars + per-issue drill) is
 // PRECOMPUTED into dashboard_state by the LDA cron / `npm run lda:rollup` — NOT
@@ -2668,6 +2680,30 @@ export const getLobbyingRollup = unstable_cache(
     }
   },
   ["getLobbyingRollup"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// PRECOMPUTED into dashboard_state by the LDA cron / `npm run lda:rollup` — an
+// O(1) blob parse, NOT a request-time aggregate (HO 442). Separate key from the
+// /lobbying rollup so this small blob is the only thing the leaderboard section
+// reads. null before the first rollup lands (section omitted). Tag "lda" flushed
+// by the cron; 1h TTL fallback.
+export const getTopFirms = unstable_cache(
+  async (): Promise<TopFirmsBlob | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: "SELECT value FROM dashboard_state WHERE key = ? LIMIT 1",
+      args: [LDA_TOP_FIRMS_KEY],
+    });
+    const raw = rs.rows[0]?.value as string | undefined;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as TopFirmsBlob;
+    } catch {
+      return null;
+    }
+  },
+  ["getTopFirms"],
   { revalidate: 3600, tags: ["lda"] },
 );
 

@@ -25,10 +25,12 @@ import { syncLda } from "@/lib/lda-sync";
 import {
   computeBillDrill,
   computeIssueRollup,
+  computeTopFirms,
   readLdaTables,
   uncappedLdaClient,
   writeLdaBillDrill,
   writeLdaRollup,
+  writeLdaTopFirms,
 } from "@/lib/lda-rollup";
 
 export const dynamic = "force-dynamic";
@@ -87,7 +89,13 @@ async function handle(request: Request) {
       // readLdaTables feeds both computeIssueRollup + computeBillDrill, so the
       // bill drill adds only an in-memory grouping pass + one atomic upsert (no
       // second ~96s scan). Both share the single revalidateTag("lda").
-      let rollup: { ran: boolean; ok?: boolean; ms?: number; billDrills?: number } = {
+      let rollup: {
+        ran: boolean;
+        ok?: boolean;
+        ms?: number;
+        billDrills?: number;
+        topFirms?: number;
+      } = {
         ran: false,
       };
       const msLeft = ROUTE_CEILING_MS - (Date.now() - routeStart);
@@ -101,13 +109,17 @@ async function handle(request: Request) {
           await writeLdaRollup(client, blob);
           const billBlob = computeBillDrill(tables, generatedAt);
           await writeLdaBillDrill(client, billBlob);
+          const firmsBlob = computeTopFirms(tables, generatedAt);
+          await writeLdaTopFirms(client, firmsBlob);
           client.close();
           revalidateTag("lda");
           const billDrills = Object.keys(billBlob.drill).length;
-          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills };
+          const topFirms = firmsBlob.firms.length;
+          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills, topFirms };
           console.log(
             `[lda] rollup ok in ${rollup.ms}ms: ${blob.issues.length} issues, ` +
-              `${Object.keys(blob.drill).length} drills, ${billDrills} bill drills`,
+              `${Object.keys(blob.drill).length} drills, ${billDrills} bill drills, ` +
+              `${topFirms} top firms`,
           );
         } catch (e) {
           rollup = { ran: true, ok: false, ms: Date.now() - t0 };

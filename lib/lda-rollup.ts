@@ -27,6 +27,12 @@ export const LDA_BILL_DRILL_KEY = "lda_bill_drill";
 // live query can't serve under the 10s getDb cap. One source of truth for the
 // cron (what to precompute) and the doc sweep.
 export const BILL_DRILL_MIN_FILINGS = 150;
+// HO 442 — the corpus-wide top-firms leaderboard blob (a third dashboard_state
+// key; keeps the /lobbying rollup read lean, same rationale as HO 440's bill drill).
+export const LDA_TOP_FIRMS_KEY = "lda_top_firms";
+// Top N lobbying shops (registrants) by distinct filings. Store == render (no
+// stored-vs-shown split); bump here to widen the leaderboard.
+export const TOP_FIRMS_N = 25;
 const HYDRATE_CHUNK = 400; // stay well under SQLite's ~999 bound-param limit
 const DRILL_TOP_N = 5;
 const DRILL_RECENT_N = 8; // keeps the blob comfortably under ~250KB
@@ -88,6 +94,21 @@ export interface BillDrill {
 export interface BillDrillBlob {
   generatedAt: string;
   drill: Record<string, BillDrill>;
+}
+
+// HO 442 — one row of the corpus-wide top-firms leaderboard.
+export interface TopFirm {
+  name: string;                    // registrant_name (the lobbying shop)
+  filings: number;                 // distinct filings (rank metric — HO 435 rule)
+  clients: number;                 // distinct clients represented
+  billLinked: number;              // distinct filings citing >=1 resolved tracked bill
+  topIssueCode: string | null;     // their single most-cited general_issue_code
+  topIssueDisplay: string | null;  // its display label
+}
+export interface TopFirmsBlob {
+  generatedAt: string;
+  totalRegistrants: number;        // for the honest "top N of M registrants" label
+  firms: TopFirm[];
 }
 
 // A dedicated UNCAPPED libSQL client. getDb() injects lib/db.ts's boundedFetch
@@ -477,5 +498,83 @@ export async function writeLdaBillDrill(
           VALUES (?, ?, ?)
           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     args: [LDA_BILL_DRILL_KEY, JSON.stringify(blob), blob.generatedAt],
+  });
+}
+
+// HO 442 — the corpus-wide top-firms leaderboard, computed from the SAME LdaTables
+// the issue rollup + bill drill read (third consumer of the ~96s pass; pure
+// in-memory grouping, no new scan/query). Ranks REGISTRANTS (the lobbying shops)
+// by DISTINCT filings (the HO 435 rule), name-tiebroken. Per firm: distinct
+// clients, bill-linked filing count, and their single most-cited issue code.
+// Dollars are deliberately NOT ranked here (LD-2 income/expenses are partial +
+// income-vs-expense asymmetric across registrant types; the money surface is the
+// banked LD-203 work).
+export function computeTopFirms(
+  tables: LdaTables,
+  generatedAt: string,
+  n: number = TOP_FIRMS_N,
+): TopFirmsBlob {
+  const { filings, codesByUuid, linkedUuids, displayByCode } = tables;
+
+  type Acc = {
+    filings: number;
+    clients: Set<string>;
+    billLinked: number;
+    codeTally: Map<string, number>;
+  };
+  const byFirm = new Map<string, Acc>();
+
+  for (const [uuid, f] of filings) {
+    if (!f.registrantName) continue;
+    let acc = byFirm.get(f.registrantName);
+    if (!acc) {
+      acc = { filings: 0, clients: new Set(), billLinked: 0, codeTally: new Map() };
+      byFirm.set(f.registrantName, acc);
+    }
+    acc.filings++;
+    if (f.clientName) acc.clients.add(f.clientName);
+    if (linkedUuids.has(uuid)) acc.billLinked++;
+    for (const code of codesByUuid.get(uuid) ?? []) {
+      acc.codeTally.set(code, (acc.codeTally.get(code) ?? 0) + 1);
+    }
+  }
+
+  const firms: TopFirm[] = [...byFirm.entries()]
+    .sort((a, b) => b[1].filings - a[1].filings || a[0].localeCompare(b[0]))
+    .slice(0, n)
+    .map(([name, acc]) => {
+      // single most-cited issue code, count-desc then code-asc (deterministic)
+      let topIssueCode: string | null = null;
+      let best = -1;
+      for (const [code, c] of acc.codeTally) {
+        if (c > best || (c === best && (topIssueCode === null || code < topIssueCode))) {
+          best = c;
+          topIssueCode = code;
+        }
+      }
+      return {
+        name,
+        filings: acc.filings,
+        clients: acc.clients.size,
+        billLinked: acc.billLinked,
+        topIssueCode,
+        topIssueDisplay: topIssueCode
+          ? (displayByCode.get(topIssueCode) ?? topIssueCode)
+          : null,
+      };
+    });
+
+  return { generatedAt, totalRegistrants: byFirm.size, firms };
+}
+
+export async function writeLdaTopFirms(
+  db: Client,
+  blob: TopFirmsBlob,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO dashboard_state (key, value, updated_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    args: [LDA_TOP_FIRMS_KEY, JSON.stringify(blob), blob.generatedAt],
   });
 }
