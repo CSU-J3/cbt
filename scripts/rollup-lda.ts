@@ -14,11 +14,13 @@ import {
   computeBillDrill,
   computeIssueRollup,
   computeTopFirms,
+  computeTopicCrosswalk,
   readLdaTables,
   uncappedLdaClient,
   writeLdaBillDrill,
   writeLdaRollup,
   writeLdaTopFirms,
+  writeLdaTopicCrosswalk,
 } from "../lib/lda-rollup";
 
 async function main() {
@@ -34,13 +36,16 @@ async function main() {
   await writeLdaBillDrill(db, billBlob);
   const firmsBlob = computeTopFirms(tables, generatedAt);
   await writeLdaTopFirms(db, firmsBlob);
+  const topicBlob = computeTopicCrosswalk(tables, generatedAt);
+  await writeLdaTopicCrosswalk(db, topicBlob);
   db.close();
   const { stats } = rollup;
   console.log(
     `[lda:rollup] wrote blobs in ${Date.now() - t0}ms — ` +
       `${rollup.issues.length} issue codes, ${Object.keys(rollup.drill).length} drills, ` +
       `${Object.keys(billBlob.drill).length} bill drills, ` +
-      `${firmsBlob.firms.length} top firms of ${firmsBlob.totalRegistrants} registrants; ` +
+      `${firmsBlob.firms.length} top firms of ${firmsBlob.totalRegistrants} registrants, ` +
+      `${topicBlob.topics.length} topics; ` +
       `stats: ${stats.filings} filings / ${stats.activities} activities / ` +
       `${stats.registrants} registrants / ${stats.clients} clients / ` +
       `${stats.billLinkedPct.toFixed(1)}% bill-linked`,

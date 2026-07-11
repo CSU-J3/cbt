@@ -9,6 +9,7 @@ import {
   LDA_BILL_DRILL_KEY,
   LDA_ROLLUP_KEY,
   LDA_TOP_FIRMS_KEY,
+  LDA_TOPIC_CROSSWALK_KEY,
   rowToFilingSummary,
   type BillDrill,
   type BillDrillBlob,
@@ -19,6 +20,8 @@ import {
   type LobbyingStats,
   type TopFirm,
   type TopFirmsBlob,
+  type TopicCrosswalkBlob,
+  type TopicCrosswalkRow,
 } from "./lda-rollup";
 import { median } from "./median";
 import { auth } from "../auth";
@@ -2655,6 +2658,8 @@ export type {
   LobbyingStats,
   TopFirm,
   TopFirmsBlob,
+  TopicCrosswalkBlob,
+  TopicCrosswalkRow,
 };
 
 // The issue-code-first aggregate (stats + issue bars + per-issue drill) is
@@ -2704,6 +2709,31 @@ export const getTopFirms = unstable_cache(
     }
   },
   ["getTopFirms"],
+  { revalidate: 3600, tags: ["lda"] },
+);
+
+// PRECOMPUTED into dashboard_state by the LDA cron / `npm run lda:rollup` — an
+// O(1) blob parse, NOT a request-time aggregate (HO 444). The corpus re-bucketed
+// from LDA issue codes into CBT's 24 topics, a parallel lens beside the native
+// issue bars. Separate key so this small blob is the only thing the crosswalk
+// section reads. null before the first rollup lands (section omitted). Tag "lda"
+// flushed by the cron; 1h TTL fallback.
+export const getTopicCrosswalk = unstable_cache(
+  async (): Promise<TopicCrosswalkBlob | null> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: "SELECT value FROM dashboard_state WHERE key = ? LIMIT 1",
+      args: [LDA_TOPIC_CROSSWALK_KEY],
+    });
+    const raw = rs.rows[0]?.value as string | undefined;
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as TopicCrosswalkBlob;
+    } catch {
+      return null;
+    }
+  },
+  ["getTopicCrosswalk"],
   { revalidate: 3600, tags: ["lda"] },
 );
 

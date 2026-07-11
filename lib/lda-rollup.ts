@@ -15,6 +15,9 @@
 // (getRecentFilings — a clean idx_lda_filings_dt_posted walk that short-circuits
 // at LIMIT). This module owns the FilingSummary hydration that live feed reuses.
 import { createClient, type Client, type Row } from "@libsql/client";
+import type { Topic } from "./enums";
+import { LDA_ISSUE_TO_TOPIC, topicForCode } from "./lda-issue-topic-map";
+import { topicFullLabel } from "./topic-colors";
 
 export const LDA_ROLLUP_KEY = "lda_lobbying_rollup";
 // HO 440 — the bill-keyed drill blob (a second dashboard_state key so the
@@ -33,6 +36,10 @@ export const LDA_TOP_FIRMS_KEY = "lda_top_firms";
 // Top N lobbying shops (registrants) by distinct filings. Store == render (no
 // stored-vs-shown split); bump here to widen the leaderboard.
 export const TOP_FIRMS_N = 25;
+// HO 444 — the CBT-topic crosswalk blob (a fourth dashboard_state key; keeps the
+// /lobbying rollup read lean, same rationale as HO 440/442). Expresses the corpus
+// in CBT's 24-topic vocabulary alongside the native issue bars.
+export const LDA_TOPIC_CROSSWALK_KEY = "lda_topic_crosswalk";
 const HYDRATE_CHUNK = 400; // stay well under SQLite's ~999 bound-param limit
 const DRILL_TOP_N = 5;
 const DRILL_RECENT_N = 8; // keeps the blob comfortably under ~250KB
@@ -109,6 +116,25 @@ export interface TopFirmsBlob {
   generatedAt: string;
   totalRegistrants: number;        // for the honest "top N of M registrants" label
   firms: TopFirm[];
+}
+
+// HO 444 — one row of the CBT-topic crosswalk: the corpus re-bucketed from LDA
+// issue codes into a single CBT Topic.
+export interface TopicCrosswalkRow {
+  topic: Topic;
+  label: string;         // topicFullLabel(topic) — self-contained blob
+  filings: number;       // distinct filings citing >=1 code that maps to this topic
+  activities: number;    // sum of activity rows across the topic's codes
+  distinctClients: number;
+}
+export interface TopicCrosswalkBlob {
+  generatedAt: string;
+  // NOTE: topics[].filings summed across topics EXCEEDS stats.filings — a filing
+  // citing codes in two topics (TAX+HCR → taxes + healthcare) counts once per
+  // topic (multi-code double-count), exactly like the native issue bars. This is
+  // NOT a partition of the corpus; the surface labels it "by issue focus", never
+  // "share of filings".
+  topics: TopicCrosswalkRow[];
 }
 
 // A dedicated UNCAPPED libSQL client. getDb() injects lib/db.ts's boundedFetch
@@ -576,5 +602,77 @@ export async function writeLdaTopFirms(
           VALUES (?, ?, ?)
           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
     args: [LDA_TOP_FIRMS_KEY, JSON.stringify(blob), blob.generatedAt],
+  });
+}
+
+// HO 444 — the CBT-topic crosswalk, computed from the SAME LdaTables the issue
+// rollup / bill drill / top firms read (the FOURTH consumer of the ~96s pass;
+// pure in-memory grouping, no new scan/query). Re-buckets the already-loaded
+// uuidsByCode/activityCountByCode through the static LDA_ISSUE_TO_TOPIC map.
+//
+// Multi-code property (matters): a filing carries multiple general_issue_codes,
+// so it can land in MULTIPLE topic buckets (TAX+HCR → taxes AND healthcare),
+// exactly as it already appears under multiple issue bars. Each topic's filing
+// set is the UNION of uuidsByCode over the codes mapping to it, deduped within
+// the topic (a filing citing two codes that both map to healthcare counts once).
+// Filings summed across topics therefore exceed stats.filings — NOT a partition.
+export function computeTopicCrosswalk(
+  tables: LdaTables,
+  generatedAt: string,
+): TopicCrosswalkBlob {
+  const { filings, uuidsByCode, activityCountByCode } = tables;
+
+  // Coverage guard (HO 444): every code falls to a Topic via topicForCode's
+  // `other` catch-all, so this is normally empty; a non-empty list means a NEW
+  // code appeared in the corpus that isn't explicitly reviewed in the map —
+  // surface it (non-fatal) so it can be classified rather than silently bucketed.
+  const unmapped = [...uuidsByCode.keys()].filter((c) => !(c in LDA_ISSUE_TO_TOPIC));
+  if (unmapped.length > 0) {
+    console.warn(
+      `[lda] topic crosswalk: ${unmapped.length} unmapped issue code(s) → other: ${unmapped.join(", ")}`,
+    );
+  }
+
+  const uuidsByTopic = new Map<Topic, Set<string>>();
+  const activitiesByTopic = new Map<Topic, number>();
+  for (const [code, set] of uuidsByCode) {
+    const topic = topicForCode(code);
+    const tset = uuidsByTopic.get(topic) ?? uuidsByTopic.set(topic, new Set()).get(topic)!;
+    for (const uuid of set) tset.add(uuid); // union — dedupes within the topic
+    activitiesByTopic.set(
+      topic,
+      (activitiesByTopic.get(topic) ?? 0) + (activityCountByCode.get(code) ?? 0),
+    );
+  }
+
+  const topics: TopicCrosswalkRow[] = [...uuidsByTopic.entries()]
+    .map(([topic, uuids]) => {
+      const clients = new Set<string>();
+      for (const uuid of uuids) {
+        const f = filings.get(uuid);
+        if (f?.clientName) clients.add(f.clientName);
+      }
+      return {
+        topic,
+        label: topicFullLabel(topic),
+        filings: uuids.size,
+        activities: activitiesByTopic.get(topic) ?? 0,
+        distinctClients: clients.size,
+      };
+    })
+    .sort((a, b) => b.filings - a.filings || a.topic.localeCompare(b.topic));
+
+  return { generatedAt, topics };
+}
+
+export async function writeLdaTopicCrosswalk(
+  db: Client,
+  blob: TopicCrosswalkBlob,
+): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO dashboard_state (key, value, updated_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    args: [LDA_TOPIC_CROSSWALK_KEY, JSON.stringify(blob), blob.generatedAt],
   });
 }

@@ -26,11 +26,13 @@ import {
   computeBillDrill,
   computeIssueRollup,
   computeTopFirms,
+  computeTopicCrosswalk,
   readLdaTables,
   uncappedLdaClient,
   writeLdaBillDrill,
   writeLdaRollup,
   writeLdaTopFirms,
+  writeLdaTopicCrosswalk,
 } from "@/lib/lda-rollup";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +97,7 @@ async function handle(request: Request) {
         ms?: number;
         billDrills?: number;
         topFirms?: number;
+        topics?: number;
       } = {
         ran: false,
       };
@@ -111,15 +114,18 @@ async function handle(request: Request) {
           await writeLdaBillDrill(client, billBlob);
           const firmsBlob = computeTopFirms(tables, generatedAt);
           await writeLdaTopFirms(client, firmsBlob);
+          const topicBlob = computeTopicCrosswalk(tables, generatedAt);
+          await writeLdaTopicCrosswalk(client, topicBlob);
           client.close();
           revalidateTag("lda");
           const billDrills = Object.keys(billBlob.drill).length;
           const topFirms = firmsBlob.firms.length;
-          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills, topFirms };
+          const topics = topicBlob.topics.length;
+          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills, topFirms, topics };
           console.log(
             `[lda] rollup ok in ${rollup.ms}ms: ${blob.issues.length} issues, ` +
               `${Object.keys(blob.drill).length} drills, ${billDrills} bill drills, ` +
-              `${topFirms} top firms`,
+              `${topFirms} top firms, ${topics} topics`,
           );
         } catch (e) {
           rollup = { ran: true, ok: false, ms: Date.now() - t0 };
