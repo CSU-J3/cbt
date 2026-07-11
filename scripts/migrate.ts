@@ -820,22 +820,35 @@ const statements = [
   // `amends_amendment_id` is a nullable self-FK for lineage, NOT a many-to-many.
   // SUAMDT is empty in the 119th but kept in the type domain (reserved).
   //
-  // sponsor_bioguide_id (FK) + sponsor_name (label fallback for committee/manager
+  // sponsor_bioguide_id + sponsor_name (label fallback for committee/manager
   // amendments with no bioguide); party/state join from members at read (no
   // denormalization — avoids the bills-table drift). Nullable rates from the
   // probe: latest_action_text ~35% (top-level only; absent = submitted/pending —
   // the actions sub-resource walk is deferred to the status model), description
   // ~30%, purpose ~5%. update_date is the DB-derived resume frontier (no stored
   // cursor). raw_json is the detail payload (NOT the actions sub-resource).
+  //
+  // LOOSE LINKS, NOT enforced FKs (amended_bill_id / amends_amendment_id /
+  // sponsor_bioguide_id): this DB runs with `PRAGMA foreign_keys = ON` (the HO 402
+  // note claiming it's OFF is wrong for this write path — an FK REFERENCES here
+  // rejects the insert). All three carry legitimately-absent non-null refs the
+  // insert must still land: (1) amended_bill_id is stored REGARDLESS of resolution
+  // (HO 447 — a rare untracked bill ref stays resolvable later); (2) a
+  // sub-amendment's amends_amendment_id can forward-reference a parent not yet
+  // ingested (the ascending-update_date sweep gives no parent-first guarantee),
+  // and a self-FK would deadlock the insert; (3) a sponsor may have left Congress
+  // and not be in members. Same "loose link (not FK'd)" idiom as votes.bill_id /
+  // committee_bills / meeting_bills. Resolution is measured at read (LEFT JOIN),
+  // see the HO 447 coverage diagnostic.
   `CREATE TABLE IF NOT EXISTS amendments (
     id TEXT PRIMARY KEY,
     congress INTEGER NOT NULL,
     amendment_type TEXT NOT NULL,
     amendment_number INTEGER NOT NULL,
     chamber TEXT,
-    amended_bill_id TEXT REFERENCES bills(id),
-    amends_amendment_id TEXT REFERENCES amendments(id),
-    sponsor_bioguide_id TEXT REFERENCES members(bioguide_id),
+    amended_bill_id TEXT,
+    amends_amendment_id TEXT,
+    sponsor_bioguide_id TEXT,
     sponsor_name TEXT,
     purpose TEXT,
     description TEXT,
