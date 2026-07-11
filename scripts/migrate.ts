@@ -803,6 +803,53 @@ const statements = [
     PRIMARY KEY (filing_uuid, activity_ordinal, bill_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_lda_activity_bills_bill ON lda_activity_bills(bill_id)`,
+  // HO 447: amendments data layer. One row per congressional amendment along the
+  // bill spine. Landed by lib/amendments-sync.ts from Congress.gov /amendment
+  // (list → detail; amendedBill/sponsors/purpose are detail-only, HO 446 probe).
+  //
+  // `id` = `${congress}-${amendment_type.toLowerCase()}-${amendment_number}`
+  // (mirrors billId → "119-samdt-14"); amendment_type/amendment_number match the
+  // bills-table house style (bill_type/bill_number), the column stays UPPERCASE
+  // (SAMDT/HAMDT/SUAMDT) for display/filter.
+  //
+  // Join reality (HO 446 probe, n=40): amendedBill present 100%, resolving 100%
+  // to tracked bills — so `amended_bill_id` is stored REGARDLESS of resolution
+  // (a rare untracked ref still lands the row, resolvable later), never gated on
+  // a bills lookup. Sub-amendments (~2.5%) carry BOTH amendedBill AND
+  // amendedAmendment (the API resolves the ultimate bill transitively), so
+  // `amends_amendment_id` is a nullable self-FK for lineage, NOT a many-to-many.
+  // SUAMDT is empty in the 119th but kept in the type domain (reserved).
+  //
+  // sponsor_bioguide_id (FK) + sponsor_name (label fallback for committee/manager
+  // amendments with no bioguide); party/state join from members at read (no
+  // denormalization — avoids the bills-table drift). Nullable rates from the
+  // probe: latest_action_text ~35% (top-level only; absent = submitted/pending —
+  // the actions sub-resource walk is deferred to the status model), description
+  // ~30%, purpose ~5%. update_date is the DB-derived resume frontier (no stored
+  // cursor). raw_json is the detail payload (NOT the actions sub-resource).
+  `CREATE TABLE IF NOT EXISTS amendments (
+    id TEXT PRIMARY KEY,
+    congress INTEGER NOT NULL,
+    amendment_type TEXT NOT NULL,
+    amendment_number INTEGER NOT NULL,
+    chamber TEXT,
+    amended_bill_id TEXT REFERENCES bills(id),
+    amends_amendment_id TEXT REFERENCES amendments(id),
+    sponsor_bioguide_id TEXT REFERENCES members(bioguide_id),
+    sponsor_name TEXT,
+    purpose TEXT,
+    description TEXT,
+    latest_action_text TEXT,
+    latest_action_date TEXT,
+    submitted_date TEXT NOT NULL,
+    update_date TEXT NOT NULL,
+    raw_json TEXT,
+    ingested_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_amendments_bill    ON amendments(amended_bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_amendments_sponsor ON amendments(sponsor_bioguide_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_amendments_update  ON amendments(update_date DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_amendments_type    ON amendments(amendment_type)`,
 ];
 
 async function ensureColumn(

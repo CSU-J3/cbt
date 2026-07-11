@@ -22,6 +22,7 @@
     "sync:members": "tsx scripts/sync-members.ts",
     "sync:crosswalk": "tsx scripts/sync-crosswalk.ts",
     "sync:lda": "tsx scripts/sync-lda.ts",
+    "sync:amendments": "tsx scripts/sync-amendments.ts",
     "lda:rollup": "tsx scripts/rollup-lda.ts",
     "sync:ideology": "tsx scripts/sync-ideology.ts",
     "sync:polarization-history": "tsx scripts/sync-polarization-history.ts",
