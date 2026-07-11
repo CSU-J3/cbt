@@ -6,6 +6,20 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## LDA issue → CBT topic is deliberately lossy, single-valued, and non-partitioning (HO 444, Jul 2026)
+
+The `LDA_ISSUE_TO_TOPIC` map (`lib/lda-issue-topic-map.ts`, 79 codes → 23 live topics) makes several calls that read as inconsistencies but are decisions — don't "fix" them.
+
+**Abuse-code vs industry-code asymmetry.** ALC (Alcohol & Drug Abuse) → `healthcare` because it's LDA's *substance-abuse* code (public health); TOB (Tobacco) → `other` because it's the *industry* code (like BEV). The divergence is intentional — an auditor seeing ALC-in-healthcare and TOB-in-other should not collapse them.
+
+**`elections` is legitimately empty.** No LDA issue code maps to it; force-mapping one would be worse than a visible gap.
+
+**`other` (21 codes) is the honest residue,** not laziness: sector/profession codes with no policy-topic home (aerospace, automotive, gaming, tobacco) plus genuinely contested ones. Comprehension-over-coverage — the same posture as `enums.ts` `TOPIC_ALIASES`.
+
+**Two contested calls, resolved on review (HO 444).** CPT (Copyright/Patent) → `technology`; FAM (Family/Abortion/Adoption) → `healthcare` — the closest single home, since the map is single-valued (a code maps to exactly one topic). `civil_rights` was the FAM alternative; the per-code comment in the map records it.
+
+**Non-partition (a mechanism fact, not a bug).** A filing carries multiple issue codes, so `computeTopicCrosswalk` lets it land in multiple topic buckets — topic-filings sum (213,780) EXCEEDS the corpus (110,055). This is the same property the native issue bars already have; the `/lobbying` section header discloses it. If a future reader "reconciles" the topic sum to `stats.filings`, they've broken the multi-code semantics.
+
 ## The oversized side tables invert the row-fetch-vs-sequential-scan calculus — precompute into a blob beats request-time SQL (HO 437, Jul 2026)
 
 HO 340 established that a non-covering `USING INDEX` row-fetches (a clean plan ≠ a fast query; an unbounded aggregate must be COVERING) — on the 16k `bills` table that was ~20s. The `lda_*` tables are **7–14× `bills`** (108k filings / 233k activities / 174k links), and at that scale random-row-fetch and sequential-scan cost **diverge hard**, which is why the `/lobbying` surface (HO 437) is served from a precomputed blob, not request-time SQL:
