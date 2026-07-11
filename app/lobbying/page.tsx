@@ -4,10 +4,12 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { IssueBars } from "@/components/IssueBars";
 import { IssueDrill } from "@/components/IssueDrill";
 import { Pagination } from "@/components/Pagination";
+import { TopicCrosswalk } from "@/components/TopicCrosswalk";
 import {
   getLobbyingRollup,
   getRecentFilings,
   getTopFirms,
+  getTopicCrosswalk,
   sanitizeIssueCode,
 } from "@/lib/queries";
 
@@ -39,11 +41,12 @@ export default async function LobbyingPage({
 
   // Rollup first (O(1) blob) — its stats.filings sizes the pager, so we can clamp
   // the requested page BEFORE the feed query and never issue a tail-of-table OFFSET.
-  // topFirms is a second O(1) blob (HO 442); both are null together pre-first-cron,
-  // so the rollup null-guard below covers the leaderboard too.
-  const [rollup, topFirms] = await Promise.all([
+  // topFirms + topicCrosswalk are sibling O(1) blobs (HO 442/444); all null together
+  // pre-first-cron, so the rollup null-guard below covers them too.
+  const [rollup, topFirms, topicCrosswalk] = await Promise.all([
     getLobbyingRollup(),
     getTopFirms(),
+    getTopicCrosswalk(),
   ]);
 
   // The rollup blob is precomputed by the LDA cron / `npm run lda:rollup`. Before
@@ -131,7 +134,13 @@ export default async function LobbyingPage({
           </aside>
         </div>
 
-        {/* Section 3 — corpus-wide top-firms leaderboard (HO 442) */}
+        {/* Section 3 — CBT-topic crosswalk: the corpus in CBT's 24-topic
+            vocabulary, a parallel lens beside the native issue bars (HO 444) */}
+        {topicCrosswalk?.topics.length ? (
+          <TopicCrosswalk topics={topicCrosswalk.topics} />
+        ) : null}
+
+        {/* Section 4 — corpus-wide top-firms leaderboard (HO 442) */}
         {topFirms?.firms.length ? (
           <FirmsLeaderboard
             firms={topFirms.firms}
@@ -139,7 +148,7 @@ export default async function LobbyingPage({
           />
         ) : null}
 
-        {/* Section 4 — corpus-wide recent filings (the daily pulse) */}
+        {/* Section 5 — corpus-wide recent filings (the daily pulse) */}
         <section className="mt-6">
           <h2
             className="mb-2 text-[12px] uppercase tracking-[0.5px]"
