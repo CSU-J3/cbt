@@ -171,7 +171,23 @@ function detailUrl(congress: number, type: string, number: string | number, apiK
 // insert on a bills lookup). submitted_date/update_date are NOT NULL columns; both
 // were 100% present in the probe, but submitted_date coalesces to updateDate
 // defensively so a rare missing field can't fail the batch.
-function buildAmendmentStatement(a: AmendmentDetail, congress: number, ingestedAt: string): Stmt {
+//
+// FRONTIER CORRECTNESS: `update_date` is stored from the LIST item's updateDate
+// (listUpdateDate), NOT the detail's. The `/amendment` endpoint sorts and filters
+// (fromDateTime) on the LIST updateDate, and the two DIVERGE (observed: a detail
+// updateDate can be hours earlier OR a year later than its list updateDate). The
+// resume frontier MAX(update_date) must equal the sweep's sort key or a partial
+// run poisons it — an early-in-the-sweep item carrying a far-future detail
+// updateDate lifts MAX past the middle of the corpus, and the next
+// fromDateTime=MAX sweep skips the gap (the HO 447 backfill's poisoned-frontier
+// hole). Storing the list updateDate keeps stored == sort key, so MAX is a true
+// contiguous-prefix boundary. detail.updateDate remains in raw_json.
+function buildAmendmentStatement(
+  a: AmendmentDetail,
+  congress: number,
+  ingestedAt: string,
+  listUpdateDate?: string,
+): Stmt {
   const amCongress = a.congress ?? congress;
   const id = amendmentId(amCongress, a.type ?? "", a.number ?? "");
   const amendedBillId =
@@ -212,8 +228,8 @@ function buildAmendmentStatement(a: AmendmentDetail, congress: number, ingestedA
       a.description ?? null,
       a.latestAction?.text ?? null,
       a.latestAction?.actionDate ?? null,
-      a.submittedDate ?? a.updateDate ?? ingestedAt,
-      a.updateDate ?? ingestedAt,
+      a.submittedDate ?? listUpdateDate ?? a.updateDate ?? ingestedAt,
+      listUpdateDate ?? a.updateDate ?? ingestedAt,
       JSON.stringify(a),
       ingestedAt,
     ],
@@ -298,7 +314,7 @@ export async function syncAmendments(opts: SyncAmendmentsOptions = {}): Promise<
         continue;
       }
       if (detail) {
-        pending.push(buildAmendmentStatement(detail, congress, ingestedAt));
+        pending.push(buildAmendmentStatement(detail, congress, ingestedAt, it.updateDate));
         upserted++;
       }
       if (pending.length >= FLUSH_AT) await flush();
