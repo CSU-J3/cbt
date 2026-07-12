@@ -342,3 +342,114 @@ export async function syncAmendments(opts: SyncAmendmentsOptions = {}): Promise<
     apiTotal,
   };
 }
+
+export interface RepairResult {
+  liveCount: number;
+  storedBefore: number;
+  storedAfter: number;
+  repaired: number;
+  errors: number;
+  passes: number;
+  complete: boolean;
+}
+
+// Close the holes the frontier-sweep backfill can't. The `/amendment` list paginates
+// by `sort=updateDate asc` with NO stable tiebreaker, and hundreds of amendments
+// share an exact updateDate (batch actions), so offset windows skip across tie-group
+// boundaries — the backfill AND a single enumeration both under-collect (observed:
+// an enumeration saw 6,749 of 6,788). A skipped row is a hole BELOW MAX(update_date),
+// which the ascending frontier-resume can never refill. So repair enumerates the full
+// list, diffs against stored, and detail-fetches only the missing ids — ITERATIVELY,
+// because the enumeration is itself lossy: each pass's independent tie-order drift
+// surfaces a different subset, and re-running converges. The gate is stored ==
+// live pagination.count; repair loops until that holds, a pass makes no progress, or
+// maxPasses. Detail-fetch is by explicit (type, number), so it never depends on
+// pagination order — a missing id, once identified, is fetched deterministically.
+export async function repairAmendments(opts: { maxPasses?: number; detailDelayMs?: number } = {}): Promise<RepairResult> {
+  const { maxPasses = 8, detailDelayMs = 150 } = opts;
+  const db = getDb();
+  const apiKey = process.env.CONGRESS_API_KEY;
+  if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
+  const congress = getCurrentCongress();
+  const ingestedAt = new Date().toISOString();
+
+  const countUrl = `${API_BASE}/amendment/${congress}?${new URLSearchParams({ limit: "1", format: "json", api_key: apiKey })}`;
+  const liveCount = (await fetchJson<ListResponse>(countUrl)).pagination?.count ?? -1;
+  const storedBefore = Number(
+    (await dbRetry("repair-count", () => db.execute("SELECT COUNT(*) AS n FROM amendments"))).rows[0]?.n ?? 0,
+  );
+
+  let repaired = 0;
+  let errors = 0;
+  let passes = 0;
+  for (let pass = 1; pass <= maxPasses; pass++) {
+    passes = pass;
+    const storedCount = Number(
+      (await dbRetry("repair-count", () => db.execute("SELECT COUNT(*) AS n FROM amendments"))).rows[0]?.n ?? 0,
+    );
+    if (storedCount >= liveCount) break; // complete
+
+    // Enumerate the full list (offset walk) -> id -> list updateDate.
+    const listIds = new Map<string, string>();
+    let offset = 0;
+    for (;;) {
+      const url = `${API_BASE}/amendment/${congress}?${new URLSearchParams({
+        sort: "updateDate asc",
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        format: "json",
+        api_key: apiKey,
+      })}`;
+      const page = await fetchJson<ListResponse>(url);
+      const items = page.amendments ?? [];
+      if (!items.length) break;
+      for (const it of items) listIds.set(amendmentId(it.congress, it.type, it.number), it.updateDate ?? "");
+      offset += items.length;
+      if (items.length < PAGE_SIZE) break;
+      await sleep(120);
+    }
+
+    const rs = await dbRetry("repair-stored", () => db.execute("SELECT id FROM amendments"));
+    const stored = new Set(rs.rows.map((r) => r.id as string));
+    const missing = [...listIds.keys()].filter((id) => !stored.has(id));
+    console.log(`[amendments] repair pass ${pass}: enumerated ${listIds.size}, ${missing.length} missing`);
+    if (!missing.length) continue; // enumeration was lossy this pass; try again
+
+    const pending: Stmt[] = [];
+    let repairedThisPass = 0;
+    for (const id of missing) {
+      const m = id.match(/^(\d+)-([a-z]+)-(\d+)$/);
+      if (!m) continue;
+      const [, c = "", type = "", number = ""] = m;
+      let detail: AmendmentDetail | undefined;
+      try {
+        detail = (await fetchJson<{ amendment?: AmendmentDetail }>(detailUrl(Number(c), type, number, apiKey))).amendment;
+      } catch (e) {
+        errors++;
+        console.warn(`[amendments] repair ${id} failed: ${(e as Error).message.slice(0, 80)}`);
+        if (detailDelayMs) await sleep(detailDelayMs);
+        continue;
+      }
+      if (detail) {
+        pending.push(buildAmendmentStatement(detail, congress, ingestedAt, listIds.get(id)));
+        repaired++;
+        repairedThisPass++;
+      }
+      if (pending.length >= FLUSH_AT) {
+        const chunk = pending.splice(0);
+        await dbRetry("repair-flush", () => db.batch(chunk, "write"));
+      }
+      if (detailDelayMs) await sleep(detailDelayMs);
+    }
+    if (pending.length) {
+      const chunk = pending.splice(0);
+      await dbRetry("repair-flush", () => db.batch(chunk, "write"));
+    }
+    if (repairedThisPass === 0) break; // no progress (all missing errored) — stop looping
+  }
+
+  const storedAfter = Number(
+    (await dbRetry("repair-count", () => db.execute("SELECT COUNT(*) AS n FROM amendments"))).rows[0]?.n ?? 0,
+  );
+  return { liveCount, storedBefore, storedAfter, repaired, errors, passes, complete: storedAfter >= liveCount };
+}
