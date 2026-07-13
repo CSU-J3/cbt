@@ -3,6 +3,7 @@ import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
+import { formatBillId } from "./format";
 import {
   aggregateBillDrill,
   hydrateFilings,
@@ -2941,6 +2942,83 @@ export const getBillAmendments = unstable_cache(
     }
   },
   ["getBillAmendments"],
+  { revalidate: 3600, tags: ["amendments"] },
+);
+
+// HO 450 — the /members/[bioguideId] AMENDMENTS SPONSORED section. The inverse
+// projection of getBillAmendments: sponsor is fixed (the page's member), so rows
+// lead with the amended BILL (linked to /bill/[id]) instead of the sponsor. Same
+// bills-scale seek — idx_amendments_sponsor — so no blob, no probe. Reuses the
+// module-level deriveDisposition. Zero-amendment members return null (section hides).
+export interface MemberAmendment {
+  id: string;
+  label: string; // "SAMDT 2137" — `${amendment_type} ${amendment_number}`
+  amendmentType: string; // SAMDT | HAMDT | SUAMDT
+  amendedBillId: string | null; // /bill/{amendedBillId} link target
+  amendedBillLabel: string | null; // "HR 1" via formatBillId
+  amendedBillTitle: string | null; // bills.title, nullable
+  purpose: string | null;
+  description: string | null;
+  latestActionText: string | null;
+  latestActionDate: string | null;
+  submittedDate: string;
+  amendsLabel: string | null; // resolved parent label for sub-amendments
+  disposition: "agreed" | "failed" | "other";
+}
+
+export const getMemberAmendments = unstable_cache(
+  async (bioguideId: string): Promise<MemberAmendment[] | null> => {
+    try {
+      const db = getDb();
+      const rs = await db.execute({
+        sql: `SELECT a.id, a.amendment_type, a.amendment_number, a.amended_bill_id,
+                     a.purpose, a.description, a.latest_action_text, a.latest_action_date,
+                     a.submitted_date, a.amends_amendment_id,
+                     b.bill_type   AS amended_bill_type,
+                     b.bill_number AS amended_bill_number,
+                     b.title       AS amended_bill_title,
+                     pa.amendment_type   AS parent_type,
+                     pa.amendment_number AS parent_number
+              FROM amendments a
+              LEFT JOIN bills      b  ON b.id = a.amended_bill_id
+              LEFT JOIN amendments pa ON pa.id = a.amends_amendment_id
+              WHERE a.sponsor_bioguide_id = ?
+              ORDER BY COALESCE(a.latest_action_date, a.submitted_date) DESC, a.amendment_number DESC`,
+        args: [bioguideId],
+      });
+      if (rs.rows.length === 0) return null; // member authored none → section hides
+
+      return rs.rows.map((r) => {
+        const amendmentType = String(r.amendment_type);
+        const billType = r.amended_bill_type as string | null;
+        const billNumber = r.amended_bill_number as number | null;
+        const parentType = r.parent_type as string | null;
+        const parentNumber = r.parent_number as number | null;
+        const latestActionText = (r.latest_action_text as string | null) ?? null;
+        return {
+          id: String(r.id),
+          label: `${amendmentType} ${r.amendment_number}`,
+          amendmentType,
+          amendedBillId: (r.amended_bill_id as string | null) ?? null,
+          amendedBillLabel:
+            billType && billNumber != null ? formatBillId(billType, billNumber) : null,
+          amendedBillTitle: (r.amended_bill_title as string | null) ?? null,
+          purpose: (r.purpose as string | null) ?? null,
+          description: (r.description as string | null) ?? null,
+          latestActionText,
+          latestActionDate: (r.latest_action_date as string | null) ?? null,
+          submittedDate: String(r.submitted_date),
+          amendsLabel:
+            parentType && parentNumber != null ? `${parentType} ${parentNumber}` : null,
+          disposition: deriveDisposition(latestActionText),
+        };
+      });
+    } catch (e) {
+      console.error(`[amendments] getMemberAmendments live miss for ${bioguideId}: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getMemberAmendments"],
   { revalidate: 3600, tags: ["amendments"] },
 );
 

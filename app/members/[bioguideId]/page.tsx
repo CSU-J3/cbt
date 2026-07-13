@@ -6,6 +6,7 @@ import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
 import { MemberHeader } from "@/components/MemberHeader";
 import { MemberIdeology } from "@/components/MemberIdeology";
 import { MemberStats } from "@/components/MemberStats";
+import { MemberAmendmentRow } from "@/components/MemberAmendmentRow";
 import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
 import { RaceNewsRow } from "@/components/RaceNewsRow";
@@ -15,6 +16,7 @@ import { daysUntil, formatDateShort } from "@/lib/format";
 import {
   getMember,
   getMemberAffiliations,
+  getMemberAmendments,
   getMemberBills,
   getMemberCommittees,
   getMemberFundraising,
@@ -40,6 +42,7 @@ export const dynamic = "force-dynamic";
 const BILL_LIMIT = 10;
 const TRADE_LIMIT = 10;
 const VOTE_LIMIT = 20;
+const MEMBER_AMENDMENT_LIMIT = 60;
 
 // HO 145: committee role → badge style. Chair / Co-Chair / Vice Chair land
 // on the amber accent (the page's leadership color); Ranking Member uses a
@@ -150,6 +153,7 @@ export default async function MemberPage({
     watchedIds,
     news,
     ideology,
+    sponsoredAmendments,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -170,6 +174,9 @@ export default async function MemberPage({
     // HO 421: DW-NOMINATE ideology; null when the member has no member_ideology
     // row → the component renders its empty state.
     getMemberIdeology(bioguideId),
+    // HO 450: amendments this member sponsored (keyed on sponsor_bioguide_id);
+    // null when they authored none → the section is omitted.
+    getMemberAmendments(bioguideId),
   ]);
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
@@ -299,6 +306,43 @@ export default async function MemberPage({
                 <BillRowList bills={bills} watchedIds={watchedIds} />
               )}
             </section>
+
+            {sponsoredAmendments ? (
+              <section
+                className="mt-6 border"
+                style={{ borderColor: "var(--border-strong)" }}
+              >
+                <div
+                  className="flex items-baseline justify-between px-4 py-3"
+                  style={{
+                    backgroundColor: "var(--bg-panel)",
+                    borderBottom: "0.5px solid var(--border-strong)",
+                  }}
+                >
+                  <h2
+                    className="text-[12px] uppercase tracking-[0.5px]"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Amendments sponsored ({sponsoredAmendments.length})
+                  </h2>
+                </div>
+                <div>
+                  {sponsoredAmendments
+                    .slice(0, MEMBER_AMENDMENT_LIMIT)
+                    .map((a) => (
+                      <MemberAmendmentRow key={a.id} amendment={a} />
+                    ))}
+                </div>
+                {sponsoredAmendments.length > MEMBER_AMENDMENT_LIMIT ? (
+                  <div
+                    className="px-4 py-3 text-[11px] uppercase tracking-[0.5px]"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {sponsoredAmendments.length - MEMBER_AMENDMENT_LIMIT} more
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
 
             <section
               className="mt-6 border"
