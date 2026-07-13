@@ -6,6 +6,16 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Amendment `latest_action_text` coverage is 8.6%, not the probe's ~35% — vote-a-rama magnets dominate the filed-not-acted corpus (HO 448, Jul 2026)
+
+HO 447 spec'd the amendments data layer on the HO 446 probe's read that ~35% of amendments carry a top-level `latest_action_text`. At full scale the real rate is **8.6%** — the probe sampled the recent `updateDate` frontier, which skews toward recently-acted floor amendments; the corpus as a whole does not. No build impact (`getBillAmendments` shows raw action text where present, a "no floor action yet" fallback otherwise), but it reframes what the amendments corpus *is*.
+
+**The cause is distributional, not a coverage gap.** A handful of budget **vote-a-rama** vehicles dominate: `119-sconres-7` alone carries **1,131 amendments — 17% of the entire 6,788-row corpus** — and only 24 of those 1,131 have a top-level disposition. Vote-a-rama amendments are overwhelmingly *filed* (to force a vote / make a record) and never separately *acted* at the top level; their outcomes, when they get one, live in the per-amendment `actions` sub-resource. So the corpus-wide 8.6% is a couple of magnet piles of filed-not-acted amendments dragging the rate down, not a sync failure. (If a future reader "fixes" the low rate by re-running the sync, they've misread a distribution as a bug — same trap as the LDA 40-row residual.)
+
+**Why it matters for the roadmap:** this is the concrete case for the deferred **status/disposition model** (backlog QUEUED). The display-only disposition dot (HO 448) can only color the 8.6% with unambiguous top-level phrasing (agreed to / rejected / failed); classifying the vote-a-rama tail (withdrawn / ruled out of order / tabled, and the vote-a-rama outcomes themselves) needs the `actions` walk the HO 447 sync deliberately skips — it would roughly double the backfill request count (~6,800 → ~13,600). A filed amendment is still floor-fight signal, so v1 shows it uncolored; the model is banked, not owed.
+
+---
+
 ## LDA issue → CBT topic is deliberately lossy, single-valued, and non-partitioning (HO 444, Jul 2026)
 
 The `LDA_ISSUE_TO_TOPIC` map (`lib/lda-issue-topic-map.ts`, 79 codes → 23 live topics) makes several calls that read as inconsistencies but are decisions — don't "fix" them.
