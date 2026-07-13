@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BillAmendments } from "@/components/BillAmendments";
 import { BillLobbying } from "@/components/BillLobbying";
 import { HeaderBar } from "@/components/HeaderBar";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/lib/format";
 import {
   type BillCommitteeRow,
+  getBillAmendments,
   getBillById,
   getBillCommittees,
   getBillLobbying,
@@ -128,12 +130,13 @@ export default async function BillDetailPage({
   const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const [onWatchlist, committees, meetings, committeeIndex, lobbying] =
+  const [onWatchlist, committees, meetings, committeeIndex, amendments, lobbying] =
     await Promise.all([
       isInWatchlist(bill.id),
       getBillCommittees(bill.id),
       getMeetingsForBill(bill.id),
       getCommitteesIndex(),
+      getBillAmendments(bill.id),
       getBillLobbying(bill.id),
     ]);
   // systemCode → name so each hearing row shows its committee (the meetings
@@ -273,6 +276,19 @@ export default async function BillDetailPage({
                   </div>
                 ) : null}
               </div>
+            </>
+          ) : null}
+
+          {amendments ? (
+            <>
+              <Divider />
+              <div
+                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
+                style={labelStyle}
+              >
+                Amendments ({amendments.length})
+              </div>
+              <BillAmendments rows={amendments} />
             </>
           ) : null}
 

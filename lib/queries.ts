@@ -2848,6 +2848,102 @@ export const getBillLobbying = unstable_cache(
   { revalidate: 3600, tags: ["lda"] },
 );
 
+// HO 448 — the /bill/[id] AMENDMENTS section. One row per amendment along the
+// bill spine. Unlike lobbying (108k rows, cost-probed into a precompute blob),
+// amendments is bills-scale (~6,800 total; worst magnet ~1,100), so a single
+// indexed seek behind idx_amendments_bill hydrates live — no blob, no cron step.
+export interface BillAmendment {
+  id: string;
+  label: string; // "SAMDT 2137" — `${amendment_type} ${amendment_number}`
+  amendmentType: string; // SAMDT | HAMDT | SUAMDT
+  sponsorBioguideId: string | null;
+  sponsorName: string | null;
+  sponsorParty: PartyKey | null; // members.party, normalized; feeds partyColor()
+  sponsorState: string | null;
+  purpose: string | null;
+  description: string | null;
+  latestActionText: string | null;
+  latestActionDate: string | null;
+  submittedDate: string;
+  amendsLabel: string | null; // resolved parent label for sub-amendments, e.g. "SAMDT 8"
+  disposition: "agreed" | "failed" | "other"; // display-only — see deriveDisposition
+}
+
+// Display-only disposition from the TOP-LEVEL latest_action_text ONLY — NOT the
+// deferred persisted status model (agreed/failed/withdrawn/ruled-out-of-order),
+// which needs the per-amendment actions sub-resource the sync doesn't walk. A
+// light keyword scan of the unambiguous cases; everything else is neutral
+// ("other"). Failed-family tested FIRST so "not agreed to" can't read as
+// "agreed to". The tail (withdrawn / out of order / pending) falls to "other" —
+// honest, never mislabeled ("wrong is worse than absent").
+function deriveDisposition(text: string | null): "agreed" | "failed" | "other" {
+  if (!text) return "other";
+  const t = text.toLowerCase();
+  if (/\bnot agreed to\b|\brejected\b|\bfailed\b|motion to table.*\bagreed to\b/.test(t)) return "failed";
+  if (/\bagreed to\b|\badopted\b|\bpassed\b/.test(t)) return "agreed";
+  return "other";
+}
+
+// Live query (mirrors getBillLobbying's try/catch → null discipline: it runs
+// inside the bill page's Promise.all, so a throw would 500 the whole page —
+// degrade to a hidden section instead). Zero-amendment bills return null and the
+// section hides. COALESCE(latest_action_date, submitted_date) recency puts
+// acted amendments (the ~9% with top-level action) by action date, the rest by
+// filing date — both ISO text, so lexicographic == chronological.
+export const getBillAmendments = unstable_cache(
+  async (billId: string): Promise<BillAmendment[] | null> => {
+    try {
+      const db = getDb();
+      const rs = await db.execute({
+        sql: `SELECT a.id, a.amendment_type, a.amendment_number,
+                     a.sponsor_bioguide_id, a.sponsor_name, a.purpose, a.description,
+                     a.latest_action_text, a.latest_action_date, a.submitted_date,
+                     a.amends_amendment_id,
+                     m.party  AS sponsor_party,
+                     m.state  AS sponsor_state,
+                     pa.amendment_type   AS parent_type,
+                     pa.amendment_number AS parent_number
+              FROM amendments a
+              LEFT JOIN members    m  ON m.bioguide_id = a.sponsor_bioguide_id
+              LEFT JOIN amendments pa ON pa.id = a.amends_amendment_id
+              WHERE a.amended_bill_id = ?
+              ORDER BY COALESCE(a.latest_action_date, a.submitted_date) DESC, a.amendment_number DESC`,
+        args: [billId],
+      });
+      if (rs.rows.length === 0) return null; // no amendments → section hides
+
+      return rs.rows.map((r) => {
+        const amendmentType = String(r.amendment_type);
+        const parentType = r.parent_type as string | null;
+        const parentNumber = r.parent_number as number | null;
+        const latestActionText = (r.latest_action_text as string | null) ?? null;
+        return {
+          id: String(r.id),
+          label: `${amendmentType} ${r.amendment_number}`,
+          amendmentType,
+          sponsorBioguideId: (r.sponsor_bioguide_id as string | null) ?? null,
+          sponsorName: (r.sponsor_name as string | null) ?? null,
+          sponsorParty: normalizePartyVariant(r.sponsor_party as string | null),
+          sponsorState: (r.sponsor_state as string | null) ?? null,
+          purpose: (r.purpose as string | null) ?? null,
+          description: (r.description as string | null) ?? null,
+          latestActionText,
+          latestActionDate: (r.latest_action_date as string | null) ?? null,
+          submittedDate: String(r.submitted_date),
+          amendsLabel:
+            parentType && parentNumber != null ? `${parentType} ${parentNumber}` : null,
+          disposition: deriveDisposition(latestActionText),
+        };
+      });
+    } catch (e) {
+      console.error(`[amendments] getBillAmendments live miss for ${billId}: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getBillAmendments"],
+  { revalidate: 3600, tags: ["amendments"] },
+);
+
 // Validate `?issue=` — LDA general_issue_codes are 2-8 uppercase letters (BUD,
 // TAX, HCR, TRD…). Invalid → null so the page auto-selects the top code.
 export function sanitizeIssueCode(
