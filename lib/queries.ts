@@ -3102,7 +3102,7 @@ export interface NominationsPage {
 // filter. No MAX_FEED_PAGES clamp — 830 civilian rows have no deep-OFFSET tail
 // problem. try/catch → an empty page so a bad read degrades, never 500s.
 export const getNominations = unstable_cache(
-  async (opts: { agency?: string; disposition?: string; page?: number }): Promise<NominationsPage> => {
+  async (opts: { agency?: string; disposition?: string; committee?: string; page?: number }): Promise<NominationsPage> => {
     const page = Math.max(1, Math.floor(opts.page ?? 1));
     const pageSize = NOMINATIONS_PAGE_SIZE;
     const where = ["is_military = 0"];
@@ -3114,6 +3114,10 @@ export const getNominations = unstable_cache(
     if (opts.disposition && NOMINATION_DISPOSITION_SET.has(opts.disposition)) {
       where.push("disposition = ?");
       args.push(opts.disposition);
+    }
+    if (opts.committee) {
+      where.push("committee_system_code = ?");
+      args.push(opts.committee);
     }
     const whereSql = where.join(" AND ");
     try {
@@ -3146,6 +3150,59 @@ export const getNominations = unstable_cache(
     }
   },
   ["getNominations"],
+  { revalidate: 3600, tags: ["nominations"] },
+);
+
+// HO 459: the inverse projection — a committee's referred civilian nominations,
+// newest-first, for the /committee/[systemCode] NOMINATIONS section. `code` is
+// passed already lowercased (the page does systemCode.toLowerCase()), matching the
+// stored lowercase committee_system_code. A non-Senate committee returns empty →
+// the section omits itself; a read error degrades to empty, never 500s.
+export interface CommitteeNominations {
+  rows: NominationListRow[];
+  total: number;
+  confirmed: number;
+}
+export const getCommitteeNominations = unstable_cache(
+  async (systemCode: string, limit: number): Promise<CommitteeNominations> => {
+    try {
+      const db = getDb();
+      const agg = (
+        await db.execute({
+          sql: `SELECT COUNT(*) AS total, SUM(disposition = 'confirmed') AS confirmed
+                FROM nominations WHERE is_military = 0 AND committee_system_code = ?`,
+          args: [systemCode],
+        })
+      ).rows[0];
+      const total = Number(agg?.total ?? 0);
+      const confirmed = Number(agg?.confirmed ?? 0);
+      if (total === 0) return { rows: [], total: 0, confirmed: 0 };
+      const rs = await db.execute({
+        sql: `SELECT id, citation, description, organization, disposition,
+                     latest_action_text, latest_action_date, received_date
+              FROM nominations
+              WHERE is_military = 0 AND committee_system_code = ?
+              ORDER BY COALESCE(latest_action_date, received_date) DESC, pn_number DESC
+              LIMIT ?`,
+        args: [systemCode, limit],
+      });
+      const rows = rs.rows.map((r) => ({
+        id: String(r.id),
+        citation: String(r.citation),
+        description: (r.description as string | null) ?? null,
+        organization: (r.organization as string | null) ?? null,
+        disposition: String(r.disposition) as NominationDisposition,
+        latestActionText: (r.latest_action_text as string | null) ?? null,
+        latestActionDate: (r.latest_action_date as string | null) ?? null,
+        receivedDate: String(r.received_date ?? ""),
+      }));
+      return { rows, total, confirmed };
+    } catch (e) {
+      console.error(`[nominations] getCommitteeNominations failed: ${(e as Error).message}`);
+      return { rows: [], total: 0, confirmed: 0 };
+    }
+  },
+  ["getCommitteeNominations"],
   { revalidate: 3600, tags: ["nominations"] },
 );
 

@@ -12,12 +12,14 @@ import {
   HearingMeetingsEmbed,
   type HearingEmbedGroup,
 } from "@/components/HearingMeetingsEmbed";
+import { NominationRow } from "@/components/NominationRow";
 import { daysSince } from "@/lib/format";
 import {
   type CommitteeMember,
   getCommitteeBills,
   getCommitteeBySystemCode,
   getCommitteeMembers,
+  getCommitteeNominations,
   getCommitteeSubcommittees,
   getMeetingsByCommittee,
   getWatchedBillIds,
@@ -25,6 +27,10 @@ import {
 
 const RECENT_LIMIT = 25;
 const RECENT_DAYS = 30;
+// HO 459: cap the committee's referred civilian nominations band; a foot links to
+// the full filtered /nominations list when a busy committee (Judiciary, Foreign
+// Relations) has more.
+const NOMINATIONS_CAP = 25;
 // HO 267 Phase 1: per-committee meetings reach 84 (p90=28) but UPCOMING is ≤2;
 // so UPCOMING shows in full and RECENT (the big, newest-first band) caps here,
 // with a "see all on /hearings" out when there's more.
@@ -155,7 +161,7 @@ export default async function CommitteeDetailPage({
     );
   }
 
-  const [parent, subcommittees, members, bills, watchedIds, meetings] =
+  const [parent, subcommittees, members, bills, watchedIds, meetings, nominations] =
     await Promise.all([
       committee.parentSystemCode
         ? getCommitteeBySystemCode(committee.parentSystemCode)
@@ -165,6 +171,7 @@ export default async function CommitteeDetailPage({
       getCommitteeBills(committee.systemCode, RECENT_LIMIT, RECENT_DAYS),
       getWatchedBillIds(),
       getMeetingsByCommittee(committee.systemCode),
+      getCommitteeNominations(committee.systemCode, NOMINATIONS_CAP),
     ]);
   const watchedSet = new Set(watchedIds);
 
@@ -478,6 +485,56 @@ export default async function CommitteeDetailPage({
                 {recentOverflow} more held ·{" "}
                 <Link href="/hearings" className="hearings-embed-link">
                   see all on /hearings →
+                </Link>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        {/* HO 459: the committee's confirmation workload — referred civilian
+            nominations, a distinct band from the legislative bill/hearing work, so
+            it sits last. Omitted entirely when there are none (House/joint
+            committees structurally have zero), so no "No nominations" noise. */}
+        {nominations.total > 0 ? (
+          <section
+            className="mt-4 border"
+            style={{ borderColor: "var(--border-strong)" }}
+          >
+            <div
+              className="border-b px-3 py-2"
+              style={{
+                backgroundColor: "var(--bg-panel)",
+                borderColor: "var(--border-strong)",
+              }}
+            >
+              <span
+                className="text-[12px] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Nominations referred
+              </span>
+              <span
+                className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {nominations.total} referred · {nominations.confirmed} confirmed
+              </span>
+            </div>
+            <ul>
+              {nominations.rows.map((n) => (
+                <li key={n.id}>
+                  <NominationRow nomination={n} />
+                </li>
+              ))}
+            </ul>
+            {nominations.total > nominations.rows.length ? (
+              <div className="hearings-embed-foot">
+                {nominations.total - nominations.rows.length} more referred ·{" "}
+                <Link
+                  href={`/nominations?committee=${committee.systemCode}`}
+                  className="hearings-embed-link"
+                >
+                  see all on /nominations →
                 </Link>
               </div>
             ) : null}

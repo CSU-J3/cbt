@@ -6,7 +6,7 @@ import {
 } from "@/components/NominationDispositionBadge";
 import { NominationRow } from "@/components/NominationRow";
 import { Pagination } from "@/components/Pagination";
-import { getNominations, getNominationsSummary } from "@/lib/queries";
+import { getCommitteeBySystemCode, getNominations, getNominationsSummary } from "@/lib/queries";
 
 // Reads the DB (live GROUP BY + filtered list); opt out of static prerender.
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 25;
 const AGENCY_FACET_CAP = 15;
 
-type SearchParams = { agency?: string; disposition?: string; page?: string };
+type SearchParams = { agency?: string; disposition?: string; committee?: string; page?: string };
 
 function parsePage(raw: string | undefined): number {
   const n = Number(raw);
@@ -23,12 +23,17 @@ function parsePage(raw: string | undefined): number {
 
 // Build a /nominations href with the given filter overrides (null clears one),
 // resetting page. Keeps the surface URL-driven (no client island).
-function filterHref(base: { agency?: string; disposition?: string }, override: { agency?: string | null; disposition?: string | null }): string {
+function filterHref(
+  base: { agency?: string; disposition?: string; committee?: string },
+  override: { agency?: string | null; disposition?: string | null; committee?: string | null },
+): string {
   const sp = new URLSearchParams();
   const agency = "agency" in override ? override.agency : base.agency;
   const disposition = "disposition" in override ? override.disposition : base.disposition;
+  const committee = "committee" in override ? override.committee : base.committee;
   if (agency) sp.set("agency", agency);
   if (disposition) sp.set("disposition", disposition);
+  if (committee) sp.set("committee", committee);
   const qs = sp.toString();
   return qs ? `/nominations?${qs}` : "/nominations";
 }
@@ -41,6 +46,7 @@ export default async function NominationsPage({
   const params = await searchParams;
   const agency = params.agency || undefined;
   const disposition = params.disposition || undefined;
+  const committee = params.committee || undefined;
 
   const summary = await getNominationsSummary();
 
@@ -60,9 +66,13 @@ export default async function NominationsPage({
     );
   }
 
-  const list = await getNominations({ agency, disposition, page: parsePage(params.page) });
+  const list = await getNominations({ agency, disposition, committee, page: parsePage(params.page) });
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const page = Math.min(list.page, totalPages);
+
+  // Resolve the committee code to its name for the chip (cheap cached read); fall
+  // back to the raw code if it doesn't resolve (honest — a non-Senate/unknown code).
+  const committeeName = committee ? (await getCommitteeBySystemCode(committee))?.name ?? committee : null;
 
   const dispMax = Math.max(1, ...summary.byDisposition.map((d) => d.count));
   const agencies = summary.byAgency.slice(0, AGENCY_FACET_CAP);
@@ -72,6 +82,7 @@ export default async function NominationsPage({
   const carry = new URLSearchParams();
   if (agency) carry.set("agency", agency);
   if (disposition) carry.set("disposition", disposition);
+  if (committee) carry.set("committee", committee);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -104,7 +115,7 @@ export default async function NominationsPage({
             {summary.byDisposition.map((d) => (
               <Link
                 key={d.disposition}
-                href={filterHref({ agency, disposition }, { disposition: disposition === d.disposition ? null : d.disposition })}
+                href={filterHref({ agency, disposition, committee }, { disposition: disposition === d.disposition ? null : d.disposition })}
                 scroll={false}
                 title={`${DISPOSITION_LABEL[d.disposition]} · ${d.count}`}
                 style={{
@@ -121,7 +132,7 @@ export default async function NominationsPage({
               return (
                 <Link
                   key={d.disposition}
-                  href={filterHref({ agency, disposition }, { disposition: active ? null : d.disposition })}
+                  href={filterHref({ agency, disposition, committee }, { disposition: active ? null : d.disposition })}
                   scroll={false}
                   className="inline-flex items-center gap-1.5 text-[11px] no-underline transition hover:opacity-80"
                   style={{ opacity: disposition && !active ? 0.55 : 1 }}
@@ -150,7 +161,7 @@ export default async function NominationsPage({
                 return (
                   <li key={a.organization}>
                     <Link
-                      href={filterHref({ agency, disposition }, { agency: active ? null : a.organization })}
+                      href={filterHref({ agency, disposition, committee }, { agency: active ? null : a.organization })}
                       scroll={false}
                       aria-current={active ? "true" : undefined}
                       className="grid items-center gap-x-[14px] px-[14px] py-[9px] no-underline transition hover:bg-[var(--bg-row-hover)]"
@@ -187,19 +198,24 @@ export default async function NominationsPage({
         <section>
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <h2 className="text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
-              {list.total.toLocaleString()} {agency || disposition ? "matching" : "civilian"} nominations
+              {list.total.toLocaleString()} {agency || disposition || committee ? "matching" : "civilian"} nominations
             </h2>
             {agency ? (
-              <Link href={filterHref({ agency, disposition }, { agency: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Link href={filterHref({ agency, disposition, committee }, { agency: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
                 {agency} ✕
               </Link>
             ) : null}
             {disposition ? (
-              <Link href={filterHref({ agency, disposition }, { disposition: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Link href={filterHref({ agency, disposition, committee }, { disposition: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
                 {DISPOSITION_LABEL[disposition as keyof typeof DISPOSITION_LABEL] ?? disposition} ✕
               </Link>
             ) : null}
-            {agency || disposition ? (
+            {committee ? (
+              <Link href={filterHref({ agency, disposition, committee }, { committee: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+                {committeeName} ✕
+              </Link>
+            ) : null}
+            {agency || disposition || committee ? (
               <Link href="/nominations" scroll={false} className="text-[11px] uppercase tracking-[0.5px] no-underline" style={{ color: "var(--accent-amber)" }}>
                 clear
               </Link>
