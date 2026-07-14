@@ -293,7 +293,9 @@ export async function syncNominations(opts: SyncNominationsOptions = {}): Promis
 }
 
 export interface RepairResult {
-  liveCount: number;
+  liveCount: number; // pagination.count — can OVERCOUNT (API lists exact-duplicate entries)
+  distinctLive: number; // distinct (congress, pn_number, part_number) ids the list enumerates
+  duplicates: number; // liveCount - distinctLive — API duplicate list entries (a drift, not a gap)
   storedBefore: number;
   storedAfter: number;
   repaired: number;
@@ -306,9 +308,15 @@ export interface RepairResult {
 // refresh clustering (many rows share one updateDate) means offset windows can
 // skip across tie-group boundaries. UNLIKE amendments, the list carries every
 // column, so repair upserts the missing ids DIRECTLY from the enumerated item —
-// no detail fetch. Enumeration is itself lossy (tie-order drift), so it loops:
-// gate is stored == live pagination.count, until that holds, a pass makes no
-// progress, or maxPasses.
+// no detail fetch. Enumeration can be lossy (tie-order drift), so it loops.
+//
+// COMPLETION GATES ON THE DISTINCT-ENUMERABLE SET, not pagination.count. The
+// /nomination list carries EXACT-DUPLICATE entries (HO 455: 5 in the 119th, e.g.
+// PN1022-12 listed twice byte-identically), so pagination.count > distinct ids and
+// a deduped store (PK on id) can NEVER reach it — the amendments gate (stored >=
+// pagination.count) would loop forever false. The corpus is complete when a full
+// enumeration surfaces 0 missing (every distinct live id is stored); the duplicate
+// drift (liveCount - distinctLive) is reported, not chased (the LDA-40 pattern).
 export async function repairNominations(opts: { maxPasses?: number } = {}): Promise<RepairResult> {
   const { maxPasses = 8 } = opts;
   const db = getDb();
@@ -325,9 +333,10 @@ export async function repairNominations(opts: { maxPasses?: number } = {}): Prom
 
   let repaired = 0;
   let passes = 0;
+  let distinctLive = 0;
+  let complete = false;
   for (let pass = 1; pass <= maxPasses; pass++) {
     passes = pass;
-    if ((await countStored()) >= liveCount) break; // complete
 
     // Enumerate the full list (offset walk, no fromDateTime) -> id -> item.
     const byId = new Map<string, NominationListItem>();
@@ -348,12 +357,21 @@ export async function repairNominations(opts: { maxPasses?: number } = {}): Prom
       if (items.length < PAGE_SIZE) break;
       await sleep(120);
     }
+    distinctLive = byId.size;
 
     const rs = await dbRetry("repair-stored", () => db.execute("SELECT id FROM nominations"));
     const stored = new Set(rs.rows.map((r) => r.id as string));
     const missing = [...byId.keys()].filter((id) => !stored.has(id));
-    console.log(`[nominations] repair pass ${pass}: enumerated ${byId.size}, ${missing.length} missing`);
-    if (!missing.length) continue; // lossy enumeration this pass; try again
+    console.log(
+      `[nominations] repair pass ${pass}: enumerated ${byId.size} distinct (pagination.count=${liveCount}), ${missing.length} missing`,
+    );
+    if (!missing.length) {
+      // Every distinct enumerable id is stored — complete. pagination.count may
+      // still exceed byId.size (API duplicate list entries); that's the drift,
+      // not a gap.
+      complete = true;
+      break;
+    }
 
     const pending: Stmt[] = [];
     let repairedThisPass = 0;
@@ -375,5 +393,6 @@ export async function repairNominations(opts: { maxPasses?: number } = {}): Prom
   }
 
   const storedAfter = await countStored();
-  return { liveCount, storedBefore, storedAfter, repaired, passes, complete: storedAfter >= liveCount };
+  const duplicates = liveCount >= 0 && distinctLive > 0 ? liveCount - distinctLive : 0;
+  return { liveCount, distinctLive, duplicates, storedBefore, storedAfter, repaired, passes, complete };
 }

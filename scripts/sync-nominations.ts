@@ -24,9 +24,9 @@ async function main() {
   if (repair) {
     const r = await repairNominations();
     console.log(
-      `[nominations] repair liveCount=${r.liveCount} storedBefore=${r.storedBefore} storedAfter=${r.storedAfter} ` +
-        `repaired=${r.repaired} passes=${r.passes} complete=${r.complete} ` +
-        `(${((Date.now() - t0) / 1000).toFixed(1)}s)`,
+      `[nominations] repair liveCount=${r.liveCount} distinctLive=${r.distinctLive} duplicates=${r.duplicates} ` +
+        `storedBefore=${r.storedBefore} storedAfter=${r.storedAfter} repaired=${r.repaired} passes=${r.passes} ` +
+        `complete=${r.complete} (${((Date.now() - t0) / 1000).toFixed(1)}s)`,
     );
     process.exit(r.complete ? 0 : 1);
   }
