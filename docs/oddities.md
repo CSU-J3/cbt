@@ -6,6 +6,16 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## No-top-level-action amendments are genuinely filed-never-acted — the `/actions` walk recovers 0% disposition, so the top-level scan is the ceiling (HO 452, Jul 2026)
+
+The HO 448 entry (below) flagged the `/actions` walk as the deferred path to classify the silent 91% of amendments the top-level `latest_action_text` doesn't cover. HO 452 probed it and **closed it NO-GO**: walking `/actions` recovers **0%** additional dispositions.
+
+The intuition it disproves: "a sparse top-level `latestAction` means the disposition is hiding in the `/actions` sub-resource." It isn't. A stratified 155-amendment walk found no-top-level-action == **filed-never-acted**, not "acted-but-not-summarized-at-top-level." Both the general silent stratum and the decisive `119-sconres-7` vote-a-rama stratum returned **100% submit/propose-only** action lists (0% terminal disposition), and — the guard that makes this trustworthy — an **empty residual**: the starter classifier left zero terminal-disposition actions unmatched, so the 0% is a real absence, not a classifier miss. The mechanism: a Senate vote-a-rama *files* ~1,131 amendments (sconres-7) and *votes on* ~24; the ~24 already carry a top-level action (they're part of the 8.6%), and the rest are never called up. So there is nothing in `/actions` to recover — the top-level `latest_action_text` scan is the **disposition ceiling**, and the HO 448/450 display-only dot already colors the full classifiable set. A persisted status enum would persist exactly what render computes, at the cost of ~doubling the backfill (~6,800 → ~13,600 requests) for zero coverage gain — which is why the status-model fork closed NO-GO (backlog DONE). If a future reader re-proposes walking `/actions` to "fill in" the missing dispositions, this is the record that it was measured and there is nothing there.
+
+**What `/actions` *does* uniquely offer (not disposition):** `recordedVotes` on an action ({chamber, rollNumber, url, date}) — a clean amendment → roll-call-vote link, banked as a vote-linkage lead (a different feature, scoped on its own merits).
+
+---
+
 ## Amendment `latest_action_text` coverage is 8.6%, not the probe's ~35% — vote-a-rama magnets dominate the filed-not-acted corpus (HO 448, Jul 2026)
 
 HO 447 spec'd the amendments data layer on the HO 446 probe's read that ~35% of amendments carry a top-level `latest_action_text`. At full scale the real rate is **8.6%** — the probe sampled the recent `updateDate` frontier, which skews toward recently-acted floor amendments; the corpus as a whole does not. No build impact (`getBillAmendments` shows raw action text where present, a "no floor action yet" fallback otherwise), but it reframes what the amendments corpus *is*.
