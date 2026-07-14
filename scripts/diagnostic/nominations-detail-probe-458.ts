@@ -142,7 +142,7 @@ async function main() {
   // A1 — two single-part PNs: base IS the row; confirm committees present.
   console.log("\n--- A1. single-part: base /nomination/{c}/{n} == the row ---");
   for (const pn of singlePartPns.slice(0, 2)) {
-    const row = byPn.get(pn)![0];
+    const row = byPn.get(pn)![0]!;
     const d = (await fetchJson<{ nomination?: Detail }>(baseDetailUrl(pn))).nomination ?? {};
     const rowD = row.url ? (await fetchJson<{ nomination?: Detail }>(withKey(row.url))).nomination ?? {} : {};
     const { committees, subFetch } = await resolveCommittees(d);
