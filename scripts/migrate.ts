@@ -890,7 +890,8 @@ const statements = [
     nominee_count INTEGER,
     update_date TEXT NOT NULL,
     raw_json TEXT,
-    ingested_at TEXT
+    ingested_at TEXT,
+    committee_hydrated_at TEXT
   )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_nominations_pn   ON nominations(congress, pn_number, part_number)`,
   `CREATE INDEX IF NOT EXISTS idx_nominations_org         ON nominations(organization)`,
@@ -1249,6 +1250,21 @@ async function main() {
   // startYear+6 / term-selection math. House rows stay NULL (correct — House
   // has no class). See lib/derive-term.ts + data/senate-special-elections.json.
   await ensureColumn(db, "members", "senate_class", "INTEGER");
+  // HO 459: committee cross-link hydration sentinel. `committee_hydrated_at` is a
+  // per-row "detail walk done" stamp — NULL means the civilian row still needs its
+  // per-part `committees` fetch, set (even for the ~2% with no committee) means it
+  // never re-fetches. A PARTIAL index over exactly the un-hydrated civilian rows
+  // (the HO 406 summarize-queue precedent) keeps the hydration queue scan tiny as
+  // rows drain out; hydrateNominations forces it via INDEXED BY (Turso's statless
+  // planner otherwise mis-plans the `IS NULL` scan — the HO 406/407/369 lesson).
+  // In main() (not the statements array) so it builds AFTER ensureColumn adds the
+  // column on the live DB. NOT added to buildNominationStatement's SET clause — a
+  // bulk-refresh re-upsert must preserve the hydration stamp, not re-null it.
+  await ensureColumn(db, "nominations", "committee_hydrated_at", "TEXT");
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_nominations_hydrate ON nominations(pn_number) WHERE is_military = 0 AND committee_hydrated_at IS NULL",
+  );
+  console.log("ok: idx_nominations_hydrate");
   console.log("migration complete");
 }
 

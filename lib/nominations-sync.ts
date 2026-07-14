@@ -402,3 +402,180 @@ export async function repairNominations(opts: { maxPasses?: number } = {}): Prom
   const duplicates = liveCount >= 0 && distinctLive > 0 ? liveCount - distinctLive : 0;
   return { liveCount, distinctLive, duplicates, storedBefore, storedAfter, repaired, passes, complete };
 }
+
+// ---------------------------------------------------------------------------
+// HO 459: committee cross-link hydration. The HO 458 GO — 98% civilian referral
+// presence, 100% resolution to tracked committees, per-part `raw_json.url` IS the
+// record (the base /nomination/{c}/{n} is a stub for multi-part PNs), ~1.98
+// fetches/row. Keys per (pn_number, part_number): follow each stored row's own
+// `url` (do NOT key on base), read `committees` {count,url} (a 2nd fetch when
+// count>0), store committees[0].systemCode (primary referral — the 6/150 dual tail
+// drops its secondary, disclosed via dualReferralDropped, not a link table). Every
+// processed row gets a `committee_hydrated_at` stamp — INCLUDING the ~2% with no
+// committee — so no-committee rows exit the partial-index queue and never re-fetch.
+// A fetch failure (429/network) leaves the stamp NULL → retried next run.
+const HYDRATE_PACE_MS = 120; // the 454/458 probe pace — well under the 429 threshold
+
+interface CommitteeRef { systemCode?: string; name?: string; [k: string]: unknown }
+interface NominationDetail {
+  committees?: CommitteeRef[] | { count?: number; url?: string };
+  [k: string]: unknown;
+}
+
+// Append api_key (+ format=json if absent) — the 454 sub-resource pattern. The
+// stored row url and the committees sub-resource url both already carry
+// ?format=json, so this only adds the key in practice.
+function withKey(url: string, apiKey: string): string {
+  const sep = url.includes("?") ? "&" : "?";
+  const fmt = url.includes("format=") ? "" : "format=json&";
+  return `${url}${sep}${fmt}api_key=${apiKey}`;
+}
+
+export interface HydrateOptions { backfill?: boolean; deadlineMs?: number; cap?: number }
+export interface HydrateResult {
+  mode: "backfill" | "delta";
+  processed: number;
+  withCommittee: number;
+  noCommittee: number;
+  resolvedAgainstTracked: number;
+  unresolved: number;
+  dualReferralDropped: number;
+  fetches: number;
+  throttled429: number;
+  deadlineHit: boolean;
+  remaining: number;
+}
+
+export async function hydrateNominations(opts: HydrateOptions = {}): Promise<HydrateResult> {
+  const { backfill = false, deadlineMs } = opts;
+  const cap = opts.cap ?? (backfill ? 100_000 : 40);
+  const db = getDb();
+  const apiKey = process.env.CONGRESS_API_KEY;
+  if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
+
+  // Tracked set for the `unresolved` tally ONLY — storage is loose-link (store
+  // whatever the API returns). The 458 probe saw 0 unresolved, so a nonzero here
+  // is a `sync:committees` drift signal worth surfacing (chronicErr).
+  const cteRows = await dbRetry("hydrate-committees", () => db.execute("SELECT system_code FROM committees"));
+  const tracked = new Set(cteRows.rows.map((r) => String(r.system_code)));
+
+  // Deterministic ascending order over exactly the un-hydrated civilian rows, via
+  // the partial index (forced — Turso mis-plans the IS NULL scan unhinted). Rows
+  // drain out as they hydrate, so the queue scan stays tiny; resumable across runs.
+  const queue = await dbRetry("hydrate-queue", () =>
+    db.execute({
+      sql: `SELECT id, pn_number, part_number, raw_json
+            FROM nominations INDEXED BY idx_nominations_hydrate
+            WHERE is_military = 0 AND committee_hydrated_at IS NULL
+            ORDER BY pn_number ASC LIMIT ?`,
+      args: [cap],
+    }),
+  );
+
+  let processed = 0;
+  let withCommittee = 0;
+  let noCommittee = 0;
+  let resolvedAgainstTracked = 0;
+  let unresolved = 0;
+  let dualReferralDropped = 0;
+  let fetches = 0;
+  let throttled429 = 0;
+  let deadlineHit = false;
+
+  const nowStamp = () => new Date().toISOString();
+  const pending: Stmt[] = [];
+  const flush = async () => {
+    if (!pending.length) return;
+    const chunk = pending.splice(0);
+    await dbRetry("hydrate-flush", () => db.batch(chunk, "write"));
+  };
+  const patch = (code: string | null, id: string): Stmt => ({
+    sql: `UPDATE nominations SET committee_system_code = ?, committee_hydrated_at = ? WHERE id = ?`,
+    args: [code, nowStamp(), id],
+  });
+
+  console.log(`[nominations] hydrate mode=${backfill ? "backfill" : "delta"} queued=${queue.rows.length} (cap ${cap})`);
+
+  for (const row of queue.rows) {
+    if (deadlineMs && Date.now() >= deadlineMs) {
+      deadlineHit = true;
+      break;
+    }
+    const id = String(row.id);
+    let url = "";
+    try {
+      url = String(JSON.parse(String(row.raw_json ?? "{}")).url ?? "");
+    } catch {
+      /* malformed raw_json — treated as no-url below */
+    }
+    if (!url) {
+      // No fetchable url (shouldn't happen — 458 saw 100% coverage). Stamp so it
+      // exits the queue; code stays NULL. Counts as no-committee.
+      noCommittee++;
+      pending.push(patch(null, id));
+      processed++;
+      if (pending.length >= FLUSH_AT) await flush();
+      continue;
+    }
+
+    let code: string | null = null;
+    try {
+      await sleep(HYDRATE_PACE_MS);
+      const detail = (await fetchJson<{ nomination?: NominationDetail }>(withKey(url, apiKey))).nomination ?? {};
+      fetches++;
+      let committees: CommitteeRef[] = [];
+      const c = detail.committees;
+      if (Array.isArray(c)) {
+        committees = c;
+      } else if (c && typeof c === "object" && (c as { count?: number }).count && (c as { url?: string }).url) {
+        await sleep(HYDRATE_PACE_MS);
+        const sub = await fetchJson<{ committees?: CommitteeRef[] }>(withKey((c as { url: string }).url, apiKey));
+        fetches++;
+        committees = sub.committees ?? [];
+      }
+      if (committees.length > 0) {
+        withCommittee++;
+        if (committees.length > 1) dualReferralDropped++;
+        code = (committees[0]?.systemCode ?? "").toLowerCase() || null;
+        if (code) (tracked.has(code) ? resolvedAgainstTracked++ : unresolved++);
+      } else {
+        noCommittee++;
+      }
+    } catch (e) {
+      // Leave committee_hydrated_at NULL so this row is retried next run (do NOT
+      // stamp a failed fetch — that would silently drop it to no-committee).
+      if ((e as Error).message.includes("429")) throttled429++;
+      else console.warn(`[nominations] hydrate fetch fail ${id}: ${(e as Error).message}`);
+      continue;
+    }
+
+    pending.push(patch(code, id));
+    processed++;
+    if (pending.length >= FLUSH_AT) await flush();
+  }
+  await flush();
+
+  const remaining = Number(
+    (
+      await dbRetry("hydrate-remaining", () =>
+        db.execute(
+          "SELECT COUNT(*) AS n FROM nominations INDEXED BY idx_nominations_hydrate WHERE is_military = 0 AND committee_hydrated_at IS NULL",
+        ),
+      )
+    ).rows[0]?.n ?? 0,
+  );
+
+  return {
+    mode: backfill ? "backfill" : "delta",
+    processed,
+    withCommittee,
+    noCommittee,
+    resolvedAgainstTracked,
+    unresolved,
+    dualReferralDropped,
+    fetches,
+    throttled429,
+    deadlineHit,
+    remaining,
+  };
+}

@@ -3,6 +3,7 @@
 //
 //   npm run sync:nominations -- --backfill   # full current-Congress backfill (manual)
 //   npm run sync:nominations -- --repair     # close offset-skip holes → stored == live count
+//   npm run sync:nominations -- --hydrate    # per-part committee referral hydration (HO 459)
 //   npm run sync:nominations                 # incremental off the DB frontier
 //
 // LIST-ONLY (HO 454): no per-PN detail fetch, so the backfill is ~1,884 rows over
@@ -11,16 +12,27 @@
 // opens (enumerate → diff → upsert missing directly from the list item). Needs
 // CONGRESS_API_KEY in .env.
 import "dotenv/config";
-import { repairNominations, syncNominations } from "../lib/nominations-sync";
+import { hydrateNominations, repairNominations, syncNominations } from "../lib/nominations-sync";
 
 async function main() {
   const backfill = process.argv.includes("--backfill");
   const repair = process.argv.includes("--repair");
+  const hydrate = process.argv.includes("--hydrate");
   if (!process.env.CONGRESS_API_KEY) {
     console.error("CONGRESS_API_KEY not set — required for the Congress.gov /nomination endpoint.");
     process.exit(1);
   }
   const t0 = Date.now();
+  if (hydrate) {
+    const r = await hydrateNominations({ backfill: true });
+    console.log(
+      `[nominations] hydrate processed=${r.processed} withCommittee=${r.withCommittee} noCommittee=${r.noCommittee} ` +
+        `resolved=${r.resolvedAgainstTracked} unresolved=${r.unresolved} dualDropped=${r.dualReferralDropped} ` +
+        `fetches=${r.fetches} throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} remaining=${r.remaining} ` +
+        `(${((Date.now() - t0) / 1000).toFixed(1)}s)`,
+    );
+    process.exit(r.remaining === 0 ? 0 : 1);
+  }
   if (repair) {
     const r = await repairNominations();
     console.log(

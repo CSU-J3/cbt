@@ -13,15 +13,19 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
-import { syncNominations } from "@/lib/nominations-sync";
+import { hydrateNominations, syncNominations } from "@/lib/nominations-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Stop starting new pages at 50s, leaving ~10s for the final flush + cron-log
-// writes under the 60s ceiling. Layering mirrors the amendments route:
-// NOMINATIONS_BUDGET_MS 50s < soft timeout 55s < 60s.
-const NOMINATIONS_BUDGET_MS = 50_000;
+// Two budgets under the 60s ceiling (HO 459). The list-only sync drains in
+// seconds on a normal tick (even a bulk-refresh re-fetch is ~8 pages), so it gets
+// the first 45s; the committee hydration delta (tiny — the 830-row initial
+// populate is the CLI run, not this) gets to 55s, leaving ~5s for the final flush
+// + cron-log writes. SYNC 45s < HYDRATE 55s < soft timeout 55s < 60s.
+const SYNC_BUDGET_MS = 45_000;
+const HYDRATE_BUDGET_MS = 55_000;
+const HYDRATE_CAP_PER_TICK = 40; // worst case ~40×~2 fetches, comfortably inside the wall
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -43,11 +47,21 @@ async function handle(request: Request) {
     "/api/cron/nominations",
     async () => {
       const routeStart = Date.now();
-      const r = await syncNominations({ deadlineMs: routeStart + NOMINATIONS_BUDGET_MS });
+      const r = await syncNominations({ deadlineMs: routeStart + SYNC_BUDGET_MS });
       console.log(
         `[nominations] mode=${r.mode} upserted=${r.upserted} listPages=${r.listPages} ` +
           `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} ` +
           `dispositionResidual=${r.dispositionResidual} frontier=${r.frontier} apiTotal=${r.apiTotal}`,
+      );
+
+      // Bounded committee-referral hydration after the sync (HO 459). The delta is
+      // tiny — new civilian rows insert with committee_hydrated_at NULL and drain a
+      // few per tick; the 830-row initial populate is the CLI --hydrate run.
+      const h = await hydrateNominations({ deadlineMs: routeStart + HYDRATE_BUDGET_MS, cap: HYDRATE_CAP_PER_TICK });
+      console.log(
+        `[nominations] hydrate processed=${h.processed} withCommittee=${h.withCommittee} noCommittee=${h.noCommittee} ` +
+          `resolved=${h.resolvedAgainstTracked} unresolved=${h.unresolved} dualDropped=${h.dualReferralDropped} ` +
+          `fetches=${h.fetches} deadlineHit=${h.deadlineHit} remaining=${h.remaining}`,
       );
 
       revalidateTag("nominations");
@@ -57,8 +71,10 @@ async function handle(request: Request) {
       const parts: string[] = [];
       if (r.deadlineHit) parts.push(`deadline hit (resumes from DB frontier next run)`);
       if (r.dispositionResidual > 0) parts.push(`disposition residual: ${r.dispositionResidual}`);
+      if (h.deadlineHit) parts.push(`hydrate deadline hit (remaining ${h.remaining})`);
+      if (h.unresolved > 0) parts.push(`hydrate unresolved: ${h.unresolved}`);
       const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
-      return { payload: r, chronicErr };
+      return { payload: { ...r, hydrate: h }, chronicErr };
     },
     { softTimeoutMs: 55_000 },
   );
