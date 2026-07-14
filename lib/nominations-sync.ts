@@ -72,6 +72,12 @@ export function computeNominationDisposition(text: string | null): NominationDis
   const t = text.toLowerCase();
   // terminal first
   if (/\bconfirmed\b/.test(t)) return "confirmed";
+  // A motion to reconsider is only entered on a COMPLETED vote, and for a
+  // nomination that vote is a confirmation ~always (rejections get withdrawn/
+  // returned, never voted down), so tabling the reconsider = confirmation
+  // finalized. Require `reconsider` so a bare "motion to table [the nomination]"
+  // (a different, negative outcome) can't match (HO 456).
+  if (/reconsider/.test(t) && /(tabled|laid on the table)/.test(t)) return "confirmed";
   if (/returned to the president/.test(t)) return "returned";
   if (/\bwithdrawn\b/.test(t)) return "withdrawn";
   // in-pipeline, latest-stage-wins order
