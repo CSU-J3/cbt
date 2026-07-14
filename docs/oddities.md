@@ -6,6 +6,26 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## `--backfill` resets offset, not the frontier — a persisted derived column can't be recomputed by re-running the sync on a populated DB (HO 456, Jul 2026)
+
+A frontier-resume sync (`sync:nominations`, `sync:amendments`) derives its start from `MAX(update_date)` **regardless of the `--backfill` flag** — `--backfill` resets the *offset* (paging within a sweep), not the *frontier*. So on an already-populated DB, `--backfill` re-touches only the delta above the frontier, not the whole corpus.
+
+This bit a disposition-classifier tune (HO 456): after fixing `computeNominationDisposition` (reconsider-tabled → `confirmed`), re-running `--backfill` recomputed the persisted `disposition` on only the ~5 rows above the frontier — the target row (`PN11-22`, whose `updateDate` predates the frontier) was never re-swept and stayed stale. The run's `dispositionResidual=0` was misleading: residual among the 5 touched rows, not the corpus.
+
+**Corpus-wide recompute of a persisted derived column requires a full re-sweep** — either (a) `DELETE FROM {table}` + `--backfill` (empty DB → frontier resets to the floor → every row re-fetched and recomputed), or (b) a dedicated refloor/recompute path. Truncate + re-backfill is safe **only** for list-only, API-reproducible tables whose derived columns are the *only* computed state and whose deferred columns are already NULL (nominations qualifies: list-only, 100% reproducible, `committee_system_code`/`nominee_count` NULL). For a table carrying un-reproducible derived state, truncate is unsafe and a recompute path is needed. Any future classifier/disposition tune on nominations **or** amendments hits this — a re-run of the sync silently half-applies the change to the delta only.
+
+## `pagination.count` overcounts the distinct-enumerable set — the completion gate keys on full enumeration, not count parity (HO 455, Jul 2026)
+
+The Congress.gov nomination feed returns **duplicate list entries**: 5 byte-identical PNs in the 119th (e.g. `PN1022-12` listed twice — same nominee, same everything — 0.27% of 1,884). A `PRIMARY KEY`-deduping store correctly holds the **1,879 distinct** nominations, but `pagination.count` counts raw feed entries **including duplicates** (1,884).
+
+The trap: `sync:nominations`'s `--repair` originally gated completion on `stored >= pagination.count` (1,879 ≥ 1,884 → false, forever). A deduping store can never reach a duplicate-inflated count, so the gate looped all passes doing nothing and reported `complete=false`. The amendments corpus happened to be duplicate-free, so its identical gate worked — nominations exposed the latent bug (`e175fd7` fixes the gate and the diagnostic to key on **full-enumeration `missing.length === 0`** over the distinct-enumerable set, reporting `duplicates = liveCount − distinctEnumerable` explicitly). This is the LDA-40 count-vs-enumerable drift in a new place: **the distinct-enumerable set is the corpus; `pagination.count` can overcount, so completion is "every distinct id enumerated is stored," not count parity.** (`amendments-sync.ts` still gates on count parity — harmless only while its corpus stays dup-free; backlog OPEN LOOP to align.)
+
+## The amendments status-model NO-GO does not generalize — nominations' disposition model works because coverage is 100%, not 8.6% (HO 456, Jul 2026)
+
+Amendments' persisted status model closed NO-GO (HO 452): only 8.6% carry a top-level `latest_action_text`, the silent 91% are filed-never-acted, and `/actions` recovers nothing. It would be easy to assume the same for nominations — it doesn't. **Nominations carry a top-level `latest_action_text` on 100% of rows**, with a clean deterministic vocabulary along a real procedural pipeline (Received → Referred → Hearings → Reported → Calendar → Confirmed / Returned / Withdrawn). Every PN has an unambiguous status.
+
+The structural difference: amendments are *filed* en masse (vote-a-rama) and mostly never acted, so most have no disposition to record; a nomination is a single executive action moving through a defined confirmation process, always at a current stage. So the persisted `disposition` column (HO 455/456, `computeNominationDisposition`) is the pillar's **differentiator**, not a stopgap — the exact thing amendments couldn't support. The deciding factor for a persisted status model is coverage + vocab cleanliness, measured **per-source** — not a general "status models don't work." Don't let the amendments NO-GO discourage one on a source with clean, complete action coverage.
+
 ## No-top-level-action amendments are genuinely filed-never-acted — the `/actions` walk recovers 0% disposition, so the top-level scan is the ceiling (HO 452, Jul 2026)
 
 The HO 448 entry (below) flagged the `/actions` walk as the deferred path to classify the silent 91% of amendments the top-level `latest_action_text` doesn't cover. HO 452 probed it and **closed it NO-GO**: walking `/actions` recovers **0%** additional dispositions.
