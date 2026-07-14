@@ -26,19 +26,54 @@ async function main() {
   console.log("=== nominations coverage (HO 455) ===\n");
 
   const total = Number((await one("SELECT COUNT(*) AS n FROM nominations"))?.n ?? 0);
+
+  // Landed-clean keys on the DISTINCT-ENUMERABLE set, not pagination.count: the
+  // /nomination list carries exact-duplicate entries (HO 455: 5 in the 119th), so
+  // pagination.count > distinct ids and a deduped store can never reach it. Mirror
+  // the repair gate — enumerate the full list, dedupe by (congress, pn, part), and
+  // report the drift rather than chasing it.
   let live = -1;
+  let distinctLive = -1;
   if (KEY) {
     try {
-      const res = await fetch(`${API}/nomination/${CONGRESS}?limit=1&format=json&api_key=${KEY}`, {
-        headers: { Accept: "application/json" },
-      });
-      live = ((await res.json()) as { pagination?: { count?: number } }).pagination?.count ?? -1;
+      const partOf = (it: { partNumber?: string }) =>
+        it.partNumber != null && String(it.partNumber).length > 0 ? String(it.partNumber) : "00";
+      const ids = new Set<string>();
+      let offset = 0;
+      for (;;) {
+        const res = await fetch(
+          `${API}/nomination/${CONGRESS}?sort=updateDate asc&limit=250&offset=${offset}&format=json&api_key=${KEY}`,
+          { headers: { Accept: "application/json" } },
+        );
+        const j = (await res.json()) as {
+          pagination?: { count?: number };
+          nominations?: { congress?: number; number?: number; partNumber?: string }[];
+        };
+        if (live < 0) live = j.pagination?.count ?? -1;
+        const items = j.nominations ?? [];
+        if (!items.length) break;
+        for (const it of items) ids.add(`${it.congress ?? CONGRESS}-pn${it.number}-${partOf(it)}`);
+        offset += items.length;
+        if (items.length < 250) break;
+        await new Promise((r) => setTimeout(r, 120));
+      }
+      distinctLive = ids.size;
     } catch (e) {
-      console.warn(`  live count fetch failed: ${(e as Error).message}`);
+      console.warn(`  live enumeration failed: ${(e as Error).message}`);
     }
   }
-  console.log(`stored rows: ${total}   live pagination.count: ${live >= 0 ? live : "(no CONGRESS_API_KEY)"}`);
-  if (live >= 0) console.log(`  landed-clean: ${total >= live ? "YES" : `NO — missing ${live - total}`}`);
+  const dupes = live >= 0 && distinctLive >= 0 ? live - distinctLive : 0;
+  console.log(
+    `stored rows: ${total}   distinct-live: ${distinctLive >= 0 ? distinctLive : "(no CONGRESS_API_KEY)"}   ` +
+      `pagination.count: ${live >= 0 ? live : "—"}`,
+  );
+  if (distinctLive >= 0) {
+    const clean = total >= distinctLive;
+    console.log(
+      `  landed-clean: ${clean ? "YES" : `NO — missing ${distinctLive - total}`}` +
+        (dupes > 0 ? ` (${distinctLive} distinct; ${dupes} API duplicate${dupes === 1 ? "" : "s"} in pagination.count)` : ""),
+    );
+  }
 
   console.log("\n=== civ/mil split (probe: ~833 civ / ~1,051 mil) ===");
   const mil = Number((await one("SELECT COUNT(*) AS n FROM nominations WHERE is_military = 1"))?.n ?? 0);
