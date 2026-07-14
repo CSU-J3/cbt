@@ -41,6 +41,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "races", href: "/electoral", icon: "🗳", label: "Electoral", tooltip: "Competitive 2026 races, forecaster ratings, and the primary calendar" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
   { key: "lobbying", href: "/lobbying", icon: "$", label: "Lobbying", tooltip: "What's being lobbied — LD-2 filings by issue area, and who's paying" },
+  { key: "nominations", href: "/nominations", icon: "◈", label: "Nominations", tooltip: "Presidential nominations — who's being confirmed, by agency and status" },
   { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
@@ -52,9 +53,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // label + amber-bright underline, with bracket space reserved on every item so
 // switching the active item causes no horizontal shift. Three groups split by
 // short vertical rules: \DASHBOARD | \BILLS \HEARINGS \MEMBERS \RACES \PATTERNS
-// \LOBBYING | \REPORTS \WATCHLIST (dividers before index 1 and 7 — HO 264 inserted
-// \HEARINGS and HO 437 inserted \LOBBYING into the middle group, bumping \REPORTS
-// from 5 → 6 → 7). Styling lives under
+// \LOBBYING \NOMINATIONS | \REPORTS \WATCHLIST (dividers before index 1 and 8 — HO
+// 264 inserted \HEARINGS, HO 437 inserted \LOBBYING, and HO 456 inserted
+// \NOMINATIONS into the middle group, bumping \REPORTS from 5 → 6 → 7 → 8).
+// Styling lives under
 // `.primary-nav .pnav-*` in globals.css (specificity beats `.home-header-nav a`).
 export function PrimaryNav({
   active,
@@ -71,7 +73,7 @@ export function PrimaryNav({
     <nav className={wrapperClass} aria-label="Primary navigation">
       {NAV_ITEMS.map((item, i) => (
         <Fragment key={item.key}>
-          {i === 1 || i === 7 ? (
+          {i === 1 || i === 8 ? (
             <span className="pnav-divider" aria-hidden />
           ) : null}
           <Link

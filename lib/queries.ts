@@ -4,6 +4,7 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
+import type { NominationDisposition } from "./nominations-sync";
 import {
   aggregateBillDrill,
   hydrateFilings,
@@ -3020,6 +3021,132 @@ export const getMemberAmendments = unstable_cache(
   },
   ["getMemberAmendments"],
   { revalidate: 3600, tags: ["amendments"] },
+);
+
+// HO 456 — the /nominations surface. Standalone pillar (no bill spine, no member
+// sponsor — probe-confirmed), CIVILIAN-scoped (is_military = 0): the ~1,049 bulk
+// military service PNs are excluded and disclosed, not shown. Live aggregation —
+// the corpus is ~1,879 rows (smaller than bills), so a GROUP BY computes live, no
+// rollup blob (the amendments/bills-scale call, not the lda_* precompute one).
+const NOMINATION_PIPELINE_ORDER: NominationDisposition[] = [
+  "confirmed", "returned", "withdrawn", "calendar", "reported", "hearings", "referred", "received",
+];
+const NOMINATION_DISPOSITION_SET = new Set<string>(NOMINATION_PIPELINE_ORDER);
+const NOMINATIONS_PAGE_SIZE = 25;
+
+export interface NominationsSummary {
+  byDisposition: { disposition: NominationDisposition; count: number }[]; // civilian, pipeline order
+  byAgency: { organization: string; count: number }[]; // civilian, count desc
+  civilianTotal: number;
+  militaryTotal: number;
+}
+
+export const getNominationsSummary = unstable_cache(
+  async (): Promise<NominationsSummary | null> => {
+    try {
+      const db = getDb();
+      const [dispRs, agencyRs, totalsRs] = await Promise.all([
+        db.execute("SELECT disposition, COUNT(*) AS n FROM nominations WHERE is_military = 0 GROUP BY disposition"),
+        db.execute(
+          "SELECT organization, COUNT(*) AS n FROM nominations WHERE is_military = 0 AND organization IS NOT NULL GROUP BY organization ORDER BY n DESC",
+        ),
+        db.execute("SELECT is_military, COUNT(*) AS n FROM nominations GROUP BY is_military"),
+      ]);
+      const dispMap = new Map<string, number>();
+      for (const r of dispRs.rows) dispMap.set(String(r.disposition), Number(r.n));
+      // Pipeline order (confirmed → … → received), NOT alphabetical or count.
+      const byDisposition = NOMINATION_PIPELINE_ORDER.filter((d) => dispMap.has(d)).map((d) => ({
+        disposition: d,
+        count: dispMap.get(d)!,
+      }));
+      const byAgency = agencyRs.rows.map((r) => ({
+        organization: String(r.organization),
+        count: Number(r.n),
+      }));
+      let civilianTotal = 0;
+      let militaryTotal = 0;
+      for (const r of totalsRs.rows) {
+        if (Number(r.is_military) === 1) militaryTotal = Number(r.n);
+        else civilianTotal = Number(r.n);
+      }
+      if (civilianTotal === 0 && militaryTotal === 0) return null; // empty table → honest empty state
+      return { byDisposition, byAgency, civilianTotal, militaryTotal };
+    } catch (e) {
+      console.error(`[nominations] getNominationsSummary failed: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getNominationsSummary"],
+  { revalidate: 3600, tags: ["nominations"] },
+);
+
+export interface NominationListRow {
+  id: string;
+  citation: string;
+  description: string | null;
+  organization: string | null;
+  disposition: NominationDisposition;
+  latestActionText: string | null;
+  latestActionDate: string | null;
+  receivedDate: string;
+}
+export interface NominationsPage {
+  rows: NominationListRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// The filtered civilian list, paginated. Equality filters bound as args
+// (injection-safe); `disposition` is enum-validated, `agency` is a plain equality
+// filter. No MAX_FEED_PAGES clamp — 830 civilian rows have no deep-OFFSET tail
+// problem. try/catch → an empty page so a bad read degrades, never 500s.
+export const getNominations = unstable_cache(
+  async (opts: { agency?: string; disposition?: string; page?: number }): Promise<NominationsPage> => {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const pageSize = NOMINATIONS_PAGE_SIZE;
+    const where = ["is_military = 0"];
+    const args: (string | number)[] = [];
+    if (opts.agency) {
+      where.push("organization = ?");
+      args.push(opts.agency);
+    }
+    if (opts.disposition && NOMINATION_DISPOSITION_SET.has(opts.disposition)) {
+      where.push("disposition = ?");
+      args.push(opts.disposition);
+    }
+    const whereSql = where.join(" AND ");
+    try {
+      const db = getDb();
+      const total = Number(
+        (await db.execute({ sql: `SELECT COUNT(*) AS n FROM nominations WHERE ${whereSql}`, args })).rows[0]?.n ?? 0,
+      );
+      const rs = await db.execute({
+        sql: `SELECT id, citation, description, organization, disposition,
+                     latest_action_text, latest_action_date, received_date
+              FROM nominations WHERE ${whereSql}
+              ORDER BY COALESCE(latest_action_date, received_date) DESC, pn_number DESC
+              LIMIT ? OFFSET ?`,
+        args: [...args, pageSize, (page - 1) * pageSize],
+      });
+      const rows = rs.rows.map((r) => ({
+        id: String(r.id),
+        citation: String(r.citation),
+        description: (r.description as string | null) ?? null,
+        organization: (r.organization as string | null) ?? null,
+        disposition: String(r.disposition) as NominationDisposition,
+        latestActionText: (r.latest_action_text as string | null) ?? null,
+        latestActionDate: (r.latest_action_date as string | null) ?? null,
+        receivedDate: String(r.received_date ?? ""),
+      }));
+      return { rows, total, page, pageSize };
+    } catch (e) {
+      console.error(`[nominations] getNominations failed: ${(e as Error).message}`);
+      return { rows: [], total: 0, page, pageSize };
+    }
+  },
+  ["getNominations"],
+  { revalidate: 3600, tags: ["nominations"] },
 );
 
 // Validate `?issue=` — LDA general_issue_codes are 2-8 uppercase letters (BUD,
