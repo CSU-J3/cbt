@@ -863,6 +863,41 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_amendments_sponsor ON amendments(sponsor_bioguide_id)`,
   `CREATE INDEX IF NOT EXISTS idx_amendments_update  ON amendments(update_date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_amendments_type    ON amendments(amendment_type)`,
+
+  // HO 455: nominations data layer (on the HO 454 GO — 1,884 PNs, 833 civilian
+  // with 100% disposition coverage, clean 24-value organization facet). LIST-ONLY
+  // v1: every column here is a list-level field + the computed `disposition`; the
+  // two detail-only columns (`committee_system_code`, `nominee_count`) are in the
+  // schema NULLABLE now so the deferred detail-hydration HO needs no migration.
+  // Loose links, no enforced FKs (the amendments cecff19 lesson). Composite key is
+  // (pn_number, part_number) — citations are PN{number}-{partNumber} and the base
+  // detail endpoint returns a DIFFERENT record; `id` encodes both. Military list
+  // PNs are stored as single collapsed rows (never explode the ~25k officers).
+  `CREATE TABLE IF NOT EXISTS nominations (
+    id TEXT PRIMARY KEY,
+    congress INTEGER NOT NULL,
+    pn_number INTEGER NOT NULL,
+    part_number TEXT NOT NULL,
+    citation TEXT NOT NULL,
+    is_military INTEGER NOT NULL,
+    organization TEXT,
+    description TEXT,
+    disposition TEXT NOT NULL,
+    latest_action_text TEXT,
+    latest_action_date TEXT,
+    received_date TEXT,
+    committee_system_code TEXT,
+    nominee_count INTEGER,
+    update_date TEXT NOT NULL,
+    raw_json TEXT,
+    ingested_at TEXT
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_nominations_pn   ON nominations(congress, pn_number, part_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_nominations_org         ON nominations(organization)`,
+  `CREATE INDEX IF NOT EXISTS idx_nominations_disposition ON nominations(disposition)`,
+  `CREATE INDEX IF NOT EXISTS idx_nominations_military    ON nominations(is_military)`,
+  `CREATE INDEX IF NOT EXISTS idx_nominations_update      ON nominations(update_date DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_nominations_committee   ON nominations(committee_system_code)`,
 ];
 
 async function ensureColumn(

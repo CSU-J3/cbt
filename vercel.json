@@ -39,6 +39,9 @@
     },
     "app/api/cron/amendments/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/cron/nominations/route.ts": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -89,6 +92,10 @@
     {
       "path": "/api/cron/amendments",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/nominations",
+      "schedule": "0 9 * * *"
     }
   ]
 }
