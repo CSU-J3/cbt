@@ -1,17 +1,19 @@
-import type { TopicCrosswalkRow } from "@/lib/queries";
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import type { TopicCrosswalkRow } from "@/lib/lda-rollup";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
-// HO 444 — the /lobbying CBT-topic crosswalk section. The same corpus the native
-// issue bars show, re-expressed in CBT's 24-topic vocabulary — the first time
-// "what's lobbied" reads in the same units as the dashboard's bill-topic mix. A
-// PARALLEL lens, not a replacement: it sits right after the native `general_issue_code`
-// bars, and the lossiness of the mapping is disclosed by showing both.
-//
-// Ranked bars mirroring IssueBars, but topic-COLORED + topic-LABELED (this is the
-// topic lens, so it uses CBT's per-topic color + abbrev system). Non-interactive
-// in v1 — there's no topic-keyed drill (the per-code drill is issue-code-keyed). A
-// click-through (topic → its constituent issue codes → their existing drills) is a
-// clean v2. Server component; served O(1) from the lda_topic_crosswalk blob.
+// HO 444 → v2 (HO 463) — the /lobbying CBT-topic crosswalk section, now a
+// click-through: the same corpus the native issue bars show, re-expressed in
+// CBT's 24-topic vocabulary, with each topic bar expanding to its constituent
+// LDA issue codes. Each code chip links into the EXISTING Section 2 ?issue=
+// drill (drill[code] is precomputed for every corpus code) and scrolls it into
+// view (#lobby-drill). A PARALLEL lens beside the native general_issue_code bars;
+// the mapping's lossiness is disclosed by showing both. Served O(1) from the
+// lda_topic_crosswalk blob; the per-topic code lists are derived page-side by
+// grouping rollup.issues under the SAME topicForCode the blob keys on.
 //
 // Multi-code property: a filing naming codes in two topics counts under each, so
 // the bars DON'T sum to the corpus — the header says "by issue focus", never
@@ -23,7 +25,16 @@ const GRID =
   "grid items-center gap-x-[14px] grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_64px] " +
   "sm:grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_64px_64px]";
 
-export function TopicCrosswalk({ topics }: { topics: TopicCrosswalkRow[] }) {
+export function TopicCrosswalk({
+  topics,
+  topicCodes,
+  selected,
+}: {
+  topics: TopicCrosswalkRow[];
+  topicCodes: Record<string, { code: string; display: string; filings: number }[]>;
+  selected: string | null;
+}) {
+  const [open, setOpen] = useState<string | null>(null);
   if (topics.length === 0) return null;
   const maxFilings = Math.max(1, ...topics.map((t) => t.filings));
 
@@ -40,9 +51,10 @@ export function TopicCrosswalk({ topics }: { topics: TopicCrosswalkRow[] }) {
           className="text-[11px] leading-snug"
           style={{ color: "var(--text-dim)", fontFamily: "var(--sans)" }}
         >
-          The same filings mapped to CBT&rsquo;s 24 topics. A filing can name
-          several issue areas, so it counts under each — the bars don&rsquo;t sum
-          to a share.
+          The same filings mapped to CBT&rsquo;s 24 topics. Tap a topic to see the
+          issue codes it covers &mdash; each drills to who&rsquo;s lobbying it. A
+          filing can name several issue areas, so it counts under each; the bars
+          don&rsquo;t sum to a share.
         </span>
       </div>
       <div className="border" style={{ borderColor: "var(--border-strong)" }}>
@@ -63,21 +75,41 @@ export function TopicCrosswalk({ topics }: { topics: TopicCrosswalkRow[] }) {
           {topics.map((t) => {
             const color = topicColor(t.topic);
             const widthPct = (t.filings / maxFilings) * 100;
+            const codes = topicCodes[t.topic] ?? [];
+            const isOpen = open === t.topic;
             return (
               <li key={t.topic}>
-                <div
-                  className={`${GRID} px-[14px] py-[10px]`}
-                  style={{ borderBottom: "0.5px solid var(--border-soft)" }}
+                <button
+                  type="button"
+                  onClick={() => setOpen(isOpen ? null : t.topic)}
+                  aria-expanded={isOpen}
+                  disabled={codes.length === 0}
+                  className={`${GRID} w-full cursor-pointer px-[14px] py-[10px] text-left transition hover:bg-[var(--bg-row-hover)] disabled:cursor-default`}
+                  style={{
+                    borderBottom: "0.5px solid var(--border-soft)",
+                    borderLeft: `3px solid ${isOpen ? "var(--accent-amber)" : "transparent"}`,
+                    backgroundColor: isOpen ? "var(--bg-row-hover)" : undefined,
+                  }}
                 >
                   <span className="flex min-w-0 flex-col leading-[1.2]">
-                    <span className="truncate text-[12px]" style={{ color }}>
-                      {topicFullLabel(t.topic)}
+                    <span className="flex items-center gap-[6px]">
+                      <span
+                        className="text-[10px] leading-none"
+                        style={{ color: "var(--text-dim)" }}
+                        aria-hidden
+                      >
+                        {isOpen ? "▾" : "▸"}
+                      </span>
+                      <span className="truncate text-[12px]" style={{ color }}>
+                        {topicFullLabel(t.topic)}
+                      </span>
                     </span>
                     <span
-                      className="text-[10px] uppercase tracking-[0.5px]"
+                      className="pl-[16px] text-[10px] uppercase tracking-[0.5px]"
                       style={{ color: "var(--text-dim)" }}
                     >
-                      {topicLabel(t.topic)}
+                      {topicLabel(t.topic)} · {codes.length} code
+                      {codes.length === 1 ? "" : "s"}
                     </span>
                   </span>
                   <span
@@ -102,7 +134,51 @@ export function TopicCrosswalk({ topics }: { topics: TopicCrosswalkRow[] }) {
                   >
                     {t.distinctClients.toLocaleString()}
                   </span>
-                </div>
+                </button>
+                {isOpen && codes.length > 0 ? (
+                  <div
+                    className="flex flex-wrap gap-[6px] px-[14px] pb-[11px] pt-[3px]"
+                    style={{
+                      backgroundColor: "var(--bg-panel)",
+                      borderBottom: "0.5px solid var(--border-soft)",
+                    }}
+                  >
+                    {codes.map((c) => {
+                      const active = c.code === selected;
+                      return (
+                        <Link
+                          key={c.code}
+                          href={`/lobbying?issue=${encodeURIComponent(c.code)}#lobby-drill`}
+                          title={c.display}
+                          aria-current={active ? "true" : undefined}
+                          className="inline-flex items-center gap-[6px] rounded-[2px] border px-[7px] py-[3px] text-[11px] no-underline transition hover:bg-[var(--bg-row-hover)]"
+                          style={{
+                            borderColor: active
+                              ? "var(--accent-amber)"
+                              : "var(--border-strong)",
+                            color: active
+                              ? "var(--accent-amber)"
+                              : "var(--text-secondary)",
+                          }}
+                        >
+                          <span className="font-[600] tracking-[0.3px]">{c.code}</span>
+                          <span
+                            className="max-w-[18ch] truncate"
+                            style={{ color: "var(--text-dim)", fontFamily: "var(--sans)" }}
+                          >
+                            {c.display}
+                          </span>
+                          <span
+                            className="tabular-nums"
+                            style={{ color: "var(--text-dim)" }}
+                          >
+                            {c.filings.toLocaleString()}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </li>
             );
           })}

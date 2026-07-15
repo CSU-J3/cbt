@@ -5,6 +5,7 @@ import { IssueBars } from "@/components/IssueBars";
 import { IssueDrill } from "@/components/IssueDrill";
 import { Pagination } from "@/components/Pagination";
 import { TopicCrosswalk } from "@/components/TopicCrosswalk";
+import { topicForCode } from "@/lib/lda-issue-topic-map";
 import {
   getLobbyingRollup,
   getRecentFilings,
@@ -72,6 +73,28 @@ export default async function LobbyingPage({
 
   const { stats, issues, drill } = rollup;
   const selected = sanitizeIssueCode(params.issue) ?? issues[0]?.code ?? null;
+
+  // HO 463 — group every corpus issue code under its CBT topic so the crosswalk
+  // bars can drill into their constituent codes' existing per-code drills.
+  // issues[] covers every corpus code and drill[code] exists for each, and
+  // computeTopicCrosswalk keys on the same topicForCode — so this aligns with the
+  // bar totals and no chip lands on a blank drill.
+  const topicCodes: Record<
+    string,
+    { code: string; display: string; filings: number }[]
+  > = {};
+  for (const i of issues) {
+    const t = topicForCode(i.code);
+    (topicCodes[t] ??= []).push({
+      code: i.code,
+      display: i.display,
+      filings: i.filings,
+    });
+  }
+  // issues is already filings-desc, so each group is too — sort is defensive.
+  for (const group of Object.values(topicCodes)) {
+    group.sort((a, b) => b.filings - a.filings);
+  }
   const selectedDrill = selected ? (drill[selected] ?? null) : null;
   const billLinkedPct = stats.billLinkedPct.toFixed(1);
 
@@ -120,7 +143,7 @@ export default async function LobbyingPage({
           <div className="patterns-left">
             <IssueBars issues={issues} selected={selected} />
           </div>
-          <aside className="patterns-right">
+          <aside id="lobby-drill" className="patterns-right">
             {selectedDrill ? (
               <IssueDrill drill={selectedDrill} />
             ) : (
@@ -137,7 +160,11 @@ export default async function LobbyingPage({
         {/* Section 3 — CBT-topic crosswalk: the corpus in CBT's 24-topic
             vocabulary, a parallel lens beside the native issue bars (HO 444) */}
         {topicCrosswalk?.topics.length ? (
-          <TopicCrosswalk topics={topicCrosswalk.topics} />
+          <TopicCrosswalk
+            topics={topicCrosswalk.topics}
+            topicCodes={topicCodes}
+            selected={selected}
+          />
         ) : null}
 
         {/* Section 4 — corpus-wide top-firms leaderboard (HO 442) */}
