@@ -42,6 +42,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
   { key: "lobbying", href: "/lobbying", icon: "$", label: "Lobbying", tooltip: "What's being lobbied — LD-2 filings by issue area, and who's paying" },
   { key: "nominations", href: "/nominations", icon: "◈", label: "Nominations", tooltip: "Presidential nominations — who's being confirmed, by agency and status" },
+  { key: "amendments", href: "/amendments", icon: "Δ", label: "Amendments", tooltip: "Floor amendments — who's amending which bills, and the sliver that gets voted on" },
   { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];

@@ -59,7 +59,8 @@ export type NavKey =
   | "reports"
   | "watchlist"
   | "lobbying"
-  | "nominations";
+  | "nominations"
+  | "amendments";
 
 // Inverts GROUP_TABS so HeaderBar can derive the active top-nav key
 // from the basePath each page passes in. /watchlist is a standalone
@@ -98,6 +99,8 @@ export function pathToNavKey(basePath: string): NavKey | null {
   if (basePath === "/lobbying") return "lobbying";
   // HO 456: /nominations — standalone surface, no group tabs (mirrors /lobbying).
   if (basePath === "/nominations") return "nominations";
+  // HO 461: /amendments — standalone aggregate surface, no group tabs.
+  if (basePath === "/amendments") return "amendments";
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
   // HO 184: /bills (the Bills|News landing) no longer has a GROUP_TABS entry —
   // Bills/News were dropped from the feed sub-nav (the segmented toggle owns
