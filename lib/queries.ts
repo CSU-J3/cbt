@@ -3023,6 +3023,224 @@ export const getMemberAmendments = unstable_cache(
   { revalidate: 3600, tags: ["amendments"] },
 );
 
+// HO 461 — the standalone /amendments aggregate surface (the third + final
+// amendments fork, the /lobbying + /nominations class). LIVE, no dashboard_state
+// blob: amendments is bills-scale (6,788 rows, 15× smaller than the lda_* tables
+// that forced precompute), and the Step-0 cold-cost gate confirmed all three
+// summary cuts clear well under the 2s bar — by-bill/by-sponsor index-only
+// (idx_amendments_bill/sponsor, 90/138ms), and the disposition scan covered by the
+// HO 461 partial idx_amendments_acted (4065ms SCAN → 40ms COVERING INDEX). Reuses
+// the module-level deriveDisposition (display-only, HO 452 — the persisted status
+// model is closed NO-GO, not reopened here).
+export interface AmendmentsSummary {
+  total: number; // COUNT(*) — all amendments
+  acted: number; // latest_action_text present (~8.6%)
+  agreed: number;
+  failed: number;
+  otherActed: number; // acted − agreed − failed (withdrawn / OOO / pending-with-text)
+  filedOnly: number; // total − acted (the ~91% never called up)
+  byChamber: { senate: number; house: number }; // SAMDT+SUAMDT → senate, HAMDT → house
+  topBills: { billId: string; billLabel: string; billTitle: string | null; count: number }[];
+  topSponsors: { bioguideId: string; name: string; party: PartyKey | null; state: string | null; count: number }[];
+}
+
+const AMENDMENTS_TOP_N = 15; // store == render
+const AMENDMENTS_PAGE_SIZE = 25;
+
+export const getAmendmentsSummary = unstable_cache(
+  async (): Promise<AmendmentsSummary | null> => {
+    try {
+      const db = getDb();
+      // Independent reads together: total, the covered disposition scan, the
+      // chamber split, and the two ranked aggregates (≤15 rows each).
+      const [totalRs, dispRs, chamberRs, billAgg, sponAgg] = await Promise.all([
+        db.execute("SELECT COUNT(*) AS n FROM amendments"),
+        db.execute("SELECT latest_action_text FROM amendments WHERE latest_action_text IS NOT NULL"),
+        db.execute("SELECT amendment_type, COUNT(*) AS n FROM amendments GROUP BY amendment_type"),
+        db.execute(
+          `SELECT amended_bill_id, COUNT(*) AS n FROM amendments WHERE amended_bill_id IS NOT NULL GROUP BY amended_bill_id ORDER BY n DESC LIMIT ${AMENDMENTS_TOP_N}`,
+        ),
+        db.execute(
+          `SELECT sponsor_bioguide_id, COUNT(*) AS n FROM amendments WHERE sponsor_bioguide_id IS NOT NULL GROUP BY sponsor_bioguide_id ORDER BY n DESC LIMIT ${AMENDMENTS_TOP_N}`,
+        ),
+      ]);
+
+      const total = Number(totalRs.rows[0]?.n ?? 0);
+      let agreed = 0;
+      let failed = 0;
+      for (const r of dispRs.rows) {
+        const d = deriveDisposition((r.latest_action_text as string | null) ?? null);
+        if (d === "agreed") agreed++;
+        else if (d === "failed") failed++;
+      }
+      const acted = dispRs.rows.length;
+      const otherActed = acted - agreed - failed;
+      const filedOnly = total - acted;
+
+      let senate = 0;
+      let house = 0;
+      for (const r of chamberRs.rows) {
+        const t = String(r.amendment_type);
+        const n = Number(r.n ?? 0);
+        if (t === "HAMDT") house += n;
+        else senate += n; // SAMDT + SUAMDT
+      }
+
+      // Hydrate the ≤15 ranked ids with display labels (one IN-join each).
+      const billIds = billAgg.rows.map((r) => String(r.amended_bill_id));
+      const sponIds = sponAgg.rows.map((r) => String(r.sponsor_bioguide_id));
+      const [billMeta, sponMeta] = await Promise.all([
+        billIds.length
+          ? db.execute({
+              sql: `SELECT id, bill_type, bill_number, title FROM bills WHERE id IN (${billIds.map(() => "?").join(",")})`,
+              args: billIds,
+            })
+          : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+        sponIds.length
+          ? db.execute({
+              sql: `SELECT bioguide_id, name, party, state FROM members WHERE bioguide_id IN (${sponIds.map(() => "?").join(",")})`,
+              args: sponIds,
+            })
+          : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+      ]);
+      const billById = new Map(billMeta.rows.map((r) => [String(r.id), r]));
+      const sponById = new Map(sponMeta.rows.map((r) => [String(r.bioguide_id), r]));
+
+      // Re-sort by the aggregate's count-desc order (the IN-join doesn't preserve it).
+      const topBills = billAgg.rows.map((r) => {
+        const id = String(r.amended_bill_id);
+        const b = billById.get(id);
+        return {
+          billId: id,
+          billLabel: b ? formatBillId(String(b.bill_type), Number(b.bill_number)) : id,
+          billTitle: (b?.title as string | null) ?? null,
+          count: Number(r.n ?? 0),
+        };
+      });
+      const topSponsors = sponAgg.rows.map((r) => {
+        const id = String(r.sponsor_bioguide_id);
+        const m = sponById.get(id);
+        return {
+          bioguideId: id,
+          name: (m?.name as string | null) ?? id,
+          party: normalizePartyVariant((m?.party as string | null) ?? null),
+          state: (m?.state as string | null) ?? null,
+          count: Number(r.n ?? 0),
+        };
+      });
+
+      return { total, acted, agreed, failed, otherActed, filedOnly, byChamber: { senate, house }, topBills, topSponsors };
+    } catch (e) {
+      console.error(`[amendments] getAmendmentsSummary failed: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getAmendmentsSummary"],
+  { revalidate: 3600, tags: ["amendments"] },
+);
+
+export interface AmendmentListRow {
+  id: string;
+  label: string; // "SAMDT 2137"
+  amendmentType: string;
+  amendedBillId: string | null;
+  amendedBillLabel: string | null; // formatBillId
+  sponsorBioguideId: string | null;
+  sponsorName: string | null; // stored, already carries the "[D-CT]" bracket
+  sponsorParty: PartyKey | null;
+  sponsorState: string | null;
+  purpose: string | null;
+  latestActionText: string | null;
+  latestActionDate: string | null;
+  submittedDate: string;
+  amendsLabel: string | null; // sub-amendment parent, via the pa self-join
+  disposition: "agreed" | "failed" | "other";
+}
+
+// The filtered, paginated corpus feed — BOUNDED (LIMIT + small facets), the
+// low-risk class, ordered update_date DESC (idx_amendments_update). The corpus feed
+// fixes neither bill nor sponsor, so it carries the merged getBillAmendments +
+// getMemberAmendments join set (members + bills + the pa self-join). Disposition
+// filter is COARSE only (acted / filed) — deriveDisposition is JS keyword logic, a
+// SQL LIKE mirror would drift, so the fine grain (agreed/failed/other) stays on the
+// per-row dot; fine-grained filtering is a banked follow-up.
+export const getAmendments = unstable_cache(
+  async (opts: { type?: string; disposition?: string; bill?: string; page?: number }): Promise<{
+    rows: AmendmentListRow[];
+    total: number;
+    page: number;
+  }> => {
+    const page = Math.max(1, Math.floor(opts.page ?? 1));
+    const where: string[] = [];
+    const args: (string | number)[] = [];
+    if (opts.type && ["SAMDT", "HAMDT", "SUAMDT"].includes(opts.type)) {
+      where.push("a.amendment_type = ?");
+      args.push(opts.type);
+    }
+    if (opts.bill) {
+      where.push("a.amended_bill_id = ?");
+      args.push(opts.bill);
+    }
+    if (opts.disposition === "acted") where.push("a.latest_action_text IS NOT NULL");
+    else if (opts.disposition === "filed") where.push("a.latest_action_text IS NULL");
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    try {
+      const db = getDb();
+      const total = Number(
+        (await db.execute({ sql: `SELECT COUNT(*) AS n FROM amendments a ${whereSql}`, args })).rows[0]?.n ?? 0,
+      );
+      const rs = await db.execute({
+        sql: `SELECT a.id, a.amendment_type, a.amendment_number, a.amended_bill_id,
+                     a.sponsor_bioguide_id, a.sponsor_name, a.purpose,
+                     a.latest_action_text, a.latest_action_date, a.submitted_date,
+                     a.amends_amendment_id,
+                     m.party AS sponsor_party, m.state AS sponsor_state,
+                     b.bill_type AS amended_bill_type, b.bill_number AS amended_bill_number,
+                     pa.amendment_type AS parent_type, pa.amendment_number AS parent_number
+              FROM amendments a
+              LEFT JOIN members    m  ON m.bioguide_id = a.sponsor_bioguide_id
+              LEFT JOIN bills      b  ON b.id = a.amended_bill_id
+              LEFT JOIN amendments pa ON pa.id = a.amends_amendment_id
+              ${whereSql}
+              ORDER BY a.update_date DESC
+              LIMIT ? OFFSET ?`,
+        args: [...args, AMENDMENTS_PAGE_SIZE, (page - 1) * AMENDMENTS_PAGE_SIZE],
+      });
+      const rows = rs.rows.map((r) => {
+        const amendmentType = String(r.amendment_type);
+        const billType = r.amended_bill_type as string | null;
+        const billNumber = r.amended_bill_number as number | null;
+        const parentType = r.parent_type as string | null;
+        const parentNumber = r.parent_number as number | null;
+        const latestActionText = (r.latest_action_text as string | null) ?? null;
+        return {
+          id: String(r.id),
+          label: `${amendmentType} ${r.amendment_number}`,
+          amendmentType,
+          amendedBillId: (r.amended_bill_id as string | null) ?? null,
+          amendedBillLabel: billType && billNumber != null ? formatBillId(billType, billNumber) : null,
+          sponsorBioguideId: (r.sponsor_bioguide_id as string | null) ?? null,
+          sponsorName: (r.sponsor_name as string | null) ?? null,
+          sponsorParty: normalizePartyVariant(r.sponsor_party as string | null),
+          sponsorState: (r.sponsor_state as string | null) ?? null,
+          purpose: (r.purpose as string | null) ?? null,
+          latestActionText,
+          latestActionDate: (r.latest_action_date as string | null) ?? null,
+          submittedDate: String(r.submitted_date),
+          amendsLabel: parentType && parentNumber != null ? `${parentType} ${parentNumber}` : null,
+          disposition: deriveDisposition(latestActionText),
+        };
+      });
+      return { rows, total, page };
+    } catch (e) {
+      console.error(`[amendments] getAmendments failed: ${(e as Error).message}`);
+      return { rows: [], total: 0, page };
+    }
+  },
+  ["getAmendments"],
+  { revalidate: 3600, tags: ["amendments"] },
+);
+
 // HO 456 — the /nominations surface. Standalone pillar (no bill spine, no member
 // sponsor — probe-confirmed), CIVILIAN-scoped (is_military = 0): the ~1,049 bulk
 // military service PNs are excluded and disclosed, not shown. Live aggregation —

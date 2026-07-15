@@ -863,6 +863,16 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_amendments_sponsor ON amendments(sponsor_bioguide_id)`,
   `CREATE INDEX IF NOT EXISTS idx_amendments_update  ON amendments(update_date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_amendments_type    ON amendments(amendment_type)`,
+  // HO 461: partial COVERING index for the /amendments disposition breakdown — the
+  // one unbounded summary cut not already index-covered. `disposition` is
+  // display-only-derived (HO 452 killed the persisted column), so the corpus
+  // breakdown scans latest_action_text; without this it's a full table SCAN that
+  // hydrates raw_json per page (measured 4065ms cold on 6,788 rows). The partial
+  // index over exactly the ~586 acted rows makes it index-only (SEARCH USING
+  // COVERING INDEX, 40ms) — a pure performance index (the HO 277/340 covering-
+  // aggregate fix), NOT a status model (does not reopen HO 452). In the statements
+  // array (not main()) because latest_action_text is an original column.
+  `CREATE INDEX IF NOT EXISTS idx_amendments_acted   ON amendments(latest_action_text) WHERE latest_action_text IS NOT NULL`,
 
   // HO 455: nominations data layer (on the HO 454 GO — 1,884 PNs, 833 civilian
   // with 100% disposition coverage, clean 24-value organization facet). LIST-ONLY
