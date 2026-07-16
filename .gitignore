@@ -39,3 +39,7 @@ cbt-*.png
 # claude code per-developer state (skills/ stays tracked)
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# playwright e2e artifacts (HO 379 crawler + HO 472 fit-finish harness)
+test-results/
+playwright-report/

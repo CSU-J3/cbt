@@ -63,6 +63,12 @@ const ROUTES: Route[] = [
   { slug: "patterns", path: "/patterns" },
   { slug: "search", path: "/search" },
   { slug: "president", path: "/president" },
+  // HO 461/456/437/389 aggregate surfaces — shipped after the HO 379 crawler was
+  // written, never before in the console/failed-request sweep (HO 472).
+  { slug: "amendments", path: "/amendments" },
+  { slug: "nominations", path: "/nominations" },
+  { slug: "lobbying", path: "/lobbying" },
+  { slug: "trades", path: "/trades" },
   { slug: "committees-redirect", path: "/committees" }, // redirects → /members
   { slug: "watchlist", path: "/watchlist" }, // anonymous: empty/sign-in, not a 500
   { slug: "dashboard-classic", path: "/dashboard-classic" },
