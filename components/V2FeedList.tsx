@@ -15,6 +15,7 @@ import { useEffect, useRef, useState } from "react";
 import { daysSince, formatRelativeAge, parseTopics } from "@/lib/format";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { BillIdChip } from "@/components/BillIdChip";
+import { PartyTag } from "@/components/PartyTag";
 import { TopicChips } from "@/components/TopicChips";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import type { FeedBill } from "@/lib/queries";
@@ -86,13 +87,6 @@ function Metric({ bill, mode }: { bill: FeedBill; mode: V2MetricMode }) {
   return <span className="v2f-metric">INTRO · {formatRelativeAge(bill.introduced_date)}</span>;
 }
 
-function partyColor(party: string | null | undefined): string {
-  const u = (party ?? "").trim().toUpperCase();
-  if (u === "R") return "var(--party-republican)";
-  if (u === "D") return "var(--party-democrat)";
-  return "var(--party-independent)";
-}
-
 // HO 321: collapsed-row line 2 — sponsor LASTNAME (links to the member page, the
 // same `/members/[bioguide]` route the expand's sponsor card resolves to) + a
 // party-colored [party-state] bracket + a middot + the shared TopicChips
@@ -105,10 +99,6 @@ function SubLine({ bill }: { bill: FeedBill }) {
     ""
   ).trim();
   const topics = parseTopics(bill.topics);
-  const bracket =
-    bill.sponsor_party || bill.sponsor_state
-      ? `[${bill.sponsor_party ?? "?"}-${bill.sponsor_state ?? "?"}]`
-      : null;
   if (!last && topics.length === 0) return null;
 
   return (
@@ -128,13 +118,12 @@ function SubLine({ bill }: { bill: FeedBill }) {
           </span>
         )
       ) : null}
-      {last && bracket ? (
-        <span
+      {last ? (
+        <PartyTag
+          party={bill.sponsor_party}
+          state={bill.sponsor_state}
           className="v2f-subline-bracket"
-          style={{ color: partyColor(bill.sponsor_party) }}
-        >
-          {bracket}
-        </span>
+        />
       ) : null}
       {last && topics.length > 0 ? (
         <span className="v2f-subline-sep">·</span>

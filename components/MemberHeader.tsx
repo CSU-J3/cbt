@@ -11,14 +11,8 @@ import type {
   PalestineScorecard,
   RaceRating,
 } from "@/lib/queries";
+import { partyColor } from "@/lib/race-colors";
 import { raceIdFromMember } from "@/lib/race-id";
-
-function partyColor(party: Member["party"]): string {
-  if (party === "R") return "var(--party-republican)";
-  if (party === "D") return "var(--party-democrat)";
-  if (party === "I") return "var(--party-independent)";
-  return "var(--text-dim)";
-}
 
 function initials(name: string): string {
   const parts = name.split(/[\s,]+/).filter(Boolean);

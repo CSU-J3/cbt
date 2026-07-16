@@ -10,10 +10,10 @@ import {
   type FeedBill,
   type MemberAffiliation,
   type MemberCommitteeRow,
-  normalizePartyVariant,
   type SponsorStats,
   type SponsorTopic,
 } from "@/lib/queries";
+import { partyColor as sharedPartyColor } from "@/lib/race-colors";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 
 // HO 198: 3-column member card (matches the HO 191 bill-panel idiom) —
@@ -42,14 +42,6 @@ const STAGE_BADGES: {
   { key: "president", glyph: "▸▸▸▸", label: "PRES", color: "var(--stage-president)" },
   { key: "enacted", glyph: "✓", label: "ENACTED", color: "var(--stage-enacted)" },
 ];
-
-function partyColorFor(party: string | null): string {
-  const key = normalizePartyVariant(party);
-  if (key === "R") return "var(--party-republican)";
-  if (key === "D") return "var(--party-democrat)";
-  if (key === "I") return "var(--party-independent)";
-  return "var(--text-dim)";
-}
 
 function RailLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -99,7 +91,7 @@ export function SponsorExpandedPanel({
   includeCeremonial?: boolean;
   committeeCap?: number;
 }) {
-  const partyColor = partyColorFor(sponsorParty);
+  const partyColor = sharedPartyColor(sponsorParty);
   const enactedPct =
     stats.total > 0 ? Math.round((stats.enacted / stats.total) * 100) : 0;
   const ceremonialSuffix = includeCeremonial ? "&ceremonial=1" : "";

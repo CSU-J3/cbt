@@ -17,6 +17,7 @@
 // anchor inside the compact/link-only row's <Link> would be invalid HTML.
 import { useState } from "react";
 import { ordinal } from "@/lib/format";
+import { partyColor as sharedPartyColor } from "@/lib/race-colors";
 import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
 
@@ -24,23 +25,6 @@ import type { FeedBill } from "@/lib/queries";
 // Rep./Sen. prefix without threading a chamber field (and disambiguates a NULL
 // district: Senate vs House at-large).
 const SENATE_BILL_TYPES = new Set(["s", "sjres", "sconres", "sres"]);
-
-const PARTY_COLOR = {
-  R: "var(--party-republican)",
-  D: "var(--party-democrat)",
-  I: "var(--party-independent)",
-} as const;
-
-// Inline party normalization (mirrors lib/queries normalizePartyVariant) —
-// kept local so this client component doesn't import a runtime value from
-// lib/queries (which would pull next/cache into the client bundle).
-function partyColorFor(party: string | null): string {
-  if (!party) return "var(--text-muted)";
-  const u = party.trim().toUpperCase();
-  if (u === "R") return PARTY_COLOR.R;
-  if (u === "D") return PARTY_COLOR.D;
-  return PARTY_COLOR.I;
-}
 
 function initials(name: string): string {
   const noPrefix = name
@@ -99,7 +83,7 @@ export function SponsorHoverName({
   anchorClassName?: string;
 }) {
   const rawName = bill.sponsor_name ?? "";
-  const partyColor = partyColorFor(bill.sponsor_party);
+  const partyColor = sharedPartyColor(bill.sponsor_party);
   const isSenate = SENATE_BILL_TYPES.has(bill.bill_type);
   const district = bill.sponsor_district ?? null;
 

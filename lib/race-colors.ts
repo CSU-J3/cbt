@@ -12,10 +12,21 @@ import type { PartyKey } from "@/lib/queries";
 
 export type RosterEntry = { name: string; party: PartyKey | null };
 
-export function partyColor(p: PartyKey | null | undefined): string {
+// The one canonical party-color helper (HO 468 — closes the ~8-way fork). Takes
+// a raw `string` (not just PartyKey) and normalizes inline (uppercase; trims).
+// Inlined NOT imported from lib/queries because this module is a leaf imported by
+// client components — importing the queries value would drag next/cache into
+// their bundles (the HO 425/430 rule).
+//
+// Two categories stay distinct: I / ID (independents — King/Sanders/Kiley) →
+// independent purple; null / any UNRECOGNIZED code (e.g. "L") → --text-dim gray,
+// the default every original helper (PartyTag, race-colors, MemberHeader) used.
+export function partyColor(party: string | null | undefined): string {
+  if (!party) return "var(--text-dim)";
+  const p = party.trim().toUpperCase();
   if (p === "R") return "var(--party-republican)";
   if (p === "D") return "var(--party-democrat)";
-  if (p === "I") return "var(--party-independent)";
+  if (p === "I" || p === "ID") return "var(--party-independent)";
   return "var(--text-dim)";
 }
 

@@ -1,27 +1,21 @@
-function partyColor(party: string | null): string {
-  switch (party) {
-    case "R":
-      return "var(--party-republican)";
-    case "D":
-      return "var(--party-democrat)";
-    case "I":
-    case "ID":
-      return "var(--party-independent)";
-    default:
-      return "var(--text-dim)";
-  }
-}
+import { partyColor } from "@/lib/race-colors";
 
+// The canonical [P-ST] party bracket (HO 468). Color comes from the one shared
+// partyColor; `className` lets a call-site pass its own layout/spacing classes
+// (e.g. the feed's .v2f-subline-bracket, the members list's .mc-brk).
 export function PartyTag({
   party,
   state,
+  className,
 }: {
   party: string | null;
   state: string | null;
+  className?: string;
 }) {
   if (!party && !state) return null;
-  const text = `[${party ?? "?"}-${state ?? "?"}]`;
   return (
-    <span style={{ color: partyColor(party) }}>{text}</span>
+    <span className={className} style={{ color: partyColor(party) }}>
+      [{party ?? "?"}-{state ?? "?"}]
+    </span>
   );
 }

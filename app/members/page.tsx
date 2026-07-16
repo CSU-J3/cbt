@@ -7,6 +7,7 @@ import { IdeologyStrip } from "@/components/IdeologyStrip";
 import { MemberTopicBar } from "@/components/MemberTopicBar";
 import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
+import { PartyTag } from "@/components/PartyTag";
 import { PolarizationOverTime } from "@/components/PolarizationOverTime";
 import { RosterShowAll } from "@/components/RosterShowAll";
 import { SearchBox } from "@/components/SearchBox";
@@ -39,7 +40,6 @@ import {
   getSponsorStats,
   getSponsorTopTopics,
   type MemberRanking,
-  normalizePartyVariant,
   sanitizeChamber,
   sanitizeIncludeCeremonial,
   sanitizeMemberParty,
@@ -63,14 +63,6 @@ type SearchParams = {
 // (HO 328 spec). The list scrolls on overflow. 600 covers all 536 current members.
 const LIST_LIMIT = 600;
 const ROSTER_CAP = 10;
-
-function partyColorFor(party: string | null): string {
-  const key = normalizePartyVariant(party);
-  if (key === "R") return "var(--party-republican)";
-  if (key === "D") return "var(--party-democrat)";
-  if (key === "I") return "var(--party-independent)";
-  return "var(--text-dim)";
-}
 
 function chamberTag(chamber: "house" | "senate" | "joint"): string {
   if (chamber === "house") return "HSE";
@@ -302,7 +294,6 @@ export default async function MembersPage({
   const expandedKey = expansion?.key ?? null;
   function renderRow(m: Row) {
     const isExpanded = expandedKey === m.bioguide_id;
-    const partyColor = partyColorFor(m.party);
     const rateLabel =
       m.passrate === null ? "—" : `${Math.round(m.passrate * 100)}%`;
     const ratePct = m.passrate === null ? 0 : Math.round(m.passrate * 100);
@@ -333,12 +324,11 @@ export default async function MembersPage({
             >
               {m.name}
             </span>
-            <span
+            <PartyTag
+              party={m.party}
+              state={m.state}
               className="mc-brk shrink-0 tabular-nums"
-              style={{ color: partyColor }}
-            >
-              [{m.party ?? "?"}-{m.state ?? "?"}]
-            </span>
+            />
             {badge ? (
               <span className={`mc-rtag ${badge.cls} shrink-0`}>
                 {badge.label}
