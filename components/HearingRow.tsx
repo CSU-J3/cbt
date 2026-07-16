@@ -10,6 +10,7 @@
 // — there the bill is the current bill, so the chips are noise. The expanded
 // panel's BILLS COVERED section is unaffected (a hearing can cover other bills).
 import Link from "next/link";
+import { BillIdChip } from "@/components/BillIdChip";
 import { PartyTag } from "@/components/PartyTag";
 import { StageIndicator } from "@/components/StageIndicator";
 import {
@@ -103,9 +104,11 @@ function ExpandedPanel({
           <div>
             {m.bills.map((b) => (
               <div key={b.id} className="hearing-bill-line">
-                <Link href={`/bill/${b.id}`} className="bill-id">
-                  {formatBillId(b.bill_type, b.bill_number)}
-                </Link>
+                <BillIdChip
+                  billType={b.bill_type}
+                  billNumber={b.bill_number}
+                  href={`/bill/${b.id}`}
+                />
                 <Link href={`/bill/${b.id}`} className="bill-title truncate">
                   {b.title}
                 </Link>

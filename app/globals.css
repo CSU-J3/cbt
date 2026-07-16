@@ -3872,18 +3872,28 @@ body {
   color: var(--text-dim);
   font-size: 11px;
 }
-/* ID chip — plain amber (HO 297, chip-family tier-1 ID). The chamber-color
-   border override is dropped: the HR/S prefix already reads chamber, so the
-   color was redundant. */
-.v2f-id {
+/* Shared amber tier-1 bill-id chip (HO 466 chip-family). Lifted from the old
+   .v2f-id (HO 287/297 canonical): bordered --accent-amber, 11px/600, 2px radius.
+   The single primitive for every NON-chamber id surface (dashboard feed, weekly
+   band, hearings list + calendar). Chamber-tinted BillIdRail/.bill-chip are a
+   deliberate separate system (HO 125) and do NOT use this. */
+.bill-id-chip {
   flex: none;
+  display: inline-flex;
+  align-items: center;
   font-size: 11px;
   font-weight: 600;
   color: var(--accent-amber);
   border: 1px solid var(--accent-amber);
   border-radius: 2px;
   padding: 2px 7px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-decoration: none;
+  transition: background-color 0.12s;
+}
+.bill-id-chip:hover {
+  background-color: var(--bg-row-hover);
 }
 /* Title — the first --sans use; ellipsizes; a full-title popover arms only when
    truncated (the .truncated class, set by markTrunc in JS). The wrapper is the
@@ -7963,15 +7973,6 @@ a.hearing-watch:hover {
 .hearing-bill-line:last-child {
   border-bottom: none;
 }
-.hearing-bill-line .bill-id {
-  color: var(--accent-amber);
-  font-variant-numeric: tabular-nums;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.hearing-bill-line .bill-id:hover {
-  color: var(--accent-amber-bright);
-}
 .hearing-bill-line .bill-title {
   color: var(--text-secondary);
   text-decoration: none;
@@ -8727,12 +8728,6 @@ a.hearing-watch:hover {
   align-items: baseline;
   gap: 6px;
 }
-.hcal-card-billid {
-  flex: none;
-  color: var(--accent-amber);
-  text-decoration: none;
-  font-variant-numeric: tabular-nums;
-}
 .hcal-card-billtitle {
   min-width: 0;
   overflow: hidden;
@@ -8741,7 +8736,6 @@ a.hearing-watch:hover {
   color: var(--text-secondary);
   text-decoration: none;
 }
-.hcal-card-billid:hover,
 .hcal-card-billtitle:hover {
   color: var(--accent-amber-bright);
 }

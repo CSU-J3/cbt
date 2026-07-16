@@ -21,7 +21,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { formatBillId } from "@/lib/format";
+import { BillIdChip } from "@/components/BillIdChip";
 import {
   addDaysToKey,
   cleanMeetingTitle,
@@ -213,9 +213,11 @@ function DetailCard({
           <div className="hcal-card-bills">
             {m.bills.map((b) => (
               <div key={b.id} className="hcal-card-bill">
-                <Link href={`/bill/${b.id}`} className="hcal-card-billid">
-                  {formatBillId(b.bill_type, b.bill_number)}
-                </Link>
+                <BillIdChip
+                  billType={b.bill_type}
+                  billNumber={b.bill_number}
+                  href={`/bill/${b.id}`}
+                />
                 <Link href={`/bill/${b.id}`} className="hcal-card-billtitle">
                   {b.title}
                 </Link>

@@ -18,6 +18,7 @@
 // rather than fabricated. Event callouts (top stage-movers) are likewise
 // omitted — they ride stage_transitions, still thin (planted write-only HO 232).
 import Link from "next/link";
+import { BillIdChip } from "@/components/BillIdChip";
 import {
   type WeeklyBandBreakdown,
   WeeklyBandMetricCard,
@@ -205,13 +206,12 @@ export async function WeeklyBand() {
           <span className="weekly-band-ids">
             <span aria-hidden>·</span>
             {enactedShown.map((b) => (
-              <Link
+              <BillIdChip
                 key={b.id}
+                billType={b.billType}
+                billNumber={b.billNumber}
                 href={`/bill/${b.id}`}
-                className="weekly-band-id"
-              >
-                {b.billType.toUpperCase()} {b.billNumber}
-              </Link>
+              />
             ))}
             {enactedMore > 0 ? (
               <Link

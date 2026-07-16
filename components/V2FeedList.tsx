@@ -12,8 +12,9 @@
 // sibling below the row, data lazy-loaded on expand, cached per bill. The shared
 // BillExpandPanel / BillStageBar are unchanged — only the trigger + mount.
 import { useEffect, useRef, useState } from "react";
-import { daysSince, formatBillId, formatRelativeAge, parseTopics } from "@/lib/format";
+import { daysSince, formatRelativeAge, parseTopics } from "@/lib/format";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
+import { BillIdChip } from "@/components/BillIdChip";
 import { TopicChips } from "@/components/TopicChips";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import type { FeedBill } from "@/lib/queries";
@@ -193,9 +194,12 @@ export function V2FeedList({
                 }
               }}
             >
-              <span className="v2f-id">
-                {formatBillId(bill.bill_type, bill.bill_number)}
-              </span>
+              <BillIdChip
+                billType={bill.bill_type}
+                billNumber={bill.bill_number}
+                href={`/bill/${bill.id}`}
+                onClick={(e) => e.stopPropagation()}
+              />
               <div className="v2f-main">
                 <TitleCell title={bill.title} />
                 <SubLine bill={bill} />
