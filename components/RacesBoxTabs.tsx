@@ -40,6 +40,9 @@ export function RacesBoxTabs({
   // and first client render agree (both render no badges).
   const [lastViewMs, setLastViewMs] = useState<number | null>(null);
   const [movedSet, setMovedSet] = useState<Set<string>>(() => new Set());
+  // HO 432: the news registry, parallel to movedSet — feeds the NEW badge the
+  // same way movedSet feeds MOVES.
+  const [newsSet, setNewsSet] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     const raw = window.localStorage.getItem(LAST_VIEW_KEY);
@@ -62,6 +65,22 @@ export function RacesBoxTabs({
       return next;
     });
   }, []);
+  const registerNews = useCallback((raceId: string) => {
+    setNewsSet((prev) => {
+      if (prev.has(raceId)) return prev;
+      const next = new Set(prev);
+      next.add(raceId);
+      return next;
+    });
+  }, []);
+  const unregisterNews = useCallback((raceId: string) => {
+    setNewsSet((prev) => {
+      if (!prev.has(raceId)) return prev;
+      const next = new Set(prev);
+      next.delete(raceId);
+      return next;
+    });
+  }, []);
 
   const openTab = useCallback((next: TopTab) => {
     setTab(next);
@@ -75,11 +94,20 @@ export function RacesBoxTabs({
   }, []);
 
   const movesCount = movedSet.size;
-  const newCount = 0; // NEW = news→race linkage (absent); slot stays dark (HO 272).
+  // HO 432: NEW = featured seats whose latest incumbent news postdates last view
+  // (sum of the per-card RaceNewIndicators). openTab("races") stamps lastViewMs,
+  // which unregisters them → badge clears on open, exactly like MOVES.
+  const newCount = newsSet.size;
 
   return (
     <RacesUpdatesContext.Provider
-      value={{ lastViewMs, registerMoved, unregisterMoved }}
+      value={{
+        lastViewMs,
+        registerMoved,
+        unregisterMoved,
+        registerNews,
+        unregisterNews,
+      }}
     >
       <section className="dv2-racesbox" aria-label="Hearings and races">
         <nav

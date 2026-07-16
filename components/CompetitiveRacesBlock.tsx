@@ -12,6 +12,7 @@ import {
   getPacIeSpending,
   getRace,
   getRaceCandidates,
+  getRaceNews,
   getRacesIndex,
   getRecentRaceMoves,
   getRunoffsForRace,
@@ -98,14 +99,24 @@ export async function CompetitiveRacesBlock({
       races.map(async (r) => {
         const race = await getRace(r.raceId);
         if (!race) return null;
-        const [candidates, incumbent, runoffs] = await Promise.all([
+        // HO 432: fetch the seat's incumbent news alongside the hub. N=3 (not the
+        // hub page's 8): the dashboard only ever needs news[0] (the NEW badge) +
+        // the ≤3 popover rows, so a 3-row payload keeps the RSC props lean rather
+        // than serializing 5 rows the dashboard never shows. This is a distinct
+        // unstable_cache entry from the /race hub's getRaceNews(inc, 8), but both
+        // ride the `race-news` tag so the news cron flushes them together. Open
+        // seat → no incumbent join key → [] (guarded like getMember).
+        const [candidates, incumbent, runoffs, news] = await Promise.all([
           getRaceCandidates(race.id),
           race.incumbent_bioguide_id
             ? getMember(race.incumbent_bioguide_id)
             : Promise.resolve(null),
           getRunoffsForRace(race.id),
+          race.incumbent_bioguide_id
+            ? getRaceNews(race.incumbent_bioguide_id, 3)
+            : Promise.resolve([]),
         ]);
-        return { race, incumbent, candidates, runoffs } as RaceHubData;
+        return { race, incumbent, candidates, runoffs, news } as RaceHubData;
       }),
     ),
     // HO 233: the PRIMARIES tab's 6-month rollup. Fetched here alongside the

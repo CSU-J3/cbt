@@ -231,6 +231,39 @@ export function RaceHubBody({
         </section>
       ) : null}
 
+      {/* HO 432: preview-only IN THE PRESS block for the dashboard popover — a
+          compact echo of the full hub's news section, capped at 3 rows. The
+          popover is a sibling of the card <Link> (not nested), so these RaceNewsRow
+          <a> headlines are valid, clickable HTML here. Empty/open-seat renders
+          nothing (no empty-state row in the cramped popover); the full hub keeps
+          its empty state above. */}
+      {preview && news && news.length > 0 ? (
+        <section
+          className="mt-5 border"
+          style={{ borderColor: "var(--border-strong)" }}
+        >
+          <div
+            className="px-4 py-2"
+            style={{
+              backgroundColor: "var(--bg-panel)",
+              borderBottom: "0.5px solid var(--border-strong)",
+            }}
+          >
+            <h2
+              className="text-[12px] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              In the press
+            </h2>
+          </div>
+          <div className="px-4 py-2">
+            {news.slice(0, 3).map((n) => (
+              <RaceNewsRow key={n.obsId} item={n} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {!preview ? (
         race.source_url ? (
           <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>

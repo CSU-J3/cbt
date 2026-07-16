@@ -855,6 +855,22 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
+/* HO 432 — per-card NEWS indicator, the news sibling of .rc-moved. Same chrome
+   but keyed to --ticker-closed (matching the .rbx-badge-new tab badge) so NEWS
+   reads as a distinct signal from MOVED's amber. A card that both moved and has
+   fresh news stacks both markers (two small rows) — acceptable, and rare. */
+.rc-new {
+  align-self: flex-start;
+  margin: 2px 0;
+  padding: 1px 5px;
+  border: 0.5px solid var(--ticker-closed);
+  border-radius: 2px;
+  background-color: color-mix(in srgb, var(--ticker-closed) 16%, transparent);
+  color: var(--ticker-closed);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
 
 /* HO 178 — BREAKING compact rows + cross-column hover-overrun.
    The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
@@ -3243,6 +3259,23 @@ body {
 .competitive-race-cell:focus-within .competitive-race-popover {
   display: block;
 }
+/* HO 432 — transparent hover bridge across the 6px card↔popover gap. Without it
+   the mouse crosses dead space (cell :hover drops, popover hides) before it can
+   reach the now-clickable IN THE PRESS headlines. The bridge is a popover child,
+   so hovering it keeps .competitive-race-cell:hover alive; it sits on the gap
+   side, mirroring the popover's open direction (down default, up for bottom row). */
+.competitive-race-popover::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -6px;
+  height: 6px;
+}
+.competitive-race-cell[data-row="bottom"] .competitive-race-popover::before {
+  top: auto;
+  bottom: -6px;
+}
 /* HO 230 (item 4): hovering a card dims the siblings to 0.4 (the HO 131
    breaking-news pattern) — hovered card stays full, the rest recede. */
 .competitive-races-grid:hover .competitive-race-cell:not(:hover) {
@@ -3273,6 +3306,12 @@ body {
   }
   .competitive-race-cell[data-row="bottom"] .competitive-race-popover {
     top: calc(100% + 6px);
+    bottom: auto;
+  }
+  /* HO 432: single-row layout opens bottom-row popovers downward again, so the
+     bridge flips back to the top gap. */
+  .competitive-race-cell[data-row="bottom"] .competitive-race-popover::before {
+    top: -6px;
     bottom: auto;
   }
   .competitive-race-cell:nth-child(-n + 2) .competitive-race-popover {

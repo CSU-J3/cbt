@@ -7,6 +7,11 @@
 // MOVED, and registers itself so the tab badge count is literally the sum of the
 // per-card indicators. Default value is inert (no provider, e.g. on `/`): null
 // timestamp + no-op register, so nothing renders and nothing registers.
+//
+// HO 432 — a parallel news registry (registerNews/unregisterNews) beside the
+// moved pair, feeding the previously-dark NEW badge. The single lastViewMs gates
+// both: opening RACES marks moves AND news viewed (one "last opened" stamp resets
+// both badges), matching the current UX.
 import { createContext } from "react";
 
 export type RacesUpdates = {
@@ -15,10 +20,14 @@ export type RacesUpdates = {
   lastViewMs: number | null;
   registerMoved: (raceId: string) => void;
   unregisterMoved: (raceId: string) => void;
+  registerNews: (raceId: string) => void;
+  unregisterNews: (raceId: string) => void;
 };
 
 export const RacesUpdatesContext = createContext<RacesUpdates>({
   lastViewMs: null,
   registerMoved: () => {},
   unregisterMoved: () => {},
+  registerNews: () => {},
+  unregisterNews: () => {},
 });

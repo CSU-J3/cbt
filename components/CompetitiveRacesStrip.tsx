@@ -11,6 +11,7 @@ import type {
   Race,
   RaceCandidate,
   RaceIndexRow,
+  RaceNewsItem,
 } from "@/lib/queries";
 import {
   activeChallengers,
@@ -34,6 +35,10 @@ export type RaceHubData = {
   incumbent: Member | null;
   candidates: RaceCandidate[];
   runoffs: PrimaryWithCandidates[];
+  // HO 432: news around the seat's incumbent (getRaceNews, capped at 3 in the
+  // dashboard prefetch). Powers both the v2 NEW badge (news[0].observedAt) and
+  // the default-variant popover's IN THE PRESS block. `[]` for an open seat.
+  news: RaceNewsItem[];
 };
 
 // Human-readable label from a deterministic race id (lib/race-id.ts):
@@ -123,6 +128,9 @@ export function CompetitiveRacesStrip({
                 candidates={hubs[i]?.candidates ?? []}
                 ambiguous={ambiguous}
                 lastMoveAt={moves?.[race.raceId]}
+                // HO 432: freshest incumbent news date falls out of the prefetched
+                // hub — no recency query, mirroring how lastMoveAt rides `moves`.
+                lastNewsAt={hubs[i]?.news?.[0]?.observedAt}
                 pac={pacByRace?.[race.raceId]}
               />
             ) : null;
@@ -198,6 +206,8 @@ export function CompetitiveRacesStrip({
                     incumbent={hub.incumbent}
                     ratings={race.ratings}
                     runoffs={hub.runoffs}
+                    // HO 432: light the preview IN THE PRESS block (capped ≤3).
+                    news={hub.news}
                   />
                 </div>
               ) : null}

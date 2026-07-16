@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
+import { RaceNewIndicator } from "@/components/RaceNewIndicator";
 import { formatDollarsCompact } from "@/lib/format";
 import type {
   PacIeRow,
@@ -90,6 +91,11 @@ export function RaceCard({
   // undefined when it hasn't moved. The client RaceMovedIndicator compares it to
   // the per-browser last-RACES-open time to show MOVED + feed the tab badge.
   lastMoveAt,
+  // HO 432: ISO timestamp of this race's freshest incumbent-linked news
+  // (hubs[i].news[0].observedAt); undefined when the seat has no news / open seat.
+  // The client RaceNewIndicator compares it to last-RACES-open to show NEWS +
+  // feed the (previously dark) tab NEW badge — the news sibling of lastMoveAt.
+  lastNewsAt,
   // HO 305: page-level ambiguous surnames (e.g. "collins" — Susan Collins ME +
   // Mike Collins GA). Surnames in this set render with a first initial. Computed
   // once by CompetitiveRacesStrip across all four cards.
@@ -102,6 +108,7 @@ export function RaceCard({
   row: RaceIndexRow;
   candidates?: RaceCandidate[];
   lastMoveAt?: string | null;
+  lastNewsAt?: string | null;
   ambiguous?: Set<string>;
   pac?: PacIeRow[];
 }) {
@@ -310,6 +317,8 @@ export function RaceCard({
         lastMoveAt={lastMoveAt}
         lean={row.consensusRating}
       />
+
+      <RaceNewIndicator raceId={row.raceId} lastNewsAt={lastNewsAt} />
 
       <div className="sb-wrap">
         <div className="sb-ends">
