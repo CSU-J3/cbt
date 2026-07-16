@@ -64,7 +64,7 @@ function StagePill({
   return (
     <span
       className={`stage-pill${history ? " stage-pill--history" : ""}`}
-      style={{ color: stageColor(stage) }}
+      style={{ color: history ? "var(--text-dim)" : stageColor(stage) }}
       title={stageTitle(stage, age)}
     >
       <span>{stage.replace(/_/g, " ").toUpperCase()}</span>

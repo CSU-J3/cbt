@@ -1871,17 +1871,20 @@ body {
   align-items: center;
   gap: 5px;
   padding: 1px 7px;
-  border: 1px solid currentColor;
+  border: 1px solid color-mix(in srgb, currentColor 50%, transparent);
   border-radius: 2px;
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 
+/* HO 467 — history (non-current) stage pill: explicitly gray, overriding both
+   the inline stage color and the 50%-alpha stage border of the current pill. */
 .stage-pill--history {
-  opacity: 0.6;
+  color: var(--text-dim);
+  border-color: var(--border-strong);
 }
 
 .stage-pill-arrow {
