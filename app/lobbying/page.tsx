@@ -105,6 +105,13 @@ export default async function LobbyingPage({
   const page = Math.min(Math.max(1, parsePage(params.page)), totalPages);
   const feed = await getRecentFilings({ page, pageSize: PAGE_SIZE });
 
+  // HO 473 — preserve an explicitly-chosen issue across pagination so NEXT
+  // doesn't silently reset the drill to the top issue. Carry the raw param
+  // (not `selected`, which defaults to issues[0]) so pagination never injects
+  // ?issue= onto the unfiltered feed. Mirrors /amendments + /nominations.
+  const feedCarry = new URLSearchParams();
+  if (params.issue) feedCarry.set("issue", params.issue);
+
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar basePath="/lobbying" />
@@ -199,7 +206,7 @@ export default async function LobbyingPage({
             <Pagination
               currentPage={feed.page}
               totalPages={totalPages}
-              carry={new URLSearchParams()}
+              carry={feedCarry}
               basePath="/lobbying"
             />
           ) : null}
