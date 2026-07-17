@@ -83,7 +83,15 @@
     },
     {
       "path": "/api/cron/markets",
-      "schedule": "30 21 * * *"
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/markets?source=fmp",
+      "schedule": "0,30 13-21 * * 1-5"
+    },
+    {
+      "path": "/api/cron/kalshi",
+      "schedule": "15 */2 * * *"
     },
     {
       "path": "/api/cron/lda",
