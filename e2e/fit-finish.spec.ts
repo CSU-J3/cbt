@@ -117,10 +117,11 @@ test.describe("home /", () => {
     await rows.nth(0).click();
     await expect(page.locator(".v2f-group.open")).toHaveCount(1, { timeout: 8_000 });
     await page.keyboard.press("Escape");
-    // NOTE: if Esc does NOT collapse, this soft-fails → finding.
-    await expect
-      .soft(page.locator(".v2f-group.open"), "Esc should close an expanded feed row")
-      .toHaveCount(0, { timeout: 4_000 });
+    // HO 473 — Esc now closes the open row (useSingleOpenPanel keydown handler).
+    await expect(page.locator(".v2f-group.open"), "Esc should close an expanded feed row").toHaveCount(
+      0,
+      { timeout: 4_000 },
+    );
 
     await page.screenshot({ path: `${SHOT_DIR}/home-feed-expand.png`, fullPage: true });
     logClean("home-feed-expand", c);
@@ -479,10 +480,8 @@ test.describe("aggregate surfaces", () => {
     }
     await next.first().click();
     await page.waitForURL(/[?&]page=/, { timeout: 8_000 }).catch(() => {});
-    // FINDING CHECK: does NEXT keep ?issue=? (empty Pagination `carry` drops it)
-    expect
-      .soft(page.url(), "pagination should preserve ?issue= (drill resets to top issue if dropped)")
-      .toMatch(/issue=/);
+    // HO 473 — pagination now preserves the selected ?issue= (populated carry).
+    expect(page.url(), "pagination should preserve the selected ?issue=").toMatch(/issue=/);
     // eslint-disable-next-line no-console
     console.log(`[lobbying-pagination] url after NEXT = ${page.url()}`);
     logClean("lobbying-pagination", c);
