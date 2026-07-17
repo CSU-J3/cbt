@@ -120,9 +120,7 @@ export async function BillsTimeSeries() {
                   height={segHeight}
                   fill={topicColor(topic)}
                 >
-                  <title>
-                    {formatMonthLabel(month)} · {topicLabel(topic)} · {value}
-                  </title>
+                  <title>{`${formatMonthLabel(month)} · ${topicLabel(topic)} · ${value}`}</title>
                 </rect>
               );
             })}

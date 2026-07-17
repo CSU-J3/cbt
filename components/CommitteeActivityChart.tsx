@@ -142,9 +142,7 @@ export async function CommitteeActivityChart({
                   height={segHeight}
                   fill={BUCKET_COLORS[bucket]}
                 >
-                  <title>
-                    {formatMonthLabel(month)} · {bucket} · {value}
-                  </title>
+                  <title>{`${formatMonthLabel(month)} · ${bucket} · ${value}`}</title>
                 </rect>
               );
             })}

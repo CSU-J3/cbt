@@ -137,10 +137,7 @@ export function RaceDistrictModal({
             onMouseEnter={comp ? () => setHovered(d.seatId) : undefined}
             onMouseLeave={comp ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
           >
-            <title>
-              {d.cd}
-              {comp ? ` · ${contest.rating}` : ""}
-            </title>
+            <title>{d.cd + (comp ? ` · ${contest.rating}` : "")}</title>
           </path>
         );
       })}

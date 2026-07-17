@@ -160,10 +160,7 @@ export function PrimaryDistrictModal({
             onMouseEnter={has ? () => setHovered(d.seatId) : undefined}
             onMouseLeave={has ? () => setHovered((h) => (h === d.seatId ? null : h)) : undefined}
           >
-            <title>
-              {d.cd}
-              {has ? (voted ? " · voted" : " · upcoming") : ""}
-            </title>
+            <title>{d.cd + (has ? (voted ? " · voted" : " · upcoming") : "")}</title>
           </path>
         );
       })}
