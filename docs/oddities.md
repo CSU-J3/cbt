@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## `cron_runs` can't attribute a run to its scheduler — GET-vs-POST and 200-implies-Bearer distinguish a Vercel cron from its still-firing GitHub twin (HO 475, Jul 2026)
+
+`cron_runs` records route / status / payload — **not** method, host, or user-agent — so a Vercel-cron invocation and a GitHub-Actions twin hitting the same route are indistinguishable in the table. To confirm *which* fired, use the Vercel request metadata (a Vercel cron is **GET** off the **deployment host** with the vercel-cron UA; a GitHub workflow was a **curl POST** off the canonical host), or the **200-implies-Bearer** signal: `/api/cron/markets` and `/api/cron/kalshi` 401 without `CRON_SECRET`, and Vercel only attaches the Bearer when the env var is set, so a **200** on those routes is a Vercel-with-secret run. This was the whole verification method for the HO 475 cutover (all three crons confirmed as Vercel GETs during the GitHub-overlap day, read from the Vercel runtime logs — `mcp get_runtime_logs`, scoped to the deployment id).
+
+## A query-string Vercel cron registers as a distinct cron from its bare path (HO 475, Jul 2026)
+
+`vercel.json` can carry both `{ "/api/cron/markets", "0 */4 * * *" }` and `{ "/api/cron/markets?source=fmp", "0,30 13-21 * * 1-5" }` — Vercel keys crons on the **full path string including the query**, so they schedule and fire independently (the feared "collapsed into one path" mode doesn't occur). Proven at the 20:00 UTC window: a bare 18-symbol GET and an `?source=fmp` 7-symbol GET landed 18s apart, both Vercel-attributed. (Related, recorded in the HO 475 roadmap block: the HO 314 `30 21` floor's "NOT firing" note was a **Hobby-era** artifact — it fires on Pro since HO 433, which is why HO 475 repurposed it in place rather than adding a new bare entry.)
+
 ## A list-only sync and a detail-hydration pass coexist on one table because `ON CONFLICT DO UPDATE SET` omits the hydrated columns — adding them to the SET clause re-nulls every hydrated row on the next bulk-refresh (HO 459, Jul 2026)
 
 `nominations` is populated in two phases: a cheap list-only `sync:nominations` (every list-level field + the computed `disposition`) and an expensive per-part `--hydrate` pass (the detail-only `committee_system_code`). They share one table and one PK (`id`), and the list sync **re-upserts the whole corpus on any bulk-refresh day** (the `updateDate`-clusters-on-refresh behavior — the frontier re-fetch is idempotent). The two phases don't fight **only** because `buildNominationStatement`'s `INSERT … ON CONFLICT(id) DO UPDATE SET …` clause **explicitly omits `committee_system_code`** (and `nominee_count`): a re-upsert updates the list fields and **preserves** the hydrated value. The INSERT sets them NULL (a new row enters the hydration queue); the SET clause leaves them alone (existing hydration survives).
