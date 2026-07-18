@@ -22,8 +22,18 @@ export async function queryEnactedThisWeek(
   db: ReturnType<typeof getDb>,
   days = ENACTED_THIS_WEEK_DAYS,
 ): Promise<EnactedBill[]> {
+  // HO 481: INDEXED BY forces the partial enacted index — the 5th sibling of
+  // the HO 405/407/480 OR-lure. Unhinted, the `is_ceremonial=0 OR IS NULL`
+  // predicate lures the stateless Turso planner into a MULTI-INDEX OR over
+  // idx_bills_dash_stage + a temp b-tree sort, which cold-stalls the
+  // boundedFetch wall. idx_bills_enacted is `WHERE stage='enacted'` and the
+  // query carries `AND stage='enacted'`, so the hint qualifies: scan the small
+  // partial enacted set (a few hundred rows), filter the window + sort in
+  // memory (trivial at that count). NB idx_bills_enacted keys
+  // (congress, latest_action_date), not stage_changed_at, so a residual temp
+  // sort remains — correcting the stale HO 335 read that this rode it cleanly.
   const rs = await db.execute(
-    `SELECT id, bill_type, bill_number FROM bills
+    `SELECT id, bill_type, bill_number FROM bills INDEXED BY idx_bills_enacted
      WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
        AND stage = 'enacted'
        AND stage_changed_at IS NOT NULL
@@ -46,8 +56,11 @@ export async function queryEnactedPriorWeekCount(
   db: ReturnType<typeof getDb>,
   days = ENACTED_THIS_WEEK_DAYS,
 ): Promise<number> {
+  // HO 481: same OR-lure, same hint (shared predicate with queryEnactedThisWeek).
+  // COUNT-only, no ORDER BY, so the plan collapses to a clean partial-index scan
+  // with no temp b-tree.
   const rs = await db.execute(
-    `SELECT COUNT(*) AS n FROM bills
+    `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_enacted
      WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
        AND stage = 'enacted'
        AND stage_changed_at IS NOT NULL
