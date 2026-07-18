@@ -1,25 +1,31 @@
-// HO 135 cron health check. Read-only audit of cron_runs + data freshness
-// for the four-cron sequence (HO 115/116/117/119) that shipped without a
-// coordinated end-to-end verification. Run: `npx tsx scripts/diagnostic/cron-health-135.ts`.
+// HO 135 cron health check (route list + thresholds refreshed HO 477).
+// Read-only audit of cron_runs + data freshness across the whole cron fleet.
+// The routes are now the shared CRON_ROUTES registry (lib/cron-health.ts) —
+// single source of truth, so this manual diagnostic and the /api/health
+// endpoint never drift. This stays the rich manual rollup; /api/health is the
+// automated pull. Run: `npx tsx scripts/diagnostic/cron-health-135.ts`.
 import "dotenv/config";
 import { getDb } from "../../lib/db";
-
-const ROUTES: Array<{ path: string; schedule: string; cadence: "daily" | "weekly" }> = [
-  { path: "/api/sync", schedule: "0 9 * * *", cadence: "daily" },
-  { path: "/api/cron/weekly-report", schedule: "30 9 * * 1", cadence: "weekly" },
-  { path: "/api/sync-votes", schedule: "0 10 * * *", cadence: "daily" },
-  { path: "/api/sync-race-ratings", schedule: "0 11 * * 3", cadence: "weekly" },
-  { path: "/api/cron/primaries", schedule: "0 12 * * *", cadence: "daily" },
-  { path: "/api/cron/summarize", schedule: "0 13 * * *", cadence: "daily" },
-  { path: "/api/cron/news", schedule: "0 14 * * *", cadence: "daily" },
-];
+import { CRON_ROUTES, computeCronHealth } from "../../lib/cron-health";
 
 async function main() {
   const db = getDb();
-  const since = "datetime('now','-14 days')";
+
+  // Health verdict first — the exact computation /api/health serves.
+  const health = await computeCronHealth();
+  console.log(
+    `=== Fleet health @ ${health.checkedAt}: ${health.healthy ? "HEALTHY ✓" : `UNHEALTHY ✗ (${health.unhealthy.join(", ")})`} ===\n`,
+  );
+  for (const r of health.routes) {
+    const age = r.ageMs == null ? "never" : `${(r.ageMs / 3_600_000).toFixed(1)}h`;
+    console.log(
+      `  ${r.healthy ? "✓" : "✗"} ${r.path.padEnd(28)} ${r.signal.padEnd(12)} fresh=${age.padStart(7)} (max ${(r.maxStaleMs / 3_600_000).toFixed(0)}h)${r.note ? `  — ${r.note}` : ""}`,
+    );
+  }
+  console.log();
 
   console.log("=== Per-route rollup (last 14 days) ===\n");
-  for (const route of ROUTES) {
+  for (const route of CRON_ROUTES) {
     const rollup = await db.execute({
       sql: `SELECT
               COUNT(*) AS total,
@@ -46,7 +52,9 @@ async function main() {
     const avg = r.avg_ms ? Math.round(Number(r.avg_ms) / 1000) : 0;
     const max = r.max_ms ? Math.round(Number(r.max_ms) / 1000) : 0;
     console.log(`ROUTE: ${route.path}`);
-    console.log(`Schedule: ${route.schedule}  (${route.cadence})`);
+    console.log(
+      `Schedule: ${route.schedule}  (maxStale ${(route.maxStaleMs / 3_600_000).toFixed(0)}h${route.windowOnly ? ", weekly" : ""}${route.signal === "market_ticks" ? ", market_ticks signal" : ""})`,
+    );
     console.log(
       `Runs: total=${r.total}  success=${r.ok}  error=${r.err}  timeout=${r.tmo}  orphaned=${r.orph}  running=${r.running}`,
     );
