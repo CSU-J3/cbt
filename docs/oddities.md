@@ -6,6 +6,14 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## `timeout` is a designed degraded mode, so cron liveness is row-in-window, not last-clean-success (HO 477, Jul 2026)
+
+A `cron_runs` `timeout` row means the cron **fired and executed** — HO 139's 55s soft cap trips when a *trailing* step overruns *after* the primary work already committed (e.g. `/api/sync` reads `timeout` with bills ~1h fresh while its last clean `success` is ~37h back). So a health check keying "unhealthy" on last-*success* age false-alarms on every soft-timeout-resume route. Correct liveness = **any `success` OR `timeout` row within the route's window** (a true stop = no row at all), with `error`/`orphaned` as the hard-fail. This is why `/api/health` treats `timeout` as alive; the pre-build probe caught the false alarm on `/api/sync` + `/api/sync-votes` before the build.
+
+## Markets health is keyed on `market_ticks` freshness, not the cron row (HO 477, Jul 2026)
+
+Two reasons a status/row check fails for markets: the route logs one `route="/api/cron/markets"` for **both** the bare (`0 */4`) and fmp (`0,30 13-21`) crons (indistinguishable by the `route` column — only by payload symbol-count), and every bare run carries a **permanent POLY-SHUTDOWN chronicErr** (`"markets fetch failures: …"` on a `success` row). So `computeCronHealth` judges markets by `MAX(market_ticks.ticked_at)` — the literal "no `market_ticks` write in N hours" the backlog asked for — unhealthy iff ticks > ~9h stale OR the most-recent markets run is `error`/`orphaned`; a `success`-with-POLY-ghost is healthy and the chronicErr string is never consulted. (fmp-specific freshness stays banked — the shared `route` string can't isolate it without payload inspection.)
+
 ## `cron_runs` can't attribute a run to its scheduler — GET-vs-POST and 200-implies-Bearer distinguish a Vercel cron from its still-firing GitHub twin (HO 475, Jul 2026)
 
 `cron_runs` records route / status / payload — **not** method, host, or user-agent — so a Vercel-cron invocation and a GitHub-Actions twin hitting the same route are indistinguishable in the table. To confirm *which* fired, use the Vercel request metadata (a Vercel cron is **GET** off the **deployment host** with the vercel-cron UA; a GitHub workflow was a **curl POST** off the canonical host), or the **200-implies-Bearer** signal: `/api/cron/markets` and `/api/cron/kalshi` 401 without `CRON_SECRET`, and Vercel only attaches the Bearer when the env var is set, so a **200** on those routes is a Vercel-with-secret run. This was the whole verification method for the HO 475 cutover (all three crons confirmed as Vercel GETs during the GitHub-overlap day, read from the Vercel runtime logs — `mcp get_runtime_logs`, scoped to the deployment id).
