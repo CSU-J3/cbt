@@ -2,7 +2,7 @@
 // chamber, matches FMP names against `members`, and idempotently writes
 // rows to `stock_trades`. Shared by `scripts/sync-trades.ts` (CLI) and
 // `/api/sync` (cron) — same code path, different pagination caps.
-import type { Client } from "@libsql/client";
+import type { Client, InStatement } from "@libsql/client";
 import { getDb } from "./db";
 import { type FmpTrade, fetchHouseTrades, fetchSenateTrades } from "./fmp";
 import { type MatchableMember, matchMemberName } from "./matchMember";
@@ -130,6 +130,11 @@ async function ingestChamber(
     if (trades.length === 0) break;
 
     let pageInsertedAny = false;
+    // HO 483: build every page INSERT OR IGNORE, then send them in ONE batched
+    // write. The per-row work below the extraction — in-memory matchMemberName,
+    // composeId — is unchanged; only the ~100/chamber per-row db.execute
+    // round-trips collapse into a single db.batch (~200 → 1 for the step).
+    const statements: InStatement[] = [];
     for (const trade of trades) {
       const row = trade as RawRow;
       const memberNameRaw = extractName(row);
@@ -176,10 +181,10 @@ async function ingestChamber(
         amount,
       });
 
-      // INSERT OR IGNORE plus a changes() check tells us whether the row
-      // was actually new on this page — that's how we know to stop
-      // paginating once an entire page is all-seen.
-      const insertRs = await db.execute({
+      // Same INSERT OR IGNORE as before — byte-identical SQL + 13 args — just
+      // queued for the batch instead of executed inline. The OR-IGNORE conflict
+      // semantics are unchanged, so the set of rows that lands is identical.
+      statements.push({
         sql: `INSERT OR IGNORE INTO stock_trades
                 (id, bioguide_id, member_name_raw, chamber, ticker,
                  asset_description, transaction_type, transaction_date,
@@ -201,9 +206,18 @@ async function ingestChamber(
           ingestedAt,
         ],
       });
-      if ((insertRs.rowsAffected ?? 0) > 0) {
-        result.inserted++;
-        pageInsertedAny = true;
+    }
+
+    // One round-trip for the whole page (HO 483). Each ResultSet carries its
+    // own rowsAffected, so result.inserted and the all-seen short-circuit are
+    // reconstructed exactly as the inline changes() check did per row.
+    if (statements.length > 0) {
+      const results = await db.batch(statements, "write");
+      for (const rs of results) {
+        if ((rs.rowsAffected ?? 0) > 0) {
+          result.inserted++;
+          pageInsertedAny = true;
+        }
       }
     }
 
