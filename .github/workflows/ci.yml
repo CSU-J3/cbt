@@ -5,9 +5,30 @@
 name: CI
 
 on:
+  # Skip docs-only commits — they can't meaningfully fail typecheck+build.
+  # paths-ignore (a blocklist), NOT paths (an allowlist): a blocklist fails
+  # safe. An allowlist would silently skip CI the first time someone adds a
+  # path that isn't on it. scripts/** and e2e/** are deliberately NOT ignored
+  # (they're TypeScript, covered by typecheck — scripts/ is exactly what broke
+  # at 3ed533c); .github/** stays unignored so workflow edits still run CI.
+  #
+  # paths-ignore + required status checks do not mix: if branch protection
+  # is ever enabled, PRs touching only ignored paths never report this
+  # check and block indefinitely. Fix then is a companion job that reports
+  # success for ignored paths — not removing the filter.
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '.claude/**'
+      - '**/*.md'
+      - 'LICENSE'
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '.claude/**'
+      - '**/*.md'
+      - 'LICENSE'
 
 # A rapid re-push cancels the in-flight run for the same ref instead of queuing.
 concurrency:
