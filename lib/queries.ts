@@ -2770,6 +2770,75 @@ export const getRecentFilings = unstable_cache(
   { revalidate: 3600, tags: ["lda"] },
 );
 
+// HO 486 — the per-activity LD-2 detail for ONE filing, the live read behind the
+// /lobbying expand panel (?expanded=). Two PK-prefix seeks (both HO 485-timed
+// sub-100ms cold, worst-case 75ms — lda_activities PK is (filing_uuid,
+// activity_ordinal)), run in parallel, joined in JS. The ONLY new query in the
+// redesign; everything else the pane needs is O(1) off the rollup blob.
+//
+// Bill chips come from the RESOLVED set (lda_activity_bills), NOT lda_activities'
+// raw bill_ids JSON — that raw field is a superset (up to 44 ids on the heaviest
+// activity, HO 485 finding #5) including ids that don't resolve to a tracked bill,
+// so chipping it would deep-link to dead /bill/[id] routes.
+export type FilingActivity = {
+  ordinal: number;
+  code: string | null;
+  display: string | null;
+  description: string | null;
+  bills: string[]; // resolved bill ids for this activity
+};
+
+export function getFilingActivities(
+  filingUuid: string,
+): Promise<FilingActivity[] | null> {
+  return unstable_cache(
+    async (): Promise<FilingActivity[] | null> => {
+      try {
+        const db = getDb();
+        const [acts, bills] = await Promise.all([
+          db.execute({
+            sql: `SELECT activity_ordinal, general_issue_code,
+                         general_issue_code_display, description
+                  FROM lda_activities WHERE filing_uuid = ?
+                  ORDER BY activity_ordinal`,
+            args: [filingUuid],
+          }),
+          db.execute({
+            sql: `SELECT activity_ordinal, bill_id
+                  FROM lda_activity_bills WHERE filing_uuid = ?`,
+            args: [filingUuid],
+          }),
+        ]);
+        const byOrdinal = new Map<number, string[]>();
+        for (const r of bills.rows) {
+          const o = Number(r.activity_ordinal);
+          let arr = byOrdinal.get(o);
+          if (!arr) {
+            arr = [];
+            byOrdinal.set(o, arr);
+          }
+          arr.push(String(r.bill_id));
+        }
+        return acts.rows.map((r) => {
+          const ordinal = Number(r.activity_ordinal);
+          return {
+            ordinal,
+            code: (r.general_issue_code as string | null) ?? null,
+            display: (r.general_issue_code_display as string | null) ?? null,
+            description: (r.description as string | null) ?? null,
+            bills: byOrdinal.get(ordinal) ?? [],
+          };
+        });
+      } catch {
+        // A bad read hides the panel, never 500s the page (the honest-gap rule).
+        return null;
+      }
+    },
+    ["filing-activities", filingUuid],
+    { revalidate: 3600, tags: ["lda"] },
+  )();
+}
+
 // The per-bill drill blob (HO 440) — the fat-tail bills (>=BILL_DRILL_MIN_FILINGS
 // distinct filings) precomputed by the cron. Parsed once per hour, shared across
 // every bill lookup below. Separate key from the /lobbying rollup so this ~560KB
@@ -3432,6 +3501,19 @@ export function sanitizeIssueCode(
   if (!raw || typeof raw !== "string") return null;
   const up = raw.trim().toUpperCase();
   return /^[A-Z]{2,8}$/.test(up) ? up : null;
+}
+
+// HO 486 — the ?expanded= filing id for the /lobbying expand panel. filing_uuid
+// is a canonical 8-4-4-4-12 lowercase UUID (Congress LDA source); anything else
+// is rejected so a junk param never reaches getFilingActivities as a bind arg.
+export function sanitizeFilingUuid(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  const s = raw.trim().toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(s)
+    ? s
+    : null;
 }
 
 // ---- FEC fundraising (handoff 83) ---------------------------------------

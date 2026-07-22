@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import { FilingExpandPanel } from "@/components/FilingExpandPanel";
 import { FilingRow } from "@/components/FilingRow";
 import { FirmsLeaderboard } from "@/components/FirmsLeaderboard";
 import { HeaderBar } from "@/components/HeaderBar";
@@ -10,10 +12,12 @@ import { topicForCode } from "@/lib/lda-issue-topic-map";
 import { topicColor } from "@/lib/topic-colors";
 import {
   type FilingSummary,
+  getFilingActivities,
   getLobbyingRollup,
   getRecentFilings,
   getTopFirms,
   getTopicCrosswalk,
+  sanitizeFilingUuid,
   sanitizeIssueCode,
 } from "@/lib/queries";
 
@@ -29,7 +33,7 @@ const PAGE_SIZE = 25;
 // corpus stays explorable via the issue rail → per-issue drill.
 const MAX_FEED_PAGES = 40;
 
-type SearchParams = { issue?: string; page?: string };
+type SearchParams = { issue?: string; page?: string; expanded?: string };
 
 function parsePage(raw: string | undefined): number {
   const n = Number(raw);
@@ -122,8 +126,28 @@ export default async function LobbyingPage({
   }
   const rows = scoped && selectedDrill ? selectedDrill.recent : feedItems;
 
+  // Expand read (HO 486) — the one new live query. Fetch only when the ?expanded=
+  // uuid is actually in the rendered set (the /members constraint); a valid uuid
+  // that isn't on screen attaches nothing, so skip the read entirely.
+  const expandedUuid = sanitizeFilingUuid(params.expanded);
+  const activities =
+    expandedUuid && rows.some((f) => f.filingUuid === expandedUuid)
+      ? await getFilingActivities(expandedUuid)
+      : null;
+
   const feedCarry = new URLSearchParams();
   if (params.issue) feedCarry.set("issue", params.issue);
+
+  // Per-row expand toggle target — carries the active scope (?issue=) + pager
+  // position (?page=) so expanding never drops them; toggles ?expanded=.
+  const buildToggleHref = (uuid: string, rowExpanded: boolean): string => {
+    const sp = new URLSearchParams();
+    if (params.issue) sp.set("issue", params.issue);
+    if (params.page) sp.set("page", params.page);
+    if (!rowExpanded) sp.set("expanded", uuid);
+    const qs = sp.toString();
+    return qs ? `/lobbying?${qs}` : "/lobbying";
+  };
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -237,7 +261,7 @@ export default async function LobbyingPage({
             ) : null}
 
             {/* Column header (grid-aligned with the filing rows) */}
-            <div className="mc-row mc-row-hdr">
+            <div className="mc-row mc-row-hdr lob-filing-row">
               <span aria-hidden />
               <span>AGE</span>
               <span>REGISTRANT → CLIENT</span>
@@ -246,7 +270,22 @@ export default async function LobbyingPage({
             </div>
 
             {rows.length > 0 ? (
-              rows.map((f) => <FilingRow key={f.filingUuid} filing={f} />)
+              rows.map((f) => (
+                <Fragment key={f.filingUuid}>
+                  <FilingRow
+                    filing={f}
+                    expandable
+                    isExpanded={f.filingUuid === expandedUuid}
+                    toggleHref={buildToggleHref(
+                      f.filingUuid,
+                      f.filingUuid === expandedUuid,
+                    )}
+                  />
+                  {f.filingUuid === expandedUuid && activities ? (
+                    <FilingExpandPanel activities={activities} filing={f} />
+                  ) : null}
+                </Fragment>
+              ))
             ) : (
               <div className="mc-empty">No filings on file</div>
             )}

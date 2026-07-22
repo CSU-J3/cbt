@@ -5698,11 +5698,22 @@ body {
   /* code | display | topic bar | filings count (5-digit) */
   grid-template-columns: 44px 1fr 56px 48px;
 }
-.lob-content .mc-row {
-  /* caret | age | reg→client | issue chips | bill chips */
+/* Row-owned grid (not container-scoped) so ALL three FilingRow consumers align —
+   /lobbying, /bill/[id] BillLobbying, and IssueDrill — with no ancestor needed.
+   caret | age | reg→client | issue chips | bill chips */
+.lob-filing-row {
   grid-template-columns: 16px 52px 1fr auto auto;
 }
-.lob-frow-caret {
+/* Interactivity is opt-in: only the expandable (/lobbying) rows carry role=button.
+   Inert rows (BillLobbying / IssueDrill) suppress the shared .mc-row hover so a
+   non-clickable row doesn't feign an affordance. */
+.lob-filing-row[role="button"] {
+  cursor: pointer;
+}
+.lob-filing-row:not([role]):hover {
+  background-color: transparent;
+}
+.lob-filing-caret {
   font-size: 11px;
   color: var(--text-dim);
 }
@@ -5736,6 +5747,95 @@ body {
 }
 .lob-ww > * + * {
   border-left: 0.5px solid var(--border-soft);
+}
+
+/* Expand panel (HO 486) — the per-activity LD-2 detail under an expanded row.
+   Reuses the .sponsor-expanded-panel surface idiom (--bg-row-hover + amber rail). */
+.lob-exp {
+  background-color: var(--bg-row-hover);
+  border-left: 2px solid var(--accent-amber);
+  border-bottom: 0.5px solid var(--border-strong);
+}
+.lob-exp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.lob-exp-rc {
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.lob-exp-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.lob-exp-acts {
+  display: flex;
+  flex-direction: column;
+}
+.lob-exp-act {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.lob-exp-act:last-child {
+  border-bottom: none;
+}
+.lob-exp-act-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.lob-exp-act-disp {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+/* Description scroll box — HO 485: p99≈1.8k, max 24.4k chars, so it never
+   renders raw. Sans body, preserves the LD-2 free-text line breaks. */
+.lob-exp-desc {
+  max-height: 140px;
+  overflow-y: auto;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  background-color: var(--bg-base);
+  border: 0.5px solid var(--border-soft);
+  border-radius: 2px;
+}
+.lob-exp-bills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.lob-bill-chip {
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+  border-radius: 2px;
+  padding: 0 4px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  transition: background-color 0.1s;
+}
+.lob-bill-chip:hover {
+  background-color: var(--bg-row-hover);
+}
+.lob-exp-more {
+  font-size: 10px;
+  color: var(--text-dim);
 }
 
 .sponsor-expanded-panel {
