@@ -6,6 +6,10 @@ Dates are exact where I tracked them live, flagged `~` where approximate, and ta
 
 ---
 
+## Pooled `cron_runs` percentiles across a fix boundary describe neither state — split at the fix (HO 487, Jul 2026)
+
+The HO 487 trades verification pulled 14 days of `/api/sync` `cron_runs` and read the pool whole: **63% timeout, ~52s p50 elapsed** — which reads as an active, ongoing breach. But two fixes shipped *inside* that window (HO 480/481 lead-query hints, 07-18 14:32; HO 483 trades batch, 07-19), so the pool is half broken-state rows and half fixed-state rows and describes **neither**. Split at the HO 480/481 boundary the same rows read **79% timeout PRE → 14% POST** — fixed, and back on the documented ~1-in-5 soft-cap baseline. The pooled figure would have re-triggered a probe of something already solved. **The rule: before citing any percentile or rate off a `cron_runs` window, check whether a fix shipped inside the window and split at the boundary — a stat pooled across a fix boundary is an artifact, not current state.** This is the mirror of *The planning copy lags the live repo* below: there the stale input is a handoff; here it's a time-pooled metric that averages away the very change you're measuring.
+
 ## A shared component's grid class belongs on the component, not an ancestor-scoped selector (HO 486, Jul 2026)
 
 Commit A of the `/lobbying` redesign gave `FilingRow` the `.mc-row` class and put its grid in `.lob-content .mc-row`. But `BillLobbying` renders the same `FilingRow` on `/bill/[id]`, **outside any `.lob-content` ancestor** — so those rows silently fell back to the base `.mc-row` grid (`1fr 320px 56px 64px 52px`, the members layout) and broke. The fix was a row-owned `.lob-filing-row` class. **The rule: when a shared component needs a grid/layout, the class lives on the component. An ancestor-scoped override styles the one surface you were looking at and breaks every other consumer.** Before changing a shared component's markup, enumerate *every* consumer (`grep -rn "<ComponentName" app/ components/`) and check each surface — this is now a `SKILL.md` pre-edit gate.
