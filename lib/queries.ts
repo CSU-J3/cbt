@@ -40,6 +40,7 @@ import {
 } from "./markets";
 import {
   ALLOWED_STAGES_SET,
+  ALLOWED_TOPICS,
   ALLOWED_TOPICS_SET,
   type Stage,
   type Topic,
@@ -705,7 +706,9 @@ export const getTopicDistribution = unstable_cache(
   async (
     filters?: DashboardFilters,
     // HO 253: v2 reads this summary-gated too, so the body's TOPIC panel draws
-    // from the same corpus as the gated headline total. `/` calls it ungated.
+    // from the same corpus as the gated headline total. HO 496: both live callers
+    // (app/page.tsx, app/dashboard-classic) pass true — the ungated default is
+    // unused/defensive (an earlier comment here wrongly claimed `/` calls it ungated).
     summaryGated = false,
   ): Promise<TopicCount[]> => {
     const db = getDb();
@@ -719,7 +722,7 @@ export const getTopicDistribution = unstable_cache(
     // from the index, no fat-table fetch) instead of the planner's MULTI-INDEX OR
     // on idx_bills_is_ceremonial; 175ms → 38ms. The json_each GROUP/ORDER temp
     // b-trees remain (24 groups, unavoidable + cheap). Gated-only — the ungated
-    // `/` call lacks the `summary IS NOT NULL` clause the partial index requires.
+    // default path lacks the `summary IS NOT NULL` clause the partial index requires.
     //
     // HO 382: when a STAGE filter is active (the /?stage= topic treemap rebasing),
     // idx_bills_summary_topics has no `stage`, so the `bills.stage = ?` predicate
@@ -759,6 +762,99 @@ export const getTopicDistribution = unstable_cache(
   ["getTopicDistribution"],
   { revalidate: 3600, tags: ["bills"] },
 );
+
+export type BillTopicRailCount = { topic: Topic; count: number };
+
+// HO 496: per-topic counts for the /bills two-pane rail. Kept SEPARATE from
+// getTopicDistribution on purpose — that helper has two live dashboard callers
+// (app/page.tsx, app/dashboard-classic) that rebase on STAGE only, and widening
+// it to chamber/ceremonial would silently reshape the dashboard treemap (the
+// HO 486 riding-regression shape). This rebases on the BOUNDED dims only —
+// stage, chamber, ceremonial. `q` is deliberately EXCLUDED (HO 495 PARTIAL: it
+// gives zero scan-narrowing because the query GROUP BYs all 24 topics regardless,
+// and every distinct search string would become its own unbounded cache key). So
+// when a search is active the rail reflects the non-`q` filters — search is a
+// needle-finder, the rail is a browse spine.
+//
+// Self-exclusion: the count NEVER applies the topic selection. With OR semantics
+// a rail count must predict what CLICKING a topic does — clicking TAX while HLTH
+// is lit ADDS bills, so TAX's count is "TAX bills under the current stage/chamber/
+// ceremonial", never "HLTH-and-TAX". (HO 495 confirmed there's no coupling to
+// undo — getTopicDistribution never touched filters.topic either.)
+//
+// Mirrors the LIVE gated getTopicDistribution SQL: `summary IS NOT NULL` + the
+// HO 382 partial-covering-index hints. HO 495 Step 5 (MANDATORY): keep the
+// stage-branch hint or the stage-absent path regresses to a MULTI-INDEX OR on
+// idx_bills_is_ceremonial (the HO 382/335 misplanner). Chamber rides as a
+// post-index row filter on bill_type — fine, the query walks the whole topic
+// index anyway to GROUP BY (HO 495). No new index is needed (HO 495 verified).
+const getBillTopicRailCountsCached = unstable_cache(
+  async (
+    // Scalars, not a filters object, so the cache key is EXACTLY this bounded
+    // tuple — `q`/`topics`/`sponsor` can never leak into it (the HO 495 blowup).
+    stage: string,
+    chamber: string,
+    includeCeremonial: boolean,
+  ): Promise<BillTopicRailCount[]> => {
+    const db = getDb();
+    const stageClause = stage ? " AND bills.stage = ?" : "";
+    const ceremonialClause = includeCeremonial
+      ? ""
+      : " AND (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)";
+    const chamberClause =
+      chamber === "house"
+        ? ` AND bills.bill_type IN (${HOUSE_BILL_TYPES})`
+        : chamber === "senate"
+          ? ` AND bills.bill_type IN (${SENATE_BILL_TYPES})`
+          : "";
+    const fromHint = stage
+      ? " INDEXED BY idx_bills_summary_stage_topics"
+      : " INDEXED BY idx_bills_summary_topics";
+    const rs = await db.execute({
+      sql: `SELECT je.value AS topic, COUNT(*) AS count
+       FROM bills${fromHint}, json_each(bills.topics) je
+       WHERE bills.topics IS NOT NULL
+         AND bills.summary IS NOT NULL${ceremonialClause}${stageClause}${chamberClause}
+       GROUP BY je.value
+       ORDER BY count DESC`,
+      args: stage ? [stage] : [],
+    });
+    const counts = new Map<string, number>();
+    for (const r of rs.rows) {
+      const topic = r.topic as string;
+      if (!ALLOWED_TOPICS_SET.has(topic)) {
+        console.warn(`[getBillTopicRailCounts] skipping unknown topic: ${topic}`);
+        continue;
+      }
+      counts.set(topic, Number(r.count ?? 0));
+    }
+    // Zero-pad against the 24-topic vocabulary so a topic with no matches under
+    // the current filter renders greyed rather than vanishing + reflowing the
+    // rail. Sort VOL-desc (zeros sink to the bottom), tie-break on enum order so
+    // the ordering is deterministic across renders.
+    return ALLOWED_TOPICS.map((t) => ({ topic: t, count: counts.get(t) ?? 0 }))
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          ALLOWED_TOPICS.indexOf(a.topic) - ALLOWED_TOPICS.indexOf(b.topic),
+      );
+  },
+  ["billTopicRail"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
+// Thin wrapper: normalize the bounded tuple out of the feed filters so ONLY those
+// three scalars reach the cached fn (and thus its cache key). Everything else in
+// FeedFilters (`q`, `topics`, `sponsor`, sort, cluster) is intentionally dropped.
+export function getBillTopicRailCounts(
+  filters: FeedFilters,
+): Promise<BillTopicRailCount[]> {
+  return getBillTopicRailCountsCached(
+    filters.stage ?? "",
+    filters.chamber ?? "",
+    filters.includeCeremonial ?? false,
+  );
+}
 
 export type TopicChamberCount = {
   topic: Topic;
