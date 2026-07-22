@@ -5709,9 +5709,10 @@ body {
   overflow-y: auto;
   min-height: 0;
   /* Tuned to the scoped-state content height (~553px at drill.recent
-     sample size). PAGE_SIZE=25 floors the unscoped content column at
-     ~959px, so the rail is deliberately shorter there. Re-measure if
-     PAGE_SIZE or the drill sample size changes. */
+     sample size). Both states now floor on the rail: PAGE_SIZE (HO 493)
+     is sized so the unscoped feed also comes in at/under this bound, so
+     the two views share one page height. Re-measure if the drill sample
+     size changes (and re-tune PAGE_SIZE if this bound changes). */
   max-height: 520px;
   scrollbar-width: thin;
   scrollbar-color: #243040 transparent;

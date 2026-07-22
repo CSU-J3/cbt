@@ -24,7 +24,18 @@ import {
 // Reads the DB (rollup blob + live feed); opt out of static prerender.
 export const dynamic = "force-dynamic";
 
-const PAGE_SIZE = 25;
+// HO 493 — PAGE_SIZE=13, NOT the larger 14 a uniform-row measurement suggests.
+// The unscoped feed's content column must come in at/under the rail floor
+// (~551px = the globals.css .lob-rail-scroll 520px bound + the 31px rail header)
+// so both views share one rail-floored page height (~1369px @ 1280w). But feed
+// rows are VARIABLE height — filings citing several bill chips wrap and cost
+// ~33px each. Measured page 1: 14 rows ≈ 534px (17px slack, absorbs zero wrapped
+// rows); 13 rows ≈ 501px (~50px slack, absorbs one). Both floor at the rail when
+// they fit, so 14 buys one row in exchange for the section headers dropping below
+// the fold on any day page 1 carries a wrapped row. The measured slack is a
+// property of that day's feed, not of this constant — do NOT re-tune upward on a
+// low-chip day. (MAX_FEED_PAGES below is the pager cap.)
+const PAGE_SIZE = 13;
 // The corpus feed is a RECENCY window, capped so the OFFSET stays cheap. A deep
 // OFFSET can't short-circuit the idx_lda_filings_dt_posted walk — it scans up to
 // all ~108k rows (measured 12.3s at the tail, HO 437), which trips the 10s
