@@ -1,0 +1,38 @@
+# HO 488 — secretless CI. Catches the class of failure that shipped at 3ed533c
+# (broken `npm run typecheck` undetected until the next session). No DB creds:
+# `next build` was verified to prerender cleanly without TURSO_* / GEMINI_API_KEY
+# (every DB-backed route is dynamic), so no `env:` block and no secrets here.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A rapid re-push cancels the in-flight run for the same ref instead of queuing.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # No `engines` pin in package.json; 20 LTS per HO 488 fallback.
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
