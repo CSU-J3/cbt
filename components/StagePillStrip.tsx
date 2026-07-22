@@ -84,10 +84,14 @@ export function StagePillStrip({
   stage,
   introducedDate,
   stageChangedAt,
+  nowMs,
 }: {
   stage: string | null;
   introducedDate: string | null;
   stageChangedAt: string | null;
+  // HO 490: page-computed clock threaded down so the age buckets match between
+  // SSR and hydration (this runs client-side via BillRow). See lib/format.ts.
+  nowMs: number;
 }) {
   if (!stage) return null;
 
@@ -97,7 +101,7 @@ export function StagePillStrip({
       <span className="stage-pill-strip">
         <StagePill
           stage="introduced"
-          age={introducedDate ? formatRelativeAgeLong(introducedDate) : null}
+          age={introducedDate ? formatRelativeAgeLong(introducedDate, nowMs) : null}
         />
       </span>
     );
@@ -108,10 +112,10 @@ export function StagePillStrip({
   // segment). The introduced pill always shows time-since intro when the
   // column is populated.
   const introAge = introducedDate
-    ? formatRelativeAgeLong(introducedDate)
+    ? formatRelativeAgeLong(introducedDate, nowMs)
     : null;
   const currentAge = stageChangedAt
-    ? formatRelativeAgeLong(stageChangedAt)
+    ? formatRelativeAgeLong(stageChangedAt, nowMs)
     : null;
 
   return (

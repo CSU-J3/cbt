@@ -62,6 +62,7 @@ function supportFigure(count: number | null | undefined): {
 // committee, patterns) are unaffected and stay link-only.
 export function BillRow({
   bill,
+  nowMs,
   daysSinceMode,
   compact = false,
   showMomentum = false,
@@ -71,6 +72,9 @@ export function BillRow({
   expandedPanel,
 }: {
   bill: FeedBill;
+  // HO 490: page-computed clock for the stage-pill ages + days-since cell, so
+  // SSR and hydration bucket identically (this is a client component).
+  nowMs: number;
   daysSinceMode?: DaysSinceMode;
   compact?: boolean;
   // HO 371: /stale-only momentum overlay (see BillRowList). Adds the line-1
@@ -146,6 +150,7 @@ export function BillRow({
           stage={bill.stage}
           introducedDate={bill.introduced_date}
           stageChangedAt={bill.stage_changed_at ?? null}
+          nowMs={nowMs}
         />
 
         <span className="row-meta">
@@ -211,12 +216,15 @@ export function BillRow({
           className="row-days-since"
           style={{
             color: bill.latest_action_date
-              ? daysSinceColor(daysSince(bill.latest_action_date), daysSinceMode)
+              ? daysSinceColor(
+                  daysSince(bill.latest_action_date, nowMs),
+                  daysSinceMode,
+                )
               : "var(--text-dim)",
           }}
         >
           {bill.latest_action_date
-            ? `${daysSince(bill.latest_action_date)}d`
+            ? `${daysSince(bill.latest_action_date, nowMs)}d`
             : "—"}
         </span>
       ) : null}

@@ -53,6 +53,9 @@ export default async function DashboardClassicPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
+  // HO 490: one page-computed clock threaded to every feed/news client row on
+  // the dashboard so relative-age buckets match across SSR/hydration (#418).
+  const nowMs = Date.now();
   const filters: DashboardFilters = {
     stage: sanitizeStage(sp.stage),
     topic: sanitizeTopic(sp.topics),
@@ -94,7 +97,7 @@ export default async function DashboardClassicPage({
       <ActiveFilterStrip filters={filters} basePath={FILTER_BASE} />
 
       <main className="home-main">
-        <CompetitiveRacesBlock />
+        <CompetitiveRacesBlock nowMs={nowMs} />
 
         <WeeklyBand />
 
@@ -111,7 +114,7 @@ export default async function DashboardClassicPage({
                   ({breakingCount.toLocaleString()})
                 </span>
               </p>
-              <BreakingNewsBlock filters={filters} />
+              <BreakingNewsBlock filters={filters} nowMs={nowMs} />
             </section>
 
             <section className="home-quadrant home-panel-distributions">
@@ -130,9 +133,9 @@ export default async function DashboardClassicPage({
           <div className="home-col-stack home-col-right">
             <section className="home-quadrant">
               <ActivityTabs
-                activityContent={<ActivityTicker filters={filters} />}
-                stallsContent={<TopStalls />}
-                newContent={<NewThisWeek />}
+                activityContent={<ActivityTicker filters={filters} nowMs={nowMs} />}
+                stallsContent={<TopStalls nowMs={nowMs} />}
+                newContent={<NewThisWeek nowMs={nowMs} />}
                 activityCount={activityCount.total}
                 stallsCount={TOP_STALLS_COUNT}
                 newCount={newBillsCount}

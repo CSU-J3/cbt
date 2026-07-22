@@ -71,6 +71,9 @@ export default async function FeedPage({
   const mode = sanitizeMode(params.mode);
   const rawPage = Number.parseInt(params.page ?? "1", 10);
   const requestedPage = Number.isFinite(rawPage) ? rawPage : 1;
+  // HO 490: one page-computed clock threaded to the feed rows / news rows so
+  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  const nowMs = Date.now();
 
   // Shared toggle href helper. Per HO 151 per-mode scoping: switching
   // modes does NOT clear the other mode's params; they persist in the
@@ -104,12 +107,14 @@ export default async function FeedPage({
       params,
       requestedPage,
       toggle,
+      nowMs,
     });
   }
   return BillsView({
     params,
     requestedPage,
     toggle,
+    nowMs,
   });
 }
 
@@ -119,10 +124,12 @@ async function BillsView({
   params,
   requestedPage,
   toggle,
+  nowMs,
 }: {
   params: SearchParams;
   requestedPage: number;
   toggle: React.ReactNode;
+  nowMs: number;
 }) {
   const topics = sanitizeTopics(params.topics);
   const stage = sanitizeStage(params.stage);
@@ -360,6 +367,7 @@ async function BillsView({
               <BillRowList
                 bills={bills}
                 watchedIds={watchedIds}
+                nowMs={nowMs}
                 daysSinceMode={daysSinceMode}
               />
               <Pagination
@@ -382,10 +390,12 @@ async function NewsView({
   params,
   requestedPage,
   toggle,
+  nowMs,
 }: {
   params: SearchParams;
   requestedPage: number;
   toggle: React.ReactNode;
+  nowMs: number;
 }) {
   const source = sanitizeNewsSource(params.source);
   const topic = sanitizeTopic(params.topic);
@@ -493,7 +503,7 @@ async function NewsView({
             <ul>
               {mentions.map((m) => (
                 <li key={m.id} className="px-3">
-                  <NewsRow mention={m} showFullHeadline />
+                  <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
                 </li>
               ))}
             </ul>

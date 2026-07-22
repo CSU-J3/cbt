@@ -137,6 +137,10 @@ export default async function MemberPage({
   params: Promise<{ bioguideId: string }>;
 }) {
   const { bioguideId } = await params;
+  // HO 490: one page-computed clock threaded to the sponsored-bills feed rows
+  // and the race-news rows so relative-age buckets match across SSR/hydration
+  // (#418). See lib/format.ts.
+  const nowMs = Date.now();
 
   const [
     member,
@@ -303,7 +307,7 @@ export default async function MemberPage({
                   No bills sponsored
                 </div>
               ) : (
-                <BillRowList bills={bills} watchedIds={watchedIds} />
+                <BillRowList bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
               )}
             </section>
 
@@ -594,7 +598,7 @@ export default async function MemberPage({
                 {news.length > 0 ? (
                   <div>
                     {news.map((n) => (
-                      <RaceNewsRow key={n.obsId} item={n} />
+                      <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
                     ))}
                   </div>
                 ) : (

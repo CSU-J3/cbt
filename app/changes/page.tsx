@@ -36,6 +36,9 @@ export default async function ChangesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // HO 490: one page-computed clock threaded to the feed's client rows so
+  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  const nowMs = Date.now();
   const topics = sanitizeTopics(params.topics);
   const q = typeof params.q === "string" ? params.q.trim() : "";
   const chamber = sanitizeChamber(params.chamber);
@@ -193,7 +196,7 @@ export default async function ChangesPage({
               </div>
             )
           ) : (
-            <BillRowList bills={bills} watchedIds={watchedIds} />
+            <BillRowList bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
           )}
         </div>
       </main>

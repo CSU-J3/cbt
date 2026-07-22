@@ -22,11 +22,14 @@ const CAP = 5;
 export async function ActivityTicker({
   filters,
   variant,
+  nowMs,
 }: {
   filters?: DashboardFilters;
   // HO 257: "v2" renders the mock-matching V2FeedList (rich rows + expand);
   // default keeps the `/` dashboard's compact BillRowList untouched.
   variant?: "v2";
+  // HO 490: page-computed clock threaded to the feed's client rows.
+  nowMs: number;
 }) {
   const [bills, counts, watchedIds] = await Promise.all([
     getStageChanges({}, 7, CAP, filters),
@@ -45,11 +48,11 @@ export async function ActivityTicker({
           No stage changes in the last 7 days.
         </div>
       ) : variant === "v2" ? (
-        <V2FeedList bills={bills} metricMode="movers" />
+        <V2FeedList bills={bills} metricMode="movers" nowMs={nowMs} />
       ) : (
         // HO 164: compact rows that expand into the full BillExpandedPanel,
         // single-open within this tab (resets when you switch to TOP STALLS).
-        <BillRowList compact bills={bills} watchedIds={watchedIds} />
+        <BillRowList compact bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
       )}
       <Link href="/changes" className="home-expander">
         {remaining > 0

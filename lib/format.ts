@@ -40,16 +40,26 @@ export function formatDateLong(iso: string | null | undefined): string {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// HO 490 — `nowMs` is a REQUIRED parameter on the three relative-age helpers
+// below (no `Date.now()` default). These render inside client components, so a
+// server-computed and a client-computed clock land in different minute/hour/day
+// buckets and React discards the server HTML (#418, HO 489). Requiring the clock
+// forces every caller to pass ONE page-computed instant, and makes `tsc` (CI as
+// of 3aa677c) reject any new implicit-clock call site — closing the bug class.
+//
 // Relative-age string for news mentions. Sub-hour → "Xm"; sub-day → "Xh";
 // otherwise → "Xd". Floors each unit so a 59-min mention reads "59m" rather
 // than "1h", matching how news clients display recency. Capped at days
 // because the news feed never shows anything older than a few weeks; for
 // the longer arcs the BillRow stage pills need, use formatRelativeAgeLong.
-export function formatRelativeAge(iso: string | null | undefined): string {
+export function formatRelativeAge(
+  iso: string | null | undefined,
+  nowMs: number,
+): string {
   if (!iso) return "—";
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return "—";
-  const diffMs = Math.max(0, Date.now() - t);
+  const diffMs = Math.max(0, nowMs - t);
   const minutes = Math.floor(diffMs / 60000);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
@@ -65,11 +75,14 @@ export function formatRelativeAge(iso: string | null | undefined): string {
 // years are good enough for terminal-style "9mo ago" UI text. Output is
 // lowercase; row CSS applies uppercase at render so the value travels
 // case-agnostic through the pipe.
-export function formatRelativeAgeLong(iso: string | null | undefined): string {
+export function formatRelativeAgeLong(
+  iso: string | null | undefined,
+  nowMs: number,
+): string {
   if (!iso) return "—";
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return "—";
-  const diffMs = Math.max(0, Date.now() - t);
+  const diffMs = Math.max(0, nowMs - t);
   const minutes = Math.floor(diffMs / 60000);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
@@ -81,14 +94,16 @@ export function formatRelativeAgeLong(iso: string | null | undefined): string {
   return `${Math.floor(days / 365)}y`;
 }
 
-export function daysSince(dateStr: string | null | undefined): number {
+export function daysSince(
+  dateStr: string | null | undefined,
+  nowMs: number,
+): number {
   if (!dateStr) return 0;
   const part = dateStr.slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(part)) return 0;
   const t = Date.parse(`${part}T00:00:00Z`);
   if (Number.isNaN(t)) return 0;
-  const now = Date.now();
-  return Math.max(0, Math.floor((now - t) / MS_PER_DAY));
+  return Math.max(0, Math.floor((nowMs - t) / MS_PER_DAY));
 }
 
 // Days from today (UTC midnight) to the given date: 0 = today, positive =

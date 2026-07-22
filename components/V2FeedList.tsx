@@ -60,13 +60,21 @@ function TitleCell({ title }: { title: string }) {
 // Per-tab right-side indicator. Movers show the abbreviated last transition
 // (FROM → TO · ago); stalls show stuck duration; new shows time since intro.
 // Never force a FROM → TO onto a stall/new row (handoff).
-function Metric({ bill, mode }: { bill: FeedBill; mode: V2MetricMode }) {
+function Metric({
+  bill,
+  mode,
+  nowMs,
+}: {
+  bill: FeedBill;
+  mode: V2MetricMode;
+  nowMs: number;
+}) {
   if (mode === "movers") {
     const to = bill.stage ? (STAGE_ABBR[bill.stage] ?? bill.stage.toUpperCase()) : "—";
     const from = bill.previous_stage
       ? (STAGE_ABBR[bill.previous_stage] ?? bill.previous_stage.toUpperCase())
       : null;
-    const ago = formatRelativeAge(bill.stage_changed_at);
+    const ago = formatRelativeAge(bill.stage_changed_at, nowMs);
     return (
       <span className="v2f-metric">
         {from ? (
@@ -80,11 +88,17 @@ function Metric({ bill, mode }: { bill: FeedBill; mode: V2MetricMode }) {
   }
   if (mode === "stalls") {
     return (
-      <span className="v2f-metric">{daysSince(bill.latest_action_date)}d stuck</span>
+      <span className="v2f-metric">
+        {daysSince(bill.latest_action_date, nowMs)}d stuck
+      </span>
     );
   }
   // new
-  return <span className="v2f-metric">INTRO · {formatRelativeAge(bill.introduced_date)}</span>;
+  return (
+    <span className="v2f-metric">
+      INTRO · {formatRelativeAge(bill.introduced_date, nowMs)}
+    </span>
+  );
 }
 
 // HO 321: collapsed-row line 2 — sponsor LASTNAME (links to the member page, the
@@ -136,9 +150,13 @@ function SubLine({ bill }: { bill: FeedBill }) {
 export function V2FeedList({
   bills,
   metricMode,
+  nowMs,
 }: {
   bills: FeedBill[];
   metricMode: V2MetricMode;
+  // HO 490: page-computed clock for the per-row metric + expand-panel ages, so
+  // SSR and hydration bucket identically. See lib/format.ts.
+  nowMs: number;
 }) {
   // Same click single-open contract /bills uses (HO 319): one row open at a time,
   // panel data cached per bill.
@@ -193,11 +211,15 @@ export function V2FeedList({
                 <TitleCell title={bill.title} />
                 <SubLine bill={bill} />
               </div>
-              <Metric bill={bill} mode={metricMode} />
+              <Metric bill={bill} mode={metricMode} nowMs={nowMs} />
               <span className="v2f-chev">▾</span>
             </div>
             {open ? (
-              <BillExpandPanel bill={bill} panel={panelCache.get(bill.id) ?? null} />
+              <BillExpandPanel
+                bill={bill}
+                nowMs={nowMs}
+                panel={panelCache.get(bill.id) ?? null}
+              />
             ) : null}
           </div>
         );

@@ -26,8 +26,15 @@ function billTypeAndNumber(billId: string): {
   return { type, number };
 }
 
-export function BreakingRow({ mention }: { mention: NewsMention }) {
-  const ageLabel = formatRelativeAge(mention.publishedAt);
+export function BreakingRow({
+  mention,
+  nowMs,
+}: {
+  mention: NewsMention;
+  // HO 490: page-computed clock for the relative age.
+  nowMs: number;
+}) {
+  const ageLabel = formatRelativeAge(mention.publishedAt, nowMs);
   const tn = billTypeAndNumber(mention.billId);
   const billLabel = tn ? formatBillId(tn.type, tn.number) : mention.billId;
   const billHref = `/bill/${encodeURIComponent(mention.billId)}`;

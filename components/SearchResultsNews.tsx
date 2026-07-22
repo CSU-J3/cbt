@@ -5,7 +5,14 @@ import { searchNews } from "@/lib/queries";
 // bill rail click goes straight to the bill hub rather than to /bills's
 // expand panel — search-result intent is "find this thing," not
 // "preview it in context."
-export async function SearchResultsNews({ q }: { q: string }) {
+export async function SearchResultsNews({
+  q,
+  nowMs,
+}: {
+  q: string;
+  // HO 490: page-computed clock for the news-row ages.
+  nowMs: number;
+}) {
   const mentions = await searchNews(q);
 
   return (
@@ -22,7 +29,7 @@ export async function SearchResultsNews({ q }: { q: string }) {
       <ul>
         {mentions.map((m) => (
           <li key={m.id} className="px-3">
-            <NewsRow mention={m} showFullHeadline />
+            <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
           </li>
         ))}
       </ul>

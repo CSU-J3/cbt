@@ -41,6 +41,9 @@ export default async function StalePage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // HO 490: one page-computed clock threaded to the feed's client rows so
+  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  const nowMs = Date.now();
   const topics = sanitizeTopics(params.topics);
   const stage = sanitizeStaleStage(params.stage);
   const q = typeof params.q === "string" ? params.q.trim() : "";
@@ -222,6 +225,7 @@ export default async function StalePage({
             <BillRowList
               bills={bills}
               watchedIds={watchedIds}
+              nowMs={nowMs}
               daysSinceMode="staleness"
               showMomentum
             />

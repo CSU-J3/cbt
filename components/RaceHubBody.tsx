@@ -55,6 +55,7 @@ export function RaceHubBody({
   runoffs,
   pac,
   news,
+  nowMs,
   preview = false,
 }: {
   race: Race;
@@ -74,6 +75,9 @@ export function RaceHubBody({
   // empty array renders the empty state; the open-seat (null-incumbent) case is
   // distinguished off `race.incumbent_bioguide_id`.
   news?: RaceNewsItem[];
+  // HO 490: page-computed clock for the race-news relative ages (RaceNewsRow
+  // renders in RaceHubBody's shared server/client tree). See lib/format.ts.
+  nowMs: number;
   // HO 170: drawer-only trim. When true, drops the incumbent photo card and
   // the source/last-verified footer (those stay on /race/[id], which renders
   // with no `preview` prop). Keeps RaceHeader (name + countdown + multi-source
@@ -214,7 +218,7 @@ export function RaceHubBody({
             {news && news.length > 0 ? (
               <div>
                 {news.map((n) => (
-                  <RaceNewsRow key={n.obsId} item={n} />
+                  <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
                 ))}
               </div>
             ) : (
@@ -258,7 +262,7 @@ export function RaceHubBody({
           </div>
           <div className="px-4 py-2">
             {news.slice(0, 3).map((n) => (
-              <RaceNewsRow key={n.obsId} item={n} />
+              <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
             ))}
           </div>
         </section>

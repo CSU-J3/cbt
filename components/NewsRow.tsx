@@ -12,10 +12,10 @@ function ageColor(hours: number): string {
   return "var(--text-muted)";
 }
 
-function ageHours(iso: string): number {
+function ageHours(iso: string, nowMs: number): number {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return Number.POSITIVE_INFINITY;
-  return (Date.now() - t) / 3_600_000;
+  return (nowMs - t) / 3_600_000;
 }
 
 // Parse "119-hr-1234" → { type: 'hr', number: 1234 } for display.
@@ -33,13 +33,17 @@ function billTypeAndNumber(billId: string): {
 
 export function NewsRow({
   mention,
+  nowMs,
   showFullHeadline = false,
 }: {
   mention: NewsMention;
+  // HO 490: page-computed clock for the age label + age-tier color, so the
+  // buckets match if this row is ever rendered inside a client boundary.
+  nowMs: number;
   showFullHeadline?: boolean;
 }) {
-  const hours = ageHours(mention.publishedAt);
-  const ageLabel = formatRelativeAge(mention.publishedAt);
+  const hours = ageHours(mention.publishedAt, nowMs);
+  const ageLabel = formatRelativeAge(mention.publishedAt, nowMs);
   const tn = billTypeAndNumber(mention.billId);
   const billLabel = tn ? formatBillId(tn.type, tn.number) : mention.billId;
   // The bill ID always links to the bill hub (/bill/[id]). HO 155: the old

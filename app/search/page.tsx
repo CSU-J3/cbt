@@ -55,6 +55,8 @@ export default async function SearchPage({
   const params = await searchParams;
   const q = sanitizeQ(params.q);
   const active = sanitizeSearchTab(params.tab);
+  // HO 490: page-computed clock threaded to the bills/news result rows (#418).
+  const nowMs = Date.now();
 
   // Parallel count queries — every tab runs on every page load so the
   // strip stays informative. Result fetch only on the active tab.
@@ -126,9 +128,9 @@ export default async function SearchPage({
                 </p>
               ) : (
                 <>
-                  {active === "bills" ? <SearchResultsBills q={q} /> : null}
+                  {active === "bills" ? <SearchResultsBills q={q} nowMs={nowMs} /> : null}
                   {active === "members" ? <SearchResultsMembers q={q} /> : null}
-                  {active === "news" ? <SearchResultsNews q={q} /> : null}
+                  {active === "news" ? <SearchResultsNews q={q} nowMs={nowMs} /> : null}
                   {active === "reports" ? <SearchResultsReports q={q} /> : null}
                 </>
               )}

@@ -26,6 +26,7 @@ type DaysSinceMode = "staleness" | "desk-time";
 export function BillRowList({
   bills,
   watchedIds,
+  nowMs,
   daysSinceMode,
   className,
   compact = false,
@@ -33,6 +34,9 @@ export function BillRowList({
 }: {
   bills: FeedBill[];
   watchedIds: string[];
+  // HO 490: page-computed clock threaded to the rows + panels so relative-age
+  // buckets match between SSR and hydration. See lib/format.ts.
+  nowMs: number;
   daysSinceMode?: DaysSinceMode;
   className?: string;
   compact?: boolean;
@@ -73,6 +77,7 @@ export function BillRowList({
           <BillRow
             key={b.id}
             bill={b}
+            nowMs={nowMs}
             compact={compact}
             daysSinceMode={daysSinceMode}
             showMomentum={showMomentum}
@@ -84,6 +89,7 @@ export function BillRowList({
                 compact ? (
                   <BillExpandedPanel
                     bill={b}
+                    nowMs={nowMs}
                     compact
                     cached={panelCache.get(b.id) ?? null}
                     onLoaded={(data) => handleLoaded(b.id, data)}
@@ -91,6 +97,7 @@ export function BillRowList({
                 ) : (
                   <BillExpandPanel
                     bill={b}
+                    nowMs={nowMs}
                     panel={panelCache.get(b.id) ?? null}
                     showMomentum={showMomentum}
                   />

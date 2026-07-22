@@ -76,6 +76,9 @@ export default async function DashboardPage({
   }
 
   const sp = await searchParams;
+  // HO 490: one page-computed clock threaded to every feed/news client row on
+  // the dashboard so relative-age buckets match across SSR/hydration (#418).
+  const nowMs = Date.now();
   const filters: DashboardFilters = {
     stage: sanitizeStage(sp.stage),
     topic: sanitizeTopic(sp.topics),
@@ -120,7 +123,7 @@ export default async function DashboardPage({
         <RacesBoxTabs
           defaultTab="hearings"
           hearingsContent={<HearingsTab />}
-          racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" />}
+          racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" nowMs={nowMs} />}
         />
 
         {/* HO 424 — chamber polarization band (ideology surface 1 of 3), full
@@ -147,7 +150,7 @@ export default async function DashboardPage({
                   ({breakingCount.toLocaleString()})
                 </span>
               </p>
-              <BreakingNewsBlock filters={filters} />
+              <BreakingNewsBlock filters={filters} nowMs={nowMs} />
             </section>
 
             <section className="home-quadrant home-panel-distributions">
@@ -164,10 +167,10 @@ export default async function DashboardPage({
             <section className="home-quadrant home-feed-panel">
               <ActivityTabs
                 activityContent={
-                  <ActivityTicker variant="v2" filters={filters} />
+                  <ActivityTicker variant="v2" filters={filters} nowMs={nowMs} />
                 }
-                stallsContent={<TopStalls variant="v2" />}
-                newContent={<NewThisWeek variant="v2" />}
+                stallsContent={<TopStalls variant="v2" nowMs={nowMs} />}
+                newContent={<NewThisWeek variant="v2" nowMs={nowMs} />}
                 activityCount={activityCount.total}
                 stallsCount={TOP_STALLS_COUNT}
                 newCount={newBillsCount}

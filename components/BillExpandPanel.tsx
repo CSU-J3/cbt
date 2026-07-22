@@ -62,13 +62,20 @@ const STAGE_BAR_STALE_DAYS = 60; // matches getStaleBills' threshold
 // glow, no pulse); else → moving (pulsing ring). Suppressed when stage is null
 // or off-path (indexOf → −1) — an all-future strip would falsely read "reached
 // nothing".
-export function BillStageBar({ bill }: { bill: FeedBill }) {
+export function BillStageBar({
+  bill,
+  nowMs,
+}: {
+  bill: FeedBill;
+  nowMs: number;
+}) {
   const cur = bill.stage ? ALLOWED_STAGES.indexOf(bill.stage as Stage) : -1;
   if (cur < 0) return null;
 
   const isEnacted = bill.stage === "enacted";
   const stale =
-    !isEnacted && daysSince(bill.latest_action_date) >= STAGE_BAR_STALE_DAYS;
+    !isEnacted &&
+    daysSince(bill.latest_action_date, nowMs) >= STAGE_BAR_STALE_DAYS;
   const curState = isEnacted ? "done" : stale ? "parked" : "moving";
 
   const introDate = bill.introduced_date
@@ -404,10 +411,14 @@ function cosponsorSegments(count: number): number {
 
 export function BillExpandPanel({
   bill,
+  nowMs,
   panel,
   showMomentum = false,
 }: {
   bill: FeedBill;
+  // HO 490: page-computed clock for the panel's relative ages (news, committee
+  // activity, latest action, stale-days). See lib/format.ts.
+  nowMs: number;
   panel: PanelData | null;
   // HO 371: /stale-only momentum overlay (see BillRowList). Adds the cosponsor
   // support bar to the COSPONSORS row and the "then silent" line under a
@@ -422,12 +433,12 @@ export function BillExpandPanel({
   // populated hearing on /stale.
   const silentDays =
     showMomentum && bill.latest_action_date
-      ? daysSince(bill.latest_action_date)
+      ? daysSince(bill.latest_action_date, nowMs)
       : null;
 
   return (
     <div className="bxp">
-      <BillStageBar bill={bill} />
+      <BillStageBar bill={bill} nowMs={nowMs} />
 
       <div className="bxp-body">
         {/* LEFT — summary + HEARING / RELATED NEWS / ODDS (mock order) */}
@@ -458,7 +469,7 @@ export function BillExpandPanel({
                   <span className="bxp-relnews-title">{n.title}</span>
                   <span className="bxp-relnews-meta">
                     {" · "}
-                    {n.source.toUpperCase()} · {formatRelativeAge(n.publishedAt)}
+                    {n.source.toUpperCase()} · {formatRelativeAge(n.publishedAt, nowMs)}
                   </span>
                 </a>
               ))
@@ -532,7 +543,7 @@ export function BillExpandPanel({
                       {" · "}
                       {committee0.activityType}
                       {committee0.activityDate
-                        ? ` · ${formatRelativeAge(committee0.activityDate)}`
+                        ? ` · ${formatRelativeAge(committee0.activityDate, nowMs)}`
                         : ""}
                     </span>
                   ) : null}
@@ -560,7 +571,7 @@ export function BillExpandPanel({
                 {bill.latest_action_date ? (
                   <span className="bxp-dim">
                     {" · "}
-                    {formatRelativeAge(bill.latest_action_date)}
+                    {formatRelativeAge(bill.latest_action_date, nowMs)}
                   </span>
                 ) : null}
               </div>

@@ -26,6 +26,9 @@ export default async function PatternsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // HO 490: one page-computed clock threaded to the drilldown's compact feed
+  // rows so relative-age buckets match across SSR/hydration (#418).
+  const nowMs = Date.now();
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
 
   const [stats, unmatched, filler] = await Promise.all([
@@ -113,6 +116,7 @@ export default async function PatternsPage({
                   <BillRow
                     key={b.id}
                     bill={b}
+                    nowMs={nowMs}
                     compact
                     onWatchlist={watchedSet.has(b.id)}
                   />

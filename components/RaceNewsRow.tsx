@@ -16,14 +16,23 @@ function ageColor(hours: number): string {
   return "var(--text-muted)";
 }
 
-function ageHours(iso: string): number {
+function ageHours(iso: string, nowMs: number): number {
   const t = Date.parse(iso);
   if (Number.isNaN(t)) return Number.POSITIVE_INFINITY;
-  return (Date.now() - t) / 3_600_000;
+  return (nowMs - t) / 3_600_000;
 }
 
-export function RaceNewsRow({ item }: { item: RaceNewsItem }) {
-  const hours = ageHours(item.observedAt);
+export function RaceNewsRow({
+  item,
+  nowMs,
+}: {
+  item: RaceNewsItem;
+  // HO 490: page-computed clock. RaceNewsRow renders in RaceHubBody's shared
+  // server/client tree, so both the age label and age-tier color must bucket
+  // identically across SSR/hydration.
+  nowMs: number;
+}) {
+  const hours = ageHours(item.observedAt, nowMs);
   return (
     <div className="news-row news-row--no-bill">
       <span className="news-headline-cell">
@@ -39,7 +48,7 @@ export function RaceNewsRow({ item }: { item: RaceNewsItem }) {
       </span>
       <span className="source">{item.publisher}</span>
       <span className="age" style={{ color: ageColor(hours) }}>
-        {formatRelativeAge(item.observedAt)}
+        {formatRelativeAge(item.observedAt, nowMs)}
       </span>
     </div>
   );

@@ -82,6 +82,7 @@ export function CompetitiveRacesStrip({
   // HO 393: { raceId → UDP IE direction rows } for the v2 card's PAC SPENDING
   // glance line. v2-only.
   pacByRace,
+  nowMs,
 }: {
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
@@ -89,6 +90,8 @@ export function CompetitiveRacesStrip({
   rich?: (RaceIndexRow | null)[];
   moves?: Record<string, string>;
   pacByRace?: Record<string, PacIeRow[]>;
+  // HO 490: page-computed clock for the popover's race-news relative ages (#418).
+  nowMs: number;
 }) {
   if (variant === "v2") {
     // HO 305: page-level passes for the matchup block. (1) Ambiguous surnames —
@@ -202,6 +205,7 @@ export function CompetitiveRacesStrip({
                   <RaceHubBody
                     preview
                     race={hub.race}
+                    nowMs={nowMs}
                     candidates={hub.candidates}
                     incumbent={hub.incumbent}
                     ratings={race.ratings}

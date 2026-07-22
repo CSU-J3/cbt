@@ -72,7 +72,13 @@ function Divider() {
 // HO 145: per-committee referral row on the bill detail page. Subcommittees
 // carry their parent name inline (matching the member-hub pattern) so the
 // hierarchy reads without a tree UI.
-function BillCommitteeItem({ row }: { row: BillCommitteeRow }) {
+function BillCommitteeItem({
+  row,
+  nowMs,
+}: {
+  row: BillCommitteeRow;
+  nowMs: number;
+}) {
   const isSub = row.parentSystemCode !== null;
   const chamberLabel =
     row.chamber === "house"
@@ -114,7 +120,7 @@ function BillCommitteeItem({ row }: { row: BillCommitteeRow }) {
       >
         · {row.activityType} ·{" "}
         <span className="tabular-nums">
-          {formatRelativeAgeLong(row.activityDate)} ago
+          {formatRelativeAgeLong(row.activityDate, nowMs)} ago
         </span>
       </span>
     </li>
@@ -242,6 +248,7 @@ export default async function BillDetailPage({
                   <BillCommitteeItem
                     key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
                     row={row}
+                    nowMs={nowMs}
                   />
                 ))}
               </ul>

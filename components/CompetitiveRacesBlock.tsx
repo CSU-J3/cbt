@@ -53,10 +53,13 @@ export async function CompetitiveRacesBlock({
   // HO 260: v2 renders the rich race cards (the mock's `.race-card`) instead of
   // the 2×2 hover-popover cards. Default keeps `/` on the popover cards.
   variant = "default",
+  nowMs,
 }: {
   cycle?: number;
   showBattlefield?: boolean;
   variant?: "default" | "v2";
+  // HO 490: page-computed clock for the race popover's news relative ages (#418).
+  nowMs: number;
 }) {
   const pool = await getMostCompetitiveRaces(cycle, POOL);
   const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
@@ -135,6 +138,7 @@ export async function CompetitiveRacesBlock({
       rich={richRows}
       moves={moves}
       pacByRace={pacByRace}
+      nowMs={nowMs}
     />
   );
 

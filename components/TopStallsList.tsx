@@ -36,9 +36,12 @@ function chipChamberClass(billType: string): string {
 
 export function TopStallsList({
   bills,
+  nowMs,
   daysFrom = "action",
 }: {
   bills: FeedBill[];
+  // HO 490: page-computed clock for the Xd staleness metric + panel ages.
+  nowMs: number;
   daysFrom?: "action" | "intro";
 }) {
   const { expandedId, toggle, panelCache, handleLoaded } = useSingleOpenPanel();
@@ -48,6 +51,7 @@ export function TopStallsList({
       {bills.map((b) => {
         const days = daysSince(
           daysFrom === "intro" ? b.introduced_date : b.latest_action_date,
+          nowMs,
         );
         const dayColor =
           daysFrom === "intro" ? "var(--text-secondary)" : daysColor(days);
@@ -100,6 +104,7 @@ export function TopStallsList({
             {isOpen ? (
               <BillExpandedPanel
                 bill={b}
+                nowMs={nowMs}
                 cached={panelCache.get(b.id) ?? null}
                 onLoaded={(data) => handleLoaded(b.id, data)}
               />

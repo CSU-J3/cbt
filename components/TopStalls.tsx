@@ -25,7 +25,14 @@ import { getStaleBills } from "@/lib/queries";
 
 const ROW_LIMIT = 5;
 
-export async function TopStalls({ variant }: { variant?: "v2" }) {
+export async function TopStalls({
+  variant,
+  nowMs,
+}: {
+  variant?: "v2";
+  // HO 490: page-computed clock threaded to the feed's client rows.
+  nowMs: number;
+}) {
   const bills = await getStaleBills({}, ROW_LIMIT);
 
   if (bills.length === 0) {
@@ -42,9 +49,9 @@ export async function TopStalls({ variant }: { variant?: "v2" }) {
   return (
     <div className="flex flex-1 flex-col">
       {variant === "v2" ? (
-        <V2FeedList bills={bills} metricMode="stalls" />
+        <V2FeedList bills={bills} metricMode="stalls" nowMs={nowMs} />
       ) : (
-        <TopStallsList bills={bills} />
+        <TopStallsList bills={bills} nowMs={nowMs} />
       )}
       <Link href="/stale" className="home-expander">
         [ View all stale → ]

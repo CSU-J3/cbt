@@ -108,12 +108,14 @@ function MemberItem({ m }: { m: CommitteeMember }) {
 function ActivityCaption({
   activityType,
   activityDate,
+  nowMs,
 }: {
   activityType: string | null;
   activityDate: string | null;
+  nowMs: number;
 }) {
   const verb = activityType ?? "Activity";
-  const days = activityDate ? daysSince(activityDate) : null;
+  const days = activityDate ? daysSince(activityDate, nowMs) : null;
   const when = days === null ? "" : days === 0 ? "today" : `${days}d ago`;
   return (
     <li
@@ -436,9 +438,11 @@ export default async function CommitteeDetailPage({
                       <ActivityCaption
                         activityType={activityType}
                         activityDate={activityDate}
+                        nowMs={nowMs}
                       />
                       <BillRow
                         bill={bill}
+                        nowMs={nowMs}
                         compact
                         onWatchlist={watchedSet.has(bill.id)}
                       />

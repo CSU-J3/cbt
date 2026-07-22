@@ -23,6 +23,8 @@ export default async function RacePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // HO 490: page-computed clock for the race-news relative ages (#418).
+  const nowMs = Date.now();
 
   const race = await getRace(id);
 
@@ -88,6 +90,7 @@ export default async function RacePage({
 
         <RaceHubBody
           race={race}
+          nowMs={nowMs}
           candidates={candidates}
           incumbent={incumbent}
           ratings={ratings}

@@ -105,11 +105,14 @@ function MetaRow({
 
 export function BillExpandedPanel({
   bill,
+  nowMs,
   cached,
   onLoaded,
   compact = false,
 }: {
   bill: FeedBill;
+  // HO 490: page-computed clock for the committee-activity + news relative ages.
+  nowMs: number;
   cached: PanelData | null;
   onLoaded: (data: PanelData) => void;
   compact?: boolean;
@@ -163,7 +166,7 @@ export function BillExpandedPanel({
           {bill.summary ? (
             <p className="bill-expanded-summary">{bill.summary}</p>
           ) : null}
-          <NewsSection data={data} error={error} />
+          <NewsSection data={data} error={error} nowMs={nowMs} />
         </div>
 
         <div className="bill-expanded-col bill-expanded-col-right">
@@ -207,7 +210,7 @@ export function BillExpandedPanel({
               </MetaRow>
             ) : null}
 
-            <CommitteeRows data={data} />
+            <CommitteeRows data={data} nowMs={nowMs} />
 
             {bill.introduced_date ? (
               <MetaRow label="INTRODUCED">
@@ -331,7 +334,13 @@ function StagePipeline({
   );
 }
 
-function CommitteeRows({ data }: { data: PanelData | null }) {
+function CommitteeRows({
+  data,
+  nowMs,
+}: {
+  data: PanelData | null;
+  nowMs: number;
+}) {
   if (!data) {
     return (
       <MetaRow label="COMMITTEE">
@@ -369,7 +378,7 @@ function CommitteeRows({ data }: { data: PanelData | null }) {
             </a>
             <span className="bill-expanded-meta-sub">
               {" "}
-              · {c.activityType} · {formatRelativeAgeLong(c.activityDate)}
+              · {c.activityType} · {formatRelativeAgeLong(c.activityDate, nowMs)}
             </span>
           </span>
         ))}
@@ -381,9 +390,11 @@ function CommitteeRows({ data }: { data: PanelData | null }) {
 function NewsSection({
   data,
   error,
+  nowMs,
 }: {
   data: PanelData | null;
   error: string | null;
+  nowMs: number;
 }) {
   if (error) {
     return (
@@ -423,7 +434,7 @@ function NewsSection({
               {n.title}
             </a>
             <span className="bill-expanded-news-meta tabular-nums">
-              {n.source} · {formatRelativeAgeLong(n.publishedAt)}
+              {n.source} · {formatRelativeAgeLong(n.publishedAt, nowMs)}
             </span>
           </li>
         ))}

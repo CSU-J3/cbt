@@ -144,6 +144,8 @@ export default async function WelcomePage() {
     // an empty tape rather than a 500.
     getLatestMarketTicks().catch(() => [] as MarketTick[]),
   ]);
+  // HO 490: page-computed clock for the sample-mover relative ages (#418).
+  const nowMs = Date.now();
 
   const introduced = corpus.total;
   const enacted = stageDist.bars.find((b) => b.stage === "enacted")?.count ?? 0;
@@ -290,7 +292,7 @@ export default async function WelcomePage() {
                   ) : null}
                   <span className={styles.age}>
                     {" "}
-                    · {formatRelativeAge(b.stage_changed_at ?? b.latest_action_date)}
+                    · {formatRelativeAge(b.stage_changed_at ?? b.latest_action_date, nowMs)}
                   </span>
                 </div>
                 <span className={styles.caret}>▾</span>

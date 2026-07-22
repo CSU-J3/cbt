@@ -14,7 +14,14 @@ import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
 // TopStallsList island.
 const ROW_LIMIT = 5;
 
-export async function NewThisWeek({ variant }: { variant?: "v2" }) {
+export async function NewThisWeek({
+  variant,
+  nowMs,
+}: {
+  variant?: "v2";
+  // HO 490: page-computed clock threaded to the feed's client rows.
+  nowMs: number;
+}) {
   const [bills, total] = await Promise.all([
     getNewBillsThisWeek(ROW_LIMIT),
     getNewBillsThisWeekCount(),
@@ -35,9 +42,9 @@ export async function NewThisWeek({ variant }: { variant?: "v2" }) {
   return (
     <div className="flex flex-1 flex-col">
       {variant === "v2" ? (
-        <V2FeedList bills={bills} metricMode="new" />
+        <V2FeedList bills={bills} metricMode="new" nowMs={nowMs} />
       ) : (
-        <TopStallsList bills={bills} daysFrom="intro" />
+        <TopStallsList bills={bills} daysFrom="intro" nowMs={nowMs} />
       )}
       <Link href="/bills?sort=introduced" className="home-expander">
         {remaining > 0

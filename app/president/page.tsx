@@ -29,6 +29,9 @@ export default async function PresidentPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const params = await searchParams;
+  // HO 490: one page-computed clock threaded to the feed's client rows so
+  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  const nowMs = Date.now();
   const rawPage = Number.parseInt(params.page ?? "1", 10);
   const requestedPage = Number.isFinite(rawPage) && rawPage >= 1 ? rawPage : 1;
 
@@ -75,6 +78,7 @@ export default async function PresidentPage({
             <BillRowList
               bills={bills}
               watchedIds={watchedIds}
+              nowMs={nowMs}
               daysSinceMode="desk-time"
             />
           )}

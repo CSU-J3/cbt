@@ -20,8 +20,11 @@ const CAP = 5;
 
 export async function BreakingNewsBlock({
   filters,
+  nowMs,
 }: {
   filters?: DashboardFilters;
+  // HO 490: page-computed clock for the breaking-row ages.
+  nowMs: number;
 }) {
   const [mentions, totalCount] = await Promise.all([
     getBreakingNewsForHome({
@@ -51,7 +54,7 @@ export async function BreakingNewsBlock({
         <ul>
           {mentions.map((m) => (
             <li key={m.id}>
-              <BreakingRow mention={m} />
+              <BreakingRow mention={m} nowMs={nowMs} />
             </li>
           ))}
         </ul>

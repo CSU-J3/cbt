@@ -25,6 +25,9 @@ export default async function WatchlistPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // HO 490: one page-computed clock threaded to the feed's client rows so
+  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  const nowMs = Date.now();
   const sort = sanitizeSort(params.sort);
   const chamber = sanitizeChamber(params.chamber);
   // HO 356: getWatchlistBills is per-user (anonymous → []). Read the session here
@@ -111,6 +114,7 @@ export default async function WatchlistPage({
             <BillRowList
               bills={bills}
               watchedIds={bills.map((b) => b.id)}
+              nowMs={nowMs}
             />
           </div>
         )}
