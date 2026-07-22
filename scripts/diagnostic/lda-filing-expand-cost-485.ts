@@ -28,7 +28,7 @@ const ms = (n: number) => `${n.toFixed(0)}ms`;
 // p50/p90/p99/max over a number[] (sorted ascending, nearest-rank).
 function pct(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
-  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
+  return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] ?? 0;
 }
 function pctBlock(label: string, values: number[]): void {
   const s = [...values].sort((a, b) => a - b);
