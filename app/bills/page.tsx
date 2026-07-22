@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
-import { GROUP_TABS, GroupTabs } from "@/components/GroupTabs";
+import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
 import { NewsRow } from "@/components/NewsRow";
@@ -14,11 +14,13 @@ import {
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageFilter } from "@/components/StageFilter";
 import { StageLegend } from "@/components/StageLegend";
-import { TopicFilter } from "@/components/TopicFilter";
+import { TopicRailRow } from "@/components/TopicRailRow";
+import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import {
   FEED_PAGE_SIZE,
   NEWS_DEFAULT_WINDOW,
   NEWS_FEED_PAGE_SIZE,
+  getBillTopicRailCounts,
   getFeedBills,
   getNewsFeed,
   getWatchedBillIds,
@@ -172,12 +174,18 @@ async function BillsView({
   };
 
   const [
-    { bills, page: currentPage, totalPages },
+    { bills, total, page: currentPage, totalPages },
     watchedIds,
+    railCounts,
   ] = await Promise.all([
     getFeedBills(feedFilters, { page: requestedPage, pageSize: FEED_PAGE_SIZE }),
     getWatchedBillIds(),
+    // HO 496: rail rebases on the bounded dims only (stage/chamber/ceremonial);
+    // getBillTopicRailCounts drops q/topics/sponsor internally. Bars rescale to
+    // this filtered distribution's max.
+    getBillTopicRailCounts(feedFilters),
   ]);
+  const railMax = railCounts.reduce((m, r) => Math.max(m, r.count), 0);
 
   const carry = new URLSearchParams();
   // mode=bills is implicit (default); don't write it.
@@ -230,10 +238,30 @@ async function BillsView({
     return qs ? `/bills?${qs}` : "/bills";
   };
 
+  // HO 496: clear ALL topics (rail CLEAR + mc-ctx "× all topics"), keep every
+  // other filter. topicRemoveHref clears just one topic (the per-chip ×). Both
+  // reset to page 1 (a narrower topic set may not reach the current page).
+  const railClearHref = (() => {
+    const sp = new URLSearchParams(carry);
+    sp.delete("topics");
+    sp.delete("page");
+    const qs = sp.toString();
+    return qs ? `/bills?${qs}` : "/bills";
+  })();
+  const topicRemoveHref = (t: string) => {
+    const sp = new URLSearchParams(carry);
+    const rest = topics.filter((x) => x !== t);
+    if (rest.length > 0) sp.set("topics", rest.join(","));
+    else sp.delete("topics");
+    sp.delete("page");
+    const qs = sp.toString();
+    return qs ? `/bills?${qs}` : "/bills";
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* HeaderBar renders bands 1-2 (title + sync). pageOwnsControls suppresses
-          its transitional search/ceremonial — they live in band 3 below. */}
+          its transitional search/ceremonial — they live in the fbar below. */}
       <HeaderBar
         feedFilters={feedFilters}
         basePath="/bills"
@@ -243,11 +271,25 @@ async function BillsView({
       />
 
       <main className="w-full flex-1 px-4 py-4">
-        {/* Band 3 — CONTROL STRIP: toggle + stages + chamber + compact search +
-            ceremonial + sort (pinned right). flex-wrap so it degrades by
-            wrapping, not clipping, below ~1280. */}
-        <div className="control-strip">
-          {toggle}
+        {/* Above the pane — page-level nav (not rail concerns): the feed sub-nav
+            (Changes·President·Reports) + the LEGISLATION/NEWS mode toggle. No tab
+            is active in bills mode (HO 184). */}
+        <GroupTabs group="feed" active="bills" />
+        <div className="mb-3 mt-3 flex items-center gap-3">{toggle}</div>
+
+        {/* Filter bar — the real filters (the 24-chip topic row is gone; it's the
+            rail now). Scope count reflects the active filter set. */}
+        <div className="mc-fbar">
+          <span className="mc-fbar-count">
+            <span className="mc-fbar-n">{total.toLocaleString()}</span> BILLS
+            {topics.length > 0 ? (
+              <>
+                {" "}
+                <span aria-hidden>·</span>{" "}
+                {topics.map((t) => topicLabel(t)).join(" + ")}
+              </>
+            ) : null}
+          </span>
           <StageFilter
             current={stage}
             topics={topics}
@@ -264,10 +306,11 @@ async function BillsView({
             segments={CHAMBER_SEGMENTS}
             buildHref={chamberHref}
           />
+          <CeremonialToggle checked={includeCeremonial} />
           <div className="control-search">
             <SearchBox basePath="/bills" compact />
           </div>
-          <CeremonialToggle checked={includeCeremonial} />
+          <span className="mc-fbar-spacer" />
           {hasFilters ? (
             <Link
               href={clearFiltersHref}
@@ -286,98 +329,134 @@ async function BillsView({
           </span>
         </div>
 
-        {/* Band 4 — TOPICS BAND: the feed sub-nav (Changes·President·Reports) at
-            the left, a vertical divider, then the wrapping topic chips. */}
-        <div className="topics-band">
-          <nav className="topics-subnav" aria-label="Bills views">
-            {GROUP_TABS.feed.map((t) => (
-              <Link key={t.slug} href={t.href}>
-                {t.label}
-              </Link>
+        {/* Two-pane browser: topic rail (spine) · bill content */}
+        <div className="mc-pane bl-pane">
+          {/* LEFT RAIL — 24 topics, VOL-desc, topic-colored bars, MULTI-SELECT.
+              Counts rebase on stage/chamber/ceremonial (not the topic selection
+              itself, and not q). */}
+          <div className="mc-rail bl-rail">
+            <div className="mc-rail-h">
+              <span>TOPICS · {railCounts.length}</span>
+              {topics.length > 0 ? (
+                <Link href={railClearHref} className="bl-rail-clr">
+                  CLEAR
+                </Link>
+              ) : (
+                <span>VOL</span>
+              )}
+            </div>
+            {railCounts.map((r) => (
+              <TopicRailRow
+                key={r.topic}
+                topic={r.topic}
+                fullLabel={topicFullLabel(r.topic)}
+                count={r.count}
+                pct={railMax > 0 ? (r.count / railMax) * 100 : 0}
+                color={topicColor(r.topic)}
+                selected={topics.includes(r.topic)}
+              />
             ))}
-          </nav>
-          <span className="topics-divider" aria-hidden />
-          <TopicFilter
-            selected={topics}
-            stage={stage}
-            q={q}
-            sponsor={sponsor}
-            sort={sort}
-            chamber={chamber}
-            ceremonial={includeCeremonial}
-            cluster={cluster}
-          />
-        </div>
+          </div>
 
-        {/* Band 5 — LEGEND + PAGINATION: stage legend (left) + pager (right). */}
-        <div className="legend-pagination-band">
-          <StageLegend bare />
-          <span className="legend-pagination-pager">
-            <Pagination
-              inline
-              currentPage={currentPage}
-              totalPages={totalPages}
-              carry={carry}
-              basePath="/bills"
-            />
-          </span>
-        </div>
+          {/* RIGHT PANE — keystrip + context + bill rows + pagers */}
+          <div className="mc-content">
+            {/* Keystrip — the old STAGE legend + party key row (StageLegend
+                already renders both). */}
+            <div className="bl-keystrip">
+              <StageLegend bare />
+            </div>
 
-        {/* Bill list — rows unchanged (out of scope). */}
-        <div
-          className="border"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
-          {bills.length === 0 ? (
-            q ? (
-              <div
-                className="px-6 py-12 text-center"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                <p className="text-[14px] uppercase tracking-[0.5px]">
-                  No bills match &quot;{q}&quot;
-                </p>
-                <p
-                  className="mt-2 text-[13px]"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  Try a broader term, check spelling, or clear the search.
-                </p>
-                <Link
-                  href={clearSearchHref}
-                  className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
-                  style={{
-                    color: "var(--accent-amber)",
-                    borderColor: "var(--accent-amber)",
-                  }}
-                >
-                  [Clear search]
+            {/* Context header — selected topics as removable chips (only when
+                ?topics= is non-empty). */}
+            {topics.length > 0 ? (
+              <div className="mc-ctx bl-ctx">
+                {topics.map((t) => (
+                  <Link
+                    key={t}
+                    href={topicRemoveHref(t)}
+                    className="bl-ctx-chip"
+                    style={{ borderColor: topicColor(t), color: topicColor(t) }}
+                  >
+                    {topicLabel(t)} <span aria-hidden>×</span>
+                  </Link>
+                ))}
+                <span className="mc-ctx-count">
+                  · {total.toLocaleString()} bills · {totalPages.toLocaleString()}{" "}
+                  pages
+                </span>
+                <span className="mc-ctx-spacer" />
+                <Link href={railClearHref} className="mc-ctx-clr">
+                  × all topics
                 </Link>
               </div>
-            ) : (
-              <div
-                className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                No bills match these filters
+            ) : null}
+
+            {/* Top pager */}
+            {totalPages > 1 ? (
+              <div className="bl-pager-top">
+                <Pagination
+                  inline
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  carry={carry}
+                  basePath="/bills"
+                />
               </div>
-            )
-          ) : (
-            <>
-              <BillRowList
-                bills={bills}
-                watchedIds={watchedIds}
-                nowMs={nowMs}
-                daysSinceMode={daysSinceMode}
-              />
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                carry={carry}
-                basePath="/bills"
-              />
-            </>
-          )}
+            ) : null}
+
+            {/* Bill rows — unchanged (out of scope); expansion is the existing
+                client single-open accordion (BillRowList), not a URL param. */}
+            {bills.length === 0 ? (
+              q ? (
+                <div
+                  className="px-6 py-12 text-center"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  <p className="text-[14px] uppercase tracking-[0.5px]">
+                    No bills match &quot;{q}&quot;
+                  </p>
+                  <p
+                    className="mt-2 text-[13px]"
+                    style={{ color: "var(--text-dim)" }}
+                  >
+                    Try a broader term, check spelling, or clear the search.
+                  </p>
+                  <Link
+                    href={clearSearchHref}
+                    className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
+                    style={{
+                      color: "var(--accent-amber)",
+                      borderColor: "var(--accent-amber)",
+                    }}
+                  >
+                    [Clear search]
+                  </Link>
+                </div>
+              ) : (
+                <div
+                  className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
+                  style={{ color: "var(--text-dim)" }}
+                >
+                  No bills match these filters
+                </div>
+              )
+            ) : (
+              <>
+                <BillRowList
+                  bills={bills}
+                  watchedIds={watchedIds}
+                  nowMs={nowMs}
+                  daysSinceMode={daysSinceMode}
+                />
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  carry={carry}
+                  basePath="/bills"
+                />
+              </>
+            )}
+          </div>
         </div>
       </main>
     </div>

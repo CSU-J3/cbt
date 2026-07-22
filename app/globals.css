@@ -9026,3 +9026,75 @@ a.hearing-watch:hover {
     width: min(340px, calc(100vw - 24px));
   }
 }
+
+/* ---- HO 496: /bills two-pane overrides ----------------------------------
+   Third application of the .mc-* two-pane (after /members committees + /lobbying
+   issue codes). Every rule is scoped under .bl-* (element-owned classes) so the
+   shared .mc-* grids (/members, /lobbying) and /bill/[id] stay byte-identical —
+   the HO 486 lesson. .bl-pane wins the grid-template-columns over .mc-pane by
+   source order (equal specificity, defined later). */
+.bl-pane {
+  grid-template-columns: 264px 1fr;
+}
+/* Rail row grid: marker | topic name | topic bar | count. The shared .mc-crow is
+   marker|tag|name|act|mem — the topic rail has no tag column. */
+.bl-rail .mc-crow {
+  grid-template-columns: 18px 1fr 52px 44px;
+}
+/* Multi-select marker — a topic-colored square (hollow = off, filled = on, both
+   inline-styled per row). Reads as "one of several", deliberately NOT the shared
+   .mc-crow.is-sel amber left-border (which implies the single-scope rails'
+   replace-the-scope semantics). So bl-crow never takes .is-sel. */
+.bl-mark {
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+}
+.bl-crow.is-on {
+  background-color: rgba(19, 24, 32, 0.4);
+}
+/* Zero-count topics under the current filter: greyed but still clickable (a
+   click filters the feed to that topic even if the current stage/chamber has 0). */
+.bl-zero {
+  opacity: 0.42;
+}
+.bl-rail-clr {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bl-rail-clr:hover {
+  color: var(--accent-amber-bright);
+}
+/* Keystrip — stage legend + party key at the top of the content pane (absorbs
+   the old legend-pagination-band row; StageLegend renders both). */
+.bl-keystrip {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  background-color: var(--bg-panel);
+}
+/* Context row — selected topics as removable chips. Wraps (multi-select can hold
+   several); .mc-ctx owns the padding/border/bg. */
+.bl-ctx {
+  flex-wrap: wrap;
+}
+.bl-ctx-chip {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 2px;
+  padding: 1px 6px;
+  text-decoration: none;
+}
+.bl-pager-top {
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+@media (max-width: 720px) {
+  /* Below the two-pane breakpoint, stack: the rail sits above the content rather
+     than squeezing the 264px column on a phone. Scoped to .bl-pane only. */
+  .bl-pane {
+    grid-template-columns: 1fr;
+  }
+}
