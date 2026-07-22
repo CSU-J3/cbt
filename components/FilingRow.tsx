@@ -1,14 +1,16 @@
 import Link from "next/link";
 import type { FilingSummary } from "@/lib/queries";
 
-// HO 437 — one LD-2 filing as a compact row, shared by the /lobbying per-issue
-// drill (RECENT) and the corpus-wide feed (Section 3). Server component.
+// HO 437 / 486 — one LD-2 filing as a compact row, shared by the /lobbying
+// per-issue drill (scoped RECENT) and the corpus-wide feed. Server component.
+// HO 486 laid it out on the two-pane grid that aligns with the column header:
 //
-//   {age} · {registrant} → {client} · [issue chips] · [bill chips]
+//   [caret] · {age} · {registrant} → {client} · [issue chips] · [bill chips]
 //
-// Registrant/client are plain text (no entity pages for lobbying orgs in v1).
-// Bill chips deep-link to /bill/[id]; the whole bill segment is OMITTED when a
-// filing resolves no tracked bill (the honest-gap discipline — no "—").
+// The caret slot is empty here (flat row); commit B fills it and wraps the row
+// in an ?expanded= toggle. Registrant/client are plain text (no entity pages for
+// lobbying orgs in v1). Bill chips deep-link to /bill/[id]; the whole bill cell
+// is empty when a filing resolves no tracked bill (the honest-gap discipline).
 
 function relAge(iso: string): string {
   const then = new Date(iso).getTime();
@@ -35,18 +37,10 @@ export function FilingRow({ filing }: { filing: FilingSummary }) {
         : undefined;
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-[12px]"
-      style={{ borderBottom: "0.5px solid var(--border-soft)" }}
-      title={dollars}
-    >
-      <span
-        className="w-[52px] shrink-0 uppercase tracking-[0.5px] tabular-nums"
-        style={{ color: "var(--text-dim)" }}
-      >
-        {relAge(filing.dtPosted)}
-      </span>
-      <span className="min-w-0 flex-1" style={{ color: "var(--text-secondary)" }}>
+    <div className="mc-row lob-frow" title={dollars}>
+      <span className="lob-frow-caret" aria-hidden />
+      <span className="lob-age">{relAge(filing.dtPosted)}</span>
+      <span className="lob-rc" title={`${filing.registrantName ?? "—"} → ${filing.clientName ?? "—"}`}>
         <span style={{ color: "var(--text-primary)" }}>
           {filing.registrantName ?? "—"}
         </span>
@@ -54,38 +48,34 @@ export function FilingRow({ filing }: { filing: FilingSummary }) {
         <span>{filing.clientName ?? "—"}</span>
       </span>
 
-      {shownIssues.length > 0 ? (
-        <span className="flex shrink-0 flex-wrap items-center gap-1">
-          {shownIssues.map((code) => (
-            <span key={code} className="micro-tag">
-              {code}
-            </span>
-          ))}
-          {extraIssues > 0 ? (
-            <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
-              +{extraIssues}
-            </span>
-          ) : null}
-        </span>
-      ) : null}
+      <span className="lob-issues">
+        {shownIssues.map((code) => (
+          <span key={code} className="micro-tag">
+            {code}
+          </span>
+        ))}
+        {extraIssues > 0 ? (
+          <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
+            +{extraIssues}
+          </span>
+        ) : null}
+      </span>
 
-      {filing.billIds.length > 0 ? (
-        <span className="flex shrink-0 flex-wrap items-center gap-1">
-          {filing.billIds.map((id) => (
-            <Link
-              key={id}
-              href={`/bill/${id}`}
-              className="rounded-[2px] px-1 text-[10px] uppercase tracking-[0.5px] tabular-nums transition hover:bg-[var(--bg-row-hover)]"
-              style={{
-                border: "1px solid var(--accent-amber)",
-                color: "var(--accent-amber)",
-              }}
-            >
-              {id}
-            </Link>
-          ))}
-        </span>
-      ) : null}
+      <span className="lob-bills">
+        {filing.billIds.map((id) => (
+          <Link
+            key={id}
+            href={`/bill/${id}`}
+            className="rounded-[2px] px-1 text-[10px] uppercase tracking-[0.5px] tabular-nums transition hover:bg-[var(--bg-row-hover)]"
+            style={{
+              border: "1px solid var(--accent-amber)",
+              color: "var(--accent-amber)",
+            }}
+          >
+            {id}
+          </Link>
+        ))}
+      </span>
     </div>
   );
 }

@@ -1,12 +1,15 @@
+import Link from "next/link";
 import { FilingRow } from "@/components/FilingRow";
 import { FirmsLeaderboard } from "@/components/FirmsLeaderboard";
 import { HeaderBar } from "@/components/HeaderBar";
-import { IssueBars } from "@/components/IssueBars";
-import { IssueDrill } from "@/components/IssueDrill";
+import { IssueRailRow } from "@/components/IssueRailRow";
+import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 import { Pagination } from "@/components/Pagination";
 import { TopicCrosswalk } from "@/components/TopicCrosswalk";
 import { topicForCode } from "@/lib/lda-issue-topic-map";
+import { topicColor } from "@/lib/topic-colors";
 import {
+  type FilingSummary,
   getLobbyingRollup,
   getRecentFilings,
   getTopFirms,
@@ -23,7 +26,7 @@ const PAGE_SIZE = 25;
 // all ~108k rows (measured 12.3s at the tail, HO 437), which trips the 10s
 // boundedFetch cap → 500 (and the pager would even link to that tail page). 40
 // pages = the 1,000 most-recent filings (offset ≤ 975, sub-second). The full
-// corpus stays explorable via the issue bars → per-issue drill.
+// corpus stays explorable via the issue rail → per-issue drill.
 const MAX_FEED_PAGES = 40;
 
 type SearchParams = { issue?: string; page?: string };
@@ -72,13 +75,20 @@ export default async function LobbyingPage({
   }
 
   const { stats, issues, drill } = rollup;
-  const selected = sanitizeIssueCode(params.issue) ?? issues[0]?.code ?? null;
+
+  // Scope is driven ONLY by an explicit ?issue= (the /members ?committee= idiom):
+  // no code → unscoped corpus browser; a code with a drill → scoped to that issue.
+  // A well-formed-but-unknown code (drill missing) falls back to unscoped rather
+  // than an empty pane.
+  const selected = sanitizeIssueCode(params.issue);
+  const selectedDrill = selected ? (drill[selected] ?? null) : null;
+  const scoped = selectedDrill !== null;
+
+  const billLinkedPct = stats.billLinkedPct.toFixed(1);
+  const maxFilings = issues.reduce((m, i) => Math.max(m, i.filings), 0);
 
   // HO 463 — group every corpus issue code under its CBT topic so the crosswalk
-  // bars can drill into their constituent codes' existing per-code drills.
-  // issues[] covers every corpus code and drill[code] exists for each, and
-  // computeTopicCrosswalk keys on the same topicForCode — so this aligns with the
-  // bar totals and no chip lands on a blank drill.
+  // bars (Section below) can drill into their constituent codes' per-code drills.
   const topicCodes: Record<
     string,
     { code: string; display: string; filings: number }[]
@@ -91,24 +101,27 @@ export default async function LobbyingPage({
       filings: i.filings,
     });
   }
-  // issues is already filings-desc, so each group is too — sort is defensive.
   for (const group of Object.values(topicCodes)) {
     group.sort((a, b) => b.filings - a.filings);
   }
-  const selectedDrill = selected ? (drill[selected] ?? null) : null;
-  const billLinkedPct = stats.billLinkedPct.toFixed(1);
 
+  // Pager math is corpus-feed only (unscoped). Compute it always (cheap), but
+  // only run the feed query when unscoped — the scoped view serves drill.recent.
   const totalPages = Math.min(
     Math.max(1, Math.ceil(stats.filings / PAGE_SIZE)),
     MAX_FEED_PAGES,
   );
   const page = Math.min(Math.max(1, parsePage(params.page)), totalPages);
-  const feed = await getRecentFilings({ page, pageSize: PAGE_SIZE });
 
-  // HO 473 — preserve an explicitly-chosen issue across pagination so NEXT
-  // doesn't silently reset the drill to the top issue. Carry the raw param
-  // (not `selected`, which defaults to issues[0]) so pagination never injects
-  // ?issue= onto the unfiltered feed. Mirrors /amendments + /nominations.
+  let feedItems: FilingSummary[] = [];
+  let feedPage = page;
+  if (!scoped) {
+    const feed = await getRecentFilings({ page, pageSize: PAGE_SIZE });
+    feedItems = feed.items;
+    feedPage = feed.page;
+  }
+  const rows = scoped && selectedDrill ? selectedDrill.recent : feedItems;
+
   const feedCarry = new URLSearchParams();
   if (params.issue) feedCarry.set("issue", params.issue);
 
@@ -117,7 +130,7 @@ export default async function LobbyingPage({
       <HeaderBar basePath="/lobbying" />
 
       <main className="w-full flex-1 px-4 py-4">
-        {/* Section 1 — readout + blurb */}
+        {/* Corpus readout + one-line blurb */}
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
             className="text-[14px] uppercase tracking-[0.5px]"
@@ -140,32 +153,121 @@ export default async function LobbyingPage({
           className="mb-4 max-w-[70ch] text-[12px] leading-snug"
           style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}
         >
-          Who&rsquo;s paying to move what. LD-2 quarterly lobbying reports for the
-          119th, bucketed by issue area. The bill link is an overlay: only about 1
-          in 4 filings names a numbered bill, so the issue area is the spine.
+          Who&rsquo;s paying to move what — LD-2 quarterly lobbying reports for the
+          119th, bucketed by issue area, with the numbered-bill link as an overlay.
         </p>
 
-        {/* Section 2 — two-column: issue bars (left) · selected-issue drill (right) */}
-        <div className="patterns-layout">
-          <div className="patterns-left">
-            <IssueBars issues={issues} selected={selected} />
-          </div>
-          <aside id="lobby-drill" className="patterns-right">
-            {selectedDrill ? (
-              <IssueDrill drill={selectedDrill} />
+        {/* Filter bar — scope-reflecting count only (sort/search/toggles deferred) */}
+        <div className="mc-fbar">
+          <span className="mc-fbar-count">
+            {scoped && selectedDrill ? (
+              <>
+                <span className="mc-fbar-n">
+                  {selectedDrill.filings.toLocaleString()}
+                </span>{" "}
+                FILINGS <span aria-hidden> · </span>
+                <span className="mc-fbar-n">
+                  {selectedDrill.distinctClients.toLocaleString()}
+                </span>{" "}
+                CLIENTS <span aria-hidden> · </span>
+                {selectedDrill.display}
+              </>
             ) : (
-              <div
-                className="px-[14px] py-6 text-[12px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                Select an issue to see who&rsquo;s lobbying it.
-              </div>
+              <>
+                <span className="mc-fbar-n">{stats.filings.toLocaleString()}</span>{" "}
+                FILINGS <span aria-hidden> · </span>
+                <span className="mc-fbar-n">{stats.clients.toLocaleString()}</span>{" "}
+                CLIENTS
+              </>
             )}
-          </aside>
+          </span>
+          <span className="mc-fbar-spacer" />
         </div>
 
-        {/* Section 3 — CBT-topic crosswalk: the corpus in CBT's 24-topic
-            vocabulary, a parallel lens beside the native issue bars (HO 444) */}
+        {/* Two-pane browser: issue rail (spine) · filings content */}
+        <div className="mc-pane">
+          {/* LEFT RAIL — LDA issue codes, VOL-desc, topic-colored bars */}
+          <div className="mc-rail lob-rail">
+            <div className="mc-rail-h">
+              <span>ISSUES · {issues.length}</span>
+              <span>VOL</span>
+            </div>
+            {issues.map((i) => (
+              <IssueRailRow
+                key={i.code}
+                code={i.code}
+                display={i.display}
+                filings={i.filings}
+                pct={maxFilings > 0 ? (i.filings / maxFilings) * 100 : 0}
+                barColor={topicColor(topicForCode(i.code))}
+                selected={selected === i.code}
+              />
+            ))}
+          </div>
+
+          {/* RIGHT PANE — filings content */}
+          <div className="mc-content lob-content">
+            {/* Context header + who's-who (scoped only) */}
+            {scoped && selectedDrill ? (
+              <>
+                <div className="mc-ctx">
+                  <span className="mc-ctx-ch">{selectedDrill.code}</span>
+                  <span className="mc-ctx-name">{selectedDrill.display}</span>
+                  <span className="mc-ctx-count">
+                    · {selectedDrill.filings.toLocaleString()} filings ·{" "}
+                    {selectedDrill.distinctClients.toLocaleString()} clients ·{" "}
+                    {selectedDrill.billLinked.toLocaleString()} bill-linked
+                  </span>
+                  <span className="mc-ctx-spacer" />
+                  <Link href="/lobbying" className="mc-ctx-clr">
+                    × all filings
+                  </Link>
+                </div>
+                <div className="lob-ww">
+                  <LobbyingMiniBars
+                    label="Top clients"
+                    rows={selectedDrill.topClients}
+                  />
+                  <LobbyingMiniBars
+                    label="Top firms"
+                    rows={selectedDrill.topFirms}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            {/* Column header (grid-aligned with the filing rows) */}
+            <div className="mc-row mc-row-hdr">
+              <span aria-hidden />
+              <span>AGE</span>
+              <span>REGISTRANT → CLIENT</span>
+              <span>ISSUES</span>
+              <span>BILLS</span>
+            </div>
+
+            {rows.length > 0 ? (
+              rows.map((f) => <FilingRow key={f.filingUuid} filing={f} />)
+            ) : (
+              <div className="mc-empty">No filings on file</div>
+            )}
+
+            {/* Pager — unscoped corpus feed only.
+                Scoped view serves the precomputed drill.recent sample, so no pager here.
+                A live per-issue feed is the HO 437 abandoned query (>25s cold) — do not
+                "fix" this into pagination without re-probing the per-code cost. */}
+            {!scoped && totalPages > 1 ? (
+              <Pagination
+                currentPage={feedPage}
+                totalPages={totalPages}
+                carry={feedCarry}
+                basePath="/lobbying"
+              />
+            ) : null}
+          </div>
+        </div>
+
+        {/* CBT-topic crosswalk: the corpus in CBT's 24-topic vocabulary — a
+            parallel lens + the topic-color legend for the rail bars (HO 444/463) */}
         {topicCrosswalk?.topics.length ? (
           <TopicCrosswalk
             topics={topicCrosswalk.topics}
@@ -174,43 +276,13 @@ export default async function LobbyingPage({
           />
         ) : null}
 
-        {/* Section 4 — corpus-wide top-firms leaderboard (HO 442) */}
+        {/* Corpus-wide top-firms leaderboard (HO 442) */}
         {topFirms?.firms.length ? (
           <FirmsLeaderboard
             firms={topFirms.firms}
             totalRegistrants={topFirms.totalRegistrants}
           />
         ) : null}
-
-        {/* Section 5 — corpus-wide recent filings (the daily pulse) */}
-        <section className="mt-6">
-          <h2
-            className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Recent filings · across all issues
-          </h2>
-          <div className="border" style={{ borderColor: "var(--border-strong)" }}>
-            {feed.items.length > 0 ? (
-              feed.items.map((f) => <FilingRow key={f.filingUuid} filing={f} />)
-            ) : (
-              <div
-                className="px-4 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--text-dim)" }}
-              >
-                No filings on file
-              </div>
-            )}
-          </div>
-          {totalPages > 1 ? (
-            <Pagination
-              currentPage={feed.page}
-              totalPages={totalPages}
-              carry={feedCarry}
-              basePath="/lobbying"
-            />
-          ) : null}
-        </section>
       </main>
     </div>
   );

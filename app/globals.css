@@ -5691,6 +5691,53 @@ body {
   color: var(--text-dim);
 }
 
+/* ---- HO 486: /lobbying two-pane overrides -------------------------------
+   Every grid override is scoped under .lob-rail / .lob-content so the shared
+   .mc-* grids (used by /members) are byte-identical. */
+.lob-rail .mc-crow {
+  /* code | display | topic bar | filings count (5-digit) */
+  grid-template-columns: 44px 1fr 56px 48px;
+}
+.lob-content .mc-row {
+  /* caret | age | reg→client | issue chips | bill chips */
+  grid-template-columns: 16px 52px 1fr auto auto;
+}
+.lob-frow-caret {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.lob-age {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.lob-rc {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lob-issues,
+.lob-bills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+/* who's-who: TOP CLIENTS | TOP FIRMS side by side, split by a soft rule */
+.lob-ww {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border-strong);
+}
+.lob-ww > * + * {
+  border-left: 0.5px solid var(--border-soft);
+}
+
 .sponsor-expanded-panel {
   background-color: var(--bg-row-hover);
   border-left: 2px solid var(--accent-amber);
