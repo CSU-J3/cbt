@@ -5694,6 +5694,67 @@ body {
 /* ---- HO 486: /lobbying two-pane overrides -------------------------------
    Every grid override is scoped under .lob-rail / .lob-content so the shared
    .mc-* grids (used by /members) are byte-identical. */
+/* ---- HO 492: height compaction — bounded rail + side-by-side bounded sections.
+   All scoped to .lob-* (element-owned classes) so the shared .mc-* grids and
+   /members stay byte-identical. */
+.lob-rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.lob-rail .mc-rail-h {
+  flex: none;
+}
+.lob-rail-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  /* Tuned to the scoped-state content height (~553px at drill.recent
+     sample size). PAGE_SIZE=25 floors the unscoped content column at
+     ~959px, so the rail is deliberately shorter there. Re-measure if
+     PAGE_SIZE or the drill sample size changes. */
+  max-height: 520px;
+  scrollbar-width: thin;
+  scrollbar-color: #243040 transparent;
+}
+.lob-rail-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+.lob-rail-scroll::-webkit-scrollbar-thumb {
+  background: #243040;
+  border-radius: 4px;
+}
+/* Crosswalk + firms side-by-side below the pane, each internally bounded so the
+   page stops stacking two full-width panels that waste over half their width. */
+.lob-secs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 900px) {
+  .lob-secs {
+    grid-template-columns: 1fr;
+  }
+}
+/* Let each section shrink to its half-track (grid items default min-width:auto,
+   which would let the inner tables force horizontal overflow). */
+.lob-secs > section {
+  min-width: 0;
+}
+.lob-sec-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 340px;
+  scrollbar-width: thin;
+  scrollbar-color: #243040 transparent;
+}
+.lob-sec-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+.lob-sec-scroll::-webkit-scrollbar-thumb {
+  background: #243040;
+  border-radius: 4px;
+}
+
 .lob-rail .mc-crow {
   /* code | display | topic bar | filings count (5-digit) */
   grid-template-columns: 44px 1fr 56px 48px;

@@ -71,7 +71,9 @@ export function TopicCrosswalk({
           <span className="text-right">Filings</span>
           <span className="hidden text-right sm:block">Clients</span>
         </div>
-        <ul>
+        {/* HO 492: bounded scroll region so 24 topic rows (and any expanded
+            code-chip tray) don't stack full-height; header above stays put. */}
+        <ul className="lob-sec-scroll">
           {topics.map((t) => {
             const color = topicColor(t.topic);
             const widthPct = (t.filings / maxFilings) * 100;

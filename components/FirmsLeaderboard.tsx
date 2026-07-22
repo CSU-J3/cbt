@@ -56,7 +56,10 @@ export function FirmsLeaderboard({
           <span className="hidden sm:block">Top issue</span>
           <span className="hidden text-right sm:block">Bill-linked</span>
         </div>
-        {firms.map((f, i) => (
+        {/* HO 492: bounded scroll region so the leaderboard rows don't stack
+            full-height; the column header above stays put. */}
+        <div className="lob-sec-scroll">
+          {firms.map((f, i) => (
           <div
             key={f.name}
             className={`${GRID} px-[14px] py-[7px]`}
@@ -129,7 +132,8 @@ export function FirmsLeaderboard({
               {f.billLinked.toLocaleString()}
             </span>
           </div>
-        ))}
+          ))}
+        </div>
       </div>
     </section>
   );

@@ -7,6 +7,7 @@
 // so the name is a plain span, not an <a>). The bar is inline-colored by the
 // code's CBT topic (overriding the fixed --stage-committee), precomputed by the
 // page so this stays a thin click wrapper.
+import { useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export function IssueRailRow({
@@ -27,6 +28,16 @@ export function IssueRailRow({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const rowRef = useRef<HTMLDivElement | null>(null);
+
+  // HO 492 — the rail is now a bounded scroll region, so scoping an issue low in
+  // the 79-code list would re-render with it selected but the rail scrolled to
+  // top, hiding the selection. Bring the selected row into view within the rail's
+  // overflow container. `block: "nearest"` scrolls only that container (minimal),
+  // not the window — verified on a deep selection (?issue=MON).
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [selected]);
 
   function scope() {
     const next = new URLSearchParams(searchParams.toString());
@@ -43,6 +54,7 @@ export function IssueRailRow({
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={0}
       aria-pressed={selected}

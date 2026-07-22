@@ -216,17 +216,21 @@ export default async function LobbyingPage({
               <span>ISSUES · {issues.length}</span>
               <span>VOL</span>
             </div>
-            {issues.map((i) => (
-              <IssueRailRow
-                key={i.code}
-                code={i.code}
-                display={i.display}
-                filings={i.filings}
-                pct={maxFilings > 0 ? (i.filings / maxFilings) * 100 : 0}
-                barColor={topicColor(topicForCode(i.code))}
-                selected={selected === i.code}
-              />
-            ))}
+            {/* HO 492: rows in a bounded scroll region so the 79-code rail stops
+                setting the pane height. Header above stays put. */}
+            <div className="lob-rail-scroll">
+              {issues.map((i) => (
+                <IssueRailRow
+                  key={i.code}
+                  code={i.code}
+                  display={i.display}
+                  filings={i.filings}
+                  pct={maxFilings > 0 ? (i.filings / maxFilings) * 100 : 0}
+                  barColor={topicColor(topicForCode(i.code))}
+                  selected={selected === i.code}
+                />
+              ))}
+            </div>
           </div>
 
           {/* RIGHT PANE — filings content */}
@@ -305,23 +309,30 @@ export default async function LobbyingPage({
           </div>
         </div>
 
-        {/* CBT-topic crosswalk: the corpus in CBT's 24-topic vocabulary — a
-            parallel lens + the topic-color legend for the rail bars (HO 444/463) */}
-        {topicCrosswalk?.topics.length ? (
-          <TopicCrosswalk
-            topics={topicCrosswalk.topics}
-            topicCodes={topicCodes}
-            selected={selected}
-          />
-        ) : null}
+        {/* HO 492: crosswalk + firms side-by-side (each internally bounded) so
+            they're reachable without scrolling a full-width stack. Both are
+            sibling O(1) blobs that render together, so the 2-col grid is never
+            a lone half-width panel in practice (the null-both case early-returns
+            above). Stacks single-column below 900px. */}
+        <div className="lob-secs">
+          {/* CBT-topic crosswalk: the corpus in CBT's 24-topic vocabulary — a
+              parallel lens + the topic-color legend for the rail bars (HO 444/463) */}
+          {topicCrosswalk?.topics.length ? (
+            <TopicCrosswalk
+              topics={topicCrosswalk.topics}
+              topicCodes={topicCodes}
+              selected={selected}
+            />
+          ) : null}
 
-        {/* Corpus-wide top-firms leaderboard (HO 442) */}
-        {topFirms?.firms.length ? (
-          <FirmsLeaderboard
-            firms={topFirms.firms}
-            totalRegistrants={topFirms.totalRegistrants}
-          />
-        ) : null}
+          {/* Corpus-wide top-firms leaderboard (HO 442) */}
+          {topFirms?.firms.length ? (
+            <FirmsLeaderboard
+              firms={topFirms.firms}
+              totalRegistrants={topFirms.totalRegistrants}
+            />
+          ) : null}
+        </div>
       </main>
     </div>
   );
