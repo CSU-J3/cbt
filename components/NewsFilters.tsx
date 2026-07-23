@@ -47,6 +47,7 @@ export function NewsFilters({
   signal,
   breakingCount,
   carry,
+  basePath = "/bills",
 }: {
   source: string | undefined;
   topic: string | undefined;
@@ -58,6 +59,9 @@ export function NewsFilters({
   /** Params to preserve across chip clicks. Should already exclude
    *  source / topic / window / bill / signal / page — caller owns the policy. */
   carry: URLSearchParams;
+  /** Route the chips build hrefs against. Defaults to "/bills" (the
+   *  legacy ?mode=news surface); the extracted /news route passes "/news". */
+  basePath?: string;
 }) {
   const buildHref = (overrides: Record<string, string | undefined>) => {
     const sp = new URLSearchParams(carry);
@@ -67,7 +71,7 @@ export function NewsFilters({
     }
     sp.delete("page");
     const qs = sp.toString();
-    return qs ? `/bills?${qs}` : "/bills";
+    return qs ? `${basePath}?${qs}` : basePath;
   };
 
   return (
