@@ -108,6 +108,9 @@ export function pathToNavKey(basePath: string): NavKey | null {
   // highlights. The bills, news, and president-alias views all render at
   // basePath "/bills".
   if (basePath === "/bills") return "feed";
+  // HO 501: /news extracted from the /bills ?mode=news mode; it lights the same
+  // Legislation top-nav item.
+  if (basePath === "/news") return "feed";
   if (basePath.startsWith("/members/")) return "members";
   if (basePath.startsWith("/committee/")) return "members";
   // HO 333: every electoral route lights the Electoral top-nav item (key still

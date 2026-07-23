@@ -5,9 +5,9 @@ import Link from "next/link";
 // HO 130: the press chip rendered as a sibling cell of the watch star, not
 // inside the row's main Link wrapper (a nested anchor would be invalid HTML
 // and break keyboard semantics). HO 151 added the ⚡ glyph prefix so the
-// chip reads as a marker, not a bare count, and pointed the click target
-// at /bills?mode=news&bill=<id> — NEWS mode is now the canonical news
-// rendering surface (/news redirects in).
+// chip reads as a marker, not a bare count. HO 501 pointed the click target at
+// /news?bill=<id> — NEWS is its own route now (was /bills?mode=news, which
+// still legacy-redirects to /news).
 //
 // HO 148 added stopPropagation so a click here doesn't bubble up to the
 // BillRow div-role-button and toggle the accordion — the user explicitly
@@ -25,7 +25,7 @@ export function MediaAttentionCell({
   const label = `${count} news mention${count === 1 ? "" : "s"}, last 7 days`;
   return (
     <Link
-      href={`/bills?mode=news&bill=${encodeURIComponent(billId)}`}
+      href={`/news?bill=${encodeURIComponent(billId)}`}
       className="row-media"
       title={label}
       aria-label={label}

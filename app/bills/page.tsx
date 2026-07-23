@@ -1,10 +1,9 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
-import { NewsFilters } from "@/components/NewsFilters";
-import { NewsRow } from "@/components/NewsRow";
 import { Pagination } from "@/components/Pagination";
 import { SearchBox } from "@/components/SearchBox";
 import {
@@ -18,23 +17,15 @@ import { TopicRailRow } from "@/components/TopicRailRow";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import {
   FEED_PAGE_SIZE,
-  NEWS_DEFAULT_WINDOW,
-  NEWS_FEED_PAGE_SIZE,
   getBillTopicRailCounts,
   getFeedBills,
-  getNewsFeed,
   getWatchedBillIds,
-  sanitizeBillId,
   sanitizeChamber,
   sanitizeClusterId,
   sanitizeIncludeCeremonial,
-  sanitizeNewsSignal,
-  sanitizeNewsSource,
   sanitizeSort,
   sanitizeStage,
-  sanitizeTopic,
   sanitizeTopics,
-  sanitizeWindowHours,
 } from "@/lib/queries";
 
 type FeedMode = "bills" | "news";
@@ -70,31 +61,44 @@ export default async function FeedPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const mode = sanitizeMode(params.mode);
+  // HO 501: NEWS is its own route now (/news). `mode=news` survives only as a
+  // legacy alias — redirect it, carrying the news params through so old
+  // bookmarks and any pre-HO-501 ⚡-chip hrefs land on the same scoped view.
+  // sanitizeMode + SearchParams.mode are kept solely for this alias.
+  if (sanitizeMode(params.mode) === "news") {
+    const sp = new URLSearchParams();
+    for (const k of ["source", "topic", "window", "bill", "signal", "page"] as const) {
+      const v = params[k];
+      if (typeof v === "string" && v) sp.set(k, v);
+    }
+    const qs = sp.toString();
+    redirect(qs ? `/news?${qs}` : "/news");
+  }
+
   const rawPage = Number.parseInt(params.page ?? "1", 10);
   const requestedPage = Number.isFinite(rawPage) ? rawPage : 1;
-  // HO 490: one page-computed clock threaded to the feed rows / news rows so
-  // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.
+  // HO 490: one page-computed clock threaded to the feed rows so relative-age
+  // buckets match across SSR/hydration (#418). See lib/format.ts.
   const nowMs = Date.now();
 
-  // Shared toggle href helper. Per HO 151 per-mode scoping: switching
-  // modes does NOT clear the other mode's params; they persist in the
-  // URL across switches. `page` always resets to 1 on mode change.
+  // Two-URL nav toggle (HO 501): LEGISLATION stays on /bills preserving its own
+  // bills filters (idempotent active-click); NEWS goes to bare /news — the
+  // cross-carry is dropped, so bills filters are NOT ferried into /news.
   const buildModeHref = (next: FeedMode) => {
+    if (next === "news") return "/news";
     const sp = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
       if (typeof v === "string" && v && k !== "page" && k !== "mode") {
         sp.set(k, v);
       }
     }
-    if (next === "news") sp.set("mode", "news");
     const qs = sp.toString();
     return qs ? `/bills?${qs}` : "/bills";
   };
 
   const toggle = (
     <SegmentedToggle<FeedMode>
-      current={mode}
+      current="bills"
       ariaLabel="Feed mode"
       segments={[
         { value: "bills", label: "LEGISLATION" },
@@ -104,14 +108,6 @@ export default async function FeedPage({
     />
   );
 
-  if (mode === "news") {
-    return NewsView({
-      params,
-      requestedPage,
-      toggle,
-      nowMs,
-    });
-  }
   return BillsView({
     params,
     requestedPage,
@@ -197,18 +193,9 @@ async function BillsView({
   if (chamber) carry.set("chamber", chamber);
   if (includeCeremonial) carry.set("ceremonial", "1");
   if (cluster) carry.set("cluster", cluster);
-  // Preserve any NEWS-mode params already in the URL so a switch back
-  // to NEWS returns to the same filtered view.
-  const news = {
-    source: params.source,
-    topic: params.topic,
-    window: params.window,
-    bill: params.bill,
-    signal: params.signal,
-  };
-  for (const [k, v] of Object.entries(news)) {
-    if (typeof v === "string" && v) carry.set(k, v);
-  }
+  // HO 501: the NEWS-param round-trip is gone — /news is its own route now and
+  // the cross-carry was dropped (probe HO 500, option a). BILLS carry holds
+  // only bills params.
 
   const clearSearchParams = new URLSearchParams();
   if (topics.length > 0) clearSearchParams.set("topics", topics.join(","));
@@ -458,142 +445,6 @@ async function BillsView({
             )}
           </div>
         </div>
-      </main>
-    </div>
-  );
-}
-
-// ---- NEWS mode --------------------------------------------------------
-
-async function NewsView({
-  params,
-  requestedPage,
-  toggle,
-  nowMs,
-}: {
-  params: SearchParams;
-  requestedPage: number;
-  toggle: React.ReactNode;
-  nowMs: number;
-}) {
-  const source = sanitizeNewsSource(params.source);
-  const topic = sanitizeTopic(params.topic);
-  const windowHours = sanitizeWindowHours(params.window) ?? NEWS_DEFAULT_WINDOW;
-  const billId = sanitizeBillId(params.bill);
-  const signal = sanitizeNewsSignal(params.signal);
-
-  const {
-    mentions,
-    page: currentPage,
-    totalPages,
-    breakingCount,
-  } = await getNewsFeed(
-    { source, topic, windowHours, billId, signal },
-    { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
-  );
-
-  // Carry for the news filter chips themselves preserves BILLS-mode
-  // params so a switch back to BILLS keeps that view's filters too.
-  // NEWS-specific params (source/topic/window/bill) are written by the
-  // NewsFilters chips themselves; this carry only holds the persisted
-  // BILLS state plus the mode marker.
-  const newsCarry = new URLSearchParams();
-  newsCarry.set("mode", "news");
-  if (source) newsCarry.set("source", source);
-  if (topic) newsCarry.set("topic", topic);
-  if (windowHours !== NEWS_DEFAULT_WINDOW) newsCarry.set("window", String(windowHours));
-  if (billId) newsCarry.set("bill", billId);
-  if (signal) newsCarry.set("signal", signal);
-  // BILLS-mode params kept in the URL for round-trip:
-  for (const k of ["topics", "stage", "q", "sponsor", "sort", "chamber", "ceremonial", "cluster"] as const) {
-    const v = params[k];
-    if (typeof v === "string" && v) newsCarry.set(k, v);
-  }
-
-  // The chips themselves only need the persisted BILLS-mode params +
-  // the mode marker (so they don't clobber it); NEWS-specific params
-  // are set per-click by NewsFilters' buildHref.
-  const filterCarry = new URLSearchParams();
-  filterCarry.set("mode", "news");
-  for (const k of ["topics", "stage", "q", "sponsor", "sort", "chamber", "ceremonial", "cluster"] as const) {
-    const v = params[k];
-    if (typeof v === "string" && v) filterCarry.set(k, v);
-  }
-  // Preserve NEWS dims not currently being toggled — NewsFilters
-  // override the one it owns per click.
-  if (source) filterCarry.set("source", source);
-  if (topic) filterCarry.set("topic", topic);
-  if (windowHours !== NEWS_DEFAULT_WINDOW) filterCarry.set("window", String(windowHours));
-  if (billId) filterCarry.set("bill", billId);
-  // Seed signal so SOURCE/WINDOW/TOPIC chips preserve an active BREAKING
-  // selection; the ALL/BREAKING chips toggle it via a `signal` override
-  // (ALL passes `signal: undefined`, which buildHref deletes).
-  if (signal) filterCarry.set("signal", signal);
-
-  return (
-    <div className="flex min-h-screen flex-col">
-      <HeaderBar basePath="/bills" mode="news" />
-
-      <main className="w-full flex-1 px-4 py-4">
-        <GroupTabs group="feed" active="news" />
-        <div className="mb-3 flex items-center gap-3">{toggle}</div>
-
-        <section
-          className="mb-3 flex flex-col gap-3"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
-          <NewsFilters
-            source={source}
-            topic={topic}
-            windowHours={windowHours}
-            billId={billId}
-            signal={signal}
-            breakingCount={breakingCount}
-            carry={filterCarry}
-          />
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            carry={newsCarry}
-            basePath="/bills"
-          />
-        </section>
-
-        {mentions.length === 0 ? (
-          <p
-            className="py-16 text-center text-[13px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {billId
-              ? `No news mentions yet for this bill.`
-              : "No news mentions match these filters."}
-          </p>
-        ) : (
-          <div
-            className="border"
-            style={{ borderColor: "var(--border-strong)" }}
-          >
-            <div className="news-header-row px-3">
-              <span>Bill</span>
-              <span>Headline</span>
-              <span className="source">Source</span>
-              <span className="age">Age</span>
-            </div>
-            <ul>
-              {mentions.map((m) => (
-                <li key={m.id} className="px-3">
-                  <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
-                </li>
-              ))}
-            </ul>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              carry={newsCarry}
-              basePath="/bills"
-            />
-          </div>
-        )}
       </main>
     </div>
   );

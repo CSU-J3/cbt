@@ -26,7 +26,11 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/") return ["Dashboard"];
   // "/bills" exact must precede the "/bill/" detail prefix; note "/bills" does
   // not start with "/bill/" (the char after "/bill" is "s"), so order is safe.
-  if (basePath === "/bills") return [mode === "news" ? "News" : "Legislation"];
+  // HO 501: NEWS split to its own /news route, so /bills is always Legislation
+  // (the `mode` arg is now vestigial — kept for the signature). /bills?mode=news
+  // redirects to /news before this runs.
+  if (basePath === "/bills") return ["Legislation"];
+  if (basePath === "/news") return ["News"];
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return ["Legislation"];
   if (basePath === "/changes") return ["Legislation", "Changes"];
   // HO 359: /president is now a real in-surface page (the president's-desk
