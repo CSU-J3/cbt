@@ -583,10 +583,28 @@ test.describe("lighter surfaces", () => {
     assertClean(c, "/stale");
   });
 
-  test("/hearings + calendar", async ({ page }) => {
+  test("/hearings loads clean", async ({ page }) => {
     const c = attachCollectors(page);
-    await page.goto("/hearings", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const resp = await page.goto("/hearings", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 502(a): retitled from "/hearings + calendar" — the body never exercised
+    // the calendar, so the old title claimed coverage it didn't have (that
+    // interaction is backlogged as (b), for the Phase 2 seeded fixture). Harden
+    // what it DOES test: assertClean only catches >=400, so a silent redirect
+    // would pass. Assert 200 + no redirect hop + a NON-calendar page marker (the
+    // masthead breadcrumb "Hearings" segment — a wrong page renders a different
+    // crumb) so we prove we're on the hearings surface without touching the
+    // calendar, keeping the title honest about scope.
+    expect.soft(resp?.status(), "/hearings should serve 200").toBe(200);
+    expect
+      .soft(resp?.request().redirectedFrom(), "/hearings should not redirect")
+      .toBeNull();
+    await expect
+      .soft(
+        page.locator(".breadcrumb-seg-label", { hasText: "Hearings" }),
+        "/hearings surface rendered",
+      )
+      .toBeVisible();
     logClean("hearings", c);
     assertClean(c, "/hearings");
   });
