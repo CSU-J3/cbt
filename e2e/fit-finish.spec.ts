@@ -611,7 +611,7 @@ test.describe("lighter surfaces", () => {
     assertClean(c, "/president");
   });
 
-  test("/news loads clean (redirects to /bills?mode=news)", async ({ page }) => {
+  test("/news loads clean", async ({ page }) => {
     const c = attachCollectors(page);
     await page.goto("/news", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
