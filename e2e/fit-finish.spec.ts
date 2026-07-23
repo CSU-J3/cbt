@@ -605,8 +605,24 @@ test.describe("lighter surfaces", () => {
 
   test("/president loads clean", async ({ page }) => {
     const c = attachCollectors(page);
-    await page.goto("/president", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const resp = await page.goto("/president", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 502: /president is a real page (HO 359), no longer the HO 151 redirect
+    // to /bills?stage=president — same history as /news. assertClean only catches
+    // >=400, so a silent regression back to a redirect would pass. Assert it
+    // SERVES the page directly: 200, no redirect hop, and the president-specific
+    // subhead (the /bills?stage=president alias renders the full feed, not this
+    // line) so we prove the president surface rendered, not just that it answered.
+    expect.soft(resp?.status(), "/president should serve 200").toBe(200);
+    expect
+      .soft(resp?.request().redirectedFrom(), "/president should not redirect")
+      .toBeNull();
+    await expect
+      .soft(
+        page.getByText(/racing the 10-day clock/i).first(),
+        "/president surface rendered",
+      )
+      .toBeVisible();
     logClean("president", c);
     assertClean(c, "/president");
   });
