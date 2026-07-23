@@ -613,8 +613,21 @@ test.describe("lighter surfaces", () => {
 
   test("/news loads clean", async ({ page }) => {
     const c = attachCollectors(page);
-    await page.goto("/news", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const resp = await page.goto("/news", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 502: /news is its own route now (HO 501). assertClean only catches
+    // >=400, so a silent revert to a 307 → /bills?mode=news would pass — the
+    // exact failure HO 501's redirect-loop guard exists to prevent, invisible
+    // to this suite. Assert it SERVES the feed directly: 200, no redirect hop,
+    // and a NewsFilters marker so we prove the news surface rendered (not a
+    // bare 200 or a redirect to some other page).
+    expect.soft(resp?.status(), "/news should serve 200").toBe(200);
+    expect
+      .soft(resp?.request().redirectedFrom(), "/news should not redirect")
+      .toBeNull();
+    await expect
+      .soft(page.getByText(/most recent/i).first(), "/news feed rendered")
+      .toBeVisible();
     logClean("news", c);
     assertClean(c, "/news");
   });
