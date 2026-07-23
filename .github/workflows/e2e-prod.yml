@@ -1,0 +1,77 @@
+# HO 504 — unattended prod e2e. Separate from ci.yml on purpose: this never runs
+# on the PR path, so it can't become a required check that fails to report under
+# the paths-ignore / branch-protection landmine ci.yml documents. Two failure
+# classes, two triggers: deployment_status catches "this deploy broke prod";
+# schedule catches "prod is broken now" (cron / data rot) even with no new deploy.
+# Vercel emits GitHub deployment_status(state=success, env=Production) to this
+# repo (HO 504 Step-0, verified live), so post-deploy coverage is real.
+name: e2e-prod
+
+on:
+  deployment_status:
+  schedule:
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+# A burst of deploys (Vercel fired 5 in one minute for the last push train) all
+# point at the same eventual prod; keep only the latest smoke, cancel the rest.
+concurrency:
+  group: e2e-prod
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    # deployment_status fires for every state/environment; gate to successful
+    # Production only. schedule / workflow_dispatch carry no deployment_status
+    # object, so they fall through the OR and always run.
+    if: >-
+      github.event_name != 'deployment_status' ||
+      (github.event.deployment_status.state == 'success' &&
+       github.event.deployment_status.environment == 'Production')
+    runs-on: ubuntu-latest
+    # Unattended run against a live target: cap it so a hung crawl can't burn the
+    # GitHub default of 360 min before anyone notices. A full crawl is ~1-2 min.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Match ci.yml — node 20, npm cache. v5 action bump is its own loop.
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      - name: Run prod smoke crawl
+        # smoke.spec.ts ONLY (explicit path, never an e2e/ glob that would silently
+        # pick up the next spec that lands). Runs against the live prod domain
+        # (spec BASE_URL default). --grep-invert "@nonci" drops the tagged
+        # markets-hover case: bucket D — prod withholds the tape from headless
+        # Chrome under BotID, so there's nothing to hover. (That also records why
+        # the backlog's hardening #1, "freeze the marquee so the hover lands," is
+        # moot-under-BotID, not done.) retries=2 via CLI flag, not config: an
+        # unattended run needs cold-start tolerance, but the committed
+        # playwright.config.ts stays honest at retries:0 for the manual default.
+        #
+        # The ~2 min of checkout + npm ci + browser install ABOVE is not dead cost:
+        # it's the delay that makes the deployment_status trigger safe against the
+        # alias-swap race. By the time the crawl fires, Vercel has finished pointing
+        # the prod domain at the deploy whose success event woke us. Anyone who
+        # caches that install to speed the job up must re-verify the crawl still
+        # starts AFTER the alias swap, not before.
+        run: npx playwright test e2e/smoke.spec.ts --grep-invert "@nonci" --retries=2
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
