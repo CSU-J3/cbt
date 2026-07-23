@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { isKnownNoise } from "./console-noise";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -107,7 +108,11 @@ function attachCollectors(page: Page): Collected {
     if (status >= 400) c.bad.push(`${status} ${resp.url()}`);
   });
   page.on("console", (msg) => {
-    if (msg.type() === "error") c.consoleErr.push(msg.text());
+    // HO 504: share the HO 472 noise allowlist (MissingSecret + friends) so an
+    // unattended prod run doesn't red on known-benign console output.
+    if (msg.type() !== "error") return;
+    const t = msg.text();
+    if (!isKnownNoise(t)) c.consoleErr.push(t);
   });
   page.on("pageerror", (err) => {
     c.pageErr.push(err.message);
@@ -196,7 +201,11 @@ test.describe("targeted interactions", () => {
 
   test("expand a bill row → unified expand panel (.bxp) opens", async ({ page }) => {
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    const firstRow = page.locator(".v2f-row").first();
+    // HO 504 (hardening #3): anchor on the V2FeedList toggle contract
+    // (role=button + aria-expanded inside .v2f), not the .v2f-row styling class —
+    // the row selector has churned twice. The next assertion already relies on
+    // aria-expanded flipping to "true", so this is the same contract.
+    const firstRow = page.locator('.v2f [role="button"][aria-expanded]').first();
     await expect(firstRow, "home feed should have rows").toBeVisible({ timeout: 20_000 });
     await firstRow.click();
     await expect(
@@ -210,18 +219,20 @@ test.describe("targeted interactions", () => {
   test("open a race district drawer → .rdm-panel opens and stays within viewport", async ({
     page,
   }) => {
-    await page.goto("/races", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    // HO 504: target /electoral directly. /races 308-redirects here (HO 333); the
+    // redirect itself is covered by the route crawl (ROUTES carries /races). A
+    // drawer test shouldn't silently ride a 308 to get to the map.
+    await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.waitForTimeout(1_500);
-    const cell = page.locator(".us-map-state").first();
-    const found = await cell.count();
-    if (!found) {
-      test.info().annotations.push({
-        type: "skip-reason",
-        description: "no clickable .us-map-state cell on /races (map view not default?)",
-      });
-      test.skip(true, "race map cell not found");
-      return;
-    }
+    const cells = page.locator(".us-map-state");
+    const found = await cells.count();
+    // HO 504: hard assertion, not a skip. .us-map-state cells are static us-atlas
+    // topojson geometry (CartogramShell), never DB rows — a zero count means the
+    // cartogram failed to render (a real prod regression), not data variability.
+    // A skip here would let that regress silently green (the HO 503 false-green
+    // class the whole audit exists to close).
+    expect(found, "electoral cartogram must render map-state cells").toBeGreaterThan(0);
+    const cell = cells.first();
     await cell.click({ force: true });
     const panel = page.locator(".rdm-panel");
     await expect(panel, "race district modal should open").toBeVisible({ timeout: 10_000 });
@@ -237,7 +248,11 @@ test.describe("targeted interactions", () => {
     }
   });
 
-  test("B2 markets hover → hover card appears (flagged if tape empty on headless prod)", async ({
+  // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert
+  // "@nonci"). Bucket D: prod withholds the markets tape from headless Chrome
+  // under BotID, so there's nothing to hover. The skip guard below stays honest
+  // for the manual/local run; the tag keeps it out of the scheduled crawl.
+  test("B2 markets hover → hover card appears (flagged if tape empty on headless prod) @nonci", async ({
     page,
   }) => {
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });

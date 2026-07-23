@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import { isKnownNoise } from "./console-noise";
 
 // HO 472 — the CDP-interaction half the HO 240/379 audits never reached. Drives
 // clicks / hovers / modals / Esc / expanders / filters across every live surface
@@ -32,18 +33,9 @@ const REPORT = process.env.SEED_REPORT ?? "2026-06-15";
 
 const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 
-// Known-dormant console noise (HO 472 §4) — never file as a new finding.
-// (A production build already suppresses React dev-only warnings like the
-// FilingRow dup-key, but filter defensively in case the suite runs on dev.)
-function isKnownNoise(text: string): boolean {
-  return (
-    /favicon\.ico|manifest\.webmanifest|apple-touch-icon/.test(text) ||
-    /MissingSecret/.test(text) || // NextAuth AUTH_SECRET env OPEN LOOP
-    /Encountered two children with the same key/.test(text) || // FilingRow dup-key (HO 463)
-    /Download the React DevTools/.test(text) ||
-    /\[Fast Refresh\]/.test(text)
-  );
-}
+// Console-noise allowlist extracted to ./console-noise (HO 504) — shared with
+// smoke.spec.ts so the two crawlers can't drift. See that file for per-entry
+// provenance (MissingSecret + FilingRow dup-key are open loops).
 
 type Collected = { consoleErr: string[]; pageErr: string[]; bad: string[] };
 
