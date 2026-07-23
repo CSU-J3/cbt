@@ -1881,6 +1881,17 @@ daysSince(dateStr, nowMs)           // integer days, also drives staleness color
 - **Load-bearing invariant (cross-ref oddities):** because ages are frozen server-side, every age-rendering route must render **dynamically per-request** so `nowMs` is per-request. This is **INCIDENTAL** — routes are dynamic via `await searchParams` + uncached reads, **not** a `force-dynamic` export (there are **none** in the repo, so don't grep for `force-dynamic` — you'll find nothing and wrongly conclude the invariant is broken). **Verify by the `next build` output's dynamic (`ƒ`) marker**, not by grepping. If a route is ever prerendered or given `revalidate` (e.g. its `searchParams` read is refactored away), the frozen clock becomes a *silently wrong* age with no hydration warning — server and client agree on the stale value, so nothing fires.
 - **Do not touch `CyclingTimestamp` / `lib/zone-cycle.ts`** to "fix" a suspected age mismatch — HO 489 verified they're hydration-safe by construction (SSR and first client paint both render MT; the live zone swaps only in `useEffect`). And never reach for `suppressHydrationWarning` — it hides the mismatch while React still discards the server HTML.
 
+## Process cleanup
+
+Never kill processes by image name (`taskkill /IM node.exe`) or by matching on "next dev". Other Next apps run on this Windows box and will be killed too. Scope to this project's port only:
+
+```bash
+netstat -ano | findstr :3000
+taskkill /PID <pid> /T /F
+```
+
+`dev` and `start` are pinned to `-p 3000` in `package.json`. Keep them pinned, and pin any new script that spawns a dev server. psephos holds 3001.
+
 ## Pre-flight verification
 
 Before writing acceptance criteria, parser branches, runtime estimates, or any code that depends on an assumption about the world, verify the assumption against the actual artifact. This is broader than API liveness — three handoffs in one session shipped wrong premises that a few minutes of pre-flight caught:
