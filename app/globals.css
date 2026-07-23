@@ -154,19 +154,15 @@ body {
      mobile value; HO 281 lifts it to 26 at desktop (min-width:701px block). */
   font-size: 20px;
 }
-/* Band 3 — CONTROL STRIP (bills, in <main>) + the transitional legacy-controls
-   band (in HeaderBar, full-width). flex-wrap is the 1280px safety: degrade by
-   wrapping, never clip. */
-.control-strip,
+/* The transitional legacy-controls band (in HeaderBar, full-width). flex-wrap is
+   the 1280px safety: degrade by wrapping, never clip. (HO 498: the sibling
+   .control-strip — the old /bills band-3 chrome — was removed as dead after the
+   HO 496 two-pane; .control-search / .control-sort below stay live.) */
 .header-legacy-controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-md);
-}
-.control-strip {
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border-strong);
 }
 .header-legacy-controls {
   padding: var(--space-sm) var(--space-lg);
@@ -180,50 +176,10 @@ body {
 .control-sort {
   margin-left: auto;
 }
-/* Band 4 — TOPICS BAND: feed sub-nav + vertical divider + wrapping chips. */
-.topics-band {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm) var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border-strong);
-}
-.topics-subnav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-md);
-  font-size: 12px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.topics-subnav a {
-  color: var(--text-dim);
-  text-decoration: none;
-  transition: color 120ms ease;
-}
-.topics-subnav a:hover {
-  color: var(--text-secondary);
-}
-.topics-divider {
-  width: 1px;
-  align-self: stretch;
-  min-height: 16px;
-  background: var(--border-strong);
-}
-/* Band 5 — LEGEND + PAGINATION: stage legend (left) + pager (right). */
-.legend-pagination-band {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm) var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--border-strong);
-}
-.legend-pagination-pager {
-  margin-left: auto;
-}
+/* HO 498: the old /bills band-4 TOPICS BAND (.topics-band / .topics-subnav /
+   .topics-divider) and band-5 LEGEND+PAGINATION (.legend-pagination-band /
+   .legend-pagination-pager) were removed as dead after the HO 496 two-pane —
+   zero JSX references remained (the rail + keystrip replaced them). */
 /* HO 187: topic-chip full-name hover popover — tape-style (instant CSS, no JS
    delay), the full topic name in that topic's color (set inline per chip). On
    the filter chips only; the per-row TopicTags use the portal Tooltip (their
