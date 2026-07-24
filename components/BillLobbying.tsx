@@ -4,25 +4,18 @@ import { FilingRow } from "@/components/FilingRow";
 import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 
 // HO 440 — the /bill/[id] LOBBYING section body. Mirrors the /lobbying per-issue
-// drill (IssueDrill) scoped to one bill: a stat line, TOP CLIENTS / TOP FIRMS
-// ranked bars (distinct filings), the bill's most-recent filings, and an out to
-// the full /lobbying surface. Firms/clients are plain text (no lobbying-org hubs
-// exist to link — same as /lobbying). Server component. Fed by getBillLobbying;
-// the page omits the whole section when that returns null.
+// drill (IssueDrill) scoped to one bill: TOP CLIENTS / TOP FIRMS ranked bars
+// (distinct filings), the bill's most-recent filings, and an out to the full
+// /lobbying surface. Firms/clients are plain text (no lobbying-org hubs exist to
+// link — same as /lobbying). Server component. Fed by getBillLobbying; the page
+// omits the whole section when that returns null.
+//
+// HO 507: the top stat line ("N filings · M clients") moved UP into the
+// section-shell header on /bill/[id] (it duplicated the shell's count), so this
+// component no longer renders it — the `see all lobbying →` foot survives.
 export function BillLobbying({ drill }: { drill: BillDrill }) {
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
-      <div
-        className="px-[14px] py-[9px] text-[12px] tabular-nums"
-        style={{
-          color: "var(--text-muted)",
-          borderBottom: "0.5px solid var(--border-strong)",
-        }}
-      >
-        {drill.distinctFilings.toLocaleString()} filings ·{" "}
-        {drill.distinctClients.toLocaleString()} clients
-      </div>
-
       <LobbyingMiniBars label="Top clients" rows={drill.topClients} />
       <LobbyingMiniBars label="Top firms" rows={drill.topFirms} />
 

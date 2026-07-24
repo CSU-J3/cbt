@@ -4,10 +4,14 @@ import type { BillAmendment } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
 
 // HO 448 — the /bill/[id] AMENDMENTS section body. Mirrors BillLobbying's
-// grammar (same border box, top stat line, 0.5px row dividers). Server
-// component, fed rows: BillAmendment[]; the page omits the whole section when
-// getBillAmendments returns null. No embed-foot: there's no /amendments surface
-// to link yet (banks as the aggregate fork), so a foot would be a dead link.
+// grammar (same border box, 0.5px row dividers). Server component, fed rows:
+// BillAmendment[]; the page omits the whole section when getBillAmendments
+// returns null. No embed-foot: the header out-link to the /amendments aggregate
+// (shipped HO 461) is the page's section-shell concern (HO 507), not this box's.
+//
+// HO 507: the top stat line ("N amendments · X agreed · Y failed") moved UP into
+// the section-shell header on /bill/[id] (the count duplicated the shell's), so
+// this component no longer renders it — it owns only the rows + overflow foot.
 //
 // Render cap: the worst magnet bill carries ~1,100 amendments (119-sconres-7),
 // too many to dump into the DOM, so cap at the top 60 in the query's recency
@@ -105,24 +109,11 @@ function AmendmentRow({ a }: { a: BillAmendment }) {
 }
 
 export function BillAmendments({ rows }: { rows: BillAmendment[] }) {
-  const agreed = rows.filter((r) => r.disposition === "agreed").length;
-  const failed = rows.filter((r) => r.disposition === "failed").length;
   const shown = rows.slice(0, RENDER_CAP);
   const overflow = rows.length - shown.length;
 
-  const stat = [`${rows.length.toLocaleString()} amendments`];
-  if (agreed > 0) stat.push(`${agreed.toLocaleString()} agreed`);
-  if (failed > 0) stat.push(`${failed.toLocaleString()} failed`);
-
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
-      <div
-        className="px-[14px] py-[9px] text-[12px] tabular-nums"
-        style={{ color: "var(--text-muted)", borderBottom: "0.5px solid var(--border-strong)" }}
-      >
-        {stat.join(" · ")}
-      </div>
-
       {shown.map((a) => (
         <AmendmentRow key={a.id} a={a} />
       ))}

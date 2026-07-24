@@ -5714,10 +5714,16 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
 export async function getBillById(id: string): Promise<BillDetail | null> {
   const db = getDb();
   const rs = await db.execute({
+    // HO 507: the redesigned /bill/[id] hero metabox renders the cosponsor
+    // support bar + the sponsor member-link, and the shared stage bar wants the
+    // true stage-change date — all three are plain bills columns (no JOIN), so
+    // add them to the point lookup rather than firing a second read.
     sql: `SELECT id, congress, bill_type, bill_number, title,
-      sponsor_name, sponsor_party, sponsor_state,
+      sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
+      cosponsor_count,
       introduced_date, latest_action_date, latest_action_text, update_date,
-      summary, summary_model, summary_updated_at, topics, stage, raw_json
+      summary, summary_model, summary_updated_at, topics, stage, stage_changed_at,
+      raw_json
       FROM bills WHERE id = ? LIMIT 1`,
     args: [id],
   });
@@ -5732,6 +5738,8 @@ export async function getBillById(id: string): Promise<BillDetail | null> {
     sponsor_name: (r.sponsor_name as string | null) ?? null,
     sponsor_party: (r.sponsor_party as string | null) ?? null,
     sponsor_state: (r.sponsor_state as string | null) ?? null,
+    sponsor_bioguide_id: (r.sponsor_bioguide_id as string | null) ?? null,
+    cosponsor_count: (r.cosponsor_count as number | null) ?? null,
     introduced_date: (r.introduced_date as string | null) ?? null,
     latest_action_date: (r.latest_action_date as string | null) ?? null,
     latest_action_text: (r.latest_action_text as string | null) ?? null,
@@ -5741,6 +5749,7 @@ export async function getBillById(id: string): Promise<BillDetail | null> {
     summary_updated_at: (r.summary_updated_at as string | null) ?? null,
     topics: (r.topics as string | null) ?? null,
     stage: (r.stage as string | null) ?? null,
+    stage_changed_at: (r.stage_changed_at as string | null) ?? null,
     raw_json: r.raw_json as string,
   };
 }

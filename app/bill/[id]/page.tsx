@@ -2,20 +2,21 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BillAmendments } from "@/components/BillAmendments";
 import { BillLobbying } from "@/components/BillLobbying";
+import { BillStageBar } from "@/components/BillExpandPanel";
 import { HeaderBar } from "@/components/HeaderBar";
 import {
   HearingMeetingsEmbed,
   type HearingEmbedGroup,
 } from "@/components/HearingMeetingsEmbed";
 import { PartyTag } from "@/components/PartyTag";
-import { StageIndicator } from "@/components/StageIndicator";
-import { TopicTags } from "@/components/TopicTags";
+import { TopicChips } from "@/components/TopicChips";
 import { WatchlistToggle } from "@/components/WatchlistToggle";
 import { BILL_TYPE_LABELS } from "@/lib/enums";
 import {
   congressGovUrl,
   formatBillId,
   formatDateLong,
+  formatRelativeAge,
   formatRelativeAgeLong,
   parseTopics,
 } from "@/lib/format";
@@ -27,6 +28,7 @@ import {
   getBillLobbying,
   getCommitteesIndex,
   getMeetingsForBill,
+  getNewsForBill,
   isInWatchlist,
 } from "@/lib/queries";
 
@@ -35,38 +37,20 @@ import {
 // if a future bill blows past it.
 const BILL_MEETINGS_CAP = 8;
 
-const labelStyle: React.CSSProperties = {
-  color: "var(--text-dim)",
-  letterSpacing: "0.5px",
-};
-const valueStyle: React.CSSProperties = {
-  color: "var(--text-secondary)",
-};
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-[124px_1fr] gap-x-4 py-1.5 text-[13px]">
-      <dt className="text-[12px] uppercase" style={labelStyle}>
-        {label}
-      </dt>
-      <dd style={valueStyle}>{children}</dd>
-    </div>
-  );
+// HO 371 cosponsor support bar — 5 segments span 1–50 (segment width 10), the
+// >50 tail caps at full. Re-inlined here (the metabox is a new consumer; lifting
+// the panel's one-line private helper would only widen its export surface).
+function cosponsorSegments(count: number): number {
+  return Math.min(5, Math.ceil(count / 10));
 }
 
-function Divider() {
-  return (
-    <div
-      className="my-4 border-t"
-      style={{ borderColor: "var(--border-strong)" }}
-    />
-  );
+// HO 507 — sponsor_name embeds a trailing "[D-CT]" / "[R-TX-19]" party-state
+// bracket; the metabox renders its own party-COLORED PartyTag bracket, so strip
+// the embedded one here (display-only — the query keeps sponsor_name's embedded
+// form, which other consumers depend on). Mirrors BillAmendments' Sponsor, which
+// leans on the same embedded bracket rather than double-printing it.
+function sponsorDisplayName(name: string): string {
+  return name.replace(/\s*\[[^\]]*\]\s*$/, "").trim() || name;
 }
 
 // HO 145: per-committee referral row on the bill detail page. Subcommittees
@@ -127,6 +111,53 @@ function BillCommitteeItem({
   );
 }
 
+// Member-hub section shell (HO 507): border + bg-panel, a header bar carrying an
+// uppercase heading + count and an optional right-aligned out-link. The body is
+// rendered flush (the caller owns padding) so component-owned boxes (amendments,
+// lobbying, hearings) sit inside cleanly.
+function SectionShell({
+  heading,
+  count,
+  out,
+  className,
+  children,
+}: {
+  heading: string;
+  count: string;
+  out?: { href: string; label: string };
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      className={`border${className ? ` ${className}` : ""}`}
+      style={{
+        borderColor: "var(--border-strong)",
+        backgroundColor: "var(--bg-panel)",
+      }}
+    >
+      <div
+        className="flex items-baseline justify-between gap-3 border-b px-4 py-3"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <h2
+          className="min-w-0 truncate text-[12px] font-medium uppercase tracking-[0.5px]"
+          style={{ color: "var(--text-dim)" }}
+        >
+          {heading}{" "}
+          <span style={{ color: "var(--text-muted)" }}>{count}</span>
+        </h2>
+        {out ? (
+          <Link href={out.href} className="bdp-out">
+            {out.label}
+          </Link>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 export default async function BillDetailPage({
   params,
 }: {
@@ -136,15 +167,25 @@ export default async function BillDetailPage({
   const bill = await getBillById(id);
   if (!bill) notFound();
 
-  const [onWatchlist, committees, meetings, committeeIndex, amendments, lobbying] =
-    await Promise.all([
-      isInWatchlist(bill.id),
-      getBillCommittees(bill.id),
-      getMeetingsForBill(bill.id),
-      getCommitteesIndex(),
-      getBillAmendments(bill.id),
-      getBillLobbying(bill.id),
-    ]);
+  const [
+    onWatchlist,
+    committees,
+    meetings,
+    committeeIndex,
+    amendments,
+    lobbying,
+    news,
+  ] = await Promise.all([
+    isInWatchlist(bill.id),
+    getBillCommittees(bill.id),
+    getMeetingsForBill(bill.id),
+    getCommitteesIndex(),
+    getBillAmendments(bill.id),
+    getBillLobbying(bill.id),
+    // HO 507: the exact bounded, unstable_cache'd read /api/bill/[id]/panel
+    // already runs on every feed expand — feeds the hero's RELATED NEWS.
+    getNewsForBill(bill.id, 5),
+  ]);
   // systemCode → name so each hearing row shows its committee (the meetings
   // span different committees on the bill cut, unlike the committee page).
   const committeeNames: Record<string, string> = {};
@@ -164,6 +205,64 @@ export default async function BillDetailPage({
     // leave raw on parse failure
   }
 
+  // HO 507: the AMENDMENTS header absorbs the tallies that used to live in
+  // BillAmendments' internal stat line — same disposition values the dots use.
+  const amAgreed =
+    amendments?.filter((r) => r.disposition === "agreed").length ?? 0;
+  const amFailed =
+    amendments?.filter((r) => r.disposition === "failed").length ?? 0;
+  const amStat = [`(${amendments?.length ?? 0})`];
+  if (amAgreed > 0) amStat.push(`${amAgreed} agreed`);
+  if (amFailed > 0) amStat.push(`${amFailed} failed`);
+
+  const hasCommittees = committees.length > 0;
+  const hasHearings = meetings.length > 0;
+  const pair = hasCommittees && hasHearings;
+
+  const committeesBlk = hasCommittees ? (
+    <SectionShell
+      heading="Committees"
+      count={`(${committees.length})`}
+      className={pair ? undefined : "mt-4"}
+    >
+      <ul className="px-4 py-2">
+        {committees.map((row, i) => (
+          <BillCommitteeItem
+            key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
+            row={row}
+            nowMs={nowMs}
+          />
+        ))}
+      </ul>
+    </SectionShell>
+  ) : null;
+
+  const hearingsBlk = hasHearings ? (
+    <SectionShell
+      heading="Hearings"
+      count={`(${meetings.length})`}
+      out={{ href: "/hearings", label: "/hearings →" }}
+      className={pair ? undefined : "mt-4"}
+    >
+      <div>
+        <HearingMeetingsEmbed
+          groups={meetingGroups}
+          committeeNames={committeeNames}
+          nowMs={nowMs}
+          hideBills
+        />
+        {meetingOverflow > 0 ? (
+          <div className="hearings-embed-foot">
+            {meetingOverflow} more ·{" "}
+            <Link href="/hearings" className="hearings-embed-link">
+              see all on /hearings →
+            </Link>
+          </div>
+        ) : null}
+      </div>
+    </SectionShell>
+  ) : null;
+
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar
@@ -171,7 +270,8 @@ export default async function BillDetailPage({
         detail={formatBillId(bill.bill_type, bill.bill_number)}
       />
 
-      <main className="w-full flex-1 px-4 py-4">
+      <main className="bdp w-full flex-1 px-4 py-4">
+        {/* ═══ HERO — the expand panel's big sibling ═══ */}
         <div
           className="border p-5"
           style={{
@@ -180,237 +280,224 @@ export default async function BillDetailPage({
           }}
         >
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-baseline gap-3">
-                <span
-                  className="text-[16px] font-medium"
-                  style={{ color: "var(--accent-amber)" }}
-                  title={BILL_TYPE_LABELS[bill.bill_type]}
-                >
-                  {formatBillId(bill.bill_type, bill.bill_number)}
-                </span>
-                <h1
-                  className="text-[15px]"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {bill.title}
-                </h1>
-              </div>
+            <div className="flex min-w-0 items-baseline gap-3">
+              <span
+                className="whitespace-nowrap text-[16px] font-medium"
+                style={{ color: "var(--accent-amber)" }}
+                title={BILL_TYPE_LABELS[bill.bill_type]}
+              >
+                {formatBillId(bill.bill_type, bill.bill_number)}
+              </span>
+              <h1
+                className="min-w-0 text-[15px]"
+                style={{
+                  color: "var(--text-primary)",
+                  fontFamily: "var(--sans)",
+                  lineHeight: 1.4,
+                }}
+              >
+                {bill.title}
+              </h1>
             </div>
             <WatchlistToggle billId={bill.id} initial={onWatchlist} />
           </div>
 
-          <div className="mt-4">
-            {bill.sponsor_name ? (
-              <Field label="Sponsor">
-                <span style={{ color: "var(--text-secondary)" }}>
-                  {bill.sponsor_name}
-                </span>{" "}
-                <PartyTag
-                  party={bill.sponsor_party}
-                  state={bill.sponsor_state}
-                />
-              </Field>
-            ) : null}
-            {bill.introduced_date ? (
-              <Field label="Introduced">
-                {formatDateLong(bill.introduced_date)}
-              </Field>
-            ) : null}
-            {bill.latest_action_date ? (
-              <Field label="Last action">
-                {formatDateLong(bill.latest_action_date)}
-              </Field>
-            ) : null}
-            {bill.stage ? (
-              <Field label="Stage">
-                <StageIndicator stage={bill.stage} />
-              </Field>
-            ) : null}
-            {topics.length > 0 ? (
-              <Field label="Topics">
-                <TopicTags topics={topics} />
-              </Field>
-            ) : null}
-          </div>
+          {/* Shared stage bar (HO 317). Returns null on null/off-path stage. */}
+          <BillStageBar bill={bill} nowMs={nowMs} />
 
-          {committees.length > 0 ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Committees ({committees.length})
-              </div>
-              <ul>
-                {committees.map((row, i) => (
-                  <BillCommitteeItem
-                    key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
-                    row={row}
-                    nowMs={nowMs}
-                  />
-                ))}
-              </ul>
-            </>
-          ) : null}
+          <div className="bxp-body">
+            {/* LEFT — SUMMARY + RELATED NEWS */}
+            <div className="bxp-left">
+              {bill.summary ? (
+                <>
+                  <div className="bxp-relhdr">Summary</div>
+                  <p className="bxp-summary">{bill.summary}</p>
+                </>
+              ) : null}
 
-          {meetings.length > 0 ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Hearings covering this bill ({meetings.length})
+              <div className="bxp-relblock">
+                <div className="bxp-relhdr">Related News</div>
+                {news.length > 0 ? (
+                  <>
+                    {news.map((n) => (
+                      <a
+                        key={n.id}
+                        className="bxp-relnews"
+                        href={n.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <span className="bxp-relnews-title">{n.title}</span>
+                        <span className="bxp-relnews-meta">
+                          {" · "}
+                          {n.source.toUpperCase()} ·{" "}
+                          {formatRelativeAge(n.publishedAt, nowMs)}
+                        </span>
+                      </a>
+                    ))}
+                    <div className="bdp-relfoot">
+                      <Link href={`/news?bill=${bill.id}`}>
+                        all coverage → /news?bill={bill.id}
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="bxp-relempty">NO RELATED NEWS</div>
+                )}
               </div>
-              <div
-                className="border"
-                style={{ borderColor: "var(--border-strong)" }}
-              >
-                <HearingMeetingsEmbed
-                  groups={meetingGroups}
-                  committeeNames={committeeNames}
-                  nowMs={nowMs}
-                  hideBills
-                />
-                {meetingOverflow > 0 ? (
-                  <div className="hearings-embed-foot">
-                    {meetingOverflow} more ·{" "}
-                    <Link href="/hearings" className="hearings-embed-link">
-                      see all on /hearings →
-                    </Link>
+            </div>
+
+            {/* RIGHT — boxed meta card */}
+            <div className="bxp-metabox">
+              {bill.sponsor_name ? (
+                <div className="bxp-mrow">
+                  <div className="bxp-mlabel">Sponsor</div>
+                  <div className="bxp-mval">
+                    {bill.sponsor_bioguide_id ? (
+                      <Link
+                        href={`/members/${bill.sponsor_bioguide_id}`}
+                        className="bdp-sponsorlnk"
+                      >
+                        {sponsorDisplayName(bill.sponsor_name)}
+                      </Link>
+                    ) : (
+                      <span>{sponsorDisplayName(bill.sponsor_name)}</span>
+                    )}{" "}
+                    <PartyTag
+                      party={bill.sponsor_party}
+                      state={bill.sponsor_state}
+                      className="bdp-ptag"
+                    />
                   </div>
-                ) : null}
+                </div>
+              ) : null}
+
+              {bill.cosponsor_count != null ? (
+                <div className="bxp-mrow">
+                  <div className="bxp-mlabel">Cosponsors</div>
+                  <div className="bxp-mval bxp-cosrow">
+                    <span className="bxp-cosval tabular-nums">
+                      {bill.cosponsor_count.toLocaleString()}
+                    </span>
+                    <span className="bxp-cosbar" aria-hidden>
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <span
+                          key={i}
+                          className={`bxp-cosseg${
+                            i < cosponsorSegments(bill.cosponsor_count!)
+                              ? " bxp-cosseg--on"
+                              : ""
+                          }`}
+                        />
+                      ))}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {topics.length > 0 ? (
+                <div className="bxp-mrow">
+                  <div className="bxp-mlabel">Topics</div>
+                  <div className="bxp-mval">
+                    <TopicChips topics={topics} />
+                  </div>
+                </div>
+              ) : null}
+
+              {bill.introduced_date ? (
+                <div className="bxp-mrow">
+                  <div className="bxp-mlabel">Introduced</div>
+                  <div className="bxp-mval tabular-nums">
+                    {formatDateLong(bill.introduced_date)}
+                  </div>
+                </div>
+              ) : null}
+
+              {bill.latest_action_date ? (
+                <div className="bxp-mrow">
+                  <div className="bxp-mlabel">Last action</div>
+                  <div className="bxp-mval tabular-nums">
+                    {formatDateLong(bill.latest_action_date)} ·{" "}
+                    {formatRelativeAge(bill.latest_action_date, nowMs)} ago
+                  </div>
+                  {bill.latest_action_text ? (
+                    <div className="bdp-latext" title={bill.latest_action_text}>
+                      {bill.latest_action_text}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="bxp-mrow">
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bdp-mlink"
+                >
+                  Congress.gov ↗
+                </a>
               </div>
-            </>
-          ) : null}
-
-          {amendments ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Amendments ({amendments.length})
-              </div>
-              <BillAmendments rows={amendments} />
-            </>
-          ) : null}
-
-          {lobbying ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Lobbying ({lobbying.distinctFilings.toLocaleString()} filings)
-              </div>
-              <BillLobbying drill={lobbying} />
-            </>
-          ) : null}
-
-          {bill.summary ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Summary
-              </div>
-              <p
-                className="max-w-[80ch] text-[14px] leading-relaxed"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {bill.summary}
-              </p>
-            </>
-          ) : null}
-
-          {bill.latest_action_text ? (
-            <>
-              <Divider />
-              <div
-                className="mb-2 text-[12px] uppercase tracking-[0.5px]"
-                style={labelStyle}
-              >
-                Latest action
-              </div>
-              <p
-                className="max-w-[80ch] text-[14px] leading-relaxed"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {bill.latest_action_text}
-              </p>
-            </>
-          ) : null}
-
-          <Divider />
-
-          <div className="flex flex-wrap items-center gap-2">
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
-              style={{
-                color: "var(--text-dim)",
-                borderColor: "var(--border-strong)",
-              }}
-            >
-              Congress.gov ↗
-            </a>
-            <a
-              href="/bills"
-              className="border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)]"
-              style={{
-                color: "var(--text-dim)",
-                borderColor: "var(--border-strong)",
-              }}
-            >
-              ← Back to feed
-            </a>
+            </div>
           </div>
-
-          <details
-            className="mt-4 border"
-            style={{
-              backgroundColor: "var(--bg-base)",
-              borderColor: "var(--border-strong)",
-            }}
-          >
-            <summary
-              className="cursor-pointer select-none px-3 py-2 text-[12px] font-medium uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              ▾ Raw JSON
-            </summary>
-            <pre
-              className="overflow-auto border-t px-3 py-2 text-[12px] leading-snug"
-              style={{
-                borderColor: "var(--border-strong)",
-                color: "var(--text-muted)",
-              }}
-            >
-              {formattedRaw}
-            </pre>
-          </details>
-
-          {bill.summary_model ? (
-            <p
-              className="mt-3 text-[12px] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              Summary by {bill.summary_model}
-              {bill.summary_updated_at
-                ? ` · ${formatDateLong(bill.summary_updated_at)}`
-                : null}
-            </p>
-          ) : null}
         </div>
+
+        {/* ═══ COMMITTEES | HEARINGS ═══ */}
+        {pair ? (
+          <div className="bdp-pair mt-4">
+            {committeesBlk}
+            {hearingsBlk}
+          </div>
+        ) : (
+          <>
+            {committeesBlk}
+            {hearingsBlk}
+          </>
+        )}
+
+        {/* ═══ AMENDMENTS — header absorbs the agreed/failed tallies ═══ */}
+        {amendments && amendments.length > 0 ? (
+          <SectionShell
+            heading="Amendments"
+            count={amStat.join(" · ")}
+            out={{ href: `/amendments?bill=${bill.id}`, label: "/amendments →" }}
+            className="mt-4"
+          >
+            <div className="bdp-amend-scroll">
+              <BillAmendments rows={amendments} />
+            </div>
+          </SectionShell>
+        ) : null}
+
+        {/* ═══ LOBBYING — header absorbs the filings/clients stat line ═══ */}
+        {lobbying ? (
+          <SectionShell
+            heading="Lobbying"
+            count={`(${lobbying.distinctFilings.toLocaleString()} filings · ${lobbying.distinctClients.toLocaleString()} clients)`}
+            className="mt-4"
+          >
+            <BillLobbying drill={lobbying} />
+          </SectionShell>
+        ) : null}
+
+        {/* ═══ FOOTER — one row; Raw JSON opens full-width below (no-JS) ═══ */}
+        <details className="bdp-foot mt-4">
+          <summary className="bdp-footrow">
+            <Link href="/bills" className="bdp-footbtn">
+              ← Back to feed
+            </Link>
+            <span className="bdp-footbtn bdp-rawcue">Raw JSON</span>
+            {bill.summary_model ? (
+              <span className="bdp-attrib">
+                Summary by {bill.summary_model}
+                {bill.summary_updated_at
+                  ? ` · ${formatDateLong(bill.summary_updated_at)}`
+                  : null}
+              </span>
+            ) : null}
+          </summary>
+          <pre className="bdp-rawpre">{formattedRaw}</pre>
+        </details>
       </main>
     </div>
   );

@@ -9054,3 +9054,169 @@ a.hearing-watch:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── HO 507: /bill/[id] detail-page scope (.bdp). The redesigned hero is a new
+   consumer of the shared .bxp-* / .v2f-bar panel classes (reused UNCHANGED so
+   the feed expand panel stays byte-identical). EVERY page-specific deviation is
+   additive and lives here under .bdp — the HO 486/492/496 scoped-wrapper rule.
+   Section shells otherwise use the member-hub Tailwind-inline idiom. */
+
+/* mobile: metabox stacks under the summary/news column */
+@media (max-width: 760px) {
+  .bdp .bxp-body {
+    grid-template-columns: 1fr;
+  }
+  .bdp .bxp-left {
+    padding-right: 0;
+  }
+  .bdp .bxp-metabox {
+    margin-top: 14px;
+  }
+}
+
+/* committees | hearings pair (the HO 492 .lob-secs pattern) */
+.bdp .bdp-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.bdp .bdp-pair > section {
+  margin-top: 0;
+}
+@media (max-width: 900px) {
+  .bdp .bdp-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* amendments magnet bound — the 1,100-row bill (119-sconres-7) scrolls inside
+   this box instead of setting the page height (the HO 492 scroll pattern) */
+.bdp .bdp-amend-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+/* metabox: latest_action_text folded in, clamped to 3 lines (full text on hover) */
+.bdp .bdp-latext {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* metabox: sponsor member-link + party bracket */
+.bdp .bdp-sponsorlnk {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-dim);
+}
+.bdp .bdp-sponsorlnk:hover {
+  color: var(--accent-amber-bright);
+  border-color: var(--accent-amber);
+}
+.bdp .bdp-ptag {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* metabox: Congress.gov ↗ (moved out of the footer into the final meta row) */
+.bdp .bdp-mlink {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bdp .bdp-mlink:hover {
+  color: var(--accent-amber-bright);
+}
+
+/* related-news foot: all coverage → /news?bill= (the HO 501 route) */
+.bdp .bdp-relfoot {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.bdp .bdp-relfoot a {
+  color: var(--accent-amber);
+  text-decoration: none;
+}
+.bdp .bdp-relfoot a:hover {
+  color: var(--accent-amber-bright);
+}
+
+/* section header out-link (/hearings →, /amendments →) */
+.bdp .bdp-out {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bdp .bdp-out:hover {
+  color: var(--accent-amber-bright);
+}
+
+/* footer: single row; Raw JSON is a no-JS <details> whose <pre> opens full-width
+   beneath the row. The row IS the <summary> (default marker suppressed); the
+   ▸/▾ cue flips via the [open] state so no client JS is needed. */
+.bdp .bdp-foot > summary {
+  list-style: none;
+}
+.bdp .bdp-foot > summary::-webkit-details-marker {
+  display: none;
+}
+.bdp .bdp-footrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.bdp .bdp-footbtn {
+  display: inline-block;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  text-decoration: none;
+  background: transparent;
+}
+.bdp .bdp-footbtn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+}
+.bdp .bdp-rawcue::before {
+  content: "▸ ";
+}
+.bdp .bdp-foot[open] .bdp-rawcue::before {
+  content: "▾ ";
+}
+.bdp .bdp-attrib {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.bdp .bdp-rawpre {
+  margin-top: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow: auto;
+  max-height: 320px;
+}
