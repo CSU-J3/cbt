@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { CaucusBadge } from "./CaucusBadge";
 import { PalestineBadge } from "./PalestineBadge";
@@ -9,10 +8,8 @@ import type {
   Member,
   MemberAffiliation,
   PalestineScorecard,
-  RaceRating,
 } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
-import { raceIdFromMember } from "@/lib/race-id";
 
 function initials(name: string): string {
   const parts = name.split(/[\s,]+/).filter(Boolean);
@@ -32,40 +29,13 @@ function metaLine(m: Member): string {
   return parts.join(" · ");
 }
 
-// Inline rating color on the seat-up chip. No source attribution here — at
-// the member-hub level the chip is a glance signal; the full source-attributed
-// chip lives on /race/[id]. Mirrors the color map in RatingChip.tsx — keep
-// them in sync when a new rater vocabulary is added.
-function ratingColor(rating: string): string {
-  switch (rating) {
-    case "Solid D":
-    case "Safe D":
-    case "Likely D":
-    case "Lean D":
-    case "Tilt D":
-      return "var(--party-democrat)";
-    case "Toss Up":
-      return "var(--accent-amber-bright)";
-    case "Tilt R":
-    case "Lean R":
-    case "Likely R":
-    case "Solid R":
-    case "Safe R":
-      return "var(--party-republican)";
-    default:
-      return "var(--text-muted)";
-  }
-}
-
 export function MemberHeader({
   member,
   affiliations = [],
-  rating = null,
   scorecard = null,
 }: {
   member: Member;
   affiliations?: MemberAffiliation[];
-  rating?: RaceRating | null;
   scorecard?: PalestineScorecard | null;
 }) {
   const [photoErrored, setPhotoErrored] = useState(false);
@@ -74,21 +44,6 @@ export function MemberHeader({
   // Header surfaces only the top two by priority — the rest live on the full
   // affiliations row below the stats block.
   const topBadges = affiliations.slice(0, 2);
-  // Race link target. The backfill produces a row for every member with a
-  // non-null next_election_year, so the link should always resolve; the
-  // /race/[id] page handles the missing-row case with its own empty state.
-  const raceId = raceIdFromMember({
-    chamber: member.chamber,
-    state: member.state,
-    district: member.district,
-    nextElectionYear: member.nextElectionYear,
-  });
-  const electionChipBase =
-    "ml-1 border px-2 py-[1px] text-[12px] transition";
-  const electionChipStyle = {
-    color: "var(--accent-amber)",
-    borderColor: "var(--accent-amber)",
-  };
 
   return (
     <div className="member-header">
@@ -136,50 +91,6 @@ export function MemberHeader({
             ●
           </span>
           <span>{metaLine(member)}</span>
-          {member.nextElectionYear ? (
-            member.nextElectionYear >= new Date().getFullYear() ? (
-              raceId ? (
-                <Link
-                  href={`/race/${raceId}`}
-                  className={`${electionChipBase} hover:bg-[var(--bg-row-hover)]`}
-                  style={electionChipStyle}
-                >
-                  Next election {member.nextElectionYear}
-                  {rating ? (
-                    <>
-                      <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                        {" · "}
-                      </span>
-                      <span style={{ color: ratingColor(rating.rating) }}>
-                        {rating.rating}
-                      </span>
-                    </>
-                  ) : null}
-                </Link>
-              ) : (
-                <span className={electionChipBase} style={electionChipStyle}>
-                  Next election {member.nextElectionYear}
-                  {rating ? (
-                    <>
-                      <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                        {" · "}
-                      </span>
-                      <span style={{ color: ratingColor(rating.rating) }}>
-                        {rating.rating}
-                      </span>
-                    </>
-                  ) : null}
-                </span>
-              )
-            ) : (
-              <span
-                className="ml-1 text-[12px]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Former member
-              </span>
-            )
-          ) : null}
           {topBadges.length > 0 ? (
             <>
               <span aria-hidden style={{ color: "var(--text-dim)" }}>

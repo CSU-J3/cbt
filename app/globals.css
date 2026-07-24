@@ -9220,3 +9220,227 @@ a.hearing-watch:hover {
   overflow: auto;
   max-height: 320px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HO 509 — RecordTabs (shared record box) + the /members/[bioguideId] hero.
+   Additive only. `.rec-*` is the shared component (member hub now, /bill/[id]
+   at HO 510); `.mhp-*` is the member-hub page scope (the .bdp additive-wrapper
+   rule). Nothing here restyles .bxp-*, .bdp-*, .mc-*, .member-*, .ideology-*,
+   .search-tabs or .breaking-stalls-tabs.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the shared record box ── */
+.rec {
+  margin-top: 14px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+}
+.rec-hdr {
+  display: flex;
+  align-items: stretch;
+  gap: 22px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-strong);
+}
+.rec-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px; /* overlap the box border so the active underline meets it */
+  padding: 9px 0;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+.rec-tab:hover {
+  color: var(--text-secondary);
+}
+.rec-tab[aria-current="page"] {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-amber);
+}
+.rec-tab[data-empty="true"] {
+  opacity: 0.5;
+}
+.rec-tab:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+.rec-tab .count {
+  color: var(--text-dim);
+  margin-left: 4px;
+}
+.rec-out {
+  margin-left: auto;
+  align-self: center;
+  font-size: 11.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rec-out:hover {
+  color: var(--accent-amber-bright);
+}
+/* Bounded body height: a short panel (1-row Committees) doesn't leave ~380px of
+   dead space, while a tall one still caps at 430px and scrolls. A tab swap can
+   shift the footer below the box — a BOUNDED shift, not zero. That's fine here:
+   the record box is the last element before the footer, so only the footer
+   moves. (HO 244's .distributions-panel-body used a FIXED height to protect
+   content BELOW the panel — a rationale that doesn't transfer to this layout.) */
+.rec-body {
+  min-height: 260px;
+  max-height: 430px;
+  overflow-y: auto;
+}
+.rec-panel[hidden] {
+  display: none;
+}
+/* Sticky sub-strip inside a panel (Bills' StageLegend, Votes' MemberVoteStats). */
+.rec-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 7px 16px;
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  position: sticky;
+  top: 0;
+  background: var(--bg-panel);
+  z-index: 2;
+}
+.rec-empty {
+  padding: 60px 16px;
+  text-align: center;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+/* ── member-hub hero (three bands in one bordered card) ── */
+.mhp {
+  background: var(--bg-row-hover);
+  border: 1px solid var(--border-strong);
+}
+/* band 1: identity (MemberHeader) + the stat run pulled inline */
+.mhp-hb1 {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 18px;
+}
+.mhp-stats {
+  display: flex;
+  gap: 22px;
+  flex: none;
+}
+.mhp-stat {
+  text-align: right;
+}
+.mhp-stat-l {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.mhp-stat-v {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.mhp-stat-v small {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+/* band 2: the ideology axis (MemberIdeology), promoted out of Voting record,
+   full width — no split/readout (that would need a MemberIdeology edit). */
+.mhp-hb2 {
+  padding: 4px 18px 10px;
+  border-top: 0.5px solid var(--border-soft);
+}
+/* band 3: the metabox unrolled into a horizontal N-up. data-cells collapses
+   empties (no empty thirds), same idea as .bdp-pair's lone-survivor branch. */
+.mhp-hb3 {
+  display: grid;
+  border-top: 0.5px solid var(--border-soft);
+}
+.mhp-hb3[data-cells="1"] {
+  grid-template-columns: 1fr;
+}
+.mhp-hb3[data-cells="2"] {
+  grid-template-columns: 1fr 1fr;
+}
+.mhp-hb3[data-cells="3"] {
+  grid-template-columns: 1fr 1fr 1.15fr;
+}
+.mhp-hb3 > div {
+  padding: 10px 18px 12px;
+}
+.mhp-hb3 > div + div {
+  border-left: 0.5px solid var(--border-soft);
+}
+.mhp-mlabel {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.mhp-mval {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.mhp-mval.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.mhp-msub {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .rec-hdr {
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .rec-out {
+    margin-left: 0;
+  }
+  .mhp-hb1 {
+    flex-wrap: wrap;
+  }
+  .mhp-stats {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .mhp-stat {
+    text-align: left;
+  }
+  .mhp-hb3[data-cells] {
+    grid-template-columns: 1fr;
+  }
+  .mhp-hb3 > div + div {
+    border-left: none;
+    border-top: 0.5px solid var(--border-soft);
+  }
+}

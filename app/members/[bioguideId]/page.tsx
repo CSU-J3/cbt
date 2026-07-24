@@ -1,17 +1,17 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { HeaderBar } from "@/components/HeaderBar";
-import { MemberAffiliations } from "@/components/MemberAffiliations";
 import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
 import { MemberHeader } from "@/components/MemberHeader";
 import { MemberIdeology } from "@/components/MemberIdeology";
-import { MemberStats } from "@/components/MemberStats";
 import { MemberAmendmentRow } from "@/components/MemberAmendmentRow";
 import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
 import { RaceNewsRow } from "@/components/RaceNewsRow";
+import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
+import { currentCongressLabel, ordinal } from "@/lib/congress";
 import { daysUntil, formatDateShort } from "@/lib/format";
 import {
   getMember,
@@ -34,6 +34,7 @@ import {
   getWatchedBillIds,
 } from "@/lib/queries";
 import { raceIdFromMember } from "@/lib/race-id";
+import { ratingColor } from "@/lib/race-colors";
 
 // Reads the DB by params; opt out of static prerender. unstable_cache still
 // applies at the query layer.
@@ -43,6 +44,14 @@ const BILL_LIMIT = 10;
 const TRADE_LIMIT = 10;
 const VOTE_LIMIT = 20;
 const MEMBER_AMENDMENT_LIMIT = 60;
+
+// Absorbed from the deleted MemberStats (HO 509): round to whole when the value
+// is integer-ish, else one decimal; em-dash for a null.
+function formatAvgCosponsors(n: number | null): string {
+  if (n === null) return "—";
+  const rounded = Math.round(n);
+  return Math.abs(n - rounded) < 0.05 ? `${rounded}` : n.toFixed(1);
+}
 
 // HO 145: committee role → badge style. Chair / Co-Chair / Vice Chair land
 // on the amber accent (the page's leadership color); Ranking Member uses a
@@ -179,7 +188,7 @@ export default async function MemberPage({
     // row → the component renders its empty state.
     getMemberIdeology(bioguideId),
     // HO 450: amendments this member sponsored (keyed on sponsor_bioguide_id);
-    // null when they authored none → the section is omitted.
+    // null when they authored none → the tab shows (0) and its empty state.
     getMemberAmendments(bioguideId),
   ]);
 
@@ -227,275 +236,338 @@ export default async function MemberPage({
         </Link>
 
         {member ? (
-          <>
-            <MemberHeader
-              member={member}
-              affiliations={affiliations}
-              rating={headerRating}
-              scorecard={scorecard}
-            />
+          (() => {
+            // ── band-1 stat run ── the three figures MemberStats used to show,
+            // joined by votes-cast + missed pulled out of MemberVoteStats. The
+            // two vote figures are suppressed entirely when there are no votes
+            // (don't print "0 of 0").
+            const enactedPct = (stats.enactedRate * 100).toFixed(1);
+            const votesCast = voteStats.total - voteStats.notVoting;
+            const missedPct =
+              voteStats.total > 0
+                ? Math.round((voteStats.notVoting / voteStats.total) * 100)
+                : 0;
 
-            {memberPrimary?.primary_date ? (
-              <div
-                className="mt-2 text-[12px] uppercase tracking-[0.5px]"
-                style={{ color: "var(--accent-amber)" }}
-              >
-                Primary {memberPrimary.party === "D" ? "Dem" : "Rep"}:{" "}
-                {formatDateShort(memberPrimary.primary_date)}
-                {primaryDays !== null &&
-                primaryDays >= 0 &&
-                primaryDays <= 30 ? (
-                  <span style={{ color: "var(--party-republican)" }}>
-                    {" "}
-                    ({primaryDays === 0 ? "today" : `${primaryDays}d`})
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
+            // ── band-3 SEAT ── only fields already on `member`; no "sworn"
+            // clause because the record carries no swearing-in year.
+            const chamberLabel =
+              member.chamber === "house"
+                ? "House"
+                : member.chamber === "senate"
+                  ? "Senate"
+                  : "Congress";
+            const districtSuffix =
+              member.chamber === "house"
+                ? member.district != null && member.district > 0
+                  ? ` ${ordinal(member.district)}`
+                  : member.district === 0
+                    ? " At-Large"
+                    : ""
+                : "";
+            const seatLoc = member.stateName ?? member.state;
+            const seatMain = seatLoc
+              ? `${chamberLabel} · ${seatLoc}${districtSuffix}`
+              : chamberLabel;
 
-            <div
-              className="my-5 border-t border-b"
-              style={{ borderColor: "var(--border-soft)" }}
-            >
-              <MemberStats stats={stats} />
-            </div>
-
-            <div className="mb-6">
-              <MemberAffiliations affiliations={affiliations} />
-              {fundraising ? (
-                <div className="mt-3">
-                  <MemberFundraisingLine fundraising={fundraising} />
+            // ── band-3 cells ── empties are omitted so the grid becomes
+            // 2-up / 1-up (no empty thirds — the .bdp-pair lone-survivor rule).
+            const band3: React.ReactNode[] = [
+              <div key="seat">
+                <div className="mhp-mlabel">Seat</div>
+                <div className="mhp-mval">{seatMain}</div>
+                <div className="mhp-msub">
+                  {currentCongressLabel()} · {committeeAssignments.length}{" "}
+                  committee assignment
+                  {committeeAssignments.length === 1 ? "" : "s"}
                 </div>
-              ) : null}
-            </div>
-
-            <section
-              className="border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <div
-                className="flex items-baseline justify-between px-4 py-3"
-                style={{
-                  backgroundColor: "var(--bg-panel)",
-                  borderBottom: "0.5px solid var(--border-strong)",
-                }}
-              >
-                <h2
-                  className="text-[12px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Sponsored bills (top {Math.min(bills.length, BILL_LIMIT)})
-                </h2>
-                {stats.billsSponsored > bills.length ? (
-                  <Link
-                    href={`/bills?sponsor=${encodeURIComponent(member.bioguideId)}`}
-                    className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
-                    style={{ color: "var(--accent-amber)" }}
-                  >
-                    View all {stats.billsSponsored.toLocaleString()} bills →
-                  </Link>
-                ) : null}
-              </div>
-
-              <StageLegend />
-
-              {bills.length === 0 ? (
-                <div
-                  className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  No bills sponsored
-                </div>
-              ) : (
-                <BillRowList bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
-              )}
-            </section>
-
-            {sponsoredAmendments ? (
-              <section
-                className="mt-6 border"
-                style={{ borderColor: "var(--border-strong)" }}
-              >
-                <div
-                  className="flex items-baseline justify-between px-4 py-3"
-                  style={{
-                    backgroundColor: "var(--bg-panel)",
-                    borderBottom: "0.5px solid var(--border-strong)",
-                  }}
-                >
-                  <h2
-                    className="text-[12px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    Amendments sponsored ({sponsoredAmendments.length})
-                  </h2>
-                </div>
-                <div>
-                  {sponsoredAmendments
-                    .slice(0, MEMBER_AMENDMENT_LIMIT)
-                    .map((a) => (
-                      <MemberAmendmentRow key={a.id} amendment={a} />
-                    ))}
-                </div>
-                {sponsoredAmendments.length > MEMBER_AMENDMENT_LIMIT ? (
-                  <div
-                    className="px-4 py-3 text-[11px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    {sponsoredAmendments.length - MEMBER_AMENDMENT_LIMIT} more
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-
-            <section
-              className="mt-6 border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <div
-                className="flex items-baseline justify-between px-4 py-3"
-                style={{
-                  backgroundColor: "var(--bg-panel)",
-                  borderBottom: "0.5px solid var(--border-strong)",
-                }}
-              >
-                <h2
-                  className="text-[12px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Committees ({committeeAssignments.length})
-                </h2>
-              </div>
-              {committeeAssignments.length === 0 ? (
-                <p
-                  className="px-4 py-4 text-[12px]"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  No committee assignments on file.
-                </p>
-              ) : (
-                <ul>
-                  {committeeAssignments.map((row) => (
-                    <CommitteeAssignmentRow
-                      key={row.systemCode}
-                      row={row}
-                    />
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section
-              className="mt-6 border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <div
-                className="flex items-baseline justify-between px-4 py-3"
-                style={{
-                  backgroundColor: "var(--bg-panel)",
-                  borderBottom: "0.5px solid var(--border-strong)",
-                }}
-              >
-                <h2
-                  className="text-[12px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Voting record
-                </h2>
-              </div>
-
-              <div className="px-4 py-3">
-                <MemberVoteStats stats={voteStats} chamber={member.chamber} />
-                <div className="mt-3">
-                  <MemberIdeology ideology={ideology} party={member.party} />
-                </div>
-              </div>
-
-              {recentVotes.votes.length > 0 ? (
-                <div className="px-4 pb-3">
-                  <div className="vote-header-row">
-                    <span>Pos.</span>
-                    <span>Date</span>
-                    <span>Bill</span>
-                    <span>Question · Result</span>
-                    <span className="vote-roll">Roll</span>
-                  </div>
-                  <div>
-                    {recentVotes.votes.map((v) => (
-                      <MemberVoteRow key={v.id} vote={v} />
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className="px-6 py-8 text-center text-[13px]"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {member.chamber === "senate"
-                    ? "No Senate votes recorded for this member yet."
-                    : "No House votes recorded for this member yet."}
-                </div>
-              )}
-            </section>
-
-            {scorecard ? (
-              <section
-                className="mt-6 border"
-                style={{ borderColor: "var(--border-strong)" }}
-              >
-                <div
-                  className="flex items-baseline justify-between px-4 py-3"
-                  style={{
-                    backgroundColor: "var(--bg-panel)",
-                    borderBottom: "0.5px solid var(--border-strong)",
-                  }}
-                >
-                  <h2
-                    className="text-[12px] uppercase tracking-[0.5px]"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    Palestine scorecard
-                  </h2>
-                  <a
-                    href="https://docs.google.com/spreadsheets/d/1VU1y_jSb2hanU2MrLsjRx8tujB-C--UAQ2EahaTXGUo"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    via USCPR ↗
-                  </a>
-                </div>
-
-                <div className="px-4 py-3">
-                  <div className="mb-3 flex items-center gap-3">
-                    <span
-                      className="text-[24px] font-bold leading-none"
-                      style={{ color: "var(--accent-amber-bright)" }}
-                    >
-                      {scorecard.grade}
-                    </span>
-                    <div className="flex flex-col">
-                      <span
-                        className="text-[12px]"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
-                        Score: {scorecard.total_score}
+              </div>,
+            ];
+            if (member.nextElectionYear != null) {
+              // Absorbs MemberHeader's former election-chip branch (HO 509
+              // follow-up): a future year links to the seat's race when a
+              // raceId resolves, a past year reads "Former member" (the old
+              // cell rendered a stale "Next election 2024" here — a real bug),
+              // and the primary sub-line stays on the future branch only.
+              const isFutureElection =
+                member.nextElectionYear >= new Date().getFullYear();
+              const electionValue = (
+                <>
+                  {member.nextElectionYear}
+                  {headerRating ? (
+                    <>
+                      {" · "}
+                      <span style={{ color: ratingColor(headerRating.rating) }}>
+                        {headerRating.rating}
                       </span>
-                      {scorecard.rank ? (
+                    </>
+                  ) : null}
+                </>
+              );
+              band3.push(
+                <div key="election">
+                  <div className="mhp-mlabel">Next election</div>
+                  {isFutureElection ? (
+                    <>
+                      <div className="mhp-mval mono">
+                        {raceId ? (
+                          <Link
+                            href={`/race/${raceId}`}
+                            className="transition hover:text-[var(--accent-amber-bright)]"
+                          >
+                            {electionValue}
+                          </Link>
+                        ) : (
+                          electionValue
+                        )}
+                      </div>
+                      {memberPrimary?.primary_date ? (
+                        <div
+                          className="mhp-msub"
+                          style={{ color: "var(--accent-amber)" }}
+                        >
+                          Primary {memberPrimary.party === "D" ? "Dem" : "Rep"}:{" "}
+                          {formatDateShort(memberPrimary.primary_date)}
+                          {primaryDays !== null &&
+                          primaryDays >= 0 &&
+                          primaryDays <= 30 ? (
+                            <span style={{ color: "var(--party-republican)" }}>
+                              {" "}
+                              ({primaryDays === 0 ? "today" : `${primaryDays}d`})
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div
+                      className="mhp-mval"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Former member
+                    </div>
+                  )}
+                </div>,
+              );
+            }
+            if (fundraising) {
+              band3.push(
+                <div key="fundraising">
+                  <div className="mhp-mlabel">Fundraising</div>
+                  <div className="mt-1">
+                    <MemberFundraisingLine fundraising={fundraising} />
+                  </div>
+                </div>,
+              );
+            }
+
+            // ── the record box tabs ── fixed order (authoring → voting →
+            // assignment → coverage), most-used first; NOT count-ranked, so a
+            // member page opens the same way every time.
+            const tabs: RecordTab[] = [
+              {
+                key: "bills",
+                label: "Bills",
+                count: stats.billsSponsored,
+                outLabel:
+                  stats.billsSponsored > bills.length
+                    ? `View all ${stats.billsSponsored.toLocaleString()} bills →`
+                    : undefined,
+                outHref:
+                  stats.billsSponsored > bills.length
+                    ? `/bills?sponsor=${encodeURIComponent(member.bioguideId)}`
+                    : undefined,
+                content: (
+                  <>
+                    <div className="rec-note">
+                      <StageLegend bare />
+                    </div>
+                    {bills.length === 0 ? (
+                      <div className="rec-empty">No bills sponsored</div>
+                    ) : (
+                      <BillRowList
+                        bills={bills}
+                        watchedIds={watchedIds}
+                        nowMs={nowMs}
+                      />
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: "votes",
+                label: "Votes",
+                count: voteStats.total,
+                content: (
+                  <>
+                    <div className="rec-note">
+                      <MemberVoteStats
+                        stats={voteStats}
+                        chamber={member.chamber}
+                      />
+                    </div>
+                    {recentVotes.votes.length > 0 ? (
+                      <div className="px-4 py-3">
+                        <div className="vote-header-row">
+                          <span>Pos.</span>
+                          <span>Date</span>
+                          <span>Bill</span>
+                          <span>Question · Result</span>
+                          <span className="vote-roll">Roll</span>
+                        </div>
+                        <div>
+                          {recentVotes.votes.map((v) => (
+                            <MemberVoteRow key={v.id} vote={v} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rec-empty">
+                        {member.chamber === "senate"
+                          ? "No Senate votes recorded for this member yet."
+                          : "No House votes recorded for this member yet."}
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: "committees",
+                label: "Committees",
+                count: committeeAssignments.length,
+                content:
+                  committeeAssignments.length === 0 ? (
+                    <div className="rec-empty">
+                      No committee assignments on file.
+                    </div>
+                  ) : (
+                    <ul>
+                      {committeeAssignments.map((row) => (
+                        <CommitteeAssignmentRow key={row.systemCode} row={row} />
+                      ))}
+                    </ul>
+                  ),
+              },
+              {
+                key: "amendments",
+                label: "Amendments",
+                count: sponsoredAmendments?.length ?? 0,
+                content:
+                  sponsoredAmendments && sponsoredAmendments.length > 0 ? (
+                    <>
+                      <div>
+                        {sponsoredAmendments
+                          .slice(0, MEMBER_AMENDMENT_LIMIT)
+                          .map((a) => (
+                            <MemberAmendmentRow key={a.id} amendment={a} />
+                          ))}
+                      </div>
+                      {sponsoredAmendments.length > MEMBER_AMENDMENT_LIMIT ? (
+                        <div
+                          className="px-4 py-3 text-[11px] uppercase tracking-[0.5px]"
+                          style={{ color: "var(--text-muted)" }}
+                        >
+                          {sponsoredAmendments.length - MEMBER_AMENDMENT_LIMIT}{" "}
+                          more
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="rec-empty">No amendments sponsored</div>
+                  ),
+              },
+              {
+                key: "press",
+                label: "Press",
+                count: news.length,
+                content:
+                  news.length > 0 ? (
+                    <div>
+                      {news.map((n) => (
+                        <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rec-empty">
+                      No recent news linked to this member.
+                    </div>
+                  ),
+              },
+              {
+                key: "trades",
+                label: "Trades",
+                count: tradeCount,
+                outLabel:
+                  tradeCount > trades.length
+                    ? `View all ${tradeCount.toLocaleString()} trades →`
+                    : undefined,
+                outHref:
+                  tradeCount > trades.length
+                    ? `/trades?member=${encodeURIComponent(member.bioguideId)}`
+                    : undefined,
+                content:
+                  trades.length === 0 ? (
+                    <div className="rec-empty">No disclosed trades on file</div>
+                  ) : (
+                    <>
+                      <div className="trade-header-row px-4">
+                        <span>Disclosed</span>
+                        <span className="chamber-chip">Ch.</span>
+                        <span>Ticker</span>
+                        <span className="asset-description">Asset</span>
+                        <span>Type</span>
+                        <span className="amount">Amount</span>
+                      </div>
+                      <ul>
+                        {trades.map((t) => (
+                          <li key={t.id} className="px-4">
+                            <TradeRow trade={t} />
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ),
+              },
+            ];
+
+            // Scorecard is the one CONDITIONAL tab — genuinely inapplicable
+            // (Senate Democrats only), not merely zero. No count: it's
+            // present-or-absent, not a tally.
+            if (scorecard) {
+              tabs.push({
+                key: "scorecard",
+                label: "Scorecard",
+                outLabel: "via USCPR ↗",
+                outHref:
+                  "https://docs.google.com/spreadsheets/d/1VU1y_jSb2hanU2MrLsjRx8tujB-C--UAQ2EahaTXGUo",
+                content: (
+                  <div className="px-4 py-3">
+                    <div className="mb-3 flex items-center gap-3">
+                      <span
+                        className="text-[24px] font-bold leading-none"
+                        style={{ color: "var(--accent-amber-bright)" }}
+                      >
+                        {scorecard.grade}
+                      </span>
+                      <div className="flex flex-col">
                         <span
                           className="text-[12px]"
-                          style={{ color: "var(--text-dim)" }}
+                          style={{ color: "var(--text-secondary)" }}
                         >
-                          Rank #{scorecard.rank} of 47
+                          Score: {scorecard.total_score}
                         </span>
-                      ) : null}
+                        {scorecard.rank ? (
+                          <span
+                            className="text-[12px]"
+                            style={{ color: "var(--text-dim)" }}
+                          >
+                            Rank #{scorecard.rank} of 47
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col gap-1">
-                    {Object.entries(scorecard.votes).map(
-                      ([label, outcome]) => (
+                    <div className="flex flex-col gap-1">
+                      {Object.entries(scorecard.votes).map(([label, outcome]) => (
                         <div
                           key={label}
                           className="flex items-start justify-between gap-3"
@@ -513,105 +585,103 @@ export default async function MemberPage({
                             {outcome}
                           </span>
                         </div>
-                      ),
-                    )}
+                      ))}
+                    </div>
+                  </div>
+                ),
+              });
+            }
+
+            return (
+              <>
+                {/* ═══ HERO — one bordered card, three bands ═══ */}
+                <div className="mhp">
+                  <div className="mhp-hb1">
+                    <MemberHeader
+                      member={member}
+                      affiliations={affiliations}
+                      scorecard={scorecard}
+                    />
+                    <div className="mhp-stats">
+                      <span className="mhp-stat">
+                        <span className="mhp-stat-l">Sponsored</span>
+                        <span className="mhp-stat-v">
+                          {stats.billsSponsored.toLocaleString()}
+                        </span>
+                      </span>
+                      <span className="mhp-stat">
+                        <span className="mhp-stat-l">Enacted</span>
+                        <span className="mhp-stat-v">
+                          {stats.billsEnacted}
+                          {stats.billsSponsored > 0 ? (
+                            <small>{enactedPct}%</small>
+                          ) : null}
+                        </span>
+                      </span>
+                      <span className="mhp-stat">
+                        <span className="mhp-stat-l">Avg cosponsors</span>
+                        <span className="mhp-stat-v">
+                          {formatAvgCosponsors(stats.avgCosponsorCount)}
+                        </span>
+                      </span>
+                      {voteStats.total > 0 ? (
+                        <>
+                          <span className="mhp-stat">
+                            <span className="mhp-stat-l">Votes cast</span>
+                            <span className="mhp-stat-v">
+                              {votesCast.toLocaleString()}
+                              <small>of {voteStats.total.toLocaleString()}</small>
+                            </span>
+                          </span>
+                          <span className="mhp-stat">
+                            <span className="mhp-stat-l">Missed</span>
+                            <span className="mhp-stat-v">
+                              {missedPct}
+                              <small>%</small>
+                            </span>
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* band 2: the ideology spine, promoted out of Voting record */}
+                  <div className="mhp-hb2">
+                    <MemberIdeology ideology={ideology} party={member.party} />
+                  </div>
+
+                  {/* band 3: the metabox unrolled sideways */}
+                  <div className="mhp-hb3" data-cells={band3.length}>
+                    {band3}
                   </div>
                 </div>
-              </section>
-            ) : null}
 
-            <section
-              className="mt-6 border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <div
-                className="flex items-baseline justify-between px-4 py-3"
-                style={{
-                  backgroundColor: "var(--bg-panel)",
-                  borderBottom: "0.5px solid var(--border-strong)",
-                }}
-              >
-                <h2
-                  className="text-[12px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  Recent trades · {tradeCount.toLocaleString()} disclosed
-                </h2>
-                {tradeCount > trades.length ? (
+                {/* ═══ THE RECORD BOX ═══ */}
+                <RecordTabs ariaLabel="Member record" tabs={tabs} />
+
+                {/* ═══ FOOTER — one row ═══ */}
+                <div className="mt-6 flex items-center gap-2">
                   <Link
-                    href={`/trades?member=${encodeURIComponent(member.bioguideId)}`}
-                    className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
-                    style={{ color: "var(--accent-amber)" }}
+                    href="/members"
+                    className="inline-block border px-[10px] py-[5px] text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+                    style={{
+                      borderColor: "var(--border-strong)",
+                      color: "var(--text-dim)",
+                    }}
                   >
-                    View all {tradeCount.toLocaleString()} trades →
+                    ← Back to members
                   </Link>
-                ) : null}
-              </div>
-
-              {trades.length === 0 ? (
-                <div
-                  className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  No disclosed trades on file
-                </div>
-              ) : (
-                <>
-                  <div className="trade-header-row px-4">
-                    <span>Disclosed</span>
-                    <span className="chamber-chip">Ch.</span>
-                    <span>Ticker</span>
-                    <span className="asset-description">Asset</span>
-                    <span>Type</span>
-                    <span className="amount">Amount</span>
-                  </div>
-                  <ul>
-                    {trades.map((t) => (
-                      <li key={t.id} className="px-4">
-                        <TradeRow trade={t} />
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </section>
-
-            <section
-              className="mt-6 border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <div
-                className="px-4 py-3"
-                style={{
-                  backgroundColor: "var(--bg-panel)",
-                  borderBottom: "0.5px solid var(--border-strong)",
-                }}
-              >
-                <h2
-                  className="text-[12px] uppercase tracking-[0.5px]"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  News · in the press
-                </h2>
-              </div>
-              <div className="px-4 py-2">
-                {news.length > 0 ? (
-                  <div>
-                    {news.map((n) => (
-                      <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
-                    ))}
-                  </div>
-                ) : (
-                  <p
-                    className="py-2 text-[13px]"
-                    style={{ color: "var(--text-muted)" }}
+                  <span
+                    className="ml-auto text-[11px] uppercase tracking-[0.5px]"
+                    style={{ color: "var(--text-dim)" }}
                   >
-                    No recent news linked to this member.
-                  </p>
-                )}
-              </div>
-            </section>
-          </>
+                    Member data via Congress.gov · Ideology via Voteview ·
+                    Fundraising via FEC
+                  </span>
+                </div>
+              </>
+            );
+          })()
         ) : (
           <div
             className="px-6 py-16 text-center"
@@ -620,10 +690,7 @@ export default async function MemberPage({
             <p className="text-[14px] uppercase tracking-[0.5px]">
               Member not found
             </p>
-            <p
-              className="mt-2 text-[12px]"
-              style={{ color: "var(--text-dim)" }}
-            >
+            <p className="mt-2 text-[12px]" style={{ color: "var(--text-dim)" }}>
               bioguide_id: {bioguideId}
             </p>
             <Link
