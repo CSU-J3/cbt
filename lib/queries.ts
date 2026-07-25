@@ -4283,7 +4283,8 @@ export const getNewsFeed = unstable_cache(
       ? []
       : [windowHours, NEWS_FEED_MIN_CONFIDENCE];
 
-    // HO 335: drive from the 227-row news_mentions side, not the 16k bills side.
+    // HO 335: drive from the news_mentions side (726 rows, HO 514 re-measure;
+    // was 227 at HO 335), not the 16k bills side.
     // The windowed (non-bill-scoped) form filters on m.published_at, so force
     // idx_news_mentions_published — the same hint getBreakingNewsForHome carries;
     // without it the stateless planner drives from bills via idx_bills_is_ceremonial
@@ -6316,10 +6317,11 @@ export const searchNewsCount = unstable_cache(
     const db = getDb();
     const like = `%${q.toLowerCase()}%`;
     const rs = await db.execute({
-      // HO 335: drive from the 227-row news side. Without the hint the stateless
-      // planner drives from bills via idx_bills_is_ceremonial (MULTI-INDEX OR over
-      // ~16k rows). The LIKE has no usable index either way, but forcing m as the
-      // driver collapses the fat-table OR to a 227-row scan + bills PK join.
+      // HO 335: drive from the 726-row news side (HO 514; was 227). Without the
+      // hint the stateless planner drives from bills via idx_bills_is_ceremonial
+      // (MULTI-INDEX OR over ~16k rows). The LIKE has no usable index either way,
+      // but forcing m as the driver collapses the fat-table OR to a 726-row scan
+      // + bills PK join.
       sql: `SELECT COUNT(*) AS n FROM news_mentions m INDEXED BY idx_news_mentions_published
             INNER JOIN bills b ON b.id = m.bill_id
             WHERE (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)
