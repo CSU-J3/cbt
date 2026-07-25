@@ -4492,6 +4492,104 @@ export async function getNewsTopicRailCounts(
   }
 }
 
+export type NewsMemberRailItem = {
+  bioguide: string;
+  name: string;
+  party: string | null;
+  count: number;
+};
+export type NewsMemberRail = { rows: NewsMemberRailItem[]; total: number };
+
+// HO 517 — the FIXED window of the "IN THE NEWS" member rail group (Axis B).
+// Exported so the rail's `IN THE NEWS · 30d` header label and the query can't
+// drift. 30d NOT "all-time": they're equal today (the HO 394 observation layer
+// is ~30d old) but "30d" stays correct as the corpus accrues where "all-time"
+// would silently become wrong (the HO 456 disclose-the-exclusion posture).
+export const NEWS_MEMBER_RAIL_WINDOW_DAYS = 30;
+
+// HO 517 — the "IN THE NEWS" member rail group (Axis B), off the HO 394
+// observation layer. **FIXED 30d window, NOT rebased on source/window/signal** —
+// the member group has its OWN window (the HO 514 constraint: at 24h the head
+// collapses to 6 members, so rebasing on the page ?window= would empty it).
+// **Unit match:** HO 394 writes one observation per fetched article, so these
+// counts are ARTICLE counts — the same unit as the topic group's distinct-article
+// counts, which is why two count columns coexist in one rail without the HO 442
+// incoherence problem. INNER JOIN members (100% of resolved bioguides hit a live
+// row, HO 514); the ~35 unjoinable person rows (no bioguide) stay excluded (the
+// HO 398 challenger edge). Drives idx_obs_entities_type_value (EXPLAIN-confirmed:
+// SEARCH oe USING INDEX idx_obs_entities_type_value). Returns ALL ranked rows +
+// total (for the header's "15 of N"); the page slices the shown top-15.
+const getNewsMemberRailCountsCached = unstable_cache(
+  async (): Promise<NewsMemberRail> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT oe.entity_value AS bioguide, m.name AS name, m.party AS party,
+              COUNT(DISTINCT oe.obs_id) AS count
+         FROM observation_entities oe
+         JOIN observations o ON o.obs_id = oe.obs_id
+         JOIN members m ON m.bioguide_id = oe.entity_value
+        WHERE oe.entity_type = 'person' AND oe.entity_value IS NOT NULL
+          AND o.observed_at >= datetime('now','-${NEWS_MEMBER_RAIL_WINDOW_DAYS} days')
+        GROUP BY oe.entity_value
+        ORDER BY count DESC, m.name ASC`,
+    );
+    const rows: NewsMemberRailItem[] = rs.rows.map((r) => ({
+      bioguide: r.bioguide as string,
+      name: (r.name as string | null) ?? (r.bioguide as string),
+      party: (r.party as string | null) ?? null,
+      count: Number(r.count ?? 0),
+    }));
+    return { rows, total: rows.length };
+  },
+  ["newsMemberRail"],
+  { revalidate: 3600, tags: ["member-news"] },
+);
+
+// try/catch → null hides ONLY this group (the topic group + feed still render) —
+// the same graceful-degrade shape as getNewsTopicRailCounts.
+export async function getNewsMemberRailCounts(): Promise<NewsMemberRail | null> {
+  try {
+    return await getNewsMemberRailCountsCached();
+  } catch (e) {
+    console.error("[getNewsMemberRailCounts] failed, hiding member group:", e);
+    return null;
+  }
+}
+
+// HO 517 — resolve ONE member for the PIN. The member-hub Press tab out-link
+// (HO 512) can send any of ~535 members here, but only 15 are shown, so an
+// arriving member outside the top-15 must still get a lit rail row (else the
+// HO 492 selection-invisibility failure, reached through a different door).
+// Returns their name/party + 30d article count — which may be **0** (a member
+// with only >30d-old coverage still pins; the pane below shows their coverage,
+// so the rail must agree they're the active scope). null when the bioguide isn't
+// a real member → no pin, the pane shows its own empty state. UNCACHED (rare
+// path, tiny) so no per-member cache entry proliferates (the HO 514 note).
+export async function getNewsMemberRailPin(
+  bioguideId: string,
+): Promise<NewsMemberRailItem | null> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT m.bioguide_id AS bioguide, m.name AS name, m.party AS party,
+                 (SELECT COUNT(DISTINCT oe.obs_id)
+                    FROM observation_entities oe
+                    JOIN observations o ON o.obs_id = oe.obs_id
+                   WHERE oe.entity_type = 'person' AND oe.entity_value = m.bioguide_id
+                     AND o.observed_at >= datetime('now','-${NEWS_MEMBER_RAIL_WINDOW_DAYS} days')
+                 ) AS count
+            FROM members m WHERE m.bioguide_id = ?`,
+    args: [bioguideId],
+  });
+  const r = rs.rows[0];
+  if (!r) return null;
+  return {
+    bioguide: r.bioguide as string,
+    name: (r.name as string | null) ?? bioguideId,
+    party: (r.party as string | null) ?? null,
+    count: Number(r.count ?? 0),
+  };
+}
+
 // ---- News matcher candidate pool (handoff 86) ---------------------------
 
 export type CandidateBill = {
