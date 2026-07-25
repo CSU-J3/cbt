@@ -4148,6 +4148,16 @@ export const NEWS_DEFAULT_WINDOW: NewsWindowHours = 72;
 export const NEWS_FEED_PAGE_SIZE = 50;
 const NEWS_FEED_MIN_CONFIDENCE = 0.7;
 
+// HO 515 — the dedup identity for one news article across the several bills a
+// single article can match (HO 133). ONE constant so getNewsFeed's
+// distinct-article count/dedup and getNewsTopicRailCounts's rail count CAN'T
+// drift: a rail that counted raw mentions would print e.g. HLTH 41, you'd click
+// it, and the feed (which counts distinct articles) would say 28 — the HO 442
+// masthead-incoherence class, made impossible here by construction. Uses the
+// `m.` alias, so every consumer must alias news_mentions as `m`.
+const NEWS_ARTICLE_KEY_SQL =
+  "COALESCE(m.article_url, m.article_title || '|' || m.source || '|' || m.published_at)";
+
 // HO 241 — the NEWS SIGNAL (ALL · BREAKING) filter. "Breaking" is a FIXED
 // 72h ceiling, deliberately equal to NEWS_DEFAULT_WINDOW so the word means
 // the same thing here as in the dashboard BREAKING block (BreakingNewsBlock,
@@ -4285,10 +4295,7 @@ export const getNewsFeed = unstable_cache(
     // Count uses the same dedup-by-article-key shape so the page-count
     // matches the visible rows when an article gets matched to several
     // bills (HO 133's distinct-article counting convention).
-    const distinctArticleExpr = `COUNT(DISTINCT COALESCE(
-        m.article_url,
-        m.article_title || '|' || m.source || '|' || m.published_at
-      ))`;
+    const distinctArticleExpr = `COUNT(DISTINCT ${NEWS_ARTICLE_KEY_SQL})`;
     const countSql = `SELECT ${distinctArticleExpr} AS n
       FROM news_mentions m${mHint}
       INNER JOIN bills b ON b.id = m.bill_id
@@ -4323,15 +4330,9 @@ export const getNewsFeed = unstable_cache(
           b.title         AS bill_title,
           b.sponsor_name  AS bill_sponsor_name,
           b.sponsor_party AS bill_sponsor_party,
-          COALESCE(
-            m.article_url,
-            m.article_title || '|' || m.source || '|' || m.published_at
-          ) AS article_key,
+          ${NEWS_ARTICLE_KEY_SQL} AS article_key,
           ROW_NUMBER() OVER (
-            PARTITION BY COALESCE(
-              m.article_url,
-              m.article_title || '|' || m.source || '|' || m.published_at
-            )
+            PARTITION BY ${NEWS_ARTICLE_KEY_SQL}
             ORDER BY m.match_confidence DESC, m.bill_id ASC
           ) AS rn
         FROM news_mentions m${mHint}
@@ -4406,6 +4407,89 @@ export const getNewsFeed = unstable_cache(
   ["getNewsFeed"],
   { revalidate: 600, tags: ["news-breaking"] },
 );
+
+export type NewsTopicRailCount = { topic: Topic; count: number };
+
+// HO 515 — per-topic distinct-ARTICLE counts for the /news topic rail (Axis A),
+// the 4th application of the .mc-* two-pane pattern (committees → LDA codes →
+// bills-topics → news-topics). A NEW sibling of getNewsFeed, NOT an extension —
+// same reasoning as getBillTopicRailCounts vs getTopicDistribution (HO 496).
+//   - REBASES on the bounded dims only: source / windowHours / signal. Scalars,
+//     not the filters object, so the cache key is EXACTLY this tuple — `topic`
+//     and `billId` can never leak in (the HO 495 blowup).
+//   - SELF-EXCLUDING: never applies the `topic` clause, or selecting a topic
+//     collapses the rail to one row (HO 496's rule).
+//   - HINT MANDATORY (HO 514): INDEXED BY idx_news_mentions_published, always —
+//     unhinted the stateless planner drives the 16.8k bills side via
+//     idx_bills_is_ceremonial (MULTI-INDEX OR, 2231ms cold bare); hinted 29–64ms
+//     across every combo, and forcing it on the source path costs nothing.
+//   - Counts DISTINCT ARTICLES via NEWS_ARTICLE_KEY_SQL so the rail count equals
+//     the feed total exactly (HO 442 coherence — see the constant).
+//   - Bill-scoped is out of scope: the page hides the rail in that mode.
+const getNewsTopicRailCountsCached = unstable_cache(
+  async (
+    source: string,
+    windowHours: number,
+    signal: string,
+  ): Promise<NewsTopicRailCount[]> => {
+    const db = getDb();
+    const sourceClause = source ? " AND m.source = ?" : "";
+    const signalClause =
+      signal === "breaking" ? ` AND ${BREAKING_PREDICATE_SQL}` : "";
+    const rs = await db.execute({
+      sql: `SELECT je.value AS topic,
+                   COUNT(DISTINCT ${NEWS_ARTICLE_KEY_SQL}) AS count
+              FROM news_mentions m INDEXED BY idx_news_mentions_published
+              INNER JOIN bills b ON b.id = m.bill_id, json_each(b.topics) je
+             WHERE m.published_at >= datetime('now','-' || ? || ' hours')
+               AND m.match_confidence >= ?
+               AND (b.is_ceremonial = 0 OR b.is_ceremonial IS NULL)${sourceClause}${signalClause}
+               AND b.topics IS NOT NULL
+             GROUP BY je.value
+             ORDER BY count DESC`,
+      args: source
+        ? [windowHours, NEWS_FEED_MIN_CONFIDENCE, source]
+        : [windowHours, NEWS_FEED_MIN_CONFIDENCE],
+    });
+    const counts = new Map<string, number>();
+    for (const r of rs.rows) {
+      const topic = r.topic as string;
+      if (!ALLOWED_TOPICS_SET.has(topic)) {
+        console.warn(`[getNewsTopicRailCounts] skipping unknown topic: ${topic}`);
+        continue;
+      }
+      counts.set(topic, Number(r.count ?? 0));
+    }
+    // Zero-pad against the 24-topic vocabulary (greyed, not vanished), VOL-desc,
+    // enum-order tiebreak — the /bills + /lobbying rail convention.
+    return ALLOWED_TOPICS.map((t) => ({ topic: t, count: counts.get(t) ?? 0 }))
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          ALLOWED_TOPICS.indexOf(a.topic) - ALLOWED_TOPICS.indexOf(b.topic),
+      );
+  },
+  ["newsTopicRail"],
+  { revalidate: 3600, tags: ["news-breaking"] },
+);
+
+// Thin wrapper: normalize the bounded tuple out of the feed filters (so ONLY
+// those three scalars reach the cache key), and try/catch → null so a bad read
+// HIDES the rail rather than 500-ing the page.
+export async function getNewsTopicRailCounts(
+  filters: NewsFeedFilters,
+): Promise<NewsTopicRailCount[] | null> {
+  try {
+    return await getNewsTopicRailCountsCached(
+      filters.source ?? "",
+      filters.windowHours ?? NEWS_DEFAULT_WINDOW,
+      filters.signal ?? "",
+    );
+  } catch (e) {
+    console.error("[getNewsTopicRailCounts] failed, hiding rail:", e);
+    return null;
+  }
+}
 
 // ---- News matcher candidate pool (handoff 86) ---------------------------
 
