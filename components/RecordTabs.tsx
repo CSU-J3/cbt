@@ -23,11 +23,20 @@ export type RecordTab = {
 export function RecordTabs({
   tabs,
   ariaLabel,
+  initialKey,
 }: {
   tabs: RecordTab[];
   ariaLabel: string;
+  // Which tab opens; falls back to tabs[0] when unset or unmatched (HO 510).
+  // Order stays the page's contract — this only separates default-open from
+  // strip order, so the bill page can open on its heaviest tab without the
+  // strip reshuffling per bill. The member hub passes nothing → tabs[0].
+  initialKey?: string;
 }) {
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(() => {
+    const i = initialKey ? tabs.findIndex((t) => t.key === initialKey) : -1;
+    return i >= 0 ? i : 0;
+  });
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // The page decides membership; the component never decides what to show.

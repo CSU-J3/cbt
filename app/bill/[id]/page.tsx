@@ -9,6 +9,7 @@ import {
   type HearingEmbedGroup,
 } from "@/components/HearingMeetingsEmbed";
 import { PartyTag } from "@/components/PartyTag";
+import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
 import { TopicChips } from "@/components/TopicChips";
 import { WatchlistToggle } from "@/components/WatchlistToggle";
 import { BILL_TYPE_LABELS } from "@/lib/enums";
@@ -111,53 +112,6 @@ function BillCommitteeItem({
   );
 }
 
-// Member-hub section shell (HO 507): border + bg-panel, a header bar carrying an
-// uppercase heading + count and an optional right-aligned out-link. The body is
-// rendered flush (the caller owns padding) so component-owned boxes (amendments,
-// lobbying, hearings) sit inside cleanly.
-function SectionShell({
-  heading,
-  count,
-  out,
-  className,
-  children,
-}: {
-  heading: string;
-  count: string;
-  out?: { href: string; label: string };
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className={`border${className ? ` ${className}` : ""}`}
-      style={{
-        borderColor: "var(--border-strong)",
-        backgroundColor: "var(--bg-panel)",
-      }}
-    >
-      <div
-        className="flex items-baseline justify-between gap-3 border-b px-4 py-3"
-        style={{ borderColor: "var(--border-strong)" }}
-      >
-        <h2
-          className="min-w-0 truncate text-[12px] font-medium uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-dim)" }}
-        >
-          {heading}{" "}
-          <span style={{ color: "var(--text-muted)" }}>{count}</span>
-        </h2>
-        {out ? (
-          <Link href={out.href} className="bdp-out">
-            {out.label}
-          </Link>
-        ) : null}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 export default async function BillDetailPage({
   params,
 }: {
@@ -205,63 +159,114 @@ export default async function BillDetailPage({
     // leave raw on parse failure
   }
 
-  // HO 507: the AMENDMENTS header absorbs the tallies that used to live in
-  // BillAmendments' internal stat line — same disposition values the dots use.
-  const amAgreed =
-    amendments?.filter((r) => r.disposition === "agreed").length ?? 0;
-  const amFailed =
-    amendments?.filter((r) => r.disposition === "failed").length ?? 0;
-  const amStat = [`(${amendments?.length ?? 0})`];
-  if (amAgreed > 0) amStat.push(`${amAgreed} agreed`);
-  if (amFailed > 0) amStat.push(`${amFailed} failed`);
+  // ── the record box tabs (HO 510) ── a tab exists ONLY when its section
+  // renders today (the deliberate opposite of the member hub — most bills have
+  // no committees / hearings / amendments / lobbying, so a wall of dimmed tabs
+  // would be noise). Fixed legislative-process order: referral → hearings →
+  // floor amendments → outside money. When nothing qualifies `tabs` is empty
+  // and RecordTabs renders null → no box, exactly today's section-omission.
+  const tabs: RecordTab[] = [];
 
-  const hasCommittees = committees.length > 0;
-  const hasHearings = meetings.length > 0;
-  const pair = hasCommittees && hasHearings;
+  if (committees.length > 0) {
+    tabs.push({
+      key: "committees",
+      label: "Committees",
+      count: committees.length,
+      content: (
+        <ul className="px-4 py-2">
+          {committees.map((row, i) => (
+            <BillCommitteeItem
+              key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
+              row={row}
+              nowMs={nowMs}
+            />
+          ))}
+        </ul>
+      ),
+    });
+  }
 
-  const committeesBlk = hasCommittees ? (
-    <SectionShell
-      heading="Committees"
-      count={`(${committees.length})`}
-      className={pair ? undefined : "mt-4"}
-    >
-      <ul className="px-4 py-2">
-        {committees.map((row, i) => (
-          <BillCommitteeItem
-            key={`${row.systemCode}-${row.activityType}-${row.activityDate}-${i}`}
-            row={row}
+  if (meetings.length > 0) {
+    tabs.push({
+      key: "hearings",
+      label: "Hearings",
+      count: meetings.length,
+      outLabel: "/hearings →",
+      outHref: "/hearings",
+      content: (
+        <div>
+          <HearingMeetingsEmbed
+            groups={meetingGroups}
+            committeeNames={committeeNames}
             nowMs={nowMs}
+            hideBills
           />
-        ))}
-      </ul>
-    </SectionShell>
-  ) : null;
+          {meetingOverflow > 0 ? (
+            <div className="hearings-embed-foot">
+              {meetingOverflow} more ·{" "}
+              <Link href="/hearings" className="hearings-embed-link">
+                see all on /hearings →
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ),
+    });
+  }
 
-  const hearingsBlk = hasHearings ? (
-    <SectionShell
-      heading="Hearings"
-      count={`(${meetings.length})`}
-      out={{ href: "/hearings", label: "/hearings →" }}
-      className={pair ? undefined : "mt-4"}
-    >
-      <div>
-        <HearingMeetingsEmbed
-          groups={meetingGroups}
-          committeeNames={committeeNames}
-          nowMs={nowMs}
-          hideBills
-        />
-        {meetingOverflow > 0 ? (
-          <div className="hearings-embed-foot">
-            {meetingOverflow} more ·{" "}
-            <Link href="/hearings" className="hearings-embed-link">
-              see all on /hearings →
-            </Link>
+  if (amendments && amendments.length > 0) {
+    // The .rec-note carries the HO 507 agreed/failed tallies now that the strip
+    // shows only label + count — the amStat clauses minus the leading (count).
+    const amAgreed = amendments.filter((r) => r.disposition === "agreed").length;
+    const amFailed = amendments.filter((r) => r.disposition === "failed").length;
+    const amNoteParts: string[] = [];
+    if (amAgreed > 0) amNoteParts.push(`${amAgreed} agreed`);
+    if (amFailed > 0) amNoteParts.push(`${amFailed} failed`);
+    const amNote = amNoteParts.join(" · ");
+    tabs.push({
+      key: "amendments",
+      label: "Amendments",
+      count: amendments.length,
+      outLabel: "/amendments →",
+      outHref: `/amendments?bill=${bill.id}`,
+      content: (
+        <>
+          {amNote ? <div className="rec-note">{amNote}</div> : null}
+          <BillAmendments rows={amendments} />
+        </>
+      ),
+    });
+  }
+
+  if (lobbying) {
+    tabs.push({
+      key: "lobbying",
+      label: "Lobbying",
+      count: lobbying.distinctFilings,
+      content: (
+        <>
+          <div className="rec-note">
+            {lobbying.distinctFilings.toLocaleString()} filings ·{" "}
+            {lobbying.distinctClients.toLocaleString()} clients
           </div>
-        ) : null}
-      </div>
-    </SectionShell>
-  ) : null;
+          <BillLobbying drill={lobbying} />
+        </>
+      ),
+    });
+  }
+
+  // initialKey = highest count among present tabs; strict > with fixed-order
+  // iteration breaks ties toward the earlier tab. So 119-s-4784 opens on
+  // Amendments (872) and a one-referral bill opens on Committees, strip stable.
+  let initialTabKey: string | undefined;
+  let maxTabCount = -1;
+  for (const t of tabs) {
+    const c = t.count ?? 0;
+    if (c > maxTabCount) {
+      maxTabCount = c;
+      initialTabKey = t.key;
+    }
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -442,43 +447,14 @@ export default async function BillDetailPage({
           </div>
         </div>
 
-        {/* ═══ COMMITTEES | HEARINGS ═══ */}
-        {pair ? (
-          <div className="bdp-pair mt-4">
-            {committeesBlk}
-            {hearingsBlk}
-          </div>
-        ) : (
-          <>
-            {committeesBlk}
-            {hearingsBlk}
-          </>
-        )}
-
-        {/* ═══ AMENDMENTS — header absorbs the agreed/failed tallies ═══ */}
-        {amendments && amendments.length > 0 ? (
-          <SectionShell
-            heading="Amendments"
-            count={amStat.join(" · ")}
-            out={{ href: `/amendments?bill=${bill.id}`, label: "/amendments →" }}
-            className="mt-4"
-          >
-            <div className="bdp-amend-scroll">
-              <BillAmendments rows={amendments} />
-            </div>
-          </SectionShell>
-        ) : null}
-
-        {/* ═══ LOBBYING — header absorbs the filings/clients stat line ═══ */}
-        {lobbying ? (
-          <SectionShell
-            heading="Lobbying"
-            count={`(${lobbying.distinctFilings.toLocaleString()} filings · ${lobbying.distinctClients.toLocaleString()} clients)`}
-            className="mt-4"
-          >
-            <BillLobbying drill={lobbying} />
-          </SectionShell>
-        ) : null}
+        {/* ═══ THE RECORD BOX (HO 510) — Committees · Hearings · Amendments ·
+            Lobbying; a tab per section that renders today, no box when none ═══ */}
+        <RecordTabs
+          key={bill.id}
+          ariaLabel="Bill record"
+          tabs={tabs}
+          initialKey={initialTabKey}
+        />
 
         {/* ═══ FOOTER — one row; Raw JSON opens full-width below (no-JS) ═══ */}
         <details className="bdp-foot mt-4">

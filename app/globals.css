@@ -9074,27 +9074,9 @@ a.hearing-watch:hover {
   }
 }
 
-/* committees | hearings pair (the HO 492 .lob-secs pattern) */
-.bdp .bdp-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.bdp .bdp-pair > section {
-  margin-top: 0;
-}
-@media (max-width: 900px) {
-  .bdp .bdp-pair {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* amendments magnet bound — the 1,100-row bill (119-sconres-7) scrolls inside
-   this box instead of setting the page height (the HO 492 scroll pattern) */
-.bdp .bdp-amend-scroll {
-  max-height: 340px;
-  overflow-y: auto;
-}
+/* HO 510: the committees|hearings pair (.bdp-pair) and the amendments-magnet
+   scroll bound (.bdp-amend-scroll) were retired — the RecordTabs box supersedes
+   side-by-side pairing, and .rec-body's bound supersedes the 340px one. */
 
 /* metabox: latest_action_text folded in, clamped to 3 lines (full text on hover) */
 .bdp .bdp-latext {
@@ -9148,19 +9130,6 @@ a.hearing-watch:hover {
   text-decoration: none;
 }
 .bdp .bdp-relfoot a:hover {
-  color: var(--accent-amber-bright);
-}
-
-/* section header out-link (/hearings →, /amendments →) */
-.bdp .bdp-out {
-  font-size: 12px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.bdp .bdp-out:hover {
   color: var(--accent-amber-bright);
 }
 
@@ -9374,7 +9343,7 @@ a.hearing-watch:hover {
   border-top: 0.5px solid var(--border-soft);
 }
 /* band 3: the metabox unrolled into a horizontal N-up. data-cells collapses
-   empties (no empty thirds), same idea as .bdp-pair's lone-survivor branch. */
+   empties so an absent cell drops the grid to 2-up / 1-up (no empty thirds). */
 .mhp-hb3 {
   display: grid;
   border-top: 0.5px solid var(--border-soft);

@@ -270,7 +270,7 @@ export default async function MemberPage({
               : chamberLabel;
 
             // ── band-3 cells ── empties are omitted so the grid becomes
-            // 2-up / 1-up (no empty thirds — the .bdp-pair lone-survivor rule).
+            // 2-up / 1-up (no empty thirds).
             const band3: React.ReactNode[] = [
               <div key="seat">
                 <div className="mhp-mlabel">Seat</div>
@@ -657,7 +657,11 @@ export default async function MemberPage({
                 </div>
 
                 {/* ═══ THE RECORD BOX ═══ */}
-                <RecordTabs ariaLabel="Member record" tabs={tabs} />
+                <RecordTabs
+                  key={member.bioguideId}
+                  ariaLabel="Member record"
+                  tabs={tabs}
+                />
 
                 {/* ═══ FOOTER — one row ═══ */}
                 <div className="mt-6 flex items-center gap-2">
