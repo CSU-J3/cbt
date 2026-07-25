@@ -45,6 +45,9 @@ export function NewsTopicRailRow({
     const next = new URLSearchParams(searchParams.toString());
     if (selected) next.delete("topic");
     else next.set("topic", topic);
+    // HO 517 — one selection across both rail groups: picking a topic clears any
+    // active member (the two groups drive different panes, can't both be active).
+    next.delete("member");
     next.delete("page"); // a topic change resets pagination to page 1
     const qs = next.toString();
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });

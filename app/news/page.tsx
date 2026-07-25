@@ -2,6 +2,7 @@ import Link from "next/link";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
+import { NewsMemberRailRow } from "@/components/NewsMemberRailRow";
 import { NewsRow } from "@/components/NewsRow";
 import { NewsTopicRailRow } from "@/components/NewsTopicRailRow";
 import { Pagination } from "@/components/Pagination";
@@ -11,9 +12,13 @@ import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import {
   NEWS_DEFAULT_WINDOW,
   NEWS_FEED_PAGE_SIZE,
+  NEWS_MEMBER_RAIL_WINDOW_DAYS,
+  type NewsMemberRailItem,
   getMember,
   getMemberNews,
   getNewsFeed,
+  getNewsMemberRailCounts,
+  getNewsMemberRailPin,
   getNewsTopicRailCounts,
   sanitizeBillId,
   sanitizeNewsSignal,
@@ -52,6 +57,12 @@ type SearchParams = {
 // (the HO 493 file-local-constant precedent; /lobbying's PAGE_SIZE is the
 // sibling); getMemberNews carries the member-news cache tag already (HO 414).
 const NEWS_MEMBER_CAP = 50;
+
+// HO 517 — the "IN THE NEWS" rail group shows the top N by 30d article count; the
+// header discloses "N of {total}". 24 topics + an uncapped 39+ member group would
+// push the 2nd group permanently out of the 520px bound; 15 is enough for a
+// "who's hot" read. An active member outside this set is PINNED (call 5).
+const NEWS_MEMBER_RAIL_SHOWN = 15;
 
 // bioguide ids are alphanumeric (e.g. "S000033") — guard the URL input. Copied
 // page-local from app/trades/page.tsx; not worth a shared helper for a
@@ -104,105 +115,66 @@ export default async function NewsPage({
     />
   );
 
-  // HO 512 — member mode. When ?member= parses it OWNS the view: bill / source /
-  // topic / window / signal / page are ignored (not errored, just not applied
-  // and not carried). getMember null (valid-shape but unknown bioguide) renders
-  // member mode with the raw id label + empty state — never a 404. A parse-fail
-  // leaves `member` undefined, so control falls through to the unscoped feed.
-  if (member) {
-    const [memberNews, memberRow] = await Promise.all([
-      getMemberNews(member, NEWS_MEMBER_CAP),
-      getMember(member),
-    ]);
-    const memberLabel = memberRow?.name ?? member;
-    return (
-      <div className="flex min-h-screen flex-col">
-        <HeaderBar basePath="/news" />
+  // ── modes (HO 512 → HO 517) ──────────────────────────────────────────────
+  //   • DEFAULT / ?topic= (mention feed): rail renders, the TOPIC group scopes
+  //     the feed.
+  //   • ?member= (the HO 512 mode; rail added HO 517): the rail STILL renders
+  //     (the HO 515 seam is CLOSED) with the MEMBER group as the selection, and
+  //     the pane is the observation feed (getMemberNews). The member OWNS the
+  //     view (ignores source/window/signal/bill), so the topic group shows BARE
+  //     mention-feed counts — clicking a topic clears member (call 3) and returns
+  //     the mention feed scoped to that topic.
+  //   • ?bill= (HO 130): NO rail — one bill's history is a single-topic slice, so
+  //     a rail over it is noise; full-width feed, byte-identical.
+  // ONE selection across both groups: a topic clears member, a member clears
+  // topic (the row components delete the other param), so at most one row is lit.
+  const showRail = !billId || !!member; // member overrides bill; only bare-bill hides it
 
-        <main className="w-full flex-1 px-4 py-4">
-          <GroupTabs group="feed" active="news" />
-          <div className="mb-3 flex items-center gap-3">{toggle}</div>
+  const [feed, memberFetch, topicRail, memberRail] = await Promise.all([
+    // Mention feed for the non-member modes; member mode reads the observation feed.
+    member
+      ? Promise.resolve(null)
+      : getNewsFeed(
+          { source, topic, windowHours, billId, signal },
+          { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
+        ),
+    member
+      ? Promise.all([
+          getMemberNews(member, NEWS_MEMBER_CAP),
+          getMember(member),
+        ] as const)
+      : Promise.resolve(null),
+    // Topic group: BARE counts in member mode (member ignores those dims), else
+    // rebased on the active source/window/signal. Self-excludes topic always.
+    // null on a bad read → the topic group hides + the chip row returns.
+    showRail
+      ? getNewsTopicRailCounts(member ? {} : { source, windowHours, signal })
+      : Promise.resolve(null),
+    // Member group: FIXED 30d, independent of every page dim (call 1).
+    showRail ? getNewsMemberRailCounts() : Promise.resolve(null),
+  ]);
 
-          <section
-            className="mb-3 flex flex-col gap-3"
-            style={{ borderColor: "var(--border-strong)" }}
-          >
-            <NewsFilters
-              source={undefined}
-              topic={undefined}
-              windowHours={NEWS_DEFAULT_WINDOW}
-              billId={undefined}
-              signal={undefined}
-              breakingCount={0}
-              carry={new URLSearchParams()}
-              basePath="/news"
-              memberId={member}
-              memberLabel={memberLabel}
-            />
-          </section>
-
-          {memberNews.length === 0 ? (
-            <p
-              className="py-16 text-center text-[13px]"
-              style={{ color: "var(--text-muted)" }}
-            >
-              No recent news linked to this member.
-            </p>
-          ) : (
-            // Same bordered container as the mention feed; RaceNewsRow is the
-            // member-hub idiom (headline · source · age, no bill cell — an
-            // observation keyed to a person carries no bill). No Pagination in
-            // this mode (getMemberNews returns a single capped page), and no
-            // .news-header-row (its Bill column would misalign the --no-bill grid).
-            <div
-              className="border"
-              style={{ borderColor: "var(--border-strong)" }}
-            >
-              <ul>
-                {memberNews.map((n) => (
-                  <li key={n.obsId} className="px-3">
-                    <RaceNewsRow item={n} nowMs={nowMs} />
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </main>
-      </div>
-    );
+  // Pin the active member if they're outside the shown top-15 (call 5). If they
+  // have ≥1 obs they're in the full ranked rows (just below the cut); a member
+  // with only >30d coverage isn't, so the point lookup fills the row (count 0).
+  let memberPin: NewsMemberRailItem | null = null;
+  if (member && memberRail) {
+    const inShown = memberRail.rows
+      .slice(0, NEWS_MEMBER_RAIL_SHOWN)
+      .some((r) => r.bioguide === member);
+    if (!inShown) {
+      memberPin =
+        memberRail.rows.find((r) => r.bioguide === member) ??
+        (await getNewsMemberRailPin(member));
+    }
   }
 
-  // HO 515 — three modes now, stated so the next session doesn't read a hidden
-  // rail as a bug:
-  //   • DEFAULT (mention feed): the TOPIC RAIL renders and scopes the feed.
-  //   • BILL-scoped (?bill=): rail does NOT render — one bill's history is a
-  //     single-topic slice, so a topic rail over it is one row (noise). The feed
-  //     renders full-width, byte-identical to pre-515.
-  //   • MEMBER-scoped (?member=, HO 512): handled by the early branch above — a
-  //     different table (observations), topic doesn't apply. Byte-identical.
-  // The rail lives ONLY in DEFAULT mode. Axis B ("IN THE NEWS" member group as a
-  // SECOND group in this same rail) will reopen the member seam later; it is NOT
-  // in this HO (and carries its own window semantics — the 24h head collapses to
-  // 6 members, HO 514 — so it can't rebase on ?window=).
-  const showRail = !billId;
-  const [feed, railCounts] = await Promise.all([
-    getNewsFeed(
-      { source, topic, windowHours, billId, signal },
-      { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
-    ),
-    // Rebases on source/window/signal, self-excludes topic (never passed → can't
-    // collapse the rail). null on a bad read → the rail hides, feed still renders.
-    showRail
-      ? getNewsTopicRailCounts({ source, windowHours, signal })
-      : Promise.resolve(null),
-  ]);
-  const { mentions, page: currentPage, totalPages, breakingCount } = feed;
-  // The rail hides (falls back to the topic chip row) when a bill scopes the
-  // view OR the rail read failed. hideTopics tracks whether the rail RENDERS, so
-  // a failed rail read restores the chips rather than losing topic filtering.
-  const railRendered = showRail && railCounts != null;
-  const railMax = railCounts?.[0]?.count ?? 0;
-  // CLEAR (rail header) drops ?topic= + ?page=, preserving source/window/signal.
+  // Rail renders in all non-bill modes as long as ≥1 group read succeeded.
+  const railRendered = showRail && (topicRail != null || memberRail != null);
+  const topicRailMax = topicRail?.[0]?.count ?? 0;
+
+  // CLEAR (topic-group header) drops ?topic= + ?page=, preserving source/window/
+  // signal (feed mode only — member mode has no active topic).
   const clearTopicHref = (() => {
     const sp = new URLSearchParams();
     if (source) sp.set("source", source);
@@ -212,9 +184,8 @@ export default async function NewsPage({
     return qs ? `/news?${qs}` : "/news";
   })();
 
-  // Pager + chip carry: ONLY the active news params. No mode marker (the route
-  // is the mode now), no BILLS-param round-trip. `page` is never carried — the
-  // pager and the chips (which sp.delete("page")) own it.
+  // Pager + chip carry: ONLY the active news params. `page` is never carried —
+  // the pager and the chips (which sp.delete("page")) own it.
   const newsCarry = new URLSearchParams();
   if (source) newsCarry.set("source", source);
   if (topic) newsCarry.set("topic", topic);
@@ -222,17 +193,11 @@ export default async function NewsPage({
     newsCarry.set("window", String(windowHours));
   if (billId) newsCarry.set("bill", billId);
   if (signal) newsCarry.set("signal", signal);
-
-  // The NewsFilters chips override the one dim they own per click; seeding the
-  // full active-news set means a click preserves the others (including an
-  // active bill scope and a BREAKING signal).
   const filterCarry = new URLSearchParams(newsCarry);
 
-  // The right-pane / bill-mode body: the filter chips (topics hidden when the
-  // rail renders them) + the mention feed. ONE definition — wrapped in the
-  // two-pane shell in DEFAULT mode, rendered bare (full-width) in BILL mode so
-  // that mode stays byte-identical to pre-515.
-  const feedContent = (
+  // ── content: the mention feed (feed/bill mode) OR the observation feed
+  //    (member mode). Only one is non-null per request. ────────────────────────
+  const mentionFeedContent = feed ? (
     <>
       <section
         className="mb-3 flex flex-col gap-3"
@@ -244,20 +209,22 @@ export default async function NewsPage({
           windowHours={windowHours}
           billId={billId}
           signal={signal}
-          breakingCount={breakingCount}
+          breakingCount={feed.breakingCount}
           carry={filterCarry}
           basePath="/news"
-          hideTopics={railRendered}
+          // hide the chip row only when the TOPIC group actually renders (a
+          // failed topic read restores the chips so topic filtering survives).
+          hideTopics={topicRail != null}
         />
         <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
+          currentPage={feed.page}
+          totalPages={feed.totalPages}
           carry={newsCarry}
           basePath="/news"
         />
       </section>
 
-      {mentions.length === 0 ? (
+      {feed.mentions.length === 0 ? (
         <p
           className="py-16 text-center text-[13px]"
           style={{ color: "var(--text-muted)" }}
@@ -275,21 +242,130 @@ export default async function NewsPage({
             <span className="age">Age</span>
           </div>
           <ul>
-            {mentions.map((m) => (
+            {feed.mentions.map((m) => (
               <li key={m.id} className="px-3">
                 <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
               </li>
             ))}
           </ul>
           <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
+            currentPage={feed.page}
+            totalPages={feed.totalPages}
             carry={newsCarry}
             basePath="/news"
           />
         </div>
       )}
     </>
+  ) : null;
+
+  const memberNews = memberFetch ? memberFetch[0] : [];
+  const memberLabel = memberFetch ? (memberFetch[1]?.name ?? member ?? "") : "";
+  const memberFeedContent = member ? (
+    <>
+      <section
+        className="mb-3 flex flex-col gap-3"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <NewsFilters
+          source={undefined}
+          topic={undefined}
+          windowHours={NEWS_DEFAULT_WINDOW}
+          billId={undefined}
+          signal={undefined}
+          breakingCount={0}
+          carry={new URLSearchParams()}
+          basePath="/news"
+          memberId={member}
+          memberLabel={memberLabel}
+        />
+      </section>
+
+      {memberNews.length === 0 ? (
+        <p
+          className="py-16 text-center text-[13px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          No recent news linked to this member.
+        </p>
+      ) : (
+        // RaceNewsRow is the member-hub idiom (headline · source · age, no bill
+        // cell). No pager (single capped page), no news-header-row (its Bill
+        // column would misalign the --no-bill grid).
+        <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+          <ul>
+            {memberNews.map((n) => (
+              <li key={n.obsId} className="px-3">
+                <RaceNewsRow item={n} nowMs={nowMs} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  ) : null;
+
+  const content = member ? memberFeedContent : mentionFeedContent;
+
+  // ── the rail: TOPICS group + "IN THE NEWS" member group, ONE bounded scroll
+  //    (no nested scroll for the 2nd group — HO 517). ──────────────────────────
+  const memberShown = memberRail
+    ? memberRail.rows.slice(0, NEWS_MEMBER_RAIL_SHOWN)
+    : [];
+  const memberRows = memberPin ? [memberPin, ...memberShown] : memberShown;
+
+  const railBlock = (
+    <div className="mc-rail nw-rail">
+      <div className="nw-rail-scroll">
+        {topicRail ? (
+          <>
+            <div className="mc-rail-h">
+              <span>TOPICS · {topicRail.length}</span>
+              {topic && !member ? (
+                <Link href={clearTopicHref} className="mc-rail-on">
+                  CLEAR
+                </Link>
+              ) : (
+                <span>VOL</span>
+              )}
+            </div>
+            {topicRail.map((r) => (
+              <NewsTopicRailRow
+                key={r.topic}
+                topic={r.topic}
+                label={topicLabel(r.topic)}
+                fullLabel={topicFullLabel(r.topic)}
+                count={r.count}
+                pct={topicRailMax > 0 ? (r.count / topicRailMax) * 100 : 0}
+                barColor={topicColor(r.topic)}
+                selected={!member && topic === r.topic}
+              />
+            ))}
+          </>
+        ) : null}
+        {memberRail ? (
+          <>
+            <div className="mc-rail-h nw-mrail-h">
+              <span>
+                IN THE NEWS · {NEWS_MEMBER_RAIL_WINDOW_DAYS}d ·{" "}
+                {memberShown.length} of {memberRail.total}
+              </span>
+            </div>
+            {memberRows.map((r) => (
+              <NewsMemberRailRow
+                key={r.bioguide}
+                bioguide={r.bioguide}
+                name={r.name}
+                party={r.party}
+                count={r.count}
+                selected={member === r.bioguide}
+                pinned={memberPin?.bioguide === r.bioguide}
+              />
+            ))}
+          </>
+        ) : null}
+      </div>
+    </div>
   );
 
   return (
@@ -300,40 +376,14 @@ export default async function NewsPage({
         <GroupTabs group="feed" active="news" />
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
 
-        {railRendered && railCounts ? (
-          // DEFAULT mode: TOPIC RAIL (spine, left) + mention feed (content, right).
+        {railRendered ? (
           <div className="mc-pane nw-pane">
-            <div className="mc-rail nw-rail">
-              <div className="mc-rail-h">
-                <span>TOPICS · {railCounts.length}</span>
-                {topic ? (
-                  <Link href={clearTopicHref} className="mc-rail-on">
-                    CLEAR
-                  </Link>
-                ) : (
-                  <span>VOL</span>
-                )}
-              </div>
-              <div className="nw-rail-scroll">
-                {railCounts.map((r) => (
-                  <NewsTopicRailRow
-                    key={r.topic}
-                    topic={r.topic}
-                    label={topicLabel(r.topic)}
-                    fullLabel={topicFullLabel(r.topic)}
-                    count={r.count}
-                    pct={railMax > 0 ? (r.count / railMax) * 100 : 0}
-                    barColor={topicColor(r.topic)}
-                    selected={topic === r.topic}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="mc-content nw-content">{feedContent}</div>
+            {railBlock}
+            <div className="mc-content nw-content">{content}</div>
           </div>
         ) : (
-          // BILL mode (or a failed rail read): full-width feed, no rail.
-          feedContent
+          // BILL mode (or both rail reads failed): full-width feed, no rail.
+          content
         )}
       </main>
     </div>

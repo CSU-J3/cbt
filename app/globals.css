@@ -5746,6 +5746,30 @@ body {
 .nw-content {
   padding: 12px;
 }
+/* HO 517 — the "IN THE NEWS" member group, a 2nd group inside the SAME
+   .nw-rail-scroll (no nested scroll). Its header gets a top border to mark the
+   group boundary below the topic rows. */
+.nw-mrail-h {
+  border-top: 1px solid var(--border-strong);
+}
+/* Member rows: party dot | surname | 30d count (no volume bar — the count is a
+   fixed-window article count, not a rebasing volume). Higher specificity than
+   `.nw-rail .mc-crow` so it overrides the topic-row 4-col grid. */
+.nw-rail .mc-crow.nw-mrow {
+  grid-template-columns: 16px 1fr 44px;
+}
+.nw-mdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  align-self: center;
+  justify-self: center;
+}
+/* Pinned active member (arrived from a Press-tab out-link, outside the top 15):
+   a quiet hairline separates it from the ranked list below (HO 517 call 5). */
+.nw-rail .mc-crow.nw-mrow-pin {
+  border-bottom: 1px solid var(--border-strong);
+}
 /* Row-owned grid (not container-scoped) so ALL three FilingRow consumers align —
    /lobbying, /bill/[id] BillLobbying, and IssueDrill — with no ancestor needed.
    caret | age | reg→client | issue chips | bill chips */
