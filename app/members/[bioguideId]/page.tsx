@@ -479,6 +479,15 @@ export default async function MemberPage({
                 key: "press",
                 label: "Press",
                 count: news.length,
+                // HO 512: out-link to the /news member-scoped view. No count in
+                // the label — count is the getMemberNews(…, 8) cap, not a total
+                // (Bills/Trades print real totals; Press has none, and a count
+                // query is out of scope). Absent when the member has no news.
+                outLabel: news.length > 0 ? "View press coverage →" : undefined,
+                outHref:
+                  news.length > 0
+                    ? `/news?member=${encodeURIComponent(member.bioguideId)}`
+                    : undefined,
                 content:
                   news.length > 0 ? (
                     <div>

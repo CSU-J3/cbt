@@ -48,6 +48,8 @@ export function NewsFilters({
   breakingCount,
   carry,
   basePath = "/bills",
+  memberId,
+  memberLabel,
 }: {
   source: string | undefined;
   topic: string | undefined;
@@ -62,7 +64,55 @@ export function NewsFilters({
   /** Route the chips build hrefs against. Defaults to "/bills" (the
    *  legacy ?mode=news surface); the extracted /news route passes "/news". */
   basePath?: string;
+  /** HO 512 — member-scoped mode (`?member=`). When set, only the member pill
+   *  renders (below). */
+  memberId?: string;
+  memberLabel?: string;
 }) {
+  // HO 512 — member mode early-branch: render ONLY the member pill, skipping the
+  // source/topic/window/signal chip rows AND the bill pill. Those dims don't
+  // exist on observation rows (getMemberNews), so dead chips would imply
+  // filtering that isn't happening. Bill mode below KEEPS its chips because
+  // bill-scoped rows are still news_mentions — that asymmetry is correct.
+  if (memberId) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="filter-chips flex flex-wrap items-center gap-3">
+          <span
+            className="text-[12px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-dim)" }}
+          >
+            Member
+          </span>
+          <span
+            className="inline-flex items-center gap-2 border px-2 py-1 text-[12px] uppercase tracking-[0.5px]"
+            style={{
+              color: "var(--accent-amber)",
+              borderColor: "var(--accent-amber)",
+            }}
+          >
+            <Link
+              href={`/members/${encodeURIComponent(memberId)}`}
+              className="hover:underline"
+              style={{ color: "var(--accent-amber)" }}
+            >
+              {memberLabel ?? memberId}
+            </Link>
+            <Link
+              href={basePath}
+              scroll={false}
+              aria-label="Clear member filter"
+              style={{ color: "var(--text-dim)" }}
+              className="hover:text-[var(--text-secondary)]"
+            >
+              ✕
+            </Link>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const buildHref = (overrides: Record<string, string | undefined>) => {
     const sp = new URLSearchParams(carry);
     for (const [k, v] of Object.entries(overrides)) {

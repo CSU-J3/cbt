@@ -3,10 +3,13 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
 import { NewsRow } from "@/components/NewsRow";
 import { Pagination } from "@/components/Pagination";
+import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import {
   NEWS_DEFAULT_WINDOW,
   NEWS_FEED_PAGE_SIZE,
+  getMember,
+  getMemberNews,
   getNewsFeed,
   sanitizeBillId,
   sanitizeNewsSignal,
@@ -34,8 +37,24 @@ type SearchParams = {
   window?: string;
   bill?: string;
   signal?: string;
+  member?: string;
   page?: string;
 };
+
+// HO 512: member mode is a semantic BRANCH to the observation layer (the way
+// ?bill= is), not a WHERE clause on the mention feed. It serves getMemberNews
+// — the exact query the record box's Press tab previews — so the out-link lands
+// on the same rows, not a bill-matched subset. NEWS_MEMBER_CAP is file-local
+// (the HO 493 file-local-constant precedent; /lobbying's PAGE_SIZE is the
+// sibling); getMemberNews carries the member-news cache tag already (HO 414).
+const NEWS_MEMBER_CAP = 50;
+
+// bioguide ids are alphanumeric (e.g. "S000033") — guard the URL input. Copied
+// page-local from app/trades/page.tsx; not worth a shared helper for a
+// two-consumer 5-liner.
+function parseMember(raw: string | undefined): string | undefined {
+  return typeof raw === "string" && /^[A-Za-z0-9]+$/.test(raw) ? raw : undefined;
+}
 
 export default async function NewsPage({
   searchParams,
@@ -54,6 +73,7 @@ export default async function NewsPage({
   const windowHours = sanitizeWindowHours(params.window) ?? NEWS_DEFAULT_WINDOW;
   const billId = sanitizeBillId(params.bill);
   const signal = sanitizeNewsSignal(params.signal);
+  const member = parseMember(params.member);
 
   // Two-URL nav toggle (HO 501): NEWS stays on /news preserving its own news
   // params (idempotent active-click); LEGISLATION goes to bare /bills — the
@@ -79,6 +99,74 @@ export default async function NewsPage({
       buildHref={buildModeHref}
     />
   );
+
+  // HO 512 — member mode. When ?member= parses it OWNS the view: bill / source /
+  // topic / window / signal / page are ignored (not errored, just not applied
+  // and not carried). getMember null (valid-shape but unknown bioguide) renders
+  // member mode with the raw id label + empty state — never a 404. A parse-fail
+  // leaves `member` undefined, so control falls through to the unscoped feed.
+  if (member) {
+    const [memberNews, memberRow] = await Promise.all([
+      getMemberNews(member, NEWS_MEMBER_CAP),
+      getMember(member),
+    ]);
+    const memberLabel = memberRow?.name ?? member;
+    return (
+      <div className="flex min-h-screen flex-col">
+        <HeaderBar basePath="/news" />
+
+        <main className="w-full flex-1 px-4 py-4">
+          <GroupTabs group="feed" active="news" />
+          <div className="mb-3 flex items-center gap-3">{toggle}</div>
+
+          <section
+            className="mb-3 flex flex-col gap-3"
+            style={{ borderColor: "var(--border-strong)" }}
+          >
+            <NewsFilters
+              source={undefined}
+              topic={undefined}
+              windowHours={NEWS_DEFAULT_WINDOW}
+              billId={undefined}
+              signal={undefined}
+              breakingCount={0}
+              carry={new URLSearchParams()}
+              basePath="/news"
+              memberId={member}
+              memberLabel={memberLabel}
+            />
+          </section>
+
+          {memberNews.length === 0 ? (
+            <p
+              className="py-16 text-center text-[13px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              No recent news linked to this member.
+            </p>
+          ) : (
+            // Same bordered container as the mention feed; RaceNewsRow is the
+            // member-hub idiom (headline · source · age, no bill cell — an
+            // observation keyed to a person carries no bill). No Pagination in
+            // this mode (getMemberNews returns a single capped page), and no
+            // .news-header-row (its Bill column would misalign the --no-bill grid).
+            <div
+              className="border"
+              style={{ borderColor: "var(--border-strong)" }}
+            >
+              <ul>
+                {memberNews.map((n) => (
+                  <li key={n.obsId} className="px-3">
+                    <RaceNewsRow item={n} nowMs={nowMs} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
 
   const {
     mentions,
