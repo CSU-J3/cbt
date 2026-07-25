@@ -50,6 +50,7 @@ export function NewsFilters({
   basePath = "/bills",
   memberId,
   memberLabel,
+  hideTopics = false,
 }: {
   source: string | undefined;
   topic: string | undefined;
@@ -58,6 +59,11 @@ export function NewsFilters({
   signal: NewsSignal | undefined;
   /** Size of the breaking set in the current SOURCE/WINDOW/TOPIC scope. */
   breakingCount: number;
+  /** HO 515 — suppress the 24-topic chip row: in the default /news mode the
+   *  topic dim is the LEFT RAIL now (the HO 496 precedent), so the page passes
+   *  this. Bill mode leaves it false so its chips stay byte-identical (member
+   *  mode never reaches here — the early branch above returns first). */
+  hideTopics?: boolean;
   /** Params to preserve across chip clicks. Should already exclude
    *  source / topic / window / bill / signal / page — caller owns the policy. */
   carry: URLSearchParams;
@@ -313,33 +319,35 @@ export function NewsFilters({
         </Link>
       </div>
 
-      <div className="filter-chips flex flex-wrap items-center gap-1">
-        <span
-          className="mr-2 text-[12px] uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-dim)" }}
-        >
-          Topic
-        </span>
-        {ALLOWED_TOPICS.map((t) => {
-          const isOn = topic === t;
-          const color = topicColor(t);
-          const style = isOn
-            ? { backgroundColor: color, color: "#0a0e14", borderColor: color }
-            : { color, borderColor: color };
-          return (
-            <Link
-              key={t}
-              href={buildHref({ topic: isOn ? undefined : t })}
-              scroll={false}
-              title={topicFullLabel(t)}
-              className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
-              style={style}
-            >
-              {topicLabel(t)}
-            </Link>
-          );
-        })}
-      </div>
+      {hideTopics ? null : (
+        <div className="filter-chips flex flex-wrap items-center gap-1">
+          <span
+            className="mr-2 text-[12px] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-dim)" }}
+          >
+            Topic
+          </span>
+          {ALLOWED_TOPICS.map((t) => {
+            const isOn = topic === t;
+            const color = topicColor(t);
+            const style = isOn
+              ? { backgroundColor: color, color: "#0a0e14", borderColor: color }
+              : { color, borderColor: color };
+            return (
+              <Link
+                key={t}
+                href={buildHref({ topic: isOn ? undefined : t })}
+                scroll={false}
+                title={topicFullLabel(t)}
+                className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+                style={style}
+              >
+                {topicLabel(t)}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

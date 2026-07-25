@@ -1,16 +1,20 @@
+import Link from "next/link";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { NewsFilters } from "@/components/NewsFilters";
 import { NewsRow } from "@/components/NewsRow";
+import { NewsTopicRailRow } from "@/components/NewsTopicRailRow";
 import { Pagination } from "@/components/Pagination";
 import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
+import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 import {
   NEWS_DEFAULT_WINDOW,
   NEWS_FEED_PAGE_SIZE,
   getMember,
   getMemberNews,
   getNewsFeed,
+  getNewsTopicRailCounts,
   sanitizeBillId,
   sanitizeNewsSignal,
   sanitizeNewsSource,
@@ -168,15 +172,45 @@ export default async function NewsPage({
     );
   }
 
-  const {
-    mentions,
-    page: currentPage,
-    totalPages,
-    breakingCount,
-  } = await getNewsFeed(
-    { source, topic, windowHours, billId, signal },
-    { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
-  );
+  // HO 515 — three modes now, stated so the next session doesn't read a hidden
+  // rail as a bug:
+  //   • DEFAULT (mention feed): the TOPIC RAIL renders and scopes the feed.
+  //   • BILL-scoped (?bill=): rail does NOT render — one bill's history is a
+  //     single-topic slice, so a topic rail over it is one row (noise). The feed
+  //     renders full-width, byte-identical to pre-515.
+  //   • MEMBER-scoped (?member=, HO 512): handled by the early branch above — a
+  //     different table (observations), topic doesn't apply. Byte-identical.
+  // The rail lives ONLY in DEFAULT mode. Axis B ("IN THE NEWS" member group as a
+  // SECOND group in this same rail) will reopen the member seam later; it is NOT
+  // in this HO (and carries its own window semantics — the 24h head collapses to
+  // 6 members, HO 514 — so it can't rebase on ?window=).
+  const showRail = !billId;
+  const [feed, railCounts] = await Promise.all([
+    getNewsFeed(
+      { source, topic, windowHours, billId, signal },
+      { page: requestedPage, pageSize: NEWS_FEED_PAGE_SIZE },
+    ),
+    // Rebases on source/window/signal, self-excludes topic (never passed → can't
+    // collapse the rail). null on a bad read → the rail hides, feed still renders.
+    showRail
+      ? getNewsTopicRailCounts({ source, windowHours, signal })
+      : Promise.resolve(null),
+  ]);
+  const { mentions, page: currentPage, totalPages, breakingCount } = feed;
+  // The rail hides (falls back to the topic chip row) when a bill scopes the
+  // view OR the rail read failed. hideTopics tracks whether the rail RENDERS, so
+  // a failed rail read restores the chips rather than losing topic filtering.
+  const railRendered = showRail && railCounts != null;
+  const railMax = railCounts?.[0]?.count ?? 0;
+  // CLEAR (rail header) drops ?topic= + ?page=, preserving source/window/signal.
+  const clearTopicHref = (() => {
+    const sp = new URLSearchParams();
+    if (source) sp.set("source", source);
+    if (windowHours !== NEWS_DEFAULT_WINDOW) sp.set("window", String(windowHours));
+    if (signal) sp.set("signal", signal);
+    const qs = sp.toString();
+    return qs ? `/news?${qs}` : "/news";
+  })();
 
   // Pager + chip carry: ONLY the active news params. No mode marker (the route
   // is the mode now), no BILLS-param round-trip. `page` is never carried — the
@@ -194,6 +228,70 @@ export default async function NewsPage({
   // active bill scope and a BREAKING signal).
   const filterCarry = new URLSearchParams(newsCarry);
 
+  // The right-pane / bill-mode body: the filter chips (topics hidden when the
+  // rail renders them) + the mention feed. ONE definition — wrapped in the
+  // two-pane shell in DEFAULT mode, rendered bare (full-width) in BILL mode so
+  // that mode stays byte-identical to pre-515.
+  const feedContent = (
+    <>
+      <section
+        className="mb-3 flex flex-col gap-3"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <NewsFilters
+          source={source}
+          topic={topic}
+          windowHours={windowHours}
+          billId={billId}
+          signal={signal}
+          breakingCount={breakingCount}
+          carry={filterCarry}
+          basePath="/news"
+          hideTopics={railRendered}
+        />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          carry={newsCarry}
+          basePath="/news"
+        />
+      </section>
+
+      {mentions.length === 0 ? (
+        <p
+          className="py-16 text-center text-[13px]"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {billId
+            ? `No news mentions yet for this bill.`
+            : "No news mentions match these filters."}
+        </p>
+      ) : (
+        <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+          <div className="news-header-row px-3">
+            <span>Bill</span>
+            <span>Headline</span>
+            <span className="source">Source</span>
+            <span className="age">Age</span>
+          </div>
+          <ul>
+            {mentions.map((m) => (
+              <li key={m.id} className="px-3">
+                <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
+              </li>
+            ))}
+          </ul>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            carry={newsCarry}
+            basePath="/news"
+          />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
       <HeaderBar basePath="/news" />
@@ -202,62 +300,40 @@ export default async function NewsPage({
         <GroupTabs group="feed" active="news" />
         <div className="mb-3 flex items-center gap-3">{toggle}</div>
 
-        <section
-          className="mb-3 flex flex-col gap-3"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
-          <NewsFilters
-            source={source}
-            topic={topic}
-            windowHours={windowHours}
-            billId={billId}
-            signal={signal}
-            breakingCount={breakingCount}
-            carry={filterCarry}
-            basePath="/news"
-          />
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            carry={newsCarry}
-            basePath="/news"
-          />
-        </section>
-
-        {mentions.length === 0 ? (
-          <p
-            className="py-16 text-center text-[13px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {billId
-              ? `No news mentions yet for this bill.`
-              : "No news mentions match these filters."}
-          </p>
-        ) : (
-          <div
-            className="border"
-            style={{ borderColor: "var(--border-strong)" }}
-          >
-            <div className="news-header-row px-3">
-              <span>Bill</span>
-              <span>Headline</span>
-              <span className="source">Source</span>
-              <span className="age">Age</span>
+        {railRendered && railCounts ? (
+          // DEFAULT mode: TOPIC RAIL (spine, left) + mention feed (content, right).
+          <div className="mc-pane nw-pane">
+            <div className="mc-rail nw-rail">
+              <div className="mc-rail-h">
+                <span>TOPICS · {railCounts.length}</span>
+                {topic ? (
+                  <Link href={clearTopicHref} className="mc-rail-on">
+                    CLEAR
+                  </Link>
+                ) : (
+                  <span>VOL</span>
+                )}
+              </div>
+              <div className="nw-rail-scroll">
+                {railCounts.map((r) => (
+                  <NewsTopicRailRow
+                    key={r.topic}
+                    topic={r.topic}
+                    label={topicLabel(r.topic)}
+                    fullLabel={topicFullLabel(r.topic)}
+                    count={r.count}
+                    pct={railMax > 0 ? (r.count / railMax) * 100 : 0}
+                    barColor={topicColor(r.topic)}
+                    selected={topic === r.topic}
+                  />
+                ))}
+              </div>
             </div>
-            <ul>
-              {mentions.map((m) => (
-                <li key={m.id} className="px-3">
-                  <NewsRow mention={m} showFullHeadline nowMs={nowMs} />
-                </li>
-              ))}
-            </ul>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              carry={newsCarry}
-              basePath="/news"
-            />
+            <div className="mc-content nw-content">{feedContent}</div>
           </div>
+        ) : (
+          // BILL mode (or a failed rail read): full-width feed, no rail.
+          feedContent
         )}
       </main>
     </div>

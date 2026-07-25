@@ -5716,6 +5716,36 @@ body {
   /* code | display | topic bar | filings count (5-digit) */
   grid-template-columns: 44px 1fr 56px 48px;
 }
+
+/* HO 515 — /news topic rail (Axis A), the 4th application of the .mc-* two-pane
+   pattern. Scoped under .nw-rail so the shared 5-col .mc-crow (CommitteeRailRow's
+   mark layout) and the /lobbying / /members / /bills rails stay byte-identical. */
+.nw-rail .mc-crow {
+  /* topic abbrev | full name | topic bar | distinct-article count (≤3 digits) */
+  grid-template-columns: 40px 1fr 56px 40px;
+}
+.nw-rail-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  /* 24 rows fit well under this; the bound mirrors .lob-rail-scroll so a future
+     corpus that grows the head scrolls in place rather than setting pane height. */
+  max-height: 520px;
+  scrollbar-width: thin;
+  scrollbar-color: #243040 transparent;
+}
+.nw-rail-scroll::-webkit-scrollbar {
+  width: 7px;
+}
+.nw-rail-scroll::-webkit-scrollbar-thumb {
+  background: #243040;
+  border-radius: 4px;
+}
+/* The content pane holds the existing filter chips + the bordered feed box, so
+   inset it a touch (the base .mc-content is padding-free) — the feed box floats
+   inside the pane instead of sitting flush on the rail divider. */
+.nw-content {
+  padding: 12px;
+}
 /* Row-owned grid (not container-scoped) so ALL three FilingRow consumers align —
    /lobbying, /bill/[id] BillLobbying, and IssueDrill — with no ancestor needed.
    caret | age | reg→client | issue chips | bill chips */
