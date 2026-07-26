@@ -1295,6 +1295,59 @@ body {
   opacity: 0.75;
 }
 
+/* HO 527: participation dotplot strip. Own prefix, structurally mirroring
+   .ideo-strip-* (duplicated rules on purpose — sharing one class set across two
+   components is the riding-regression risk the containment rule avoids, held
+   through 486/492/496/507/515/517). IdeologyStrip stays byte-identical. */
+.part-strip {
+  border: 1px solid var(--border-strong);
+  box-shadow: inset 2px 0 0 var(--accent-amber);
+  background-color: var(--bg-panel);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.part-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+.part-strip-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.part-strip-desc {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.part-strip-spacer {
+  flex: 1;
+}
+.part-strip-how {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--accent-amber);
+  cursor: help;
+  white-space: nowrap;
+}
+.part-strip-svg {
+  display: block;
+  width: 100%;
+  height: 132px;
+}
+.part-strip-foot {
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+}
+.part-strip-foot-hint {
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
 /* HO 428: polarization-over-time chart (ideology surface 3 of 3). Collapsed by
    default at the top of /members, above the dotplot strip, so the ~384px chart
    doesn't bury the member browser. Panel chrome mirrors .ideo-strip. */

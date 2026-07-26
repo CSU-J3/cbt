@@ -4,6 +4,7 @@ import { CommitteeRailRow } from "@/components/CommitteeRailRow";
 import { GroupTabs } from "@/components/GroupTabs";
 import { HeaderBar } from "@/components/HeaderBar";
 import { IdeologyStrip } from "@/components/IdeologyStrip";
+import { ParticipationStrip } from "@/components/ParticipationStrip";
 import { MemberTopicBar } from "@/components/MemberTopicBar";
 import { PalestineBadge } from "@/components/PalestineBadge";
 import { PartyFilter } from "@/components/PartyFilter";
@@ -29,6 +30,7 @@ import {
   getCommitteesIndex,
   getIdeologyStrip,
   getMemberAffiliations,
+  getParticipationStrip,
   getPolarizationBand,
   getPolarizationHistory,
   getMemberCommittees,
@@ -119,6 +121,7 @@ export default async function MembersPage({
     upcoming,
     topicMixRows,
     ideologyDots,
+    participationDots,
     polarizationHistory,
     polarizationBand,
   ] = await Promise.all([
@@ -126,6 +129,7 @@ export default async function MembersPage({
     getUpcomingForRail(chamber),
     getMembersTopicMix(includeCeremonial),
     getIdeologyStrip(),
+    getParticipationStrip(),
     getPolarizationHistory(),
     getPolarizationBand(),
   ]);
@@ -137,6 +141,14 @@ export default async function MembersPage({
   const stripDots = chamber
     ? ideologyDots.filter((d) => d.chamber === chamber)
     : ideologyDots;
+
+  // HO 527 participation strip: same chamber-toggle-only scoping as stripDots
+  // (built off the full floored population, separate from the filtered browser
+  // query, so party / state / sort / search can't touch it). In single-chamber
+  // mode only that chamber's members are present, so only its median tick shows.
+  const partDots = chamber
+    ? participationDots.filter((d) => d.chamber === chamber)
+    : participationDots;
 
   // Group the flat topic-mix rows into per-member counts → bar segments.
   const mixByMember = new Map<string, { topic: string; count: number }[]>();
@@ -419,6 +431,11 @@ export default async function MembersPage({
             you scroll into the browser. Above the filter bar; only the chamber
             toggle rescopes it. */}
         <IdeologyStrip dots={stripDots} />
+
+        {/* HO 527 — participation dotplot: the population twin of the ideology
+            strip, on the 119th missed-vote rate. Ships open below it (the chamber
+            toggle rescopes both); non-voting delegates carved out + disclosed. */}
+        <ParticipationStrip dots={partDots} />
 
         {/* ---- Filter bar (full-width strip; connects to the pane) ---- */}
         <div className="mc-fbar">

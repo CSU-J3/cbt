@@ -3886,6 +3886,61 @@ export const getIdeologyStrip = unstable_cache(
   { revalidate: 86400, tags: ["member-ideology"] },
 );
 
+// HO 527: /members participation dotplot — the population twin of getIdeologyStrip,
+// on the 119th missed-vote rate. Same population + metric as
+// getChamberParticipationContext (is_current, HAVING total >= PARTICIPATION_FLOOR,
+// not_voting/total) so the strip's client-computed chamber medians echo B1's hub
+// context to displayed precision. Returns EVERY floored member incl. the ~6
+// non-voting delegates + an is_delegate flag; the component carves delegates out of
+// the cloud/median but needs the flag + count to disclose the exclusion (never a
+// silent drop). Small grouped aggregate (~537 rows) — no INDEXED BY / no new index
+// (the getIdeologyStrip / polarization-band regime); tag `votes` + revalidate 3600
+// to match getChamberParticipationContext (refreshes with the votes sync, not the
+// daily ideology cadence).
+export type ParticipationDot = {
+  bioguideId: string;
+  name: string;
+  party: string | null; // normalized 'R' | 'D' | 'I'
+  chamber: string; // 'house' | 'senate'
+  missedPct: number; // 0–100, not_voting/total * 100
+  isDelegate: boolean; // house + territorial state (structurally non-voting)
+};
+
+export const getParticipationStrip = unstable_cache(
+  async (): Promise<ParticipationDot[]> => {
+    const db = getDb();
+    const res = await db.execute({
+      sql: `SELECT mv.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
+                   m.chamber AS chamber,
+                   CASE WHEN m.chamber = 'house'
+                         AND m.state IN ('DC','AS','GU','MP','PR','VI')
+                        THEN 1 ELSE 0 END AS isDelegate,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
+              FROM member_votes mv
+              JOIN members m ON m.bioguide_id = mv.bioguide_id
+             WHERE m.is_current = 1
+             GROUP BY mv.bioguide_id
+            HAVING total >= ?`,
+      args: [PARTICIPATION_FLOOR],
+    });
+    return res.rows.map((r) => {
+      const total = Number(r.total ?? 0);
+      const nv = Number(r.nv ?? 0);
+      return {
+        bioguideId: r.bioguideId as string,
+        name: r.name as string,
+        party: (r.party as string | null) ?? null,
+        chamber: r.chamber as string,
+        missedPct: total > 0 ? (nv / total) * 100 : 0,
+        isDelegate: Number(r.isDelegate ?? 0) === 1,
+      };
+    });
+  },
+  ["getParticipationStrip"],
+  { revalidate: 3600, tags: ["votes"] },
+);
+
 // HO 428: the polarization-over-time chart (ideology surface 3 of 3). Every
 // `polarization_history` row (both chambers, ~190) — the client island filters to
 // the toggled chamber and draws the historical D/R median lines, so no refetch on
