@@ -26,6 +26,7 @@
     "sync:nominations": "tsx scripts/sync-nominations.ts",
     "lda:rollup": "tsx scripts/rollup-lda.ts",
     "sync:ideology": "tsx scripts/sync-ideology.ts",
+    "sync:career-votes": "tsx scripts/sync-career-votes.ts",
     "sync:polarization-history": "tsx scripts/sync-polarization-history.ts",
     "seed:affiliations": "tsx scripts/seed-affiliations.ts",
     "backfill:races": "tsx scripts/backfill-races.ts",

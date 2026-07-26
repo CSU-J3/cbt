@@ -18,6 +18,7 @@ import {
   getMemberAffiliations,
   getMemberAmendments,
   getMemberBills,
+  getMemberCareerVotes,
   getMemberCommittees,
   getMemberFundraising,
   getMemberIdeology,
@@ -161,6 +162,7 @@ export default async function MemberPage({
     tradeCount,
     voteStats,
     participation,
+    careerVotes,
     recentVotes,
     fundraising,
     scorecard,
@@ -180,6 +182,9 @@ export default async function MemberPage({
     // HO 523: 119th chamber missed-vote distribution (median) for the hero
     // "Missed X%" context — one cached all-member aggregate, args-free.
     getChamberParticipationContext(),
+    // HO 525 (B2): lifetime missed-vote rate from member_career_votes; null when
+    // the member has no rollup row (Graham / Voteview-missing) → no career stat.
+    getMemberCareerVotes(bioguideId),
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
     getMemberFundraising(bioguideId),
     getPalestineScorecard(bioguideId),
@@ -676,6 +681,26 @@ export default async function MemberPage({
                             </span>
                           </span>
                         </>
+                      ) : null}
+                      {/* HO 525 (B2): lifetime figure beside the 119th one.
+                          Independent of the 119th guard — a member with a career
+                          row but no 119th votes still shows it. Own displayed
+                          rate, so no delegate carve-out (rank-only, per B1). */}
+                      {careerVotes && careerVotes.missedPct != null ? (
+                        <span className="mhp-stat">
+                          <span className="mhp-stat-l">Missed · career</span>
+                          <span className="mhp-stat-v">
+                            {(careerVotes.missedPct * 100).toFixed(1)}
+                            <small>%</small>
+                            {careerVotes.congressesServed != null ? (
+                              <small>
+                                {" · "}
+                                {careerVotes.congressesServed} Congress
+                                {careerVotes.congressesServed === 1 ? "" : "es"}
+                              </small>
+                            ) : null}
+                          </span>
+                        </span>
                       ) : null}
                     </div>
                   </div>

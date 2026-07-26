@@ -589,6 +589,27 @@ const statements = [
     updated_at        TEXT    NOT NULL
   )`,
 
+  // HO 525 (B2): per-member CAREER roll-call participation, accumulated from
+  // Voteview's per-Congress votes files across every Congress a current member
+  // served (earliest served → 119, both chambers). One row per current member,
+  // keyed by bioguide (icpsr→bioguide via member_ideology at sync time). Distinct
+  // from member_votes (119th only): this is the lifetime figure surfaced beside
+  // the 119th one on the hub. cast_code rule (HO 524 probe correction): eligible =
+  // codes 1–8 (7/8 = Present, folded into cast) + 9; missed = code 9 only; code 0
+  // (not seated) excluded — usually absent as a row, so a guard not the main path.
+  // No career_present column (folded into cast). Truncate-then-insert each run
+  // (full recompute from an API-reproducible source); PK covers the point lookup.
+  `CREATE TABLE IF NOT EXISTS member_career_votes (
+    bioguide_id       TEXT PRIMARY KEY,
+    icpsr             INTEGER,
+    career_eligible   INTEGER,
+    career_missed     INTEGER,
+    career_missed_pct REAL,
+    first_congress    INTEGER,
+    congresses_served INTEGER,
+    synced_at         TEXT
+  )`,
+
   // HO 427: per-Congress, per-chamber D/R medians of DW-NOMINATE dim1 — the data
   // gate for ship 3, the polarization-over-time chart. Aggregated from Voteview's
   // full HSall_members.csv history (~50k member-rows) down to a few hundred median

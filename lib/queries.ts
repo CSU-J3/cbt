@@ -3742,6 +3742,42 @@ export const getMemberIdeology = unstable_cache(
   { revalidate: 86400, tags: ["member-ideology"] },
 );
 
+// HO 525 (B2): a member's LIFETIME roll-call participation, from member_career_votes
+// (built by sync:career-votes off Voteview's per-Congress votes files). Surfaced on
+// the hub beside B1's 119th missed-vote figure. Null when the member has no rollup
+// row (Graham / any Voteview-missing) → the hero renders no career stat, gracefully.
+// PK point lookup; missedPct is stored (career_missed / career_eligible).
+export type MemberCareerVotes = {
+  missedPct: number | null;
+  eligible: number;
+  missed: number;
+  firstCongress: number | null;
+  congressesServed: number | null;
+};
+
+export const getMemberCareerVotes = unstable_cache(
+  async (bioguideId: string): Promise<MemberCareerVotes | null> => {
+    const db = getDb();
+    const res = await db.execute({
+      sql: `SELECT career_eligible, career_missed, career_missed_pct,
+                   first_congress, congresses_served
+            FROM member_career_votes WHERE bioguide_id = ?`,
+      args: [bioguideId],
+    });
+    const row = res.rows[0];
+    if (!row) return null;
+    return {
+      missedPct: (row.career_missed_pct as number | null) ?? null,
+      eligible: Number(row.career_eligible ?? 0),
+      missed: Number(row.career_missed ?? 0),
+      firstCongress: (row.first_congress as number | null) ?? null,
+      congressesServed: (row.congresses_served as number | null) ?? null,
+    };
+  },
+  ["getMemberCareerVotes"],
+  { revalidate: 86400, tags: ["member-career-votes"] },
+);
+
 // HO 424: chamber polarization band (ideology surface 1 of 3). Party-median
 // distance on DW-NOMINATE dim1, per chamber — the aggregate cousin of the HO 421
 // member readout. `getMemberIdeology` is member-CHAMBER-scoped (one D/R pair for
