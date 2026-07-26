@@ -6793,6 +6793,74 @@ export const getMemberVoteStats = unstable_cache(
   { revalidate: 3600, tags: ["votes"] },
 );
 
+// HO 523 (participation cut 1 / B1): chamber context for the hero "Missed X%"
+// stat. A bare missed-rate is a number; "Missed 9% · Sen median 2.1%" is a
+// scorecard metric. Returns the 119th missed-vote distribution's MEDIAN per
+// chamber — the all-member reference the HO 522 probe flagged. No new table /
+// no cron: one grouped aggregate over member_votes (~537 groups), cached like
+// getMemberVoteStats — cheaper than a per-page all-member scan and lighter than
+// a rollup table (the rollup arrives at B2, the Voteview career cut).
+//
+// Metric is defined IDENTICALLY to getMemberVoteStats — notVoting / total per
+// member — so the context matches the number it sits beside. Reference
+// population = CURRENT members (is_current = 1) with >= PARTICIPATION_FLOOR
+// eligible votes: the missed-% denominator scopes to tenure, so a mid-cycle
+// entrant with a few dozen votes reads a noisy rate off almost no signal and
+// would distort the median. The floor governs only who COUNTS TOWARD the median
+// — a member's own hero rate is unaffected. F=50 was confirmed against the live
+// per-member eligible-votes distribution: it floors out only 3 departed
+// low-tenure members (Rubio/Vance/Waltz, all is_current=0) and clips zero
+// current members; it's the safety guard for the next mid-cycle entrant once
+// they start voting. App-side median() (the getPolarizationBand idiom), nullable
+// for an empty chamber. No INDEXED BY / no new index (small grouped aggregate —
+// the polarization-band regime, not the fat-bills one).
+//
+// MEDIAN ONLY, deliberately — no attendance rank. The ~6 non-voting House
+// delegates carry structural not-voting (ineligible on final passage, NOT
+// absenteeism); the median is robust to them but a per-member rank is not, so a
+// rank surface must be built WITH a delegate-eligibility carve-out as its own
+// cut (see the banked B1+B2 doc note). Returning a delegate-wrong rank here
+// would be a footgun for any future renderer.
+export const PARTICIPATION_FLOOR = 50;
+
+export type ChamberParticipation = {
+  medianMissedPct: number | null; // % over the floored population; null = empty chamber
+};
+
+export const getChamberParticipationContext = unstable_cache(
+  async (): Promise<{ house: ChamberParticipation; senate: ChamberParticipation }> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT m.chamber AS chamber,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
+              FROM member_votes mv
+              JOIN members m ON m.bioguide_id = mv.bioguide_id
+             WHERE m.is_current = 1
+             GROUP BY mv.bioguide_id
+            HAVING total >= ?`,
+      args: [PARTICIPATION_FLOOR],
+    });
+
+    const byChamber: Record<string, number[]> = { house: [], senate: [] };
+    for (const r of rs.rows) {
+      const chamber = String(r.chamber ?? "");
+      const total = Number(r.total ?? 0);
+      if (total <= 0 || !(chamber in byChamber)) continue;
+      byChamber[chamber]!.push(Number(r.nv ?? 0) / total);
+    }
+
+    const build = (rates: number[]): ChamberParticipation => {
+      const med = median(rates);
+      return { medianMissedPct: med === null ? null : med * 100 };
+    };
+
+    return { house: build(byChamber.house!), senate: build(byChamber.senate!) };
+  },
+  ["getChamberParticipationContext"],
+  { revalidate: 3600, tags: ["votes"] },
+);
+
 // ---------------------------------------------------------------------------
 // Cron runs (handoff 105)
 //

@@ -27,6 +27,7 @@ import {
   getMemberTrades,
   getMemberVotes,
   getMemberVoteStats,
+  getChamberParticipationContext,
   type MemberCommitteeRow,
   getPalestineScorecard,
   getPrimaryForRace,
@@ -159,6 +160,7 @@ export default async function MemberPage({
     trades,
     tradeCount,
     voteStats,
+    participation,
     recentVotes,
     fundraising,
     scorecard,
@@ -175,6 +177,9 @@ export default async function MemberPage({
     getMemberTrades(bioguideId, TRADE_LIMIT),
     getMemberTradeCount(bioguideId),
     getMemberVoteStats(bioguideId),
+    // HO 523: 119th chamber missed-vote distribution (median) for the hero
+    // "Missed X%" context — one cached all-member aggregate, args-free.
+    getChamberParticipationContext(),
     getMemberVotes(bioguideId, { page: 1, pageSize: VOTE_LIMIT }),
     getMemberFundraising(bioguideId),
     getPalestineScorecard(bioguideId),
@@ -247,6 +252,20 @@ export default async function MemberPage({
               voteStats.total > 0
                 ? Math.round((voteStats.notVoting / voteStats.total) * 100)
                 : 0;
+
+            // HO 523: chamber context for "Missed X%" — the 119th chamber median
+            // beside the member's own rate. Median only in the hero: a bare
+            // attendance rank misreads the ~6 non-voting delegates (structural
+            // ineligibility, not absenteeism), and the median is robust to them.
+            const chamberCtx =
+              member.chamber === "senate"
+                ? participation.senate
+                : member.chamber === "house"
+                  ? participation.house
+                  : null;
+            const chamberMedian = chamberCtx?.medianMissedPct ?? null;
+            const chamberShort =
+              member.chamber === "senate" ? "Sen" : "House";
 
             // ── band-3 SEAT ── only fields already on `member`; no "sworn"
             // clause because the record carries no swearing-in year.
@@ -643,10 +662,17 @@ export default async function MemberPage({
                             </span>
                           </span>
                           <span className="mhp-stat">
-                            <span className="mhp-stat-l">Missed</span>
+                            <span className="mhp-stat-l">Missed · 119th</span>
                             <span className="mhp-stat-v">
                               {missedPct}
                               <small>%</small>
+                              {chamberMedian != null ? (
+                                <small>
+                                  {" · "}
+                                  {chamberShort} median{" "}
+                                  {chamberMedian.toFixed(1)}%
+                                </small>
+                              ) : null}
                             </span>
                           </span>
                         </>
