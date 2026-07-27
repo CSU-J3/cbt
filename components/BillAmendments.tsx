@@ -46,6 +46,12 @@ function voteVerb(d: AmendmentVote["disposition"]): string {
 // procedural+substantive pair without building a nested list (v1).
 function VoteLine({ vote, moreVotes }: { vote: AmendmentVote; moreVotes: number }) {
   const p = vote.party;
+  // Suppress the party split when it's entirely zero (member_votes not yet synced
+  // for the newest roll calls, e.g. house-119-2-269) — an all-zero split would
+  // falsely read "0 D / 0 R voted" on a vote with a real tally (HO 533;
+  // wrong-worse-than-absent, the HO 448 disposition-dot principle). The tally +
+  // result always render; the split self-heals when member positions sync.
+  const splitTotal = p.D.yea + p.D.nay + p.R.yea + p.R.nay + p.I.yea + p.I.nay;
   return (
     <div
       className="mt-1 text-[11px] tabular-nums"
@@ -56,20 +62,24 @@ function VoteLine({ vote, moreVotes }: { vote: AmendmentVote; moreVotes: number 
       </span>
       {vote.present > 0 ? ` · ${vote.present} present` : ""}
       {vote.notVoting > 0 ? ` · ${vote.notVoting} not voting` : ""}
-      {" · "}
-      <span style={{ color: partyColor("D") }}>
-        D {p.D.yea}–{p.D.nay}
-      </span>
-      {" · "}
-      <span style={{ color: partyColor("R") }}>
-        R {p.R.yea}–{p.R.nay}
-      </span>
-      {p.I.yea + p.I.nay > 0 ? (
+      {splitTotal > 0 ? (
         <>
           {" · "}
-          <span style={{ color: partyColor("I") }}>
-            I {p.I.yea}–{p.I.nay}
+          <span style={{ color: partyColor("D") }}>
+            D {p.D.yea}–{p.D.nay}
           </span>
+          {" · "}
+          <span style={{ color: partyColor("R") }}>
+            R {p.R.yea}–{p.R.nay}
+          </span>
+          {p.I.yea + p.I.nay > 0 ? (
+            <>
+              {" · "}
+              <span style={{ color: partyColor("I") }}>
+                I {p.I.yea}–{p.I.nay}
+              </span>
+            </>
+          ) : null}
         </>
       ) : null}
       {moreVotes > 0 ? ` · +${moreVotes} earlier` : ""}
@@ -174,7 +184,9 @@ export function BillAmendments({
   votes,
 }: {
   rows: BillAmendment[];
-  votes: Map<string, AmendmentVote[]>;
+  // Plain object keyed by amendmentId (NOT a Map — getBillAmendmentVotes is
+  // unstable_cache'd, which serializes a Map to {}; HO 533).
+  votes: Record<string, AmendmentVote[]>;
 }) {
   const shown = rows.slice(0, RENDER_CAP);
   const overflow = rows.length - shown.length;
@@ -182,7 +194,7 @@ export function BillAmendments({
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
       {shown.map((a) => {
-        const list = votes.get(a.id) ?? [];
+        const list = votes[a.id] ?? [];
         return (
           <AmendmentRow
             key={a.id}

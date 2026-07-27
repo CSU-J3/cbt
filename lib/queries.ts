@@ -3142,8 +3142,13 @@ export type AmendmentVote = {
 const SENATE_AMDT_Q = /^On the Amendment S\.Amdt\. (\d+)\b/;
 
 export const getBillAmendmentVotes = unstable_cache(
-  async (billId: string): Promise<Map<string, AmendmentVote[]>> => {
-    const empty = new Map<string, AmendmentVote[]>();
+  // Returns a PLAIN object keyed by amendmentId — NOT a Map. unstable_cache
+  // serializes its return, and a Map round-trips to {} on a cache hit (all entries
+  // lost + `.get` gone → a 500 in the consumer), so a Map is unsafe here (HO 533 —
+  // the live-500 fix). A plain Record<amendmentId, AmendmentVote[]> serializes
+  // cleanly; the consumer reads votes[a.id].
+  async (billId: string): Promise<Record<string, AmendmentVote[]>> => {
+    const empty: Record<string, AmendmentVote[]> = {};
     try {
       const db = getDb();
       // 1. this bill's SAMDT + HAMDT amendments. SAMDT → key (congress, number)
@@ -3253,12 +3258,13 @@ export const getBillAmendmentVotes = unstable_cache(
         else if (pos === "nay") v.party[key].nay += c;
       }
 
-      // 4. Assemble Map<amendmentId, AmendmentVote[]>, each list date DESC.
-      const out = new Map<string, AmendmentVote[]>();
+      // 4. Assemble Record<amendmentId, AmendmentVote[]> (plain object — Map is
+      //    unstable_cache-unsafe, see the signature note), each list date DESC.
+      const out: Record<string, AmendmentVote[]> = {};
       for (const { amdId, vote } of matched) {
-        (out.get(amdId) ?? out.set(amdId, []).get(amdId)!).push(vote);
+        (out[amdId] ??= []).push(vote);
       }
-      for (const list of out.values()) {
+      for (const list of Object.values(out)) {
         list.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
       }
       return out;
