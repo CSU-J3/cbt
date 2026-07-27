@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
 import type { AmendmentVote, BillAmendment } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
+import { VoteLine, dispositionColor } from "@/components/AmendmentVoteLine";
 
 // HO 448 — the /bill/[id] AMENDMENTS section body. Mirrors BillLobbying's
 // grammar (same border box, 0.5px row dividers). Server component, fed rows:
@@ -13,79 +14,15 @@ import { partyColor } from "@/lib/race-colors";
 // the section-shell header on /bill/[id] (the count duplicated the shell's), so
 // this component no longer renders it — it owns only the rows + overflow foot.
 //
+// HO 537: VoteLine / voteVerb / dispositionColor moved to the shared leaf
+// components/AmendmentVoteLine.tsx (the /amendments corpus feed is the third
+// consumer). Imported above; render is byte-identical.
+//
 // Render cap: the worst magnet bill carries ~1,100 amendments (119-sconres-7),
 // too many to dump into the DOM, so cap at the top 60 in the query's recency
 // order and note the overflow. Low-count bills (the common case) fall well under
 // and render whole.
 const RENDER_CAP = 60;
-
-// Disposition dot color. Reuses the vote-outcome pair (HO 79) — an amendment
-// being agreed to / not agreed to IS a floor-vote outcome, and these tokens are
-// deliberately decoupled from party color, so a Democrat's failed amendment
-// doesn't render Republican-red. "other" (the ~91% with no top-level action, or
-// ambiguous text) stays muted.
-function dispositionColor(d: BillAmendment["disposition"]): string {
-  if (d === "agreed") return "var(--vote-yea)";
-  if (d === "failed") return "var(--vote-nay)";
-  return "var(--text-muted)";
-}
-
-// Concise amendment-outcome verb from the derived disposition (the raw
-// votes.result — "Amendment Agreed to" / "Amendment Rejected" — is verbose; the
-// disposition abstracts a motion-to-table-agreed into the amendment's real fate).
-function voteVerb(d: AmendmentVote["disposition"]): string {
-  if (d === "agreed") return "Agreed";
-  if (d === "failed") return "Rejected";
-  return "Voted";
-}
-
-// HO 530 — the Senate amendment vote line: tally + result verb, then the party
-// split (the analytical headline — did it break on party lines). One dim mono line
-// under the action text; absent entirely where no vote (the ~99% common case — the
-// absence is the signal, HO 527 omit-don't-state). `moreVotes` > 0 flags a
-// procedural+substantive pair without building a nested list (v1).
-function VoteLine({ vote, moreVotes }: { vote: AmendmentVote; moreVotes: number }) {
-  const p = vote.party;
-  // Suppress the party split when it's entirely zero (member_votes not yet synced
-  // for the newest roll calls, e.g. house-119-2-269) — an all-zero split would
-  // falsely read "0 D / 0 R voted" on a vote with a real tally (HO 533;
-  // wrong-worse-than-absent, the HO 448 disposition-dot principle). The tally +
-  // result always render; the split self-heals when member positions sync.
-  const splitTotal = p.D.yea + p.D.nay + p.R.yea + p.R.nay + p.I.yea + p.I.nay;
-  return (
-    <div
-      className="mt-1 text-[11px] tabular-nums"
-      style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}
-    >
-      <span style={{ color: "var(--text-secondary)" }}>
-        {voteVerb(vote.disposition)} {vote.yea}–{vote.nay}
-      </span>
-      {vote.present > 0 ? ` · ${vote.present} present` : ""}
-      {vote.notVoting > 0 ? ` · ${vote.notVoting} not voting` : ""}
-      {splitTotal > 0 ? (
-        <>
-          {" · "}
-          <span style={{ color: partyColor("D") }}>
-            D {p.D.yea}–{p.D.nay}
-          </span>
-          {" · "}
-          <span style={{ color: partyColor("R") }}>
-            R {p.R.yea}–{p.R.nay}
-          </span>
-          {p.I.yea + p.I.nay > 0 ? (
-            <>
-              {" · "}
-              <span style={{ color: partyColor("I") }}>
-                I {p.I.yea}–{p.I.nay}
-              </span>
-            </>
-          ) : null}
-        </>
-      ) : null}
-      {moreVotes > 0 ? ` · +${moreVotes} earlier` : ""}
-    </div>
-  );
-}
 
 function Sponsor({ a }: { a: BillAmendment }) {
   // Committee/manager amendments carry a name but no bioguide (~1.2%): plain

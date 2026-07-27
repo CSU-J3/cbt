@@ -2,6 +2,7 @@ import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
 import type { AmendmentListRow } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
+import { dispositionColor } from "@/components/AmendmentVoteLine";
 
 // HO 461 — one row of the /amendments corpus feed. A bare row the page maps (the
 // member-page MemberAmendmentRow idiom, not the self-boxing BillAmendments). The
@@ -9,14 +10,8 @@ import { partyColor } from "@/lib/race-colors";
 // party-colored sponsor AND the amended-bill link. Disposition dot + semantics
 // match the bill-hub / member-hub surfaces exactly.
 //
-// dispositionColor is re-declared locally (it's currently local to
-// BillAmendments.tsx); extracting it to a shared module would touch two working
-// components, so that's a banked tidy, not folded into this feature.
-function dispositionColor(d: AmendmentListRow["disposition"]): string {
-  if (d === "agreed") return "var(--vote-yea)";
-  if (d === "failed") return "var(--vote-nay)";
-  return "var(--text-muted)";
-}
+// HO 537: dispositionColor now imported from the shared components/AmendmentVoteLine.tsx
+// (the banked tidy — the corpus feed becoming the third consumer was the trigger).
 
 function Sponsor({ a }: { a: AmendmentListRow }) {
   // Committee/manager amendments carry a name but no bioguide: plain muted text,
