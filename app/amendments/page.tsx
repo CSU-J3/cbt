@@ -166,11 +166,10 @@ export default async function AmendmentsPage({
         <p className="mb-4 max-w-[70ch] text-[12px] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
           Floor amendments to bills — who's amending what, and the sliver that actually gets voted on.
           Most are filed in Senate budget vote-a-ramas and never called up: only{" "}
-          {((100 * summary.acted) / summary.total).toFixed(1)}% carry any floor action, and just{" "}
-          {summary.voted.toLocaleString()} drew a recorded floor vote. Filings skew heavily Senate (
-          {((100 * summary.byChamber.senate) / summary.total).toFixed(0)}%), but the votes split near-evenly by
-          chamber — {summary.votedByChamber.senate.toLocaleString()} Senate ·{" "}
-          {summary.votedByChamber.house.toLocaleString()} House.
+          {((100 * summary.acted) / summary.total).toFixed(1)}% carry any floor action, and fewer still
+          draw a recorded floor vote. And though filings skew heavily Senate (
+          {((100 * summary.byChamber.senate) / summary.total).toFixed(0)}%), the recorded votes split
+          near-evenly by chamber.
         </p>
 
         {/* By status — the hero */}
