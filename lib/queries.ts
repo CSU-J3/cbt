@@ -3376,6 +3376,18 @@ export interface AmendmentsSummary {
   otherActed: number; // acted − agreed − failed (withdrawn / OOO / pending-with-text)
   filedOnly: number; // total − acted (the ~91% never called up)
   byChamber: { senate: number; house: number }; // SAMDT+SUAMDT → senate, HAMDT → house
+  // HO 537 — the "voted" cut: distinct amendments that drew a RESOLVED recorded
+  // floor vote (amendment_votes ⋈ votes, both chambers now that Senate links are
+  // materialized). A strict subset of `acted` (STEP-0 containment: 0 voted with
+  // NULL action). agreed/failed/other are from the CANONICAL (latest) vote's
+  // votes.result via deriveDisposition — the same "latest vote is the outcome" rule
+  // the hub renders via list[0]. Procedural votes are EXCLUDED at the matcher (the
+  // leaf's scope doc); this counts up-or-down amendment votes only.
+  voted: number;
+  votedAgreed: number;
+  votedFailed: number;
+  votedOther: number;
+  votedByChamber: { senate: number; house: number };
   topBills: { billId: string; billLabel: string; billTitle: string | null; count: number }[];
   topSponsors: { bioguideId: string; name: string; party: PartyKey | null; state: string | null; count: number }[];
 }
@@ -3389,10 +3401,23 @@ export const getAmendmentsSummary = unstable_cache(
       const db = getDb();
       // Independent reads together: total, the covered disposition scan, the
       // chamber split, and the two ranked aggregates (≤15 rows each).
-      const [totalRs, dispRs, chamberRs, billAgg, sponAgg] = await Promise.all([
+      const [totalRs, dispRs, chamberRs, votedRs, billAgg, sponAgg] = await Promise.all([
         db.execute("SELECT COUNT(*) AS n FROM amendments"),
         db.execute("SELECT latest_action_text FROM amendments WHERE latest_action_text IS NOT NULL"),
         db.execute("SELECT amendment_type, COUNT(*) AS n FROM amendments GROUP BY amendment_type"),
+        // Voted cut: ONE canonical (latest) vote per amendment via ROW_NUMBER, then
+        // deriveDisposition(result) in JS — the list[0] rule. INNER JOIN votes so a
+        // House link to a not-yet-synced roll call doesn't count (resolved only).
+        db.execute(
+          `WITH ranked AS (
+             SELECT av.amendment_id AS amendment_id, v.result AS result,
+                    ROW_NUMBER() OVER (PARTITION BY av.amendment_id ORDER BY v.vote_date DESC, v.id DESC) AS rn
+               FROM amendment_votes av JOIN votes v ON v.id = av.vote_id
+           )
+           SELECT r.amendment_id, r.result, a.amendment_type
+             FROM ranked r JOIN amendments a ON a.id = r.amendment_id
+            WHERE r.rn = 1`,
+        ),
         db.execute(
           `SELECT amended_bill_id, COUNT(*) AS n FROM amendments WHERE amended_bill_id IS NOT NULL GROUP BY amended_bill_id ORDER BY n DESC LIMIT ${AMENDMENTS_TOP_N}`,
         ),
@@ -3421,6 +3446,21 @@ export const getAmendmentsSummary = unstable_cache(
         if (t === "HAMDT") house += n;
         else senate += n; // SAMDT + SUAMDT
       }
+
+      // Voted cut: one row per voted amendment (canonical vote's result + chamber).
+      let votedAgreed = 0;
+      let votedFailed = 0;
+      let votedSenate = 0;
+      let votedHouse = 0;
+      for (const r of votedRs.rows) {
+        const d = deriveDisposition((r.result as string | null) ?? null);
+        if (d === "agreed") votedAgreed++;
+        else if (d === "failed") votedFailed++;
+        if (String(r.amendment_type) === "HAMDT") votedHouse++;
+        else votedSenate++;
+      }
+      const voted = votedRs.rows.length;
+      const votedOther = voted - votedAgreed - votedFailed;
 
       // Hydrate the ≤15 ranked ids with display labels (one IN-join each).
       const billIds = billAgg.rows.map((r) => String(r.amended_bill_id));
@@ -3465,14 +3505,32 @@ export const getAmendmentsSummary = unstable_cache(
         };
       });
 
-      return { total, acted, agreed, failed, otherActed, filedOnly, byChamber: { senate, house }, topBills, topSponsors };
+      return {
+        total,
+        acted,
+        agreed,
+        failed,
+        otherActed,
+        filedOnly,
+        byChamber: { senate, house },
+        voted,
+        votedAgreed,
+        votedFailed,
+        votedOther,
+        votedByChamber: { senate: votedSenate, house: votedHouse },
+        topBills,
+        topSponsors,
+      };
     } catch (e) {
       console.error(`[amendments] getAmendmentsSummary failed: ${(e as Error).message}`);
       return null;
     }
   },
   ["getAmendmentsSummary"],
-  { revalidate: 3600, tags: ["amendments"] },
+  // `votes` too (HO 537): the voted block reads amendment_votes / votes / member_votes,
+  // so a votes re-sync must flush this or the readout goes stale to the backstop (the
+  // HO 535 getMembersRanked/getCommitteeRoster precedent).
+  { revalidate: 3600, tags: ["amendments", "votes"] },
 );
 
 export interface AmendmentListRow {
@@ -3491,6 +3549,75 @@ export interface AmendmentListRow {
   submittedDate: string;
   amendsLabel: string | null; // sub-amendment parent, via the pa self-join
   disposition: "agreed" | "failed" | "other";
+  // HO 537 — the row's recorded floor votes (empty for the ~99% never voted).
+  // Plain objects/numbers/strings only, so the getAmendments return round-trips
+  // through unstable_cache cleanly (the HO 533 no-Map/Set/Date-in-a-cached-return
+  // rule). list[0] is the canonical (latest) vote; render head + "+N earlier".
+  votes: AmendmentVote[];
+}
+
+// HO 537 — hydrate the recorded votes for a PAGE's amendment ids (≤25). Reads the
+// amendment_votes link table (BOTH chambers now that Senate links are materialized,
+// HO 537 Commit 1) ⋈ votes for the tally, then the D/R/I party split from
+// member_votes — the same two queries getBillAmendmentVotes runs at steps 2b + 3,
+// scoped to the page. A NEW sibling, not a getBillAmendmentVotes call (that one
+// still live-parses its Senate path + returns a bill-keyed shape; this is page-
+// scoped + amendment-keyed). Party split is FETCHED even when it may be all-zero:
+// VoteLine suppresses an all-zero split to mean "positions not yet synced" (HO 533),
+// so NOT fetching it would render the not-fetched case identically to not-yet-synced
+// and quietly lie.
+async function hydratePageAmendmentVotes(
+  db: ReturnType<typeof getDb>,
+  amendmentIds: string[],
+): Promise<Record<string, AmendmentVote[]>> {
+  const out: Record<string, AmendmentVote[]> = {};
+  if (amendmentIds.length === 0) return out;
+  const voteRs = await db.execute({
+    sql: `SELECT av.amendment_id, v.id, v.result, v.vote_date,
+                 v.yea_count, v.nay_count, v.present_count, v.not_voting_count
+            FROM amendment_votes av JOIN votes v ON v.id = av.vote_id
+           WHERE av.amendment_id IN (${amendmentIds.map(() => "?").join(",")})`,
+    args: amendmentIds,
+  });
+  const byVoteId = new Map<string, AmendmentVote>();
+  for (const r of voteRs.rows) {
+    const result = (r.result as string | null) ?? null;
+    const vote: AmendmentVote = {
+      voteId: String(r.id),
+      result,
+      disposition: deriveDisposition(result),
+      yea: Number(r.yea_count ?? 0),
+      nay: Number(r.nay_count ?? 0),
+      present: Number(r.present_count ?? 0),
+      notVoting: Number(r.not_voting_count ?? 0),
+      date: (r.vote_date as string | null) ?? null,
+      party: { D: { yea: 0, nay: 0 }, R: { yea: 0, nay: 0 }, I: { yea: 0, nay: 0 } },
+    };
+    byVoteId.set(vote.voteId, vote);
+    (out[String(r.amendment_id)] ??= []).push(vote);
+  }
+  const voteIds = [...byVoteId.keys()];
+  if (voteIds.length > 0) {
+    const splitRs = await db.execute({
+      sql: `SELECT mv.vote_id, m.party, mv.position, COUNT(*) AS c
+              FROM member_votes mv JOIN members m ON m.bioguide_id = mv.bioguide_id
+             WHERE mv.vote_id IN (${voteIds.map(() => "?").join(",")})
+             GROUP BY mv.vote_id, m.party, mv.position`,
+      args: voteIds,
+    });
+    for (const r of splitRs.rows) {
+      const v = byVoteId.get(String(r.vote_id));
+      if (!v) continue;
+      const key = normalizePartyVariant(r.party as string | null);
+      if (!key) continue;
+      const pos = String(r.position);
+      const c = Number(r.c ?? 0);
+      if (pos === "yea") v.party[key].yea += c;
+      else if (pos === "nay") v.party[key].nay += c;
+    }
+  }
+  for (const list of Object.values(out)) list.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+  return out;
 }
 
 // The filtered, paginated corpus feed — BOUNDED (LIMIT + small facets), the
@@ -3519,6 +3646,13 @@ export const getAmendments = unstable_cache(
     }
     if (opts.disposition === "acted") where.push("a.latest_action_text IS NOT NULL");
     else if (opts.disposition === "filed") where.push("a.latest_action_text IS NULL");
+    // HO 537 — voted: a resolved recorded floor vote exists. INNER JOIN votes so an
+    // unresolved House link doesn't qualify; the composite PK gives a leading-column
+    // seek (STEP-0 measurement 4 EXPLAIN — clean, no new index).
+    else if (opts.disposition === "voted")
+      where.push(
+        "EXISTS (SELECT 1 FROM amendment_votes av JOIN votes v ON v.id = av.vote_id WHERE av.amendment_id = a.id)",
+      );
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     try {
       const db = getDb();
@@ -3542,7 +3676,7 @@ export const getAmendments = unstable_cache(
               LIMIT ? OFFSET ?`,
         args: [...args, AMENDMENTS_PAGE_SIZE, (page - 1) * AMENDMENTS_PAGE_SIZE],
       });
-      const rows = rs.rows.map((r) => {
+      const rows: AmendmentListRow[] = rs.rows.map((r) => {
         const amendmentType = String(r.amendment_type);
         const billType = r.amended_bill_type as string | null;
         const billNumber = r.amended_bill_number as number | null;
@@ -3565,8 +3699,12 @@ export const getAmendments = unstable_cache(
           submittedDate: String(r.submitted_date),
           amendsLabel: parentType && parentNumber != null ? `${parentType} ${parentNumber}` : null,
           disposition: deriveDisposition(latestActionText),
+          votes: [],
         };
       });
+      // Hydrate recorded votes for the page's rows only (≤25 ids); empty for the ~99%.
+      const voteMap = await hydratePageAmendmentVotes(db, rows.map((r) => r.id));
+      for (const row of rows) row.votes = voteMap[row.id] ?? [];
       return { rows, total, page };
     } catch (e) {
       console.error(`[amendments] getAmendments failed: ${(e as Error).message}`);
@@ -3574,7 +3712,9 @@ export const getAmendments = unstable_cache(
     }
   },
   ["getAmendments"],
-  { revalidate: 3600, tags: ["amendments"] },
+  // `votes` too (HO 537): hydratePageAmendmentVotes reads amendment_votes / votes /
+  // member_votes, so a votes re-sync must flush the per-row vote lines.
+  { revalidate: 3600, tags: ["amendments", "votes"] },
 );
 
 // HO 456 — the /nominations surface. Standalone pillar (no bill spine, no member

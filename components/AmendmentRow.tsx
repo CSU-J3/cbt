@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
 import type { AmendmentListRow } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
-import { dispositionColor } from "@/components/AmendmentVoteLine";
+import { VoteLine, dispositionColor } from "@/components/AmendmentVoteLine";
 
 // HO 461 — one row of the /amendments corpus feed. A bare row the page maps (the
 // member-page MemberAmendmentRow idiom, not the self-boxing BillAmendments). The
@@ -37,6 +37,12 @@ function Sponsor({ a }: { a: AmendmentListRow }) {
 }
 
 export function AmendmentRow({ amendment: a }: { amendment: AmendmentListRow }) {
+  // Where a recorded vote exists, the dot follows the vote outcome (authoritative,
+  // from votes.result); else the latest_action_text keyword scan (a.disposition) —
+  // the hub's exact rule. list[0] is the canonical (latest) vote.
+  const vote = a.votes[0] ?? null;
+  const moreVotes = Math.max(0, a.votes.length - 1);
+  const dotDisposition = vote ? vote.disposition : a.disposition;
   return (
     <div className="px-4 py-[9px]" style={{ borderTop: "0.5px solid var(--border-soft)" }}>
       <div className="flex flex-wrap items-center gap-2">
@@ -47,7 +53,7 @@ export function AmendmentRow({ amendment: a }: { amendment: AmendmentListRow }) 
             height: 8,
             flexShrink: 0,
             borderRadius: "50%",
-            backgroundColor: dispositionColor(a.disposition),
+            backgroundColor: dispositionColor(dotDisposition),
           }}
         />
         <span
@@ -93,6 +99,8 @@ export function AmendmentRow({ amendment: a }: { amendment: AmendmentListRow }) 
           ? `${a.latestActionText}${a.latestActionDate ? ` · ${formatDateLong(a.latestActionDate)}` : ""}`
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
       </div>
+
+      {vote ? <VoteLine vote={vote} moreVotes={moreVotes} /> : null}
 
       {a.amendsLabel ? (
         <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>

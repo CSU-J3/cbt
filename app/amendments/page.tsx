@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 25;
 const TYPES = ["SAMDT", "HAMDT", "SUAMDT"] as const;
-const DISPOSITIONS = ["acted", "filed"] as const;
+const DISPOSITIONS = ["acted", "filed", "voted"] as const;
 
 type SearchParams = { type?: string; disposition?: string; bill?: string; page?: string };
 
@@ -166,7 +166,11 @@ export default async function AmendmentsPage({
         <p className="mb-4 max-w-[70ch] text-[12px] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
           Floor amendments to bills — who's amending what, and the sliver that actually gets voted on.
           Most are filed in Senate budget vote-a-ramas and never called up: only{" "}
-          {((100 * summary.acted) / summary.total).toFixed(1)}% carry any floor action.
+          {((100 * summary.acted) / summary.total).toFixed(1)}% carry any floor action, and just{" "}
+          {summary.voted.toLocaleString()} drew a recorded floor vote. Filings skew heavily Senate (
+          {((100 * summary.byChamber.senate) / summary.total).toFixed(0)}%), but the votes split near-evenly by
+          chamber — {summary.votedByChamber.senate.toLocaleString()} Senate ·{" "}
+          {summary.votedByChamber.house.toLocaleString()} House.
         </p>
 
         {/* By status — the hero */}
@@ -193,6 +197,27 @@ export default async function AmendmentsPage({
           </div>
           <div className="mt-0.5 text-[11px] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-dim)" }}>
             {summary.byChamber.senate.toLocaleString()} Senate · {summary.byChamber.house.toLocaleString()} House
+          </div>
+
+          {/* HO 537 — recorded votes: the sharper cut (a strict subset of acted). The
+              agreed/failed split here is authoritative — from votes.result — not the
+              keyword scan the four-segment bar above uses. Links into ?disposition=voted. */}
+          <div className="mt-2 text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+            <Link
+              href={filterHref(base, { disposition: disposition === "voted" ? null : "voted" })}
+              scroll={false}
+              className="no-underline"
+              style={{ color: "var(--accent-amber)" }}
+            >
+              {summary.voted.toLocaleString()} drew a recorded floor vote
+            </Link>{" "}
+            (<span style={{ color: "var(--vote-yea)" }}>{summary.votedAgreed.toLocaleString()} agreed</span> ·{" "}
+            <span style={{ color: "var(--vote-nay)" }}>{summary.votedFailed.toLocaleString()} failed</span>
+            {summary.votedOther > 0 ? ` · ${summary.votedOther.toLocaleString()} other` : ""}) ·{" "}
+            {summary.votedByChamber.senate.toLocaleString()} Senate · {summary.votedByChamber.house.toLocaleString()} House
+          </div>
+          <div className="mt-0.5 max-w-[70ch] text-[11px]" style={{ color: "var(--text-dim)" }}>
+            Counts up-or-down floor votes on the amendment; procedural votes (tabling, cloture, budget waivers) are excluded.
           </div>
         </section>
 
@@ -281,6 +306,14 @@ export default async function AmendmentsPage({
                 style={chipStyle(disposition === "filed")}
               >
                 Filed-only
+              </Link>
+              <Link
+                href={filterHref(base, { disposition: disposition === "voted" ? null : "voted" })}
+                scroll={false}
+                className={CHIP_CLASS}
+                style={chipStyle(disposition === "voted")}
+              >
+                Voted
               </Link>
             </div>
             {/* bill pill */}
