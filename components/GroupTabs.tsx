@@ -102,6 +102,9 @@ export function pathToNavKey(basePath: string): NavKey | null {
   // HO 461: /amendments — standalone aggregate surface, no group tabs.
   if (basePath === "/amendments") return "amendments";
   if (basePath === "/bill" || basePath.startsWith("/bill/")) return "feed";
+  // HO 540: /vote/[id] lights the Legislation top-nav (roll calls are legislation —
+  // the HO 501 /news precedent).
+  if (basePath === "/vote" || basePath.startsWith("/vote/")) return "feed";
   // HO 184: /bills (the Bills|News landing) no longer has a GROUP_TABS entry —
   // Bills/News were dropped from the feed sub-nav (the segmented toggle owns
   // mode switching). Match it explicitly so the top-nav "Bills|News" still

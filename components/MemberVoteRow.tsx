@@ -86,7 +86,11 @@ export function MemberVoteRow({ vote }: { vote: VoteWithMemberPosition }) {
       <span className="vote-question" title={questionLine}>
         {questionLine}
       </span>
-      <span className="vote-roll">#{vote.rollCall}</span>
+      {/* HO 540 — the roll-call number anchors to /vote/[id] (the row already
+          carries a nested bill <Link>, so the row itself can't be the anchor). */}
+      <Link className="vote-roll" href={`/vote/${vote.id}`} title="View roll call">
+        #{vote.rollCall}
+      </Link>
     </div>
   );
 }

@@ -38,6 +38,11 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   // sibling Changes and the /bills?stage=president alias crumb (both
   // "Legislation \ President").
   if (basePath === "/president") return ["Legislation", "President"];
+  // HO 540: /vote/[id] roll-call detail. Under Legislation (floor roll calls are
+  // overwhelmingly legislative; nomination/treaty votes sitting here is a known,
+  // accepted imperfection — a conditional crumb buys little). The roll-call label
+  // (e.g. "H 325") is appended via opts.detail from data the page already fetched.
+  if (basePath === "/vote" || basePath.startsWith("/vote/")) return ["Legislation", "Votes"];
   // HO 264: /hearings standalone section (the later calendar/detail pieces
   // append their own segment via opts.detail).
   if (basePath === "/hearings" || basePath.startsWith("/hearings/"))

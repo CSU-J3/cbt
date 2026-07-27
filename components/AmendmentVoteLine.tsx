@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { AmendmentVote } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
 
@@ -52,9 +53,12 @@ export function VoteLine({ vote, moreVotes }: { vote: AmendmentVote; moreVotes: 
       className="mt-1 text-[11px] tabular-nums"
       style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}
     >
-      <span style={{ color: "var(--text-secondary)" }}>
+      {/* HO 540 — the tally IS the anchor to the roll-call page (not a separate
+          "details" affordance). One edit here lights the drill on BOTH /bill/[id]
+          and the /amendments corpus feed (the HO 537 C2 extraction paying off). */}
+      <Link href={`/vote/${vote.voteId}`} className="no-underline hover:underline" style={{ color: "var(--text-secondary)" }}>
         {voteVerb(vote.disposition)} {vote.yea}–{vote.nay}
-      </span>
+      </Link>
       {vote.present > 0 ? ` · ${vote.present} present` : ""}
       {vote.notVoting > 0 ? ` · ${vote.notVoting} not voting` : ""}
       {splitTotal > 0 ? (
