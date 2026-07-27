@@ -3146,56 +3146,88 @@ export const getBillAmendmentVotes = unstable_cache(
     const empty = new Map<string, AmendmentVote[]>();
     try {
       const db = getDb();
-      // 1. this bill's SAMDT amendments → key (congress, number) → amendmentId.
+      // 1. this bill's SAMDT + HAMDT amendments. SAMDT → key (congress, number)
+      //    for the question-parse path (Senate); HAMDT ids → the amendment_votes
+      //    linkage path (House, HO 532 — House questions carry no number).
       const amdRs = await db.execute({
-        sql: `SELECT id, amendment_number, congress
+        sql: `SELECT id, amendment_type, amendment_number, congress
                 FROM amendments
-               WHERE amended_bill_id = ? AND amendment_type = 'SAMDT'`,
+               WHERE amended_bill_id = ? AND amendment_type IN ('SAMDT','HAMDT')`,
         args: [billId],
       });
-      if (amdRs.rows.length === 0) return empty; // no SAMDT amendments → no vote lines
-      const amdByKey = new Map<string, string>(); // `${congress}~${number}` → amendmentId
+      if (amdRs.rows.length === 0) return empty; // no S/H amendments → no vote lines
+      const amdByKey = new Map<string, string>(); // `${congress}~${number}` → SAMDT amendmentId
       const congresses = new Set<number>();
+      const hamdtIds: string[] = [];
       for (const r of amdRs.rows) {
+        if (String(r.amendment_type) === "HAMDT") {
+          hamdtIds.push(String(r.id));
+          continue;
+        }
         const c = Number(r.congress);
         congresses.add(c);
         amdByKey.set(`${c}~${Number(r.amendment_number)}`, String(r.id));
       }
 
-      // 2. Senate amendment-vote candidates for those congress(es); parse + keep
-      //    only rows whose (congress, parsed number) matches a bill amendment.
-      const congList = [...congresses];
-      const voteRs = await db.execute({
-        sql: `SELECT id, congress, question, result, vote_date,
-                     yea_count, nay_count, present_count, not_voting_count
-                FROM votes
-               WHERE chamber = 'senate'
-                 AND congress IN (${congList.map(() => "?").join(",")})
-                 AND question LIKE 'On the Amendment S.Amdt.%'`,
-        args: congList,
-      });
-      const matched: { amdId: string; vote: AmendmentVote }[] = [];
-      for (const r of voteRs.rows) {
-        const m = String(r.question ?? "").match(SENATE_AMDT_Q);
-        if (!m) continue;
-        const amdId = amdByKey.get(`${Number(r.congress)}~${parseInt(m[1] ?? "", 10)}`);
-        if (!amdId) continue;
+      // A `votes` row → AmendmentVote (empty party skeleton — filled in Step 3).
+      // Shared by both chambers so the tally extraction can't drift.
+      const rowToVote = (r: (typeof amdRs.rows)[number]): AmendmentVote => {
         const result = (r.result as string | null) ?? null;
-        matched.push({
-          amdId,
-          vote: {
-            voteId: String(r.id),
-            result,
-            disposition: deriveDisposition(result),
-            yea: Number(r.yea_count ?? 0),
-            nay: Number(r.nay_count ?? 0),
-            present: Number(r.present_count ?? 0),
-            notVoting: Number(r.not_voting_count ?? 0),
-            date: (r.vote_date as string | null) ?? null,
-            party: { D: { yea: 0, nay: 0 }, R: { yea: 0, nay: 0 }, I: { yea: 0, nay: 0 } },
-          },
+        return {
+          voteId: String(r.id),
+          result,
+          disposition: deriveDisposition(result),
+          yea: Number(r.yea_count ?? 0),
+          nay: Number(r.nay_count ?? 0),
+          present: Number(r.present_count ?? 0),
+          notVoting: Number(r.not_voting_count ?? 0),
+          date: (r.vote_date as string | null) ?? null,
+          party: { D: { yea: 0, nay: 0 }, R: { yea: 0, nay: 0 }, I: { yea: 0, nay: 0 } },
+        };
+      };
+
+      const matched: { amdId: string; vote: AmendmentVote }[] = [];
+
+      // 2. Senate: parse the number out of votes.question, match to the SAMDT keys.
+      //    Guarded — a HAMDT-only bill has no SAMDT congresses (empty IN () is invalid).
+      const congList = [...congresses];
+      if (congList.length > 0) {
+        const voteRs = await db.execute({
+          sql: `SELECT id, congress, question, result, vote_date,
+                       yea_count, nay_count, present_count, not_voting_count
+                  FROM votes
+                 WHERE chamber = 'senate'
+                   AND congress IN (${congList.map(() => "?").join(",")})
+                   AND question LIKE 'On the Amendment S.Amdt.%'`,
+          args: congList,
         });
+        for (const r of voteRs.rows) {
+          const m = String(r.question ?? "").match(SENATE_AMDT_Q);
+          if (!m) continue;
+          const amdId = amdByKey.get(`${Number(r.congress)}~${parseInt(m[1] ?? "", 10)}`);
+          if (!amdId) continue;
+          matched.push({ amdId, vote: rowToVote(r) });
+        }
       }
+
+      // 2b. House: the amendment_votes linkage table (HO 532). The link was recovered
+      //     from each HAMDT's /actions.recordedVotes; JOIN votes for the tally (a
+      //     link with no votes row yet self-heals — surface only resolved ones). Same
+      //     rowToVote extraction; Step 3's party split is chamber-agnostic.
+      if (hamdtIds.length > 0) {
+        const houseRs = await db.execute({
+          sql: `SELECT av.amendment_id, v.id, v.result, v.vote_date,
+                       v.yea_count, v.nay_count, v.present_count, v.not_voting_count
+                  FROM amendment_votes av
+                  JOIN votes v ON v.id = av.vote_id
+                 WHERE av.amendment_id IN (${hamdtIds.map(() => "?").join(",")})`,
+          args: hamdtIds,
+        });
+        for (const r of houseRs.rows) {
+          matched.push({ amdId: String(r.amendment_id), vote: rowToVote(r) });
+        }
+      }
+
       if (matched.length === 0) return empty;
 
       // 3. Party split (D/R/I × yea/nay) for the matched vote ids. present/not_voting
@@ -3236,7 +3268,9 @@ export const getBillAmendmentVotes = unstable_cache(
     }
   },
   ["getBillAmendmentVotes"],
-  { revalidate: 3600, tags: ["votes"] },
+  // `votes` flushes on a votes re-sync; `amendments` flushes on the amendments
+  // cron's walk step adding House links (HO 532).
+  { revalidate: 3600, tags: ["votes", "amendments"] },
 );
 
 // HO 450 — the /members/[bioguideId] AMENDMENTS SPONSORED section. The inverse

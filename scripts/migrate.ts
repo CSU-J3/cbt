@@ -895,6 +895,26 @@ const statements = [
   // array (not main()) because latest_action_text is an original column.
   `CREATE INDEX IF NOT EXISTS idx_amendments_acted   ON amendments(latest_action_text) WHERE latest_action_text IS NOT NULL`,
 
+  // HO 532: House amendment → roll-call-vote linkage. The House has no cheap key
+  // (its vote questions are generic "On Agreeing to the Amendment", no number —
+  // unlike the Senate, whose number is in votes.question, HO 530), so the link is
+  // recovered from each HAMDT's /actions.recordedVotes.rollNumber and persisted
+  // here. LOOSE links (no FK) — the vote_id may reference a not-yet-synced roll
+  // call (self-heals; the read LEFT-JOINs votes). Composite PK handles the list
+  // case (a HAMDT's table-then-substantive pair). Populated by sync:amendment-votes
+  // (the --walk backfill + the amendments cron's bounded walk step); read by
+  // getBillAmendmentVotes' House branch. The sentinel column + HAMDT queue index
+  // are added below (main()/statements).
+  `CREATE TABLE IF NOT EXISTS amendment_votes (
+    amendment_id TEXT NOT NULL,
+    vote_id      TEXT NOT NULL,
+    PRIMARY KEY (amendment_id, vote_id)
+  )`,
+  // Walk-queue index: the HAMDT subset by update_date, so the queue predicate
+  // (amendment_type='HAMDT' AND unwalked-or-changed, ORDER BY update_date) seeks
+  // rather than scanning. The ~228-HAMDT residual is trivial regardless.
+  `CREATE INDEX IF NOT EXISTS idx_amendments_hamdt ON amendments(update_date) WHERE amendment_type = 'HAMDT'`,
+
   // HO 455: nominations data layer (on the HO 454 GO — 1,884 PNs, 833 civilian
   // with 100% disposition coverage, clean 24-value organization facet). LIST-ONLY
   // v1: every column here is a list-level field + the computed `disposition`; the
@@ -954,6 +974,12 @@ async function main() {
     await db.execute(sql);
     console.log("ok:", sql.split("\n")[0]);
   }
+  // HO 532: walk sentinel on amendments (the HO 459 committee_hydrated_at pattern).
+  // Walk-only — lib/amendments-sync.ts's ON CONFLICT SET names every column and does
+  // NOT include this, so a re-sync INSERTs it NULL on a genuinely new amendment
+  // (correctly un-walked) and PRESERVES the walk's stamp on CONFLICT. Do not add it
+  // to the sync's SET.
+  await ensureColumn(db, "amendments", "amendment_vote_walked_at", "TEXT");
   await ensureColumn(db, "bills", "sponsor_bioguide_id", "TEXT");
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_bioguide ON bills(sponsor_bioguide_id)",

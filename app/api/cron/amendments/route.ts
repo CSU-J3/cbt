@@ -21,14 +21,19 @@ import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncAmendments } from "@/lib/amendments-sync";
+import { walkAmendmentVotes } from "@/lib/amendment-votes-walk";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-// Stop starting new pages at 280s, leaving ~20s for the final flush + cron-log
-// writes under the 300s ceiling. Layering mirrors the LDA route:
-// AMENDMENTS_BUDGET_MS 280s < soft timeout 290s < 300s.
+// Budget carve (HO 532): the sync gets ~240s, the House amendment-vote walk gets the
+// remainder to ~280s (its own sub-deadline), leaving ~20s for flush + cron-log under
+// the 300s ceiling. AMENDMENTS_BUDGET_MS 280s < soft timeout 290s < 300s (the LDA
+// layering). The HAMDT delta is usually 0, so the walk rarely does work.
+const SYNC_BUDGET_MS = 240_000;
 const AMENDMENTS_BUDGET_MS = 280_000;
+// Cap HAMDTs walked per tick — a new/changed HAMDT trickle-links over a tick or two.
+const WALK_LIMIT = 40;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -50,7 +55,7 @@ async function handle(request: Request) {
     "/api/cron/amendments",
     async () => {
       const routeStart = Date.now();
-      const r = await syncAmendments({ deadlineMs: routeStart + AMENDMENTS_BUDGET_MS });
+      const r = await syncAmendments({ deadlineMs: routeStart + SYNC_BUDGET_MS });
       console.log(
         `[amendments] mode=${r.mode} upserted=${r.upserted} listPages=${r.listPages} ` +
           `detailErrors=${r.detailErrors} throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} ` +
@@ -59,13 +64,38 @@ async function handle(request: Request) {
 
       revalidateTag("amendments");
 
+      // HO 532: bounded House amendment-vote walk after the sync (nominations
+      // sync→hydrate split). Non-fatal — the sync already succeeded; a walk failure
+      // surfaces in chronicErr, never fails the tick.
+      let walk: Awaited<ReturnType<typeof walkAmendmentVotes>> | null = null;
+      let walkErr: string | undefined;
+      try {
+        walk = await walkAmendmentVotes({
+          limit: WALK_LIMIT,
+          deadlineMs: routeStart + AMENDMENTS_BUDGET_MS,
+        });
+        console.log(
+          `[amendment-votes] walked=${walk.walked} linksInserted=${walk.linksInserted} ` +
+            `hamdtWithVote=${walk.hamdtWithVote} fetchErrors=${walk.fetchErrors} ` +
+            `remaining=${walk.remaining} deadlineHit=${walk.deadlineHit}`,
+        );
+        // Flush getBillAmendmentVotes when new House links landed (revalidateTag
+        // "amendments" above also covers it; this is the explicit votes-tag path).
+        if (walk.linksInserted > 0) revalidateTag("votes");
+      } catch (e) {
+        walkErr = `amendment-vote walk failed: ${(e as Error).message}`;
+        console.error(`[amendment-votes] ${walkErr}`);
+      }
+
       // Chronic-err pattern (HO 139): non-fatal conditions surface in
       // cron_runs.error_message on success rows.
       const parts: string[] = [];
       if (r.detailErrors > 0) parts.push(`amendments detail errors: ${r.detailErrors}`);
       if (r.deadlineHit) parts.push(`deadline hit (resumes from DB frontier next run)`);
+      if (walk && walk.fetchErrors > 0) parts.push(`amendment-vote walk fetch errors: ${walk.fetchErrors}`);
+      if (walkErr) parts.push(walkErr);
       const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
-      return { payload: r, chronicErr };
+      return { payload: { ...r, walk }, chronicErr };
     },
     { softTimeoutMs: 290_000 },
   );
