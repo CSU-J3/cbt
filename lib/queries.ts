@@ -5207,7 +5207,7 @@ export const getStaleCommitteeCount = unstable_cache(
 // HO 335: buildSponsorWhere, getSponsors, getSponsorCount deleted as dead code
 // (see the Sponsor-types note above) — orphaned by the HO 328 merge.
 
-export const SPONSOR_SORTS = ["volume", "passrate"] as const;
+export const SPONSOR_SORTS = ["volume", "passrate", "missed"] as const;
 export type SponsorSort = (typeof SPONSOR_SORTS)[number];
 const SPONSOR_SORTS_SET = new Set<string>(SPONSOR_SORTS);
 
@@ -5234,6 +5234,11 @@ export type MemberRanking = {
   total: number;
   enacted: number;
   passrate: number | null;
+  // HO 535: 119th missed-vote rate (member_votes not_voting / total, floored at
+  // PARTICIPATION_FLOOR) — the MISSED sort's key. NULL for the 6 non-voting House
+  // delegates (carved from the ranking, not the list) and for floored/no-vote
+  // members; NULL sorts last (SQLite DESC) and renders as "—".
+  missedPct: number | null;
   // HO 142: USCPR Palestine scorecard grade + rank, LEFT JOIN'd in
   // getMembersRanked so the row list can render the same chip the hub
   // header carries. Both null for the ~489 members not on the sheet
@@ -5326,6 +5331,42 @@ function billsAggCte(includeCeremonial: boolean): string {
   )`;
 }
 
+// HO 535: 119th missed-vote-rate aggregate, shared by getMembersRanked +
+// getCommitteeRoster for the MISSED sort. Same metric as the HO 527 dotplot /
+// getChamberParticipationContext — not_voting / total per member, floored at
+// PARTICIPATION_FLOOR (a mid-cycle entrant with a few dozen votes reads a noisy
+// rate off almost no signal). PARTICIPATION_FLOOR is declared later in the
+// module but only read at call time (request), so this forward reference is safe
+// — getChamberParticipationContext's args do the same. The delegate carve-out is
+// NOT here (it needs the members table's chamber/state); it's applied in the
+// SELECT of each caller so delegates keep a row but a NULL rate.
+function participationAggCte(): string {
+  return `part_agg AS (
+    SELECT
+      mv.bioguide_id AS bid,
+      CAST(SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS REAL)
+        / COUNT(*) AS missed_pct
+    FROM member_votes mv
+    GROUP BY mv.bioguide_id
+    HAVING COUNT(*) >= ${PARTICIPATION_FLOOR}
+  )`;
+}
+
+// HO 535: the delegate carve-out — NULL for the 6 non-voting House delegates so
+// they keep a roster row but drop out of the MISSED ranking (NULL sorts last on
+// DESC, the passrate precedent). Used in BOTH the SELECT (display) AND the
+// ORDER BY, deliberately: an ORDER BY *expression* resolves a bare column name
+// against the input tables (part_agg's RAW missed_pct), NOT the SELECT alias —
+// so ordering by the alias alone would rank a delegate by its raw rate while
+// showing "—" (Radewagen 82% at the top displaying a dash). Repeating the carve
+// here makes the sort key match the display. Requires `m` (members) + `pa`
+// (part_agg) in scope, which both callers have.
+const MISSED_CARVE_EXPR = `CASE
+          WHEN m.chamber = 'house'
+           AND m.state IN ('DC','AS','GU','MP','PR','VI') THEN NULL
+          ELSE pa.missed_pct
+        END`;
+
 export const getMembersRanked = unstable_cache(
   async (
     filters: MemberFilters,
@@ -5342,7 +5383,8 @@ export const getMembersRanked = unstable_cache(
     // 4 zero-sponsorship rows order deterministically (Armstrong, Hoyer,
     // Mejia, Pelosi).
     const sql = `
-      WITH ${billsAggCte(filters.includeCeremonial ?? false)}
+      WITH ${billsAggCte(filters.includeCeremonial ?? false)},
+      ${participationAggCte()}
       SELECT
         m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
         COALESCE(b.total,   0) AS total,
@@ -5350,12 +5392,18 @@ export const getMembersRanked = unstable_cache(
         b.passrate             AS passrate,
         ps.grade               AS palestine_grade,
         ps.rank                AS palestine_rank,
-        ps.total_score         AS palestine_score
+        ps.total_score         AS palestine_score,
+        -- HO 535: delegates keep a row but a NULL rate, so they sink to the
+        -- bottom of the MISSED sort (NULL sorts last) and render "—" instead of
+        -- their structural not-voting ranking them the top vote-missers.
+        ${MISSED_CARVE_EXPR}   AS missed_pct
       FROM members m
       LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
       LEFT JOIN palestine_scorecard ps ON ps.bioguide_id = m.bioguide_id
+      LEFT JOIN part_agg pa ON pa.bid = m.bioguide_id
       WHERE ${clauses.join(" AND ")}
       ORDER BY
+        CASE WHEN ? = 'missed'   THEN ${MISSED_CARVE_EXPR} END DESC,
         CASE WHEN ? = 'passrate' THEN passrate END DESC,
         CASE WHEN ? = 'passrate' THEN total    END DESC,
         CASE WHEN ? = 'volume'   THEN total    END DESC,
@@ -5365,7 +5413,7 @@ export const getMembersRanked = unstable_cache(
     const offset = Math.max(0, (page - 1) * pageSize);
     const rs = await db.execute({
       sql,
-      args: [...args, sort, sort, sort, pageSize, offset],
+      args: [...args, sort, sort, sort, sort, pageSize, offset],
     });
     return rs.rows.map((r) => ({
       bioguide_id: r.bioguide_id as string,
@@ -5379,6 +5427,10 @@ export const getMembersRanked = unstable_cache(
       passrate: r.passrate === null || r.passrate === undefined
         ? null
         : Number(r.passrate),
+      missedPct:
+        r.missed_pct === null || r.missed_pct === undefined
+          ? null
+          : Number(r.missed_pct),
       palestineGrade: (r.palestine_grade as string | null) ?? null,
       palestineRank:
         r.palestine_rank === null || r.palestine_rank === undefined
@@ -5393,7 +5445,9 @@ export const getMembersRanked = unstable_cache(
   // cron revalidateTag("bills")s, flushing this — so the timer is just a backstop.
   // Lengthening it keeps the cache the default instead of letting a per-hour
   // expiry land a cold recompute inside a user request (the slow path that 500'd).
-  { revalidate: 86400, tags: ["members", "bills"] },
+  // HO 535: +"votes" — the MISSED sort reads member_votes, so a votes sync must
+  // flush this too (the getChamberParticipationContext precedent).
+  { revalidate: 86400, tags: ["members", "bills", "votes"] },
 );
 
 export const getMembersRankedCount = unstable_cache(
@@ -5488,7 +5542,8 @@ export const getCommitteeRoster = unstable_cache(
     // the metric ORDER BY only applies within the rank-and-file block because
     // role_rank is the primary sort key.
     const sql = `
-      WITH ${billsAggCte(includeCeremonial)}
+      WITH ${billsAggCte(includeCeremonial)},
+      ${participationAggCte()}
       SELECT
         m.bioguide_id, m.name, m.party, m.state, m.chamber, m.district,
         cm.role, cm.party_side,
@@ -5498,6 +5553,8 @@ export const getCommitteeRoster = unstable_cache(
         ps.grade               AS palestine_grade,
         ps.rank                AS palestine_rank,
         ps.total_score         AS palestine_score,
+        -- HO 535: delegate carve-out — NULL rate keeps the row but unranks it.
+        ${MISSED_CARVE_EXPR}   AS missed_pct,
         CASE
           WHEN LOWER(COALESCE(cm.role, '')) LIKE '%chair%' THEN 0
           WHEN LOWER(COALESCE(cm.role, '')) LIKE '%ranking%' THEN 1
@@ -5507,9 +5564,11 @@ export const getCommitteeRoster = unstable_cache(
       JOIN members m ON m.bioguide_id = cm.bioguide_id
       LEFT JOIN bills_agg b ON b.sponsor_bioguide_id = m.bioguide_id
       LEFT JOIN palestine_scorecard ps ON ps.bioguide_id = m.bioguide_id
+      LEFT JOIN part_agg pa ON pa.bid = m.bioguide_id
       WHERE cm.committee_system_code = ?
       ORDER BY
         role_rank ASC,
+        CASE WHEN ? = 'missed'   THEN ${MISSED_CARVE_EXPR} END DESC,
         CASE WHEN ? = 'passrate' THEN passrate END DESC,
         CASE WHEN ? = 'passrate' THEN total    END DESC,
         CASE WHEN ? = 'volume'   THEN total    END DESC,
@@ -5517,7 +5576,7 @@ export const getCommitteeRoster = unstable_cache(
     `;
     const rs = await db.execute({
       sql,
-      args: [systemCode, sort, sort, sort],
+      args: [systemCode, sort, sort, sort, sort],
     });
     return rs.rows.map((r) => ({
       bioguide_id: r.bioguide_id as string,
@@ -5532,6 +5591,10 @@ export const getCommitteeRoster = unstable_cache(
         r.passrate === null || r.passrate === undefined
           ? null
           : Number(r.passrate),
+      missedPct:
+        r.missed_pct === null || r.missed_pct === undefined
+          ? null
+          : Number(r.missed_pct),
       palestineGrade: (r.palestine_grade as string | null) ?? null,
       palestineRank:
         r.palestine_rank === null || r.palestine_rank === undefined
@@ -5543,7 +5606,8 @@ export const getCommitteeRoster = unstable_cache(
     }));
   },
   ["getCommitteeRoster"],
-  { revalidate: 86400, tags: ["committees", "bills"] },
+  // HO 535: +"votes" — the MISSED sort reads member_votes (see getMembersRanked).
+  { revalidate: 86400, tags: ["committees", "bills", "votes"] },
 );
 
 // HO 335: type SponsorPassRate + getSponsorsRanked + getSponsorPassRates deleted

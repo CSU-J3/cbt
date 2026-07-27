@@ -97,6 +97,8 @@ export default async function MembersPage({
   const chamber = sanitizeChamber(params.chamber);
   const party = sanitizeMemberParty(params.party);
   const sort = sanitizeSponsorSort(params.sort);
+  // HO 535: MISSED sort repurposes the RATE column (content + header + color).
+  const showMissed = sort === "missed";
   const includeCeremonial = sanitizeIncludeCeremonial(params.ceremonial);
   const q =
     typeof params.q === "string" && params.q.trim().length > 0
@@ -282,7 +284,7 @@ export default async function MembersPage({
     return qs ? `/members?${qs}` : "/members";
   };
 
-  const buildSortHref = (value: "volume" | "passrate") => {
+  const buildSortHref = (value: "volume" | "passrate" | "missed") => {
     const sp = new URLSearchParams(carry);
     sp.delete("expanded");
     if (value === "volume") sp.delete("sort");
@@ -309,6 +311,21 @@ export default async function MembersPage({
     const rateLabel =
       m.passrate === null ? "—" : `${Math.round(m.passrate * 100)}%`;
     const ratePct = m.passrate === null ? 0 : Math.round(m.passrate * 100);
+    // HO 535: the first numeric column shows MISSED% when that sort is active
+    // (amber = the miss metric; delegates/floored → NULL → dim "—"), else the
+    // passrate. No grid change — .mc-row is shared with /lobbying's FilingRow.
+    const rateCellLabel = showMissed
+      ? m.missedPct === null
+        ? "—"
+        : `${(m.missedPct * 100).toFixed(1)}%`
+      : rateLabel;
+    const rateCellColor = showMissed
+      ? m.missedPct === null
+        ? "var(--text-dim)"
+        : "var(--accent-amber)"
+      : ratePct > 0
+        ? "var(--stage-enacted)"
+        : "var(--text-dim)";
     const badge = scoped ? roleBadge(m.role ?? null) : null;
     return (
       <li key={m.bioguide_id}>
@@ -360,11 +377,9 @@ export default async function MembersPage({
 
           <span
             className="mc-r-num tabular-nums"
-            style={{
-              color: ratePct > 0 ? "var(--stage-enacted)" : "var(--text-dim)",
-            }}
+            style={{ color: rateCellColor }}
           >
-            {rateLabel}
+            {rateCellLabel}
           </span>
           <span
             className="mc-r-num tabular-nums"
@@ -474,15 +489,27 @@ export default async function MembersPage({
             basePath="/members"
             states={stateOptions}
           />
-          <SegmentedToggle<"volume" | "passrate">
+          <SegmentedToggle<"volume" | "passrate" | "missed">
             current={sort}
             ariaLabel="Rank by"
             segments={[
               { value: "volume", label: "VOLUME" },
               { value: "passrate", label: "PASS RATE" },
+              { value: "missed", label: "MISSED" },
             ]}
             buildHref={buildSortHref}
           />
+          {showMissed ? (
+            <span
+              style={{
+                color: "var(--text-dim)",
+                fontSize: "11px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              non-voting delegates unranked
+            </span>
+          ) : null}
           <CeremonialToggle checked={includeCeremonial} />
           <div className="mc-fbar-search">
             <SearchBox basePath="/members" placeholder="search members..." />
@@ -593,7 +620,7 @@ export default async function MembersPage({
             <div className="mc-row mc-row-hdr">
               <span>MEMBER</span>
               <span>BILLS · TOPIC MIX</span>
-              <span className="mc-r-num">RATE</span>
+              <span className="mc-r-num">{showMissed ? "MISSED" : "RATE"}</span>
               <span className="mc-r-num">ENACT</span>
               <span className="mc-r-num">BILLS</span>
             </div>
