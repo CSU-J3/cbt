@@ -7259,6 +7259,130 @@ export const getMemberVoteStats = unstable_cache(
   { revalidate: 3600, tags: ["votes"] },
 );
 
+// HO 540 — the /vote/[id] roll-call detail page. Three NEW siblings (the HO
+// 496/512/537 new-sibling discipline — never widen VOTE_SELECT, which
+// getRecentVotes / getVotesByBill / getMemberVotes share). All three try/catch and
+// return JSON-serializable values only (no Map/Set/Date/class — the HO 533 rule).
+// Tags are derived PER QUERY from the tables each reads, not per page (the HO 537
+// oddity).
+
+// The vote's own record — a point lookup reusing VOTE_SELECT + rowToVote (they
+// already carry the LEFT JOIN bills + null-bill fallback). null for an unknown id.
+export const getVoteById = unstable_cache(
+  async (voteId: string): Promise<Vote | null> => {
+    try {
+      const db = getDb();
+      const rs = await db.execute({ sql: `${VOTE_SELECT} WHERE v.id = ? LIMIT 1`, args: [voteId] });
+      const r = rs.rows[0];
+      return r ? rowToVote(r) : null;
+    } catch (e) {
+      console.error(`[votes] getVoteById failed for ${voteId}: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getVoteById"],
+  // VOTE_SELECT reads votes (+ bills only for the near-immutable bill_title); the
+  // identical-SELECT siblings getVotesByBill / getRecentVotes tag ["votes"] — match.
+  { revalidate: 3600, tags: ["votes"] },
+);
+
+// The per-member position drill — the reason the page exists. member_votes seek
+// (PK leading-column, STEP-0 EXPLAIN clean) + members join for display. Flat array
+// of plain objects; grouping + the party-then-surname sort live in the component.
+export type VoteMemberPosition = {
+  bioguideId: string;
+  position: VotePosition;
+  name: string | null;
+  party: PartyKey | null; // normalized for the shared partyColor
+  state: string | null;
+};
+
+export const getVoteMemberPositions = unstable_cache(
+  async (voteId: string): Promise<VoteMemberPosition[]> => {
+    try {
+      const db = getDb();
+      const rs = await db.execute({
+        sql: `SELECT mv.bioguide_id, mv.position, m.name, m.party, m.state
+                FROM member_votes mv
+                LEFT JOIN members m ON m.bioguide_id = mv.bioguide_id
+               WHERE mv.vote_id = ?`,
+        args: [voteId],
+      });
+      const out: VoteMemberPosition[] = [];
+      for (const r of rs.rows) {
+        const pos = asPosition(r.position);
+        if (!pos) continue; // a stray non-enum position is dropped, not coerced
+        out.push({
+          bioguideId: String(r.bioguide_id),
+          position: pos,
+          name: (r.name as string | null) ?? null,
+          party: normalizePartyVariant(r.party as string | null),
+          state: (r.state as string | null) ?? null,
+        });
+      }
+      return out;
+    } catch (e) {
+      console.error(`[votes] getVoteMemberPositions failed for ${voteId}: ${(e as Error).message}`);
+      return [];
+    }
+  },
+  ["getVoteMemberPositions"],
+  // Reads member_votes (positions — flushed by a votes sync) + members (name/party/
+  // state; party drives color, a MUTABLE display field flushed by a members sync).
+  // Strict per-query derive (HO 537): ["votes", "members"].
+  { revalidate: 3600, tags: ["votes", "members"] },
+);
+
+// Amendment context for the head, called UNCONDITIONALLY (not gated on a null
+// bill_id): the 90 House amendment votes carry bill_id while the 97 Senate ones
+// don't, so a null-gated fallback would show context on Senate and hide it on House
+// — the exact chamber asymmetry HO 537 removed. A separate sibling; never joined
+// into VOTE_SELECT. Returns the linked amendment + its amended bill, or null.
+export type VoteAmendmentContext = {
+  amendmentId: string;
+  amendmentLabel: string; // "SAMDT 2137"
+  amendedBillId: string | null;
+  amendedBillLabel: string | null; // formatBillId
+};
+
+export const getVoteAmendmentContext = unstable_cache(
+  async (voteId: string): Promise<VoteAmendmentContext | null> => {
+    try {
+      const db = getDb();
+      const rs = await db.execute({
+        sql: `SELECT a.id AS amendment_id, a.amendment_type, a.amendment_number,
+                     a.amended_bill_id,
+                     b.bill_type AS amended_bill_type, b.bill_number AS amended_bill_number
+                FROM amendment_votes av
+                JOIN amendments a ON a.id = av.amendment_id
+                LEFT JOIN bills b ON b.id = a.amended_bill_id
+               WHERE av.vote_id = ?
+               LIMIT 1`,
+        args: [voteId],
+      });
+      const r = rs.rows[0];
+      if (!r) return null;
+      const billType = r.amended_bill_type as string | null;
+      const billNumber = r.amended_bill_number as number | null;
+      return {
+        amendmentId: String(r.amendment_id),
+        amendmentLabel: `${String(r.amendment_type)} ${r.amendment_number}`,
+        amendedBillId: (r.amended_bill_id as string | null) ?? null,
+        amendedBillLabel: billType && billNumber != null ? formatBillId(billType, billNumber) : null,
+      };
+    } catch (e) {
+      console.error(`[votes] getVoteAmendmentContext failed for ${voteId}: ${(e as Error).message}`);
+      return null;
+    }
+  },
+  ["getVoteAmendmentContext"],
+  // Reads amendment_votes + amendments (the link + label — flushed by the
+  // amendments cron and by the Senate materialize / House walk that revalidate
+  // votes). The bills read is label-only (formatBillId over bill_type/number,
+  // immutable). Tags ["votes", "amendments"] — matches getBillAmendmentVotes.
+  { revalidate: 3600, tags: ["votes", "amendments"] },
+);
+
 // HO 523 (participation cut 1 / B1): chamber context for the hero "Missed X%"
 // stat. A bare missed-rate is a number; "Missed 9% · Sen median 2.1%" is a
 // scorecard metric. Returns the 119th missed-vote distribution's MEDIAN per
