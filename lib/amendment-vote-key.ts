@@ -1,0 +1,40 @@
+// HO 537 — the shared Senate amendment-vote key parser, extracted to a LEAF module
+// so BOTH the request-time parse (getBillAmendmentVotes, lib/queries.ts) AND the
+// sync-time materializer (lib/amendment-votes-senate.ts) compute the IDENTICAL
+// link. Two mechanisms deriving the same value is the drift risk the
+// NEWS_ARTICLE_KEY_SQL (HO 515) and MISSED_CARVE_EXPR (HO 535) extractions exist to
+// prevent. It has to be a leaf (the lib/median.ts shape, HO 430): a scripts/ entry
+// point imports the materializer, and lib/queries.ts drags next/cache — a node
+// script can't pull that in.
+//
+// SCOPE — this matches ONLY up-or-down votes on the amendment itself
+// ("On the Amendment S.Amdt. N ..."). Procedural votes that TOUCH an amendment —
+// Motion to Table, Cloture Motion, "Motion to Waive All Applicable Budgetary
+// Discipline Re: ... Amdt. No. N", Decision of the Chair — are DELIBERATELY
+// EXCLUDED. Their yea/nay is on the MOTION, not the amendment, so the tally
+// polarity is inverted or orthogonal to the amendment's fate: a "Motion to Table
+// Agreed to" is a KILL, a "Motion to Table Failed" leaves the amendment ALIVE, and
+// deriveDisposition + the amendment-framed VoteLine render both wrong. M8/HO 537
+// measured it: of 161 senate votes mentioning "Amdt", 97 are up-or-down (this
+// matcher), 64 are procedural (14 in S.Amdt-N form, 50 budget waivers) — and
+// resolving an S.Amdt number is NECESSARY, not SUFFICIENT, to be the amendment's
+// vote. Do NOT widen this without a motion-aware model (invert tallies, distinguish
+// cloture from adoption, suppress when an anchored vote already exists) — that's a
+// banked surface, not a matcher tweak.
+
+// The first S.Amdt number in the question is the VOTED amendment, even when it
+// amends another amendment ("S.Amdt. 14 to S.Amdt. 8 to S. 5" → 14). Anchored to
+// the start so only the up-or-down form matches.
+export const SENATE_AMDT_Q = /^On the Amendment S\.Amdt\. (\d+)\b/;
+
+// The SQL LIKE pre-filter for the same up-or-down form (coarse filter before the
+// regex). Exported so the query + the materializer share ONE predicate string —
+// they can't drift if they import the same const.
+export const SENATE_AMDT_QUESTION_LIKE = "On the Amendment S.Amdt.%";
+
+export function parseSenateAmendmentNumber(question: string): number | null {
+  const m = question.match(SENATE_AMDT_Q);
+  if (!m) return null;
+  const n = parseInt(m[1] ?? "", 10);
+  return Number.isFinite(n) ? n : null;
+}

@@ -22,6 +22,7 @@ import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncAmendments } from "@/lib/amendments-sync";
 import { walkAmendmentVotes } from "@/lib/amendment-votes-walk";
+import { materializeSenateAmendmentVotes } from "@/lib/amendment-votes-senate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -64,6 +65,28 @@ async function handle(request: Request) {
 
       revalidateTag("amendments");
 
+      // HO 537: materialize the Senate amendment→vote links BEFORE the House walk.
+      // Cheap, deterministic, DB-only (no API) — runs first so a starved / deadline-
+      // hit walk can never leave the Senate links stale (that would be a silent
+      // staleness bug). Non-fatal, folded into chronicErr like the walk.
+      let senateMat: Awaited<ReturnType<typeof materializeSenateAmendmentVotes>> | null = null;
+      let senateErr: string | undefined;
+      try {
+        senateMat = await materializeSenateAmendmentVotes();
+        console.log(
+          `[amendment-votes:senate] scanned=${senateMat.scanned} matched=${senateMat.matched} ` +
+            `linksWritten=${senateMat.linksWritten} changed=${senateMat.changed} ` +
+            `unmatchedQuestions=${senateMat.unmatchedQuestions}`,
+        );
+        // Flush `votes` (read by HO 535 participation queries) only when the link
+        // set actually moved — the recompute rewrites every row, so linksWritten is
+        // always > 0 and would make this an always-true no-op guard.
+        if (senateMat.changed > 0) revalidateTag("votes");
+      } catch (e) {
+        senateErr = `senate amendment-vote materialize failed: ${(e as Error).message}`;
+        console.error(`[amendment-votes:senate] ${senateErr}`);
+      }
+
       // HO 532: bounded House amendment-vote walk after the sync (nominations
       // sync→hydrate split). Non-fatal — the sync already succeeded; a walk failure
       // surfaces in chronicErr, never fails the tick.
@@ -92,10 +115,13 @@ async function handle(request: Request) {
       const parts: string[] = [];
       if (r.detailErrors > 0) parts.push(`amendments detail errors: ${r.detailErrors}`);
       if (r.deadlineHit) parts.push(`deadline hit (resumes from DB frontier next run)`);
+      if (senateMat && senateMat.unmatchedQuestions > 0)
+        parts.push(`senate amendment-vote unmatched questions: ${senateMat.unmatchedQuestions}`);
+      if (senateErr) parts.push(senateErr);
       if (walk && walk.fetchErrors > 0) parts.push(`amendment-vote walk fetch errors: ${walk.fetchErrors}`);
       if (walkErr) parts.push(walkErr);
       const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
-      return { payload: { ...r, walk }, chronicErr };
+      return { payload: { ...r, senateMat, walk }, chronicErr };
     },
     { softTimeoutMs: 290_000 },
   );

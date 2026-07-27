@@ -4,6 +4,7 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
+import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import type { NominationDisposition } from "./nominations-sync";
 import {
   aggregateBillDrill,
@@ -3137,9 +3138,11 @@ export type AmendmentVote = {
   };
 };
 
-// First S.Amdt number in the question is the VOTED amendment (it may amend another
-// amendment: "S.Amdt. 14 to S.Amdt. 8 to S. 5" → 14). Anchored to start.
-const SENATE_AMDT_Q = /^On the Amendment S\.Amdt\. (\d+)\b/;
+// The Senate amendment-question parser (SENATE_AMDT_Q / parseSenateAmendmentNumber)
+// + its LIKE pre-filter now live in the leaf lib/amendment-vote-key.ts (HO 537), so
+// this request-time parse and the sync-time materializer (lib/amendment-votes-senate.ts)
+// share ONE matcher and can't drift. The leaf documents WHY it matches only the
+// up-or-down "On the Amendment S.Amdt. N" form (procedural votes are excluded).
 
 export const getBillAmendmentVotes = unstable_cache(
   // Returns a PLAIN object keyed by amendmentId — NOT a Map. unstable_cache
@@ -3203,13 +3206,13 @@ export const getBillAmendmentVotes = unstable_cache(
                   FROM votes
                  WHERE chamber = 'senate'
                    AND congress IN (${congList.map(() => "?").join(",")})
-                   AND question LIKE 'On the Amendment S.Amdt.%'`,
-          args: congList,
+                   AND question LIKE ?`,
+          args: [...congList, SENATE_AMDT_QUESTION_LIKE],
         });
         for (const r of voteRs.rows) {
-          const m = String(r.question ?? "").match(SENATE_AMDT_Q);
-          if (!m) continue;
-          const amdId = amdByKey.get(`${Number(r.congress)}~${parseInt(m[1] ?? "", 10)}`);
+          const num = parseSenateAmendmentNumber(String(r.question ?? ""));
+          if (num == null) continue;
+          const amdId = amdByKey.get(`${Number(r.congress)}~${num}`);
           if (!amdId) continue;
           matched.push({ amdId, vote: rowToVote(r) });
         }
