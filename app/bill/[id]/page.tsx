@@ -24,6 +24,7 @@ import {
 import {
   type BillCommitteeRow,
   getBillAmendments,
+  getBillAmendmentVotes,
   getBillById,
   getBillCommittees,
   getBillLobbying,
@@ -127,6 +128,7 @@ export default async function BillDetailPage({
     meetings,
     committeeIndex,
     amendments,
+    amendmentVotes,
     lobbying,
     news,
   ] = await Promise.all([
@@ -135,6 +137,9 @@ export default async function BillDetailPage({
     getMeetingsForBill(bill.id),
     getCommitteesIndex(),
     getBillAmendments(bill.id),
+    // HO 530: Senate amendment vote outcomes (tally + party split), joined free via
+    // votes.question. Empty map when none — the section renders unchanged.
+    getBillAmendmentVotes(bill.id),
     getBillLobbying(bill.id),
     // HO 507: the exact bounded, unstable_cache'd read /api/bill/[id]/panel
     // already runs on every feed expand — feeds the hero's RELATED NEWS.
@@ -232,7 +237,7 @@ export default async function BillDetailPage({
       content: (
         <>
           {amNote ? <div className="rec-note">{amNote}</div> : null}
-          <BillAmendments rows={amendments} />
+          <BillAmendments rows={amendments} votes={amendmentVotes} />
         </>
       ),
     });

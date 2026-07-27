@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
-import type { BillAmendment } from "@/lib/queries";
+import type { AmendmentVote, BillAmendment } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
 
 // HO 448 — the /bill/[id] AMENDMENTS section body. Mirrors BillLobbying's
@@ -30,6 +30,53 @@ function dispositionColor(d: BillAmendment["disposition"]): string {
   return "var(--text-muted)";
 }
 
+// Concise amendment-outcome verb from the derived disposition (the raw
+// votes.result — "Amendment Agreed to" / "Amendment Rejected" — is verbose; the
+// disposition abstracts a motion-to-table-agreed into the amendment's real fate).
+function voteVerb(d: AmendmentVote["disposition"]): string {
+  if (d === "agreed") return "Agreed";
+  if (d === "failed") return "Rejected";
+  return "Voted";
+}
+
+// HO 530 — the Senate amendment vote line: tally + result verb, then the party
+// split (the analytical headline — did it break on party lines). One dim mono line
+// under the action text; absent entirely where no vote (the ~99% common case — the
+// absence is the signal, HO 527 omit-don't-state). `moreVotes` > 0 flags a
+// procedural+substantive pair without building a nested list (v1).
+function VoteLine({ vote, moreVotes }: { vote: AmendmentVote; moreVotes: number }) {
+  const p = vote.party;
+  return (
+    <div
+      className="mt-1 text-[11px] tabular-nums"
+      style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}
+    >
+      <span style={{ color: "var(--text-secondary)" }}>
+        {voteVerb(vote.disposition)} {vote.yea}–{vote.nay}
+      </span>
+      {vote.present > 0 ? ` · ${vote.present} present` : ""}
+      {vote.notVoting > 0 ? ` · ${vote.notVoting} not voting` : ""}
+      {" · "}
+      <span style={{ color: partyColor("D") }}>
+        D {p.D.yea}–{p.D.nay}
+      </span>
+      {" · "}
+      <span style={{ color: partyColor("R") }}>
+        R {p.R.yea}–{p.R.nay}
+      </span>
+      {p.I.yea + p.I.nay > 0 ? (
+        <>
+          {" · "}
+          <span style={{ color: partyColor("I") }}>
+            I {p.I.yea}–{p.I.nay}
+          </span>
+        </>
+      ) : null}
+      {moreVotes > 0 ? ` · +${moreVotes} earlier` : ""}
+    </div>
+  );
+}
+
 function Sponsor({ a }: { a: BillAmendment }) {
   // Committee/manager amendments carry a name but no bioguide (~1.2%): plain
   // muted text, no link. A resolved member gets a party-colored member link.
@@ -54,8 +101,20 @@ function Sponsor({ a }: { a: BillAmendment }) {
   );
 }
 
-function AmendmentRow({ a }: { a: BillAmendment }) {
+function AmendmentRow({
+  a,
+  vote,
+  moreVotes,
+}: {
+  a: BillAmendment;
+  vote: AmendmentVote | null;
+  moreVotes: number;
+}) {
   const purpose = a.purpose ?? a.description;
+  // Where a real vote exists, the dot follows the vote outcome (authoritative);
+  // else it falls back to the latest_action_text keyword scan (a.disposition). A
+  // neutral dot beside a "Rejected 45–53" line would be incoherent — HO 530.
+  const dotDisposition = vote ? vote.disposition : a.disposition;
   return (
     <div className="px-[14px] py-[9px]" style={{ borderTop: "0.5px solid var(--border-soft)" }}>
       <div className="flex items-center gap-2">
@@ -66,7 +125,7 @@ function AmendmentRow({ a }: { a: BillAmendment }) {
             height: 8,
             flexShrink: 0,
             borderRadius: "50%",
-            backgroundColor: dispositionColor(a.disposition),
+            backgroundColor: dispositionColor(dotDisposition),
           }}
         />
         <span
@@ -99,6 +158,8 @@ function AmendmentRow({ a }: { a: BillAmendment }) {
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
       </div>
 
+      {vote ? <VoteLine vote={vote} moreVotes={moreVotes} /> : null}
+
       {a.amendsLabel ? (
         <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
           ↳ amends {a.amendsLabel}
@@ -108,15 +169,29 @@ function AmendmentRow({ a }: { a: BillAmendment }) {
   );
 }
 
-export function BillAmendments({ rows }: { rows: BillAmendment[] }) {
+export function BillAmendments({
+  rows,
+  votes,
+}: {
+  rows: BillAmendment[];
+  votes: Map<string, AmendmentVote[]>;
+}) {
   const shown = rows.slice(0, RENDER_CAP);
   const overflow = rows.length - shown.length;
 
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
-      {shown.map((a) => (
-        <AmendmentRow key={a.id} a={a} />
-      ))}
+      {shown.map((a) => {
+        const list = votes.get(a.id) ?? [];
+        return (
+          <AmendmentRow
+            key={a.id}
+            a={a}
+            vote={list[0] ?? null}
+            moreVotes={Math.max(0, list.length - 1)}
+          />
+        );
+      })}
 
       {overflow > 0 ? (
         <div

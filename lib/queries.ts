@@ -3111,6 +3111,134 @@ export const getBillAmendments = unstable_cache(
   { revalidate: 3600, tags: ["amendments"] },
 );
 
+// HO 530 — Senate amendment vote outcomes for /bill/[id]. A SEPARATE cached query,
+// NOT a widening of getBillAmendments (which stays byte-identical — the HO 496/512
+// "new sibling, don't reshape the shared query" discipline; the parse can't live in
+// its SQL). Query-only, zero backfill: the HO 529 probe found Senate amendment votes
+// join FREE through the `votes.question` text — "On the Amendment S.Amdt. 14 to ..."
+// — NOT the amendment_designation column (dead for amendments). Bill scope comes from
+// amendments.amended_bill_id, the vote from the `votes` row, the party split from
+// member_votes (all present). House is out of scope (its question has no number —
+// banked HO 531 /actions walk). Returns Map<amendmentId, AmendmentVote[]> — a LIST
+// per amendment (usually 1, rarely 2: motion-to-table + substantive), date DESC.
+export type AmendmentVote = {
+  voteId: string; // votes.id, TEXT composite e.g. "senate-119-1-3"
+  result: string | null; // votes.result (authoritative outcome text)
+  disposition: "agreed" | "failed" | "other"; // deriveDisposition(result) — the DOT authority where a vote exists
+  yea: number;
+  nay: number;
+  present: number;
+  notVoting: number;
+  date: string | null; // votes.vote_date
+  party: {
+    D: { yea: number; nay: number };
+    R: { yea: number; nay: number };
+    I: { yea: number; nay: number };
+  };
+};
+
+// First S.Amdt number in the question is the VOTED amendment (it may amend another
+// amendment: "S.Amdt. 14 to S.Amdt. 8 to S. 5" → 14). Anchored to start.
+const SENATE_AMDT_Q = /^On the Amendment S\.Amdt\. (\d+)\b/;
+
+export const getBillAmendmentVotes = unstable_cache(
+  async (billId: string): Promise<Map<string, AmendmentVote[]>> => {
+    const empty = new Map<string, AmendmentVote[]>();
+    try {
+      const db = getDb();
+      // 1. this bill's SAMDT amendments → key (congress, number) → amendmentId.
+      const amdRs = await db.execute({
+        sql: `SELECT id, amendment_number, congress
+                FROM amendments
+               WHERE amended_bill_id = ? AND amendment_type = 'SAMDT'`,
+        args: [billId],
+      });
+      if (amdRs.rows.length === 0) return empty; // no SAMDT amendments → no vote lines
+      const amdByKey = new Map<string, string>(); // `${congress}~${number}` → amendmentId
+      const congresses = new Set<number>();
+      for (const r of amdRs.rows) {
+        const c = Number(r.congress);
+        congresses.add(c);
+        amdByKey.set(`${c}~${Number(r.amendment_number)}`, String(r.id));
+      }
+
+      // 2. Senate amendment-vote candidates for those congress(es); parse + keep
+      //    only rows whose (congress, parsed number) matches a bill amendment.
+      const congList = [...congresses];
+      const voteRs = await db.execute({
+        sql: `SELECT id, congress, question, result, vote_date,
+                     yea_count, nay_count, present_count, not_voting_count
+                FROM votes
+               WHERE chamber = 'senate'
+                 AND congress IN (${congList.map(() => "?").join(",")})
+                 AND question LIKE 'On the Amendment S.Amdt.%'`,
+        args: congList,
+      });
+      const matched: { amdId: string; vote: AmendmentVote }[] = [];
+      for (const r of voteRs.rows) {
+        const m = String(r.question ?? "").match(SENATE_AMDT_Q);
+        if (!m) continue;
+        const amdId = amdByKey.get(`${Number(r.congress)}~${parseInt(m[1] ?? "", 10)}`);
+        if (!amdId) continue;
+        const result = (r.result as string | null) ?? null;
+        matched.push({
+          amdId,
+          vote: {
+            voteId: String(r.id),
+            result,
+            disposition: deriveDisposition(result),
+            yea: Number(r.yea_count ?? 0),
+            nay: Number(r.nay_count ?? 0),
+            present: Number(r.present_count ?? 0),
+            notVoting: Number(r.not_voting_count ?? 0),
+            date: (r.vote_date as string | null) ?? null,
+            party: { D: { yea: 0, nay: 0 }, R: { yea: 0, nay: 0 }, I: { yea: 0, nay: 0 } },
+          },
+        });
+      }
+      if (matched.length === 0) return empty;
+
+      // 3. Party split (D/R/I × yea/nay) for the matched vote ids. present/not_voting
+      //    are ignored in the split — the tally already carries them.
+      const voteIds = matched.map((x) => x.vote.voteId);
+      const splitRs = await db.execute({
+        sql: `SELECT mv.vote_id, m.party, mv.position, COUNT(*) AS c
+                FROM member_votes mv
+                JOIN members m ON m.bioguide_id = mv.bioguide_id
+               WHERE mv.vote_id IN (${voteIds.map(() => "?").join(",")})
+               GROUP BY mv.vote_id, m.party, mv.position`,
+        args: voteIds,
+      });
+      const voteById = new Map(matched.map((x) => [x.vote.voteId, x.vote]));
+      for (const r of splitRs.rows) {
+        const v = voteById.get(String(r.vote_id));
+        if (!v) continue;
+        const key = normalizePartyVariant(r.party as string | null);
+        if (!key) continue;
+        const pos = String(r.position);
+        const c = Number(r.c ?? 0);
+        if (pos === "yea") v.party[key].yea += c;
+        else if (pos === "nay") v.party[key].nay += c;
+      }
+
+      // 4. Assemble Map<amendmentId, AmendmentVote[]>, each list date DESC.
+      const out = new Map<string, AmendmentVote[]>();
+      for (const { amdId, vote } of matched) {
+        (out.get(amdId) ?? out.set(amdId, []).get(amdId)!).push(vote);
+      }
+      for (const list of out.values()) {
+        list.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+      }
+      return out;
+    } catch (e) {
+      console.error(`[amendments] getBillAmendmentVotes live miss for ${billId}: ${(e as Error).message}`);
+      return empty; // degrade to no vote lines, never 500 the page
+    }
+  },
+  ["getBillAmendmentVotes"],
+  { revalidate: 3600, tags: ["votes"] },
+);
+
 // HO 450 — the /members/[bioguideId] AMENDMENTS SPONSORED section. The inverse
 // projection of getBillAmendments: sponsor is fixed (the page's member), so rows
 // lead with the amended BILL (linked to /bill/[id]) instead of the sponsor. Same
