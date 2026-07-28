@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BillAmendments } from "@/components/BillAmendments";
 import { BillLobbying } from "@/components/BillLobbying";
 import { BillStageBar } from "@/components/BillExpandPanel";
+import { BillVoteRow } from "@/components/BillVoteRow";
 import { HeaderBar } from "@/components/HeaderBar";
 import {
   HearingMeetingsEmbed,
@@ -31,6 +32,7 @@ import {
   getCommitteesIndex,
   getMeetingsForBill,
   getNewsForBill,
+  getVotesByBill,
   isInWatchlist,
 } from "@/lib/queries";
 
@@ -131,6 +133,7 @@ export default async function BillDetailPage({
     amendmentVotes,
     lobbying,
     news,
+    billVotes,
   ] = await Promise.all([
     isInWatchlist(bill.id),
     getBillCommittees(bill.id),
@@ -144,7 +147,22 @@ export default async function BillDetailPage({
     // HO 507: the exact bounded, unstable_cache'd read /api/bill/[id]/panel
     // already runs on every feed expand — feeds the hero's RELATED NEWS.
     getNewsForBill(bill.id, 5),
+    // HO 542: every vote carrying this bill's bill_id — the orphaned query wired at
+    // last. Includes House amendment votes (they carry bill_id); the VOTES tab shows
+    // the bill's OWN votes, so those are excluded below.
+    getVotesByBill(bill.id),
   ]);
+
+  // HO 542: the bill's OWN passage/procedural roll calls = getVotesByBill MINUS the
+  // amendment votes already shown in the Amendments tab. The exclusion set is the
+  // House-link voteIds already in scope from amendmentVotes (STEP 0 measured ZERO
+  // Senate-pattern leak into getVotesByBill — Senate amendment votes don't carry
+  // bill_id — so the House-link set is provably sufficient; no question re-parse).
+  const amendmentVoteIds = new Set<string>();
+  for (const list of Object.values(amendmentVotes)) {
+    for (const av of list) amendmentVoteIds.add(av.voteId);
+  }
+  const ownVotes = billVotes.filter((v) => !amendmentVoteIds.has(v.id));
   // systemCode → name so each hearing row shows its committee (the meetings
   // span different committees on the bill cut, unlike the committee page).
   const committeeNames: Record<string, string> = {};
@@ -239,6 +257,25 @@ export default async function BillDetailPage({
           {amNote ? <div className="rec-note">{amNote}</div> : null}
           <BillAmendments rows={amendments} votes={amendmentVotes} />
         </>
+      ),
+    });
+  }
+
+  // HO 542: the bill's OWN passage/procedural votes, between amendments (act on
+  // parts) and lobbying (outside money, orthogonal-last) — passage is the
+  // culminating floor action on the whole bill. Omit-at-zero like every other tab;
+  // each row's #{rollCall} links to the /vote/[id] entity page (HO 540).
+  if (ownVotes.length > 0) {
+    tabs.push({
+      key: "votes",
+      label: "Votes",
+      count: ownVotes.length,
+      content: (
+        <div className="px-4 py-2">
+          {ownVotes.map((v) => (
+            <BillVoteRow key={v.id} vote={v} />
+          ))}
+        </div>
       ),
     });
   }

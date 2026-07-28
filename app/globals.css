@@ -2590,6 +2590,70 @@ body {
   }
 }
 
+/* ---- bill-hub VOTES tab rows (HO 542) — a bill's OWN passage/procedural roll
+   calls on /bill/[id]. Additive under .bvote-*; shares NO rule with .vote-row
+   (MemberVoteRow). Columns: tally | date | question(+result) | roll#→/vote/[id].
+   The roll# stays visible on mobile — unlike .vote-row it is the sole link to
+   the vote detail page, so it can't be dropped at the breakpoint. ---------- */
+.bvote-row {
+  display: grid;
+  grid-template-columns: 84px 70px 1fr 64px;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+.bvote-row:hover {
+  background: var(--bg-row-hover);
+}
+.bvote-tally {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.bvote-tally .bvote-yea {
+  color: var(--vote-yea);
+}
+.bvote-tally .bvote-nay {
+  color: var(--vote-nay);
+}
+.bvote-tally .bvote-dash {
+  color: var(--text-dim);
+  margin: 0 2px;
+}
+.bvote-tally .bvote-none {
+  color: var(--text-dim);
+}
+.bvote-date {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.bvote-label {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bvote-roll {
+  text-align: right;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.bvote-roll:hover {
+  color: var(--accent-amber-bright);
+}
+
+@media (max-width: 700px) {
+  .bvote-row {
+    grid-template-columns: 72px 62px 1fr 52px;
+    column-gap: 10px;
+  }
+}
+
 /* ---- breaking news rows (handoff 69; bill-cell + pill HO 118) ---------- */
 /* Columns: bill id (+ optional [+N] companions pill) | headline | source | age.
    First column widened from 86px to 124px in HO 118 to fit `HCONRES 9999
