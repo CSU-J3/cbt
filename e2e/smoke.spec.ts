@@ -7,6 +7,11 @@ import { isKnownNoise } from "./console-noise";
 // errors, zero uncaught page errors; then screenshot for eyeballing. Plus a
 // handful of targeted interactions on the surfaces that actually regress here.
 //
+// HO 548 — each route is now hit TWICE (cache-miss then cache-hit; see the crawl
+// loop). This doubles the crawl to ~52 prod requests. Still gentle, but the
+// config's "keep the run gentle" note is now operating at 2× — factor that in
+// before adding more routes or dropping the settle.
+//
 // Runs against the live deploy (playwright.config.ts BASE_URL). Loose assertions
 // only — structure/presence, never counts (corpus syncs daily, markets tick).
 //
@@ -25,6 +30,9 @@ const MEMBER = process.env.SEED_MEMBER ?? "A000055";
 const RACE = process.env.SEED_RACE ?? "AL-01-2026";
 const COMMITTEE = process.env.SEED_COMMITTEE ?? "hlig00";
 const REPORT = process.env.SEED_REPORT ?? "2026-06-15";
+// HO 548 — a Senate roll call with member positions AND a bill link (119-sjres-180),
+// so the /vote/[id] page renders both the positions list and the bill back-link.
+const VOTE = process.env.SEED_VOTE ?? "senate-119-2-207";
 
 // The gate cookie (`/` redirects anonymous → /welcome; the landing's "Enter
 // terminal" sets this). Only `/` gates — every other route is ungated — but we
@@ -80,6 +88,9 @@ const ROUTES: Route[] = [
   { slug: "race-detail", path: `/race/${RACE}` },
   { slug: "committee-detail", path: `/committee/${COMMITTEE}` },
   { slug: "report-detail", path: `/reports/${REPORT}` },
+  // HO 548 — the newest route (HO 540), not previously in ROUTES; inherits the
+  // double-hit + lands in the daily prod crawl.
+  { slug: "vote", path: `/vote/${VOTE}` },
 ];
 
 type Collected = {
@@ -130,42 +141,80 @@ test.describe("route crawl", () => {
   for (const route of ROUTES) {
     test(`${route.slug} (${route.path})`, async ({ page, context }) => {
       await context.addCookies([GATE_COOKIE]);
+      // The collectors accumulate across BOTH navigations. To attribute a failure
+      // to the right hit, mark each array's length after hit 1 and assert the
+      // second hit on the slices past those marks. Helper: split a collector by mark
+      // and drop ignorable 4xx (favicon/manifest).
       const c = attachCollectors(page);
+      const realBad = (bads: string[]) =>
+        bads.filter((b) => {
+          const [s, ...rest] = b.split(" ");
+          return !isIgnorableBad(rest.join(" "), Number(s));
+        });
 
-      const resp = await page.goto(route.path, {
-        waitUntil: "domcontentloaded",
-        timeout: 45_000,
-      });
-      // Let the load event + late XHR/console settle. The markets tape polls, so
-      // networkidle never fires here — a fixed settle is the pragmatic choice.
-      await page.waitForLoadState("load").catch(() => {});
-      await page.waitForTimeout(2_500);
+      const nav = async () => {
+        const resp = await page.goto(route.path, {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        // Let the load event + late XHR/console settle. The markets tape polls, so
+        // networkidle never fires here — a fixed settle is the pragmatic choice.
+        await page.waitForLoadState("load").catch(() => {});
+        await page.waitForTimeout(2_500);
+        return resp?.status() ?? 0;
+      };
 
+      // ── HIT 1 — the post-deploy cache-MISS window (unstable_cache builds in-process)
+      const status1 = await nav();
       // Screenshot BEFORE assertions so failures still leave an image to eyeball.
       await page.screenshot({ path: `${SHOT_DIR}/${route.slug}.png`, fullPage: true });
+      const mark = {
+        failed: c.failed.length,
+        bad: c.bad.length,
+        consoleErr: c.consoleErr.length,
+        pageErr: c.pageErr.length,
+      };
 
-      const status = resp?.status() ?? 0;
-      const finalUrl = page.url();
-      const ignored = c.bad.filter((b) => {
-        const [s, ...rest] = b.split(" ");
-        return isIgnorableBad(rest.join(" "), Number(s));
-      });
-      const badReal = c.bad.filter((b) => !ignored.includes(b));
+      // ── HIT 2 — the cache-HIT window (HO 533: a cached unstable_cache value that
+      // round-trips wrong — a Map → {} — 500s here while hit 1 200'd). A fresh
+      // page.goto, NOT page.reload() — we want the same request shape hit 1 made.
+      // CAVEAT: if a route were served from Next's full-route cache, hit 2 wouldn't
+      // re-enter the component and this would prove nothing (not prove safety). Every
+      // route here reads searchParams / is dynamic, so the component DOES re-run — but
+      // a green hit 2 is a "no serialization regression observed," not a stronger claim.
+      const status2 = await nav();
 
+      const failed1 = c.failed.slice(0, mark.failed);
+      const failed2 = c.failed.slice(mark.failed);
+      const bad1 = realBad(c.bad.slice(0, mark.bad));
+      const bad2 = realBad(c.bad.slice(mark.bad));
+      const console1 = c.consoleErr.slice(0, mark.consoleErr);
+      const console2 = c.consoleErr.slice(mark.consoleErr);
+      const pageErr1 = c.pageErr.slice(0, mark.pageErr);
+      const pageErr2 = c.pageErr.slice(mark.pageErr);
+
+      // One line, both hits — "hit2=500 where hit1=200" is the HO 533 signature and
+      // should be readable straight off the CI log without opening a trace.
       // eslint-disable-next-line no-console
       console.log(
-        `[${route.slug}] ${status} url=${finalUrl} ` +
-          `failed=${c.failed.length} bad=${badReal.length} console=${c.consoleErr.length} pageErr=${c.pageErr.length}` +
-          (ignored.length ? ` (ignored ${ignored.length}: ${ignored.join(", ")})` : ""),
+        `[${route.slug}] hit1=${status1} failed=${failed1.length} bad=${bad1.length} console=${console1.length} pageErr=${pageErr1.length}` +
+          ` | hit2=${status2} failed=${failed2.length} bad=${bad2.length} console=${console2.length} pageErr=${pageErr2.length}`,
       );
 
-      // Document must be 200 (redirects resolve to their 200 target).
-      expect(status, `${route.path} document status`).toBe(200);
-      // Soft so one route's noise doesn't mask the rest; all still surface as fails.
-      expect.soft(c.failed, `${route.path} failed requests`).toEqual([]);
-      expect.soft(badReal, `${route.path} 4xx/5xx subrequests`).toEqual([]);
-      expect.soft(c.consoleErr, `${route.path} console errors`).toEqual([]);
-      expect.soft(c.pageErr, `${route.path} uncaught page errors`).toEqual([]);
+      // HIT 1 — document 200 (redirects resolve to their 200 target); soft on the rest.
+      expect(status1, `${route.path} hit-1 document status`).toBe(200);
+      expect.soft(failed1, `${route.path} hit-1 failed requests`).toEqual([]);
+      expect.soft(bad1, `${route.path} hit-1 4xx/5xx subrequests`).toEqual([]);
+      expect.soft(console1, `${route.path} hit-1 console errors`).toEqual([]);
+      expect.soft(pageErr1, `${route.path} hit-1 uncaught page errors`).toEqual([]);
+
+      // HIT 2 — the assertion this commit exists for: the cache-hit path must also
+      // be 200 (hard), with the same soft posture on the hit-2 slice.
+      expect(status2, `${route.path} hit-2 (cache-hit) document status`).toBe(200);
+      expect.soft(failed2, `${route.path} hit-2 failed requests`).toEqual([]);
+      expect.soft(bad2, `${route.path} hit-2 4xx/5xx subrequests`).toEqual([]);
+      expect.soft(console2, `${route.path} hit-2 console errors`).toEqual([]);
+      expect.soft(pageErr2, `${route.path} hit-2 uncaught page errors`).toEqual([]);
     });
   }
 });
