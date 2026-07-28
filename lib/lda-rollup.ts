@@ -50,6 +50,12 @@ export interface LobbyingStats {
   registrants: number;
   clients: number;
   billLinkedPct: number;
+  // HO 544 — distinct bill-linked filings (= linkedUuids.size), the pagination
+  // total when the /lobbying bill-linked toggle is on (a live COUNT(DISTINCT) over
+  // lda_activity_bills is the ~1s TEMP-B-TREE scan the probe measured, so it rides
+  // the blob instead). OPTIONAL: blobs written before HO 544 lack it — consumers
+  // fall back to billLinkedPct·filings until the next rollup repopulates.
+  billLinkedFilings?: number;
 }
 export interface IssueStat {
   code: string;
@@ -358,6 +364,7 @@ export function computeIssueRollup(
     registrants: registrantSet.size,
     clients: clientSet.size,
     billLinkedPct: filings.size > 0 ? (100 * linkedUuids.size) / filings.size : 0,
+    billLinkedFilings: linkedUuids.size, // HO 544 — the toggle-on pagination total
   };
 
   const issues: IssueStat[] = [...uuidsByCode.entries()]

@@ -2843,25 +2843,82 @@ export const getTopicCrosswalk = unstable_cache(
 // page never runs the (marginal, 5s-cold) full-table COUNT.
 export const getRecentFilings = unstable_cache(
   async (
-    opts: { page?: number; pageSize?: number } = {},
+    opts: {
+      page?: number;
+      pageSize?: number;
+      sort?: "recent" | "volume";
+      billLinked?: boolean;
+    } = {},
   ): Promise<{ items: FilingSummary[]; page: number; pageSize: number }> => {
     const db = getDb();
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = opts.pageSize ?? 25;
     const offset = (page - 1) * pageSize;
-    const rs = await db.execute({
-      sql: `SELECT filing_uuid, registrant_name, client_name, dt_posted,
-                   filing_type, filing_period, income, expenses
-            FROM lda_filings INDEXED BY idx_lda_filings_dt_posted
-            ORDER BY dt_posted DESC LIMIT ? OFFSET ?`,
-      args: [pageSize, offset],
-    });
-    const uuids = rs.rows.map((r) => String(r.filing_uuid));
-    const { codes, bills } = uuids.length
-      ? await hydrateFilings(db, uuids)
-      : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
-    const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
-    return { items, page, pageSize };
+    const sort = opts.sort ?? "recent";
+    const billLinked = opts.billLinked ?? false;
+
+    // HO 544 — the corpus fbar's sort × filter (STEP 0 HO 543). The DEFAULT path
+    // (recent + unfiltered) is the exact pre-HO-544 SQL — same idx_lda_filings_dt_posted
+    // ordered-walk plan, same output — so the untouched common case can't regress.
+    let sql: string;
+    if (sort === "recent" && !billLinked) {
+      sql = `SELECT filing_uuid, registrant_name, client_name, dt_posted,
+                    filing_type, filing_period, income, expenses
+             FROM lda_filings INDEXED BY idx_lda_filings_dt_posted
+             ORDER BY dt_posted DESC LIMIT ? OFFSET ?`;
+    } else {
+      // Branched paths. The bill-linked EXISTS rides lda_activity_bills' PK
+      // (filing_uuid is the PK leading column — no new index; HO 543 EXPLAIN).
+      const cols = `f.filing_uuid, f.registrant_name, f.client_name, f.dt_posted,
+                    f.filing_type, f.filing_period, f.income, f.expenses`;
+      const linkedClause = billLinked
+        ? `WHERE EXISTS (SELECT 1 FROM lda_activity_bills ab WHERE ab.filing_uuid = f.filing_uuid)`
+        : ``;
+      if (sort === "volume") {
+        // VOLUME = per-filing activity count ("meatiest filings"): the covering-PK
+        // GROUP BY (CO-ROUTINE ac: SCAN lda_activities USING COVERING INDEX) DRIVES
+        // the join, PK-seeking into lda_filings — dt_posted DESC tiebreak, no
+        // dt_posted hint (order is by count). **Agg-driven INNER JOIN, deliberately:**
+        // the LEFT-JOIN-from-lda_filings shape forced an AUTOMATIC COVERING INDEX on
+        // the materialized agg and spiked to ~18s cold (HO 544 EXPLAIN); driving from
+        // the agg rides lda_filings' PK instead (stable ~0.5s warm). The INNER JOIN
+        // drops the ~295 filings with zero lda_activities rows, but those have
+        // activity_count 0 → they sort dead last, always past the 40-page clamp, so
+        // the VISIBLE feed is identical to a LEFT JOIN. Do NOT "fix" this to a LEFT
+        // JOIN — it reintroduces the automatic-index spike for rows no one can see.
+        sql = `SELECT ${cols}
+               FROM (
+                 SELECT filing_uuid, COUNT(*) AS c FROM lda_activities GROUP BY filing_uuid
+               ) ac
+               JOIN lda_filings f ON f.filing_uuid = ac.filing_uuid
+               ${linkedClause}
+               ORDER BY ac.c DESC, f.dt_posted DESC LIMIT ? OFFSET ?`;
+      } else {
+        // recent + billLinked — the dt_posted walk still applies, keep the hint.
+        sql = `SELECT ${cols}
+               FROM lda_filings f INDEXED BY idx_lda_filings_dt_posted
+               ${linkedClause}
+               ORDER BY f.dt_posted DESC LIMIT ? OFFSET ?`;
+      }
+    }
+    // HO 440/448 guard — the feed read is the ONE live LDA query on /lobbying, and
+    // VOLUME's cold miss (~7s, growing corpus + ~160 sort×linked cache keys) sits
+    // close to the 10s DB_REQUEST_TIMEOUT_MS wall. An abort here would 500 the WHOLE
+    // page (rollup, rail, crosswalk, firms — all of it), not just the feed. Degrade
+    // to an empty feed so the rest of the page still renders (the getBillLobbying
+    // try/catch → null precedent). Keep this — do NOT strip it as defensive noise.
+    try {
+      const rs = await db.execute({ sql, args: [pageSize, offset] });
+      const uuids = rs.rows.map((r) => String(r.filing_uuid));
+      const { codes, bills } = uuids.length
+        ? await hydrateFilings(db, uuids)
+        : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
+      const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
+      return { items, page, pageSize };
+    } catch (err) {
+      console.error("[getRecentFilings] read failed — feed hidden:", err);
+      return { items: [], page, pageSize };
+    }
   },
   ["getRecentFilings"],
   { revalidate: 3600, tags: ["lda"] },

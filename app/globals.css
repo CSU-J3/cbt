@@ -5770,6 +5770,40 @@ body {
 /* ---- HO 492: height compaction — bounded rail + side-by-side bounded sections.
    All scoped to .lob-* (element-owned classes) so the shared .mc-* grids and
    /members stay byte-identical. */
+/* HO 544 — corpus fbar controls (sort segment + bill-linked toggle). Additive
+   under .lob-fbar-*; no shared .mc-fbar rule touched (/members byte-identical).
+   The pill mirrors SegmentedToggle's vocabulary so the two sit as one control. */
+.lob-fbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lob-fbar-linked {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background-color: var(--bg-base);
+  text-decoration: none;
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+.lob-fbar-linked:hover {
+  color: var(--accent-amber-bright);
+}
+.lob-fbar-linked[data-active="true"] {
+  color: var(--accent-amber-bright);
+  background-color: var(--bg-row-hover);
+  border-color: var(--accent-amber);
+}
+
 .lob-rail {
   display: flex;
   flex-direction: column;

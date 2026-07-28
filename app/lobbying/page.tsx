@@ -7,6 +7,7 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { IssueRailRow } from "@/components/IssueRailRow";
 import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 import { Pagination } from "@/components/Pagination";
+import { type Segment, SegmentedToggle } from "@/components/SegmentedToggle";
 import { TopicCrosswalk } from "@/components/TopicCrosswalk";
 import { topicForCode } from "@/lib/lda-issue-topic-map";
 import { topicColor } from "@/lib/topic-colors";
@@ -44,7 +45,22 @@ const PAGE_SIZE = 13;
 // corpus stays explorable via the issue rail → per-issue drill.
 const MAX_FEED_PAGES = 40;
 
-type SearchParams = { issue?: string; page?: string; expanded?: string };
+type SearchParams = {
+  issue?: string;
+  page?: string;
+  expanded?: string;
+  sort?: string; // HO 544 — "volume" selects the activity-count sort; else recent
+  linked?: string; // HO 544 — "1" filters to bill-linked filings only
+};
+
+// HO 544 — the corpus fbar sort segment (RECENT ⇄ VOLUME). VOLUME = per-filing
+// activity count ("meatiest filings"), the GO cut from the HO 543 probe (dollars
+// were declined at HO 442). Only meaningful on the UNSCOPED corpus feed.
+type SortMode = "recent" | "volume";
+const SORT_SEGMENTS: readonly Segment<SortMode>[] = [
+  { value: "recent", label: "RECENT" },
+  { value: "volume", label: "VOLUME" },
+];
 
 function parsePage(raw: string | undefined): number {
   const n = Number(raw);
@@ -120,10 +136,24 @@ export default async function LobbyingPage({
     group.sort((a, b) => b.filings - a.filings);
   }
 
+  // HO 544 — fbar controls apply to the UNSCOPED corpus feed ONLY. When scoped
+  // (?issue=), the page serves the precomputed drill.recent sample, which can't be
+  // re-sorted/re-filtered live (the HO 437 >25s per-issue wall), so sort/linked are
+  // inert there and the controls are hidden below.
+  const sortMode: SortMode = params.sort === "volume" ? "volume" : "recent";
+  const billLinked = params.linked === "1";
+  // Toggle-on pagination total rides the blob stat — a live COUNT(DISTINCT) over
+  // lda_activity_bills is the ~1s TEMP-B-TREE scan the HO 543 probe measured. Blobs
+  // written before HO 544 lack billLinkedFilings → fall back to the pct·filings
+  // estimate until the next daily rollup repopulates it (then it's the exact int).
+  const billLinkedTotal =
+    stats.billLinkedFilings ?? Math.round((stats.billLinkedPct / 100) * stats.filings);
+  const feedTotal = !scoped && billLinked ? billLinkedTotal : stats.filings;
+
   // Pager math is corpus-feed only (unscoped). Compute it always (cheap), but
   // only run the feed query when unscoped — the scoped view serves drill.recent.
   const totalPages = Math.min(
-    Math.max(1, Math.ceil(stats.filings / PAGE_SIZE)),
+    Math.max(1, Math.ceil(feedTotal / PAGE_SIZE)),
     MAX_FEED_PAGES,
   );
   const page = Math.min(Math.max(1, parsePage(params.page)), totalPages);
@@ -131,7 +161,12 @@ export default async function LobbyingPage({
   let feedItems: FilingSummary[] = [];
   let feedPage = page;
   if (!scoped) {
-    const feed = await getRecentFilings({ page, pageSize: PAGE_SIZE });
+    const feed = await getRecentFilings({
+      page,
+      pageSize: PAGE_SIZE,
+      sort: sortMode,
+      billLinked,
+    });
     feedItems = feed.items;
     feedPage = feed.page;
   }
@@ -148,13 +183,19 @@ export default async function LobbyingPage({
 
   const feedCarry = new URLSearchParams();
   if (params.issue) feedCarry.set("issue", params.issue);
+  // HO 544 — carry the active sort/filter across pagination (unscoped feed only).
+  if (sortMode === "volume") feedCarry.set("sort", "volume");
+  if (billLinked) feedCarry.set("linked", "1");
 
   // Per-row expand toggle target — carries the active scope (?issue=) + pager
-  // position (?page=) so expanding never drops them; toggles ?expanded=.
+  // position (?page=) + sort/filter (HO 544) so expanding never drops them;
+  // toggles ?expanded=.
   const buildToggleHref = (uuid: string, rowExpanded: boolean): string => {
     const sp = new URLSearchParams();
     if (params.issue) sp.set("issue", params.issue);
     if (params.page) sp.set("page", params.page);
+    if (sortMode === "volume") sp.set("sort", "volume");
+    if (billLinked) sp.set("linked", "1");
     if (!rowExpanded) sp.set("expanded", uuid);
     const qs = sp.toString();
     return qs ? `/lobbying?${qs}` : "/lobbying";
@@ -192,7 +233,11 @@ export default async function LobbyingPage({
           119th, bucketed by issue area, with the numbered-bill link as an overlay.
         </p>
 
-        {/* Filter bar — scope-reflecting count only (sort/search/toggles deferred) */}
+        {/* Filter bar — count + (HO 544) sort segment & bill-linked toggle. The
+            controls apply to the UNSCOPED corpus feed ONLY: when ?issue= is set the
+            page serves the precomputed drill.recent sample (the HO 437 >25s per-issue
+            wall), which can't be re-sorted/re-filtered live — so they're hidden, not
+            rendered dead. Search stays deferred (its own FTS follow-on). */}
         <div className="mc-fbar">
           <span className="mc-fbar-count">
             {scoped && selectedDrill ? (
@@ -207,6 +252,11 @@ export default async function LobbyingPage({
                 CLIENTS <span aria-hidden> · </span>
                 {selectedDrill.display}
               </>
+            ) : billLinked ? (
+              <>
+                <span className="mc-fbar-n">{feedTotal.toLocaleString()}</span>{" "}
+                FILINGS <span aria-hidden> · </span>NAME A TRACKED BILL
+              </>
             ) : (
               <>
                 <span className="mc-fbar-n">{stats.filings.toLocaleString()}</span>{" "}
@@ -217,6 +267,38 @@ export default async function LobbyingPage({
             )}
           </span>
           <span className="mc-fbar-spacer" />
+          {!scoped ? (
+            <div className="lob-fbar-controls">
+              <SegmentedToggle<SortMode>
+                current={sortMode}
+                segments={SORT_SEGMENTS}
+                ariaLabel="Sort filings by recency or activity volume"
+                buildHref={(value) => {
+                  const sp = new URLSearchParams();
+                  if (value === "volume") sp.set("sort", "volume");
+                  if (billLinked) sp.set("linked", "1");
+                  const qs = sp.toString();
+                  return qs ? `/lobbying?${qs}` : "/lobbying";
+                }}
+              />
+              <Link
+                href={(() => {
+                  const sp = new URLSearchParams();
+                  if (sortMode === "volume") sp.set("sort", "volume");
+                  if (!billLinked) sp.set("linked", "1"); // toggle on; when on, omit → off
+                  const qs = sp.toString();
+                  return qs ? `/lobbying?${qs}` : "/lobbying";
+                })()}
+                scroll={false}
+                className="lob-fbar-linked"
+                data-active={billLinked ? "true" : undefined}
+                aria-pressed={billLinked}
+                title="Show only filings that name a tracked bill"
+              >
+                BILL-LINKED
+              </Link>
+            </div>
+          ) : null}
         </div>
 
         {/* Two-pane browser: issue rail (spine) · filings content */}
