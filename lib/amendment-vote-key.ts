@@ -38,3 +38,25 @@ export function parseSenateAmendmentNumber(question: string): number | null {
   const n = parseInt(m[1] ?? "", 10);
   return Number.isFinite(n) ? n : null;
 }
+
+// HO 551 — the HOUSE counterpart, added after HO 550's M5 found the walk had NO
+// question filter (it linked EVERY recordedVote off a HAMDT's /actions) and was
+// rendering procedural House roll calls as the amendment's own outcome. The House
+// vote_id is CONSTRUCTED from the recordedVotes payload (which carries no question),
+// NOT parsed from it — so amendment-votes-walk.ts JOINs `votes` at link time and
+// applies this predicate, the mirror of the Senate materializer's SENATE_AMDT_Q gate.
+//
+// SCOPE — matches ONLY the up-or-down House amendment vote: "On Agreeing to the
+// Amendment" (± ", as Modified" / ", as Amended" — the prefix covers them). A
+// procedural roll call Congress.gov attaches to a HAMDT's /actions — "On Ordering
+// the Previous Question" (ends debate; decides WHETHER the House votes, not what) —
+// is EXCLUDED. STEP 0 (HO 551) enumerated ALL 92 House-linked questions: 90 decisive
+// ("On Agreeing to the Amendment" ×89 + ", as Modified" ×1), 2 procedural ("On
+// Ordering the Previous Question", on 119-hamdt-40 / vote house-119-1-187 and
+// 119-hamdt-175 / vote house-119-2-122). Vocabulary is CLOSED; both offenders ALSO
+// carry their real "On Agreeing to the Amendment" vote, so dropping the procedural
+// link leaves the decisive one intact. Do NOT widen this to a motion form without a
+// motion-aware model (the banked HO 537 M8 surface) — a procedural tally rendered as
+// the amendment's outcome is the exact wrong-data bug this predicate prevents.
+export const HOUSE_AMDT_QUESTION_LIKE = "On Agreeing to the Amendment%";
+export const HOUSE_AMDT_Q = /^On Agreeing to the Amendment\b/;

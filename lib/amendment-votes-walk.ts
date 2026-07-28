@@ -10,12 +10,21 @@
 //
 // The vote_id is DETERMINISTIC — house-{congress}-{session}-{rollNumber} (the same
 // construction lib/votes-sync.ts uses) — so the walk CONSTRUCTS it from the
-// recordedVotes fields; no lookup. Links are inserted unconditionally (not gated on
-// the votes row existing): the read LEFT-JOINs votes, so a link to a not-yet-synced
-// roll call is null-safe and self-heals.
+// recordedVotes fields; no lookup for the id itself.
+//
+// HO 551 — but the /actions recordedVotes list is UNFILTERED: Congress.gov attaches
+// procedural roll calls (e.g. "On Ordering the Previous Question") to a HAMDT's
+// actions too, and linking them made BillAmendments render a procedural tally as the
+// amendment's outcome (HO 550 M5). So the link is now gated on the DECISIVE form via
+// HOUSE_AMDT_QUESTION_LIKE — the mirror of the Senate materializer's SENATE_AMDT_Q.
+// The recordedVotes payload carries no question, so the gate JOINs `votes` at link
+// time (HO 529 §C: every recordedVote resolves to an existing votes row, so this
+// drops nothing decisive; a transient absence self-heals on the update_date re-walk,
+// and the read's LEFT-join stays null-safe for any legacy link).
 //
 // HAMDT is small (~228 in the 119th), so the one-time --walk is ~228 /actions GETs
 // and the cron delta is usually 0.
+import { HOUSE_AMDT_QUESTION_LIKE } from "./amendment-vote-key";
 import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
@@ -120,10 +129,16 @@ export async function walkAmendmentVotes(
       voteIds.add(`house-${rv.congress ?? congress}-${rv.sessionNumber}-${rv.rollNumber}`);
     }
     for (const voteId of voteIds) {
+      // HO 551 — link ONLY the decisive vote. INSERT…SELECT gates on the votes row
+      // existing AND its question matching HOUSE_AMDT_QUESTION_LIKE, so a procedural
+      // roll call (previous question, etc.) attached to the HAMDT's /actions is
+      // dropped — symmetric with the Senate materializer's SENATE_AMDT_Q filter.
       const res = await db.execute({
-        sql: `INSERT INTO amendment_votes (amendment_id, vote_id) VALUES (?, ?)
+        sql: `INSERT INTO amendment_votes (amendment_id, vote_id)
+              SELECT ?, v.id FROM votes v
+              WHERE v.id = ? AND v.question LIKE ?
               ON CONFLICT(amendment_id, vote_id) DO NOTHING`,
-        args: [id, voteId],
+        args: [id, voteId, HOUSE_AMDT_QUESTION_LIKE],
       });
       linksInserted += res.rowsAffected ?? 0;
     }
