@@ -18,9 +18,18 @@
 // amendment's outcome (HO 550 M5). So the link is now gated on the DECISIVE form via
 // HOUSE_AMDT_QUESTION_LIKE — the mirror of the Senate materializer's SENATE_AMDT_Q.
 // The recordedVotes payload carries no question, so the gate JOINs `votes` at link
-// time (HO 529 §C: every recordedVote resolves to an existing votes row, so this
-// drops nothing decisive; a transient absence self-heals on the update_date re-walk,
-// and the read's LEFT-join stays null-safe for any legacy link).
+// time (HO 529 §C: every recordedVote resolves to an existing votes row, so it drops
+// nothing decisive in the steady state).
+//
+// HO 552 — but the gate collapses "votes row not synced yet" and "synced, wrong
+// question" to the same no-link, and the two need OPPOSITE handling. A wrong-question
+// (procedural) miss is settled; an ABSENT votes row is pending — and it does NOT
+// self-heal via the queue predicate: `update_date > amendment_vote_walked_at` won't
+// re-fire because a just-voted HAMDT already spent its update_date bump getting
+// queued this run, so stamping it would DROP the decisive link permanently. So an
+// absent-row HAMDT is left UNSTAMPED to retry next run — the same non-stamp discipline
+// fetchErrors already uses. Existence is checked with one SELECT so the decisive
+// match stays the single SQL LIKE (no second, code-side copy of the predicate).
 //
 // HAMDT is small (~228 in the 119th), so the one-time --walk is ~228 /actions GETs
 // and the cron delta is usually 0.
@@ -67,6 +76,7 @@ export type WalkResult = {
   linksInserted: number; // new amendment_votes rows (conflicts skipped)
   hamdtWithVote: number; // HAMDTs that carried ≥1 recordedVote
   fetchErrors: number; // /actions fetches that threw (NOT stamped — stay in queue)
+  deferred: number; // HO 552: HAMDTs with a not-yet-synced vote_id (NOT stamped — retry)
   deadlineHit: boolean;
   remaining: number; // HAMDTs still in the queue after this run
 };
@@ -96,6 +106,7 @@ export async function walkAmendmentVotes(
   let linksInserted = 0;
   let hamdtWithVote = 0;
   let fetchErrors = 0;
+  let deferred = 0;
   let deadlineHit = false;
 
   for (const row of queue.rows) {
@@ -128,11 +139,26 @@ export async function walkAmendmentVotes(
       if (rv.rollNumber == null || rv.sessionNumber == null) continue;
       voteIds.add(`house-${rv.congress ?? congress}-${rv.sessionNumber}-${rv.rollNumber}`);
     }
+    // HO 552 — which constructed vote_ids already have a synced votes row. One
+    // existence SELECT so decisiveness stays the LIKE gate in the INSERT below (the
+    // single SQL authority; no second code-side copy of the predicate to drift).
+    const present = new Set<string>();
+    if (voteIds.size > 0) {
+      const rs = await db.execute({
+        sql: `SELECT id FROM votes WHERE id IN (${[...voteIds].map(() => "?").join(",")})`,
+        args: [...voteIds],
+      });
+      for (const r of rs.rows) present.add(String(r.id));
+    }
+
+    let anyAbsent = false;
     for (const voteId of voteIds) {
-      // HO 551 — link ONLY the decisive vote. INSERT…SELECT gates on the votes row
-      // existing AND its question matching HOUSE_AMDT_QUESTION_LIKE, so a procedural
-      // roll call (previous question, etc.) attached to the HAMDT's /actions is
-      // dropped — symmetric with the Senate materializer's SENATE_AMDT_Q filter.
+      if (!present.has(voteId)) {
+        anyAbsent = true; // votes row not synced yet — pending, don't link/stamp (retry)
+        continue;
+      }
+      // Present → link ONLY the DECISIVE form (procedural rows no-op via the LIKE);
+      // symmetric with the Senate materializer's SENATE_AMDT_Q. HO 551.
       const res = await db.execute({
         sql: `INSERT INTO amendment_votes (amendment_id, vote_id)
               SELECT ?, v.id FROM votes v
@@ -144,13 +170,19 @@ export async function walkAmendmentVotes(
     }
     if (voteIds.size > 0) hamdtWithVote++;
 
-    // 3. Stamp — the queue-exit — regardless of whether a vote was found (a
-    //    walked-no-vote HAMDT must leave the queue; HO 459 stamp-every-row rule).
-    await db.execute({
-      sql: "UPDATE amendments SET amendment_vote_walked_at = ? WHERE id = ?",
-      args: [new Date().toISOString(), id],
-    });
-    walked++;
+    // 3. Stamp the queue-exit — UNLESS a constructed vote_id had no synced votes row
+    //    (anyAbsent): leave it queued to retry next run (the fetchErrors non-stamp
+    //    precedent), else a decisive link that hasn't synced yet drops permanently.
+    //    A walked-no-vote or procedural-only HAMDT is settled → stamp (HO 459 rule).
+    if (anyAbsent) {
+      deferred++;
+    } else {
+      await db.execute({
+        sql: "UPDATE amendments SET amendment_vote_walked_at = ? WHERE id = ?",
+        args: [new Date().toISOString(), id],
+      });
+      walked++;
+    }
     if (pageDelayMs) await sleep(pageDelayMs);
   }
 
@@ -162,6 +194,7 @@ export async function walkAmendmentVotes(
     linksInserted,
     hamdtWithVote,
     fetchErrors,
+    deferred,
     deadlineHit,
     remaining: Number(rem.rows[0]?.c ?? 0),
   };
