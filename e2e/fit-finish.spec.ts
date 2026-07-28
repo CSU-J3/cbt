@@ -30,6 +30,20 @@ const MEMBER = process.env.SEED_MEMBER ?? "A000055";
 const RACE = process.env.SEED_RACE ?? "AL-01-2026";
 const COMMITTEE = process.env.SEED_COMMITTEE ?? "hlig00";
 const REPORT = process.env.SEED_REPORT ?? "2026-06-15";
+// HO 548 seeds (picked from prod Turso — see the ship report for each query):
+// VOTE      — Senate roll call with member positions + a bill link (119-sjres-180).
+// VOTE_BILL — a bill with BOTH own passage votes AND amendment votes (HO 542: 21
+//             unique /vote links = 2 own + 19 amendment).
+// NOVOTE_BILL — introduced-never-voted (votes(bill_id)=0 → no VOTES tab).
+// TABS_MEMBER — a member hub with ≥1 zero-count tab (A000055: amendments=0, trades=0).
+// FILING_UUID — the top-volume filing (31 activities, 27 clamped + 4 short) — reached
+//             via ?sort=volume so it's on page 1 of the feed the ?expanded= renders.
+const VOTE = process.env.SEED_VOTE ?? "senate-119-2-207";
+const VOTE_BILL = process.env.SEED_VOTE_BILL ?? "119-hr-8800";
+const NOVOTE_BILL = process.env.SEED_NOVOTE_BILL ?? "119-hr-3034";
+const TABS_MEMBER = process.env.SEED_TABS_MEMBER ?? "A000055";
+const FILING_UUID =
+  process.env.SEED_FILING_UUID ?? "cd77f510-f0d8-416b-a11c-b304e8653c7d";
 
 const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 
@@ -702,4 +716,356 @@ test.describe("dropdown hunt (Part C)", () => {
       assertClean(c, `dropdown hunt ${vp.name}`);
     });
   }
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+// HO 548 — coverage extension for the post-472 interactive surfaces.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// A. RecordTabs (HO 509/510) — the shared record box on /bill/[id] + /members/[id].
+test.describe("RecordTabs (509/510)", () => {
+  for (const [slug, path] of [
+    ["bill", `/bill/${VOTE_BILL}`],
+    ["member", `/members/${TABS_MEMBER}`],
+  ] as const) {
+    test(`${slug} hub: tablist + mount-all + scroll reset`, async ({ page }) => {
+      const c = attachCollectors(page);
+      await page.goto(path, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await settle(page);
+      // 1. tablist renders; >1 tab
+      await expect(page.locator('[role="tablist"]'), "record box tablist").toBeVisible();
+      const tabs = page.locator(".rec-tab");
+      expect(await tabs.count(), "record box should have >1 tab").toBeGreaterThan(1);
+
+      // 2. mount-all: swap to a non-active tab; every panel stays in the DOM,
+      // inactive ones carry `hidden` (HO 509 comment — unmounting would drop an
+      // open row). If this ever becomes conditional mounting, nothing else catches it.
+      const panelsBefore = await page.locator(".rec-panel").count();
+      await tabs.nth(1).click();
+      await page.waitForTimeout(300);
+      const panelsAfter = await page.locator(".rec-panel").count();
+      expect(panelsAfter, "all panels stay mounted across a swap").toBe(panelsBefore);
+      expect(
+        await page.locator(".rec-panel[hidden]").count(),
+        "exactly the inactive panels carry hidden",
+      ).toBe(panelsAfter - 1);
+
+      // 3. scroll reset: scroll the body, swap, assert scrollTop 0 (select() zeroes it).
+      // The reset can only be exercised when the active panel actually overflows the
+      // 430px body. Guard on that + LOG when it doesn't (not a silent skip — the test
+      // still covers tablist + mount-all, and the member hub, whose Bills panel does
+      // overflow, exercises the reset). This is the honest form of the HO 503 lesson:
+      // surface the non-exercise, don't pretend a vacuous pass is coverage.
+      const body = page.locator(".rec-body");
+      await body.evaluate((el) => {
+        el.scrollTop = 300;
+      });
+      const scrolled = await body.evaluate((el) => el.scrollTop);
+      if (scrolled > 0) {
+        await tabs.nth(0).click();
+        await page.waitForTimeout(300);
+        expect(
+          await body.evaluate((el) => el.scrollTop),
+          `${slug} scroll resets to 0 on tab swap`,
+        ).toBe(0);
+      } else {
+        // eslint-disable-next-line no-console
+        console.log(`[rectabs-${slug}] active panel fits the 430px body — scroll-reset not exercised here`);
+      }
+
+      await page.screenshot({ path: `${SHOT_DIR}/rectabs-${slug}.png`, fullPage: true });
+      logClean(`rectabs-${slug}`, c);
+      assertClean(c, `${slug} RecordTabs`);
+    });
+  }
+
+  test("member Bills tab: an open row survives a tab swap", async ({ page }) => {
+    const c = attachCollectors(page);
+    // Member hub opens on tabs[0] = Bills (BillRowList → expandable rows).
+    await page.goto(`/members/${TABS_MEMBER}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    const activePanel = page.locator(".rec-panel:not([hidden])").first();
+    const panelId = await activePanel.getAttribute("id");
+    const row = page.locator(`#${panelId} [role="button"][aria-expanded]`).first();
+    if (!(await row.count())) {
+      // SKIP (named in the ship report): active panel has no expander.
+      test.skip(true, `member active panel ${panelId} has no expandable row`);
+      return;
+    }
+    await row.click();
+    await expect(row, "row opens").toHaveAttribute("aria-expanded", "true");
+    const tabs = page.locator(".rec-tab");
+    await tabs.nth(1).click();
+    await page.waitForTimeout(300);
+    await tabs.nth(0).click();
+    await page.waitForTimeout(300);
+    await expect(row, "open row survives swap-away-and-back (panels stay mounted)").toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    logClean("rectabs-openrow", c);
+    assertClean(c, "RecordTabs open-row survival");
+  });
+
+  test("opposite empty-state policy: member DIMS zero tabs, bill OMITS them", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto(`/members/${TABS_MEMBER}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(
+      await page.locator('.rec-tab[data-empty="true"]').count(),
+      "member hub dims ≥1 zero-count tab (the deliberate dim-at-zero policy)",
+    ).toBeGreaterThan(0);
+
+    await page.goto(`/bill/${VOTE_BILL}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(
+      await page.locator(".rec-tab[data-empty]").count(),
+      "bill hub omits zero tabs — none should be present-but-dimmed",
+    ).toBe(0);
+    logClean("rectabs-empty-policy", c);
+    assertClean(c, "RecordTabs empty-state policy");
+  });
+});
+
+// B. /vote/[id] (HO 540) — reached by navigation (exercises the HO 542 link) + cold.
+test.describe("/vote/[id] (540)", () => {
+  test("reach /vote via the bill VOTES tab → positions + bill back-link", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto(`/bill/${VOTE_BILL}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    await page.getByRole("tab", { name: /votes/i }).first().click();
+    await page.waitForTimeout(400);
+    const roll = page.locator(".bvote-roll").first();
+    await expect(roll, "VOTES tab should carry a roll-call link").toBeVisible({ timeout: 8_000 });
+    await roll.click();
+    await page.waitForURL(/\/vote\//, { timeout: 8_000 });
+    expect(page.url(), "clicking a roll link navigates to /vote/").toMatch(/\/vote\//);
+    await settle(page);
+    expect(
+      await page.locator("a[href^='/members/']").count(),
+      "positions rendered (member links)",
+    ).toBeGreaterThan(0);
+    expect(
+      await page.locator("a[href^='/bill/']").count(),
+      "a /bill/ back-link is present",
+    ).toBeGreaterThan(0);
+    logClean("vote-via-nav", c);
+    assertClean(c, "/vote via nav");
+  });
+
+  test("/vote/[id] cold direct-nav renders positions + bill link", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto(`/vote/${VOTE}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    await page.screenshot({ path: `${SHOT_DIR}/vote-direct.png`, fullPage: true });
+    expect(
+      await page.locator("a[href^='/members/']").count(),
+      "positions rendered on cold entry",
+    ).toBeGreaterThan(0);
+    expect(await page.locator("a[href^='/bill/']").count(), "bill back-link present").toBeGreaterThan(0);
+    logClean("vote-direct", c);
+    assertClean(c, "/vote direct");
+  });
+});
+
+// C. /bill/[id] no-double-count invariant (HO 542): own passage votes and House
+// amendment votes (which carry bill_id) must not both surface as the same /vote link.
+test.describe("bill /vote/ links (542)", () => {
+  test(`${VOTE_BILL}: every /vote/ link is unique page-wide`, async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto(`/bill/${VOTE_BILL}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    // All panels mount (hidden), so both tabs' /vote/ links are queryable page-wide.
+    const hrefs = await page
+      .locator("a[href^='/vote/']")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("href")));
+    // eslint-disable-next-line no-console
+    console.log(`[vote-dedupe] ${VOTE_BILL} /vote/ links=${hrefs.length} unique=${new Set(hrefs).size}`);
+    expect(hrefs.length, "bill should carry /vote/ links").toBeGreaterThan(0);
+    expect(
+      new Set(hrefs).size,
+      "no duplicate /vote/ links (own passage vs amendment overlap)",
+    ).toBe(hrefs.length);
+    logClean("vote-dedupe", c);
+    assertClean(c, "bill /vote/ dedupe");
+  });
+
+  test(`${NOVOTE_BILL}: introduced-never-voted → no VOTES tab`, async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto(`/bill/${NOVOTE_BILL}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(
+      await page.getByRole("tab", { name: /^\s*votes/i }).count(),
+      "a never-voted bill omits the VOTES tab",
+    ).toBe(0);
+    logClean("vote-notab", c);
+    assertClean(c, "no VOTES tab");
+  });
+});
+
+// D. /lobbying fbar (HO 544/547) — URL-level, cheap.
+test.describe("/lobbying fbar (544/547)", () => {
+  test("sort/linked rebase + compose; search forces RECENT; clear; scoped hides", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto("/lobbying", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(await page.locator(".lob-fbar-controls").count(), "unscoped /lobbying shows fbar controls").toBeGreaterThan(0);
+
+    // VOLUME segment rebases ?sort=volume
+    await page.locator(".lob-fbar-controls").getByRole("link", { name: "VOLUME" }).click();
+    await page.waitForURL(/sort=volume/, { timeout: 8_000 });
+    expect(page.url(), "VOLUME rebases ?sort=volume").toMatch(/sort=volume/);
+
+    // bill-linked toggles linked=1
+    await page.goto("/lobbying", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    await page.locator(".lob-fbar-linked").click();
+    await page.waitForURL(/linked=1/, { timeout: 8_000 });
+    expect(page.url(), "bill-linked toggles ?linked=1").toMatch(/linked=1/);
+    // compose: add VOLUME on top of linked
+    await page.locator(".lob-fbar-controls").getByRole("link", { name: "VOLUME" }).click();
+    await page.waitForURL(/sort=volume/, { timeout: 8_000 });
+    expect(page.url(), "sort+linked compose").toMatch(/linked=1/);
+    expect(page.url()).toMatch(/sort=volume/);
+
+    // search forces RECENT: fill + submit → ?q=, VOLUME becomes inert
+    await page.goto("/lobbying", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    const input = page.locator(".lob-fbar-search-input");
+    await input.fill("boeing");
+    await input.press("Enter");
+    await page.waitForURL(/q=boeing/, { timeout: 8_000 });
+    expect(page.url(), "search writes ?q=").toMatch(/q=boeing/);
+    expect(
+      await page.locator(".lob-fbar-sort-off").count(),
+      "search replaces the sort segment with the disabled variant",
+    ).toBeGreaterThan(0);
+    await expect(
+      page.locator('.lob-fbar-sort-off [aria-disabled="true"]'),
+      "VOLUME is inert while searching (HO 547 search-forces-RECENT)",
+    ).toBeVisible();
+
+    // clear returns to the bare feed
+    await page.locator(".lob-fbar-search-clear").click();
+    await page.waitForURL((u) => !u.searchParams.has("q"), { timeout: 8_000 });
+    expect(page.url(), "clear removes ?q=").not.toMatch(/[?&]q=/);
+
+    // scoped view: controls are unscoped-only
+    await page.goto("/lobbying?issue=TAX", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(
+      await page.locator(".lob-fbar-controls").count(),
+      "scoped ?issue= renders the fbar controls zero times",
+    ).toBe(0);
+    logClean("lobbying-fbar", c);
+    assertClean(c, "/lobbying fbar");
+  });
+});
+
+// E. FilingDescription (HO 545) — SHOW MORE toggle + bounded growth + independence.
+test.describe("FilingDescription (545)", () => {
+  test("SHOW MORE toggles, the 24k monster stays bounded, toggles are independent", async ({ page }) => {
+    const c = attachCollectors(page);
+    // ?sort=volume so the top-volume seed filing is on page 1 (the ?expanded=
+    // constraint: the uuid must be in the rendered rows to attach its panel).
+    await page.goto(`/lobbying?sort=volume&expanded=${FILING_UUID}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 45_000,
+    });
+    await settle(page);
+    const more = page.locator(".lob-exp-desc-more");
+    const n = await more.count();
+    expect(n, "the top-volume filing should render ≥1 SHOW MORE").toBeGreaterThan(0);
+
+    // Open the TALLEST (24k-char monster) box specifically — that's the box whose
+    // unbounded growth HO 545 exists to cap, so the bound must be tested on it.
+    const boxes = page.locator(".lob-exp-desc");
+    const monsterIdx = await boxes.evaluateAll((els) => {
+      let mi = 0;
+      let mx = -1;
+      els.forEach((e, i) => {
+        if (e.scrollHeight > mx) {
+          mx = e.scrollHeight;
+          mi = i;
+        }
+      });
+      return mi;
+    });
+    const monsterBtn = boxes.nth(monsterIdx).locator("xpath=following-sibling::button[1]");
+    await expect(monsterBtn, "the monster description carries a SHOW MORE").toHaveCount(1);
+    await expect(monsterBtn).toHaveAttribute("aria-expanded", "false");
+
+    const h0 = await page.evaluate(() => document.documentElement.scrollHeight);
+    await monsterBtn.click();
+    await expect(monsterBtn, "SHOW MORE flips aria-expanded").toHaveAttribute("aria-expanded", "true");
+    const h1 = await page.evaluate(() => document.documentElement.scrollHeight);
+    // The regression that matters: without the 420px scroll cap the monster would
+    // add thousands of px. A numeric bound is the only assertion that catches that.
+    expect(h1 - h0, "opening the 24k monster grows the page <600px (the 420px scroll bound)").toBeLessThan(600);
+
+    // restore
+    await monsterBtn.click();
+    await expect(monsterBtn).toHaveAttribute("aria-expanded", "false");
+
+    // per-activity independence: toggling one leaves the others closed
+    if (n >= 2) {
+      const a = more.nth(0);
+      const b = more.nth(1);
+      await a.click();
+      await expect(a).toHaveAttribute("aria-expanded", "true");
+      await expect(b, "toggling one description leaves the others' aria-expanded false").toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    } else {
+      test.info().annotations.push({
+        type: "note",
+        description: "only one SHOW MORE rendered — independence not exercised (not a skip of the whole test)",
+      });
+    }
+    await page.screenshot({ path: `${SHOT_DIR}/filing-desc.png`, fullPage: true });
+    logClean("filing-desc", c);
+    assertClean(c, "FilingDescription");
+  });
+});
+
+// F. /news rails (HO 515/517) — single selection across the topic + member groups.
+test.describe("/news rails (515/517)", () => {
+  test("single-selection spans the topic + member rail groups", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.goto("/news", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    expect(await page.locator(".mc-crow").count(), "/news renders rail rows").toBeGreaterThan(0);
+    expect(
+      await page.locator(".mc-crow.is-sel").count(),
+      "bare /news has zero selected rows",
+    ).toBe(0);
+
+    // topic row (not .nw-mrow) → ?topic=, exactly one selected
+    await page.locator(".mc-crow:not(.nw-mrow)").first().click();
+    await page.waitForURL(/topic=/, { timeout: 8_000 });
+    expect(page.url(), "topic row scopes ?topic=").toMatch(/topic=/);
+    expect(
+      await page.locator(".mc-crow.is-sel").count(),
+      "exactly one selected after topic click",
+    ).toBe(1);
+
+    // member row (.nw-mrow) → ?member=, topic cleared, still exactly one selected
+    const memberRow = page.locator(".mc-crow.nw-mrow").first();
+    if (!(await memberRow.count())) {
+      // SKIP (named in the ship report): IN THE NEWS group empty on this run.
+      test.skip(true, "no .nw-mrow member rail rows (IN THE NEWS group empty)");
+      return;
+    }
+    await memberRow.click();
+    await page.waitForURL(/member=/, { timeout: 8_000 });
+    expect(page.url(), "member row scopes ?member=").toMatch(/member=/);
+    expect(page.url(), "topic cleared when a member is selected").not.toMatch(/topic=/);
+    expect(
+      await page.locator(".mc-crow.is-sel").count(),
+      "still exactly one selected across BOTH rail groups (HO 517 invariant)",
+    ).toBe(1);
+    logClean("news-rails", c);
+    assertClean(c, "/news rails");
+  });
 });
