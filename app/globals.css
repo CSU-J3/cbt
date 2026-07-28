@@ -5803,6 +5803,71 @@ body {
   background-color: var(--bg-row-hover);
   border-color: var(--accent-amber);
 }
+/* HO 547 — registrant/client search. The input writes ?q= (form GET, server-driven
+   like the rest of the page); a term forces RECENT (VOLUME disabled — see below). */
+.lob-fbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lob-fbar-search-input {
+  width: 200px;
+  max-width: 42vw;
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+.lob-fbar-search-input::placeholder {
+  color: var(--text-dim);
+}
+.lob-fbar-search-input:focus {
+  outline: none;
+  border-color: var(--accent-amber);
+}
+.lob-fbar-search-clear {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  text-decoration: none;
+}
+.lob-fbar-search-clear:hover {
+  color: var(--accent-amber-bright);
+}
+/* Disabled sort control while a search term is active — mirrors SegmentedToggle's
+   vocabulary (that component is shared app-wide, so it is NOT widened for a disabled
+   state; this is the page-local variant). RECENT reads active, VOLUME dim + inert. */
+.lob-fbar-sort-off {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+}
+.lob-fbar-sort-off > span {
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.lob-fbar-sort-off .lob-seg-on {
+  color: var(--accent-amber-bright);
+  background-color: var(--bg-row-hover);
+}
+.lob-fbar-sort-off .lob-seg-off {
+  color: var(--text-dim);
+  background-color: var(--bg-base);
+  border-left: 0.5px solid var(--border-strong);
+  cursor: not-allowed;
+}
 
 .lob-rail {
   display: flex;

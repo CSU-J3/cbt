@@ -20,6 +20,7 @@ import {
   getTopicCrosswalk,
   sanitizeFilingUuid,
   sanitizeIssueCode,
+  sanitizeSearchQuery,
 } from "@/lib/queries";
 
 // Reads the DB (rollup blob + live feed); opt out of static prerender.
@@ -51,6 +52,7 @@ type SearchParams = {
   expanded?: string;
   sort?: string; // HO 544 — "volume" selects the activity-count sort; else recent
   linked?: string; // HO 544 — "1" filters to bill-linked filings only
+  q?: string; // HO 547 — registrant/client substring search (forces RECENT)
 };
 
 // HO 544 — the corpus fbar sort segment (RECENT ⇄ VOLUME). VOLUME = per-filing
@@ -142,34 +144,51 @@ export default async function LobbyingPage({
   // inert there and the controls are hidden below.
   const sortMode: SortMode = params.sort === "volume" ? "volume" : "recent";
   const billLinked = params.linked === "1";
+  // HO 547 — registrant/client search. Unscoped-only (hidden when scoped, like the
+  // HO 544 controls); a term FORCES RECENT (VOLUME defeats the LIMIT short-circuit
+  // and spikes ~7.8s cold — HO 547). `activeQuery` is the human term (display + URL);
+  // getRecentFilings does the LIKE %/_ escaping.
+  const activeQuery = scoped ? undefined : sanitizeSearchQuery(params.q);
+  const searchActive = activeQuery != null;
   // Toggle-on pagination total rides the blob stat — a live COUNT(DISTINCT) over
   // lda_activity_bills is the ~1s TEMP-B-TREE scan the HO 543 probe measured. Blobs
   // written before HO 544 lack billLinkedFilings → fall back to the pct·filings
   // estimate until the next daily rollup repopulates it (then it's the exact int).
   const billLinkedTotal =
     stats.billLinkedFilings ?? Math.round((stats.billLinkedPct / 100) * stats.filings);
-  const feedTotal = !scoped && billLinked ? billLinkedTotal : stats.filings;
-
-  // Pager math is corpus-feed only (unscoped). Compute it always (cheap), but
-  // only run the feed query when unscoped — the scoped view serves drill.recent.
-  const totalPages = Math.min(
-    Math.max(1, Math.ceil(feedTotal / PAGE_SIZE)),
+  // NON-search pager rides the blob total (clamp the page BEFORE the query so a deep
+  // OFFSET never hits the 12.3s tail — HO 437). SEARCH can't know its total upfront,
+  // so it clamps to MAX_FEED_PAGES (RECENT+search deep OFFSET is ≤~700ms — HO 547)
+  // and derives the real totalPages from the live COUNT the query returns.
+  const blobTotal = !scoped && billLinked ? billLinkedTotal : stats.filings;
+  const blobTotalPages = Math.min(
+    Math.max(1, Math.ceil(blobTotal / PAGE_SIZE)),
     MAX_FEED_PAGES,
   );
-  const page = Math.min(Math.max(1, parsePage(params.page)), totalPages);
+  const page = Math.min(
+    Math.max(1, parsePage(params.page)),
+    searchActive ? MAX_FEED_PAGES : blobTotalPages,
+  );
 
   let feedItems: FilingSummary[] = [];
   let feedPage = page;
+  let searchTotal: number | undefined;
   if (!scoped) {
     const feed = await getRecentFilings({
       page,
       pageSize: PAGE_SIZE,
-      sort: sortMode,
+      sort: sortMode, // getRecentFilings forces recent when q is set
       billLinked,
+      q: activeQuery,
     });
     feedItems = feed.items;
     feedPage = feed.page;
+    searchTotal = feed.total;
   }
+  const feedTotal = searchActive ? (searchTotal ?? 0) : blobTotal;
+  const totalPages = searchActive
+    ? Math.min(Math.max(1, Math.ceil(feedTotal / PAGE_SIZE)), MAX_FEED_PAGES)
+    : blobTotalPages;
   const rows = scoped && selectedDrill ? selectedDrill.recent : feedItems;
 
   // Expand read (HO 486) — the one new live query. Fetch only when the ?expanded=
@@ -183,8 +202,10 @@ export default async function LobbyingPage({
 
   const feedCarry = new URLSearchParams();
   if (params.issue) feedCarry.set("issue", params.issue);
-  // HO 544 — carry the active sort/filter across pagination (unscoped feed only).
-  if (sortMode === "volume") feedCarry.set("sort", "volume");
+  // HO 544/547 — carry the active sort/filter/search across pagination (unscoped feed
+  // only). A search forces RECENT, so sort=volume is inert then and dropped.
+  if (activeQuery) feedCarry.set("q", activeQuery);
+  if (sortMode === "volume" && !searchActive) feedCarry.set("sort", "volume");
   if (billLinked) feedCarry.set("linked", "1");
 
   // Per-row expand toggle target — carries the active scope (?issue=) + pager
@@ -194,7 +215,8 @@ export default async function LobbyingPage({
     const sp = new URLSearchParams();
     if (params.issue) sp.set("issue", params.issue);
     if (params.page) sp.set("page", params.page);
-    if (sortMode === "volume") sp.set("sort", "volume");
+    if (activeQuery) sp.set("q", activeQuery);
+    if (sortMode === "volume" && !searchActive) sp.set("sort", "volume");
     if (billLinked) sp.set("linked", "1");
     if (!rowExpanded) sp.set("expanded", uuid);
     const qs = sp.toString();
@@ -252,6 +274,12 @@ export default async function LobbyingPage({
                 CLIENTS <span aria-hidden> · </span>
                 {selectedDrill.display}
               </>
+            ) : searchActive ? (
+              <>
+                <span className="mc-fbar-n">{feedTotal.toLocaleString()}</span>{" "}
+                FILINGS <span aria-hidden> · </span>MATCHING &ldquo;{activeQuery}
+                &rdquo;
+              </>
             ) : billLinked ? (
               <>
                 <span className="mc-fbar-n">{feedTotal.toLocaleString()}</span>{" "}
@@ -269,22 +297,41 @@ export default async function LobbyingPage({
           <span className="mc-fbar-spacer" />
           {!scoped ? (
             <div className="lob-fbar-controls">
-              <SegmentedToggle<SortMode>
-                current={sortMode}
-                segments={SORT_SEGMENTS}
-                ariaLabel="Sort filings by recency or activity volume"
-                buildHref={(value) => {
-                  const sp = new URLSearchParams();
-                  if (value === "volume") sp.set("sort", "volume");
-                  if (billLinked) sp.set("linked", "1");
-                  const qs = sp.toString();
-                  return qs ? `/lobbying?${qs}` : "/lobbying";
-                }}
-              />
+              {/* HO 547 — a search term forces RECENT: VOLUME defeats the LIMIT
+                  short-circuit (~7.8s cold, HO 547), so the sort segment is replaced
+                  by a disabled variant (RECENT active, VOLUME inert + title). The
+                  shared SegmentedToggle is NOT widened for a disabled state. */}
+              {searchActive ? (
+                <span
+                  className="lob-fbar-sort-off"
+                  role="group"
+                  aria-label="Sort — recent (volume unavailable while searching)"
+                  title="Sort by volume is unavailable while searching"
+                >
+                  <span className="lob-seg-on">RECENT</span>
+                  <span className="lob-seg-off" aria-disabled="true">
+                    VOLUME
+                  </span>
+                </span>
+              ) : (
+                <SegmentedToggle<SortMode>
+                  current={sortMode}
+                  segments={SORT_SEGMENTS}
+                  ariaLabel="Sort filings by recency or activity volume"
+                  buildHref={(value) => {
+                    const sp = new URLSearchParams();
+                    if (value === "volume") sp.set("sort", "volume");
+                    if (billLinked) sp.set("linked", "1");
+                    const qs = sp.toString();
+                    return qs ? `/lobbying?${qs}` : "/lobbying";
+                  }}
+                />
+              )}
               <Link
                 href={(() => {
                   const sp = new URLSearchParams();
-                  if (sortMode === "volume") sp.set("sort", "volume");
+                  if (activeQuery) sp.set("q", activeQuery);
+                  if (sortMode === "volume" && !searchActive) sp.set("sort", "volume");
                   if (!billLinked) sp.set("linked", "1"); // toggle on; when on, omit → off
                   const qs = sp.toString();
                   return qs ? `/lobbying?${qs}` : "/lobbying";
@@ -297,6 +344,38 @@ export default async function LobbyingPage({
               >
                 BILL-LINKED
               </Link>
+              {/* Search: form GET writes ?q= (server-driven, no client island —
+                  matches the page's <Link>-driven idiom). Submit resets sort→recent
+                  + page→1 (fields omitted); the bill-linked filter is preserved. */}
+              <form
+                method="GET"
+                action="/lobbying"
+                className="lob-fbar-search"
+                role="search"
+              >
+                {billLinked ? (
+                  <input type="hidden" name="linked" value="1" />
+                ) : null}
+                <input
+                  type="text"
+                  name="q"
+                  defaultValue={activeQuery ?? ""}
+                  placeholder="Search firm or client…"
+                  maxLength={64}
+                  aria-label="Search registrant or client name"
+                  className="lob-fbar-search-input"
+                />
+                {searchActive ? (
+                  <Link
+                    href={billLinked ? "/lobbying?linked=1" : "/lobbying"}
+                    scroll={false}
+                    className="lob-fbar-search-clear"
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </Link>
+                ) : null}
+              </form>
             </div>
           ) : null}
         </div>
@@ -383,6 +462,10 @@ export default async function LobbyingPage({
                   ) : null}
                 </Fragment>
               ))
+            ) : searchActive ? (
+              <div className="mc-empty">
+                No filings match &ldquo;{activeQuery}&rdquo;
+              </div>
             ) : (
               <div className="mc-empty">No filings on file</div>
             )}

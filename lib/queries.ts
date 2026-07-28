@@ -2848,32 +2848,59 @@ export const getRecentFilings = unstable_cache(
       pageSize?: number;
       sort?: "recent" | "volume";
       billLinked?: boolean;
+      q?: string;
     } = {},
-  ): Promise<{ items: FilingSummary[]; page: number; pageSize: number }> => {
+  ): Promise<{ items: FilingSummary[]; page: number; pageSize: number; total?: number }> => {
     const db = getDb();
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = opts.pageSize ?? 25;
     const offset = (page - 1) * pageSize;
-    const sort = opts.sort ?? "recent";
     const billLinked = opts.billLinked ?? false;
 
+    // HO 547 — registrant/client substring search. STEP 0 (546/547) measured names
+    // avg 25 chars → a full `%term%` substring scan of 112k rows is ≤~700ms on the
+    // RECENT path (a plain SCAN under the forced dt_posted index, no MULTI-INDEX-OR).
+    // But adding the LIKE to VOLUME's agg-driven join defeats the LIMIT short-circuit
+    // and spikes to ~7.8s cold (a TEMP B-TREE over the whole materialized agg) — so
+    // **SEARCH FORCES RECENT** (the UI disables the VOLUME segment while a term is
+    // active). % / _ are escaped so a literal wildcard can't match everything. The
+    // fallback if `%term%` cost ever climbs is a distinct-name lookup table (5,201
+    // registrants / 21,549 clients), NOT FTS — FTS was probed + REJECTED (HO 546:
+    // 22× over-index + a trigger on the FLUSH_AT=100-tuned sync write path).
+    const term = opts.q?.trim();
+    const hasQ = term != null && term.length > 0;
+    const likeArg = hasQ ? `%${term.replace(/[\\%_]/g, "\\$&")}%` : "";
+    const searchClause = `(f.registrant_name LIKE ? ESCAPE '\\' OR f.client_name LIKE ? ESCAPE '\\')`;
+    const sort = hasQ ? "recent" : (opts.sort ?? "recent");
+
     // HO 544 — the corpus fbar's sort × filter (STEP 0 HO 543). The DEFAULT path
-    // (recent + unfiltered) is the exact pre-HO-544 SQL — same idx_lda_filings_dt_posted
-    // ordered-walk plan, same output — so the untouched common case can't regress.
+    // (recent + unfiltered + no query) is the exact pre-HO-544 SQL — same
+    // idx_lda_filings_dt_posted ordered-walk plan, same output — so the untouched
+    // common case can't regress.
     let sql: string;
-    if (sort === "recent" && !billLinked) {
+    let pageArgs: (number | string)[];
+    let countSql: string | null = null;
+    if (sort === "recent" && !billLinked && !hasQ) {
       sql = `SELECT filing_uuid, registrant_name, client_name, dt_posted,
                     filing_type, filing_period, income, expenses
              FROM lda_filings INDEXED BY idx_lda_filings_dt_posted
              ORDER BY dt_posted DESC LIMIT ? OFFSET ?`;
+      pageArgs = [pageSize, offset];
     } else {
       // Branched paths. The bill-linked EXISTS rides lda_activity_bills' PK
-      // (filing_uuid is the PK leading column — no new index; HO 543 EXPLAIN).
+      // (filing_uuid is the PK leading column — no new index; HO 543 EXPLAIN); the
+      // search clause is an OR over the two unindexed name columns.
       const cols = `f.filing_uuid, f.registrant_name, f.client_name, f.dt_posted,
                     f.filing_type, f.filing_period, f.income, f.expenses`;
-      const linkedClause = billLinked
-        ? `WHERE EXISTS (SELECT 1 FROM lda_activity_bills ab WHERE ab.filing_uuid = f.filing_uuid)`
-        : ``;
+      const clauses: string[] = [];
+      if (billLinked) clauses.push(`EXISTS (SELECT 1 FROM lda_activity_bills ab WHERE ab.filing_uuid = f.filing_uuid)`);
+      if (hasQ) clauses.push(searchClause);
+      const linkedClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : ``;
+      const searchArgs: string[] = hasQ ? [likeArg, likeArg] : [];
+      // HO 547 — a searched result set has no blob total, so the pager rides a LIVE
+      // COUNT(*) with the same predicate (recent-shape, ≤67ms — HO 547), run in
+      // parallel with the page query below (Promise.all).
+      if (hasQ) countSql = `SELECT COUNT(*) AS n FROM lda_filings f ${linkedClause}`;
       if (sort === "volume") {
         // VOLUME = per-filing activity count ("meatiest filings"): the covering-PK
         // GROUP BY (CO-ROUTINE ac: SCAN lda_activities USING COVERING INDEX) DRIVES
@@ -2893,12 +2920,17 @@ export const getRecentFilings = unstable_cache(
                JOIN lda_filings f ON f.filing_uuid = ac.filing_uuid
                ${linkedClause}
                ORDER BY ac.c DESC, f.dt_posted DESC LIMIT ? OFFSET ?`;
+        // Reached only when !hasQ (search forces recent), so searchArgs is empty here
+        // and the SQL is byte-identical to HO 544's volume path.
+        pageArgs = [...searchArgs, pageSize, offset];
       } else {
-        // recent + billLinked — the dt_posted walk still applies, keep the hint.
+        // recent + (bill-linked and/or search) — the dt_posted walk, hint kept. The
+        // OR search stays a plain SCAN under the forced index (HO 547 EXPLAIN).
         sql = `SELECT ${cols}
                FROM lda_filings f INDEXED BY idx_lda_filings_dt_posted
                ${linkedClause}
                ORDER BY f.dt_posted DESC LIMIT ? OFFSET ?`;
+        pageArgs = [...searchArgs, pageSize, offset];
       }
     }
     // HO 440/448 guard — the feed read is the ONE live LDA query on /lobbying, and
@@ -2908,16 +2940,28 @@ export const getRecentFilings = unstable_cache(
     // to an empty feed so the rest of the page still renders (the getBillLobbying
     // try/catch → null precedent). Keep this — do NOT strip it as defensive noise.
     try {
-      const rs = await db.execute({ sql, args: [pageSize, offset] });
+      // Page query + the search COUNT run in parallel (Promise.all), both inside the
+      // guard. countSql is null unless hasQ, so the default path issues ONE query.
+      const [rs, countRs] = await Promise.all([
+        db.execute({ sql, args: pageArgs }),
+        countSql
+          ? db.execute({ sql: countSql, args: [likeArg, likeArg] })
+          : Promise.resolve(null),
+      ]);
+      const total = countRs
+        ? Number((countRs.rows[0] as { n?: number } | undefined)?.n ?? 0)
+        : undefined;
       const uuids = rs.rows.map((r) => String(r.filing_uuid));
       const { codes, bills } = uuids.length
         ? await hydrateFilings(db, uuids)
         : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
       const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
-      return { items, page, pageSize };
+      return { items, page, pageSize, total };
     } catch (err) {
       console.error("[getRecentFilings] read failed — feed hidden:", err);
-      return { items: [], page, pageSize };
+      // hasQ → total 0 keeps the page rendering (degrade-to-empty); RECENT+search is
+      // ≤~700ms so this path is effectively unreachable.
+      return { items: [], page, pageSize, total: hasQ ? 0 : undefined };
     }
   },
   ["getRecentFilings"],
@@ -3965,6 +4009,18 @@ export function sanitizeIssueCode(
   if (!raw || typeof raw !== "string") return null;
   const up = raw.trim().toUpperCase();
   return /^[A-Z]{2,8}$/.test(up) ? up : null;
+}
+
+// HO 547 — the ?q= registrant/client search term for the /lobbying corpus feed.
+// Trim + cap at 64 chars; empty/whitespace → undefined (treated as no search). The
+// LIKE %/_ escaping is done in getRecentFilings (where the clause is built), not
+// here — this only cleans the human term for the URL + display.
+export function sanitizeSearchQuery(
+  raw: string | null | undefined,
+): string | undefined {
+  if (!raw || typeof raw !== "string") return undefined;
+  const t = raw.trim().slice(0, 64);
+  return t.length > 0 ? t : undefined;
 }
 
 // HO 486 — the ?expanded= filing id for the /lobbying expand panel. filing_uuid
