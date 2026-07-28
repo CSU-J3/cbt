@@ -1,15 +1,17 @@
 import Link from "next/link";
 import type { FilingActivity, FilingSummary } from "@/lib/queries";
+import { FilingDescription } from "./FilingDescription";
 
 // HO 486 — the /lobbying expand panel: the per-activity LD-2 detail for one
 // filing, rendered under its expanded row (the ?expanded= server read). Server
 // component; receives the pre-fetched activities + the row's FilingSummary.
 //
 // Sized to the HO 485 shape probe: descriptions run p99≈1.8k / max 24.4k chars,
-// so each rides in a fixed scroll box (never rendered raw); a filing carries up
-// to 449 resolved bills, so per-activity chips cap at BILL_CAP + "+N more". Max
-// 31 activities/filing → no sub-pagination. Description is 0% empty (probe), so
-// there's no empty-state branch.
+// so each rides in the FilingDescription island (HO 545 — 4-line clamp + SHOW
+// MORE, open state a bounded 420px scroll; never rendered raw); a filing carries
+// up to 449 resolved bills, so per-activity chips cap at BILL_CAP + "+N more".
+// Max 31 activities/filing → no sub-pagination. Description is 0% empty (probe),
+// so there's no empty-state branch.
 
 const BILL_CAP = 8;
 
@@ -60,7 +62,7 @@ export function FilingExpandPanel({
                   <span className="lob-exp-act-disp">{a.display}</span>
                 ) : null}
               </div>
-              <div className="lob-exp-desc">{a.description}</div>
+              <FilingDescription text={a.description} />
               {shownBills.length > 0 ? (
                 <div className="lob-exp-bills">
                   {shownBills.map((id) => (

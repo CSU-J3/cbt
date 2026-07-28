@@ -6020,11 +6020,17 @@ body {
   font-size: 12px;
   color: var(--text-secondary);
 }
-/* Description scroll box — HO 485: p99≈1.8k, max 24.4k chars, so it never
-   renders raw. Sans body, preserves the LD-2 free-text line breaks. */
+/* Description — HO 485: p99≈1.8k, max 24.4k chars, so it never renders raw.
+   HO 545: closed state line-clamps to 4 lines (the repo clamp idiom); a genuinely
+   long description reveals via the SHOW MORE button below (FilingDescription), and
+   the open state is a bounded 420px scroll box so even the 24k monster can't
+   stretch the HO 492/493-tuned page. Sans body, preserves the LD-2 line breaks. */
 .lob-exp-desc {
-  max-height: 140px;
-  overflow-y: auto;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   font-family: var(--sans);
   font-size: 12px;
   line-height: 1.5;
@@ -6034,6 +6040,28 @@ body {
   background-color: var(--bg-base);
   border: 0.5px solid var(--border-soft);
   border-radius: 2px;
+}
+.lob-exp-desc--open {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  max-height: 420px;
+  overflow-y: auto;
+}
+.lob-exp-desc-more {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.lob-exp-desc-more:hover {
+  color: var(--accent-amber-bright);
 }
 .lob-exp-bills {
   display: flex;
