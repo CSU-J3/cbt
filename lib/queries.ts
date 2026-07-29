@@ -3139,16 +3139,32 @@ export interface BillAmendment {
 }
 
 // Display-only disposition from the TOP-LEVEL latest_action_text ONLY — NOT the
-// deferred persisted status model (agreed/failed/withdrawn/ruled-out-of-order),
-// which needs the per-amendment actions sub-resource the sync doesn't walk. A
-// light keyword scan of the unambiguous cases; everything else is neutral
-// ("other"). Failed-family tested FIRST so "not agreed to" can't read as
-// "agreed to". The tail (withdrawn / out of order / pending) falls to "other" —
-// honest, never mislabeled ("wrong is worse than absent").
+// deferred persisted status model, which needs the per-amendment actions
+// sub-resource the sync doesn't walk. A light keyword scan of the unambiguous
+// cases; everything else is neutral ("other"). Failed-family tested FIRST — the
+// ordering is load-bearing: "not agreed to" must not read as "agreed to", a
+// tabling-agreed stays a kill, and (HO 555) "SA N fell when ... agreed to" reads
+// as the amendment's OWN fate (fell = killed), NOT the trailing subordinate clause
+// about another motion (119-samdt-3963, where the old classifier mis-read agreed).
+//
+// HO 555 widened the failed-family to the MEASURED Senate kill vocabulary
+// (scripts/diagnostic/disposition-vocabulary-555.ts clustered the `other` bucket,
+// 80/115 rescued): "ruled out of order by the chair" (the point-of-order kill after
+// a failed budget waiver) and "fell" (an amendment that fell with its parent, when
+// cloture was invoked, or when tabled). Both state the amendment's own fate. NOT
+// added, all still `other`: "withdrawn" (the amendment survived the vote and was
+// pulled later — genuinely neither), "rendered moot" (describes the cloture motion,
+// not the amendment — 119-samdt-3849), and "cloture not invoked" (orthogonal
+// procedure). Anchored to "ruled out of order" (not bare "out of order") and
+// word-boundaried "fell"; "stricken" is NOT a kill token (a "…stricken by SA N
+// withdrawn" row is a withdrawal). Honest rather than mislabeled — "wrong is worse
+// than absent". M2 measured zero collision with the votes.result vocabulary (4
+// strings), so this one function is shared across both input families.
 function deriveDisposition(text: string | null): "agreed" | "failed" | "other" {
   if (!text) return "other";
   const t = text.toLowerCase();
-  if (/\bnot agreed to\b|\brejected\b|\bfailed\b|motion to table.*\bagreed to\b/.test(t)) return "failed";
+  if (/\bnot agreed to\b|\brejected\b|\bfailed\b|motion to table.*\bagreed to\b|ruled out of order|\bfell\b/.test(t))
+    return "failed";
   if (/\bagreed to\b|\badopted\b|\bpassed\b/.test(t)) return "agreed";
   return "other";
 }

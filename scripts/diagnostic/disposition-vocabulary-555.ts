@@ -220,11 +220,31 @@ async function main(): Promise<number> {
   }
   console.log("");
 
+  // ── M5 — the `when` subordinate-clause WATCH (HO 555 GO addendum) ────────────
+  // SA 3963 was mis-read agreed because a trailing "... agreed to" belonged to a
+  // subordinate "fell when ..." clause. `fell`/`ruled out of order` rescue the ones
+  // that carry a kill token; this counts the residual — rows STILL `agreed` under the
+  // NEW classifier whose text carries `when`. Small + all genuine agrees ⇒ SA 3963
+  // was alone; any that read as a subject-failed mis-read ⇒ a family → doc-sweep WATCH.
+  console.log("══ M5 — `agreed`-under-new rows containing the word `when` (subordinate-clause watch) ══");
+  const whenRows: string[] = [];
+  for (const r of all.rows) {
+    const text = (r.latest_action_text as string | null) ?? null;
+    if (!text) continue;
+    if (deriveDispositionNew(text) !== "agreed") continue;
+    if (/\bwhen\b/.test(text.toLowerCase())) whenRows.push(text);
+  }
+  console.log(`   agreed-under-new rows with \`when\`: ${whenRows.length}`);
+  if (whenRows.length < 20) for (const t of whenRows) console.log(`     · "${t}"`);
+  else console.log(`     (≥20 — suppressed; too many to hand-read, promote the query to the WATCH as-is)`);
+  console.log("");
+
   console.log("══ SUMMARY ══");
   console.log(`   M1 other=${otherCount}/${acted.rows.length} acted · candidate moves ${candidateMoves} out of other`);
   console.log(`   M2 collisions=${collisions.length}${collisions.length ? " ⚠ split" : " ✓ single-fn"}`);
   console.log(`   M3 acted other ${oOtherActed}→${nOtherActed} · voted other ${ovO}→${nvO} · corpus other ${cOo}→${cNo} · FLIPS=${totalFlips}${totalFlips ? " ⚠ HALT" : " ✓"}`);
   console.log(`   M4 (grep): ?disposition= filter + voted EXISTS bypass deriveDisposition — confirmed, see report`);
+  console.log(`   M5 agreed-under-new rows with \`when\`: ${whenRows.length}`);
   return 0;
 }
 
