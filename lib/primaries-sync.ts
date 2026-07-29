@@ -386,6 +386,9 @@ export type SenateSyncSummary = {
   // rows already carrying results). Surfaced into cron_runs.payload so a freeze
   // is visible rather than silent.
   settledSkipped: string[];
+  // HO 564: primary ids whose per-contest delete was refused because the
+  // incoming roster was empty (never erase a roster on a non-parsing scrape).
+  rosterDeletesRefused: string[];
 };
 
 // ── HO 561 — special-primary ingestion helpers ────────────────────────────
@@ -651,6 +654,7 @@ export async function syncSenateCandidates(
   const perStateMs: number[] = [];
   const perState: string[] = [];
   const settledSkipped: string[] = [];
+  const rosterDeletesRefused: string[] = []; // HO 564: deletes declined (empty incoming roster)
   let budgetStopped = false;
   // HO 560: today (YYYY-MM-DD) for the settled-row clobber guard below.
   const today = now.slice(0, 10);
@@ -704,11 +708,19 @@ export async function syncSenateCandidates(
         settledSkipped.push(primaryId);
         continue;
       }
+      // HO 564: never delete a roster backed by an empty incoming roster — the
+      // same erasure rule as the House path. The settled guard above already
+      // protects decided rows; this protects the rest (S3: 28 Senate rows were
+      // erasable on an empty ok parse before this gate).
+      const roster = result.candidates.filter((c) => c.contest === contest);
+      if (roster.length === 0) {
+        rosterDeletesRefused.push(primaryId);
+        continue;
+      }
       await db.execute({
         sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
         args: [primaryId],
       });
-      const roster = result.candidates.filter((c) => c.contest === contest);
       for (const c of roster) {
         const bioguideId = matchMember(c.name, abbr);
         if (bioguideId) matchedCandidates++;
@@ -779,6 +791,12 @@ export async function syncSenateCandidates(
       `Settled rows skipped (clobber guard, HO 560): ${settledSkipped.length} — ${settledSkipped.join(", ")}`,
     );
   }
+  if (rosterDeletesRefused.length > 0) {
+    console.log(
+      `Roster deletes refused (HO 564): ${rosterDeletesRefused.length} — ${rosterDeletesRefused.join(", ")}`,
+    );
+  }
+
   return {
     okStates,
     totalStates: states.length,
@@ -789,6 +807,7 @@ export async function syncSenateCandidates(
     fetchFailures,
     perStateMs,
     settledSkipped,
+    rosterDeletesRefused,
   };
 }
 
