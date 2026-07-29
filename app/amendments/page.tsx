@@ -3,7 +3,7 @@ import { AmendmentRow } from "@/components/AmendmentRow";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Pagination } from "@/components/Pagination";
 import { partyColor } from "@/lib/race-colors";
-import { getAmendments, getAmendmentsSummary } from "@/lib/queries";
+import { getAmendments, getAmendmentsSummary, getSenateAmendmentMotions } from "@/lib/queries";
 
 // Reads the DB (live summary GROUP BYs + filtered feed); opt out of static prerender.
 export const dynamic = "force-dynamic";
@@ -124,7 +124,13 @@ export default async function AmendmentsPage({
     );
   }
 
-  const list = await getAmendments({ type, disposition, bill, page: parsePage(params.page) });
+  // HO 557 — the feed and the motion map in parallel. Motions are attached PAGE-SCOPED
+  // here (indexed per row below), NOT inside getAmendments — scope guard 5 keeps that
+  // query's filter/hydration/counts byte-identical. A motion is not a "voted" amendment.
+  const [list, motions] = await Promise.all([
+    getAmendments({ type, disposition, bill, page: parsePage(params.page) }),
+    getSenateAmendmentMotions(),
+  ]);
   const totalPages = Math.max(1, Math.ceil(list.total / PAGE_SIZE));
   const page = Math.min(list.page, totalPages);
 
@@ -339,7 +345,7 @@ export default async function AmendmentsPage({
           </div>
           <div className="border" style={{ borderColor: "var(--border-strong)" }}>
             {list.rows.length > 0 ? (
-              list.rows.map((a) => <AmendmentRow key={a.id} amendment={a} />)
+              list.rows.map((a) => <AmendmentRow key={a.id} amendment={a} motions={motions[a.id] ?? []} />)
             ) : (
               <div className="px-4 py-12 text-center text-[13px] uppercase tracking-[0.5px]" style={{ color: "var(--text-dim)" }}>
                 No matching amendments

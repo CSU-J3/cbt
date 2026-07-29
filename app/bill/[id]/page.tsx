@@ -26,6 +26,7 @@ import {
   type BillCommitteeRow,
   getBillAmendments,
   getBillAmendmentVotes,
+  getSenateAmendmentMotions,
   getBillById,
   getBillCommittees,
   getBillLobbying,
@@ -131,6 +132,7 @@ export default async function BillDetailPage({
     committeeIndex,
     amendments,
     amendmentVotes,
+    amendmentMotions,
     lobbying,
     news,
     billVotes,
@@ -143,6 +145,10 @@ export default async function BillDetailPage({
     // HO 530: Senate amendment vote outcomes (tally + party split), joined free via
     // votes.question. Empty map when none — the section renders unchanged.
     getBillAmendmentVotes(bill.id),
+    // HO 557: motion-only Senate amendment roll calls (corpus-wide, 64-row cache).
+    // Keyed by amendmentId; BillAmendments renders a motion line only where the
+    // amendment has no decisive vote above.
+    getSenateAmendmentMotions(),
     getBillLobbying(bill.id),
     // HO 507: the exact bounded, unstable_cache'd read /api/bill/[id]/panel
     // already runs on every feed expand — feeds the hero's RELATED NEWS.
@@ -255,7 +261,7 @@ export default async function BillDetailPage({
       content: (
         <>
           {amNote ? <div className="rec-note">{amNote}</div> : null}
-          <BillAmendments rows={amendments} votes={amendmentVotes} />
+          <BillAmendments rows={amendments} votes={amendmentVotes} motions={amendmentMotions} />
         </>
       ),
     });

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
-import type { AmendmentVote, BillAmendment } from "@/lib/queries";
+import type { AmendmentMotion, AmendmentVote, BillAmendment } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
 import { VoteLine, dispositionColor } from "@/components/AmendmentVoteLine";
+import { MotionLine } from "@/components/AmendmentMotionLine";
 
 // HO 448 — the /bill/[id] AMENDMENTS section body. Mirrors BillLobbying's
 // grammar (same border box, 0.5px row dividers). Server component, fed rows:
@@ -52,10 +53,15 @@ function AmendmentRow({
   a,
   vote,
   moreVotes,
+  motions,
 }: {
   a: BillAmendment;
   vote: AmendmentVote | null;
   moreVotes: number;
+  // HO 557 — the amendment's motion roll calls (tabling / cloture / chair / waiver).
+  // Rendered ONLY when there is no anchored decisive `vote` (suppression rule), so a
+  // MotionLine and a VoteLine are mutually exclusive on a row.
+  motions: AmendmentMotion[];
 }) {
   const purpose = a.purpose ?? a.description;
   // Where a real vote exists, the dot follows the vote outcome (authoritative);
@@ -105,7 +111,12 @@ function AmendmentRow({
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
       </div>
 
-      {vote ? <VoteLine vote={vote} moreVotes={moreVotes} /> : null}
+      {/* Decisive vote OR motion lines, never both (the anchored-suppression rule). */}
+      {vote ? (
+        <VoteLine vote={vote} moreVotes={moreVotes} />
+      ) : (
+        motions.map((m) => <MotionLine key={m.voteId} motion={m} />)
+      )}
 
       {a.amendsLabel ? (
         <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
@@ -119,11 +130,14 @@ function AmendmentRow({
 export function BillAmendments({
   rows,
   votes,
+  motions,
 }: {
   rows: BillAmendment[];
   // Plain object keyed by amendmentId (NOT a Map — getBillAmendmentVotes is
   // unstable_cache'd, which serializes a Map to {}; HO 533).
   votes: Record<string, AmendmentVote[]>;
+  // HO 557 — motion roll calls keyed by amendmentId (getSenateAmendmentMotions).
+  motions: Record<string, AmendmentMotion[]>;
 }) {
   const shown = rows.slice(0, RENDER_CAP);
   const overflow = rows.length - shown.length;
@@ -138,6 +152,7 @@ export function BillAmendments({
             a={a}
             vote={list[0] ?? null}
             moreVotes={Math.max(0, list.length - 1)}
+            motions={motions[a.id] ?? []}
           />
         );
       })}

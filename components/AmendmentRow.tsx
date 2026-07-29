@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { formatDateLong } from "@/lib/format";
-import type { AmendmentListRow } from "@/lib/queries";
+import type { AmendmentListRow, AmendmentMotion } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
 import { VoteLine, dispositionColor } from "@/components/AmendmentVoteLine";
+import { MotionLine } from "@/components/AmendmentMotionLine";
 
 // HO 461 — one row of the /amendments corpus feed. A bare row the page maps (the
 // member-page MemberAmendmentRow idiom, not the self-boxing BillAmendments). The
@@ -36,7 +37,16 @@ function Sponsor({ a }: { a: AmendmentListRow }) {
   );
 }
 
-export function AmendmentRow({ amendment: a }: { amendment: AmendmentListRow }) {
+export function AmendmentRow({
+  amendment: a,
+  motions = [],
+}: {
+  amendment: AmendmentListRow;
+  // HO 557 — motion roll calls for this amendment, attached PAGE-SCOPED by the page
+  // (not by getAmendments — scope guard 5 keeps that query's filter/hydration/counts
+  // untouched). Rendered only where the row has no decisive vote.
+  motions?: AmendmentMotion[];
+}) {
   // Where a recorded vote exists, the dot follows the vote outcome (authoritative,
   // from votes.result); else the latest_action_text keyword scan (a.disposition) —
   // the hub's exact rule. list[0] is the canonical (latest) vote.
@@ -100,7 +110,12 @@ export function AmendmentRow({ amendment: a }: { amendment: AmendmentListRow }) 
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
       </div>
 
-      {vote ? <VoteLine vote={vote} moreVotes={moreVotes} /> : null}
+      {/* Decisive vote OR motion lines, never both (the anchored-suppression rule). */}
+      {vote ? (
+        <VoteLine vote={vote} moreVotes={moreVotes} />
+      ) : (
+        motions.map((m) => <MotionLine key={m.voteId} motion={m} />)
+      )}
 
       {a.amendsLabel ? (
         <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
