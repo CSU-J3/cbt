@@ -414,6 +414,32 @@ export async function scrapeSenateCandidates(
   return parseCandidatesPage(html, state, url);
 }
 
+// HO 561 — the special-election page ONLY. The mirror image of
+// scrapeSenateCandidates: no standard-page attempt and no fallback (this is the
+// dedicated special-primary path, driven by primaries-sync's seeded registry).
+// Same 8s cap / UA / parse as its siblings; a miss returns "no_page" with the
+// httpStatus (a 404 while the field is unpublished is the normal state, not an
+// error). Additive export — the FL/OH fallback inside scrapeSenateCandidates is
+// untouched.
+export async function scrapeSenateSpecialCandidates(
+  state: string,
+  slug: string,
+): Promise<CandidateScrapeResult> {
+  const url = senateSpecialPageUrl(slug);
+  const attempt = await fetchPageWithTimeout(url);
+  if (!attempt.res || !attempt.res.ok) {
+    return {
+      state,
+      url,
+      status: "no_page",
+      httpStatus: attempt.aborted ? 0 : attempt.res?.status,
+      candidates: [],
+    };
+  }
+  const html = await attempt.res.text();
+  return parseCandidatesPage(html, state, url);
+}
+
 const HOUSE_FETCH_ATTEMPTS = 3;
 const HOUSE_RETRY_BACKOFF_MS = 2500;
 

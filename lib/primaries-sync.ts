@@ -25,6 +25,7 @@ import { scrapeStatePrimaryCalendar } from "./primary-calendar-scrape";
 import {
   scrapeHouseCandidates,
   scrapeSenateCandidates,
+  scrapeSenateSpecialCandidates,
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
 
@@ -387,6 +388,166 @@ export type SenateSyncSummary = {
   settledSkipped: string[];
 };
 
+// ── HO 561 — special-primary ingestion helpers ────────────────────────────
+// All Ballotpedia URL / UA / timeout knowledge lives in the scrape module:
+// the special-page fetch is scrapeSenateSpecialCandidates there, and this file
+// only orchestrates and writes. One copy of the fetch semantics by construction.
+
+type SenateMatcher = (candidateName: string, state: string) => string | null;
+
+// Build the last-name → sitting-senator matcher once. Extracted (HO 561) from
+// syncSenateCandidates so the special-page pass and the C2 priority trigger
+// reuse the IDENTICAL matching logic rather than a second copy.
+async function buildSenateMatcher(
+  db: ReturnType<typeof getDb>,
+): Promise<SenateMatcher> {
+  const memberRows = await db.execute(
+    "SELECT bioguide_id, name, state FROM members WHERE chamber = 'senate'",
+  );
+  const senatorsByState = new Map<
+    string,
+    { bioguideId: string; name: string }[]
+  >();
+  for (const r of memberRows.rows) {
+    const st = r.state as string | null;
+    if (!st) continue;
+    const list = senatorsByState.get(st) ?? [];
+    list.push({
+      bioguideId: r.bioguide_id as string,
+      name: ((r.name as string | null) ?? "").toLowerCase(),
+    });
+    senatorsByState.set(st, list);
+  }
+  return (candidateName, state) => {
+    const key = lastNameKey(candidateName);
+    if (!key) return null;
+    const hits = (senatorsByState.get(state) ?? []).filter((m) =>
+      m.name.includes(key),
+    );
+    return hits.length === 1 ? hits[0]!.bioguideId : null;
+  };
+}
+
+// The HO 560 C2 settled predicate, extracted verbatim so the base sync AND the
+// HO 561 special-page writes make the SAME call (§3 C1: "same predicate, same
+// call"). A row is settled ⇔ its date has passed AND it already carries a
+// recorded share. Unchanged from HO 560 — only the call site is shared now.
+async function isSettled(
+  db: ReturnType<typeof getDb>,
+  primaryId: string,
+  today: string,
+): Promise<boolean> {
+  const rs = await db.execute({
+    sql: `SELECT 1 FROM primaries p
+           WHERE p.id = ? AND p.primary_date < ?
+             AND EXISTS (SELECT 1 FROM primary_candidates pc
+                         WHERE pc.primary_id = p.id AND pc.vote_pct IS NOT NULL)
+           LIMIT 1`,
+    args: [primaryId, today],
+  });
+  return rs.rows.length > 0;
+}
+
+export type SenateSpecialResult = {
+  // Every seeded special id we RAN the pass for this state (touched), whatever
+  // the fetch outcome — this is what the C2 priority trigger surfaces.
+  attemptedIds: string[];
+  // Ids we actually wrote a roster to (empty on a 404 / unpublished field).
+  populatedIds: string[];
+  totalCandidates: number;
+  matchedCandidates: number;
+  settledSkipped: string[];
+  fetchFailure: string | null; // e.g. "SC — special 404", for fetchFailures
+};
+
+// HO 561 C1 core — fetch ONE state's special-election page and write its
+// rosters to the seeded senate-{ST}-2026-special-{contest} ids. Reuses the
+// delete-then-insert + member matcher + the C2 guard, all unchanged. It NEVER
+// creates a primaries row: only contests whose id is in `seededIds` are written
+// (an unseeded contest on the page is skipped). A 404 — the normal state while
+// the field is unpublished — is returned as a fetchFailure, not an error.
+async function scrapeSenateSpecialState(
+  db: ReturnType<typeof getDb>,
+  abbr: string,
+  seededIds: Set<string>,
+  now: string,
+  today: string,
+  matchMember: SenateMatcher,
+): Promise<SenateSpecialResult> {
+  const attemptedIds = [...seededIds];
+  const slug = stateName(abbr).replace(/ /g, "_");
+  const result = await scrapeSenateSpecialCandidates(abbr, slug);
+  await sleep(700); // Ballotpedia politeness (a pacing decision at the call site)
+
+  const empty: SenateSpecialResult = {
+    attemptedIds,
+    populatedIds: [],
+    totalCandidates: 0,
+    matchedCandidates: 0,
+    settledSkipped: [],
+    fetchFailure: null,
+  };
+  if (result.status !== "ok") {
+    // Preserve "{ST} — special {status}". A no_page miss carries httpStatus —
+    // 404 while the field is unpublished, 0/undefined on a fetch abort (=
+    // "timeout"); other statuses (no_section / no_candidates) surface by name.
+    const marker =
+      result.status === "no_page"
+        ? result.httpStatus && result.httpStatus !== 0
+          ? String(result.httpStatus)
+          : "timeout"
+        : result.status;
+    return { ...empty, fetchFailure: `${abbr} — special ${marker}` };
+  }
+
+  let totalCandidates = 0;
+  let matchedCandidates = 0;
+  const settledSkipped: string[] = [];
+  const populatedIds: string[] = [];
+  for (const contest of ["D", "R", "open"] as const) {
+    const primaryId = `senate-${abbr}-2026-special-${contest}`;
+    if (!seededIds.has(primaryId)) continue; // never auto-create an unseeded row
+    if (await isSettled(db, primaryId, today)) {
+      settledSkipped.push(primaryId);
+      continue;
+    }
+    await db.execute({
+      sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
+      args: [primaryId],
+    });
+    const roster = result.candidates.filter((c) => c.contest === contest);
+    for (const c of roster) {
+      const bioguideId = matchMember(c.name, abbr);
+      if (bioguideId) matchedCandidates++;
+      totalCandidates++;
+      await db.execute({
+        sql: `INSERT INTO primary_candidates
+                (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          primaryId,
+          c.name,
+          c.party,
+          c.incumbent ? 1 : 0,
+          bioguideId,
+          c.isWinner ? "winner" : "running",
+          c.votePct,
+          now,
+        ],
+      });
+    }
+    populatedIds.push(primaryId);
+  }
+  return {
+    attemptedIds,
+    populatedIds,
+    totalCandidates,
+    matchedCandidates,
+    settledSkipped,
+    fetchFailure: null,
+  };
+}
+
 // Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
 // Ballotpedia election page, parses the D/R primary voteboxes, and upserts
 // the rosters into primary_candidates. Per-state delete-then-insert keeps
@@ -412,32 +573,22 @@ export async function syncSenateCandidates(
 ): Promise<SenateSyncSummary> {
   const db = getDb();
   const now = new Date().toISOString();
+  const matchMember = await buildSenateMatcher(db); // HO 561: shared matcher
 
-  const memberRows = await db.execute(
-    "SELECT bioguide_id, name, state FROM members WHERE chamber = 'senate'",
+  // HO 561 C1 — opt-in special-page pass. Query the seeded -special- registry
+  // ONCE (not per state); a state with rows here gets a second, special-election
+  // page fetch after its normal pass. A state with none is never given a second
+  // fetch, so its routing is untouched (FL/OH keep landing in base ids) — the
+  // whole regression story is "opt-in by seed presence".
+  const specialRegRs = await db.execute(
+    "SELECT id, state FROM primaries WHERE id LIKE 'senate-%-2026-special-%'",
   );
-  const senatorsByState = new Map<
-    string,
-    { bioguideId: string; name: string }[]
-  >();
-  for (const r of memberRows.rows) {
-    const st = r.state as string | null;
-    if (!st) continue;
-    const list = senatorsByState.get(st) ?? [];
-    list.push({
-      bioguideId: r.bioguide_id as string,
-      name: ((r.name as string | null) ?? "").toLowerCase(),
-    });
-    senatorsByState.set(st, list);
-  }
-
-  function matchMember(candidateName: string, state: string): string | null {
-    const key = lastNameKey(candidateName);
-    if (!key) return null;
-    const hits = (senatorsByState.get(state) ?? []).filter((m) =>
-      m.name.includes(key),
-    );
-    return hits.length === 1 ? hits[0]!.bioguideId : null;
+  const specialIdsByState = new Map<string, Set<string>>();
+  for (const r of specialRegRs.rows) {
+    const st = String(r.state);
+    const set = specialIdsByState.get(st) ?? new Set<string>();
+    set.add(String(r.id));
+    specialIdsByState.set(st, set);
   }
 
   let okStates = 0;
@@ -497,15 +648,7 @@ export async function syncSenateCandidates(
       // stay OPEN, so only truly-decided results freeze. The escape hatch for a
       // legitimate post-settle correction is scripts/reingest-primary-slate.ts
       // (UPDATE by name, never a clobber — HO 341).
-      const settled = await db.execute({
-        sql: `SELECT 1 FROM primaries p
-               WHERE p.id = ? AND p.primary_date < ?
-                 AND EXISTS (SELECT 1 FROM primary_candidates pc
-                             WHERE pc.primary_id = p.id AND pc.vote_pct IS NOT NULL)
-               LIMIT 1`,
-        args: [primaryId, today],
-      });
-      if (settled.rows.length > 0) {
+      if (await isSettled(db, primaryId, today)) {
         settledSkipped.push(primaryId);
         continue;
       }
@@ -538,6 +681,23 @@ export async function syncSenateCandidates(
       }
     }
     perState.push(`  ${abbr}: ${result.candidates.length} candidates`);
+
+    // HO 561 C1 — opt-in special-page pass for this state (seeded rows only).
+    // Its writes go to the -special- ids and carry the same C2 guard + matcher;
+    // an unpublished field 404s and lands in fetchFailures without failing the
+    // state. Folded into the same summary counters as the normal pass.
+    const specialIds = specialIdsByState.get(abbr);
+    if (specialIds) {
+      const sp = await scrapeSenateSpecialState(db, abbr, specialIds, now, today, matchMember);
+      totalCandidates += sp.totalCandidates;
+      matchedCandidates += sp.matchedCandidates;
+      settledSkipped.push(...sp.settledSkipped);
+      if (sp.fetchFailure) fetchFailures.push(sp.fetchFailure);
+      if (sp.populatedIds.length > 0) {
+        perState.push(`  ${abbr} special: populated ${sp.populatedIds.join(", ")} (+${sp.totalCandidates} cand)`);
+      }
+    }
+
     perStateMs.push(Date.now() - stateStart);
     await opts.onProgress?.(i);
   }
