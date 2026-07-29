@@ -1,0 +1,29 @@
+{
+  "note": "SC 2026 US Senate special primary (Aug 11, runoff Aug 25). Roster EMPTY on purpose: as of 2026-07-29 (HO 560 STEP 0) Ballotpedia's special-election page (United_States_Senate_special_election_in_South_Carolina,_2026) returns 404 — the field is not yet published — while the standard SC senate page carries only the June 9 regular. A dated contest with no roster is correct: it renders as a scheduled Aug 11 tick via getPrimaryCalendar -> PrimaryTimeline, and re-running this seed leaves the empty roster untouched (it never asserts empty). REACHABILITY — no automated path can fill these -special- rows: syncCalendar writes only senate-SC-2026-{D,R} on the June state-uniform date; syncSenateCandidates writes those same base ids (and now FREEZES them, HO 560 C2); and reingest:primary-slate requires an EXISTING roster and UPDATEs by (primary_id, name), so it no-ops against these rosterless ids. Populating them is HO 561, and the roster must be SOURCED from Ballotpedia when the page lands — never invented. The June rows (senate-SC-2026-{D,R}) are a different id set, untouched by this seed.",
+  "primaries": [
+    {
+      "id": "senate-SC-2026-special-D",
+      "state": "SC",
+      "chamber": "senate",
+      "district": null,
+      "party": "D",
+      "primary_date": "2026-08-11",
+      "runoff_date": "2026-08-25",
+      "primary_type": null,
+      "race_id": "S-SC-2026",
+      "candidates": []
+    },
+    {
+      "id": "senate-SC-2026-special-R",
+      "state": "SC",
+      "chamber": "senate",
+      "district": null,
+      "party": "R",
+      "primary_date": "2026-08-11",
+      "runoff_date": "2026-08-25",
+      "primary_type": null,
+      "race_id": "S-SC-2026",
+      "candidates": []
+    }
+  ]
+}
