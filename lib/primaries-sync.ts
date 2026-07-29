@@ -381,6 +381,10 @@ export type SenateSyncSummary = {
   budgetStopped: boolean;
   fetchFailures: string[];
   perStateMs: number[];
+  // HO 560: primary ids skipped by the settled-row clobber guard (past-dated
+  // rows already carrying results). Surfaced into cron_runs.payload so a freeze
+  // is visible rather than silent.
+  settledSkipped: string[];
 };
 
 // Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
@@ -443,7 +447,10 @@ export async function syncSenateCandidates(
   const fetchFailures: string[] = [];
   const perStateMs: number[] = [];
   const perState: string[] = [];
+  const settledSkipped: string[] = [];
   let budgetStopped = false;
+  // HO 560: today (YYYY-MM-DD) for the settled-row clobber guard below.
+  const today = now.slice(0, 10);
 
   for (let i = 0; i < states.length; i++) {
     if (opts.deadlineMs !== undefined && Date.now() >= opts.deadlineMs) {
@@ -480,6 +487,28 @@ export async function syncSenateCandidates(
     // DELETE/INSERT there is a no-op for ordinary D/R states.
     for (const contest of ["D", "R", "open"] as const) {
       const primaryId = `senate-${abbr}-2026-${contest}`;
+      // HO 560 — settled-row clobber guard. Ballotpedia rebuilds a seat's page
+      // around a LATER contest (e.g. the SC Aug special), so an unconditional
+      // delete-rebuild would overwrite a past election's stored results with a
+      // different contest's field. Skip the rewrite when the target row is
+      // SETTLED: past-dated AND already carrying at least one recorded share.
+      // The predicate is narrow on purpose (HO 559 confirmed the re-poll):
+      // past-dated-but-shareless rows (mid-count / late-ingest) and future rows
+      // stay OPEN, so only truly-decided results freeze. The escape hatch for a
+      // legitimate post-settle correction is scripts/reingest-primary-slate.ts
+      // (UPDATE by name, never a clobber — HO 341).
+      const settled = await db.execute({
+        sql: `SELECT 1 FROM primaries p
+               WHERE p.id = ? AND p.primary_date < ?
+                 AND EXISTS (SELECT 1 FROM primary_candidates pc
+                             WHERE pc.primary_id = p.id AND pc.vote_pct IS NOT NULL)
+               LIMIT 1`,
+        args: [primaryId, today],
+      });
+      if (settled.rows.length > 0) {
+        settledSkipped.push(primaryId);
+        continue;
+      }
       await db.execute({
         sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
         args: [primaryId],
@@ -533,6 +562,11 @@ export async function syncSenateCandidates(
   if (budgetStopped) {
     console.log("Stopped early on time budget.");
   }
+  if (settledSkipped.length > 0) {
+    console.log(
+      `Settled rows skipped (clobber guard, HO 560): ${settledSkipped.length} — ${settledSkipped.join(", ")}`,
+    );
+  }
 
   return {
     okStates,
@@ -543,6 +577,7 @@ export async function syncSenateCandidates(
     budgetStopped,
     fetchFailures,
     perStateMs,
+    settledSkipped,
   };
 }
 
