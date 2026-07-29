@@ -76,12 +76,16 @@ function actualFate(text: string | null): "agreed" | "failed" | "withdrawn" | "o
 }
 
 // deriveDisposition, verbatim from lib/queries.ts:3148 — THE prod dot authority.
-// M2 must compare against this, not actualFate (they differ: no withdrawn/fell/
-// out-of-order handling), because this is what renders on prod today.
+// M2 must compare against this because it's what renders on prod today.
+// HO 557 STEP 0 reconciled this copy to the SHIPPED classifier at `2ce1d6c` (the
+// HO 555 widening: `ruled out of order` + word-boundaried `fell` in the failed-
+// family). The HO 556 WATCH names this: a stale copy here would silently re-measure
+// M2 against the pre-555 dot and read a DISAGREE that no longer exists on prod.
 function deriveDisposition(text: string | null): "agreed" | "failed" | "other" {
   if (!text) return "other";
   const t = text.toLowerCase();
-  if (/\bnot agreed to\b|\brejected\b|\bfailed\b|motion to table.*\bagreed to\b/.test(t)) return "failed";
+  if (/\bnot agreed to\b|\brejected\b|\bfailed\b|motion to table.*\bagreed to\b|ruled out of order|\bfell\b/.test(t))
+    return "failed";
   if (/\bagreed to\b|\badopted\b|\bpassed\b/.test(t)) return "agreed";
   return "other";
 }
