@@ -5,6 +5,14 @@ import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
+import {
+  SENATE_MOTION_RESIDUAL,
+  classifyMotion,
+  parseMotionAmendmentNumber,
+  motionOutcome,
+  motionFate,
+  type MotionClass,
+} from "./amendment-motion-key";
 import type { NominationDisposition } from "./nominations-sync";
 import {
   aggregateBillDrill,
@@ -3831,6 +3839,115 @@ export const getAmendments = unstable_cache(
   ["getAmendments"],
   // `votes` too (HO 537): hydratePageAmendmentVotes reads amendment_votes / votes /
   // member_votes, so a votes re-sync must flush the per-row vote lines.
+  { revalidate: 3600, tags: ["amendments", "votes"] },
+);
+
+// HO 557 — the Senate motion-model surface (lib/amendment-motion-key.ts). A SECOND
+// line under an amendment whose only floor roll call is a MOTION about it (tabling /
+// cloture / chair / budget waiver), NOT an up-or-down vote — distinct from the
+// AmendmentVote/VoteLine path. A DISTINCT type from AmendmentVote deliberately: `fate`
+// is kill-direction-only vocabulary that must NOT be assignable to a disposition, and
+// the render is motion-framed, not amendment-framed.
+export type AmendmentMotion = {
+  voteId: string; // votes.id (TEXT composite) → /vote/[id]
+  motion: MotionClass;
+  result: string | null; // votes.result verbatim
+  outcome: "agreed" | "failed" | "other"; // the MOTION's own outcome (the render verb)
+  fate: "killed" | "undecided" | "orthogonal"; // the AMENDMENT's implied fate (kill-direction only)
+  yea: number;
+  nay: number;
+  present: number;
+  notVoting: number;
+  date: string | null;
+  party: { D: { yea: number; nay: number }; R: { yea: number; nay: number }; I: { yea: number; nay: number } };
+};
+
+// Corpus-wide, NO arguments — the residual is 64 rows total, so a single cache entry
+// serves both consumers (the bill hub + the /amendments feed) with no per-bill or
+// per-page key surface. Keyed by `${congress}-samdt-${n}` (the amendment id).
+export const getSenateAmendmentMotions = unstable_cache(
+  async (): Promise<Record<string, AmendmentMotion[]>> => {
+    try {
+      const db = getDb();
+      // Statement 1 — the residual select (HO 554 M4: rides idx_votes_chamber_date,
+      // 31ms/64 rows, no new index). The residual pre-filter PAIR comes as one const so
+      // the LIKE and NOT-LIKE can't be applied apart.
+      const residual = await db.execute({
+        sql: `SELECT id, congress, question, result, vote_date,
+                     yea_count, nay_count, present_count, not_voting_count
+                FROM votes
+               WHERE chamber='senate' AND question LIKE ? AND question NOT LIKE ?`,
+        args: [SENATE_MOTION_RESIDUAL.like, SENATE_MOTION_RESIDUAL.notLike],
+      });
+      const out: Record<string, AmendmentMotion[]> = {};
+      const byVoteId = new Map<string, AmendmentMotion>();
+      for (const r of residual.rows) {
+        const question = String(r.question ?? "");
+        const cls = classifyMotion(question);
+        if (!cls) continue; // tail drop (measured 0) — droppable by type, never rendered
+        const n = parseMotionAmendmentNumber(cls, question);
+        if (n == null) continue;
+        // Key from votes.congress per row (multi-congress safe) — NO MAX(congress), and
+        // NO per-amendment existence lookup: an unresolvable number just makes a record
+        // key nobody reads. So this query never touches `amendments` — the `amendments`
+        // cache tag below is for CONSUMER coherence, not a FROM clause (HO 537, honest).
+        const amendmentId = `${Number(r.congress ?? 0)}-samdt-${n}`;
+        const result = (r.result as string | null) ?? null;
+        const outcome = motionOutcome(result);
+        const motion: AmendmentMotion = {
+          voteId: String(r.id),
+          motion: cls,
+          result,
+          outcome,
+          fate: motionFate(cls, outcome),
+          yea: Number(r.yea_count ?? 0),
+          nay: Number(r.nay_count ?? 0),
+          present: Number(r.present_count ?? 0),
+          notVoting: Number(r.not_voting_count ?? 0),
+          date: (r.vote_date as string | null) ?? null,
+          party: { D: { yea: 0, nay: 0 }, R: { yea: 0, nay: 0 }, I: { yea: 0, nay: 0 } },
+        };
+        byVoteId.set(motion.voteId, motion);
+        (out[amendmentId] ??= []).push(motion);
+      }
+      // Statement 2 — the D/R/I party split (member_votes ⋈ members), the same shape
+      // hydratePageAmendmentVotes uses. FETCHED unconditionally so an all-zero split
+      // reads as "positions not yet synced" (HO 533), never as not-fetched. Guard the
+      // empty IN () (SQLite syntax error).
+      const voteIds = [...byVoteId.keys()];
+      if (voteIds.length > 0) {
+        const splitRs = await db.execute({
+          sql: `SELECT mv.vote_id, m.party, mv.position, COUNT(*) AS c
+                  FROM member_votes mv JOIN members m ON m.bioguide_id = mv.bioguide_id
+                 WHERE mv.vote_id IN (${voteIds.map(() => "?").join(",")})
+                 GROUP BY mv.vote_id, m.party, mv.position`,
+          args: voteIds,
+        });
+        for (const r of splitRs.rows) {
+          const v = byVoteId.get(String(r.vote_id));
+          if (!v) continue;
+          const key = normalizePartyVariant(r.party as string | null);
+          if (!key) continue;
+          const pos = String(r.position);
+          const c = Number(r.c ?? 0);
+          if (pos === "yea") v.party[key].yea += c;
+          else if (pos === "nay") v.party[key].nay += c;
+        }
+      }
+      // Canonical-first (date DESC, voteId DESC) — the hub/feed list[0] convention. M3
+      // measured MAX(motions/amendment)=1, so no +N-earlier counter (unreachable code);
+      // the render maps the whole list, so a future 2nd motion shows as a 2nd line.
+      for (const list of Object.values(out)) {
+        list.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? "") || b.voteId.localeCompare(a.voteId));
+      }
+      return out;
+    } catch (e) {
+      // Rides the bill page's Promise.all AND the /amendments page — must never 500 either.
+      console.error(`[amendments] getSenateAmendmentMotions live miss: ${(e as Error).message}`);
+      return {};
+    }
+  },
+  ["senate-amendment-motions"],
   { revalidate: 3600, tags: ["amendments", "votes"] },
 );
 
