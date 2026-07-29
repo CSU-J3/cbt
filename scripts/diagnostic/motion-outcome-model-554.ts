@@ -206,20 +206,31 @@ async function main(): Promise<number> {
   // KILLED set (the killed clause renders beside whatever the dot already shows).
   console.log("══ M2 — dot-vs-motionFate gate (HO 557): HALT if dot=agreed AND fate=killed ══");
   let KILLED = 0, UNDECIDED = 0, ORTHOGONAL = 0;
+  let ANCHORED_KILLED = 0, ANCHORED_UNDECIDED = 0, ANCHORED_ORTHOGONAL = 0;
   const killedDot: Record<"agreed" | "failed" | "other", number> = { agreed: 0, failed: 0, other: 0 };
   const killedRows: string[] = [];
   const contradictions: string[] = [];
   for (const x of resolvedOnly) {
     const fate = motionFate(x.cls, x.result);
-    if (fate === "orthogonal") { ORTHOGONAL++; continue; }
-    if (fate === "undecided") { UNDECIDED++; continue; }
+    if (fate === "orthogonal") { ORTHOGONAL++; if (x.anchored) ANCHORED_ORTHOGONAL++; continue; }
+    if (fate === "undecided") { UNDECIDED++; if (x.anchored) ANCHORED_UNDECIDED++; continue; }
     KILLED++;
+    if (x.anchored) ANCHORED_KILLED++;
     const dot = deriveDisposition(x.lat);
     killedDot[dot]++;
     killedRows.push(`${x.amendmentId} [${x.cls}] dot=${dot} result="${x.result}" anchored=${x.anchored}\n        action="${x.lat}"`);
     if (dot === "agreed") contradictions.push(`${x.amendmentId} [${x.cls}] dot=agreed fate=killed result="${x.result}"\n        action="${x.lat}"`);
   }
   console.log(`   killed=${KILLED} · undecided=${UNDECIDED} · orthogonal=${ORTHOGONAL}  (total ${KILLED + UNDECIDED + ORTHOGONAL}/${resolvedOnly.length})`);
+  // Anchored suppression BY CLASS: an amendment carrying an anchored decisive vote
+  // (amendment_votes link) is SUPPRESSED (VoteLine renders, not the motion line).
+  // anchored-among-killed is STRUCTURALLY 0 — a motion-killed amendment never receives
+  // its own up-or-down vote — so every anchored row is undecided or orthogonal, i.e.
+  // suppression only ever drops a tally-only line, never a "→ killed" fate clause.
+  const ANCHORED_TOTAL = ANCHORED_KILLED + ANCHORED_UNDECIDED + ANCHORED_ORTHOGONAL;
+  const LINES = KILLED + UNDECIDED + ORTHOGONAL - ANCHORED_TOTAL;
+  console.log(`   anchored-among: killed=${ANCHORED_KILLED} · undecided=${ANCHORED_UNDECIDED} · orthogonal=${ANCHORED_ORTHOGONAL} · TOTAL=${ANCHORED_TOTAL} (suppressed)`);
+  console.log(`   LINES rendered = killed + undecided + orthogonal − anchored = ${KILLED} + ${UNDECIDED} + ${ORTHOGONAL} − ${ANCHORED_TOTAL} = ${LINES} (of which ${KILLED - ANCHORED_KILLED} carry a "→ killed" clause)`);
   console.log(`   dot distribution across the KILLED set: agreed=${killedDot.agreed} · failed=${killedDot.failed} · other=${killedDot.other}`);
   for (const r of killedRows) console.log(`     · ${r}`);
   if (contradictions.length) {
@@ -309,7 +320,7 @@ async function main(): Promise<number> {
 
   console.log("══ SUMMARY ══");
   console.log(`   M1 dropped-other: ${droppedOther.length}${droppedOther.length ? " (see side above)" : ""} · N=${n4}`);
-  console.log(`   M2 killed=${KILLED} undecided=${UNDECIDED} orthogonal=${ORTHOGONAL} · dot-agreed-in-killed=${killedDot.agreed}${contradictions.length ? " ⚠ HALT" : " ✓"}`);
+  console.log(`   M2 killed=${KILLED} undecided=${UNDECIDED} orthogonal=${ORTHOGONAL} · anchored killed=${ANCHORED_KILLED}/undecided=${ANCHORED_UNDECIDED}/orthogonal=${ANCHORED_ORTHOGONAL} (total ${ANCHORED_TOTAL}) · LINES=${LINES} · dot-agreed-in-killed=${killedDot.agreed}${contradictions.length ? " ⚠ HALT" : " ✓"}`);
   console.log(`   M3 MAX(motions/amendment)=${maxCount}${maxCount <= 1 ? " (1:1)" : " ⚠"}`);
   console.log(`   M4 residual rows=${step1.rows.length}`);
   console.log(`   M6 waiver+failed: ooo=${wfOOO} withdrawn=${wfWithdrawn.length} neither=${wfNeither.length}`);
