@@ -779,7 +779,6 @@ export async function syncSenateCandidates(
       `Settled rows skipped (clobber guard, HO 560): ${settledSkipped.length} — ${settledSkipped.join(", ")}`,
     );
   }
-
   return {
     okStates,
     totalStates: states.length,
@@ -807,6 +806,9 @@ export type HouseSyncSummary = {
   budgetStopped: boolean;
   fetchFailures: string[];
   perDistrictMs: number[];
+  // HO 564: primary ids whose per-contest delete was refused because the
+  // incoming roster was empty (a non-parsing scrape must not erase a roster).
+  rosterDeletesRefused: string[];
 };
 
 // Step 4 — House candidate rosters (handoff 92, +96). For each district in the
@@ -854,6 +856,7 @@ export async function syncHouseDistricts(
       budgetStopped: false,
       fetchFailures: [],
       perDistrictMs: [],
+      rosterDeletesRefused: [],
     };
   }
   const states = [...new Set(districts.map((d) => d.state))];
@@ -922,6 +925,7 @@ export async function syncHouseDistricts(
   const emptyDistricts: string[] = []; // no_section / no_candidates — no filings
   const specials: string[] = [];
   const oddities: string[] = [];
+  const rosterDeletesRefused: string[] = []; // HO 564: contests whose delete was declined (empty incoming roster)
 
   // Per-state parse tally — backs the per-state breakdown print, which is how
   // the CA / WA / AK sanity thresholds in handoff 96 get checked.
@@ -979,13 +983,30 @@ export async function syncHouseDistricts(
       await opts.onProgress?.(i);
       continue;
     }
+    if (result.status === "no_section") {
+      // HO 564: a missing Candidates_and_election_results anchor after 3 retries
+      // is a PARSE FAILURE (a Ballotpedia challenge page, or a district page
+      // restructured toward a general-election layout), NOT evidence a contest
+      // exists. Absence of a parse is not authority to create a row or to erase
+      // one — HO 563 M3 measured 30% of resulted districts returning no_section
+      // live, each one previously getting its roster delete-then-inserted to
+      // nothing by the old fall-through. So no_section joins special/no_page:
+      // skip the write block entirely. (no_candidates below is different — that
+      // page DID parse.)
+      emptyDistricts.push(`${districtLabel} — no_section (parse failure — row+roster left untouched)`);
+      perDistrictMs.push(Date.now() - districtStart);
+      await opts.onProgress?.(i);
+      continue;
+    }
     if (result.status === "ok") {
       parsedOk++;
       stat.parsedOk++;
     } else {
-      // no_section / no_candidates: page reachable but no roster. Still create
-      // empty primaries rows below so the district stays tracked.
-      emptyDistricts.push(`${districtLabel} — ${result.status}`);
+      // no_candidates: a reachable, PARSING page with zero candidates — a
+      // legitimate uncontested contest (HO 563's benign slice). The row is still
+      // created below so the district stays tracked, but the roster.length > 0
+      // gate on the delete means an existing roster is never wiped by it.
+      emptyDistricts.push(`${districtLabel} — no_candidates (uncontested — row kept, roster not deleted)`);
     }
 
     // Nonpartisan-primary states (CA/WA top-two, AK top-four) run a single
@@ -1042,12 +1063,23 @@ export async function syncHouseDistricts(
         ],
       });
 
+      // HO 564: never convert absence of evidence into deletion. The delete
+      // runs ONLY when the incoming roster for this contest is non-empty —
+      // replacing a roster with nothing is never authoritative, because "the
+      // contest genuinely emptied" and "the page stopped parsing" are
+      // indistinguishable here and one of them erases real results. An empty
+      // contest (e.g. an uncontested party on an otherwise-parsing page) leaves
+      // whatever was there in place; the refusal is counted for the payload.
+      const roster = result.candidates.filter((c) => c.contest === contest);
+      if (roster.length === 0) {
+        rosterDeletesRefused.push(primaryId);
+        continue;
+      }
       // Delete-then-insert keeps re-runs idempotent (no natural unique key).
       await db.execute({
         sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
         args: [primaryId],
       });
-      const roster = result.candidates.filter((c) => c.contest === contest);
       for (const c of roster) {
         const bioguideId = matchHouseCandidate(
           c.name,
@@ -1153,6 +1185,12 @@ export async function syncHouseDistricts(
     console.log(`\nOddities (${oddities.length}):`);
     for (const o of oddities) console.log(`  ${o}`);
   }
+  if (rosterDeletesRefused.length > 0) {
+    console.log(
+      `\nRoster deletes refused (HO 564, ${rosterDeletesRefused.length}) — empty incoming ` +
+        `roster, existing roster left in place: ${rosterDeletesRefused.join(", ")}`,
+    );
+  }
 
   return {
     label,
@@ -1164,6 +1202,7 @@ export async function syncHouseDistricts(
     budgetStopped,
     fetchFailures,
     perDistrictMs,
+    rosterDeletesRefused,
   };
 }
 
@@ -1554,6 +1593,7 @@ export type PrimariesCronResult = {
     parsedOk: number;
     totalCandidates: number;
     matchedIncumbents: number;
+    rosterDeletesRefused: string[]; // HO 564
   };
   // HO 120 instrumentation surfaced into cron_runs.payload. budgetStopped is
   // true when the route stopped *starting* new units before the slice ended;
@@ -1709,6 +1749,7 @@ export async function runPrimariesCronTick(
       parsedOk: summary.parsedOk,
       totalCandidates: summary.totalCandidates,
       matchedIncumbents: summary.matchedIncumbents,
+      rosterDeletesRefused: summary.rosterDeletesRefused,
     },
     budgetStopped: summary.budgetStopped,
     fetchFailures: summary.fetchFailures,
