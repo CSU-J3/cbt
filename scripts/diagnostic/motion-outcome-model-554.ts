@@ -55,11 +55,28 @@ function motionOutcome(result: string): "agreed" | "failed" | "other" {
   if (/agreed to|passed|sustained|adopted/.test(r)) return "agreed";
   return "other";
 }
-function impliedFate(cls: Cls, result: string): "agreed" | "failed" | "orthogonal" | "other" {
+// HO 554's TWO-directional validator — kept ONLY for M1's off-by-one accounting (a
+// CLOSED historical measurement). The SHIPPED model is motionFate below.
+function impliedFate554(cls: Cls, result: string): "agreed" | "failed" | "orthogonal" | "other" {
   const o = motionOutcome(result);
   if (cls === "table") return o === "agreed" ? "failed" : o === "failed" ? "agreed" : "other";
   if (cls === "waiver") return o === "agreed" ? "agreed" : o === "failed" ? "failed" : "other";
   return "orthogonal";
+}
+// motionFate — the SHIPPED model (HO 557 §2 ruling). KILL-DIRECTION ONLY: only a
+// tabling motion that SUCCEEDS or a budget waiver that FAILS decides the amendment —
+// both are kill mechanisms. The opposite outcome means "not killed by THIS motion",
+// which is NOT an outcome (the amendment is still pending), so it is "undecided", never
+// "survived". This is the correction the §1 gate forced: 119-samdt-3946/3947 both
+// survived their tabling motion then fell with their parents, so a "survived" clause
+// contradicted a correct red HO 555 dot. cloture/chair are orthogonal — procedure, not
+// the amendment's fate — and must never produce one. (No "unknown": an unclassifiable
+// motion result and "the motion didn't decide" are the same thing at the render.)
+function motionFate(cls: Cls, result: string): "killed" | "undecided" | "orthogonal" {
+  const o = motionOutcome(result);
+  if (cls === "table") return o === "agreed" ? "killed" : "undecided"; // tabling agreed = the kill
+  if (cls === "waiver") return o === "failed" ? "killed" : "undecided"; // waiver failed = falls on the point of order
+  return "orthogonal"; // cloture / chair
 }
 // HO 550 M4's own action-text classifier, verbatim — needed ONLY to reproduce M1's
 // exact accounting (which side of `actual/implied` returned other). NOT the dot.
@@ -153,7 +170,7 @@ async function main(): Promise<number> {
   for (const x of resolvedOnly) {
     if (!x.lat) continue;
     withText++;
-    const implied = impliedFate(x.cls, x.result);
+    const implied = impliedFate554(x.cls, x.result);
     if (implied === "orthogonal") { orthogonal++; continue; }
     const actual = actualFate(x.lat);
     if (actual === "withdrawn") { withdrawn++; continue; }
@@ -180,40 +197,36 @@ async function main(): Promise<number> {
   }
   console.log("");
 
-  // ── M2 — dot delta (P1 tripwire) ────────────────────────────────────────────
-  console.log("══ M2 — dot delta: deriveDisposition(latest_action_text) [PROD DOT] vs impliedFate ══");
-  let AGREE = 0, DOT_OTHER = 0, ORTHOGONAL = 0, DISAGREE = 0, MOTION_OTHER = 0, NO_TEXT = 0;
-  const dotOtherRows: string[] = [];
-  const disagreeRows: string[] = [];
-  const motionOtherRows: string[] = [];
+  // ── M2 — dot-vs-motionFate gate (HO 557 §1, REDEFINED) ──────────────────────
+  // The SHIPPED model asserts a fate ONLY in the kill direction. The only remaining
+  // contradiction shape is dot=agreed AND fate=killed: the motion says the amendment
+  // died at that moment, the action text says it was agreed to. HARD HALT on any such
+  // row. undecided/orthogonal rows assert nothing, so they cannot contradict — excluded
+  // from the comparison by construction. Also report the dot distribution across the
+  // KILLED set (the killed clause renders beside whatever the dot already shows).
+  console.log("══ M2 — dot-vs-motionFate gate (HO 557): HALT if dot=agreed AND fate=killed ══");
+  let KILLED = 0, UNDECIDED = 0, ORTHOGONAL = 0;
+  const killedDot: Record<"agreed" | "failed" | "other", number> = { agreed: 0, failed: 0, other: 0 };
+  const killedRows: string[] = [];
+  const contradictions: string[] = [];
   for (const x of resolvedOnly) {
-    const implied = impliedFate(x.cls, x.result);
-    if (implied === "orthogonal") { ORTHOGONAL++; continue; }
-    if (implied === "other") {
-      MOTION_OTHER++;
-      motionOtherRows.push(`${x.amendmentId} [${x.cls}] result="${x.result}" dot=${deriveDisposition(x.lat)} anchored=${x.anchored}`);
-      continue;
-    }
+    const fate = motionFate(x.cls, x.result);
+    if (fate === "orthogonal") { ORTHOGONAL++; continue; }
+    if (fate === "undecided") { UNDECIDED++; continue; }
+    KILLED++;
     const dot = deriveDisposition(x.lat);
-    if (x.lat === null) NO_TEXT++;
-    if (dot === "other") {
-      DOT_OTHER++;
-      dotOtherRows.push(`${x.amendmentId} [${x.cls}] dot=other implied=${implied} result="${x.result}" anchored=${x.anchored}\n        action="${x.lat}"`);
-    } else if (dot === implied) {
-      AGREE++;
-    } else {
-      DISAGREE++;
-      disagreeRows.push(`${x.amendmentId} [${x.cls}] dot=${dot} implied=${implied} result="${x.result}" anchored=${x.anchored}\n        action="${x.lat}"`);
-    }
+    killedDot[dot]++;
+    killedRows.push(`${x.amendmentId} [${x.cls}] dot=${dot} result="${x.result}" anchored=${x.anchored}\n        action="${x.lat}"`);
+    if (dot === "agreed") contradictions.push(`${x.amendmentId} [${x.cls}] dot=agreed fate=killed result="${x.result}"\n        action="${x.lat}"`);
   }
-  console.log(`   AGREE=${AGREE} · DOT-OTHER=${DOT_OTHER} · ORTHOGONAL=${ORTHOGONAL} · DISAGREE=${DISAGREE} · (MOTION-OTHER=${MOTION_OTHER}, NO-TEXT=${NO_TEXT})`);
-  if (MOTION_OTHER) { console.log("   MOTION-OTHER rows (motion result unclassifiable → no implied fate; excluded, ~the M1 row):"); for (const m of motionOtherRows) console.log(`     · ${m}`); }
-  if (DOT_OTHER) { console.log("   DOT-OTHER rows (muted dot, motion implies a clean fate → surface would ADD outcome):"); for (const d of dotOtherRows) console.log(`     · ${d}`); }
-  if (DISAGREE) {
-    console.log("   ⚠⚠ DISAGREE > 0 — HALT. Dot and motion imply OPPOSITE fates on live prod:");
-    for (const d of disagreeRows) console.log(`     ✗ ${d}`);
+  console.log(`   killed=${KILLED} · undecided=${UNDECIDED} · orthogonal=${ORTHOGONAL}  (total ${KILLED + UNDECIDED + ORTHOGONAL}/${resolvedOnly.length})`);
+  console.log(`   dot distribution across the KILLED set: agreed=${killedDot.agreed} · failed=${killedDot.failed} · other=${killedDot.other}`);
+  for (const r of killedRows) console.log(`     · ${r}`);
+  if (contradictions.length) {
+    console.log(`   ⚠⚠ GATE FIRED — ${contradictions.length} row(s) with dot=agreed AND fate=killed (HALT):`);
+    for (const c of contradictions) console.log(`     ✗ ${c}`);
   } else {
-    console.log("   ✓ DISAGREE = 0 — no row where dot and motion imply opposite fates.");
+    console.log("   ✓ GATE CLEAR — no row has dot=agreed AND fate=killed; the kill-direction model asserts nothing the dot contradicts.");
   }
   console.log("");
 
@@ -273,7 +286,7 @@ async function main(): Promise<number> {
 
   console.log("══ SUMMARY ══");
   console.log(`   M1 dropped-other: ${droppedOther.length}${droppedOther.length ? " (see side above)" : ""} · N=${n4}`);
-  console.log(`   M2 AGREE=${AGREE} DOT-OTHER=${DOT_OTHER} ORTHOGONAL=${ORTHOGONAL} DISAGREE=${DISAGREE}${DISAGREE ? " ⚠ HALT" : " ✓"} (MOTION-OTHER=${MOTION_OTHER})`);
+  console.log(`   M2 killed=${KILLED} undecided=${UNDECIDED} orthogonal=${ORTHOGONAL} · dot-agreed-in-killed=${killedDot.agreed}${contradictions.length ? " ⚠ HALT" : " ✓"}`);
   console.log(`   M3 MAX(motions/amendment)=${maxCount}${maxCount <= 1 ? " (1:1)" : " ⚠"}`);
   console.log(`   M4 residual rows=${step1.rows.length}`);
   return 0;
