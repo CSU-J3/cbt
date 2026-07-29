@@ -284,11 +284,35 @@ async function main(): Promise<number> {
   }
   console.log("");
 
+  // ── M6 — waiver+failed action-text split (HO 557 over-claim check) ───────────
+  // motionFate(waiver, failed) = killed ("falls on the point of order"). But the
+  // amendment's OWN action text usually reads "ruled out of order by the chair" (the
+  // kill) — EXCEPT a few read "withdrawn" (pulled, not killed) or neither. On those the
+  // "→ amendment killed" clause OVER-CLAIMS. Count the split before deciding whether
+  // that's a 1-2-row oddity (ship + WATCH) or a family (narrow the model). Ids printed
+  // for everything that ISN'T "ruled out of order".
+  console.log("══ M6 — waiver+failed by action text: ruled-out-of-order / withdrawn / neither ══");
+  const wf = resolvedOnly.filter((x) => x.cls === "waiver" && motionOutcome(x.result) === "failed");
+  let wfOOO = 0;
+  const wfWithdrawn: string[] = [];
+  const wfNeither: string[] = [];
+  for (const x of wf) {
+    const t = (x.lat ?? "").toLowerCase();
+    if (/ruled out of order/.test(t)) wfOOO++;
+    else if (/\bwithdrawn\b/.test(t)) wfWithdrawn.push(`${x.amendmentId}  dot=${deriveDisposition(x.lat)}  "${x.lat}"`);
+    else wfNeither.push(`${x.amendmentId}  dot=${deriveDisposition(x.lat)}  "${x.lat ?? "(no action text)"}"`);
+  }
+  console.log(`   waiver+failed total: ${wf.length}  ·  ruled out of order: ${wfOOO}  ·  withdrawn: ${wfWithdrawn.length}  ·  neither: ${wfNeither.length}`);
+  if (wfWithdrawn.length) { console.log("   WITHDRAWN (killed clause over-claims — the amendment was pulled, not ruled out):"); for (const r of wfWithdrawn) console.log(`     · ${r}`); }
+  if (wfNeither.length) { console.log("   NEITHER:"); for (const r of wfNeither) console.log(`     · ${r}`); }
+  console.log("");
+
   console.log("══ SUMMARY ══");
   console.log(`   M1 dropped-other: ${droppedOther.length}${droppedOther.length ? " (see side above)" : ""} · N=${n4}`);
   console.log(`   M2 killed=${KILLED} undecided=${UNDECIDED} orthogonal=${ORTHOGONAL} · dot-agreed-in-killed=${killedDot.agreed}${contradictions.length ? " ⚠ HALT" : " ✓"}`);
   console.log(`   M3 MAX(motions/amendment)=${maxCount}${maxCount <= 1 ? " (1:1)" : " ⚠"}`);
   console.log(`   M4 residual rows=${step1.rows.length}`);
+  console.log(`   M6 waiver+failed: ooo=${wfOOO} withdrawn=${wfWithdrawn.length} neither=${wfNeither.length}`);
   return 0;
 }
 
