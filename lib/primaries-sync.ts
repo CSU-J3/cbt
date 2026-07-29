@@ -548,6 +548,58 @@ async function scrapeSenateSpecialState(
   };
 }
 
+// HO 561 C2 — the dated priority trigger. Runs BEFORE the cursor slice each
+// tick: seeded special contests whose primary_date or runoff_date sits within
+// ±7 days of today AND which carry no shares get their special page fetched
+// ahead of the queue (a cursor position can't serve a fixed election date),
+// capped at 3 states/tick. It NEVER advances the cursor and shares the tick's
+// DEADLINE_MS budget. Outside every window it selects zero rows for one indexed
+// query. Returns the attempted special ids (`priorityScraped`). Exported so the
+// verification can drive it in isolation and prove the cursor is untouched.
+export async function runSpecialPriorityPass(
+  db: ReturnType<typeof getDb>,
+  now: string,
+  today: string,
+): Promise<string[]> {
+  const windowRs = await db.execute({
+    sql: `SELECT id, state FROM primaries
+           WHERE id LIKE 'senate-%-2026-special-%'
+             AND (
+               (primary_date IS NOT NULL AND ABS(julianday(primary_date) - julianday(?)) <= 7)
+               OR (runoff_date IS NOT NULL AND ABS(julianday(runoff_date) - julianday(?)) <= 7)
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM primary_candidates pc
+                WHERE pc.primary_id = primaries.id AND pc.vote_pct IS NOT NULL
+             )`,
+    args: [today, today],
+  });
+  if (windowRs.rows.length === 0) return [];
+
+  const idsByState = new Map<string, Set<string>>();
+  for (const r of windowRs.rows) {
+    const st = String(r.state);
+    const set = idsByState.get(st) ?? new Set<string>();
+    set.add(String(r.id));
+    idsByState.set(st, set);
+  }
+  const states = [...idsByState.keys()].slice(0, 3); // cap 3 states/tick
+  const matchMember = await buildSenateMatcher(db);
+  const priorityScraped: string[] = [];
+  for (const st of states) {
+    const sp = await scrapeSenateSpecialState(
+      db,
+      st,
+      idsByState.get(st)!,
+      now,
+      today,
+      matchMember,
+    );
+    priorityScraped.push(...sp.attemptedIds);
+  }
+  return priorityScraped;
+}
+
 // Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
 // Ballotpedia election page, parses the D/R primary voteboxes, and upserts
 // the rosters into primary_candidates. Per-state delete-then-insert keeps
@@ -1512,6 +1564,10 @@ export type PrimariesCronResult = {
   budgetStopped: boolean;
   fetchFailures: string[];
   perUnitMs?: { p50: number; p95: number; max: number; count: number };
+  // HO 561 C2: seeded special ids the dated priority trigger attempted this
+  // tick (empty outside every ±7-day window). The pass runs before the cursor
+  // slice and never advances the cursor.
+  priorityScraped: string[];
 };
 
 // Computes the p50/p95/max summary surfaced in cron_runs.payload (HO 120).
@@ -1550,12 +1606,22 @@ export async function runPrimariesCronTick(
   routeStart: number = Date.now(),
 ): Promise<PrimariesCronResult> {
   const db = getDb();
+  // HO 561 C2 — dated priority trigger. Runs BEFORE the cursor is read: any
+  // seeded special within ±7 days of its primary/runoff date gets scraped ahead
+  // of the queue. It does NOT advance the cursor and shares this tick's
+  // DEADLINE_MS budget (routeStart is fixed, so time spent here shortens the
+  // slice below rather than overrunning the tick). Outside every window it costs
+  // one indexed query and returns [].
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  const priorityScraped = await runSpecialPriorityPass(db, now, today);
+
   const units = buildScrapeUnits();
   let cursor = await readCursor(db);
   if (cursor >= units.length) cursor = 0;
   const cursorStart = cursor;
   const unit = units[cursor]!;
-  const base = { cursorStart, totalUnits: units.length };
+  const base = { cursorStart, totalUnits: units.length, priorityScraped };
   const deadlineMs = routeStart + DEADLINE_MS;
 
   if (unit.kind === "calendar") {
