@@ -201,6 +201,28 @@ test.describe("route crawl", () => {
           ` | hit2=${status2} failed=${failed2.length} bad=${bad2.length} console=${console2.length} pageErr=${pageErr2.length}`,
       );
 
+      // HO 574: when anything is non-empty, print the actual MESSAGES (whitespace-
+      // collapsed + truncated per message) on a second line, so the next occurrence
+      // is readable straight off the CI log without downloading the 14-day-retention
+      // report artifact — the gap that turned the pageErr #418 finding into an
+      // artifact dig. pageErr is the one that matters; console/bad ride along.
+      const detail = (label: string, hit: 1 | 2, arr: string[]): string[] =>
+        arr.length
+          ? [`${label}#${hit}=[${arr.map((m) => m.replace(/\s+/g, " ").slice(0, 200)).join(" ¦ ")}]`]
+          : [];
+      const msgs = [
+        ...detail("pageErr", 1, pageErr1),
+        ...detail("pageErr", 2, pageErr2),
+        ...detail("console", 1, console1),
+        ...detail("console", 2, console2),
+        ...detail("bad", 1, bad1),
+        ...detail("bad", 2, bad2),
+      ];
+      if (msgs.length) {
+        // eslint-disable-next-line no-console
+        console.log(`[${route.slug}] ${msgs.join("  |  ")}`);
+      }
+
       // HIT 1 — document 200 (redirects resolve to their 200 target); soft on the rest.
       expect(status1, `${route.path} hit-1 document status`).toBe(200);
       expect.soft(failed1, `${route.path} hit-1 failed requests`).toEqual([]);
