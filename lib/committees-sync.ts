@@ -263,6 +263,7 @@ export type CommitteeMembersResult = {
   committeesSeen: number;
   membersUpserted: number;
   unknownCommittees: string[];
+  rosterDeletesRefused: string[]; // HO 568 — codes whose delete was refused (existing roster, empty/insertless incoming)
 };
 
 export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
@@ -286,6 +287,20 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
   let committeesSeen = 0;
   let membersUpserted = 0;
   const unknownCommittees: string[] = [];
+  const rosterDeletesRefused: string[] = [];
+
+  // HO 568 — the currently-rostered set, for the refusal fork below. A committee
+  // with existing rows whose incoming roster is empty/insertless is a real
+  // protection event (refuse + REPORT); an unrostered one is a silent skip
+  // (nothing to protect, nothing lost). Keeps rosterDeletesRefused signal-
+  // bearing at steady state: source-absent bodies (the 10 today) never enter the
+  // loop, and a source-empty unrostered code skips silently — see HO 566 M1.
+  const rosteredRs = await db.execute(
+    "SELECT committee_system_code FROM committee_members GROUP BY committee_system_code",
+  );
+  const rosteredSet = new Set(
+    rosteredRs.rows.map((r) => r.committee_system_code as string),
+  );
 
   // Wipe-and-rewrite per committee so roster departures (members leaving the
   // committee) clear correctly. Memberships are ~5K rows total — collect all
@@ -301,13 +316,15 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
       continue;
     }
     committeesSeen++;
-    stmts.push({
-      sql: "DELETE FROM committee_members WHERE committee_system_code = ?",
-      args: [systemCode],
-    });
+    // HO 568 — build the inserts first and gate the DELETE on the INSERTABLE
+    // count (entries carrying a bioguide), NOT raw array length: a non-empty
+    // array of insertless entries erases just as thoroughly, so it must refuse
+    // exactly like an empty one. The 564 rule ported to the standing wipe: a
+    // sync must never convert absence of evidence into deletion.
+    const inserts: { sql: string; args: (string | number | null)[] }[] = [];
     for (const m of members) {
       if (!m.bioguide) continue;
-      stmts.push({
+      inserts.push({
         sql: `INSERT INTO committee_members
               (committee_system_code, bioguide_id, role, party_side, rank, updated_at)
               VALUES (?, ?, ?, ?, ?, ?)
@@ -325,10 +342,30 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
           now,
         ],
       });
+    }
+    if (inserts.length === 0) {
+      // Nothing authoritative to write. Refuse the delete backed by nothing;
+      // only REPORT it when a roster actually existed (else nothing to protect).
+      if (rosteredSet.has(systemCode)) rosterDeletesRefused.push(systemCode);
+      continue;
+    }
+    // DELETE + its INSERTs still ship together in the ONE batch (HO 143).
+    stmts.push({
+      sql: "DELETE FROM committee_members WHERE committee_system_code = ?",
+      args: [systemCode],
+    });
+    for (const ins of inserts) {
+      stmts.push(ins);
       membersUpserted++;
     }
   }
   if (stmts.length > 0) await db.batch(stmts, "write");
 
-  return { committeesSeen, membersUpserted, unknownCommittees };
+  if (rosterDeletesRefused.length > 0) {
+    console.warn(
+      `[committees] roster deletes refused (HO 568): ${rosterDeletesRefused.length} — ${rosterDeletesRefused.join(", ")}`,
+    );
+  }
+
+  return { committeesSeen, membersUpserted, unknownCommittees, rosterDeletesRefused };
 }

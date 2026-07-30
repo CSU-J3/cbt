@@ -123,6 +123,7 @@ async function handle(request: Request) {
         committeesSeen: members.committeesSeen,
         membersUpserted: members.membersUpserted,
         unknownCommittees: members.unknownCommittees,
+        rosterDeletesRefused: members.rosterDeletesRefused, // HO 568 — surface into cron_runs.payload
       },
       bills,
       meetings,
