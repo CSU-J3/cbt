@@ -4,18 +4,18 @@
 // unattended prod run (e2e-prod.yml) reds on any un-allowlisted console error —
 // the list has to be exact and single-source, not two drifting copies.
 //
-// Never file an entry here as a new finding. Two entries are OPEN LOOPS whose
-// fixes will delete them — they must stay findable by grep when the loop closes:
+// Never file an entry here as a new finding. One entry is an OPEN LOOP whose
+// fix will delete it — it must stay findable by grep when the loop closes:
 //   - MissingSecret                     → NextAuth AUTH_SECRET env open loop
-//   - "two children with the same key"  → FilingRow dup-key (HO 463)
-// The other three are permanent: cosmetic asset 404s + React dev-only banners. A
+// (The "two children with the same key" entry was retired in HO 570 C3 once the
+// FilingRow dup-key was fixed at the source.) The other three are permanent:
+// cosmetic asset 404s + React dev-only banners. A
 // production build already suppresses the dev banners; they're filtered
 // defensively in case a suite is ever pointed at a dev server.
 export function isKnownNoise(text: string): boolean {
   return (
     /favicon\.ico|manifest\.webmanifest|apple-touch-icon/.test(text) ||
     /MissingSecret/.test(text) || // NextAuth AUTH_SECRET env OPEN LOOP
-    /Encountered two children with the same key/.test(text) || // FilingRow dup-key (HO 463)
     /Download the React DevTools/.test(text) ||
     /\[Fast Refresh\]/.test(text)
   );

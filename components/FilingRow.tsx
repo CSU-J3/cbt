@@ -49,8 +49,18 @@ export function FilingRow({
 }) {
   const router = useRouter();
 
-  const shownIssues = filing.issueCodes.slice(0, MAX_ISSUE_CHIPS);
-  const extraIssues = filing.issueCodes.length - shownIssues.length;
+  // HO 570 C3 — dedupe both chip arrays. The two feeder paths disagree on
+  // dedup: the live hydrateFilings uses SELECT DISTINCT, but the precomputed
+  // drill blob (readLdaTables) does not, so a filing carrying the same issue
+  // code across activities (or the same bill_id under two activity ordinals)
+  // arrives with duplicates -> duplicate React keys. A repeated code/bill is a
+  // redundant chip, not information, so dedup at the source rather than
+  // index-suffixing the key.
+  const issueCodes = [...new Set(filing.issueCodes)];
+  const billIds = [...new Set(filing.billIds)];
+
+  const shownIssues = issueCodes.slice(0, MAX_ISSUE_CHIPS);
+  const extraIssues = issueCodes.length - shownIssues.length;
 
   const cells = (
     <>
@@ -91,7 +101,7 @@ export function FilingRow({
       </span>
 
       <span className="lob-bills">
-        {filing.billIds.map((id) => (
+        {billIds.map((id) => (
           <Link
             key={id}
             href={`/bill/${id}`}
