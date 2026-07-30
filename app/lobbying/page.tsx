@@ -405,8 +405,15 @@ export default async function LobbyingPage({
             </div>
           </div>
 
-          {/* RIGHT PANE — filings content */}
-          <div className="mc-content lob-content">
+          {/* RIGHT PANE — filings content. The #lobby-drill scroll anchor (target of
+              TopicCrosswalk's code-chip hrefs) lives on THIS stable pane container on
+              purpose (HO 572) — NOT the scoped .mc-ctx block below. A well-formed but
+              unknown ?issue= falls back to unscoped (see the selectedDrill guard at
+              :114-117), so the scoped block doesn't render; an id inside it would dangle
+              again on exactly that path. The pane always renders, so don't "correct" the
+              anchor onto the scoped block. The name stays `lobby-drill` (referenced by the
+              href + TopicCrosswalk comment + the fit-finish spec) though it marks the pane. */}
+          <div id="lobby-drill" className="mc-content lob-content">
             {/* Context header + who's-who (scoped only) */}
             {scoped && selectedDrill ? (
               <>

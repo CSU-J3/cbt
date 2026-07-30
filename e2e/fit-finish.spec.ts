@@ -467,7 +467,7 @@ test.describe("aggregate surfaces", () => {
           const r = el.getBoundingClientRect();
           return r.top < window.innerHeight && r.bottom > 0;
         });
-        expect.soft(inView, "clicking a crosswalk code chip should scroll #lobby-drill into view").toBe(true);
+        expect(inView, "clicking a crosswalk code chip should scroll #lobby-drill into view").toBe(true);
       }
     }
     logClean("lobbying", c);
