@@ -344,7 +344,9 @@ export async function syncAmendments(opts: SyncAmendmentsOptions = {}): Promise<
 }
 
 export interface RepairResult {
-  liveCount: number;
+  liveCount: number; // pagination.count — can OVERCOUNT (API lists duplicate entries)
+  distinctLive: number; // distinct amendment ids the list enumerates
+  duplicates: number; // liveCount - distinctLive — API duplicate list entries (a drift, not a gap)
   storedBefore: number;
   storedAfter: number;
   repaired: number;
@@ -361,10 +363,17 @@ export interface RepairResult {
 // which the ascending frontier-resume can never refill. So repair enumerates the full
 // list, diffs against stored, and detail-fetches only the missing ids — ITERATIVELY,
 // because the enumeration is itself lossy: each pass's independent tie-order drift
-// surfaces a different subset, and re-running converges. The gate is stored ==
-// live pagination.count; repair loops until that holds, a pass makes no progress, or
-// maxPasses. Detail-fetch is by explicit (type, number), so it never depends on
-// pagination order — a missing id, once identified, is fetched deterministically.
+// surfaces a different subset, and re-running converges. COMPLETION GATES ON THE
+// DISTINCT-ENUMERABLE SET, not pagination.count: the `/amendment` list can carry
+// duplicate entries so pagination.count OVERCOUNTS the distinct id set, and a
+// PK-deduped store can never reach it — the pre-HO-570 `stored >= pagination.count`
+// gate looped every pass reporting complete=false (the same LDA-40 count-vs-
+// enumerable drift nominations fixed at e175fd7). The corpus is complete when a full
+// enumeration surfaces 0 missing (every distinct live id is stored); the duplicate
+// drift (liveCount - distinctLive) is reported, not chased. Repair also stops on a
+// no-progress pass (all missing errored) or maxPasses. Detail-fetch is by explicit
+// (type, number), so it never depends on pagination order — a missing id, once
+// identified, is fetched deterministically.
 export async function repairAmendments(opts: { maxPasses?: number; detailDelayMs?: number } = {}): Promise<RepairResult> {
   const { maxPasses = 8, detailDelayMs = 150 } = opts;
   const db = getDb();
@@ -382,12 +391,10 @@ export async function repairAmendments(opts: { maxPasses?: number; detailDelayMs
   let repaired = 0;
   let errors = 0;
   let passes = 0;
+  let distinctLive = 0;
+  let complete = false;
   for (let pass = 1; pass <= maxPasses; pass++) {
     passes = pass;
-    const storedCount = Number(
-      (await dbRetry("repair-count", () => db.execute("SELECT COUNT(*) AS n FROM amendments"))).rows[0]?.n ?? 0,
-    );
-    if (storedCount >= liveCount) break; // complete
 
     // Enumerate the full list (offset walk) -> id -> list updateDate.
     const listIds = new Map<string, string>();
@@ -409,11 +416,20 @@ export async function repairAmendments(opts: { maxPasses?: number; detailDelayMs
       await sleep(120);
     }
 
+    distinctLive = listIds.size;
     const rs = await dbRetry("repair-stored", () => db.execute("SELECT id FROM amendments"));
     const stored = new Set(rs.rows.map((r) => r.id as string));
     const missing = [...listIds.keys()].filter((id) => !stored.has(id));
-    console.log(`[amendments] repair pass ${pass}: enumerated ${listIds.size}, ${missing.length} missing`);
-    if (!missing.length) continue; // enumeration was lossy this pass; try again
+    console.log(
+      `[amendments] repair pass ${pass}: enumerated ${listIds.size} distinct (pagination.count=${liveCount}), ${missing.length} missing`,
+    );
+    if (!missing.length) {
+      // Every distinct enumerable id is stored — complete. pagination.count may
+      // still exceed listIds.size (API duplicate list entries); that's the drift,
+      // not a gap.
+      complete = true;
+      break;
+    }
 
     const pending: Stmt[] = [];
     let repairedThisPass = 0;
@@ -451,5 +467,6 @@ export async function repairAmendments(opts: { maxPasses?: number; detailDelayMs
   const storedAfter = Number(
     (await dbRetry("repair-count", () => db.execute("SELECT COUNT(*) AS n FROM amendments"))).rows[0]?.n ?? 0,
   );
-  return { liveCount, storedBefore, storedAfter, repaired, errors, passes, complete: storedAfter >= liveCount };
+  const duplicates = liveCount >= 0 && distinctLive > 0 ? liveCount - distinctLive : 0;
+  return { liveCount, distinctLive, duplicates, storedBefore, storedAfter, repaired, errors, passes, complete };
 }

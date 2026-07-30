@@ -26,7 +26,8 @@ async function main() {
   if (repair) {
     const r = await repairAmendments();
     console.log(
-      `[amendments] repair liveCount=${r.liveCount} storedBefore=${r.storedBefore} storedAfter=${r.storedAfter} ` +
+      `[amendments] repair liveCount=${r.liveCount} distinctLive=${r.distinctLive} duplicates=${r.duplicates} ` +
+        `storedBefore=${r.storedBefore} storedAfter=${r.storedAfter} ` +
         `repaired=${r.repaired} errors=${r.errors} passes=${r.passes} complete=${r.complete} ` +
         `(${((Date.now() - t0) / 1000).toFixed(1)}s)`,
     );
