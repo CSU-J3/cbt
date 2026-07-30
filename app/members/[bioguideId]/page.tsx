@@ -219,10 +219,19 @@ export default async function MemberPage({
   // The member's 2026 state primary (handoff 91). Only D/R members resolve a
   // row — independents don't run in a party primary. The chip shows for House
   // and Senate members alike: every state's primary date sits on the
-  // senate-prefixed calendar row.
+  // senate-prefixed statewide calendar row (district stays null). `chamber` is
+  // passed for ONE decision only (HO 576): a Senate special is a Senate-only
+  // contest, so Senate members see it but House members don't — it's not a valid
+  // proxy for a House member's primary. null chamber falls to "house" (the
+  // conservative, special-excluding default).
   const memberPrimary =
     member && member.state && (member.party === "D" || member.party === "R")
-      ? await getPrimaryForRace(member.state, null, member.party)
+      ? await getPrimaryForRace(
+          member.state,
+          null,
+          member.party,
+          member.chamber === "senate" ? "senate" : "house",
+        )
       : null;
   const primaryDays =
     memberPrimary?.primary_date != null

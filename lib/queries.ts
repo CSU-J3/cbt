@@ -1523,23 +1523,53 @@ export async function getPastPrimaries(
   return rs.rows.map((r) => rowToPrimary(r));
 }
 
-// Single primary lookup for a state + party. A non-null `district` selects
-// the House id shape; null resolves to the state-level (senate-prefixed) row
-// every member of that state shares. Returns null when no such row exists.
+// SPECIAL_ROW_MARKER (HO 576) — the ONLY thing that marks a Senate-special row is
+// the id substring `-special-`; no column distinguishes it (STEP 0 measured that
+// `primary_type` is NULL for non-special rows too). This is the SINGLE site to
+// change if a real "is_special" column is ever added. The predicate lets a Senate
+// member see specials and keeps them out for a House member (the `?` binds the
+// caller's memberChamber). The coupling to the id string is deliberate.
+const NOT_SPECIAL_UNLESS_SENATE = "(? = 'senate' OR p.id NOT LIKE '%-special-%')";
+
+// Single statewide primary lookup for a member's state + party — the "next primary"
+// chip on the member hub. Replaces the former string id-reconstruction (HO 576),
+// which structurally missed the `-special-` (primaries-sync.ts) and `-open` id
+// shapes, with a query over the structured columns. The lookup is STATEWIDE
+// (`district IS NULL`): a member reads the senate-prefixed statewide row as a proxy
+// for their own primary date, which works because regular Senate and House
+// primaries share a date. `district` stays in the signature (the caller always
+// passes null) but the query pins statewide explicitly rather than reconstructing.
+//
+// A Senate SPECIAL is a Senate-only contest, so it is never a valid proxy for a
+// House member's primary in ANY state — the proxy convention only holds because
+// regular Senate and House primaries share a date, and a special is exactly where
+// that coincidence breaks. So Senate members see specials; House members don't
+// (House specials aren't reachable through the statewide row at all, so nothing
+// changes there). `memberChamber` carries the chamber for THAT ONE decision only —
+// there is deliberately NO `p.chamber = ?` in the WHERE, which would empty most
+// House chips (they read senate rows by design). Ordering: soonest FUTURE first,
+// most-recent PAST as fallback, so a member whose primary already happened keeps a
+// chip. `election_round = 'primary'` keeps HO 107 runoff rows out. Returns null
+// when no such row exists.
 export async function getPrimaryForRace(
   state: string,
-  district: string | null,
+  district: string | null, // retained per the documented call contract; query pins statewide
   party: string,
+  memberChamber: "house" | "senate",
 ): Promise<PrimaryWithCandidates | null> {
   const db = getDb();
-  const id = district
-    ? `house-${state}-${district}-2026-${party}`
-    : `senate-${state}-2026-${party}`;
+  const today = new Date().toISOString().slice(0, 10);
   const rs = await db.execute({
     sql: `${PRIMARY_SELECT}
-          WHERE p.id = ?
-          GROUP BY p.id`,
-    args: [id],
+          WHERE p.state = ? AND p.party = ? AND p.district IS NULL
+            AND p.election_round = 'primary'
+            AND ${NOT_SPECIAL_UNLESS_SENATE}
+          GROUP BY p.id
+          ORDER BY (CASE WHEN p.primary_date >= ? THEN 0 ELSE 1 END),
+                   (CASE WHEN p.primary_date >= ? THEN p.primary_date END) ASC,
+                   p.primary_date DESC
+          LIMIT 1`,
+    args: [state, party, memberChamber, today, today],
   });
   const row = rs.rows[0];
   return row ? rowToPrimary(row) : null;
