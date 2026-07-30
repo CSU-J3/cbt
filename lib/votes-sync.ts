@@ -24,6 +24,15 @@ const PAGE_SIZE = 250;
 // backoff in `fetchJson` if the API ever objects.
 const REQUEST_INTERVAL_MS = 250;
 
+// HO 567 — self-heal pass. Some rolls first-sync in the gap between the tally
+// publishing and the member positions publishing: the per-vote wipe+rewrite
+// writes the tally + an EMPTY roster, and the watermark then freezes the row
+// (WINDOWED — a stored vote is never re-fetched by the new-vote loop). This
+// pass re-fetches any zero-roster vote after that loop, converting permanent
+// loss into bounded lag. Cap bounds the per-run GETs; today's backlog is 4
+// zero-roster rolls (HO 566 M2 / HO 567 STEP 0).
+const HEAL_CAP = 10;
+
 const BILL_TYPES = new Set([
   "hr",
   "s",
@@ -91,6 +100,8 @@ export type VotesSyncStats = {
   votesFailed: number;
   memberRowsInserted: number;
   fromDate: string;
+  memberVotesHealed: string[]; // HO 567 — zero-roster rolls filled by the heal pass this run
+  memberVotesHealPending: string[]; // HO 567 — attempted but still empty upstream (retry next run)
 };
 
 function sleep(ms: number): Promise<void> {
@@ -337,6 +348,63 @@ async function upsertVoteAndMembers(
   return inserted;
 }
 
+// HO 567 — the self-heal pass (see HEAL_CAP). Re-fetch + rewrite any zero-roster
+// House vote after the watermark loop. Reuses upsertVoteAndMembers UNCHANGED: on
+// a populated response the wipe+rewrite fills the roster (the DELETE is a no-op
+// on a zero-roster row); on a still-empty response nothing is inserted and the
+// vote stays in the set for the next run (permanent retry, the HO 553 `deferred`
+// posture). Predicate is zero-roster (NOT EXISTS), never deficit-based — a
+// partial gains rows and exits the set, so a structural partial can't trap it.
+// The item fetch is required because upsertVoteAndMembers recomputes the tally
+// from item.votePartyTotal (the DB aggregate can't reconstruct it) — so House
+// heals with two GETs (item + members), the same pair the main loop makes.
+async function healZeroRosterVotes(
+  db: ReturnType<typeof getDb>,
+  apiKey: string,
+  cap: number,
+): Promise<{ healed: string[]; pending: string[] }> {
+  const rs = await db.execute({
+    sql: `SELECT id, congress, session, roll_call FROM votes
+          WHERE chamber = 'house'
+            AND (yea_count + nay_count + COALESCE(present_count, 0) + COALESCE(not_voting_count, 0)) > 0
+            AND NOT EXISTS (SELECT 1 FROM member_votes mv WHERE mv.vote_id = votes.id)
+          ORDER BY vote_date DESC
+          LIMIT ?`,
+    args: [cap],
+  });
+  const healed: string[] = [];
+  const pending: string[] = [];
+  for (const row of rs.rows) {
+    const id = row.id as string;
+    const congress = Number(row.congress);
+    const session = Number(row.session);
+    const rollCall = Number(row.roll_call);
+    try {
+      const itemRes = await fetchJson<ItemResponse>(
+        itemUrl(congress, session, rollCall, apiKey),
+      );
+      await sleep(REQUEST_INTERVAL_MS);
+      const item = itemRes.houseRollCallVote;
+      if (!item) {
+        pending.push(id);
+        continue;
+      }
+      const membersRes = await fetchJson<MembersResponse>(
+        membersUrl(congress, session, rollCall, apiKey),
+      );
+      await sleep(REQUEST_INTERVAL_MS);
+      const members = membersRes.houseRollCallVoteMemberVotes?.results ?? [];
+      const inserted = await upsertVoteAndMembers(db, item, members);
+      if (inserted > 0) healed.push(id);
+      else pending.push(id);
+    } catch (err) {
+      console.warn(`heal ${id} failed: ${(err as Error).message}`);
+      pending.push(id);
+    }
+  }
+  return { healed, pending };
+}
+
 export type RunVotesSyncOptions = {
   congress?: number;
   sessions?: number[];
@@ -366,6 +434,8 @@ export async function runVotesSync(
     votesFailed: 0,
     memberRowsInserted: 0,
     fromDate,
+    memberVotesHealed: [],
+    memberVotesHealPending: [],
   };
 
   for (const session of sessions) {
@@ -422,6 +492,14 @@ export async function runVotesSync(
       offset += PAGE_SIZE;
     }
   }
+
+  // HO 567 — self-heal pass after the watermark loop (WINDOWED loop can't revisit).
+  const heal = await healZeroRosterVotes(db, apiKey, HEAL_CAP);
+  stats.memberVotesHealed = heal.healed;
+  stats.memberVotesHealPending = heal.pending;
+  console.log(
+    `heal: healed=${heal.healed.length} [${heal.healed.join(", ")}] pending=${heal.pending.length} [${heal.pending.join(", ")}]`,
+  );
 
   console.log(
     `done: seen=${stats.votesSeen} inserted=${stats.votesInserted} skipped=${stats.votesSkipped} failed=${stats.votesFailed} member_rows=${stats.memberRowsInserted}`,
