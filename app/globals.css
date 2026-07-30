@@ -4098,18 +4098,6 @@ body {
 .v2f-group.open .v2f-chev {
   color: var(--accent-amber);
 }
-.v2f-exp {
-  padding: 4px 16px 16px;
-  background: var(--bg-row-hover);
-  border-top: 1px solid var(--border-soft);
-}
-/* HO 297: the expand's .v2f-topics block was removed (topics moved to the
-   collapsed rowhead — see .v2f-topics-inline above). */
-.v2f-grid {
-  display: grid;
-  grid-template-columns: 1fr 210px;
-  gap: 18px;
-}
 /* HO 298 — stage bar (replaced the .v2f-pipe). Six node columns (dot · label ·
    optional date), flex-1, with a connector to each node's left at the dot's
    vertical center. Per-node --sc (stage color) + --bc (connector color) are set
@@ -4205,149 +4193,6 @@ body {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-/* HO 299: summary on the sans face. */
-.v2f-summary {
-  font-family: var(--sans);
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  margin-bottom: 14px;
-}
-/* HO 299 — RELATED block: NEWS (always) then HEARINGS (when present). Each
-   sub-block has a small dim header; ODDS is omitted (no bill↔market data). */
-.v2f-related {
-  border-top: 1px solid var(--border-soft);
-  padding-top: 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.v2f-rel-h {
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-  margin-bottom: 8px;
-}
-.v2f-rel-empty {
-  font-size: 11px;
-  color: var(--text-dim);
-}
-/* news item — sans headline + a mono dim "· source · age" tail; hover amber. */
-.v2f-rel-news {
-  display: block;
-  margin-bottom: 7px;
-  text-decoration: none;
-  color: var(--text-secondary);
-}
-.v2f-rel-news:last-child {
-  margin-bottom: 0;
-}
-.v2f-rel-news-title {
-  font-family: var(--sans);
-  font-size: 12.5px;
-}
-.v2f-rel-news-meta {
-  font-size: 10px;
-  color: var(--text-dim);
-}
-.v2f-rel-news:hover .v2f-rel-news-title {
-  color: var(--accent-amber-bright);
-}
-/* hearing item — date in amber, committee name, "hearing →". */
-.v2f-rel-hearing {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 11.5px;
-  color: var(--text-secondary);
-  text-decoration: none;
-}
-.v2f-rel-hearing:last-child {
-  margin-bottom: 0;
-}
-.v2f-rel-hwhen {
-  flex: none;
-  color: var(--accent-amber);
-  font-variant-numeric: tabular-nums;
-}
-.v2f-rel-hcom {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.v2f-rel-harrow {
-  flex: none;
-  margin-left: auto;
-  font-size: 10px;
-  color: var(--text-dim);
-}
-.v2f-rel-hearing:hover .v2f-rel-harrow {
-  color: var(--accent-amber-bright);
-}
-.v2f-side .v2f-sk {
-  font-size: 9px;
-  color: var(--text-dim);
-  margin: 0 0 3px;
-}
-.v2f-side .v2f-sv {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-}
-.v2f-side .v2f-sv.mono {
-  font-size: 11px;
-}
-.v2f-side .v2f-sv-sub {
-  color: var(--text-dim);
-}
-.v2f-btns {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-.v2f-btns a {
-  font-size: 10px;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-strong);
-  border-radius: 2px;
-  padding: 6px 10px;
-  text-decoration: none;
-}
-.v2f-btns a:hover {
-  border-color: var(--accent-amber);
-  color: var(--accent-amber-bright);
-}
-/* HO 303 (B6 coherence): FULL BILL PAGE is the amber primary (bright text +
-   muted-amber border, per the mock's primary-button rule). CONGRESS.GOV keeps
-   the default gray .v2f-btns a above with its ↗. */
-.v2f-btns a.v2f-btn-primary {
-  color: var(--accent-amber-bright);
-  border-color: var(--accent-amber);
-}
-
-/* HO 300 — sponsor hover card (v2 meta column). Inline trigger = the name
-   (dim-underlined, cursor:help, a member link) + a dim " · D-AZ" party tag. The
-   card opens below the name; it's right-anchored (the meta column is at the
-   viewport's right edge) and the feed quadrant is overflow-visible (.home-feed-
-   panel) so the ~252px card isn't clipped (the HO 293 lesson). */
-.v2f-sponsor {
-  position: relative;
-  display: inline;
-}
-.v2f-sponsor-name {
-  color: var(--text-secondary);
-  text-decoration: none;
-  border-bottom: 1px dotted var(--text-dim);
-  cursor: help;
-}
-.v2f-sponsor-name:hover {
-  color: var(--accent-amber-bright);
-}
-.v2f-sponsor-tag {
-  color: var(--text-dim);
-}
 .v2f-sc-card {
   position: absolute;
   top: calc(100% + 6px);
@@ -4362,10 +4207,6 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
-}
-.v2f-sponsor:hover .v2f-sc-card,
-.v2f-sponsor:focus-within .v2f-sc-card {
-  display: flex;
 }
 .v2f-sc-photo {
   flex: none;
@@ -4404,28 +4245,15 @@ body {
   font-size: 11px;
   color: var(--text-dim);
 }
-/* COMMITTEE link + dim status·age tail. */
-.v2f-cmte-link {
-  color: var(--text-secondary);
-  text-decoration: none;
-  border-bottom: 1px solid var(--border-strong);
-}
-.v2f-cmte-link:hover {
-  color: var(--accent-amber-bright);
-  border-bottom-color: var(--accent-amber);
-}
-.v2f-cmte-meta {
-  color: var(--text-dim);
-}
 
 /* ── HO 317: the ONE shared unified expand panel (.bxp), rendered on BOTH the
    dashboard `/` (hover) and /bills (click). Visual source of truth:
    docs/design/expanded-panel-unified.html. The stage bar (.v2f-bar / .v2f-bdot /
-   .v2f-bping above) and the sponsor hover card (.v2f-sc-* above) are lifted +
-   reused; the body grid + boxed meta below are new to match the mock. NOTE: the
-   old per-surface .v2f-exp / .v2f-grid / .v2f-summary / .v2f-related / .v2f-rel-* /
-   .v2f-side / .v2f-sk / .v2f-sv / .v2f-cmte-* / .v2f-btns / .v2f-sponsor* rules
-   above are now DEAD (the private Expand was removed) — sweep in a follow-up. */
+   .v2f-bping above) and the sponsor hover card (.v2f-sc-* above) are LIVE — lifted
+   from the old private Expand and REUSED by .bxp (the card is revealed by
+   .bxp-sponsor:hover .v2f-sc-card below). The body grid + boxed meta below are new
+   to match the mock. (HO 570 C1 swept the truly-dead per-surface Expand rules —
+   .v2f-exp/-grid/-summary/-related/-side/-sk/-sv/-btns/-cmte-*/-sponsor*.) */
 .bxp {
   padding: 14px 16px 16px;
 }
@@ -5416,11 +5244,6 @@ body {
   border: 1px solid var(--border-strong);
   border-bottom: none;
   background-color: var(--bg-panel);
-}
-.mc-fbar-title {
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  color: var(--accent-amber-bright);
 }
 /* HO 367: chamber-split readout — muted chamber labels, emphasis-color numbers,
    tabular so the counts don't jitter as filters narrow them. */
@@ -8156,86 +7979,6 @@ a.pdc-cand-name:hover {
    and the WATCH cell is a real external <a> sibling on the right (mirrors the
    feed-row star pattern — a nested <a> inside the button would be invalid).
    The expanded panel spans both columns below. Existing tokens only. */
-.hearings-page-masthead {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-}
-.hearings-prompt {
-  font-family: var(--font-mono);
-  font-size: 25px;
-  line-height: 1.1;
-  color: var(--text-primary);
-}
-.hearings-prompt .prompt-accent {
-  color: var(--accent-amber);
-}
-.hearings-subhead {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.hearings-subhead .num {
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-/* filter bar */
-.hearings-filterbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 18px;
-  padding: 9px 12px;
-  margin-bottom: 14px;
-  border: 0.5px solid var(--border-strong);
-  background-color: var(--bg-panel);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.hearings-filter-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.hearings-filter-label {
-  color: var(--text-dim);
-}
-.hearings-filter-opt {
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color 0.15s;
-  /* reserve bracket space so the active [ ] adds no horizontal shift */
-  padding: 0 2px;
-}
-.hearings-filter-opt::before,
-.hearings-filter-opt::after {
-  content: "\00a0";
-  color: transparent;
-}
-.hearings-filter-opt:hover {
-  color: var(--text-secondary);
-}
-.hearings-filter-opt.is-active {
-  color: var(--accent-amber-bright);
-}
-.hearings-filter-opt.is-active::before {
-  content: "[";
-  color: var(--accent-amber);
-}
-.hearings-filter-opt.is-active::after {
-  content: "]";
-  color: var(--accent-amber);
-}
-.hearings-filter-count {
-  margin-left: auto;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
 
 /* bands + day subheaders */
 .hearings-band-head {
@@ -8679,193 +8422,6 @@ a.hearing-watch:hover {
    band and the two-column body. Static; reuses Piece 1's markup tint + the
    watchState LIVE rule. Existing tokens only. The border-top is the divider
    above it (matches .weekly-band). */
-.hill-band {
-  border-top: 0.5px solid var(--border-strong);
-}
-/* HO 271: embedded in the v2 HEARINGS tab — the box supplies the chrome, so
-   drop the standalone top divider. */
-.hill-band--embedded {
-  border-top: none;
-}
-.hill-band-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-xs) var(--space-md);
-  padding: var(--space-sm) var(--space-md);
-  background-color: var(--bg-panel);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.hill-band-title {
-  color: var(--accent-amber);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.hill-band-live {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
-  color: var(--stage-enacted);
-  text-decoration: none;
-}
-.hill-band-live:hover {
-  text-decoration: underline;
-}
-.hill-band-live-title {
-  max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* HO 273: non-live fallback — NEXT upcoming meeting (understated vs the green
-   LIVE callout) and a muted empty state, so the sub-bar's left side is never
-   blank through the long stretches with nothing live. */
-.hill-band-next {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.hill-band-next:hover {
-  text-decoration: underline;
-}
-.hill-band-next .tabular-nums {
-  color: var(--text-secondary);
-}
-.hill-band-none {
-  color: var(--text-dim);
-}
-/* HO 304: the left subhead slot is the week date range ("JUN 15 – 19"), matching
-   the v3 mock — a quiet temporal label for the Mon–Fri grid, not a today status. */
-.hill-band-week {
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.hill-band-right {
-  margin-left: auto;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.hill-band-right .tabular-nums {
-  color: var(--text-secondary);
-}
-.hill-band-link {
-  color: var(--accent-amber);
-  text-decoration: none;
-}
-.hill-band-link:hover {
-  color: var(--accent-amber-bright);
-}
-.hill-band-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  padding: var(--space-sm) var(--space-md) var(--space-md);
-}
-.hill-day {
-  display: flex;
-  flex-direction: column;
-  min-height: 92px;
-  border: 0.5px solid var(--border-strong);
-  border-top: 2px solid transparent; /* reserve today edge — no row shift */
-  background-color: var(--bg-base);
-}
-.hill-day.is-today {
-  border-top-color: var(--accent-amber);
-}
-.hill-day-head {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 7px;
-  border-bottom: 0.5px solid var(--border-soft);
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.hill-day-head .dom {
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-.hill-day-head .cnt {
-  margin-left: auto;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-.hill-day.is-today .dow,
-.hill-day.is-today .dom {
-  color: var(--accent-amber);
-}
-/* HO 282: per-day empty label, top-aligned (not centered) so an empty column
-   reads as a quiet day, matching the light-day top-alignment. */
-.hill-day-empty {
-  padding: 8px 7px;
-  color: var(--text-dim);
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.hill-line {
-  display: grid;
-  grid-template-columns: 9px 46px minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 5px;
-  /* HO 282: comfortable row spacing so a busy (near-cap) day fills its column. */
-  margin-top: 5px;
-  padding: 3px 7px 3px 5px;
-  border-left: 2px solid var(--border-strong);
-  font-size: 11px;
-}
-.hill-line.is-markup {
-  border-left-color: var(--accent-amber);
-}
-.hill-line-dot {
-  color: var(--stage-enacted);
-  font-size: 8px;
-  line-height: 1;
-}
-.hill-line-time {
-  text-align: right;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.hill-line-title {
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.hill-line-bills {
-  color: var(--accent-amber);
-  white-space: nowrap;
-}
-.hill-more {
-  display: block;
-  padding: 3px 7px 2px;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  text-decoration: none;
-}
-.hill-more:hover {
-  color: var(--accent-amber);
-}
-@media (max-width: 720px) {
-  .hill-band-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* HO 306 — shared hearings calendar (.hcal): the /hearings calendar-only view
    AND the dashboard (`/`) HEARINGS tab (embedded, height-pinned to the RACES
