@@ -5663,8 +5663,8 @@ export type MemberFilters = {
   includeCeremonial?: boolean;
 };
 
-// Builds the WHERE clauses + args shared by getMembersRanked and
-// getMembersRankedCount. is_current=1 is always on — HO 124 covers the 119th
+// Builds the WHERE clauses + args for getMembersRanked. is_current=1 is
+// always on — HO 124 covers the 119th
 // Congress only; historical members (Frank, etc.) stay accessible via
 // /members/[bioguideId] but don't pollute the roster page.
 function buildMemberWhere(filters: MemberFilters): {
@@ -5837,21 +5837,6 @@ export const getMembersRanked = unstable_cache(
   // HO 535: +"votes" — the MISSED sort reads member_votes, so a votes sync must
   // flush this too (the getChamberParticipationContext precedent).
   { revalidate: 86400, tags: ["members", "bills", "votes"] },
-);
-
-export const getMembersRankedCount = unstable_cache(
-  async (filters: MemberFilters): Promise<number> => {
-    const db = getDb();
-    const { clauses, args } = buildMemberWhere(filters);
-    const rs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM members m WHERE ${clauses.join(" AND ")}`,
-      args,
-    });
-    return Number(rs.rows[0]?.n ?? 0);
-  },
-  ["getMembersRankedCount"],
-  // HO 277: daily revalidate, cron-tag-flush is the real refresh (see getMembersRanked).
-  { revalidate: 86400, tags: ["members", "bills"] },
 );
 
 // Distinct state codes among currently-serving members, alphabetical, for

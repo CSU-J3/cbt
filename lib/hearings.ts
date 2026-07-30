@@ -104,38 +104,6 @@ export function watchState(
   return "watch";
 }
 
-// ---- URL filters (?type=, ?chamber=) -----------------------------------
-
-export const HEARING_TYPES = ["hearing", "markup", "business"] as const;
-export type HearingTypeFilter = (typeof HEARING_TYPES)[number];
-const HEARING_TYPES_SET = new Set<string>(HEARING_TYPES);
-
-export function sanitizeHearingType(
-  raw: string | null | undefined,
-): HearingTypeFilter | undefined {
-  if (raw && HEARING_TYPES_SET.has(raw)) return raw as HearingTypeFilter;
-  return undefined;
-}
-
-// The badge a ?type= filter value selects for, so a meeting passes when
-// hearingBadge(meetingType) === typeFilterBadge(type).
-export function typeFilterBadge(t: HearingTypeFilter): HearingBadge {
-  if (t === "hearing") return "HEARING";
-  if (t === "markup") return "MARKUP";
-  return "BUSINESS";
-}
-
-// HO 265: LIST|CALENDAR view toggle (?view=). LIST is the default — an unknown
-// or absent value falls back to it.
-export const HEARING_VIEWS = ["list", "cal"] as const;
-export type HearingView = (typeof HEARING_VIEWS)[number];
-
-export function sanitizeHearingView(
-  raw: string | null | undefined,
-): HearingView {
-  return raw === "cal" ? "cal" : "list";
-}
-
 // ---- ET (DC time) formatting -------------------------------------------
 // Hearings are DC events; the spec's "9:30a" is the ET reading of a 13:30Z
 // meeting_date. All grouping + display is in America/New_York so day boundaries

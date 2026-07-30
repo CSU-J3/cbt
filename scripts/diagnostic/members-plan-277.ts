@@ -46,7 +46,7 @@ const MEMBER_STATES = `SELECT DISTINCT state FROM members WHERE is_current=1 AND
 
 const QUERIES: Array<{ name: string; sql: string; args: (string | number)[] }> = [
   { name: "getMembersRanked", sql: MEMBERS_RANKED, args: ["volume", "volume", "volume", 50, 0] },
-  { name: "getMembersRankedCount", sql: MEMBERS_COUNT, args: [] },
+  { name: "MEMBERS_COUNT", sql: MEMBERS_COUNT, args: [] },
   { name: "getSponsorProductivity", sql: SPONSOR_PRODUCTIVITY, args: [] },
   { name: "getMemberStates", sql: MEMBER_STATES, args: [] },
 ];
