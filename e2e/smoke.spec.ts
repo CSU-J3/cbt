@@ -297,6 +297,16 @@ test.describe("targeted interactions", () => {
     }
   });
 
+  test("/races 308-redirects to /electoral (not somewhere wrong)", async ({ page }) => {
+    // HO 570 C6: the route crawl asserts 200 only AFTER page.goto has followed the
+    // 308, so it catches /races breaking outright but not /races redirecting to the
+    // wrong place. Pin the landing explicitly — HO 333 collapsed /races (+ /primaries)
+    // into /electoral.
+    const resp = await page.goto("/races", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    expect(page.url(), "/races should land on /electoral").toContain("/electoral");
+    expect(resp?.status(), "and resolve 200 at the target").toBe(200);
+  });
+
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert
   // "@nonci"). Bucket D: prod withholds the markets tape from headless Chrome
   // under BotID, so there's nothing to hover. The skip guard below stays honest
@@ -335,8 +345,9 @@ test.describe("targeted interactions", () => {
       timeout: 20_000,
     });
     await presRow.click();
-    await page.waitForLoadState("load").catch(() => {});
-    await page.waitForTimeout(1_500);
+    // HO 570 C6: predicate-wait on the rebase instead of a fixed 1.5s (which
+    // --retries=2 would mask on the unattended run). Same pattern both specs use.
+    await page.waitForURL(/[?&]stage=president/, { timeout: 8_000 }).catch(() => {});
     await page.screenshot({ path: `${SHOT_DIR}/x-stage-president-click.png`, fullPage: true });
     const finalUrl = page.url();
     // eslint-disable-next-line no-console
