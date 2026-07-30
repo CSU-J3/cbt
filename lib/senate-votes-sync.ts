@@ -23,6 +23,13 @@ import { buildSenatorResolver, type SenatorResolver } from "./lis-map";
 // but ~3-4 req/s is well within tolerance for their static XML.
 const REQUEST_INTERVAL_MS = 300;
 
+// HO 567 — self-heal pass (mirror of lib/votes-sync.ts). A roll first-synced in
+// the gap between the tally and the member positions publishing writes the tally
+// + an empty roster; the MAX(roll_call) watermark then freezes it (WINDOWED).
+// This pass re-fetches any zero-roster senate vote after the watermark loop.
+// Senate heals with ONE GET — the detail XML carries tally + members together.
+const HEAL_CAP = 10;
+
 const BILL_TYPE_MAP: Record<string, string> = {
   "H.R.": "hr",
   "S.": "s",
@@ -87,6 +94,8 @@ export type SenateVotesSyncStats = {
   votesSkipped: number;
   votesFailed: number;
   memberRowsInserted: number;
+  memberVotesHealed: string[]; // HO 567 — zero-roster rolls filled by the heal pass this run
+  memberVotesHealPending: string[]; // HO 567 — attempted but still empty upstream (retry next run)
 };
 
 function sleep(ms: number): Promise<void> {
@@ -311,6 +320,52 @@ async function upsertVoteAndMembers(
   return inserted;
 }
 
+// HO 567 — the self-heal pass (see HEAL_CAP), mirror of lib/votes-sync.ts. Reuses
+// upsertVoteAndMembers UNCHANGED; predicate is zero-roster (NOT EXISTS), never
+// deficit-based (a Senate resolver miss is a structural partial that would spin
+// forever; a zero-roster row that heals even partially exits the set). Still-empty
+// stays for the next run (permanent retry, the HO 553 `deferred` posture).
+async function healZeroRosterSenateVotes(
+  db: Db,
+  resolver: SenatorResolver,
+  cap: number,
+): Promise<{ healed: string[]; pending: string[] }> {
+  const rs = await db.execute({
+    sql: `SELECT id, congress, session, roll_call FROM votes
+          WHERE chamber = 'senate'
+            AND (yea_count + nay_count + COALESCE(present_count, 0) + COALESCE(not_voting_count, 0)) > 0
+            AND NOT EXISTS (SELECT 1 FROM member_votes mv WHERE mv.vote_id = votes.id)
+          ORDER BY vote_date DESC
+          LIMIT ?`,
+    args: [cap],
+  });
+  const healed: string[] = [];
+  const pending: string[] = [];
+  for (const row of rs.rows) {
+    const id = row.id as string;
+    const congress = Number(row.congress);
+    const session = Number(row.session);
+    const rollInt = Number(row.roll_call);
+    const padded = String(rollInt).padStart(5, "0");
+    try {
+      const detailDoc = await fetchXml(detailUrl(congress, session, padded));
+      await sleep(REQUEST_INTERVAL_MS);
+      const detail: DetailVote | undefined = detailDoc?.roll_call_vote;
+      if (!detail) {
+        pending.push(id);
+        continue;
+      }
+      const inserted = await upsertVoteAndMembers(db, congress, session, rollInt, detail, resolver);
+      if (inserted > 0) healed.push(id);
+      else pending.push(id);
+    } catch (err) {
+      console.warn(`heal ${id} failed: ${(err as Error).message}`);
+      pending.push(id);
+    }
+  }
+  return { healed, pending };
+}
+
 export type RunSenateVotesSyncOptions = {
   congress?: number;
   sessions?: number[];
@@ -335,6 +390,8 @@ export async function runSenateVotesSync(
     votesSkipped: 0,
     votesFailed: 0,
     memberRowsInserted: 0,
+    memberVotesHealed: [],
+    memberVotesHealPending: [],
   };
 
   for (const session of sessions) {
@@ -411,6 +468,14 @@ export async function runSenateVotesSync(
       `session ${session} done: seen=${stats.votesSeen} inserted=${stats.votesInserted} skipped=${stats.votesSkipped} failed=${stats.votesFailed}`,
     );
   }
+
+  // HO 567 — self-heal pass after the watermark loop (WINDOWED loop can't revisit).
+  const heal = await healZeroRosterSenateVotes(db, resolver, HEAL_CAP);
+  stats.memberVotesHealed = heal.healed;
+  stats.memberVotesHealPending = heal.pending;
+  console.log(
+    `heal: healed=${heal.healed.length} [${heal.healed.join(", ")}] pending=${heal.pending.length} [${heal.pending.join(", ")}]`,
+  );
 
   console.log(
     `\nsenate vote sync complete: inserted=${stats.votesInserted} skipped=${stats.votesSkipped} failed=${stats.votesFailed} member_rows=${stats.memberRowsInserted}`,
