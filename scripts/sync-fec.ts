@@ -1,8 +1,10 @@
 // FEC fundraising sync (handoff 83). Resolves each current member to an
 // FEC candidate_id (cached on members.fec_candidate_id), pulls cycle totals,
-// upserts into member_fundraising. Idempotent; per-member sleep keeps us
-// well under FEC's 1000/hr api.data.gov limit even across the full ~544
-// members on the first run (~10 min wall clock).
+// upserts into member_fundraising. Idempotent; the per-member sleep + the
+// 55-call window cap keep a run inside api.data.gov's 60 req/hr standard-tier
+// ceiling (the K0Ue key never got the 1000/hr upgrade — see the rate-limit note
+// on DELAY_MS/CALL_CAP below), so the first full ~544-member run spreads across
+// several rolling windows rather than finishing in one sitting.
 //
 // Storage: member_fundraising (reused from the reverted HO 65 OpenSecrets
 // scaffold — schema is already cents-keyed and cycle-aware). The

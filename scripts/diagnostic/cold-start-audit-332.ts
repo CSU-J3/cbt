@@ -229,8 +229,9 @@ async function main() {
     { fn: "queryEnactedThisWeek (getEnactedThisWeek)", route: "/ ENACTED banner", cache: "1h, tag bills", accept: true,
       sql: `SELECT id, bill_type, bill_number FROM bills WHERE ${CER} AND stage = 'enacted' AND stage_changed_at IS NOT NULL AND stage_changed_at > datetime('now', '-7 days') ORDER BY stage_changed_at DESC`, args: [] },
     // getSponsorsRanked / getSponsorCount deleted in HO 335 (dead code) — dropped.
-    { fn: "getSponsorStates", route: "(sponsor state dropdown)", cache: "uncached",
-      sql: `SELECT DISTINCT sponsor_state FROM bills WHERE summary IS NOT NULL AND sponsor_state IS NOT NULL AND sponsor_state != '' ORDER BY sponsor_state ASC`, args: [] },
+    // getSponsorStates deleted in HO 356 (dead code) — dropped. The probe carried
+    // a hardcoded copy of its SQL and timed it, reporting a false SLOW (HO 404's
+    // 34,656ms) for a query with zero callers.
     { fn: "getStaleBills (rows)", route: "/stale", cache: "1h, tag bills",
       sql: `SELECT ${FEED_COLS}, ${ENRICH_SELECT}, ${MENTION_SELECT} FROM bills INDEXED BY idx_bills_latest_action ${MENTION_SUBQUERY} ${ENRICH_JOIN} WHERE summary IS NOT NULL${CER_AND} AND latest_action_date IS NOT NULL AND latest_action_date < date('now', '-60 days') AND stage IN (${STALE_ELIGIBLE.map(() => "?").join(",")}) ORDER BY latest_action_date ASC LIMIT ?`, args: [...STALE_ELIGIBLE, 50] },
     // getStaleCount deleted in HO 335 (dead code) — dropped from the probe.

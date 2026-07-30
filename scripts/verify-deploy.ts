@@ -43,7 +43,11 @@ async function main() {
     const elapsed = Math.round((Date.now() - start) / 1000);
     if (served === expected) {
       console.log(`[${elapsed}s] served ${served} === HEAD — deploy confirmed live ✓`);
-      process.exit(0);
+      // process.exit() trips the Windows libuv UV_HANDLE_CLOSING teardown
+      // assertion (a passing check mangled into exit 127); set exitCode + return
+      // instead (same fix as the cron-check diagnostics).
+      process.exitCode = 0;
+      return;
     }
     console.log(`[${elapsed}s] served ${served} !== expected ${expected} — waiting for promotion`);
     await sleep(POLL_INTERVAL_MS);
@@ -51,7 +55,7 @@ async function main() {
 
   const mins = Math.round(TIMEOUT_MS / 60_000);
   console.error(`deploy not confirmed in ${mins}m — check the Vercel dashboard`);
-  process.exit(1);
+  process.exitCode = 1;
 }
 
 main();
