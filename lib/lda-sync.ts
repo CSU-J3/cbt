@@ -137,13 +137,24 @@ interface FetchOpts {
   maxRetries?: number;
   onError?: () => void;
   onThrottle?: () => void;
+  // Cron deadline backstop (HO 580). The 429 retry-sleep happens INSIDE this
+  // function, past the outer loop's deadline check — so a check that passes at
+  // 279s followed by a `retry-after=39` sleep would land at 318s and the 300s
+  // function gets SIGKILLed instead of exiting cleanly. When set, a 429 whose
+  // sleep would cross this deadline bails via a `null` return (a deadline pause,
+  // NOT a fetch error) rather than sleeping. Undefined in backfill mode (no
+  // deadline), leaving this path inert there.
+  deadlineMs?: number;
 }
 interface Page {
   results: LdaFiling[];
   next: string | null;
   count: number;
 }
-async function fetchPage(url: string, opts: FetchOpts = {}): Promise<Page> {
+// Returns null ONLY as the HO 580 deadline-bail signal: a 429 arrived whose
+// retry-sleep would cross opts.deadlineMs, so the caller must treat it as a
+// clean deadline pause (resume from the DB frontier next run), not an error.
+async function fetchPage(url: string, opts: FetchOpts = {}): Promise<Page | null> {
   const maxRetries = opts.maxRetries ?? 6;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     let r: Response;
@@ -162,8 +173,18 @@ async function fetchPage(url: string, opts: FetchOpts = {}): Promise<Page> {
       // can't stall the run; log it so throttling is never silent again.
       const wait = Math.min(Number.isFinite(parsed) ? parsed : 30, 60);
       opts.onThrottle?.();
+      const sleepMs = wait * 1000 + 500;
+      // HO 580: if this sleep would cross the run deadline, don't sleep — bail
+      // as a deadline pause (null). onError is deliberately NOT called: this is
+      // a clean stop that resumes from the DB frontier, not a fetch failure.
+      if (opts.deadlineMs && Date.now() + sleepMs >= opts.deadlineMs) {
+        console.warn(
+          `[lda] 429 retry (retry-after=${raw ?? "-"}) would cross deadline — pausing, resume from frontier next run`,
+        );
+        return null;
+      }
       console.warn(`[lda] 429 throttled — waiting ${wait}s (retry-after=${raw ?? "-"})`);
-      await sleep(wait * 1000 + 500);
+      await sleep(sleepMs);
       continue;
     }
     if (!r.ok) {
@@ -358,6 +379,9 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
   const fetchOpts: FetchOpts = {
     onError: () => fetchErrors++,
     onThrottle: () => throttled429++,
+    // HO 580: inert in backfill (deadlineMs undefined). In cron mode, lets a
+    // 429 whose retry-sleep would overrun the ceiling bail as a deadline pause.
+    deadlineMs,
   };
 
   // Buffer statements across filings and flush in chunks — one Turso round-trip
@@ -414,6 +438,15 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
           break outer;
         }
         const page = await fetchPage(url, fetchOpts);
+        // HO 580: null means a 429 retry-sleep would have crossed the deadline.
+        // Take the SAME clean-pause path as the outer deadline check above —
+        // deadlineHit, flush, resume from the DB frontier next run — never a
+        // fetch error.
+        if (page === null) {
+          deadlineHit = true;
+          await flush();
+          break outer;
+        }
         pagesFetched++;
         pagesInCombo++;
         if (apiTotal < 0) apiTotal = page.count;

@@ -18,39 +18,19 @@
 // Schedule: 08:00 UTC daily — clear of every existing slot (weekly-report 09:30
 // Mon, sync 00/06/12/18, the daily 10/11/12/13/14/15 crons, markets 21:30). Auth
 // mirrors the other cron routes (Bearer CRON_SECRET).
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncLda } from "@/lib/lda-sync";
-import {
-  computeBillDrill,
-  computeIssueRollup,
-  computeTopFirms,
-  computeTopicCrosswalk,
-  readLdaTables,
-  uncappedLdaClient,
-  writeLdaBillDrill,
-  writeLdaRollup,
-  writeLdaTopFirms,
-  writeLdaTopicCrosswalk,
-} from "@/lib/lda-rollup";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 // Stop starting new pages at 280s, leaving ~20s for the final upsert + cron-log
-// writes under the 300s ceiling.
+// writes under the 300s ceiling. HO 580 removed the rollup precompute from this
+// route (it now lives in /api/cron/lda-rollup on its own schedule), so the sync
+// owns its full page budget instead of reserving ~220s the rollup could never
+// actually get on a day with new filings.
 const LDA_BUDGET_MS = 280_000;
-
-// HO 437 — the /lobbying rollup precompute runs AFTER the sync, with an UNCAPPED
-// client (the aggregate is 30-90s+ cold — see lib/lda-rollup.ts). Only run it
-// when enough of the 300s ceiling remains: on a quarterly-burst day the sync eats
-// the budget, so the rollup is skipped and the blob stays a day stale (accepted).
-// Most days the sync sits at the DB frontier in seconds and the full budget is
-// free. The blob write is a single atomic upsert at the very end, so even a 300s
-// SIGKILL mid-compute leaves the prior blob intact (never a half-written rollup).
-const ROUTE_CEILING_MS = 300_000;
-const ROLLUP_RESERVE_MS = 220_000; // don't START the rollup with less than this left
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -85,64 +65,16 @@ async function handle(request: Request) {
           `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit}`,
       );
 
-      // HO 437 — recompute the /lobbying rollup blob (non-fatal; a failure here
-      // never fails the sync). Budget-gated so it can't push past the 300s wall.
-      // HO 440 — the per-bill drill blob piggybacks the SAME table read: one
-      // readLdaTables feeds both computeIssueRollup + computeBillDrill, so the
-      // bill drill adds only an in-memory grouping pass + one atomic upsert (no
-      // second ~96s scan). Both share the single revalidateTag("lda").
-      let rollup: {
-        ran: boolean;
-        ok?: boolean;
-        ms?: number;
-        billDrills?: number;
-        topFirms?: number;
-        topics?: number;
-      } = {
-        ran: false,
-      };
-      const msLeft = ROUTE_CEILING_MS - (Date.now() - routeStart);
-      if (msLeft >= ROLLUP_RESERVE_MS) {
-        const t0 = Date.now();
-        try {
-          const client = uncappedLdaClient();
-          const generatedAt = new Date().toISOString();
-          const tables = await readLdaTables(client);
-          const blob = computeIssueRollup(tables, generatedAt);
-          await writeLdaRollup(client, blob);
-          const billBlob = computeBillDrill(tables, generatedAt);
-          await writeLdaBillDrill(client, billBlob);
-          const firmsBlob = computeTopFirms(tables, generatedAt);
-          await writeLdaTopFirms(client, firmsBlob);
-          const topicBlob = computeTopicCrosswalk(tables, generatedAt);
-          await writeLdaTopicCrosswalk(client, topicBlob);
-          client.close();
-          revalidateTag("lda");
-          const billDrills = Object.keys(billBlob.drill).length;
-          const topFirms = firmsBlob.firms.length;
-          const topics = topicBlob.topics.length;
-          rollup = { ran: true, ok: true, ms: Date.now() - t0, billDrills, topFirms, topics };
-          console.log(
-            `[lda] rollup ok in ${rollup.ms}ms: ${blob.issues.length} issues, ` +
-              `${Object.keys(blob.drill).length} drills, ${billDrills} bill drills, ` +
-              `${topFirms} top firms, ${topics} topics`,
-          );
-        } catch (e) {
-          rollup = { ran: true, ok: false, ms: Date.now() - t0 };
-          console.error(`[lda] rollup failed after ${rollup.ms}ms: ${(e as Error).message}`);
-        }
-      } else {
-        console.log(`[lda] rollup skipped (only ${msLeft}ms left, need ${ROLLUP_RESERVE_MS})`);
-      }
+      // HO 580 — the /lobbying rollup precompute moved to /api/cron/lda-rollup.
+      // This route now only syncs; the rollup no longer competes for its budget.
 
       // Chronic-err pattern (HO 139): non-fatal conditions surface in
       // cron_runs.error_message on success rows.
       const parts: string[] = [];
       if (r.fetchErrors > 0) parts.push(`lda fetch errors: ${r.fetchErrors}`);
       if (r.deadlineHit) parts.push(`deadline hit (resumes from DB frontier next run)`);
-      if (rollup.ran && !rollup.ok) parts.push(`lda rollup failed`);
       const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
-      return { payload: { ...r, rollup }, chronicErr };
+      return { payload: { ...r }, chronicErr };
     },
     { softTimeoutMs: 290_000 },
   );
