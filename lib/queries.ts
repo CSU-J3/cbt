@@ -8597,20 +8597,32 @@ export const getLatestMarketTicks = unstable_cache(
     // nearest row at-or-before now−7d, accepted within the +2d tolerance — is
     // captured in the same scan; the sparkline itself uses only the ≤7d slice. POLY-*
     // are excluded: the odds sparkline draws from the deeper Kalshi series (HO 251),
-    // never the Polymarket half (POLY-SHUTDOWN has zero rows anyway). ~500 rows, well
-    // inside the 10s abort.
+    // never the Polymarket half (POLY-SHUTDOWN has zero rows anyway).
     const sparkKeys = MARKET_SYMBOLS.filter((s) => s.source !== "polymarket").map(
       (s) => s.internal,
     );
+    // HO 582 C2: the predicate is a SARGABLE `ticked_at >= ?` range, NOT
+    // `julianday(ticked_at) >= julianday('now','-9 day')`. The julianday() wrap on the
+    // column was non-sargable — it defeated idx_market_ticks_symbol_time, so within
+    // each spark symbol SQLite read EVERY row that symbol owns (STEP 0: 5,636 rows
+    // read to return ~1,619). The JS-ISO bound compares directly against the stored
+    // representation (ticked_at is `new Date().toISOString()`, YYYY-MM-DDTHH:MM:SS.sssZ
+    // — STEP 0 M1 confirmed), so EXPLAIN is a per-symbol range SEARCH and STEP 0 M3a
+    // proved the result is row-for-row identical to the julianday form. Do NOT switch
+    // to SQLite datetime('now','-9 day') — it emits `YYYY-MM-DD HH:MM:SS` (space, no
+    // T/Z) and lexicographic comparison against ISO-T text is wrong at the day
+    // boundary. One app-clock `now` drives BOTH the SQL bound and the JS window math
+    // below, so the sargable bound and the anchor/spark slices agree on one instant.
+    const nowMs = Date.now();
+    const sparkBound = new Date(nowMs - 9 * 86_400_000).toISOString(); // now − 9d
     const seriesRs = await db.execute({
       sql: `SELECT symbol, price, ticked_at
             FROM market_ticks
             WHERE symbol IN (${sparkKeys.map(() => "?").join(",")})
-              AND julianday(ticked_at) >= julianday('now','-9 day')
+              AND ticked_at >= ?
             ORDER BY symbol, ticked_at`,
-      args: sparkKeys,
+      args: [...sparkKeys, sparkBound],
     });
-    const nowMs = Date.now();
     const windowStartMs = nowMs - 7 * 86_400_000;
     const anchorFloorMs = windowStartMs - 2 * 86_400_000; // now − 9d (the +2d tolerance)
     const seriesBySymbol = new Map<string, { t: number; p: number }[]>();
