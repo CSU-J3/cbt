@@ -839,6 +839,10 @@ export type HouseSyncSummary = {
   // HO 564: primary ids whose per-contest delete was refused because the
   // incoming roster was empty (a non-parsing scrape must not erase a roster).
   rosterDeletesRefused: string[];
+  // HO 577 Part 2: settled house rows (past-dated + recorded share) whose date/roster
+  // rewrite was skipped by the isSettled guard. Surfaced so the guard is observable
+  // (an untriggered guard reads the same as a broken one).
+  settledSkipped: string[];
 };
 
 // Step 4 — House candidate rosters (handoff 92, +96). For each district in the
@@ -874,6 +878,7 @@ export async function syncHouseDistricts(
 ): Promise<HouseSyncSummary> {
   const db = getDb();
   const now = new Date().toISOString();
+  const today = now.slice(0, 10); // HO 577 Part 2 — date key for the isSettled guard.
   if (districts.length === 0) {
     console.log(`No House districts to sync for "${label}".`);
     return {
@@ -887,6 +892,7 @@ export async function syncHouseDistricts(
       fetchFailures: [],
       perDistrictMs: [],
       rosterDeletesRefused: [],
+      settledSkipped: [],
     };
   }
   const states = [...new Set(districts.map((d) => d.state))];
@@ -967,6 +973,7 @@ export async function syncHouseDistricts(
   const specials: string[] = [];
   const oddities: string[] = [];
   const rosterDeletesRefused: string[] = []; // HO 564: contests whose delete was declined (empty incoming roster)
+  const settledSkipped: string[] = []; // HO 577 Part 2: settled house rows the guard froze (date+roster)
 
   // Per-state parse tally — backs the per-state breakdown print, which is how
   // the CA / WA / AK sanity thresholds in handoff 96 get checked.
@@ -1095,6 +1102,16 @@ export async function syncHouseDistricts(
       : "primary_date = COALESCE(excluded.primary_date, primaries.primary_date),\n                runoff_date = excluded.runoff_date,\n                primary_type = excluded.primary_type";
     for (const contest of contests) {
       const primaryId = `house-${d.state}-${dd}-2026-${contest}`;
+      // HO 577 Part 2 — settled-row guard, parity with the Senate path (~:707). A row is
+      // settled ⇔ past-dated AND already carrying a recorded share; once decided, neither
+      // its date nor its roster is rewritten (a re-scrape must never overwrite a finished
+      // contest's stored results). This lands AFTER the Part 1 calByState root fix AND the
+      // date repair — a guard over a still-poisoned value would freeze the WRONG date (the
+      // untriggered-guard trap; scripts/verify-house-settled-guard-577.ts proves it fires).
+      if (await isSettled(db, primaryId, today)) {
+        settledSkipped.push(primaryId);
+        continue;
+      }
       await db.execute({
         sql: `INSERT INTO primaries
                 (id, state, district, chamber, party,
@@ -1255,6 +1272,7 @@ export async function syncHouseDistricts(
     fetchFailures,
     perDistrictMs,
     rosterDeletesRefused,
+    settledSkipped,
   };
 }
 
@@ -1646,6 +1664,7 @@ export type PrimariesCronResult = {
     totalCandidates: number;
     matchedIncumbents: number;
     rosterDeletesRefused: string[]; // HO 564
+    settledSkipped: string[]; // HO 577 Part 2
   };
   // HO 120 instrumentation surfaced into cron_runs.payload. budgetStopped is
   // true when the route stopped *starting* new units before the slice ended;
@@ -1802,6 +1821,7 @@ export async function runPrimariesCronTick(
       totalCandidates: summary.totalCandidates,
       matchedIncumbents: summary.matchedIncumbents,
       rosterDeletesRefused: summary.rosterDeletesRefused,
+      settledSkipped: summary.settledSkipped,
     },
     budgetStopped: summary.budgetStopped,
     fetchFailures: summary.fetchFailures,
