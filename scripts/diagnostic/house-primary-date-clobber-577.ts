@@ -1,18 +1,33 @@
 // HO 577 STEP 0 — house primary date clobber scope + guard asymmetry (READ-ONLY).
 //
-// ⚠️ UNRUN as of this commit — blocked on the Turso rows-read quota (prod reads
-// returned "BLOCKED: SQL read operations are forbidden … do you need to upgrade
-// your plan?"). Do NOT read this as a validated diagnostic: M1–M6 have not been
-// produced. Run it the second reads are restored; the shape below is code-derived,
-// not measured.
+// RUN 2026-07-31 (reads restored — Turso upgraded/unblocked). Results below are
+// MEASURED, not code-derived. HALT (M1a–M7 output):
+//   M1a — 3 states poisoned: LA, GA, SC (NOT SC-only).
+//   M1c — 48 house rows carry the wrong date (GA 28, SC 14, LA 6).
+//   M1b — cause tally special=2 (SC), runoff=3 (LA×2, GA×1), house=48. The house
+//     bucket DOMINATES: the special/runoff SEEDED the poison, but the house rows have
+//     absorbed it and now WIN MAX themselves — the loop is already self-sustaining and
+//     the special/runoff are no longer the active cause. This is why excluding only
+//     special+runoff from the MAX is insufficient; the house rows (round=primary) must
+//     be excluded too (district IS NULL), and the poisoned rows must be repaired.
+//   M7 — 15 states own house rows but have NO clean statewide senate row (AZ CA CT HI
+//     IN MD MO ND NV NY PA UT VT WA WI). None of the 3 poisoned states is in this set,
+//     but it forces Part 1 (b): a district-IS-NULL MAX filter alone would NULL those 15
+//     states' house dates (the HO 209 regression), so the statewide date must come from
+//     the scraped calendar (all-50 source), not a DB aggregate over `primaries`.
+//   M6 — all 3 repairable by UPDATE (correct date = the regular senate row's date,
+//     derivable, no re-fetch). SC still future-dated (2026-08-11) → repair window intact.
 //
-// The real bug (reviewer-promoted): `calByState` = `MAX(primary_date) GROUP BY
-// state` (primaries-sync.ts:905) with NO `election_round` filter does not compute
-// "this state's primary date" — it computes "the latest date on ANY row this state
-// has," so a SPECIAL or a RUNOFF wins by construction. The MISSING `isSettled`
-// guard on the House write (:1062, unlike the Senate path :707) explains why the
-// bad value PROPAGATED; the MAX explains why there was a bad value at all. Fix is
-// two-part and ordered: MAX first (stop poisoning the value), then the guard.
+// The bug: `calByState` = `MAX(primary_date) GROUP BY state` (primaries-sync.ts:905)
+// with NO filter does not compute "this state's primary date" — it computes "the latest
+// date on ANY row this state has," so a SPECIAL, a RUNOFF, or a previously-poisoned
+// HOUSE row wins by construction. The defect class is a table deriving its writes from
+// an unfiltered aggregate over itself. The MISSING `isSettled` guard on the House write
+// (:1062, unlike the Senate path :707) explains why the bad value PROPAGATED; the MAX
+// explains why there was a bad value at all. Fix is two-part and ordered: MAX first
+// (stop poisoning — district IS NULL + round=primary + non-special, plus calendar-
+// sourcing for the M7 gap states), then the guard; the M6 UPDATE repair is separate and
+// load-bearing (a repaired shareless past row is not isSettled).
 //
 // This file WRITES NOTHING. A runtime guard refuses any non-SELECT statement.
 import "dotenv/config";
@@ -87,18 +102,28 @@ async function main() {
 
   // ── M1b — for each poisoned state, which rows ARE the MAX (special/runoff/?) ─
   console.log("=== M1b — what row supplies the poisoned MAX (special / runoff / other) ===");
-  const byCause = { special: [] as string[], runoff: [] as string[], other: [] as string[] };
+  const byCause = { special: [] as string[], runoff: [] as string[], house: [] as string[], other: [] as string[] };
   for (const st of poisoned) {
     const mx = maxByState.get(st);
     const rows = prims.filter((p) => p.state === st && p.primary_date === mx);
     for (const r of rows) {
-      const cause = isSpecial(r.id) ? "special" : r.election_round === "runoff" ? "runoff" : "other";
+      // Order matters: specials are senate-id-only and runoff is a round, so a
+      // poisoned house-{ST}-{dd} PRIMARY row falls through both and would land in
+      // "other" without the house check — but it is the named feedback mechanism.
+      const cause = isSpecial(r.id)
+        ? "special"
+        : r.election_round === "runoff"
+          ? "runoff"
+          : r.chamber === "house"
+            ? "house"
+            : "other";
       byCause[cause].push(`${r.id}(${r.election_round})`);
       console.log(`    ${st} MAX=${mx} ← ${r.id} [round=${r.election_round}] → cause=${cause}`);
     }
   }
-  console.log(`  cause tally: special=${byCause.special.length} runoff=${byCause.runoff.length} other=${byCause.other.length}`);
-  console.log(`  → if runoff>0, every state with a post-primary runoff is exposed and this is NOT an SC story.\n`);
+  console.log(`  cause tally: special=${byCause.special.length} runoff=${byCause.runoff.length} house=${byCause.house.length} other=${byCause.other.length}`);
+  console.log(`  → if runoff>0, every state with a post-primary runoff is exposed and this is NOT an SC story.`);
+  console.log(`  → if house>0, a house-{ST}-{dd} row won MAX: the loop is ALREADY self-sustaining and the special is no longer the active cause (the most consequential result).\n`);
 
   // ── M1c — which house rows actually inherited the poison ────────────────────
   console.log("=== M1c — house rows that inherited the poisoned date (repo-wide) ===");
@@ -167,6 +192,26 @@ async function main() {
     console.log(`     After repair to ${regularByState.get("SC")}: a SHARELESS past-dated row is NOT isSettled, so an isSettled-only House guard would still NOT protect it — which is exactly why the calByState MAX must be fixed FIRST (root), the guard SECOND (propagation).`);
   }
   console.log("");
+
+  // ── M7 — statewide regular senate row coverage (decides Part 1 (a) vs (b)) ──
+  // (a) = MAX filtered by election_round='primary' + non-special + district IS NULL
+  // resolves to the calendar-seeded statewide senate row. That is only correct if such
+  // a row EXISTS for every state that owns house rows. HO 209 gated senate seeding to
+  // 35 states, so the CODE prior is ~15 gaps — but stale pre-gate rows may have
+  // survived the gate landing; only prod data settles it.
+  console.log("=== M7 — states owning house rows that LACK a clean statewide senate row ===");
+  const houseStates = new Set(prims.filter((p) => p.chamber === "house").map((p) => p.state));
+  const hasRegularSenate = new Set(
+    prims
+      .filter((p) => isRegularSenate(p) && p.district == null && p.primary_date != null)
+      .map((p) => p.state),
+  );
+  const m7gaps = [...houseStates].filter((s) => !hasRegularSenate.has(s)).sort();
+  console.log(`  states owning house rows: ${houseStates.size}`);
+  console.log(`  of those WITH a clean statewide senate row (district NULL, round=primary, non-special): ${[...houseStates].filter((s) => hasRegularSenate.has(s)).length}`);
+  console.log(`  GAPS (house rows but NO clean senate source): ${m7gaps.length} → ${m7gaps.join(", ") || "—"}`);
+  console.log(`  → 0 gaps: HO 209 objection is stale, Part 1 = (a) [MAX + round=primary + non-special + district IS NULL], no calendar plumbing needed.`);
+  console.log(`  → gaps: (b) is forced for the gap states — plumb the scraped calendar into the house sync for those.\n`);
 
   console.log("Diagnostic is read-only (every db.execute is a guarded SELECT).");
 }
