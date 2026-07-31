@@ -8573,6 +8573,12 @@ export type MarketTick = {
 
 export const getLatestMarketTicks = unstable_cache(
   async (): Promise<MarketTick[]> => {
+    // HO 582 C1: the fix's own instrument. Post-fix, this should appear in runtime
+    // logs at the markets-cron cadence (~24/weekday), NOT once per minute per open
+    // tab — the tell that the TTL/poll decoupling landed. (Was ~1,440/day/tab: TTL
+    // 60 == POLL_MS, so every open tab drove ~1 SWR regen/min; STEP 0 measured that
+    // at ~17.6M rows/day/tab, ~20% of the read-budget plateau.)
+    console.log("[markets] regenerating market-ticks-latest");
     const db = getDb();
     const rs = await db.execute(`
       SELECT m.symbol, m.price, m.change_pct, m.ticked_at, m.market_date
@@ -8683,7 +8689,14 @@ export const getLatestMarketTicks = unstable_cache(
     return out;
   },
   ["market-ticks-latest"],
-  { tags: ["markets"], revalidate: 60 },
+  // HO 582 C1: revalidate is a bounded-staleness BACKSTOP, not a refresh path. The
+  // freshness mechanism is the markets cron's revalidateTag("markets") after each
+  // write (single writer, app/api/cron/markets/route.ts) — that flush is what
+  // surfaces a fresh tick, at cron cadence. This 24h TTL only bounds how stale the
+  // tape can get if a flush is ever missed; it is deliberately NOT the poll interval.
+  // DO NOT tighten it back toward POLL_MS (60s) — that re-couples regeneration to the
+  // poll and re-opens the ~17.6M-rows/day/open-tab burn STEP 0 measured (HO 582).
+  { tags: ["markets"], revalidate: 86400 },
 );
 
 /** The latest run for a single route, or null if that route has never run. */
