@@ -737,9 +737,17 @@ export function MarketsTapeClient({
   }, []);
 
   // HO 172: poll for fresh numbers and update values in place (no remount).
+  // HO 582 C4: visibility-gate the poll. Skip the fetch while the tab is hidden, and
+  // poll once immediately on return to visible so a re-surfaced tape isn't stale.
+  // POLL_MS is unchanged. C1 already makes a hidden-tab poll cheap server-side (the
+  // query is cached between cron writes), so this is defense in depth — it kills the
+  // abandoned-background-tab request at the source rather than relying on the cache.
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return; // don't fetch for a backgrounded tab
+      }
       try {
         const res = await fetch("/api/markets/latest");
         if (!res.ok) return;
@@ -756,10 +764,15 @@ export function MarketsTapeClient({
         // Keep the current ticks on a failed poll.
       }
     };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void poll();
+    };
     const id = window.setInterval(poll, POLL_MS);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [ownSymbols]);
 
