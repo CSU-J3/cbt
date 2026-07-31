@@ -8580,15 +8580,35 @@ export const getLatestMarketTicks = unstable_cache(
     // at ~17.6M rows/day/tab, ~20% of the read-budget plateau.)
     console.log("[markets] regenerating market-ticks-latest");
     const db = getDb();
-    const rs = await db.execute(`
-      SELECT m.symbol, m.price, m.change_pct, m.ticked_at, m.market_date
-      FROM market_ticks m
-      INNER JOIN (
-        SELECT symbol, MAX(ticked_at) AS max_t
-        FROM market_ticks
-        GROUP BY symbol
-      ) latest ON m.symbol = latest.symbol AND m.ticked_at = latest.max_t
-      ORDER BY m.symbol`);
+    // HO 582 C3: latest-tick-per-symbol as N per-symbol index seeks UNION ALL'd, NOT a
+    // MAX(ticked_at) GROUP BY join. The old join's subquery was a COVERING-INDEX SCAN
+    // of the whole index (STEP 0: ~6,604 rows read per regeneration, and GROWING with
+    // table history — at ~100 new rows/day it trends toward ~43k/regen within a year).
+    // Each arm here is `WHERE symbol = ? ORDER BY ticked_at DESC LIMIT 1`, which plans
+    // as a SEARCH on idx_market_ticks_symbol_time (symbol=?) with a LIMIT short-circuit
+    // — STEP 0 verified all N arms SEARCH, NO temp b-tree, ~1,638 rows read total
+    // (bounded by symbol count, not history), and equal cold latency (~31ms) to the
+    // join. The rows are re-sorted into MARKET_SYMBOLS order below via the `order` map,
+    // so no SQL ORDER BY is needed here — which is exactly what keeps EXPLAIN
+    // temp-b-tree-free (an outer ORDER BY would add one).
+    //
+    // Two intentional behavior changes, both strict improvements (STEP 0 M3):
+    //  · the 13 retired legacy symbols (DOW/GOLD/… no longer in MARKET_SYMBOLS) are
+    //    never read — the old join returned them and the loop discarded them via
+    //    `if (!meta) continue`;
+    //  · a symbol whose newest ticked_at is tied across two identical rows (a same-run
+    //    double-write — STEP 0 found CPI+WTI, which the join rendered TWICE on the tape)
+    //    is deduped to its single correct latest tick by LIMIT 1.
+    const latestKeys = MARKET_SYMBOLS.map((s) => s.internal);
+    const rs = await db.execute({
+      sql: latestKeys
+        .map(
+          () =>
+            `SELECT symbol, price, change_pct, ticked_at, market_date FROM (SELECT symbol, price, change_pct, ticked_at, market_date FROM market_ticks WHERE symbol = ? ORDER BY ticked_at DESC LIMIT 1)`,
+        )
+        .join("\n      UNION ALL\n      "),
+      args: latestKeys,
+    });
 
     // HO 374: the 7d sparkline series + the 1W delta anchor, in ONE batched query
     // folded into this cached object (HO 374: no separate per-hover fetch — a
