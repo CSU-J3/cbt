@@ -127,13 +127,19 @@ async function handle(request: Request) {
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
     // endpoint logs and skips, never crashes the cron.
     const tTrades = Date.now();
+    // HO 579: per-chamber page cap from FMP's Free plan (page 0 only). Surfaced
+    // in the payload so the boundary is observable from the route rather than
+    // inferred from the absence of an error line.
+    let tradesPlanCap: Record<string, number | null> | null = null;
     try {
       const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
+      tradesPlanCap = {};
       for (const r of tradeResults) {
         console.log(
-          `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size}`,
+          `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size} plan_capped_at_page=${r.planCappedAtPage ?? "none"}`,
         );
         for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
+        tradesPlanCap[r.chamber] = r.planCappedAtPage;
       }
       revalidateTag("member-trades");
     } catch (err) {
@@ -156,6 +162,10 @@ async function handle(request: Request) {
           generated: reportCatchupGenerated,
           error: reportCatchupError,
         },
+        // HO 579: per-chamber FMP page cap (page 0 = Free-plan boundary). null
+        // if trades ingestion threw before returning. An entitlement gate, not
+        // a failure — cron status stays success.
+        tradesPlanCap,
       },
       // Non-fatal surfacing into cron_runs.error_message (status stays success).
       chronicErr: reportCatchupError

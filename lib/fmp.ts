@@ -36,6 +36,33 @@ export type FmpTrade = {
   [key: string]: unknown;
 };
 
+// FMP's Free plan permits `page=0` only. Any `page>=1` request returns a 402
+// whose body reads "...The values for 'page' can only be 0 based on your
+// current subscription." (HO 579). This is an entitlement gate, not a rate
+// limit — it fires regardless of quota (the usage meter reads 0/250 while it
+// happens) and is permanent on the current plan, so page 0's data is still
+// captured on every tick. It is distinguished from a genuine 402 so the page
+// loop can stop cleanly without recording a failure. See `isFmpPlanBoundary`
+// for the exact predicate.
+export class FmpPlanBoundaryError extends Error {
+  readonly endpoint: string;
+  readonly page: number;
+  constructor(endpoint: string, page: number, body: string) {
+    super(
+      `FMP ${endpoint} page ${page} beyond Free-plan page-0 boundary (402): ${body.slice(0, 200)}`,
+    );
+    this.name = "FmpPlanBoundaryError";
+    this.endpoint = endpoint;
+    this.page = page;
+  }
+}
+
+// Only true for the page-parameter plan gate. A 402 on some other parameter is
+// still a real error and stays a plain Error, so callers must not swallow it.
+export function isFmpPlanBoundary(err: unknown): err is FmpPlanBoundaryError {
+  return err instanceof FmpPlanBoundaryError;
+}
+
 function getApiKey(): string {
   const key = process.env.FMP_API_KEY;
   if (!key) {
@@ -83,6 +110,12 @@ async function fetchPage(
       continue;
     }
     const body = await res.text().catch(() => "");
+    // Match on 402 PLUS the page-parameter text, never 402 alone: FMP names the
+    // gated parameter in the body, so a 402 on any other parameter fails this
+    // test and keeps throwing a plain Error below (HO 579).
+    if (res.status === 402 && /the values for ['"`]?page['"`]?/i.test(body)) {
+      throw new FmpPlanBoundaryError(endpoint, page, body);
+    }
     throw new Error(
       `FMP ${endpoint} page ${page} failed: ${res.status} ${body.slice(0, 200)}`,
     );

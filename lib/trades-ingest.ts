@@ -4,7 +4,12 @@
 // `/api/sync` (cron) — same code path, different pagination caps.
 import type { Client, InStatement } from "@libsql/client";
 import { getDb } from "./db";
-import { type FmpTrade, fetchHouseTrades, fetchSenateTrades } from "./fmp";
+import {
+  type FmpTrade,
+  fetchHouseTrades,
+  fetchSenateTrades,
+  isFmpPlanBoundary,
+} from "./fmp";
 import { type MatchableMember, matchMemberName } from "./matchMember";
 
 export interface ChamberIngestResult {
@@ -14,6 +19,13 @@ export interface ChamberIngestResult {
   matched: number;
   unmatchedNames: Set<string>;
   errors: string[];
+  // Set to the first page the FMP Free-plan boundary rejected (HO 579): the
+  // plan permits page 0 only, so page>=1 is a permanent, expected entitlement
+  // gate, not a failure. Page 0's rows are still captured. Recorded here rather
+  // than pushed into `errors` so the condition stays visible without reading as
+  // a cron failure. null means the boundary was never reached this run (e.g. an
+  // all-seen short-circuit stopped first, or the plan was upgraded).
+  planCappedAtPage: number | null;
 }
 
 export interface IngestTradesOptions {
@@ -111,6 +123,7 @@ async function ingestChamber(
     matched: 0,
     unmatchedNames: new Set(),
     errors: [],
+    planCappedAtPage: null,
   };
 
   const fetcher = chamber === "senate" ? fetchSenateTrades : fetchHouseTrades;
@@ -121,6 +134,16 @@ async function ingestChamber(
     try {
       trades = await fetcher({ page });
     } catch (err) {
+      if (isFmpPlanBoundary(err)) {
+        // Permanent Free-plan boundary (HO 579), not a failure. Record the cap
+        // and stop paging quietly — page 0 above is already captured. info-level
+        // so the state is visible in logs without reading as a warning/error.
+        result.planCappedAtPage = err.page;
+        console.info(
+          `[trades] ${chamber}: FMP Free plan caps paging at page ${err.page}; page 0 captured, stopping`,
+        );
+        break;
+      }
       result.errors.push(
         err instanceof Error ? err.message : String(err),
       );
