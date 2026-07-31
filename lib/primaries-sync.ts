@@ -144,6 +144,17 @@ export const HOUSE_DISTRICTS_WEST_2026: HouseDistrict[] = [
 // Every other state runs ordinary partisan primaries.
 const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK", "LA"]);
 
+// HO 577: states whose 2026 U.S. House primary was SUSPENDED — the statewide senate
+// primary date does NOT apply to their House districts, so the House date-write is
+// suppressed (primary_date left NULL = postponed/unknown, never a wrong asserted date;
+// primary_type is left alone — it is a type, open/closed/jungle, not a status). LA: Gov.
+// Landry EO 26-038 (2026-04-30) suspended the May-16 closed House primary + June-27
+// runoff after Louisiana v. Callais struck the congressional map. Scope is House-only —
+// senate-LA-2026-* (May 16) is unaffected and remains a valid calByState source. The
+// real post-suspension LA House shape (jungle vs closed, the new map, whether the 6
+// `open` rows are right) is the follow-up HO's question, not this one's.
+const HOUSE_PRIMARY_SUSPENDED = new Set(["LA"]);
+
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
   south: HOUSE_DISTRICTS_SOUTH_2026,
@@ -893,12 +904,15 @@ export async function syncHouseDistricts(
   const totalIncumbents = incumbentByDistrict.size;
   const matchedIncumbents = new Set<string>();
 
-  // State primary date / type. The date is a STATE-level fact (every contest on
-  // the ballot that day shares it), so read it from ANY of the state's existing
-  // primary rows — NOT specifically senate-{ST}-D. HO 209 gated the senate seed
-  // to the 35 states with a 2026 seat, so the old `chamber='senate' AND
-  // party='D'` source is now absent for the ~15 no-seat states and would null
-  // their House dates. MAX() just picks the (uniform) value per state.
+  // State primary date / type. The date is a STATE-level fact (every contest that
+  // day shares it). HO 577: read it ONLY from the CLEAN regular statewide senate row
+  // (election_round='primary', district IS NULL, non-special) — NOT MAX over ANY row.
+  // The old unfiltered MAX was a table deriving its writes from an aggregate over
+  // itself, so a SPECIAL, a RUNOFF, or a previously-poisoned HOUSE row won by
+  // construction and clobbered the House date (measured: LA/GA/SC, 48 rows). Excluding
+  // house rows (district IS NULL) severs the self-sustaining feedback loop. The ~15
+  // no-2026-seat states (HO 209 gated the senate seed) have no clean row here → the
+  // House write PRESERVES their existing date (COALESCE below) rather than nulling it.
   const calRows = await db.execute({
     sql: `SELECT state,
                  MAX(primary_date) AS primary_date,
@@ -906,6 +920,9 @@ export async function syncHouseDistricts(
                  MAX(primary_type) AS primary_type
             FROM primaries
             WHERE primary_date IS NOT NULL
+              AND election_round = 'primary'
+              AND district IS NULL
+              AND id NOT LIKE '%-special-%'
               AND state IN (${statePlaceholders})
             GROUP BY state`,
     args: states,
@@ -927,10 +944,15 @@ export async function syncHouseDistricts(
   }
   const missingCalendar = states.filter((s) => !calByState.has(s));
   if (missingCalendar.length > 0) {
+    // HO 577: these states have no clean statewide senate row (no 2026 Senate seat, so
+    // syncCalendar seeded none — HO 209). calByState no longer self-references house
+    // rows, so there is no source here; the House write PRESERVES each row's existing
+    // date (COALESCE) rather than nulling it. Their dates are therefore FROZEN with no
+    // refresh path (HO 578 WATCH — promote if any gap state's real primary date moves).
+    // Not an error — the expected gap-state set.
     console.warn(
-      `WARNING: no calendar rows for ${missingCalendar.join(", ")} — run ` +
-        "the calendar pass first. House rows for those states will have a " +
-        "null primary date.",
+      `NOTE (HO 577): no clean statewide source for ${missingCalendar.join(", ")} — ` +
+        "House dates for these states are preserved (frozen), not refreshed.",
     );
   }
 
@@ -1058,6 +1080,19 @@ export async function syncHouseDistricts(
       : (["D", "R"] as const);
 
     const cal = calByState.get(d.state);
+    const suspended = HOUSE_PRIMARY_SUSPENDED.has(d.state);
+    // HO 577 — the House date is derived from calByState (now the clean statewide senate
+    // row only). Two branches on the ON CONFLICT date clause:
+    //  - suspended House state (LA): force primary_date + runoff_date to NULL (the
+    //    statewide 05-16 does NOT apply — the House primary was suspended by EO), and
+    //    leave primary_type untouched (it is a type, not a status). A NULL date =
+    //    postponed/unknown, never a wrong asserted date.
+    //  - everyone else: COALESCE so a state with no clean source (the ~15 no-2026-seat
+    //    gap states, cal === undefined) KEEPS its existing date rather than nulling it.
+    //    Seat-states with a clean source get it (excluded value is non-null and wins).
+    const onConflictDate = suspended
+      ? "primary_date = NULL,\n                runoff_date = NULL"
+      : "primary_date = COALESCE(excluded.primary_date, primaries.primary_date),\n                runoff_date = excluded.runoff_date,\n                primary_type = excluded.primary_type";
     for (const contest of contests) {
       const primaryId = `house-${d.state}-${dd}-2026-${contest}`;
       await db.execute({
@@ -1066,17 +1101,15 @@ export async function syncHouseDistricts(
                  primary_date, runoff_date, primary_type, updated_at)
               VALUES (?, ?, ?, 'house', ?, ?, ?, ?, ?)
               ON CONFLICT(id) DO UPDATE SET
-                primary_date = excluded.primary_date,
-                runoff_date = excluded.runoff_date,
-                primary_type = excluded.primary_type,
+                ${onConflictDate},
                 updated_at = excluded.updated_at`,
         args: [
           primaryId,
           d.state,
           dd,
           contest,
-          cal?.primaryDate ?? null,
-          cal?.runoffDate ?? null,
+          suspended ? null : (cal?.primaryDate ?? null),
+          suspended ? null : (cal?.runoffDate ?? null),
           cal?.primaryType ?? null,
           now,
         ],
