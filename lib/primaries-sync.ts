@@ -134,13 +134,19 @@ export const HOUSE_DISTRICTS_WEST_2026: HouseDistrict[] = [
 // `house-{ST}-{DD}-2026-open` row per district:
 //   CA, WA — top-two (top two advance regardless of party)
 //   AK     — top-four (top four advance to a ranked-choice general)
-//   LA     — nonpartisan all-candidate primary (HO 93.5). The handoff expected
-//            closed partisan D/R, but every 2026 LA House page on Ballotpedia
-//            renders one "Nonpartisan primary election" votebox; we store what
-//            the source shows. If LA's pages later switch to D/R voteboxes,
-//            the structural guard in syncHouseDistricts logs it ("D/R
-//            candidate(s) on a nonpartisan-state page") — the signal to drop
-//            LA from this set.
+//   LA     — jungle all-candidate primary (Act 7 of the 2026 Regular Session,
+//            verified 2026-07-31). All candidates share one ballot regardless of
+//            party (majority wins, else the top two advance to a Dec-12 contest),
+//            so parseCandidatesPage's single "open" votebox is the right shape —
+//            the membership is correct here even though the HO 93.5 premise behind
+//            it (LA closed-partisan for 2026 under Act 1/640) is now dead, undone by
+//            Louisiana v. Callais + Act 7. Date/type authority lives in
+//            HOUSE_PRIMARY_OVERRIDES (LA → jungle), not the senate proxy.
+//            INVERTED TRIPWIRE (HO 584): under Act 7 there should be NO D/R
+//            voteboxes for LA House, so the structural guard firing ("D/R
+//            candidate(s) on a nonpartisan-state page") now means Act 7 was
+//            SUPERSEDED (a new statute/court order), not that Ballotpedia drifted —
+//            re-check the SoS calendar, don't just drop LA from this set.
 // Every other state runs ordinary partisan primaries.
 const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK", "LA"]);
 
