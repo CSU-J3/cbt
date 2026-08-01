@@ -144,16 +144,49 @@ export const HOUSE_DISTRICTS_WEST_2026: HouseDistrict[] = [
 // Every other state runs ordinary partisan primaries.
 const NONPARTISAN_HOUSE_STATES = new Set(["CA", "WA", "AK", "LA"]);
 
-// HO 577: states whose 2026 U.S. House primary was SUSPENDED — the statewide senate
-// primary date does NOT apply to their House districts, so the House date-write is
-// suppressed (primary_date left NULL = postponed/unknown, never a wrong asserted date;
-// primary_type is left alone — it is a type, open/closed/jungle, not a status). LA: Gov.
-// Landry EO 26-038 (2026-04-30) suspended the May-16 closed House primary + June-27
-// runoff after Louisiana v. Callais struck the congressional map. Scope is House-only —
-// senate-LA-2026-* (May 16) is unaffected and remains a valid calByState source. The
-// real post-suspension LA House shape (jungle vs closed, the new map, whether the 6
-// `open` rows are right) is the follow-up HO's question, not this one's.
-const HOUSE_PRIMARY_SUSPENDED = new Set(["LA"]);
+// HO 584: per-state House-primary OVERRIDES — one mechanism replacing the HO 577
+// suspension lock. When present for a state, an override WINS over calByState (the
+// senate-row-as-proxy) for that state's House rows; every other state is unchanged
+// (COALESCE and all). Suspension is expressible as an override with NULL dates.
+//
+// Derive an entry from the CONVENTION, not the instance: the senate row is a valid
+// proxy for the House date ONLY while both chambers share a date AND a system. Any
+// state where that stops being true needs a row here, not a new branch.
+//
+// LA — verified 2026-07-31 (Louisiana SoS + Act 7 of the 2026 Regular Session). After
+// Louisiana v. Callais struck the congressional map, Act 7 restored the historic JUNGLE
+// system for U.S. House ONLY: all candidates on one ballot, majority wins outright, else
+// the top two advance to an "open general" on Dec 12. So the House runs an open primary
+// on 2026-11-03 and, if needed, that Dec-12 contest — while the Senate is untouched
+// (May 16 / June 27) and remains a valid calByState source for everything but the House.
+//
+// TERMINOLOGY TRAP (do not "repair" this): LA's statute calls the Nov-3 contest the
+// "open primary" and Dec 12 the "open general." But CBT's `open` means party primaries
+// any voter may vote in — what SC has — a STRUCTURALLY DIFFERENT system. LA is `jungle`.
+// The Dec-12 resolver is modeled as `runoff_date` (CBT's "contest that resolves this
+// primary when nobody clears a majority" — exactly Dec 12), not as a "general." A future
+// reader who checks the SoS site will read "open" and must NOT correct the row to `open`.
+//
+// WHY the override covers `primary_type`, not just the dates: primaryTypeFor
+// (lib/primary-calendar-scrape.ts) DEFAULTS to `open` for every state outside
+// top_two/top_four/ranked_choice — so senate-LA-2026-*'s stored `open` is a FALLBACK,
+// not a determination, and today's open→open no-op is contingent. Correcting the LA
+// Senate rows to their true `closed` (Act 1/640 — the first LA Senate party primaries
+// since 2010) would then stamp `closed` onto six all-party House rows via the proxy. The
+// override writes `jungle` to be safe against that CORRECT upstream fix, not because
+// today's value collides.
+//
+// EXPIRY: litigation was pending (the NCJW suit's TRO was denied; more was expected over
+// the new map). Act 7 + the SoS calendar are the state as of 2026-07-31 — re-check
+// before treating a future discrepancy as a bug.
+type HousePrimaryOverride = {
+  primaryDate: string | null;
+  runoffDate: string | null;
+  primaryType: string | null;
+};
+const HOUSE_PRIMARY_OVERRIDES: Record<string, HousePrimaryOverride> = {
+  LA: { primaryDate: "2026-11-03", runoffDate: "2026-12-12", primaryType: "jungle" },
+};
 
 const HOUSE_DISTRICTS_BY_REGION: Record<HouseRegion, HouseDistrict[]> = {
   northeast: HOUSE_DISTRICTS_NORTHEAST_2026,
@@ -1087,18 +1120,19 @@ export async function syncHouseDistricts(
       : (["D", "R"] as const);
 
     const cal = calByState.get(d.state);
-    const suspended = HOUSE_PRIMARY_SUSPENDED.has(d.state);
-    // HO 577 — the House date is derived from calByState (now the clean statewide senate
-    // row only). Two branches on the ON CONFLICT date clause:
-    //  - suspended House state (LA): force primary_date + runoff_date to NULL (the
-    //    statewide 05-16 does NOT apply — the House primary was suspended by EO), and
-    //    leave primary_type untouched (it is a type, not a status). A NULL date =
-    //    postponed/unknown, never a wrong asserted date.
-    //  - everyone else: COALESCE so a state with no clean source (the ~15 no-2026-seat
-    //    gap states, cal === undefined) KEEPS its existing date rather than nulling it.
-    //    Seat-states with a clean source get it (excluded value is non-null and wins).
-    const onConflictDate = suspended
-      ? "primary_date = NULL,\n                runoff_date = NULL"
+    const override = HOUSE_PRIMARY_OVERRIDES[d.state]; // undefined = senate proxy applies
+    // HO 584 — one branch on the ON CONFLICT date clause, keyed on whether a per-state
+    // override exists (HO 577's suspended/COALESCE split collapsed into this):
+    //  - override present (LA): the override WINS — primary_date/runoff_date/primary_type
+    //    are taken straight from `excluded.*` (which the INSERT VALUES below fill from the
+    //    override), so a real date lands and a NULL override date force-NULLs (= a
+    //    suspension). No COALESCE: the override is authoritative, not a fallback.
+    //  - no override: HO 577 unchanged — COALESCE the date so a no-clean-source gap state
+    //    (the ~15 no-2026-seat states, cal === undefined) KEEPS its existing date rather
+    //    than nulling it; seat-states with a clean source get it (excluded is non-null and
+    //    wins); runoff/type come from the clean statewide source.
+    const onConflictDate = override
+      ? "primary_date = excluded.primary_date,\n                runoff_date = excluded.runoff_date,\n                primary_type = excluded.primary_type"
       : "primary_date = COALESCE(excluded.primary_date, primaries.primary_date),\n                runoff_date = excluded.runoff_date,\n                primary_type = excluded.primary_type";
     for (const contest of contests) {
       const primaryId = `house-${d.state}-${dd}-2026-${contest}`;
@@ -1125,9 +1159,9 @@ export async function syncHouseDistricts(
           d.state,
           dd,
           contest,
-          suspended ? null : (cal?.primaryDate ?? null),
-          suspended ? null : (cal?.runoffDate ?? null),
-          cal?.primaryType ?? null,
+          override ? override.primaryDate : (cal?.primaryDate ?? null),
+          override ? override.runoffDate : (cal?.runoffDate ?? null),
+          override ? override.primaryType : (cal?.primaryType ?? null),
           now,
         ],
       });
