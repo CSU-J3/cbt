@@ -1531,34 +1531,74 @@ export async function getPastPrimaries(
 // caller's memberChamber). The coupling to the id string is deliberate.
 const NOT_SPECIAL_UNLESS_SENATE = "(? = 'senate' OR p.id NOT LIKE '%-special-%')";
 
-// Single statewide primary lookup for a member's state + party — the "next primary"
-// chip on the member hub. Replaces the former string id-reconstruction (HO 576),
-// which structurally missed the `-special-` (primaries-sync.ts) and `-open` id
-// shapes, with a query over the structured columns. The lookup is STATEWIDE
-// (`district IS NULL`): a member reads the senate-prefixed statewide row as a proxy
-// for their own primary date, which works because regular Senate and House
-// primaries share a date. `district` stays in the signature (the caller always
-// passes null) but the query pins statewide explicitly rather than reconstructing.
+// The "next primary" chip lookup for a member on the member hub. TWO branches
+// (HO 586), both over structured columns (the HO 576 rewrite that replaced string
+// id-reconstruction, which missed the `-special-` and `-open` id shapes):
 //
-// A Senate SPECIAL is a Senate-only contest, so it is never a valid proxy for a
-// House member's primary in ANY state — the proxy convention only holds because
-// regular Senate and House primaries share a date, and a special is exactly where
-// that coincidence breaks. So Senate members see specials; House members don't
-// (House specials aren't reachable through the statewide row at all, so nothing
-// changes there). `memberChamber` carries the chamber for THAT ONE decision only —
-// there is deliberately NO `p.chamber = ?` in the WHERE, which would empty most
-// House chips (they read senate rows by design). Ordering: soonest FUTURE first,
-// most-recent PAST as fallback, so a member whose primary already happened keeps a
-// chip. `election_round = 'primary'` keeps HO 107 runoff rows out. Returns null
-// when no such row exists.
+//  1. DISTRICT-FIRST (House member with a real district) — prefer the member's OWN
+//     house-{ST}-{DD}-2026 row over the statewide proxy, matching their party OR the
+//     all-party 'open'/jungle contest, with exact party FIRST and 'open' SECOND made
+//     deterministic in the SQL ORDER BY (not left to LIMIT 1). This is what makes a
+//     LA House chip read its own Nov-3 jungle row instead of the May-16 senate proxy,
+//     and it also fills the top-two (`-open`) and no-2026-Senate-seat states that a
+//     party-keyed statewide proxy structurally can't serve (the HO 576 carry-forward,
+//     closed here). Do NOT widen this by dropping the district restriction — HO 576
+//     M3a proved a district-blind widening leaks per-district rows and "fixes" ~127
+//     chips with arbitrary dates; it is safe ONLY because it keys on the member's OWN
+//     district. It falls back to branch 2 ONLY when NO district row is found — NEVER
+//     on a found-but-empty-roster row (HO 586 M5: 77 of 560 past house rows carry 0
+//     candidates; falling back on empty would silently paper over that pre-existing
+//     gap. The chip renders the DATE, not the roster, so an empty district row is the
+//     correct answer to show, not a reason to reach back to the senate contest).
+//
+//  2. STATEWIDE SENATE PROXY (Senate members; House members with no district row —
+//     the 6 territories, coverage gaps): the HO 576 path, UNCHANGED. A member reads
+//     the senate-prefixed statewide row (`district IS NULL`) as a proxy for their own
+//     primary DATE, which works because regular Senate and House primaries share a
+//     date. A Senate SPECIAL is a Senate-only contest, never a valid proxy for a
+//     House member's primary in ANY state — the coincidence that makes the proxy work
+//     is exactly what a special breaks — so Senate members see specials and House
+//     members don't (`NOT_SPECIAL_UNLESS_SENATE`). `memberChamber` carries the chamber
+//     for THAT ONE decision only — there is deliberately NO `p.chamber = ?` in the
+//     statewide WHERE, which would empty most House chips (they read senate rows by
+//     design).
+//
+// Ordering in both branches: soonest FUTURE first, most-recent PAST as fallback, so a
+// member whose primary already happened keeps a chip. `election_round = 'primary'`
+// keeps HO 107 runoff rows out of both. Returns null when neither branch finds a row.
 export async function getPrimaryForRace(
   state: string,
-  district: string | null, // retained per the documented call contract; query pins statewide
+  district: number | null, // HO 586: the caller now passes member.district (House uses it; Senate is null)
   party: string,
   memberChamber: "house" | "senate",
 ): Promise<PrimaryWithCandidates | null> {
   const db = getDb();
   const today = new Date().toISOString().slice(0, 10);
+
+  // Branch 1 — district-first for a House member with a real district.
+  if (memberChamber === "house" && district != null) {
+    const dd = String(district).padStart(2, "0"); // primaries.district is zero-padded TEXT ("07")
+    const houseRs = await db.execute({
+      sql: `${PRIMARY_SELECT}
+            WHERE p.state = ? AND p.chamber = 'house' AND p.district = ?
+              AND (p.party = ? OR p.party = 'open')
+              AND p.election_round = 'primary'
+              AND p.id NOT LIKE '%-special-%'
+            GROUP BY p.id
+            ORDER BY (CASE WHEN p.party = ? THEN 0 ELSE 1 END),
+                     (CASE WHEN p.primary_date >= ? THEN 0 ELSE 1 END),
+                     (CASE WHEN p.primary_date >= ? THEN p.primary_date END) ASC,
+                     p.primary_date DESC
+            LIMIT 1`,
+      args: [state, dd, party, party, today, today],
+    });
+    const houseRow = houseRs.rows[0];
+    if (houseRow) return rowToPrimary(houseRow);
+    // No district row found → fall through to the statewide proxy. NOT reached on a
+    // found-but-empty-roster row (that row is returned above), so the M5 gap stays visible.
+  }
+
+  // Branch 2 — statewide senate-row proxy (HO 576), unchanged.
   const rs = await db.execute({
     sql: `${PRIMARY_SELECT}
           WHERE p.state = ? AND p.party = ? AND p.district IS NULL

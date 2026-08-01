@@ -216,19 +216,18 @@ export default async function MemberPage({
   const ratings = raceId ? await getRaceRatings(raceId) : [];
   const headerRating = ratings[0] ?? null;
 
-  // The member's 2026 state primary (handoff 91). Only D/R members resolve a
-  // row — independents don't run in a party primary. The chip shows for House
-  // and Senate members alike: every state's primary date sits on the
-  // senate-prefixed statewide calendar row (district stays null). `chamber` is
-  // passed for ONE decision only (HO 576): a Senate special is a Senate-only
-  // contest, so Senate members see it but House members don't — it's not a valid
-  // proxy for a House member's primary. null chamber falls to "house" (the
-  // conservative, special-excluding default).
+  // The member's 2026 state primary (handoff 91). Only D/R members resolve a row —
+  // independents don't run in a party primary (Kiley, party='I', gets no chip; correct
+  // data per HO 420/422, tracked for the 587 sweep, not a bug). HO 586: a House member
+  // now resolves their OWN house-{ST}-{DD} row via the district (district-first), so
+  // the LA six read their Nov-3 jungle row not the May-16 senate proxy; Senate members
+  // pass district=null and fall to the statewide senate proxy. `chamber` still carries
+  // the ONE HO 576 decision (a Senate special is never a House member's proxy).
   const memberPrimary =
     member && member.state && (member.party === "D" || member.party === "R")
       ? await getPrimaryForRace(
           member.state,
-          null,
+          member.district,
           member.party,
           member.chamber === "senate" ? "senate" : "house",
         )
@@ -358,8 +357,17 @@ export default async function MemberPage({
                           className="mhp-msub"
                           style={{ color: "var(--accent-amber)" }}
                         >
-                          Primary {memberPrimary.party === "D" ? "Dem" : "Rep"}:{" "}
-                          {formatDateShort(memberPrimary.primary_date)}
+                          {/* HO 586: label from the RESOLVED row's party over a
+                              three-value column — D→Dem, R→Rep, anything else
+                              (open/jungle, I) → no party word ("Primary:"), the honest
+                              all-party label. Fixing the branch, not special-casing 'open'. */}
+                          Primary
+                          {memberPrimary.party === "D"
+                            ? " Dem"
+                            : memberPrimary.party === "R"
+                              ? " Rep"
+                              : ""}
+                          : {formatDateShort(memberPrimary.primary_date)}
                           {primaryDays !== null &&
                           primaryDays >= 0 &&
                           primaryDays <= 30 ? (
