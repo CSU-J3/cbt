@@ -98,8 +98,9 @@ async function proposedChip(
   party: string,
   memberChamber: "house" | "senate",
 ): Promise<Chip> {
-  if (memberChamber === "house" && districtInt != null) {
-    const dd = String(districtInt).padStart(2, "0");
+  if (memberChamber === "house") {
+    // MIRRORS getPrimaryForRace: at-large (members.district=NULL) → "00" (HO 586 M6).
+    const dd = districtInt == null ? "00" : String(districtInt).padStart(2, "0");
     const rs = await db.execute({
       sql: ro(`SELECT p.id, p.primary_date
                FROM primaries p
@@ -107,11 +108,14 @@ async function proposedChip(
                  AND (p.party = ? OR p.party = 'open')
                  AND p.election_round = 'primary'
                  AND p.id NOT LIKE '%-special-%'
+               -- MIRRORS getPrimaryForRace branch 1 EXACTLY (queries.ts): future-first
+               -- PRIMARY, exact-party-over-'open' as the within-temporal-class tie-break.
                ORDER BY (CASE WHEN p.primary_date >= ? THEN 0 ELSE 1 END),
+                        (CASE WHEN p.party = ? THEN 0 ELSE 1 END),
                         (CASE WHEN p.primary_date >= ? THEN p.primary_date END) ASC,
                         p.primary_date DESC
                LIMIT 1`),
-      args: [state, dd, party, TODAY, TODAY],
+      args: [state, dd, party, TODAY, party, TODAY],
     });
     const r = rs.rows[0] as Record<string, unknown> | undefined;
     if (r) return { id: r.id as string, primary_date: (r.primary_date as string) ?? null };
@@ -348,6 +352,46 @@ async function main() {
   console.log("\n  M5 VERDICT:");
   console.log(`    SAME-DATE roster-vanish = ${haltRegression.length} → ${haltRegression.length === 0 ? "clear" : "HALT — inspect each (PAST ⇒ HO 563 erasure, pre-existing, changes what ships)"}`);
   console.log("    C1 fallback fires ONLY on NO row found — never on a found-but-empty row — so any zero here stays measurable, not papered over.");
+
+  // ── M6 — at-large padding contract (M3 is BLIND to a silent branch-1 miss) ──
+  hr();
+  console.log("M6 — AT-LARGE PADDING CONTRACT (padStart(2,'0') on members.district must match primaries.district)");
+  console.log("  A silent branch-1 miss (member.district=0 vs primaries '01') falls to branch 2 and M3 records");
+  console.log("  it as UNCHANGED — invisible to every date/roster gate. DE/ND/SD/VT/WY are partisan at-large");
+  console.log("  (AK is at-large too but 'open', so it doesn't prove the partisan path).");
+  let m6fallbacks = 0;
+  for (const st of ["DE", "ND", "SD", "VT", "WY"]) {
+    const m = (
+      await db.execute({
+        sql: ro(`SELECT bioguide_id, name, district, party FROM members
+                 WHERE is_current=1 AND chamber='house' AND state=? AND party IN ('D','R')
+                 ORDER BY district LIMIT 1`),
+        args: [st],
+      })
+    ).rows[0] as Record<string, unknown> | undefined;
+    if (!m) {
+      console.log(`  ${st}: no current D/R at-large House member`);
+      continue;
+    }
+    const dInt = (m.district as number) ?? null;
+    const dd = dInt != null ? String(dInt).padStart(2, "0") : "(null)";
+    const hrows = (
+      await db.execute({
+        sql: ro(`SELECT id, district, party, primary_date FROM primaries
+                 WHERE state=? AND chamber='house' AND election_round='primary' AND id NOT LIKE '%-special-%'
+                 ORDER BY id`),
+        args: [st],
+      })
+    ).rows as Record<string, unknown>[];
+    const hrowStr = hrows.map((r) => `${r.id}(district=${JSON.stringify(r.district)})`).join(" ") || "NONE";
+    const resolved = await proposedChip(st, dInt, m.party as string, "house");
+    const branch = resolved == null ? "2 → null" : resolved.id.startsWith("house-") ? "1 (district-first) ✓" : "2 (senate fallback)";
+    if (!(resolved && resolved.id.startsWith("house-"))) m6fallbacks++;
+    console.log(`  ${st}: ${m.name} member.district=${JSON.stringify(dInt)} → padded '${dd}'`);
+    console.log(`       primaries house rows: ${hrowStr}`);
+    console.log(`       branch fired = ${branch}  → ${resolved ? resolved.id : "null"}`);
+  }
+  console.log(`  M6 VERDICT: at-large branch-2 fallbacks = ${m6fallbacks} → ${m6fallbacks === 0 ? "clear (every state fires branch 1)" : "HALT — padding mismatch, fix the contract (do NOT special-case states)"}`);
 
   hr();
   console.log("\nHALT — STEP 0 complete. No build code until the halt clears (M3 gate decides LA-only vs general).");
