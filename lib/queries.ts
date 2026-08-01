@@ -1535,10 +1535,13 @@ const NOT_SPECIAL_UNLESS_SENATE = "(? = 'senate' OR p.id NOT LIKE '%-special-%')
 // (HO 586), both over structured columns (the HO 576 rewrite that replaced string
 // id-reconstruction, which missed the `-special-` and `-open` id shapes):
 //
-//  1. DISTRICT-FIRST (House member with a real district) — prefer the member's OWN
+//  1. DISTRICT-FIRST (every House member; at-large district=NULL → "00") — prefer the member's OWN
 //     house-{ST}-{DD}-2026 row over the statewide proxy, matching their party OR the
-//     all-party 'open'/jungle contest, with exact party FIRST and 'open' SECOND made
-//     deterministic in the SQL ORDER BY (not left to LIMIT 1). This is what makes a
+//     all-party 'open'/jungle contest. ORDERING: future-first is the PRIMARY key (the
+//     chip's "next primary" semantic); exact-party-over-'open' is a tie-break WITHIN a
+//     temporal class, NEVER across one — a stale PAST exact-party row must not outrank
+//     a live FUTURE 'open' row (both deterministic in the SQL, not left to LIMIT 1).
+//     This is what makes a
 //     LA House chip read its own Nov-3 jungle row instead of the May-16 senate proxy,
 //     and it also fills the top-two (`-open`) and no-2026-Senate-seat states that a
 //     party-keyed statewide proxy structurally can't serve (the HO 576 carry-forward,
@@ -1575,9 +1578,14 @@ export async function getPrimaryForRace(
   const db = getDb();
   const today = new Date().toISOString().slice(0, 10);
 
-  // Branch 1 — district-first for a House member with a real district.
-  if (memberChamber === "house" && district != null) {
-    const dd = String(district).padStart(2, "0"); // primaries.district is zero-padded TEXT ("07")
+  // Branch 1 — district-first for a House member (at-large included).
+  if (memberChamber === "house") {
+    // At-large House seats store district=NULL in `members` but "00" in `primaries`
+    // (all 6: AK/DE/ND/SD/VT/WY — HO 586 M6), so a null district is AT-LARGE → "00",
+    // not "no district": firing branch 1 for it is the point. A stray null in a
+    // multi-district state finds no "00" row and falls through to the proxy — a safe
+    // degrade, never a wrong match. (district=0 already pads to "00" on its own.)
+    const dd = district == null ? "00" : String(district).padStart(2, "0"); // primaries.district is zero-padded TEXT ("07")
     const houseRs = await db.execute({
       sql: `${PRIMARY_SELECT}
             WHERE p.state = ? AND p.chamber = 'house' AND p.district = ?
@@ -1585,12 +1593,15 @@ export async function getPrimaryForRace(
               AND p.election_round = 'primary'
               AND p.id NOT LIKE '%-special-%'
             GROUP BY p.id
-            ORDER BY (CASE WHEN p.party = ? THEN 0 ELSE 1 END),
-                     (CASE WHEN p.primary_date >= ? THEN 0 ELSE 1 END),
+            -- future-first is the PRIMARY key ("next primary"); exact-party-over-'open'
+            -- is a tie-break WITHIN a temporal class, never across it (a stale PAST row
+            -- must not outrank a live FUTURE one).
+            ORDER BY (CASE WHEN p.primary_date >= ? THEN 0 ELSE 1 END),
+                     (CASE WHEN p.party = ? THEN 0 ELSE 1 END),
                      (CASE WHEN p.primary_date >= ? THEN p.primary_date END) ASC,
                      p.primary_date DESC
             LIMIT 1`,
-      args: [state, dd, party, party, today, today],
+      args: [state, dd, party, today, party, today],
     });
     const houseRow = houseRs.rows[0];
     if (houseRow) return rowToPrimary(houseRow);
