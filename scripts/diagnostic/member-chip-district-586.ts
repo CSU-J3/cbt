@@ -26,9 +26,28 @@
 //        (c) non-null→NULL = 0 (no regression). SENATE changed = 0 (path byte-identical).
 //   M4 — house-*-2026 dated rows exist for all 50 states; only the 6 non-voting territories
 //        (AS DC GU MP PR VI) find no dated house row → keep the senate proxy (correct fallback).
-//   VERDICT: gate clear, every (b) is LA, (a) are clean fills → SHIP THE GENERAL QUERY (C1),
-//        which also closes the "senate-proxy can't serve top-two/no-Senate-seat" carry-forward.
-//        HALT for scope confirmation before building.
+//   M5 — ROSTER DELTA (owed before C1; the chip renders a roster, M3 saw only dates). 424 changed:
+//        253 grew/equal · 134 shrank (district < statewide, expected) · 18 null→dated-empty (benign)
+//        · 0 date-moved-empty · 19 SAME-DATE roster-vanish (new==0 & old>0), ALL PAST.
+//        Characterized: the 19 are the incumbents sitting in a broader PRE-EXISTING condition —
+//        77 of 560 past-dated house rows carry 0 candidates (~14%), NOT 586-created. Of the 19:
+//        11 have the OTHER party's house row populated (uncontested incumbent primary → honestly
+//        no votebox for the member's party); 8 are both-party empty (district coverage hole). The
+//        senate roster the chip shows TODAY for these is the SENATE contest's candidates — wrong
+//        contest — so "populated → empty" is "wrong-roster → honest-empty," not a correctness loss.
+//   DECISIVE — the consumer renders DATE ONLY. app/members/[bioguideId]/page.tsx:356-372 renders
+//        `Primary {D?Dem:Rep}: <date> (Nd)` — it NEVER renders the candidate roster. So the M5
+//        roster-vanish is INVISIBLE on the sole getPrimaryForRace consumer; the halt class has no
+//        user-visible manifestation. The 77-row empty-past-house-roster condition is real data debt
+//        (also on /primaries + /electoral, independent of 586) → backlog, not a 586 blocker.
+//   NEW BUILD REQ (render, not in the handoff C1): the label `party==='D'?'Dem':'Rep'` reads the
+//        RESOLVED ROW's party, so an `open`/jungle row renders "Primary Rep:" — wrong for D members
+//        in open-primary states (LA Carter/Fields; CA/WA Dems among the 160 (a) fills). C1 must
+//        handle `open` in the render (drop the party word / all-party), not only in the query.
+//   VERDICT: M3 gate clear; M5 halt-class is pre-existing + invisible (date-only render) → SHIP THE
+//        GENERAL QUERY (C1) + the caller district pass + the open-label render fix; the 160 (a)
+//        fills close the "senate-proxy can't serve top-two/no-Senate-seat" carry-forward as a side
+//        effect; file the 77-row empty-past-house-roster as data debt. HALT for confirmation.
 import "dotenv/config";
 import { getDb } from "@/lib/db";
 
@@ -268,6 +287,67 @@ async function main() {
   console.log(`\n  states where district-first finds NO dated house row → members keep the senate proxy (fallback, not a bug):`);
   console.log(`    ${gap.join(" ") || "(none)"}`);
   console.log("  (expect the HO 209 no-2026-Senate-seat / frozen-date gap states here.)");
+
+  // ── M5 — roster delta on every CHANGED row (the chip renders a ROSTER, M3 saw only dates) ──
+  hr();
+  console.log("M5 — ROSTER DELTA on changed rows (candidate count old→new; the chip renders GROUP_CONCAT + seat incumbent)");
+  const countCache = new Map<string, number>();
+  async function roster(id: string | null): Promise<number> {
+    if (id == null) return 0;
+    const hit = countCache.get(id);
+    if (hit != null) return hit;
+    const rs = await db.execute({
+      sql: ro(`SELECT COUNT(*) AS n FROM primary_candidates WHERE primary_id = ?`),
+      args: [id],
+    });
+    const n = Number((rs.rows[0] as Record<string, unknown>).n ?? 0);
+    countCache.set(id, n);
+    return n;
+  }
+  const haltRegression: string[] = []; // new==0 & old>0 & SAME-DATE — the true regression (roster vanished, no date change to explain it)
+  const laHonestEmpty: string[] = []; // new==0 & old>0 & date-moved — correct-date row whose contest hasn't qualified yet (HO 584 M4)
+  const zeroWasNull: string[] = []; // new==0 & old==0 — null→dated-empty chip (benign; was no chip before)
+  const shrank: string[] = []; // 0<new<old — district field smaller than statewide (verify it's that, not erasure)
+  let grewOrEqual = 0;
+  let changedTotal = 0;
+  for (const m of members) {
+    const mc = m.chamber === "senate" ? "senate" : "house";
+    const state = m.state as string;
+    const party = m.party as string;
+    const district = (m.district as number) ?? null;
+    const before = await shippedChip(state, party, mc);
+    const after = await proposedChip(state, district, party, mc);
+    if ((before?.id ?? null) === (after?.id ?? null)) continue; // row unchanged, roster unchanged
+    changedTotal++;
+    const oldN = await roster(before?.id ?? null);
+    const newN = await roster(after?.id ?? null);
+    const sameDate = (before?.primary_date ?? null) === (after?.primary_date ?? null);
+    const newDate = after?.primary_date ?? null;
+    const pastFuture = newDate == null ? "no-date" : newDate < TODAY ? "PAST" : "future";
+    const line = `    ${(m.name as string).padEnd(24)} ${state}-${m.district ?? "—"} ${party}  ${sameDate ? "SAME-DATE" : "date-moved"}  ${before?.id ?? "null"}(${oldN}) → ${after?.id}(${newN}) [${pastFuture}]`;
+    if (newN === 0 && oldN > 0 && sameDate) haltRegression.push(line);
+    else if (newN === 0 && oldN > 0) laHonestEmpty.push(line);
+    else if (newN === 0) zeroWasNull.push(line);
+    else if (newN < oldN) shrank.push(line);
+    else grewOrEqual++;
+  }
+  console.log(`  changed rows = ${changedTotal}`);
+  console.log(`  new >= old / grew (aggregate fine)                       = ${grewOrEqual}`);
+  console.log(`  0 < new < old (district < statewide — expected shrink)   = ${shrank.length}`);
+  console.log(`  new==0 & old==0 (null → dated-empty chip, benign)        = ${zeroWasNull.length}`);
+  console.log(`  new==0 & old>0 & DATE MOVED (honest empty, HO 584 M4)    = ${laHonestEmpty.length}`);
+  console.log(`  new==0 & old>0 & SAME-DATE (roster vanished)             = ${haltRegression.length}   ← HALT CLASS (any PAST here = HO 563 erasure)`);
+  dump("new==0 & old>0 & SAME-DATE — REGRESSION / erasure candidates", haltRegression);
+  dump("new==0 & old>0 & date-moved — honest empty (verify all future)", laHonestEmpty);
+  dump("0 < new < old — must read district-vs-statewide, not erasure", shrank.slice(0, 20));
+  if (shrank.length > 20) console.log(`    … ${shrank.length - 20} more shrink rows omitted (all old>new>0)`);
+  if (zeroWasNull.length) {
+    console.log(`\n  ── null → dated-empty (benign) sample (${Math.min(8, zeroWasNull.length)} of ${zeroWasNull.length}) ──`);
+    for (const l of zeroWasNull.slice(0, 8)) console.log(l);
+  }
+  console.log("\n  M5 VERDICT:");
+  console.log(`    SAME-DATE roster-vanish = ${haltRegression.length} → ${haltRegression.length === 0 ? "clear" : "HALT — inspect each (PAST ⇒ HO 563 erasure, pre-existing, changes what ships)"}`);
+  console.log("    C1 fallback fires ONLY on NO row found — never on a found-but-empty row — so any zero here stays measurable, not papered over.");
 
   hr();
   console.log("\nHALT — STEP 0 complete. No build code until the halt clears (M3 gate decides LA-only vs general).");
