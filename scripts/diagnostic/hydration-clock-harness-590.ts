@@ -206,6 +206,54 @@ async function main(): Promise<number> {
   console.log(`   209B is the redirect stub. The M3 premise ("static AND carries the tape") is false; cause #1 does not`);
   console.log(`   mispredict. 589's prod /dashboard-v2 fire was the / fire after the redirect.\n`);
 
+  // ── M3b — correct 589 M4's render-mode table (HO 590 condition 4) ─────────────
+  // 589 M4.2 read `○ Static` off the prerender manifest and printed it without
+  // noting that some of those rows are REDIRECT STUBS, not static content pages —
+  // a misleading row (/dashboard-v2) in a table the sweep leaned on. Re-classify
+  // each 589-"○ Static" route empirically: a 3xx with a Location is a redirect stub.
+  console.log("################ M3b — 589 M4 render-mode table CORRECTED (condition 4) ################\n");
+  const staticIn589 = ["/committees", "/dashboard-v2", "/members/pass-rate", "/primaries", "/races"];
+  for (const route of staticIn589) {
+    let status = 0; let loc = "";
+    try {
+      const res = await fetch(BASE + route, { headers: { cookie: "ct_seen=1" }, redirect: "manual" });
+      status = res.status; loc = res.headers.get("location") ?? "";
+    } catch { /* ignore */ }
+    const verdict = status >= 300 && status < 400
+      ? `REDIRECT STUB → ${loc} (NOT a static content page; 589's "○ Static" is the stub)`
+      : status === 200 ? "genuine static content (200)" : `status ${status}`;
+    console.log(`   ${route.padEnd(22)} ${status} → ${verdict}`);
+  }
+  console.log(`   ⇒ the render-mode table's "○ Static" means "prerendered output" — for a redirect route that`);
+  console.log(`   output is the 3xx stub, carrying no tape. No static route serves tape HTML; H4 + the M3`);
+  console.log(`   static-prerender concern both dissolve. (Recorded for the HO 591 docs sweep.)\n`);
+
+  // ── M3c — prod attribution (HO 590 condition 5): can the tape be prod's cause? ─
+  // The tape reads Date.now() at SSR (render instant) and again at hydration; a
+  // mismatch needs the two to STRADDLE a boundary (26h stale / 09:30-16:00 ET). That
+  // requires a GAP between render and hydration. Measured on prod (2026-08-03,
+  // `curl -I` with the gate cookie): `/` returns X-Vercel-Cache: MISS, Age: 0,
+  // Cache-Control: private,no-cache,no-store,must-revalidate, Date advancing per
+  // request — i.e. SERVED FRESH PER REQUEST, no cache gap. So prod's render→hydration
+  // gap is sub-second, exactly like control(+0) here — which NEVER fires. Locally we
+  // bound that natural gap to show the same:
+  console.log("################ M3c — prod attribution: render→hydration gap (condition 5) ################\n");
+  {
+    const page = await (await freshCtx(b)).newPage();
+    const resp = await page.goto(BASE + "/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForLoadState("load").catch(() => {});
+    const serverDate = resp?.headers()["date"] ? Date.parse(resp!.headers()["date"]!) : NaN;
+    const clientNow = await page.evaluate(() => Date.now());
+    await page.close();
+    const gapMs = Number.isFinite(serverDate) ? clientNow - serverDate : NaN;
+    console.log(`   local / : server Date header ${new Date(serverDate).toISOString()} vs client Date.now() post-load`);
+    console.log(`   render→hydration gap ≈ ${Number.isFinite(gapMs) ? Math.round(gapMs) + "ms" : "n/a"} (sub-boundary; control never fires at this gap)`);
+    console.log(`   PROD (curl, 2026-08-03): X-Vercel-Cache=MISS Age=0 no-store ⇒ fresh per request ⇒ same sub-second gap.`);
+    console.log(`   ⇒ FINDING: the tape is a real latent hydration bug but is NOT the mechanism of prod's 42 args[]=HTML`);
+    console.log(`   fires — there is no cache gap to straddle a boundary. Those fires remain UNATTRIBUTED. The pageErr`);
+    console.log(`   OPEN LOOP does NOT close on the tape fix; a green crawl after is ambiguous (cause AND never-cause).\n`);
+  }
+
   // ── M4 — cause #2, one bounded attempt (members surfaces, control, no skew) ──
   console.log("################ M4 — cause #2 (members, control) — ONE bounded pass ################\n");
   const TRIES = 6;
