@@ -4531,10 +4531,24 @@ export const getIdeologyStrip = unstable_cache(
 // context to displayed precision. Returns EVERY floored member incl. the ~6
 // non-voting delegates + an is_delegate flag; the component carves delegates out of
 // the cloud/median but needs the flag + count to disclose the exclusion (never a
-// silent drop). Small grouped aggregate (~537 rows) — no INDEXED BY / no new index
-// (the getIdeologyStrip / polarization-band regime); tag `votes` + revalidate 3600
-// to match getChamberParticipationContext (refreshes with the votes sync, not the
-// daily ideology cadence).
+// silent drop). Tag `votes` + revalidate 3600 to match
+// getChamberParticipationContext (refreshes with the votes sync, not the daily
+// ideology cadence).
+//
+// HO 594 — THE COMMENT THAT USED TO SIT HERE WAS THE BUG. It read "Small grouped
+// aggregate (~537 rows) — no INDEXED BY / no new index" and shipped this query
+// unhinted. ~537 is what the query RETURNS; what it READS is all 365,996
+// member_votes rows (a 683x gap), because the GROUP BY spans the whole table and
+// the members-side filters apply after the group. Cold, that measured 24.5s median
+// / 37.0s worst against the 10s DB_REQUEST_TIMEOUT_MS — the /members 500, digest
+// 4101894172. Sizing an aggregate by rows RETURNED is the tell (oddities: "a 1-row
+// 500 can still be a full-corpus scan").
+//
+// The INDEXED BY is MANDATORY, not decorative: idx_member_votes_participation
+// (bioguide_id, position) exists, but the statless Turso planner (no ANALYZE)
+// still picks the older non-covering idx_member_votes_bioguide unhinted and
+// row-fetches every row anyway — verified by EXPLAIN with the new index present,
+// the same result HO 277 recorded one table over.
 export type ParticipationDot = {
   bioguideId: string;
   name: string;
@@ -4555,7 +4569,7 @@ export const getParticipationStrip = unstable_cache(
                         THEN 1 ELSE 0 END AS isDelegate,
                    COUNT(*) AS total,
                    SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-              FROM member_votes mv
+              FROM member_votes mv INDEXED BY idx_member_votes_participation
               JOIN members m ON m.bioguide_id = mv.bioguide_id
              WHERE m.is_current = 1
              GROUP BY mv.bioguide_id
@@ -5810,13 +5824,22 @@ function billsAggCte(includeCeremonial: boolean): string {
 // — getChamberParticipationContext's args do the same. The delegate carve-out is
 // NOT here (it needs the members table's chamber/state); it's applied in the
 // SELECT of each caller so delegates keep a row but a NULL rate.
+// HO 594: the INDEXED BY is load-bearing on VOLUME, not on sort choice. This CTE is
+// spliced UNCONDITIONALLY into both getMembersRanked and getCommitteeRoster, so it
+// ran a full 365,996-row scan of member_votes on EVERY /members and
+// /committee/[code] render at any sort (13.4s median / 15.2s worst cold, against
+// the 10s bound). 593 named the other two participation aggregates and missed this
+// one; it is the widest-exposure member of the family. Unlike its two siblings the
+// planner DOES take the covering index here unhinted (no join to distract it) —
+// the hint is kept anyway so all three sites pin the same plan and none of them
+// silently regresses when a join or filter is added later.
 function participationAggCte(): string {
   return `part_agg AS (
     SELECT
       mv.bioguide_id AS bid,
       CAST(SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS REAL)
         / COUNT(*) AS missed_pct
-    FROM member_votes mv
+    FROM member_votes mv INDEXED BY idx_member_votes_participation
     GROUP BY mv.bioguide_id
     HAVING COUNT(*) >= ${PARTICIPATION_FLOOR}
   )`;
@@ -7729,6 +7752,10 @@ export type ChamberParticipation = {
   medianMissedPct: number | null; // % over the floored population; null = empty chamber
 };
 
+// HO 594: same full-scan defect as getParticipationStrip (19.99s median / 29.01s
+// worst cold vs the 10s bound) and the same mandatory INDEXED BY — the planner
+// keeps the non-covering idx_member_votes_bioguide unhinted. Drives
+// /members/[bioguideId].
 export const getChamberParticipationContext = unstable_cache(
   async (): Promise<{ house: ChamberParticipation; senate: ChamberParticipation }> => {
     const db = getDb();
@@ -7736,7 +7763,7 @@ export const getChamberParticipationContext = unstable_cache(
       sql: `SELECT m.chamber AS chamber,
                    COUNT(*) AS total,
                    SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-              FROM member_votes mv
+              FROM member_votes mv INDEXED BY idx_member_votes_participation
               JOIN members m ON m.bioguide_id = mv.bioguide_id
              WHERE m.is_current = 1
              GROUP BY mv.bioguide_id
