@@ -1039,6 +1039,31 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_agg ON bills(sponsor_bioguide_id, is_ceremonial, stage, congress)",
   );
   console.log("ok: idx_bills_sponsor_agg");
+  // HO 594: cover the THREE participation aggregates over member_votes — the same
+  // digest (4101894172) and the same route (/members) as HO 277 above, one table
+  // over. getParticipationStrip, getChamberParticipationContext and
+  // participationAggCte all GROUP BY bioguide_id and read `position` for the
+  // not_voting SUM. The pre-existing idx_member_votes_bioguide(bioguide_id) leads
+  // on the GROUP key but does NOT carry `position`, so every one of the 365,996
+  // rows was fetched from the table to answer a 536-row question (a 683x
+  // scanned:returned gap — HO 594 M1). Adding `position` makes the aggregate
+  // index-only AND already ordered by the GROUP key (no temp b-tree): the measured
+  // row-fetch cost this removes was ~19.75s of median.
+  //
+  // NOT a partial index: all three aggregates read every member_votes row (the
+  // `is_current`/HAVING filters are on the members side, applied after the group).
+  // Supersedes nothing — idx_member_votes_bioguide stays, because the bounded
+  // per-member lookups (getMemberVoteStats etc.) are served fine by it and a
+  // narrower index is cheaper for them.
+  //
+  // Write cost is real and was priced, because member_votes is DELETE-AND-REBUILD
+  // per vote, not append-only (lib/votes-sync.ts:333, HO 566/567): the sync's
+  // atomic unit re-writes a whole roll-call's rows, and that now maintains two
+  // indexes. HO 594 measured the unit before and after (see the fix commit).
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_member_votes_participation ON member_votes(bioguide_id, position)",
+  );
+  console.log("ok: idx_member_votes_participation");
   // HO 277: cover getFeedStats — the HeaderBar count (COUNT(*) + MAX(update_date)
   // over `summary IS NOT NULL AND (is_ceremonial=0 OR IS NULL)`), which runs on
   // EVERY inner page incl. /members. Same summary-gated mis-plan as HO 276's
