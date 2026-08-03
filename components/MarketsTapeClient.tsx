@@ -568,6 +568,7 @@ function TickItem({
 }
 
 export function MarketsTapeClient({
+  nowMs,
   ticks,
   placeholderSymbols,
   showMeta = true,
@@ -577,6 +578,11 @@ export function MarketsTapeClient({
   reverse = false,
   label,
 }: {
+  // HO 590: the server's Date.now() at SSR, prop-drilled so the initial `now` state
+  // is identical on the server render and the first client (hydration) render. No
+  // default — a caller that forgets it is a tsc error, which keeps the hydration-safe
+  // invariant enforced at the type level (the HO 490 "no default closes the class").
+  nowMs: number;
   ticks: MarketTick[];
   // HO 178: the symbols this tape owns — drives the no-data placeholder row and
   // the poll filter so a grouped tape only ever updates its own symbols.
@@ -709,9 +715,12 @@ export function MarketsTapeClient({
         )
       : null;
 
-  // Re-check staleness every minute so a long-lived dashboard tab eventually
-  // flips to stale without needing a reload at the 26h boundary.
-  const [now, setNow] = useState(() => Date.now());
+  // HO 590: seed from the server-computed `nowMs` (NOT useState(() => Date.now()),
+  // which ran a client-time value at hydration that diverged from the server's SSR
+  // value and flipped the stale/closed arrow nodes → structural #418). The 60s
+  // interval below still takes over after mount, so a long-lived tab keeps flipping
+  // to stale at the 26h boundary without a reload — the staleness signal stays live.
+  const [now, setNow] = useState(nowMs);
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);

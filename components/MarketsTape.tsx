@@ -85,6 +85,14 @@ export async function MarketsTape({
       ).map((s) => s.internal);
   return (
     <MarketsTapeClient
+      // HO 590: server-computed clock, prop-drilled so SSR and first client paint
+      // share ONE `now` (it serialises into the RSC payload — the HO 489/490 pattern).
+      // The client's useState(() => Date.now()) previously ran a DIFFERENT value at
+      // hydration than the server used at SSR, and when the two straddled the 26h
+      // stale edge or a 09:30/16:00-ET market boundary the arrow nodes flipped in/out
+      // → a structural (args[]=HTML) hydration mismatch. Trade: a cached first paint
+      // can show a state one tick stale; the 60s interval corrects it on mount.
+      nowMs={Date.now()}
       ticks={groupTicks}
       placeholderSymbols={placeholderSymbols}
       pairs={pairs}
