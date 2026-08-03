@@ -22,10 +22,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { FilingSummary } from "@/lib/queries";
 
-function relAge(iso: string): string {
+// HO 590: `nowMs` is the server's Date.now() at SSR, prop-drilled in (see the
+// FilingRow prop). It replaces a render-time Date.now() that ran a client value at
+// hydration different from the server's SSR value — when the two crossed a day
+// boundary the "Nd ago" text drifted, an args[]=text hydration mismatch (the sibling
+// text-variant of the tape's structural #418, 589/590 M2). Same fix shape as the tape.
+function relAge(iso: string, nowMs: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
-  const days = Math.floor((Date.now() - then) / 86_400_000);
+  const days = Math.floor((nowMs - then) / 86_400_000);
   if (days <= 0) return "today";
   if (days === 1) return "1d ago";
   if (days < 30) return `${days}d ago`;
@@ -38,11 +43,16 @@ const MAX_ISSUE_CHIPS = 3;
 
 export function FilingRow({
   filing,
+  nowMs,
   expandable = false,
   isExpanded = false,
   toggleHref,
 }: {
   filing: FilingSummary;
+  // HO 590: server Date.now() at SSR, so the "Nd ago" age is identical on the server
+  // render and hydration. Required (no default) — a caller that forgets it is a tsc
+  // error, keeping the hydration-safe invariant enforced at the type level.
+  nowMs: number;
   expandable?: boolean;
   isExpanded?: boolean;
   toggleHref?: string;
@@ -75,7 +85,7 @@ export function FilingRow({
       >
         {expandable ? (isExpanded ? "▾" : "▸") : null}
       </span>
-      <span className="lob-age">{relAge(filing.dtPosted)}</span>
+      <span className="lob-age">{relAge(filing.dtPosted, nowMs)}</span>
       <span
         className="lob-rc"
         title={`${filing.registrantName ?? "—"} → ${filing.clientName ?? "—"}`}

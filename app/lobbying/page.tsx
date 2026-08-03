@@ -457,6 +457,7 @@ export default async function LobbyingPage({
                 <Fragment key={f.filingUuid}>
                   <FilingRow
                     filing={f}
+                    nowMs={Date.now()}
                     expandable
                     isExpanded={f.filingUuid === expandedUuid}
                     toggleHref={buildToggleHref(

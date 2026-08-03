@@ -14,6 +14,9 @@ import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 // section-shell header on /bill/[id] (it duplicated the shell's count), so this
 // component no longer renders it — the `see all lobbying →` foot survives.
 export function BillLobbying({ drill }: { drill: BillDrill }) {
+  // HO 590: server clock, passed to each FilingRow so its "Nd ago" age is identical
+  // on SSR and hydration (no render-time Date.now() drift).
+  const nowMs = Date.now();
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
       <LobbyingMiniBars label="Top clients" rows={drill.topClients} />
@@ -27,7 +30,7 @@ export function BillLobbying({ drill }: { drill: BillDrill }) {
           Recent filings
         </div>
         {drill.recent.map((f) => (
-          <FilingRow key={f.filingUuid} filing={f} />
+          <FilingRow key={f.filingUuid} filing={f} nowMs={nowMs} />
         ))}
       </div>
 
