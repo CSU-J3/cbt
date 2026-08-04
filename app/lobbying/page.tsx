@@ -174,6 +174,7 @@ export default async function LobbyingPage({
   let feedPage = page;
   let searchTotal: number | undefined;
   let searchTotalCapped = false;
+  let feedFailed = false;
   if (!scoped) {
     const feed = await getRecentFilings({
       page,
@@ -190,6 +191,7 @@ export default async function LobbyingPage({
     feedPage = feed.page;
     searchTotal = feed.total;
     searchTotalCapped = feed.totalCapped ?? false;
+    feedFailed = feed.failed ?? false;
   }
   const feedTotal = searchActive ? (searchTotal ?? 0) : blobTotal;
   const totalPages = searchActive
@@ -282,9 +284,12 @@ export default async function LobbyingPage({
               </>
             ) : searchActive ? (
               <>
+                {/* HO 598 — on a failed read feedTotal is 0, and printing "0
+                    FILINGS" is the same lie as the empty list below. Render an
+                    em dash: unknown, not zero. */}
                 <span className="mc-fbar-n">
-                  {feedTotal.toLocaleString()}
-                  {searchTotalCapped ? "+" : ""}
+                  {feedFailed ? "—" : feedTotal.toLocaleString()}
+                  {!feedFailed && searchTotalCapped ? "+" : ""}
                 </span>{" "}
                 FILINGS <span aria-hidden> · </span>MATCHING &ldquo;{activeQuery}
                 &rdquo;
@@ -479,6 +484,18 @@ export default async function LobbyingPage({
                   ) : null}
                 </Fragment>
               ))
+            ) : feedFailed ? (
+              /* HO 598 — a FAILED read, not an empty result. These two rendered
+                 identically until now, which is why `?q=boeing` reported "No
+                 filings match" against 78 real matches. Never merge these
+                 branches: an empty list is a fact about the corpus, a timeout is
+                 a fact about the request, and only one of them is the user's
+                 answer. */
+              <div className="mc-empty">
+                {searchActive
+                  ? "Search timed out — try a narrower term"
+                  : "Filings feed timed out — reload to retry"}
+              </div>
             ) : searchActive ? (
               <div className="mc-empty">
                 No filings match &ldquo;{activeQuery}&rdquo;

@@ -2952,6 +2952,14 @@ type RecentFilingsResult = {
   total?: number;
   /** true when `total` is the cap rather than the real count — render "N+". */
   totalCapped?: boolean;
+  /**
+   * HO 598 — the read FAILED and this is a degraded empty, NOT a genuine empty
+   * result. The two are indistinguishable in `items` and always have been, which
+   * is the actual user-facing defect: `?q=boeing` renders "No filings match"
+   * against 78 real matches. Consumers MUST branch on this before rendering an
+   * empty state.
+   */
+  failed?: boolean;
 };
 
 // The CACHED half. It THROWS on a read failure and catches nothing — that is the
@@ -3144,9 +3152,11 @@ export async function getRecentFilings(
       `[getRecentFilings] read failed — feed hidden: sort=${sort} linked=${opts.billLinked ?? false} q=${hasQ} page=${page}:`,
       err,
     );
-    // hasQ → total 0 keeps the page rendering (degrade-to-empty); RECENT+search is
-    // ≤~700ms so this path is effectively unreachable.
-    return { items: [], page, pageSize, total: hasQ ? 0 : undefined };
+    // hasQ → total 0 keeps the page rendering (degrade-to-empty). `failed: true` is
+    // what lets the caller say so out loud instead of rendering a lie — the guard
+    // has always KNOWN the difference between "timed out" and "no matches"; it just
+    // never told anyone.
+    return { items: [], page, pageSize, total: hasQ ? 0 : undefined, failed: true };
   }
 }
 
