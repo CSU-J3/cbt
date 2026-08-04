@@ -39,8 +39,15 @@
 //   3. `baseline_count` is NOT a table-walk baseline and was a wrong instrument in
 //      the first draft: SQLite satisfies an unqualified COUNT(*) from the SMALLEST
 //      index, never touching the table (17ms co-located). walk_notnull replaced it.
-//   4. Variance is enormous and cold-page shaped (search_page "boeing" 2.5s vs
-//      19.8s on identical work), so every figure above is reported as a WORST CASE.
+//   4. Run-to-run spread is ~2x on identical work (search_page "boeing" 2.5s vs
+//      19.8s), so every figure above is a WORST CASE and the finding is the
+//      30-90s BAND, not the ranking inside it.
+//
+// AND THE ~700ms -> 91.3s DELTA IS UNATTRIBUTED. oddities.md:235 records no
+// measurement conditions for the 700ms, while the entry below it distinguishes
+// "a TEMP B-TREE at 7.8s COLD" for VOLUME — the arc separated cold for one number
+// and not the other. The gap is unexplained between corpus growth (1.15x),
+// conditions, and platform. Do not cite it as a 130x Turso regression.
 //
 //   npx tsx scripts/diagnostic/lobbying-search-cost-598.ts
 import "dotenv/config";
@@ -139,8 +146,14 @@ async function m1() {
   console.log(`           it is the load-bearing idea and this HO confirms it.`);
   console.log(`    EXPIRED: "a %term% scan is ~700ms worst case, 14x under the 10s wall."`);
   console.log(`           Co-located worst case today: 91.3s for the zero-match full walk.`);
-  console.log(`           A ~130x move on a 1.15x corpus growth — so the corpus is NOT the`);
-  console.log(`           cause; the cold cost of dragging ${(rowBytes / 1e6).toFixed(1)} MB off this Turso is.`);
+  console.log(`    THE DELTA IS UNATTRIBUTED — do not read it as a platform regression.`);
+  console.log(`           oddities.md:235 records NO measurement conditions for the 700ms`);
+  console.log(`           (no cold/warm, no co-located/laptop, no spread), while the entry`);
+  console.log(`           immediately below it distinguishes "a TEMP B-TREE at 7.8s COLD"`);
+  console.log(`           for VOLUME. The arc separated cold for one number and not the`);
+  console.log(`           other, so the gap is unexplained between corpus growth (1.15x),`);
+  console.log(`           measurement conditions, and platform behaviour. Nothing measured`);
+  console.log(`           here can apportion it, and this HO does not try to.`);
   console.log(`\n  IS THE BILLS FTS REUSABLE? Mechanically yes, semantically NO.`);
   console.log(`    bills_fts is external-content FTS5 (content='bills') + 3 triggers, and`);
   console.log(`    buildBillsFtsMatch emits TOKEN-PREFIX terms (tok*). The same shape would`);
@@ -152,7 +165,8 @@ async function m1() {
   console.log(`    argued as a deliberate substring -> prefix trade, not as a free speedup.`);
   console.log(`\n  THE BANKED FALLBACK IS THE ONE THE MEASUREMENT POINTS AT. The recorded`);
   console.log(`  reason already named it: a DISTINCT-NAME LOOKUP TABLE. Sized here:`);
-  console.log(`    ${(Number(r.distReg) + Number(r.distCli)).toLocaleString()} distinct names vs ${filings.toLocaleString()} filings — ~${(filings / (Number(r.distReg) + Number(r.distCli))).toFixed(1)}x fewer rows,`);
+  console.log(`    ${Number(r.distReg).toLocaleString()} registrants + ${Number(r.distCli).toLocaleString()} clients = ${(Number(r.distReg) + Number(r.distCli)).toLocaleString()} distinct names vs ${filings.toLocaleString()}`);
+  console.log(`    filings — ~${(filings / (Number(r.distReg) + Number(r.distCli))).toFixed(1)}x fewer rows,`);
   console.log(`    and names only, so ~${(rowBytes / 1e6).toFixed(1)} MB dragged becomes well under 1 MB.`);
   console.log(`    It keeps SUBSTRING semantics exactly. NOT priced here — phase 2 must`);
   console.log(`    measure it, not infer it from this arithmetic (the standing read-cost rule).`);
