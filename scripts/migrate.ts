@@ -870,6 +870,36 @@ const statements = [
     PRIMARY KEY (filing_uuid, activity_ordinal, bill_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_lda_activity_bills_bill ON lda_activity_bills(bill_id)`,
+  // HO 598: the /lobbying search lookup table. The `?q=` search was a leading-%
+  // LIKE over lda_filings, and HO 598 STEP 0 measured co-located that the LIKE is
+  // NOT the cost — the WALK is: a name read with no predicate at all was 86.3s, a
+  // zero-match search page 91.3s. The lever is bytes dragged, so search moves off
+  // the 129,401-row x 22.9 MB table onto ~28k short rows here, then seeks back by
+  // id.
+  //
+  // ONE ROW PER DISTINCT (kind, entity_id, name) — NOT one per id. The mapping is
+  // many-to-many, measured: 70 registrant ids and 91 client ids carry MORE THAN ONE
+  // name spelling, and 3,418 client names span more than one id. Keying on id alone
+  // would silently drop the alternate spellings and change search results.
+  //
+  // Correctness contract for the reader (both halves are load-bearing):
+  //   COMPLETE — every filing whose name matches the LIKE has that exact (id, name)
+  //     pair here, so its id is always in the candidate set.
+  //   SOUND    — the candidate set is by ID, so it can over-match (id X spelled two
+  //     ways, only one spelling matching), which is why the rewrite MUST re-apply
+  //     the name LIKE to the seeked rows. That re-check is what makes this exactly
+  //     equivalent to the old predicate, not merely close.
+  // Rows are INSERT OR IGNORE'd and never deleted: a stale name only widens the
+  // candidate set, and the re-check removes it. No delete path to get wrong.
+  `CREATE TABLE IF NOT EXISTS lda_names (
+    kind TEXT NOT NULL,                 -- 'r' registrant | 'c' client
+    entity_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    PRIMARY KEY (kind, entity_id, name)
+  )`,
+  // The scan target, COVERING: `SELECT entity_id WHERE kind = ? AND name LIKE ?`
+  // reads this index only and never touches the table.
+  `CREATE INDEX IF NOT EXISTS idx_lda_names_kind_name ON lda_names(kind, name, entity_id)`,
   // HO 447: amendments data layer. One row per congressional amendment along the
   // bill spine. Landed by lib/amendments-sync.ts from Congress.gov /amendment
   // (list → detail; amendedBill/sponsors/purpose are detail-only, HO 446 probe).
@@ -1427,6 +1457,32 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_lda_filings_activity ON lda_filings(activity_count DESC, dt_posted DESC)",
   );
   console.log("ok: idx_lda_filings_activity");
+  // HO 598: the seek half of the search rewrite. lda_filings.registrant_id and
+  // client_id already EXISTED as columns and were simply unindexed, so this is two
+  // indexes and no schema change — the lookup table above turns the term into a set
+  // of ids, and these turn "filings for those ids" into equality seeks instead of
+  // another walk. Building one half without the other just moves the walk.
+  //
+  // Long-timeout client for the same reason as idx_lda_filings_activity: an index
+  // build over 129,401 rows runs past lib/db.ts's 10s bound, the client aborts, and
+  // migrate.ts exits non-zero on a build the server actually completed (HO 406/597).
+  //
+  // WHERE THE `linked` RESIDUAL LANDS (HO 597, deliberately NOT built here): its fix
+  // is a materialized bill_linked column on lda_filings plus a
+  // (bill_linked, activity_count DESC, dt_posted DESC) index. Same table, same
+  // writer, same shape — it belongs in this block, next to these lines, so the two
+  // fixes cost one migration rather than repeating the HO 597 sequence twice.
+  {
+    const long = getLongTimeoutDb();
+    await long.execute(
+      "CREATE INDEX IF NOT EXISTS idx_lda_filings_registrant_id ON lda_filings(registrant_id)",
+    );
+    console.log("ok: idx_lda_filings_registrant_id");
+    await long.execute(
+      "CREATE INDEX IF NOT EXISTS idx_lda_filings_client_id ON lda_filings(client_id)",
+    );
+    console.log("ok: idx_lda_filings_client_id");
+  }
   console.log("migration complete");
 }
 
