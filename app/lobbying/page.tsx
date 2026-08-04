@@ -173,6 +173,7 @@ export default async function LobbyingPage({
   let feedItems: FilingSummary[] = [];
   let feedPage = page;
   let searchTotal: number | undefined;
+  let searchTotalCapped = false;
   if (!scoped) {
     const feed = await getRecentFilings({
       page,
@@ -180,10 +181,15 @@ export default async function LobbyingPage({
       sort: sortMode, // getRecentFilings forces recent when q is set
       billLinked,
       q: activeQuery,
+      // HO 598 — the search COUNT stops here. This IS the pager clamp below, passed
+      // rather than duplicated in lib/queries.ts, so the count bound and the page
+      // bound cannot drift apart.
+      countCap: PAGE_SIZE * MAX_FEED_PAGES,
     });
     feedItems = feed.items;
     feedPage = feed.page;
     searchTotal = feed.total;
+    searchTotalCapped = feed.totalCapped ?? false;
   }
   const feedTotal = searchActive ? (searchTotal ?? 0) : blobTotal;
   const totalPages = searchActive
@@ -276,7 +282,10 @@ export default async function LobbyingPage({
               </>
             ) : searchActive ? (
               <>
-                <span className="mc-fbar-n">{feedTotal.toLocaleString()}</span>{" "}
+                <span className="mc-fbar-n">
+                  {feedTotal.toLocaleString()}
+                  {searchTotalCapped ? "+" : ""}
+                </span>{" "}
                 FILINGS <span aria-hidden> · </span>MATCHING &ldquo;{activeQuery}
                 &rdquo;
               </>

@@ -2930,18 +2930,28 @@ export const getTopicCrosswalk = unstable_cache(
 // LIMIT, then a bounded batched hydration (PK-seek IN() over ≤pageSize uuids). No
 // COUNT here — pagination total comes from the rollup's stats.filings, so the
 // page never runs the (marginal, 5s-cold) full-table COUNT.
+// HO 598 — the search COUNT's bound. It MUST equal the caller's pager clamp
+// (app/lobbying/page.tsx: PAGE_SIZE x MAX_FEED_PAGES), which is why the caller
+// passes it rather than this module hardcoding a copy that can drift out of step
+// with the constant that actually governs the UI. This default is a fallback only.
+const DEFAULT_SEARCH_COUNT_CAP = 520;
+
 type RecentFilingsOpts = {
   page?: number;
   pageSize?: number;
   sort?: "recent" | "volume";
   billLinked?: boolean;
   q?: string;
+  /** Stop counting past this many matches; the caller's pager clamp. */
+  countCap?: number;
 };
 type RecentFilingsResult = {
   items: FilingSummary[];
   page: number;
   pageSize: number;
   total?: number;
+  /** true when `total` is the cap rather than the real count — render "N+". */
+  totalCapped?: boolean;
 };
 
 // The CACHED half. It THROWS on a read failure and catches nothing — that is the
@@ -2955,6 +2965,7 @@ const getRecentFilingsCached = unstable_cache(
     const pageSize = opts.pageSize ?? 25;
     const offset = (page - 1) * pageSize;
     const billLinked = opts.billLinked ?? false;
+    const SEARCH_COUNT_CAP = opts.countCap ?? DEFAULT_SEARCH_COUNT_CAP;
 
     // HO 547 — registrant/client substring search. STEP 0 (546/547) measured names
     // avg 25 chars → a full `%term%` substring scan of 112k rows is ≤~700ms on the
@@ -2997,9 +3008,28 @@ const getRecentFilingsCached = unstable_cache(
       const linkedClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : ``;
       const searchArgs: string[] = hasQ ? [likeArg, likeArg] : [];
       // HO 547 — a searched result set has no blob total, so the pager rides a LIVE
-      // COUNT(*) with the same predicate (recent-shape, ≤67ms — HO 547), run in
-      // parallel with the page query below (Promise.all).
-      if (hasQ) countSql = `SELECT COUNT(*) AS n FROM lda_filings f ${linkedClause}`;
+      // COUNT with the same predicate, run in parallel with the page query below.
+      //
+      // HO 598 — IT IS BOUNDED TO SEARCH_COUNT_CAP, because an exact total past the
+      // cap is DISCARDED BY THE CODE THAT ASKS FOR IT. app/lobbying/page.tsx caps
+      // totalPages at MAX_FEED_PAGES (40) x PAGE_SIZE (13) = 520, so any total above
+      // that produces the identical 40 pages. The unbounded form measured 58.1s
+      // co-located for a common term; bounded it short-circuits at 521 and measured
+      // 2.25s (~26x). HO 547's "≤67ms" was true when written at 112k filings and is
+      // not true now — the comment carried the number without its corpus or date,
+      // which is the SKILL authoring rule this arc added.
+      //
+      // WHAT THIS DOES NOT FIX, stated here so the next reader does not mistake it
+      // for the fix: a RARE term never reaches the cap, so it still walks the whole
+      // table (60.2s unbounded vs 55.1s bounded for "boeing", 78 matches). And the
+      // PAGE query beside it walks too (19.8s "boeing", 91.3s zero-match). This
+      // removes one of two breaching queries on the common path; the walk itself is
+      // a separate fix.
+      if (hasQ) {
+        countSql = `SELECT COUNT(*) AS n FROM (
+                      SELECT 1 FROM lda_filings f ${linkedClause} LIMIT ${SEARCH_COUNT_CAP + 1}
+                    )`;
+      }
       if (sort === "volume") {
         // VOLUME = per-filing activity count ("meatiest filings"). HO 597
         // MATERIALIZED the count onto lda_filings.activity_count, so this is now a
@@ -3058,15 +3088,19 @@ const getRecentFilingsCached = unstable_cache(
         ? db.execute({ sql: countSql, args: [likeArg, likeArg] })
         : Promise.resolve(null),
     ]);
-    const total = countRs
+    // The bounded count returns at most SEARCH_COUNT_CAP + 1; that extra row is the
+    // signal that more exist, never a displayed value.
+    const rawCount = countRs
       ? Number((countRs.rows[0] as { n?: number } | undefined)?.n ?? 0)
       : undefined;
+    const totalCapped = rawCount !== undefined && rawCount > SEARCH_COUNT_CAP;
+    const total = rawCount === undefined ? undefined : Math.min(rawCount, SEARCH_COUNT_CAP);
     const uuids = rs.rows.map((r) => String(r.filing_uuid));
     const { codes, bills } = uuids.length
       ? await hydrateFilings(db, uuids)
       : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
     const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
-    return { items, page, pageSize, total };
+    return { items, page, pageSize, total, totalCapped };
   },
   ["getRecentFilings"],
   { revalidate: 3600, tags: ["lda"] },
