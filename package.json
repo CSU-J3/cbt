@@ -9,6 +9,7 @@
     "start": "next start -p 3000",
     "migrate": "tsx scripts/migrate.ts",
     "backfill:lda-activity-count": "tsx scripts/backfill-lda-activity-count.ts",
+    "backfill:lda-names": "tsx scripts/backfill-lda-names.ts",
     "sync": "tsx scripts/sync.ts",
     "sync:meetings": "tsx scripts/sync-meetings.ts",
     "summarize": "tsx scripts/summarize.ts",

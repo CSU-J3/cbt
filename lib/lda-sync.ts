@@ -303,6 +303,32 @@ function buildFilingStatements(
       acts.length,
     ],
   });
+  // HO 598: keep the /lobbying search lookup table current. Two INSERT OR IGNOREs
+  // per filing — the names are heavily repeated (129,401 filings resolve to ~28k
+  // distinct (kind, id, name) rows), so in steady state almost every one of these
+  // is a no-op.
+  //
+  // NO DELETE, deliberately, and this is the property that makes it safe: a name
+  // that stops being used only widens the candidate set, and the read path
+  // re-applies the name LIKE to the seeked rows, so a stale row cannot produce a
+  // wrong result — only a marginally larger seek. That is the opposite of the
+  // delete-rebuild shape (HO 564/568), and it is why this needs no delete gate.
+  //
+  // Skipped when a name is absent rather than writing an empty string: the columns
+  // measured 100% non-NULL at design time, and inventing '' would put a row in the
+  // lookup table that no filing can match.
+  if (f.registrant?.id != null && f.registrant?.name) {
+    stmts.push({
+      sql: "INSERT OR IGNORE INTO lda_names (kind, entity_id, name) VALUES ('r', ?, ?)",
+      args: [f.registrant.id, f.registrant.name],
+    });
+  }
+  if (f.client?.id != null && f.client?.name) {
+    stmts.push({
+      sql: "INSERT OR IGNORE INTO lda_names (kind, entity_id, name) VALUES ('c', ?, ?)",
+      args: [f.client.id, f.client.name],
+    });
+  }
   stmts.push({
     sql: "DELETE FROM lda_activity_bills WHERE filing_uuid = ?",
     args: [f.filing_uuid],
