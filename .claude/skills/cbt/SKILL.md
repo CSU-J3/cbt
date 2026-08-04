@@ -1193,6 +1193,88 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > `/stale`-count loop by removal (no caller since HO 323/326; deleting beats
 > indexing dead code). The 3 ungated `/dashboard-classic` dashboard reads are
 > covering index-only MULTI-INDEX ORs (acceptable) and ride that route's sunset loop.
+
+> **AUTHORING RULE — an index cannot save a request-time aggregate over a large
+> table; materialize it (HO 594/595).** This sits here, in the query-authoring
+> path, on purpose: the full-scan rule already existed in `oddities.md` before
+> HO 527 shipped a query that violated it. It lived where post-mortems are read,
+> not where queries are written.
+>
+> - **The tell is sizing an aggregate by rows RETURNED.** HO 527 shipped a comment
+>   reading *"Small grouped aggregate (~537 rows) — no INDEXED BY / no new index"*.
+>   ~537 was the result; the scan was all **365,996** `member_votes` rows — a
+>   **683x gap** — because the GROUP BY spanned the table and the members-side
+>   filters applied after the group. Cold that measured 24.5s median / 37.0s worst
+>   against the 10s bound: the `/members` 500, digest `4101894172`. If a comment
+>   describes an aggregate by its output size, check what it reads.
+> - **A covering index is not the fix, only a mitigation.** HO 594 added
+>   `idx_member_votes_participation (bioguide_id, position)` and steady state went
+>   20-24s to 140ms-1.5s — but co-located, the **first touch of the index pages
+>   after a >60s gap still cost 8.2-14.1s** (worst 20.005s, both `lib/db.ts`
+>   attempts lost). **Page residency is under 60s**, so the pages are cold again
+>   before any schedulable cron could re-warm them, and warming an `unstable_cache`
+>   entry does not keep *index pages* resident anyway. An index still has to read
+>   pages that aren't there.
+> - **So: materialize.** This is the LDA precedent with a **lowered size
+>   threshold** — that rule was written about tables 7-14x `bills`, and 366k rows
+>   is now proven over the same line. The control on the other side: a
+>   `dashboard_state` single-key read never spiked cold across three 90s-gapped
+>   co-located runs (15/26/15ms). Small is genuinely resident.
+> - **`EXPLAIN` prices the plan, not the runtime scan** (oddities). An unbounded
+>   aggregate has a clean-looking plan. This class needs a **timed** check, run
+>   **co-located** (a laptop tail carries an unquantified network/cold component),
+>   and reported as a **WORST CASE, not a median**. That last clause is HO 594's
+>   retraction in one sentence: a recommendation made on a 208ms laptop median was
+>   reversed by a co-located worst case.
+> - **Instrument at the QUERY level, never the route level.** `lib/db.ts` retries
+>   once, so a route 500 needs *both* attempts to breach and the route-failure rate
+>   is roughly the **square** of the query-breach rate. A 0/13 route count with a
+>   10s query in the sample is not a green.
+
+> **The materialized participation table + its refresh contract (HO 595).**
+> `member_participation (bioguide_id PK, total, not_voting, refreshed_at)`, ~554
+> rows, one per `bioguide_id` in `member_votes`. It backs all three participation
+> reads — `getParticipationStrip`, `getChamberParticipationContext`, and
+> `participationAggCte` (which is interpolated **unconditionally** into BOTH
+> `getMembersRanked` and `getCommitteeRoster`, so it runs on every `/members` and
+> `/committee/[code]` render at any sort). **`member_votes` is now absent from the
+> request path**; the seven remaining references in `lib/queries.ts` are the
+> bounded ones (`WHERE vote_id IN (...)` / `bioguide_id = ?`).
+>
+> - **Counts, not a derived rate.** `total` + `not_voting` are exact integers
+>   because the consumers want different units — the CTE a 0-1 fraction, the strip
+>   0-100. A stored pre-divided rate silently picks one and re-units the other.
+> - **The floor stays a query-time constant** (`WHERE total >= PARTICIPATION_FLOOR`),
+>   so a below-floor member is absent from `part_agg` and the LEFT JOIN yields NULL
+>   — identical to the old `HAVING`.
+> - **Why a table and not a `dashboard_state` blob:** `part_agg` stays a JOINable
+>   relation, so the LEFT JOIN, `MISSED_CARVE_EXPR`, the ORDER BY and the
+>   LIMIT/OFFSET pagination are byte-unchanged. A blob would move ranking,
+>   pagination and the HO 535 delegate carve-out into hand-written JS at two call
+>   sites. Read cost did not decide it — both shapes read in ms.
+> - **Refresh contract** (`lib/participation-refresh.ts`, called from
+>   `/api/sync-votes` after both syncs, before the tag flush): a **dedicated 30s
+>   client** — the refresh itself measured 807ms median / **11.95s worst**, i.e. it
+>   breaches the same 10s bound it exists to let the request path escape; this does
+>   NOT change `DB_REQUEST_TIMEOUT_MS` and does not touch the retry. Then
+>   **read-first, refuse-empty, refuse-under-0.5x-held, one atomic batch**
+>   (`DELETE` + all `INSERT`s), so a failure keeps the previous values instead of
+>   truncating (the HO 552 shape: a transient failure became permanent loss because
+>   the exit path stamped regardless). The `INDEXED BY` hint is still mandatory on
+>   the refresh — that is the index's INVERTED purpose now: 807ms with it vs 15.4s
+>   median / 27.1s worst without.
+> - **The stamp is the instrument.** A stale materialized table renders
+>   correct-looking numbers with **no error and no visual tell**, so every row
+>   carries `refreshed_at`, the outcome lands in the cron payload as
+>   `payload.participation`, and failures log a greppable
+>   `[participation] refresh-failed:` prefix.
+> - **The test seam is SHIPPED ON PURPOSE — do not delete it as dead code.**
+>   `refreshMemberParticipation({ simulate: "empty" | "shrink" | "throw" })` is
+>   driven by `scripts/diagnostic/participation-falsify-595.ts` to fire each
+>   non-destructive branch against the real table. Those guards are the module's
+>   entire safety argument, and an untriggered guard is UNPROVEN, not protection —
+>   HO 552's loss happened in a branch nobody had fired. The request path never
+>   passes the option.
 >
 > **Stock-trades recency feed (HO 389 — not a `bills` query, same forced-index discipline).**
 > `getRecentTrades`'s unfiltered `/trades` path forces **`INDEXED BY idx_trades_disclosure_date`**
