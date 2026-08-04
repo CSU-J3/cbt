@@ -67,6 +67,41 @@ async function main() {
   const row = after.rows[0] as Record<string, unknown>;
   console.log(`lda_names: ${Number(row.n).toLocaleString()} rows (${Number(row.r).toLocaleString()} registrant / ${Number(row.c).toLocaleString()} client)`);
 
+  // HO 598 round 2 — filing_count, the routing hint. Recomputed wholesale rather
+  // than incremented per filing: the sync's filing upsert legitimately re-runs for
+  // the same filing, so an incrementing counter would double-count. It is ADVISORY
+  // (it picks between two provably-equivalent query shapes and never affects
+  // results), which is what makes a wholesale, occasionally-stale refresh correct.
+  console.log("\ncomputing filing_count...");
+  const t1 = performance.now();
+  const counts: Array<[string, number, string, number]> = [];
+  for (const [kind, idCol, nameCol] of [
+    ["r", "registrant_id", "registrant_name"],
+    ["c", "client_id", "client_name"],
+  ] as const) {
+    const rs = await c.execute(
+      `SELECT ${idCol} AS id, ${nameCol} AS name, COUNT(*) AS n FROM lda_filings
+        WHERE ${idCol} IS NOT NULL AND ${nameCol} IS NOT NULL
+        GROUP BY ${idCol}, ${nameCol}`,
+    );
+    for (const r of rs.rows) counts.push([kind, Number(r.id), String(r.name), Number(r.n)]);
+  }
+  for (let i = 0; i < counts.length; i += CHUNK) {
+    const stmts: InStatement[] = counts.slice(i, i + CHUNK).map(([kind, id, name, n]) => ({
+      sql: "UPDATE lda_names SET filing_count = ? WHERE kind = ? AND entity_id = ? AND name = ?",
+      args: [n, kind, id, name],
+    }));
+    await c.batch(stmts, "write");
+  }
+  const fc = await c.execute(
+    `SELECT COUNT(*) AS n, SUM(filing_count) AS total,
+            SUM(CASE WHEN filing_count IS NULL THEN 1 ELSE 0 END) AS nulls FROM lda_names`,
+  );
+  const f = fc.rows[0] as Record<string, unknown>;
+  console.log(`  ${counts.length.toLocaleString()} counts written in ${ms(performance.now() - t1)}`);
+  console.log(`  lda_names filing_count: ${Number(f.nulls)} NULL of ${Number(f.n).toLocaleString()}; SUM = ${Number(f.total).toLocaleString()}`);
+  console.log(`  (SUM is per-kind-and-name, so it totals 2x filings — each filing has a registrant AND a client.)`);
+
   // COMPLETENESS GATE. The rewrite's whole correctness argument is that every
   // filing's (id, name) pair is present, so check it as a set rather than trusting
   // the insert count — a missing pair makes a filing invisible to search.

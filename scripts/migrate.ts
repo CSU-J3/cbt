@@ -899,7 +899,20 @@ const statements = [
   )`,
   // The scan target, COVERING: `SELECT entity_id WHERE kind = ? AND name LIKE ?`
   // reads this index only and never touches the table.
-  `CREATE INDEX IF NOT EXISTS idx_lda_names_kind_name ON lda_names(kind, name, entity_id)`,
+  //
+  // HO 598 round 2 — `filing_count` is carried in the index so the SAME scan that
+  // resolves a term to ids also returns how many filings those ids cover. That
+  // number is the routing input (see the derived threshold in lib/queries.ts), and
+  // folding it in here is what avoids paying a SECOND query just to choose a path.
+  //
+  // IT IS ADVISORY, NEVER A CORRECTNESS INPUT, and that is what makes it safe to
+  // maintain lazily: it only decides WHICH of two provably-equivalent query shapes
+  // runs. A stale count picks a slower path, never a wrong answer. So it is NOT
+  // maintained by the per-filing sync — an incrementing counter there would
+  // double-count on re-ingest, since the filing upsert legitimately re-runs for the
+  // same filing — it is recomputed wholesale by the backfill / rollup path.
+  // idx_lda_names_kind_name is built in main() — it carries filing_count, which
+  // ensureColumn adds there, so it cannot be created from this array.
   // HO 447: amendments data layer. One row per congressional amendment along the
   // bill spine. Landed by lib/amendments-sync.ts from Congress.gov /amendment
   // (list → detail; amendedBill/sponsors/purpose are detail-only, HO 446 probe).
@@ -1444,6 +1457,20 @@ async function main() {
   // fills every row (0 for the genuinely activity-less), and lib/lda-sync.ts
   // writes it on every upsert thereafter.
   await ensureColumn(db, "lda_filings", "activity_count", "INTEGER");
+  // HO 598 round 2 — the routing hint. See the lda_names block above for why it is
+  // advisory-only and why it is not maintained per-filing. Added before the
+  // covering index is (re)built so the index can carry it.
+  await ensureColumn(db, "lda_names", "filing_count", "INTEGER");
+  // Built here, AFTER the column exists. Dropped first because the definition
+  // CHANGED (filing_count was appended) and `CREATE INDEX IF NOT EXISTS` would
+  // silently keep the old three-column index — the read path would then fall off
+  // the covering plan with no error, which is exactly the kind of silent
+  // regression this arc keeps finding.
+  await db.execute("DROP INDEX IF EXISTS idx_lda_names_kind_name");
+  await getLongTimeoutDb().execute(
+    "CREATE INDEX IF NOT EXISTS idx_lda_names_kind_name ON lda_names(kind, name, entity_id, filing_count)",
+  );
+  console.log("ok: idx_lda_names_kind_name (covering, incl. filing_count)");
   // The sort index, in main() (not the statements array) so it builds AFTER
   // ensureColumn adds the column on the live DB — the idx_nominations_hydrate
   // precedent above. Column order mirrors the ORDER BY exactly
