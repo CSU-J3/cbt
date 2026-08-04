@@ -46,6 +46,67 @@
 //     + count 2.25s). The only broken cases are SPARSE terms — which is the half
 //     the new path fixes, and the half a density-conditional strategy would keep.
 //
+// ===========================================================================
+// ROUND 2 — the sparse path re-measured at n=8, and the routing priced.
+// VERDICT: STILL FAIL. Rewire still withheld. But the shape of the failure moved,
+// and one round-1 conclusion is RETRACTED.
+//
+// RETRACTED: round 1 read 8.83s as "the sparse path costs ~9s" off THREE runs. At
+// n=8 the median is 4.13s and 8.83s was near the top of a wide distribution — the
+// 3-run sample could not tell those apart, which is exactly why it was re-run.
+//
+//   new_page "boeing" (sparse, 78)   n=8
+//     runs   8014, 5481, 3448, 6292, 4806, 3389, 536, 2636
+//     median 4127ms   worst 8014ms   best 536ms   spread 15.0x
+//     margin vs 10s: median +5.87s | WORST +1.99s
+//   new_page zero-match              n=8
+//     runs   4127, 2866, 1614, 1542, 3319, 3466, 1237, 1045
+//     median 2240ms   worst 4127ms   best 1045ms   spread 3.9x
+//     margin vs 10s: median +7.76s | WORST +5.87s
+//
+// AGAINST THE GATE ("margin larger than the measured spread"):
+//   zero-match  margin +5.87s vs spread 3.08s absolute   -> PASSES
+//   sparse      margin +1.99s vs spread 7.48s absolute   -> FAILS
+// A margin that is a quarter of the observed spread is not a margin.
+//
+// filing_count WORKS AS ASKED — density does come back in the same scan:
+//   names_scan         "boeing" 34, 3221, 1367     median 1367   worst 3221
+//   names_scan_density "boeing" 888, 4617, 2940    median 2940   worst 4617
+//   names_scan         "llc"    947, 2641, 3502    median 2641   worst 3502
+//   names_scan_density "llc"    2445, 2204, 2818   median 2445   worst 2818
+// The extra column costs nothing distinguishable from the spread, and the estimate
+// is a safe OVER-count (boeing 84 vs 78 real, llc 55,834 vs 50,197) because a
+// filing matching both registrant and client counts twice — over-counting routes
+// toward the walk, which is the conservative direction.
+//
+// BUT IT DOES NOT RESCUE THE DESIGN, and this is the round-2 finding: routing needs
+// the density BEFORE it can choose, so it is a SEPARATE ROUND TRIP ahead of the
+// page query. On this DB that round trip's own worst case is 4.6s. Routed sparse is
+// therefore 4.6s + 8.0s = up to 12.6s worst — WORSE than the unrouted candidate
+// path, which already carries the name scan inside its subquery. One scan can
+// answer both questions; you still cannot act on the answer without paying for it.
+//
+// THE DERIVED THRESHOLD (computed, not fitted — recorded because it is correct and
+// reusable even though it is not being shipped). The walk short-circuits once the
+// page fills, so E[rows walked] ~= min(N, k*N/m) for corpus N, page k, matches m;
+// the candidate path touches ~m. Equate the variable terms:
+//     m* = sqrt(k * N) = sqrt(13 * 129,401) ~= 1,297   (~1% density)
+// It is a FORMULA over two live quantities (PAGE_SIZE and the rollup blob's
+// stats.filings), so it re-derives as the corpus grows and can never go stale the
+// way a tuned constant does. It routes all three measured terms correctly and each
+// sits >15x from the crossover (boeing 84 -> 15x below; llc 55,834 -> 43x above;
+// zero-match 0), so the exact constant is not load-bearing. That distance from the
+// crossover is the property PAGE_SIZE=13 lacked.
+//
+// WHAT ACTUALLY BLOCKS THIS NOW — it is no longer the query. Every candidate is
+// ~2-4s median, and what breaks the gate is a 15x run-to-run spread on identical
+// work. No query averaging ~4s can be *guaranteed* under 10s on that distribution.
+// So the next move is a choice between: accept a median-based (probabilistic)
+// bound as policy; get the sparse path to ~1s, which means not doing ~78 random
+// page fetches into a 22.9 MB table; or attack the spread itself, which is the
+// residency/platform question this arc has now hit in HO 594, 597 and 598.
+// ===========================================================================
+//
 //   npx tsx scripts/diagnostic/lobbying-search-gate-598.ts
 import "dotenv/config";
 import { createClient } from "@libsql/client";
