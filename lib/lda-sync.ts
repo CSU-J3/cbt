@@ -70,6 +70,23 @@ export interface LdaSyncResult {
   throttled429: number;
   deadlineHit: boolean;
   combos: string[]; // per-combo one-line summaries, for the run log
+  /**
+   * HO 598 — filings ingested BY THIS RUN that have no matching `lda_names` row.
+   * EXPECTED 0, ALWAYS.
+   *
+   * This is a correctness instrument, not a stat. `/lobbying?q=` short-circuits to
+   * "no matches" WITHOUT touching lda_filings whenever a term resolves to zero
+   * names, and that shortcut is only sound because lda_names is COMPLETE. A gap
+   * here does not slow anything down — it makes a filing INVISIBLE to search, and
+   * it renders as a confident "No filings match", which is precisely the wrong
+   * answer this arc existed to remove.
+   *
+   * Scoped to THIS RUN's filings on purpose: it proves the MAINTENANCE path (the
+   * two INSERT OR IGNOREs in buildFilingStatements) rather than re-proving the
+   * one-time backfill, and it stays a bounded check instead of a full-corpus
+   * anti-join on every tick.
+   */
+  namesUnreachable: number;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -412,6 +429,10 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
   const validBillIds = await loadValidBillIds(db, congress);
   const ingestedAt = new Date().toISOString();
 
+  // HO 598 — uuids written by THIS run, for the bounded completeness check.
+
+  const ingestedUuids: string[] = [];
+
   let filingsUpserted = 0;
   let activitiesUpserted = 0;
   let billLinksUpserted = 0;
@@ -503,6 +524,7 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
             ingestedAt,
           );
           pending.push(...stmts);
+          ingestedUuids.push(f.filing_uuid);
           filingsUpserted++;
           comboFilings++;
           activitiesUpserted += activities;
@@ -544,6 +566,33 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
   }
   await flush();
 
+  // HO 598 completeness check — see LdaSyncResult.namesUnreachable. Bounded to the
+  // uuids this run wrote, chunked so a big backfill cannot build a monster IN().
+  let namesUnreachable = 0;
+  for (let i = 0; i < ingestedUuids.length; i += 400) {
+    const chunk = ingestedUuids.slice(i, i + 400);
+    const ph = chunk.map(() => "?").join(",");
+    const rs = await dbRetry("names-completeness", () =>
+      db.execute({
+        sql: `SELECT COUNT(*) AS n FROM lda_filings f
+               WHERE f.filing_uuid IN (${ph})
+                 AND (NOT EXISTS (SELECT 1 FROM lda_names n
+                        WHERE n.kind='r' AND n.entity_id=f.registrant_id AND n.name=f.registrant_name)
+                   OR NOT EXISTS (SELECT 1 FROM lda_names n
+                        WHERE n.kind='c' AND n.entity_id=f.client_id AND n.name=f.client_name))`,
+        args: chunk,
+      }),
+    );
+    namesUnreachable += Number((rs.rows[0] as Record<string, unknown>)?.n ?? 0);
+  }
+  if (namesUnreachable > 0) {
+    // Greppable prefix, the HO 595 `[participation] refresh-failed:` precedent —
+    // a silent correctness gap needs a name a log search can find.
+    console.error(
+      `[lda] names-unreachable: ${namesUnreachable} filing(s) ingested this run are INVISIBLE to /lobbying search`,
+    );
+  }
+
   return {
     mode: backfill ? "backfill" : "incremental",
     filingsUpserted,
@@ -554,5 +603,6 @@ export async function syncLda(opts: SyncLdaOptions = {}): Promise<LdaSyncResult>
     throttled429,
     deadlineHit,
     combos,
+    namesUnreachable,
   };
 }

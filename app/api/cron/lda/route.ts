@@ -62,7 +62,7 @@ async function handle(request: Request) {
       console.log(
         `[lda] mode=${r.mode} filings=${r.filingsUpserted} activities=${r.activitiesUpserted} ` +
           `billLinks=${r.billLinksUpserted} pages=${r.pagesFetched} errors=${r.fetchErrors} ` +
-          `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit}`,
+          `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} namesUnreachable=${r.namesUnreachable}`,
       );
 
       // HO 580 — the /lobbying rollup precompute moved to /api/cron/lda-rollup.
@@ -73,6 +73,14 @@ async function handle(request: Request) {
       const parts: string[] = [];
       if (r.fetchErrors > 0) parts.push(`lda fetch errors: ${r.fetchErrors}`);
       if (r.deadlineHit) parts.push(`deadline hit (resumes from DB frontier next run)`);
+      // HO 598 — a CORRECTNESS gap, not a perf note, so it rides chronicErr into
+      // cron_runs.error_message where a status-level audit sees it without parsing
+      // payload JSON (the `report-catchup-failed:` precedent). A filing missing its
+      // lda_names row is INVISIBLE to /lobbying search and renders as a confident
+      // "No filings match" — the exact wrong answer this arc removed. Expected 0.
+      if (r.namesUnreachable > 0) {
+        parts.push(`names-unreachable: ${r.namesUnreachable} filing(s) invisible to search`);
+      }
       const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
       return { payload: { ...r }, chronicErr };
     },

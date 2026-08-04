@@ -22,7 +22,7 @@ async function main() {
   console.log(
     `[lda] mode=${r.mode} filings=${r.filingsUpserted} activities=${r.activitiesUpserted} ` +
       `billLinks=${r.billLinksUpserted} pages=${r.pagesFetched} errors=${r.fetchErrors} ` +
-      `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} ` +
+      `throttled429=${r.throttled429} deadlineHit=${r.deadlineHit} namesUnreachable=${r.namesUnreachable} ` +
       `(${((Date.now() - t0) / 1000).toFixed(1)}s)`,
   );
 }
