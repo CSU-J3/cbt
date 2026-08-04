@@ -2930,16 +2930,26 @@ export const getTopicCrosswalk = unstable_cache(
 // LIMIT, then a bounded batched hydration (PK-seek IN() over ≤pageSize uuids). No
 // COUNT here — pagination total comes from the rollup's stats.filings, so the
 // page never runs the (marginal, 5s-cold) full-table COUNT.
-export const getRecentFilings = unstable_cache(
-  async (
-    opts: {
-      page?: number;
-      pageSize?: number;
-      sort?: "recent" | "volume";
-      billLinked?: boolean;
-      q?: string;
-    } = {},
-  ): Promise<{ items: FilingSummary[]; page: number; pageSize: number; total?: number }> => {
+type RecentFilingsOpts = {
+  page?: number;
+  pageSize?: number;
+  sort?: "recent" | "volume";
+  billLinked?: boolean;
+  q?: string;
+};
+type RecentFilingsResult = {
+  items: FilingSummary[];
+  page: number;
+  pageSize: number;
+  total?: number;
+};
+
+// The CACHED half. It THROWS on a read failure and catches nothing — that is the
+// whole point of the HO 597 split (see the exported wrapper below). Cache key
+// shape is unchanged from HO 544/547 (same one-arg signature, same defaults
+// applied inside), so no cache entry is orphaned by the split.
+const getRecentFilingsCached = unstable_cache(
+  async (opts: RecentFilingsOpts = {}): Promise<RecentFilingsResult> => {
     const db = getDb();
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = opts.pageSize ?? 25;
@@ -3022,40 +3032,74 @@ export const getRecentFilings = unstable_cache(
         pageArgs = [...searchArgs, pageSize, offset];
       }
     }
-    // HO 440/448 guard — the feed read is the ONE live LDA query on /lobbying, and
-    // VOLUME's cold miss (~7s, growing corpus + ~160 sort×linked cache keys) sits
-    // close to the 10s DB_REQUEST_TIMEOUT_MS wall. An abort here would 500 the WHOLE
-    // page (rollup, rail, crosswalk, firms — all of it), not just the feed. Degrade
-    // to an empty feed so the rest of the page still renders (the getBillLobbying
-    // try/catch → null precedent). Keep this — do NOT strip it as defensive noise.
-    try {
-      // Page query + the search COUNT run in parallel (Promise.all), both inside the
-      // guard. countSql is null unless hasQ, so the default path issues ONE query.
-      const [rs, countRs] = await Promise.all([
-        db.execute({ sql, args: pageArgs }),
-        countSql
-          ? db.execute({ sql: countSql, args: [likeArg, likeArg] })
-          : Promise.resolve(null),
-      ]);
-      const total = countRs
-        ? Number((countRs.rows[0] as { n?: number } | undefined)?.n ?? 0)
-        : undefined;
-      const uuids = rs.rows.map((r) => String(r.filing_uuid));
-      const { codes, bills } = uuids.length
-        ? await hydrateFilings(db, uuids)
-        : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
-      const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
-      return { items, page, pageSize, total };
-    } catch (err) {
-      console.error("[getRecentFilings] read failed — feed hidden:", err);
-      // hasQ → total 0 keeps the page rendering (degrade-to-empty); RECENT+search is
-      // ≤~700ms so this path is effectively unreachable.
-      return { items: [], page, pageSize, total: hasQ ? 0 : undefined };
-    }
+    // NO try/catch HERE — a failure must propagate out of the cached function so
+    // nothing is stored. The degrade lives in the exported wrapper below.
+    //
+    // Page query + the search COUNT run in parallel (Promise.all). countSql is null
+    // unless hasQ, so the default path issues ONE query.
+    const [rs, countRs] = await Promise.all([
+      db.execute({ sql, args: pageArgs }),
+      countSql
+        ? db.execute({ sql: countSql, args: [likeArg, likeArg] })
+        : Promise.resolve(null),
+    ]);
+    const total = countRs
+      ? Number((countRs.rows[0] as { n?: number } | undefined)?.n ?? 0)
+      : undefined;
+    const uuids = rs.rows.map((r) => String(r.filing_uuid));
+    const { codes, bills } = uuids.length
+      ? await hydrateFilings(db, uuids)
+      : { codes: new Map<string, string[]>(), bills: new Map<string, string[]>() };
+    const items = rs.rows.map((r) => rowToFilingSummary(r, codes, bills));
+    return { items, page, pageSize, total };
   },
   ["getRecentFilings"],
   { revalidate: 3600, tags: ["lda"] },
 );
+
+// HO 440/448 guard — the feed read is the ONE live LDA query on /lobbying, so an
+// abort here would 500 the WHOLE page (rollup, rail, crosswalk, firms — all of
+// it), not just the feed. Degrade to an empty feed so the rest of the page still
+// renders (the getBillLobbying try/catch → null precedent). Keep this — do NOT
+// strip it as defensive noise; the HO 597 materialization removes the NEED for it,
+// not the guard.
+//
+// HO 597 — THE GUARD IS OUTSIDE THE CACHE WRAPPER, AND THAT PLACEMENT IS LOAD-
+// BEARING. It used to sit INSIDE the unstable_cache callback, so the degraded
+// `{ items: [], … }` was the callback's RETURN VALUE and got CACHED FOR AN HOUR:
+// one cold miss poisoned VOLUME for 60 minutes, and the retry that would have
+// succeeded never ran. That is the HO 552 class — a transient failure persisted
+// into a durable one by an exit path that records instead of deferring. With the
+// catch out here the cached function throws, unstable_cache stores nothing, and
+// the NEXT request re-queries. Same user-visible behaviour on failure, opposite
+// recovery behaviour after it. Do not "tidy" this back inside the callback.
+//
+// The instrument is deliberately greppable and carries the KEY (the HO 595
+// `[participation] refresh-failed:` precedent) — a silent degrade reads identical
+// to an empty result set, and a browser-side crawler cannot see either (backlog:
+// this WATCH's own finding).
+export async function getRecentFilings(
+  opts: RecentFilingsOpts = {},
+): Promise<RecentFilingsResult> {
+  try {
+    return await getRecentFilingsCached(opts);
+  } catch (err) {
+    // Recomputed rather than threaded out of the cached function: the failure path
+    // has no return value to read them from, and the cached signature stays
+    // byte-identical so its cache keys don't move.
+    const page = Math.max(1, opts.page ?? 1);
+    const pageSize = opts.pageSize ?? 25;
+    const hasQ = (opts.q?.trim() ?? "").length > 0;
+    const sort = hasQ ? "recent" : (opts.sort ?? "recent");
+    console.error(
+      `[getRecentFilings] read failed — feed hidden: sort=${sort} linked=${opts.billLinked ?? false} q=${hasQ} page=${page}:`,
+      err,
+    );
+    // hasQ → total 0 keeps the page rendering (degrade-to-empty); RECENT+search is
+    // ≤~700ms so this path is effectively unreachable.
+    return { items: [], page, pageSize, total: hasQ ? 0 : undefined };
+  }
+}
 
 // HO 486 — the per-activity LD-2 detail for ONE filing, the live read behind the
 // /lobbying expand panel (?expanded=). Two PK-prefix seeks (both HO 485-timed
