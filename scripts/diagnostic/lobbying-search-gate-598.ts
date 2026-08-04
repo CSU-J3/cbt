@@ -107,6 +107,53 @@
 // residency/platform question this arc has now hit in HO 594, 597 and 598.
 // ===========================================================================
 //
+// ===========================================================================
+// ROUND 3 — the ROUTED path, with leg 1's ids handed through to leg 2.
+// ROUND 2'S 12.6s WAS AN ARTIFACT AND IS RETRACTED. It priced routing as
+// `density query + new_page`, but new_page runs its own name scan inside its
+// IN-subquery — so leg 2 was charged for work leg 1 had already done. Measured
+// properly, with the ids passed through, leg 2 is 0-1.5s.
+//
+// Routed = leg 1 (one covering lda_names scan: ids AND filing_count together)
+//          -> route on m* = sqrt(k*N) ~= 1,297
+//          -> leg 2: sparse = PK seeks on the literal ids; dense = the shipped
+//             dt_posted walk; empty id set = SKIP leg 2 entirely.
+// 8 runs per term, 90s gaps, co-located pdx1, unbounded client:
+//
+//   term        path                 n  median   worst    best   spread  margin@worst
+//   boeing      sparse-seek          8  3510ms  7735ms   380ms   7.36s   +2.27s
+//   llc         dense-walk           8  3378ms  6491ms  2703ms   3.79s   +3.51s
+//   zero-match  empty-shortcircuit   8  3119ms  6461ms  1558ms   4.90s   +3.54s
+//   ALL 24 RUNS: median 3291ms, worst 7735ms, BREACHES >10s: 0
+//
+// Routing decisions were correct every time: boeing (density 84) -> seek,
+// llc (density 55,834) -> walk, zero-match -> short-circuit.
+//
+// THE EMPTY SHORT-CIRCUIT IS A REAL RESULT, not an optimisation: lda_names is
+// COMPLETE (0 of 129,401 filings unreachable), so an empty id set PROVES an empty
+// answer, and the zero-match case never touches lda_filings at all. That is the
+// 91.3s case gone entirely.
+//
+// AGAINST THE GATE ("margin larger than the measured spread"): boeing +2.27s vs
+// 7.36s, llc +3.51s vs 3.79s, zero +3.54s vs 4.90s. **All three still fail**, so
+// this is NOT shipped. Note honestly what the criterion is now binding on: the
+// spread is inflated by a very FAST best case (boeing 380ms), so max-min overstates
+// the risk it was written to catch. 0 of 24 runs breached. That is a judgement call
+// about the criterion, and it is not mine to make quietly.
+//
+// ITEM 3 IS ANSWERED AND IT IS MOOT: an index on (registrant_id, dt_posted) targets
+// leg 2, and leg 2 is now 0-1.5s (median 893ms sparse, 99ms dense, 0ms empty).
+// Routing already removed the ~78 random fetches it was meant to remove. Do not
+// build it.
+//
+// WHAT REMAINS IS LEG 1 — the ~33,620-row / ~1 MB covering scan of lda_names,
+// median 2.6-3.3s, worst 6.6s, and it dominates every path. It is already ~1/23rd
+// the bytes of the lda_filings walk this arc started from (22.9 MB -> 86s, 1 MB ->
+// 6.6s, roughly linear), so shrinking data works exactly as the bytes model
+// predicts — and the VARIANCE rides along at every size. That is the same
+// residency question HO 594, 597 and 598 have each independently hit.
+// ===========================================================================
+//
 //   npx tsx scripts/diagnostic/lobbying-search-gate-598.ts
 import "dotenv/config";
 import { createClient } from "@libsql/client";
