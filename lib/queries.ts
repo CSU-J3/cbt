@@ -2935,6 +2935,10 @@ export const getTopicCrosswalk = unstable_cache(
 // passes it rather than this module hardcoding a copy that can drift out of step
 // with the constant that actually governs the UI. This default is a fallback only.
 const DEFAULT_SEARCH_COUNT_CAP = 520;
+// Fallback only — app/lobbying/page.tsx passes the live figure from the rollup
+// blob. A stale value here would only shift the routing threshold slightly, and
+// routing affects WHICH equivalent query runs, never the result.
+const DEFAULT_CORPUS_SIZE = 129_401;
 
 type RecentFilingsOpts = {
   page?: number;
@@ -2944,6 +2948,9 @@ type RecentFilingsOpts = {
   q?: string;
   /** Stop counting past this many matches; the caller's pager clamp. */
   countCap?: number;
+  /** Corpus row count, for the derived routing threshold. The caller owns it
+   *  (the rollup blob's stats.filings is free); this module must not re-query it. */
+  corpusSize?: number;
 };
 type RecentFilingsResult = {
   items: FilingSummary[];
@@ -2988,8 +2995,83 @@ const getRecentFilingsCached = unstable_cache(
     const term = opts.q?.trim();
     const hasQ = term != null && term.length > 0;
     const likeArg = hasQ ? `%${term.replace(/[\\%_]/g, "\\$&")}%` : "";
-    const searchClause = `(f.registrant_name LIKE ? ESCAPE '\\' OR f.client_name LIKE ? ESCAPE '\\')`;
+    const nameLike = `(f.registrant_name LIKE ? ESCAPE '\\' OR f.client_name LIKE ? ESCAPE '\\')`;
     const sort = hasQ ? "recent" : (opts.sort ?? "recent");
+
+    // -------------------------------------------------------------------------
+    // HO 598 — SEARCH IS ROUTED, and the routing runs BEFORE the page query.
+    //
+    // The shipped predicate was a leading-% LIKE straight at lda_filings, which
+    // cannot seek, so it dragged the whole 129k-row / 22.9 MB table: co-located
+    // 19.8s for a sparse term and 91.3s for a zero-match one. It breached on BOTH
+    // lib/db.ts attempts, so the page rendered "No filings match" against real
+    // matches — a wrong answer, which was the actual defect.
+    //
+    // LEG 1 resolves the term against lda_names (~33,620 short rows, read
+    // index-only off idx_lda_names_kind_name) and gets BOTH the candidate ids and
+    // the density out of that ONE scan. Paying a separate query just to learn the
+    // density is what made an earlier draft slower than the disease.
+    //
+    // Three regimes, 8 co-located runs each — all 24 under the bound, median
+    // 3.29s, worst 7.74s:
+    //   EMPTY id set -> return empty WITHOUT touching lda_filings. A PROOF, not a
+    //     shortcut: lda_names is complete (0 of 129,401 unreachable, and re-checked
+    //     every sync tick — `names_unreachable` in lib/lda-sync.ts), so if no NAME
+    //     matches the term then no FILING can. The 91.3s case is structurally gone.
+    //   SPARSE (density <= m*) -> seek by the literal ids from leg 1. No second
+    //     name scan; charging leg 2 for leg 1's work is what an earlier pricing
+    //     got wrong.
+    //   DENSE (density > m*) -> hand back to the dt_posted walk, which short-
+    //     circuits almost at once exactly where the seek path collapses (the seek
+    //     path measured 182.5s on a dense term).
+    //
+    // m* = sqrt(pageSize x corpusSize) is DERIVED, not tuned: the walk short-
+    // circuits once the page fills so it touches ~k*N/m rows, the seek path touches
+    // ~m, and they are equal at m = sqrt(k*N). A formula over two LIVE quantities,
+    // so it re-derives as the corpus grows instead of going stale — and every
+    // measured term sits >15x from the crossover, so the exact value is not
+    // load-bearing. That distance is the property PAGE_SIZE=13 lacked.
+    //
+    // The name LIKE is RE-APPLIED on the sparse path, and it is not belt-and-
+    // braces: the candidate set is by ID and the id/name mapping is many-to-many
+    // (70 registrant ids and 91 client ids carry more than one spelling), so an id
+    // whose OTHER spelling matched would over-match without it. The re-check is
+    // what makes this exactly equivalent to the old predicate, verified row-for-row.
+    let searchClause = nameLike;
+    let searchArgsOverride: (number | string)[] | null = null;
+    let routedSparse = false;
+    if (hasQ) {
+      const namesRs = await db.execute({
+        sql: `SELECT kind, entity_id, filing_count FROM lda_names
+               WHERE (kind='r' AND name LIKE ? ESCAPE '\\')
+                  OR (kind='c' AND name LIKE ? ESCAPE '\\')`,
+        args: [likeArg, likeArg],
+      });
+      const rIds: number[] = [];
+      const cIds: number[] = [];
+      let density = 0;
+      for (const row of namesRs.rows) {
+        density += Number(row.filing_count ?? 0);
+        if (String(row.kind) === "r") rIds.push(Number(row.entity_id));
+        else cIds.push(Number(row.entity_id));
+      }
+      if (rIds.length === 0 && cIds.length === 0) {
+        // Provably empty. A GENUINE zero-result, so `failed` stays unset and the
+        // page renders "No filings match" rather than the timeout copy.
+        return { items: [], page, pageSize, total: 0, totalCapped: false };
+      }
+      const threshold = Math.round(
+        Math.sqrt(pageSize * (opts.corpusSize ?? DEFAULT_CORPUS_SIZE)),
+      );
+      if (density <= threshold) {
+        routedSparse = true;
+        const rPh = rIds.map(() => "?").join(",") || "NULL";
+        const cPh = cIds.map(() => "?").join(",") || "NULL";
+        searchClause = `((f.registrant_id IN (${rPh}) OR f.client_id IN (${cPh})) AND ${nameLike})`;
+        searchArgsOverride = [...rIds, ...cIds, likeArg, likeArg];
+      }
+    }
+    // -------------------------------------------------------------------------
 
     // HO 544 — the corpus fbar's sort × filter (STEP 0 HO 543). The DEFAULT path
     // (recent + unfiltered + no query) is the exact pre-HO-544 SQL — same
@@ -3014,7 +3096,8 @@ const getRecentFilingsCached = unstable_cache(
       if (billLinked) clauses.push(`EXISTS (SELECT 1 FROM lda_activity_bills ab WHERE ab.filing_uuid = f.filing_uuid)`);
       if (hasQ) clauses.push(searchClause);
       const linkedClause = clauses.length ? `WHERE ${clauses.join(" AND ")}` : ``;
-      const searchArgs: string[] = hasQ ? [likeArg, likeArg] : [];
+      const searchArgs: (number | string)[] =
+        hasQ ? (searchArgsOverride ?? [likeArg, likeArg]) : [];
       // HO 547 — a searched result set has no blob total, so the pager rides a LIVE
       // COUNT with the same predicate, run in parallel with the page query below.
       //
@@ -3076,10 +3159,19 @@ const getRecentFilingsCached = unstable_cache(
         // Reached only when !hasQ (search forces recent), so searchArgs is empty.
         pageArgs = [...searchArgs, pageSize, offset];
       } else {
-        // recent + (bill-linked and/or search) — the dt_posted walk, hint kept. The
-        // OR search stays a plain SCAN under the forced index (HO 547 EXPLAIN).
+        // recent + (bill-linked and/or search).
+        //
+        // HO 598 — THE HINT IS DROPPED ON THE ROUTED SPARSE PATH AND THAT IS
+        // LOAD-BEARING. Forcing idx_lda_filings_dt_posted makes the planner walk
+        // the date index and test the predicate per row — which is the 19.8s walk
+        // this fix exists to avoid. The sparse path must be free to ride
+        // idx_lda_filings_registrant_id / _client_id as a MULTI-INDEX OR and sort
+        // the handful of hits. Every OTHER path keeps the hint (HO 547 EXPLAIN:
+        // the dense search stays a plain SCAN under the forced index, which is
+        // exactly what short-circuits fast when matches are common).
+        const walkHint = routedSparse ? "" : "INDEXED BY idx_lda_filings_dt_posted";
         sql = `SELECT ${cols}
-               FROM lda_filings f INDEXED BY idx_lda_filings_dt_posted
+               FROM lda_filings f ${walkHint}
                ${linkedClause}
                ORDER BY f.dt_posted DESC LIMIT ? OFFSET ?`;
         pageArgs = [...searchArgs, pageSize, offset];

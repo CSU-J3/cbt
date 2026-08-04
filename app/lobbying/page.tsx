@@ -186,6 +186,11 @@ export default async function LobbyingPage({
       // rather than duplicated in lib/queries.ts, so the count bound and the page
       // bound cannot drift apart.
       countCap: PAGE_SIZE * MAX_FEED_PAGES,
+      // HO 598 — the corpus size for the derived routing threshold
+      // m* = sqrt(pageSize x corpusSize). Free here (already parsed off the rollup
+      // blob), and passing it keeps lib/queries.ts from re-querying a COUNT just to
+      // decide which of two equivalent shapes to run.
+      corpusSize: stats.filings,
     });
     feedItems = feed.items;
     feedPage = feed.page;
