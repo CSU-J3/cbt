@@ -15,6 +15,7 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
+import { refreshMemberParticipation } from "@/lib/participation-refresh";
 import { runSenateVotesSync } from "@/lib/senate-votes-sync";
 import { runVotesSync } from "@/lib/votes-sync";
 
@@ -55,12 +56,24 @@ async function handle(request: Request) {
       console.error("[sync-votes] senate failed:", err);
     }
 
+    // HO 595: rebuild the materialized participation aggregate BEFORE the tag
+    // flush, so the surfaces that read it never observe a flushed cache pointing
+    // at a stale table. This is the only writer of member_votes, so this is the
+    // only place the aggregate can change. Non-destructive by construction: on
+    // any failure the table keeps its previous values and `refreshed_at` does not
+    // advance — which is the freshness instrument, since a stale materialized
+    // table otherwise renders correct-looking numbers with no error and no tell.
+    // Runs unconditionally (not gated on house||senate): a sync that inserted no
+    // new votes can still follow a manual `npm run sync:votes`, which writes
+    // member_votes without coming through this route.
+    const participation = await refreshMemberParticipation();
+
     // Flush all vote-tagged query caches (getRecentVotes, getMemberVotes,
     // getMemberVoteStats, etc.) so the member hub picks up new positions
     // without waiting on the 1h backstop revalidate.
     if (house || senate) revalidateTag("votes");
 
-    return { payload: { house, senate } };
+    return { payload: { house, senate, participation } };
   });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
