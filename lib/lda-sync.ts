@@ -256,18 +256,37 @@ function buildFilingStatements(
   ingestedAt: string,
 ): { stmts: Stmt[]; activities: number; billLinks: number } {
   const stmts: Stmt[] = [];
+  // HO 597: activity_count is the MATERIALIZED /lobbying VOLUME sort key. It must
+  // equal what `COUNT(*) FROM lda_activities GROUP BY filing_uuid` used to return
+  // for this filing, so it is `acts.length` — the same array the per-activity
+  // INSERTs are built from below, counted BEFORE the loop rather than after, so
+  // the filing row and its activity rows are written from ONE source in ONE batch
+  // and cannot disagree. Zero-activity filings store 0, not NULL: NULL means "not
+  // yet counted" (a pre-backfill row), 0 means "counted, and it is none" — and the
+  // read path's INNER-JOIN-vs-single-table equivalence argument depends on those
+  // being distinguishable.
+  //
+  // It IS named in the ON CONFLICT SET, which is the OPPOSITE of the sentinel rule
+  // (committee_hydrated_at / amendment_vote_walked_at are omitted so a re-upsert
+  // preserves a separate pass's stamp). Nothing else writes this column, and a
+  // re-ingest delete-rebuilds this filing's activity rows below — so the count must
+  // be rewritten in the same statement or the row silently keeps a stale count of
+  // activities that no longer exist.
+  const acts = f.lobbying_activities ?? [];
   stmts.push({
     sql: `INSERT INTO lda_filings
       (filing_uuid, filing_type, filing_year, filing_period, registrant_name,
-       registrant_id, client_name, client_id, income, expenses, dt_posted, ingested_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       registrant_id, client_name, client_id, income, expenses, dt_posted, ingested_at,
+       activity_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(filing_uuid) DO UPDATE SET
         filing_type = excluded.filing_type, filing_year = excluded.filing_year,
         filing_period = excluded.filing_period, registrant_name = excluded.registrant_name,
         registrant_id = excluded.registrant_id, client_name = excluded.client_name,
         client_id = excluded.client_id, income = excluded.income,
         expenses = excluded.expenses, dt_posted = excluded.dt_posted,
-        ingested_at = excluded.ingested_at`,
+        ingested_at = excluded.ingested_at,
+        activity_count = excluded.activity_count`,
     args: [
       f.filing_uuid,
       f.filing_type,
@@ -281,6 +300,7 @@ function buildFilingStatements(
       toNum(f.expenses),
       f.dt_posted,
       ingestedAt,
+      acts.length,
     ],
   });
   stmts.push({
@@ -294,7 +314,6 @@ function buildFilingStatements(
 
   let activities = 0;
   let billLinks = 0;
-  const acts = f.lobbying_activities ?? [];
   for (const [i, a] of acts.entries()) {
     const ids = extractBillIds(a.description ?? "");
     stmts.push({
