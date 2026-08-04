@@ -3001,26 +3001,40 @@ const getRecentFilingsCached = unstable_cache(
       // parallel with the page query below (Promise.all).
       if (hasQ) countSql = `SELECT COUNT(*) AS n FROM lda_filings f ${linkedClause}`;
       if (sort === "volume") {
-        // VOLUME = per-filing activity count ("meatiest filings"): the covering-PK
-        // GROUP BY (CO-ROUTINE ac: SCAN lda_activities USING COVERING INDEX) DRIVES
-        // the join, PK-seeking into lda_filings — dt_posted DESC tiebreak, no
-        // dt_posted hint (order is by count). **Agg-driven INNER JOIN, deliberately:**
-        // the LEFT-JOIN-from-lda_filings shape forced an AUTOMATIC COVERING INDEX on
-        // the materialized agg and spiked to ~18s cold (HO 544 EXPLAIN); driving from
-        // the agg rides lda_filings' PK instead (stable ~0.5s warm). The INNER JOIN
-        // drops the ~295 filings with zero lda_activities rows, but those have
-        // activity_count 0 → they sort dead last, always past the 40-page clamp, so
-        // the VISIBLE feed is identical to a LEFT JOIN. Do NOT "fix" this to a LEFT
-        // JOIN — it reintroduces the automatic-index spike for rows no one can see.
+        // VOLUME = per-filing activity count ("meatiest filings"). HO 597
+        // MATERIALIZED the count onto lda_filings.activity_count, so this is now a
+        // SINGLE-TABLE pre-ordered index walk that short-circuits at LIMIT — no
+        // subquery, no join, no aggregate on the request path.
+        //
+        // What it replaced, because the shape is the lesson: the count was computed
+        // per request as `SELECT filing_uuid, COUNT(*) FROM lda_activities GROUP BY
+        // filing_uuid`, an unbounded aggregate over ~421k rows. Co-located and cold
+        // that measured 20.0s on ALL THREE runs of the full page query — i.e. both
+        // lib/db.ts attempts lost every time (HO 597 M3). HO 544 had tuned the JOIN
+        // DIRECTION (agg-driven, because a LEFT JOIN from lda_filings forced an
+        // AUTOMATIC COVERING INDEX and spiked to ~18s) which was the right call for
+        // a join that had to exist — but no join direction saves a request-time
+        // aggregate over a large table. Materialize it. Do NOT reintroduce either
+        // join shape here.
+        //
+        // The INNER JOIN used to drop the filings with zero lda_activities rows —
+        // 421 of them, NOT the "~295" this comment claimed until HO 597 measured it
+        // (the corpus grew; a stale number in a comment justifying a join shape is
+        // how this family of defects gets through). A single-table sort brings them
+        // back, which is safe and PROVEN, not assumed: they carry activity_count 0,
+        // the last visible row (rank 1000 = MAX_FEED_PAGES 40 x pageSize 25) carries
+        // 11, so they sort below the clamp and stay invisible. HO 597 CONTROL
+        // fingerprinted the visible feed either side of the change, page 40
+        // boundary included.
+        //
+        // INDEXED BY is MANDATORY (the HO 241/406/407 statless-planner rule) — the
+        // index column order mirrors this ORDER BY exactly so the walk is
+        // pre-ordered; unhinted the planner will not pick it.
         sql = `SELECT ${cols}
-               FROM (
-                 SELECT filing_uuid, COUNT(*) AS c FROM lda_activities GROUP BY filing_uuid
-               ) ac
-               JOIN lda_filings f ON f.filing_uuid = ac.filing_uuid
+               FROM lda_filings f INDEXED BY idx_lda_filings_activity
                ${linkedClause}
-               ORDER BY ac.c DESC, f.dt_posted DESC LIMIT ? OFFSET ?`;
-        // Reached only when !hasQ (search forces recent), so searchArgs is empty here
-        // and the SQL is byte-identical to HO 544's volume path.
+               ORDER BY f.activity_count DESC, f.dt_posted DESC LIMIT ? OFFSET ?`;
+        // Reached only when !hasQ (search forces recent), so searchArgs is empty.
         pageArgs = [...searchArgs, pageSize, offset];
       } else {
         // recent + (bill-linked and/or search) — the dt_posted walk, hint kept. The
