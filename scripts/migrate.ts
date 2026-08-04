@@ -1,7 +1,27 @@
 import "dotenv/config";
+import { createClient } from "@libsql/client";
 import { getDb } from "../lib/db";
 
 type Db = ReturnType<typeof getDb>;
+
+// A LONG-TIMEOUT client for index builds only. `getDb()` rides lib/db.ts's
+// 10s DB_REQUEST_TIMEOUT_MS bound, which is correct for the request path and
+// wrong for DDL: an index build over a fat table runs well past 10s, the client
+// aborts, and migrate.ts exits non-zero even though the SERVER completed the
+// build (HO 406 hit this on the bills partial index; HO 597 hit it again on
+// idx_lda_filings_activity over 129,338 rows — the index landed, the script
+// still threw). Use this for CREATE INDEX on any large table; everything else
+// stays on the bounded client.
+function getLongTimeoutDb(): Db {
+  const url = process.env.TURSO_DATABASE_URL;
+  if (!url) throw new Error("TURSO_DATABASE_URL is not set");
+  return createClient({
+    url,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+    fetch: (i: RequestInfo | URL, init?: RequestInit) =>
+      fetch(i, { ...init, signal: AbortSignal.timeout(300_000) }),
+  });
+}
 
 const statements = [
   `CREATE TABLE IF NOT EXISTS bills (
@@ -814,6 +834,8 @@ const statements = [
     dt_posted TEXT NOT NULL,
     ingested_at TEXT NOT NULL
   )`,
+  // NOTE: `activity_count` (HO 597) is added by ensureColumn in main(), not here —
+  // see the block at the bottom of main() for what it is and why it exists.
   `CREATE INDEX IF NOT EXISTS idx_lda_filings_dt_posted ON lda_filings(dt_posted DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_lda_filings_year ON lda_filings(filing_year)`,
   // HO 435 rev: the sync derives its resume frontier per (filing_year,
@@ -1371,6 +1393,39 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_nominations_hydrate ON nominations(pn_number) WHERE is_military = 0 AND committee_hydrated_at IS NULL",
   );
   console.log("ok: idx_nominations_hydrate");
+  // HO 597: the /lobbying VOLUME sort's materialized driver. VOLUME orders by
+  // per-filing activity count, which was computed at REQUEST TIME as
+  // `SELECT filing_uuid, COUNT(*) FROM lda_activities GROUP BY filing_uuid` —
+  // an unbounded aggregate over ~421k rows that measured 20.0s co-located on
+  // ALL THREE cold runs, i.e. both lib/db.ts attempts lost (HO 597 M3). The
+  // SKILL authoring rule says an index cannot save a request-time aggregate over
+  // a large table; materialize it. This is that materialization.
+  //
+  // The count is a property OF the filing and the sync already upserts that row,
+  // so it lands as a column rather than the HO 595 side-table shape — nothing
+  // else consumes the value and there is no unit ambiguity to protect (it is one
+  // integer). A dashboard_state blob was out from the start: VOLUME's
+  // `ORDER BY ... LIMIT ? OFFSET ?` is UPSTREAM of pagination, so a blob forces
+  // ordering and paging into JS over 129k rows (the fork HO 595 M1 settled).
+  //
+  // NULL means "not yet counted", NOT zero — distinct states, and the rewire
+  // must not ship against a NULL column. `scripts/backfill-lda-activity-count.ts`
+  // fills every row (0 for the genuinely activity-less), and lib/lda-sync.ts
+  // writes it on every upsert thereafter.
+  await ensureColumn(db, "lda_filings", "activity_count", "INTEGER");
+  // The sort index, in main() (not the statements array) so it builds AFTER
+  // ensureColumn adds the column on the live DB — the idx_nominations_hydrate
+  // precedent above. Column order mirrors the ORDER BY exactly
+  // (activity_count DESC, dt_posted DESC) so the walk is pre-ordered and the
+  // LIMIT short-circuits; getRecentFilings forces it via INDEXED BY (the
+  // statless planner will not pick it unhinted — HO 241/406/407).
+  // Built on the LONG-TIMEOUT client: over 129,338 rows this runs past the 10s
+  // bound and the bounded client aborts mid-build — the server finishes anyway,
+  // so migrate.ts would exit non-zero on a migration that actually succeeded.
+  await getLongTimeoutDb().execute(
+    "CREATE INDEX IF NOT EXISTS idx_lda_filings_activity ON lda_filings(activity_count DESC, dt_posted DESC)",
+  );
+  console.log("ok: idx_lda_filings_activity");
   console.log("migration complete");
 }
 
