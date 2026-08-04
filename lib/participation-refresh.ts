@@ -69,7 +69,17 @@ function refreshClient() {
   });
 }
 
-export async function refreshMemberParticipation(): Promise<ParticipationRefresh> {
+// TEST SEAM, deliberately shipped. The non-destructive guards below are the whole
+// safety argument of this module, and an untriggered guard is UNPROVEN, not
+// protection (HO 552's loss happened in a branch nobody had fired). These let
+// scripts/diagnostic/participation-falsify-595.ts drive each failure path against
+// the REAL table and confirm it keeps its previous values and does not re-stamp.
+// Never set from the request path — the only caller passes nothing.
+export type RefreshSimulation = "empty" | "shrink" | "throw";
+
+export async function refreshMemberParticipation(
+  opts: { simulate?: RefreshSimulation } = {},
+): Promise<ParticipationRefresh> {
   const started = Date.now();
   const out: ParticipationRefresh = {
     ok: false,
@@ -104,11 +114,15 @@ export async function refreshMemberParticipation(): Promise<ParticipationRefresh
         GROUP BY mv.bioguide_id`,
     );
 
-    const rows = agg.rows.map((r) => ({
+    let rows = agg.rows.map((r) => ({
       bioguideId: String(r.bioguideId ?? ""),
       total: Number(r.total ?? 0),
       nv: Number(r.nv ?? 0),
     }));
+
+    if (opts.simulate === "empty") rows = [];
+    if (opts.simulate === "shrink") rows = rows.slice(0, Math.floor(rows.length * 0.1));
+    if (opts.simulate === "throw") throw new Error("simulated mid-flight failure (test seam)");
 
     if (rows.length === 0) {
       out.skipped = "aggregate returned 0 rows — kept previous values";
