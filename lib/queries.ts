@@ -3008,7 +3008,8 @@ const getRecentFilingsCached = unstable_cache(
         //
         // What it replaced, because the shape is the lesson: the count was computed
         // per request as `SELECT filing_uuid, COUNT(*) FROM lda_activities GROUP BY
-        // filing_uuid`, an unbounded aggregate over ~421k rows. Co-located and cold
+        // filing_uuid` — an unbounded aggregate reading all 278,095 lda_activities
+        // rows to return 128,909 groups (2026-08-04). Co-located and cold
         // that measured 20.0s on ALL THREE runs of the full page query — i.e. both
         // lib/db.ts attempts lost every time (HO 597 M3). HO 544 had tuned the JOIN
         // DIRECTION (agg-driven, because a LEFT JOIN from lda_filings forced an

@@ -1396,8 +1396,9 @@ async function main() {
   // HO 597: the /lobbying VOLUME sort's materialized driver. VOLUME orders by
   // per-filing activity count, which was computed at REQUEST TIME as
   // `SELECT filing_uuid, COUNT(*) FROM lda_activities GROUP BY filing_uuid` —
-  // an unbounded aggregate over ~421k rows that measured 20.0s co-located on
-  // ALL THREE cold runs, i.e. both lib/db.ts attempts lost (HO 597 M3). The
+  // an unbounded aggregate reading all 278,095 lda_activities rows to return
+  // 128,909 groups (2026-08-04), measured at 20.0s co-located on ALL THREE cold
+  // runs, i.e. both lib/db.ts attempts lost (HO 597 M3). The
   // SKILL authoring rule says an index cannot save a request-time aggregate over
   // a large table; materialize it. This is that materialization.
   //
