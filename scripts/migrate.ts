@@ -384,6 +384,30 @@ const statements = [
     PRIMARY KEY (vote_id, bioguide_id)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_member_votes_bioguide ON member_votes(bioguide_id)`,
+  // HO 595: the materialized participation aggregate — one row per bioguide_id
+  // seen in member_votes (~554). This exists to get member_votes OFF the request
+  // path entirely. HO 594 proved indexing cannot do that: a covering index still
+  // has to read pages that aren't resident, and co-located the first touch after
+  // a >60s gap costs 8.2-14.1s against the 10s DB_REQUEST_TIMEOUT_MS (worst
+  // 20.005s, both retry attempts lost). Cron warming can't do it either — page
+  // residency is under 60s, tighter than cron granularity. A ~554-row table is
+  // permanently resident: measured co-located, a small-table read never spiked
+  // cold across 90s-gapped runs (dashboard_state single key 15/26/15ms).
+  //
+  // COUNTS, NOT THE DERIVED RATE. `total` + `not_voting` are exact integers and
+  // every consumer keeps deriving its own value from them the same way it does
+  // today — the CTE wants a 0-1 fraction, getParticipationStrip wants 0-100.
+  // Storing a pre-divided rate would silently pick one and re-unit the other.
+  //
+  // NO FLOOR APPLIED HERE. PARTICIPATION_FLOOR stays a query-time constant so the
+  // shipped HAVING semantics are byte-identical; a member below the floor is
+  // absent from the CTE (LEFT JOIN -> NULL) exactly as before.
+  `CREATE TABLE IF NOT EXISTS member_participation (
+    bioguide_id TEXT PRIMARY KEY,
+    total INTEGER NOT NULL,
+    not_voting INTEGER NOT NULL,
+    refreshed_at TEXT NOT NULL
+  )`,
   // handoff 90: USCPR Senate Palestine voting scorecard. One row per
   // (Senate Democrat) member, keyed by bioguide_id. Synced from a public
   // Google Sheet via `npm run sync:palestine` — the sheet is the
