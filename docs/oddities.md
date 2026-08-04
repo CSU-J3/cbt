@@ -868,3 +868,35 @@ Instances of the existing close-criterion rule — a success signal that does no
 ## A comment can describe the author's mental model while the SQL does something broader — twice in one query family, both preceding a 500 (HO 594/595, Aug 2026)
 
 `"Small grouped aggregate (~537 rows) — no INDEXED BY / no new index"` sized the query by **rows returned** while the scan covered all **365,996** `member_votes` rows (a **683x gap**), because the GROUP BY spanned the table and the members-side filters applied after the group. Separately, `"for the MISSED sort"` described `participationAggCte` as if it were sort-conditional, while the CTE is interpolated **unconditionally** into both `getMembersRanked` and `getCommitteeRoster` — so it ran on every `/members` and `/committee/[code]` render at any sort, and HO 593 missed it entirely because the comment said otherwise. **Neither comment is wrong about intent; both are wrong as descriptions of behaviour**, and a reviewer reading either gets the model rather than what runs. The reusable tell is the first one: if a comment sizes an aggregate by its output, go and check what it reads.
+
+## A guard INSIDE a cache wrapper caches its own degradation — the failure stops being transient the moment you record it (HO 597, Aug 2026)
+
+`getRecentFilings`'s HO 440/448 try/catch — the one that keeps a `/lobbying` feed timeout from 500-ing the whole page — sat **inside** the `unstable_cache` callback. So the degraded `{ items: [], … }` was the callback's **return value**, and `unstable_cache` did what it is for: it stored it, for the full `revalidate: 3600`. **One cold miss poisoned that cache key for an hour, and the retry that would have succeeded never ran.** The guard read as pure defence and was quietly converting a transient failure into a durable one — the HO 552 shape (an exit path that *records* where it should *defer*), in a place nobody thinks of as an exit path.
+
+The fix is placement, not logic: let the cached function **throw** so nothing is stored, and catch in an exported wrapper around it. Same user-visible behaviour on failure, opposite recovery behaviour after it.
+
+**Falsified as a matched pair**, because the reasoning ("of course it caches, it's a return value") is exactly the kind that has been wrong twice this month. Same cheap cache key (`?linked=1`, chosen RECENT-shaped so recovery is *visible* rather than masked by the 20s cost of the query actually being fixed), one injected read failure, cold `.next/cache` each run:
+
+| variant | hit 1 | hit 2 | hit 3 |
+|---|---|---|---|
+| RED (guard inside the cache) | 0 rows, 8417ms | **0 rows, 493ms** | **0 rows, 592ms** |
+| GREEN (guard outside) | 0 rows, 8042ms | **13 rows, 1169ms** | 13 rows, 662ms |
+
+RED's later hits never touched the DB — sub-600ms is the cache answering — and served the stored empty. The guard fired **exactly once in both**, which is what rules out the instrument as the difference.
+
+**The general rule: a `try/catch` that returns a fallback must sit OUTSIDE any memoization of the thing it guards.** Inside, you are not degrading — you are *committing*. This applies to `unstable_cache`, to a hand-rolled Map cache, and to anything else that treats "returned normally" as "worth keeping." It also generalizes the SKILL note about `unstable_cache` serialization (HO 533): the wrapper doesn't only reshape what you return, it decides **whether the next caller gets to try again.**
+
+## A cost measurement is a property of the corpus, not of the query — HO 547's `<=67ms` is now 92.8s and ships a wrong answer (HO 597, Aug 2026)
+
+Found while prod-verifying something else, and only visible because the HO 597 guard rewrite had just started logging the failing cache key. `/lobbying?q=boeing` renders **"No filings match"** with a **200** on prod while the database holds **78** matching filings. Runtime logs, every request, both `lib/db.ts` attempts lost:
+
+```
+[db] timeout, retrying
+[getRecentFilings] read failed — feed hidden: sort=recent linked=false q=true page=1: TimeoutError
+```
+
+HO 546/547 priced this path properly before shipping it — RECENT+search at 34–697ms, the parallel pager `COUNT(*)` at **≤67ms** — and those numbers were *true when measured*. At 129,401 filings the same two statements measure **15.6s** and **92.8s**; they run in one `Promise.all`, so the COUNT dominates and the guard degrades to empty.
+
+**The point is not that the estimate was sloppy — it wasn't.** It is that a timing is a measurement of `f(query, corpus, cache state)` and gets recorded as a fact about the query. Three separate defects in this family now share that shape: HO 594's participation aggregate (sized by rows *returned*), HO 597's VOLUME (`~295` zero-activity filings, which was 421 by the time anyone re-counted), and this one. **A cost figure in a comment or a backlog entry should carry the corpus size and the date it was taken**, so the next reader can see it has aged rather than trusting it.
+
+The corollary for review: **a query that was measured safe at ship time is not covered by that measurement forever, and nothing re-checks it.** The `/lobbying` guard means the expiry is silent — a 200 with an empty list — which is the fifth and sixth instance of the "reads identical whether or not the work happened" pattern this file already tracks, and the second one found running in production.
