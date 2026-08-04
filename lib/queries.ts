@@ -4535,20 +4535,25 @@ export const getIdeologyStrip = unstable_cache(
 // getChamberParticipationContext (refreshes with the votes sync, not the daily
 // ideology cadence).
 //
-// HO 594 — THE COMMENT THAT USED TO SIT HERE WAS THE BUG. It read "Small grouped
-// aggregate (~537 rows) — no INDEXED BY / no new index" and shipped this query
-// unhinted. ~537 is what the query RETURNS; what it READS is all 365,996
-// member_votes rows (a 683x gap), because the GROUP BY spans the whole table and
-// the members-side filters apply after the group. Cold, that measured 24.5s median
-// / 37.0s worst against the 10s DB_REQUEST_TIMEOUT_MS — the /members 500, digest
-// 4101894172. Sizing an aggregate by rows RETURNED is the tell (oddities: "a 1-row
-// 500 can still be a full-corpus scan").
+// HO 595 — READS THE MATERIALIZED TABLE. member_votes is no longer on this
+// request path at all.
 //
-// The INDEXED BY is MANDATORY, not decorative: idx_member_votes_participation
-// (bioguide_id, position) exists, but the statless Turso planner (no ANALYZE)
-// still picks the older non-covering idx_member_votes_bioguide unhinted and
-// row-fetches every row anyway — verified by EXPLAIN with the new index present,
-// the same result HO 277 recorded one table over.
+// The history, because it is the reason this is a table and not a cleverer query:
+// the comment that used to sit here read "Small grouped aggregate (~537 rows) — no
+// INDEXED BY / no new index" and shipped the query unhinted. ~537 is what it
+// RETURNED; what it READ was all 365,996 member_votes rows (683x), and cold that
+// measured 24.5s median / 37.0s worst against the 10s DB_REQUEST_TIMEOUT_MS — the
+// /members 500, digest 4101894172. HO 594 added a covering index and got steady
+// state to ~1s, which was NOT enough: co-located, the first touch after a >60s gap
+// still cost 8.2-14.1s (worst 20.005s, both retry attempts lost) because page
+// residency is under 60s. Indexing cannot fix a cold read, and cron warming cannot
+// beat sub-60s residency. Hence HO 595: a ~554-row table that is permanently
+// resident, rebuilt by the only writer of member_votes (/api/sync-votes).
+//
+// `total` + `not_voting` are stored as exact integers and this query keeps
+// deriving missedPct the same way it always did (nv/total*100, in the mapper
+// below) — do not "simplify" by storing a pre-divided rate; the CTE next door
+// needs the same numbers as a 0-1 fraction.
 export type ParticipationDot = {
   bioguideId: string;
   name: string;
@@ -4562,18 +4567,17 @@ export const getParticipationStrip = unstable_cache(
   async (): Promise<ParticipationDot[]> => {
     const db = getDb();
     const res = await db.execute({
-      sql: `SELECT mv.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
+      sql: `SELECT p.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
                    m.chamber AS chamber,
                    CASE WHEN m.chamber = 'house'
                          AND m.state IN ('DC','AS','GU','MP','PR','VI')
                         THEN 1 ELSE 0 END AS isDelegate,
-                   COUNT(*) AS total,
-                   SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-              FROM member_votes mv INDEXED BY idx_member_votes_participation
-              JOIN members m ON m.bioguide_id = mv.bioguide_id
+                   p.total AS total,
+                   p.not_voting AS nv
+              FROM member_participation p
+              JOIN members m ON m.bioguide_id = p.bioguide_id
              WHERE m.is_current = 1
-             GROUP BY mv.bioguide_id
-            HAVING total >= ?`,
+               AND p.total >= ?`,
       args: [PARTICIPATION_FLOOR],
     });
     return res.rows.map((r) => {
@@ -5824,24 +5828,28 @@ function billsAggCte(includeCeremonial: boolean): string {
 // — getChamberParticipationContext's args do the same. The delegate carve-out is
 // NOT here (it needs the members table's chamber/state); it's applied in the
 // SELECT of each caller so delegates keep a row but a NULL rate.
-// HO 594: the INDEXED BY is load-bearing on VOLUME, not on sort choice. This CTE is
-// spliced UNCONDITIONALLY into both getMembersRanked and getCommitteeRoster, so it
-// ran a full 365,996-row scan of member_votes on EVERY /members and
-// /committee/[code] render at any sort (13.4s median / 15.2s worst cold, against
-// the 10s bound). 593 named the other two participation aggregates and missed this
-// one; it is the widest-exposure member of the family. Unlike its two siblings the
-// planner DOES take the covering index here unhinted (no join to distract it) —
-// the hint is kept anyway so all three sites pin the same plan and none of them
-// silently regresses when a join or filter is added later.
+// HO 595: now a plain read of the materialized table, which is the whole point —
+// this CTE is spliced UNCONDITIONALLY into BOTH getMembersRanked and
+// getCommitteeRoster, so it previously ran a full 365,996-row scan of member_votes
+// on EVERY /members and /committee/[code] render at any sort (13.4s median / 15.2s
+// worst cold against the 10s bound). It was the widest-exposure member of the
+// family and 593 missed it entirely.
+//
+// The SHAPE is deliberate and is why a table beat a dashboard_state blob: part_agg
+// stays a JOINable relation, so the LEFT JOIN below, MISSED_CARVE_EXPR, the
+// ORDER BY and the LIMIT/OFFSET pagination are all byte-unchanged. A blob would
+// have moved the ranking, the pagination and the HO 535 carve-out into JS at two
+// call sites. Only this CTE's source changed.
+//
+// The 0-1 fraction is preserved exactly: CAST(not_voting AS REAL)/total is the same
+// division the old CAST(SUM(...))/COUNT(*) performed, over the same integers.
 function participationAggCte(): string {
   return `part_agg AS (
     SELECT
-      mv.bioguide_id AS bid,
-      CAST(SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS REAL)
-        / COUNT(*) AS missed_pct
-    FROM member_votes mv INDEXED BY idx_member_votes_participation
-    GROUP BY mv.bioguide_id
-    HAVING COUNT(*) >= ${PARTICIPATION_FLOOR}
+      bioguide_id AS bid,
+      CAST(not_voting AS REAL) / total AS missed_pct
+    FROM member_participation
+    WHERE total >= ${PARTICIPATION_FLOOR}
   )`;
 }
 
@@ -7752,22 +7760,21 @@ export type ChamberParticipation = {
   medianMissedPct: number | null; // % over the floored population; null = empty chamber
 };
 
-// HO 594: same full-scan defect as getParticipationStrip (19.99s median / 29.01s
-// worst cold vs the 10s bound) and the same mandatory INDEXED BY — the planner
-// keeps the non-covering idx_member_votes_bioguide unhinted. Drives
-// /members/[bioguideId].
+// HO 595: reads the materialized table, same as getParticipationStrip. Previously
+// the same full-scan defect (19.99s median / 29.01s worst cold vs the 10s bound).
+// Drives /members/[bioguideId]. Returns one row per floored current member — the
+// old GROUP BY produced exactly that, so the JS median below is unchanged.
 export const getChamberParticipationContext = unstable_cache(
   async (): Promise<{ house: ChamberParticipation; senate: ChamberParticipation }> => {
     const db = getDb();
     const rs = await db.execute({
       sql: `SELECT m.chamber AS chamber,
-                   COUNT(*) AS total,
-                   SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-              FROM member_votes mv INDEXED BY idx_member_votes_participation
-              JOIN members m ON m.bioguide_id = mv.bioguide_id
+                   p.total AS total,
+                   p.not_voting AS nv
+              FROM member_participation p
+              JOIN members m ON m.bioguide_id = p.bioguide_id
              WHERE m.is_current = 1
-             GROUP BY mv.bioguide_id
-            HAVING total >= ?`,
+               AND p.total >= ?`,
       args: [PARTICIPATION_FLOOR],
     });
 
