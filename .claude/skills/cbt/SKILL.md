@@ -1230,6 +1230,49 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 >   once, so a route 500 needs *both* attempts to breach and the route-failure rate
 >   is roughly the **square** of the query-breach rate. A 0/13 route count with a
 >   10s query in the sample is not a green.
+> - **A `20.00Xs` reading is the ABORT CEILING, not a duration (HO 597).** Same
+>   mechanism as the bullet above, read the other way: 10s abort + one 10s retry
+>   means any query slower than 10s reports **~20.00s whether it takes 21 seconds
+>   or five minutes**. Timings through `getDb()` are **right-censored** at the
+>   bound — a figure *at* the ceiling is a lower bound, only figures *under* it are
+>   durations. Re-run anything that lands on the bound behind a deliberately looser
+>   ceiling before quoting it: HO 597 did, and a RED the record had carried as
+>   "20s" turned out **>55s** — a 2.75x understatement of the defect being argued
+>   about. Otherwise the number defending a design decision is just the number the
+>   timeout was set to.
+
+> **AUTHORING RULE — a number in a comment that justifies a design decision carries
+> the corpus size and the date it was measured (HO 594/597).** Not a style
+> preference. Three times in one arc a comment stated a number that was *true when
+> written*, went stale, and **the stale number was the stated reason for a design
+> decision** — so the decision outlived its own justification and nothing re-checked
+> it:
+>
+> | comment | what it justified | what it became |
+> |---|---|---|
+> | `"Small grouped aggregate (~537 rows)"` (HO 527) | skip `INDEXED BY`, add no index | sized by rows RETURNED; the scan was **365,996** — the `/members` 500 |
+> | `"the ~295 filings with zero lda_activities"` (HO 544) | keep the agg-driven INNER JOIN | a corpus count that had drifted to **429** by HO 597 |
+> | `"COUNT(*) … ≤67ms"` (HO 547) | run it unbounded in a `Promise.all` | **92.8s** at 129,401 filings — `/lobbying?q=` renders a wrong answer with a 200 |
+>
+> Each was measured honestly. The failure is that a measurement of
+> `f(query, corpus, cache state)` was recorded as a property of the query, in the
+> one place a future reader treats as settled. **So: write `<exact count> rows,
+> <YYYY-MM-DD>`, not a bare `~approximation`** — with the size and date attached,
+> the next reader can see the number has aged instead of trusting it. A bare figure
+> is indistinguishable from a current one. (The example is deliberately generic: a
+> concrete corpus figure here would itself go stale within days, which is the whole
+> point.)
+>
+> **The review-time question**, cheaper than re-measuring: *if this number were
+> stale, would the comment still recommend the same thing?* If yes, it needs no
+> provenance — it is scale context, which is worth keeping (the `~554` in the
+> `member_participation` block below justifies nothing and earns its place). If no,
+> it is load-bearing and needs the size and the date.
+> Corollary: **a query measured safe at ship time is not covered by that
+> measurement forever, and nothing re-checks it.** Where a guard degrades silently
+> (`/lobbying`'s empty feed with a 200) the expiry is invisible, so the number in
+> the comment is the only thing standing between a growing corpus and a wrong
+> answer.
 
 > **The materialized participation table + its refresh contract (HO 595).**
 > `member_participation (bioguide_id PK, total, not_voting, refreshed_at)`, ~554
