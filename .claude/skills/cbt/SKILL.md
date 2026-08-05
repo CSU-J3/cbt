@@ -805,9 +805,13 @@ CREATE TABLE lda_filings (
   income REAL,                      -- parsed dollars, SUM-able
   expenses REAL,
   dt_posted TEXT NOT NULL,          -- posting-date; the resume frontier
-  ingested_at TEXT NOT NULL
+  ingested_at TEXT NOT NULL,
+  activity_count INTEGER            -- HO 597 (`daf6dcc`): per-filing lda_activities count, MATERIALIZED off the request path so the /lobbying VOLUME sort is a pre-ordered single-table walk. Written by the sync's upsert + a resumable backfill; SUM(activity_count) == COUNT(lda_activities) is the standing check.
 );
 CREATE INDEX idx_lda_filings_dt_posted ON lda_filings(dt_posted DESC);
+CREATE INDEX idx_lda_filings_activity ON lda_filings(activity_count DESC, dt_posted DESC);  -- HO 597: the VOLUME sort key, forced via INDEXED BY (column order mirrors the ORDER BY, so the walk is pre-ordered)
+CREATE INDEX idx_lda_filings_registrant_id ON lda_filings(registrant_id);  -- HO 598: the seek half of the routed search
+CREATE INDEX idx_lda_filings_client_id ON lda_filings(client_id);          -- HO 598: ditto
 CREATE INDEX idx_lda_filings_year ON lda_filings(filing_year);
 CREATE INDEX idx_lda_filings_year_type_dt ON lda_filings(filing_year, filing_type, dt_posted DESC);  -- frontier seek (MAX+COUNT/combo)
 
@@ -835,6 +839,44 @@ CREATE TABLE lda_activity_bills (
   PRIMARY KEY (filing_uuid, activity_ordinal, bill_id)
 );
 CREATE INDEX idx_lda_activity_bills_bill ON lda_activity_bills(bill_id);  -- "who lobbied bill X"
+
+-- HO 598 (`4fd9b48` migration · `e7fdf30` writer · `85a173f` filing_count): the
+-- distinct-name lookup behind `/lobbying?q=`. One row per distinct
+-- (kind, entity_id, name) across lda_filings — ~33,620 rows against 129,401
+-- filings (2026-08-04), i.e. the same names de-duplicated, which is the whole
+-- point: a term is resolved against ~1 MB of names instead of walking ~22.9 MB
+-- of filings.
+--
+-- COMPLETENESS IS A CORRECTNESS PROPERTY HERE, NOT A PERFORMANCE ONE. The routed
+-- read short-circuits on an empty id set and returns WITHOUT touching
+-- lda_filings at all — sound only because this table is complete. A missing row
+-- doesn't make a search slow, it makes those filings INVISIBLE and renders a
+-- confident "No filings match" (a silent wrong answer, the exact defect HO 598
+-- existed to remove). So the names are maintained by the per-filing sync upsert
+-- (INSERT OR IGNORE, both kinds) and the gap is INSTRUMENTED, not assumed:
+-- `namesUnreachable` counts filings ingested by a run with no matching name row,
+-- rides LdaSyncResult -> the cron payload -> chronicErr, and logs a greppable
+-- `[lda] names-unreachable:` prefix. A nonzero reading is a correctness alarm.
+--
+-- `filing_count` is the OPPOSITE contract and the asymmetry is deliberate: it is
+-- ADVISORY, never a correctness input. It rides in the covering index so the one
+-- scan that resolves a term also returns the density that routes it (see the
+-- derived `m* = sqrt(k*N)` threshold in lib/queries.ts), and it only ever picks
+-- WHICH of two provably-equivalent shapes runs — a stale count costs latency,
+-- never an answer. Hence it is NOT maintained per-filing (an incrementing counter
+-- would double-count on a legitimate re-ingest upsert) but recomputed wholesale
+-- by the backfill / rollup path.
+CREATE TABLE lda_names (
+  kind TEXT NOT NULL,               -- 'r' registrant | 'c' client
+  entity_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  filing_count INTEGER,             -- advisory routing hint; wholesale-recomputed, never per-filing
+  PRIMARY KEY (kind, entity_id, name)
+);
+-- COVERING: `SELECT entity_id, filing_count WHERE kind = ? AND name LIKE ?` is
+-- served index-only and never touches the table. Built in migrate.ts's main()
+-- (not the DDL array) because filing_count is added by ensureColumn there.
+CREATE INDEX idx_lda_names_kind_name ON lda_names(kind, name, entity_id, filing_count);
 
 -- HO 437: the /lobbying surface's precomputed aggregate. Request-time aggregation
 -- over the lda_* tables is non-viable on this Turso (30-90s+ cold — oddities), so
