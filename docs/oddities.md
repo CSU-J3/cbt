@@ -924,3 +924,87 @@ The HO 598 ship gate compared each regime's margin under the 10s bound against i
 ## The bytes model holds across a 23× size change; the variance does not shrink with it (HO 598, Aug 2026)
 
 The arc's cost model — cost tracks **bytes dragged off the table**, not row count and not predicate complexity — survived a hard test. The full `lda_filings` name walk is ~**22.9 MB** and measured ~**86s**; the `lda_names` covering scan that replaced it is ~**1 MB** and measured ~**6.6s** worst. Roughly linear across a **23×** size reduction, so removing data buys the median exactly as predicted, and the model earns continued use for sizing. What did **not** come along is the spread: the **2-15× run-to-run variation on byte-identical work** is present at every size — the ~1 MB scan still ranges **0.3-6.6s** across runs, so a ~1 MB scan can cost more than a *typical* run of a scan 23× its size. **Shrinking data buys the median, not the variance** — which is why the residual after this arc is not a query-design problem (there is very little data left to remove) and belongs to the variance thread instead (backlog OPEN LOOP). Pair with the page-residency entry above: that names a plausible mechanism for the spread, and it has never been probed on its own terms.
+
+## A page that self-reports its own type cannot gate what it contains (HO 601, Aug 2026)
+
+`parseCandidatesPage` kept a votebox only when the box's specialness **agreed
+with the page's** — `/special/i.test(h5) !== onSpecialPage → drop` — where
+`onSpecialPage` is `isSpecialElectionPage()`, which reads the `<title>`. It looked
+symmetric and defensible for two years. It is unanswerable, and the reason is
+that **the `<title>` is not the URL**: Ballotpedia serves the FL/OH
+special-election *article* under the plain
+`United_States_Senate_election_in_{State},_2026` URL (HTTP 200, `redirected=false`),
+so those pages self-report as special and their "Special …" boxes agreed and were
+kept. South Carolina's page is a genuine regular article that **also** hosts an
+additional Aug 11 special primary: page-special false, box-special true, so the
+only box carrying a **published 10-candidate field** was silently dropped and the
+parser returned `no_candidates` (HO 600 M3/M4).
+
+The generalizable shape: **a container's self-reported type is a property of the
+container, and using it to filter the container's contents fails the moment one
+container legitimately holds both kinds.** The fix is to classify each item by its
+own signal and let the container's type be a diagnostic. Do not restore the
+symmetry check — it cannot express a seat carrying both a regular and a special
+contest on one page.
+
+Corollary caught in the same change: once both contests can be read off one page,
+**the dedup key has to include the discriminator**. A `contest|name` key silently
+dropped Mark Lynch's Aug 11 candidacy as a duplicate of his June one — the same
+person legitimately runs in both.
+
+## A seed file that looks additive can move data (HO 601, Aug 2026)
+
+`data/special-primary-seeds/` is a registry, and since HO 601 it is also a
+**router input**: a special-classified votebox goes to
+`senate-{ST}-2026-special-{party}` *iff that id is seeded*, else to the base id.
+That makes adding a seed row **not additive**. Seed a state that is already being
+written correctly to its base ids and the boxes MOVE: the base rows then take an
+empty incoming roster, the HO 564 non-empty-delete gate correctly refuses to erase
+them, and they **freeze silently at stale values** while the new special rows go
+live beside them. Nothing errors; two rows now describe the same contest and one
+is rotting.
+
+Why the router keys on the seed rather than the `<h5>` alone: the `<h5>` says a box
+is a special **contest**; it does not say whether that contest is **additional to a
+regular one for the same seat**, which is what decides the destination. FL/OH's
+2026 Senate races *are* special elections, so every primary box on their pages
+reads "Special …" while the base ids are their correct and only home — routing on
+the `<h5>` alone was measured to move all four rosters onto unseeded ids.
+
+The transferable warning is about **where a failure mode can re-enter**: this one
+was designed out of the code and straight into the config, where no typecheck, no
+test and no review diff will catch it. When a data file becomes an input to a
+routing decision, the warning belongs **on the data file**, not only at the code
+that reads it.
+
+## The skip-on-empty inversion, twice in one subsystem — record the shape (HO 600/601, Aug 2026)
+
+Two instances, two HOs, one subsystem, one shape: **a check whose "nothing to
+report" and "reported nothing" are the same output**.
+
+1. **HO 600 M2** — `runSpecialPriorityPass` returned `string[]` (attempted ids).
+   `scrapeSenateSpecialState` computed a real `fetchFailure` for each 404 and the
+   return **discarded it**. Three consecutive ticks 404'd; all three logged
+   `fetchFailures: []`. The backlog WATCH named `fetchFailures` as its evidence,
+   so the instrument the ledger pointed at was **structurally incapable of reading
+   FAIL**.
+2. **HO 601 §2** — the pre-flight compared each state's writes across router
+   models. Ballotpedia answers a burst with HTTP 202 (bot challenge), an
+   unreachable state contributed nothing to the changed-state list, and "did not
+   load" was therefore indistinguishable from "would not change". The first run
+   printed `HALT` in the detail block and `PASS` in the verdict off the same data.
+
+Both were fixed locally (C3 returns a result object incl. `emptyRosterSkipped`;
+the pre-flight retries a 202 and treats missing coverage as INCONCLUSIVE, never
+PASS). The durable lesson is neither fix but the **recognition rule**:
+
+> When a verification reports a **count, a list, or an absence**, ask what an
+> infrastructure failure would print. If it prints the same thing as success, the
+> instrument cannot fail and its green is worth nothing. Coverage is a
+> **precondition of a verdict, not a footnote** — assert the denominator first,
+> then read the numerator.
+
+This sits beside the existing `test.skip`-on-empty entry and the "verifying one
+branch of a `Promise.all` is not coverage of the pair" entry. Same family:
+**absence of evidence rendered as evidence of absence**, at the instrument layer
+rather than the data layer.
