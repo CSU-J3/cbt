@@ -977,10 +977,12 @@ test and no review diff will catch it. When a data file becomes an input to a
 routing decision, the warning belongs **on the data file**, not only at the code
 that reads it.
 
-## The skip-on-empty inversion, twice in one subsystem — record the shape (HO 600/601, Aug 2026)
+## The skip-on-empty inversion, THREE times in one subsystem — record the shape (HO 600/601, Aug 2026)
 
-Two instances, two HOs, one subsystem, one shape: **a check whose "nothing to
-report" and "reported nothing" are the same output**.
+Three instances, two HOs, one subsystem, one shape: **a check whose "nothing to
+report" and "reported nothing" are the same output**. The ledger's own bar is that a
+third instance makes something a convention problem rather than a coincidence, and
+this cleared it inside a single arc.
 
 1. **HO 600 M2** — `runSpecialPriorityPass` returned `string[]` (attempted ids).
    `scrapeSenateSpecialState` computed a real `fetchFailure` for each 404 and the
@@ -994,9 +996,18 @@ report" and "reported nothing" are the same output**.
    load" was therefore indistinguishable from "would not change". The first run
    printed `HALT` in the detail block and `PASS` in the verdict off the same data.
 
-Both were fixed locally (C3 returns a result object incl. `emptyRosterSkipped`;
-the pre-flight retries a 202 and treats missing coverage as INCONCLUSIVE, never
-PASS). The durable lesson is neither fix but the **recognition rule**:
+3. **HO 601 C3, caught pre-emptively while fixing (1).** With the new regular-page
+   fallback, a seeded id reached on a page carrying no special box would `continue`
+   silently — and "attempted, no fetch failure, nothing populated" reads exactly
+   like success. `emptyRosterSkipped` was added in the same change rather than
+   filed as a lesson. **This is the instance worth noticing**: the shape was
+   recognized *during* the work, on a path nobody had asked about, which is what
+   the rule is for.
+
+All three were fixed locally (C3 returns a result object incl.
+`emptyRosterSkipped`; the pre-flight retries a 202 and treats missing coverage as
+INCONCLUSIVE, never PASS). The durable lesson is none of the fixes but the
+**recognition rule**:
 
 > When a verification reports a **count, a list, or an absence**, ask what an
 > infrastructure failure would print. If it prints the same thing as success, the
@@ -1046,3 +1057,46 @@ guard's claimed role is not the same as removing it. Filed as a backlog WATCH, a
 as a queued comment-only fix at `isSettled` itself, because the overstated version
 is what the code comment there still says and **a code comment outranks a doc for
 anyone working in the file**.
+
+## Rows read and milliseconds are different currencies — the strongest instance (HO 602, Aug 2026)
+
+This entry already existed in weaker form (HO 582). The measurement that settles
+it: the **single largest read-budget consumer on the database** is a query whose
+own comment certifies it as fast. `bills_agg`'s block in `lib/queries.ts:6015`
+records the HO 277 hint making it *"index-only ... 96ms"* — **true, and beside the
+point**. Per-query `rows_read` over 30 days (Turso dashboard, org `csu-j3`,
+2026-08-05): **110.0M rows across 317 calls, ~347k rows per call, 26% of the
+entire account budget.** It is the *fastest expensive query* on the database.
+
+**No latency instrument can see this.** Not `EXPLAIN` (the plan is a clean
+covering-index scan), not a timing harness (96ms), not the route-level 500 rate
+(it never breaches). The cost is real and it is invisible in the units every other
+guard in this repo measures. Only per-query `rows_read` shows it — which is why
+that view is now named in SKILL as the read-attribution instrument of record.
+
+The general form: **an optimization that converts a slow query into a fast one
+does not necessarily convert an expensive query into a cheap one.** A covering
+index removes the row-fetch, not the rows scanned. When the budget being spent is
+rows rather than seconds, "we indexed it and it's 96ms now" is an answer to a
+different question — and it will be quoted for years as though it closed both.
+
+## A 24-hour attribution window shows what SURVIVED, not what caused a rise (HO 602, Aug 2026)
+
+Diagnosing the read-burn ramp, a 24-hour Top Queries read showed the LDA family on
+top, and that was taken here as the ramp's cause. It was not. The 24-hour window
+sat *after* HO 582/594/595 had removed the markets and participation costs, so it
+showed **the residual** — what was left standing once the actual causes were
+already fixed. The 30-day window, which contains the ramp, names the participation
+aggregates instead, and they shipped **into** it: HO 523 (`2b8d62b`, Jul 25),
+HO 527 (`7fa729c`, Jul 26), HO 535 (`b565c13`, Jul 27).
+
+**Attributing a change requires a window that contains the change.** A window that
+starts after the event measures the aftermath and reports it in the same units,
+with the same ranking, looking exactly like an answer. The tell is that the top
+row of a post-fix window is *by construction* whatever you have not fixed yet.
+
+Related and unresolved: **the two windows disagree in a way nothing yet explains** —
+the 24-hour view's top row (`lda_filings` completeness COUNT, 5.95M / 46 calls)
+does not appear in the 30-day list at all, where its magnitude says it belongs.
+Filed as a WATCH. Treat them as two instruments, not one, and do not build a number
+on their difference until that is resolved.
