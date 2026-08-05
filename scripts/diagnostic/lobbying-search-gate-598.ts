@@ -1,9 +1,28 @@
-// HO 598 GATE — the name-lookup rewrite, measured before rewiring. READ-ONLY.
+// HO 598 — the /lobbying?q= rewrite. READ-ONLY equivalence harness + the record of
+// four measurement rounds. **THE ROUTED PATH IS NOW SHIPPED** (e4f09ba, arg-binding
+// fix 06d03dd). Rounds 1-3 below are kept in order because two of their conclusions
+// were RETRACTED by later rounds, and the retractions are the useful part.
 //
-// VERDICT: **FAIL, two ways. The rewire was NOT shipped.** lda_names and the two
-// id indexes ARE live and maintained (migration 4fd9b48, writer e7fdf30); only the
-// read-path rewire is withheld. Nothing is half-wired — the shipped search is
-// byte-unchanged except for the bounded COUNT (1afdd02).
+// FINAL DISPOSITION: shipped as a JUDGMENT CALL OVER A FAILED GATE, not a pass.
+//   - The gate statistic was amended to upper-tail (worst - median), not max - min:
+//     a FAST outlier is evidence of safety and must not harden the gate.
+//   - Under the amended gate: dense +3.51s vs 3.11s PASS; empty +3.54s vs 3.34s
+//     PASS; **sparse +2.27s vs 4.23s FAIL**.
+//   - Shipped on STRICT DOMINANCE: the path being replaced breaches on BOTH
+//     lib/db.ts attempts at its BEST observed (19.8s), so withholding preserved a
+//     ~certain failure to avoid a rare one — and since 79d1276 the rare one renders
+//     honestly instead of lying. HO 594's retraction was for CLOSING a loop on a
+//     thin margin; this improves on one and THE LOOP STAYS OPEN.
+//
+// Prod, all three regimes (06d03dd): q=boeing 13 rows / count 78 (was "No filings
+// match" against 78 real matches) · q=llc 13 rows / "520+" · q=zzqxnotarealterm
+// 0 rows / "No filings match" in 412ms (was 91.3s).
+//
+// ---- historical: the pre-ship rounds ----
+//
+// ROUND 1 VERDICT: FAIL, two ways. lda_names and the two id indexes were live and
+// maintained (migration 4fd9b48, writer e7fdf30); only the read-path rewire was
+// withheld, so nothing was half-wired.
 //
 // CO-LOCATED (pdx1, throwaway preview probe on branch 598-gate, now deleted), one
 // query per invocation, 90s gaps, unbounded 300s client, shipped LIMIT 13:
@@ -154,6 +173,38 @@
 // residency question HO 594, 597 and 598 have each independently hit.
 // ===========================================================================
 //
+// ===========================================================================
+// ROUND 4 — SHIPPED. The routed rewire, and the four-sided falsification.
+//
+// CONTROL (this script, routed vs the shipped walk, same live DB state):
+//   "boeing"    density     84 -> sparse-seek         IDENTICAL
+//   "llc"       density 55,834 -> dense-walk          IDENTICAL
+//   "zzqx…"     density      0 -> empty-shortcircuit  IDENTICAL
+//   "insur"     density  1,119 -> sparse-seek         IDENTICAL   (0.86x m*)
+//   "hospital"  density  1,500 -> dense-walk          IDENTICAL   (1.16x m*)
+// The last two STRADDLE m* = 1,297, so the boundary is exercised on BOTH sides
+// rather than assumed. Rows and order match the shipped predicate exactly.
+//
+// TIMEOUT PATH, re-fired post-rewire, one dev session, injection scoped to a
+// single term so both causes are observable together:
+//   q=boeing (injected failure)  -> "Search timed out — try a narrower term"
+//   q=zzqx…  (genuine empty)     -> "No filings match"
+//   q=llc    (control)           -> 13 rows
+// Two distinct strings reached by two distinct causes. Before this arc they were
+// character-for-character identical.
+//
+// COMPLETENESS: scripts/diagnostic/lda-names-maintenance-598.ts proves the
+// MAINTENANCE path (a filing with a brand-new name is searchable immediately), and
+// LdaSyncResult.namesUnreachable watches it on every tick.
+//
+// ONE BUG SHIPPED AND CAUGHT IN PROD IN MINUTES (fixed 06d03dd): the bounded COUNT
+// still bound the two LIKE args while the routed predicate carried 17. The
+// instrument named it — "expected 17, got 2" against the exact cache key. Worth
+// recording WHY this harness missed it: it compares the PAGE query's rows and never
+// executes the COUNT. A verification that covers one of two statements in a
+// Promise.all is not coverage of the pair.
+// ===========================================================================
+//
 //   npx tsx scripts/diagnostic/lobbying-search-gate-598.ts
 import "dotenv/config";
 import { createClient } from "@libsql/client";
@@ -183,8 +234,40 @@ const CAND = `(f.registrant_id IN (SELECT entity_id FROM lda_names WHERE kind='r
    OR f.client_id  IN (SELECT entity_id FROM lda_names WHERE kind='c' AND name LIKE ? ESCAPE '\\'))`;
 const RECHECK = `(f.registrant_name LIKE ? ESCAPE '\\' OR f.client_name LIKE ? ESCAPE '\\')`;
 
-const NEW_PAGE = `SELECT ${COLS} FROM lda_filings f WHERE ${CAND} AND ${RECHECK}
-   ORDER BY f.dt_posted DESC LIMIT 13 OFFSET 0`;
+const THRESHOLD = Math.round(Math.sqrt(13 * 129_401)); // m* = sqrt(k*N)
+
+// The ROUTED path, emulating lib/queries.ts::getRecentFilings exactly: leg 1
+// resolves ids + density in one covering scan, then empty / sparse-seek / dense-walk.
+async function routedPage(term: string): Promise<{ ids: string[]; path: string; density: number }> {
+  const like = `%${term}%`;
+  const l1 = await c.execute({
+    sql: ro(`SELECT kind, entity_id, filing_count FROM lda_names
+              WHERE (kind='r' AND name LIKE ? ESCAPE '\\') OR (kind='c' AND name LIKE ? ESCAPE '\\')`),
+    args: [like, like],
+  });
+  const rIds: number[] = [];
+  const cIds: number[] = [];
+  let density = 0;
+  for (const row of l1.rows) {
+    density += Number(row.filing_count ?? 0);
+    if (String(row.kind) === "r") rIds.push(Number(row.entity_id));
+    else cIds.push(Number(row.entity_id));
+  }
+  if (rIds.length === 0 && cIds.length === 0) return { ids: [], path: "empty-shortcircuit", density };
+  if (density <= THRESHOLD) {
+    const rPh = rIds.map(() => "?").join(",") || "NULL";
+    const cPh = cIds.map(() => "?").join(",") || "NULL";
+    const rs = await c.execute({
+      sql: ro(`SELECT ${COLS} FROM lda_filings f
+                WHERE (f.registrant_id IN (${rPh}) OR f.client_id IN (${cPh})) AND ${RECHECK}
+                ORDER BY f.dt_posted DESC LIMIT 13 OFFSET 0`),
+      args: [...rIds, ...cIds, like, like],
+    });
+    return { ids: rs.rows.map((r) => String(r.filing_uuid)), path: "sparse-seek", density };
+  }
+  const rs = await c.execute({ sql: ro(OLD_PAGE), args: [like, like] });
+  return { ids: rs.rows.map((r) => String(r.filing_uuid)), path: "dense-walk", density };
+}
 const OLD_PAGE = `SELECT ${COLS} FROM lda_filings f INDEXED BY idx_lda_filings_dt_posted
    WHERE ${RECHECK} ORDER BY f.dt_posted DESC LIMIT 13 OFFSET 0`;
 
@@ -206,23 +289,23 @@ async function main() {
   );
 
   let allSame = true;
-  for (const term of ["boeing", "llc", "zzqxnotarealterm"]) {
+  // The last two STRADDLE m* = 1,297 (insur 0.86x -> seek, hospital 1.16x -> walk),
+  // so the boundary is exercised on both sides rather than assumed.
+  for (const term of ["boeing", "llc", "zzqxnotarealterm", "insur", "hospital"]) {
     const a = `%${term}%`;
     const t0 = performance.now();
-    const nw = await c.execute({ sql: ro(NEW_PAGE), args: [a, a, a, a] });
+    const rt = await routedPage(term);
     const t1 = performance.now();
     const od = await c.execute({ sql: ro(OLD_PAGE), args: [a, a] });
     const t2 = performance.now();
-    const same =
-      nw.rows.map((r) => String(r.filing_uuid)).join(",") ===
-      od.rows.map((r) => String(r.filing_uuid)).join(",");
+    const same = rt.ids.join(",") === od.rows.map((r) => String(r.filing_uuid)).join(",");
     if (!same) allSame = false;
     console.log(
-      `  "${term}": new ${ms(t1 - t0)} (${nw.rows.length} rows) | old ${ms(t2 - t1)} (${od.rows.length}) -> ${same ? "IDENTICAL" : "*** DIVERGES"}`,
+      `  "${term}" density ${rt.density} -> ${rt.path.padEnd(18)} routed ${ms(t1 - t0).padStart(8)} (${rt.ids.length} rows) | shipped ${ms(t2 - t1).padStart(8)} (${od.rows.length}) -> ${same ? "IDENTICAL" : "*** DIVERGES"}`,
     );
   }
   console.log(`\nEQUIVALENCE: ${allSame ? "PASS" : "FAIL"}`);
-  console.log("GATE VERDICT: FAIL (see header) — rewire withheld, decision owed.");
+  console.log("ROUTED PATH SHIPPED (e4f09ba + 06d03dd) — see the header for the gate disposition.");
   if (!allSame) process.exitCode = 1;
 }
 
