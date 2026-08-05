@@ -1274,6 +1274,60 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > the comment is the only thing standing between a growing corpus and a wrong
 > answer.
 
+> **AUTHORING RULE — when a measured improvement fails its margin gate, the three
+> conditions that make shipping it correct (HO 598).** Written fence-first, because
+> this will be leaned on. A measured improvement MAY ship over a failed margin gate
+> only when **all three** hold:
+>
+> 1. **Strict dominance** — better than the incumbent in *every* measured regime,
+>    not on average. (HO 598: the replaced sparse path breached on **both**
+>    `lib/db.ts` attempts at its *best* observed 19.8s; the candidate went 0-for-24
+>    with a worst of 7.7s.)
+> 2. **Honest failure** — when it does fail, it *says so* rather than returning a
+>    wrong answer. (The timed-out search renders "Search timed out — try a narrower
+>    term", distinct from the genuine "No filings match", and the count renders `—`
+>    not `0`.)
+> 3. **The loop stays open** — the backlog entry is **narrowed with the residual
+>    named and owned**, never closed. (HO 598's residual is leg 1's ~1 MB scan, and
+>    it was handed to the variance loop by name.)
+>
+> This is **not** a licence to ship anything merely better. **HO 594's retraction
+> was for CLOSING on a thin margin, not for improving on one** — the failure there
+> was declaring a loop done, not shipping the improvement. And withholding a
+> *dominant* improvement to avoid a rare failure preserves a **certain** one: the
+> path it replaces was breaching every time on the same input.
+>
+> **Gate on the upper tail, `worst − median`, never on the range.** `max − min`
+> penalises a *fast* outlier, which is evidence of safety, not risk — a 380ms best
+> case widened HO 598's sparse "spread" to 7.36s and failed the gate on its own
+> good news. The quantity that predicts a breach is how far above typical the bad
+> runs go: recomputed, the same data read sparse 4.23s / dense 3.11s / zero 3.34s
+> (from 7.36 / 3.79 / 4.90), flipping two regimes to PASS on numbers that had not
+> changed. A variance gate is one-sided because a ceiling is.
+
+> **AUTHORING RULE — derive a routing threshold, don't tune one (HO 598).** For a
+> feed that walks an ordered index until `k` rows match and then stops, expected
+> rows walked is `N × (k ÷ matches)`, so a walk and a candidate-set path cross where
+> `matches ≈ √(k·N)` — **`m* = √(k·N)`**, no fitting required. Write it as the
+> formula over the live inputs (`PAGE_SIZE` and the corpus count), not as the number
+> it currently evaluates to, and it re-derives as the corpus grows instead of aging
+> into a wrong constant. Verify on a **straddling pair** (HO 598 used 0.86× and
+> 1.16× of the threshold), not on comfortable extremes — extremes confirm the ends,
+> not the boundary. Where a density estimate feeds the routing, make its error
+> **asymmetric toward the safer path**: HO 598's hint over-counts, which can only
+> route a sparse term into the merely-slower walk, never a dense term into the path
+> that explodes. **The counter-example lives one section down: `PAGE_SIZE = 13` on
+> `/lobbying`** — a genuinely tuned constant, sized against one day's variable-height
+> feed, which is why it carries a "do NOT re-tune upward on a single favorable
+> measurement" warning and this does not. A derived threshold carries its own
+> justification; a tuned one carries a measurement that expires.
+>
+> **And routing, not substitution, is usually the answer when two paths have mirror
+> cost profiles.** If path A is fast exactly where path B is slow, swapping B for A
+> cannot be an improvement — it relocates the breach onto the other half of the
+> input space (oddities, HO 598: `boeing` 19.8s → 8.83s while `llc` 58.1s →
+> **182.5s**). Measure the candidate on *both* halves before calling it a win.
+
 > **The materialized participation table + its refresh contract (HO 595).**
 > `member_participation (bioguide_id PK, total, not_voting, refreshed_at)`, ~554
 > rows, one per `bioguide_id` in `member_votes`. It backs all three participation
@@ -2101,6 +2155,8 @@ When sources disagree — legal reality vs. data source, vendor docs vs. third-p
 **A diagnostic that pins a verbatim copy of shipped logic must name the mirrored SHA in its comment, and reconciling those copies is part of re-running it** (HO 554→557; oddities) — the copy is a dependency with no compiler edge and no test, so a stale copy and a current one emit identical green (the HO 503/506 same-as-success shape); a probe re-run against an un-reconciled copy is a replay, not a re-run.
 
 **A falsification leg must not write a known-wrong value to the production database** (HO 584; oddities). The falsification discipline already constrains *code* — scratch only, revert, `git status` clean, commit nothing. Extend it to *data*: prove the defect at the **branch-and-args level** — that the wrong branch is selected and the args it builds carry the wrong value — rather than by executing the write and undoing it. Where a leg genuinely must execute, it runs against a **scratch DB, never prod.** "A later run corrected it" is not a defense: the correcting write does not reach anything that cached the wrong value in between, and a DB-row check afterward reads green either way. (HO 584 leg 2 wrote the 05-16 clobber to prod and relied on the fix to undo it — survivable *only* because the primaries helpers are uncached `db.execute`; under `unstable_cache` a regeneration in the window could have served the wrong value past the fix.)
+
+**Verifying one branch of a `Promise.all` is not coverage of the pair** (HO 598; oddities). Two statements that run in parallel inside one guard share a predicate **by intention, not by construction**, so their failure modes are independent — one can be rewired correctly while the other is left binding the old shape. `getRecentFilings`'s equivalence harness compared the page query's rows and **never executed the pager `COUNT`**, so it reported green while `e4f09ba` shipped a COUNT binding 2 args against a 17-arg routed predicate; the guard degraded to an empty feed on prod (fixed `06d03dd`). **Verification must execute every branch whose correctness it claims** — a harness that reads one arm of a `Promise.all`, one side of a fork, or one of a pair of near-identical statements is the same-as-success shape this file already warns about, wearing a different hat.
 
 ## Things to watch for
 
