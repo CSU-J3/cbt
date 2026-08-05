@@ -527,6 +527,27 @@ async function buildSenateMatcher(
 // HO 561 special-page writes make the SAME call (§3 C1: "same predicate, same
 // call"). A row is settled ⇔ its date has passed AND it already carries a
 // recorded share. Unchanged from HO 560 — only the call site is shared now.
+//
+// HO 601/603 — READ THE ROLE, NOT JUST THE PREDICATE. This guard was built for
+// SUBSTITUTION: Ballotpedia rebuilding a seat's page around a LATER contest, so
+// a delete-rebuild overwrites a past election's results with a different
+// contest's field. THAT IS NO LONGER WHAT STOPS IT. Since `efa858f` the ROUTER
+// (routeSenateContestId, above) keeps a special-classified votebox off the base
+// id entirely, so a substituting roster can never reach a settled row for this
+// predicate to observe. The router is the FIRST line; this is the SECOND.
+//
+// So this guard is STRUCTURALLY UNREACHABLE for substitution, and it has NEVER
+// observed one. HO 601's falsification leg 2 recorded it "consulted and
+// REFUSED" on senate-SC-2026-R, which is true and does NOT mean it caught a
+// substitution: isSettled is evaluated BEFORE the incoming roster is built, so
+// it refuses every settled row unconditionally, and the payload it refused was
+// the correct June roster. Do not upgrade that reading to "exercised against
+// substitution" (oddities: a fix upstream of a guard can make it unreachable,
+// and the fix's own success report reads as the guard being exercised).
+//
+// It is NOT dead and must not be deleted. It still serves its GENERAL case —
+// any rewrite of a settled row: an upstream edit to a past result, a re-scrape
+// parsing differently. HO 601 leg 3 is that case firing, on OH's settled rows.
 async function isSettled(
   db: ReturnType<typeof getDb>,
   primaryId: string,
