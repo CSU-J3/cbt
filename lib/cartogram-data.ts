@@ -19,8 +19,6 @@ import type {
   RaceIndexRow,
 } from "@/lib/queries";
 
-export type CartogramVariant = "races" | "primaries";
-export type PrimaryBand = "voted" | "soon" | "later";
 
 export type CartogramChallenger = {
   name: string;
@@ -58,7 +56,6 @@ export type CartogramCell = {
   state: string;
   active: boolean;
   count: number | null; // RACES: competitive-race count (drives purple ramp)
-  band: PrimaryBand | null; // PRIMARIES: recency band (drives hue)
   contests: CartogramContest[];
 };
 
@@ -150,7 +147,7 @@ export function buildRacesCartogram(
       if (a.chamber !== b.chamber) return a.chamber === "senate" ? -1 : 1;
       return a.label.localeCompare(b.label);
     });
-    cells.push({ state, active: true, count: contests.length, band: null, contests });
+    cells.push({ state, active: true, count: contests.length, contests });
   }
 
   const summary = `${rows.length} RACES · ${senate} SEN · ${house} HOUSE`;
@@ -159,100 +156,3 @@ export function buildRacesCartogram(
 
 // ─── PRIMARIES ────────────────────────────────────────────────────────────
 
-// SOON = the next N (=4) distinct FUTURE state-uniform primary dates, rolling
-// (not a fixed 30-day window — that goes dark in the Aug–Sep gap). Ties share:
-// every state on one of those 4 dates is SOON. VOTED takes precedence over
-// SOON (a state that has results shows cyan, not "up next"), so the window is
-// computed over NOT-yet-voted states only — that's why LA (voted May 16, with
-// a June 27 runoff date) lands VOTED, not SOON.
-const SOON_WINDOW = 4;
-
-export function buildPrimariesCartogram(
-  upcoming: PrimaryWithCandidates[],
-  past: PrimaryWithCandidates[],
-  todayISO: string,
-): CartogramData {
-  const all = [...upcoming, ...past];
-  const byState = new Map<string, PrimaryWithCandidates[]>();
-  for (const p of all) {
-    const arr = byState.get(p.state);
-    if (arr) arr.push(p);
-    else byState.set(p.state, [p]);
-  }
-
-  const stateVoted = new Map<string, boolean>();
-  const stateMaxDate = new Map<string, string>();
-  for (const [state, list] of byState) {
-    const voted = list.some((p) => p.candidates.some((c) => c.vote_pct != null));
-    stateVoted.set(state, voted);
-    let max = "";
-    for (const p of list) if (p.primary_date && p.primary_date > max) max = p.primary_date;
-    if (max) stateMaxDate.set(state, max);
-  }
-
-  // distinct future dates among NOT-voted states, ascending
-  const futureDates = new Set<string>();
-  for (const [state, max] of stateMaxDate) {
-    if (!stateVoted.get(state) && max >= todayISO) futureDates.add(max);
-  }
-  const soonDates = new Set([...futureDates].sort((a, b) => a.localeCompare(b)).slice(0, SOON_WINDOW));
-
-  let votedContests = 0;
-  const cells: CartogramCell[] = [];
-  for (const [state, list] of byState) {
-    const voted = stateVoted.get(state)!;
-    const max = stateMaxDate.get(state) ?? null;
-    let band: PrimaryBand;
-    if (voted) band = "voted";
-    else if (max && soonDates.has(max)) band = "soon";
-    else band = "later";
-
-    const contests: CartogramContest[] = [];
-    for (const p of list) {
-      const chamber = p.chamber === "senate" ? "senate" : "house";
-      const district = p.district ? Number(p.district) : null;
-      const partyTag = p.party === "open" ? "" : ` ${p.party}`;
-      const label = `${seatLabel(chamber, state, district)}${partyTag}`;
-      const contestVoted = p.candidates.some((c) => c.vote_pct != null);
-      const dateStr = p.primary_date ? formatDateShort(p.primary_date) : "—";
-      const fieldStr = contestVoted
-        ? "voted"
-        : `${p.candidates.length} cand${p.candidates.length === 1 ? "" : "s"}`;
-      if (contestVoted) votedContests++;
-      const incRow = p.candidates.find((c) => c.incumbent && c.bioguide_id);
-      // HO 226: district key so a clicked cd119 polygon (seatId {ST}-{DD}-2026)
-      // groups its D + R primaries into the two-column card. House → the seatId
-      // form; senate → S-{ST}-2026 (statewide, no polygon — a pick chip only).
-      const raceId =
-        chamber === "senate"
-          ? `S-${state}-2026`
-          : district != null
-            ? `${state}-${String(district).padStart(2, "0")}-2026`
-            : null;
-      contests.push({
-        label,
-        chamber,
-        raceId: raceId ?? undefined,
-        meta: `${dateStr} · ${fieldStr}`,
-        href: p.race_id ? `/race/${p.race_id}` : null,
-        incumbent: incRow ? { name: incRow.name, bioguideId: incRow.bioguide_id } : null,
-        searchTerms: [
-          label,
-          label.replace(/[\s-]/g, ""),
-          state,
-          ...p.candidates.map((c) => c.name),
-        ],
-        primary: p,
-      });
-    }
-    contests.sort((a, b) => {
-      if (a.chamber !== b.chamber) return a.chamber === "senate" ? -1 : 1;
-      return a.label.localeCompare(b.label);
-    });
-    // HO 226: count drives the `● N` badge on multi-primary states.
-    cells.push({ state, active: contests.length > 0, count: contests.length, band, contests });
-  }
-
-  const summary = `${all.length} PRIMARIES · ${votedContests} VOTED · ${byState.size} STATES`;
-  return { cells, summary };
-}

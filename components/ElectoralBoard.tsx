@@ -101,7 +101,6 @@ export function ElectoralBoard({
   return (
     <>
       <CartogramShell
-        variant="races"
         cells={cells}
         summary={summary}
         geometry={geometry}

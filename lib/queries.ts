@@ -1487,42 +1487,6 @@ const PRIMARY_SELECT =
    FROM primaries p
    LEFT JOIN primary_candidates pc ON pc.primary_id = p.id`;
 
-// Primaries on or after today, soonest first — backs the /primaries index.
-// `election_round = 'primary'` keeps runoff rows (HO 107) out of /primaries
-// and /races; runoffs surface only via getRunoffsForRace on the race page.
-export async function getUpcomingPrimaries(
-  limit = 50,
-): Promise<PrimaryWithCandidates[]> {
-  const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
-  const rs = await db.execute({
-    sql: `${PRIMARY_SELECT}
-          WHERE p.primary_date >= ? AND p.election_round = 'primary'
-          GROUP BY p.id
-          ORDER BY p.primary_date ASC, p.state ASC, p.party ASC
-          LIMIT ?`,
-    args: [today, limit],
-  });
-  return rs.rows.map((r) => rowToPrimary(r));
-}
-
-// Primaries before today, most recent first — the /primaries "Past" section.
-export async function getPastPrimaries(
-  limit = 200,
-): Promise<PrimaryWithCandidates[]> {
-  const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
-  const rs = await db.execute({
-    sql: `${PRIMARY_SELECT}
-          WHERE p.primary_date < ? AND p.election_round = 'primary'
-          GROUP BY p.id
-          ORDER BY p.primary_date DESC, p.state ASC, p.party ASC
-          LIMIT ?`,
-    args: [today, limit],
-  });
-  return rs.rows.map((r) => rowToPrimary(r));
-}
-
 // SPECIAL_ROW_MARKER (HO 576) — the ONLY thing that marks a Senate-special row is
 // the id substring `-special-`; no column distinguishes it (STEP 0 measured that
 // `primary_type` is NULL for non-special rows too). This is the SINGLE site to

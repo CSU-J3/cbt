@@ -23,8 +23,12 @@ const COUNT_LABEL_MIN = 60; // mock threshold: label bars with ≥60 contests
 const DOMAIN_START = "2026-03-01";
 const DOMAIN_END = "2026-09-30";
 
-const VOTED = "#0e7490"; // primaries cyan (= primariesFill VOTED)
-const UPCOMING = "#b45309"; // primaries amber (= primariesFill SOON)
+// HO 603: these two hues were inherited from CartogramShell's primariesFill(),
+// which was deleted with the primaries map fork. They are now DEFINED HERE —
+// this component is the last consumer of the primaries recency palette, so
+// there is no shared source to keep them in step with.
+const VOTED = "#0e7490"; // primaries cyan — a date that has voted
+const UPCOMING = "#b45309"; // primaries amber — a date still ahead
 const AMBER_BRIGHT = "#fbbf24"; // --accent-amber-bright
 
 const MON = [

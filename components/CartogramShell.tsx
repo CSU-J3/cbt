@@ -1,7 +1,6 @@
 "use client";
 
-// HO 210 Pass 1: the shared US-map index shell, built once and fed two
-// DELIBERATELY-SEPARATE coloring functions by `variant`. Map-first — the literal
+// HO 210 Pass 1: the shared US-map index shell. Map-first — the literal
 // geoAlbersUsa choropleth (geometry computed server-side in lib/us-map-geo.ts) is
 // the default view; the existing spectrum-bar list (passed in as `listSlot`) is
 // one MAP/LIST toggle away and is NOT rebuilt.
@@ -10,23 +9,24 @@
 // ("squares are lifeless, don't read as 'my state' — geographic legibility won").
 // This is the literal map. Do NOT "optimize" it back to squares.
 //
-// PALETTE DISCIPLINE (do NOT unify the two schemes, now or in any cleanup):
-//   racesFill()     = purple ramp by COUNT of competitive races (magnitude).
-//   primariesFill()  = three recency hues — cyan VOTED / amber SOON / slate LATER.
-// They are TWO separate functions on purpose — never a single parameterized
-// colorer. The two tabs never share a meaningful color; legends are
-// self-contained; you never see both at once.
+// PALETTE DISCIPLINE — the rule OUTLIVES the second scheme, which is gone.
+//   racesFill() = purple ramp by COUNT of competitive races (magnitude).
+// There used to be a `primariesFill()` (three recency hues — cyan VOTED / amber
+// SOON / slate LATER) selected by a `variant` prop. HO 603 deleted it with the
+// rest of the primaries fork: the /primaries route became a redirect at HO 333,
+// so `variant` had been one-valued ("races") ever since and every
+// `variant === "primaries"` branch was unreachable.
+// THE RULE STANDS FOR THE NEXT ONE: if a second coloring scheme is ever added
+// here, it is a SEPARATE function — never a single parameterized colorer. Two
+// schemes must never share a meaningful color, legends stay self-contained, and
+// you never see both at once. (Re-adding a `variant` prop is how the fork came
+// back last time; if you need one, it selects a function, not a color.)
 //
 // Phase-1 report stub stays until Pass 2 (the basic null-safe card).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PrimaryMapCard } from "@/components/PrimaryMapCard";
 import { RaceMapCard } from "@/components/RaceMapCard";
-import type {
-  CartogramCell,
-  CartogramVariant,
-  PrimaryBand,
-} from "@/lib/cartogram-data";
+import type { CartogramCell } from "@/lib/cartogram-data";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
 import type { UsMapGeometry } from "@/lib/us-map-geo";
 
@@ -47,16 +47,6 @@ function racesFill(count: number): FillStyle {
   if (count === 2) return { fill: "#5048b0", label: "#e5e7eb" };
   if (count === 3) return { fill: "#6a60d0", label: "#0a0e14" };
   return { fill: "#8b82e8", label: "#0a0e14" };
-}
-
-// PRIMARIES — recency bands (HO 226 recolor: deeper teal/amber so the bands sit
-// distinctly from the races purple ramp, with a primaries-specific NONE darker
-// than the shared INACTIVE). VOTED / SOON / LATER / NONE.
-function primariesFill(band: PrimaryBand | null): FillStyle {
-  if (band === "voted") return { fill: "#0e7490", label: "#e5e7eb" };
-  if (band === "soon") return { fill: "#b45309", label: "#e5e7eb" };
-  if (band === "later") return { fill: "#1e2740", label: "#94a3b8" };
-  return { fill: "#11161f", label: "#475569" };
 }
 
 function RacesLegend() {
@@ -94,42 +84,9 @@ function RacesLegend() {
   );
 }
 
-function PrimariesLegend() {
-  const items = [
-    { swatch: "#0e7490", border: "#0e7490", label: "VOTED" },
-    { swatch: "#b45309", border: "#b45309", label: "SOON" },
-    { swatch: "#1e2740", border: "#1f2937", label: "LATER" },
-  ];
-  return (
-    <div className="cart-legend">
-      {items.map((i) => (
-        <span key={i.label} className="cart-legend-item">
-          <span
-            className="cart-legend-swatch"
-            style={{ background: i.swatch, borderColor: i.border }}
-          />
-          {i.label}
-        </span>
-      ))}
-      <span className="cart-legend-item" style={{ color: "var(--accent-amber)" }}>
-        ● N multiple primaries
-      </span>
-    </div>
-  );
-}
-
-function PeekCard({
-  cell,
-  variant,
-}: {
-  cell: CartogramCell;
-  variant: CartogramVariant;
-}) {
+function PeekCard({ cell }: { cell: CartogramCell }) {
   const stateName = STATE_ABBR_TO_NAME[cell.state] ?? cell.state;
-  const headline =
-    variant === "races"
-      ? `${cell.count} competitive`
-      : (cell.band ?? "").toUpperCase();
+  const headline = `${cell.count} competitive`;
   const shown = cell.contests.slice(0, 8);
   const extra = cell.contests.length - shown.length;
   return (
@@ -154,7 +111,6 @@ function PeekCard({
 }
 
 export function CartogramShell({
-  variant,
   cells,
   summary,
   geometry,
@@ -164,7 +120,6 @@ export function CartogramShell({
   highlightedStates,
   previewStates,
 }: {
-  variant: CartogramVariant;
   cells: CartogramCell[];
   summary: string;
   geometry: UsMapGeometry;
@@ -336,11 +291,7 @@ export function CartogramShell({
               setQuery(e.target.value);
               setSearchMiss(false);
             }}
-            placeholder={
-              variant === "races"
-                ? "name, seat (PA-07), or state…"
-                : "name, seat, or state…"
-            }
+            placeholder="name, seat (PA-07), or state…"
             aria-label="search the map"
             spellCheck={false}
           />
@@ -349,7 +300,7 @@ export function CartogramShell({
         <span className="cart-summary">{summary}</span>
       </div>
 
-      {variant === "races" ? <RacesLegend /> : <PrimariesLegend />}
+      <RacesLegend />
 
       {view === "map" ? (
         <>
@@ -364,10 +315,7 @@ export function CartogramShell({
               {geometry.states.map((s) => {
                 const cell = cellByState.get(s.abbr) ?? null;
                 const active = !!cell?.active;
-                const baseStyle =
-                  variant === "races"
-                    ? racesFill(cell?.count ?? 0)
-                    : primariesFill(cell?.band ?? null);
+                const baseStyle = racesFill(cell?.count ?? 0);
                 // HO 333: amber highlight wins over the competitive fill.
                 const isHi = highlightedStates?.has(s.abbr) ?? false;
                 const style = isHi
@@ -378,11 +326,9 @@ export function CartogramShell({
                 const isDC = s.abbr === "DC";
                 const handlers = tileHandlers(s.abbr, active);
                 const labelText =
-                  variant === "races" && active && hovered === s.abbr && cell?.count
+                  active && hovered === s.abbr && cell?.count
                     ? `${s.abbr} ${cell.count}`
-                    : variant === "primaries" && active && (cell?.count ?? 0) > 1
-                      ? `${s.abbr} ●${cell.count}`
-                      : s.abbr;
+                    : s.abbr;
                 return (
                   <g
                     key={s.abbr}
@@ -451,11 +397,9 @@ export function CartogramShell({
                     ? "#e5e7eb"
                     : "#475569";
                 const labelText =
-                  variant === "races" && active && hovered === l.abbr && cell?.count
+                  active && hovered === l.abbr && cell?.count
                     ? `${l.abbr} ${cell.count}`
-                    : variant === "primaries" && active && (cell?.count ?? 0) > 1
-                      ? `${l.abbr} ●${cell.count}`
-                      : l.abbr;
+                    : l.abbr;
                 return (
                   <g
                     key={`lead-${l.abbr}`}
@@ -517,12 +461,12 @@ export function CartogramShell({
 
             {peekStyle && hoveredCell ? (
               <div className="us-map-peek-wrap" style={peekStyle}>
-                <PeekCard cell={hoveredCell} variant={variant} />
+                <PeekCard cell={hoveredCell} />
               </div>
             ) : null}
           </div>
 
-          {/* Pinned report — Pass 2 basic null-safe card (per variant). */}
+          {/* Pinned report — Pass 2 basic null-safe card. */}
           {pinnedCell ? (
             <div ref={reportRef} className="cart-report">
               <div className="cart-report-head">
@@ -530,9 +474,7 @@ export function CartogramShell({
                   {STATE_ABBR_TO_NAME[pinnedCell.state] ?? pinnedCell.state}
                 </span>
                 <span style={{ color: "var(--text-muted)" }}>
-                  {variant === "races"
-                    ? `${pinnedCell.count} competitive race${pinnedCell.count === 1 ? "" : "s"}`
-                    : `${(pinnedCell.band ?? "").toUpperCase()} · ${pinnedCell.contests.length} contest${pinnedCell.contests.length === 1 ? "" : "s"}`}
+                  {`${pinnedCell.count} competitive race${pinnedCell.count === 1 ? "" : "s"}`}
                 </span>
                 <button
                   type="button"
@@ -543,11 +485,7 @@ export function CartogramShell({
                   ×
                 </button>
               </div>
-              {variant === "races" ? (
-                <RaceMapCard contests={pinnedCell.contests} />
-              ) : (
-                <PrimaryMapCard contests={pinnedCell.contests} />
-              )}
+              <RaceMapCard contests={pinnedCell.contests} />
             </div>
           ) : null}
         </>
