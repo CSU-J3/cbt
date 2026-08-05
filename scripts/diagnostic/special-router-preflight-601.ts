@@ -1,8 +1,15 @@
 // HO 601 §2 — pre-flight for the votebox-as-router change. READ-ONLY.
 //
-// The change under test (§1): `onSpecialPage` stops gating whether a votebox is
-// parsed. Instead the box's own <h5> classifies it — a box marked "Special …"
-// routes to `senate-{ST}-2026-special-{party}`, everything else to the base id.
+// The change under test (§1 AS PROPOSED): `onSpecialPage` stops gating whether a
+// votebox is parsed. Instead the box's own <h5> classifies it — a box marked
+// "Special …" routes to `senate-{ST}-2026-special-{party}`, everything else to
+// the base id.
+//
+// OUTCOME — §1 AS PROPOSED WAS REJECTED ON THIS PRE-FLIGHT'S OWN NUMBERS. It
+// moved FL's and OH's four rosters onto unseeded `-special-` ids (P1/P2 both
+// HALT). What shipped at `efa858f` is MODEL C below, the seeded router: a special
+// box goes to a `-special-` id IFF that id is seeded, else to the base id. Read
+// the models as PRE_601 / rejected / shipped, in that order.
 //
 // Three readings:
 //   P1 (GATE) FL/OH must not change behavior — they are the states the current
@@ -140,14 +147,20 @@ function writable(b: Box): boolean {
   return Boolean(b.contest) && b.isPrimary && !b.isRunoff;
 }
 
-// MODEL A — TODAY. The shipped page-type gate: a box is parsed only when its
-// specialness AGREES with the page's, and whatever survives goes to the BASE id.
+// MODEL A — PRE_601. The page-type gate as it stood at `36b7731`: a box was parsed
+// only when its specialness AGREED with the page's, and whatever survived went to
+// the BASE id.
+//
+// THIS BASELINE STOPPED EXISTING AT `efa858f`, which removed the page-type gate.
+// It is retained deliberately — it is what makes P1/P2's numbers reproducible as a
+// historical record of the decision — but it is NO LONGER "today", and the label
+// says so. A re-run compares against pre-601 behavior, not current behavior.
 // `pageIsSpecial` is isSpecialElectionPage(), which reads the <title> — and the
 // <title> is NOT the URL: Ballotpedia serves the FL/OH *special-election article*
 // under the regular `United_States_Senate_election_in_{State},_2026` URL (HTTP
 // 200, no redirect), so those pages self-report as special. That is exactly why
 // FL/OH work today and SC does not.
-function todayId(state: string, b: Box, pageIsSpecial: boolean): string | null {
+function pre601Id(state: string, b: Box, pageIsSpecial: boolean): string | null {
   if (!writable(b)) return null;
   if (b.isSpecial !== pageIsSpecial) return null; // dropped by the gate
   return `senate-${state}-2026-${b.contest}`;
@@ -249,14 +262,14 @@ async function main() {
       const w = regBoxes.map((b) => ({ b, id: f(b) })).filter((x) => x.id);
       return w.length ? w.map((x) => `${x.id}(${x.b.rows})`).join(", ") : "nothing";
     };
-    console.log(`    TODAY  writes:          ${fmt((b) => todayId(st, b, pageIsSpecial))}`);
+    console.log(`    PRE_601 writes:         ${fmt((b) => pre601Id(st, b, pageIsSpecial))}`);
     console.log(`    §1 ROUTER would write:  ${fmt((b) => routerId(st, b))}`);
     console.log(`    SEEDED ROUTER writes:   ${fmt((b) => seededRouterId(st, b, seeded))}`);
-    const same = fmt((b) => todayId(st, b, pageIsSpecial)) === fmt((b) => seededRouterId(st, b, seeded));
+    const same = fmt((b) => pre601Id(st, b, pageIsSpecial)) === fmt((b) => seededRouterId(st, b, seeded));
     console.log(
       `    /special/i boxes: ${specialsOnReg.length}` +
         `\n    -> §1 router changes this state: ${
-          fmt((b) => todayId(st, b, pageIsSpecial)) !== fmt((b) => routerId(st, b))
+          fmt((b) => pre601Id(st, b, pageIsSpecial)) !== fmt((b) => routerId(st, b))
         }` +
         `\n    -> seeded router changes this state: ${!same}${same ? "  (NO-OP — P1 satisfied)" : "  <<< P1 GATE"}`,
     );
@@ -275,7 +288,7 @@ async function main() {
     contest: string | null;
     rows: number;
     pageIsSpecial: boolean;
-    today: string | null;
+    pre601: string | null;
     router: string | null;
     seededRouter: string | null;
   }[] = [];
@@ -303,11 +316,11 @@ async function main() {
         .filter((x) => x.id)
         .map((x) => `${x.id}(${x.b.rows})`)
         .join(",");
-    const sToday = sig((b) => todayId(st, b, pageIsSpecial));
+    const sPre601 = sig((b) => pre601Id(st, b, pageIsSpecial));
     const sRouter = sig((b) => routerId(st, b));
     const sSeeded = sig((b) => seededRouterId(st, b, seeded));
-    if (sToday !== sRouter) changedByRouter.push(st);
-    if (sToday !== sSeeded) changedBySeeded.push(st);
+    if (sPre601 !== sRouter) changedByRouter.push(st);
+    if (sPre601 !== sSeeded) changedBySeeded.push(st);
 
     const specials = boxes.filter((b) => b.isSpecial);
     process.stdout.write(
@@ -320,7 +333,7 @@ async function main() {
         contest: b.contest,
         rows: b.rows,
         pageIsSpecial,
-        today: todayId(st, b, pageIsSpecial),
+        pre601: pre601Id(st, b, pageIsSpecial),
         router: routerId(st, b),
         seededRouter: seededRouterId(st, b, seeded),
       });
@@ -336,7 +349,7 @@ async function main() {
     console.log(
       `    ${f.state}  contest=${String(f.contest).padEnd(4)} rows=${String(f.rows).padStart(2)}  page-special=${f.pageIsSpecial}\n` +
         `        h5:     ${f.h5.slice(0, 100)}\n` +
-        `        TODAY:  ${f.today ?? "(dropped)"}\n` +
+        `        PRE_601: ${f.pre601 ?? "(dropped)"}\n` +
         `        §1:     ${f.router ?? "(dropped)"}${
           f.router && !seeded.has(f.router) && f.router.includes("-special-")
             ? "   [NOT SEEDED <<<]"
