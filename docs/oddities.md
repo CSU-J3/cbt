@@ -1008,3 +1008,41 @@ This sits beside the existing `test.skip`-on-empty entry and the "verifying one
 branch of a `Promise.all` is not coverage of the pair" entry. Same family:
 **absence of evidence rendered as evidence of absence**, at the instrument layer
 rather than the data layer.
+
+## A fix upstream of a guard can make it unreachable — and the fix's own success report reads as the guard being exercised (HO 601, Aug 2026)
+
+The HO 560 settled-row freeze exists for one hazard: Ballotpedia rebuilding a
+seat's page around a **later** contest, so a delete-rebuild overwrites a past
+election's results with a different contest's field. HO 601 put a **router**
+upstream of it — a special-classified votebox never routes to the base id — which
+removes the hazard's *delivery mechanism*. The freeze is now **structurally
+unreachable for the thing it was built for**: there is no longer any path by which
+a substituting roster arrives at a settled row.
+
+The trap is what the verification then prints. HO 601's leg 2 reported
+`isSettled consulted and REFUSED: true`, which is **true** — and the natural
+reading, "the freeze is now exercised against substitution," is **false**. The
+payload it refused was the *correct* June roster; `isSettled` is evaluated before
+the roster is even built, so it short-circuits unconditionally on any settled row.
+Every line of that ship report was individually accurate and the aggregate drifted
+toward claiming more protection than exists.
+
+**This is distinct from the HO 549/553 rule** ("an untriggered guard is UNPROVEN,
+not protection — fire it before recording it as protection"). Here the guard *did*
+fire. It fired **on a different input than the one it exists for**, which no
+"did it fire?" check can distinguish.
+
+> **Recognition rule: when a fix removes a hazard's delivery mechanism, the guard
+> downstream of it needs its status RE-STATED, not RE-CONFIRMED.** Ask what input
+> the guard actually saw, not whether it ran. A guard that can no longer be reached
+> by its motivating case has changed role — usually from first line to second line —
+> and the ledger should say so, because the next reader will otherwise inherit the
+> stronger claim.
+
+The freeze remains live and useful for its **general** case (any rewrite of a
+settled row: an upstream edit to a past result, a re-scrape parsing differently) —
+HO 601's leg 3 caught exactly that, with OH's settled rows skipped. Downgrading a
+guard's claimed role is not the same as removing it. Filed as a backlog WATCH, and
+as a queued comment-only fix at `isSettled` itself, because the overstated version
+is what the code comment there still says and **a code comment outranks a doc for
+anyone working in the file**.
