@@ -3182,10 +3182,17 @@ const getRecentFilingsCached = unstable_cache(
     //
     // Page query + the search COUNT run in parallel (Promise.all). countSql is null
     // unless hasQ, so the default path issues ONE query.
+    // HO 598 — the bounded COUNT interpolates the SAME (possibly routed) predicate
+    // as the page query, so it must bind the SAME args. These were hardcoded to the
+    // two LIKE args, which is correct only while the predicate is the bare name
+    // LIKE; the routed sparse clause carries the id list too, and prod threw
+    // "Number of arguments mismatch: expected 17, got 2". Derive them from one place.
+    const countArgs: (number | string)[] =
+      searchArgsOverride ?? [likeArg, likeArg];
     const [rs, countRs] = await Promise.all([
       db.execute({ sql, args: pageArgs }),
       countSql
-        ? db.execute({ sql: countSql, args: [likeArg, likeArg] })
+        ? db.execute({ sql: countSql, args: countArgs })
         : Promise.resolve(null),
     ]);
     // The bounded count returns at most SEARCH_COUNT_CAP + 1; that extra row is the
