@@ -26,6 +26,7 @@ import {
   scrapeHouseCandidates,
   scrapeSenateCandidates,
   scrapeSenateSpecialCandidates,
+  type CandidateContest,
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
 
@@ -448,6 +449,47 @@ export type SenateSyncSummary = {
 
 type SenateMatcher = (candidateName: string, state: string) => string | null;
 
+// ── HO 601 C1 — THE ROUTER ────────────────────────────────────────────────
+//
+// A votebox's <h5> says whether it is a SPECIAL CONTEST. It does NOT say whether
+// that contest is ADDITIONAL to a regular one for the same seat, and that second
+// fact is what decides the destination id. The seed registry
+// (data/special-primary-seeds/) is the curated encoding of exactly that, so:
+//
+//   a special-classified box -> senate-{ST}-2026-special-{party}  IFF seeded
+//                            -> senate-{ST}-2026-{party}          otherwise
+//   a regular box            -> senate-{ST}-2026-{party}          always
+//
+// Why the seeded test rather than the <h5> alone (HO 601 §2 measured this):
+// FL's and OH's 2026 Senate races ARE special elections, so EVERY primary box on
+// their pages reads "Special …" while the base ids are their correct and only
+// home. Routing on the <h5> alone moved all four rosters onto unseeded
+// `-special-` ids, which the HO 561 gate refuses — the base rows would then take
+// an empty roster, HO 564 would refuse the delete, and FL/OH would freeze
+// silently at stale values. Under this rule FL/OH are byte-identical to before
+// and SC is the only state whose writes change.
+//
+// !! SEEDING IS NOT ADDITIVE !! Adding a `-special-` seed row for a state MOVES
+// that state's matching boxes OFF the base ids and onto the special ids. Seed FL
+// tomorrow and FL's rosters migrate; the base rows receive an empty roster, HO
+// 564 refuses the delete, and they freeze at stale values while the special rows
+// go live — the same failure as routing on the <h5> alone, re-entered through a
+// config change instead of a code change. A state gets a seed row only when it
+// genuinely has BOTH a regular and a special contest this cycle (SC does; FL/OH
+// do not). The same warning is on data/special-primary-seeds/README.md and in
+// docs/oddities.md.
+export function routeSenateContestId(
+  state: string,
+  contest: CandidateContest,
+  isSpecial: boolean,
+  seededSpecialIds: Set<string>,
+): string {
+  const base = `senate-${state}-2026-${contest}`;
+  if (!isSpecial) return base;
+  const special = `senate-${state}-2026-special-${contest}`;
+  return seededSpecialIds.has(special) ? special : base;
+}
+
 // Build the last-name → sitting-senator matcher once. Extracted (HO 561) from
 // syncSenateCandidates so the special-page pass and the C2 priority trigger
 // reuse the IDENTICAL matching logic rather than a second copy.
@@ -511,6 +553,15 @@ export type SenateSpecialResult = {
   matchedCandidates: number;
   settledSkipped: string[];
   fetchFailure: string | null; // e.g. "SC — special 404", for fetchFailures
+  // HO 601 C3 — which document this attempt actually read. The C2 fallback means
+  // the url is no longer inferable from the state alone.
+  source: { state: string; url: string; status: string; candidates: number } | null;
+  // HO 601 — seeded ids whose write was declined because the parsed page carried
+  // NO special box for that contest. Reported rather than silent: "attempted, no
+  // fetch failure, nothing populated" would otherwise read exactly like success,
+  // which is the same skip-on-empty inversion this HO exists to remove. A
+  // non-empty list here means the page was reached and did not carry the field.
+  emptyRosterSkipped: string[];
 };
 
 // HO 561 C1 core — fetch ONE state's special-election page and write its
@@ -532,6 +583,14 @@ async function scrapeSenateSpecialState(
   const result = await scrapeSenateSpecialCandidates(abbr, slug);
   await sleep(700); // Ballotpedia politeness (a pacing decision at the call site)
 
+  // HO 601 C3: the source rides EVERY return path, including the failures — a
+  // 404 that cannot say which URL it tried is the reporting gap this HO closes.
+  const source = {
+    state: abbr,
+    url: result.url,
+    status: result.status,
+    candidates: result.candidates.length,
+  };
   const empty: SenateSpecialResult = {
     attemptedIds,
     populatedIds: [],
@@ -539,6 +598,8 @@ async function scrapeSenateSpecialState(
     matchedCandidates: 0,
     settledSkipped: [],
     fetchFailure: null,
+    source,
+    emptyRosterSkipped: [],
   };
   if (result.status !== "ok") {
     // Preserve "{ST} — special {status}". A no_page miss carries httpStatus —
@@ -557,6 +618,7 @@ async function scrapeSenateSpecialState(
   let matchedCandidates = 0;
   const settledSkipped: string[] = [];
   const populatedIds: string[] = [];
+  const emptyRosterSkipped: string[] = [];
   for (const contest of ["D", "R", "open"] as const) {
     const primaryId = `senate-${abbr}-2026-special-${contest}`;
     if (!seededIds.has(primaryId)) continue; // never auto-create an unseeded row
@@ -564,11 +626,27 @@ async function scrapeSenateSpecialState(
       settledSkipped.push(primaryId);
       continue;
     }
+    // HO 601 change C — THIS PASS WRITES ONLY ITS INVOKED SPECIAL IDS.
+    // The C2 fallback means `result` can now come from the state's REGULAR page,
+    // which also carries the seat's regular voteboxes (SC's June D/R sit beside
+    // the Aug 11 special). Filtering on `c.isSpecial` is what keeps this pass
+    // from becoming a SECOND writer of base rows on a different schedule from the
+    // cursor pass — a new substitution surface of exactly the HO 560 shape. Base
+    // rows are reached by the standard pass, where isSettled guards them; keep it
+    // that way.
+    const roster = result.candidates.filter(
+      (c) => c.contest === contest && c.isSpecial,
+    );
+    // HO 564: an empty incoming roster never authorizes a delete (absence of
+    // evidence is not evidence of absence). Checked BEFORE the delete.
+    if (roster.length === 0) {
+      emptyRosterSkipped.push(primaryId);
+      continue;
+    }
     await db.execute({
       sql: "DELETE FROM primary_candidates WHERE primary_id = ?",
       args: [primaryId],
     });
-    const roster = result.candidates.filter((c) => c.contest === contest);
     for (const c of roster) {
       const bioguideId = matchMember(c.name, abbr);
       if (bioguideId) matchedCandidates++;
@@ -598,6 +676,8 @@ async function scrapeSenateSpecialState(
     matchedCandidates,
     settledSkipped,
     fetchFailure: null,
+    source,
+    emptyRosterSkipped,
   };
 }
 
@@ -607,13 +687,34 @@ async function scrapeSenateSpecialState(
 // ahead of the queue (a cursor position can't serve a fixed election date),
 // capped at 3 states/tick. It NEVER advances the cursor and shares the tick's
 // DEADLINE_MS budget. Outside every window it selects zero rows for one indexed
-// query. Returns the attempted special ids (`priorityScraped`). Exported so the
-// verification can drive it in isolation and prove the cursor is untouched.
+// query. Exported so the verification can drive it in isolation and prove the
+// cursor is untouched.
+//
+// HO 601 C3 — RETURNS A RESULT OBJECT, NOT string[]. The old return was the
+// attempted ids alone, so scrapeSenateSpecialState's fetchFailure/settledSkipped
+// were computed and then dropped on the floor: HO 600 M2 read
+// `fetchFailures: []` across three ticks that each 404'd, because the ONLY thing
+// this pass could report was that it had tried. The WATCH names fetchFailures as
+// its evidence, so the instrument was structurally incapable of reading FAIL —
+// the skip-on-empty inversion living inside the instrument (docs/oddities.md).
+// Every field here is forwarded verbatim into cron_runs.payload.
+export type SpecialPriorityResult = {
+  attemptedIds: string[];
+  populatedIds: string[];
+  fetchFailures: string[];
+  settledSkipped: string[];
+  // Seeded ids reached but not written because the page carried no special box.
+  emptyRosterSkipped: string[];
+  // Which document each attempt actually read, so a future reader can tell the
+  // special URL from the C2 regular-page fallback without re-deriving it.
+  sources: { state: string; url: string; status: string; candidates: number }[];
+};
+
 export async function runSpecialPriorityPass(
   db: ReturnType<typeof getDb>,
   now: string,
   today: string,
-): Promise<string[]> {
+): Promise<SpecialPriorityResult> {
   const windowRs = await db.execute({
     sql: `SELECT id, state FROM primaries
            WHERE id LIKE 'senate-%-2026-special-%'
@@ -627,7 +728,15 @@ export async function runSpecialPriorityPass(
              )`,
     args: [today, today],
   });
-  if (windowRs.rows.length === 0) return [];
+  const empty: SpecialPriorityResult = {
+    attemptedIds: [],
+    populatedIds: [],
+    fetchFailures: [],
+    settledSkipped: [],
+    emptyRosterSkipped: [],
+    sources: [],
+  };
+  if (windowRs.rows.length === 0) return empty;
 
   const idsByState = new Map<string, Set<string>>();
   for (const r of windowRs.rows) {
@@ -638,7 +747,14 @@ export async function runSpecialPriorityPass(
   }
   const states = [...idsByState.keys()].slice(0, 3); // cap 3 states/tick
   const matchMember = await buildSenateMatcher(db);
-  const priorityScraped: string[] = [];
+  const out: SpecialPriorityResult = {
+    attemptedIds: [],
+    populatedIds: [],
+    fetchFailures: [],
+    settledSkipped: [],
+    emptyRosterSkipped: [],
+    sources: [],
+  };
   for (const st of states) {
     const sp = await scrapeSenateSpecialState(
       db,
@@ -648,9 +764,14 @@ export async function runSpecialPriorityPass(
       today,
       matchMember,
     );
-    priorityScraped.push(...sp.attemptedIds);
+    out.attemptedIds.push(...sp.attemptedIds);
+    out.populatedIds.push(...sp.populatedIds);
+    out.settledSkipped.push(...sp.settledSkipped);
+    out.emptyRosterSkipped.push(...sp.emptyRosterSkipped);
+    if (sp.fetchFailure) out.fetchFailures.push(sp.fetchFailure);
+    if (sp.source) out.sources.push(sp.source);
   }
-  return priorityScraped;
+  return out;
 }
 
 // Step 3 — Senate candidate rosters. Scrapes each 2026 Senate state's
@@ -738,6 +859,12 @@ export async function syncSenateCandidates(
     }
     okStates++;
 
+    // HO 601 C1: the router needs this state's seeded `-special-` ids. The
+    // registry was already loaded once before the state loop (specialIdsByState);
+    // a state with no seed rows gets an empty set, which makes the router return
+    // the base id for every box — i.e. the pre-601 behavior exactly.
+    const seededForState = specialIdsByState.get(abbr) ?? new Set<string>();
+
     // Route each candidate to its primary by contest: the D / R partisan
     // primaries, or the "open" all-candidate primary (AK's top-four). The
     // 'open' primaries row only exists for top-two/four states, so the
@@ -762,7 +889,19 @@ export async function syncSenateCandidates(
       // same erasure rule as the House path. The settled guard above already
       // protects decided rows; this protects the rest (S3: 28 Senate rows were
       // erasable on an empty ok parse before this gate).
-      const roster = result.candidates.filter((c) => c.contest === contest);
+      //
+      // HO 601 C1: membership is decided by the ROUTER, not by contest alone. A
+      // box the router sends to a seeded `-special-` id must not land in this
+      // base roster — that is precisely the substitution HO 560 was built to
+      // stop, and it arrives live the moment the page-type gate stops dropping
+      // SC's Aug 11 box. For FL/OH (special boxes, nothing seeded) the router
+      // returns the base id, so this filter is a no-op there and they are
+      // byte-identical to before.
+      const roster = result.candidates.filter(
+        (c) =>
+          routeSenateContestId(abbr, c.contest, c.isSpecial, seededForState) ===
+          primaryId,
+      );
       if (roster.length === 0) {
         rosterDeletesRefused.push(primaryId);
         continue;
@@ -1715,10 +1854,17 @@ export type PrimariesCronResult = {
   budgetStopped: boolean;
   fetchFailures: string[];
   perUnitMs?: { p50: number; p95: number; max: number; count: number };
-  // HO 561 C2: seeded special ids the dated priority trigger attempted this
-  // tick (empty outside every ±7-day window). The pass runs before the cursor
-  // slice and never advances the cursor.
-  priorityScraped: string[];
+  // HO 561 C2: what the dated priority trigger did this tick (all-empty outside
+  // every ±7-day window). The pass runs before the cursor slice and never
+  // advances the cursor.
+  //
+  // HO 601 C3 widened this from `string[]` (attempted ids only) to the full
+  // result. The old shape could report only that the pass had TRIED: three ticks
+  // in HO 600 M2 each 404'd and each logged `fetchFailures: []`, because the
+  // failure was computed inside scrapeSenateSpecialState and then discarded at
+  // the return. The route forwards this object verbatim, so the new fields reach
+  // cron_runs.payload with no route change (the pass-through payload shape).
+  priorityScraped: SpecialPriorityResult;
 };
 
 // Computes the p50/p95/max summary surfaced in cron_runs.payload (HO 120).

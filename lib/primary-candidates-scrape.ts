@@ -49,6 +49,12 @@ export type CandidateContest = "D" | "R" | "open";
 export type ScrapedCandidate = {
   name: string;
   contest: CandidateContest;
+  // HO 601 C1 — the ROUTER's classification, read from this box's own <h5>
+  // ("Special Republican primary for U.S. Senate South Carolina" -> true).
+  // It says the box is a SPECIAL CONTEST. It does NOT say whether that contest
+  // is ADDITIONAL to a regular one for the same seat, which is the fact that
+  // decides the destination id — see routeSenateContestId in lib/primaries-sync.ts.
+  isSpecial: boolean;
   party: string; // the candidate's own party letter (D/R/L/G/I/...)
   incumbent: boolean;
   isWinner: boolean;
@@ -75,6 +81,10 @@ export type CandidateScrapeResult = {
   status: CandidateScrapeStatus;
   httpStatus?: number; // set on a "no_page" miss, for the failure report
   candidates: ScrapedCandidate[];
+  // HO 601 C1 — DIAGNOSTIC ONLY. isSpecialElectionPage() for the page actually
+  // parsed. It no longer gates anything (see the note in parseCandidatesPage);
+  // it is surfaced so a failure report can say which article Ballotpedia served.
+  pageIsSpecial?: boolean;
 };
 
 function decodeEntities(s: string): string {
@@ -151,6 +161,7 @@ function openContestParty(row: string): string {
 function parseVotebox(
   slice: string,
   contest: CandidateContest,
+  isSpecial: boolean,
 ): ScrapedCandidate[] {
   const out: ScrapedCandidate[] = [];
   const table = slice.match(
@@ -195,6 +206,7 @@ function parseVotebox(
     out.push({
       name,
       contest,
+      isSpecial,
       party,
       incumbent: /<u>/.test(row), // Ballotpedia underlines incumbents
       isWinner: /class="results_row[^"]*\bwinner\b/.test(row),
@@ -327,25 +339,35 @@ export function parseCandidatesPage(
     // (also "nonpartisan"-classed) and primary-runoff voteboxes (a subset of
     // the primary).
     //
-    // The "special" half is page-aware. On a *regular* page, a "Special …"
-    // votebox is a special-election primary embedded alongside the regular
-    // primary (e.g. RI carrying both) and must be dropped. On a *dedicated*
-    // special-election page (FL/OH 2026 Senate), every votebox header reads
-    // "Special …" — there the legitimate D/R primaries ARE the "Special …"
-    // boxes, and it's the embedded *regular* boxes (if any) that get dropped.
-    // `!== onSpecialPage` expresses both: drop when special-ness doesn't
-    // match the page type. On a regular page (onSpecialPage=false) this is
-    // identical to the old `/special/i.test(headerText)` gate.
-    if (
-      !/primary/i.test(headerText) ||
-      /runoff/i.test(headerText) ||
-      /special/i.test(headerText) !== onSpecialPage
-    ) {
-      continue;
-    }
+    // HO 601 C1 — THE PAGE NO LONGER DECIDES WHETHER A BOX IS READ.
+    //
+    // This used to also require `/special/i.test(headerText) === onSpecialPage`
+    // ("does this box's specialness agree with the page's?"), and that question
+    // has no correct answer. `onSpecialPage` is isSpecialElectionPage(), which
+    // reads the <title> — and the <title> is NOT the URL: Ballotpedia serves the
+    // FL/OH special-election ARTICLE under the regular
+    // `United_States_Senate_election_in_{State},_2026` URL (HTTP 200, no
+    // redirect), so those pages self-report as special and their "Special …"
+    // boxes agreed and were kept. South Carolina's page is a genuine regular
+    // article that ALSO hosts an additional Aug 11 special primary: page-special
+    // false, box-special true, so the ONLY box carrying that contest was dropped
+    // and parseCandidatesPage returned 0 rows for a published 10-candidate field
+    // (HO 600 M3/M4 measured exactly this). The gate inverted against itself.
+    //
+    // So the box's own <h5> now classifies it and the page type gates nothing.
+    // `onSpecialPage` survives as a diagnostic only (returned as pageIsSpecial).
+    // DO NOT restore the symmetry check — it cannot express a seat that carries
+    // both a regular and a special contest on one page.
+    if (!/primary/i.test(headerText) || /runoff/i.test(headerText)) continue;
+    const boxIsSpecial = /special/i.test(headerText);
 
-    for (const c of parseVotebox(slice, contest)) {
-      const key = `${c.contest}|${c.name.toLowerCase()}`;
+    for (const c of parseVotebox(slice, contest, boxIsSpecial)) {
+      // Dedup key includes specialness ON PURPOSE. A candidate can legitimately
+      // appear in BOTH a seat's regular primary and its later special primary —
+      // Mark Lynch is in SC's June R roster (28.9%) and again in the Aug 11
+      // special field — and a `${contest}|${name}` key would silently drop the
+      // second one as a duplicate of the first.
+      const key = `${c.isSpecial ? "S" : "R"}|${c.contest}|${c.name.toLowerCase()}`;
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push(c);
@@ -353,9 +375,15 @@ export function parseCandidatesPage(
   }
 
   if (candidates.length === 0) {
-    return { state, url, status: "no_candidates", candidates: [] };
+    return {
+      state,
+      url,
+      status: "no_candidates",
+      candidates: [],
+      pageIsSpecial: onSpecialPage,
+    };
   }
-  return { state, url, status: "ok", candidates };
+  return { state, url, status: "ok", candidates, pageIsSpecial: onSpecialPage };
 }
 
 // True when a fetched page is a special-election page rather than a regular
@@ -414,19 +442,43 @@ export async function scrapeSenateCandidates(
   return parseCandidatesPage(html, state, url);
 }
 
-// HO 561 — the special-election page ONLY. The mirror image of
-// scrapeSenateCandidates: no standard-page attempt and no fallback (this is the
-// dedicated special-primary path, driven by primaries-sync's seeded registry).
+// HO 561 — the special-primary path, driven by primaries-sync's seeded registry.
 // Same 8s cap / UA / parse as its siblings; a miss returns "no_page" with the
 // httpStatus (a 404 while the field is unpublished is the normal state, not an
-// error). Additive export — the FL/OH fallback inside scrapeSenateCandidates is
-// untouched.
+// error). The FL/OH fallback inside scrapeSenateCandidates is untouched.
+//
+// HO 601 C2 — falls back to the state's REGULAR page when the special URL misses.
+// South Carolina's Aug 11 special primary is published as a votebox ON the
+// regular race page (and as a `..._2026_(August_11_Republican_primary)`
+// parenthetical); `senateSpecialPageUrl`'s
+// `United_States_Senate_special_election_in_{Slug},_2026` shape 404s for it,
+// because that shape is Ballotpedia's convention for a special *election* and
+// SC's contest is a special *primary* for the regular Class-2 seat.
+//
+// WHY THIS STAYS EVEN THOUGH THE REGULAR PAGE IS ALSO REACHED BY THE STANDARD
+// PASS — do not delete it as redundant. The standard senate pass is CURSOR-driven:
+// HO 600 M2 measured three consecutive ticks stuck on unit="house" at cursor
+// 439-462 of 471, so the senate slice had not reached SC since the box appeared
+// and might not before Aug 11. A fixed election date cannot be served by a cursor
+// position. The priority pass is what makes the reach DATE-driven, and this
+// fallback is what gives it something to read.
+//
+// The caller (scrapeSenateSpecialState) writes ONLY the seeded `-special-` ids it
+// was invoked for, so parsing a document that also contains regular voteboxes
+// cannot turn this into a second writer of base rows.
 export async function scrapeSenateSpecialCandidates(
   state: string,
   slug: string,
 ): Promise<CandidateScrapeResult> {
-  const url = senateSpecialPageUrl(slug);
-  const attempt = await fetchPageWithTimeout(url);
+  let url = senateSpecialPageUrl(slug);
+  let attempt = await fetchPageWithTimeout(url);
+  if (!attempt.res || !attempt.res.ok) {
+    if (attempt.aborted) {
+      return { state, url, status: "no_page", httpStatus: 0, candidates: [] };
+    }
+    url = senatePageUrl(slug);
+    attempt = await fetchPageWithTimeout(url);
+  }
   if (!attempt.res || !attempt.res.ok) {
     return {
       state,
