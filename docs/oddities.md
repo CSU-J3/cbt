@@ -1100,3 +1100,40 @@ the 24-hour view's top row (`lda_filings` completeness COUNT, 5.95M / 46 calls)
 does not appear in the 30-day list at all, where its magnitude says it belongs.
 Filed as a WATCH. Treat them as two instruments, not one, and do not build a number
 on their difference until that is resolved.
+
+## A backlog entry that points at a file is only as tracked as the file (HO 603, Aug 2026)
+
+The backlog's header says *nothing is tracked only in chat*. Three arcs were, and
+an artifact audit against `origin/main` found each in a **different** state — which
+is the point, because a single word ("filed") would have covered all three and
+been true of none:
+
+| arc | artifact | actual state |
+|---|---|---|
+| Absence Watch (HO 588) | `scripts/diagnostic/absence-watch-588.ts` | **tracked** (`7ce1f0e`) |
+| Dashboard redesign (HO 590) | `mock-590-dashboard-declutter.html` | **absent from disk entirely** |
+| Layout audit (HO 591) | `scripts/diagnostic/layout-audit-591.ts` | **never built** |
+
+**A QUEUED entry whose content lives in a file it merely names is the same failure
+as tracking it in chat** — one `git clean`, one machine change, one directory the
+gitignore covers, and the entry is a title with nothing behind it. That is not
+hypothetical here: the HO 590 mock is **gone**, and the entry written for it had to
+carry all six design decisions in prose because there was nothing left to point at.
+The near-miss is worth as much as the loss — `docs/design/dashboard-2col.html`
+exists, sounds right, and is an HO 254 artifact; a filing pass that matched on
+plausibility rather than provenance would have pointed the entry at the wrong file
+and looked complete.
+
+**The rule: an entry must survive the deletion of everything it references.** A
+pointer is a convenience; the prose is the record. Write the decisions, the numbers
+and the rejected alternatives *into* the entry, and let the file be a shortcut —
+then verify the pointer resolves (`git ls-files`, not `ls`, since a gitignored
+directory hides the difference between "present locally" and "in the repo").
+
+Corollary that fired the same day: **re-measure a number before re-filing it.** The
+HO 591 arc logged its type-scale blast radius as *~450 font-size declarations*;
+re-measured at filing it is **416 in CSS plus 368 `text-[Npx]` arbitrary utilities
+in TSX = 784**. The original counted the CSS half only, so the figure that made the
+change look tractable **understated it by ~1.7x**, and the missing half is exactly
+what a CSS-only sweep would fail to catch. A number carried forward unexamined is
+not a record of a measurement, it is a rumour with a citation.
