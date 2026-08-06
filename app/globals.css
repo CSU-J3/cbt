@@ -2658,11 +2658,18 @@ body {
    First column widened from 86px to 124px in HO 118 to fit `HCONRES 9999
    [+9]` without overflowing into the headline column. /news rows pay a few
    pixels of extra padding; no visible regression. */
+/* HO 613 (C1) — id · headline · source · age, PACKED LEFT. Was
+   `124px 1fr 120px 64px`: the 1fr headline track stretched to the row's width,
+   so source and age sat pinned at the right edge, 795–1,524px from a short
+   headline. The mock's `.brk-row` idiom at route scale — the same conversion the
+   dashboard's breaking rows took at HO 610.
+   The 3px SIGNAL rail (HO 241) is UNTOUCHED: it is a left rail and it is state,
+   which is exactly what C3 reserves colour for. */
 .news-row {
-  display: grid;
-  grid-template-columns: 124px 1fr 120px 64px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 12px;
+  gap: 4px 12px;
   padding: 6px 0;
   /* HO 241: reserve the 3px SIGNAL rail on every row (transparent), so a
      qualifying breaking row fills it amber with zero horizontal shift
@@ -2685,17 +2692,30 @@ body {
 /* HO 398 — race-news variant: same row idiom minus the bill-id cell (an
    observation keyed to a race incumbent has no bill). Headline · source · age.
    Two-class specificity beats the base + mobile `.news-row` grid rules. */
+/* The bill cell is simply absent in this variant — with a flex row there is no
+   track to re-declare, which is why the conversion carries RaceNewsRow for free
+   (verified, not assumed). */
 .news-row--no-bill {
-  grid-template-columns: 1fr 120px 64px;
+  /* nothing to override: flex packs whatever cells are present */
 }
 
 /* Headline cell holds the optional BREAKING pill + the headline so the pill
    prefixes the text without pushing its truncation. */
+/* Headline cell holds the optional BREAKING pill + the headline. It is the one
+   cell that flexes; the rest keep their content width so the row packs. The
+   headline WRAPS at narrow widths rather than ellipsising — the HO 611 lesson, a
+   browse list has no box to protect — so this cell must be allowed to shrink. */
 .news-row .news-headline-cell {
   display: flex;
   align-items: baseline;
   gap: 6px;
   min-width: 0;
+  flex: 0 1 auto;
+}
+.news-row .bill-cell,
+.news-row .source,
+.news-row .age {
+  flex: 0 0 auto;
 }
 
 .news-breaking-pill {
@@ -2732,16 +2752,16 @@ body {
 }
 
 .news-row .age {
-  text-align: right;
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-13);
 }
 
+/* HO 613: the header takes the row's treatment so the two cannot disagree. */
 .news-header-row {
-  display: grid;
-  grid-template-columns: 124px 1fr 120px 64px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 12px;
+  gap: 4px 12px;
   padding: 9px 0;
   /* Match the .news-row 3px-rail + 9px reservation so header columns stay
      aligned with the rows below (HO 241). */
@@ -2755,9 +2775,7 @@ body {
   letter-spacing: 0.5px;
 }
 
-.news-header-row .age {
-  text-align: right;
-}
+
 
 @media (max-width: 700px) {
   .news-row {
