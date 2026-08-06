@@ -1813,7 +1813,7 @@ The intended chip/tag vocabulary — **three tiers, one size ladder 11 / 10 / 9p
 
 ### Layout conventions C1–C8 (HO 591 arc; C2 shipped HO 604)
 
-**Authority split, because four documents touch this and they do not rank equally.** **SKILL owns the conventions** — the durable statements below. `docs/design/layout-conventions-arc.md` owns **phases and instruments** (M1–M7, the audit spec, what is measurable and what is a review rule). `docs/design/layout-conventions-c1-c8.html` is the **visual dictionary** — *specced, not yet landed (a copy survives in the design chat); the arc doc's pointer to it dangles until it does.* The roadmap owns **sequencing**. SKILL wins ties, as ever.
+**Authority split, because four documents touch this and they do not rank equally.** **SKILL owns the conventions** — the durable statements below. `docs/design/layout-conventions-arc.md` owns **phases and instruments** (M1–M6, the audit spec, what is measurable and what is a review rule — M7 discharged pre-build at HO 604). `docs/design/layout-conventions-c1-c8.html` is the **visual dictionary** — *specced, not yet landed (a copy survives in the design chat); the arc doc's pointer to it dangles until it does.* The roadmap owns **sequencing**. SKILL wins ties, as ever.
 
 The dashboard was audited at 2560px and its four defect classes turned out not to be dashboard defects but convention defects — every other tab has them. Fix the conventions once, prove them on `/`, propagate.
 
