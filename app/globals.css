@@ -750,18 +750,32 @@ body {
   background-color: transparent;
 }
 @media (min-width: 1400px) {
-  /* STICKY, NOT INTERNALLY SCROLLED — deliberate, and 609 owns the rest of it.
-     The mock's `.bills` also sets `max-height: calc(100vh - 32px)` with
-     `overflow-y:auto` on the feed inside it. That scroll is NOT adopted here: the
-     expanded row's sponsor hover card escapes via .home-feed-panel's
-     overflow-visible (HO 300, comment on that rule), and an internal scroll would
-     clip it. A max-height WITHOUT the scroll is worse than neither — the panel
-     border would draw straight across the spilling rows — so both wait for HO
-     609, which reworks the feed rows and can resolve scroll-vs-hover-card where
-     both live. Sticky with natural height is the 608 state. */
+  /* HO 608 shipped this sticky and deliberately un-capped, deferring the mock's
+     `max-height` + internal feed scroll to 609 because of the HO 300
+     overflow-visible note. HO 609 adopted both, after falsifying the clipping
+     question: the only overlay inside this panel is the feed row's full-title
+     popover (.title-pop) — the HO 300 "sponsor hover card" is SponsorHoverName,
+     which lives on /bills' BillRow and has never rendered in this column — and
+     that popover now anchors to the viewport (position:fixed, coords from the
+     trigger), so no ancestor overflow can cut it.
+     NOT `flex: 1` on the panel: it sizes to CONTENT and is only CAPPED by the
+     column's max-height (C7). Stretching it to the cap would leave an empty
+     panel most of the time, since a tab is five rows unless one is expanded. */
   .dash-bills {
     position: sticky;
     top: 16px;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+  }
+  .dash-bills .home-feed-panel {
+    min-height: 0;
+  }
+  /* The rows scroll; the tab strip above and the .pfoot expander below stay put
+     (the expander's flex-shrink:0 comes from .home-expander). */
+  .dash-bills .v2f {
+    overflow-y: auto;
+    min-height: 0;
   }
 }
 /* Mirror the HO 178 cross-column hover-overrun: the breaking row's full-headline
@@ -4227,6 +4241,15 @@ body {
   pointer-events: none;
 }
 .v2f-title-wrap.truncated:hover .title-pop {
+  display: block;
+}
+/* HO 609 — viewport-anchored variant. The feed scrolls internally now, and the
+   absolute card was measurably clipped (37px at 1440, invoked from the last
+   visible row); position:fixed has no clipping ancestor by construction. Mounted
+   only while open, so it needs no hover selector; left/top come from the
+   trigger's rect via JS. */
+.title-pop--fixed {
+  position: fixed;
   display: block;
 }
 /* Topic chip — the ONE shared bordered chip (HO 316, was HO 297's private fn).

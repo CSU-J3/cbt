@@ -82,9 +82,23 @@ function stageAbbr(stage: string | null | undefined): string {
 // HO 297: title cell with markTrunc — the full-title popover (.title-pop) arms
 // only when the title actually ellipsizes (scrollWidth > clientWidth). Re-checks
 // on resize so the arm state tracks the column width.
+//
+// HO 609: the popover is ANCHORED TO THE VIEWPORT (position:fixed, coordinates
+// from the trigger's getBoundingClientRect) rather than absolutely positioned
+// inside the row. It was a CSS-only hover reveal until the feed gained an
+// internal scroll; measured, the popover invoked from the last visible row of a
+// scrolled feed at 1440 was clipped 37px by the scroll container. Fixed
+// positioning has no clipping ancestor by construction. It dismisses on ANY
+// scroll (capture phase, so the feed's own scroll counts) rather than tracking,
+// and flips above / clamps left when it would leave the viewport.
+type PopPos = { left: number; top: number; anchorTop: number; adjusted: boolean };
+
 function TitleCell({ title }: { title: string }) {
   const ref = useRef<HTMLSpanElement | null>(null);
+  const popRef = useRef<HTMLSpanElement | null>(null);
   const [truncated, setTruncated] = useState(false);
+  const [pop, setPop] = useState<PopPos | null>(null);
+
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -94,12 +108,58 @@ function TitleCell({ title }: { title: string }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [title]);
+
+  // Any scroll dismisses — capture:true so the feed's own scroll container fires
+  // it too (a scroll event on an inner element doesn't bubble to window).
+  useEffect(() => {
+    if (!pop) return;
+    const dismiss = () => setPop(null);
+    window.addEventListener("scroll", dismiss, true);
+    return () => window.removeEventListener("scroll", dismiss, true);
+  }, [pop]);
+
+  // One post-render correction per open: flip above the trigger if the card would
+  // run off the bottom, clamp left if it would run off the right.
+  useEffect(() => {
+    const el = popRef.current;
+    if (!pop || pop.adjusted || !el) return;
+    const r = el.getBoundingClientRect();
+    let left = pop.left;
+    let top = pop.top;
+    if (r.right > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - 8 - r.width);
+    }
+    if (r.bottom > window.innerHeight - 8) {
+      top = Math.max(8, pop.anchorTop - 6 - r.height);
+    }
+    setPop({ ...pop, left, top, adjusted: true });
+  }, [pop]);
+
+  const open = () => {
+    const el = ref.current;
+    if (!el || !truncated) return;
+    const r = el.getBoundingClientRect();
+    setPop({ left: r.left, top: r.bottom + 6, anchorTop: r.top, adjusted: false });
+  };
+
   return (
-    <span className={`v2f-title-wrap${truncated ? " truncated" : ""}`}>
+    <span
+      className={`v2f-title-wrap${truncated ? " truncated" : ""}`}
+      onMouseEnter={open}
+      onMouseLeave={() => setPop(null)}
+    >
       <span ref={ref} className="v2f-title">
         {title}
       </span>
-      <span className="title-pop">{title}</span>
+      {pop ? (
+        <span
+          ref={popRef}
+          className="title-pop title-pop--fixed"
+          style={{ left: pop.left, top: pop.top }}
+        >
+          {title}
+        </span>
+      ) : null}
     </span>
   );
 }

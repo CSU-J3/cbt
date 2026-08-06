@@ -47,7 +47,7 @@ export async function TopStalls({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col min-h-0">
       {variant === "v2" ? (
         <V2FeedList bills={bills} metricMode="stalls" nowMs={nowMs} />
       ) : (
