@@ -45,8 +45,8 @@ The original's own argument survives intact: it says do C2 before the *route wor
 | Phase | Scope | HO |
 |---|---|---|
 | **P1** | **C2 — the type scale.** Six tokens, 11 substitutions, identity commit then ladder commit. Plus C0: land both mocks. | **604** |
-| **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | 606 |
-| **P3** | `/` rework to the target mock — the reference implementation of C1–C8 | next |
+| **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | **606** — done, `e794194` + `94f6543` |
+| **P3** | `/` rework to the target mock — the reference implementation of C1–C8 (+ `dashboard-classic` removal, per the corrected M6) | next |
 | **P4** | Feed routes: `/bills` `/news` `/amendments` `/nominations` `/hearings` `/members` `/lobbying` `/trades` | next |
 | **P5** | Detail routes: `/bill/[id]` `/members/[id]` `/vote/[id]` `/race/[id]` `/committee/[id]` | next |
 | **P6** | Analysis routes: `/patterns` `/reports` `/trends` `/electoral` `/primaries` `/races` `/stale` `/changes` | next |
@@ -96,7 +96,7 @@ This is the first *browser* probe in `scripts/diagnostic/` — every existing on
 `npm run build && npm run start` on port 3000. **Not `next dev`** — the dev overlay and HMR alter the geometry being measured. **Not prod** — BotID withholds the markets tape from headless Chrome (`e2e/smoke.spec.ts:17-20`), and the tape is a C1 row. Reads hit prod Turso, so:
 
 - Each route **twice at 2560×1440**, measure on hit 2 (the cache-hit path).
-- **31 routes** — `smoke.spec.ts`'s `ROUTES` minus five of six `?stage=` variants (same shell, different feed; keep `?stage=committee`, a known `pageErr` site whose filter strip adds a row) and minus `/dashboard-v2` and `/committees` (redirects into targets already listed).
+- **31 routes** — `smoke.spec.ts`'s `ROUTES` minus five of six `?stage=` variants (same shell, different feed; keep `?stage=committee`, a known `pageErr` site whose filter strip adds a row) and minus `/dashboard-v2` and `/committees` (redirects into targets already listed). **The arithmetic is 37 − 5 − 2 = 30, not 31 (HO 606).** **And three more aliases must be excluded on re-run, for the identical reason `/committees` and `/dashboard-v2` already are:** `/races` and `/primaries` **308 → `/electoral`**, `/members/pass-rate` **307 → `/members?sort=passrate`**. HO 606 crawled all three and measured the same page twice more, inflating the site-wide M1 total from **1,329 to 1,902**. **27 distinct pages is the real denominator.** The script's route list still contains them (`layout-audit-606.ts` ~L95–98); removing them is a code change deferred to the next audit run, not to a doc sweep.
 - **6-route subset** (`/`, `/bills`, `/members`, `/bill/[id]`, `/reports`, `/hearings`) additionally at **1024 · 900 · 720**, one hit each — cache already warm, viewport doesn't key it.
 - Reuse `smoke.spec.ts` seeds verbatim, env-overridable the same way.
 - **`/` is gated** — `app/page.tsx:74` redirects anonymous visitors without `ct_seen` to `/welcome`. Set the cookie context-wide or the audit reports a clean dashboard it never visited.
@@ -139,7 +139,11 @@ M5's decision role is smaller now than the original assigned it — C2's identit
 
 ### M6 — dead routes: answered, no browser needed
 
-`app/dashboard-v2/page.tsx` is a **9-line `permanentRedirect("/")`** (HO 311), kept so bookmarks survive the swap. Not dead; deleting it 404s them. `app/dashboard-classic/page.tsx` (149 lines) is deliberately unlinked, absent from `NAV_ITEMS` (`HeaderBar.tsx:36-48`), and carries branches in **five components** — `DashboardTopicTreemap:62`, `RaceNewIndicator:9`, `BillRowList:14`, `StageFunnel:57`, `ActiveFilterStrip:6` — plus two `lib/queries.ts` comments (`:719`, `:779`) and a smoke-crawl entry. Not a two-file `rm`. The script prints this as a fixed note; the only live question is whether that branch set is complete, answered by `grep -rn "dashboard-classic" app/ components/ lib/`.
+`app/dashboard-v2/page.tsx` is a **9-line `permanentRedirect("/")`** (HO 311), kept so bookmarks survive the swap. Not dead; deleting it 404s them. **That half was verified by the HO 606 run and stands.**
+
+**The `dashboard-classic` half was FALSIFIED by that same run, and this paragraph used to assert the opposite.** It claimed the route "carries branches in **five components**" and was therefore "not a two-file `rm`". The grep the paragraph itself prescribed says otherwise: all five component references — `DashboardTopicTreemap:62`, `RaceNewIndicator:9`, `BillRowList:14`, `StageFunnel:57`, `ActiveFilterStrip:6` — **and both `lib/queries.ts` sites (`:719`, `:779`) are COMMENTS, not code branches.** The only executable coupling is `FILTER_BASE = "/dashboard-classic"` inside the route file itself; every component reaches the route through a **`basePath` prop that defaults to `/`**, so nothing branches on the string. The grep also surfaces two references this paragraph never listed — `DashboardV2Header.tsx:76` and `globals.css:6507`, both comments — which is its own small lesson about a hand-enumerated set. The smoke-crawl entry is real and remains.
+
+`app/dashboard-classic/page.tsx` (149 lines) is still deliberately unlinked and absent from `NAV_ITEMS` (`HeaderBar.tsx:36-48`). **But deletion is cheap — a route file, a smoke-crawl entry, and a comment sweep — so it RIDES P3** rather than needing an arc of its own. The script prints this as a fixed note; completeness stays answerable by `git grep -n "dashboard-classic" -- app/ components/ lib/`.
 
 ### Output and verdict
 

@@ -1242,3 +1242,67 @@ non-fast-forward** unless forced, which is the mechanism the fast-forward-only
 discipline actually relies on. The flag was belt-and-braces for a belt that does
 not exist. Verify a push by comparing `origin/main` to `HEAD` afterward, not by
 trusting the command's exit.
+
+---
+
+## A `flex: 1` child's layout box spans exactly the whitespace a gap detector is trying to measure (HO 606, Aug 2026)
+
+The HO 606 layout audit measures far-right anchors (convention C1) as the gap
+between one child's right edge and the next child's left edge. Pointed at the
+dashboard's breaking-news row — a headline whose timestamp visibly sits about
+1,100px away, the exact defect the audit exists to find — it reported **10px**.
+
+The row's headline carries `flex: 1`. Its *layout box* stretches across the
+whole gap; only its *text* stops early. Box-edge measurement therefore reads
+"these two children are adjacent", which is true of the boxes and false of
+everything a reader sees. The same defect sat one level down in M2 (stretched
+panels): a panel whose own last child also stretches hides its slack inside that
+child, so measuring to the deepest *direct child* read zero on precisely the
+panels C7 is about.
+
+**Measure to the deepest INK, not the layout box.** An element's ink is its
+painted box when it has one — a bordered or backgrounded chip *is* its box — and
+otherwise the client rects of its text plus any painted descendants. Same row,
+same threshold, after the change: **10px → 1,092px**; M2 on `/` went 0 → 3.
+
+Two notes for whoever touches this next. **Thresholds were never adjusted** —
+only the measurement definition, which is the line between correcting an
+instrument and tuning one until it agrees with you. And the falsification leg is
+what caught it: the audit was pointed at a known defect *before* any zero was
+trusted, could not see it, said so, and refused to spend 78 page loads of Turso
+reads on a broken detector.
+
+---
+
+## A diagnostic that evaluates on a fresh blank page prints `[]`, which reads exactly like "the route has no such element" (HO 606, Aug 2026)
+
+The audit's M2 has a branch for the case where it finds nothing: dump the panel
+predicate's intermediates for the known offender, so a zero is diagnosable
+rather than merely disappointing. It opened a **new page** to run that dump and
+never navigated it. Against `about:blank` the selector matched nothing and the
+diagnostic printed `[]` — indistinguishable from the finding it was written to
+rule out, in the one place whose entire job is explaining a zero.
+
+**Bind a diagnostic to the page it is explaining**, not to a fresh context that
+merely resembles one. This is the fourth same-as-success instance in this arc
+(after HO 549's detector, HO 604's identity gate, and 604's CSSOM walk), and the
+most pointed: the failure was inside the machinery built to detect failure.
+
+---
+
+## Overflow-hidden marquees produce legitimately huge negative trailing gaps (HO 606, Aug 2026)
+
+The audit reports a **trailing gap** — parent's right inner edge minus the
+rightmost child ink — alongside each interior gap, deliberately: it is the
+target state, not a defect, and reporting both means "M1 = 0" cannot be reached
+by deleting rows.
+
+On the dashboard it reads **−10,702px**. That is correct. The markets tape is a
+marquee: a ~13,000px track inside an overflow-hidden box, scrolled by transform.
+Ink wider than its container is the entire mechanism, so 258 rows site-wide
+carry trailing gaps below −50px and all of them are marquees.
+
+Harmless **while trailing gap is reported and not thresholded**, which is true
+today. The entry exists for whoever later decides to gate on it: a naive
+`trailingGap > N` rule inverts on marquees, and a naive `abs()` turns the
+site's most extreme non-defect into its top finding.
