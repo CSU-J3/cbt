@@ -41,7 +41,18 @@ export function FirmsLeaderboard({
           top {firms.length} of {totalRegistrants.toLocaleString()} registrants
         </span>
       </div>
-      <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+      {/* HO 615 — data-viz-row: this is a bar chart with a label column, not a
+          table, so the space between a firm's name and the bar track is the
+          SHARED AXIS every bar starts from, and the space between a short bar and
+          its number is that bar's own value. Measured before marking (the curve
+          is in the commit body): the void is 476-699px, it lies between the name
+          and the bar column's fixed origin, and capping the name track clips 2
+          labels at 260px while leaving all 25 rows over threshold — a cap cannot
+          reach it, because the void is the 1fr track, not the name.
+          The attribute goes on the TABLE and not on the row list because the
+          column header's geometry is not independently choosable: it has to sit
+          over the columns it labels. */}
+      <div className="border" data-viz-row style={{ borderColor: "var(--border-strong)" }}>
         <div
           className={`${GRID} px-[14px] py-2 text-[length:var(--fs-10)] uppercase tracking-[0.5px]`}
           style={{

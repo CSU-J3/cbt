@@ -57,7 +57,15 @@ export function TopicCrosswalk({
           don&rsquo;t sum to a share.
         </span>
       </div>
-      <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+      {/* HO 615 — data-viz-row: same reasoning as FirmsLeaderboard, and here the
+          void is the encoding in its purest form. Measured: 37-648px, lying
+          between the BAR'S PAINTED END and its right-aligned value, which is
+          precisely what a bar chart means — a short bar and a long run to its
+          number IS the small number. Capping the label track clips all 23 labels
+          at every cap tried and still leaves 18-21 rows over threshold.
+          On the table rather than the row list, so the column header stays over
+          its columns. */}
+      <div className="border" data-viz-row style={{ borderColor: "var(--border-strong)" }}>
         <div
           className={`${GRID} px-[14px] py-[9px] text-[length:var(--fs-11)] uppercase tracking-[0.5px]`}
           style={{
