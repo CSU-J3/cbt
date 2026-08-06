@@ -1680,15 +1680,20 @@ body {
    right — putting a <button> inside an <a> would be invalid HTML. The
    optional days-since cell sits between the Link and the star when
    daysSinceMode is on. */
+/* HO 613 (C1) — STAR · CONTENT [· days-since]. Was `1fr 40px 36px`: the media
+   and star columns were pinned at the row's right edge, so a short row opened
+   ~1,900px between its content and its affordances — 25 rows, and all of
+   /bills' M1a. The star leads (a stable click target on every row) and the
+   press count moved into row-meta as data. */
 .feed-row {
   display: grid;
-  grid-template-columns: 1fr 40px 36px;
+  grid-template-columns: 28px 1fr;
   align-items: stretch;
   border-bottom: 0.5px solid var(--border-soft);
 }
 
 .feed-row.has-days-since {
-  grid-template-columns: 1fr 90px 40px 36px;
+  grid-template-columns: 28px 1fr 90px;
 }
 
 /* HO 371 — /stale momentum overlay. The support figure + reserved HEARD slot
@@ -1696,7 +1701,7 @@ body {
    always carries has-days-since, so this combined rule (specificity 0,0,3) wins
    over the has-days-since rule above. */
 .feed-row.has-momentum.has-days-since {
-  grid-template-columns: 1fr auto 90px 40px 36px;
+  grid-template-columns: 28px 1fr auto 90px;
 }
 .feed-row .row-momentum {
   display: flex;
@@ -1742,27 +1747,16 @@ body {
 /* HO 130 media-attention cell. Just the number in --accent-amber when
    populated; blank slot otherwise. Sits between the Link/days-since and
    the star so its own click target doesn't nest inside the row's anchor. */
-.feed-row .row-media {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 9px 0 0 0;
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  color: var(--accent-amber);
-  text-decoration: none;
-  transition: color 120ms ease;
-}
-.feed-row .row-media:hover {
-  color: var(--accent-amber-bright);
-}
-.feed-row .row-media-count {
-  letter-spacing: 0.2px;
-}
-.feed-row .row-media-glyph {
-  margin-right: 2px;
+/* HO 613: the press datum inside row-meta. Dim, not amber — C3 reserves colour
+   for state, and a mention count is a quantity. (.row-media / -count / -glyph
+   went with the column and MediaAttentionCell.) */
+.feed-row .row-media-meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
   font-size: var(--fs-11);
-  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
 }
 
 .feed-row:hover {
@@ -1785,7 +1779,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 8px 4px 0 0;
+  padding: 8px 0 0 2px;
 }
 
 .feed-row .row-content {
@@ -1932,11 +1926,7 @@ body {
 /* Used in the home dashboard's middle pane. Slim rail (40px), no inline
    summary excerpt, no View Detail span — the ticker is scan-not-read.    */
 .feed-row.feed-row--compact {
-  grid-template-columns: 1fr 40px 28px;
-}
-.feed-row--compact .row-media {
-  font-size: var(--fs-13);
-  padding: 7px 0 0 0;
+  grid-template-columns: 24px 1fr;
 }
 
 .feed-row--compact .feed-row-link {
@@ -1994,7 +1984,6 @@ body {
   margin-top: 8px;
 }
 .feed-row .row-chevron {
-  margin-left: auto;
   color: var(--text-dim);
   font-size: var(--fs-12);
   line-height: 1;
@@ -6272,28 +6261,27 @@ body {
      the days-since column under 700px — the value is also conveyed via
      the current pill's time-since in StagePillStrip. */
   .feed-row {
-    grid-template-columns: 1fr 32px;
+    grid-template-columns: 26px 1fr;
   }
   .feed-row.has-days-since {
-    grid-template-columns: 1fr 32px;
+    grid-template-columns: 26px 1fr;
   }
   /* HO 371 — keep the /stale grid at 1fr 32px on mobile; this ties the desktop
      has-momentum.has-days-since rule (0,0,3) and wins by being later in the
      file. The support figure + HEARD are dropped (the age is conveyed via the
      current pill's time-since, same as the days-since column). */
   .feed-row.has-momentum.has-days-since {
-    grid-template-columns: 1fr 32px;
+    grid-template-columns: 26px 1fr;
   }
   .feed-row.feed-row--compact {
-    grid-template-columns: 1fr 28px;
+    grid-template-columns: 22px 1fr;
   }
   .feed-row .feed-row-link {
     grid-template-columns: 44px 1fr;
     gap: 0 10px;
   }
   .feed-row .row-days-since,
-  .feed-row .row-momentum,
-  .feed-row .row-media {
+  .feed-row .row-momentum {
     display: none;
   }
   .feed-row .row-content {

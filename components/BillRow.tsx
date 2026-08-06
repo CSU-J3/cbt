@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import Link from "next/link";
 import { BillIdRail } from "@/components/BillIdRail";
-import { MediaAttentionCell } from "@/components/MediaAttentionCell";
 import { PartyTag } from "@/components/PartyTag";
 import { SponsorHoverName } from "@/components/SponsorHoverName";
 import { StagePillStrip } from "@/components/StagePillStrip";
@@ -154,18 +153,38 @@ export function BillRow({
         />
 
         <span className="row-meta">
-          {sponsorBlock}
-          {topics.length > 0 ? (
-            <span className="inline-flex">
-              <TopicChips topics={topics} responsive />
-            </span>
-          ) : null}
+          {/* HO 613: the expand caret LEADS, was on `margin-left: auto`. It is
+              the same defect as the star one level deeper — an affordance pinned
+              to the right edge of row-meta, ~1,900px from the content on a short
+              row — and the same fix, matching the leading caret on .mc-row and
+              the v2 feed rows. */}
           {expandable ? (
             <span
               className={`row-chevron${isOpen ? " is-open" : ""}`}
               aria-hidden
             >
               ▸
+            </span>
+          ) : null}
+          {sponsorBlock}
+          {/* HO 613: the press count was a fixed 40px column pinned at the row's
+              right edge; it is DATA, and row-meta is where the row's data lives.
+              Plain text, not a link — row-meta sits inside the row's navigable
+              shell, and a nested anchor there is invalid HTML on the compact
+              <Link> path (the exact reason HO 130 put it outside). /news?bill=
+              stays reachable from the expanded panel's RELATED NEWS. */}
+          {(bill.mentionCount7d ?? 0) > 0 ? (
+            <span
+              className="row-media-meta"
+              title={`${bill.mentionCount7d} news mention${bill.mentionCount7d === 1 ? "" : "s"}, last 7 days`}
+            >
+              <span aria-hidden>⚡</span>
+              <span className="tabular-nums">{bill.mentionCount7d}</span>
+            </span>
+          ) : null}
+          {topics.length > 0 ? (
+            <span className="inline-flex">
+              <TopicChips topics={topics} responsive />
             </span>
           ) : null}
         </span>
@@ -200,6 +219,19 @@ export function BillRow({
 
   return (
     <li className={rowClass}>
+      {/* HO 613 (C1): the star LEADS. It was a fixed 36px column at the row's
+          right edge, so a short row put ~1,900px between its content and its
+          only affordance. A leading star is a stable click target on every row
+          and needs no exemption — the HO 609 caret precedent: far-right
+          affordances reposition, they do not get carved out. */}
+      <span className="row-star">
+        <WatchStar
+          billId={bill.id}
+          initial={onWatchlist}
+          size={compact ? "sm" : "md"}
+        />
+      </span>
+
       {navigableShell}
 
       {support ? (
@@ -228,19 +260,6 @@ export function BillRow({
             : "—"}
         </span>
       ) : null}
-
-      <MediaAttentionCell
-        billId={bill.id}
-        count={bill.mentionCount7d ?? 0}
-      />
-
-      <span className="row-star">
-        <WatchStar
-          billId={bill.id}
-          initial={onWatchlist}
-          size={compact ? "sm" : "md"}
-        />
-      </span>
 
       {expandable && isOpen ? expandedPanel : null}
     </li>
