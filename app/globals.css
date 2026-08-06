@@ -949,11 +949,16 @@ body {
   opacity: 0.4;
   transition: opacity 120ms ease;
 }
+/* HO 610 (C1) — packed left, was `grid-template-columns: 92px 1fr auto`. The 1fr
+   headline track stretched to the row's full width, so a short headline ended and
+   its timestamp sat up to ~980px away at 2560 — the single worst interior gap on
+   the dashboard, and the row the mock's "what changed" note names. Now the three
+   items sit shoulder to shoulder (the mock's `.brk-row`) and the leftover width
+   collects harmlessly at the end. The id keeps a fixed basis so a column of ids
+   still aligns; only the headline flexes. */
 .breaking-row {
   position: relative;
-  display: grid;
-  /* ID (~92px) · truncated headline · right-aligned age */
-  grid-template-columns: 92px 1fr auto;
+  display: flex;
   align-items: baseline;
   gap: 10px;
   padding: 6px 4px;
@@ -963,6 +968,7 @@ body {
   background-color: var(--bg-row-hover);
 }
 .breaking-row-id {
+  flex: 0 0 5.8em;
   font-size: var(--fs-13);
   white-space: nowrap;
   overflow: hidden;
@@ -974,6 +980,7 @@ body {
   color: var(--text-dim);
 }
 .breaking-row-headline {
+  flex: 0 1 auto;
   font-size: var(--fs-14);
   color: var(--text-secondary);
   text-decoration: none;
@@ -983,19 +990,19 @@ body {
   min-width: 0;
 }
 .breaking-row-age {
+  flex: 0 0 auto;
   font-size: var(--fs-13);
-  text-align: right;
   white-space: nowrap;
   color: var(--text-dim);
 }
 /* The overrun overlay: full headline, left-anchored at the headline column
-   (92px ID + 10px gap = 102px), opaque, above the (dimmed) races column.
+   (the 5.8em id basis + the 10px gap), opaque, above the (dimmed) feed column.
    white-space:nowrap so it runs as far right as needed; pointer-events:none so
    a click falls through to the underlying truncated headline link. */
 .breaking-row-full {
   position: absolute;
   top: 50%;
-  left: 102px;
+  left: calc(5.8em + 10px);
   transform: translateY(-50%);
   z-index: 40;
   display: none;
@@ -3200,8 +3207,11 @@ body {
   color: var(--accent-amber-bright);
 }
 .weekly-band-readfull {
-  /* HO 365: the report link is the lone right-cluster item (space-between). */
-  margin-left: auto;
+  /* HO 365 pinned this right with `margin-left: auto`; HO 610 (C1) removed it.
+     The strip is content-then-links already, so the report link now simply
+     FOLLOWS the polarization chip as the run's last item and the leftover width
+     collects after it — a trailing gap, which is the target state, not a defect.
+     It was measuring ~870px of interior gap at 2560. */
   color: var(--accent-amber);
   text-decoration: none;
   white-space: nowrap;
@@ -3785,20 +3795,31 @@ body {
    mock's --party-dem/--party-rep map to the app's --party-democrat/-republican;
    the name stays mono (HO 257 established CBT has no --sans), distinguished by
    size + --text-primary. .hl is the card↔battlefield-marker cross-highlight. */
+/* HO 610 — the track floor. `repeat(4, 1fr)` could not hold four ~280–372px
+   min-content cards below 1400px: the page scrolled 120px sideways at 1200 and
+   20px at 1300, and at 1440 the grid overflowed its own container by 327px
+   (invisible as a document scroll only because an ancestor clipped it), verified
+   as pre-existing at 1d9c339.
+   It is fixed with auto-fit rather than another breakpoint because a breakpoint
+   CANNOT express this: the right feed column appears at 1400 and takes 400px, so
+   the columns the container can hold run 2 → 3 → 2 → 4 across viewports
+   1200/1300/1440/2560 — non-monotonic in viewport width, monotonic only in
+   CONTAINER width, which is what auto-fit reads. The two max-width rules below it
+   are subsumed (the floor yields one column on its own once the container is
+   narrower than two tracks); `min(…, 100%)` keeps a track from exceeding a
+   container narrower than the floor itself.
+   The 400px floor is the largest measured card min-content (372px at 2026-08-06,
+   four featured cards) plus headroom for the C2 type ladder, which adds up to
+   +3px per token above 1600 and so grows min-content with the viewport. Swept
+   700→2560: zero page overflow, zero per-card internal overflow, and card widths
+   now uniform within a row (they were a ragged 279/310/280/372). The consequence
+   to expect rather than re-file: between ~1400 and ~2350 the container only holds
+   2–3 tracks, so four cards wrap 2×2 or 3+1 instead of a single row of four —
+   four across at those widths is what was overflowing. */
 .race-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
   gap: 14px;
-}
-@media (max-width: 1100px) {
-  .race-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 640px) {
-  .race-grid {
-    grid-template-columns: 1fr;
-  }
 }
 .race-card {
   border: 1px solid var(--border-strong);

@@ -119,14 +119,22 @@ export async function DashboardV2Header({
               <span className="show-desktop">LAST SYNC </span>
               <CyclingTimestamp iso={corpus.lastSync} />
             </p>
+
+            {/* HO 355: the auth affordance. HO 610 (C1) moved it INTO the prompt
+                row and deleted the `margin-left:auto` spacer that pinned it to the
+                masthead's right edge — a deliberate deviation from the mock, whose
+                own `.mast` uses a `.sp{flex:1}` spacer for exactly this. That
+                spacer IS the C1 pattern (SIGN IN sat ~700px right of LAST SYNC at
+                2560), and SKILL owns the conventions, so the mock loses this one.
+                It follows the sync with a `·` like every other masthead item. */}
+            <p className="home-header-meta">
+              ·{" "}
+              <AuthButton
+                user={session?.user ? { name: session.user.name ?? null } : null}
+              />
+            </p>
           </div>
         </div>
-
-        {/* HO 355: auth affordance pinned top-right of the masthead. The
-            prominent landing CTA is a later handoff (B1). */}
-        <span style={{ marginLeft: "auto", flexShrink: 0 }}>
-          <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
-        </span>
       </div>
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
