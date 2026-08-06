@@ -110,6 +110,59 @@
   --home-header-height: 200px;
 }
 
+/* HO 604 (C2) — the viewport type ladder. Flat +1px per stop across all six
+   tokens, so the --fs-12 token walks the mock's 12 → 13 → 14 → 15 and every
+   token stays an integer at every stop. (The multiplicative alternative,
+   ×1.083 / ×1.167 / ×1.25, matches the mock equally well at 12px but produces
+   fractional sizes at every other token — rejected for that.) A flat step
+   compresses the scale at the top end: 9px gains 33% by 2400 while 14px gains
+   21%, which is the right direction, because the small labels are the ones
+   that are unreadable at 2560.
+
+   KNOWN, BOUNDED CONSEQUENCE — stated here so it is not later filed as a bug:
+   the ~68 one-off CSS sizes (8 / 8.5 / 9.5 / 10.5 / 11.5 / 12.5 / 15..38) and
+   the 34 SVG fontSize attributes do NOT scale. At 2400 a 20px heading sits
+   over 15px body instead of over 12px body, so the type hierarchy compresses
+   at wide widths. Real, not broken. Row padding and fixed-size glyph strips
+   stepping at these same breakpoints is the other half of C2 and is
+   deliberately NOT in this commit — type first, then look at which paddings
+   actually need it rather than guessing.
+
+   Every other @media in this file is max-width (mobile) except min-width 701 /
+   721 / 1200, so nothing below fights these three stops. */
+@media (min-width: 1600px) {
+  :root {
+    --fs-9: 10px;
+    --fs-10: 11px;
+    --fs-11: 12px;
+    --fs-12: 13px;
+    --fs-13: 14px;
+    --fs-14: 15px;
+  }
+}
+
+@media (min-width: 2000px) {
+  :root {
+    --fs-9: 11px;
+    --fs-10: 12px;
+    --fs-11: 13px;
+    --fs-12: 14px;
+    --fs-13: 15px;
+    --fs-14: 16px;
+  }
+}
+
+@media (min-width: 2400px) {
+  :root {
+    --fs-9: 12px;
+    --fs-10: 13px;
+    --fs-11: 14px;
+    --fs-12: 15px;
+    --fs-13: 16px;
+    --fs-14: 17px;
+  }
+}
+
 @theme {
   --font-mono:
     ui-monospace, "JetBrains Mono", "SF Mono", SFMono-Regular, Menlo, Consolas,
