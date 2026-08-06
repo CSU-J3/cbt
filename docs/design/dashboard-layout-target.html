@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MOCK 591 · dashboard layout reference</title>
+<style>
+  :root{ --fs:12px;
+    --bg-base:#0a0e14;--bg-panel:#050709;--bg-row-hover:#0f1620;
+    --border-strong:#1f2937;--border-soft:#111820;
+    --text-primary:#e5e7eb;--text-secondary:#cbd5e1;--text-muted:#94a3b8;--text-dim:#6b7280;
+    --accent-amber:#d97706;--accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444;--party-democrat:#3b82f6;
+    --vote-nay:#f87171;--up:#34d399;--down:#f87171;--cyan:#22d3ee;
+    --font-mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Menlo,Consolas,monospace}
+  @media(min-width:1600px){:root{--fs:13px}}
+  @media(min-width:2000px){:root{--fs:14px}}
+  @media(min-width:2400px){:root{--fs:15px}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-mono);
+    font-size:var(--fs);line-height:1.25;padding:16px 20px 60px}
+  a{text-decoration:none} .sp{flex:1}
+  .mockbar{color:var(--text-dim);border-bottom:1px solid var(--border-strong);padding-bottom:7px;
+    margin-bottom:10px;display:flex;justify-content:space-between;letter-spacing:.04em}
+  .mockbar b{color:var(--accent-amber-bright);font-weight:600}
+  .band{position:relative}
+  .tag{position:absolute;right:0;top:-8px;background:var(--bg-base);color:var(--accent-amber-bright);
+    border:1px solid var(--accent-amber);font-size:.75em;letter-spacing:.1em;padding:0 6px;z-index:5}
+  .tag.new{color:var(--up);border-color:var(--up)} .tag.dens{color:var(--cyan);border-color:#1e5a68}
+
+  .page{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-items:start}
+  @media(min-width:1400px){ .page{grid-template-columns:minmax(0,1fr) minmax(400px,27%)} }
+  .left{display:flex;flex-direction:column;gap:8px;min-width:0}
+  @media(min-width:1400px){
+    .bills{position:sticky;top:16px;max-height:calc(100vh - 32px);display:flex;flex-direction:column}
+    .bills .panel{display:flex;flex-direction:column;min-height:0;flex:1}
+    .bills .feed{overflow-y:auto;min-height:0}
+  }
+
+  .mast{display:flex;align-items:baseline;gap:12px;padding-bottom:5px;flex-wrap:wrap}
+  .mast h1{font-size:1.583em;font-weight:500;letter-spacing:-.01em}
+  .mast h1 .amb{color:var(--accent-amber)}
+  .mast .counts{color:var(--text-muted)}
+  .mast .counts b{color:var(--cyan);font-weight:600} .mast .counts .en{color:var(--up);font-weight:600}
+  .mast .sync{color:var(--text-dim);font-size:.833em} .mast .sign{color:var(--accent-amber);font-size:.875em}
+  .tape{border-left:2px solid var(--accent-amber);background:var(--bg-panel);display:flex;align-items:center;
+    padding:3px 0 3px 8px;overflow:hidden;white-space:nowrap;border-top:1px solid var(--border-soft)}
+  .tape .lbl{color:var(--text-dim);font-size:.75em;letter-spacing:.12em;padding-right:9px}
+  .tape .tk{padding:0 10px;border-left:1px solid var(--border-soft);font-size:.917em}
+  .tape .tk:first-of-type{border-left:none}
+  .tape .sym{color:var(--text-secondary)} .tape .up{color:var(--up)} .tape .dn{color:var(--down)}
+  .tape .g{color:var(--text-dim)}
+  .tape .mini{color:var(--text-dim);font-size:.667em;border:1px solid var(--border-strong);padding:0 3px}
+  .tape .asof{margin-left:auto;color:var(--text-dim);font-size:.792em;padding:0 9px;background:var(--bg-panel)}
+  .tape .live{color:var(--up)}
+  .nav{display:flex;align-items:center;border-bottom:1px solid var(--border-strong);margin-top:8px;flex-wrap:wrap}
+  .nav a{color:var(--text-muted);font-size:.958em;padding:6px 10px;border-bottom:2px solid transparent}
+  .nav a.on{color:var(--accent-amber-bright);border-bottom-color:var(--accent-amber)}
+  .nav a.mine{color:var(--text-secondary)} .nav .div{color:var(--border-strong);padding:0 4px}
+
+  .panel{border:1px solid var(--border-strong);background:var(--bg-panel)}
+  .phead{display:flex;align-items:center;gap:9px;padding:4px 10px;border-bottom:1px solid var(--border-strong);flex-wrap:wrap}
+  .ptitle{color:var(--accent-amber-bright);font-size:.917em;letter-spacing:.12em;font-weight:600}
+  .pmeta{color:var(--text-dim);font-size:.833em}
+  .plink{color:var(--accent-amber);font-size:.833em}
+  .pfoot{color:var(--text-dim);font-size:.792em;padding:3px 10px;border-top:1px solid var(--border-soft)}
+  .more{color:var(--accent-amber);font-size:.833em;text-align:center;padding:3px}
+  .tabs{display:flex;border-bottom:1px solid var(--border-strong)}
+  .tabs span{padding:5px 11px;font-size:.917em;color:var(--text-dim);border-bottom:2px solid transparent}
+  .tabs span.on{color:var(--text-primary);border-bottom-color:var(--accent-amber)}
+
+  /* ABSENCE — two columns, everything packed left, no far-right element */
+  .abw2{display:grid;grid-template-columns:1fr}
+  @media(min-width:1200px){.abw2{grid-template-columns:1fr 1fr}.abw2>div:nth-child(2){border-left:1px solid var(--border-soft)}}
+  .abw-rule{border:.5px solid var(--border-strong);color:var(--text-muted);padding:0 6px;font-size:.833em}
+  .abw-rule b{color:var(--text-secondary)}
+  .arow{display:flex;align-items:center;gap:10px;padding:4px 10px;border-top:.5px solid var(--border-soft);flex-wrap:nowrap}
+  .arow:hover{background:var(--bg-row-hover)}
+  .nm{font-weight:600;white-space:nowrap} .nm .st{color:var(--text-dim);font-weight:400;margin-left:4px}
+  .chip-ch{color:var(--text-dim);border:.5px solid var(--border-soft);padding:0 4px;font-size:.75em}
+  .frac{color:var(--vote-nay);font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+  .frac .w{color:var(--text-dim);font-weight:400}
+  .seen{font-size:.833em;color:var(--text-muted);white-space:nowrap} .seen .r{color:var(--text-dim)}
+  .seen.dark{color:var(--vote-nay);font-weight:600} .seen.dark .r{color:var(--vote-nay)}
+  .cells{display:flex;gap:2px} .cells i{width:4px;height:9px;background:#131a24;border-radius:1px}
+  .cells i.x{background:var(--vote-nay)}
+  .chronic{color:var(--accent-amber-bright);font-size:.75em;letter-spacing:.05em;white-space:nowrap}
+
+  /* HEARINGS */
+  .hbar{display:flex;align-items:center;gap:11px;padding:4px 10px;border-bottom:.5px solid var(--border-soft);
+    font-size:.833em;color:var(--text-dim);flex-wrap:wrap}
+  .hday{color:var(--text-primary);font-size:.917em;letter-spacing:.08em;font-weight:600}
+  .hday .lab{color:var(--accent-amber-bright)} .hday .n{color:var(--text-dim);font-weight:400}
+  .rib{display:flex;gap:3px;align-items:center}
+  .rib .c{border:.5px solid var(--border-soft);color:#3d4757;font-size:.75em;padding:0 5px;min-width:30px;text-align:center}
+  .rib .c.has{color:var(--text-muted);border-color:var(--border-strong)} .rib .c.has b{color:var(--accent-amber-bright)}
+  .rib .c.on{border-color:var(--accent-amber);color:var(--text-primary);background:#150f04}
+  .rib .tot{color:var(--text-dim);font-size:.792em;padding-left:5px;white-space:nowrap}
+  .sched-wrap{display:grid;grid-template-columns:1fr}
+  @media(min-width:1700px){.sched-wrap{grid-template-columns:1fr 1fr}.sched-wrap>div+div{border-left:1px solid var(--border-soft)}}
+  .srow{display:flex;align-items:baseline;gap:10px;padding:3px 10px;border-top:.5px solid var(--border-soft)}
+  .srow:first-child{border-top:none} .srow:hover{background:var(--bg-row-hover)} .srow.past{opacity:.42}
+  .stime{color:var(--text-muted);font-size:.875em;font-variant-numeric:tabular-nums;flex:0 0 3.6em}
+  .skind{color:var(--text-dim);font-size:.75em;letter-spacing:.09em;flex:0 0 4.6em}
+  .skind.mk{color:var(--accent-amber)}
+  .stitle{color:var(--text-secondary);font-size:.958em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .sbills{color:var(--accent-amber);font-size:.792em;white-space:nowrap;flex:0 0 auto}
+  .snow{display:flex;align-items:center;gap:10px;padding:1px 10px}
+  .snow .lbl{color:var(--vote-nay);font-size:.75em;flex:0 0 3.6em}
+  .snow .ln{flex:1;height:1px;background:linear-gradient(to right,var(--vote-nay),#2a1416)}
+
+  .wstrip{border:1px solid var(--border-strong);background:var(--bg-panel);display:flex;align-items:center;
+    gap:10px;flex-wrap:wrap;padding:5px 10px;font-size:.917em}
+  .wstrip .k{color:var(--text-muted)} .wstrip .k b{color:var(--text-primary);font-weight:600}
+  .wstrip .dot{color:var(--border-strong)} .wstrip .up{color:var(--up)} .wstrip .dn{color:var(--down)}
+  .billchip{border:.5px solid var(--accent-amber);color:var(--accent-amber-bright);padding:0 5px;font-size:.833em}
+  .polchip{border:.5px solid var(--border-strong);color:var(--text-muted);padding:0 6px;font-size:.833em}
+  .polchip b{color:var(--text-primary);font-weight:600} .polchip .sep{color:var(--border-strong);margin:0 4px}
+  .polchip a{color:var(--accent-amber)}
+
+  /* BREAKING — id, headline, age all packed left */
+  .twoup{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start}
+  @media(min-width:1100px){.twoup{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}}
+  .brk-row{display:flex;align-items:baseline;gap:10px;padding:3px 10px;border-top:.5px solid var(--border-soft)}
+  .brk-row:hover{background:var(--bg-row-hover)}
+  .bid{color:var(--accent-amber);font-size:.875em;white-space:nowrap;flex:0 0 5.8em}
+  .bhead{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:0 1 auto;min-width:0}
+  .bago{color:var(--text-dim);font-size:.833em;white-space:nowrap;flex:0 0 auto}
+  .dist-row{display:grid;grid-template-columns:80px minmax(0,1fr) 46px;gap:9px;align-items:center;padding:1px 10px}
+  .dist-row .lb{color:var(--text-muted);font-size:.833em}
+  .dist-row .n{color:var(--text-secondary);text-align:right;font-variant-numeric:tabular-nums;font-size:.875em}
+  .bar{height:8px;display:block}
+  .bar.intro{background:#94a3b8}.bar.cmte{background:var(--cyan)}.bar.floor{background:#f59e0b}
+  .bar.other{background:#ea8c3f}.bar.pres{background:#ef8b3f}.bar.enac{background:var(--up)}
+  .bar.t{background:#4b6b8a}
+  .dsub{color:var(--text-dim);font-size:.75em;letter-spacing:.12em;padding:6px 10px 2px;border-top:1px solid var(--border-soft)}
+
+  /* ===== BILLS COLUMN — quieter rows, grouped ===== */
+  .feed{line-height:1.4}
+  .grp{color:var(--text-dim);font-size:.75em;letter-spacing:.16em;padding:6px 10px 3px;
+    border-top:1px solid var(--border-strong);background:#080b11}
+  .grp:first-child{border-top:none}
+  .mv{padding:5px 10px;border-top:.5px solid var(--border-soft)}
+  .mv:hover{background:var(--bg-row-hover)}
+  .mv-l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .mv-id{color:var(--accent-amber);font-size:.875em;white-space:nowrap;flex:0 0 auto}
+  .mv-ttl{color:var(--text-primary);font-size:1em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mv-l2{color:var(--text-dim);font-size:.833em;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mv-l2 .stg{letter-spacing:.08em}
+  .mv-l2 .stg.cmte{color:var(--text-dim)}
+  .mv-l2 .stg.floor{color:var(--accent-amber-bright)}
+  .mv-l2 .stg.enac{color:var(--up)}
+  .mv-l2 .sep{color:#2b3340;margin:0 6px}
+  .mv-l2 .sp{color:var(--text-muted)}
+  .mv-l2 .tps{color:#5b6料}
+  .mv-l2 .tps{color:#59646f}
+
+  .sec{color:var(--text-dim);text-transform:uppercase;letter-spacing:.14em;font-size:.833em;margin:30px 0 8px}
+  .notes{color:var(--text-muted);font-size:.958em;line-height:1.7;max-width:880px}
+  .notes b{color:var(--text-secondary)} .notes .cy{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="mockbar">
+  <span><b>MOCK 591 · dashboard layout reference</b> · no far-right anchors · quieter bills column</span>
+  <span>CBT</span>
+</div>
+
+<div class="page">
+ <div class="left">
+
+  <div>
+    <div class="mast">
+      <h1>Congressional Terminal<span class="amb">:\</span>119TH<span class="amb">\</span>Dashboard<span class="amb">></span></h1>
+      <span class="counts"><b>16,861</b> tracked <span style="color:var(--border-strong)">·</span> <span class="en">97</span> enacted</span>
+      <span class="sp"></span><span class="sync">LAST SYNC 1:30 PM MT</span><a class="sign" href="#">SIGN IN</a>
+    </div>
+    <div class="tape">
+      <span class="lbl">MARKETS</span>
+      <span class="tk"><span class="sym">NDQ</span> 25,373.85 <span class="up">▲ +1.00%</span></span>
+      <span class="tk"><span class="sym">SPX</span> 7,489.72 <span class="up">▲ +0.70%</span></span>
+      <span class="tk"><span class="sym">TNX</span> 4.68% <span class="up">▲ +0.21%</span> <span class="mini">EOD</span></span>
+      <span class="tk"><span class="sym">WTI</span> 84.25 <span class="dn">▼ −0.15%</span> <span class="mini">EOD</span></span>
+      <span class="tk"><span class="sym">GOOGL</span> 356.13 <span class="up">▲ +6.73%</span></span>
+      <span class="tk"><span class="sym">MSFT</span> 464.72 <span class="up">▲ +3.02%</span></span>
+      <span class="tk"><span class="sym">AAPL</span> 308.91 <span class="dn">▼ −7.35%</span></span>
+      <span class="tk"><span class="sym">NVDA</span> 200.75 <span class="up">▲ +2.93%</span></span>
+      <span class="asof">10:01 MT · CLOSED</span>
+    </div>
+    <div class="tape">
+      <span class="lbl">ODDS</span>
+      <span class="tk"><span class="sym">SHUTDOWN</span> <span class="g">κ</span>35.0% <span class="g">ᴘ</span>N/A</span>
+      <span class="tk"><span class="sym">FED CUT SEP</span> <span class="g">κ</span>3.0% <span class="g">ᴘ</span>2.1%</span>
+      <span class="tk"><span class="sym">RECESSION</span> <span class="g">κ</span>7.0% <span class="g">ᴘ</span>9.5%</span>
+      <span class="tk"><span class="sym">HOUSE 2026 D</span> <span class="g">κ</span>62.0% <span class="g">ᴘ</span>59.5%</span>
+      <span class="asof">10:01 MT · <span class="live">● LIVE</span></span>
+    </div>
+    <div class="nav">
+      <a class="on" href="#">[ \DASHBOARD ]</a><a class="mine" href="#">\WATCHLIST</a><span class="div">|</span>
+      <a href="#">\LEGISLATION</a><a href="#">\HEARINGS</a><a href="#">\MEMBERS</a><a href="#">\ELECTORAL</a><a href="#">\PATTERNS</a><a href="#">\LOBBYING</a><a href="#">\NOMINATIONS</a><a href="#">\AMENDMENTS</a><a href="#">\REPORTS</a>
+    </div>
+  </div>
+
+  <div class="band">
+    <span class="tag new">HO 589 · all 6, two columns</span>
+    <div class="panel">
+      <div class="phead"><span class="ptitle" style="color:var(--vote-nay)">▲ ABSENCE WATCH</span><span class="pmeta">(6)</span>
+        <span class="abw-rule">MISSED <b>≥ 20</b> · LAST <b>21 DAYS</b></span>
+        <span class="pmeta">HSE THRU JUL 23 · SEN THRU JUL 30</span><span class="sp"></span><a class="plink" href="#">FULL RANKING →</a></div>
+      <div class="abw2">
+        <div>
+          <div class="arow"><span class="nm" style="color:var(--party-democrat)">F. WILSON <span class="st">D · FL-24</span></span>
+            <span class="chip-ch">HSE</span><span class="frac">48 <span class="w">/50</span></span>
+            <span class="seen dark">JUN 24 <span class="r">· 48 ago</span></span><span class="cells"><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i></span><span class="chronic">CHRONIC 29%</span></div>
+          <div class="arow"><span class="nm" style="color:var(--party-republican)">M. McCONNELL <span class="st">R · KY</span></span>
+            <span class="chip-ch">SEN</span><span class="frac">25 <span class="w">/25</span></span>
+            <span class="seen dark">JUN 30 <span class="r">· 25 ago</span></span><span class="cells"><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i></span></div>
+          <div class="arow"><span class="nm" style="color:var(--party-republican)">A. BIGGS <span class="st">R · AZ-05</span></span>
+            <span class="chip-ch">HSE</span><span class="frac">38 <span class="w">/50</span></span>
+            <span class="seen">JUL 23 <span class="r">· 0 ago</span></span><span class="cells"><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i></span></div>
+        </div>
+        <div>
+          <div class="arow"><span class="nm" style="color:var(--party-democrat)">D. KILDEE <span class="st">D · MI-08</span></span>
+            <span class="chip-ch">HSE</span><span class="frac">31 <span class="w">/50</span></span>
+            <span class="seen">JUL 21 <span class="r">· 6 ago</span></span><span class="cells"><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i></span></div>
+          <div class="arow"><span class="nm" style="color:var(--party-republican)">B. GRAVES <span class="st">R · LA-06</span></span>
+            <span class="chip-ch">HSE</span><span class="frac">27 <span class="w">/50</span></span>
+            <span class="seen">JUL 22 <span class="r">· 3 ago</span></span><span class="cells"><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i></span></div>
+          <div class="arow"><span class="nm" style="color:var(--party-democrat)">G. MENG <span class="st">D · NY-06</span></span>
+            <span class="chip-ch">HSE</span><span class="frac">22 <span class="w">/50</span></span>
+            <span class="seen">JUL 23 <span class="r">· 0 ago</span></span><span class="cells"><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i class="x"></i><i></i></span></div>
+        </div>
+      </div>
+      <div class="pfoot">NON-VOTING DELEGATES EXCLUDED · REFRESHES DAILY AFTER SYNC-VOTES</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tabs"><span class="on">HEARINGS</span><span>RACES</span></div>
+    <div class="hbar">
+      <span class="hday"><span class="lab">TODAY</span> · WED JUL 29 <span class="n">· 5 SCHEDULED</span></span>
+      <span class="rib"><span class="c">MON<br>—</span><span class="c">TUE<br>—</span><span class="c on has">WED<br><b>5</b></span><span class="c has">THU<br><b>5</b></span><span class="c">FRI<br>—</span>
+        <span class="tot">10 THIS WEEK ▼43</span></span>
+      <span class="sp"></span><a class="plink" href="#">→ ALL</a>
+    </div>
+    <div class="sched-wrap">
+      <div>
+        <div class="srow past"><span class="stime">8:30A</span><span class="skind">HEARING</span><span class="stitle">Testimony of Anthony Fauci.</span></div>
+        <div class="srow past"><span class="stime">9:30A</span><span class="skind mk">MARKUP</span><span class="stitle">S.365 and H.R.1729, to amend the John D. Dingell, Jr. Conservation Act</span><span class="sbills">+45 →</span></div>
+        <div class="snow"><span class="lbl">1:30P</span><span class="ln"></span></div>
+        <div class="srow"><span class="stime">2:00P</span><span class="skind">HEARING</span><span class="stitle">Impact of AI on the workplace.</span></div>
+        <div class="srow"><span class="stime">2:30P</span><span class="skind mk">MARKUP</span><span class="stitle">S.3573, to amend the Aamodt Litigation Settlement Act</span><span class="sbills">+5 →</span></div>
+        <div class="srow"><span class="stime">3:45P</span><span class="skind">HEARING</span><span class="stitle">AI deception machine: deepfakes, chatbots, and senior fraud.</span></div>
+      </div>
+      <div>
+        <div class="srow"><span class="stime" style="color:var(--accent-amber)">THU 30</span><span class="skind">NEXT</span><span class="stitle" style="color:var(--text-dim)">5 scheduled</span></div>
+        <div class="srow"><span class="stime">9:00A</span><span class="skind">BUSINESS</span><span class="stitle">Nomination of Todd Blanche, of Florida, to be Attorney General.</span></div>
+        <div class="srow"><span class="stime">9:45A</span><span class="skind mk">MARKUP</span><span class="stitle">S.5038, to prohibit the transfer of the Office of Special Education</span><span class="sbills">+10 →</span></div>
+        <div class="srow"><span class="stime">10:00A</span><span class="skind">BUSINESS</span><span class="stitle">An original bill entitled, "Taxpayer Assistance and Service Act".</span></div>
+        <div class="srow"><span class="stime">10:00A</span><span class="skind">HEARING</span><span class="stitle">Intelligent networks, focusing on powering artificial intelligence</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wstrip">
+    <span class="k">WEEK OF JUL 27</span><span class="dot">·</span>
+    <span class="k"><span class="up">●</span> <b>3</b> ENACTED <span class="up">▲3</span></span>
+    <span class="billchip">HR 6644</span><span class="billchip">HR 3490</span><span class="billchip">S 629</span>
+    <span class="dot">·</span><span class="k"><b>80</b> NEW <span class="dn">▼123</span></span>
+    <span class="dot">·</span><span class="k"><b>338</b> TRANSITIONS <span class="up">▲157</span></span>
+    <span class="dot">·</span><span class="k"><b>10</b> HEARINGS <span class="dn">▼43</span></span>
+    <span class="dot">·</span><span class="k">FILLER <b>11%</b></span>
+    <span class="polchip">POLARIZATION <b>0.92</b> <span class="sep">·</span> HSE <b>0.92</b> <span class="sep">·</span> SEN <b>0.92</b> <span class="sep">·</span> <a href="#">IDEOLOGY →</a></span>
+    <span class="sp"></span><a class="plink" href="#">JUL 20 REPORT →</a>
+  </div>
+
+  <div class="twoup">
+    <div class="panel">
+      <div class="phead"><span class="ptitle">BREAKING · LAST 72H</span><span class="pmeta">(57)</span></div>
+      <div class="brk-row"><span class="bid">HR 9914</span><span class="bhead">Rogue AI hacking incidents amplify debate over open-source tech</span><span class="bago">1h</span></div>
+      <div class="brk-row"><span class="bid">HR 10004</span><span class="bhead">DOI proposes potentially major water cuts</span><span class="bago">1h</span></div>
+      <div class="brk-row"><span class="bid">HR 10004</span><span class="bhead">Cybersecurity expert: 'Moderate confidence' Iran attacked Minnesota water facilities</span><span class="bago">5h</span></div>
+      <div class="brk-row"><span class="bid">S 5206</span><span class="bhead">Trump says Israel 'happy' with Hamas deal, despite 'skepticism'</span><span class="bago">5h</span></div>
+      <div class="brk-row"><span class="bid">S 3732</span><span class="bhead">Federal government proposes Colorado River water use cuts for California and Arizona</span><span class="bago">7h</span></div>
+      <div class="brk-row"><span class="bid">HR 9767</span><span class="bhead">Distillers press Senate on direct-to-consumer shipping carve-out</span><span class="bago">9h</span></div>
+      <div class="brk-row"><span class="bid">S 4118</span><span class="bhead">Appropriators signal short-term CR as September deadline nears</span><span class="bago">11h</span></div>
+      <div class="brk-row"><span class="bid">HR 6644</span><span class="bhead">Rural broadband bill clears committee on voice vote</span><span class="bago">14h</span></div>
+      <div class="brk-row"><span class="bid">S 629</span><span class="bhead">President signs veterans telehealth expansion into law</span><span class="bago">1d</span></div>
+      <div class="brk-row"><span class="bid">HR 10112</span><span class="bhead">Small business groups back tax simplification markup</span><span class="bago">1d</span></div>
+      <div class="brk-row"><span class="bid">S 1188</span><span class="bhead">Chip supply chain bill heads to floor after committee deal</span><span class="bago">1d</span></div>
+      <div class="brk-row"><span class="bid">HR 9210</span><span class="bhead">Western governors press for wildfire coordination funding</span><span class="bago">2d</span></div>
+      <div class="more">[ + 45 MORE → ]</div>
+    </div>
+    <div class="panel">
+      <div class="phead"><span class="ptitle">DISTRIBUTION</span><span class="pmeta">16,861 BILLS</span></div>
+      <div class="dsub" style="border-top:none">BY STAGE</div>
+      <div style="padding:0 0 4px">
+        <div class="dist-row"><span class="lb">INTRO</span><span><span class="bar intro" style="width:3%"></span></span><span class="n">127</span></div>
+        <div class="dist-row"><span class="lb">COMMITTEE</span><span><span class="bar cmte" style="width:100%"></span></span><span class="n">15,325</span></div>
+        <div class="dist-row"><span class="lb">FLOOR</span><span><span class="bar floor" style="width:22%"></span></span><span class="n">772</span></div>
+        <div class="dist-row"><span class="lb">OTHER</span><span><span class="bar other" style="width:16%"></span></span><span class="n">539</span></div>
+        <div class="dist-row"><span class="lb">PRESIDENT</span><span><span class="bar pres" style="width:1.5%"></span></span><span class="n">1</span></div>
+        <div class="dist-row"><span class="lb">ENACTED</span><span><span class="bar enac" style="width:9%"></span></span><span class="n">97</span></div>
+      </div>
+      <div class="dsub">BY TOPIC</div>
+      <div style="padding:0 0 6px">
+        <div class="dist-row"><span class="lb">GOV</span><span><span class="bar t" style="width:100%"></span></span><span class="n">3,104</span></div>
+        <div class="dist-row"><span class="lb">HLTH</span><span><span class="bar t" style="width:72%"></span></span><span class="n">2,240</span></div>
+        <div class="dist-row"><span class="lb">TAX</span><span><span class="bar t" style="width:55%"></span></span><span class="n">1,703</span></div>
+        <div class="dist-row"><span class="lb">DEF</span><span><span class="bar t" style="width:48%"></span></span><span class="n">1,489</span></div>
+        <div class="dist-row"><span class="lb">ENV</span><span><span class="bar t" style="width:41%"></span></span><span class="n">1,272</span></div>
+        <div class="dist-row"><span class="lb">EDU</span><span><span class="bar t" style="width:33%"></span></span><span class="n">1,024</span></div>
+        <div class="dist-row"><span class="lb">TECH</span><span><span class="bar t" style="width:28%"></span></span><span class="n">868</span></div>
+      </div>
+    </div>
+  </div>
+ </div>
+
+ <div class="bills band">
+   <span class="tag dens">grouped · muted · no right anchor</span>
+   <div class="panel">
+     <div class="tabs"><span class="on">MOVERS (338)</span><span>STALLS (5)</span><span>NEW (80)</span></div>
+     <div class="feed">
+        <div class="grp">TODAY</div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 9767</span><span class="mv-ttl">Craft Distilled Spirits Direct-to-Consumer Shipping Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 4h<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">STEUBE [R-FL]</span><span class="sep">·</span><span class="tps">CONS TRD</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 10007</span><span class="mv-ttl">Environmental Health Workforce Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 10h<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">THANEDAR [D-MI]</span><span class="sep">·</span><span class="tps">HLTH EDU LAB</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 9997</span><span class="mv-ttl">National Guard for National Service Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 10h<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">NEGUSE [D-CO]</span><span class="sep">·</span><span class="tps">DEF LAB</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 10004</span><span class="mv-ttl">Defending Our Energy and Water Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 10h<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">SCHOLTEN [D-MI]</span><span class="sep">·</span><span class="tps">TECH ENV GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 9891</span><span class="mv-ttl">PREVENT ESRD Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 10h<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">WILSON [R-SC]</span><span class="sep">·</span><span class="tps">HLTH</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 5038</span><span class="mv-ttl">Office of Special Education Transfer Prohibition Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 12h<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">MURRAY [D-WA]</span><span class="sep">·</span><span class="tps">EDU GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 6644</span><span class="mv-ttl">Rural Broadband Modernization Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg floor">FLOOR</span> 14h<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">LATTA [R-OH]</span><span class="sep">·</span><span class="tps">TECH TRD</span></div></div>
+        <div class="grp">YESTERDAY</div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 629</span><span class="mv-ttl">Veterans Telehealth Access Improvement Act</span></div>
+          <div class="mv-l2"><span class="stg enac">ENACTED</span> 1d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">TESTER [D-MT]</span><span class="sep">·</span><span class="tps">HLTH DEF</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 3490</span><span class="mv-ttl">Coastal Resilience and Flood Mitigation Act</span></div>
+          <div class="mv-l2"><span class="stg enac">ENACTED</span> 1d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">SALAZAR [R-FL]</span><span class="sep">·</span><span class="tps">ENV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 4118</span><span class="mv-ttl">Continuing Appropriations Extension Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg floor">FLOOR</span> 1d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">COLLINS [R-ME]</span><span class="sep">·</span><span class="tps">GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 9914</span><span class="mv-ttl">Open-Source AI Security Standards Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 1d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">OBERNOLTE [R-CA]</span><span class="sep">·</span><span class="tps">TECH</span></div></div>
+        <div class="grp">EARLIER THIS WEEK</div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 3732</span><span class="mv-ttl">Colorado River Basin Water Allocation Reform Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 2d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">KELLY [D-AZ]</span><span class="sep">·</span><span class="tps">ENV AGR</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 10112</span><span class="mv-ttl">Small Business Tax Simplification Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 2d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">WILLIAMS [R-TX]</span><span class="sep">·</span><span class="tps">TAX TRD</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 5206</span><span class="mv-ttl">Middle East Security Assistance Authorization</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 2d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">RISCH [R-ID]</span><span class="sep">·</span><span class="tps">DEF GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 8871</span><span class="mv-ttl">Medicare Telehealth Permanence Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 3d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">SCHRIER [D-WA]</span><span class="sep">·</span><span class="tps">HLTH</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 2914</span><span class="mv-ttl">Federal Cybersecurity Workforce Expansion Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 3d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">PETERS [D-MI]</span><span class="sep">·</span><span class="tps">TECH GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 7702</span><span class="mv-ttl">Great Lakes Restoration Reauthorization Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 3d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">DINGELL [D-MI]</span><span class="sep">·</span><span class="tps">ENV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 1188</span><span class="mv-ttl">Semiconductor Supply Chain Resilience Act</span></div>
+          <div class="mv-l2"><span class="stg floor">FLOOR</span> 4d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">YOUNG [R-IN]</span><span class="sep">·</span><span class="tps">TECH TRD</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 5540</span><span class="mv-ttl">Farm Credit Modernization Act of 2026</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 4d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">FEENSTRA [R-IA]</span><span class="sep">·</span><span class="tps">AGR</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 3301</span><span class="mv-ttl">Election Infrastructure Security Grants Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 5d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">PADILLA [D-CA]</span><span class="sep">·</span><span class="tps">GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 9210</span><span class="mv-ttl">Wildfire Response Coordination Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 5d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">NEGUSE [D-CO]</span><span class="sep">·</span><span class="tps">ENV GOV</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">S 2077</span><span class="mv-ttl">Pharmacy Benefit Manager Transparency Act</span></div>
+          <div class="mv-l2"><span class="stg floor">FLOOR</span> 6d<span class="sep">·</span><span class="sp" style="color:var(--party-democrat)">CANTWELL [D-WA]</span><span class="sep">·</span><span class="tps">HLTH TRD</span></div></div>
+        <div class="mv"><div class="mv-l1"><span class="mv-id">HR 4419</span><span class="mv-ttl">Border Technology Modernization Act</span></div>
+          <div class="mv-l2"><span class="stg cmte">CMTE</span> 6d<span class="sep">·</span><span class="sp" style="color:var(--party-republican)">GREEN [R-TN]</span><span class="sep">·</span><span class="tps">DEF TECH</span></div></div>
+     </div>
+     <div class="pfoot"><a class="plink" href="#">[ + 315 MORE → ]</a></div>
+   </div>
+ </div>
+</div>
+
+<div class="sec">What changed</div>
+<div class="notes">
+  <span class="cy">Nothing is anchored to the far right of a row any more.</span> That was the stretch in every case — the miss strip ended and <code>CHRONIC</code> sat 470px away; a breaking headline ended and its timestamp sat 370px away. Rows are now flex, packed left, and whatever width is left over collects harmlessly at the end instead of opening a gap mid-row.<br><br>
+
+  <span class="cy">Absence watch went two-column</span> and shows all six tripped members instead of three plus an overflow link. Two columns of packed rows is what that panel had the width for all along.<br><br>
+
+  <span class="cy">The bills column was loud, not dense.</span> Every row carried five bordered or colored elements — boxed bill number, bright title, underlined party-colored sponsor, and two or three outlined topic chips — about 120 competing objects down the column. Now the title is the only bright thing per row; the number is plain amber, topics are plain dim text, chip borders are gone. <b>Color went from decoration to meaning</b>: it only marks stage, so ENACTED reads green and FLOOR amber against dim CMTE, which is the thing you're actually scanning for. Rows group under TODAY / YESTERDAY / EARLIER so the eye has rhythm instead of 26 identical lines.<br><br>
+
+  <span class="cy">Left column fills its height</span> — breaking went to 12 rows and the distribution panel shows stage and topic together rather than hiding one behind a tab.
+</div>
+</body>
+</html>
