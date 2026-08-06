@@ -1217,145 +1217,13 @@ body {
   color: var(--text-dim);
 }
 
-/* HO 424: chamber polarization band. Full-width dashboard surface reusing the
-   HO 421 positioned-tick-on-a-fixed-track idiom at chamber-aggregate scale: two
-   party-median ticks per rail with an amber gap line between them, no per-member
-   marker. Two rails (HOUSE over SENATE), each a
-   [64px label+nums] [1fr track] [96px GAP] grid. Existing tokens only. */
-.pol-band {
-  border-top: 1px solid var(--border-strong);
-  padding: var(--space-md) var(--space-lg);
-  background-color: var(--bg-panel);
-}
-.pol-band-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
-.pol-band-title {
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--accent-amber);
-}
-.pol-band-desc {
-  font-size: var(--fs-11);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.pol-band-rail {
-  display: grid;
-  grid-template-columns: 64px 1fr 96px;
-  align-items: center;
-  column-gap: var(--space-md);
-  padding: var(--space-xs) 0;
-}
-.pol-band-rail-label {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.pol-band-chamber {
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-}
-.pol-band-nums {
-  font-size: var(--fs-10);
-  letter-spacing: 0.3px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-/* the track: a fixed −1..+1 domain with a dim center tick, 2% inset (the marks
-   are positioned by the component's pos()). Height holds the ticks + gap line. */
-.pol-band-track {
-  position: relative;
-  height: 22px;
-  overflow: visible;
-}
-.pol-band-track-rail {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 11px;
-  height: 1px;
-  background-color: var(--border-strong);
-}
-.pol-band-track-zero {
-  position: absolute;
-  top: 5px;
-  height: 12px;
-  left: 50%;
-  width: 1px;
-  background-color: var(--border-strong);
-  opacity: 0.6;
-}
-/* amber dimension line spanning the two party medians (left/width set inline) */
-.pol-band-gapline {
-  position: absolute;
-  top: 10px;
-  height: 3px;
-  background-color: var(--accent-amber);
-  border-radius: 1px;
-  z-index: 1;
-}
-/* a party median tick, colored inline; sits above the gap line */
-.pol-band-tick {
-  position: absolute;
-  top: 3px;
-  height: 16px;
-  width: 3px;
-  transform: translateX(-1.5px);
-  z-index: 2;
-}
-.pol-band-gap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  line-height: 1.05;
-}
-.pol-band-gap-figure {
-  font-size: 19px;
-  font-weight: 600;
-  color: var(--accent-amber-bright);
-}
-.pol-band-gap-empty {
-  font-size: 19px;
-  color: var(--text-dim);
-}
-.pol-band-gap-label {
-  font-size: var(--fs-9);
-  letter-spacing: 1px;
-  color: var(--text-dim);
-}
-/* shared axis under both rails, aligned to the 1fr track column */
-.pol-band-axis {
-  display: flex;
-  justify-content: space-between;
-  margin: 2px 96px 0 calc(64px + var(--space-md));
-  padding: 0 calc(2% );
-  font-size: var(--fs-10);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-}
-.pol-band-foot {
-  margin-top: var(--space-sm);
-  font-size: var(--fs-11);
-  letter-spacing: 0.3px;
-  color: var(--text-dim);
-}
-.pol-band-link {
-  margin-left: var(--space-sm);
-  color: var(--accent-amber);
-}
-.pol-band-link:hover {
-  color: var(--accent-amber-bright);
-}
+/* HO 424's full-width chamber PolarizationBand was folded into the week strip at
+   HO 608 (the mock's `.polchip`) and its component deleted there; HO 610 removes
+   the ~140 lines of .pol-band-* chrome it left behind. Nothing renders them —
+   `git grep pol-band -- app/ components/` returns only this file. The positioned-
+   tick-on-a-fixed-track idiom they demonstrated survives in .ideo-strip below and
+   in MemberIdeology's .ideology-axis-*, which is where the chart idiom section of
+   SKILL points. */
 
 /* HO 425: /members polarization dotplot strip. ~180px = header (~26) + SVG (132)
    + footer (~14). Amber left accent; hand-rolled SVG dotplot inside (see
@@ -4697,13 +4565,20 @@ body {
    as its direct child when open; no hover / focus-within reveal. /bills already
    worked this way (.feed-row.is-open + click). */
 
-/* HO 300 — feed quadrant overflow-visible so the sponsor hover card escapes.
-   Safe: the feed has no max-height (the quadrant grows to fit its rows), so
-   nothing else was being clipped. Compound selector beats .home-quadrant's
-   single-class overflow:hidden. */
-.home-quadrant.home-feed-panel {
-  overflow: visible;
-}
+/* HO 300 opened this quadrant's overflow so "the sponsor hover card could escape",
+   and noted it was safe because the feed had no max-height. HO 610 — BOTH halves
+   of that are now false, so the rule is gone rather than re-justified:
+     · The card it named is SponsorHoverName, which renders on /bills' BillRow and
+       has never rendered in this column (HO 609 established that).
+     · The feed DOES have a max-height now (HO 609 capped the sticky column and
+       made .v2f scroll internally), so the "nothing else was being clipped"
+       clause expired with it.
+   The two overlays that actually live in this column were both reproduced at 1440
+   with the rule removed, on a feed scrolled to its end with a row expanded: the
+   row's full-title popover is position:fixed off the trigger's rect (HO 609), so
+   no ancestor overflow can reach it; and the expanded panel's own sponsor card
+   (.v2f-sc-card inside .bxp) is bounded by .v2f's overflow — an INNER ancestor —
+   which this rule never governed. Both render identically with it and without it. */
 
 .dash-prim {
   display: flex;
