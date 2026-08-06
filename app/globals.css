@@ -250,8 +250,14 @@ body {
   min-width: 110px;
   max-width: 230px;
 }
+/* HO 613 (C1) — the sort control FOLLOWS the search box. `margin-left: auto`
+   pinned it to the filter bar's right edge (computed 1,377px of margin at 2560),
+   which is why removing the bar's spacer element alone did not clear /bills: the
+   bar carried TWO pins, and the second was in a shared control class rather than
+   in the bar. Search keeps its max-width so the freed width becomes a trailing
+   gap rather than a 1,600px-wide input. */
 .control-sort {
-  margin-left: auto;
+  margin-left: 0;
 }
 /* HO 498: the old /bills band-4 TOPICS BAND (.topics-band / .topics-subnav /
    .topics-divider) and band-5 LEGEND+PAGINATION (.legend-pagination-band /
@@ -5347,6 +5353,10 @@ body {
 .mc-fbar-n {
   color: var(--text-secondary);
 }
+/* HO 613: /bills and /members dropped their spacer ELEMENT (C1 — it pinned the
+   search box to the bar's right edge, ~1,600px of interior gap). The class
+   survives because /lobbying still renders one, and /lobbying is P4's last route
+   and explicitly out of this HO's scope. Delete the rule with that consumer. */
 .mc-fbar-spacer {
   flex: 1;
 }
@@ -8812,8 +8822,9 @@ a.hearing-watch:hover {
 /* HO 366: filter-reactive corpus readout, right-aligned on the filter bar.
    Mirrors the active TYPE/CHAMBER filter; the range qualifier marks it a window
    (visible calendar scope), not the full-Congress total. /hearings only. */
+/* HO 613 (C1): follows the filter groups; `margin-left: auto` pinned it to the
+   bar's right edge and opened a 1,588px interior gap. */
 .hcal-corpus {
-  margin-left: auto;
   font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;

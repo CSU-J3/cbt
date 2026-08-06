@@ -88,7 +88,7 @@ export default async function TradesPage({
             style={{ borderColor: "var(--border-strong)" }}
           >
             <div
-              className="flex items-baseline justify-between px-4 py-2"
+              className="flex flex-wrap items-baseline gap-3 px-4 py-2"
               style={{
                 backgroundColor: "var(--bg-panel)",
                 borderBottom: "0.5px solid var(--border-strong)",

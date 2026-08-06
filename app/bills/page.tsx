@@ -297,7 +297,6 @@ async function BillsView({
           <div className="control-search">
             <SearchBox basePath="/bills" compact />
           </div>
-          <span className="mc-fbar-spacer" />
           {hasFilters ? (
             <Link
               href={clearFiltersHref}

@@ -483,7 +483,6 @@ export default async function MembersPage({
               </>
             ) : null}
           </span>
-          <span className="mc-fbar-spacer" />
           <SegmentedToggle<"" | Chamber>
             current={(chamber ?? "") as "" | Chamber}
             ariaLabel="Chamber"

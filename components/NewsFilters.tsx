@@ -220,7 +220,7 @@ export function NewsFilters({
         })}
 
         <span
-          className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           Sort · <span style={{ color: "var(--text-muted)" }}>most recent</span>
