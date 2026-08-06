@@ -5566,10 +5566,39 @@ body {
   color: var(--text-secondary);
 }
 
-/* Member rows */
+/* Member rows.
+   HO 612 (C1) — the name track is CAPPED, was `1fr`. At 2560 that track rendered
+   1,646px wide against a median name-cluster ink of 170px, so every roster row
+   donated ~1,476px of interior gap between the member and the topic bar: 548 M1
+   rows from this one grid line, the largest single defect in the P4 baseline and
+   ALL of /members' M1.
+   The cap is DERIVED, not tuned. Measured across all 537 rendered rows at 2560 —
+   the widest ladder stop, so it bounds every narrower one — the widest .mc-mem
+   ink is 320px (Aumua Amata Coleman Radewagen [R-AS], the longest name in the
+   chamber), the median 170px and the NARROWEST 121px.
+   That spread — 199px — is WIDER THAN THE 120px THRESHOLD, which is the whole
+   problem and the reason a widest-name cap does not work: a fixed track leaves
+   every row `cap - ink` of slack, so sizing the cap to the longest name (340px)
+   leaves the shortest name 231px of gap and 513 rows still score. Comparable
+   bars need a shared x; a shared x in a variable-label table means per-row slack.
+   No cap satisfies both "no truncation" and "under threshold".
+   So the cap is the KNEE of the measured cost curve, cap -> (names truncated,
+   rows over): 340 -> (0, 513) · 280 -> (2, 281) · 260 -> (5, 114) ·
+   *240 -> (16, 11)* · 229 -> (32, 0) · 200 -> (93, 0). 240px takes 548 rows to
+   11 for 16 truncated names of 537 (3.0%) — and .mc-mname already carries
+   `truncate` + `title={m.name}`, so a clipped name keeps its full value on hover
+   and in the expand panel. The last 11 rows cost 16 more truncations; that trade
+   is filed, not taken.
+   `justify-content: start` lets the leftover width collect after the last column,
+   which is the trailing gap and the target state.
+   Shared-grid check (the HO 486 rule): /lobbying's FilingRow and /bill/[id]'s
+   BillLobbying also carry .mc-row, but .lob-filing-row overrides
+   grid-template-columns outright and its tracks still fill the row, so
+   justify-content is inert there — verified by measurement, not by reading. */
 .mc-row {
   display: grid;
-  grid-template-columns: 1fr 320px 56px 64px 52px;
+  grid-template-columns: minmax(0, 240px) 320px 56px 64px 52px;
+  justify-content: start;
   align-items: center;
   column-gap: 12px;
   padding: 7px 14px;
