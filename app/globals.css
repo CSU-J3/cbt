@@ -5976,8 +5976,31 @@ body {
 /* Member rows: party dot | surname | 30d count (no volume bar — the count is a
    fixed-window article count, not a rebasing volume). Higher specificity than
    `.nw-rail .mc-crow` so it overrides the topic-row 4-col grid. */
+/* HO 614 (C1) — the surname track is CAPPED and the row packs. Was `1fr`, which
+   resolved to 211px in the 311px rail while a surname's ink runs 25–57px, so the
+   count cell sat pinned at the rail's right edge 191–222px away. Those 15 rows
+   were the whole of /news's remaining M1 and the entire `.mc-crow` finding.
+   DECOMPOSED BEFORE DESIGNING, and it corrected the expectation: the hits are NOT
+   spread across the family and lobbying contributes NONE. The base `.mc-crow`
+   (16px 30px 1fr 56px 28px), `.lob-rail .mc-crow` (44px 1fr 56px 48px) and the
+   sibling `.nw-rail .mc-crow` topic rows (40px 1fr 56px 40px) all measure UNDER
+   threshold, because their labels — issue displays, topic names — are long enough
+   to fill their tracks. Only a surname is short enough to open the gap, so the
+   fix is scoped to this one variant rather than applied to the family.
+   104px, and the derivation needed a second pass worth recording: sized from the
+   surname ink alone (25–57px, spread 32 — well under the 120px threshold, so no
+   knee curve was needed) the first cut took 127px and predicted a 110px worst
+   gap, but measured 126–138 and left 8 rows over. The miss was the COUNT cell:
+   `.mc-crow-mem` right-aligns inside its own 44px track, so a 2-digit count adds
+   ~27px of slack the name-side arithmetic never saw. Re-derived from the observed
+   worst case (138 at cap 127 ⇒ cap ≤ 109), taken at 104: worst gap 114px, and
+   the widest surname is 57px so nothing truncates. A cap on one track has to be
+   derived against the ink at BOTH ends of the gap, not just its own.
+   The count cells now sit left of the topic group's; the two are separated by a
+   group header and read as two lists, which is the trade for packing. */
 .nw-rail .mc-crow.nw-mrow {
-  grid-template-columns: 16px 1fr 44px;
+  grid-template-columns: 16px 104px 44px;
+  justify-content: start;
 }
 .nw-mdot {
   width: 8px;
