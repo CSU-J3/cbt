@@ -154,6 +154,23 @@ M5's decision role is smaller now than the original assigned it — C2's identit
 
 **GO** if M1 returns a populated, plausible list. Near-zero site-wide means the detector is broken — the dashboard demonstrably has these gaps, and a detector that structurally can't fire looks identical to a clean result. **Prove it fires first**: point it at `/`, confirm it finds the known breaking-headline and miss-strip gaps by name, before trusting any other route's zero.
 
+### Instrument v2 (HO 610) — what changed, and what it invalidates
+
+**Every number produced before `e6bbc08` is v1. They do not compare to v2 numbers, and any table that mixes them must label which is which.** The P3 slice scores in the HO 610 roadmap block are v1 throughout (so the slices compare to each other and to 606); the P4 baseline is v2.
+
+Four changes, all measurement-definition or output. **No threshold moved** — the 120px gap threshold, the 600px M1b width floor, M2's 40px slack, M4's 40px/12-char emitter are all untouched, which is the line between correcting an instrument and tuning one.
+
+1. **Banding: vertical-interval overlap, not centre-Y buckets.** Items sharing ≥50% of the smaller one's height are one band. v1's `round(centreY / 4px)` split any baseline-aligned row whose items differed in font size — which, under a six-token type ladder, is every row. See the oddity; it read a packed row at 873px and a genuinely broken masthead at 75px.
+2. **M1b container cut.** A candidate with a child taller than **60px** is a layout container, not a row. Row children are text-scale; the class this removes (`.home-shell`, `.dash-page`, `.dash-left`) had children 300–1000px tall and its "interior gap" was the two-region gutter C8 asks for.
+3. **Counted viz exemption (M1x).** Rows under `[data-viz-row]` leave M1 and are reported per-route and site-wide on their own line. Today the only marked element is `StageFunnel`'s `ul` (presentation-inert attribute). A bar row is label · bar · value-on-a-shared-axis, so the space between a short bar and its number is the encoding, not a stretch. **Counted rather than skipped, because an uncounted exemption grows silently** — the next person to reach for `data-viz-row` has to move a visible number.
+4. **SHA-stamped, never-overwritten artifacts.** `audit-<shortsha>-<width>.json`. v1 wrote a fixed filename and the HO 610 re-run **destroyed the 606 baseline it existed to be compared against**; it had to be rebuilt by checking out the prior commit and crawling again.
+
+**The verdict condition in §3 above is v1's and has expired.** "Prove it fires first: point it at `/`, confirm it finds the known breaking-headline and miss-strip gaps by name" was correct while `/` was broken; P3 fixed those rows, so an instrument that still finds them is reporting its own defect. v2's legs are:
+
+- **A — known-GOOD.** The rows P3 packed must read SMALL (bound derived from the fixed 5.8em id column: basis − narrowest id + gap ≈ 50px, not a number tuned until it passed).
+- **B — exemption visible.** M1x > 0 and zero funnel rows scored.
+- **C — known-BAD control.** `/members` must still hold its rows over threshold. **A and B both assert v2 reports LESS than v1; on their own they are satisfied by an instrument that reports nothing.** C is the only leg that separates a correction from a silencing, and any future instrument change needs its own C.
+
 ---
 
 ## 4. The standing rule this arc keeps re-learning

@@ -1306,3 +1306,169 @@ Harmless **while trailing gap is reported and not thresholded**, which is true
 today. The entry exists for whoever later decides to gate on it: a naive
 `trailingGap > N` rule inverts on marquees, and a naive `abs()` turns the
 site's most extreme non-defect into its top finding.
+
+---
+
+## A falsification anchor expires when the defect it names is fixed (HO 610)
+
+`layout-audit-606.ts` refuses to crawl until it has proven its detectors fire, and
+v1's M2 anchor was **"M2 must find a stretched panel on `/`"** — true and useful
+in HO 606, when `/` had three. HO 610 removed the last one. The next run reported
+`M2 0`, concluded the detector was broken, dumped the panel-predicate
+intermediates, and **halted before it could score the very fix that produced the
+zero**.
+
+This is the same-as-success shape the arc keeps producing, inverted: usually a
+broken detector reads like a clean site; here a **clean site read like a broken
+detector**, and the instrument's own safety mechanism was what blocked the
+measurement.
+
+**The rule: a falsification anchor must assert that the DETECTOR fires, not that a
+particular surface is defective.** Every anchor pinned to a specific known defect
+has a shelf life exactly as long as the defect, and remediation arcs are in the
+business of ending them. Two forms that don't expire — both now in the script:
+
+- **Probe a set, pass on any.** The M2 leg re-probes fallback routes when `/`
+  reads zero and names which one fired.
+- **Keep a KNOWN-BAD control that the change cannot touch.** v2's leg C asserts
+  `/members` still holds 548 rows over threshold. Legs A and B both assert v2
+  reports LESS than v1, and **on their own they are satisfied by an instrument
+  that reports nothing at all** — leg C is the only thing separating a
+  correction from a silencing.
+
+And when a fix invalidates an anchor, the anchor **inverts rather than being
+deleted**: HO 610 packed the breaking rows, so v2 asserts those same rows now read
+SMALL. That is a sharper test than the original, because it fails in both
+directions — v1 read them at 873px and the masthead at 75px, and both were wrong.
+
+---
+
+## A `*` before a `/` inside a CSS comment ends the comment, and the build warning that says so goes unread (HO 610)
+
+`globals.css` carried a comment listing swept class families with glob stars:
+
+```
+   .v2f-exp/-grid/-summary/-related/-side/-sk/-sv/-btns/-cmte-*/-sponsor*.) */
+```
+
+The `*` closing `-cmte-*` and the `/` that follows it form `*/`. **The comment
+ends there.** Everything after parsed as CSS, and the parser discarded the rule
+that followed — `.bxp { padding: 14px 16px 16px }`, the expand panel's padding,
+**dead in every built stylesheet from HO 570 until HO 610**. The panel measured
+372px wide with a 372px body and nobody noticed, because a missing padding looks
+like a design choice.
+
+Two things make this worth an entry rather than a fix note:
+
+**It announced itself and was ignored.** Every `next build` printed
+`Found 1 warning while optimizing generated CSS: … Unexpected token Delim('*')`,
+with the offending text quoted. Forty handoffs of builds printed it. **A build
+warning nobody reads is same-as-success** — the information existed the whole
+time and changed nothing, which is the same failure as a detector that cannot
+fire, one layer up.
+
+**It silently ate a LATER edit too.** HO 610's first attempt at the container
+query added `container-type: inline-size` to that same discarded rule; the
+`@container` block survived (it is a separate rule) and did nothing, so the
+feature read as "container queries don't work here" rather than "this rule is
+being thrown away." A dropped rule is not localised to the line that broke it —
+it swallows whatever is written into it afterwards.
+
+**So: never put `*` immediately before `/` inside a CSS comment** — write class
+families as prose or with the star elsewhere — **and when a build prints a CSS
+warning, read it before the next commit.**
+
+---
+
+## Banding a row by centre-Y splits it wherever type sizes differ (HO 610)
+
+M1 groups a row's items into horizontal bands before measuring gaps, and v1
+bucketed on `Math.round(centreY / 4px)`. Two items on the **same baseline** whose
+font sizes differ have different box heights, so different centres, so — at a 4px
+bucket — different bands.
+
+On a breaking row that HO 610 had just packed left (id at x 41–94, headline
+144–957, age 967–993), the 13px id and 13px age landed in one band and the 17px
+headline in another. The instrument then measured the largest gap **within** the
+id/age band: id→age, **873px**, with the headline sitting invisibly in the middle
+of it. The row was correct; the reading was not.
+
+**The size of the class is what matters: CBT's type ladder has six tokens and the
+whole point of a row is a size hierarchy, so mixed sizes on one baseline are the
+NORM.** v1 could not read *any* real row correctly — it just happened to be
+directionally right while the rows were genuinely broken. It was also wrong the
+other way on the same page: the masthead, a real ~700px C1 defect, scored **75px**
+because its right-hand item sat in a band of its own.
+
+v2 clusters by **vertical interval overlap** (items sharing ≥50% of the smaller
+one's height are one band), which is baseline-invariant. The same rows read 12px
+and 24–50px.
+
+**The general form: a geometric bucket keyed on a derived scalar (a centre, a
+midpoint, a rounded coordinate) silently partitions anything that varies in the
+dimension it collapsed.** Cluster on the interval, not the point.
+
+---
+
+## A party-colour token used as age heat reads as party, not age (HO 609/610, filed not fixed)
+
+`daysSinceColor` (`components/BillRow.tsx:17`) paints a bill's days-since figure
+by threshold, and the hot end is **`var(--party-republican)`**:
+
+```
+if (days >= 365) return "var(--party-republican)";
+if (days >= 180) return "var(--accent-amber)";
+```
+
+In a UI where red means Republican on every other surface — party dots, sponsor
+brackets, rating chips, the battlefield axis — **a red number on a bill row reads
+Republican before it reads old.** The reader has to know that this one number is
+on a different colour system.
+
+HO 609 removed the heat from the dashboard's compact rows as C3 noise. It is
+**still live on `/bills` and `/stale`**, where the days-since column is the
+point of the view, and HO 610 deliberately did not touch it: the variant is a
+different surface with a different argument (on `/stale` the column IS the
+signal), so it is a design call, not a sweep.
+
+**Filed, not fixed.** The durable half is now a SKILL design-system rule — party
+tokens carry party and nothing else; heat and severity get their own tokens or
+stay dim. When `/stale`'s momentum work comes up, that is the moment to give
+staleness its own ramp rather than borrowing a party colour.
+
+---
+
+## M3 samples M1a groups only, so a route's row noise can sit still while its rows improve (HO 610)
+
+M3 (C3, row noise) is computed **per repeated-row group** — specifically over the
+M1a groups, which require **≥3 siblings sharing a tag+class signature**. A row
+that is the only child of its wrapper never enters the sample at all.
+
+That is exactly the dashboard feed's shape: a `.v2f-row` inside a `.v2f-group`
+is a sole child, so **the rows HO 609 rewrote — five bordered/coloured elements
+per row down to a quiet two-line format, the arc's largest single C3 improvement
+— are not in M3's population.** The site-wide M3 for `/` moved 8.41 → 6.06 → 5.18
+across three slices largely on *other* rows, and a reader comparing those numbers
+would conclude the feed rework barely registered.
+
+**So M3 is a cross-route instrument, not a slice one.** To score a specific
+component's noise, use a per-selector probe against that component; use the site
+M3 to compare routes to each other. A slice score that quotes M3 as evidence its
+own rows got quieter is quoting a number that may not contain them.
+
+---
+
+## A PowerShell text gate over non-ASCII can false-negative on the console codepage (HO 607 close, filed HO 610)
+
+A verification gate that greps a file through `Get-Content` reads it through the
+console codepage. Over non-ASCII content that is lossy: an **en-dash** in `M1–M6`
+was split, the gate's match failed, and it reported **False on a correct file** —
+a verification failure indistinguishable from the defect it was checking for.
+
+**Decode raw bytes as UTF-8 before believing a text gate's failure**, or restrict
+gates to ASCII-only anchors. The class is wider than PowerShell: any gate whose
+read path can transcode is a gate that can invent a failure, and a false negative
+in a verification step costs more than the check saves — it sends the next
+session looking for a bug that is not there.
+
+---
