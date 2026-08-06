@@ -8691,10 +8691,11 @@ a.hearing-watch:hover {
   color: var(--text-dim);
 }
 
-/* HO 306 — the /hearings calendar (.hcal): filter bar + week header (WoW stat) +
-   the two-week Mon–Fri grid with rich entries; all detail floats in a portaled
-   card so the grid never reflows. HO 610 removed its `embedded` mode with the
-   dashboard tab that used it. Tokens only; today-wash is amber at ~4.5% alpha. */
+/* HO 306 → HO 611 — the /hearings agenda (.hcal): filter bar + per-week header
+   (WoW stat) + a week ribbon over stacked day sections. NOT a Mon–Fri grid any
+   more (HO 611); detail floats in a portaled card so opening one never reflows
+   the agenda. HO 610 removed the `embedded` mode with the dashboard tab that used
+   it. Tokens only; the today-wash amber survives on the agenda day heading. */
 .hcal {
   display: flex;
   flex-direction: column;

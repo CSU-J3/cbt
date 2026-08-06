@@ -1,20 +1,25 @@
 "use client";
 
-// HO 306 — the /hearings calendar: the two-week Mon–Fri grid, free height.
+// HO 306 → HO 611 — the /hearings AGENDA: two weeks, each a ribbon over stacked
+// day sections. It is no longer a Mon–Fri grid; that description survived one
+// commit past the grid's removal, which is the stale-claim-on-main class this
+// arc keeps filing, so it is corrected here rather than left for a sweep.
 //
-// HO 610: this was ALSO the dashboard HEARINGS tab (an `embedded` single-week,
-// per-day-capped mode pinned to the RACES footprint). That tab now renders
-// HearingsDaySchedule — the mock's day schedule + week ribbon — so the
-// `embedded`/`cap` props and the embedded-only "→ All hearings" drill are gone
-// with their last caller. What the two surfaces still share is the per-meeting
-// detail card (HearingDetailCard, extracted here in the same commit), which is
-// the part that would actually drift.
+// HO 610 moved the dashboard HEARINGS tab off this component (it had used an
+// `embedded` single-week, per-day-capped mode pinned to the RACES footprint) and
+// deleted the `embedded`/`cap` props in the same commit that orphaned them. HO
+// 611 re-ran the grep and confirms it: NOTHING passes `embedded`, and there was
+// nothing left to strip. The dashboard now renders HearingsDaySchedule; what the
+// two surfaces still share is the per-meeting detail card (HearingDetailCard),
+// which is the part that would actually drift. The row SHAPE is deliberately not
+// shared — this one wraps its title because a browse list has nothing to protect,
+// while the dashboard's ellipsizes to hold a pinned box.
 //
 // Presentation + one computed field (live status). Data is what the live page
 // already reads (getUpcomingMeetings + getRecentMeetings, widened to 14d so the
 // week stat's prior-week delta is honest). Filter is client-state (instant, no
-// navigation); all detail lives in a floating card portaled to <body> so the grid
-// never reflows on hover/tap.
+// navigation); all detail lives in a floating card portaled to <body>, so
+// opening one never reflows the agenda.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
