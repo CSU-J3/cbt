@@ -1,27 +1,26 @@
 "use client";
 
-// HO 306 — the shared hearings calendar. ONE client component renders both
-// /hearings (calendar-only view, free height, two-week stack) and the
-// dashboard (`/`) HEARINGS tab (embedded, single week, height-pinned to the RACES
-// footprint). Replaces the two prior components (HearingsCalendar server grid +
-// OnTheHillBand) so the surfaces can't drift.
+// HO 306 — the /hearings calendar: the two-week Mon–Fri grid, free height.
+//
+// HO 610: this was ALSO the dashboard HEARINGS tab (an `embedded` single-week,
+// per-day-capped mode pinned to the RACES footprint). That tab now renders
+// HearingsDaySchedule — the mock's day schedule + week ribbon — so the
+// `embedded`/`cap` props and the embedded-only "→ All hearings" drill are gone
+// with their last caller. What the two surfaces still share is the per-meeting
+// detail card (HearingDetailCard, extracted here in the same commit), which is
+// the part that would actually drift.
 //
 // Presentation + one computed field (live status). Data is what the live page
-// already reads (getUpcomingMeetings + getRecentMeetings, now widened to 14d so
-// the week stat's prior-week delta is honest). Filter is client-state (instant,
-// no navigation); all detail lives in a floating card portaled to <body> so the
-// grid never reflows on hover/tap — the height-pinned tab and free-height page
-// both hold.
-import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+// already reads (getUpcomingMeetings + getRecentMeetings, widened to 14d so the
+// week stat's prior-week delta is honest). Filter is client-state (instant, no
+// navigation); all detail lives in a floating card portaled to <body> so the grid
+// never reflows on hover/tap.
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BillIdChip } from "@/components/BillIdChip";
+import {
+  HearingDetailCard,
+  liveStatus,
+} from "@/components/HearingDetailCard";
 import {
   addDaysToKey,
   cleanMeetingTitle,
@@ -30,7 +29,6 @@ import {
   etTimeLabel,
   etTodayKey,
   hearingBadge,
-  LIVE_WINDOW_MS,
   mondayOfKey,
   type HearingBadge,
 } from "@/lib/hearings";
@@ -38,7 +36,6 @@ import type { CommitteeMeeting } from "@/lib/queries";
 
 type TypeFilter = "" | "hearing" | "markup" | "business";
 type ChamberFilter = "" | "house" | "senate";
-type LiveStatus = "scheduled" | "live" | "concluded";
 
 const TYPE_BADGE: Record<Exclude<TypeFilter, "">, HearingBadge> = {
   hearing: "HEARING",
@@ -62,177 +59,6 @@ const CHAMBER_OPTS: ReadonlyArray<{ value: ChamberFilter; label: string }> = [
   { value: "house", label: "House" },
   { value: "senate", label: "Senate" },
 ];
-const SUPPRESS_STATUS = new Set(["Canceled", "Postponed"]);
-
-function liveStatus(m: CommitteeMeeting, nowMs: number): LiveStatus {
-  const start = Date.parse(m.meetingDate);
-  if (Number.isNaN(start) || nowMs < start) return "scheduled";
-  if (!SUPPRESS_STATUS.has(m.meetingStatus) && nowMs <= start + LIVE_WINDOW_MS)
-    return "live";
-  return "concluded";
-}
-
-function chamberLabel(c: "house" | "senate"): string {
-  return c === "house" ? "HOUSE" : "SENATE";
-}
-function locationText(m: CommitteeMeeting): string | null {
-  const parts = [m.building, m.room].filter(Boolean);
-  return parts.length ? parts.join(" ") : null;
-}
-
-// ── the floating detail card (portaled to body, fixed, flips at the right edge) ──
-function DetailCard({
-  m,
-  committeeName,
-  nowMs,
-  anchor,
-  onPointerEnter,
-  onPointerLeave,
-}: {
-  m: CommitteeMeeting;
-  committeeName: string | null;
-  nowMs: number;
-  anchor: DOMRect;
-  onPointerEnter: () => void;
-  onPointerLeave: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const card = el.getBoundingClientRect();
-    const W = card.width || 340;
-    const H = card.height;
-    const gap = 8;
-    const overlap = 6; // a few px under the entry so the pointer can cross in
-    let left = anchor.right - overlap + gap;
-    if (left + W > window.innerWidth - 8) left = anchor.left + overlap - gap - W;
-    left = Math.max(8, Math.min(left, window.innerWidth - W - 8));
-    let top = anchor.top;
-    if (top + H > window.innerHeight - 8) top = window.innerHeight - H - 8;
-    top = Math.max(8, top);
-    setPos({ left, top });
-  }, [anchor]);
-
-  const status = liveStatus(m, nowMs);
-  const loc = locationText(m);
-  const title = cleanMeetingTitle(m.title);
-  const watchText =
-    !m.videoUrl
-      ? "no livestream"
-      : status === "live"
-        ? "live now"
-        : status === "scheduled"
-          ? "scheduled livestream"
-          : "concluded · recording";
-
-  const card = (
-    <div
-      ref={ref}
-      className="hcal-card"
-      role="dialog"
-      style={{
-        left: pos ? pos.left : -9999,
-        top: pos ? pos.top : 0,
-        visibility: pos ? "visible" : "hidden",
-      }}
-      onMouseEnter={onPointerEnter}
-      onMouseLeave={onPointerLeave}
-    >
-      <div className={`hcal-card-chamber chamber-${m.chamber}`}>
-        {chamberLabel(m.chamber)}
-      </div>
-      <div className="hcal-card-title">{title || "(untitled meeting)"}</div>
-
-      <div className="hcal-card-sec">
-        <span className="hcal-card-cap">Watch</span>
-        {m.videoUrl ? (
-          <a
-            href={m.videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`hcal-card-watch status-${status}`}
-          >
-            {status === "live" ? "● " : ""}
-            {watchText} ↗
-          </a>
-        ) : (
-          <span className="hcal-card-watch is-none">{watchText}</span>
-        )}
-      </div>
-
-      {m.committeeSystemCode ? (
-        <div className="hcal-card-sec">
-          <span className="hcal-card-cap">Committee</span>
-          <Link
-            href={`/committee/${m.committeeSystemCode}`}
-            className="hcal-card-link"
-          >
-            {committeeName ?? m.committeeSystemCode} →
-          </Link>
-        </div>
-      ) : null}
-
-      <div className="hcal-card-sec">
-        <span className="hcal-card-cap">Details</span>
-        <div className="hcal-card-details">
-          {m.meetingType ? (
-            <span>
-              <span className="k">Type</span> {m.meetingType}
-            </span>
-          ) : null}
-          <span>
-            <span className="k">Status</span>{" "}
-            <span className={status === "live" ? "is-live" : undefined}>
-              {status === "live"
-                ? "Live"
-                : status === "scheduled"
-                  ? "Scheduled"
-                  : "Concluded"}
-            </span>
-          </span>
-          {loc ? (
-            <span>
-              <span className="k">Where</span> {loc}
-            </span>
-          ) : null}
-          <span>
-            <span className="k">When</span> {dayKeyParts(etDayKey(m.meetingDate)).dow}{" "}
-            {dayKeyParts(etDayKey(m.meetingDate)).mon}{" "}
-            {dayKeyParts(etDayKey(m.meetingDate)).dom} {etTimeLabel(m.meetingDate)}{" "}
-            ET
-          </span>
-        </div>
-      </div>
-
-      {m.bills.length > 0 ? (
-        <div className="hcal-card-sec">
-          <span className="hcal-card-cap">Related bills · {m.bills.length}</span>
-          <div className="hcal-card-bills">
-            {m.bills.map((b) => (
-              <div key={b.id} className="hcal-card-bill">
-                <BillIdChip
-                  billType={b.bill_type}
-                  billNumber={b.bill_number}
-                  href={`/bill/${b.id}`}
-                />
-                <Link href={`/bill/${b.id}`} className="hcal-card-billtitle">
-                  {b.title}
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-
-  if (typeof document === "undefined") return null;
-  return createPortal(card, document.body);
-}
-
 // ── week stat (count + WoW delta), hover opens the breakdown ──
 // HO 366: bare — the noun dropped (it now lives in the filter-bar corpus readout,
 // reactive to TYPE), the stat clusters immediately after the WEEK OF label.
@@ -330,19 +156,14 @@ export function HearingsCalendar({
   committeeNames,
   nowMs,
   weeks = 2,
-  embedded = false,
-  cap,
   showCorpus = false,
 }: {
   meetings: CommitteeMeeting[];
   committeeNames: Record<string, string>;
   nowMs: number;
   weeks?: number;
-  embedded?: boolean;
-  cap?: number;
   // HO 366: render the filter-reactive corpus readout on the filter bar's right
-  // edge. /hearings only — the dashboard HEARINGS tab is height-pinned + never
-  // carried this count, so it stays gated off there.
+  // edge. Its one caller (/hearings) sets it; the default keeps the flag opt-in.
   showCorpus?: boolean;
 }) {
   const [type, setType] = useState<TypeFilter>("");
@@ -442,7 +263,7 @@ export function HearingsCalendar({
   const rangeLabel = `${fp.mon} ${fp.dom}–${lp.mon} ${lp.dom}`;
 
   return (
-    <div className={`hcal${embedded ? " hcal--embedded" : ""}`}>
+    <div className="hcal">
       {/* Filter bar: TYPE + CHAMBER, client-state. Active = amber bracketed. */}
       <div className="hcal-filterbar">
         <span className="hcal-filter-group">
@@ -533,8 +354,6 @@ export function HearingsCalendar({
                 const dm = byDay.get(dayKey) ?? [];
                 const dp = dayKeyParts(dayKey);
                 const isToday = dayKey === todayKey;
-                const shown = cap != null ? dm.slice(0, cap) : dm;
-                const more = dm.length - shown.length;
                 return (
                   <div
                     key={dayKey}
@@ -550,30 +369,17 @@ export function HearingsCalendar({
                     {dm.length === 0 ? (
                       <div className="hcal-day-empty">No meetings</div>
                     ) : (
-                      <>
-                        {/* HO 309: the list fills + clips inside the dashboard's
-                            pinned column; "+N more" is a SIBLING pinned at the
-                            column bottom so the clip can't eat it. */}
-                        <div className="hcal-day-list">
-                          {shown.map((m) => (
-                            <Entry
-                              key={m.eventId}
-                              m={m}
-                              nowMs={nowMs}
-                              onOpen={onOpen}
-                              onLeave={scheduleClose}
-                            />
-                          ))}
-                        </div>
-                        {more > 0 ? (
-                          <Link
-                            href={`/hearings#hcal-day-${dayKey}`}
-                            className="hcal-more"
-                          >
-                            +{more} more
-                          </Link>
-                        ) : null}
-                      </>
+                      <div className="hcal-day-list">
+                        {dm.map((m) => (
+                          <Entry
+                            key={m.eventId}
+                            m={m}
+                            nowMs={nowMs}
+                            onOpen={onOpen}
+                            onLeave={scheduleClose}
+                          />
+                        ))}
+                      </div>
                     )}
                   </div>
                 );
@@ -583,14 +389,8 @@ export function HearingsCalendar({
         );
       })}
 
-      {embedded ? (
-        <Link href="/hearings" className="hcal-drill">
-          → All hearings
-        </Link>
-      ) : null}
-
       {open ? (
-        <DetailCard
+        <HearingDetailCard
           m={open.m}
           committeeName={
             open.m.committeeSystemCode

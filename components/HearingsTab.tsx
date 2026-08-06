@@ -1,9 +1,17 @@
 // HO 306 — the dashboard (`/`) HEARINGS tab content. Server wrapper that fetches
-// the meetings (recent widened to 14d for the week stat's prior-week delta) and
-// renders the SHARED HearingsCalendar in embedded mode: single week, capped per
-// day, height-pinned to the RACES footprint by the B4 box CSS. Replaces the
-// standalone OnTheHillBand so /hearings and the tab can't drift.
-import { HearingsCalendar } from "@/components/HearingsCalendar";
+// the meetings (recent widened to 14d so the ribbon's week-over-week delta is
+// honest) and hands them to the tab's interior.
+//
+// HO 610 (P3 slice 3): that interior is now HearingsDaySchedule — the mock's
+// day-schedule + week ribbon — instead of the shared HearingsCalendar in
+// `embedded` mode. The five-column week grid reserved a 358px "No meetings" box
+// per empty day (the C4 defect, and every M2 hit on `/`); the ribbon gives an
+// empty day one dash. /hearings keeps the full calendar, one click away via the
+// panel's → ALL link, and the two surfaces still share the per-meeting detail
+// card (HearingDetailCard) so they cannot drift on what a meeting looks like.
+// The tab's TYPE/CHAMBER filter bar goes with the grid: this is a glance
+// surface, and /hearings carries the filters.
+import { HearingsDaySchedule } from "@/components/HearingsDaySchedule";
 import {
   getCommitteesIndex,
   getRecentMeetings,
@@ -11,10 +19,6 @@ import {
 } from "@/lib/queries";
 
 const RECENT_DAYS = 14;
-// HO 309: the pinned grid region holds ~5 whole two-line rows (live-measured:
-// ~321px list area / 56px row) plus the bottom-pinned "+N more". Six chopped the
-// 6th row mid-height. Five shows whole rows + a visible "+N more" inside the box.
-const DAY_CAP = 5;
 
 export async function HearingsTab() {
   const [upcoming, recent, committees] = await Promise.all([
@@ -26,13 +30,10 @@ export async function HearingsTab() {
   for (const c of committees) committeeNames[c.systemCode] = c.name;
 
   return (
-    <HearingsCalendar
+    <HearingsDaySchedule
       meetings={[...upcoming, ...recent]}
       committeeNames={committeeNames}
       nowMs={Date.now()}
-      weeks={1}
-      embedded
-      cap={DAY_CAP}
     />
   );
 }

@@ -854,65 +854,23 @@ body {
   text-transform: uppercase;
   color: var(--text-dim);
 }
-/* HO 282 — equal tab height + calendar fill. The box height is pinned to the
-   RACES footprint, not a hardcoded value: RACES (.--races) is always laid out,
-   so the panels wrapper is always as tall as the RACES tab. When inactive it's
-   hidden — display:none on mobile (still mounted → cards keep registering MOVES),
-   but at desktop it stays in flow as visibility:hidden so it keeps setting the
-   height, and the HEARINGS panel overlays it absolutely and fills that height.
-   Switching HEARINGS↔RACES therefore never resizes the box or shifts the week
-   strip (B5) below it. */
+/* HO 282 → HO 610. HO 282 pinned the box height to the RACES footprint (RACES
+   stayed in flow as visibility:hidden; the HEARINGS panel overlaid it absolutely
+   and its calendar grew to fill), so switching tabs never resized the box. HO 610
+   REVERSES that: the hearings interior is now a day schedule, ~a third of the
+   RACES height, so pinning would hold ~240px of dead space open under the DEFAULT
+   tab — reserving height for a panel that isn't showing, which is what C7 (panels
+   size to content) and C4 forbid. Each panel sizes to its own content now; the
+   cost, stated because it undoes a deliberate decision, is that a HEARINGS↔RACES
+   click changes the box height and shifts the week strip below it. RacesBoxTabs
+   itself is untouched — this is CSS only, and `hidden`/aria-hidden still drive it.
+   .dv2-racesbox-panels keeps position:relative for the RACES pane's popover
+   containment. */
 .dv2-racesbox-panels {
   position: relative;
 }
 .dv2-racesbox-panel--races[aria-hidden="true"] {
   display: none;
-}
-@media (min-width: 721px) {
-  /* RACES inactive: keep it in flow (invisible) so it pins the height. */
-  .dv2-racesbox-panel--races[aria-hidden="true"] {
-    display: block;
-    visibility: hidden;
-  }
-  /* HEARINGS active: overlay the RACES-defined box and fill it top to bottom.
-     :not([hidden]) so the RACES tab's [hidden] display:none still wins there. */
-  .dv2-racesbox-panel--hearings:not([hidden]) {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  /* HO 306: the shared .hcal calendar fills the pinned box — filter bar fixed,
-     the week + its day grid grow, each day's single grid row takes the leftover
-     height (1fr) so the bordered cells reach the bottom (no dead space). */
-  .dv2-racesbox-panel--hearings .hcal {
-    flex: 1;
-    min-height: 0;
-  }
-  .dv2-racesbox-panel--hearings .hcal-week {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .dv2-racesbox-panel--hearings .hcal-grid {
-    flex: 1;
-    grid-auto-rows: minmax(0, 1fr);
-    min-height: 0;
-    overflow: hidden; /* HO 309: backstop — no column paints outside the box */
-  }
-  .dv2-racesbox-panel--hearings .hcal-day {
-    min-height: 0;
-    overflow: hidden;
-  }
-  /* HO 309: the rows fill + clip; "+N more" (a sibling) stays pinned + visible
-     at the column bottom. The lowered dashboard cap keeps the shown rows whole;
-     this clip is the backstop so a tall day can never escape the pinned box. */
-  .dv2-racesbox-panel--hearings .hcal-day-list {
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
 }
 
 /* HO 272 — RACES-tab update badges (MOVES live; NEW dark until the news→race
@@ -8615,11 +8573,192 @@ a.hearing-watch:hover {
    watchState LIVE rule. Existing tokens only. The border-top is the divider
    above it (matches .weekly-band). */
 
-/* HO 306 — shared hearings calendar (.hcal): the /hearings calendar-only view
-   AND the dashboard (`/`) HEARINGS tab (embedded, height-pinned to the RACES
-   footprint). Filter bar + week header (WoW stat) + week grid with rich entries;
-   all detail floats in a portaled card so the grid never reflows. Tokens only;
-   today-wash is the existing amber at ~4.5% alpha. */
+/* ── HO 610 (P3 slice 3) — the dashboard HEARINGS tab interior ──────────────
+   The mock's three-part hearings block (`.hbar` / `.rib` / `.sched-wrap` in
+   docs/design/dashboard-layout-target.html), replacing the five-column week grid
+   whose empty days each reserved a 358px "No meetings" box. Scoped under .hsch-*,
+   so .hcal (now /hearings only) is byte-identical. Existing tokens only; every
+   size in 9–14px is an --fs token per the SKILL type rule. */
+.hsch {
+  display: flex;
+  flex-direction: column;
+}
+/* Part 1 — the day bar. Packed left, wrap allowed; no spacer before → ALL (C1). */
+.hsch-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 11px;
+  padding: 5px var(--space-md);
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: var(--fs-10);
+  color: var(--text-dim);
+}
+.hsch-day {
+  color: var(--text-primary);
+  font-size: var(--fs-11);
+  letter-spacing: 0.8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hsch-day-lab {
+  color: var(--accent-amber-bright);
+}
+.hsch-day-n {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.hsch-all {
+  color: var(--accent-amber);
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.hsch-all:hover {
+  color: var(--accent-amber-bright);
+}
+/* Part 2 — the week ribbon. An empty day is one dash in a 30px cell; that is the
+   whole footprint C4 allows it. */
+.hsch-rib {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.hsch-cell {
+  border: 0.5px solid var(--border-soft);
+  color: var(--text-dim);
+  font-size: var(--fs-9);
+  line-height: 1.2;
+  padding: 1px 5px;
+  min-width: 30px;
+  text-align: center;
+}
+.hsch-cell.has {
+  color: var(--text-muted);
+  border-color: var(--border-strong);
+}
+.hsch-cell.has b {
+  color: var(--accent-amber-bright);
+  font-weight: 600;
+}
+.hsch-cell.on {
+  border-color: var(--accent-amber);
+  color: var(--text-primary);
+  background-color: rgba(251, 191, 36, 0.045);
+}
+.hsch-tot {
+  color: var(--text-dim);
+  font-size: var(--fs-9);
+  padding-left: 5px;
+  white-space: nowrap;
+}
+.hsch-delta {
+  font-variant-numeric: tabular-nums;
+}
+.hsch-delta.up {
+  color: var(--market-up);
+}
+.hsch-delta.down {
+  color: var(--market-down);
+}
+/* Part 3 — the shown day's schedule. One column; two at >=1700px with a soft
+   divider (the mock's `.sched-wrap`). */
+.hsch-wrap {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 1700px) {
+  .hsch-wrap {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hsch-wrap > div + div {
+    border-left: 1px solid var(--border-soft);
+  }
+}
+.hsch-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px var(--space-md);
+  border-top: 0.5px solid var(--border-soft);
+  cursor: pointer;
+}
+.hsch-row:hover {
+  background-color: var(--bg-row-hover);
+}
+.hsch-row:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: -1px;
+}
+.hsch-row.is-past {
+  opacity: 0.42;
+}
+.hsch-time {
+  color: var(--text-muted);
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 3.6em;
+}
+.hsch-kind {
+  color: var(--text-dim);
+  font-size: var(--fs-9);
+  letter-spacing: 0.9px;
+  flex: 0 0 4.8em;
+}
+.hsch-row.is-markup .hsch-kind {
+  color: var(--accent-amber);
+}
+.hsch-title {
+  color: var(--text-secondary);
+  font-size: var(--fs-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.hsch-live {
+  color: var(--vote-nay);
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  flex: 0 0 auto;
+}
+.hsch-bills {
+  color: var(--accent-amber);
+  font-size: var(--fs-10);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+/* The now-marker: only drawn when the shown day IS today and rows fall on both
+   sides of it. */
+.hsch-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 1px var(--space-md);
+}
+.hsch-now-lbl {
+  color: var(--vote-nay);
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  flex: 0 0 auto;
+}
+.hsch-now-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--vote-nay), #2a1416);
+}
+/* Recess / nothing published: ONE dim line, never a reserved box (C4). */
+.hsch-none {
+  padding: 10px var(--space-md);
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+
+/* HO 306 — the /hearings calendar (.hcal): filter bar + week header (WoW stat) +
+   the two-week Mon–Fri grid with rich entries; all detail floats in a portaled
+   card so the grid never reflows. HO 610 removed its `embedded` mode with the
+   dashboard tab that used it. Tokens only; today-wash is amber at ~4.5% alpha. */
 .hcal {
   display: flex;
   flex-direction: column;
@@ -8866,29 +9005,6 @@ a.hearing-watch:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.hcal-more {
-  flex: none; /* HO 309: never shrink — stays a visible, clickable bottom row */
-  padding: 2px 7px;
-  font-size: var(--fs-10);
-  letter-spacing: 0.3px;
-  color: var(--text-dim);
-  text-decoration: none;
-}
-.hcal-more:hover {
-  color: var(--accent-amber);
-}
-.hcal-drill {
-  align-self: flex-start;
-  margin-top: 8px;
-  font-size: var(--fs-11);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--accent-amber);
-  text-decoration: none;
-}
-.hcal-drill:hover {
-  color: var(--accent-amber-bright);
-}
 .hcal-card {
   position: fixed;
   z-index: 1000;
@@ -9013,12 +9129,6 @@ a.hearing-watch:hover {
 .hcal-stat-tip-body {
   font-size: var(--fs-11);
   color: var(--text-secondary);
-}
-.hcal--embedded {
-  height: 100%;
-}
-.hcal--embedded .hcal-filterbar {
-  margin-bottom: 8px;
 }
 @media (max-width: 720px) {
   .hcal-grid {
