@@ -46,7 +46,7 @@ export async function NewThisWeek({
       ) : (
         <TopStallsList bills={bills} daysFrom="intro" nowMs={nowMs} />
       )}
-      <Link href="/bills?sort=introduced" className="home-expander">
+      <Link href="/bills?sort=introduced" className="home-expander v2f-foot">
         {remaining > 0
           ? `[ + ${remaining.toLocaleString()} more → ]`
           : "[ View all new → ]"}

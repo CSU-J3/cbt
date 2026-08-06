@@ -1673,6 +1673,17 @@ body {
   color: var(--accent-amber-bright);
   background-color: var(--bg-row-hover);
 }
+/* HO 609 — the mock's `.pfoot` dress, scoped to the three feed tabs only (the
+   breaking + primaries expanders keep the base treatment; slice 2 changes nothing
+   outside the bills column). Amber and left-aligned rather than centred muted,
+   smaller, and flex-shrink:0 from the base rule keeps it pinned under the
+   scrolling feed. Targets are unchanged — only the dress. */
+.home-expander.v2f-foot {
+  text-align: left;
+  padding: 3px 12px;
+  font-size: var(--fs-10);
+  color: var(--accent-amber);
+}
 
 /* HO 178: the HO 162 viewport-tier line-clamps (3/2/1) are retired — the LEAD
    now full-wraps to the right of the title and the row height follows it. */
@@ -4090,64 +4101,70 @@ body {
   position: relative;
   z-index: 1;
 }
-/* HO 297 (B6) + HO 321: the collapsed rowhead is now TWO lines, matching /bills —
-   grid [ id-chip | main(1fr) | metric | caret ]; `main` stacks line 1 (title) over
-   line 2 (sponsor + [party-state] + topic chips). align-items:start so the metric
-   + caret sit at line-1 height, not centered across both lines. Line 2 aligns
-   under the title (left edge of main); the id column stays empty on line 2. */
+/* HO 297 (B6) + HO 321 made the rowhead two lines on a four-column grid
+   [ id-chip | main(1fr) | metric | caret ]. HO 609 (P3 slice 2) rebuilt it as the
+   mock's `.mv`: a plain block with line 1 (id + title, flex, packed left) over
+   line 2 (one inline text line). The grid's metric and caret columns were pinned
+   to the row's right edge — C1's exact defect — and are gone: the metric leads
+   line 2, the caret is retired (the row is still role=button/aria-expanded, with
+   the hover background as its affordance). */
 .v2f-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 13px;
-  align-items: start;
-  padding: 9px 16px;
+  padding: 5px 12px;
   cursor: pointer;
+  line-height: 1.4;
 }
 .v2f-row:hover {
   background: var(--bg-row-hover);
 }
-.v2f-main {
+.v2f-l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
 }
-/* line 2: sponsor LASTNAME (member link) + [party-state] bracket + middot + the
-   shared TopicChips (relocated from line 1). overflow:hidden clips a long
-   sponsor + chips on desktop — no measured fit-to-width (the HO 316 decision;
-   bills carry ≤3 topics). */
-.v2f-subline {
-  margin-top: 5px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.v2f-sponsor-last {
+/* Plain amber id (C3) — the bordered .bill-id-chip primitive is untouched and
+   still used by the weekly band + hearings; the feed just stopped rendering it. */
+.v2f-id {
   flex: none;
   font-size: var(--fs-11);
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-  text-decoration: underline;
-  text-decoration-color: #39424f;
-  text-underline-offset: 2px;
+  color: var(--accent-amber);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-decoration: none;
 }
-.v2f-sponsor-last:hover {
+.v2f-id:hover {
   color: var(--accent-amber-bright);
 }
-.v2f-sponsor-last--plain {
-  text-decoration: none;
-  cursor: default;
-}
-.v2f-subline-bracket {
-  flex: none;
-  font-size: 10.5px;
-  font-weight: 600;
-}
-.v2f-subline-sep {
-  flex: none;
+/* Line 2 is a BLOCK, not a flex row: one run of inline text that ellipsizes as a
+   unit. That is also what keeps it out of M1's candidate set by construction —
+   a flex line 2 would re-open the gap the metric column used to make. */
+.v2f-l2 {
+  margin-top: 1px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
-  font-size: var(--fs-11);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The mock separates line-2 fields with a near-invisible #2b3340 middot; here the
+   whole line is already --text-dim, so the separator just inherits it rather than
+   introducing a literal outside the token set. */
+.v2f-l2-sep {
+  margin: 0 6px;
+}
+/* Sponsor: party colour inline (the one thing the PartyTag box was carrying),
+   no underline, no border. */
+.v2f-sponsor {
+  text-decoration: none;
+}
+.v2f-topics-plain {
+  letter-spacing: 0.04em;
+}
+.v2f-stage {
+  letter-spacing: 0.08em;
+}
+.v2f-stage-from {
+  color: var(--text-dim);
 }
 /* Shared amber tier-1 bill-id chip (HO 466 chip-family). Lifted from the old
    .v2f-id (HO 287/297 canonical): bordered --accent-amber, 11px/600, 2px radius.
@@ -4243,22 +4260,10 @@ body {
   letter-spacing: 0.05em;
   color: var(--text-dim);
 }
-.v2f-metric {
-  flex: none;
-  margin-left: auto;
-  font-size: 10.5px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
+/* HO 609: the metric is line 2's leading inline run, not a right-anchored column
+   — no margin-left:auto, no size of its own (line 2 sets --fs-10). */
 .v2f-metric .v2f-ar {
   color: var(--text-dim);
-}
-.v2f-chev {
-  color: var(--text-dim);
-  font-size: var(--fs-10);
-}
-.v2f-group.open .v2f-chev {
-  color: var(--accent-amber);
 }
 /* HO 298 — stage bar (replaced the .v2f-pipe). Six node columns (dot · label ·
    optional date), flex-1, with a connector to each node's left at the dot's

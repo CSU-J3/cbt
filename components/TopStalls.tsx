@@ -53,7 +53,7 @@ export async function TopStalls({
       ) : (
         <TopStallsList bills={bills} nowMs={nowMs} />
       )}
-      <Link href="/stale" className="home-expander">
+      <Link href="/stale" className="home-expander v2f-foot">
         [ View all stale → ]
       </Link>
     </div>

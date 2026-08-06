@@ -54,7 +54,7 @@ export async function ActivityTicker({
         // single-open within this tab (resets when you switch to TOP STALLS).
         <BillRowList compact bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
       )}
-      <Link href="/changes" className="home-expander">
+      <Link href="/changes" className="home-expander v2f-foot">
         {remaining > 0
           ? `[ + ${remaining.toLocaleString()} more → ]`
           : "[ View all changes → ]"}
