@@ -47,6 +47,19 @@
 // Read-only: no DB writes, no page interaction beyond navigation, no fixes.
 //
 //   npx tsx scripts/diagnostic/layout-audit-606.ts
+//   npx tsx scripts/diagnostic/layout-audit-606.ts --route home   (or AUDIT_ROUTE=home)
+//
+// HO 608 — two changes the 606 run queued for "next run":
+//   (1) The three redirect ALIASES are gone from the route list (`/races` and
+//       `/primaries` 308 → /electoral, `/members/pass-rate` 307 → /members?sort=
+//       passrate). 606 crawled them and measured the same page twice more,
+//       inflating the site-wide M1 total 1,329 → 1,902. 27 distinct pages is the
+//       real denominator; the 607 block already corrected the arithmetic and this
+//       makes the script agree with it.
+//   (2) `--route <slug>` (or AUDIT_ROUTE) measures ONE route, so a P3 slice can be
+//       scored before/after for ~4 page loads instead of ~80. Under a filter the
+//       M5 narrow ladder is SKIPPED and says so — a slice score is a wide-viewport
+//       delta, and a silently-dropped ladder would read like a clean narrow result.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "@playwright/test";
 
@@ -83,19 +96,18 @@ type Route = { slug: string; path: string };
 
 // smoke.spec.ts ROUTES (37 = 31 literal + the 6-entry STAGES spread) minus five of
 // the six ?stage= variants (same shell, different feed; ?stage=committee is kept —
-// a known pageErr site whose filter strip adds a row) and minus /dashboard-v2 and
-// /committees, which redirect into targets already listed. Arc §3 calls this 31;
-// the arithmetic is 37-5-2 = 30, and the printed count below is the record.
+// a known pageErr site whose filter strip adds a row) and minus EVERY redirect
+// alias: /dashboard-v2 and /committees (excluded since 606), plus /races,
+// /primaries and /members/pass-rate (HO 608 — same reason, dropped after the 606
+// run measured them as duplicate pages). 37-5-5 = 27, and the printed count below
+// is the record.
 const ROUTES: Route[] = [
   { slug: "home", path: "/" },
   { slug: "home-stage-committee", path: "/?stage=committee" },
   { slug: "welcome", path: "/welcome" },
   { slug: "bills", path: "/bills" },
   { slug: "members", path: "/members" },
-  { slug: "members-pass-rate", path: "/members/pass-rate" },
-  { slug: "races", path: "/races" },
   { slug: "electoral", path: "/electoral" },
-  { slug: "primaries", path: "/primaries" },
   { slug: "reports", path: "/reports" },
   { slug: "hearings", path: "/hearings" },
   { slug: "news", path: "/news" },
@@ -118,6 +130,17 @@ const ROUTES: Route[] = [
   { slug: "report-detail", path: `/reports/${REPORT}` },
   { slug: "vote", path: `/vote/${VOTE}` },
 ];
+
+// --route <slug> / AUDIT_ROUTE — measure ONE route. Slice scoring for the P3
+// handoffs (608-610) runs `--route home` before and after each slice.
+function argFlag(flag: string): string | undefined {
+  const i = process.argv.indexOf(flag);
+  return i === -1 ? undefined : process.argv[i + 1];
+}
+const ROUTE_FILTER = argFlag("--route") ?? process.env.AUDIT_ROUTE;
+const ACTIVE_ROUTES: Route[] = ROUTE_FILTER
+  ? ROUTES.filter((r) => r.slug === ROUTE_FILTER)
+  : ROUTES;
 
 const SUBSET_SLUGS = new Set([
   "home",
@@ -563,9 +586,19 @@ async function main() {
   console.log("HO 606 — CROSS-ROUTE LAYOUT AUDIT (M1–M5).  Read-only.");
   console.log("=".repeat(100));
   console.log(`target            : ${BASE_URL}  (local production build; not dev, not prod)`);
-  console.log(`routes            : ${ROUTES.length}`);
+  if (ROUTE_FILTER && ACTIVE_ROUTES.length === 0) {
+    console.log(`route filter      : --route ${ROUTE_FILTER}  ** NO SUCH SLUG — nothing to measure. **`);
+    console.log(`known slugs       : ${ROUTES.map((r) => r.slug).join(" ")}`);
+    process.exitCode = 1;
+    return;
+  }
+  const narrowLoads = ROUTE_FILTER ? 0 : SUBSET_SLUGS.size * NARROW_WIDTHS.length;
   console.log(
-    `page loads planned: ${ROUTES.length * 2} (wide, 2 hits each) + ${SUBSET_SLUGS.size * NARROW_WIDTHS.length} (narrow subset) = ${ROUTES.length * 2 + SUBSET_SLUGS.size * NARROW_WIDTHS.length}`,
+    `routes            : ${ACTIVE_ROUTES.length}${ROUTE_FILTER ? ` (--route ${ROUTE_FILTER}; full list is ${ROUTES.length})` : ""}`,
+  );
+  console.log(
+    `page loads planned: ${ACTIVE_ROUTES.length * 2} (wide, 2 hits each) + ${narrowLoads} (narrow subset) = ${ACTIVE_ROUTES.length * 2 + narrowLoads}` +
+      (ROUTE_FILTER ? "   [M5 narrow ladder SKIPPED under --route — a slice score is a wide-viewport delta]" : ""),
   );
   console.log(`wide viewport     : ${WIDE_W}x${WIDE_H}   narrow ladder: ${NARROW_WIDTHS.join(" · ")}`);
   console.log(
@@ -695,7 +728,7 @@ async function main() {
   const results: RouteResult[] = [];
   let pageLoads = 0;
 
-  for (const route of ROUTES) {
+  for (const route of ACTIVE_ROUTES) {
     try {
       const r = await openMeasured(route.path, 2);
       pageLoads += 2;
@@ -727,7 +760,11 @@ async function main() {
   type NarrowRow = { slug: string; width: number; overflowCount: number; extraWrapCount: number; samples: string[] };
   const narrow: NarrowRow[] = [];
 
-  for (const route of ROUTES) {
+  if (ROUTE_FILTER) {
+    console.log(`  SKIPPED — --route ${ROUTE_FILTER} is a slice score (wide-viewport delta). Run without`);
+    console.log("  --route for the narrow ladder; the 606 M5 baseline stands until then.");
+  }
+  for (const route of ROUTE_FILTER ? [] : ROUTES) {
     if (!SUBSET_SLUGS.has(route.slug)) continue;
     const wide = results.find((r) => r.slug === route.slug);
     for (const w of NARROW_WIDTHS) {
@@ -855,7 +892,7 @@ async function main() {
   console.log("=".repeat(100));
   console.log("BURN LEDGER");
   console.log("=".repeat(100));
-  console.log(`  routes crawled     : ${results.length} of ${ROUTES.length}`);
+  console.log(`  routes crawled     : ${results.length} of ${ACTIVE_ROUTES.length}${ROUTE_FILTER ? ` (--route ${ROUTE_FILTER})` : ""}`);
   console.log(`  page loads (actual): ${pageLoads + 2}   (incl. the 2-hit falsification leg)`);
   console.log(`  wall time          : ${elapsedS}s`);
   console.log(`  retries            : 0 — a failing route is recorded and skipped, never retry-looped`);
@@ -864,12 +901,15 @@ async function main() {
   // these JSONs contain literal utility-class strings in their selector paths).
   try {
     mkdirSync(ARTIFACT_DIR, { recursive: true });
+    // A filtered run writes its OWN file — a slice score must not overwrite the
+    // full-crawl baseline it is scored against.
+    const artifact = ROUTE_FILTER ? `audit-2560-${ROUTE_FILTER}.json` : "audit-2560.json";
     writeFileSync(
-      `${ARTIFACT_DIR}/audit-2560.json`,
-      JSON.stringify({ thresholds: THRESHOLDS, results, narrow, cantMeasure }, null, 1),
+      `${ARTIFACT_DIR}/${artifact}`,
+      JSON.stringify({ thresholds: THRESHOLDS, routeFilter: ROUTE_FILTER ?? null, results, narrow, cantMeasure }, null, 1),
     );
     console.log("");
-    console.log(`  full per-route detail → ${ARTIFACT_DIR}/audit-2560.json (repo-ignored)`);
+    console.log(`  full per-route detail → ${ARTIFACT_DIR}/${artifact} (repo-ignored)`);
   } catch (e) {
     console.log(`  (could not write artifacts: ${String(e).slice(0, 80)})`);
   }
