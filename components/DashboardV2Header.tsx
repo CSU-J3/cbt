@@ -76,11 +76,13 @@ export async function DashboardV2Header({
   // header; HomeHeader backed only the classic dashboard, removed at HO 608, and
   // is now unreferenced (left in place — deleting it is not this slice's scope).
   const session = await auth();
+  // HO 608 (C5 — no number appears twice on one screen): the masthead used to read
+  // FIVE counts and the stage funnel ~240px below redrew the same five as bars. It
+  // now reads TWO — the corpus total and enacted — and the three middle counts
+  // (committee / floor / other chamber) belong to StageFunnel alone. `stageDist`
+  // is still passed in whole (no query change); the header just renders less of it.
   const stageCount = (stage: Stage) =>
     stageDist.bars.find((b) => b.stage === stage)?.count ?? 0;
-  const committee = stageCount("committee");
-  const floor = stageCount("floor");
-  const otherChamber = stageCount("other_chamber");
   const enacted = stageCount("enacted");
 
   return (
@@ -94,22 +96,7 @@ export async function DashboardV2Header({
               <span className="stat-num stat-total">
                 {corpus.total.toLocaleString()}
               </span>{" "}
-              bills tracked
-              <span className="stat-sep"> · </span>
-              <span className="stat-num stat-committee">
-                {committee.toLocaleString()}
-              </span>{" "}
-              in committee
-              <span className="stat-sep"> · </span>
-              <span className="stat-num stat-floor">
-                {floor.toLocaleString()}
-              </span>{" "}
-              on the floor
-              <span className="stat-sep"> · </span>
-              <span className="stat-num stat-other">
-                {otherChamber.toLocaleString()}
-              </span>{" "}
-              other chamber
+              tracked
               <span className="stat-sep"> · </span>
               <span className="stat-num stat-enacted">
                 {enacted.toLocaleString()}
@@ -122,14 +109,17 @@ export async function DashboardV2Header({
                 _
               </span>
             </p>
-          </div>
 
-          {/* Line 2: sync on its own line under the readout, 11px text-dim. */}
-          <p className="home-header-meta">
-            ·{" "}
-            <span className="show-desktop">LAST SYNC </span>
-            <CyclingTimestamp iso={corpus.lastSync} />
-          </p>
+            {/* HO 608: LAST SYNC joins the masthead line (the mock's single `.mast`
+                row: brand · counts · sync · SIGN IN) instead of taking a second
+                line under the readout. The prompt row wraps, so narrow widths
+                still stack it rather than overflowing. */}
+            <p className="home-header-meta">
+              ·{" "}
+              <span className="show-desktop">LAST SYNC </span>
+              <CyclingTimestamp iso={corpus.lastSync} />
+            </p>
+          </div>
         </div>
 
         {/* HO 355: auth affordance pinned top-right of the masthead. The

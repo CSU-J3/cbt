@@ -540,6 +540,12 @@ body {
   0%, 50% { opacity: 1; }
   50.01%, 100% { opacity: 0; }
 }
+/* HO 608: LAST SYNC now rides IN the prompt row (the mock's single masthead
+   line), so it drops the second-line top margin there. The rule below still holds
+   for any other placement. */
+.home-header-prompt-row .home-header-meta {
+  margin-top: 0;
+}
 .home-header-meta {
   margin-top: var(--space-xs);
   font-size: var(--fs-11);
@@ -605,6 +611,11 @@ body {
   color: var(--accent-amber-bright);
   border-bottom-color: var(--accent-amber);
 }
+/* HO 608 — the mock's `.nav a.mine`: WATCHLIST, the reader's own list, sits one
+   step brighter than the corpus destinations after the divider. */
+.primary-nav .pnav-mine:not([aria-current="page"]) {
+  color: var(--text-secondary);
+}
 .primary-nav .pnav-slash {
   color: var(--text-dim);
   margin-right: 2px;
@@ -641,16 +652,21 @@ body {
   .header-titlebar .breadcrumb-path {
     font-size: 26px;
   }
-  /* B3 — nav items 16 (up from 14), ~14px vertical row padding. */
+  /* B3 — nav items, ~14px vertical row padding. HO 608 took the size back DOWN
+     to the mock's nav type (`.958em` of a 12px base) and tightened the padding:
+     the regrouped nav is eleven items on one row, and at HO 281's 16px/14px it
+     could not hold that row anywhere near 1200px. `var(--fs-12)` rather than a
+     literal — the ladder (HO 604) walks it 12→13→14→15 with the viewport, so the
+     nav grows on the wide screens where there is room for it. */
   .primary-nav .pnav-item {
-    font-size: 16px;
-    padding: 14px 0;
+    font-size: var(--fs-12);
+    padding: 7px 0;
   }
-  /* B3 — ~28px between items on the dashboard's own full-width nav row. Inner
-     pages keep their tighter titlebar gap (the nav shares that row with the
+  /* HO 608 — 14px between items (was 28). Same reason: eleven items, one row.
+     Inner pages keep their tighter titlebar gap (the nav shares that row with the
      path + sync, where the extra gap would force a wrap). */
   .home-header-nav {
-    column-gap: 28px;
+    column-gap: 14px;
   }
 }
 .home-main {
@@ -694,28 +710,77 @@ body {
 .dv2-tapes .markets-tape + .markets-tape {
   border-top: none;
 }
-/* Design delta 4: left column 49% (was 56% on `/`). align-items:start so the two
-   columns take their natural heights and finish near the same line. */
-.dv2-grid {
+/* ── HO 608 (P3 slice 1) — the two-region shell ──────────────────────────────
+   Target: docs/design/dashboard-layout-target.html (`.page` / `.left` / `.bills`
+   / `.twoup`). This REPLACES the HO 253 `.dv2-grid` body: the page is no longer a
+   full-width header over a two-column body, it is two REGIONS. The bills column
+   runs from the very top, level with the masthead — the revision-J decision the
+   whole arc is built around — and the header, tapes and nav now live inside the
+   left region. `.dv2-grid` / `.dv2-col-*` are gone with it; `.dv2-tapes` and
+   `.dv2-racesbox` (above/below) are untouched and still in use.
+   House-named classes, not the mock's minified ones. */
+.dash-page {
   display: grid;
-  /* minmax(0,…) not bare fr: a bare-fr track keeps min-width:auto, so the RIGHT
-     column would grow to the longest feed title's intrinsic width and the title
-     never ellipsizes (HO 297). minmax(0,…) lets the column shrink so the v2 feed
-     title's flex-shrink + overflow:hidden can truncate. */
-  grid-template-columns: minmax(0, 49fr) minmax(0, 51fr);
-  gap: var(--space-lg);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  /* C7 — each region takes its own height; nothing stretches to match a sibling. */
   align-items: start;
   min-height: 0;
 }
+@media (min-width: 1400px) {
+  .dash-page {
+    /* minmax(0,…) not bare fr: a bare-fr track keeps min-width:auto, so a column
+       grows to the longest feed title's intrinsic width and the title never
+       ellipsizes (HO 297). The right column is capped at 27% but floored at 400px
+       so the feed stays readable on a 1440 laptop. */
+    grid-template-columns: minmax(0, 1fr) minmax(400px, 27%);
+  }
+}
+.dash-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+/* The header is a child of the left region now, so its own page gutter would
+   double .home-main's; and the mock's masthead reads on the base background with
+   only the two tapes carrying panel chrome. */
+.dash-left > .home-header {
+  padding: 0;
+  background-color: transparent;
+}
+@media (min-width: 1400px) {
+  /* STICKY, NOT INTERNALLY SCROLLED — deliberate, and 609 owns the rest of it.
+     The mock's `.bills` also sets `max-height: calc(100vh - 32px)` with
+     `overflow-y:auto` on the feed inside it. That scroll is NOT adopted here: the
+     expanded row's sponsor hover card escapes via .home-feed-panel's
+     overflow-visible (HO 300, comment on that rule), and an internal scroll would
+     clip it. A max-height WITHOUT the scroll is worse than neither — the panel
+     border would draw straight across the spilling rows — so both wait for HO
+     609, which reworks the feed rows and can resolve scroll-vs-hover-card where
+     both live. Sticky with natural height is the 608 state. */
+  .dash-bills {
+    position: sticky;
+    top: 16px;
+  }
+}
 /* Mirror the HO 178 cross-column hover-overrun: the breaking row's full-headline
-   overlay spills rightward and the feed dims behind it. */
-.dv2-grid:has(.breaking-row:hover) .dv2-col-right {
+   overlay spills rightward and the feed dims behind it. (Was .dv2-grid :has
+   .dv2-col-right.) */
+.dash-page:has(.breaking-row:hover) .dash-bills {
   opacity: 0.4;
   transition: opacity 120ms ease;
 }
-@media (max-width: 900px) {
-  .dv2-grid {
-    grid-template-columns: 1fr;
+/* The mock's `.twoup` — BREAKING beside the distributions rather than stacked. */
+.dash-twoup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+@media (min-width: 1100px) {
+  .dash-twoup {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   }
 }
 
@@ -3123,6 +3188,33 @@ body {
 }
 .weekly-band-filler-label {
   color: var(--text-muted);
+}
+/* HO 608 — the polarization fold: the HO 424 full-width band's numbers, in
+   miniature, as one chip in the metric run (the mock's `.polchip`). Inherits the
+   strip's 11px/uppercase; the values are the one bright thing in it. */
+.weekly-band-polchip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  border: 0.5px solid var(--border-strong);
+  padding: 0 6px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.weekly-band-polchip b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.weekly-band-polsep {
+  color: var(--border-strong);
+}
+.weekly-band-polchip a {
+  color: var(--accent-amber);
+  text-decoration: none;
+  transition: color 0.12s;
+}
+.weekly-band-polchip a:hover {
+  color: var(--accent-amber-bright);
 }
 .weekly-band-readfull {
   /* HO 365: the report link is the lone right-cluster item (space-between). */

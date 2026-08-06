@@ -33,8 +33,15 @@ export type NavItem = {
   tooltip: string;
 };
 
+// HO 608 — regrouped to the committed dashboard mock: WATCHLIST moves from last
+// to SECOND, immediately after DASHBOARD, and the two of them are split off from
+// the rest by a single divider. The reasoning is that those two are the reader's
+// own surfaces (the mock styles WATCHLIST as `.nav a.mine`) and everything after
+// the divider is the corpus. NAV_ITEMS is shared with every inner page's
+// HeaderBar, so the reorder is site-wide by design.
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
+  { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
   { key: "feed", href: "/bills", icon: "▤", label: "Legislation", tooltip: "Legislation, news, stage changes, and the president's desk" },
   { key: "hearings", href: "/hearings", icon: "▦", label: "Hearings", tooltip: "Committee hearings, markups, and business meetings" },
   { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
@@ -44,7 +51,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "nominations", href: "/nominations", icon: "◈", label: "Nominations", tooltip: "Presidential nominations — who's being confirmed, by agency and status" },
   { key: "amendments", href: "/amendments", icon: "Δ", label: "Amendments", tooltip: "Floor amendments — who's amending which bills, and the sliver that gets voted on" },
   { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
-  { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
 ];
 
 // HO 230 (design items 9+10) — text-only PowerShell-path nav. Shared by the
@@ -52,7 +58,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // `variant="bar"`) so the two never diverge. Each item is `\LABEL` (dim slash,
 // no icons); the active item gets amber `[ \LABEL ]` brackets + amber-bright
 // label + amber-bright underline, with bracket space reserved on every item so
-// switching the active item causes no horizontal shift. Three groups split by
+// switching the active item causes no horizontal shift. HO 608 regrouped this to
+// the mock: TWO groups split by ONE short vertical rule — \DASHBOARD \WATCHLIST |
+// \LEGISLATION \HEARINGS \MEMBERS \ELECTORAL \PATTERNS \LOBBYING \NOMINATIONS
+// \AMENDMENTS \REPORTS (divider before index 2). \WATCHLIST carries `pnav-mine`,
+// the mock's `.nav a.mine` — one step brighter than the rest, because it is the
+// reader's own list. Superseded, kept for the provenance: three groups split by
 // short vertical rules: \DASHBOARD | \BILLS \HEARINGS \MEMBERS \RACES \PATTERNS
 // \LOBBYING \NOMINATIONS | \REPORTS \WATCHLIST (dividers before index 1 and 8 — HO
 // 264 inserted \HEARINGS, HO 437 inserted \LOBBYING, and HO 456 inserted
@@ -74,15 +85,15 @@ export function PrimaryNav({
     <nav className={wrapperClass} aria-label="Primary navigation">
       {NAV_ITEMS.map((item, i) => (
         <Fragment key={item.key}>
-          {i === 1 || i === 8 ? (
-            <span className="pnav-divider" aria-hidden />
-          ) : null}
+          {i === 2 ? <span className="pnav-divider" aria-hidden /> : null}
           <Link
             href={item.href}
             title={item.tooltip}
             aria-label={item.tooltip}
             aria-current={active === item.key ? "page" : undefined}
-            className="pnav-item"
+            className={
+              item.key === "watchlist" ? "pnav-item pnav-mine" : "pnav-item"
+            }
           >
             <span className="pnav-bracket" aria-hidden>
               [

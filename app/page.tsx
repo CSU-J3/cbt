@@ -14,7 +14,6 @@ import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
-import { PolarizationBand } from "@/components/PolarizationBand";
 import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
 import { TopStalls } from "@/components/TopStalls";
@@ -115,32 +114,41 @@ export default async function DashboardPage({
 
   return (
     <div className="home-shell">
-      <DashboardV2Header corpus={corpus} stageDist={stageDistFull} />
-      <ActiveFilterStrip filters={filters} />
+      {/* HO 608 (P3 slice 1) — the two regions of
+          docs/design/dashboard-layout-target.html. The bills column runs the full
+          page height from the very top, LEVEL WITH THE MASTHEAD (the arc's
+          defining move); everything else — masthead, tapes, nav, hearings, week
+          strip, breaking, distributions — stacks in the left region. Below
+          1400px .dash-page is one column and the feed simply follows the stack.
+          This slice MOVES regions; no panel's interior is redesigned (feed rows
+          are HO 609, the hearings interior + packing are HO 610). */}
+      <main className="home-main dash-page">
+        <div className="dash-left">
+          <DashboardV2Header corpus={corpus} stageDist={stageDistFull} />
 
-      <main className="home-main">
-        {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
-            re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}
-        <RacesBoxTabs
-          defaultTab="hearings"
-          hearingsContent={<HearingsTab />}
-          racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" nowMs={nowMs} />}
-        />
+          {/* Conditional chrome — renders nothing unless a filter is active, which
+              is C4-compliant as-is, so it keeps its slot at the top of the left
+              region even though the mock (an unfiltered snapshot) doesn't show it. */}
+          <ActiveFilterStrip filters={filters} />
 
-        {/* HO 424 — chamber polarization band (ideology surface 1 of 3), full
-            width below the races/battlefield box. Placement corrected from the
-            handoff's literal "below the battlefield block": the battlefield now
-            lives inside RacesBoxTabs' non-default RACES tab, so the band sits
-            under the box (always visible), not nested in a hidden tab. */}
-        <PolarizationBand band={polarization} />
+          {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
+              re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}
+          <RacesBoxTabs
+            defaultTab="hearings"
+            hearingsContent={<HearingsTab />}
+            racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" nowMs={nowMs} />}
+          />
 
-        {/* Weekly line, full width, divider rule above (its own border-top). */}
-        <WeeklyBand />
+          {/* Weekly line, divider rule above (its own border-top). HO 608 folded
+              the HO 424 full-width PolarizationBand into it as three inline chips
+              — the band is gone, its numbers survive in miniature (see §5 of the
+              handoff; the mock overrides the backlog's flat CUT). getPolarizationBand()
+              stays; /members reads the same query for its own ideology surfaces. */}
+          <WeeklyBand band={polarization} />
 
-        {/* 49/51 two-column body. LEFT: breaking over the tabbed STAGE | TOPIC
-            distributions (gated, interactive click-to-filter). RIGHT: the feed. */}
-        <div className="dv2-grid">
-          <div className="home-col-stack dv2-col-left">
+          {/* The mock's .twoup — breaking BESIDE the distributions (they were
+              stacked in the old left column), align-items:start. */}
+          <div className="dash-twoup">
             <section className="home-quadrant home-breaking-panel">
               <p
                 className="home-quadrant-label"
@@ -161,23 +169,25 @@ export default async function DashboardPage({
               />
             </section>
           </div>
+        </div>
 
-          <div className="home-col-stack dv2-col-right">
-            {/* home-feed-panel: overflow-visible (HO 300) so the expanded row's
-                sponsor hover card can escape the quadrant's overflow:hidden. */}
-            <section className="home-quadrant home-feed-panel">
-              <ActivityTabs
-                activityContent={
-                  <ActivityTicker variant="v2" filters={filters} nowMs={nowMs} />
-                }
-                stallsContent={<TopStalls variant="v2" nowMs={nowMs} />}
-                newContent={<NewThisWeek variant="v2" nowMs={nowMs} />}
-                activityCount={activityCount.total}
-                stallsCount={TOP_STALLS_COUNT}
-                newCount={newBillsCount}
-              />
-            </section>
-          </div>
+        <div className="dash-bills">
+          {/* home-feed-panel: overflow-visible (HO 300) so the expanded row's
+              sponsor hover card can escape the quadrant's overflow:hidden. That
+              is also why .dash-bills is sticky but NOT internally scrolled —
+              see the CSS comment; HO 609 resolves it with the row rework. */}
+          <section className="home-quadrant home-feed-panel">
+            <ActivityTabs
+              activityContent={
+                <ActivityTicker variant="v2" filters={filters} nowMs={nowMs} />
+              }
+              stallsContent={<TopStalls variant="v2" nowMs={nowMs} />}
+              newContent={<NewThisWeek variant="v2" nowMs={nowMs} />}
+              activityCount={activityCount.total}
+              stallsCount={TOP_STALLS_COUNT}
+              newCount={newBillsCount}
+            />
+          </section>
         </div>
       </main>
     </div>

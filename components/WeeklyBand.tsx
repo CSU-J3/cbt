@@ -23,6 +23,7 @@ import {
   type WeeklyBandBreakdown,
   WeeklyBandMetricCard,
 } from "@/components/WeeklyBandMetricCard";
+import type { PolarizationBand } from "@/lib/queries";
 import {
   getDashboardReportSnapshot,
   getEnactedThisWeek,
@@ -94,7 +95,59 @@ function weekStartISO(weeksAgo = 0): string {
   return monday.toISOString().slice(0, 10);
 }
 
-export async function WeeklyBand() {
+// HO 608 — the polarization fold. The HO 424 full-width PolarizationBand is gone
+// from `/` (backlog revision-J decision 6 cut it outright as slow-moving data not
+// worth its space); the committed mock refines that cut rather than reversing it —
+// the BAND dies, the NUMBERS survive as one inline chip in this strip, next to the
+// report link. Fed by the `getPolarizationBand()` result the page already fetches
+// for nothing else now.
+//
+// The mock's chip reads `POLARIZATION 0.92 · HSE 0.92 · SEN 0.92 · IDEOLOGY →`,
+// where the leading figure is a whole-Congress composite. There is no such number
+// in the data — `getPolarizationBand` returns per-chamber party medians and their
+// gap, and a cross-chamber composite is not derivable from two chamber medians —
+// so the chip carries the two chamber gaps it can actually source rather than a
+// fabricated headline. IDEOLOGY → points at /members, which owns all three live
+// ideology surfaces (PolarizationOverTime, IdeologyStrip, the member readout);
+// there is no #ideology anchor on that page to aim at yet.
+function PolarizationChip({ band }: { band: PolarizationBand }) {
+  const house = band.house.gap;
+  const senate = band.senate.gap;
+  return (
+    <span
+      className="weekly-band-polchip"
+      title="Party median distance on DW-NOMINATE dim1, per chamber — the gap between the Democratic and Republican medians"
+    >
+      Polarization
+      {house != null ? (
+        <>
+          <span className="weekly-band-polsep" aria-hidden>
+            ·
+          </span>
+          <span>
+            Hse <b className="tabular-nums">{house.toFixed(2)}</b>
+          </span>
+        </>
+      ) : null}
+      {senate != null ? (
+        <>
+          <span className="weekly-band-polsep" aria-hidden>
+            ·
+          </span>
+          <span>
+            Sen <b className="tabular-nums">{senate.toFixed(2)}</b>
+          </span>
+        </>
+      ) : null}
+      <span className="weekly-band-polsep" aria-hidden>
+        ·
+      </span>
+      <Link href="/members">Ideology →</Link>
+    </span>
+  );
+}
+
+export async function WeeklyBand({ band }: { band: PolarizationBand }) {
   const [
     enacted,
     transitions,
@@ -311,6 +364,8 @@ export async function WeeklyBand() {
           {filler.filler.toLocaleString()}/{filler.total.toLocaleString()}
         </span>
       </span>
+
+      <PolarizationChip band={band} />
 
       {snap ? (
         <Link
