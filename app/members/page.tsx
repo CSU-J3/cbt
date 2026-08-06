@@ -422,6 +422,18 @@ export default async function MembersPage({
 
   const head = scoped ? rows.slice(0, ROSTER_CAP) : rows;
   const tail = scoped ? rows.slice(ROSTER_CAP) : [];
+  // HO 612: the two-pane split point, from the RENDERED list so every filter /
+  // search / sort state stays balanced. Ceil puts the odd row in the left pane.
+  const paneSplit = Math.ceil(head.length / 2);
+  const columnHeader = (
+    <div className="mc-row mc-row-hdr">
+      <span>MEMBER</span>
+      <span>BILLS · TOPIC MIX</span>
+      <span className="mc-r-num">{showMissed ? "MISSED" : "RATE"}</span>
+      <span className="mc-r-num">ENACT</span>
+      <span className="mc-r-num">BILLS</span>
+    </div>
+  );
   const tailHasExpanded =
     expandedKey !== null && tail.some((r) => r.bioguide_id === expandedKey);
 
@@ -616,21 +628,20 @@ export default async function MembersPage({
               </div>
             ) : null}
 
-            {/* Column header */}
-            <div className="mc-row mc-row-hdr">
-              <span>MEMBER</span>
-              <span>BILLS · TOPIC MIX</span>
-              <span className="mc-r-num">{showMissed ? "MISSED" : "RATE"}</span>
-              <span className="mc-r-num">ENACT</span>
-              <span className="mc-r-num">BILLS</span>
-            </div>
-
             {rows.length === 0 ? (
-              <div className="mc-empty">No members match</div>
-            ) : (
-              <ol>
-                {head.map(renderRow)}
-                {tail.length > 0 ? (
+              <>
+                {columnHeader}
+                <div className="mc-empty">No members match</div>
+              </>
+            ) : tail.length > 0 ? (
+              /* Scoped to a committee: ROSTER_CAP rows + a SHOW ALL disclosure.
+                 One list, exactly as before — ten rows do not want panes, and the
+                 disclosure's open state is client-side, so a server split could
+                 not stay balanced across it. */
+              <>
+                {columnHeader}
+                <ol>
+                  {head.map(renderRow)}
                   <RosterShowAll
                     total={rows.length}
                     more={tail.length}
@@ -638,8 +649,30 @@ export default async function MembersPage({
                   >
                     {tail.map(renderRow)}
                   </RosterShowAll>
-                ) : null}
-              </ol>
+                </ol>
+              </>
+            ) : (
+              /* HO 612 (C8) — the full roster splits into two panes at >=1750px.
+                 SPLIT-HALF, not interleaved: ranks 1..ceil(N/2) left, the rest
+                 right, so adjacent ranks stack vertically, which is how a ranked
+                 list scans. Two real <ol>s in a grid rather than CSS `columns` —
+                 an expanded SponsorExpandedPanel has to grow its own pane without
+                 column-breaking or reflowing the sibling's rows. The split point
+                 is computed from the RENDERED list, so filters, search and sort
+                 all keep the panes balanced. Below 1750px the grid is one column
+                 and the two lists stack, which reads as one continuous list in
+                 rank order — the second pane's header is hidden there (CSS), or
+                 it would interrupt the run. */
+              <div className="mc-panes">
+                <div className="mc-pane-col">
+                  {columnHeader}
+                  <ol>{head.slice(0, paneSplit).map(renderRow)}</ol>
+                </div>
+                <div className="mc-pane-col mc-pane-col--b">
+                  {columnHeader}
+                  <ol>{head.slice(paneSplit).map(renderRow)}</ol>
+                </div>
+              </div>
             )}
           </div>
         </div>

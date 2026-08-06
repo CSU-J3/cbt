@@ -5566,6 +5566,32 @@ body {
   color: var(--text-secondary);
 }
 
+/* HO 612 (C8) — the roster's two panes. Past ~900px a row of this shape gains
+   nothing from more width, so the freed width buys MEMBERS rather than gap: at
+   >=1750px the list runs as two half-split columns, which roughly halves the
+   page's height. align-items:start so neither pane stretches to its sibling (C7).
+   Below the breakpoint it is a single column and the two <ol>s stack in rank
+   order, so the second pane's header would interrupt the run — hidden there. */
+.mc-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+.mc-pane-col {
+  min-width: 0;
+}
+@media (min-width: 1750px) {
+  .mc-panes {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-lg);
+  }
+}
+@media (max-width: 1749px) {
+  .mc-pane-col--b .mc-row-hdr {
+    display: none;
+  }
+}
+
 /* Member rows.
    HO 612 (C1) — the name track is CAPPED, was `1fr`. At 2560 that track rendered
    1,646px wide against a median name-cluster ink of 170px, so every roster row
