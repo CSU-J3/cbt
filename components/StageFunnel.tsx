@@ -95,7 +95,18 @@ export function StageFunnel({
     !!currentStage && bars.some((b) => b.stage === currentStage);
 
   return (
-    <ul className="stage-funnel" role="list" aria-label="Stage distribution">
+    // HO 610 — data-viz-row marks this as a chart, not a row list, for the layout
+    // audit (M1/C1). A bar row is label · bar · value-on-a-shared-axis, so the
+    // "interior gap" between a short bar and its number IS the encoding; packing
+    // the value left would destroy the axis. The audit EXEMPTS and COUNTS these
+    // (its "M1x: N exempted (viz)" line) rather than scoring or silently skipping
+    // them. Presentation-inert: no CSS or behaviour keys off this attribute.
+    <ul
+      className="stage-funnel"
+      data-viz-row
+      role="list"
+      aria-label="Stage distribution"
+    >
       {bars.map((b) => {
         const isSelected = currentStage === b.stage;
         const dimmed = anySelected && !isSelected;

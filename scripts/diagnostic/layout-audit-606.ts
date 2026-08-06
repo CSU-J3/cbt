@@ -60,7 +60,8 @@
 //       scored before/after for ~4 page loads instead of ~80. Under a filter the
 //       M5 narrow ladder is SKIPPED and says so — a slice score is a wide-viewport
 //       delta, and a silently-dropped ladder would read like a clean narrow result.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? "http://localhost:3000";
@@ -88,9 +89,26 @@ const M2_SLACK_PX = 40;
 const M4_MIN_H = 40;
 const M4_MAX_CHARS = 12;
 const M1B_MIN_WIDTH = 600;
+// v1 only. v2 clusters by vertical overlap and no longer buckets on centre;
+// kept in the record so a v1-vs-v2 comparison can name what changed.
 const BAND_PX = 4;
+// v2: an M1b candidate with a child taller than this is a layout container, not
+// a row. Row children are text-scale (a 2560 masthead item is ~26px); the class
+// this excludes had children 300-1000px tall.
+const M1B_MAX_CHILD_H = 60;
 
 const ARTIFACT_DIR = "docs/handoffs/606-artifacts";
+
+// Stamps the artifact filename so a re-run can never clobber the baseline it is
+// scored against (v2). Falls back rather than failing the run — the measurement
+// does not depend on git being reachable.
+const SHORT_SHA = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return "nosha";
+  }
+})();
 
 type Route = { slug: string; path: string };
 
@@ -165,6 +183,7 @@ type Thresholds = {
   m4MaxChars: number;
   m1bMinWidth: number;
   bandPx: number;
+  m1bMaxChildH: number;
 };
 
 const THRESHOLDS: Thresholds = {
@@ -174,6 +193,7 @@ const THRESHOLDS: Thresholds = {
   m4MaxChars: M4_MAX_CHARS,
   m1bMinWidth: M1B_MIN_WIDTH,
   bandPx: BAND_PX,
+  m1bMaxChildH: M1B_MAX_CHILD_H,
 };
 
 // ---------------------------------------------------------------------------
@@ -289,6 +309,7 @@ function measureInPage(t: Thresholds) {
   };
   const rows: Row[] = [];
   const allGaps: number[] = [];
+  let vizExempt = 0;
   const m1aGroups: Element[][] = [];
   const seenGroupKey = new Set<string>();
 
@@ -302,14 +323,39 @@ function measureInPage(t: Thresholds) {
     const wideEnough = rect.width >= t.m1bMinWidth;
     if (!isM1a && !wideEnough) continue;
 
+    // v2 CONTAINER CUT (M1b only) — a ROW's children are text-scale; a layout
+    // container's children are panels. M1b's ">=600px wide with >=2 items on a
+    // line" predicate admitted .home-shell / .dash-page / .dash-left, whose
+    // "interior gap" is the two-region column gutter (up to 1,682px) — C8's
+    // intent, not a defect in any row. Anything with a child taller than
+    // m1bMaxChildH is a container and is not a C1 candidate.
+    if (!isM1a) {
+      let tallest = 0;
+      for (const c of kids) {
+        const h = c.getBoundingClientRect().height;
+        if (h > tallest) tallest = h;
+      }
+      if (tallest > t.m1bMaxChildH) continue;
+    }
+
+    // v2 VIZ EXEMPTION, COUNTED — a chart row is label · bar · value-on-a-shared-
+    // axis, so the space between a short bar and its number is the ENCODING. Rows
+    // under [data-viz-row] are excluded from M1 and reported on their own line, so
+    // the exemption can never grow silently the way an uncounted skip would.
+    if (el.closest("[data-viz-row]")) {
+      vizExempt++;
+      continue;
+    }
+
     // Items = element children AND text nodes (a bare `·` between two spans
-    // manufactures a false gap otherwise), unioned per (node, band).
-    type Item = { l: number; r: number; band: number };
+    // manufactures a false gap otherwise). Bands are assigned below by vertical
+    // OVERLAP, not by a centre bucket — see the clustering note in the header.
+    type Item = { l: number; r: number; top: number; bottom: number; band: number };
     const raw: Item[] = [];
     const pushRects = (rects: ArrayLike<DOMRect>) => {
       for (const rc of Array.from(rects)) {
         if (rc.width <= 0 || rc.height <= 0) continue;
-        raw.push({ l: rc.left, r: rc.right, band: Math.round((rc.top + rc.bottom) / 2 / t.bandPx) });
+        raw.push({ l: rc.left, r: rc.right, top: rc.top, bottom: rc.bottom, band: -1 });
       }
     };
     for (const node of Array.from(el.childNodes)) {
@@ -327,12 +373,33 @@ function measureInPage(t: Thresholds) {
     }
     if (raw.length < 2) continue;
 
-    const bands = new Map<number, Item[]>();
-    for (const it of raw) {
-      const arr = bands.get(it.band);
-      if (arr) arr.push(it);
-      else bands.set(it.band, [it]);
+    // v2 BANDING — vertical-interval clustering. Items whose rects overlap by at
+    // least half the smaller one's height share a band. The v1 rule bucketed on
+    // round(centreY / 4px), which split a baseline-aligned row across two buckets
+    // the moment its items differed in size: on a packed breaking row the 13px id
+    // and 13px age landed in one bucket and the 17px headline in another, so the
+    // gap measured was id→age with the headline sitting invisibly between them —
+    // 873px of "gap" on a row with none. Under a type ladder that scales six
+    // tokens, mixed sizes on one baseline are the NORM, so v1 could not read any
+    // real row correctly.
+    const clusters: { top: number; bottom: number; items: Item[] }[] = [];
+    for (const it of raw.slice().sort((a, b) => a.top - b.top)) {
+      const h = it.bottom - it.top;
+      let placed = false;
+      for (const c of clusters) {
+        const overlap = Math.min(c.bottom, it.bottom) - Math.max(c.top, it.top);
+        if (overlap >= 0.5 * Math.min(h, c.bottom - c.top)) {
+          c.top = Math.min(c.top, it.top);
+          c.bottom = Math.max(c.bottom, it.bottom);
+          c.items.push(it);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) clusters.push({ top: it.top, bottom: it.bottom, items: [it] });
     }
+    const bands = new Map<number, Item[]>();
+    clusters.forEach((c, i) => bands.set(i, c.items));
 
     let maxBandItems = 0;
     let interior = 0;
@@ -515,6 +582,7 @@ function measureInPage(t: Thresholds) {
       m1aCount: rows.filter((r) => r.mode === "M1a" && r.interiorGapPx > t.gapThreshold).length,
       m1bCount: rows.filter((r) => r.mode === "M1b" && r.interiorGapPx > t.gapThreshold).length,
       candidateRows: rows.length,
+      vizExempt,
       gaps: allGaps.map((g) => Math.round(g)),
     },
     m2: { panels, count: panels.length },
@@ -664,31 +732,59 @@ async function main() {
 
   const m1aHits = fm.m1.rows.filter((r) => r.mode === "M1a");
   const m1bHits = fm.m1.rows.filter((r) => r.mode === "M1b");
-  const breaking = m1aHits
-    .concat(m1bHits)
-    .filter((r) => /breaking/i.test(r.selectorPath))
-    .sort((a, b) => b.interiorGapPx - a.interiorGapPx);
   const wideTop = m1bHits.slice().sort((a, b) => b.interiorGapPx - a.interiorGapPx);
 
   console.log(`  M1 candidate rows on /      : ${fm.m1.candidateRows}  (M1a ${m1aHits.length} · M1b ${m1bHits.length})`);
   console.log(`  M1 rows over ${GAP_THRESHOLD_PX}px           : ${fm.m1.overThreshold}`);
+  console.log(`  M1x viz-exempted            : ${fm.m1.vizExempt}`);
   console.log("");
-  console.log(`  [known offender] breaking-headline rows matched: ${breaking.length}`);
-  for (const b of breaking.slice(0, 4)) {
-    console.log(`      interior ${String(b.interiorGapPx).padStart(4)}px  trailing ${String(b.trailingGapPx).padStart(4)}px  ${b.selectorPath}`);
+
+  // ── v2 LEG A — the KNOWN-GOOD rows. -----------------------------------------
+  // v1's anchor was "M1 must fire on `/`'s breaking strip". HO 610 PACKED that
+  // strip, so the anchor expired: the rows are now known-good, and a v2 that
+  // still scored them would be reporting its own banding defect. So the assertion
+  // INVERTS — these rows must read small — and it is the sharper test, because v1
+  // read 873px (breaking) and 75px (masthead) and was wrong in BOTH directions.
+  // DERIVED, not tuned to pass. The handoff's estimate was ~40px; the packed
+  // breaking row measures up to 50, and the cause is arithmetic rather than a
+  // stretch: the id column is a fixed `flex: 0 0 5.8em` (93px at 2560) so a
+  // SHORT id leaves basis-minus-text of alignment slack before the 10px gap —
+  // measured 93-53+10 = 50 for "S 5201", 93-79+10 = 24 for "SJRES 181". That
+  // slack is what keeps a column of ids aligned (the mock's `.bid` does the same),
+  // so the bound is the id basis minus the narrowest id, plus the gap, plus a
+  // little headroom. Still 2.4x under the 120px defect threshold and 17x under
+  // what v1 reported for the same rows.
+  const KNOWN_GOOD_MAX = 60;
+  const goodRows = fm.m1.rows.filter(
+    (r) => /breaking-row|home-header-prompt-row/i.test(r.selectorPath),
+  );
+  console.log(`  [known-GOOD, packed at HO 610] rows matched: ${goodRows.length}  (must read interior <= ${KNOWN_GOOD_MAX}px)`);
+  for (const g of goodRows.slice(0, 5)) {
+    console.log(`      interior ${String(g.interiorGapPx).padStart(4)}px  trailing ${String(g.trailingGapPx).padStart(4)}px  ${g.selectorPath}`);
   }
-  if (breaking.length === 0) {
-    console.log("      ** NONE — M1 cannot see the breaking strip it was written to catch. **");
+  if (goodRows.length === 0) {
+    console.log("      ** NONE MATCHED — the leg is measuring nothing; a pass here would be vacuous. **");
     falsificationOk = false;
+  } else {
+    const worst = Math.max(...goodRows.map((g) => g.interiorGapPx));
+    if (worst > KNOWN_GOOD_MAX) {
+      console.log(`      ** worst ${worst}px > ${KNOWN_GOOD_MAX}px — v2 still splits a packed row across bands. **`);
+      falsificationOk = false;
+    } else {
+      console.log(`      worst ${worst}px — packed rows read as packed.`);
+    }
   }
 
+  // ── v2 LEG B — the viz exemption must be VISIBLE, not silent. ---------------
   console.log("");
-  console.log(`  [M1b existence proof] singleton wide rows: ${m1bHits.length}`);
-  for (const w of wideTop.slice(0, 4)) {
-    console.log(`      interior ${String(w.interiorGapPx).padStart(4)}px  trailing ${String(w.trailingGapPx).padStart(4)}px  width ${String(w.rowWidth).padStart(5)}  ${w.selectorPath}`);
+  console.log(`  [viz exemption] rows under [data-viz-row]: ${fm.m1.vizExempt}`);
+  if (fm.m1.vizExempt === 0) {
+    console.log("      ** ZERO — the funnel is either unmarked or being scored as a defect. **");
+    falsificationOk = false;
   }
-  if (m1bHits.length === 0) {
-    console.log("      ** NONE — M1b is broken whatever M1a says (the masthead is a singleton offender). **");
+  const funnelScored = fm.m1.rows.filter((r) => /funnel/i.test(r.selectorPath)).length;
+  if (funnelScored > 0) {
+    console.log(`      ** ${funnelScored} funnel rows still SCORED — the exemption is not reaching them. **`);
     falsificationOk = false;
   }
 
@@ -742,6 +838,30 @@ async function main() {
   console.log("      it is asserted across the crawl, not on / alone.");
   await fal.close();
 
+  // ── v2 LEG C — the KNOWN-BAD control. ---------------------------------------
+  // Legs A and B both assert that v2 reports LESS than v1 did. On their own they
+  // are satisfied by an instrument that reports nothing at all — the same-as-
+  // success shape. /members carried 708 rows over threshold under v1 and none of
+  // v2's three changes touch its defect class, so it must survive; a collapse to
+  // near-zero means v2 over-corrected and the crawl is worthless.
+  console.log("");
+  const KNOWN_BAD_MIN = 50;
+  const bad = await openMeasured("/members", 2);
+  console.log(`  [known-BAD control] /members M1 over ${GAP_THRESHOLD_PX}px: ${bad.data.m1.overThreshold}  (M1a ${bad.data.m1.m1aCount} · M1b ${bad.data.m1.m1bCount} · M1x ${bad.data.m1.vizExempt})`);
+  for (const r of bad.data.m1.rows
+    .filter((r) => r.interiorGapPx > GAP_THRESHOLD_PX)
+    .sort((a, b) => b.interiorGapPx - a.interiorGapPx)
+    .slice(0, 3)) {
+    console.log(`      interior ${String(r.interiorGapPx).padStart(4)}px  ${r.selectorPath}`);
+  }
+  if (bad.data.m1.overThreshold < KNOWN_BAD_MIN) {
+    console.log(`      ** ${bad.data.m1.overThreshold} < ${KNOWN_BAD_MIN} — v2 OVER-CORRECTED; a real defect class went silent. **`);
+    falsificationOk = false;
+  } else {
+    console.log("      real gaps survive v2 — the detector still fires.");
+  }
+  await bad.close();
+
   console.log("");
   if (!falsificationOk) {
     console.log("FALSIFICATION: FAIL — halting before the crawl. 78 page loads against a broken");
@@ -774,7 +894,8 @@ async function main() {
         `  ${route.slug.padEnd(22)} ${String(r.status).padStart(3)}  els ${String(d.elementCount).padStart(6)}  ` +
           `M1a ${String(d.m1.m1aCount).padStart(3)}  M1b ${String(d.m1.m1bCount).padStart(3)}  ` +
           `M2 ${String(d.m2.count).padStart(3)}  M3 ${String(d.m3.meanPerRow).padStart(5)}  ` +
-          `M4 ${String(d.m4.count).padStart(3)}/${String(d.m4.reservedPx).padStart(5)}px`,
+          `M4 ${String(d.m4.count).padStart(3)}/${String(d.m4.reservedPx).padStart(5)}px  ` +
+          `M1x ${String(d.m1.vizExempt).padStart(3)}`,
       );
       await r.close();
     } catch (e) {
@@ -867,14 +988,16 @@ async function main() {
       m3: r.data.m3.meanPerRow,
       m4px: r.data.m4.reservedPx,
       m4n: r.data.m4.count,
+      m1x: r.data.m1.vizExempt,
     }))
     .sort((a, b) => b.m1 - a.m1);
-  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)}`);
+  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)} ${"M1x".padStart(5)}`);
   for (const t of table) {
     console.log(
-      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)}`,
+      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)} ${String(t.m1x).padStart(5)}`,
     );
   }
+  console.log("  M1x = rows under [data-viz-row], EXEMPTED from M1 and counted here.");
 
   console.log("");
   console.log("=".repeat(100));
@@ -888,8 +1011,10 @@ async function main() {
   const totM4 = results.reduce((a, r) => a + r.data.m4.count, 0);
   const totM4px = results.reduce((a, r) => a + r.data.m4.reservedPx, 0);
   const totSeeded = results.reduce((a, r) => a + r.data.m4.seededHits, 0);
+  const totVizExempt = results.reduce((a, r) => a + r.data.m1.vizExempt, 0);
   console.log(`  M1 candidate rows examined : ${totCandidates}`);
   console.log(`  M1 rows over ${GAP_THRESHOLD_PX}px          : ${totM1a + totM1b}   (M1a ${totM1a} · M1b ${totM1b})`);
+  console.log(`  M1x viz-exempted rows      : ${totVizExempt}   (chart rows under [data-viz-row]; excluded from M1 above)`);
   console.log(`  M2 stretched panels        : ${totM2}`);
   console.log(`  M4 reserved-empty elements : ${totM4}  totalling ${totM4px}px of vertical space  (seed-vocabulary hits ${totSeeded})`);
   console.log("");
@@ -939,15 +1064,33 @@ async function main() {
   // these JSONs contain literal utility-class strings in their selector paths).
   try {
     mkdirSync(ARTIFACT_DIR, { recursive: true });
-    // A filtered run writes its OWN file — a slice score must not overwrite the
-    // full-crawl baseline it is scored against.
-    const artifact = ROUTE_FILTER ? `audit-2560-${ROUTE_FILTER}.json` : "audit-2560.json";
+    // v2 — SHA-stamped and NEVER overwritten. v1 wrote a fixed `audit-2560.json`,
+    // so the HO 610 re-run destroyed the 606 full-crawl baseline it was supposed
+    // to be compared against; the baseline had to be rebuilt by checking out the
+    // prior commit and crawling again. A file whose whole purpose is cross-run
+    // comparison must not be clobbered by the next run.
+    let stem = `audit-${SHORT_SHA}-${WIDE_W}${ROUTE_FILTER ? `-${ROUTE_FILTER}` : ""}`;
+    let path = `${ARTIFACT_DIR}/${stem}.json`;
+    for (let n = 2; existsSync(path); n++) path = `${ARTIFACT_DIR}/${stem}.${n}.json`;
     writeFileSync(
-      `${ARTIFACT_DIR}/${artifact}`,
-      JSON.stringify({ thresholds: THRESHOLDS, routeFilter: ROUTE_FILTER ?? null, results, narrow, cantMeasure }, null, 1),
+      path,
+      JSON.stringify(
+        {
+          instrument: "v2",
+          sha: SHORT_SHA,
+          width: WIDE_W,
+          thresholds: THRESHOLDS,
+          routeFilter: ROUTE_FILTER ?? null,
+          results,
+          narrow,
+          cantMeasure,
+        },
+        null,
+        1,
+      ),
     );
     console.log("");
-    console.log(`  full per-route detail → ${ARTIFACT_DIR}/${artifact} (repo-ignored)`);
+    console.log(`  full per-route detail → ${path} (repo-ignored)`);
   } catch (e) {
     console.log(`  (could not write artifacts: ${String(e).slice(0, 80)})`);
   }
