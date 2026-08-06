@@ -118,10 +118,16 @@ function Entry({
     const el = ref.current;
     if (el) onOpen(m, el.getBoundingClientRect());
   }, [m, onOpen]);
+  // HO 611: ONE line — time · kind · title · badges, packed left. It was two
+  // lines (a meta row over a clamped title) because it lived in a 1/5-width
+  // column; in the full-width agenda that shape put `.hcal-entry-badges` on a
+  // `margin-left: auto` across ~2,400px, which is the C1 defect this phase
+  // removes, and the clamp had nothing left to clamp. Same element, same
+  // handlers, same detail card — only the internal layout changed.
   return (
     <div
       ref={ref}
-      className={`hcal-entry${n > 0 ? " has-bills" : ""}${badge === "MARKUP" ? " is-markup" : ""}`}
+      className={`hcal-entry${n > 0 ? " has-bills" : ""}${badge === "MARKUP" ? " is-markup" : ""}${status === "concluded" ? " is-past" : ""}`}
       role="button"
       tabIndex={0}
       onMouseEnter={open}
@@ -136,17 +142,13 @@ function Entry({
         }
       }}
     >
-      <div className="hcal-entry-top">
-        <span className="hcal-entry-time">{etTimeLabel(m.meetingDate)}</span>
-        <span className="hcal-entry-kind">{badge}</span>
-        <span className="hcal-entry-badges">
-          {n > 0 ? <span className="hcal-badge-bills">+{n} bills</span> : null}
-          {status === "live" ? (
-            <span className="hcal-badge-live">● LIVE</span>
-          ) : null}
-        </span>
-      </div>
-      <div className="hcal-entry-title">{title || "(untitled meeting)"}</div>
+      <span className="hcal-entry-time">{etTimeLabel(m.meetingDate)}</span>
+      <span className="hcal-entry-kind">{badge}</span>
+      <span className="hcal-entry-title">{title || "(untitled meeting)"}</span>
+      {status === "live" ? (
+        <span className="hcal-badge-live">● LIVE</span>
+      ) : null}
+      {n > 0 ? <span className="hcal-badge-bills">+{n} bills</span> : null}
     </div>
   );
 }
@@ -330,6 +332,10 @@ export function HearingsCalendar({
         const count = weekCount(monKey);
         const isCurrent = monKey === currentMon;
         const delta = count - priorCount;
+        // Mon-Fri keys that actually carry meetings under the active filters.
+        const activeDays = Array.from({ length: 5 }, (_, i) =>
+          addDaysToKey(monKey, i),
+        ).filter((k) => (byDay.get(k)?.length ?? 0) > 0);
         return (
           <section key={monKey} className="hcal-week">
             <div className="hcal-weekhead">
@@ -348,43 +354,78 @@ export function HearingsCalendar({
                 onLeave={() => setStatOpen(null)}
               />
             </div>
-            <div className="hcal-grid">
+            {/* HO 611 — the week ribbon. Five MON–FRI cells; an empty day's ENTIRE
+                footprint is its dash (C4 at route scale — it used to be a
+                150px-min bordered column reading "No meetings"). A day with
+                meetings is an in-page anchor to its section below: a plain <a>,
+                no state machinery. Cells reuse the dashboard ribbon's .hsch-cell
+                because the two genuinely share a visual; the row that holds them
+                is route-owned. */}
+            <div className="hcal-rib">
               {Array.from({ length: 5 }, (_, i) => {
                 const dayKey = addDaysToKey(monKey, i);
+                const n = byDay.get(dayKey)?.length ?? 0;
+                const dp = dayKeyParts(dayKey);
+                const cls = `hsch-cell${n > 0 ? " has" : ""}${dayKey === todayKey ? " on" : ""}`;
+                const body = (
+                  <>
+                    {dp.dow}
+                    <br />
+                    {n > 0 ? <b>{n}</b> : "—"}
+                  </>
+                );
+                return n > 0 ? (
+                  <a key={dayKey} className={cls} href={`#hcal-day-${dayKey}`}>
+                    {body}
+                  </a>
+                ) : (
+                  <span key={dayKey} className={cls}>
+                    {body}
+                  </span>
+                );
+              })}
+            </div>
+
+            {/* Stacked day sections, DAYS WITH MEETINGS ONLY, uncapped. The cap
+                was the embedded tab's constraint (a pinned box), never the
+                route's — this is the browse surface `→ ALL` exists to reach. */}
+            {activeDays.length === 0 ? (
+              <div className="hcal-week-empty">Nothing scheduled this week.</div>
+            ) : (
+              activeDays.map((dayKey) => {
                 const dm = byDay.get(dayKey) ?? [];
                 const dp = dayKeyParts(dayKey);
                 const isToday = dayKey === todayKey;
                 return (
-                  <div
+                  <section
                     key={dayKey}
                     id={`hcal-day-${dayKey}`}
-                    className={`hcal-day${isToday ? " is-today" : ""}`}
+                    className={`hcal-agenda-day${isToday ? " is-today" : ""}`}
                   >
-                    <div className="hcal-dayhead">
-                      <span className="dow">{dp.dow}</span>
-                      <span className="dom">{dp.dom}</span>
+                    <h3 className="hcal-agenda-head">
+                      <span className="dow">{dp.dow}</span>{" "}
+                      <span className="dom">
+                        {dp.mon} {dp.dom}
+                      </span>
                       {isToday ? <span className="today-tag">Today</span> : null}
-                      <span className="cnt">{dm.length || ""}</span>
-                    </div>
-                    {dm.length === 0 ? (
-                      <div className="hcal-day-empty">No meetings</div>
-                    ) : (
-                      <div className="hcal-day-list">
-                        {dm.map((m) => (
-                          <Entry
-                            key={m.eventId}
-                            m={m}
-                            nowMs={nowMs}
-                            onOpen={onOpen}
-                            onLeave={scheduleClose}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      <span className="sep" aria-hidden>
+                        ·
+                      </span>
+                      <span className="cnt">{dm.length}</span>
+                    </h3>
+                    {dm.map((m) => (
+                      <Entry
+                        key={m.eventId}
+                        m={m}
+                        nowMs={nowMs}
+                        onOpen={onOpen}
+                        onLeave={scheduleClose}
+                      />
+                    ))}
+                  </section>
                 );
-              })}
-            </div>
+              })
+            )}
           </section>
         );
       })}
