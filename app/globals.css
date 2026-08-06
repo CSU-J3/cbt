@@ -5418,6 +5418,50 @@ body {
   font-weight: 600;
 }
 
+/* HO 615 — the 312px rail stacks below the content at <=900px, on /members only.
+   C8's inverse: wide screens buy a second pane, and narrow screens have to give
+   it back. The BillExpandPanel precedent (HO 610) is the same move — a two-column
+   body that becomes one column when the column it lives in is too narrow to hold
+   both.
+
+   SCOPED BY MEASUREMENT, not by class presence. All four .mc-pane consumers carry
+   the same non-collapsing 312px rail, and the 612 filing listed all four; only
+   /members actually fails. Measured at 720 (docScroll vs a 720 viewport):
+     /members  883  (+163, the offender is a .mc-r-num cell whose row grid needs
+                     ~546px inside a 374px content column)
+     /lobbying 720  (clear)
+     /news     720  (clear)
+     /bills    720  (clear — its rail already collapses to full width there)
+     /committee/[id] has no .mc-pane at all; the roster is not a pane consumer.
+   So the rule is hooked on .mb-pane and the other three are deliberately
+   untouched. Widening it to bare .mc-pane would restyle three routes at narrow
+   widths to fix a fourth.
+
+   THE RAIL GOES ABOVE THE CONTENT, BOUNDED — and the first draft had it below,
+   which the eyeball rejected. Below reads correctly and is unusable: the member
+   list is unpaginated at LIST_LIMIT 600, so a stacked rail lands at y=19,643 and
+   the committee filter can never be reached on the screens this rule exists for.
+   That is the handoff's own "unless stacking proves unusable in the eyeball"
+   clause firing. Above, unbounded, is no better — 236 committees would bury the
+   list, which is the page's actual answer. So the rail is bounded and scrolls
+   internally, which is not a new widget: it is the HO 492 .lob-rail-scroll
+   convention, already shipped one route over for the same reason. 420px is a
+   little under half the 900px viewport this rule tops out at, so the list is
+   always visible beneath it without scrolling.
+
+   Above 900px this block does not apply and the wide layout is byte-identical. */
+@media (max-width: 900px) {
+  .mb-pane {
+    grid-template-columns: 1fr;
+  }
+  .mb-pane > .mc-rail {
+    max-height: 420px;
+    overflow-y: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-strong);
+  }
+}
+
 /* UPCOMING HEARINGS group (HO 328 premise-3 fallback — schedule-derived) */
 .mc-upgrp {
   border-bottom: 1px solid var(--border-strong);

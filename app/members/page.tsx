@@ -527,8 +527,12 @@ export default async function MembersPage({
           </div>
         </div>
 
-        {/* ---- Two-pane browser ---- */}
-        <div className="mc-pane">
+        {/* ---- Two-pane browser ----
+             mb-pane is a scoping hook, not a style: it is what lets the HO 615
+             narrow-width stack apply HERE and nowhere else. /members is the only
+             .mc-pane consumer that fails document width at 720; /lobbying, /news
+             and /bills were measured clearing it with the same 312px rail. */}
+        <div className="mc-pane mb-pane">
           {/* LEFT RAIL — committee index */}
           <div className="mc-rail">
             <div className="mc-rail-h">
