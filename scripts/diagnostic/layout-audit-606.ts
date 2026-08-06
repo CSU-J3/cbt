@@ -141,6 +141,14 @@ const ACTIVE_ROUTES: Route[] = ROUTE_FILTER
   ? ROUTES.filter((r) => r.slug === ROUTE_FILTER)
   : ROUTES;
 
+// HO 610 — routes the M2 falsification leg falls back to when `/` reads zero.
+// Ordered cheapest-first; the leg stops at the first that fires.
+const M2_FALLBACK_ROUTES: Route[] = [
+  { slug: "bills", path: "/bills" },
+  { slug: "members", path: "/members" },
+  { slug: "electoral", path: "/electoral" },
+];
+
 const SUBSET_SLUGS = new Set([
   "home",
   "bills",
@@ -689,13 +697,42 @@ async function main() {
   for (const p of fm.m2.panels.slice(0, 5)) {
     console.log(`      slack ${String(p.slackPx).padStart(4)}px of ${String(p.panelHeight).padStart(4)}px  ${p.selectorPath}`);
   }
+  // HO 610 — the M2 leg no longer keys its proof to `/` ALONE. It did at 606,
+  // when `/` carried three stretched panels (the hearings week grid's empty day
+  // columns); P3 slice 3 removed them, and a zero on `/` then read as "M2 is
+  // broken" and halted the crawl. That is the same-as-success shape inverted: a
+  // SUCCESSFUL remediation became indistinguishable from a dead detector, and the
+  // instrument refused to score the very fix that silenced it. What has to be
+  // proven is that the DETECTOR fires, not that a particular route is defective —
+  // so on a zero here it re-probes fallback routes and passes if any fires,
+  // naming which one. Only zero EVERYWHERE is a fail, and it still dumps the
+  // panel-predicate intermediates before halting.
   if (fm.m2.count === 0) {
-    console.log("      ** ZERO — dumping the panel predicate's intermediates for the funnel: **");
-    // On the measured page, not a fresh blank one — a diagnostic that runs against
-    // about:blank returns [] and reads exactly like "no such element".
-    const diag = await fal.page.evaluate(funnelDiagnosticInPage);
-    console.log(JSON.stringify(diag, null, 2));
-    falsificationOk = false;
+    console.log("      ZERO on / — `/` no longer carries a stretched panel (HO 610 removed");
+    console.log("      the last three). Re-probing fallback routes to prove the DETECTOR fires:");
+    let provenOn: string | null = null;
+    for (const fb of M2_FALLBACK_ROUTES) {
+      const probe = await openMeasured(fb.path, 2);
+      console.log(`        ${fb.slug.padEnd(14)} M2 ${probe.data.m2.count}`);
+      if (probe.data.m2.count > 0 && !provenOn) {
+        provenOn = fb.slug;
+        for (const p of probe.data.m2.panels.slice(0, 3)) {
+          console.log(`          slack ${String(p.slackPx).padStart(4)}px of ${String(p.panelHeight).padStart(4)}px  ${p.selectorPath}`);
+        }
+      }
+      await probe.close();
+      if (provenOn) break;
+    }
+    if (provenOn) {
+      console.log(`      M2 PROVEN on /${provenOn} — the zero on / is a result, not a broken detector.`);
+    } else {
+      console.log("      ** ZERO EVERYWHERE PROBED — dumping the panel predicate's intermediates: **");
+      // On the measured page, not a fresh blank one — a diagnostic that runs
+      // against about:blank returns [] and reads exactly like "no such element".
+      const diag = await fal.page.evaluate(funnelDiagnosticInPage);
+      console.log(JSON.stringify(diag, null, 2));
+      falsificationOk = false;
+    }
   }
 
   console.log("");
