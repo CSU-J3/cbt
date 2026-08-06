@@ -841,26 +841,47 @@ async function main() {
   // ── v2 LEG C — the KNOWN-BAD control. ---------------------------------------
   // Legs A and B both assert that v2 reports LESS than v1 did. On their own they
   // are satisfied by an instrument that reports nothing at all — the same-as-
-  // success shape. /members carried 708 rows over threshold under v1 and none of
-  // v2's three changes touch its defect class, so it must survive; a collapse to
-  // near-zero means v2 over-corrected and the crawl is worthless.
+  // success shape. Leg C is the only one separating a correction from a
+  // silencing, so it must point at real gaps the instrument change cannot touch.
+  //
+  // RE-ANCHORED AT HO 612, deliberately and on schedule. It pointed at /members
+  // (708 under v1, 548 under v2) until HO 612 packed the roster row and took it
+  // to ~20 BY DESIGN — at which point a silenced instrument and a successful
+  // remediation read identically on the old anchor, and the leg began failing the
+  // very work it exists to score. That is the falsification-anchor-expiry oddity
+  // (docs/oddities.md, HO 610): an anchor pinned to a specific known defect has a
+  // shelf life exactly as long as the defect, and a remediation phase is in the
+  // business of ending them. So it now walks a LIST and passes on the first route
+  // that fires, naming which — the shape 2469404 gave the M2 leg — rather than
+  // hard-failing the next time a remediation lands. /changes leads because it
+  // holds 471 and is P6 work, untouched until phase 6.
   console.log("");
   const KNOWN_BAD_MIN = 50;
-  const bad = await openMeasured("/members", 2);
-  console.log(`  [known-BAD control] /members M1 over ${GAP_THRESHOLD_PX}px: ${bad.data.m1.overThreshold}  (M1a ${bad.data.m1.m1aCount} · M1b ${bad.data.m1.m1bCount} · M1x ${bad.data.m1.vizExempt})`);
-  for (const r of bad.data.m1.rows
-    .filter((r) => r.interiorGapPx > GAP_THRESHOLD_PX)
-    .sort((a, b) => b.interiorGapPx - a.interiorGapPx)
-    .slice(0, 3)) {
-    console.log(`      interior ${String(r.interiorGapPx).padStart(4)}px  ${r.selectorPath}`);
+  const KNOWN_BAD_ROUTES = ["/changes", "/stale", "/bills"];
+  let badProven: string | null = null;
+  for (const path of KNOWN_BAD_ROUTES) {
+    const bad = await openMeasured(path, 2);
+    const n = bad.data.m1.overThreshold;
+    console.log(`  [known-BAD control] ${path.padEnd(8)} M1 over ${GAP_THRESHOLD_PX}px: ${n}  (M1a ${bad.data.m1.m1aCount} · M1b ${bad.data.m1.m1bCount} · M1x ${bad.data.m1.vizExempt})`);
+    if (n >= KNOWN_BAD_MIN) {
+      badProven = path;
+      for (const r of bad.data.m1.rows
+        .filter((r) => r.interiorGapPx > GAP_THRESHOLD_PX)
+        .sort((a, b) => b.interiorGapPx - a.interiorGapPx)
+        .slice(0, 3)) {
+        console.log(`      interior ${String(r.interiorGapPx).padStart(4)}px  ${r.selectorPath}`);
+      }
+    }
+    await bad.close();
+    if (badProven) break;
   }
-  if (bad.data.m1.overThreshold < KNOWN_BAD_MIN) {
-    console.log(`      ** ${bad.data.m1.overThreshold} < ${KNOWN_BAD_MIN} — v2 OVER-CORRECTED; a real defect class went silent. **`);
-    falsificationOk = false;
+  if (badProven) {
+    console.log(`      real gaps survive v2 on ${badProven} — the detector still fires.`);
   } else {
-    console.log("      real gaps survive v2 — the detector still fires.");
+    console.log(`      ** every known-BAD route is under ${KNOWN_BAD_MIN} — either the site is genuinely`);
+    console.log("         clean or v2 over-corrected. Re-anchor deliberately; do not lower the floor. **");
+    falsificationOk = false;
   }
-  await bad.close();
 
   console.log("");
   if (!falsificationOk) {
