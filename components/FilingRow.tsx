@@ -97,9 +97,14 @@ export function FilingRow({
         <span>{filing.clientName ?? "—"}</span>
       </span>
 
+      {/* HO 614 (C3) — issue codes are LABELS, so they render as plain dim text.
+          The chip rule since HO 609: a border survives only on an interactive
+          affordance. The bills cell below is the other half of that rule — those
+          chips are links with hover behaviour, so they keep theirs. One row,
+          both halves. */}
       <span className="lob-issues">
         {shownIssues.map((code) => (
-          <span key={code} className="micro-tag">
+          <span key={code} className="lob-issue-code">
             {code}
           </span>
         ))}

@@ -5383,13 +5383,9 @@ body {
 .mc-fbar-n {
   color: var(--text-secondary);
 }
-/* HO 613: /bills and /members dropped their spacer ELEMENT (C1 — it pinned the
-   search box to the bar's right edge, ~1,600px of interior gap). The class
-   survives because /lobbying still renders one, and /lobbying is P4's last route
-   and explicitly out of this HO's scope. Delete the rule with that consumer. */
-.mc-fbar-spacer {
-  flex: 1;
-}
+/* HO 613 dropped the spacer element from /bills and /members and kept this rule
+   for /lobbying, P4's last route. HO 614 dropped lobbying's too, so the rule goes
+   with its last consumer as 613 said it should. */
 .mc-fbar-search {
   min-width: 180px;
 }
@@ -5998,8 +5994,23 @@ body {
 /* Row-owned grid (not container-scoped) so ALL three FilingRow consumers align —
    /lobbying, /bill/[id] BillLobbying, and IssueDrill — with no ancestor needed.
    caret | age | reg→client | issue chips | bill chips */
+/* HO 614 (C1) — the registrant→client track is CAPPED and the row packs. Was
+   `1fr`: at 2560 that track ran 1,980px while the rc ink ended at 239–561px, so
+   the ISSUES and BILLS cells sat pinned far right — 1,494–1,753px of gap on every
+   filing row, plus 1,866px on the header.
+   The cap is derived from the DATA, and unlike /members and /trades it costs no
+   truncation: rc ink runs min 239 · median 379 · max 561 (spread 322px, again
+   wider than the 120px threshold), but this cell is two names joined by an arrow,
+   so it can WRAP where a member name or a ticker description could not. Cap =
+   threshold + min-ink − column-gap = 120 + 239 − 14 = 345, taken at 340: a row
+   at the narrowest ink gaps 115px, and anything longer wraps to a second line
+   instead of clipping. Zero truncation, zero rows over — the curve that would
+   have been needed otherwise (400 → 5 clipped / 2 over · 500 → 2 / 7) is moot.
+   `.lob-rc` therefore drops nowrap+ellipsis (HO 611's lesson: a browse list has
+   no box to protect). */
 .lob-filing-row {
-  grid-template-columns: 16px 52px 1fr auto auto;
+  grid-template-columns: 16px 52px minmax(0, 340px) auto auto;
+  justify-content: start;
 }
 /* Interactivity is opt-in: only the expandable (/lobbying) rows carry role=button.
    Inert rows (BillLobbying / IssueDrill) suppress the shared .mc-row hover so a
@@ -6025,9 +6036,14 @@ body {
   min-width: 0;
   font-size: var(--fs-12);
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+/* HO 614: the issue code as plain dim text (was .micro-tag — a bordered chip on
+   a non-interactive label). */
+.lob-issue-code {
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
 }
 .lob-issues,
 .lob-bills {

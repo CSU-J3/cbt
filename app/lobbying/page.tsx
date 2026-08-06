@@ -313,7 +313,6 @@ export default async function LobbyingPage({
               </>
             )}
           </span>
-          <span className="mc-fbar-spacer" />
           {!scoped ? (
             <div className="lob-fbar-controls">
               {/* HO 547 — a search term forces RECENT: VOLUME defeats the LIMIT
