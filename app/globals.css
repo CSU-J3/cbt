@@ -8243,58 +8243,19 @@ a.pdc-cand-name:hover {
   color: var(--text-dim);
 }
 
-/* ---- hearings list (HO 264, Piece 1 of 5) ----------------------------
-   /hearings grouped chronological list. The <li> is the grid: a click-to-
-   expand button covers caret|time|type|title+meta|bills (the row identity),
-   and the WATCH cell is a real external <a> sibling on the right (mirrors the
-   feed-row star pattern — a nested <a> inside the button would be invalid).
-   The expanded panel spans both columns below. Existing tokens only. */
+/* ---- hearing row (HO 264, Piece 1 of 5; list wrapper removed HO 615) ------
+   The <li> is the grid: a click-to-expand button covers
+   caret|time|type|title+meta|bills (the row identity), and the WATCH cell is a
+   real external <a> sibling on the right (mirrors the feed-row star pattern — a
+   nested <a> inside the button would be invalid). The expanded panel spans both
+   columns below. Existing tokens only.
 
-/* bands + day subheaders */
-.hearings-band-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 20px 0 6px;
-  font-size: var(--fs-12);
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--accent-amber);
-}
-.hearings-band-head:first-child {
-  margin-top: 0;
-}
-.hearings-band-rule {
-  flex: 1;
-  height: 0;
-  border-top: 0.5px solid var(--border-soft);
-}
-.hearings-day-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 12px;
-  background-color: var(--bg-panel);
-  border-top: 0.5px solid var(--border-soft);
-  font-size: var(--fs-11);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.hearings-day-head .today {
-  color: var(--accent-amber);
-}
-.hearings-day-head .day-count {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
+   The grouped-list wrapper this row was born inside (HearingsList, plus its
+   band/day-header and empty-state rules) went at HO 615 with zero consumers —
+   HO 611 replaced /hearings' grouping with the week ribbon and agenda. The ROW
+   is live and shared: HearingRow <- HearingMeetingsEmbed <- /bill/[id] and
+   /committee/[systemCode]. */
 
-.hearings-list {
-  border: 0.5px solid var(--border-strong);
-  border-top: none;
-}
 .hearing-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -8518,15 +8479,6 @@ a.hearing-watch:hover {
 }
 .hearing-panel-link:hover {
   color: var(--accent-amber-bright);
-}
-.hearings-empty {
-  padding: 48px 12px;
-  text-align: center;
-  font-size: var(--fs-13);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  border: 0.5px solid var(--border-strong);
 }
 
 /* ---- hearings calendar (HO 265, Piece 2 of 5) ------------------------
