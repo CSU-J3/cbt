@@ -43,3 +43,15 @@ cbt-*.png
 # playwright e2e artifacts (HO 379 crawler + HO 472 fit-finish harness)
 test-results/
 playwright-report/
+
+# handoff docs (HO 604). These were already ignored per-machine via
+# core.excludesFile (~/.gitignore_global), so they never reach the repo and a
+# deploy never sees them. Repeating it HERE is what stops Tailwind reading them:
+# the v4 scanner honours a repo .gitignore but NOT core.excludesFile, so on this
+# machine it was compiling class names out of handoff PROSE — `text-[10px]`,
+# and a literal `text-[length:var(--fs-N)]` off a line of spec text. Those rules
+# existed only in local builds, never in the deployed bundle, which is the
+# problem: the local build compiled from inputs the deploy does not have. This
+# line restores build-input parity and makes a fresh clone behave like this
+# machine without needing the global ignore.
+docs/handoffs/
