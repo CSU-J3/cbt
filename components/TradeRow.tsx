@@ -76,6 +76,7 @@ export function TradeRow({
       </span>
       <span
         className="asset-description truncate"
+        title={trade.assetDescription ?? undefined}
         style={{ color: "var(--text-secondary)" }}
       >
         {trade.assetDescription ?? "—"}

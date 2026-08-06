@@ -2400,9 +2400,29 @@ body {
 }
 
 /* ---- stock trade rows (handoff 70) ------------------------------------- */
+/* HO 613 (C1) — the asset track is CAPPED and the row packs. Was `1fr`: at 2560
+   that track ran 1,862px while the asset ink ended at ~616px, so TXN and AMOUNT
+   sat pinned at the far right — measured 1,679px of gap on every row, all 50 of
+   /trades' M1.
+   The cap is the measured knee, not the pattern's default. Asset-description ink
+   across the rendered page at 2560: min 44px, median 222, p75 257, p95 343, max
+   387 ("The Consumer Staples Select Sector SPDR Fund"). The spread — 343px — is
+   again wider than the 120px threshold, so no cap reaches zero without
+   truncating; the curve, cap → (truncated, rows over): 400 → (0, 41) ·
+   320 → (4, 22) · *280 → (10, 15)* · 240 → (17, 5) · 200 → (29, 1).
+   280px is chosen because it sits just above p75: everything up to the third
+   quartile renders whole and the only clipping falls on the verbose institutional
+   fund names, which is where the boilerplate is. 240 would take 5 more rows for
+   7 more truncations, and that trade is filed rather than taken.
+   .asset-description already carried `truncate`; it now also carries a `title`,
+   so a clipped name keeps its full value on hover.
+   `justify-content: start` collects the leftover width AFTER the amount columns,
+   so those two keep their shared right-aligned axis INSIDE the packed span —
+   the axis never enters M1 once the row packs. */
 .trade-row {
   display: grid;
-  grid-template-columns: 60px 40px 80px 1fr 110px 110px;
+  grid-template-columns: 64px 40px 80px minmax(0, 280px) 110px 110px;
+  justify-content: start;
   align-items: baseline;
   column-gap: 12px;
   padding: 6px 0;
@@ -2445,9 +2465,12 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* HO 613: the header takes the row's template and packing so the two cannot
+   disagree — it was the second-largest gap on the route at 1,862px. */
 .trade-header-row {
   display: grid;
-  grid-template-columns: 60px 40px 80px 1fr 110px 110px;
+  grid-template-columns: 64px 40px 80px minmax(0, 280px) 110px 110px;
+  justify-content: start;
   align-items: baseline;
   column-gap: 12px;
   padding: 9px 0;
@@ -2467,7 +2490,7 @@ body {
    on the row and its header so they stay aligned. */
 .trade-row--with-member,
 .trade-header-row--with-member {
-  grid-template-columns: 160px 60px 40px 80px 1fr 110px 110px;
+  grid-template-columns: 160px 64px 40px 80px minmax(0, 280px) 110px 110px;
 }
 
 .trade-row .trade-member {
