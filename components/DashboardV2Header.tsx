@@ -73,7 +73,8 @@ export async function DashboardV2Header({
 }) {
   // HO 355: identity for the AuthButton island (no SessionProvider). A1 gates
   // nothing — the dashboard renders identically logged-out. This is the LIVE `/`
-  // header (HomeHeader backs only the unlinked /dashboard-classic).
+  // header; HomeHeader backed only the classic dashboard, removed at HO 608, and
+  // is now unreferenced (left in place — deleting it is not this slice's scope).
   const session = await auth();
   const stageCount = (stage: Stage) =>
     stageDist.bars.find((b) => b.stage === stage)?.count ?? 0;

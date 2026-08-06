@@ -6,7 +6,7 @@
 // user's last RACES open, and registers itself with the context so the RACES-tab
 // NEW badge count is the sum of these — exactly mirroring the MOVED path. Renders
 // nothing (and registers nothing) when there's no fresh news, before hydration
-// (lastViewMs null), or with no provider (e.g. `/dashboard-classic`).
+// (lastViewMs null), or with no provider at all.
 //
 // Unlike lastMoveAt (a date-only string the MOVED indicator pins to midnight UTC),
 // observedAt is a full ISO timestamp, so it's Date.parse'd directly — matching

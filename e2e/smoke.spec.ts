@@ -80,7 +80,6 @@ const ROUTES: Route[] = [
   { slug: "trades", path: "/trades" },
   { slug: "committees-redirect", path: "/committees" }, // redirects → /members
   { slug: "watchlist", path: "/watchlist" }, // anonymous: empty/sign-in, not a 500
-  { slug: "dashboard-classic", path: "/dashboard-classic" },
   { slug: "dashboard-v2", path: "/dashboard-v2" },
   // dynamic detail routes (real IDs)
   { slug: "bill-detail", path: `/bill/${BILL}` },

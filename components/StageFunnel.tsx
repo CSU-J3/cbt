@@ -53,9 +53,9 @@ const STAGE_COLORS: Record<Stage, string> = {
 // if the track gets very narrow at small viewports.
 const MIN_BAR_PCT = 2.2;
 
-// `basePath` is the dashboard route the funnel filters against (default `/`).
-// `/dashboard-classic` passes its own path so its click-to-filter rebases itself,
-// not the v2 `/`. `staticMode` (the v2 `/` swap, HO 311) renders a non-interactive
+// `basePath` is the dashboard route the funnel filters against (default `/` — the
+// only live caller since HO 608 removed the classic dashboard, which passed its
+// own path). `staticMode` (the v2 `/` swap, HO 311) renders a non-interactive
 // chart: no router.push, no `?stage=` written, no selected/dimmed state — the v2
 // page doesn't read searchParams, so an interactive funnel there would be a
 // misleading half-state. Defaults preserve the original interactive behavior.

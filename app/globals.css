@@ -6503,9 +6503,11 @@ body {
    are separated by a dim vertical pipe centered in the inter-item air. The air is
    ~22px (11px each side) vs the 6px within an instrument; the pipe sits on each
    item's right box-boundary (= the centre of the 22px gap, since items are flush
-   flex children with no set-level gap). Scoped to --scroll so the static bare
-   tape (/dashboard-classic) keeps its tight 10px and doesn't clip its full-width
-   8-symbol row (HO 251). The padding is outside each item's pinned price-width
+   flex children with no set-level gap). Scoped to --scroll so a static bare tape
+   keeps its tight 10px and doesn't clip a full-width 8-symbol row (HO 251; its
+   one caller, the pre-swap classic dashboard, was removed at HO 608 — the scoping
+   stays because `scroll` is still an opt-in prop on MarketsTape). The padding is
+   outside each item's pinned price-width
    box and is per-symbol constant, so it never reflows the marquee on a poll. */
 .markets-tape--scroll .markets-tape-item {
   padding: 0 11px;

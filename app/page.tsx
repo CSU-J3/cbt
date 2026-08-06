@@ -41,8 +41,9 @@ const TOP_STALLS_COUNT = 5;
 export const dynamic = "force-dynamic";
 
 // HO 311 — the dashboard. This is the v2 redesign (HOs 253–310), promoted from
-// the parallel `/dashboard-v2` route to `/`. The old `/` dashboard is preserved
-// unlinked at `/dashboard-classic`; `/dashboard-v2` permanently redirects here.
+// the parallel `/dashboard-v2` route to `/`; `/dashboard-v2` permanently
+// redirects here. The old `/` dashboard was preserved unlinked on its own
+// classic route and removed at HO 608.
 //
 // Masthead-count decision (HO 253): every corpus count is read through the
 // summary-gated predicate — the headline total, its four stage segments, and the
@@ -51,7 +52,7 @@ export const dynamic = "force-dynamic";
 // NULL`). This is intentionally the gated (~15.2k) number, not the old non-gated
 // getCorpusStats (~16.2k); `/` now matches /bills and the rest.
 //
-// Distributions click-to-filter (HO 320, ported from /dashboard-classic): the
+// Distributions click-to-filter (HO 320, ported from the classic dashboard): the
 // funnel + treemap push `?stage=` / `?topics=` and the page rebases the STAGE +
 // TOPIC distributions, the MOVERS feed, and BREAKING to that slice (with
 // `ActiveFilterStrip` + × CLEAR + VIEW IN /bills →). The distributions stay

@@ -715,9 +715,10 @@ export const getTopicDistribution = unstable_cache(
   async (
     filters?: DashboardFilters,
     // HO 253: v2 reads this summary-gated too, so the body's TOPIC panel draws
-    // from the same corpus as the gated headline total. HO 496: both live callers
-    // (app/page.tsx, app/dashboard-classic) pass true — the ungated default is
-    // unused/defensive (an earlier comment here wrongly claimed `/` calls it ungated).
+    // from the same corpus as the gated headline total. HO 496: every live caller
+    // passes true — the ungated default is unused/defensive (an earlier comment
+    // here wrongly claimed `/` calls it ungated). HO 608 left app/page.tsx as the
+    // sole caller (the classic dashboard, the second one, was removed).
     summaryGated = false,
   ): Promise<TopicCount[]> => {
     const db = getDb();
@@ -775,8 +776,9 @@ export const getTopicDistribution = unstable_cache(
 export type BillTopicRailCount = { topic: Topic; count: number };
 
 // HO 496: per-topic counts for the /bills two-pane rail. Kept SEPARATE from
-// getTopicDistribution on purpose — that helper has two live dashboard callers
-// (app/page.tsx, app/dashboard-classic) that rebase on STAGE only, and widening
+// getTopicDistribution on purpose — that helper backs the dashboard treemap
+// (app/page.tsx; the classic dashboard was its second caller until HO 608)
+// rebasing on STAGE only, and widening
 // it to chamber/ceremonial would silently reshape the dashboard treemap (the
 // HO 486 riding-regression shape). This rebases on the BOUNDED dims only —
 // stage, chamber, ceremonial. `q` is deliberately EXCLUDED (HO 495 PARTIAL: it

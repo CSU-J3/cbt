@@ -99,8 +99,8 @@ type Route = { slug: string; path: string };
 // a known pageErr site whose filter strip adds a row) and minus EVERY redirect
 // alias: /dashboard-v2 and /committees (excluded since 606), plus /races,
 // /primaries and /members/pass-rate (HO 608 — same reason, dropped after the 606
-// run measured them as duplicate pages). 37-5-5 = 27, and the printed count below
-// is the record.
+// run measured them as duplicate pages). 37-5-5 = 27, less /dashboard-classic,
+// removed as a route at HO 608 = 26. The printed count below is the record.
 const ROUTES: Route[] = [
   { slug: "home", path: "/" },
   { slug: "home-stage-committee", path: "/?stage=committee" },
@@ -122,7 +122,6 @@ const ROUTES: Route[] = [
   { slug: "lobbying", path: "/lobbying" },
   { slug: "trades", path: "/trades" },
   { slug: "watchlist", path: "/watchlist" },
-  { slug: "dashboard-classic", path: "/dashboard-classic" },
   { slug: "bill-detail", path: `/bill/${BILL}` },
   { slug: "member-detail", path: `/members/${MEMBER}` },
   { slug: "race-detail", path: `/race/${RACE}` },
@@ -883,9 +882,11 @@ async function main() {
   console.log("=".repeat(100));
   console.log("  app/dashboard-v2/page.tsx    — a 9-line permanentRedirect(\"/\") (HO 311), kept so");
   console.log("                                 bookmarks survive the swap. NOT dead; deleting it 404s them.");
-  console.log("  app/dashboard-classic/page.tsx — deliberately unlinked, absent from NAV_ITEMS");
-  console.log("                                 (HeaderBar.tsx:36-48). NOT a two-file rm: it is referenced");
-  console.log("                                 across five components + two lib/queries.ts comments.");
+  console.log("  app/dashboard-classic/page.tsx — REMOVED at HO 608. The 606 run falsified the claim");
+  console.log("                                 that it branched across five components: every one of");
+  console.log("                                 those references was a COMMENT, and the only executable");
+  console.log("                                 coupling was its own FILTER_BASE constant. Route file,");
+  console.log("                                 smoke-crawl entry and comment sweep, and it was gone.");
   console.log("  Completeness is answered by:  git grep -n \"dashboard-classic\" -- app/ components/ lib/");
 
   console.log("");

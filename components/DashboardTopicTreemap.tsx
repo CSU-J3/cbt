@@ -59,7 +59,8 @@ function darken(hex: string, f = 0.4): string {
 }
 
 // `basePath` is the dashboard route the treemap toggles its `?topics=` against
-// (default `/`); `/dashboard-classic` passes its own path. `staticMode` (the v2
+// (default `/`; the one caller that passed its own path — the classic dashboard —
+// was removed at HO 608, so the prop stays defaulted). `staticMode` (the v2
 // `/` swap, HO 311) drops the click-to-filter entirely — cells render as plain
 // non-anchor `<g>`s with the hover peek intact but no router.push, no URL write,
 // and no selected state — since the v2 page ignores searchParams. The `/bills`

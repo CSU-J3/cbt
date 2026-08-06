@@ -11,8 +11,9 @@
 // HO 317 — /bills now renders the SHARED components/BillExpandPanel (the same
 // rich panel the dashboard `/` shows, click-to-expand here vs hover there). That
 // panel is presentational, so the list owns the lazy fetch. The compact path
-// (the old dashboard ACTIVITY ticker, now /dashboard-classic) keeps the
-// pipeline-only BillExpandedPanel, which self-fetches nothing in compact mode.
+// (the old dashboard ACTIVITY ticker; the classic route it lived on was removed
+// at HO 608) keeps the pipeline-only BillExpandedPanel, which self-fetches
+// nothing in compact mode.
 import { useEffect, useMemo } from "react";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { BillExpandedPanel } from "@/components/BillExpandedPanel";

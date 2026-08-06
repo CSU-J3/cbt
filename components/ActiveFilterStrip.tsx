@@ -3,8 +3,9 @@ import type { DashboardFilters } from "@/lib/queries";
 
 // Renders between HeaderBar and the dashboard grid. Hidden entirely when no
 // filter is active. Provides the two escapes from a filtered dashboard:
-// clear back to the dashboard (`basePath`, default `/`; `/dashboard-classic`
-// passes its own path post-HO-311 swap), or carry the filters into /bills.
+// clear back to the dashboard (`basePath`, default `/` — the only live caller
+// since HO 608 removed the classic dashboard, which passed its own path), or
+// carry the filters into /bills.
 export function ActiveFilterStrip({
   filters,
   basePath = "/",
