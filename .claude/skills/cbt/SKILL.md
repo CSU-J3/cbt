@@ -1763,6 +1763,8 @@ The standalone backfill is `npm run classify-ceremonial` → `scripts/classify-c
 
 Vote tokens (handoff 79) are deliberately decoupled from party colors: `--vote-nay` is the softer `#f87171`, not `--party-republican`'s `#ef4444`, so a Democrat's nay vote doesn't read as a party-coded R chip. `--vote-yea` happens to share `#10b981` with `--stage-enacted` — different semantics (a position vs. a stage), same green.
 
+**Party colour tokens carry party, nothing else (HO 610 rule).** `--party-republican` / `--party-democrat` / `--party-independent` mean a person's or seat's party on every surface in this app, so borrowing one for an unrelated ramp — age, staleness, severity, heat — makes a red number read Republican before it reads old. Anything that needs a hot end gets its own token or stays dim.
+
 **Same-hue segmented bars need a structural separator (HO 207 rule).** Any horizontal bar whose segments share ONE base hue and encode rank by brightness/opacity (the primaries results bar's per-candidate share in one party tint; the same applies to the races D↔R spectrum and a future primaries-map coloring) MUST put a **1px hairline between adjacent segments** (the primaries bar uses `1px solid var(--bg-base)` with `box-sizing:border-box` so the border sits inside the `%` width). Brightness steps alone are NOT enough: at low opacity the steps wash out and two adjacent same-hue segments read as **one larger segment** — e.g. a 46% leader + 25% runner-up in amber looked like a single ~70% bar labeled "46%". The hairline restores discrete-segment reading. (Pair it with `flex-shrink:0` + `min-width:0` on each segment so the rendered width tracks the value, not the label's min-content.)
 
 ### Stage indicators (arrow glyph + colored uppercase label)
