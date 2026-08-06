@@ -1137,3 +1137,108 @@ in TSX = 784**. The original counted the CSS half only, so the figure that made 
 change look tractable **understated it by ~1.7x**, and the missing half is exactly
 what a CSS-only sweep would fail to catch. A number carried forward unexamined is
 not a record of a measurement, it is a rumour with a citation.
+
+**Corrected at HO 604 by the sweep that did the work — the 784 was short too.**
+The reproduction glob `app/*.css` **misses `app/welcome/landing.module.css`**
+(a directory down), and that file writes `font-size:11px` with **no space after
+the colon**, so a substitution regex tuned to the `globals.css` style would have
+skipped all 22 of its declarations *and reported clean* — the HO 549/553 shape
+again, one layer deeper. Measured against `e8279c1`: **438 px-literal CSS
+`font-size` declarations (416 + 22) + 355 `text-[Npx]` in TSX + 34 `fontSize`
+sites in TSX (SVG presentation attributes plus a few inline styles) = ~827 type
+sites**, of which **714 are the six values 9–14px**. The TSX half was 355, not
+368. The entry's own lesson lands on the entry: the authoritative figures now
+live in the `--fs-*` comment block in `globals.css`, next to the code they
+describe, where they cannot drift without the change that drifts them.
+
+---
+
+## Tailwind v4 scans what the *repo* `.gitignore` allows — it does not honour `core.excludesFile` (HO 604, Aug 2026)
+
+`docs/handoffs/` was ignored per-machine through `core.excludesFile`
+(`~/.gitignore_global`), so handoff docs never reach the repo and a deploy never
+sees them. Tailwind v4's content scanner honours a **repo** `.gitignore` but not
+the global one — so locally it was reading handoff **prose** as source and
+compiling class names out of it: `.text-[10px]` through `.text-[13px]` off older
+handoff docs, and `.text-[length:var(--fs-N)]` — a **literal `N`** — off a line
+of spec text describing the substitution.
+
+The rules were harmless in themselves (no element carried them). **The defect is
+build-input parity: the local build was compiling from inputs the deploy does
+not have,** so a locally-inspected CSS artifact could not be trusted to describe
+production. Fixed at `5b9c34c` by repeating the ignore in the repo `.gitignore`,
+which also makes a fresh clone behave like this machine.
+
+**Corollary, and it is load-bearing for parking artifacts:** any scratch or
+handed-forward file containing literal utility-class strings — a JSON baseline
+whose *keys* are `text-[12px]`, a diagnostic that greps for one — must live
+under a **repo-ignored** path, or the scanner regenerates exactly the phantoms
+you just removed. HO 604's parked walk baselines went to
+`docs/handoffs/604-artifacts/` for this reason, not to `scripts/diagnostic/`.
+
+---
+
+## Under native CSS nesting every `CSSStyleRule` exposes `.cssRules`, so an either/or CSSOM walk visits almost nothing (HO 604, Aug 2026)
+
+A CSSOM census written the obvious way —
+
+```js
+if (rule.cssRules) walk(rule.cssRules)   // grouping rule?
+else count(rule)                          // ...otherwise a style rule
+```
+
+— reported **0 font-size rules on a stylesheet with 1468 top-level rules**, on
+the *unmodified* build as well as the changed one. Modern engines give **every**
+`CSSStyleRule` a `.cssRules` list (usually empty) so that CSS nesting works, so
+the first branch is always taken and the walk recurses past all 1468 rules,
+visiting ~54 leaves and counting none of them.
+
+**Process and recurse — they are not alternatives:** yield the rule when
+`rule.style` exists, *then* descend if `rule.cssRules?.length`. A nested rule
+legitimately has both its own declarations and children.
+
+Second trap in the same instrument: **`rule.style.fontSize` returns `""` when
+the value contains `var()`.** The typed CSSOM getter cannot resolve custom
+properties, so the moment `font-size: 11px` became `font-size: var(--fs-11)`
+every declaration read as absent. Read the declaration off `rule.style.cssText`
+and parse it. Between the two bugs the detector reported a clean sweep on a
+build where nothing had changed — the same-as-success shape this file keeps
+finding new costumes for.
+
+---
+
+## A keyed diff goes blind exactly where the change renames the key (HO 604, Aug 2026)
+
+The HO 604 identity gate compared computed `font-size` per element between two
+builds, keyed on a signature built from each element's class chain. It reported
+**0 differences and 0 unmatched elements**, which is what a correct identity
+substitution should produce. It was measuring half the work.
+
+The TSX half of the substitution **renames the class itself** —
+`text-[12px]` → `text-[length:var(--fs-12)]` — so every element it touched had a
+*different key* on the two sides. Those elements fell into "present only in A" /
+"present only in B", which the comparison reported separately as data drift, and
+the size diff was computed over the untouched CSS-only elements. The number was
+real, precise, and answered a question nobody asked.
+
+**The rule: if a change can alter the value you key on, normalize the key before
+comparing, and check the unmatched buckets are empty rather than glancing at the
+headline number.** Here the unmatched counts were a suspiciously symmetric 99 /
+99 — the tell, sitting in the output the whole time. Normalizing the token back
+to its pre-change form dropped both buckets to 0 and put the 344 TSX sites into
+the comparison, where they belonged.
+
+---
+
+## `git push --ff-only` is not a push flag — it prints usage and pushes nothing (HO 604, Aug 2026)
+
+`--ff-only` belongs to `git merge` and `git pull`. Passing it to `git push`
+produces the push **usage text** on stderr and a non-zero-ish result that is
+easy to skim past as ordinary git chatter — no refs move, and the next
+`git rev-parse origin/main` still reads the old SHA.
+
+There is nothing to add for safety: **plain `git push` already refuses a
+non-fast-forward** unless forced, which is the mechanism the fast-forward-only
+discipline actually relies on. The flag was belt-and-braces for a belt that does
+not exist. Verify a push by comparing `origin/main` to `HEAD` afterward, not by
+trusting the command's exit.

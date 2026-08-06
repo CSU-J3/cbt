@@ -45,12 +45,12 @@ The original's own argument survives intact: it says do C2 before the *route wor
 | Phase | Scope | HO |
 |---|---|---|
 | **P1** | **C2 — the type scale.** Six tokens, 11 substitutions, identity commit then ladder commit. Plus C0: land both mocks. | **604** |
-| **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | 605 |
+| **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | 606 |
 | **P3** | `/` rework to the target mock — the reference implementation of C1–C8 | next |
 | **P4** | Feed routes: `/bills` `/news` `/amendments` `/nominations` `/hearings` `/members` `/lobbying` `/trades` | next |
 | **P5** | Detail routes: `/bill/[id]` `/members/[id]` `/vote/[id]` `/race/[id]` `/committee/[id]` | next |
 | **P6** | Analysis routes: `/patterns` `/reports` `/trends` `/electoral` `/primaries` `/races` `/stale` `/changes` | next |
-| **P7** | Doc sweep — conventions into SKILL.md as a design-system section, roadmap block, backlog:130 correction | next |
+| **P7** | Doc sweep — conventions into SKILL.md as a design-system section, roadmap block, backlog:130 correction | **605** ran early (P1 only); re-runs after the route work |
 
 Nav compaction and the WATCHLIST regroup move from the old P1 into **P3**. They're dashboard chrome, not a global concern, and bundling them with a site-wide type change gave one commit two revert reasons.
 
@@ -85,7 +85,7 @@ HO 603 re-measured to 784 using `grep -roh "font-size:" app/*.css` — **that gl
 
 ## 3. P2 — the audit
 
-**ONE file** under `scripts/diagnostic/`, named for the HO that builds it. Backlog:130 names `layout-audit-591.ts`; that name is wrong and its sweep should correct it. Playwright driven programmatically — `import { chromium } from "@playwright/test"`, already a devDependency, **do not add `playwright`**. Not a `.spec.ts`, not in `e2e/`, never in CI. Read-only.
+**ONE file** under `scripts/diagnostic/`, named for the HO that builds it — `layout-audit-606.ts`. (Backlog:130 used to name `layout-audit-591.ts`; that was wrong and the HO 605 sweep corrected it. The roadmap pointer still wins at build time: if numbering has moved again, name the file for the HO that actually builds it and say so.) Playwright driven programmatically — `import { chromium } from "@playwright/test"`, already a devDependency, **do not add `playwright`**. Not a `.spec.ts`, not in `e2e/`, never in CI. Read-only.
 
 This is the first *browser* probe in `scripts/diagnostic/` — every existing one is a raw `@libsql/client` SQL probe. `absence-watch-588.ts` is the header-comment model.
 
