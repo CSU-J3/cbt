@@ -19,7 +19,7 @@ function Sponsor({ a }: { a: AmendmentListRow }) {
   // no link. A resolved member gets a party-colored member link.
   if (!a.sponsorBioguideId) {
     return a.sponsorName ? (
-      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+      <span className="text-[length:var(--fs-12)]" style={{ color: "var(--text-muted)" }}>
         {a.sponsorName}
       </span>
     ) : null;
@@ -29,7 +29,7 @@ function Sponsor({ a }: { a: AmendmentListRow }) {
   return (
     <Link
       href={`/members/${a.sponsorBioguideId}`}
-      className="text-[12px]"
+      className="text-[length:var(--fs-12)]"
       style={{ color: partyColor(a.sponsorParty) }}
     >
       {a.sponsorName ?? a.sponsorBioguideId}
@@ -67,7 +67,7 @@ export function AmendmentRow({
           }}
         />
         <span
-          className="text-[13px] tabular-nums"
+          className="text-[length:var(--fs-13)] tabular-nums"
           style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}
         >
           {a.label}
@@ -75,12 +75,12 @@ export function AmendmentRow({
         <Sponsor a={a} />
         {a.amendedBillId && a.amendedBillLabel ? (
           <>
-            <span className="text-[11px]" style={{ color: "var(--text-dim)" }}>
+            <span className="text-[length:var(--fs-11)]" style={{ color: "var(--text-dim)" }}>
               on
             </span>
             <Link
               href={`/bill/${a.amendedBillId}`}
-              className="text-[12px] tabular-nums"
+              className="text-[length:var(--fs-12)] tabular-nums"
               style={{ fontFamily: "var(--font-mono)", color: "var(--accent-amber)" }}
             >
               {a.amendedBillLabel}
@@ -91,7 +91,7 @@ export function AmendmentRow({
 
       {a.purpose ? (
         <div
-          className="mt-1 text-[13px]"
+          className="mt-1 text-[length:var(--fs-13)]"
           style={{
             color: "var(--text-secondary)",
             display: "-webkit-box",
@@ -104,7 +104,7 @@ export function AmendmentRow({
         </div>
       ) : null}
 
-      <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+      <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
         {a.latestActionText
           ? `${a.latestActionText}${a.latestActionDate ? ` · ${formatDateLong(a.latestActionDate)}` : ""}`
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
@@ -118,7 +118,7 @@ export function AmendmentRow({
       )}
 
       {a.amendsLabel ? (
-        <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
           ↳ amends {a.amendsLabel}
         </div>
       ) : null}

@@ -31,7 +31,7 @@ export async function NewThisWeek({
   if (bills.length === 0) {
     return (
       <div
-        className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[13px]"
+        className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[length:var(--fs-13)]"
         style={{ color: "var(--text-dim)" }}
       >
         No new bills introduced in the last 7 days.

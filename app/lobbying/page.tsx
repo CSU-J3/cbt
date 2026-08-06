@@ -94,12 +94,12 @@ export default async function LobbyingPage({
         <HeaderBar basePath="/lobbying" />
         <main className="w-full flex-1 px-4 py-4">
           <h1
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
             Lobbying
           </h1>
-          <p className="mt-6 text-[13px]" style={{ color: "var(--text-dim)" }}>
+          <p className="mt-6 text-[length:var(--fs-13)]" style={{ color: "var(--text-dim)" }}>
             Lobbying data is being prepared. Check back shortly.
           </p>
         </main>
@@ -244,13 +244,13 @@ export default async function LobbyingPage({
         {/* Corpus readout + one-line blurb */}
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
             Lobbying
           </h1>
           <span
-            className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
             {stats.filings.toLocaleString()} filings ·{" "}
@@ -261,7 +261,7 @@ export default async function LobbyingPage({
           </span>
         </div>
         <p
-          className="mb-4 max-w-[70ch] text-[12px] leading-snug"
+          className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug"
           style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}
         >
           Who&rsquo;s paying to move what — LD-2 quarterly lobbying reports for the

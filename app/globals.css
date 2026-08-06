@@ -74,6 +74,23 @@
   --space-lg: 16px;
   --space-xl: 24px;
 
+  /* HO 604 (C2) type scale. The six values that carry 714 of the ~827 type
+     sites in this codebase — every `font-size: Npx` in globals.css and
+     landing.module.css, and every `text-[Npx]` arbitrary utility in TSX, for
+     N in 9..14. Declared here at IDENTITY: --fs-11 is 11px, so the
+     substitution that routed those 714 sites through these tokens renders
+     byte-identical to what it replaced. That is deliberate — it makes the
+     plumbing commit provably zero-visual-change, and lets the viewport
+     ladder (the @media blocks immediately below) land and revert on its own.
+     One-off sizes (8 / 8.5 / 9.5 / 10.5 / 11.5 / 12.5 / 15..38) are NOT on
+     the scale and stay fixed; see the note on the ladder below. */
+  --fs-9: 9px;
+  --fs-10: 10px;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+
   /* HO 297 (B6): the FIRST sans face in CBT — prose/titles only, a deliberate
      departure from the mono-only convention (per the b6 mock). Mono stays for
      all chrome: chips, ids, metrics, labels. First use is the v2 feed-row title;
@@ -143,7 +160,7 @@ body {
    nav row's top border is the single rule under it). */
 .header-sync-sub {
   padding: 2px var(--space-lg) 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -203,7 +220,7 @@ body {
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   padding: 5px 9px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0.3px;
@@ -301,7 +318,7 @@ body {
   padding: var(--space-md);
 }
 .dashboard-pane-label {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -422,7 +439,7 @@ body {
 .home-stat-readout {
   min-width: 0;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1.5;
   color: var(--text-muted);
   letter-spacing: 0.3px;
@@ -472,7 +489,7 @@ body {
 }
 .home-header-meta {
   margin-top: var(--space-xs);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -491,7 +508,7 @@ body {
   justify-content: flex-start;
   align-items: center;
   gap: var(--space-xs) 30px;
-  font-size: 14px;
+  font-size: var(--fs-14);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -674,7 +691,7 @@ body {
   margin-bottom: -0.5px; /* overlap the strip's border so the active rule sits on it */
   padding: var(--space-sm) 2px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -700,7 +717,7 @@ body {
 .dv2-racesbox-placeholder {
   padding: var(--space-lg) var(--space-md);
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -776,7 +793,7 @@ body {
   padding: 1px 5px;
   border: 0.5px solid currentColor;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -807,7 +824,7 @@ body {
     transparent
   );
   color: var(--accent-amber-bright);
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -823,7 +840,7 @@ body {
   border-radius: 2px;
   background-color: color-mix(in srgb, var(--ticker-closed) 16%, transparent);
   color: var(--ticker-closed);
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -856,18 +873,18 @@ body {
   background-color: var(--bg-row-hover);
 }
 .breaking-row-id {
-  font-size: 13px;
+  font-size: var(--fs-13);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .breaking-row-more {
   margin-left: 4px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
 }
 .breaking-row-headline {
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-secondary);
   text-decoration: none;
   white-space: nowrap;
@@ -876,7 +893,7 @@ body {
   min-width: 0;
 }
 .breaking-row-age {
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-align: right;
   white-space: nowrap;
   color: var(--text-dim);
@@ -894,7 +911,7 @@ body {
   display: none;
   white-space: nowrap;
   pointer-events: none;
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
   background-color: var(--bg-row-hover);
   border: 1px solid var(--border-strong);
@@ -918,7 +935,7 @@ body {
   overflow: hidden;
 }
 .home-quadrant-label {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -960,7 +977,7 @@ body {
   align-items: center;
   gap: var(--space-sm);
   padding: 4px var(--space-xs);
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-secondary);
@@ -1097,7 +1114,7 @@ body {
   display: flex;
   justify-content: space-between;
   margin-top: 3px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1120,13 +1137,13 @@ body {
   margin-bottom: var(--space-md);
 }
 .pol-band-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--accent-amber);
 }
 .pol-band-desc {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1145,13 +1162,13 @@ body {
   min-width: 0;
 }
 .pol-band-chamber {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
 }
 .pol-band-nums {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -1214,7 +1231,7 @@ body {
   color: var(--text-dim);
 }
 .pol-band-gap-label {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 1px;
   color: var(--text-dim);
 }
@@ -1224,14 +1241,14 @@ body {
   justify-content: space-between;
   margin: 2px 96px 0 calc(64px + var(--space-md));
   padding: 0 calc(2% );
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
 }
 .pol-band-foot {
   margin-top: var(--space-sm);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--text-dim);
 }
@@ -1259,13 +1276,13 @@ body {
   gap: var(--space-sm);
 }
 .ideo-strip-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--accent-amber);
 }
 .ideo-strip-desc {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1274,7 +1291,7 @@ body {
   flex: 1;
 }
 .ideo-strip-how {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--accent-amber);
   cursor: help;
@@ -1286,7 +1303,7 @@ body {
   height: 132px;
 }
 .ideo-strip-foot {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--text-dim);
 }
@@ -1312,13 +1329,13 @@ body {
   gap: var(--space-sm);
 }
 .part-strip-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--accent-amber);
 }
 .part-strip-desc {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1327,7 +1344,7 @@ body {
   flex: 1;
 }
 .part-strip-how {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--accent-amber);
   cursor: help;
@@ -1339,7 +1356,7 @@ body {
   height: 132px;
 }
 .part-strip-foot {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--text-dim);
 }
@@ -1375,17 +1392,17 @@ body {
   text-align: left;
 }
 .pol-time-chev {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .pol-time-title {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--accent-amber);
 }
 .pol-time-desc {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -1394,7 +1411,7 @@ body {
   flex: 1;
 }
 .pol-time-collapsed-hint {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--text-muted);
   white-space: nowrap;
@@ -1404,7 +1421,7 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 2px;
   overflow: hidden;
-  font-size: 10px;
+  font-size: var(--fs-10);
 }
 .pol-time-seg button {
   background: none;
@@ -1430,7 +1447,7 @@ body {
   gap: var(--space-md);
   align-items: center;
   padding: var(--space-xs) var(--space-md) var(--space-sm);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
   color: var(--text-dim);
 }
@@ -1451,7 +1468,7 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 2px;
   padding: 5px 9px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
   white-space: nowrap;
 }
@@ -1479,7 +1496,7 @@ body {
   border-bottom: 2px solid transparent;
   padding: 6px 0;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -1525,7 +1542,7 @@ body {
   display: block;
   padding: var(--space-sm) 0;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -1591,7 +1608,7 @@ body {
 }
 .top-stalls-row .row-chevron {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1;
   display: inline-block;
   transition: transform 120ms ease, color 120ms ease;
@@ -1610,7 +1627,7 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 2px 7px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   border-radius: 2px;
@@ -1638,7 +1655,7 @@ body {
   background-color: var(--bg-panel);
   border-top: 0.5px solid var(--border-soft);
   border-bottom: 0.5px solid var(--border-soft);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1698,7 +1715,7 @@ body {
 .feed-row .row-support {
   min-width: 40px;
   text-align: right;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.2px;
 }
@@ -1722,7 +1739,7 @@ body {
 .feed-row .heard-badge {
   border: 1px solid var(--border-strong);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--fs-10);
   padding: 1px 6px;
   border-radius: 2px;
   letter-spacing: 0.08em;
@@ -1737,7 +1754,7 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: 9px 0 0 0;
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   color: var(--accent-amber);
   text-decoration: none;
@@ -1751,7 +1768,7 @@ body {
 }
 .feed-row .row-media-glyph {
   margin-right: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1;
 }
 
@@ -1803,7 +1820,7 @@ body {
 }
 
 .feed-row .row-summary {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   line-height: 1.4;
   display: -webkit-box;
@@ -1818,7 +1835,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1869,7 +1886,7 @@ body {
 }
 
 .bill-rail .rail-type {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -1898,7 +1915,7 @@ body {
   padding: 1px 7px;
   border: 1px solid color-mix(in srgb, currentColor 50%, transparent);
   border-radius: 2px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -1914,7 +1931,7 @@ body {
 
 .stage-pill-arrow {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1;
 }
 
@@ -1925,7 +1942,7 @@ body {
   grid-template-columns: 1fr 40px 28px;
 }
 .feed-row--compact .row-media {
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 7px 0 0 0;
 }
 
@@ -1948,7 +1965,7 @@ body {
 }
 
 .feed-row--compact .bill-rail .rail-number {
-  font-size: 14px;
+  font-size: var(--fs-14);
 }
 
 .feed-row--compact .row-star {
@@ -1986,7 +2003,7 @@ body {
 .feed-row .row-chevron {
   margin-left: auto;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1;
   display: inline-block;
   transform: rotate(0deg);
@@ -2007,7 +2024,7 @@ body {
   gap: 12px;
 }
 .bill-expanded-summary {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -2016,7 +2033,7 @@ body {
   flex-direction: column;
   gap: 4px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .bill-expanded-meta-row {
   display: grid;
@@ -2029,7 +2046,7 @@ body {
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .bill-expanded-meta-value {
   color: var(--text-secondary);
@@ -2133,18 +2150,18 @@ body {
   padding-top: 1px;
 }
 .sponsor-hover-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.25;
 }
 .sponsor-hover-party {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
 }
 .sponsor-hover-loc {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
   line-height: 1.2;
 }
@@ -2238,7 +2255,7 @@ body {
 }
 .stage-pipeline-date {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: var(--fs-9);
   line-height: 1.1;
   color: var(--text-dim);
   min-height: 10px; /* reserve so dateless nodes keep label alignment */
@@ -2291,7 +2308,7 @@ body {
 }
 .bill-expanded-news-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2305,7 +2322,7 @@ body {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   align-items: baseline;
 }
 .bill-expanded-news-headline {
@@ -2320,7 +2337,7 @@ body {
 }
 .bill-expanded-news-meta {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2328,7 +2345,7 @@ body {
 }
 .bill-expanded-news-empty {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -2346,7 +2363,7 @@ body {
   color: var(--accent-amber);
   padding: 4px 10px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   text-decoration: none;
@@ -2391,7 +2408,7 @@ body {
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2408,7 +2425,7 @@ body {
   column-gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .trade-row:hover {
@@ -2418,13 +2435,13 @@ body {
 .trade-row .ticker {
   font-weight: 600;
   letter-spacing: 0.5px;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .trade-row .amount {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 
@@ -2439,7 +2456,7 @@ body {
 }
 
 .trade-row .owner-chip {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
   margin-left: 6px;
   text-transform: uppercase;
@@ -2455,7 +2472,7 @@ body {
   border-bottom: 0.5px solid var(--border-strong);
   background-color: var(--bg-panel);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2472,7 +2489,7 @@ body {
 }
 
 .trade-row .trade-member {
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 @media (max-width: 700px) {
@@ -2513,7 +2530,7 @@ body {
   column-gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .vote-row:hover {
@@ -2521,7 +2538,7 @@ body {
 }
 
 .vote-row .position-chip {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -2536,7 +2553,7 @@ body {
   color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .vote-row .vote-bill a {
@@ -2557,7 +2574,7 @@ body {
 
 .vote-row .vote-roll {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
 }
@@ -2571,7 +2588,7 @@ body {
   border-bottom: 0.5px solid var(--border-strong);
   background-color: var(--bg-panel);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2602,14 +2619,14 @@ body {
   column-gap: 12px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .bvote-row:hover {
   background: var(--bg-row-hover);
 }
 .bvote-tally {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-12);
   white-space: nowrap;
 }
 .bvote-tally .bvote-yea {
@@ -2637,7 +2654,7 @@ body {
 }
 .bvote-roll {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
   text-decoration: none;
@@ -2671,7 +2688,7 @@ body {
   border-left: 3px solid transparent;
   padding-left: 9px;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 14px;
+  font-size: var(--fs-14);
 }
 
 .news-row:hover {
@@ -2726,7 +2743,7 @@ body {
 }
 
 .news-row .source {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -2735,7 +2752,7 @@ body {
 .news-row .age {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .news-header-row {
@@ -2751,7 +2768,7 @@ body {
   border-bottom: 0.5px solid var(--border-strong);
   background-color: var(--bg-panel);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2784,7 +2801,7 @@ body {
 }
 
 .topic-chamber-mix .column-label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -2799,7 +2816,7 @@ body {
   align-items: center;
   column-gap: 8px;
   padding: 3px 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
 }
 
@@ -2845,7 +2862,7 @@ body {
   column-gap: 14px;
   padding: 12px 14px;
   border-bottom: 0.5px solid var(--border-soft);
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-decoration: none;
 }
 
@@ -2856,7 +2873,7 @@ body {
 .report-row-date {
   font-family: var(--font-mono);
   color: var(--accent-amber);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 
 .report-row-body {
@@ -2867,7 +2884,7 @@ body {
 }
 
 .report-row-title {
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
   font-weight: 500;
   overflow: hidden;
@@ -2876,7 +2893,7 @@ body {
 }
 
 .report-row-lead {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
   line-height: 1.4;
   display: -webkit-box;
@@ -2894,7 +2911,7 @@ body {
   gap: 14px;
   margin-top: 2px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-primary);
 }
 
@@ -2906,7 +2923,7 @@ body {
 
 .report-row-arrow {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
 }
 
@@ -2920,7 +2937,7 @@ body {
   align-items: center;
   column-gap: 14px;
   padding: 9px 14px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -2940,7 +2957,7 @@ body {
   margin-bottom: var(--space-md);
 }
 .page-masthead-meta {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -2961,7 +2978,7 @@ body {
      item, so the column gap is the air on each side of the `·`). */
   gap: var(--space-xs) 14px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -2980,7 +2997,7 @@ body {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   /* HO 365: the value is the bright/large element (14px) beside its 11px label. */
-  font-size: 14px;
+  font-size: var(--fs-14);
 }
 .weekly-band-enacted {
   color: var(--stage-enacted);
@@ -3084,7 +3101,7 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   padding: 10px 12px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: normal;
   text-transform: none;
   color: var(--text-secondary);
@@ -3102,7 +3119,7 @@ body {
   transform: rotate(45deg);
 }
 .wb-card-head {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
@@ -3120,7 +3137,7 @@ body {
 }
 .wb-card-sub {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .wb-card-divider {
@@ -3135,13 +3152,13 @@ body {
   gap: 8px;
 }
 .wb-card-section-label {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 .wb-card-section-stat {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
 }
@@ -3193,7 +3210,7 @@ body {
 }
 .wb-bd-inline {
   margin-top: 4px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -3203,7 +3220,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .wb-bd-degrade {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -3268,14 +3285,14 @@ body {
   outline-offset: -1px;
 }
 .competitive-race-card .race-card-seat {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
 .competitive-race-card .race-card-incumbent {
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -3513,7 +3530,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  font-size: 10px;
+  font-size: var(--fs-10);
   line-height: 1;
   white-space: nowrap;
   font-weight: 600;
@@ -3557,7 +3574,7 @@ body {
   top: 41px;
   left: 0;
   right: 0;
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-muted);
   line-height: 1;
   white-space: nowrap;
@@ -3595,7 +3612,7 @@ body {
   display: block;
 }
 .cm-pop-h {
-  font-size: 9px;
+  font-size: var(--fs-9);
   color: var(--text-dim);
   margin-bottom: 6px;
   white-space: nowrap;
@@ -3604,7 +3621,7 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   white-space: nowrap;
   padding: 2px 0;
 }
@@ -3680,12 +3697,12 @@ body {
   margin-bottom: 12px;
 }
 .rc-seat {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   letter-spacing: 0.07em;
 }
 .rc-margin {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
 }
 .rc-inc {
@@ -3701,7 +3718,7 @@ body {
   flex: none;
 }
 .rc-nm {
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
 }
 .rc-tag {
@@ -3719,7 +3736,7 @@ body {
   border-color: var(--accent-amber);
 }
 .rc-sub {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
   margin-bottom: 14px;
   padding-left: 16px;
@@ -3730,7 +3747,7 @@ body {
 .sb-ends {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--fs-9);
   color: var(--text-dim);
   margin-bottom: 4px;
 }
@@ -3781,7 +3798,7 @@ body {
   position: absolute;
   top: -2px;
   transform: translateX(-50%);
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1;
 }
 /* ◇ Kalshi (hollow, muted) vs ◆ Polymarket (solid, amber) — handoff semantics. */
@@ -3792,7 +3809,7 @@ body {
   color: var(--accent-amber-bright);
 }
 .rc-raters {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
   margin-bottom: 12px;
   line-height: 1.6;
@@ -3823,7 +3840,7 @@ body {
   margin-bottom: 3px;
 }
 .rc-stat-v {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 
@@ -3863,7 +3880,7 @@ body {
 }
 .rc-line-meta {
   flex: none;
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -3872,7 +3889,7 @@ body {
   color: var(--text-muted);
 }
 .rc-dagger {
-  font-size: 9px;
+  font-size: var(--fs-9);
   vertical-align: super;
   color: var(--text-muted);
   margin-left: 1px;
@@ -3885,12 +3902,12 @@ body {
   gap: 5px;
 }
 .rc-cash-k {
-  font-size: 9px;
+  font-size: var(--fs-9);
   color: var(--text-dim);
   letter-spacing: 0.5px;
 }
 .rc-cash-v {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .rc-open-tag {
@@ -3906,7 +3923,7 @@ body {
 /* Page-level presumptive footnote, below the four-card grid. */
 .race-grid-foot {
   margin-top: 8px;
-  font-size: 9px;
+  font-size: var(--fs-9);
   color: var(--text-dim);
   letter-spacing: 0.3px;
 }
@@ -3963,7 +3980,7 @@ body {
 }
 .v2f-sponsor-last {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.02em;
   color: var(--text-muted);
   text-decoration: underline;
@@ -3985,7 +4002,7 @@ body {
 .v2f-subline-sep {
   flex: none;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 /* Shared amber tier-1 bill-id chip (HO 466 chip-family). Lifted from the old
    .v2f-id (HO 287/297 canonical): bordered --accent-amber, 11px/600, 2px radius.
@@ -3996,7 +4013,7 @@ body {
   flex: none;
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: var(--accent-amber);
   border: 1px solid var(--accent-amber);
@@ -4022,7 +4039,7 @@ body {
 .v2f-title {
   display: block;
   font-family: var(--sans);
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -4037,7 +4054,7 @@ body {
   max-width: 520px;
   white-space: normal;
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.35;
   color: var(--text-primary);
   background-color: var(--bg-row-hover);
@@ -4093,7 +4110,7 @@ body {
 }
 .v2f-chev {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--fs-10);
 }
 .v2f-group.open .v2f-chev {
   color: var(--accent-amber);
@@ -4232,17 +4249,17 @@ body {
 }
 .v2f-sc-name {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.25;
 }
 .v2f-sc-party {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
 }
 .v2f-sc-meta {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 
@@ -4268,7 +4285,7 @@ body {
 }
 .bxp-summary {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.55;
   color: var(--text-secondary);
   margin: 0;
@@ -4284,7 +4301,7 @@ body {
   margin: 0 0 6px;
 }
 .bxp-relempty {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 /* hearing — minimal block (rich slot deferred): pip + committee link + arrow +
@@ -4304,7 +4321,7 @@ body {
   flex: none;
 }
 .bxp-hcom {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--accent-amber);
   text-decoration: none;
 }
@@ -4313,7 +4330,7 @@ body {
 }
 .bxp-harrow {
   color: var(--accent-amber);
-  font-size: 10px;
+  font-size: var(--fs-10);
   margin-left: 3px;
 }
 .bxp-hmeta {
@@ -4361,7 +4378,7 @@ body {
   font-size: 12.5px;
 }
 .bxp-relnews-meta {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
 }
 .bxp-relnews:hover .bxp-relnews-title {
@@ -4419,7 +4436,7 @@ body {
 /* HO 371 — the "then silent" line under a populated hearing on /stale. */
 .bxp-hsilent {
   margin-top: 6px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.05em;
   color: var(--accent-amber-bright);
   text-transform: uppercase;
@@ -4433,7 +4450,7 @@ body {
 }
 .bxp-dim {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 /* sponsor meta: name link (dim underline) + party-colored bracket; the lifted
    .v2f-sc-card hover card opens off the name. */
@@ -4508,7 +4525,7 @@ body {
 .dash-prim-empty {
   padding: var(--space-md);
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-dim);
 }
 /* Six-month calendar strip: axis 16px off the bottom, ticks grow up from it,
@@ -4535,7 +4552,7 @@ body {
   position: absolute;
   left: 0;
   bottom: 0;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--accent-amber);
 }
@@ -4543,7 +4560,7 @@ body {
   position: absolute;
   bottom: 0;
   transform: translateX(-50%);
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   white-space: nowrap;
@@ -4593,17 +4610,17 @@ body {
   border-color: var(--border-strong);
 }
 .dash-prim-card-date {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
 }
 .dash-prim-card-meta {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
 }
 .dash-prim-card-seats {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -4655,7 +4672,7 @@ body {
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -4682,7 +4699,7 @@ body {
   min-width: 0;
 }
 .pattern-bar-name {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -4693,7 +4710,7 @@ body {
   color: var(--accent-amber-bright);
 }
 .pattern-bar-slug {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -4714,12 +4731,12 @@ body {
 }
 .pattern-bar-count {
   text-align: right;
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-secondary);
 }
 .pattern-bar-pct {
   text-align: right;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-muted);
 }
 
@@ -4763,14 +4780,14 @@ body {
 }
 .dashboard-bubble-popover-name {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   letter-spacing: 0.3px;
 }
 .dashboard-bubble-popover-meta {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
 }
 /* HO 231: treemap cell — abutting rects (no gaps). The selection/hover stroke
@@ -4802,14 +4819,14 @@ body {
   stroke-width: 2.5;
 }
 .topic-treemap-label {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   letter-spacing: 0.5px;
   pointer-events: none;
   user-select: none;
 }
 .topic-treemap-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   pointer-events: none;
   user-select: none;
 }
@@ -4817,7 +4834,7 @@ body {
   display: flex;
   gap: 12px;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   margin-top: 10px;
@@ -4858,7 +4875,7 @@ body {
   grid-template-columns: minmax(0, 180px) minmax(0, 1fr) 36px;
   align-items: center;
   column-gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .pattern-sponsor-name {
   color: var(--text-secondary);
@@ -4882,11 +4899,11 @@ body {
 .pattern-sponsor-count {
   color: var(--text-muted);
   text-align: right;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .pattern-drilldown-feed-link {
   color: var(--accent-amber-bright);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   text-decoration: none;
@@ -4917,7 +4934,7 @@ body {
   background: transparent;
   text-align: left;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -4950,7 +4967,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .fw-attrition {
   color: var(--text-secondary);
@@ -4984,7 +5001,7 @@ body {
   margin-bottom: 16px;
 }
 .search-tabs a {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -5011,7 +5028,7 @@ body {
   text-align: center;
   color: var(--text-muted);
   padding: 48px 16px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -5082,7 +5099,7 @@ body {
 .race-list-summary {
   padding: 8px 14px;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 0.3px;
   background-color: var(--bg-panel);
   border: 0.5px solid var(--border-strong);
@@ -5093,7 +5110,7 @@ body {
   padding: 9px 14px;
   background-color: var(--bg-panel);
   border-bottom: 0.5px solid var(--border-strong);
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-secondary);
@@ -5101,7 +5118,7 @@ body {
 .race-list-empty {
   padding: 24px 14px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-dim);
 }
 .race-list {
@@ -5126,7 +5143,7 @@ body {
   background-color: var(--bg-row-hover);
 }
 .race-list-seat {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
 }
 .race-list-cand {
@@ -5134,10 +5151,10 @@ body {
   align-items: baseline;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .race-list-party {
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -5166,7 +5183,7 @@ body {
   justify-content: center;
   padding: 1px 6px;
   border-radius: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
@@ -5183,23 +5200,23 @@ body {
   border-radius: 1px;
 }
 .race-list-diverge {
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-align: center;
 }
 .race-list-margin :where(.racecard-margin) {
   padding-top: 0;
 }
 .race-list-margin-na {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
 }
 .race-list-cash {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-align: right;
 }
 .race-list-chevron {
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-align: center;
 }
 /* Expand: per-rater detail + Kalshi line + hub link (no news block — there is
@@ -5216,13 +5233,13 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .race-list-rater-src {
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .race-list-rater-sep {
   color: var(--text-dim);
@@ -5248,7 +5265,7 @@ body {
 /* HO 367: chamber-split readout — muted chamber labels, emphasis-color numbers,
    tabular so the counts don't jitter as filters narrow them. */
 .mc-fbar-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
@@ -5277,7 +5294,7 @@ body {
 .mc-rail-h {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.7px;
   color: var(--text-dim);
   padding: 8px 12px;
@@ -5297,7 +5314,7 @@ body {
   background-color: var(--bg-base);
 }
 .mc-upgrp-h {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.8px;
   color: var(--accent-amber);
   padding: 7px 12px 4px;
@@ -5318,21 +5335,21 @@ body {
 }
 .mc-uprow-glyph {
   color: var(--accent-amber);
-  font-size: 9px;
+  font-size: var(--fs-9);
 }
 .mc-uprow-ch {
-  font-size: 9px;
+  font-size: var(--fs-9);
   color: var(--text-dim);
 }
 .mc-uprow-name {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mc-uprow-sub {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-muted);
   margin-top: 2px;
   padding-left: 15px;
@@ -5371,7 +5388,7 @@ body {
   text-align: center;
 }
 .mc-crow-tag {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.3px;
   color: var(--text-dim);
 }
@@ -5399,7 +5416,7 @@ body {
   background-color: var(--stage-committee);
 }
 .mc-crow-mem {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -5416,7 +5433,7 @@ body {
   gap: 5px 14px;
   padding: 9px 14px;
   border-bottom: 1px solid var(--border-soft);
-  font-size: 10px;
+  font-size: var(--fs-10);
 }
 .mc-keystrip-label {
   letter-spacing: 0.6px;
@@ -5443,30 +5460,30 @@ body {
   background-color: var(--bg-panel);
 }
 .mc-ctx-ch {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.4px;
   color: var(--text-dim);
 }
 .mc-ctx-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
 }
 .mc-ctx-count {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
 }
 .mc-ctx-spacer {
   flex: 1;
 }
 .mc-ctx-lnk {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   color: var(--accent-amber);
   border-bottom: 1px solid var(--accent-amber);
   text-decoration: none;
 }
 .mc-ctx-clr {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   color: var(--text-dim);
   text-decoration: none;
@@ -5494,13 +5511,13 @@ body {
 .mc-row-hdr {
   background-color: var(--bg-panel);
   border-bottom: 1px solid var(--border-strong);
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.6px;
   color: var(--text-dim);
 }
 .mc-r-num {
   text-align: right;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .mc-mem {
   display: flex;
@@ -5509,17 +5526,17 @@ body {
   min-width: 0;
 }
 .mc-caret {
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .mc-mname {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .mc-brk {
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .mc-rtag {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.4px;
   padding: 1px 5px;
   border-radius: 2px;
@@ -5564,7 +5581,7 @@ body {
   width: 100%;
   text-align: left;
   padding: 8px 14px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
@@ -5581,7 +5598,7 @@ body {
 .mc-empty {
   padding: 48px 24px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -5607,7 +5624,7 @@ body {
   padding: 4px 10px;
   border: 1px solid var(--border-strong);
   border-radius: 2px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -5642,7 +5659,7 @@ body {
   background-color: var(--bg-base);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.3px;
 }
 .lob-fbar-search-input::placeholder {
@@ -5657,7 +5674,7 @@ body {
   align-items: center;
   padding: 2px 6px;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1;
   text-decoration: none;
 }
@@ -5676,7 +5693,7 @@ body {
 }
 .lob-fbar-sort-off > span {
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -5825,11 +5842,11 @@ body {
   background-color: transparent;
 }
 .lob-filing-caret {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .lob-age {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -5837,7 +5854,7 @@ body {
 }
 .lob-rc {
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -5877,10 +5894,10 @@ body {
 }
 .lob-exp-rc {
   font-family: var(--sans);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .lob-exp-meta {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -5905,7 +5922,7 @@ body {
   gap: 8px;
 }
 .lob-exp-act-disp {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 /* Description — HO 485: p99≈1.8k, max 24.4k chars, so it never renders raw.
@@ -5920,7 +5937,7 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.5;
   color: var(--text-muted);
   white-space: pre-wrap;
@@ -5944,7 +5961,7 @@ body {
   border: none;
   cursor: pointer;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
 }
@@ -5962,7 +5979,7 @@ body {
   color: var(--accent-amber);
   border-radius: 2px;
   padding: 0 4px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -5973,7 +5990,7 @@ body {
   background-color: var(--bg-row-hover);
 }
 .lob-exp-more {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
 }
 
@@ -6019,7 +6036,7 @@ body {
   text-align: center;
   border: 1px solid var(--border-strong);
   padding: 5px 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   text-decoration: none;
@@ -6078,13 +6095,13 @@ body {
   min-width: 120px;
 }
 .member-stat-label {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
 }
 .member-stat-value {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-feature-settings: "tnum";
   color: var(--text-primary);
 }
@@ -6147,7 +6164,7 @@ body {
     font-size: 15px;
   }
   .feed-row .row-summary {
-    font-size: 12px;
+    font-size: var(--fs-12);
   }
   .sponsor-row,
   .sponsor-header-row {
@@ -6225,7 +6242,7 @@ body {
   border: 1px solid var(--border-strong);
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-10);
   line-height: 1;
   cursor: help;
   user-select: none;
@@ -6251,14 +6268,14 @@ body {
 }
 .tooltip-panel-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--accent-amber);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
 }
 .tooltip-panel-body {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   line-height: 1.4;
 }
@@ -6271,7 +6288,7 @@ body {
 .tooltip-panel-data-hint {
   margin-top: 4px;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 
 /* Caret — single rotated square clipped by the panel edge so only a 6px
@@ -6324,7 +6341,7 @@ body {
   overflow-x: clip;
   overflow-y: visible;
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--fs-14);
 }
 /* HO 156 follow-up: hide the tape <700px. It's a dense desktop strip that
    wraps poorly on phones, reads STALE on the daily-refresh cadence, and
@@ -6475,7 +6492,7 @@ body {
    of the size ladder. Replaced the tape-only .markets-tape-eod (HO 227, was
    8px); the markets tape is the one consumer today. */
 .micro-tag {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   border: 1px solid var(--border-strong);
@@ -6509,7 +6526,7 @@ body {
    by <SourceTag>; the dual-source SIGNALS pair (HO 259) is the one consumer
    today, each [tag value] sitting in its own .markets-tape-pair-grp. */
 .source-tag {
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   letter-spacing: 0.5px;
 }
@@ -6553,7 +6570,7 @@ body {
   text-align: center;
 }
 .markets-tape-change {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.3px;
   /* HO 251: only the 4 daily symbols render this slot now (monthly/kalshi carry
      null change → no slot). 6ch fits "−0.44%" without padding the row. */
@@ -6603,13 +6620,13 @@ body {
   display: block;
 }
 .markets-tape-detail-name {
-  font-size: 14px;
+  font-size: var(--fs-14);
   /* HO 303: amber-bright (was white) so the name matches the tape's item code. */
   color: var(--accent-amber-bright);
 }
 .markets-tape-detail-sector {
   margin-left: 8px;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -6621,7 +6638,7 @@ body {
 .markets-tape-detail-note {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.35;
   color: var(--text-muted);
   white-space: normal;
@@ -6637,11 +6654,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .markets-tape-detail-value {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
 }
 .markets-tape-detail-change {
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .markets-tape-detail-odds-grp {
   display: inline-flex;
@@ -6649,7 +6666,7 @@ body {
   gap: 5px;
 }
 .markets-tape-detail-src {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 0.5px;
 }
@@ -6659,12 +6676,12 @@ body {
 .markets-tape-detail-delta {
   display: block;
   margin-top: 5px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
 }
 .markets-tape-detail-delta-label {
   margin-right: 6px;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -6686,7 +6703,7 @@ body {
   margin-top: 7px;
   padding-top: 6px;
   border-top: 1px solid var(--border-strong);
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-dim);
 }
 .markets-tape-meta {
@@ -6706,7 +6723,7 @@ body {
      the meta so symbols fade out instead of hard-cutting at its edge. */
   background: var(--bg-panel);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
 }
 .markets-tape-meta::before {
@@ -6754,7 +6771,7 @@ body {
      label cell. Label text stays --text-dim / uppercase (size unchanged at 9px). */
   border-left: 2px solid var(--accent-amber);
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -6815,7 +6832,7 @@ body {
 }
 .cart-viewtoggle-btn {
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   background: transparent;
@@ -6839,7 +6856,7 @@ body {
 .cart-search input {
   width: 100%;
   padding: 4px 10px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-family: var(--font-mono);
   color: var(--text-primary);
   background: var(--bg-panel);
@@ -6851,14 +6868,14 @@ body {
 .cart-search-miss {
   position: absolute;
   right: 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--party-republican);
   pointer-events: none;
 }
 .cart-summary {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -6870,7 +6887,7 @@ body {
   gap: 16px; /* HO 225: comfortable spacing on the national-map legend */
   flex-wrap: wrap;
   margin-bottom: var(--space-md);
-  font-size: 12px; /* HO 225: readable labels, not fine print */
+  font-size: var(--fs-12); /* HO 225: readable labels, not fine print */
   color: var(--text-muted);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -6948,7 +6965,7 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   margin-bottom: 6px;
@@ -6957,7 +6974,7 @@ body {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   padding: 1px 0;
 }
 .cart-peek-row > span:first-child {
@@ -6980,7 +6997,7 @@ body {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   border-bottom: 1px solid var(--border-strong);
@@ -7018,11 +7035,11 @@ body {
 }
 .electoral-tl-title {
   color: var(--accent-amber-bright);
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
 }
 .electoral-tl-legend {
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -7040,7 +7057,7 @@ body {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
   border-top: 1px solid var(--border-soft);
   margin-top: 8px;
@@ -7061,7 +7078,7 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: 2px;
   padding: 1px 7px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   margin-left: auto;
   background: transparent;
@@ -7091,7 +7108,7 @@ body {
   background: var(--bg-row-hover);
 }
 .racecard-chevron {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-align: center;
 }
 .racecard-face {
@@ -7105,25 +7122,25 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   background: var(--bg-row-hover);
 }
 .racecard-seat {
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
 }
 .racecard-name {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .racecard-rating {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   white-space: nowrap;
@@ -7139,7 +7156,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .racecard-cand-dot {
   width: 8px;
@@ -7154,7 +7171,7 @@ a.racecard-cand-name:hover {
   color: var(--accent-amber-bright);
 }
 .racecard-cand-meta {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -7163,7 +7180,7 @@ a.racecard-cand-name:hover {
 .racecard-cash {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
@@ -7181,7 +7198,7 @@ a.racecard-cand-name:hover {
   padding-top: 2px;
 }
 .racecard-margin-tag {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   flex-shrink: 0;
@@ -7203,7 +7220,7 @@ a.racecard-cand-name:hover {
   border-radius: 3px;
 }
 .racecard-margin-val {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -7235,7 +7252,7 @@ a.racecard-cand-name:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
 }
 .races-hero-kalshi {
@@ -7246,7 +7263,7 @@ a.racecard-cand-name:hover {
   text-transform: uppercase;
 }
 .races-hero-live {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--accent-amber);
   border: 1px solid var(--accent-amber);
@@ -7275,12 +7292,12 @@ a.racecard-cand-name:hover {
   color: var(--text-primary);
 }
 .races-hero-sub {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
 }
 .races-hero-split {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   color: var(--text-muted);
 }
@@ -7304,7 +7321,7 @@ a.racecard-cand-name:hover {
   align-items: baseline;
   gap: 6px;
   padding-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
 }
 .racecard-kalshi-tag {
@@ -7327,7 +7344,7 @@ a.racecard-cand-name:hover {
 }
 .racecard-open-tag {
   margin-left: 6px;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--accent-amber);
   border: 1px solid var(--accent-amber);
@@ -7335,17 +7352,17 @@ a.racecard-cand-name:hover {
   padding: 0 4px;
 }
 .racecard-retiring {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.3px;
 }
 .racecard-placeholder {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
   padding: 2px 0;
 }
 .racecard-hublink {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
@@ -7362,14 +7379,14 @@ a.racecard-cand-name:hover {
 }
 .rc-pac-k {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
 }
 .rc-pac-line {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
 }
 .rc-pac-spender {
@@ -7405,7 +7422,7 @@ a.racecard-cand-name:hover {
    <Link>), one compact row. */
 .rc-pac--glance {
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1.3;
 }
 .rc-pac-glance-dirs {
@@ -7429,7 +7446,7 @@ a.racecard-cand-name:hover {
   gap: 8px;
 }
 .primcard-seat {
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
@@ -7441,13 +7458,13 @@ a.racecard-cand-name:hover {
   gap: 8px;
 }
 .primcard-sched-label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 .primcard-field {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
 }
 
@@ -7490,7 +7507,7 @@ a.racecard-cand-name:hover {
   color: var(--text-primary);
 }
 .rdm-sub {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   margin-top: 3px;
@@ -7523,10 +7540,10 @@ a.racecard-cand-name:hover {
 }
 .rdm-maploading {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .rdm-dlabel {
-  font-size: 9px;
+  font-size: var(--fs-9);
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -7553,7 +7570,7 @@ a.racecard-cand-name:hover {
   padding: 5px 7px 7px;
 }
 .rdm-metro-label {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -7605,7 +7622,7 @@ a.racecard-cand-name:hover {
   min-width: 0;
 }
 .rdm-chip {
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 3px 8px;
   border: 1px solid var(--border-strong);
   border-radius: 3px;
@@ -7629,7 +7646,7 @@ a.racecard-cand-name:hover {
   align-items: center;
 }
 .rdm-action {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--accent-amber);
   background: none;
@@ -7657,7 +7674,7 @@ a.racecard-cand-name:hover {
   justify-content: center;
   min-height: 160px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 1px;
 }
 
@@ -7720,7 +7737,7 @@ a.racecard-cand-name:hover {
   min-width: 0;
 }
 .rdc-role {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -7731,11 +7748,11 @@ a.racecard-cand-name:hover {
   line-height: 1.1;
 }
 .rdc-meta {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
 }
 .rdc-bio {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .rdc-stats {
@@ -7749,18 +7766,18 @@ a.racecard-cand-name:hover {
   gap: 1px;
 }
 .rdc-stat-label {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   text-transform: uppercase;
 }
 .rdc-stat-val {
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 .rdc-memberlink {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--accent-amber);
   text-decoration: none;
   margin-top: 4px;
@@ -7769,7 +7786,7 @@ a.racecard-cand-name:hover {
   color: var(--accent-amber-bright);
 }
 .rdc-noopp {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
   padding-top: 10px;
   border-top: 1px solid var(--border-soft);
@@ -7785,7 +7802,7 @@ a.racecard-cand-name:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   flex-wrap: wrap;
 }
 .rdc-chal-dot {
@@ -7795,7 +7812,7 @@ a.racecard-cand-name:hover {
   flex-shrink: 0;
 }
 .rdc-chal-label {
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -7808,10 +7825,10 @@ a.rdc-chal-name:hover {
   color: var(--accent-amber-bright);
 }
 .rdc-chal-party {
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .rdc-chal-status {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .rdc-open {
@@ -7826,7 +7843,7 @@ a.rdc-chal-name:hover {
   letter-spacing: 0.5px;
 }
 .rdc-open-explain {
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--text-secondary);
   line-height: 1.5;
   max-width: 60ch;
@@ -7840,7 +7857,7 @@ a.rdc-chal-name:hover {
   flex-wrap: wrap;
 }
 .prim-scrub-seg {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   padding: 3px 10px;
   border: 1px solid var(--border-strong);
@@ -7898,7 +7915,7 @@ a.rdc-chal-name:hover {
   background: var(--bg-panel);
 }
 .pdc-col-head {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   margin-bottom: 8px;
@@ -7913,7 +7930,7 @@ a.rdc-chal-name:hover {
   width: 100%;
 }
 .pdc-sched {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--accent-amber);
   text-transform: uppercase;
@@ -7930,7 +7947,7 @@ a.rdc-chal-name:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .pdc-cand-name {
   color: var(--text-primary);
@@ -7940,10 +7957,10 @@ a.pdc-cand-name:hover {
   color: var(--accent-amber-bright);
 }
 .pdc-cand-party {
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .pdc-cand-inc {
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--text-muted);
   border: 1px solid var(--border-strong);
@@ -7955,7 +7972,7 @@ a.pdc-cand-name:hover {
   min-height: 8px;
 }
 .pdc-col-footer {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   color: var(--text-dim);
   padding-top: 8px;
@@ -7969,7 +7986,7 @@ a.pdc-cand-name:hover {
   color: var(--stage-enacted);
 }
 .pdc-empty {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
 }
 
@@ -7986,7 +8003,7 @@ a.pdc-cand-name:hover {
   align-items: baseline;
   gap: 10px;
   margin: 20px 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -8008,7 +8025,7 @@ a.pdc-cand-name:hover {
   padding: 6px 12px;
   background-color: var(--bg-panel);
   border-top: 0.5px solid var(--border-soft);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -8063,7 +8080,7 @@ a.pdc-cand-name:hover {
 }
 .hearing-caret {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-11);
   line-height: 1;
   display: inline-block;
   transition: transform 120ms ease, color 120ms ease;
@@ -8073,14 +8090,14 @@ a.pdc-cand-name:hover {
   color: var(--accent-amber);
 }
 .hearing-time {
-  font-size: 12px;
+  font-size: var(--fs-12);
   text-align: right;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .hearing-type {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8096,7 +8113,7 @@ a.pdc-cand-name:hover {
   min-width: 0;
 }
 .hearing-title {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
@@ -8113,7 +8130,7 @@ a.pdc-cand-name:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 3px 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8135,13 +8152,13 @@ a.pdc-cand-name:hover {
   white-space: nowrap;
 }
 .hearing-chip {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-variant-numeric: tabular-nums;
   color: var(--accent-amber);
   letter-spacing: 0.3px;
 }
 .hearing-bills-more {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .hearing-watch {
@@ -8149,7 +8166,7 @@ a.pdc-cand-name:hover {
   align-items: center;
   justify-content: flex-end;
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   white-space: nowrap;
@@ -8183,7 +8200,7 @@ a.hearing-watch:hover {
   gap: 6px;
 }
 .hearing-panel-cap {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -8193,7 +8210,7 @@ a.hearing-watch:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   text-decoration: none;
   color: var(--accent-amber-bright);
 }
@@ -8214,7 +8231,7 @@ a.hearing-watch:hover {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   padding: 3px 0;
   border-bottom: 0.5px solid var(--border-soft);
 }
@@ -8236,7 +8253,7 @@ a.hearing-watch:hover {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 18px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-dim);
 }
 .hearing-panel-details .k {
@@ -8252,7 +8269,7 @@ a.hearing-watch:hover {
 .hearings-empty {
   padding: 48px 12px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-13);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8267,7 +8284,7 @@ a.hearing-watch:hover {
 }
 .hearings-cal-weekhead {
   margin: 0 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -8295,7 +8312,7 @@ a.hearing-watch:hover {
   gap: 6px;
   padding: 5px 8px;
   border-bottom: 0.5px solid var(--border-soft);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -8341,7 +8358,7 @@ a.hearing-watch:hover {
   flex-wrap: wrap;
   align-items: center;
   gap: 3px 6px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8364,7 +8381,7 @@ a.hearing-watch:hover {
 }
 .hearings-cal-block-title {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.25;
   color: var(--text-primary);
   overflow: hidden;
@@ -8375,7 +8392,7 @@ a.hearing-watch:hover {
 }
 .hearings-cal-more {
   padding: 2px 8px 0;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 @media (max-width: 720px) {
@@ -8391,7 +8408,7 @@ a.hearing-watch:hover {
 .hearings-embed-grouphead {
   padding: 5px 12px;
   border-top: 0.5px solid var(--border-soft);
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -8404,7 +8421,7 @@ a.hearing-watch:hover {
 .hearings-embed-foot {
   padding: 7px 12px;
   border-top: 0.5px solid var(--border-soft);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8448,7 +8465,7 @@ a.hearing-watch:hover {
   gap: 8px;
 }
 .hcal-filter-label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8459,7 +8476,7 @@ a.hearing-watch:hover {
   border: none;
   padding: 0;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -8484,7 +8501,7 @@ a.hearing-watch:hover {
    (visible calendar scope), not the full-Congress total. /hearings only. */
 .hcal-corpus {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8518,18 +8535,18 @@ a.hearing-watch:hover {
   margin-bottom: 6px;
 }
 .hcal-weekof {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 .hcal-weekhead-mid {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .hcal-weekstat {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8573,7 +8590,7 @@ a.hearing-watch:hover {
   padding: 5px 8px;
   border-bottom: 0.5px solid var(--border-soft);
   box-shadow: inset 0 -2px 0 transparent;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -8592,7 +8609,7 @@ a.hearing-watch:hover {
 }
 .hcal-dayhead .today-tag {
   color: var(--accent-amber-bright);
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
 }
 .hcal-day.is-today .hcal-dayhead {
@@ -8610,7 +8627,7 @@ a.hearing-watch:hover {
   align-items: center;
   justify-content: center;
   padding: 8px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8641,7 +8658,7 @@ a.hearing-watch:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -8666,7 +8683,7 @@ a.hearing-watch:hover {
 }
 .hcal-entry-title {
   margin-top: 2px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.3;
   color: var(--text-secondary);
   display: -webkit-box;
@@ -8677,7 +8694,7 @@ a.hearing-watch:hover {
 .hcal-more {
   flex: none; /* HO 309: never shrink — stays a visible, clickable bottom row */
   padding: 2px 7px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.3px;
   color: var(--text-dim);
   text-decoration: none;
@@ -8688,7 +8705,7 @@ a.hearing-watch:hover {
 .hcal-drill {
   align-self: flex-start;
   margin-top: 8px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
@@ -8710,20 +8727,20 @@ a.hearing-watch:hover {
   border: 0.5px solid var(--border-strong);
   background-color: var(--bg-row-hover);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .hcal-card-chamber {
   display: inline-block;
   margin-bottom: 6px;
   padding: 1px 5px;
   border: 0.5px solid var(--border-strong);
-  font-size: 9px;
+  font-size: var(--fs-9);
   letter-spacing: 0.5px;
   color: var(--text-muted);
 }
 .hcal-card-title {
   margin-bottom: 9px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.35;
   color: var(--text-primary);
   /* HO 308: clamp a giant agenda-title so the structured sections below it
@@ -8819,7 +8836,7 @@ a.hearing-watch:hover {
   color: var(--accent-amber);
 }
 .hcal-stat-tip-body {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
 }
 .hcal--embedded {
@@ -8889,7 +8906,7 @@ a.hearing-watch:hover {
   flex-wrap: wrap;
 }
 .bl-ctx-chip {
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   border: 1px solid;
@@ -8956,14 +8973,14 @@ a.hearing-watch:hover {
   border-color: var(--accent-amber);
 }
 .bdp .bdp-ptag {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
 }
 
 /* metabox: Congress.gov ↗ (moved out of the footer into the final meta row) */
 .bdp .bdp-mlink {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--accent-amber);
@@ -8976,7 +8993,7 @@ a.hearing-watch:hover {
 /* related-news foot: all coverage → /news?bill= (the HO 501 route) */
 .bdp .bdp-relfoot {
   margin-top: 10px;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
 }
 .bdp .bdp-relfoot a {
@@ -9008,7 +9025,7 @@ a.hearing-watch:hover {
   color: var(--text-dim);
   padding: 5px 10px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 500;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -9027,7 +9044,7 @@ a.hearing-watch:hover {
 }
 .bdp .bdp-attrib {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -9037,7 +9054,7 @@ a.hearing-watch:hover {
   border: 1px solid var(--border-strong);
   background: var(--bg-panel);
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   line-height: 1.4;
   color: var(--text-muted);
   overflow: auto;
@@ -9073,7 +9090,7 @@ a.hearing-watch:hover {
   margin-bottom: -1px; /* overlap the box border so the active underline meets it */
   padding: 9px 0;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -9133,7 +9150,7 @@ a.hearing-watch:hover {
   gap: 14px;
   padding: 7px 16px;
   border-bottom: 0.5px solid var(--border-soft);
-  font-size: 10px;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -9186,7 +9203,7 @@ a.hearing-watch:hover {
   color: var(--text-primary);
 }
 .mhp-stat-v small {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-muted);
   margin-left: 4px;
 }
@@ -9235,7 +9252,7 @@ a.hearing-watch:hover {
   font-variant-numeric: tabular-nums;
 }
 .mhp-msub {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-dim);
   margin-top: 3px;
   font-variant-numeric: tabular-nums;

@@ -14,7 +14,7 @@ export function LobbyingMiniBars({
   return (
     <div className="px-[14px] py-3" style={{ borderTop: "0.5px solid var(--border-soft)" }}>
       <div
-        className="mb-2 text-[11px] uppercase tracking-[0.5px]"
+        className="mb-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-muted)" }}
       >
         {label}
@@ -27,7 +27,7 @@ export function LobbyingMiniBars({
             style={{ gridTemplateColumns: "minmax(0, 1fr) 90px 40px" }}
           >
             <span
-              className="truncate text-[12px]"
+              className="truncate text-[length:var(--fs-12)]"
               style={{ color: "var(--text-secondary)" }}
               title={r.name}
             >
@@ -48,7 +48,7 @@ export function LobbyingMiniBars({
               />
             </span>
             <span
-              className="text-right text-[12px] tabular-nums"
+              className="text-right text-[length:var(--fs-12)] tabular-nums"
               style={{ color: "var(--text-muted)" }}
             >
               {r.filings.toLocaleString()}

@@ -47,19 +47,19 @@ export async function PatternDrilldownPanel({
     <section className="pattern-drilldown">
       <header className="pattern-drilldown-header">
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--accent-amber)" }}
         >
           PATTERN
         </span>
         <span
-          className="text-[14px] font-medium"
+          className="text-[length:var(--fs-14)] font-medium"
           style={{ color: "var(--text-primary)" }}
         >
           {pattern.name}
         </span>
         <span
-          className="text-[12px] tabular-nums"
+          className="text-[length:var(--fs-12)] tabular-nums"
           style={{ color: "var(--text-muted)" }}
         >
           {total.toLocaleString()} bills · {pastPct}% past committee ·{" "}
@@ -68,7 +68,7 @@ export async function PatternDrilldownPanel({
       </header>
 
       <p
-        className="text-[12px] leading-snug"
+        className="text-[length:var(--fs-12)] leading-snug"
         style={{ color: "var(--text-dim)" }}
       >
         {pattern.description}
@@ -77,7 +77,7 @@ export async function PatternDrilldownPanel({
       {drill.topSponsors.length > 0 ? (
         <div className="pattern-drilldown-sponsors">
           <div
-            className="text-[11px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-muted)" }}
           >
             Top sponsors

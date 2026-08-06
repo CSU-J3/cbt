@@ -103,13 +103,13 @@ export function RaceHubBody({
 
       {rating ? (
         <div
-          className="my-5 grid grid-cols-[120px_1fr] gap-y-2 border-t border-b py-4 text-[12px] uppercase tracking-[0.5px]"
+          className="my-5 grid grid-cols-[120px_1fr] gap-y-2 border-t border-b py-4 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ borderColor: "var(--border-soft)" }}
         >
           <span style={{ color: "var(--text-dim)" }}>Rating</span>
           <span>
             <span
-              className="inline-block border px-2 py-[1px] text-[12px]"
+              className="inline-block border px-2 py-[1px] text-[length:var(--fs-12)]"
               style={{ color: rating.color, borderColor: rating.color }}
             >
               {rating.label}
@@ -147,7 +147,7 @@ export function RaceHubBody({
             }}
           >
             <h2
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-secondary)" }}
             >
               Incumbent
@@ -163,7 +163,7 @@ export function RaceHubBody({
 
       {isStub ? (
         <p
-          className="mt-6 text-[12px] uppercase tracking-[0.5px]"
+          className="mt-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           {incumbent
@@ -183,7 +183,7 @@ export function RaceHubBody({
             }}
           >
             <h2
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-secondary)" }}
             >
               Candidates ({candidates.length})
@@ -208,7 +208,7 @@ export function RaceHubBody({
             }}
           >
             <h2
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-secondary)" }}
             >
               News · around the incumbent
@@ -223,7 +223,7 @@ export function RaceHubBody({
               </div>
             ) : (
               <p
-                className="py-2 text-[13px]"
+                className="py-2 text-[length:var(--fs-13)]"
                 style={{ color: "var(--text-muted)" }}
               >
                 {race.incumbent_bioguide_id
@@ -254,7 +254,7 @@ export function RaceHubBody({
             }}
           >
             <h2
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-secondary)" }}
             >
               In the press
@@ -270,7 +270,7 @@ export function RaceHubBody({
 
       {!preview ? (
         race.source_url ? (
-          <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
             <span className="uppercase tracking-[0.5px]">Source: </span>
             <a
               href={race.source_url}
@@ -284,7 +284,7 @@ export function RaceHubBody({
             <span> · last verified {formatDateLong(race.last_verified)}</span>
           </div>
         ) : (
-          <div className="mt-6 text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
             Last verified {formatDateLong(race.last_verified)}
           </div>
         )

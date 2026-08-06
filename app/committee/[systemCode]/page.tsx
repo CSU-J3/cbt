@@ -72,7 +72,7 @@ function MemberItem({ m }: { m: CommitteeMember }) {
       className="grid grid-cols-[1fr_auto] items-baseline gap-2 px-3 py-1.5 border-b"
       style={{ borderColor: "var(--border-soft)" }}
     >
-      <span className="min-w-0 truncate text-[13px]">
+      <span className="min-w-0 truncate text-[length:var(--fs-13)]">
         <Link
           href={`/members/${m.bioguideId}`}
           className="transition hover:text-[var(--accent-amber-bright)]"
@@ -85,7 +85,7 @@ function MemberItem({ m }: { m: CommitteeMember }) {
         </Link>
         {isLead && m.role ? (
           <span
-            className="ml-1.5 text-[11px] uppercase tracking-[0.5px]"
+            className="ml-1.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-muted)" }}
           >
             · {m.role}
@@ -93,7 +93,7 @@ function MemberItem({ m }: { m: CommitteeMember }) {
         ) : null}
       </span>
       <span
-        className="text-right text-[11px] uppercase tracking-[0.5px] tabular-nums"
+        className="text-right text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
         style={{ color: "var(--text-muted)" }}
       >
         <span style={{ color: partyColor(m.party) }}>
@@ -119,7 +119,7 @@ function ActivityCaption({
   const when = days === null ? "" : days === 0 ? "today" : `${days}d ago`;
   return (
     <li
-      className="px-3 pt-2 pb-0 text-[11px] uppercase tracking-[0.5px]"
+      className="px-3 pt-2 pb-0 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
       style={{ color: "var(--text-muted)" }}
     >
       <span style={{ color: "var(--text-secondary)" }}>{verb}</span>
@@ -149,7 +149,7 @@ export default async function CommitteeDetailPage({
         <main className="w-full flex-1 px-4 py-4">
           <GroupTabs group="members" active="members" />
           <p
-            className="mt-6 text-[13px]"
+            className="mt-6 text-[length:var(--fs-13)]"
             style={{ color: "var(--text-dim)" }}
           >
             No committee with system code{" "}
@@ -231,14 +231,14 @@ export default async function CommitteeDetailPage({
               {committee.name}
             </h1>
             <span
-              className="text-[11px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
               style={{ color: chamberColor(committee.chamber) }}
             >
               {chamberLabel(committee.chamber)}
             </span>
             {committee.committeeType ? (
               <span
-                className="text-[12px]"
+                className="text-[length:var(--fs-12)]"
                 style={{ color: "var(--text-muted)" }}
               >
                 {committee.committeeType}
@@ -246,7 +246,7 @@ export default async function CommitteeDetailPage({
             ) : null}
             {!committee.isCurrent ? (
               <span
-                className="rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-[0.5px]"
+                className="rounded-sm border px-1.5 py-0.5 text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
                 style={{
                   borderColor: "var(--text-dim)",
                   color: "var(--text-dim)",
@@ -260,7 +260,7 @@ export default async function CommitteeDetailPage({
                 href={committee.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto text-[12px] uppercase tracking-[0.5px] transition"
+                className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition"
                 style={{ color: "var(--text-muted)" }}
               >
                 congress.gov ↗
@@ -269,7 +269,7 @@ export default async function CommitteeDetailPage({
           </div>
           {parent ? (
             <p
-              className="text-[12px]"
+              className="text-[length:var(--fs-12)]"
               style={{ color: "var(--text-muted)" }}
             >
               Subcommittee of{" "}
@@ -284,7 +284,7 @@ export default async function CommitteeDetailPage({
           ) : null}
           {subcommittees.length > 0 ? (
             <p
-              className="mt-1 text-[12px]"
+              className="mt-1 text-[length:var(--fs-12)]"
               style={{ color: "var(--text-muted)" }}
             >
               <span className="uppercase tracking-[0.5px]">
@@ -319,7 +319,7 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Activity by month · current Congress
@@ -342,7 +342,7 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Topic mix · non-ceremonial
@@ -365,14 +365,14 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Members ({members.length})
               </span>
               {members.length > 0 ? (
                 <span
-                  className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                  className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {majorityCount} maj · {minorityCount} min
@@ -381,7 +381,7 @@ export default async function CommitteeDetailPage({
             </div>
             {members.length === 0 ? (
               <p
-                className="px-3 py-3 text-[12px]"
+                className="px-3 py-3 text-[length:var(--fs-12)]"
                 style={{ color: "var(--text-dim)" }}
               >
                 No member roster recorded.
@@ -407,14 +407,14 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Recent activity (last {RECENT_DAYS} days)
               </span>
               {bills.length > 0 ? (
                 <span
-                  className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                  className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {bills.length} bill{bills.length === 1 ? "" : "s"}
@@ -424,7 +424,7 @@ export default async function CommitteeDetailPage({
             </div>
             {bills.length === 0 ? (
               <p
-                className="px-3 py-3 text-[12px]"
+                className="px-3 py-3 text-[length:var(--fs-12)]"
                 style={{ color: "var(--text-dim)" }}
               >
                 No bills with committee activity in the last {RECENT_DAYS}{" "}
@@ -467,13 +467,13 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Hearings &amp; meetings
               </span>
               <span
-                className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
                 style={{ color: "var(--text-muted)" }}
               >
                 {meetings.length} total
@@ -512,13 +512,13 @@ export default async function CommitteeDetailPage({
               }}
             >
               <span
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Nominations referred
               </span>
               <span
-                className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+                className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
                 style={{ color: "var(--text-muted)" }}
               >
                 {nominations.total} referred · {nominations.confirmed} confirmed

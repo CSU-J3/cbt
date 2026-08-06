@@ -24,7 +24,7 @@ export function BillLobbying({ drill }: { drill: BillDrill }) {
 
       <div style={{ borderTop: "0.5px solid var(--border-soft)" }}>
         <div
-          className="px-[14px] py-2 text-[11px] uppercase tracking-[0.5px]"
+          className="px-[14px] py-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           Recent filings

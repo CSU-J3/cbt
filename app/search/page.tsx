@@ -97,7 +97,7 @@ export default async function SearchPage({
           ) : (
             <>
               <div
-                className="mb-3 text-[12px] uppercase tracking-[0.5px] tabular-nums"
+                className="mb-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
                 style={{ color: "var(--text-muted)" }}
               >
                 <span style={{ color: "var(--accent-amber)" }}>

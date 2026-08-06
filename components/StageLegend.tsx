@@ -4,7 +4,7 @@ import { STAGE_LABELS } from "@/lib/enums";
 export function StageLegend({ bare = false }: { bare?: boolean } = {}) {
   return (
     <div
-      className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] uppercase tracking-[0.5px]${
+      className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]${
         bare ? "" : " border-b px-4 py-1.5"
       }`}
       style={{

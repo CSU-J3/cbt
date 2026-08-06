@@ -40,7 +40,7 @@ export function RaceNewsRow({
           href={item.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="min-w-0 flex-1 truncate text-[14px]"
+          className="min-w-0 flex-1 truncate text-[length:var(--fs-14)]"
           style={{ color: "var(--text-primary)" }}
         >
           {item.title}

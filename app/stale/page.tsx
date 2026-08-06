@@ -94,13 +94,13 @@ export default async function StalePage({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="patterns" active="stale" />
         <p
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           past committee · stalled 60+ days · furthest first
         </p>
         <p
-          className="mb-3 text-[12px]"
+          className="mb-3 text-[length:var(--fs-12)]"
           style={{ color: "var(--text-dim)" }}
         >
           The committee backlog sits one click away under the stage filter.
@@ -111,7 +111,7 @@ export default async function StalePage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <span
-            className="text-[12px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Stage
@@ -140,7 +140,7 @@ export default async function StalePage({
             }}
           />
           <span
-            className="ml-2 text-[12px] uppercase tracking-[0.5px]"
+            className="ml-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Topics
@@ -173,7 +173,7 @@ export default async function StalePage({
                 const qs = sp.toString();
                 return qs ? `/stale?${qs}` : "/stale";
               })()}
-              className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+              className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
               Clear filters ✕
@@ -193,18 +193,18 @@ export default async function StalePage({
                 className="px-6 py-12 text-center"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <p className="text-[14px] uppercase tracking-[0.5px]">
+                <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
                   No bills match &quot;{q}&quot;
                 </p>
                 <p
-                  className="mt-2 text-[13px]"
+                  className="mt-2 text-[length:var(--fs-13)]"
                   style={{ color: "var(--text-dim)" }}
                 >
                   Try a broader term, check spelling, or clear the search.
                 </p>
                 <Link
                   href={clearSearchHref}
-                  className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
+                  className="mt-4 inline-block border px-3 py-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
                   style={{
                     color: "var(--accent-amber)",
                     borderColor: "var(--accent-amber)",
@@ -215,7 +215,7 @@ export default async function StalePage({
               </div>
             ) : (
               <div
-                className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
+                className="px-6 py-8 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-dim)" }}
               >
                 No bills match these filters
@@ -235,7 +235,7 @@ export default async function StalePage({
         {/* HO 350 — the hidden committee backlog as a footer line (computed
             live), with a one-click jump into the STAGE → COMMITTEE view. */}
         <p
-          className="mt-3 text-[12px] uppercase tracking-[0.5px]"
+          className="mt-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           <Link

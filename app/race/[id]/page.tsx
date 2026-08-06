@@ -37,18 +37,18 @@ export default async function RacePage({
             className="px-6 py-16 text-center"
             style={{ color: "var(--text-muted)" }}
           >
-            <p className="text-[14px] uppercase tracking-[0.5px]">
+            <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
               Race not found
             </p>
             <p
-              className="mt-2 text-[12px]"
+              className="mt-2 text-[length:var(--fs-12)]"
               style={{ color: "var(--text-dim)" }}
             >
               race id: {id}
             </p>
             <Link
               href="/bills"
-              className="mt-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+              className="mt-4 inline-block text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
               ← Back to feed
@@ -82,7 +82,7 @@ export default async function RacePage({
       <main className="w-full flex-1 px-4 py-4">
         <Link
           href={incumbent ? `/members/${incumbent.bioguideId}` : "/bills"}
-          className="mb-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+          className="mb-4 inline-block text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
           style={{ color: "var(--text-dim)" }}
         >
           ← Back

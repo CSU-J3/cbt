@@ -59,7 +59,7 @@ export function NewsRow({
       <span className="bill-cell">
         <Link
           href={billHref}
-          className="text-[14px] font-medium tabular-nums"
+          className="text-[length:var(--fs-14)] font-medium tabular-nums"
           style={{ color: "var(--accent-amber)" }}
           title={mention.billTitle}
         >
@@ -67,7 +67,7 @@ export function NewsRow({
         </Link>
         {otherBills.length > 0 && (
           <span
-            className="companions-pill text-[12px] tabular-nums"
+            className="companions-pill text-[length:var(--fs-12)] tabular-nums"
             style={{ color: "var(--text-muted)" }}
             title={`${otherBills.length} additional related ${otherBills.length === 1 ? "article" : "articles"} (${otherBills.join(", ")})`}
           >
@@ -87,8 +87,8 @@ export function NewsRow({
           rel="noopener noreferrer"
           className={
             showFullHeadline
-              ? "min-w-0 flex-1 text-[14px] leading-snug"
-              : "min-w-0 flex-1 truncate text-[14px]"
+              ? "min-w-0 flex-1 text-[length:var(--fs-14)] leading-snug"
+              : "min-w-0 flex-1 truncate text-[length:var(--fs-14)]"
           }
           style={{ color: "var(--text-primary)" }}
         >

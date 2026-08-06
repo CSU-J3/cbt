@@ -73,7 +73,7 @@ export function StageIndicator({
       }}
     >
       <span
-        className="inline-flex items-center gap-1.5 text-[14px] uppercase tracking-[0.5px]"
+        className="inline-flex items-center gap-1.5 text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
         style={{ color }}
       >
         <span aria-hidden>{prefix}</span>

@@ -81,14 +81,14 @@ export function TopStallsList({
                 {label}
               </span>
               <span
-                className="truncate text-[13px]"
+                className="truncate text-[length:var(--fs-13)]"
                 style={{ color: "var(--text-secondary)" }}
                 title={b.title}
               >
                 {b.title}
               </span>
               <span
-                className="text-right text-[13px] tabular-nums"
+                className="text-right text-[length:var(--fs-13)] tabular-nums"
                 style={{ color: dayColor }}
               >
                 {days}d

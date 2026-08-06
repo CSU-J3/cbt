@@ -34,7 +34,7 @@ export function StateFilter({
       value={current ?? ""}
       onChange={(e) => onChange(e.target.value)}
       disabled={isPending}
-      className="rounded-sm border px-2 py-1 text-[12px] font-medium uppercase tracking-[0.5px] focus:outline-none"
+      className="rounded-sm border px-2 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] focus:outline-none"
       style={{
         backgroundColor: "var(--bg-base)",
         color: "var(--text-secondary)",

@@ -45,7 +45,7 @@ export async function BreakingNewsBlock({
     <div className="flex flex-1 flex-col min-h-0">
       {mentions.length === 0 ? (
         <p
-          className="px-1 py-2 text-[13px]"
+          className="px-1 py-2 text-[length:var(--fs-13)]"
           style={{ color: "var(--text-muted)" }}
         >
           No breaking news in the last {WINDOW_HOURS}h.

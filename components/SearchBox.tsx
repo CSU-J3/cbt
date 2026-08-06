@@ -67,7 +67,7 @@ export function SearchBox({
       {compact ? (
         <span
           aria-hidden
-          className="absolute top-1/2 left-2 -translate-y-1/2 text-[13px] leading-none"
+          className="absolute top-1/2 left-2 -translate-y-1/2 text-[length:var(--fs-13)] leading-none"
           style={{ color: "var(--text-dim)" }}
         >
           ⌕
@@ -82,7 +82,7 @@ export function SearchBox({
         placeholder={placeholder}
         spellCheck={false}
         autoComplete="off"
-        className={`search-box w-full font-mono outline-none ${compact ? "text-[13px]" : "text-[14px]"}`}
+        className={`search-box w-full font-mono outline-none ${compact ? "text-[length:var(--fs-13)]" : "text-[length:var(--fs-14)]"}`}
         style={{
           backgroundColor: "var(--bg-base)",
           color: "var(--text-primary)",

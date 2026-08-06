@@ -27,14 +27,14 @@ export default async function ReportDetailPage({
             <div className="mb-4 flex items-center gap-4">
               <Link
                 href="/reports"
-                className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
                 style={{ color: "var(--text-dim)" }}
               >
                 ← Back to reports
               </Link>
               <a
                 href={`/reports/${report.slug}/download`}
-                className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+                className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
                 style={{ color: "var(--accent-amber)" }}
               >
                 Download .md ↓
@@ -50,12 +50,12 @@ export default async function ReportDetailPage({
             className="px-6 py-16 text-center"
             style={{ color: "var(--text-muted)" }}
           >
-            <p className="text-[14px] uppercase tracking-[0.5px]">
+            <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
               Report not found
             </p>
             <Link
               href="/reports"
-              className="mt-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+              className="mt-4 inline-block text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
               ← Back to reports

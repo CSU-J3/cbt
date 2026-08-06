@@ -35,7 +35,7 @@ function filterHref(
   return qs ? `/amendments?${qs}` : "/amendments";
 }
 
-const CHIP_CLASS = "rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-[0.5px] no-underline";
+const CHIP_CLASS = "rounded-[3px] px-2 py-0.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px] no-underline";
 function chipStyle(active: boolean) {
   return {
     border: "0.5px solid var(--border-strong)",
@@ -75,11 +75,11 @@ function RankRow({
           {dotColor ? (
             <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", backgroundColor: dotColor }} />
           ) : null}
-          <span className="truncate text-[12px]" style={{ color: "var(--text-primary)" }}>
+          <span className="truncate text-[length:var(--fs-12)]" style={{ color: "var(--text-primary)" }}>
             {label}
           </span>
           {sub ? (
-            <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>
+            <span className="truncate text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
               {sub}
             </span>
           ) : null}
@@ -87,7 +87,7 @@ function RankRow({
         <span className="block h-[10px] overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }} aria-hidden>
           <span className="block h-full rounded-[2px]" style={{ width: `${widthPct}%`, backgroundColor: "var(--accent-amber)", opacity: 0.55 }} />
         </span>
-        <span className="text-right text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+        <span className="text-right text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
           {count.toLocaleString()}
         </span>
       </Link>
@@ -113,10 +113,10 @@ export default async function AmendmentsPage({
       <div className="flex min-h-screen flex-col">
         <HeaderBar basePath="/amendments" />
         <main className="w-full flex-1 px-4 py-4">
-          <h1 className="text-[14px] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
+          <h1 className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
             Amendments
           </h1>
-          <p className="mt-6 text-[13px]" style={{ color: "var(--text-dim)" }}>
+          <p className="mt-6 text-[length:var(--fs-13)]" style={{ color: "var(--text-dim)" }}>
             Amendments data is being prepared. Check back shortly.
           </p>
         </main>
@@ -162,14 +162,14 @@ export default async function AmendmentsPage({
       <main className="w-full flex-1 px-4 py-4">
         {/* Header + blurb */}
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
-          <h1 className="text-[14px] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
+          <h1 className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
             Amendments
           </h1>
-          <span className="text-[12px] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
             {summary.total.toLocaleString()} filed · {summary.acted.toLocaleString()} acted
           </span>
         </div>
-        <p className="mb-4 max-w-[70ch] text-[12px] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
+        <p className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
           Floor amendments to bills — who's amending what, and the sliver that actually gets voted on.
           Most are filed in Senate budget vote-a-ramas and never called up: only{" "}
           {((100 * summary.acted) / summary.total).toFixed(1)}% carry any floor action, and fewer still
@@ -185,7 +185,7 @@ export default async function AmendmentsPage({
 
         {/* By status — the hero */}
         <section className="mb-5">
-          <h2 className="mb-2 text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+          <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
             By status
           </h2>
           <div className="mb-2 flex h-[12px] w-full overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }}>
@@ -199,20 +199,20 @@ export default async function AmendmentsPage({
               ) : null,
             )}
           </div>
-          <div className="text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
             {summary.total.toLocaleString()} filed · {summary.acted.toLocaleString()} acted (
             <span style={{ color: "var(--vote-yea)" }}>{summary.agreed.toLocaleString()} agreed</span> ·{" "}
             <span style={{ color: "var(--vote-nay)" }}>{summary.failed.toLocaleString()} failed</span> ·{" "}
             {summary.otherActed.toLocaleString()} other) · {summary.filedOnly.toLocaleString()} awaiting floor action
           </div>
-          <div className="mt-0.5 text-[11px] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-dim)" }}>
+          <div className="mt-0.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-dim)" }}>
             {summary.byChamber.senate.toLocaleString()} Senate · {summary.byChamber.house.toLocaleString()} House
           </div>
 
           {/* HO 537 — recorded votes: the sharper cut (a strict subset of acted). The
               agreed/failed split here is authoritative — from votes.result — not the
               keyword scan the four-segment bar above uses. Links into ?disposition=voted. */}
-          <div className="mt-2 text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <div className="mt-2 text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
             <Link
               href={filterHref(base, { disposition: disposition === "voted" ? null : "voted" })}
               scroll={false}
@@ -226,7 +226,7 @@ export default async function AmendmentsPage({
             {summary.votedOther > 0 ? ` · ${summary.votedOther.toLocaleString()} other` : ""}) ·{" "}
             {summary.votedByChamber.senate.toLocaleString()} Senate · {summary.votedByChamber.house.toLocaleString()} House
           </div>
-          <div className="mt-0.5 max-w-[70ch] text-[11px]" style={{ color: "var(--text-dim)" }}>
+          <div className="mt-0.5 max-w-[70ch] text-[length:var(--fs-11)]" style={{ color: "var(--text-dim)" }}>
             Counts up-or-down floor votes on the amendment; procedural votes (tabling, cloture, budget waivers) are excluded.
           </div>
         </section>
@@ -234,7 +234,7 @@ export default async function AmendmentsPage({
         <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Most-amended bills */}
           <section>
-            <h2 className="mb-2 text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+            <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               Most-amended bills
             </h2>
             <div className="border" style={{ borderColor: "var(--border-strong)" }}>
@@ -255,7 +255,7 @@ export default async function AmendmentsPage({
 
           {/* Top amenders */}
           <section>
-            <h2 className="mb-2 text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+            <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               Top amenders
             </h2>
             <div className="border" style={{ borderColor: "var(--border-strong)" }}>
@@ -279,7 +279,7 @@ export default async function AmendmentsPage({
         {/* Feed */}
         <section>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+            <h2 className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               {list.total.toLocaleString()} {type || disposition || bill ? "matching" : ""} amendments
             </h2>
             {/* type chips */}
@@ -331,14 +331,14 @@ export default async function AmendmentsPage({
               <Link
                 href={filterHref(base, { bill: null })}
                 scroll={false}
-                className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline"
+                className="rounded-[3px] px-2 py-0.5 text-[length:var(--fs-11)] no-underline"
                 style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}
               >
                 {billLabel} ✕
               </Link>
             ) : null}
             {type || disposition || bill ? (
-              <Link href="/amendments" scroll={false} className="text-[11px] uppercase tracking-[0.5px] no-underline" style={{ color: "var(--accent-amber)" }}>
+              <Link href="/amendments" scroll={false} className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] no-underline" style={{ color: "var(--accent-amber)" }}>
                 clear
               </Link>
             ) : null}
@@ -347,7 +347,7 @@ export default async function AmendmentsPage({
             {list.rows.length > 0 ? (
               list.rows.map((a) => <AmendmentRow key={a.id} amendment={a} motions={motions[a.id] ?? []} />)
             ) : (
-              <div className="px-4 py-12 text-center text-[13px] uppercase tracking-[0.5px]" style={{ color: "var(--text-dim)" }}>
+              <div className="px-4 py-12 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]" style={{ color: "var(--text-dim)" }}>
                 No matching amendments
               </div>
             )}

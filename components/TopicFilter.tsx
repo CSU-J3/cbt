@@ -69,7 +69,7 @@ export function TopicFilter({
             <Link
               href={href}
               scroll={false}
-              className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+              className="rounded-sm border px-1.5 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
               style={style}
             >
               {topicLabel(t)}

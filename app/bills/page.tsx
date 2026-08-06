@@ -301,14 +301,14 @@ async function BillsView({
           {hasFilters ? (
             <Link
               href={clearFiltersHref}
-              className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
               Clear ✕
             </Link>
           ) : null}
           <span
-            className="control-sort flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]"
+            className="control-sort flex items-center gap-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Sort
@@ -399,18 +399,18 @@ async function BillsView({
                   className="px-6 py-12 text-center"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  <p className="text-[14px] uppercase tracking-[0.5px]">
+                  <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
                     No bills match &quot;{q}&quot;
                   </p>
                   <p
-                    className="mt-2 text-[13px]"
+                    className="mt-2 text-[length:var(--fs-13)]"
                     style={{ color: "var(--text-dim)" }}
                   >
                     Try a broader term, check spelling, or clear the search.
                   </p>
                   <Link
                     href={clearSearchHref}
-                    className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
+                    className="mt-4 inline-block border px-3 py-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
                     style={{
                       color: "var(--accent-amber)",
                       borderColor: "var(--accent-amber)",
@@ -421,7 +421,7 @@ async function BillsView({
                 </div>
               ) : (
                 <div
-                  className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
+                  className="px-6 py-8 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
                   style={{ color: "var(--text-dim)" }}
                 >
                   No bills match these filters

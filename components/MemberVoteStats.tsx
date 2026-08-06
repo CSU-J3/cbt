@@ -20,7 +20,7 @@ export function MemberVoteStats({
   if (stats.total === 0) {
     return (
       <div
-        className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+        className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
         style={{ color: "var(--text-dim)" }}
       >
         {chamberLabel} · No votes recorded
@@ -39,7 +39,7 @@ export function MemberVoteStats({
 
   return (
     <div
-      className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+      className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
       style={{ color: "var(--text-dim)" }}
     >
       {parts.join(" · ")}

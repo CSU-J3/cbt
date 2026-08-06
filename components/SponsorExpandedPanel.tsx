@@ -46,7 +46,7 @@ const STAGE_BADGES: {
 function RailLabel({ children }: { children: React.ReactNode }) {
   return (
     <span
-      className="text-[10px] uppercase tracking-[0.5px]"
+      className="text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
       style={{ color: "var(--text-dim)" }}
     >
       {children}
@@ -118,12 +118,12 @@ export function SponsorExpandedPanel({
           {/* Identity */}
           <div className="flex flex-col gap-0.5">
             <span
-              className="text-[13px] font-bold"
+              className="text-[length:var(--fs-13)] font-bold"
               style={{ color: "var(--text-primary)" }}
             >
               {prefix} {sponsorName}
             </span>
-            <span className="text-[12px] tabular-nums" style={{ color: partyColor }}>
+            <span className="text-[length:var(--fs-12)] tabular-nums" style={{ color: partyColor }}>
               [{sponsorParty ?? "?"}-{sponsorState ?? "?"}]
             </span>
           </div>
@@ -133,7 +133,7 @@ export function SponsorExpandedPanel({
             <div className="flex items-baseline justify-between">
               <RailLabel>Total bills</RailLabel>
               <span
-                className="text-[14px] font-medium tabular-nums"
+                className="text-[length:var(--fs-14)] font-medium tabular-nums"
                 style={{ color: "var(--text-primary)" }}
               >
                 {stats.total.toLocaleString()}
@@ -141,11 +141,11 @@ export function SponsorExpandedPanel({
             </div>
             <div className="flex items-baseline justify-between">
               <RailLabel>Enacted</RailLabel>
-              <span className="text-[14px] font-medium tabular-nums">
+              <span className="text-[length:var(--fs-14)] font-medium tabular-nums">
                 <span style={{ color: "var(--stage-enacted)" }}>
                   {stats.enacted.toLocaleString()}
                 </span>{" "}
-                <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                <span className="text-[length:var(--fs-12)]" style={{ color: "var(--text-muted)" }}>
                   ({enactedPct}%)
                 </span>
               </span>
@@ -155,7 +155,7 @@ export function SponsorExpandedPanel({
           {/* Stages */}
           <div className="flex flex-col gap-1">
             <RailLabel>Stages</RailLabel>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] uppercase tracking-[0.5px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
               {STAGE_BADGES.filter((b) => (stats[b.key] as number) > 0).map((b) => (
                 <span
                   key={b.key}
@@ -172,7 +172,7 @@ export function SponsorExpandedPanel({
           {topics.length > 0 ? (
             <div className="flex flex-col gap-1">
               <RailLabel>Topics</RailLabel>
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] uppercase tracking-[0.5px]">
+              <div className="flex flex-wrap items-center gap-1.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
                 {topics.map((t) => (
                   <Link
                     key={t.topic}
@@ -215,7 +215,7 @@ export function SponsorExpandedPanel({
           <div className="flex flex-col gap-1">
             <RailLabel>USCPR Scorecard</RailLabel>
             {palestineGrade && isPalestineGrade(palestineGrade) ? (
-              <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.5px]">
+              <div className="flex items-center gap-1.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
                 <PalestineBadge grade={palestineGrade} rank={palestineRank} />
                 {palestineScore ? (
                   <span
@@ -233,7 +233,7 @@ export function SponsorExpandedPanel({
               </div>
             ) : (
               <span
-                className="text-[11px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-dim)" }}
                 title="USCPR Palestine scorecard: not scored"
               >
@@ -263,7 +263,7 @@ export function SponsorExpandedPanel({
 
         {/* ---- MIDDLE: RECENT BILLS ---- */}
         <div className="sponsor-card-mid">
-          <p className="text-[11px] uppercase tracking-[0.5px]">
+          <p className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
             <span style={{ color: "var(--text-muted)" }}>Recent bills</span>
             <span style={{ color: "var(--text-dim)" }}>
               {" "}
@@ -276,7 +276,7 @@ export function SponsorExpandedPanel({
                 <li key={b.id} className="flex items-baseline gap-3">
                   <Link
                     href={`/bill/${b.id}`}
-                    className="font-medium whitespace-nowrap tabular-nums text-[14px]"
+                    className="font-medium whitespace-nowrap tabular-nums text-[length:var(--fs-14)]"
                     style={{ color: "var(--accent-amber)" }}
                     title={BILL_TYPE_LABELS[b.bill_type]}
                   >
@@ -286,13 +286,13 @@ export function SponsorExpandedPanel({
                       fixed min-width + text-right so titles truncate against a
                       consistent edge instead of crowding the date. */}
                   <span
-                    className="min-w-0 flex-1 truncate pr-3 text-[14px]"
+                    className="min-w-0 flex-1 truncate pr-3 text-[length:var(--fs-14)]"
                     style={{ color: "var(--text-secondary)" }}
                   >
                     {b.title}
                   </span>
                   <span
-                    className="min-w-[58px] shrink-0 text-right whitespace-nowrap text-[12px] tabular-nums"
+                    className="min-w-[58px] shrink-0 text-right whitespace-nowrap text-[length:var(--fs-12)] tabular-nums"
                     style={{ color: "var(--text-dim)" }}
                   >
                     {formatDateShort(b.latest_action_date)}
@@ -301,14 +301,14 @@ export function SponsorExpandedPanel({
               ))}
             </ul>
           ) : (
-            <p className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <p className="text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
               No summarized bills yet.
             </p>
           )}
           {detailHref && recentBills.length > RECENT_BILLS_CAP ? (
             <Link
               href={detailHref}
-              className="mt-1 inline-block text-[11px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+              className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
               See all {stats.total.toLocaleString()} bills →
@@ -318,7 +318,7 @@ export function SponsorExpandedPanel({
 
         {/* ---- RIGHT: COMMITTEES ---- */}
         <div className="sponsor-card-right">
-          <p className="text-[11px] uppercase tracking-[0.5px]">
+          <p className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
             <span style={{ color: "var(--text-muted)" }}>Committees</span>
             {committees.length > 0 ? (
               <span style={{ color: "var(--text-dim)" }}> · {committees.length}</span>
@@ -339,7 +339,7 @@ export function SponsorExpandedPanel({
                     {isSub ? (
                       <span
                         aria-hidden
-                        className="text-[12px]"
+                        className="text-[length:var(--fs-12)]"
                         style={{ color: "var(--text-dim)" }}
                       >
                         ↳
@@ -347,7 +347,7 @@ export function SponsorExpandedPanel({
                     ) : null}
                     <Link
                       href={`/committee/${c.systemCode}`}
-                      className="min-w-0 flex-1 truncate text-[13px] transition hover:text-[var(--accent-amber-bright)]"
+                      className="min-w-0 flex-1 truncate text-[length:var(--fs-13)] transition hover:text-[var(--accent-amber-bright)]"
                       style={{ color: "var(--text-primary)" }}
                       title={c.role ?? c.name}
                     >
@@ -355,7 +355,7 @@ export function SponsorExpandedPanel({
                     </Link>
                     {badge ? (
                       <span
-                        className="shrink-0 px-1.5 py-[1px] text-[10px] uppercase tracking-[0.5px]"
+                        className="shrink-0 px-1.5 py-[1px] text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
                         style={{
                           color: badge.color,
                           border: `1px solid ${badge.color}`,
@@ -367,7 +367,7 @@ export function SponsorExpandedPanel({
                       </span>
                     ) : (
                       <span
-                        className="shrink-0 text-[10px] uppercase tracking-[0.5px]"
+                        className="shrink-0 text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
                         style={{ color: "var(--text-dim)" }}
                       >
                         {c.chamber === "house"
@@ -382,13 +382,13 @@ export function SponsorExpandedPanel({
               })}
             </ul>
           ) : (
-            <p className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <p className="text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
               No committee assignments on file.
             </p>
           )}
           {moreCommittees > 0 ? (
             <span
-              className="mt-1 inline-block text-[11px] uppercase tracking-[0.5px]"
+              className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               +{moreCommittees} more subcommittee{moreCommittees === 1 ? "" : "s"}

@@ -35,7 +35,7 @@ export async function BillsTimeSeries() {
   if (rows.length === 0) {
     return (
       <p
-        className="py-8 text-center text-[13px]"
+        className="py-8 text-center text-[length:var(--fs-13)]"
         style={{ color: "var(--text-dim)" }}
       >
         No data yet.

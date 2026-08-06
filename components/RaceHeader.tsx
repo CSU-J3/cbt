@@ -46,7 +46,7 @@ export function RaceHeader({
         {raceName(race)}
       </h1>
       <div
-        className="mt-1 text-[13px] uppercase tracking-[0.5px]"
+        className="mt-1 text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-muted)" }}
       >
         {race.cycle} General Election <span aria-hidden> · </span>

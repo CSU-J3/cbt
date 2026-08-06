@@ -26,7 +26,7 @@ export function NominationDispositionBadge({ disposition }: { disposition: Nomin
   const c = dispositionColor(disposition);
   return (
     <span
-      className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.5px]"
+      className="inline-flex items-center gap-1 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
       style={{ color: c }}
     >
       <span

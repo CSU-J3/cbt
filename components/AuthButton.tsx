@@ -15,7 +15,7 @@ export function AuthButton({ user }: { user: { name: string | null } | null }) {
   const [isPending, startTransition] = useTransition();
 
   const buttonClass =
-    "cursor-pointer uppercase tracking-[0.5px] text-[12px] bg-transparent border-none p-0";
+    "cursor-pointer uppercase tracking-[0.5px] text-[length:var(--fs-12)] bg-transparent border-none p-0";
 
   if (!user) {
     return (
@@ -32,7 +32,7 @@ export function AuthButton({ user }: { user: { name: string | null } | null }) {
   }
 
   return (
-    <span className="inline-flex items-center gap-2 text-[12px] uppercase tracking-[0.5px]">
+    <span className="inline-flex items-center gap-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]">
       <span style={{ color: "var(--text-primary)" }}>
         {user.name ?? "Account"}
       </span>

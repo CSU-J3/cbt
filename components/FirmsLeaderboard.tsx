@@ -29,13 +29,13 @@ export function FirmsLeaderboard({
     <section className="mt-6">
       <div className="mb-2 flex flex-wrap items-baseline gap-2">
         <h2
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-secondary)" }}
         >
           Top firms · by filing volume
         </h2>
         <span
-          className="text-[11px] uppercase tracking-[0.5px] tabular-nums"
+          className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
           style={{ color: "var(--text-dim)" }}
         >
           top {firms.length} of {totalRegistrants.toLocaleString()} registrants
@@ -43,7 +43,7 @@ export function FirmsLeaderboard({
       </div>
       <div className="border" style={{ borderColor: "var(--border-strong)" }}>
         <div
-          className={`${GRID} px-[14px] py-2 text-[10px] uppercase tracking-[0.5px]`}
+          className={`${GRID} px-[14px] py-2 text-[length:var(--fs-10)] uppercase tracking-[0.5px]`}
           style={{
             color: "var(--text-dim)",
             borderBottom: "0.5px solid var(--border-strong)",
@@ -68,13 +68,13 @@ export function FirmsLeaderboard({
             }}
           >
             <span
-              className="text-right text-[12px] tabular-nums"
+              className="text-right text-[length:var(--fs-12)] tabular-nums"
               style={{ color: "var(--text-dim)" }}
             >
               {i + 1}
             </span>
             <span
-              className="truncate text-[12px]"
+              className="truncate text-[length:var(--fs-12)]"
               style={{ color: "var(--text-secondary)" }}
               title={f.name}
             >
@@ -99,20 +99,20 @@ export function FirmsLeaderboard({
                 />
               </span>
               <span
-                className="text-right text-[12px] tabular-nums"
+                className="text-right text-[length:var(--fs-12)] tabular-nums"
                 style={{ color: "var(--text-muted)" }}
               >
                 {f.filings.toLocaleString()}
               </span>
             </span>
             <span
-              className="text-right text-[12px] tabular-nums"
+              className="text-right text-[length:var(--fs-12)] tabular-nums"
               style={{ color: "var(--text-muted)" }}
             >
               {f.clients.toLocaleString()}
             </span>
             <span
-              className="hidden truncate text-[12px] sm:block"
+              className="hidden truncate text-[length:var(--fs-12)] sm:block"
               style={{ color: "var(--text-muted)" }}
               title={f.topIssueDisplay ?? ""}
             >
@@ -126,7 +126,7 @@ export function FirmsLeaderboard({
               )}
             </span>
             <span
-              className="hidden text-right text-[12px] tabular-nums sm:block"
+              className="hidden text-right text-[length:var(--fs-12)] tabular-nums sm:block"
               style={{ color: "var(--text-muted)" }}
             >
               {f.billLinked.toLocaleString()}

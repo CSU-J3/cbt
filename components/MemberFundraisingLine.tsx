@@ -33,7 +33,7 @@ export function MemberFundraisingLine({
   return (
     <div>
       <div
-        className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+        className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
         style={{ color: "var(--text-dim)" }}
       >
         <span style={{ color: "var(--text-muted)" }}>
@@ -44,7 +44,7 @@ export function MemberFundraisingLine({
             not House, fundraising. */}
         {fundraising.isSenateCampaign ? (
           <span
-            className="ml-1.5 rounded-[2px] px-1 py-px text-[10px] font-medium"
+            className="ml-1.5 rounded-[2px] px-1 py-px text-[length:var(--fs-10)] font-medium"
             style={{
               color: "var(--accent-amber-bright)",
               border: "1px solid var(--accent-amber)",
@@ -83,7 +83,7 @@ export function MemberFundraisingLine({
       {hasSplit ? (
         <div className="mt-1.5">
           <div
-            className="text-[11px] uppercase tracking-[0.5px] tabular-nums"
+            className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-dim)" }}
           >
             <span style={{ color: "var(--text-muted)" }}>Donor mix</span>

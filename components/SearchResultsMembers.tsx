@@ -14,23 +14,23 @@ export async function SearchResultsMembers({ q }: { q: string }) {
             className="member-search-row"
           >
             <span
-              className="member-search-name truncate text-[14px]"
+              className="member-search-name truncate text-[length:var(--fs-14)]"
               style={{ color: "var(--text-primary)" }}
               title={m.name}
             >
               {m.name}
             </span>
-            <span className="member-search-party text-[12px]">
+            <span className="member-search-party text-[length:var(--fs-12)]">
               <PartyTag party={m.party} state={m.state} />
             </span>
             <span
-              className="member-search-chamber text-[11px] uppercase tracking-[0.5px]"
+              className="member-search-chamber text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               {m.chamber ?? ""}
             </span>
             <span
-              className="member-search-count text-right text-[13px] tabular-nums"
+              className="member-search-count text-right text-[length:var(--fs-13)] tabular-nums"
               style={{ color: "var(--text-muted)" }}
             >
               {m.total.toLocaleString()} bills

@@ -30,7 +30,7 @@ function Sponsor({ a }: { a: BillAmendment }) {
   // muted text, no link. A resolved member gets a party-colored member link.
   if (!a.sponsorBioguideId) {
     return a.sponsorName ? (
-      <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+      <span className="text-[length:var(--fs-12)]" style={{ color: "var(--text-muted)" }}>
         {a.sponsorName}
       </span>
     ) : null;
@@ -41,7 +41,7 @@ function Sponsor({ a }: { a: BillAmendment }) {
   return (
     <Link
       href={`/members/${a.sponsorBioguideId}`}
-      className="text-[12px]"
+      className="text-[length:var(--fs-12)]"
       style={{ color: partyColor(a.sponsorParty) }}
     >
       {a.sponsorName ?? a.sponsorBioguideId}
@@ -82,7 +82,7 @@ function AmendmentRow({
           }}
         />
         <span
-          className="text-[13px] tabular-nums"
+          className="text-[length:var(--fs-13)] tabular-nums"
           style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}
         >
           {a.label}
@@ -92,7 +92,7 @@ function AmendmentRow({
 
       {purpose ? (
         <div
-          className="mt-1 text-[13px]"
+          className="mt-1 text-[length:var(--fs-13)]"
           style={{
             color: "var(--text-secondary)",
             display: "-webkit-box",
@@ -105,7 +105,7 @@ function AmendmentRow({
         </div>
       ) : null}
 
-      <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+      <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
         {a.latestActionText
           ? `${a.latestActionText}${a.latestActionDate ? ` · ${formatDateLong(a.latestActionDate)}` : ""}`
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
@@ -119,7 +119,7 @@ function AmendmentRow({
       )}
 
       {a.amendsLabel ? (
-        <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
           ↳ amends {a.amendsLabel}
         </div>
       ) : null}
@@ -159,7 +159,7 @@ export function BillAmendments({
 
       {overflow > 0 ? (
         <div
-          className="px-[14px] py-2 text-[11px]"
+          className="px-[14px] py-2 text-[length:var(--fs-11)]"
           style={{ color: "var(--text-muted)", borderTop: "0.5px solid var(--border-soft)" }}
         >
           {overflow.toLocaleString()} more

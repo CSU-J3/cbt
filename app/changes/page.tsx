@@ -85,7 +85,7 @@ export default async function ChangesPage({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="changes" />
         <p
-          className="mb-3 text-[12px] uppercase tracking-[0.5px]"
+          className="mb-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           last 7 days, most recent first
@@ -96,7 +96,7 @@ export default async function ChangesPage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <span
-            className="text-[12px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Topics
@@ -140,7 +140,7 @@ export default async function ChangesPage({
                 const qs = sp.toString();
                 return qs ? `/changes?${qs}` : "/changes";
               })()}
-              className="ml-auto text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+              className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
               Clear filters ✕
@@ -157,7 +157,7 @@ export default async function ChangesPage({
           {bills.length === 0 ? (
             counts.total === 0 ? (
               <div
-                className="px-6 py-8 text-center text-[13px]"
+                className="px-6 py-8 text-center text-[length:var(--fs-13)]"
                 style={{ color: "var(--text-muted)" }}
               >
                 No stage changes in the last 7 days.
@@ -167,18 +167,18 @@ export default async function ChangesPage({
                 className="px-6 py-12 text-center"
                 style={{ color: "var(--text-secondary)" }}
               >
-                <p className="text-[14px] uppercase tracking-[0.5px]">
+                <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
                   No bills match &quot;{q}&quot;
                 </p>
                 <p
-                  className="mt-2 text-[13px]"
+                  className="mt-2 text-[length:var(--fs-13)]"
                   style={{ color: "var(--text-dim)" }}
                 >
                   Try a broader term, check spelling, or clear the search.
                 </p>
                 <Link
                   href={clearSearchHref}
-                  className="mt-4 inline-block border px-3 py-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
+                  className="mt-4 inline-block border px-3 py-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--bg-base)] hover:bg-[var(--accent-amber)]"
                   style={{
                     color: "var(--accent-amber)",
                     borderColor: "var(--accent-amber)",
@@ -189,7 +189,7 @@ export default async function ChangesPage({
               </div>
             ) : (
               <div
-                className="px-6 py-8 text-center text-[13px] uppercase tracking-[0.5px]"
+                className="px-6 py-8 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-dim)" }}
               >
                 No bills match these filters

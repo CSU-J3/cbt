@@ -55,10 +55,10 @@ export default async function NominationsPage({
       <div className="flex min-h-screen flex-col">
         <HeaderBar basePath="/nominations" />
         <main className="w-full flex-1 px-4 py-4">
-          <h1 className="text-[14px] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
+          <h1 className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
             Nominations
           </h1>
-          <p className="mt-6 text-[13px]" style={{ color: "var(--text-dim)" }}>
+          <p className="mt-6 text-[length:var(--fs-13)]" style={{ color: "var(--text-dim)" }}>
             Nominations data is being prepared. Check back shortly.
           </p>
         </main>
@@ -91,15 +91,15 @@ export default async function NominationsPage({
       <main className="w-full flex-1 px-4 py-4">
         {/* Header + honest military-exclusion disclosure */}
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
-          <h1 className="text-[14px] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
+          <h1 className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]" style={{ color: "var(--accent-amber)" }}>
             Nominations
           </h1>
-          <span className="text-[12px] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
             {summary.civilianTotal.toLocaleString()} civilian nominations ·{" "}
             {summary.militaryTotal.toLocaleString()} military service nominations excluded
           </span>
         </div>
-        <p className="mb-4 max-w-[70ch] text-[12px] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
+        <p className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
           Who the president is nominating and where each stands — civilian nominees (judges,
           cabinet and agency heads, ambassadors, US Attorneys), by agency and confirmation
           status. Bulk military service promotions are excluded; the 119th filed{" "}
@@ -108,7 +108,7 @@ export default async function NominationsPage({
 
         {/* Headline: disposition distribution — segmented bar + clickable legend */}
         <section className="mb-5">
-          <h2 className="mb-2 text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+          <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
             By status
           </h2>
           <div className="mb-2 flex h-[12px] w-full overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }}>
@@ -134,7 +134,7 @@ export default async function NominationsPage({
                   key={d.disposition}
                   href={filterHref({ agency, disposition, committee }, { disposition: active ? null : d.disposition })}
                   scroll={false}
-                  className="inline-flex items-center gap-1.5 text-[11px] no-underline transition hover:opacity-80"
+                  className="inline-flex items-center gap-1.5 text-[length:var(--fs-11)] no-underline transition hover:opacity-80"
                   style={{ opacity: disposition && !active ? 0.55 : 1 }}
                 >
                   <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dispositionColor(d.disposition) }} />
@@ -150,7 +150,7 @@ export default async function NominationsPage({
 
         {/* Agency facet — clickable ranked rows (IssueBars idiom) */}
         <section className="mb-5">
-          <h2 className="mb-2 text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+          <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
             By agency
           </h2>
           <div className="border" style={{ borderColor: "var(--border-strong)" }}>
@@ -172,13 +172,13 @@ export default async function NominationsPage({
                         backgroundColor: active ? "var(--bg-row-hover)" : undefined,
                       }}
                     >
-                      <span className="truncate text-[12px]" style={{ color: "var(--text-primary)" }}>
+                      <span className="truncate text-[length:var(--fs-12)]" style={{ color: "var(--text-primary)" }}>
                         {a.organization}
                       </span>
                       <span className="block h-[10px] overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }} aria-hidden>
                         <span className="block h-full rounded-[2px]" style={{ width: `${widthPct}%`, backgroundColor: "var(--accent-amber)", opacity: 0.55 }} />
                       </span>
-                      <span className="text-right text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+                      <span className="text-right text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
                         {a.count.toLocaleString()}
                       </span>
                     </Link>
@@ -187,7 +187,7 @@ export default async function NominationsPage({
               })}
             </ul>
             {agencyOverflow > 0 ? (
-              <div className="px-[14px] py-2 text-[11px]" style={{ color: "var(--text-muted)", borderTop: "0.5px solid var(--border-soft)" }}>
+              <div className="px-[14px] py-2 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)", borderTop: "0.5px solid var(--border-soft)" }}>
                 {agencyOverflow} more agencies
               </div>
             ) : null}
@@ -197,26 +197,26 @@ export default async function NominationsPage({
         {/* The list */}
         <section>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h2 className="text-[12px] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
+            <h2 className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               {list.total.toLocaleString()} {agency || disposition || committee ? "matching" : "civilian"} nominations
             </h2>
             {agency ? (
-              <Link href={filterHref({ agency, disposition, committee }, { agency: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Link href={filterHref({ agency, disposition, committee }, { agency: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[length:var(--fs-11)] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
                 {agency} ✕
               </Link>
             ) : null}
             {disposition ? (
-              <Link href={filterHref({ agency, disposition, committee }, { disposition: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Link href={filterHref({ agency, disposition, committee }, { disposition: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[length:var(--fs-11)] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
                 {DISPOSITION_LABEL[disposition as keyof typeof DISPOSITION_LABEL] ?? disposition} ✕
               </Link>
             ) : null}
             {committee ? (
-              <Link href={filterHref({ agency, disposition, committee }, { committee: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[11px] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
+              <Link href={filterHref({ agency, disposition, committee }, { committee: null })} scroll={false} className="rounded-[3px] px-2 py-0.5 text-[length:var(--fs-11)] no-underline" style={{ border: "0.5px solid var(--border-strong)", color: "var(--text-secondary)" }}>
                 {committeeName} ✕
               </Link>
             ) : null}
             {agency || disposition || committee ? (
-              <Link href="/nominations" scroll={false} className="text-[11px] uppercase tracking-[0.5px] no-underline" style={{ color: "var(--accent-amber)" }}>
+              <Link href="/nominations" scroll={false} className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] no-underline" style={{ color: "var(--accent-amber)" }}>
                 clear
               </Link>
             ) : null}
@@ -225,7 +225,7 @@ export default async function NominationsPage({
             {list.rows.length > 0 ? (
               list.rows.map((n) => <NominationRow key={n.id} nomination={n} />)
             ) : (
-              <div className="px-4 py-12 text-center text-[13px] uppercase tracking-[0.5px]" style={{ color: "var(--text-dim)" }}>
+              <div className="px-4 py-12 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]" style={{ color: "var(--text-dim)" }}>
                 No matching nominations
               </div>
             )}

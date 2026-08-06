@@ -30,13 +30,13 @@ function MemberItem({ p }: { p: VoteMemberPosition }) {
   // muted text, no link).
   if (!p.name) {
     return (
-      <li className="break-inside-avoid py-[2px] text-[12px] tabular-nums" style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
+      <li className="break-inside-avoid py-[2px] text-[length:var(--fs-12)] tabular-nums" style={{ fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
         {p.bioguideId}
       </li>
     );
   }
   return (
-    <li className="break-inside-avoid py-[2px] text-[12px]" style={{ fontFamily: "var(--font-mono)" }}>
+    <li className="break-inside-avoid py-[2px] text-[length:var(--fs-12)]" style={{ fontFamily: "var(--font-mono)" }}>
       <Link href={`/members/${p.bioguideId}`} className="no-underline" style={{ color: partyColor(p.party) }}>
         {p.name}
       </Link>
@@ -69,7 +69,7 @@ export function VotePositionList({ positions }: { positions: VoteMemberPosition[
         return (
           <section key={g.key} className="border" style={{ borderColor: "var(--border-strong)" }}>
             <h2
-              className="px-[14px] py-2 text-[12px] uppercase tracking-[0.5px] tabular-nums"
+              className="px-[14px] py-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
               style={{ color: g.color, borderBottom: "0.5px solid var(--border-soft)" }}
             >
               {g.label} · {list.length}

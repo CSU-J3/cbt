@@ -46,7 +46,7 @@ export default async function ElectoralPage() {
       <main className="w-full flex-1 px-4 py-4">
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
             2026 electoral
@@ -54,7 +54,7 @@ export default async function ElectoralPage() {
         </div>
 
         <p
-          className="mb-4 text-[12px] leading-snug"
+          className="mb-4 text-[length:var(--fs-12)] leading-snug"
           style={{ color: "var(--text-muted)" }}
         >
           Competitive 2026 races (rated by Cook, Sabato, or Inside Elections as

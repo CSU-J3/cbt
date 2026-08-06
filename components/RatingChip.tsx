@@ -49,7 +49,7 @@ export function RatingChip({
       title={title}
     >
       <span
-        className="text-[11px]"
+        className="text-[length:var(--fs-11)]"
         style={{ color: "var(--text-muted)" }}
         title={RACE_RATING_SOURCES[rating.source]}
       >

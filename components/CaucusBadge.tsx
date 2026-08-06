@@ -7,7 +7,7 @@ export function CaucusBadge({ org }: { org: CaucusOrg }) {
   const info = CAUCUS_CONFIG[org];
   return (
     <span
-      className="inline-block px-2 py-[1px] text-[12px] uppercase tracking-[0.5px] tabular-nums"
+      className="inline-block px-2 py-[1px] text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
       style={{
         color: info.color,
         border: `1px solid ${info.color}`,

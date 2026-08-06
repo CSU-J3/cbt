@@ -53,7 +53,7 @@ export function SegmentedToggle<V extends string>({
             key={seg.value}
             href={buildHref(seg.value)}
             scroll={false}
-            className="px-3 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+            className="px-3 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
             style={{
               backgroundColor: isActive
                 ? "var(--bg-row-hover)"

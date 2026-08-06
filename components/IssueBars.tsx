@@ -25,7 +25,7 @@ export function IssueBars({
   return (
     <div className="border" style={{ borderColor: "var(--border-strong)" }}>
       <div
-        className="grid items-center gap-x-[14px] px-[14px] py-[9px] text-[11px] uppercase tracking-[0.5px]"
+        className="grid items-center gap-x-[14px] px-[14px] py-[9px] text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
         style={{
           gridTemplateColumns: GRID,
           backgroundColor: "var(--bg-panel)",
@@ -58,13 +58,13 @@ export function IssueBars({
               >
                 <span className="flex min-w-0 flex-col leading-[1.2]">
                   <span
-                    className="truncate text-[12px]"
+                    className="truncate text-[length:var(--fs-12)]"
                     style={{ color: "var(--text-primary)" }}
                   >
                     {s.display}
                   </span>
                   <span
-                    className="text-[10px] uppercase tracking-[0.5px]"
+                    className="text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
                     style={{ color: "var(--text-dim)" }}
                   >
                     {s.code}
@@ -85,7 +85,7 @@ export function IssueBars({
                   />
                 </span>
                 <span
-                  className="text-right text-[12px] tabular-nums"
+                  className="text-right text-[length:var(--fs-12)] tabular-nums"
                   style={{ color: "var(--text-muted)" }}
                 >
                   {s.filings.toLocaleString()}

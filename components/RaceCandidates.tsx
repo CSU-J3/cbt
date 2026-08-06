@@ -31,7 +31,7 @@ export function RaceCandidates({
   if (candidates.length === 0) {
     return (
       <p
-        className="py-3 text-[13px]"
+        className="py-3 text-[length:var(--fs-13)]"
         style={{ color: "var(--text-muted)" }}
       >
         Candidate filings forthcoming.
@@ -47,7 +47,7 @@ export function RaceCandidates({
         return (
           <li
             key={c.name}
-            className="flex items-center gap-3 py-2 text-[14px]"
+            className="flex items-center gap-3 py-2 text-[length:var(--fs-14)]"
             style={{
               color: dimmed ? "var(--text-dim)" : "var(--text-primary)",
               borderTop: "0.5px solid var(--border-soft)",
@@ -58,7 +58,7 @@ export function RaceCandidates({
               ●
             </span>
             <span
-              className="w-6 text-[12px] uppercase tracking-[0.5px] tabular-nums"
+              className="w-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
               style={{ color }}
             >
               {c.party ?? "—"}
@@ -76,7 +76,7 @@ export function RaceCandidates({
               )}
             </span>
             <span
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-muted)" }}
             >
               {statusLabel(c.status)}

@@ -58,7 +58,7 @@ export default async function PresidentPage({
       <main className="w-full flex-1 px-4 py-4">
         <GroupTabs group="feed" active="president" />
         <p
-          className="mb-3 text-[12px] uppercase tracking-[0.5px]"
+          className="mb-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           on the president&apos;s desk · oldest first · racing the 10-day clock
@@ -69,7 +69,7 @@ export default async function PresidentPage({
 
           {bills.length === 0 ? (
             <div
-              className="px-6 py-8 text-center text-[13px]"
+              className="px-6 py-8 text-center text-[length:var(--fs-13)]"
               style={{ color: "var(--text-muted)" }}
             >
               No bills on the president&apos;s desk.

@@ -11,7 +11,7 @@ export function SignInButton({ label = "Sign in with GitHub" }: { label?: string
   return (
     <button
       type="button"
-      className="mt-3 inline-block cursor-pointer border px-4 py-2 text-[12px] uppercase tracking-[0.5px]"
+      className="mt-3 inline-block cursor-pointer border px-4 py-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
       style={{
         borderColor: "var(--accent-amber)",
         color: "var(--accent-amber)",

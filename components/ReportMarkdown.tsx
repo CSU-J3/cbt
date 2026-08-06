@@ -75,7 +75,7 @@ export function ReportMarkdown({ content }: { content: string }) {
         ),
         h2: ({ children }) => (
           <h2
-            className="mt-6 mb-3 text-[14px] uppercase tracking-[0.5px]"
+            className="mt-6 mb-3 text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-secondary)" }}
           >
             {children}
@@ -83,7 +83,7 @@ export function ReportMarkdown({ content }: { content: string }) {
         ),
         p: ({ children }) => (
           <p
-            className="mb-3 text-[14px] leading-[1.6]"
+            className="mb-3 text-[length:var(--fs-14)] leading-[1.6]"
             style={{ color: "var(--text-primary)" }}
           >
             {children}
@@ -91,7 +91,7 @@ export function ReportMarkdown({ content }: { content: string }) {
         ),
         ul: ({ children }) => (
           <ul
-            className="mb-3 list-none text-[14px]"
+            className="mb-3 list-none text-[length:var(--fs-14)]"
             style={{ color: "var(--text-primary)" }}
           >
             {children}
@@ -118,7 +118,7 @@ export function ReportMarkdown({ content }: { content: string }) {
           <code style={{ color: "var(--accent-amber)" }}>{children}</code>
         ),
         table: ({ children }) => (
-          <table className="my-3 w-full border-collapse text-[14px]">
+          <table className="my-3 w-full border-collapse text-[length:var(--fs-14)]">
             {children}
           </table>
         ),

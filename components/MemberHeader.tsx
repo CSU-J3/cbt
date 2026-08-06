@@ -84,7 +84,7 @@ export function MemberHeader({
           {member.name}
         </h1>
         <div
-          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] uppercase tracking-[0.5px]"
+          className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           <span style={{ color: pColor }} aria-hidden>

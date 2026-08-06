@@ -60,7 +60,7 @@ export function Pagination({
   const nextDisabled = currentPage >= totalPages;
 
   const navClass =
-    "text-[12px] font-medium uppercase tracking-[0.5px] transition";
+    "text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition";
   const dimStyle = { color: "var(--text-dim)" };
   const mutedStyle = { color: "var(--text-muted)" };
   const currentStyle = { color: "var(--accent-amber-bright)" };
@@ -95,7 +95,7 @@ export function Pagination({
           p === "…" ? (
             <span
               key={`gap-${i}`}
-              className="text-[12px]"
+              className="text-[length:var(--fs-12)]"
               style={dimStyle}
               aria-hidden
             >
@@ -104,7 +104,7 @@ export function Pagination({
           ) : p === currentPage ? (
             <span
               key={p}
-              className="text-[12px] font-medium tabular-nums"
+              className="text-[length:var(--fs-12)] font-medium tabular-nums"
               style={currentStyle}
               aria-current="page"
             >
@@ -115,7 +115,7 @@ export function Pagination({
               key={p}
               href={buildHref(carry, p, basePath)}
               scroll={false}
-              className="text-[12px] tabular-nums transition hover:text-[var(--accent-amber)]"
+              className="text-[length:var(--fs-12)] tabular-nums transition hover:text-[var(--accent-amber)]"
               style={mutedStyle}
             >
               {p}
@@ -140,7 +140,7 @@ export function Pagination({
       )}
 
       <span
-        className="ml-2 text-[11px] uppercase tracking-[0.5px] tabular-nums"
+        className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
         style={dimStyle}
       >
         Page {currentPage} of {totalPages}

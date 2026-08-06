@@ -13,7 +13,7 @@ export function NominationRow({ nomination: n }: { nomination: NominationListRow
     <div className="px-4 py-[9px]" style={{ borderTop: "0.5px solid var(--border-soft)" }}>
       {n.description ? (
         <div
-          className="text-[13px]"
+          className="text-[length:var(--fs-13)]"
           style={{
             color: "var(--text-primary)",
             display: "-webkit-box",
@@ -25,7 +25,7 @@ export function NominationRow({ nomination: n }: { nomination: NominationListRow
           {n.description}
         </div>
       ) : null}
-      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[length:var(--fs-11)]">
         {n.organization ? (
           <span style={{ color: "var(--text-muted)" }}>{n.organization}</span>
         ) : null}

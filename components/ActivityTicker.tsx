@@ -42,7 +42,7 @@ export async function ActivityTicker({
     <div className="flex flex-1 flex-col min-h-0">
       {bills.length === 0 ? (
         <div
-          className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[13px]"
+          className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[length:var(--fs-13)]"
           style={{ color: "var(--text-dim)" }}
         >
           No stage changes in the last 7 days.

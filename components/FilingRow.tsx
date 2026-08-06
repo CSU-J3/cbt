@@ -104,7 +104,7 @@ export function FilingRow({
           </span>
         ))}
         {extraIssues > 0 ? (
-          <span className="text-[10px]" style={{ color: "var(--text-dim)" }}>
+          <span className="text-[length:var(--fs-10)]" style={{ color: "var(--text-dim)" }}>
             +{extraIssues}
           </span>
         ) : null}
@@ -116,7 +116,7 @@ export function FilingRow({
             key={id}
             href={`/bill/${id}`}
             onClick={expandable ? (e) => e.stopPropagation() : undefined}
-            className="rounded-[2px] px-1 text-[10px] uppercase tracking-[0.5px] tabular-nums transition hover:bg-[var(--bg-row-hover)]"
+            className="rounded-[2px] px-1 text-[length:var(--fs-10)] uppercase tracking-[0.5px] tabular-nums transition hover:bg-[var(--bg-row-hover)]"
             style={{
               border: "1px solid var(--accent-amber)",
               color: "var(--accent-amber)",

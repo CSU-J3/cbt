@@ -85,13 +85,13 @@ export function NewsFilters({
       <div className="flex flex-col gap-3">
         <div className="filter-chips flex flex-wrap items-center gap-3">
           <span
-            className="text-[12px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Member
           </span>
           <span
-            className="inline-flex items-center gap-2 border px-2 py-1 text-[12px] uppercase tracking-[0.5px]"
+            className="inline-flex items-center gap-2 border px-2 py-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{
               color: "var(--accent-amber)",
               borderColor: "var(--accent-amber)",
@@ -135,13 +135,13 @@ export function NewsFilters({
       {billId ? (
         <div className="filter-chips flex flex-wrap items-center gap-3">
           <span
-            className="text-[12px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Bill
           </span>
           <span
-            className="inline-flex items-center gap-2 border px-2 py-1 text-[12px] uppercase tracking-[0.5px]"
+            className="inline-flex items-center gap-2 border px-2 py-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{
               color: "var(--accent-amber)",
               borderColor: "var(--accent-amber)",
@@ -169,7 +169,7 @@ export function NewsFilters({
 
       <div className="filter-chips flex flex-wrap items-center gap-3">
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           Source
@@ -177,7 +177,7 @@ export function NewsFilters({
         <Link
           href={buildHref({ source: undefined })}
           scroll={false}
-          className="rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+          className="rounded-sm border px-2 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
           style={
             source === undefined
               ? {
@@ -200,7 +200,7 @@ export function NewsFilters({
               key={s.value}
               href={buildHref({ source: isOn ? undefined : s.value })}
               scroll={false}
-              className="rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+              className="rounded-sm border px-2 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
               style={
                 isOn
                   ? {
@@ -220,7 +220,7 @@ export function NewsFilters({
         })}
 
         <span
-          className="ml-auto text-[12px] uppercase tracking-[0.5px]"
+          className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           Sort · <span style={{ color: "var(--text-muted)" }}>most recent</span>
@@ -229,7 +229,7 @@ export function NewsFilters({
 
       <div className="filter-chips flex flex-wrap items-center gap-3">
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           Window
@@ -241,7 +241,7 @@ export function NewsFilters({
               key={h}
               href={buildHref({ window: String(h) })}
               scroll={false}
-              className="rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+              className="rounded-sm border px-2 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
               style={
                 isOn
                   ? {
@@ -263,7 +263,7 @@ export function NewsFilters({
 
       <div className="filter-chips flex flex-wrap items-center gap-3">
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           Signal
@@ -271,7 +271,7 @@ export function NewsFilters({
         <Link
           href={buildHref({ signal: undefined })}
           scroll={false}
-          className="rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+          className="rounded-sm border px-2 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
           style={
             signal === undefined
               ? {
@@ -290,7 +290,7 @@ export function NewsFilters({
         <Link
           href={buildHref({ signal: signal === "breaking" ? undefined : "breaking" })}
           scroll={false}
-          className="inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+          className="inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
           style={
             signal === "breaking"
               ? {
@@ -322,7 +322,7 @@ export function NewsFilters({
       {hideTopics ? null : (
         <div className="filter-chips flex flex-wrap items-center gap-1">
           <span
-            className="mr-2 text-[12px] uppercase tracking-[0.5px]"
+            className="mr-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-dim)" }}
           >
             Topic
@@ -339,7 +339,7 @@ export function NewsFilters({
                 href={buildHref({ topic: isOn ? undefined : t })}
                 scroll={false}
                 title={topicFullLabel(t)}
-                className="rounded-sm border px-1.5 py-0.5 text-[12px] font-medium uppercase tracking-[0.5px] transition"
+                className="rounded-sm border px-1.5 py-0.5 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition"
                 style={style}
               >
                 {topicLabel(t)}

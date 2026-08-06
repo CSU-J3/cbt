@@ -29,7 +29,7 @@ export function MemberAmendmentRow({ amendment: a }: { amendment: MemberAmendmen
           }}
         />
         <span
-          className="text-[13px] tabular-nums"
+          className="text-[length:var(--fs-13)] tabular-nums"
           style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}
         >
           {a.label}
@@ -37,19 +37,19 @@ export function MemberAmendmentRow({ amendment: a }: { amendment: MemberAmendmen
         {a.amendedBillId ? (
           <Link
             href={`/bill/${a.amendedBillId}`}
-            className="text-[12px] tabular-nums"
+            className="text-[length:var(--fs-12)] tabular-nums"
             style={{ color: "var(--accent-amber)" }}
           >
             {a.amendedBillLabel ?? a.amendedBillId}
           </Link>
         ) : a.amendedBillLabel ? (
-          <span className="text-[12px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
             {a.amendedBillLabel}
           </span>
         ) : null}
         {a.amendedBillTitle ? (
           <span
-            className="min-w-0 flex-1 truncate text-[12px]"
+            className="min-w-0 flex-1 truncate text-[length:var(--fs-12)]"
             style={{ color: "var(--text-muted)" }}
           >
             {a.amendedBillTitle}
@@ -59,7 +59,7 @@ export function MemberAmendmentRow({ amendment: a }: { amendment: MemberAmendmen
 
       {purpose ? (
         <div
-          className="mt-1 text-[13px]"
+          className="mt-1 text-[length:var(--fs-13)]"
           style={{
             color: "var(--text-secondary)",
             display: "-webkit-box",
@@ -72,14 +72,14 @@ export function MemberAmendmentRow({ amendment: a }: { amendment: MemberAmendmen
         </div>
       ) : null}
 
-      <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+      <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
         {a.latestActionText
           ? `${a.latestActionText}${a.latestActionDate ? ` · ${formatDateLong(a.latestActionDate)}` : ""}`
           : `Submitted ${formatDateLong(a.submittedDate)} · no floor action yet`}
       </div>
 
       {a.amendsLabel ? (
-        <div className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <div className="mt-1 text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
           ↳ amends {a.amendsLabel}
         </div>
       ) : null}

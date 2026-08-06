@@ -16,7 +16,7 @@ export function WatchlistToggle({
   const { isOn, isPending, error, toggle } = useWatchToggle(billId, initial);
 
   const baseClass =
-    "inline-flex items-center gap-1 border px-2.5 py-1 text-[12px] font-medium uppercase tracking-[0.5px] transition disabled:opacity-50";
+    "inline-flex items-center gap-1 border px-2.5 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] transition disabled:opacity-50";
   const style = isOn
     ? {
         backgroundColor: "var(--accent-amber)",
@@ -43,7 +43,7 @@ export function WatchlistToggle({
       </button>
       {error ? (
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--party-republican)" }}
         >
           {error}

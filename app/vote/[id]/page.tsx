@@ -55,7 +55,7 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
       <main className="w-full flex-1 px-4 py-4">
         {/* HEAD */}
         <div className="border p-[14px]" style={{ borderColor: "var(--border-strong)" }}>
-          <div className="text-[11px] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+          <div className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>
             {chamberLabel} · {vote.congress}th Congress · Session {vote.session} · Roll Call {vote.rollCall}
           </div>
 
@@ -63,7 +63,7 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
             {vote.question ?? vote.description ?? `Roll Call ${vote.rollCall}`}
           </h1>
 
-          <div className="mt-1 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+          <div className="mt-1 text-[length:var(--fs-13)]" style={{ color: "var(--text-secondary)" }}>
             {vote.result ? <span style={{ color: "var(--text-primary)" }}>{vote.result}</span> : null}
             {vote.result ? " · " : ""}
             {formatDateLong(vote.voteDate)}
@@ -71,7 +71,7 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
 
           {/* amendment context + bill link */}
           {amdCtx ? (
-            <div className="mt-1 text-[12px]" style={{ color: "var(--text-muted)" }}>
+            <div className="mt-1 text-[length:var(--fs-12)]" style={{ color: "var(--text-muted)" }}>
               On amendment{" "}
               <span style={{ color: "var(--text-secondary)" }}>{amdCtx.amendmentLabel}</span>
               {billLinkId && billLinkLabel ? (
@@ -84,7 +84,7 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
               ) : null}
             </div>
           ) : billLinkId && billLinkLabel ? (
-            <div className="mt-1 text-[12px]" style={{ color: "var(--text-muted)" }}>
+            <div className="mt-1 text-[length:var(--fs-12)]" style={{ color: "var(--text-muted)" }}>
               On{" "}
               <Link href={`/bill/${billLinkId}`} className="tabular-nums no-underline" style={{ color: "var(--accent-amber)" }}>
                 {billLinkLabel}
@@ -96,7 +96,7 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
           {/* tally + party split — suppressed on a by-name/procedural row (tally 0);
               the split is suppressed when positions haven't synced (HO 533 guard). */}
           {tallySum > 0 ? (
-            <div className="mt-2 text-[13px] tabular-nums" style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
+            <div className="mt-2 text-[length:var(--fs-13)] tabular-nums" style={{ fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
               <span style={{ color: "var(--vote-yea)" }}>{vote.yeaCount} Yea</span>
               {" · "}
               <span style={{ color: "var(--vote-nay)" }}>{vote.nayCount} Nay</span>
@@ -126,14 +126,14 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
         ) : tallySum > 0 ? (
           // LAG: a real tally but no positions — member detail syncs behind the
           // vote list (HO 533). Says pending, never renders as an empty roll.
-          <div className="mt-4 border p-[14px] text-[13px]" style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}>
+          <div className="mt-4 border p-[14px] text-[length:var(--fs-13)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}>
             Member positions haven&rsquo;t synced yet for this roll call. The tally is recorded; the
             per-member breakdown appears once the vote-member detail catches up.
           </div>
         ) : (
           // NOT lag: no tally AND no positions (e.g. a by-name Election of the
           // Speaker roll call). Nothing is pending — different copy, not "syncing".
-          <div className="mt-4 border p-[14px] text-[13px]" style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}>
+          <div className="mt-4 border p-[14px] text-[length:var(--fs-13)]" style={{ borderColor: "var(--border-strong)", color: "var(--text-muted)" }}>
             This roll call has no recorded per-member positions (a by-name or procedural vote); the result above is the outcome.
           </div>
         )}

@@ -42,13 +42,13 @@ export function TopicCrosswalk({
     <section className="mt-6">
       <div className="mb-2 flex flex-wrap items-baseline gap-2">
         <h2
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-secondary)" }}
         >
           Lobbying by topic · CBT taxonomy
         </h2>
         <span
-          className="text-[11px] leading-snug"
+          className="text-[length:var(--fs-11)] leading-snug"
           style={{ color: "var(--text-dim)", fontFamily: "var(--sans)" }}
         >
           The same filings mapped to CBT&rsquo;s 24 topics. Tap a topic to see the
@@ -59,7 +59,7 @@ export function TopicCrosswalk({
       </div>
       <div className="border" style={{ borderColor: "var(--border-strong)" }}>
         <div
-          className={`${GRID} px-[14px] py-[9px] text-[11px] uppercase tracking-[0.5px]`}
+          className={`${GRID} px-[14px] py-[9px] text-[length:var(--fs-11)] uppercase tracking-[0.5px]`}
           style={{
             backgroundColor: "var(--bg-panel)",
             borderBottom: "0.5px solid var(--border-strong)",
@@ -96,18 +96,18 @@ export function TopicCrosswalk({
                   <span className="flex min-w-0 flex-col leading-[1.2]">
                     <span className="flex items-center gap-[6px]">
                       <span
-                        className="text-[10px] leading-none"
+                        className="text-[length:var(--fs-10)] leading-none"
                         style={{ color: "var(--text-dim)" }}
                         aria-hidden
                       >
                         {isOpen ? "▾" : "▸"}
                       </span>
-                      <span className="truncate text-[12px]" style={{ color }}>
+                      <span className="truncate text-[length:var(--fs-12)]" style={{ color }}>
                         {topicFullLabel(t.topic)}
                       </span>
                     </span>
                     <span
-                      className="pl-[16px] text-[10px] uppercase tracking-[0.5px]"
+                      className="pl-[16px] text-[length:var(--fs-10)] uppercase tracking-[0.5px]"
                       style={{ color: "var(--text-dim)" }}
                     >
                       {topicLabel(t.topic)} · {codes.length} code
@@ -125,13 +125,13 @@ export function TopicCrosswalk({
                     />
                   </span>
                   <span
-                    className="text-right text-[12px] tabular-nums"
+                    className="text-right text-[length:var(--fs-12)] tabular-nums"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {t.filings.toLocaleString()}
                   </span>
                   <span
-                    className="hidden text-right text-[12px] tabular-nums sm:block"
+                    className="hidden text-right text-[length:var(--fs-12)] tabular-nums sm:block"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {t.distinctClients.toLocaleString()}
@@ -153,7 +153,7 @@ export function TopicCrosswalk({
                           href={`/lobbying?issue=${encodeURIComponent(c.code)}#lobby-drill`}
                           title={c.display}
                           aria-current={active ? "true" : undefined}
-                          className="inline-flex items-center gap-[6px] rounded-[2px] border px-[7px] py-[3px] text-[11px] no-underline transition hover:bg-[var(--bg-row-hover)]"
+                          className="inline-flex items-center gap-[6px] rounded-[2px] border px-[7px] py-[3px] text-[length:var(--fs-11)] no-underline transition hover:bg-[var(--bg-row-hover)]"
                           style={{
                             borderColor: active
                               ? "var(--accent-amber)"

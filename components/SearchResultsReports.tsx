@@ -13,20 +13,20 @@ export async function SearchResultsReports({ q }: { q: string }) {
             className="report-search-row"
           >
             <span
-              className="report-search-week text-[12px] tabular-nums"
+              className="report-search-week text-[length:var(--fs-12)] tabular-nums"
               style={{ color: "var(--text-dim)" }}
             >
               {r.week_start}
             </span>
             <span className="report-search-body">
               <span
-                className="block text-[14px] font-medium"
+                className="block text-[length:var(--fs-14)] font-medium"
                 style={{ color: "var(--text-primary)" }}
               >
                 {r.title}
               </span>
               <span
-                className="block truncate text-[12px]"
+                className="block truncate text-[length:var(--fs-12)]"
                 style={{ color: "var(--text-muted)" }}
               >
                 {r.snippet}

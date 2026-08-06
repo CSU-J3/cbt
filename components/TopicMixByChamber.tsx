@@ -108,13 +108,13 @@ export async function TopicMixByChamber() {
     <section className="dashboard-pane mt-3">
       <div className="mb-2 flex items-baseline justify-between">
         <p
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--accent-amber)" }}
         >
           Topic mix · by chamber
         </p>
         <p
-          className="text-[11px] uppercase tracking-[0.5px] tabular-nums"
+          className="text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
           style={{ color: "var(--text-dim)" }}
         >
           {total.toLocaleString()} non-ceremonial bills

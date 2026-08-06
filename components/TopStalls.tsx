@@ -38,7 +38,7 @@ export async function TopStalls({
   if (bills.length === 0) {
     return (
       <div
-        className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[13px]"
+        className="flex flex-1 items-center justify-center px-6 py-12 text-center text-[length:var(--fs-13)]"
         style={{ color: "var(--text-dim)" }}
       >
         Nothing stuck — every tracked bill has moved recently.

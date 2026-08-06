@@ -41,13 +41,13 @@ export function MemberIdeology({
     return (
       <div>
         <div
-          className="text-[11px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           Ideology · DW-NOMINATE
         </div>
         <div
-          className="mt-1 text-[12px] uppercase tracking-[0.5px]"
+          className="mt-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-dim)" }}
         >
           No ideology score yet · too few votes this Congress
@@ -63,7 +63,7 @@ export function MemberIdeology({
   return (
     <div>
       <div
-        className="text-[11px] uppercase tracking-[0.5px]"
+        className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-muted)" }}
       >
         Ideology · DW-NOMINATE
@@ -132,7 +132,7 @@ export function MemberIdeology({
       {/* Numeric readout. dim1 is the headline economic left/right dimension;
           dim2 rides as a low-key secondary numeric (no second axis). */}
       <div
-        className="mt-2 text-[12px] uppercase tracking-[0.5px] tabular-nums"
+        className="mt-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
         style={{ color: "var(--text-dim)" }}
       >
         <span style={{ color: "var(--text-muted)" }}>Left/right (dim 1)</span>
@@ -143,7 +143,7 @@ export function MemberIdeology({
         </span>
         {isProvisional ? (
           <span
-            className="ml-1.5 rounded-[2px] px-1 py-px text-[10px] font-medium"
+            className="ml-1.5 rounded-[2px] px-1 py-px text-[length:var(--fs-10)] font-medium"
             style={{
               color: "var(--accent-amber-bright)",
               border: "1px solid var(--accent-amber)",

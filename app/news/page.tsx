@@ -226,7 +226,7 @@ export default async function NewsPage({
 
       {feed.mentions.length === 0 ? (
         <p
-          className="py-16 text-center text-[13px]"
+          className="py-16 text-center text-[length:var(--fs-13)]"
           style={{ color: "var(--text-muted)" }}
         >
           {billId
@@ -283,7 +283,7 @@ export default async function NewsPage({
 
       {memberNews.length === 0 ? (
         <p
-          className="py-16 text-center text-[13px]"
+          className="py-16 text-center text-[length:var(--fs-13)]"
           style={{ color: "var(--text-muted)" }}
         >
           No recent news linked to this member.

@@ -43,7 +43,7 @@ export function RaceIncumbentCard({
         style={{ color: "var(--text-muted)" }}
       >
         <div
-          className="member-photo flex items-center justify-center text-[14px] uppercase tracking-[1px]"
+          className="member-photo flex items-center justify-center text-[length:var(--fs-14)] uppercase tracking-[1px]"
           style={{
             backgroundColor: "var(--bg-row-hover)",
             color: "var(--text-dim)",
@@ -55,12 +55,12 @@ export function RaceIncumbentCard({
         </div>
         <div className="flex flex-col gap-1">
           <span
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--text-secondary)" }}
           >
             Open Seat
           </span>
-          <span className="text-[12px]" style={{ color: "var(--text-dim)" }}>
+          <span className="text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
             No incumbent on file
           </span>
         </div>
@@ -101,20 +101,20 @@ export function RaceIncumbentCard({
 
       <div className="flex min-w-0 flex-col gap-1">
         <span
-          className="text-[14px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-primary)" }}
         >
           {member.name}
         </span>
         <span
-          className="text-[12px] uppercase tracking-[0.5px]"
+          className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: pColor }}
         >
           {locator(member, race)}
         </span>
         <Link
           href={`/members/${member.bioguideId}`}
-          className="mt-1 text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+          className="mt-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
           style={{ color: "var(--accent-amber)" }}
         >
           View member profile →

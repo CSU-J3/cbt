@@ -19,7 +19,7 @@ export async function CommitteeTopicDistribution({
   if (total < MIN_BILLS) {
     return (
       <p
-        className="px-3 py-3 text-[12px]"
+        className="px-3 py-3 text-[length:var(--fs-12)]"
         style={{ color: "var(--text-dim)" }}
       >
         Topic data sparse for this committee.

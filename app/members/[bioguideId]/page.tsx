@@ -87,7 +87,7 @@ function CommitteeAssignmentRow({ row }: { row: MemberCommitteeRow }) {
       <span className="min-w-0">
         {isSub ? (
           <span
-            className="mr-1.5 text-[12px]"
+            className="mr-1.5 text-[length:var(--fs-12)]"
             style={{ color: "var(--text-dim)" }}
             aria-hidden
           >
@@ -96,14 +96,14 @@ function CommitteeAssignmentRow({ row }: { row: MemberCommitteeRow }) {
         ) : null}
         <Link
           href={`/committee/${row.systemCode}`}
-          className="text-[14px] transition hover:text-[var(--accent-amber-bright)]"
+          className="text-[length:var(--fs-14)] transition hover:text-[var(--accent-amber-bright)]"
           style={{ color: "var(--text-primary)" }}
           title={row.role ?? undefined}
         >
           {row.name}
         </Link>
         <span
-          className="ml-2 text-[11px] uppercase tracking-[0.5px]"
+          className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
           {row.chamber === "house"
@@ -117,7 +117,7 @@ function CommitteeAssignmentRow({ row }: { row: MemberCommitteeRow }) {
       </span>
       {badge ? (
         <span
-          className="inline-block px-2 py-[1px] text-[11px] uppercase tracking-[0.5px]"
+          className="inline-block px-2 py-[1px] text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
           style={{
             color: badge.color,
             border: `1px solid ${badge.color}`,
@@ -247,7 +247,7 @@ export default async function MemberPage({
       <main className="w-full flex-1 px-4 py-4">
         <Link
           href="/members"
-          className="mb-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+          className="mb-4 inline-block text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
           style={{ color: "var(--text-dim)" }}
         >
           ← Back to members
@@ -504,7 +504,7 @@ export default async function MemberPage({
                       </div>
                       {sponsoredAmendments.length > MEMBER_AMENDMENT_LIMIT ? (
                         <div
-                          className="px-4 py-3 text-[11px] uppercase tracking-[0.5px]"
+                          className="px-4 py-3 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                           style={{ color: "var(--text-muted)" }}
                         >
                           {sponsoredAmendments.length - MEMBER_AMENDMENT_LIMIT}{" "}
@@ -600,14 +600,14 @@ export default async function MemberPage({
                       </span>
                       <div className="flex flex-col">
                         <span
-                          className="text-[12px]"
+                          className="text-[length:var(--fs-12)]"
                           style={{ color: "var(--text-secondary)" }}
                         >
                           Score: {scorecard.total_score}
                         </span>
                         {scorecard.rank ? (
                           <span
-                            className="text-[12px]"
+                            className="text-[length:var(--fs-12)]"
                             style={{ color: "var(--text-dim)" }}
                           >
                             Rank #{scorecard.rank} of 47
@@ -623,13 +623,13 @@ export default async function MemberPage({
                           className="flex items-start justify-between gap-3"
                         >
                           <span
-                            className="flex-1 text-[12px]"
+                            className="flex-1 text-[length:var(--fs-12)]"
                             style={{ color: "var(--text-muted)" }}
                           >
                             {label}
                           </span>
                           <span
-                            className="shrink-0 text-[12px]"
+                            className="shrink-0 text-[length:var(--fs-12)]"
                             style={{ color: palestineVoteColor(outcome) }}
                           >
                             {outcome}
@@ -744,7 +744,7 @@ export default async function MemberPage({
                 <div className="mt-6 flex items-center gap-2">
                   <Link
                     href="/members"
-                    className="inline-block border px-[10px] py-[5px] text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+                    className="inline-block border px-[10px] py-[5px] text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
                     style={{
                       borderColor: "var(--border-strong)",
                       color: "var(--text-dim)",
@@ -753,7 +753,7 @@ export default async function MemberPage({
                     ← Back to members
                   </Link>
                   <span
-                    className="ml-auto text-[11px] uppercase tracking-[0.5px]"
+                    className="ml-auto text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                     style={{ color: "var(--text-dim)" }}
                   >
                     Member data via Congress.gov · Ideology via Voteview ·
@@ -768,15 +768,15 @@ export default async function MemberPage({
             className="px-6 py-16 text-center"
             style={{ color: "var(--text-muted)" }}
           >
-            <p className="text-[14px] uppercase tracking-[0.5px]">
+            <p className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]">
               Member not found
             </p>
-            <p className="mt-2 text-[12px]" style={{ color: "var(--text-dim)" }}>
+            <p className="mt-2 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
               bioguide_id: {bioguideId}
             </p>
             <Link
               href="/members"
-              className="mt-4 inline-block text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+              className="mt-4 inline-block text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
               ← Back to members

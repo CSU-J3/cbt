@@ -58,13 +58,13 @@ export default async function TradesPage({
       <main className="w-full flex-1 px-4 py-4">
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
             {bioguideId && scopedName ? `${scopedName} · trades` : "Stock trades"}
           </h1>
           <span
-            className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
             {feed.total.toLocaleString()} disclosure
@@ -74,7 +74,7 @@ export default async function TradesPage({
           {bioguideId ? (
             <Link
               href="/trades"
-              className="text-[12px] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--text-dim)" }}
             >
               ← All trades
@@ -95,13 +95,13 @@ export default async function TradesPage({
               }}
             >
               <h2
-                className="text-[12px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-secondary)" }}
               >
                 Most-traded tickers
               </h2>
               <span
-                className="text-[11px] uppercase tracking-[0.5px]"
+                className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-dim)" }}
               >
                 Last {TICKER_WINDOW_DAYS} days
@@ -118,7 +118,7 @@ export default async function TradesPage({
                     style={{ gridTemplateColumns: "70px 1fr 150px" }}
                   >
                     <span
-                      className="text-[13px] font-semibold tracking-[0.5px]"
+                      className="text-[length:var(--fs-13)] font-semibold tracking-[0.5px]"
                       style={{ color: "var(--text-primary)" }}
                     >
                       {t.ticker}
@@ -136,7 +136,7 @@ export default async function TradesPage({
                       />
                     </span>
                     <span
-                      className="text-right text-[12px] tabular-nums"
+                      className="text-right text-[length:var(--fs-12)] tabular-nums"
                       style={{ color: "var(--text-muted)" }}
                     >
                       {t.tradeCount.toLocaleString()} trade
@@ -153,7 +153,7 @@ export default async function TradesPage({
         <div className="border" style={{ borderColor: "var(--border-strong)" }}>
           {feed.trades.length === 0 ? (
             <div
-              className="px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
+              className="px-6 py-12 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               No disclosed trades on file

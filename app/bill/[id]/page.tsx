@@ -77,12 +77,12 @@ function BillCommitteeItem({
         : "JOINT";
   return (
     <li
-      className="py-1.5 text-[13px]"
+      className="py-1.5 text-[length:var(--fs-13)]"
       style={{ color: "var(--text-secondary)" }}
     >
       {isSub ? (
         <span
-          className="mr-1.5 text-[12px]"
+          className="mr-1.5 text-[length:var(--fs-12)]"
           style={{ color: "var(--text-dim)" }}
           aria-hidden
         >
@@ -97,14 +97,14 @@ function BillCommitteeItem({
         {row.name}
       </Link>
       <span
-        className="ml-2 text-[11px] uppercase tracking-[0.5px]"
+        className="ml-2 text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-muted)" }}
       >
         {chamberLabel}
         {isSub && row.parentName ? ` · ${row.parentName}` : ""}
       </span>
       <span
-        className="ml-2 text-[12px]"
+        className="ml-2 text-[length:var(--fs-12)]"
         style={{ color: "var(--text-muted)" }}
       >
         · {row.activityType} ·{" "}

@@ -66,13 +66,13 @@ export default async function PatternsPage({
         <GroupTabs group="patterns" active="patterns" />
         <div className="mb-3 flex flex-wrap items-baseline gap-3">
           <h1
-            className="text-[14px] uppercase tracking-[0.5px]"
+            className="text-[length:var(--fs-14)] uppercase tracking-[0.5px]"
             style={{ color: "var(--accent-amber)" }}
           >
             Legislative patterns
           </h1>
           <span
-            className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--text-muted)" }}
           >
             {matched.toLocaleString()} measures in {stats.length} forms · out of{" "}
@@ -84,7 +84,7 @@ export default async function PatternsPage({
         <FillerWatchStrip data={filler} />
 
         <p
-          className="mb-3 text-[12px] leading-snug"
+          className="mb-3 text-[length:var(--fs-12)] leading-snug"
           style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}
         >
           The same forms of legislation, filed again and again. Click one to see
@@ -105,7 +105,7 @@ export default async function PatternsPage({
 
           <aside className="patterns-right">
             <div
-              className="pattern-right-header text-[11px] uppercase tracking-[0.5px]"
+              className="pattern-right-header text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-muted)" }}
             >
               Recent bills{selected ? ` · ${selected}` : ""}
@@ -124,7 +124,7 @@ export default async function PatternsPage({
               </ul>
             ) : (
               <div
-                className="px-3 py-6 text-[12px]"
+                className="px-3 py-6 text-[length:var(--fs-12)]"
                 style={{ color: "var(--text-dim)" }}
               >
                 No bills match this pattern yet.

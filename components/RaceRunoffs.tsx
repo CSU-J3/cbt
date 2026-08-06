@@ -62,7 +62,7 @@ export function RaceRunoffs({
           borderBottom: "0.5px solid var(--border-strong)",
         }}
       >
-        <h2 className="text-[12px] uppercase tracking-[0.5px]">
+        <h2 className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]">
           <span
             className="inline-block border px-2 py-[1px]"
             style={{
@@ -75,7 +75,7 @@ export function RaceRunoffs({
         </h2>
         {runoffDate ? (
           <span
-            className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
             style={{ color: "var(--accent-amber-bright)" }}
           >
             {formatDateLong(runoffDate)} · {relativeLabel(runoffDate)}
@@ -91,7 +91,7 @@ export function RaceRunoffs({
             style={{ borderColor: "var(--border-soft)" }}
           >
             <p
-              className="pt-3 pb-1 text-[12px] uppercase tracking-[0.5px]"
+              className="pt-3 pb-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: partyColor(r.party) }}
             >
               {partyLabel(r.party)} runoff
@@ -103,7 +103,7 @@ export function RaceRunoffs({
                 return (
                   <li
                     key={c.name}
-                    className="flex items-center gap-3 py-2 text-[14px]"
+                    className="flex items-center gap-3 py-2 text-[length:var(--fs-14)]"
                     style={{
                       color: "var(--text-primary)",
                       borderTop: "0.5px solid var(--border-soft)",
@@ -113,7 +113,7 @@ export function RaceRunoffs({
                       ●
                     </span>
                     <span
-                      className="w-6 text-[12px] uppercase tracking-[0.5px] tabular-nums"
+                      className="w-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
                       style={{ color }}
                     >
                       {c.party}
@@ -131,7 +131,7 @@ export function RaceRunoffs({
                       )}
                     </span>
                     <span
-                      className="text-[12px] uppercase tracking-[0.5px] tabular-nums"
+                      className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
                       style={{
                         color: pending
                           ? "var(--text-dim)"

@@ -25,7 +25,7 @@ export function ProceduralToggle({ checked }: { checked: boolean }) {
 
   return (
     <label
-      className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] uppercase tracking-[0.5px] select-none"
+      className="inline-flex cursor-pointer items-center gap-1.5 text-[length:var(--fs-12)] uppercase tracking-[0.5px] select-none"
       style={{
         color: checked ? "var(--accent-amber)" : "var(--text-dim)",
         opacity: isPending ? 0.6 : 1,

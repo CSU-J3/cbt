@@ -33,7 +33,7 @@ export function MotionLine({ motion }: { motion: AmendmentMotion }) {
   const splitTotal = p.D.yea + p.D.nay + p.R.yea + p.R.nay + p.I.yea + p.I.nay;
   return (
     <div
-      className="mt-1 text-[11px] tabular-nums"
+      className="mt-1 text-[length:var(--fs-11)] tabular-nums"
       style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}
     >
       <Link

@@ -61,13 +61,13 @@ export default async function ReportsPage({
             }}
           >
             <p
-              className="text-[12px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
               style={{ color: "var(--accent-amber)" }}
             >
               Productivity vs. the 118th
             </p>
             <p
-              className="text-[11px] uppercase tracking-[0.5px]"
+              className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
               style={{ color: "var(--text-dim)" }}
             >
               Laws enacted · cumulative
@@ -80,7 +80,7 @@ export default async function ReportsPage({
 
         {count === 0 ? (
           <div
-            className="px-6 py-16 text-center text-[13px]"
+            className="px-6 py-16 text-center text-[length:var(--fs-13)]"
             style={{ color: "var(--text-muted)" }}
           >
             Reports begin Monday {nextMondayLabel()}.

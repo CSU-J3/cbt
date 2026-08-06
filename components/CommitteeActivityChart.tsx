@@ -63,7 +63,7 @@ export async function CommitteeActivityChart({
   if (totalRows < MIN_ROWS) {
     return (
       <p
-        className="px-3 py-3 text-[12px]"
+        className="px-3 py-3 text-[length:var(--fs-12)]"
         style={{ color: "var(--text-dim)" }}
       >
         Not enough activity to chart.

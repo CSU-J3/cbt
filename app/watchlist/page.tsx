@@ -49,7 +49,7 @@ export default async function WatchlistPage({
 
       <main className="w-full flex-1 px-4 py-4">
         <div
-          className="mb-3 flex items-baseline gap-3 border-b pb-3 text-[12px] uppercase tracking-[0.5px]"
+          className="mb-3 flex items-baseline gap-3 border-b pb-3 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{
             borderColor: "var(--border-strong)",
             color: "var(--text-dim)",
@@ -79,7 +79,7 @@ export default async function WatchlistPage({
 
         {bills.length === 0 ? (
           <div
-            className="border px-6 py-12 text-center text-[13px] uppercase tracking-[0.5px]"
+            className="border px-6 py-12 text-center text-[length:var(--fs-13)] uppercase tracking-[0.5px]"
             style={{
               borderColor: "var(--border-strong)",
               color: "var(--text-dim)",

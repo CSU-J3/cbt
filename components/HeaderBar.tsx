@@ -69,7 +69,7 @@ export function PrimaryNav({
   const wrapperClass =
     variant === "home"
       ? "primary-nav home-header-nav"
-      : "primary-nav header-nav flex flex-wrap items-center gap-y-2 gap-x-3 text-[13px] uppercase tracking-[0.5px] whitespace-nowrap";
+      : "primary-nav header-nav flex flex-wrap items-center gap-y-2 gap-x-3 text-[length:var(--fs-13)] uppercase tracking-[0.5px] whitespace-nowrap";
   return (
     <nav className={wrapperClass} aria-label="Primary navigation">
       {NAV_ITEMS.map((item, i) => (

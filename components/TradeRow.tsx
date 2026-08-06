@@ -64,7 +64,7 @@ export function TradeRow({
         {formatDateShort(trade.disclosureDate)}
       </span>
       <span
-        className="chamber-chip text-[11px] uppercase tracking-[0.5px]"
+        className="chamber-chip text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
         style={{ color: "var(--text-muted)" }}
       >
         {chamberChip}
