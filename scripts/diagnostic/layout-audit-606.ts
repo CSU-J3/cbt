@@ -48,7 +48,7 @@
 //
 //   npx tsx scripts/diagnostic/layout-audit-606.ts
 import { mkdirSync, writeFileSync } from "node:fs";
-import { chromium } from "@playwright/test";
+import { chromium, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? "http://localhost:3000";
 
@@ -202,6 +202,37 @@ function measureInPage(t: Thresholds) {
     return cs.backgroundColor !== pcs.backgroundColor;
   };
 
+  // INK, not layout box. The whole point of C1 is VISIBLE whitespace, and a child
+  // with `flex: 1` stretches its box across the gap the eye sees — so a box-edge
+  // measurement reads ~10px on the breaking row whose headline visibly ends 800px
+  // from its timestamp. An element's ink is its painted box if it has one
+  // (border/background = a chip, whose box IS what you see), otherwise the rects of
+  // its text plus any painted descendants. Falsification caught this; see header.
+  const hasBoxPaint = (el: Element): boolean => {
+    const cs = getComputedStyle(el);
+    if (borderPx(cs) > 0) return true;
+    if (cs.backgroundImage !== "none") return true;
+    return cs.backgroundColor !== TRANSPARENT;
+  };
+
+  const inkRects = (el: Element): DOMRect[] => {
+    if (hasBoxPaint(el)) return Array.from(el.getClientRects());
+    const out: DOMRect[] = [];
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    for (const r of Array.from(range.getClientRects())) {
+      if (r.width > 0 && r.height > 0) out.push(r);
+    }
+    for (const d of Array.from(el.querySelectorAll("*"))) {
+      if (!visible(d)) continue;
+      if (!hasBoxPaint(d)) continue;
+      for (const r of Array.from(d.getClientRects())) {
+        if (r.width > 0 && r.height > 0) out.push(r);
+      }
+    }
+    return out.length ? out : Array.from(el.getClientRects());
+  };
+
   const allEls = Array.from(document.querySelectorAll("body *"));
 
   // --- sibling signature counts, for M1a ------------------------------------
@@ -245,7 +276,7 @@ function measureInPage(t: Thresholds) {
     // manufactures a false gap otherwise), unioned per (node, band).
     type Item = { l: number; r: number; band: number };
     const raw: Item[] = [];
-    const pushRects = (rects: DOMRectList) => {
+    const pushRects = (rects: ArrayLike<DOMRect>) => {
       for (const rc of Array.from(rects)) {
         if (rc.width <= 0 || rc.height <= 0) continue;
         raw.push({ l: rc.left, r: rc.right, band: Math.round((rc.top + rc.bottom) / 2 / t.bandPx) });
@@ -261,7 +292,7 @@ function measureInPage(t: Thresholds) {
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const c = node as Element;
         if (!visible(c)) continue;
-        pushRects(c.getClientRects());
+        pushRects(inkRects(c));
       }
     }
     if (raw.length < 2) continue;
@@ -334,11 +365,17 @@ function measureInPage(t: Thresholds) {
       if (!visible(child)) continue;
       if (!panelLike(child)) continue;
       const cr = child.getBoundingClientRect();
+      // Deepest INK, not the deepest direct child: a stretched panel whose own last
+      // child also stretches hides its slack one level down, so measuring direct
+      // children reads zero on exactly the panels C7 is about.
       let maxBottom = -Infinity;
-      for (const gc of Array.from(child.children)) {
-        if (!visible(gc)) continue;
-        const gr = gc.getBoundingClientRect();
-        if (gr.bottom > maxBottom) maxBottom = gr.bottom;
+      for (const d of Array.from(child.querySelectorAll("*"))) {
+        if (!visible(d)) continue;
+        if (!hasBoxPaint(d) && !(d.textContent ?? "").trim()) continue;
+        for (const r of inkRects(d)) {
+          if (r.height <= 0) continue;
+          if (r.bottom > maxBottom) maxBottom = r.bottom;
+        }
       }
       if (!Number.isFinite(maxBottom)) continue;
       const slack = cr.bottom - maxBottom;
@@ -544,13 +581,22 @@ async function main() {
     reducedMotion: "reduce",
   });
   await ctx.addCookies([GATE_COOKIE]);
+  // tsx/esbuild compiles with keepNames, which wraps every function declaration in a
+  // `__name(fn, "fn")` helper. That helper exists in the Node module scope but NOT in
+  // the page, so a serialized page.evaluate function dies on arrival with
+  // "ReferenceError: __name is not defined". Define an identity shim on every new
+  // document. (Node-side only workaround; it changes nothing about the measurement.)
+  await ctx.addInitScript(() => {
+    const g = globalThis as unknown as { __name?: (fn: unknown, name?: string) => unknown };
+    if (!g.__name) g.__name = (fn: unknown) => fn;
+  });
 
   const cantMeasure: { slug: string; reason: string }[] = [];
 
   const openMeasured = async (
     path: string,
     hits: number,
-  ): Promise<{ status: number; data: Measured; close: () => Promise<void> }> => {
+  ): Promise<{ status: number; data: Measured; page: Page; close: () => Promise<void> }> => {
     const page = await ctx.newPage();
     let status = 0;
     for (let i = 0; i < hits; i++) {
@@ -562,7 +608,7 @@ async function main() {
     }
     await page.waitForTimeout(SETTLE_MS);
     const data = (await page.evaluate(measureInPage, THRESHOLDS)) as Measured;
-    return { status, data, close: () => page.close() };
+    return { status, data, page, close: () => page.close() };
   };
 
   // =========================================================================
@@ -613,7 +659,9 @@ async function main() {
   }
   if (fm.m2.count === 0) {
     console.log("      ** ZERO — dumping the panel predicate's intermediates for the funnel: **");
-    const diag = await (await ctx.newPage()).evaluate(funnelDiagnosticInPage);
+    // On the measured page, not a fresh blank one — a diagnostic that runs against
+    // about:blank returns [] and reads exactly like "no such element".
+    const diag = await fal.page.evaluate(funnelDiagnosticInPage);
     console.log(JSON.stringify(diag, null, 2));
     falsificationOk = false;
   }
