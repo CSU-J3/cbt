@@ -1641,12 +1641,16 @@ body {
   align-items: center;
   gap: 6px;
 }
+/* HO 611 (C1) — the actions FOLLOW the summary; `margin-left: auto` is gone.
+   Pinned right, they opened a 1,347px interior gap at 2560, and the strip hid it
+   from the whole of P3: it is conditional chrome that renders only when a filter
+   is active, so every unfiltered pass measured a route that did not contain it.
+   The leftover width now collects after the last link, which is the target state. */
 .active-filter-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  margin-left: auto;
 }
 .active-filter-link {
   color: var(--accent-amber);
