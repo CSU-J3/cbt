@@ -23,7 +23,10 @@
 //        than on the NO MEETINGS / — / NO DATA / NONE seed guess.
 //   M5 — narrow-width baseline at 1024/900/720. 900 is a BREAKPOINT, not a neutral
 //        width (.dv2-grid collapses at max-width:900, globals.css:646), so the
-//        ladder brackets it rather than measuring only at it.
+//        ladder brackets it rather than measuring only at it. Overflow splits in
+//        two: M5x DESIGN-CLIP (the element's own style declares text-overflow:
+//        ellipsis or a line clamp — authored truncation, permanent, not
+//        actionable) and bucket (b) REAL. The raw total is still printed.
 //   M6 — dead routes: answered by static analysis, no browser. Printed as a fixed
 //        note; the live question is whether the branch set is complete.
 //
@@ -33,11 +36,29 @@
 // row). Reads hit prod Turso, so each route is loaded twice and measured on hit 2.
 //
 // THE INSTRUMENT IS FALSIFIED BEFORE IT IS TRUSTED (arc §3 GO condition, §4 rule).
-// A first leg points M1/M2 at `/` and must name the known offenders by selector
-// path; a near-zero site-wide result from a detector that structurally cannot fire
-// looks identical to a clean site. No full crawl on a failed falsification leg —
-// 78 page loads of Turso reads against a broken instrument is spend with no
+// A near-zero site-wide result from a detector that structurally cannot fire looks
+// identical to a clean site, so three legs run before any crawl: A known-good
+// clears, B exemptions stable, C the fixture. No full crawl on a failed leg — 80
+// page loads of Turso reads against a broken instrument is spend with no
 // information.
+//
+// HO 615 — INSTRUMENT v3, AND ITS ANCHOR LEFT THE PRODUCT.
+//   (1) M1 bands by INK SPAN. One item per child node, extent = the union bbox of
+//       its client rects, and a child belongs to every band its span overlaps — so
+//       a gap can never be measured ACROSS it. v2 pushed every rect separately, so
+//       a wrapped child's short last line got measured against the next cell with
+//       its long first line sitting invisibly between them. C1 remediation
+//       MANUFACTURES that geometry (packing a row left is what lets a long cell
+//       wrap), so the artifact grew with every fix the phase shipped.
+//   (2) M5 extra-wrap clusters by the same vertical overlap M1 has used since v2;
+//       `round(centreY / 4px)` split a single baseline-aligned row whose children
+//       differed in font size, position-dependently. Duplicate selector paths now
+//       keep the MAX rather than v2's last-wins.
+//   (3) M5 overflow splits into M5x design-clip and bucket (b) real.
+//   (4) Leg C is a committed FIXTURE, not a route. Its product anchor expired
+//       three times in four handoffs — a remediation phase is in the business of
+//       ending the defects an anchor is pinned to. See the fixture's header.
+// Every number produced before this change is v2 and does not compare to a v3 one.
 //
 // Cross-run warning (HO 604 keyed-diff oddity): this audit is re-run after P3-P6,
 // and remediation RENAMES CLASSES. `selectorPath` is a human pointer, NOT a join
@@ -62,6 +83,8 @@
 //       delta, and a silently-dropped ladder would read like a clean narrow result.
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.AUDIT_BASE_URL ?? "http://localhost:3000";
@@ -98,6 +121,13 @@ const BAND_PX = 4;
 const M1B_MAX_CHILD_H = 60;
 
 const ARTIFACT_DIR = "docs/handoffs/606-artifacts";
+
+// HO 615 — leg C's anchor, moved off the product and into the repo. Loaded over
+// file://: no server, no DB read, no route, so nothing a remediation phase does
+// can silence it. See the file's own header for why the anchor had to leave.
+const FIXTURE_URL = pathToFileURL(
+  resolve(process.cwd(), "scripts/diagnostic/fixtures/layout-legc.html"),
+).href;
 
 // Stamps the artifact filename so a re-run can never clobber the baseline it is
 // scored against (v2). Falls back rather than failing the run — the measurement
@@ -155,17 +185,61 @@ function argFlag(flag: string): string | undefined {
   return i === -1 ? undefined : process.argv[i + 1];
 }
 const ROUTE_FILTER = argFlag("--route") ?? process.env.AUDIT_ROUTE;
+const FALSIFY_ONLY = process.argv.includes("--falsify");
 const ACTIVE_ROUTES: Route[] = ROUTE_FILTER
   ? ROUTES.filter((r) => r.slug === ROUTE_FILTER)
   : ROUTES;
 
-// HO 610 — routes the M2 falsification leg falls back to when `/` reads zero.
-// Ordered cheapest-first; the leg stops at the first that fires.
-const M2_FALLBACK_ROUTES: Route[] = [
-  { slug: "bills", path: "/bills" },
-  { slug: "members", path: "/members" },
-  { slug: "electoral", path: "/electoral" },
+// HO 615 leg A — the known-good routes, and what the v3 ink-span rule is required
+// to remove on each.
+//
+// Every `v2*` figure is the v2 instrument's reading of THIS COMMIT'S DOM (cc1b32f,
+// full crawl in docs/handoffs/606-artifacts/v2-audit-cc1b32f-2560.json) — two
+// instruments over identical content, so a delta is the instrument and nothing
+// else.
+//
+// THE HANDOFF'S PREMISE FOR /trades WAS FALSIFIED BY MEASURING IT, and the gate
+// records the correction rather than the prediction. It expected ~52 rows to drop
+// to ~0 as multi-rect artifacts. They are not artifacts: the row's second band
+// held {date, amount} — the only two cells with a second line — and reported the
+// 625px between them, while its FIRST band reads 129px, which is real column slack
+// against the amounts axis and is over threshold either way. So on /trades the
+// artifact inflates the MAGNITUDE and not the COUNT, and the gate is on the worst
+// gap. Its count is expected to stay ~52 and that is a genuine C1 residual for a
+// later phase, not something this instrument change can clear.
+//
+// /lobbying is the opposite shape: a real count drop, whose remainder (~48 rows)
+// is axis-encoding and is commit 2's job. Gating its remainder would encode this
+// HO's own half-finished state and fail at commit 1 by construction.
+//
+// Both also require that REAL under-threshold gaps are still reported. An
+// instrument that had gone blind would satisfy every bound above and fail here.
+const LEG_A: {
+  path: string;
+  v2Count: number;
+  minCountDrop: number;
+  v2Worst: number;
+  maxWorst: number;
+}[] = [
+  // /trades: the two populations are cleanly separated, so the bound goes between
+  // them rather than beside either. The continuation-band artifact read 625-1137px
+  // (measured on the row dumped in docs/handoffs/615-artifacts); the row's real
+  // band-1 column slack against the amounts axis reads 129-248px. 400 is in the
+  // empty space between the two, so this gate asks "did any reading from the
+  // artifact population survive", not "did the number get smaller". A first draft
+  // put it at 200, sized off ONE sampled row's 129 — the same mistake as pricing a
+  // query from the rows it returns.
+  { path: "/trades", v2Count: 52, minCountDrop: 0, v2Worst: 1137, maxWorst: 400 },
+  // /lobbying: no-regression only. Its worst row is a FirmsLeaderboard axis row,
+  // which is commit 2's job and not the instrument's, so the count drop is the
+  // real assertion here and the magnitude bound just has to not get worse.
+  { path: "/lobbying", v2Count: 64, minCountDrop: 8, v2Worst: 1051, maxWorst: 1100 },
 ];
+
+// The live funnel's exempted-row count. Asserted exactly, in both directions: an
+// attribute that stops reaching its rows makes this fall, one that spreads makes
+// it climb, and either is a finding.
+const HOME_M1X_EXPECTED = 13;
 
 const SUBSET_SLUGS = new Set([
   "home",
@@ -348,15 +422,34 @@ function measureInPage(t: Thresholds) {
     }
 
     // Items = element children AND text nodes (a bare `·` between two spans
-    // manufactures a false gap otherwise). Bands are assigned below by vertical
-    // OVERLAP, not by a centre bucket — see the clustering note in the header.
-    type Item = { l: number; r: number; top: number; bottom: number; band: number };
-    const raw: Item[] = [];
-    const pushRects = (rects: ArrayLike<DOMRect>) => {
+    // manufactures a false gap otherwise).
+    //
+    // v3 — ONE ITEM PER CHILD, and its extent is its INK SPAN: the union bbox of
+    // its client rects. v2 pushed every rect separately, so a child that wrapped
+    // onto two lines became two independent items and its short last line could be
+    // measured against a neighbour while its long first line sat between them,
+    // invisibly. A union span cannot be straddled: the child is present in every
+    // band it overlaps, so no gap is ever measured ACROSS it. See the
+    // legc-neg-wrap case in the fixture for the geometry, and note that C1
+    // remediation is what manufactures it — packing a row left is precisely what
+    // lets a long cell wrap instead of being pushed out of view.
+    type Item = { l: number; r: number; top: number; bottom: number };
+    const items: Item[] = [];
+    const rawRects: { top: number; bottom: number }[] = [];
+    const pushSpan = (rects: ArrayLike<DOMRect>) => {
+      let l = Infinity;
+      let r = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
       for (const rc of Array.from(rects)) {
         if (rc.width <= 0 || rc.height <= 0) continue;
-        raw.push({ l: rc.left, r: rc.right, top: rc.top, bottom: rc.bottom, band: -1 });
+        if (rc.left < l) l = rc.left;
+        if (rc.right > r) r = rc.right;
+        if (rc.top < top) top = rc.top;
+        if (rc.bottom > bottom) bottom = rc.bottom;
+        rawRects.push({ top: rc.top, bottom: rc.bottom });
       }
+      if (r > -Infinity) items.push({ l, r, top, bottom });
     };
     for (const node of Array.from(el.childNodes)) {
       if (node.nodeType === Node.TEXT_NODE) {
@@ -364,14 +457,14 @@ function measureInPage(t: Thresholds) {
         if (!txt.trim()) continue;
         const range = document.createRange();
         range.selectNodeContents(node);
-        pushRects(range.getClientRects());
+        pushSpan(range.getClientRects());
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         const c = node as Element;
         if (!visible(c)) continue;
-        pushRects(inkRects(c));
+        pushSpan(inkRects(c));
       }
     }
-    if (raw.length < 2) continue;
+    if (items.length < 2) continue;
 
     // v2 BANDING — vertical-interval clustering. Items whose rects overlap by at
     // least half the smaller one's height share a band. The v1 rule bucketed on
@@ -382,38 +475,83 @@ function measureInPage(t: Thresholds) {
     // 873px of "gap" on a row with none. Under a type ladder that scales six
     // tokens, mixed sizes on one baseline are the NORM, so v1 could not read any
     // real row correctly.
-    const clusters: { top: number; bottom: number; items: Item[] }[] = [];
-    for (const it of raw.slice().sort((a, b) => a.top - b.top)) {
-      const h = it.bottom - it.top;
+    //
+    // v3 keeps bands themselves LINE-level — clustered from the individual rects,
+    // so a row with content on two lines still has two bands — and then assigns
+    // MEMBERSHIP by ink span. A wrapped child therefore belongs to both of its
+    // lines' bands. Merging bands on the tall child instead would be equivalent
+    // here but wrong in general (a tall child beside two stacked short ones would
+    // fuse two unrelated lines into one gap measurement).
+    const clusters: { top: number; bottom: number }[] = [];
+    for (const rc of rawRects.slice().sort((a, b) => a.top - b.top)) {
+      const h = rc.bottom - rc.top;
       let placed = false;
       for (const c of clusters) {
-        const overlap = Math.min(c.bottom, it.bottom) - Math.max(c.top, it.top);
+        const overlap = Math.min(c.bottom, rc.bottom) - Math.max(c.top, rc.top);
         if (overlap >= 0.5 * Math.min(h, c.bottom - c.top)) {
-          c.top = Math.min(c.top, it.top);
-          c.bottom = Math.max(c.bottom, it.bottom);
-          c.items.push(it);
+          c.top = Math.min(c.top, rc.top);
+          c.bottom = Math.max(c.bottom, rc.bottom);
           placed = true;
           break;
         }
       }
-      if (!placed) clusters.push({ top: it.top, bottom: it.bottom, items: [it] });
+      if (!placed) clusters.push({ top: rc.top, bottom: rc.bottom });
     }
-    const bands = new Map<number, Item[]>();
-    clusters.forEach((c, i) => bands.set(i, c.items));
+
+    // Band membership, then the CONTINUATION-BAND cut.
+    //
+    // A band whose member set is a subset of another band's is not a distinct
+    // line — it is the tail of cells that happen to run taller than their
+    // neighbours, and it contains no item that isn't already being measured
+    // together somewhere richer. Measuring it separately can therefore only ever
+    // produce a gap ACROSS items that are present in the fuller band, which is the
+    // same defect ink spans exist to remove, arriving by a second route.
+    //
+    // The live case is a /trades row: the date and the amount each carry a second
+    // line, their single-line neighbours do not, so the second line's band held
+    // exactly {date, amount} and reported the 625px of nothing between them — an
+    // area sitting under five cells that the reader sees as occupied. Its band-1
+    // reading is 129px, which is the real column slack and stays reported.
+    //
+    // Note what this does NOT do: a genuine two-line row (a wrapping filter bar)
+    // has a second band with its own distinct items, so it is not a subset and is
+    // measured. The cut is by membership, never by position or by count.
+    const bandMembers = clusters.map((band) => {
+      const bandH = band.bottom - band.top;
+      const idx: number[] = [];
+      items.forEach((it, i) => {
+        const overlap = Math.min(band.bottom, it.bottom) - Math.max(band.top, it.top);
+        if (overlap >= 0.5 * Math.min(it.bottom - it.top, bandH)) idx.push(i);
+      });
+      return idx;
+    });
+    const keptBands = bandMembers.filter((mine, i) =>
+      !bandMembers.some((other, j) => {
+        if (i === j) return false;
+        if (other.length < mine.length) return false;
+        // equal sets: keep the first, drop the later duplicate
+        if (other.length === mine.length && j > i) return false;
+        const set = new Set(other);
+        return mine.every((m) => set.has(m));
+      }),
+    );
 
     let maxBandItems = 0;
     let interior = 0;
-    for (const arr of Array.from(bands.values())) {
+    for (const memberIdx of keptBands) {
+      const arr = memberIdx.map((i) => items[i]!);
       if (arr.length > maxBandItems) maxBandItems = arr.length;
       if (arr.length < 2) continue;
+      // Interval sweep: a running max of the right edges, so an item that
+      // horizontally contains or overlaps its neighbours can never produce a gap.
       const sorted = arr.slice().sort((a, b) => a.l - b.l);
+      let runMaxRight = sorted[0]!.r;
       for (let i = 1; i < sorted.length; i++) {
-        const prev = sorted[i - 1];
-        const cur = sorted[i];
-        if (!prev || !cur) continue;
-        const gap = cur.l - prev.r;
+        const cur = sorted[i]!;
+        const gap = cur.l - runMaxRight;
         if (gap > interior) interior = gap;
         if (gap > 0) allGaps.push(gap);
+        if (cur.r > runMaxRight) runMaxRight = cur.r;
       }
     }
 
@@ -424,7 +562,7 @@ function measureInPage(t: Thresholds) {
     const innerRight =
       rect.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
     let rightMost = -Infinity;
-    for (const it of raw) if (it.r > rightMost) rightMost = it.r;
+    for (const it of items) if (it.r > rightMost) rightMost = it.r;
     const trailing = Number.isFinite(rightMost) ? innerRight - rightMost : 0;
 
     rows.push({
@@ -544,19 +682,48 @@ function measureInPage(t: Thresholds) {
   }
 
   // --- M5 inputs ------------------------------------------------------------
-  const overflow: { selectorPath: string; scrollWidth: number; clientWidth: number }[] = [];
+  // v3 — the overflow population splits in two. An element whose OWN computed
+  // style declares `text-overflow: ellipsis` or a line clamp is a DESIGN CLIP: it
+  // was authored to truncate, it reports scrollWidth > clientWidth forever, and no
+  // narrow-width work will ever change that. v2 counted it beside real overflow,
+  // so bucket (b) carried a large permanent non-actionable population and the real
+  // failures could not be seen inside it. The raw total is still emitted for
+  // continuity with the (a)/(b) bucket tables the P4 handoffs reported by hand.
+  type Over = { selectorPath: string; scrollWidth: number; clientWidth: number };
+  const overflow: Over[] = [];
+  const overflowClip: Over[] = [];
+  const overflowReal: Over[] = [];
   for (const el of allEls) {
     if (!visible(el)) continue;
     if (el.clientWidth <= 0) continue;
     if (el.scrollWidth > el.clientWidth + 1) {
-      overflow.push({
+      const rec: Over = {
         selectorPath: pathOf(el),
         scrollWidth: el.scrollWidth,
         clientWidth: el.clientWidth,
-      });
+      };
+      const cs = getComputedStyle(el);
+      const clamp =
+        (cs as unknown as { webkitLineClamp?: string }).webkitLineClamp ??
+        cs.getPropertyValue("-webkit-line-clamp");
+      const designClip =
+        cs.textOverflow === "ellipsis" || (!!clamp && clamp !== "none" && clamp !== "");
+      overflow.push(rec);
+      (designClip ? overflowClip : overflowReal).push(rec);
     }
   }
-  // Flex containers → rendered line count, so a narrow width can be compared to 2560.
+  // Flex containers → rendered line count, so a narrow width can be compared to
+  // 2560. v3 clusters by vertical OVERLAP, the same rule M1 has used since v2:
+  // `round(centreY / 4px)` split a single baseline-aligned row the moment its
+  // children differed in font size, and whether it did so depended on the row's
+  // absolute y. Under a six-token type ladder mixed sizes on one baseline are the
+  // norm, so that was a false extra-wrap wherever it landed (HO 611's
+  // `.hcal-agenda-head` is the worked example; the fixture samples all four 1px
+  // residues of the bucket cycle so the defect is reproducible rather than lucky).
+  //
+  // The key is a selector path, which repeated rows share, so instances collide.
+  // v3 keeps the MAX rather than v2's last-wins: with duplicates, "whichever
+  // happened to be last in the DOM" is not a measurement of anything.
   const flexLines: Record<string, number> = {};
   for (const el of allEls) {
     if (!visible(el)) continue;
@@ -564,12 +731,28 @@ function measureInPage(t: Thresholds) {
     if (!/flex/.test(cs.display)) continue;
     const kids = Array.from(el.children).filter((c) => visible(c));
     if (kids.length < 2) continue;
-    const bandSet = new Set<number>();
-    for (const k of kids) {
-      const r = k.getBoundingClientRect();
-      bandSet.add(Math.round((r.top + r.bottom) / 2 / t.bandPx));
+    const lines: { top: number; bottom: number }[] = [];
+    const kidRects = kids
+      .map((k) => k.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .sort((a, b) => a.top - b.top);
+    for (const r of kidRects) {
+      const h = r.bottom - r.top;
+      let placed = false;
+      for (const c of lines) {
+        const overlapPx = Math.min(c.bottom, r.bottom) - Math.max(c.top, r.top);
+        if (overlapPx >= 0.5 * Math.min(h, c.bottom - c.top)) {
+          c.top = Math.min(c.top, r.top);
+          c.bottom = Math.max(c.bottom, r.bottom);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) lines.push({ top: r.top, bottom: r.bottom });
     }
-    flexLines[pathOf(el)] = bandSet.size;
+    const key = pathOf(el);
+    const prev = flexLines[key] ?? 0;
+    flexLines[key] = Math.max(prev, lines.length);
   }
 
   return {
@@ -597,33 +780,131 @@ function measureInPage(t: Thresholds) {
       reservedPx: kept.reduce((a, b) => a + b.heightPx, 0),
       seededHits: kept.filter((k) => k.seeded).length,
     },
-    m5: { overflow, flexLines },
+    m5: {
+      overflow,
+      overflowClip,
+      overflowReal,
+      clipCount: overflowClip.length,
+      realCount: overflowReal.length,
+      flexLines,
+    },
   };
 }
 
 type Measured = Awaited<ReturnType<typeof measureInPage>>;
 
-// The M2 falsification diagnostic: dump the panel predicate's intermediates for the
-// stage funnel, so a zero is diagnosable rather than merely disappointing.
-function funnelDiagnosticInPage() {
-  const out: Record<string, unknown>[] = [];
-  const targets = Array.from(document.querySelectorAll("[class*='funnel'], [class*='dist']"));
-  for (const el of targets.slice(0, 8)) {
-    const cs = getComputedStyle(el);
-    const parent = el.parentElement;
-    const pcs = parent ? getComputedStyle(parent) : null;
-    out.push({
-      selector: `${el.tagName.toLowerCase()}.${Array.from(el.classList).join(".")}`,
-      display: cs.display,
-      parentDisplay: pcs?.display ?? null,
-      borderWidths: [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth],
-      background: cs.backgroundColor,
-      parentBackground: pcs?.backgroundColor ?? null,
-      backgroundsDiffer: pcs ? cs.backgroundColor !== pcs.backgroundColor : null,
-      height: Math.round(el.getBoundingClientRect().height),
-    });
-  }
-  return out;
+// ---------------------------------------------------------------------------
+// LEG C — the fixture. Both directions, in one place.
+//
+// Every case in scripts/diagnostic/fixtures/layout-legc.html has exactly one
+// assertion here, and every assertion prints the number it read whether it passed
+// or failed — a leg that only speaks up on failure cannot itself be audited for
+// whether it was measuring anything.
+// ---------------------------------------------------------------------------
+type LegCase = { id: string; ok: boolean; read: string; want: string };
+
+function assertLegC(d: Measured): { cases: LegCase[]; ok: boolean } {
+  const cases: LegCase[] = [];
+  const rowsMatching = (re: RegExp) => d.m1.rows.filter((r) => re.test(r.selectorPath));
+  const worstGap = (re: RegExp) => {
+    const rs = rowsMatching(re);
+    return rs.length ? Math.max(...rs.map((r) => r.interiorGapPx)) : null;
+  };
+  const push = (id: string, ok: boolean, read: string, want: string) =>
+    cases.push({ id, ok, read, want });
+
+  // --- positives: the instrument must still detect real defects --------------
+  const posGap = worstGap(/legc-pos-gap/);
+  push(
+    "POS-1 M1 far-right anchor",
+    posGap !== null && posGap >= 300,
+    posGap === null ? "row not seen at all" : `interior ${posGap}px`,
+    ">= 300px",
+  );
+
+  const posPanel = d.m2.panels.filter((p) => /legc-pos-panel(?![a-z-])/.test(p.selectorPath));
+  push(
+    "POS-2 M2 stretched panel",
+    posPanel.length > 0,
+    posPanel.length ? `slack ${posPanel[0]!.slackPx}px` : "panel not reported",
+    `slack > ${M2_SLACK_PX}px`,
+  );
+
+  // The M2 control. Same border, same grid, same taller sibling — but sized to its
+  // own content. Without it, "M2 fires" is satisfied by a predicate that fires on
+  // every bordered grid child, which is exactly what the original M2 spec did.
+  const negMate = d.m2.panels.filter((p) => /legc-neg-panelmate/.test(p.selectorPath));
+  push(
+    "NEG-4 content-sized panel not reported",
+    negMate.length === 0,
+    negMate.length ? `reported, slack ${negMate[0]!.slackPx}px` : "not reported",
+    "not reported",
+  );
+
+  const posEmpty = d.m4.items.filter((i) => /legc-pos-empty/.test(i.selectorPath));
+  push(
+    "POS-3 M4 reserved empty box",
+    posEmpty.length > 0,
+    posEmpty.length ? `${posEmpty[0]!.heightPx}px "${posEmpty[0]!.text}"` : "box not reported",
+    `>= ${M4_MIN_H}px`,
+  );
+
+  const realOverflow = d.m5.overflowReal;
+  const clipOverflow = d.m5.overflowClip;
+  const posOverflowSeen = realOverflow.some((o) => /legc-pos-overflow/.test(o.selectorPath));
+  push(
+    "POS-4 M5 real overflow in bucket (b)",
+    posOverflowSeen,
+    posOverflowSeen ? "in bucket (b)" : "absent from bucket (b)",
+    "bucket (b) real",
+  );
+
+  // --- negatives: each one is a known false positive of an earlier version ---
+  const baselineEntries = Object.entries(d.m5.flexLines).filter(([sel]) =>
+    /legc-neg-baseline(?!-stack)/.test(sel),
+  );
+  const negBaselineLines = baselineEntries.length ? Math.max(...baselineEntries.map(([, n]) => n)) : undefined;
+  push(
+    "NEG-1 mixed-size baseline reads one line",
+    negBaselineLines === 1,
+    negBaselineLines === undefined ? "row not seen at all" : `${negBaselineLines} line(s) worst of 4 offsets`,
+    "exactly 1",
+  );
+  const negBaselineGap = worstGap(/legc-neg-baseline(?!-stack)/);
+  push(
+    "NEG-1b mixed-size baseline scores no M1",
+    negBaselineGap !== null && negBaselineGap <= GAP_THRESHOLD_PX,
+    negBaselineGap === null ? "row not seen at all" : `interior ${negBaselineGap}px`,
+    `<= ${GAP_THRESHOLD_PX}px, and seen`,
+  );
+
+  const negWrapGap = worstGap(/legc-neg-wrap/);
+  push(
+    "NEG-2 wrapped cell scores no phantom gap",
+    negWrapGap !== null && negWrapGap <= GAP_THRESHOLD_PX,
+    negWrapGap === null ? "row not seen at all" : `interior ${negWrapGap}px`,
+    `<= ${GAP_THRESHOLD_PX}px, and seen`,
+  );
+
+  const clipInClip = clipOverflow.some((o) => /legc-neg-clip/.test(o.selectorPath));
+  const clipInReal = realOverflow.some((o) => /legc-neg-clip/.test(o.selectorPath));
+  push(
+    "NEG-3 design-clip lands in M5x, not (b)",
+    clipInClip && !clipInReal,
+    `M5x ${clipInClip ? "yes" : "no"} · bucket (b) ${clipInReal ? "yes" : "no"}`,
+    "M5x yes · (b) no",
+  );
+
+  // --- calibration: the counted exemption, exactly --------------------------
+  const calScored = rowsMatching(/legc-cal/).length;
+  push(
+    "CAL M1x counts the viz block exactly",
+    d.m1.vizExempt === 3 && calScored === 0,
+    `M1x ${d.m1.vizExempt} · viz rows scored as M1 ${calScored}`,
+    "M1x 3 · scored 0",
+  );
+
+  return { cases, ok: cases.every((c) => c.ok) };
 }
 
 const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 1000) / 10}%` : "—");
@@ -720,172 +1001,122 @@ async function main() {
   };
 
   // =========================================================================
-  // FALSIFICATION LEG — before the crawl, not after.
+  // FALSIFICATION — v3.  Three legs, before the crawl, printed whole.
+  //
+  // Leg A asserts v3 reports LESS than v2 did on rows v2 was wrong about.
+  // Leg B asserts the counted exemption is stable in both directions.
+  // BOTH ARE SATISFIED BY AN INSTRUMENT THAT REPORTS NOTHING AT ALL — which is
+  // the same-as-success shape this arc keeps re-learning. Leg C is the only leg
+  // that separates a correction from a silencing, and at v3 it is no longer a
+  // product route: see scripts/diagnostic/fixtures/layout-legc.html.
+  //
+  // v2 also ran an M2 fallback probe across product routes to prove the panel
+  // detector fired. The fixture's POS-2 / NEG-4 pair proves it directly and
+  // cannot expire, so that probe is retired with its three page loads.
   // =========================================================================
+  const openFixture = async (): Promise<Measured> => {
+    const page = await ctx.newPage();
+    await page.goto(FIXTURE_URL, { waitUntil: "domcontentloaded", timeout: ROUTE_TIMEOUT_MS });
+    await page.waitForTimeout(400);
+    const data = (await page.evaluate(measureInPage, THRESHOLDS)) as Measured;
+    await page.close();
+    return data;
+  };
+
   console.log("-".repeat(100));
-  console.log("FALSIFICATION LEG — prove M1/M2 fire on `/` at 2560 before trusting any zero");
+  console.log("FALSIFICATION — instrument v3.  A: known-good clears · B: exemptions stable · C: the fixture.");
   console.log("-".repeat(100));
 
   let falsificationOk = true;
-  const fal = await openMeasured("/", 2);
-  const fm = fal.data;
 
-  const m1aHits = fm.m1.rows.filter((r) => r.mode === "M1a");
-  const m1bHits = fm.m1.rows.filter((r) => r.mode === "M1b");
-  const wideTop = m1bHits.slice().sort((a, b) => b.interiorGapPx - a.interiorGapPx);
-
-  console.log(`  M1 candidate rows on /      : ${fm.m1.candidateRows}  (M1a ${m1aHits.length} · M1b ${m1bHits.length})`);
-  console.log(`  M1 rows over ${GAP_THRESHOLD_PX}px           : ${fm.m1.overThreshold}`);
-  console.log(`  M1x viz-exempted            : ${fm.m1.vizExempt}`);
-  console.log("");
-
-  // ── v2 LEG A — the KNOWN-GOOD rows. -----------------------------------------
-  // v1's anchor was "M1 must fire on `/`'s breaking strip". HO 610 PACKED that
-  // strip, so the anchor expired: the rows are now known-good, and a v2 that
-  // still scored them would be reporting its own banding defect. So the assertion
-  // INVERTS — these rows must read small — and it is the sharper test, because v1
-  // read 873px (breaking) and 75px (masthead) and was wrong in BOTH directions.
-  // DERIVED, not tuned to pass. The handoff's estimate was ~40px; the packed
-  // breaking row measures up to 50, and the cause is arithmetic rather than a
-  // stretch: the id column is a fixed `flex: 0 0 5.8em` (93px at 2560) so a
-  // SHORT id leaves basis-minus-text of alignment slack before the 10px gap —
-  // measured 93-53+10 = 50 for "S 5201", 93-79+10 = 24 for "SJRES 181". That
-  // slack is what keeps a column of ids aligned (the mock's `.bid` does the same),
-  // so the bound is the id basis minus the narrowest id, plus the gap, plus a
-  // little headroom. Still 2.4x under the 120px defect threshold and 17x under
-  // what v1 reported for the same rows.
-  const KNOWN_GOOD_MAX = 60;
-  const goodRows = fm.m1.rows.filter(
-    (r) => /breaking-row|home-header-prompt-row/i.test(r.selectorPath),
-  );
-  console.log(`  [known-GOOD, packed at HO 610] rows matched: ${goodRows.length}  (must read interior <= ${KNOWN_GOOD_MAX}px)`);
-  for (const g of goodRows.slice(0, 5)) {
-    console.log(`      interior ${String(g.interiorGapPx).padStart(4)}px  trailing ${String(g.trailingGapPx).padStart(4)}px  ${g.selectorPath}`);
-  }
-  if (goodRows.length === 0) {
-    console.log("      ** NONE MATCHED — the leg is measuring nothing; a pass here would be vacuous. **");
-    falsificationOk = false;
-  } else {
-    const worst = Math.max(...goodRows.map((g) => g.interiorGapPx));
-    if (worst > KNOWN_GOOD_MAX) {
-      console.log(`      ** worst ${worst}px > ${KNOWN_GOOD_MAX}px — v2 still splits a packed row across bands. **`);
-      falsificationOk = false;
-    } else {
-      console.log(`      worst ${worst}px — packed rows read as packed.`);
-    }
-  }
-
-  // ── v2 LEG B — the viz exemption must be VISIBLE, not silent. ---------------
-  console.log("");
-  console.log(`  [viz exemption] rows under [data-viz-row]: ${fm.m1.vizExempt}`);
-  if (fm.m1.vizExempt === 0) {
-    console.log("      ** ZERO — the funnel is either unmarked or being scored as a defect. **");
-    falsificationOk = false;
-  }
-  const funnelScored = fm.m1.rows.filter((r) => /funnel/i.test(r.selectorPath)).length;
-  if (funnelScored > 0) {
-    console.log(`      ** ${funnelScored} funnel rows still SCORED — the exemption is not reaching them. **`);
-    falsificationOk = false;
-  }
-
-  console.log("");
-  console.log(`  [M2] stretched panels on /  : ${fm.m2.count}`);
-  for (const p of fm.m2.panels.slice(0, 5)) {
-    console.log(`      slack ${String(p.slackPx).padStart(4)}px of ${String(p.panelHeight).padStart(4)}px  ${p.selectorPath}`);
-  }
-  // HO 610 — the M2 leg no longer keys its proof to `/` ALONE. It did at 606,
-  // when `/` carried three stretched panels (the hearings week grid's empty day
-  // columns); P3 slice 3 removed them, and a zero on `/` then read as "M2 is
-  // broken" and halted the crawl. That is the same-as-success shape inverted: a
-  // SUCCESSFUL remediation became indistinguishable from a dead detector, and the
-  // instrument refused to score the very fix that silenced it. What has to be
-  // proven is that the DETECTOR fires, not that a particular route is defective —
-  // so on a zero here it re-probes fallback routes and passes if any fires,
-  // naming which one. Only zero EVERYWHERE is a fail, and it still dumps the
-  // panel-predicate intermediates before halting.
-  if (fm.m2.count === 0) {
-    console.log("      ZERO on / — `/` no longer carries a stretched panel (HO 610 removed");
-    console.log("      the last three). Re-probing fallback routes to prove the DETECTOR fires:");
-    let provenOn: string | null = null;
-    for (const fb of M2_FALLBACK_ROUTES) {
-      const probe = await openMeasured(fb.path, 2);
-      console.log(`        ${fb.slug.padEnd(14)} M2 ${probe.data.m2.count}`);
-      if (probe.data.m2.count > 0 && !provenOn) {
-        provenOn = fb.slug;
-        for (const p of probe.data.m2.panels.slice(0, 3)) {
-          console.log(`          slack ${String(p.slackPx).padStart(4)}px of ${String(p.panelHeight).padStart(4)}px  ${p.selectorPath}`);
-        }
-      }
-      await probe.close();
-      if (provenOn) break;
-    }
-    if (provenOn) {
-      console.log(`      M2 PROVEN on /${provenOn} — the zero on / is a result, not a broken detector.`);
-    } else {
-      console.log("      ** ZERO EVERYWHERE PROBED — dumping the panel predicate's intermediates: **");
-      // On the measured page, not a fresh blank one — a diagnostic that runs
-      // against about:blank returns [] and reads exactly like "no such element".
-      const diag = await fal.page.evaluate(funnelDiagnosticInPage);
-      console.log(JSON.stringify(diag, null, 2));
-      falsificationOk = false;
-    }
-  }
-
-  console.log("");
-  console.log(`  [M4 emitter] candidates on / : ${fm.m4.count}  (seed-vocabulary hits ${fm.m4.seededHits})`);
-  console.log("      M4's seed vocabulary inverts by calendar — an empty hearings week is");
-  console.log("      plausible, not proof of breakage. The emitter existing is the check;");
-  console.log("      it is asserted across the crawl, not on / alone.");
-  await fal.close();
-
-  // ── v2 LEG C — the KNOWN-BAD control. ---------------------------------------
-  // Legs A and B both assert that v2 reports LESS than v1 did. On their own they
-  // are satisfied by an instrument that reports nothing at all — the same-as-
-  // success shape. Leg C is the only one separating a correction from a
-  // silencing, so it must point at real gaps the instrument change cannot touch.
+  // ── LEG A — known-good clears. ---------------------------------------------
+  // v2's residual on these two routes was decomposed by hand at HO 613/614 and
+  // found to be the wrap-caused multi-rect artifact: C1 packing let long cells
+  // wrap, and v2 then measured a short last line against the next cell with the
+  // long first line sitting invisibly between them. Under ink spans that class
+  // must go to ~0. The bound is what the decomposition left, not a round number.
   //
-  // RE-ANCHORED AT HO 612, deliberately and on schedule. It pointed at /members
-  // (708 under v1, 548 under v2) until HO 612 packed the roster row and took it
-  // to ~20 BY DESIGN — at which point a silenced instrument and a successful
-  // remediation read identically on the old anchor, and the leg began failing the
-  // very work it exists to score. That is the falsification-anchor-expiry oddity
-  // (docs/oddities.md, HO 610): an anchor pinned to a specific known defect has a
-  // shelf life exactly as long as the defect, and a remediation phase is in the
-  // business of ending them. So it now walks a LIST and passes on the first route
-  // that fires, naming which — the shape 2469404 gave the M2 leg — rather than
-  // hard-failing the next time a remediation lands. /changes leads because it
-  // holds 471 and is P6 work, untouched until phase 6.
+  // The second half is what stops this being a silencing test: the REAL gaps on
+  // the same routes — the ones the P4 handoffs measured at ~47px and declined to
+  // chase — must still be REPORTED, under threshold. An instrument that stopped
+  // seeing them entirely would pass the first half and fail here.
   console.log("");
-  const KNOWN_BAD_MIN = 50;
-  const KNOWN_BAD_ROUTES = ["/changes", "/stale", "/bills"];
-  let badProven: string | null = null;
-  for (const path of KNOWN_BAD_ROUTES) {
-    const bad = await openMeasured(path, 2);
-    const n = bad.data.m1.overThreshold;
-    console.log(`  [known-BAD control] ${path.padEnd(8)} M1 over ${GAP_THRESHOLD_PX}px: ${n}  (M1a ${bad.data.m1.m1aCount} · M1b ${bad.data.m1.m1bCount} · M1x ${bad.data.m1.vizExempt})`);
-    if (n >= KNOWN_BAD_MIN) {
-      badProven = path;
-      for (const r of bad.data.m1.rows
-        .filter((r) => r.interiorGapPx > GAP_THRESHOLD_PX)
-        .sort((a, b) => b.interiorGapPx - a.interiorGapPx)
-        .slice(0, 3)) {
-        console.log(`      interior ${String(r.interiorGapPx).padStart(4)}px  ${r.selectorPath}`);
-      }
+  console.log("LEG A — known-good clears (the wrap artifact goes; the real under-threshold gaps stay).");
+  for (const leg of LEG_A) {
+    const r = await openMeasured(leg.path, 2);
+    const over = r.data.m1.overThreshold;
+    const drop = leg.v2Count - over;
+    const sorted = r.data.m1.rows.slice().sort((a, b) => b.interiorGapPx - a.interiorGapPx);
+    const worst = sorted[0]?.interiorGapPx ?? 0;
+    const under = r.data.m1.rows
+      .filter((x) => x.interiorGapPx <= GAP_THRESHOLD_PX && x.interiorGapPx > 0)
+      .sort((a, b) => b.interiorGapPx - a.interiorGapPx);
+    const countOk = drop >= leg.minCountDrop;
+    const worstOk = worst <= leg.maxWorst;
+    const blindOk = under.length > 0;
+    console.log(
+      `  ${leg.path.padEnd(10)} count over ${GAP_THRESHOLD_PX}px: v2 ${String(leg.v2Count).padStart(3)} -> v3 ${String(over).padStart(3)} (drop ${drop}, need >= ${leg.minCountDrop})` +
+        `   worst gap: v2 ${String(leg.v2Worst).padStart(4)}px -> v3 ${String(worst).padStart(4)}px (need <= ${leg.maxWorst})`,
+    );
+    console.log(
+      `             real under-threshold gaps still reported: ${under.length}` +
+        (under[0] ? `, largest ${under[0].interiorGapPx}px` : ""),
+    );
+    for (const x of sorted.filter((x) => x.interiorGapPx > GAP_THRESHOLD_PX).slice(0, 3)) {
+      console.log(`      residual ${String(x.interiorGapPx).padStart(5)}px  ${x.selectorPath}`);
     }
-    await bad.close();
-    if (badProven) break;
+    if (!countOk)
+      console.log(`      ** count dropped only ${drop} of a required ${leg.minCountDrop}. **`);
+    if (!worstOk)
+      console.log(`      ** worst gap ${worst}px > ${leg.maxWorst}px — the artifact class did not clear. **`);
+    if (!blindOk)
+      console.log("      ** zero under-threshold gaps reported — the detector has gone blind, not correct. **");
+    if (!countOk || !worstOk || !blindOk) falsificationOk = false;
+    await r.close();
   }
-  if (badProven) {
-    console.log(`      real gaps survive v2 on ${badProven} — the detector still fires.`);
-  } else {
-    console.log(`      ** every known-BAD route is under ${KNOWN_BAD_MIN} — either the site is genuinely`);
-    console.log("         clean or v2 over-corrected. Re-anchor deliberately; do not lower the floor. **");
+
+  // ── LEG B — exemptions stable, in both directions. -------------------------
+  // The fixture's calibration block is an off-product anchor for the counted
+  // exemption, so leg B survives the day the live funnel changes shape. The live
+  // funnel is asserted beside it because the two together catch the two ways the
+  // exemption can rot: an attribute that stops reaching its rows (count falls),
+  // and an attribute that spreads (count climbs).
+  console.log("");
+  console.log("LEG B — exemptions stable (the fixture's calibration block AND the live funnel).");
+  const fixtureForB = await openFixture();
+  const home = await openMeasured("/", 2);
+  const homeFunnelScored = home.data.m1.rows.filter((r) => /funnel/i.test(r.selectorPath)).length;
+  console.log(`  fixture calibration block M1x : ${fixtureForB.m1.vizExempt}  (must be exactly 3)`);
+  console.log(`  live / M1x                    : ${home.data.m1.vizExempt}  (must be exactly ${HOME_M1X_EXPECTED}; funnel rows scored as M1: ${homeFunnelScored}, must be 0)`);
+  if (fixtureForB.m1.vizExempt !== 3) {
+    console.log("      ** the fixture's own exemption count moved — the attribute is not reaching its rows. **");
+    falsificationOk = false;
+  }
+  if (home.data.m1.vizExempt !== HOME_M1X_EXPECTED || homeFunnelScored > 0) {
+    console.log("      ** the live funnel's exemption moved or leaked into M1. **");
+    falsificationOk = false;
+  }
+  await home.close();
+
+  // ── LEG C — the fixture. Both directions. ----------------------------------
+  console.log("");
+  console.log("LEG C — the fixture (scripts/diagnostic/fixtures/layout-legc.html, loaded over file://).");
+  console.log("        Positives must fire, negatives must stay silent, the calibration must be exact.");
+  const legC = assertLegC(fixtureForB);
+  for (const c of legC.cases) {
+    console.log(
+      `  ${c.ok ? "PASS" : "FAIL"}  ${c.id.padEnd(42)} read ${c.read.padEnd(34)} want ${c.want}`,
+    );
+  }
+  if (!legC.ok) {
+    console.log("      ** leg C failed — the fixture is versioned with the instrument, so this is an");
+    console.log("         instrument defect, never a product one. Do not edit the fixture to pass. **");
     falsificationOk = false;
   }
 
   console.log("");
   if (!falsificationOk) {
-    console.log("FALSIFICATION: FAIL — halting before the crawl. 78 page loads against a broken");
+    console.log("FALSIFICATION: FAIL — halting before the crawl. 80 page loads against a broken");
     console.log("instrument is spend with no information.");
     await browser.close();
     process.exitCode = 1;
@@ -893,6 +1124,14 @@ async function main() {
   }
   console.log("FALSIFICATION: PASS");
   console.log("");
+
+  // --falsify runs the three legs and stops. The legs are what a code commit in
+  // this arc has to re-prove; the crawl is a separate, much more expensive act.
+  if (FALSIFY_ONLY) {
+    console.log("--falsify — stopping after the legs; no crawl requested.");
+    await browser.close();
+    return;
+  }
 
   // =========================================================================
   // FULL CRAWL
@@ -935,7 +1174,15 @@ async function main() {
   console.log(`M5 — narrow-width baseline (${NARROW_WIDTHS.join(" · ")}), 6-route subset, one hit each`);
   console.log("-".repeat(100));
 
-  type NarrowRow = { slug: string; width: number; overflowCount: number; extraWrapCount: number; samples: string[] };
+  type NarrowRow = {
+    slug: string;
+    width: number;
+    overflowCount: number;
+    clipCount: number;
+    realCount: number;
+    extraWrapCount: number;
+    samples: string[];
+  };
   const narrow: NarrowRow[] = [];
 
   if (ROUTE_FILTER) {
@@ -971,11 +1218,13 @@ async function main() {
           slug: route.slug,
           width: w,
           overflowCount: d.m5.overflow.length,
+          clipCount: d.m5.clipCount,
+          realCount: d.m5.realCount,
           extraWrapCount: extraWrap,
           samples,
         });
         console.log(
-          `  ${route.slug.padEnd(14)} @${String(w).padStart(4)}  overflow ${String(d.m5.overflow.length).padStart(4)}  extra-wrap ${String(extraWrap).padStart(4)}` +
+          `  ${route.slug.padEnd(14)} @${String(w).padStart(4)}  overflow ${String(d.m5.overflow.length).padStart(4)}  = M5x ${String(d.m5.clipCount).padStart(4)} + (b) ${String(d.m5.realCount).padStart(4)}  extra-wrap ${String(extraWrap).padStart(4)}` +
             (samples.length ? `   e.g. ${samples[0]}` : ""),
         );
       } catch (e) {
@@ -1047,9 +1296,11 @@ async function main() {
   console.log("ARTIFACT 3 — M5 NARROW-WIDTH BASELINE");
   console.log("=".repeat(100));
   console.log("  900px is a BREAKPOINT (.dv2-grid collapses at max-width:900, globals.css:646) — 1024 and 720 bracket it.");
-  console.log(`  ${"route".padEnd(16)} ${"width".padStart(6)} ${"overflow".padStart(9)} ${"extra-wrap".padStart(11)}`);
+  console.log("  overflow splits: M5x = the element's OWN style declares text-overflow:ellipsis or a line clamp");
+  console.log("  (authored truncation, permanent, not actionable). (b) = real overflow, the number narrow-width work owns.");
+  console.log(`  ${"route".padEnd(16)} ${"width".padStart(6)} ${"overflow".padStart(9)} ${"M5x".padStart(7)} ${"(b) real".padStart(9)} ${"extra-wrap".padStart(11)}`);
   for (const n of narrow) {
-    console.log(`  ${n.slug.padEnd(16)} ${String(n.width).padStart(6)} ${String(n.overflowCount).padStart(9)} ${String(n.extraWrapCount).padStart(11)}`);
+    console.log(`  ${n.slug.padEnd(16)} ${String(n.width).padStart(6)} ${String(n.overflowCount).padStart(9)} ${String(n.clipCount).padStart(7)} ${String(n.realCount).padStart(9)} ${String(n.extraWrapCount).padStart(11)}`);
   }
 
   console.log("");

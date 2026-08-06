@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>layout-legc — the C1–C4 instrument fixture (HO 615)</title>
+<!--
+  HO 615 — LEG C OF THE LAYOUT AUDIT'S FALSIFICATION, MOVED OFF THE PRODUCT.
+
+  Leg C used to point at a live route (/members, then /stale, then /changes) and
+  assert it still held M1 rows over threshold. That anchor has now expired three
+  times in four handoffs, because a remediation phase is in the business of ending
+  the very defects the anchor is pinned to — 612 packed /members and the leg began
+  failing the work it exists to score. See docs/oddities.md (falsification-anchor
+  expiry) and the HO 615 roadmap block.
+
+  So leg C lives here instead. This file is versioned WITH the instrument, is
+  loaded over file:// (no server, no DB read, no route), and is structurally immune
+  to remediation: nothing in the product can silence it, and nothing here can be
+  "fixed" by a layout pass.
+
+  IT IS A TWO-DIRECTION CONTRACT. Legs A and B of the falsification both assert the
+  instrument reports LESS than its predecessor did, and on their own they are
+  satisfied by an instrument that reports nothing at all. Leg C is the only one that
+  separates a correction from a silencing, so it asserts BOTH directions:
+
+    POSITIVES  (must fire)          — the instrument must still detect real defects.
+    NEGATIVES  (must stay silent)   — marked data-legc-clean; each one is a known
+                                      false positive of an EARLIER instrument
+                                      version, kept as a permanent regression trap.
+    CALIBRATION (must count exactly)— the counted viz exemption must read 3, never
+                                      0 (unmarked / not reaching) and never fold
+                                      into M1.
+
+  Assertions live in scripts/diagnostic/layout-audit-606.ts (runLegC). Adding a
+  case here means adding its assertion there; a case with no assertion is decoration.
+
+  Geometry is authored in absolute px on purpose. This page must measure the same
+  at any viewport the audit happens to run it at, so nothing here is fluid.
+-->
+<style>
+  /* The six --fs tokens at their 1440 values (globals.css :root). The fixture
+     carries its own copy deliberately: it must not drift when the ladder is
+     re-pointed, and it must not require the app's stylesheet to load. */
+  :root {
+    --fs-9: 9px;
+    --fs-10: 10px;
+    --fs-11: 11px;
+    --fs-12: 12px;
+    --fs-13: 13px;
+    --fs-14: 14px;
+    --bg-base: #0a0e14;
+    --bg-panel: #050709;
+    --border-strong: #1f2937;
+    --text-primary: #e5e7eb;
+    --text-muted: #94a3b8;
+    --text-dim: #6b7280;
+    --accent-amber: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    width: 2400px;              /* wider than any narrow ladder width; fixed. */
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+    font-size: var(--fs-12);
+  }
+  /* Sections stack their children, so a section is never itself an M1 candidate
+     (M1b needs >=2 items sharing one band). Keep it that way when adding cases. */
+  section { display: block; margin: 0 0 28px; }
+  h2 {
+    display: block;
+    margin: 0 0 8px;
+    font-size: var(--fs-11);
+    font-weight: 400;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* ==== POSITIVE 1 — C1: a wide row with a far-right anchor. ================
+     >=600px wide, two items on one band, the value pinned right by an auto
+     margin. This is the canonical C1 defect: content packs left, the leftover
+     width collects in the middle where nothing reads it. */
+  .legc-pos-gap {
+    display: flex;
+    align-items: center;
+    width: 1000px;
+    padding: 4px 0;
+  }
+  .legc-pos-gap .val { margin-left: auto; color: var(--text-muted); }
+
+  /* ==== POSITIVE 2 — C7: a bordered panel stretched past its content. ======= */
+  .legc-pos-panelgrid { display: grid; grid-template-columns: 420px 420px; gap: 16px; }
+  .legc-pos-panel {
+    border: 1px solid var(--border-strong);
+    background: var(--bg-panel);
+    height: 300px;                /* content is one line; ~280px of slack. */
+    padding: 8px 10px;
+  }
+  /* NEGATIVE 4 — the M2 control. Same border, same grid, same taller sibling, but
+     align-self: start, so it sizes to its own content. C7 is satisfied here and
+     M2 must NOT report it. Without this pair, "M2 fires" is satisfied by a
+     predicate that fires on every bordered grid child. */
+  .legc-neg-panelmate {
+    align-self: start;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-panel);
+    padding: 8px 10px;
+  }
+
+  /* ==== POSITIVE 3 — C4: a reserved empty box. ============================== */
+  .legc-pos-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 72px;
+    width: 320px;
+    border: 1px solid var(--border-strong);
+    color: var(--text-dim);
+    font-size: var(--fs-11);
+  }
+
+  /* ==== NEGATIVE 1 — mixed type sizes on ONE baseline. =====================
+     v2 bucketed M5's flex-line count on round(centreY / 4px). Two children
+     baseline-aligned at --fs-9 and --fs-14 do NOT share a centre — their centres
+     sit ~1-2px apart — so a single-line row could be reported as two rendered
+     lines purely from where it happened to land on the page. Under a six-token
+     type ladder, mixed sizes on one baseline are the NORM, so this is not an edge
+     case. v3 clusters by vertical OVERLAP (the same rule M1 already used) and
+     reads one line regardless of position.
+
+     FOUR COPIES AT 1px OFFSETS, and the count is derived rather than decorative.
+     Whether v2 split a given row depended on where a multiple-of-4 boundary fell
+     between the two centres, i.e. on the row's absolute y — so ONE copy
+     reproduces the defect only by luck, and a fixture that fails to fail is not a
+     reproduction. Four copies spaced 1px apart sample the 4px bucket cycle at
+     every residue, and the split window is ~1.1px wide, so at least one copy must
+     land in it. Under v3 all four read one line, at every offset. */
+  .legc-neg-baseline {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 900px;
+    padding: 4px 0;
+  }
+  .legc-neg-baseline .small { font-size: var(--fs-9); color: var(--text-dim); letter-spacing: 0.5px; }
+  .legc-neg-baseline .big { font-size: var(--fs-14); color: var(--text-primary); }
+  .legc-neg-baseline .mid { font-size: var(--fs-11); color: var(--text-muted); }
+
+  /* ==== NEGATIVE 2 — the wrap-caused phantom gap. ==========================
+     A packed row whose middle cell wraps to two lines, between two single-line
+     neighbours. Under v2 every rect was its own item, so the band that got
+     measured held {left, middle-line-2, right} — with middle-line-1 spanning the
+     full width, invisibly, between them. The reported "gap" was the distance from
+     the end of the wrapped text's SHORT second line to the right cell: hundreds
+     of px on a row with none.
+
+     The trap fires whenever the measured band contains the wrapped cell's short
+     LAST line. `align-items: end` is used here because it authors that condition
+     deterministically — with centre alignment whether the neighbours cluster with
+     line 1 or line 2 turns on line-height arithmetic at the 50%-overlap boundary,
+     and a fixture that reproduces a defect only on some font metrics is not a
+     regression trap. End-aligned trailing cells are themselves an ordinary row
+     pattern, so nothing here is contrived to fail.
+
+     This geometry is not hypothetical and not rare: C1 remediation MANUFACTURES
+     it. Packing a row left is what lets a long cell wrap instead of being pushed
+     off, so every route this phase packed grew rows of exactly this shape. v3's
+     ink-span rule (an element is present in every band its union bbox overlaps,
+     so no gap can be measured across it) is the fix, and this row is its trap. */
+  .legc-neg-wrap {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) 120px;
+    align-items: end;
+    gap: 10px;
+    width: 1000px;
+    padding: 4px 0;
+  }
+  .legc-neg-wrap .lead { color: var(--text-dim); font-size: var(--fs-11); }
+  .legc-neg-wrap .body { color: var(--text-primary); }
+  /* Packed left inside its own track ON PURPOSE. An earlier draft right-aligned
+     this cell, which put a genuine 135px far-right anchor inside a row that is
+     supposed to isolate the phantom — and the instrument correctly reported it.
+     A negative must carry exactly one property: the thing it denies. */
+  .legc-neg-wrap .tail { color: var(--text-muted); }
+
+  /* ==== NEGATIVE 3 / POSITIVE 4 — the M5 clip pair. ========================
+     Two elements that both satisfy scrollWidth > clientWidth. One declares
+     text-overflow: ellipsis in its OWN computed style — that is a DESIGN clip, a
+     deliberate truncation, and it belongs in M5x. The other simply does not fit —
+     that is real overflow and belongs in bucket (b). v2 counted them together, so
+     bucket (b) carried a large, permanent, non-actionable population and the real
+     ones could not be seen inside it.
+
+     They sit side by side so the pair can never be satisfied by an instrument
+     that puts everything in one column: one must land in each. */
+  .legc-clip-pair { display: flex; gap: 16px; }
+  .legc-neg-clip {
+    width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-muted);
+  }
+  .legc-pos-overflow {
+    width: 200px;
+    overflow: hidden;             /* no ellipsis, no clamp — it just doesn't fit */
+    color: var(--text-muted);
+  }
+  .legc-pos-overflow > .wide { display: block; width: 460px; }
+
+  /* ==== CALIBRATION — the counted viz exemption. ============================
+     Three label · bar · value rows under one [data-viz-row]. Each row is an M1a
+     candidate (>=3 element children, >=3 siblings sharing tag+class), so all three
+     MUST be exempted and counted — M1x == 3, exactly.
+
+     The container is deliberately under the 600px M1b floor and has no siblings,
+     so it is not itself a candidate and cannot inflate the count. That is the
+     whole reason the number is exact rather than approximate, and it is why leg B
+     can be re-anchored here the day the live funnel changes shape. */
+  .legc-cal-viz {
+    width: 520px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-panel);
+  }
+  .legc-cal-row {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) 56px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+  }
+  .legc-cal-row .lbl { color: var(--text-muted); font-size: var(--fs-11); }
+  .legc-cal-row .track { display: block; height: 10px; background: #11161f; border-radius: 2px; }
+  .legc-cal-row .track > i { display: block; height: 100%; background: var(--accent-amber); opacity: 0.55; }
+  .legc-cal-row .num { text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<section>
+  <h2>Positive 1 — C1 far-right anchor (M1 must fire, interior gap &gt;= 300px)</h2>
+  <div class="legc-pos-gap">
+    <span class="lbl">HR 1 · Reserved Water Rights Settlement</span>
+    <span class="val">2026-08-06</span>
+  </div>
+</section>
+
+<section>
+  <h2>Positive 2 — C7 stretched panel (M2 must fire, slack &gt; 40px)</h2>
+  <div class="legc-pos-panelgrid">
+    <div class="legc-pos-panel"><span>one line of content in a 300px panel</span></div>
+    <div class="legc-neg-panelmate" data-legc-clean><span>a sibling that sizes to its own content</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Positive 3 — C4 reserved empty box (M4 must fire, height &gt;= 40px)</h2>
+  <div class="legc-pos-empty">NO DATA</div>
+</section>
+
+<section>
+  <h2>Negative 1 — mixed --fs-9 / --fs-11 / --fs-14 on one baseline, at four 1px offsets (every copy must read ONE line, none may score M1)</h2>
+  <div class="legc-neg-baseline-stack">
+    <div class="legc-neg-baseline" data-legc-clean style="margin-top: 0px">
+      <span class="small">MON 04</span>
+      <span class="big">Appropriations markup</span>
+      <span class="mid">· 3 items</span>
+    </div>
+    <div class="legc-neg-baseline" data-legc-clean style="margin-top: 1px">
+      <span class="small">TUE 05</span>
+      <span class="big">Appropriations markup</span>
+      <span class="mid">· 3 items</span>
+    </div>
+    <div class="legc-neg-baseline" data-legc-clean style="margin-top: 2px">
+      <span class="small">WED 06</span>
+      <span class="big">Appropriations markup</span>
+      <span class="mid">· 3 items</span>
+    </div>
+    <div class="legc-neg-baseline" data-legc-clean style="margin-top: 3px">
+      <span class="small">THU 07</span>
+      <span class="big">Appropriations markup</span>
+      <span class="mid">· 3 items</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Negative 2 — one wrapped two-line cell between single-line neighbours (must not score M1)</h2>
+  <div class="legc-neg-wrap" data-legc-clean>
+    <span class="lead">12:00 PM</span>
+    <span class="body">A cell long enough to wrap onto a second line, which is exactly the geometry that packing a row left tends to produce once the text can use the width.</span>
+    <span class="tail">HR 4821</span>
+  </div>
+</section>
+
+<section>
+  <h2>Negative 3 + Positive 4 — the M5 clip pair (one design-clip, one real overflow)</h2>
+  <div class="legc-clip-pair">
+    <div class="legc-neg-clip" data-legc-clean>An ellipsized cell in a packed row — deliberately truncated, not broken</div>
+    <div class="legc-pos-overflow"><span class="wide">a 460px child inside a 200px box</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Calibration — three label · bar · value rows under one [data-viz-row] (M1x must read exactly 3)</h2>
+  <div class="legc-cal-viz" data-viz-row>
+    <div class="legc-cal-row">
+      <span class="lbl">Committee</span>
+      <span class="track"><i style="width: 92%"></i></span>
+      <span class="num">14,802</span>
+    </div>
+    <div class="legc-cal-row">
+      <span class="lbl">Floor</span>
+      <span class="track"><i style="width: 11%"></i></span>
+      <span class="num">1,731</span>
+    </div>
+    <div class="legc-cal-row">
+      <span class="lbl">Enacted</span>
+      <span class="track"><i style="width: 2%"></i></span>
+      <span class="num">312</span>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
