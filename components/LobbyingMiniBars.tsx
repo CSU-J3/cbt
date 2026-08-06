@@ -1,5 +1,5 @@
 // HO 440 — the TOP CLIENTS / TOP FIRMS ranked mini-bars, shared by the /lobbying
-// per-issue drill (IssueDrill) and the /bill/[id] LOBBYING section (BillLobbying).
+// per-issue drill and the /bill/[id] LOBBYING section (BillLobbying).
 // Party-neutral amber bars ranked by distinct filings. Server component.
 
 export function LobbyingMiniBars({

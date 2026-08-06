@@ -4,7 +4,7 @@ import { FilingRow } from "@/components/FilingRow";
 import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 
 // HO 440 — the /bill/[id] LOBBYING section body. Mirrors the /lobbying per-issue
-// drill (IssueDrill) scoped to one bill: TOP CLIENTS / TOP FIRMS ranked bars
+// drill scoped to one bill: TOP CLIENTS / TOP FIRMS ranked bars
 // (distinct filings), the bill's most-recent filings, and an out to the full
 // /lobbying surface. Firms/clients are plain text (no lobbying-org hubs exist to
 // link — same as /lobbying). Server component. Fed by getBillLobbying; the page

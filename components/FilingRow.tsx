@@ -2,7 +2,8 @@
 
 // HO 437 / 486 — one LD-2 filing as a compact row, shared by THREE surfaces:
 // the /lobbying two-pane feed + scoped drill (expandable), the /bill/[id]
-// LOBBYING section (BillLobbying), and the orphaned IssueDrill. The grid lives
+// LOBBYING section (BillLobbying). (It also served IssueDrill, deleted at HO 486
+// `0765aaf` — HO 614 re-ran the grep and removed the stale references.) The grid lives
 // on the row itself (.lob-filing-row) so every consumer aligns with no ancestor
 // dependency — HO 486 commit A wrongly put it on .lob-content, which broke the
 // /bill rows (they fell back to the members .mc-row grid).
@@ -15,7 +16,7 @@
 // as the next sibling. It's a div (NOT a <Link>) because it wraps the bill-chip
 // <Link>s and nested <a> is invalid HTML — the CommitteeRailRow / HO 466 idiom:
 // the chips stopPropagation so they deep-link without toggling the row. Where
-// nothing reads ?expanded= (BillLobbying / IssueDrill) the row is inert: no
+// nothing reads ?expanded= (BillLobbying) the row is inert: no
 // caret glyph, no handlers, no role — but it keeps the empty caret cell so the
 // grid is identical across surfaces.
 import Link from "next/link";
@@ -134,7 +135,7 @@ export function FilingRow({
     </>
   );
 
-  // Inert surfaces (BillLobbying / IssueDrill): no panel reads ?expanded= there,
+  // Inert surfaces (BillLobbying): no panel reads ?expanded= there,
   // so the row carries no interactivity — just the grid.
   if (!expandable) {
     return <div className="mc-row lob-filing-row">{cells}</div>;

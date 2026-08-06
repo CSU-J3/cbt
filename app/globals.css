@@ -6015,7 +6015,7 @@ body {
   border-bottom: 1px solid var(--border-strong);
 }
 /* Row-owned grid (not container-scoped) so ALL three FilingRow consumers align —
-   /lobbying, /bill/[id] BillLobbying, and IssueDrill — with no ancestor needed.
+   /lobbying and /bill/[id] BillLobbying — with no ancestor needed.
    caret | age | reg→client | issue chips | bill chips */
 /* HO 614 (C1) — the registrant→client track is CAPPED and the row packs. Was
    `1fr`: at 2560 that track ran 1,980px while the rc ink ended at 239–561px, so
@@ -6036,7 +6036,7 @@ body {
   justify-content: start;
 }
 /* Interactivity is opt-in: only the expandable (/lobbying) rows carry role=button.
-   Inert rows (BillLobbying / IssueDrill) suppress the shared .mc-row hover so a
+   Inert rows (BillLobbying) suppress the shared .mc-row hover so a
    non-clickable row doesn't feign an affordance. */
 .lob-filing-row[role="button"] {
   cursor: pointer;
