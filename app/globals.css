@@ -218,6 +218,13 @@ body {
   color: var(--text-dim);
   text-transform: uppercase;
 }
+/* HO 612: the auth control follows the path. `.header-titlebar` sets column-gap
+   0 (HO 189, so a deep path + nav never wraps on a razor-thin bar), so the
+   spacing is explicit here rather than inherited. */
+.header-titlebar-auth {
+  padding-left: var(--space-md);
+  color: var(--text-dim);
+}
 .header-titlebar .breadcrumb-path {
   /* HO 187: the path is the page identity — it must read as the title and
      dominate the bar, clearly larger than the nav to its right. 20px is the

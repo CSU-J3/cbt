@@ -168,7 +168,14 @@ export async function HeaderBar({
           segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
           cursor
         />
-        <span style={{ marginLeft: "auto" }}>
+        {/* HO 612 (C1) — follows the path with a `·`, was on `margin-left: auto`.
+            Pinned right it opened a ~1,875px interior gap in the title bar on
+            EVERY inner page — two M1 rows per route site-wide, and the entire M1
+            residue of /hearings after 611. The dashboard masthead packed this
+            same control at HO 610, so leaving inner pages pinned was the chrome
+            inconsistency, not the fix. */}
+        <span className="header-titlebar-auth">
+          <span aria-hidden>·</span>{" "}
           <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
         </span>
       </div>
