@@ -4422,14 +4422,50 @@ body {
    from the old private Expand and REUSED by .bxp (the card is revealed by
    .bxp-sponsor:hover .v2f-sc-card below). The body grid + boxed meta below are new
    to match the mock. (HO 570 C1 swept the truly-dead per-surface Expand rules —
-   .v2f-exp/-grid/-summary/-related/-side/-sk/-sv/-btns/-cmte-*/-sponsor*.) */
+   .v2f-exp, -grid, -summary, -related, -side, -sk, -sv, -btns, and the -cmte- and
+   -sponsor families.)
+   HO 610 — that sentence used to be written with glob stars, and the `-cmte-*​/`
+   in it CLOSED THIS COMMENT: everything after it parsed as CSS, and the parser
+   discarded the `.bxp` rule that follows. `padding: 14px 16px 16px` has therefore
+   been DEAD in every built stylesheet since HO 570 (the panel measured 372px wide
+   with a 372px body — no padding at all), and the only trace was one
+   "Unexpected token Delim('*')" warning in the build log. Never put `*` before a
+   `/` inside a CSS comment; if a build prints a CSS warning, read it. */
+/* HO 610 — the panel adapts; the feed column's floor stays. Inside `/`'s 400px
+   column at 1440 the panel is 372px wide and the 1.35fr/1fr body resolved to
+   99px / 273px, i.e. 71px of prose after .bxp-left's padding — 1.4 words per
+   line over 48 lines. The fr ratio was not what decided it: the metabox's
+   min-content (~273px — sponsor name, cosponsor bar, dates) is a floor the 1fr
+   track cannot go under, so ALL the squeeze lands on the summary.
+   Raising the column floor would steal from a left region already at 982px, and
+   a shared component that cannot survive a narrow container is the component's
+   defect (C8's inverse: narrow containers get stacked layouts). So the panel
+   carries a container query on its OWN width and stacks below ~440px.
+   /bills never crosses it (the panel is 1140px there at 1440), so that surface is
+   untouched — the query is on the container, not the viewport, which is the whole
+   point: one component, two containers, no route branch. */
 .bxp {
   padding: 14px 16px 16px;
+  container-type: inline-size;
+  container-name: bxp;
 }
 .bxp-body {
   display: grid;
   grid-template-columns: 1.35fr 1fr;
   gap: 0;
+}
+@container bxp (max-width: 440px) {
+  .bxp-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Stacked: the prose takes the full width and the metabox follows it, so the
+     28px inter-column gutter becomes vertical air instead. */
+  .bxp-left {
+    padding-right: 0;
+  }
+  .bxp-metabox {
+    margin-top: 16px;
+  }
 }
 .bxp-left {
   padding-right: 28px;
