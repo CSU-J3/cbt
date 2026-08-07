@@ -68,8 +68,12 @@ function MemberItem({ m }: { m: CommitteeMember }) {
   const isLead = roleIsLeadership(m.role);
   const name = m.name ?? m.bioguideId;
   return (
+    // HO 617 (C1) — packed left. This was `grid-cols-[1fr_auto]`, which pinned the
+    // party/state tag to the row's right edge and opened 639-859px on all 27 rows
+    // at 2560: the 1fr is the pin. The tag now follows the name; leftover width
+    // collects after it, which is the target state.
     <li
-      className="grid grid-cols-[1fr_auto] items-baseline gap-2 px-3 py-1.5 border-b"
+      className="flex items-baseline gap-2 px-3 py-1.5 border-b"
       style={{ borderColor: "var(--border-soft)" }}
     >
       <span className="min-w-0 truncate text-[length:var(--fs-13)]">
@@ -93,7 +97,7 @@ function MemberItem({ m }: { m: CommitteeMember }) {
         ) : null}
       </span>
       <span
-        className="text-right text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
+        className="shrink-0 text-[length:var(--fs-11)] uppercase tracking-[0.5px] tabular-nums"
         style={{ color: "var(--text-muted)" }}
       >
         <span style={{ color: partyColor(m.party) }}>
@@ -260,7 +264,7 @@ export default async function CommitteeDetailPage({
                 href={committee.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition"
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition"
                 style={{ color: "var(--text-muted)" }}
               >
                 congress.gov ↗
@@ -306,7 +310,9 @@ export default async function CommitteeDetailPage({
           ) : null}
         </section>
 
-        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-[3fr_2fr]">
+        {/* HO 617 (C7) — items-start. Both panels were stretching to the taller
+            sibling: Topic mix ran 129px past its last bar. */}
+        <div className="mb-4 grid grid-cols-1 items-start gap-4 md:grid-cols-[3fr_2fr]">
           <section
             className="border"
             style={{ borderColor: "var(--border-strong)" }}
@@ -352,7 +358,11 @@ export default async function CommitteeDetailPage({
           </section>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_3fr]">
+        {/* HO 617 (C7 + C4) — items-start. On a quiet committee this was the worst
+            panel on the site: "Recent activity" holds one line of empty-state text
+            and was stretched to 1,042px to match a 27-member roster, 954px of it
+            blank. Sizing to content is both conventions at once. */}
+        <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-[2fr_3fr]">
           <section
             className="border"
             style={{ borderColor: "var(--border-strong)" }}

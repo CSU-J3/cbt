@@ -43,9 +43,12 @@ function locationText(m: CommitteeMeeting): string | null {
 
 function WatchCell({ m, nowMs }: { m: CommitteeMeeting; nowMs: number }) {
   const state = watchState(m, nowMs);
-  if (state === "none" || !m.videoUrl) {
-    return <span className="hearing-watch" aria-hidden />;
-  }
+  // HO 617 (C4) — render NOTHING, not an empty cell. `.hearing-watch` carries
+  // `padding: 8px 12px`, so a meeting with no video reserved a 24x62px empty box
+  // on every such row: 10 of them on one committee page, 620px of the route's
+  // 662px of M4. The row is `minmax(0,1fr) auto` and each <li> is its own grid,
+  // so with one child the auto track is zero and the content simply spans.
+  if (state === "none" || !m.videoUrl) return null;
   return (
     <a
       href={m.videoUrl}
