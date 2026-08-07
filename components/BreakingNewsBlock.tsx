@@ -16,7 +16,11 @@ import {
 // topic is set, the block rebases to that slice (same article universe
 // as the count chip above). Empty filters = corpus-wide, as before.
 const WINDOW_HOURS = 72;
-const CAP = 5;
+// HO 627: 5 -> 10. Same shape as the feed-depth raise one commit over — the 72h
+// window holds ~40 deduped articles, so a 5-cap was showing an eighth of what the
+// panel already had in hand. The `[+N MORE →]` count is derived from
+// getBreakingNewsForHomeCount minus the rendered rows, so it follows on its own.
+const CAP = 10;
 
 export async function BreakingNewsBlock({
   filters,
