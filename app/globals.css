@@ -5492,11 +5492,49 @@ body {
   display: grid;
   grid-template-columns: 312px 1fr;
   border: 1px solid var(--border-strong);
+  /* x of the column seam, = rail track width - 1px, so the container-painted
+     line lands on exactly the pixel .mc-rail's border-right used to occupy.
+     Declared beside the track width that defines it; .bl-pane overrides both. */
+  --mc-seam-x: 311px;
 }
 .mc-rail {
   border-right: 1px solid var(--border-strong);
   background-color: var(--bg-panel);
   min-width: 0;
+}
+
+/* HO 619 — C7 on the two-pane rails: the rail sizes to its content, and the
+   seam moves to the container so it survives the cap.
+
+   SCOPED BY MEASUREMENT, the .mb-pane precedent below. All four .mc-pane
+   consumers stretch their rail by default; only two waste anything by it
+   (rail box height - last visible ink, measured at 2560):
+     /members  2618px dead  (rail 10677, ink ends 8790)
+     /bills    1807px dead  (rail  2658, ink ends 1157)
+     /lobbying   -1958px    (bounded .lob-rail-scroll, ink OVERFLOWS the box)
+     /news         -14px    (bounded .nw-rail-scroll, same)
+   The two bounded rails are already full — capping them would shorten a rail
+   that has more to show, which is not what C7 asks for. So the cap is hooked on
+   .mb-pane / .bl-pane and the other two are deliberately untouched.
+
+   THE SEAM IS LOAD-BEARING AND CANNOT RIDE THE RAIL. It is the only thing
+   marking the split on a 2528px pane, so capping the rail without moving it
+   leaves the content column's left edge floating inside the outer border for
+   1807/2618px. It is painted by the CONTAINER rather than by either child,
+   because either child can be the shorter one: a filtered /bills (one result
+   against a 24-row topic rail) inverts which column is tall, and a seam owned
+   by the content column would then stop early in the other direction. */
+.mb-pane,
+.bl-pane {
+  align-items: start;
+  background-image: linear-gradient(var(--border-strong), var(--border-strong));
+  background-repeat: no-repeat;
+  background-size: 1px 100%;
+  background-position: var(--mc-seam-x) 0;
+}
+.mb-pane > .mc-rail,
+.bl-pane > .mc-rail {
+  border-right: none;
 }
 .mc-rail-h {
   display: flex;
@@ -5550,6 +5588,9 @@ body {
 @media (max-width: 900px) {
   .mb-pane {
     grid-template-columns: 1fr;
+    /* Stacked: there is no column seam to paint, and the HO 619 line would run
+       vertically through both stacked regions. */
+    background-image: none;
   }
   .mb-pane > .mc-rail {
     max-height: 420px;
@@ -9344,6 +9385,7 @@ a.hearing-watch:hover {
    source order (equal specificity, defined later). */
 .bl-pane {
   grid-template-columns: 264px 1fr;
+  --mc-seam-x: 263px; /* HO 619 — the container-painted seam, = 264 - 1 */
 }
 /* Rail row grid: marker | topic name | topic bar | count. The shared .mc-crow is
    marker|tag|name|act|mem — the topic rail has no tag column. */
@@ -9405,6 +9447,8 @@ a.hearing-watch:hover {
      than squeezing the 264px column on a phone. Scoped to .bl-pane only. */
   .bl-pane {
     grid-template-columns: 1fr;
+    /* Stacked — no column seam to paint (HO 619). */
+    background-image: none;
   }
 }
 
