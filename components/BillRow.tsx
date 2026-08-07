@@ -237,9 +237,18 @@ export function BillRow({
       {support ? (
         <span className="row-momentum">
           <span className={`row-support ${support.cls}`}>{support.text}</span>
-          <span className="row-hslot">
-            {bill.heard ? <span className="heard-badge">HEARD</span> : null}
-          </span>
+          {/* HO 618 (C4) — the slot renders only when it has a badge. It was a
+              52px RESERVED EMPTY box on 45 of /stale's 50 rows (HEARD shows on
+              5), and with the flex gap and the days-since column's own
+              right-alignment slack it opened a uniform 121px gap — one pixel
+              over threshold, on every row, which was the whole of /stale's M1.
+              Reserving it bought nothing: the badge is right-aligned against
+              the age column either way. */}
+          {bill.heard ? (
+            <span className="row-hslot">
+              <span className="heard-badge">HEARD</span>
+            </span>
+          ) : null}
         </span>
       ) : null}
 
