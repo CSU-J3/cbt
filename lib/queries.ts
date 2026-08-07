@@ -4765,6 +4765,235 @@ export const getParticipationStrip = unstable_cache(
   { revalidate: 3600, tags: ["votes"] },
 );
 
+// ---------------------------------------------------------------------------
+// HO 622 — Absence Watch: who has stopped voting entirely.
+//
+// THE RULE, and why it is a STREAK and not a rate (HO 621 ruled this from the
+// probe's own numbers, so the reasoning is recorded where the predicate lives):
+// a cumulative missed-rate trigger makes a PRESENT-TENSE claim off a CAREER
+// statistic, and in the 621 corpus that was wrong 6 times and right once. Six
+// House members sat above 15% cumulative while having missed 0-2 of the last 30
+// roll calls — five of them voted on the final pre-recess roll call — so a rate
+// rule would have named members who are demonstrably present. One member (Biggs,
+// 26 of 30 missed at 9.0% cumulative) was invisible to it. Sticky failure beat
+// blind failure 6:1. So the trigger is the thing the claim is actually about:
+// CONSECUTIVE MISSED ROLL CALLS, chamber-scoped.
+//
+// DIVISION OF LABOUR, so a future HO does not "fix" one surface into the other:
+// this band is ACUTE (gone). The /members participation dot-plot (HO 527) and the
+// MISSED sort (HO 535) are CHRONIC (spotty). A 26-of-30-with-streak-0 member is
+// CORRECTLY absent here and correctly present there. They are not two views of
+// one signal.
+//
+// THE COPY IS DATED, NEVER "NOW" — the consumer renders "no vote cast since
+// {date}", which stays true through a recess. As of this writing the House has
+// not voted in 15 days; a "currently absent" phrasing would be a false claim
+// about every member of that chamber the moment it recesses. The date is the one
+// framing that survives it.
+//
+// SHAPE — candidate filter first, walk second. Phase A is the probe's M3b window
+// query per chamber (~16k rows both chambers, measured 306ms cold at HO 621),
+// aggregated DB-side: a member with a >= 30 streak necessarily has EVERY explicit
+// position in the last 30 rolls equal to 'not_voting', so that cheap bounded
+// aggregate is a NECESSARY condition and bounds the expensive walk. It is not
+// sufficient (a member with NO-DATA gaps can be all-not_voting over 3 rows), which
+// is what Phase B is for.
+//
+// The Phase A predicate is `nv = n AND nv > 0`, deliberately NOT `nv >= 30`: a
+// genuine 30-streak member with NO-DATA rows inside the window has fewer than 30
+// rows there, so the tighter-looking filter would DROP exactly the member this
+// band exists to name. Coverage is near-total today (~434 rows per House roll
+// against 437 floored members), so the loose predicate still returns 1-3
+// candidates per chamber — the bound comes from the window, not from the count.
+//
+// Phase B walks newest -> oldest under the 588 streak rule, verbatim: an explicit
+// 'not_voting' extends, any other explicit position breaks, a MISSING row is
+// NO-DATA and is skipped (neither extends nor breaks). Bounded at 120 rolls; a
+// walk that reaches the bound without a break reports `atBound` and the consumer
+// renders "{streak}+" against the OLDEST roll in the bound window rather than
+// inventing a date it did not observe.
+//
+// Population is the strip's, verbatim (queries.ts:4734-4750): member_participation
+// + PARTICIPATION_FLOOR applied at read time + the delegate carve. The carve is
+// population-correctness, not outlier-trimming (HO 527) — a non-voting delegate is
+// ineligible on final passage, so a 30-roll "streak" is their job description, not
+// absence. The consumer discloses the exclusion in its footer for that reason.
+export const ABSENCE_STREAK_MIN = 30;
+const ABSENCE_WINDOW = 30; // Phase A candidate window, in roll calls
+const ABSENCE_WALK_BOUND = 120; // Phase B walk ceiling, in roll calls
+const ABSENCE_CHAMBERS = ["house", "senate"] as const;
+
+export type AbsentMember = {
+  bioguideId: string;
+  name: string;
+  party: string | null; // normalized 'R' | 'D' | 'I'
+  state: string;
+  chamber: string; // 'house' | 'senate'
+  streak: number; // consecutive missed roll calls, newest -> oldest
+  atBound: boolean; // the walk hit ABSENCE_WALK_BOUND without observing a cast vote
+  // 'YYYY-MM-DD'. The date of the last roll call this member CAST a vote on;
+  // when atBound, the oldest roll in the bound window (the consumer says "since
+  // before" in that branch). Sliced from votes.vote_date rather than parsed —
+  // the House stores a -04:00 offset and the Senate a Z, so a Date round-trip
+  // would shift a late-evening House vote onto the next calendar day. The
+  // recorded local date is the honest one and needs no timezone handling.
+  lastCastDate: string;
+  missedPct: number; // cumulative 119th rate, 0-100 (the evidence clause)
+};
+
+async function queryAbsenceWatch(): Promise<AbsentMember[]> {
+  const db = getDb();
+
+  // The strip's population, with the delegate carve applied in SQL (this surface
+  // has no reason to carry delegates through — unlike the dot-plot, which needs
+  // the flag to disclose a count it renders alongside).
+  const popRes = await db.execute({
+    sql: `SELECT p.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
+                 m.state AS state, m.chamber AS chamber,
+                 p.total AS total, p.not_voting AS nv
+            FROM member_participation p
+            JOIN members m ON m.bioguide_id = p.bioguide_id
+           WHERE m.is_current = 1
+             AND p.total >= ?
+             AND NOT (m.chamber = 'house'
+                      AND m.state IN ('DC','AS','GU','MP','PR','VI'))`,
+    args: [PARTICIPATION_FLOOR],
+  });
+
+  type Pop = { name: string; party: string | null; state: string; chamber: string; missedPct: number };
+  const pop = new Map<string, Pop>();
+  for (const r of popRes.rows) {
+    const total = Number(r.total ?? 0);
+    if (total <= 0) continue;
+    pop.set(String(r.bioguideId ?? ""), {
+      name: String(r.name ?? ""),
+      party: (r.party as string | null) ?? null,
+      state: String(r.state ?? ""),
+      chamber: String(r.chamber ?? ""),
+      missedPct: (Number(r.nv ?? 0) / total) * 100,
+    });
+  }
+
+  const out: AbsentMember[] = [];
+
+  for (const chamber of ABSENCE_CHAMBERS) {
+    // One roll-call read per chamber serves both phases: Phase A takes the first
+    // ABSENCE_WINDOW, Phase B the whole bound. Rides idx_votes_chamber_date.
+    // `id DESC` is a deterministic tiebreak only — same-timestamp rolls have no
+    // real order, and without it the walk could differ run to run.
+    const rollsRes = await db.execute({
+      sql: `SELECT id, vote_date FROM votes
+             WHERE chamber = ?
+             ORDER BY vote_date DESC, id DESC
+             LIMIT ?`,
+      args: [chamber, ABSENCE_WALK_BOUND],
+    });
+    const rollIds = rollsRes.rows.map((r) => String(r.id ?? ""));
+    const rollDates = rollsRes.rows.map((r) => String(r.vote_date ?? "").slice(0, 10));
+    if (rollIds.length === 0) continue;
+
+    // ── Phase A — candidates ────────────────────────────────────────────────
+    const windowIds = rollIds.slice(0, ABSENCE_WINDOW);
+    const windowPh = windowIds.map(() => "?").join(",");
+    const candRes = await db.execute({
+      sql: `SELECT bioguide_id AS bio,
+                   COUNT(*) AS n,
+                   SUM(CASE WHEN position = 'not_voting' THEN 1 ELSE 0 END) AS nv
+              FROM member_votes
+             WHERE vote_id IN (${windowPh})
+             GROUP BY bioguide_id
+            HAVING nv = n AND nv > 0`,
+      args: windowIds,
+    });
+    const candidates = candRes.rows
+      .map((r) => String(r.bio ?? ""))
+      .filter((bio) => pop.get(bio)?.chamber === chamber);
+    if (candidates.length === 0) continue;
+
+    // ── Phase B — the bounded walk, ONE query for every candidate ───────────
+    const candPh = candidates.map(() => "?").join(",");
+    const boundPh = rollIds.map(() => "?").join(",");
+    const walkRes = await db.execute({
+      sql: `SELECT bioguide_id AS bio, vote_id AS voteId, position AS position
+              FROM member_votes
+             WHERE bioguide_id IN (${candPh})
+               AND vote_id IN (${boundPh})`,
+      args: [...candidates, ...rollIds],
+    });
+    const byMember = new Map<string, Map<string, string>>();
+    for (const r of walkRes.rows) {
+      const bio = String(r.bio ?? "");
+      let m = byMember.get(bio);
+      if (!m) {
+        m = new Map();
+        byMember.set(bio, m);
+      }
+      m.set(String(r.voteId ?? ""), String(r.position ?? ""));
+    }
+
+    for (const bio of candidates) {
+      const positions = byMember.get(bio);
+      const meta = pop.get(bio);
+      if (!positions || !meta) continue;
+
+      let streak = 0;
+      let breakIndex = -1;
+      for (let i = 0; i < rollIds.length; i++) {
+        const pos = positions.get(rollIds[i]!);
+        if (pos === undefined) continue; // NO DATA — neither extends nor breaks
+        if (pos === "not_voting") {
+          streak++;
+          continue;
+        }
+        breakIndex = i; // an explicit cast vote — the streak ends here
+        break;
+      }
+      if (streak < ABSENCE_STREAK_MIN) continue;
+
+      const atBound = breakIndex === -1;
+      const lastCastDate = atBound
+        ? (rollDates[rollDates.length - 1] ?? "")
+        : (rollDates[breakIndex] ?? "");
+
+      out.push({
+        bioguideId: bio,
+        name: meta.name,
+        party: meta.party,
+        state: meta.state,
+        chamber,
+        streak,
+        atBound,
+        lastCastDate,
+        missedPct: meta.missedPct,
+      });
+    }
+  }
+
+  // Longest absence first; name is the deterministic tiebreak.
+  out.sort((a, b) => b.streak - a.streak || a.name.localeCompare(b.name));
+  return out;
+}
+
+const absenceWatchCached = unstable_cache(queryAbsenceWatch, ["getAbsenceWatch"], {
+  revalidate: 3600,
+  tags: ["votes"],
+});
+
+// The degradation guard sits OUTSIDE the cache boundary, deliberately (HO 598):
+// a try/catch that returns [] from INSIDE unstable_cache would persist the empty
+// result for the full hour, and on this surface an empty array is not a neutral
+// failure — it is the GOOD-NEWS state, which renders nothing at all (C4). Caching
+// a failure as "nobody is absent" would be a silent wrong answer with no tell.
+// Outside the boundary, a throw is simply not cached and the next request retries.
+export async function getAbsenceWatch(): Promise<AbsentMember[]> {
+  try {
+    return await absenceWatchCached();
+  } catch (err) {
+    console.error("[absence-watch] read failed:", err);
+    return [];
+  }
+}
+
 // HO 428: the polarization-over-time chart (ideology surface 3 of 3). Every
 // `polarization_history` row (both chambers, ~190) — the client island filters to
 // the toggled chamber and draws the historical D/R median lines, so no refetch on
