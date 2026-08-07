@@ -308,6 +308,28 @@
   .legc-m5s-neg-frame { width: 300px; overflow: hidden; border: 1px solid var(--border-strong); }
   .legc-m5s-neg-inner { width: 900px; white-space: nowrap; }
 
+  /* ==== v4-C2 — THE SUPPRESSED MARQUEE. ====================================
+     The trap the first draft of this fixture could not set, and the reason it
+     could not is the point. The audit runs its browser context with
+     `reducedMotion: "reduce"` — deliberately, because a moving marquee would
+     perturb the geometry every other measurement depends on — and the app
+     carries `@media (prefers-reduced-motion: reduce) { .markets-tape-track {
+     animation: none } }`. So under the audit's own viewing conditions the site's
+     one real marquee has NO computed animation, and a predicate keyed on
+     computed animation-name is blind to exactly the element it was written for.
+     The plain marquee above passes either way, so it proved nothing about this.
+
+     This twin models the app faithfully: same geometry, plus the same
+     reduced-motion override. It must still read M5s, which is only possible if
+     the instrument reads animation from the STYLESHEET rather than from computed
+     style. `overflow-x: clip` rather than `hidden` for the same reason — the
+     markets tape computes to `clip`, and checking only `hidden` missed it. */
+  .legc-m5s-rm-frame { width: 300px; overflow-x: clip; border: 1px solid var(--border-strong); }
+  .legc-m5s-rm-track { width: 900px; white-space: nowrap; animation: legcMarq 30s linear infinite; }
+  @media (prefers-reduced-motion: reduce) {
+    .legc-m5s-rm-track { animation: none; }
+  }
+
   /* ==== v4-D — the 2-CHILD chip row M3 could not see. ======================
      Three sibling rows with exactly TWO element children each. Under v3 these
      never entered M3's sample (its groups required >=3 children), which is how
@@ -469,6 +491,9 @@
   </div>
   <div class="legc-m5s-neg-frame" data-legc-clean style="margin-top: 10px">
     <div class="legc-m5s-neg-inner">the same geometry with no animation — clipped, not scrolled, so this is real overflow</div>
+  </div>
+  <div class="legc-m5s-rm-frame" style="margin-top: 10px">
+    <div class="legc-m5s-rm-track">a marquee whose animation the audit's own reduced-motion context switches off — it must still read M5s</div>
   </div>
 </section>
 

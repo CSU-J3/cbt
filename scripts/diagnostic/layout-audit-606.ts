@@ -853,15 +853,61 @@ function measureInPage(t: Thresholds) {
     if (el.clientWidth <= 0) continue;
     if (el.scrollWidth > el.clientWidth + 1) overflowing.push(el);
   }
-  const hasAnimatedDescendant = (el: Element): boolean =>
-    Array.from(el.querySelectorAll("*")).some((d) => {
-      const cs = getComputedStyle(d);
-      return cs.animationName !== "none" && cs.animationName !== "";
-    });
+  // ANIMATION IS READ FROM THE STYLESHEET, NOT FROM COMPUTED STYLE, AND THAT IS
+  // NOT A REFINEMENT — the first draft could not fire at all. This audit runs its
+  // context with `reducedMotion: "reduce"` (deliberately: a moving marquee would
+  // perturb the geometry every other measurement depends on), and globals.css
+  // carries `@media (prefers-reduced-motion: reduce) { .markets-tape-track {
+  // animation: none } }`. So under the audit's own viewing conditions the computed
+  // animation-name of the site's one marquee is `none`, and a predicate keyed on it
+  // is blind to exactly the element it was written for. Measured both ways:
+  // no-preference reads `markets-marquee`, reduce reads `none`.
+  //
+  // An instrument must not key on a property it suppresses. So: an element is
+  // ANIMATED-BY-AUTHORSHIP if any CSS rule that matches it declares a non-none
+  // animation-name, whatever the active media query says about playing it. The
+  // reduced-motion override itself declares `none` and is correctly ignored.
+  const authoredAnimated = new Set<Element>();
+  {
+    const selectors: string[] = [];
+    const walk = (rules: CSSRuleList) => {
+      for (const rule of Array.from(rules)) {
+        const r = rule as CSSStyleRule & { cssRules?: CSSRuleList };
+        if (r.cssRules) walk(r.cssRules); // @media / @supports / @layer
+        if (!r.selectorText || !r.style) continue;
+        const name = r.style.animationName || r.style.getPropertyValue("animation-name");
+        if (name && name.trim() !== "" && name.trim() !== "none") selectors.push(r.selectorText);
+      }
+    };
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        walk(sheet.cssRules);
+      } catch {
+        /* cross-origin sheet — unreadable, and none of ours are */
+      }
+    }
+    for (const sel of selectors) {
+      for (const part of sel.split(",")) {
+        const s = part.trim();
+        if (!s || s.includes("::")) continue;
+        try {
+          for (const el of Array.from(document.querySelectorAll(s))) authoredAnimated.add(el);
+        } catch {
+          /* unsupported selector */
+        }
+      }
+    }
+  }
+  const hasAnimatedDescendant = (el: Element): boolean => {
+    for (const a of authoredAnimated) if (a !== el && el.contains(a)) return true;
+    return false;
+  };
   const scrollRoots = overflowing.filter((el) => {
     const ox = getComputedStyle(el).overflowX;
     if (ox === "auto" || ox === "scroll") return true;
-    return ox === "hidden" && hasAnimatedDescendant(el);
+    // `clip` and `hidden` are one family — clipped, not scrollable. The markets
+    // tape computes to `clip`, so checking only `hidden` missed it (measured).
+    return (ox === "hidden" || ox === "clip") && hasAnimatedDescendant(el);
   });
   const outermostRoots = scrollRoots.filter((el) => !scrollRoots.some((o) => o !== el && o.contains(el)));
 
@@ -1143,6 +1189,19 @@ function assertLegC(d: Measured): { cases: LegCase[]; ok: boolean } {
     `M5s ${m5sRoots.length} · same chain in (b) ${m5sInReal.length}`,
     "M5s 1 (the frame) · (b) 0",
   );
+  // The one the first draft could not catch: a marquee whose animation the audit's
+  // OWN reducedMotion context switches off, exactly as the markets tape's does. It
+  // must still read M5s, which is only possible if animation is read from the
+  // stylesheet rather than from computed style.
+  const m5sRm = d.m5.overflowScroll.filter((o) => /legc-m5s-rm-frame/.test(o.selectorPath));
+  const m5sRmInReal = d.m5.overflowReal.some((o) => /legc-m5s-rm/.test(o.selectorPath));
+  push(
+    "v4-C2 a reduced-motion-suppressed marquee still reads M5s",
+    m5sRm.length === 1 && !m5sRmInReal,
+    `M5s ${m5sRm.length} · chain in (b) ${m5sRmInReal ? "yes" : "no"}`,
+    "M5s 1 · (b) no",
+  );
+
   // The control: identical geometry, no animation. `overflow: hidden` on its own
   // must never buy the exemption, or every clipped box leaves bucket (b).
   const negFrameInReal = d.m5.overflowReal.some((o) => /legc-m5s-neg-frame/.test(o.selectorPath));
