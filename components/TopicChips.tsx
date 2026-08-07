@@ -14,7 +14,7 @@ import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
 // `responsive` prop is the single overflow path (all chips on desktop, first +
 // "+N" on mobile — carried from TopicTags's old responsive behavior).
 
-function Chip({ topic }: { topic: string }) {
+function Chip({ topic, plain = false }: { topic: string; plain?: boolean }) {
   const color = topicColor(topic);
   return (
     <Tooltip
@@ -28,12 +28,21 @@ function Chip({ topic }: { topic: string }) {
         bodyColor: color,
       }}
     >
+      {/* HO 618 (C3) — `plain` renders the label with no colour and no border,
+          inheriting its row. The chip rule since HO 609: a border survives only
+          on an interactive affordance, and on a feed row these are labels, not
+          controls. The HO 614 FilingRow precedent did exactly this to the issue
+          codes while its bill chips, which are links, kept theirs. */}
       <span
-        className="v2f-topic"
-        style={{
-          color,
-          borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-        }}
+        className={plain ? "v2f-topic v2f-topic--plain" : "v2f-topic"}
+        style={
+          plain
+            ? undefined
+            : {
+                color,
+                borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
+              }
+        }
       >
         {topicLabel(topic)}
       </span>
@@ -44,16 +53,18 @@ function Chip({ topic }: { topic: string }) {
 export function TopicChips({
   topics,
   responsive = false,
+  plain = false,
 }: {
   topics: string[];
   responsive?: boolean;
+  plain?: boolean;
 }) {
   if (topics.length === 0) return null;
 
   const all = (
     <span className="v2f-topics-inline">
       {topics.map((t) => (
-        <Chip key={t} topic={t} />
+        <Chip key={t} topic={t} plain={plain} />
       ))}
     </span>
   );

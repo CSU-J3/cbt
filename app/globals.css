@@ -1848,6 +1848,60 @@ body {
   padding: 10px 14px 10px 0;
 }
 
+/* ---- HO 618 (C3): the /stale quiet pass -------------------------------- */
+/* M3 measures own-styled descendants — elements whose OWN computed colour,
+   border or background differs from their parent's. /stale ran ~13-16 per row
+   against the arc's 2-5 norm, so a reader scanning it met a dozen competing
+   objects per line.
+   The fix is structural rather than a list of dimmer colours: THE ROW IS QUIET
+   BY DEFAULT AND BRIGHTNESS IS THE EXCEPTION. Setting the row's own colour to
+   the muted value lets every label BELOW it drop its declaration and inherit,
+   which is what actually removes it from M3 — a child painted a dimmer shade
+   still competes, and still scores.
+   SCOPED TO `.has-momentum`, which is /stale's marker and nowhere else's:
+   `showMomentum` has exactly one caller (app/stale/page.tsx), grepped and then
+   confirmed by seven unmoved routes. C3 is a convention and this is one route's
+   application of it; propagating to the other BillRow surfaces is P6b's call,
+   not a side effect of this commit.
+   WHAT KEEPS ITS OWN STYLE, and why each earns it: the TITLE (the one bright
+   element), the STAGE PILLS (state — the thing a reader scans for), the BILL
+   RAIL (a chamber-tinted structural marker), a HIGH support figure (the
+   momentum overlay's actual signal), and the expanded panel's LINKS (borders
+   survive on interactive affordances). Everything else inherits. */
+.feed-row.has-momentum {
+  color: var(--text-muted);
+}
+.feed-row.has-momentum .rail-type,
+.feed-row.has-momentum .rail-number,
+.feed-row.has-momentum .row-meta,
+.feed-row.has-momentum .row-chevron,
+.feed-row.has-momentum .stage-pill-arrow,
+.feed-row.has-momentum .row-support.low,
+.feed-row.has-momentum .row-support.nul,
+.feed-row.has-momentum .row-support.mid,
+.feed-row.has-momentum .row-days-since,
+.feed-row.has-momentum .heard-badge {
+  color: inherit;
+}
+.feed-row.has-momentum .heard-badge {
+  border-color: currentColor;
+  opacity: 0.75;
+}
+/* The plain topic label: no colour of its own, no border. Shared with any
+   surface that asks TopicChips for `plain`. */
+/* `.v2f-topic.v2f-topic--plain`, not `.v2f-topic--plain` — the base rule lives
+   later in this file and would win an equal-specificity tie. Same cascade-order
+   trap the .mobile-nav comment records. */
+.v2f-topic.v2f-topic--plain {
+  color: inherit;
+  /* border-WIDTH, not just colour: a transparent border still has width, and a
+     transparent-bordered chip is still a bordered chip to a reader scanning for
+     boxes (and to M3, whose predicate is width > 0). */
+  border: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* ---- bill-id rail (HO 125) -------------------------------------------- */
 /* Vertical type-over-number block, chamber-tinted. Subtle 12% tint fill +
    3px left border at full saturation reads as a structural marker rather

@@ -13,15 +13,25 @@ import type { FeedBill } from "@/lib/queries";
 
 type DaysSinceMode = "staleness" | "desk-time";
 
-function daysSinceColor(days: number, mode: DaysSinceMode): string {
+// HO 618 — THE PARTY-RED AGE HEAT DIES HERE. `--party-republican` was painting
+// staleness and desk-time overrun; the oddity was filed at HO 610 and the SKILL
+// party rule has forbidden it since — a party token carries party, so a red
+// number reads Republican before it reads old.
+//
+// The two modes get different answers because they mean different things.
+// STALENESS is not an alarm: on the route whose entire premise is staleness,
+// per-row red is noise, and the number plus the oldest-first sort already carry
+// it. It renders flat now, and dim comes from the row rather than from here.
+// DESK-TIME is a real threshold — past 10 days a bill has outrun the
+// constitutional veto clock — so it keeps a hot end, on amber, which is this
+// app's urgency colour and not anybody's party.
+function daysSinceColor(days: number, mode: DaysSinceMode): string | undefined {
   if (mode === "desk-time") {
-    if (days >= 10) return "var(--party-republican)";
+    if (days >= 10) return "var(--accent-amber-bright)";
     if (days >= 5) return "var(--accent-amber)";
-    return "var(--text-secondary)";
+    return undefined;
   }
-  if (days >= 365) return "var(--party-republican)";
-  if (days >= 180) return "var(--accent-amber)";
-  return "var(--text-secondary)";
+  return undefined;
 }
 
 function shortSponsor(name: string | null): string {
@@ -184,7 +194,7 @@ export function BillRow({
           ) : null}
           {topics.length > 0 ? (
             <span className="inline-flex">
-              <TopicChips topics={topics} responsive />
+              <TopicChips topics={topics} responsive plain={showMomentum} />
             </span>
           ) : null}
         </span>
