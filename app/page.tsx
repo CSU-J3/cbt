@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { AbsenceWatchBand } from "@/components/AbsenceWatchBand";
 import { ActiveFilterStrip } from "@/components/ActiveFilterStrip";
 import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
@@ -20,6 +21,7 @@ import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
   type DashboardFilters,
+  getAbsenceWatch,
   getBreakingNewsForHomeCount,
   getCorpusStats,
   getNewBillsThisWeekCount,
@@ -93,6 +95,7 @@ export default async function DashboardPage({
     activityCount,
     newBillsCount,
     polarization,
+    absent,
   ] = await Promise.all([
     getCorpusStats(true),
     getStageDistribution(undefined, true), // header segments — corpus-wide
@@ -102,6 +105,7 @@ export default async function DashboardPage({
     getStageChangesCount({}, 7, filters),
     getNewBillsThisWeekCount(),
     getPolarizationBand(),
+    getAbsenceWatch(),
   ]);
 
   const topicData: TopicDatum[] = topicRows.map((t) => ({
@@ -130,6 +134,12 @@ export default async function DashboardPage({
               is C4-compliant as-is, so it keeps its slot at the top of the left
               region even though the mock (an unfiltered snapshot) doesn't show it. */}
           <ActiveFilterStrip filters={filters} />
+
+          {/* HO 622 — Absence Watch, the mock's slot: directly after the nav,
+              above hearings. Conditional by construction — with nobody on a
+              30-roll streak this renders null and the stack closes over it (C4),
+              which is the good-news state, not a missing panel. */}
+          <AbsenceWatchBand members={absent} nowMs={nowMs} />
 
           {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
               re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}
