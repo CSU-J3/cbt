@@ -72,12 +72,19 @@ export function TopicChips({
   if (!responsive) return all;
 
   // All chips on desktop; first chip + "+N" on mobile (the single overflow path).
+  // HO 619 — `plain` threads into the MOBILE branch too. It didn't, so HO 618's
+  // /stale plainification only reached the desktop set and the route still
+  // shipped one bordered chip per row to a phone: measured 50 bordered / 90
+  // plain on /stale at 2560, where the 50 are entirely this branch (the
+  // .show-mobile subtree is display:none but still in the DOM, and border-width
+  // resolves regardless). A prop that styles by function has to reach every
+  // branch that renders the thing, or the dress depends on viewport width.
   const extra = topics.length - 1;
   return (
     <>
       <span className="show-desktop">{all}</span>
       <span className="show-mobile">
-        <Chip topic={topics[0]!} />
+        <Chip topic={topics[0]!} plain={plain} />
         {extra > 0 ? <span className="v2f-topic-more">+{extra}</span> : null}
       </span>
     </>

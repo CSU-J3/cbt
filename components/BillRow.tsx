@@ -194,7 +194,15 @@ export function BillRow({
           ) : null}
           {topics.length > 0 ? (
             <span className="inline-flex">
-              <TopicChips topics={topics} responsive plain={showMomentum} />
+              {/* HO 619 — plain on EVERY BillRow surface, not just /stale. The
+                  chip rule decides by function, and these chips have none: the
+                  probe walked every one on all nine BillRow surfaces and found
+                  0 that are a link, a button, or a filter. They are spans inside
+                  a Tooltip — a label with a hover gloss. The `showMomentum` gate
+                  HO 618 shipped made the dress depend on which ROUTE was
+                  rendering rather than on what the chip does, which is the
+                  divergence this commit removes. */}
+              <TopicChips topics={topics} responsive plain />
             </span>
           ) : null}
         </span>
