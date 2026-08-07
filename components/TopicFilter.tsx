@@ -51,7 +51,13 @@ export function TopicFilter({
   basePath?: string;
 }) {
   return (
-    <div className="filter-chips flex items-center gap-1">
+    // HO 618 — `flex-wrap`. The 24 topic chips sat on one 1,003px line inside a
+    // parent that DOES wrap, so the row could not give width back: /stale and
+    // /changes both overflowed the document at 900 and 720 (1,019px against the
+    // viewport) and read a real bucket-(b) item at 1024. Pre-existing, surfaced
+    // by this HO's narrow-bucket guard; fixed at source rather than deferred,
+    // the way HO 613 handled its DISCLOSED overflow. Wrap, don't pin.
+    <div className="filter-chips flex flex-wrap items-center gap-1">
       {ALLOWED_TOPICS.map((t) => {
         const isOn = selected.includes(t);
         const href = buildHref(selected, t, stage, q, sponsor, sort, chamber, ceremonial, cluster, basePath);
