@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AmendmentRow } from "@/components/AmendmentRow";
 import { HeaderBar } from "@/components/HeaderBar";
+import { RankRow } from "@/components/RankRow";
 import { Pagination } from "@/components/Pagination";
 import { partyColor } from "@/lib/race-colors";
 import { getAmendments, getAmendmentsSummary, getSenateAmendmentMotions } from "@/lib/queries";
@@ -42,57 +43,6 @@ function chipStyle(active: boolean) {
     color: active ? "var(--accent-amber-bright)" : "var(--text-secondary)",
     backgroundColor: active ? "var(--bg-row-hover)" : undefined,
   } as const;
-}
-
-// A ranked bar row (the /nominations agency-facet idiom) — a Link with a label,
-// a proportional bar, and a right-aligned count.
-function RankRow({
-  href,
-  label,
-  sub,
-  count,
-  widthPct,
-  dotColor,
-}: {
-  href: string;
-  label: string;
-  sub?: string | null;
-  count: number;
-  widthPct: number;
-  dotColor?: string;
-}) {
-  return (
-    <li>
-      <Link
-        href={href}
-        className="grid items-center gap-x-[14px] px-[14px] py-[9px] no-underline transition hover:bg-[var(--bg-row-hover)]"
-        style={{
-          gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 2fr) 56px",
-          borderBottom: "0.5px solid var(--border-soft)",
-        }}
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
-          {dotColor ? (
-            <span aria-hidden style={{ width: 7, height: 7, flexShrink: 0, borderRadius: "50%", backgroundColor: dotColor }} />
-          ) : null}
-          <span className="truncate text-[length:var(--fs-12)]" style={{ color: "var(--text-primary)" }}>
-            {label}
-          </span>
-          {sub ? (
-            <span className="truncate text-[length:var(--fs-11)]" style={{ color: "var(--text-muted)" }}>
-              {sub}
-            </span>
-          ) : null}
-        </span>
-        <span className="block h-[10px] overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }} aria-hidden>
-          <span className="block h-full rounded-[2px]" style={{ width: `${widthPct}%`, backgroundColor: "var(--accent-amber)", opacity: 0.55 }} />
-        </span>
-        <span className="text-right text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
-          {count.toLocaleString()}
-        </span>
-      </Link>
-    </li>
-  );
 }
 
 export default async function AmendmentsPage({
@@ -237,7 +187,7 @@ export default async function AmendmentsPage({
             <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               Most-amended bills
             </h2>
-            <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+            <div className="border" data-viz-row style={{ borderColor: "var(--border-strong)" }}>
               <ul>
                 {summary.topBills.map((b) => (
                   <RankRow
@@ -258,7 +208,7 @@ export default async function AmendmentsPage({
             <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
               Top amenders
             </h2>
-            <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+            <div className="border" data-viz-row style={{ borderColor: "var(--border-strong)" }}>
               <ul>
                 {summary.topSponsors.map((s) => (
                   <RankRow

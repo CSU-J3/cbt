@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { RankRow } from "@/components/RankRow";
 import {
   DISPOSITION_LABEL,
   dispositionColor,
@@ -153,36 +154,21 @@ export default async function NominationsPage({
           <h2 className="mb-2 text-[length:var(--fs-12)] uppercase tracking-[0.5px]" style={{ color: "var(--text-secondary)" }}>
             By agency
           </h2>
-          <div className="border" style={{ borderColor: "var(--border-strong)" }}>
+          <div className="border" data-viz-row style={{ borderColor: "var(--border-strong)" }}>
             <ul>
               {agencies.map((a) => {
                 const active = agency === a.organization;
-                const widthPct = (a.count / agencyMax) * 100;
                 return (
-                  <li key={a.organization}>
-                    <Link
-                      href={filterHref({ agency, disposition, committee }, { agency: active ? null : a.organization })}
-                      scroll={false}
-                      aria-current={active ? "true" : undefined}
-                      className="grid items-center gap-x-[14px] px-[14px] py-[9px] no-underline transition hover:bg-[var(--bg-row-hover)]"
-                      style={{
-                        gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 2fr) 56px",
-                        borderBottom: "0.5px solid var(--border-soft)",
-                        borderLeft: `3px solid ${active ? "var(--accent-amber)" : "transparent"}`,
-                        backgroundColor: active ? "var(--bg-row-hover)" : undefined,
-                      }}
-                    >
-                      <span className="truncate text-[length:var(--fs-12)]" style={{ color: "var(--text-primary)" }}>
-                        {a.organization}
-                      </span>
-                      <span className="block h-[10px] overflow-hidden rounded-[2px]" style={{ backgroundColor: "var(--bg-row-hover)" }} aria-hidden>
-                        <span className="block h-full rounded-[2px]" style={{ width: `${widthPct}%`, backgroundColor: "var(--accent-amber)", opacity: 0.55 }} />
-                      </span>
-                      <span className="text-right text-[length:var(--fs-12)] tabular-nums" style={{ color: "var(--text-muted)" }}>
-                        {a.count.toLocaleString()}
-                      </span>
-                    </Link>
-                  </li>
+                  <RankRow
+                    key={a.organization}
+                    href={filterHref({ agency, disposition, committee }, { agency: active ? null : a.organization })}
+                    scroll={false}
+                    active={active}
+                    label={a.organization}
+                    count={a.count}
+                    widthPct={(a.count / agencyMax) * 100}
+                    labelFr={1.4}
+                  />
                 );
               })}
             </ul>
