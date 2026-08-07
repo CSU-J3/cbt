@@ -2404,25 +2404,44 @@ body {
    that track ran 1,862px while the asset ink ended at ~616px, so TXN and AMOUNT
    sat pinned at the far right — measured 1,679px of gap on every row, all 50 of
    /trades' M1.
-   The cap is the measured knee, not the pattern's default. Asset-description ink
-   across the rendered page at 2560: min 44px, median 222, p75 257, p95 343, max
-   387 ("The Consumer Staples Select Sector SPDR Fund"). The spread — 343px — is
-   again wider than the 120px threshold, so no cap reaches zero without
-   truncating; the curve, cap → (truncated, rows over): 400 → (0, 41) ·
-   320 → (4, 22) · *280 → (10, 15)* · 240 → (17, 5) · 200 → (29, 1).
-   280px is chosen because it sits just above p75: everything up to the third
-   quartile renders whole and the only clipping falls on the verbose institutional
-   fund names, which is where the boilerplate is. 240 would take 5 more rows for
-   7 more truncations, and that trade is filed rather than taken.
-   .asset-description already carried `truncate`; it now also carries a `title`,
-   so a clipped name keeps its full value on hover.
-   `justify-content: start` collects the leftover width AFTER the amount columns,
-   so those two keep their shared right-aligned axis INSIDE the packed span —
-   the axis never enters M1 once the row packs. */
+   HO 616 — THE REORDER, and it retires 613's cap rather than tuning it. Capping a
+   variable column keeps it mid-row, so its per-row slack stays INTERIOR and the
+   only lever left is how much to truncate. Moving it LAST turns that slack into
+   TRAILING gap, which is the target state and is unthresholded — so the asset
+   name goes from `minmax(0, 280px)` in position 4 to `minmax(0, 1fr)` at the end
+   and stops being clipped at all at wide widths (10 clipped rows at 2560 -> 0).
+   The 613 curve that chose 280 is VOID and was not re-tuned: it was measured
+   under v2 banding, and v3's ink-span changed what "a row over" means on these
+   same rows (1,137px -> 248px). Curves are instrument-relative.
+   `justify-content: start` is GONE and its removal is the mechanism change: a
+   trailing `1fr` track consumes the free space itself, so there is nothing left
+   for justify-content to distribute. Do not re-add it without also making the
+   last track fixed again.
+   What the reorder does NOT fix, and what the track widths are for: the row's
+   largest interior gap was never the asset column. It was `txn -> amount`, 129px,
+   and it is the sum of two FIXED tracks' slack (a 110px type track holding
+   "Sale" at 37px, plus a 110px amount track right-aligning "$1,001 - $15,000" at
+   66px). Sized from the CORPUS vocabulary rather than a rendered page, because
+   both columns are closed sets: transaction_type is 4 distinct values, max
+   "Sale (Partial)" (4 of 1,209 trades); amount is 7 distinct values, max
+   "$1,000,001 - $5,000,000" (~100px). So amount stays 110 (its true max plus
+   headroom, no clipping) and type goes 110 -> 80 WITH truncate + title, which
+   clips exactly one of the four vocabulary values on 0.33% of trades. That is
+   the knee, and it is derived from the whole corpus rather than from the 50 rows
+   a page happens to render — the HO 615 lesson about sizing a bound off one
+   sample.
+   .asset-description keeps `truncate` + `title` for narrow widths, where the 1fr
+   track does get small.
+   The date track is 84px, not 64. HO 613 widened it 60 -> 64 for the header's
+   DISCLOSED label and verified at 1024/900/720 — but the --fs ladder steps every
+   token +2px by 2560, so at the widest stop DISCLOSED renders 79px inside a 64px
+   track and OVERLAPPED the chamber chip by 3px. A negative gap is a text
+   collision, not a packing win; 84px clears it at every stop. The lesson is the
+   ladder's: a fixed track checked only at narrow widths is unchecked at wide
+   ones, because the type in it is not the same size there. */
 .trade-row {
   display: grid;
-  grid-template-columns: 64px 40px 80px minmax(0, 280px) 110px 110px;
-  justify-content: start;
+  grid-template-columns: minmax(0, 84px) 40px 80px minmax(0, 80px) minmax(0, 191px) minmax(0, 1fr);
   align-items: baseline;
   column-gap: 12px;
   padding: 6px 0;
@@ -2447,6 +2466,16 @@ body {
   color: var(--text-secondary);
 }
 
+/* HO 616: the type track is 80px against a 14-char worst case, so the cell
+   clips like the asset name does — with its full value on `title`. Colour is
+   state and is untouched. */
+.trade-row .txn-buy,
+.trade-row .txn-sell,
+.trade-row .txn-other {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .trade-row .txn-buy {
   color: var(--stage-enacted);
 }
@@ -2466,11 +2495,11 @@ body {
 }
 
 /* HO 613: the header takes the row's template and packing so the two cannot
-   disagree — it was the second-largest gap on the route at 1,862px. */
+   disagree — it was the second-largest gap on the route at 1,862px. HO 616 keeps
+   that rule through the reorder; both templates move together or neither does. */
 .trade-header-row {
   display: grid;
-  grid-template-columns: 64px 40px 80px minmax(0, 280px) 110px 110px;
-  justify-content: start;
+  grid-template-columns: minmax(0, 84px) 40px 80px minmax(0, 80px) minmax(0, 191px) minmax(0, 1fr);
   align-items: baseline;
   column-gap: 12px;
   padding: 9px 0;
@@ -2490,14 +2519,27 @@ body {
    on the row and its header so they stay aligned. */
 .trade-row--with-member,
 .trade-header-row--with-member {
-  grid-template-columns: 160px 64px 40px 80px minmax(0, 280px) 110px 110px;
+  grid-template-columns: minmax(0, 160px) minmax(0, 84px) 40px 80px minmax(0, 80px) minmax(0, 191px) minmax(0, 1fr);
 }
 
 .trade-row .trade-member {
   font-size: var(--fs-13);
 }
 
-@media (max-width: 700px) {
+/* HO 616 — 780, not 700, and the number is derived. The reordered row's tracks
+   total 707px (160+84+40+80+80+191 plus six 12px gaps); the content column is the
+   viewport less 34px of page gutter, so the full template is viable from ~741px
+   upward and 780 leaves margin. Between 700 and 780 the old breakpoint left the
+   full template in a column too narrow for it: the `minmax(0, 1fr)` asset track
+   is the one that gives, and an fr track with no free space is ZERO — so the
+   asset column vanished and its header label, which has no clip of its own,
+   overflowed the row and took the document with it (739px at a 720 viewport,
+   bucket (b) 0 -> 4).
+   Nothing new is invented here: this is the compact template the design already
+   had for "not enough width", starting 80px earlier because the row now needs
+   80px more. The regression was mine — the wide-width track sizing above is what
+   pushed the total past what 720 could hold. */
+@media (max-width: 780px) {
   .trade-row {
     grid-template-columns: 60px 80px 110px 80px;
   }

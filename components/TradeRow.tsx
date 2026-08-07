@@ -74,6 +74,18 @@ export function TradeRow({
           ? trade.ticker.toUpperCase()
           : "—"}
       </span>
+      {/* HO 616 — the reorder. The variable-width asset name moved from here to
+          LAST, so its per-row slack becomes trailing gap instead of an interior
+          one. Type and amount are now adjacent, which tightens the money axis
+          rather than loosening it: amount's left neighbour is a bounded 4-value
+          vocabulary instead of a 44-387px description. */}
+      <span
+        className={`${txnClassName} uppercase tracking-[0.5px]`}
+        title={trade.transactionType ?? undefined}
+      >
+        {trade.transactionType ?? "—"}
+      </span>
+      <span className="amount">{trade.amount ?? "—"}</span>
       <span
         className="asset-description truncate"
         title={trade.assetDescription ?? undefined}
@@ -82,12 +94,6 @@ export function TradeRow({
         {trade.assetDescription ?? "—"}
         {owner ? <span className="owner-chip">[{owner}]</span> : null}
       </span>
-      <span
-        className={`${txnClassName} uppercase tracking-[0.5px]`}
-      >
-        {trade.transactionType ?? "—"}
-      </span>
-      <span className="amount">{trade.amount ?? "—"}</span>
     </div>
   );
 }

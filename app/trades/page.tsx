@@ -165,9 +165,9 @@ export default async function TradesPage({
                 <span className="trade-date">Disclosed</span>
                 <span className="chamber-chip">Ch.</span>
                 <span>Ticker</span>
-                <span className="asset-description">Asset</span>
                 <span>Type</span>
                 <span className="amount">Amount</span>
+                <span className="asset-description">Asset</span>
               </div>
               <ul>
                 {feed.trades.map((t) => (
