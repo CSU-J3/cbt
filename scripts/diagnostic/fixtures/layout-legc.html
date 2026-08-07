@@ -236,6 +236,94 @@
   .legc-cal-row .track { display: block; height: 10px; background: #11161f; border-radius: 2px; }
   .legc-cal-row .track > i { display: block; height: 100%; background: var(--accent-amber); opacity: 0.55; }
   .legc-cal-row .num { text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  /* ======================= HO 620 — INSTRUMENT v4 CASES ====================
+     Four measurement changes, four cases. Each is labelled with the exact
+     reading its assertion demands, and each denies a specific way the change
+     could be wrong — a case that only proves the new column is non-zero would
+     be satisfied by an instrument that put everything in it. */
+
+  /* ==== v4-A — M4 FURNITURE vs M4-true. ====================================
+     Three sibling rows, each holding two SHORT-TEXT cells that clear M4's 40px
+     height floor (a star, a two-line id rail — the /member-detail shape). They
+     are labels doing their job inside a tall row, not reserved emptiness, so
+     every one must land in M4f and NOT in M4-true.
+
+     The row beside them is the control: same height, same <=12 chars, but the
+     cell is genuinely EMPTY and so must stay in M4-true even though it too sits
+     in a repeated row. Without that pair, "furniture is excluded" is satisfied by
+     an instrument that excludes every short cell in a repeated row, which would
+     re-hide the /stale reservation this same commit teaches M4 to see. */
+  .legc-m4f-row { display: flex; align-items: stretch; gap: 12px; width: 720px; }
+  .legc-m4f-row + .legc-m4f-row { margin-top: 2px; }
+  .legc-m4f-cell {
+    height: 56px;                 /* clears the 40px floor; text is 1-4 chars */
+    width: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-panel);
+    color: var(--text-muted);
+    font-size: var(--fs-11);
+  }
+  .legc-m4f-title { align-self: center; color: var(--text-primary); }
+  /* the control: same box, no text at all */
+  .legc-m4f-void { height: 56px; width: 60px; background: var(--bg-panel); }
+
+  /* ==== v4-B — M4w, the WIDTH-reserved slot. ===============================
+     A 52px-wide empty box inside a repeated row: the /stale `.row-hslot` shape,
+     which M4 cannot see because M4 is keyed on HEIGHT. The live instance was
+     fixed at HO 618, so this fixture carries the only positive — which is where
+     a positive for a fixed defect belongs.
+
+     Exactly ONE must be reported per row-group, not three: the assertion demands
+     3 (one per row) so a per-row reservation is counted per row, and the nested
+     wrapper below it must NOT double-count. */
+  .legc-m4w-row { display: flex; align-items: center; gap: 10px; width: 720px; padding: 3px 0; }
+  .legc-m4w-slot { width: 52px; height: 14px; }   /* reserves width, holds nothing */
+  /* NEGATIVE — a BAR SEGMENT: also empty, also a chosen width, inside the same
+     repeated row. It must NOT read as M4w. Without this control the predicate
+     fired 359 times on /members (201 committee activity bars, 153 topic-mix
+     segments, 4 tracks), because a bar and a reservation are the same DOM shape.
+     What separates them is PAINT: a bar's width is the datum and it is visible;
+     a reservation is invisible by definition. So M4w requires no paint of its
+     own, and this segment — identical geometry, one background — proves it. */
+  .legc-m4w-bar { width: 52px; height: 10px; background: var(--accent-amber); }
+
+  /* ==== v4-C — M5s, scroll-by-design, counted ONCE. ========================
+     A mock marquee two levels deep: an `overflow: hidden` frame containing an
+     animated track wider than it. Both the frame AND the track overflow, so a
+     naive count reads 2 — six levels of exactly this shape was the whole of /'s
+     86-88 bucket-(b) population. The assertion demands exactly 1: the outermost
+     root, with the inner level ABSORBED rather than counted beside it.
+
+     `animation` is what marks it as brought-into-view-by-motion rather than
+     merely clipped; the NEG below is the same geometry WITHOUT animation and
+     must stay in bucket (b), so `overflow: hidden` alone can never buy an
+     exemption. */
+  .legc-m5s-frame { width: 300px; overflow: hidden; border: 1px solid var(--border-strong); }
+  .legc-m5s-track { width: 900px; white-space: nowrap; animation: legcMarq 30s linear infinite; }
+  @keyframes legcMarq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  /* NEGATIVE — clipped, not scrolled, not animated: real overflow, bucket (b). */
+  .legc-m5s-neg-frame { width: 300px; overflow: hidden; border: 1px solid var(--border-strong); }
+  .legc-m5s-neg-inner { width: 900px; white-space: nowrap; }
+
+  /* ==== v4-D — the 2-CHILD chip row M3 could not see. ======================
+     Three sibling rows with exactly TWO element children each. Under v3 these
+     never entered M3's sample (its groups required >=3 children), which is how
+     796 converged chips stayed invisible to the instrument built to score them.
+     Each row carries three own-styled chips plus a bright title, so the group's
+     mean must be ~4 and, decisively, must be NON-ZERO: a zero here means the
+     rows are still outside the sample. */
+  .legc-m3-row { display: flex; align-items: baseline; gap: 10px; width: 900px; padding: 3px 0; }
+  .legc-m3-row .t { color: var(--text-primary); }
+  .legc-m3-row .sub { display: flex; gap: 6px; }
+  .legc-m3-row .chip {
+    border: 1px solid var(--border-strong);
+    color: var(--text-muted);
+    font-size: var(--fs-10);
+    padding: 0 4px;
+  }
 </style>
 </head>
 <body>
@@ -321,6 +409,83 @@
       <span class="lbl">Enacted</span>
       <span class="track"><i style="width: 2%"></i></span>
       <span class="num">312</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>v4-A — M4 furniture (three rows x two short-text cells must read M4f, never M4-true; the empty control must stay M4-true)</h2>
+  <div class="legc-m4f-stack">
+    <div class="legc-m4f-row">
+      <span class="legc-m4f-cell">&#9734;</span>
+      <span class="legc-m4f-cell">HR9260</span>
+      <span class="legc-m4f-title">A row whose short cells are labels, not reserved space</span>
+    </div>
+    <div class="legc-m4f-row">
+      <span class="legc-m4f-cell">&#9734;</span>
+      <span class="legc-m4f-cell">S1204</span>
+      <span class="legc-m4f-title">A row whose short cells are labels, not reserved space</span>
+    </div>
+    <div class="legc-m4f-row">
+      <span class="legc-m4f-cell">&#9734;</span>
+      <span class="legc-m4f-cell">HJRES8</span>
+      <span class="legc-m4f-title">A row whose short cells are labels, not reserved space</span>
+    </div>
+  </div>
+  <div class="legc-m4f-row" style="margin-top: 10px">
+    <span class="legc-m4f-void" data-legc-clean></span>
+    <span class="legc-m4f-title">and the control: a genuinely empty box, which stays M4-true</span>
+  </div>
+</section>
+
+<section>
+  <h2>v4-B — M4w width-reserved slot (must read exactly 3) beside an identically-sized painted BAR segment (must read 0)</h2>
+  <div class="legc-m4w-stack">
+    <div class="legc-m4w-row">
+      <span>MON 04 · a row that reserves width for a badge it does not have</span>
+      <span class="legc-m4w-slot"></span>
+      <span class="legc-m4w-bar" data-legc-clean></span>
+      <span>121d</span>
+    </div>
+    <div class="legc-m4w-row">
+      <span>TUE 05 · a row that reserves width for a badge it does not have</span>
+      <span class="legc-m4w-slot"></span>
+      <span class="legc-m4w-bar" data-legc-clean></span>
+      <span>121d</span>
+    </div>
+    <div class="legc-m4w-row">
+      <span>WED 06 · a row that reserves width for a badge it does not have</span>
+      <span class="legc-m4w-slot"></span>
+      <span class="legc-m4w-bar" data-legc-clean></span>
+      <span>121d</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>v4-C — M5s scroll-by-design (an animated marquee two levels deep must read exactly 1, not 2; the un-animated twin stays in bucket (b))</h2>
+  <div class="legc-m5s-frame">
+    <div class="legc-m5s-track">a track wider than its frame, moved into view by animation rather than by scrolling</div>
+  </div>
+  <div class="legc-m5s-neg-frame" data-legc-clean style="margin-top: 10px">
+    <div class="legc-m5s-neg-inner">the same geometry with no animation — clipped, not scrolled, so this is real overflow</div>
+  </div>
+</section>
+
+<section>
+  <h2>v4-D — the 2-child chip row (v3's M3 could not sample it; the group mean must be non-zero)</h2>
+  <div class="legc-m3-stack">
+    <div class="legc-m3-row">
+      <span class="t">Service Academy Parity Act</span>
+      <span class="sub"><span class="chip">EDU</span><span class="chip">GOV</span><span class="chip">DEF</span></span>
+    </div>
+    <div class="legc-m3-row">
+      <span class="t">Stop Secret Spending Act</span>
+      <span class="sub"><span class="chip">GOV</span><span class="chip">TECH</span><span class="chip">FIN</span></span>
+    </div>
+    <div class="legc-m3-row">
+      <span class="t">Ensuring Federal Purchasing Efficiency Act</span>
+      <span class="sub"><span class="chip">GOV</span><span class="chip">TRD</span><span class="chip">BDGT</span></span>
     </div>
   </div>
 </section>

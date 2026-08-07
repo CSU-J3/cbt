@@ -60,6 +60,27 @@
 //       ending the defects an anchor is pinned to. See the fixture's header.
 // Every number produced before this change is v2 and does not compare to a v3 one.
 //
+// HO 620 — INSTRUMENT v4, AND WHY IT SHIPS AT THE ARC CLOSE RATHER THAN AFTER IT.
+// The terminal crawl is the maintenance baseline every future layout HO reads, and
+// v3 would have handed it two known lies. Four changes, NO THRESHOLD MOVED:
+//   (1) M4 SPLITS into M4-true and M4f (furniture). M4's emitter (>=40px tall,
+//       <=12 chars) cannot tell reserved emptiness from a short label doing its job
+//       in a tall row, so ~96.7% of the site total was watch stars, bill-ID rails
+//       and stat tiles — a headline number that was almost entirely not the thing
+//       it is named after. The HO 617 hand-split becomes the instrument's output.
+//   (2) M4w — WIDTH-reserved slots. M4 is keyed on HEIGHT, so a width-shaped
+//       reservation is invisible to it by construction: /stale's 52px `.row-hslot`
+//       was the whole of that route's M1 while M4 read nothing (HO 618).
+//   (3) M5s — scroll-by-design, the third overflow category, per its backlog shape.
+//       /'s bucket (b) of 86-88 was ONE marquee counted at SIX nesting levels.
+//   (4) M3 samples EVERY repeated-sibling group with >=2 element children. v3
+//       reused M1a's >=3-children gate, so 2-child feed rows never entered — the
+//       796-chip convergence at HO 619 was invisible to the instrument built to
+//       score it, and four routes' "M3 3.00" was in fact 10 nav items.
+// M1/M1x/M2 are untouched and are the control: a v3-vs-v4 bridge run on the same
+// DOM must show them identical. M3 and M4 are a DIFFERENT RULER — the era wall
+// applies to them exactly as it did to M1 at v2 and v3.
+//
 // Cross-run warning (HO 604 keyed-diff oddity): this audit is re-run after P3-P6,
 // and remediation RENAMES CLASSES. `selectorPath` is a human pointer, NOT a join
 // key — the per-route counts are the cross-run currency. A comparison keyed on
@@ -624,13 +645,58 @@ function measureInPage(t: Thresholds) {
     }
   }
 
+  // --- repeated-row context, shared by M3 / M4f / M4w (v4) -------------------
+  // A "repeated row" is an element with >=3 visible siblings sharing its tag+class
+  // signature. Deliberately independent of M1a's predicate, which additionally
+  // requires >=3 element children — that extra clause is what made M3 blind (see
+  // below) and it has no business deciding whether a star in a feed row is
+  // furniture.
+  const isRepeatedRow = (el: Element): boolean => (sibCount.get(el) ?? 1) >= 3 && visible(el);
+  const inRepeatedRow = (el: Element): boolean => {
+    let cur: Element | null = el;
+    let hops = 0;
+    while (cur && hops < 12) {
+      if (isRepeatedRow(cur)) return true;
+      cur = cur.parentElement;
+      hops++;
+    }
+    return false;
+  };
+
   // --- M3 -------------------------------------------------------------------
   // Own-vs-parent, resolved rgb. Counts a descendant once however many properties
-  // differ. Only over M1a groups — "per repeated-row group".
+  // differ.
+  //
+  // v4 — SAMPLES EVERY REPEATED-SIBLING GROUP WITH >=2 ELEMENT CHILDREN. v3 reused
+  // M1a's groups, whose gate is `kids >= 3 && siblings >= 3`, so a feed row with
+  // TWO element children never entered the sample at all: /changes' 132 chip-bearing
+  // rows and /bills' 25 carry exactly two, and the 796-chip convergence at HO 619
+  // was invisible to the instrument built to score it. Worse, the numbers those
+  // routes did report were measuring something else entirely — /changes' "M3 3.00"
+  // was 10 nav items at 3.00 apiece, and four routes read exactly 3.00 for that
+  // reason. A shared-chrome mean wearing a route's name is worse than no reading.
+  //
+  // M1a is UNTOUCHED (M1 must not move), so this is a second, wider group pass.
+  // Every v4 M3 number is a different ruler from every v3 one — era wall.
+  const m3Groups: Element[][] = [];
+  const seenM3Key = new Set<string>();
+  for (const el of allEls) {
+    if (!visible(el)) continue;
+    if ((sibCount.get(el) ?? 1) < 3) continue;
+    if (Array.from(el.children).filter((c) => visible(c)).length < 2) continue;
+    const parent = el.parentElement;
+    if (!parent) continue;
+    const key = `${pathOf(parent)}##${sigOf(el)}`;
+    if (seenM3Key.has(key)) continue;
+    seenM3Key.add(key);
+    const group = Array.from(parent.children).filter((c) => sigOf(c) === sigOf(el) && visible(c));
+    if (group.length >= 3) m3Groups.push(group);
+  }
+
   let noiseRowCount = 0;
   let noiseTotal = 0;
   let worstRowNoise = 0;
-  for (const group of m1aGroups) {
+  for (const group of m3Groups) {
     for (const row of group) {
       let n = 0;
       for (const d of Array.from(row.querySelectorAll("*"))) {
@@ -676,10 +742,73 @@ function measureInPage(t: Thresholds) {
   }
   // Keep only the outermost of any nested run, or one reserved box counts N times.
   const kept: Empty[] = [];
+  const keptEls: Element[] = [];
   for (const c of candidates) {
     const nestedInAnother = candidates.some((o) => o.el !== c.el && o.el.contains(c.el));
-    if (!nestedInAnother) kept.push(c.rec);
+    if (!nestedInAnother) {
+      kept.push(c.rec);
+      keptEls.push(c.el);
+    }
   }
+
+  // v4 — M4 SPLITS: M4-true vs M4f (FURNITURE). C4 is about space RESERVED FOR
+  // NOTHING, and M4's emitter (>=40px tall, <=12 chars) cannot tell that from a
+  // short label doing its job inside a tall row: a watch star, a two-line bill-ID
+  // rail, a stat tile reading "12". HO 617 hand-split /member-detail's 27 and found
+  // 20 were feed-row parts; at HO 618 the site total was ~96.7% furniture, i.e. the
+  // headline number was almost entirely not the thing it is named after.
+  //
+  // Furniture = inside a repeated-sibling row context AND carrying non-empty text.
+  // Both clauses matter: the repeated-row context is what makes it a component
+  // rather than a reservation, and non-empty text is what makes it a label rather
+  // than a void. A genuinely empty box inside a repeated row is NOT furniture — it
+  // is exactly the /stale .row-hslot defect — so it stays in M4-true.
+  //
+  // The 617 hand-split becomes the instrument's own output; M4f is reported on its
+  // own line, the M1x pattern, so the exclusion cannot grow silently.
+  const m4True: Empty[] = [];
+  const m4Furniture: Empty[] = [];
+  for (let i = 0; i < kept.length; i++) {
+    const rec = kept[i]!;
+    const el = keptEls[i]!;
+    if (rec.text.length > 0 && inRepeatedRow(el)) m4Furniture.push(rec);
+    else m4True.push(rec);
+  }
+
+  // v4 — M4w: WIDTH-RESERVED SLOTS. M4 is keyed on HEIGHT (>=40px), so a defect
+  // shaped in WIDTH is invisible to it by construction: /stale's `.row-hslot` was a
+  // 52px-wide empty box on 45 of 50 rows, opened a uniform 121px gap on every one,
+  // and was the whole of that route's M1 — while M4, the instrument for reserved
+  // empty space, read nothing (HO 618). A height-keyed instrument cannot see a
+  // width-shaped reservation.
+  //
+  // Predicate: no ink at all (no text, no visible element descendant), NO PAINT OF
+  // ITS OWN, rect width >= the M4 height floor, inside a repeated row. The live
+  // instance is fixed, so the fixture carries the only positive.
+  //
+  // THE UNPAINTED CLAUSE IS LOAD-BEARING AND WAS FOUND BY MEASUREMENT, NOT REASON.
+  // Without it this fired 359 times on /members — 201 committee activity bars, 153
+  // topic-mix segments, 4 bar tracks — because a BAR is also an empty element whose
+  // width was chosen. It is the exact opposite of a reservation: its width IS the
+  // datum. A reserved slot is invisible by definition, so if it paints, it is a
+  // mark and not a void. Same distinction `data-viz-row` draws for M1, drawn here
+  // by a property of the element rather than by an attribute someone must remember
+  // to add. The fixture carries the negative (a painted segment of identical size).
+  type WidthSlot = { selectorPath: string; widthPx: number };
+  const m4wRaw: { el: Element; rec: WidthSlot }[] = [];
+  for (const el of allEls) {
+    if (!visible(el)) continue;
+    if ((el.textContent ?? "").trim().length > 0) continue;
+    if (Array.from(el.querySelectorAll("*")).some((d) => visible(d))) continue;
+    if (hasBoxPaint(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < t.m4MinH) continue;
+    if (!inRepeatedRow(el)) continue;
+    m4wRaw.push({ el, rec: { selectorPath: pathOf(el), widthPx: Math.round(r.width) } });
+  }
+  const m4w: WidthSlot[] = m4wRaw
+    .filter((c) => !m4wRaw.some((o) => o.el !== c.el && o.el.contains(c.el)))
+    .map((c) => c.rec);
 
   // --- M5 inputs ------------------------------------------------------------
   // v3 — the overflow population splits in two. An element whose OWN computed
@@ -689,28 +818,73 @@ function measureInPage(t: Thresholds) {
   // so bucket (b) carried a large permanent non-actionable population and the real
   // failures could not be seen inside it. The raw total is still emitted for
   // continuity with the (a)/(b) bucket tables the P4 handoffs reported by hand.
+  // v4 — the THIRD category, per the backlog shape (P3 · M5 scroll-by-design).
+  // M5x captures authored TRUNCATION; it says nothing about authored SCROLLING, so
+  // a marquee and a raw-JSON block landed in bucket (b) and read as narrow-width
+  // breakage. `/`'s 86-88 was ONE marquee counted at SIX nesting levels — the whole
+  // distortion — plus the three ancestors carrying its real +85px document overflow.
+  //
+  // A scroll-by-design ROOT is an overflowing element that is either:
+  //   (a) self-scrollable — own computed overflow-x `auto`/`scroll`; the reader can
+  //       reach the content (`pre.bdp-rawpre`, the raw-JSON block), or
+  //   (b) overflow-x `hidden` WITH an animated descendant — the content is brought
+  //       into view by animation rather than by scrolling (the markets marquee).
+  //
+  // DEVIATION FROM THE BACKLOG PHRASING, stated because it is a definition change:
+  // that entry reads "overflow-x auto/scroll/hidden with an animated or explicitly-
+  // scrollable child", which taken literally MISSES `pre.bdp-rawpre` — one of its
+  // own two worked examples — because a <pre>'s only child is a text node. Clause
+  // (a) reads the element itself as the scrollable thing; clause (b) keeps plain
+  // clipping-`hidden` out, which is what the child requirement was protecting
+  // against. Both worked examples land, and ordinary `overflow:hidden` does not.
+  //
+  // ABSORPTION, not just dedup: anything overflowing INSIDE a root belongs to that
+  // root's chain and is counted once, at the root. Six levels of one marquee is the
+  // distortion this exists to remove, and only the outermost is a thing a reader
+  // could act on.
   type Over = { selectorPath: string; scrollWidth: number; clientWidth: number };
   const overflow: Over[] = [];
   const overflowClip: Over[] = [];
   const overflowReal: Over[] = [];
+  const overflowScroll: Over[] = [];
+  const overflowing: Element[] = [];
   for (const el of allEls) {
     if (!visible(el)) continue;
     if (el.clientWidth <= 0) continue;
-    if (el.scrollWidth > el.clientWidth + 1) {
-      const rec: Over = {
-        selectorPath: pathOf(el),
-        scrollWidth: el.scrollWidth,
-        clientWidth: el.clientWidth,
-      };
-      const cs = getComputedStyle(el);
-      const clamp =
-        (cs as unknown as { webkitLineClamp?: string }).webkitLineClamp ??
-        cs.getPropertyValue("-webkit-line-clamp");
-      const designClip =
-        cs.textOverflow === "ellipsis" || (!!clamp && clamp !== "none" && clamp !== "");
-      overflow.push(rec);
-      (designClip ? overflowClip : overflowReal).push(rec);
+    if (el.scrollWidth > el.clientWidth + 1) overflowing.push(el);
+  }
+  const hasAnimatedDescendant = (el: Element): boolean =>
+    Array.from(el.querySelectorAll("*")).some((d) => {
+      const cs = getComputedStyle(d);
+      return cs.animationName !== "none" && cs.animationName !== "";
+    });
+  const scrollRoots = overflowing.filter((el) => {
+    const ox = getComputedStyle(el).overflowX;
+    if (ox === "auto" || ox === "scroll") return true;
+    return ox === "hidden" && hasAnimatedDescendant(el);
+  });
+  const outermostRoots = scrollRoots.filter((el) => !scrollRoots.some((o) => o !== el && o.contains(el)));
+
+  for (const el of overflowing) {
+    const rec: Over = {
+      selectorPath: pathOf(el),
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    };
+    overflow.push(rec);
+    const cs = getComputedStyle(el);
+    const clamp =
+      (cs as unknown as { webkitLineClamp?: string }).webkitLineClamp ??
+      cs.getPropertyValue("-webkit-line-clamp");
+    const designClip =
+      cs.textOverflow === "ellipsis" || (!!clamp && clamp !== "none" && clamp !== "");
+    if (outermostRoots.includes(el)) {
+      overflowScroll.push(rec);
+      continue;
     }
+    // absorbed into a scroll-by-design chain — counted once, at its root
+    if (outermostRoots.some((r) => r.contains(el))) continue;
+    (designClip ? overflowClip : overflowReal).push(rec);
   }
   // Flex containers → rendered line count, so a narrow width can be compared to
   // 2560. v3 clusters by vertical OVERLAP, the same rule M1 has used since v2:
@@ -773,19 +947,35 @@ function measureInPage(t: Thresholds) {
       rowsScored: noiseRowCount,
       meanPerRow: noiseRowCount ? Math.round((noiseTotal / noiseRowCount) * 100) / 100 : 0,
       worstRow: worstRowNoise,
+      groupsSampled: m3Groups.length,
     },
     m4: {
       items: kept,
       count: kept.length,
       reservedPx: kept.reduce((a, b) => a + b.heightPx, 0),
       seededHits: kept.filter((k) => k.seeded).length,
+      // v4 — the split. `items`/`count`/`reservedPx` stay the UNION so a v3 column
+      // can still be read off a v4 run for the bridge; the split is additive.
+      trueItems: m4True,
+      trueCount: m4True.length,
+      truePx: m4True.reduce((a, b) => a + b.heightPx, 0),
+      furnitureItems: m4Furniture,
+      furnitureCount: m4Furniture.length,
+      furniturePx: m4Furniture.reduce((a, b) => a + b.heightPx, 0),
+    },
+    m4w: {
+      items: m4w,
+      count: m4w.length,
+      reservedPx: m4w.reduce((a, b) => a + b.widthPx, 0),
     },
     m5: {
       overflow,
       overflowClip,
       overflowReal,
+      overflowScroll,
       clipCount: overflowClip.length,
       realCount: overflowReal.length,
+      scrollCount: overflowScroll.length,
       flexLines,
     },
   };
@@ -902,6 +1092,76 @@ function assertLegC(d: Measured): { cases: LegCase[]; ok: boolean } {
     d.m1.vizExempt === 3 && calScored === 0,
     `M1x ${d.m1.vizExempt} · viz rows scored as M1 ${calScored}`,
     "M1x 3 · scored 0",
+  );
+
+  // --- v4 (HO 620): four measurement changes, four assertions --------------
+  // Each demands an EXACT reading and each denies one way the change could be
+  // wrong. "The new column is non-zero" would be satisfied by an instrument that
+  // put everything in it, so every one of these has a paired control.
+  const m4fCells = d.m4.furnitureItems.filter((i) => /legc-m4f-cell/.test(i.selectorPath)).length;
+  const m4fInTrue = d.m4.trueItems.filter((i) => /legc-m4f-cell/.test(i.selectorPath)).length;
+  push(
+    "v4-A M4f takes the furniture, M4-true keeps none of it",
+    m4fCells === 6 && m4fInTrue === 0,
+    `M4f ${m4fCells} · M4-true ${m4fInTrue}`,
+    "M4f 6 · M4-true 0",
+  );
+  // The control: an EMPTY box in the same repeated-row context must NOT be
+  // furniture, or the split re-hides the /stale reservation this commit adds.
+  const voidInTrue = d.m4.trueItems.some((i) => /legc-m4f-void/.test(i.selectorPath));
+  const voidInFurniture = d.m4.furnitureItems.some((i) => /legc-m4f-void/.test(i.selectorPath));
+  push(
+    "v4-A control: an EMPTY box in a repeated row stays M4-true",
+    voidInTrue && !voidInFurniture,
+    `M4-true ${voidInTrue ? "yes" : "no"} · M4f ${voidInFurniture ? "yes" : "no"}`,
+    "M4-true yes · M4f no",
+  );
+
+  const slots = d.m4w.items.filter((i) => /legc-m4w-slot/.test(i.selectorPath)).length;
+  push(
+    "v4-B M4w sees the width-reserved slot",
+    slots === 3,
+    `${slots} slot(s)`,
+    "exactly 3, one per row",
+  );
+  // The control that the first draft of this predicate did not have, and paid for:
+  // unguarded it fired 359 times on /members, all of them BARS. A bar and a
+  // reservation are the same DOM shape; paint is what separates them.
+  const bars = d.m4w.items.filter((i) => /legc-m4w-bar/.test(i.selectorPath)).length;
+  push(
+    "v4-B control: a painted BAR of identical size is not a reservation",
+    bars === 0,
+    `${bars} bar(s) counted as M4w`,
+    "exactly 0",
+  );
+
+  const m5sRoots = d.m5.overflowScroll.filter((o) => /legc-m5s-frame|legc-m5s-track/.test(o.selectorPath));
+  const m5sInReal = d.m5.overflowReal.filter((o) => /legc-m5s-frame|legc-m5s-track/.test(o.selectorPath));
+  push(
+    "v4-C M5s counts the marquee ONCE, absorbing the inner level",
+    m5sRoots.length === 1 && /legc-m5s-frame/.test(m5sRoots[0]?.selectorPath ?? "") && m5sInReal.length === 0,
+    `M5s ${m5sRoots.length} · same chain in (b) ${m5sInReal.length}`,
+    "M5s 1 (the frame) · (b) 0",
+  );
+  // The control: identical geometry, no animation. `overflow: hidden` on its own
+  // must never buy the exemption, or every clipped box leaves bucket (b).
+  const negFrameInReal = d.m5.overflowReal.some((o) => /legc-m5s-neg-frame/.test(o.selectorPath));
+  const negFrameInScroll = d.m5.overflowScroll.some((o) => /legc-m5s-neg-frame/.test(o.selectorPath));
+  push(
+    "v4-C control: un-animated overflow:hidden stays in bucket (b)",
+    negFrameInReal && !negFrameInScroll,
+    `(b) ${negFrameInReal ? "yes" : "no"} · M5s ${negFrameInScroll ? "yes" : "no"}`,
+    "(b) yes · M5s no",
+  );
+
+  // v4-D — the 2-child rows must now be INSIDE M3's sample. The fixture's own
+  // group is not separable from the page mean, so the assertion is the one thing
+  // that is decisive and stable: a non-zero mean over a sample that grew.
+  push(
+    "v4-D M3 samples 2-child rows (mean non-zero, groups grew)",
+    d.m3.meanPerRow > 0 && d.m3.groupsSampled >= 4,
+    `mean ${d.m3.meanPerRow} over ${d.m3.groupsSampled} group(s), ${d.m3.rowsScored} rows`,
+    "mean > 0 · >= 4 groups",
   );
 
   return { cases, ok: cases.every((c) => c.ok) };
@@ -1024,7 +1284,7 @@ async function main() {
   };
 
   console.log("-".repeat(100));
-  console.log("FALSIFICATION — instrument v3.  A: known-good clears · B: exemptions stable · C: the fixture.");
+  console.log("FALSIFICATION — instrument v4.  A: known-good clears · B: exemptions stable · C: the fixture.");
   console.log("-".repeat(100));
 
   let falsificationOk = true;
@@ -1154,7 +1414,8 @@ async function main() {
         `  ${route.slug.padEnd(22)} ${String(r.status).padStart(3)}  els ${String(d.elementCount).padStart(6)}  ` +
           `M1a ${String(d.m1.m1aCount).padStart(3)}  M1b ${String(d.m1.m1bCount).padStart(3)}  ` +
           `M2 ${String(d.m2.count).padStart(3)}  M3 ${String(d.m3.meanPerRow).padStart(5)}  ` +
-          `M4 ${String(d.m4.count).padStart(3)}/${String(d.m4.reservedPx).padStart(5)}px  ` +
+          `M4 ${String(d.m4.trueCount).padStart(3)}/${String(d.m4.truePx).padStart(5)}px  ` +
+          `M4f ${String(d.m4.furnitureCount).padStart(3)}  M4w ${String(d.m4w.count).padStart(2)}  ` +
           `M1x ${String(d.m1.vizExempt).padStart(3)}`,
       );
       await r.close();
@@ -1180,6 +1441,7 @@ async function main() {
     overflowCount: number;
     clipCount: number;
     realCount: number;
+    scrollCount: number;
     extraWrapCount: number;
     samples: string[];
   };
@@ -1220,11 +1482,12 @@ async function main() {
           overflowCount: d.m5.overflow.length,
           clipCount: d.m5.clipCount,
           realCount: d.m5.realCount,
+          scrollCount: d.m5.scrollCount,
           extraWrapCount: extraWrap,
           samples,
         });
         console.log(
-          `  ${route.slug.padEnd(14)} @${String(w).padStart(4)}  overflow ${String(d.m5.overflow.length).padStart(4)}  = M5x ${String(d.m5.clipCount).padStart(4)} + (b) ${String(d.m5.realCount).padStart(4)}  extra-wrap ${String(extraWrap).padStart(4)}` +
+          `  ${route.slug.padEnd(14)} @${String(w).padStart(4)}  overflow ${String(d.m5.overflow.length).padStart(4)}  = M5x ${String(d.m5.clipCount).padStart(4)} + M5s ${String(d.m5.scrollCount).padStart(3)} + (b) ${String(d.m5.realCount).padStart(4)}  extra-wrap ${String(extraWrap).padStart(4)}` +
             (samples.length ? `   e.g. ${samples[0]}` : ""),
         );
       } catch (e) {
@@ -1256,18 +1519,23 @@ async function main() {
       m1: r.data.m1.m1aCount + r.data.m1.m1bCount,
       m2: r.data.m2.count,
       m3: r.data.m3.meanPerRow,
-      m4px: r.data.m4.reservedPx,
-      m4n: r.data.m4.count,
+      m4px: r.data.m4.truePx,
+      m4n: r.data.m4.trueCount,
+      m4f: r.data.m4.furnitureCount,
+      m4w: r.data.m4w.count,
       m1x: r.data.m1.vizExempt,
     }))
     .sort((a, b) => b.m1 - a.m1);
-  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)} ${"M1x".padStart(5)}`);
+  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)} ${"M4f".padStart(5)} ${"M4w".padStart(4)} ${"M1x".padStart(5)}`);
   for (const t of table) {
     console.log(
-      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)} ${String(t.m1x).padStart(5)}`,
+      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)} ${String(t.m4f).padStart(5)} ${String(t.m4w).padStart(4)} ${String(t.m1x).padStart(5)}`,
     );
   }
   console.log("  M1x = rows under [data-viz-row], EXEMPTED from M1 and counted here.");
+  console.log("  M4n/M4px = M4-TRUE (reserved emptiness). M4f = furniture, EXCLUDED from M4-true and");
+  console.log("  counted here. M4w = width-reserved empty slots, invisible to height-keyed M4.");
+  console.log("  v4 (HO 620): M3 and M4 are a DIFFERENT RULER from v3 — see the era wall.");
 
   console.log("");
   console.log("=".repeat(100));
@@ -1278,15 +1546,21 @@ async function main() {
   const totM1b = results.reduce((a, r) => a + r.data.m1.m1bCount, 0);
   const totCandidates = results.reduce((a, r) => a + r.data.m1.candidateRows, 0);
   const totM2 = results.reduce((a, r) => a + r.data.m2.count, 0);
-  const totM4 = results.reduce((a, r) => a + r.data.m4.count, 0);
-  const totM4px = results.reduce((a, r) => a + r.data.m4.reservedPx, 0);
+  const totM4 = results.reduce((a, r) => a + r.data.m4.trueCount, 0);
+  const totM4px = results.reduce((a, r) => a + r.data.m4.truePx, 0);
+  const totM4f = results.reduce((a, r) => a + r.data.m4.furnitureCount, 0);
+  const totM4fpx = results.reduce((a, r) => a + r.data.m4.furniturePx, 0);
+  const totM4w = results.reduce((a, r) => a + r.data.m4w.count, 0);
+  const totM4wpx = results.reduce((a, r) => a + r.data.m4w.reservedPx, 0);
   const totSeeded = results.reduce((a, r) => a + r.data.m4.seededHits, 0);
   const totVizExempt = results.reduce((a, r) => a + r.data.m1.vizExempt, 0);
   console.log(`  M1 candidate rows examined : ${totCandidates}`);
   console.log(`  M1 rows over ${GAP_THRESHOLD_PX}px          : ${totM1a + totM1b}   (M1a ${totM1a} · M1b ${totM1b})`);
   console.log(`  M1x viz-exempted rows      : ${totVizExempt}   (chart rows under [data-viz-row]; excluded from M1 above)`);
   console.log(`  M2 stretched panels        : ${totM2}`);
-  console.log(`  M4 reserved-empty elements : ${totM4}  totalling ${totM4px}px of vertical space  (seed-vocabulary hits ${totSeeded})`);
+  console.log(`  M4-true reserved-empty     : ${totM4}  totalling ${totM4px}px of vertical space  (seed-vocabulary hits ${totSeeded})`);
+  console.log(`  M4f furniture (excluded)   : ${totM4f}  totalling ${totM4fpx}px  (short labels in repeated rows — not reserved space)`);
+  console.log(`  M4w width-reserved slots   : ${totM4w}  totalling ${totM4wpx}px of horizontal space`);
   console.log("");
   console.log(`  Interior-gap distribution across ${allGaps.length} measured gaps — the threshold is defensible from this, not assumed:`);
   for (const line of histogram(allGaps)) console.log(line);
@@ -1296,11 +1570,12 @@ async function main() {
   console.log("ARTIFACT 3 — M5 NARROW-WIDTH BASELINE");
   console.log("=".repeat(100));
   console.log("  900px is a BREAKPOINT (.dv2-grid collapses at max-width:900, globals.css:646) — 1024 and 720 bracket it.");
-  console.log("  overflow splits: M5x = the element's OWN style declares text-overflow:ellipsis or a line clamp");
-  console.log("  (authored truncation, permanent, not actionable). (b) = real overflow, the number narrow-width work owns.");
-  console.log(`  ${"route".padEnd(16)} ${"width".padStart(6)} ${"overflow".padStart(9)} ${"M5x".padStart(7)} ${"(b) real".padStart(9)} ${"extra-wrap".padStart(11)}`);
+  console.log("  overflow splits THREE ways (v4). M5x = authored TRUNCATION (own text-overflow:ellipsis or a");
+  console.log("  line clamp). M5s = authored SCROLLING (self-scrollable, or overflow:hidden moved by animation),");
+  console.log("  counted ONCE at the outermost of its chain. (b) = real overflow, the number narrow work owns.");
+  console.log(`  ${"route".padEnd(16)} ${"width".padStart(6)} ${"overflow".padStart(9)} ${"M5x".padStart(7)} ${"M5s".padStart(5)} ${"(b) real".padStart(9)} ${"extra-wrap".padStart(11)}`);
   for (const n of narrow) {
-    console.log(`  ${n.slug.padEnd(16)} ${String(n.width).padStart(6)} ${String(n.overflowCount).padStart(9)} ${String(n.clipCount).padStart(7)} ${String(n.realCount).padStart(9)} ${String(n.extraWrapCount).padStart(11)}`);
+    console.log(`  ${n.slug.padEnd(16)} ${String(n.width).padStart(6)} ${String(n.overflowCount).padStart(9)} ${String(n.clipCount).padStart(7)} ${String(n.scrollCount).padStart(5)} ${String(n.realCount).padStart(9)} ${String(n.extraWrapCount).padStart(11)}`);
   }
 
   console.log("");
