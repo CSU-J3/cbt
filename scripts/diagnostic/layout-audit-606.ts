@@ -257,10 +257,31 @@ const LEG_A: {
   { path: "/lobbying", v2Count: 64, minCountDrop: 8, v2Worst: 1051, maxWorst: 1100 },
 ];
 
-// The live funnel's exempted-row count. Asserted exactly, in both directions: an
-// attribute that stops reaching its rows makes this fall, one that spreads makes
-// it climb, and either is a finding.
-const HOME_M1X_EXPECTED = 13;
+// The live DISTRIBUTION panel's exempted-candidate count. Asserted exactly, in
+// both directions: an attribute that stops reaching its rows makes this fall, one
+// that spreads makes it climb, and either is a finding.
+//
+// HO 627: 13 -> 30. The panel un-tabbed, so BY STAGE (StageFunnel, 6 rows) and BY
+// TOPIC (TopicDistributionList, 8 rows) are now BOTH mounted instead of one being
+// hidden behind a tab. The topic list is a NEW data-viz-row marking and it ships
+// with its curve, as the exemption rule requires. Measured on the live page:
+//
+//   void = bar-end -> value, per row
+//   2560: TOPIC 8-395px (median 353) · STAGE 8-488px (median 454)   [row 659px]
+//   1440: TOPIC 8-155px (median 140) · STAGE 8-166px (median 155)   [row 330px]
+//
+// NO CAP REACHES IT, and this is the strongest form of the exemption rather than
+// the FirmsLeaderboard kind: the bar is scaled to the track, so the void is
+// PROPORTIONAL TO THE VALUE BEING ENCODED — a topic at 1/8 of the max MUST leave
+// ~7/8 of its track empty. Capping the row shrinks track and bar together and
+// leaves the same proportional void while making the small topics unreadable.
+// The shape is identical to the StageFunnel marking directly above it in the same
+// panel, at slightly smaller magnitude, which is the calibration.
+//
+// Counts CANDIDATES, not visual rows (14 visual rows -> 30 candidates): wrappers
+// and tracks that clear a width-based gate are counted too. Registry form:
+// M1x 30 / 14 rows.
+const HOME_M1X_EXPECTED = 30;
 
 const SUBSET_SLUGS = new Set([
   "home",

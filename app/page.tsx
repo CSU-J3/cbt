@@ -7,16 +7,13 @@ import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
-import {
-  DashboardTopicTreemap,
-  type TopicDatum,
-} from "@/components/DashboardTopicTreemap";
+import type { TopicDatum } from "@/components/DashboardTopicTreemap";
 import { DashboardV2Header } from "@/components/DashboardV2Header";
-import { DistributionsTabs } from "@/components/DistributionsTabs";
 import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
 import { RacesBoxTabs } from "@/components/RacesBoxTabs";
 import { StageFunnel } from "@/components/StageFunnel";
+import { TopicDistributionList } from "@/components/TopicDistributionList";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
@@ -172,11 +169,27 @@ export default async function DashboardPage({
               <BreakingNewsBlock filters={filters} nowMs={nowMs} />
             </section>
 
+            {/* HO 627 — the tabs are retired; BY STAGE and BY TOPIC are stacked
+                and CO-VISIBLE, per the committed mock
+                (docs/design/dashboard-layout-target.html:294-313). Shipped kept
+                HO 320's tabs, so TOPIC sat behind a click and the panel rendered
+                at half its designed height — one of the two causes of the dead
+                space beside the feed. Mock wins, the standing precedent.
+                Click-to-filter survives on BOTH halves identically (HO 56/320):
+                the funnel writes ?stage=, the topic list writes ?topics=, each
+                toggles, and the cross-rebase still holds — stageDistFiltered
+                rebases on TOPIC and topicRows on STAGE, exactly as before. */}
             <section className="home-quadrant home-panel-distributions">
-              <DistributionsTabs
-                stageContent={<StageFunnel bars={stageDistFiltered.bars} />}
-                topicContent={<DashboardTopicTreemap data={topicData} />}
-              />
+              <p className="home-quadrant-label">
+                Distribution{" "}
+                <span className="home-quadrant-label-count">
+                  ({corpus.total.toLocaleString()} bills)
+                </span>
+              </p>
+              <div className="dist-sub dist-sub--first">By stage</div>
+              <StageFunnel bars={stageDistFiltered.bars} />
+              <div className="dist-sub">By topic</div>
+              <TopicDistributionList data={topicData} />
             </section>
           </div>
         </div>

@@ -1507,11 +1507,82 @@ body {
    mounted (DistributionsTabs), so the treemap renders at the panel width on
    activation. flex column so StageFunnel's flex:1 fills the height; the treemap
    sits top-aligned at its natural aspect (area-honest, not stretched). */
-.distributions-panel-body {
-  height: 230px;
+/* HO 627 — the DISTRIBUTION panel un-tabbed. `.distributions-panel-body`'s FIXED
+   230px height went with the tabs: it existed so a tab swap wouldn't jump the
+   content below it (HO 244). With both halves stacked and co-visible there is no
+   swap to absorb, and a fixed height would now CAP the panel at half what it
+   renders — which is the defect this commit removes, not a constraint to keep.
+   The panel is content-sized (C7); the twoup pair is align-items:start, so a
+   taller DISTRIBUTION beside a shorter BREAKING is C7 working, not a defect —
+   do NOT re-balance it with padding. */
+.dist-sub {
+  color: var(--text-dim);
+  font-size: var(--fs-10);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 2px 3px;
+  border-top: 0.5px solid var(--border-soft);
+  margin-top: 6px;
+}
+.dist-sub--first {
+  border-top: none;
+  margin-top: 0;
+}
+/* The ranked topic list. Same three-part row as .stage-funnel — label · track ·
+   count — on a SHARED origin, which is what makes the pair read as one panel and
+   what earns the data-viz-row exemption. Bars are topic-coloured inline by the
+   component (lib/topic-colors), the only colour in the row. */
+.topic-dist {
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  gap: 1px;
+}
+.topic-dist-row {
+  display: grid;
+  grid-template-columns: 62px 1fr 46px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 2px;
+  text-decoration: none;
+  border-radius: 2px;
+}
+.topic-dist-row:hover {
+  background: var(--bg-row-hover);
+}
+.topic-dist-row.is-dimmed {
+  opacity: 0.4;
+}
+.topic-dist-row.is-selected {
+  background: var(--bg-row-hover);
+}
+.topic-dist-label {
+  font-size: var(--fs-10);
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topic-dist-track {
+  display: block;
+  width: 100%;
+  height: 8px;
+  background: var(--bg-base);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.topic-dist-bar {
+  display: block;
+  height: 100%;
+  min-width: 3px;
+  border-radius: 1px;
+}
+.topic-dist-count {
+  font-size: var(--fs-10);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* HO 133 cap-with-expander footer. Replaces the prior
