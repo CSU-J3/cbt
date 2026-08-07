@@ -1566,3 +1566,203 @@ the instrument was right and the fixture was wrong, and a negative must carry
 exactly one property: the thing it denies.
 
 ---
+## A uniform gap is a reservation, not a stretch — C4 wearing C1's clothes (HO 618)
+
+`/stale` carried **47 M1 rows and every one of them read EXACTLY 121px**, one
+pixel over the 120px threshold. That signature is the finding. A gap produced by
+content — a long name against a short one, a headline against a timestamp —
+**varies with the content**; a gap that is identical on 45 rows is a **fixed
+reservation** and the number is a track width, not a stretch.
+
+Measured across all 50 rows: 45 no-HEARD rows at **121px**, 4 HEARD rows at
+**57px**, 1 at **65px**. Inside a no-HEARD cell: `.row-support` at 40px reading
+`—`, then `.row-hslot` at **52px reading nothing** — space held open for a HEARD
+badge that appears on **5 of 50 rows**. The reservation bought nothing even on
+those five, because the badge right-aligns against the age column either way,
+which is exactly what the 57px rows already demonstrate.
+
+**Why it matters beyond the route: the defect was C4 and it was ONLY ever going to
+be reported by the C1 detector.** M1 caught it because the reservation happened to
+sit *between* two other cells; had the slot been at the row's end it would have
+been trailing gap, which is the target state and unthresholded, and nothing in the
+audit would have seen it at all. **Read the SHAPE of a gap distribution before
+designing against its magnitude** — a tight cluster one pixel over threshold is a
+reservation to delete, not a row to pack, and packing it would have moved the
+number without touching the cause.
+
+---
+
+## A height-keyed emptiness detector cannot see a width-shaped reservation (HO 618, → M4w at HO 620)
+
+M4 emits any visible element **≥40px tall** with ≤12 characters of text. `/stale`'s
+`.row-hslot` is **52px wide and content-height tall**, so it is genuinely reserved
+empty space that **M4 read as nothing, on every one of 50 rows** — while it was
+simultaneously the whole of that route's M1.
+
+This qualifies rather than contradicts the HO 617 conclusion that M4's emitter had
+"closed on measurement with essentially no reserved space left site-wide"
+(96.7% feed-row furniture, 1.6% everything else). That arithmetic was correct
+about what it covered. **It just could not be about width.** An instrument keyed on
+one axis reports a defect on the other axis as *absence*, and absence is the one
+output that looks identical to success — the same-as-success shape, entered
+through a coordinate rather than through a predicate.
+
+**The general form: when a detector is keyed on a dimension, ask what the same
+defect looks like rotated 90°.** The fix (HO 620 `59a45cd`) is an explicit `M4w`
+column — an empty element with an explicit width ≥40px inside a repeated row —
+counted on its own line rather than folded into M4, because the two are different
+defects with different fixes. The live instance was already fixed by then, so the
+**fixture carries the only positive**, which is the shape a detector for an
+extinct defect has to take.
+
+---
+
+## M3 sampled M1a's groups, so a route's "row noise" could be its NAVIGATION (HO 619, → fixed HO 620)
+
+M3 — the C3 row-noise metric — reused M1a's candidate gate: **≥3 element children,
+≥3 siblings**. Feed rows on `/changes` and `/bills` carry **two** visible element
+children. **They never entered the sample.**
+
+So the number was real and it was measuring something else. **`/changes`' "M3 3.00"
+was 10 nav items at 3.00 apiece** — the primary nav, present on every route,
+wearing the route's name. Same for `/bills`, `/president`, `/search` and
+`/watchlist`; `/stale` read 6.55 only because its momentum overlay gives those rows
+a fourth child. **This is the reframe the arc owes its own record: several cited M3
+means in the HO 610–619 chain describe navigation, not feeds**, and any conclusion
+of the form "this route's rows are quiet" that rests on a 3.00 rests on the nav
+bar.
+
+**The demonstration is HO 619's chip convergence.** It made **796 topic chips**
+across nine `BillRow` surfaces plain — the single largest C3 change of the arc —
+and **M3 did not move on any of the seven routes, by construction**, because none
+of those rows was ever sampled. *The instrument built to score row noise was blind
+to the largest row-noise change made under it.* The commit reported that as a
+measured null rather than presenting the flat numbers as a result, which is the
+only reason it was caught rather than read as "the convergence didn't help".
+
+**Fixed at HO 620:** M3 samples every repeated-sibling group with **≥2** element
+children, as a **second, wider pass** that leaves M1a untouched so M1 cannot move
+with it. `/changes` goes 3.00 → 11.23 and **that movement is instrument, not
+product** — the era wall now covers M3.
+
+---
+
+## Two ways a border survives the rule that removed it (HO 618/619)
+
+A cascade pair, both found while making chips plain, and both of them fail
+**silently and green**: the class is applied, the DOM says so, the border is still
+there.
+
+**(1) Tied specificity loses to source order, and nothing warns.**
+`.v2f-topic--plain` and `.v2f-topic` both compute to **(0,1,0)**, and the base rule
+sits later in `globals.css`. So the override lost, **the plain class was applied
+and doing nothing through an entire build**, and M3 read 8.05 with the "fix" live.
+The tell is a metric that does not move on a change you can see in the rendered
+markup. `.v2f-topic.v2f-topic--plain` — repeat the base class in the override —
+raises it to (0,2,0) and it wins. Same trap the `.mobile-nav` comment already
+records, which is why this one is filed as a **pair** rather than as an incident.
+
+**(2) `border-color: transparent` is not `border: 0`.** A transparent border still
+has **width**, so it still occupies layout and still reads as a box — the element
+is boxed in exactly the geometry sense the metric and the reader both care about,
+and only the ink is gone. If the rule says "no border", set `border: 0`.
+
+**And a third path to the same outcome, from the responsive branch:** HO 618's
+`plain` prop never reached `TopicChips`' **mobile** branch, so `/stale` kept
+shipping one bordered chip per row to a phone — 50 of 140, the 50 entirely that
+branch — while every desktop measurement read clean. **A prop that styles by
+function has to reach every branch that renders it**, which is now a SKILL rule
+with this and the HO 609 `variant="v2"` miss as its two citations.
+
+---
+
+## A bar is an empty element whose width was CHOSEN — paint is what separates it from a reservation (HO 620)
+
+M4w's first draft — "an empty element with an explicit width ≥40px inside a
+repeated row" — passed a green fixture and then fired **359 times on `/members`**:
+201 committee-activity bars, 153 topic-mix segments, 4 tracks. Every one of them
+matches the predicate exactly. Every one of them is the **opposite** of what the
+predicate is for.
+
+**A reservation and a bar are geometrically identical and semantically inverse.**
+A reservation is space held open for content that is absent; **a bar's width IS
+the datum** — it is the content. Nothing about the box distinguishes them, and no
+amount of tightening the size or sibling clauses will, because the difference is
+not geometric.
+
+**What separates them is PAINT: a reservation is invisible by definition.** The
+predicate now requires the element to have no paint of its own — no background, no
+border, no ink — and `/members` reads **359 → 0**. The fixture gained an
+identically-sized **painted** segment as the negative control it should have
+carried from the first draft.
+
+**This is the same distinction `data-viz-row` draws for M1, drawn by a property of
+the element rather than by an attribute someone must remember to add** — and that
+is the better version of it where it is available, because an attribute-based
+exemption fails open on every element nobody thought to mark. The near-miss is
+recorded rather than quietly fixed because **the fixture comment had already named
+this failure mode and the predicate committed it anyway**: knowing the shape is not
+the same as writing the control, and only the control fires.
+
+---
+
+## An instrument can suppress the very property it keys on, and its fixture will not notice (HO 620)
+
+The layout audit runs its browser context with `reducedMotion: "reduce"` —
+**deliberately and correctly**, because a moving marquee perturbs the geometry
+every other measurement in the crawl depends on. The app carries
+`@media (prefers-reduced-motion: reduce) { .markets-tape-track { animation: none } }`.
+
+v4's new `M5s` column classifies scroll-by-design containers as *overflow-hidden
+with an **animated** descendant*, reading `animation-name` off computed style.
+Measured both ways on `/`: **no-preference reads `markets-marquee`, reduce reads
+`none`.** So the computed animation-name of the site's one marquee is `none`
+**under the only conditions this audit ever looks at it** — and worked example #1
+of the very backlog entry the column implements read M5s 0 and left all 86–88
+elements in bucket (b).
+
+**The fixture could not have caught it, and that is the lesson rather than the
+excuse.** Its marquee case had no reduced-motion override, so **it passed under
+both the broken predicate and the fixed one and proved nothing about either.** A
+negative control that does not model the environment the instrument runs in is
+decoration. The new case (`v4-C2`) carries the same geometry **plus the same
+`@media (prefers-reduced-motion: reduce) { animation: none }` the app carries**,
+and it fails on the first draft and passes now.
+
+**The general form: a fixture runs under the instrument's own environment,
+emulated preferences included — a preference-conditional style is part of the
+measured system.** The fix reads animation from the **stylesheet**: an element is
+animated *by authorship* if any rule matching it declares a non-`none`
+animation-name, whatever the active media query says about **playing** it. (A
+second, duller cause rode along: the tape computes `overflow-x: clip`, not
+`hidden`, and the predicate checked `hidden` only. Same family — clipped, not
+scrollable — both accepted now.)
+
+**And it was found by the bridge run, not by the fixture**, which is the argument
+for running the old ruler and the new one on the same DOM even when the new one is
+green.
+
+---
+
+## "27 → 4" — a defect count that nets an accepted residue is laundering, caught at the commit message (HO 619/620)
+
+A draft commit message for the P6b batch summarised the phase as **"site M1
+27 → 4"**. The 27 was real. The 4 was arrived at by taking the true post-work
+figure — **17** — and **subtracting the 13 rows on `/members` that had been
+formally accepted and priced at HO 612**.
+
+Every step of that is individually defensible and the result is a lie. The 13 rows
+are **still over threshold, still in the crawl, still rendering the gap**; what
+"accepted" bought them is a *reason*, not a deletion. **A defect count nets
+nothing.** Presenting 4 would have made the register invisible — the very register
+whose entire purpose is that the residue stays visible and priced — and the next
+person to crawl the site would have found 17 where the record said 4 and had no
+way to tell which number was wrong.
+
+**The form is: "27 → 17, with the register named."** The number is the number; the
+acceptance is a separate, cited line. **Caught pre-push at the message**, which is
+the honest place to record it, because the code was already right — the laundering
+was entirely in how the result was described, and that is the layer nothing else in
+this arc's toolchain inspects. It is now a SKILL rule.
+
+---

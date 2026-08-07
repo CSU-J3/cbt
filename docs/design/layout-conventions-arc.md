@@ -48,9 +48,13 @@ The original's own argument survives intact: it says do C2 before the *route wor
 | **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | **606** — done, `e794194` + `94f6543` |
 | **P3** | `/` rework to the target mock — the reference implementation of C1–C8 (+ `dashboard-classic` removal, per the corrected M6) | **608–610** — done |
 | **P4** | Feed routes: `/bills` `/news` `/amendments` `/nominations` `/hearings` `/members` `/lobbying` `/trades` | **611–615** — closed, **two routes short of its own scope list**: `/amendments` and `/nominations` were never worked and never declined (§8) |
-| **P5** | Detail routes: `/bill/[id]` `/members/[id]` `/vote/[id]` `/race/[id]` `/committee/[id]` | next |
-| **P6** | Analysis routes: `/patterns` `/reports` `/trends` `/electoral` `/primaries` `/races` `/stale` `/changes` | next |
-| **P7** | Doc sweep — conventions into SKILL.md as a design-system section, roadmap block, backlog:130 correction | **605** ran early (P1 only); re-runs after the route work |
+| **P4-residual** | `/amendments` `/nominations` (never worked, never declined) + `/trades` `/members` — the axis question, answered three different ways | **616** — closed; P4 then closed on its scope list |
+| **P5** | Detail routes: `/bill/[id]` `/members/[id]` `/vote/[id]` `/race/[id]` `/committee/[id]` | **617** — closed on its scope list |
+| **P6a** | `/stale` + `/changes` — the C1+C3 pair | **618** — closed; `/changes` by verification, site M1a → 0 |
+| **P6b** | The rest, batched: `/patterns` `/electoral` `/welcome` `/reports` `/trends` `/watchlist` `/report-detail` + the two rails | **619** — closed; site M1 27 → 17 |
+| **P7** | Doc sweep — conventions into SKILL.md as a design-system section, roadmap block, backlog:130 correction | **605** ran early (P1 only); **620** is the arc close — instrument v4, the terminal crawl, and this sweep |
+
+**Every row is closed.** `/primaries` and `/races` never appeared as routes in any crawl — both **308-redirect to `/electoral`**, which is the redirect-alias exclusion §3 records; they are listed in P6 above as the plan wrote them, and `/electoral` is where they were actually measured and worked.
 
 Nav compaction and the WATCHLIST regroup move from the old P1 into **P3**. They're dashboard chrome, not a global concern, and bundling them with a site-wide type change gave one commit two revert reasons.
 
@@ -85,7 +89,7 @@ HO 603 re-measured to 784 using `grep -roh "font-size:" app/*.css` — **that gl
 
 ## 3. P2 — the audit
 
-> **ERA POINTER (HO 615). Everything in this section describes the audit as SPECIFIED, and its measurement definitions are v1's.** The instrument has been corrected twice since: **v2** at HO 610 (§3's own subsection at the end) and **v3** at HO 615 (**§7**). Read §7 for what the instrument actually measures today, §8 for where its falsification anchor lives, and the comparability rule in §7 before putting any two numbers from this arc in the same table. This section is kept unedited on purpose — it is the record of what was asked for, and rewriting it would erase the distance between the plan and the three things measurement changed about it.
+> **ERA POINTER (HO 615, extended HO 620). Everything in this section describes the audit as SPECIFIED, and its measurement definitions are v1's.** The instrument has been corrected **three times** since: **v2** at HO 610 (§3's own subsection at the end), **v3** at HO 615 and **v4** at HO 620 (both in **§7**). Read §7 for what the instrument actually measures today, §8 for where its falsification anchor lives, **§9 for the arc's closing identities and the maintenance loop**, and the comparability rule in §7 before putting any two numbers from this arc in the same table. This section is kept unedited on purpose — it is the record of what was asked for, and rewriting it would erase the distance between the plan and the three things measurement changed about it.
 
 **ONE file** under `scripts/diagnostic/`, named for the HO that builds it — `layout-audit-606.ts`. (Backlog:130 used to name `layout-audit-591.ts`; that was wrong and the HO 605 sweep corrected it. The roadmap pointer still wins at build time: if numbering has moved again, name the file for the HO that actually builds it and say so.) Playwright driven programmatically — `import { chromium } from "@playwright/test"`, already a devDependency, **do not add `playwright`**. Not a `.spec.ts`, not in `e2e/`, never in CI. Read-only.
 
@@ -244,10 +248,10 @@ pins that live outside the component they pin.
 
 ---
 
-## 7. Instrument v3 (HO 615) — definitions, and the comparability rule
+## 7. Instrument v3 (HO 615) and v4 (HO 620) — definitions, and the comparability rule
 
 **THE COMPARABILITY RULE, first, because it is the one that gets broken:
-v1 / v2 / v3 are three rulers. A number from one does not compare to a number from
+v1 / v2 / v3 / v4 are four rulers. A number from one does not compare to a number from
 another, and any table mixing them must label which is which.** A route whose
 count fell because the instrument stopped lying about it is an **instrument note**;
 a route whose count fell because its layout changed is a **remediation claim**.
@@ -257,18 +261,26 @@ work**; presenting the 132 as remediation would have overstated it by 5×.
 
 ### The era table
 
-| | v1 (HO 606) | v2 (HO 610, `e6bbc08`) | v3 (HO 615, `f40768f`) |
-|---|---|---|---|
-| **M1 items** | one per client rect | one per client rect | **one per child node, extent = union bbox of its rects** |
-| **M1 banding** | `round(centreY / 4px)` | vertical-interval overlap ≥50% | overlap bands, **membership by ink span**, plus the **continuation-band cut** |
-| **Can it read a mixed-size baseline?** | **No** — splits any row whose children differ in font size, which under a six-token type ladder is every row | Yes | Yes |
-| **Can it read a wrapped cell?** | No | **No** — measures a short last line against a neighbour with the long first line invisibly between them | Yes |
-| **M1b container cut** | none | child taller than 60px ⇒ container, not a row | unchanged |
-| **Viz exemption** | none | `[data-viz-row]` counted as M1x | unchanged (registry in backlog) |
-| **M5 extra-wrap** | centre buckets | centre buckets | **overlap clustering; duplicate paths keep the MAX, not last-wins** |
-| **M5 overflow** | one number | one number | **M5x design-clip vs bucket (b) real** |
-| **Leg C anchor** | `/` (breaking rows) | product route, walked as a fallback list | **a committed fixture** (§8) |
-| **Artifacts** | fixed filename, overwritten | SHA-stamped, never overwritten | unchanged |
+| | v1 (HO 606) | v2 (HO 610, `e6bbc08`) | v3 (HO 615, `f40768f`) | v4 (HO 620, `59a45cd` + `62c25e4`) |
+|---|---|---|---|---|
+| **M1 items** | one per client rect | one per client rect | **one per child node, extent = union bbox of its rects** | unchanged |
+| **M1 banding** | `round(centreY / 4px)` | vertical-interval overlap ≥50% | overlap bands, **membership by ink span**, plus the **continuation-band cut** | unchanged |
+| **Can it read a mixed-size baseline?** | **No** — splits any row whose children differ in font size, which under a six-token type ladder is every row | Yes | Yes | Yes |
+| **Can it read a wrapped cell?** | No | **No** — measures a short last line against a neighbour with the long first line invisibly between them | Yes | Yes |
+| **M1b container cut** | none | child taller than 60px ⇒ container, not a row | unchanged | unchanged |
+| **Viz exemption** | none | `[data-viz-row]` counted as M1x | unchanged (registry in backlog) | unchanged |
+| **M3 sampling** | M1a's groups (`kids ≥ 3`) | M1a's groups | M1a's groups — **so 2-child feed rows never entered** | **every repeated-sibling group with ≥2 element children**, as a second wider pass; M1a untouched |
+| **M4** | one number: ≥40px tall, ≤12 chars | unchanged | unchanged | **splits into M4-true vs M4f (furniture)** — furniture = in a repeated-sibling row **and** carrying non-empty text, both clauses |
+| **M4w** | none | none | none | **width-reserved slots** — empty, explicit width ≥40px, in a repeated row, **and no paint of its own** |
+| **M5 extra-wrap** | centre buckets | centre buckets | **overlap clustering; duplicate paths keep the MAX, not last-wins** | unchanged |
+| **M5 overflow** | one number | one number | **M5x design-clip vs bucket (b) real** | **three ways: M5x · M5s scroll-by-design · (b) real**, M5s counted once at the outermost of its chain |
+| **Animation read from** | n/a | n/a | n/a | **the STYLESHEET, not computed style** — the audit's own `reducedMotion: "reduce"` suppressed the property the predicate keyed on |
+| **Leg C anchor** | `/` (breaking rows) | product route, walked as a fallback list | **a committed fixture** (§8) | unchanged; **18 cases**, new ones in **pairs** |
+| **Artifacts** | fixed filename, overwritten | SHA-stamped, never overwritten | unchanged | unchanged |
+
+**No threshold moved at v4** — 120px gap · 600px M1b width floor · 40px M2 slack · 40px/12-char M4 emitter are all untouched, the same line between correcting an instrument and tuning one that v2 and v3 held.
+
+**The era wall now covers M3 and M4, and the bridge run proves the boundary.** v3 and v4 were run on the same DOM (`62c25e4`): **M1 17 · M1a 0 · M1b 17 · M1x 332 · M2 3 read byte-identical across the two rulers**, and v3's **M4 601 / 57,458px partitions exactly** into v4's M4-true 14 / 853px + M4f 587 / 56,605px — an identity, not a re-measurement. Any M3 or M4 delta between the two columns is an instrument note.
 
 ### What v3 changed, and why each was a definition rather than a threshold
 
@@ -300,8 +312,42 @@ instrument and tuning one.
    **100% design-clip**. Known limitation, filed in the backlog: a
    scroll-by-design third category (marquees, `<pre>`) is still landing in (b).
 
-### What v3 still cannot read
+### What v4 changed, and why each was a definition rather than a threshold
 
+1. **M4 splits (M4-true vs M4f).** The emitter cannot tell reserved emptiness from
+   a short label doing its job in a tall row. **Furniture requires BOTH clauses** —
+   inside a repeated-sibling row *and* carrying non-empty text — because a
+   genuinely empty box in a repeated row is the `/stale` reservation and must stay
+   in M4-true. Worked example: `/changes` 267 items / 26,523px is **267 furniture
+   and zero M4-true**; the largest M4 figure on the site was entirely not the thing
+   it is named after.
+2. **M4w (width-reserved slots).** M4 keys on height, so a width-shaped
+   reservation is invisible by construction — `/stale`'s 52px `.row-hslot` was that
+   route's whole M1 while M4 read nothing. **The predicate requires NO PAINT**,
+   which is what separates a reservation from a bar: a bar is also an empty element
+   whose width was chosen, and its width **is** the datum. Without that clause the
+   first draft fired 359 times on `/members` (see the oddity).
+3. **M5s (scroll-by-design).** A root is self-scrollable (own `overflow-x`
+   auto/scroll) **or** `overflow-x` hidden/clip with an animated descendant;
+   everything overflowing inside a root is **absorbed and counted once, at the
+   root**, since six levels of one marquee was the whole distortion. **Animation is
+   read from the STYLESHEET**, not computed style — the audit's own
+   `reducedMotion: "reduce"` and the app's `@media (prefers-reduced-motion: reduce)
+   { animation: none }` meant the site's one marquee computed to `animation-name:
+   none` under the only conditions the audit ever sees it.
+4. **M3 samples every repeated-sibling group with ≥2 element children.** v3 reused
+   M1a's `kids >= 3` gate, so 2-child feed rows never entered: HO 619's 796-chip
+   convergence was invisible to the instrument built to score it, and four routes'
+   "M3 3.00" was 10 nav items at 3.00 apiece. **M1a is untouched**, so this is a
+   second, wider group pass and M1 cannot move with it.
+
+### What v4 still cannot read
+
+- **Populated non-repeated chrome, in M4.** The furniture clause requires a
+  repeated-sibling row, so short populated text in one-off chrome still lands in
+  **M4-true** — `/members`' 84px is a nav strip and a search box. **The third
+  false-positive kind, live and deliberately not another instrument rev**: read a
+  small M4-true figure as *check what it is*, not as reserved space.
 - **A per-line far-right anchor that another line's content spans horizontally.**
   The continuation-band cut is by membership, so this is rare rather than
   impossible; it is the accepted cost of removing the wrap artifact.
@@ -369,3 +415,68 @@ proves the detectors fire and that four specific false positives stay dead; it
 does not and cannot prove the measurement is the right measurement. That is what
 the eyeball pass is for, and HO 615's rail reversal is the standing example of the
 eyeball finding what four green numbers could not.
+
+**What v4 added to it (HO 620): 18 cases, and the standard for a new one is a
+PAIRED CONTROL.** The ten pre-existing readings are unchanged; the eight new cases
+ship as pairs rather than as a bare "the new column is non-zero" — M4f 6 with an
+*empty*-box control that must stay M4-true · M4w exactly 3 with an
+identically-sized **painted** bar at 0 · M5s exactly 1 (the outermost frame, inner
+level absorbed) with an un-animated twin that must stay in bucket (b) · M5s 1
+**under a reduced-motion override** · M3 sampling 2-child rows at a non-zero mean.
+**A new column asserted only in the direction it was built to fire is satisfied by
+an instrument that fires on everything** — legs A and B's both-direction problem,
+one scale down.
+
+**And the fixture's own limit, learned at v4: it runs under the instrument's
+environment or it proves nothing.** The marquee case had no reduced-motion
+override, so it passed under both the broken and the corrected M5s predicate. The
+defect was found by the **bridge run**, not by the fixture. **A preference-conditional
+style is part of the measured system**, and case `v4-C2` now carries the app's own
+`@media (prefers-reduced-motion: reduce) { animation: none }`.
+
+---
+
+## 9. The close (HO 620) — the two identities, and the maintenance loop
+
+**The arc does not end on a target. It ends on arithmetic.** "M1 = 0" was never
+reachable and pretending otherwise would have produced either a launder or a lie.
+What replaces it is a pair of registers that must **balance against the crawl**:
+
+- **site M1 == the permanent-residue register**, entry by entry. At the terminal
+  crawl (`62c25e4`) that is **17**: `/members` 13 (11 knee-marginal at 121–131px +
+  2 header-axis at 230px) · `/vote` 2 (the plateau residual) · `/lobbying` 1
+  (column header) · `/trades` 1 (the 196px amount header). Three of the four
+  entries are the **header-axis class** — a column header must sit over the column
+  it labels, and when the column is sized by its widest datum the label cannot
+  fill it. That is the arc's honest floor.
+- **site M1x == the `data-viz-row` exemption registry**, marking by marking. At the
+  terminal crawl that is **332 candidates / 115 visual rows across seven markings
+  on six routes**. Both registers live in `docs/backlog.md`; both are standing
+  entries whose *Close* is **never**, because the pair of them **is** the
+  definition of done.
+
+**A mismatch in either is a STOP, and it means one of exactly two things**: the
+register is missing a line, or the instrument moved something without saying so.
+It is never a rounding.
+
+**The maintenance loop, for whoever touches layout next — four steps.**
+
+1. **Run the fixture legs first.** 18 of 18 exact, or no zero on any route is
+   trusted. If a negative fails, **check whether the control is clean before
+   touching the assertion**.
+2. **Label the era on every number.** v1 / v2 / v3 / v4 are four rulers. A count
+   that fell because the instrument stopped lying is an **instrument note**; a
+   count that fell because the layout changed is a **remediation claim**. When both
+   happen in one HO, measure the same DOM under both rulers and report the split —
+   that is what the bridge run is, and at HO 620 it is what caught v4's own defect.
+3. **Re-check both identities after any change**, and restate the arithmetic in
+   the commit body rather than in a handoff that will be gitignored.
+4. **Any new `data-viz-row` marking ships with an APPLIED curve** (read in the
+   page, never modelled from track arithmetic), **its kind** (magnitude /
+   shared-axis / sequence — a *sequence* reading is a presumption against the
+   attribute), and **both units** (`M1x <candidates> / <rows>`).
+
+**And the standing prohibition, carried from HO 619 to the end of the arc: an
+accepted residue is CITED, never SUBTRACTED.** "27 → 17 with the register named"
+is the form. "27 → 4" is laundering, and it was caught at a commit message, which
+is the layer nothing else in this toolchain inspects.
