@@ -1472,3 +1472,97 @@ in a verification step costs more than the check saves — it sends the next
 session looking for a bug that is not there.
 
 ---
+
+## A pin can live outside the component it visibly pins, and the container will not confess (HO 613, filed HO 615)
+
+`/bills`' filter bar read 1,600px of interior gap. The bar rendered a
+`.mc-fbar-spacer` with `flex: 1`, that was found by decomposing the bar, and
+removing the element left the row at **1,600px** — unchanged.
+
+The second pin was `.control-sort { margin-left: auto }`, a **shared control
+class** applied to the sort dropdown. Nothing in the bar's markup, nothing in the
+bar's own stylesheet block, and nothing in a read of the container says so; the
+dropdown is pinned right by a rule that belongs to a control family used across
+several surfaces. Five bars were packed in that one commit and **all five had a
+different mechanism** — `margin-left: auto` on a corpus label, `flex: 1` on a
+spacer element, `ml-auto` on a bare SORT label, `justify-content: space-between`
+on a section header — which is why "one rule to delete" was never the shape.
+
+**Trace the computed style to its source rule; do not read the container and
+stop.** A decompose-first pass that enumerates a row's children and their own
+declarations misses any pin that arrives by cascade from a shared class, and the
+tell is exactly what happened here: the defect does not move when the thing you
+found is removed. **If a fix does not move the number, the cause is elsewhere and
+not merely under-applied** — the second look, not a bigger version of the first.
+
+---
+
+## A cap derived against one end of the ink distribution is wrong by the other end's slack (HO 612/614, filed HO 615)
+
+Capping a `1fr` label track is the standard C1 move, and the obvious derivation —
+size the cap to the WIDEST label so nothing truncates — is the one that does not
+work. A fixed track leaves every row `cap − ink` of slack, so a cap sized off the
+long end donates its whole width to the short end.
+
+Measured on `/members`: name-cluster ink runs **121px to 320px**, median 170. The
+specified widest-name-plus-2ch cap of **340px** left the SHORTEST name **231px of
+gap** and took the route from 548 rows over threshold to **527** — a 4% dent from
+a change that looked, on the long end, like a complete fix.
+
+The correct form derives against the SHORT end and the threshold together.
+HO 614: `cap = threshold + min-ink − column-gap = 120 + 239 − 14 = 345`, taken at
+340, and it cost **zero truncation**.
+
+**And the precondition is the SPREAD, not either end.** When the ink spread
+exceeds the gap threshold — 199px on `/members`, 322px on `/lobbying`, 343px on
+`/trades`, all against a 120px threshold — **no cap satisfies both "no truncation"
+and "under threshold" at once**, because comparable columns need a shared x and a
+shared x under a variable label means per-row slack. At that point the honest
+output is a cost curve and a knee, not a cap: `/members` took 240px for 16 clipped
+names to buy 11 rows, `/trades` 280px just above p75 for 2 of 50 live, and both
+filed the next increment rather than taking it. **Check the spread against the
+threshold before deriving anything; if it is wider, you are choosing a trade, not
+finding a cap.**
+
+---
+
+## C1 remediation manufactures the exact geometry that breaks gap measurement (HO 613/614 → fixed HO 615)
+
+The layout audit measured a row by grouping its children's client rects into
+horizontal bands and reading the gaps within each band. A cell that **wraps onto
+two lines** produces two rects, and v2 treated each as an independent item — so
+its short last line could be measured against the next cell **with its own long
+first line sitting between them, invisibly**. The reported gap was hundreds of px
+on a row with none: 590px on a fixture reproduction, 375px live on `/lobbying`,
+664px on `/trades`.
+
+**The part worth remembering is the direction of causation. Packing a row left is
+precisely what lets a long cell wrap instead of being pushed out of view, so every
+C1 fix the phase shipped created more of the geometry that broke the instrument
+scoring it.** HO 614's commit body names it: *"the fourth instance of that class
+in two HOs, and the first the wrap fix itself caused."* An instrument whose error
+term GROWS with the remediation it measures will read as a plateau — the route
+stops improving, and nothing in the output says whether the page or the ruler is
+responsible.
+
+**The fix is to measure INK SPANS, not rects** (HO 615 v3): one item per child
+node, extent = the union bbox of its rects, present in every band its span
+overlaps, so a gap can never be measured *across* it. A second rule the
+measurement forced and the plan had not anticipated: **a band whose member set is
+a SUBSET of another band's is a continuation, not a line** — it holds no item not
+already measured somewhere richer, so it can only report a gap across items the
+fuller band contains. The live case was a `/trades` row whose second band held
+exactly `{date, amount}`, the only two cells with a second line, and reported the
+625px between them — an area the reader sees occupied by five single-line cells.
+
+**And the regression trap is a negative control in a committed fixture, not a
+comment.** `scripts/diagnostic/fixtures/layout-legc.html` carries the wrapped-cell
+row as `legc-neg-wrap`, asserted to read under threshold forever. It caught its
+own author on the way in: the first draft right-aligned the row's trailing cell,
+putting a genuine 135px far-right anchor inside the case meant to isolate the
+phantom, and v3 duly reported it. **The correct response to a failing negative
+control is to check whether the control is clean, not to relax the assertion** —
+the instrument was right and the fixture was wrong, and a negative must carry
+exactly one property: the thing it denies.
+
+---

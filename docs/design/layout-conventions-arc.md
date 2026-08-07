@@ -46,8 +46,8 @@ The original's own argument survives intact: it says do C2 before the *route wor
 |---|---|---|
 | **P1** | **C2 — the type scale.** Six tokens, 11 substitutions, identity commit then ladder commit. Plus C0: land both mocks. | **604** |
 | **P2** | **The audit.** Read-only Playwright, M1–M4 + M5, run against the scaled site. HALT. | **606** — done, `e794194` + `94f6543` |
-| **P3** | `/` rework to the target mock — the reference implementation of C1–C8 (+ `dashboard-classic` removal, per the corrected M6) | next |
-| **P4** | Feed routes: `/bills` `/news` `/amendments` `/nominations` `/hearings` `/members` `/lobbying` `/trades` | next |
+| **P3** | `/` rework to the target mock — the reference implementation of C1–C8 (+ `dashboard-classic` removal, per the corrected M6) | **608–610** — done |
+| **P4** | Feed routes: `/bills` `/news` `/amendments` `/nominations` `/hearings` `/members` `/lobbying` `/trades` | **611–615** — closed, **two routes short of its own scope list**: `/amendments` and `/nominations` were never worked and never declined (§8) |
 | **P5** | Detail routes: `/bill/[id]` `/members/[id]` `/vote/[id]` `/race/[id]` `/committee/[id]` | next |
 | **P6** | Analysis routes: `/patterns` `/reports` `/trends` `/electoral` `/primaries` `/races` `/stale` `/changes` | next |
 | **P7** | Doc sweep — conventions into SKILL.md as a design-system section, roadmap block, backlog:130 correction | **605** ran early (P1 only); re-runs after the route work |
@@ -84,6 +84,8 @@ HO 603 re-measured to 784 using `grep -roh "font-size:" app/*.css` — **that gl
 ---
 
 ## 3. P2 — the audit
+
+> **ERA POINTER (HO 615). Everything in this section describes the audit as SPECIFIED, and its measurement definitions are v1's.** The instrument has been corrected twice since: **v2** at HO 610 (§3's own subsection at the end) and **v3** at HO 615 (**§7**). Read §7 for what the instrument actually measures today, §8 for where its falsification anchor lives, and the comparability rule in §7 before putting any two numbers from this arc in the same table. This section is kept unedited on purpose — it is the record of what was asked for, and rewriting it would erase the distance between the plan and the three things measurement changed about it.
 
 **ONE file** under `scripts/diagnostic/`, named for the HO that builds it — `layout-audit-606.ts`. (Backlog:130 used to name `layout-audit-591.ts`; that was wrong and the HO 605 sweep corrected it. The roadmap pointer still wins at build time: if numbering has moved again, name the file for the HO that actually builds it and say so.) Playwright driven programmatically — `import { chromium } from "@playwright/test"`, already a devDependency, **do not add `playwright`**. Not a `.spec.ts`, not in `e2e/`, never in CI. Read-only.
 
@@ -194,3 +196,176 @@ The corollary, from 604: **separate coverage from breakage.** Coverage is "did e
 5. **Absence Watch is out of scope in every phase.** If M1's `/` table lists rows belonging to it, note and move on.
 6. **HALT and report at each phase boundary.** No phase writes the next phase's code.
 7. Docs are P7. `backlog.md:130` needs correcting once anything is built — the entry currently reads `NOTHING WAS BUILT`, which is true today and won't be after 604.
+
+---
+
+## 6. The remediation kit — what P3/P4 actually learned, as method
+
+Eight moves. Each was earned by a route that resisted the previous one, and they
+are listed in the order a new route should apply them.
+
+1. **Decompose before designing.** A route's M1 count is not a work item; it is a
+   sum over families. `/lobbying`'s 67 split into four families of which exactly
+   one was that commit's (13 filing rows + 1 header · 1 filter bar · 25
+   leaderboard rows · 23 crosswalk rows). Designing against the 67 would have
+   produced a fix for something that was 20% of it.
+2. **Derive, don't tune.** A cap is arithmetic or it is a curve. A number chosen
+   because it made the count fall is a number nobody can re-derive later, and the
+   next corpus makes it wrong silently.
+3. **Check the SPREAD against the threshold before deriving.** When the label-ink
+   spread exceeds the 120px gap threshold — 199px on `/members`, 322px on
+   `/lobbying`, 343px on `/trades` — **no cap satisfies both "no truncation" and
+   "under threshold"**, because comparable columns need a shared x and a shared x
+   under a variable label means per-row slack. At that point you are choosing a
+   trade, not finding a cap.
+4. **Then take the knee, and file the next increment rather than taking it.**
+   `/members` 240px = 16 names clipped to buy 11 rows; `/trades` 280px, just above
+   p75, = 2 of 50 live. Both recorded what the following step would have cost
+   (16 more truncations for 11 rows; 7 more for 5) and declined it in writing.
+5. **Derive against the SHORT end.** `cap = threshold + min-ink − column-gap`
+   (HO 614: `120 + 239 − 14 = 345`, taken at 340, zero truncation). A cap sized
+   off the widest label donates its whole width to the narrowest — see the
+   oddity, where a widest-name cap moved `/members` 548 → 527.
+6. **The wrap-cap.** A cell that can wrap can be capped for free. `/lobbying`'s rc
+   cell is two names joined by an arrow, so its cap cost zero truncation where a
+   member name or a ticker description could not. Ask whether the content wraps
+   before pricing a truncation.
+7. **Wrap, don't pin.** The standing narrow-width guard. A fix that trades a
+   narrow-width wrap for a right-pin re-creates the C1 defect the phase removes.
+8. **Anchor hygiene, two halves.** *Dependency-grep the anchor* — prove the
+   falsification route shares no component with the work, by dependency and not
+   by route name (HO 614 §2). *Re-anchor rides the expiring commit* — when a
+   commit is about to invalidate an anchor, move the anchor in that commit
+   (HO 612 `63c7cd2`), not in the next handoff that trips over it.
+
+**And one rule that is not a move but a stop condition:** a fix that does not move
+the number has not been under-applied — the cause is elsewhere. See the oddity on
+pins that live outside the component they pin.
+
+---
+
+## 7. Instrument v3 (HO 615) — definitions, and the comparability rule
+
+**THE COMPARABILITY RULE, first, because it is the one that gets broken:
+v1 / v2 / v3 are three rulers. A number from one does not compare to a number from
+another, and any table mixing them must label which is which.** A route whose
+count fell because the instrument stopped lying about it is an **instrument note**;
+a route whose count fell because its layout changed is a **remediation claim**.
+When both happen in one arc — as at HO 615 — measure the same DOM under both
+rulers and report the split. HO 615's was **−132 total, of which 27 was product
+work**; presenting the 132 as remediation would have overstated it by 5×.
+
+### The era table
+
+| | v1 (HO 606) | v2 (HO 610, `e6bbc08`) | v3 (HO 615, `f40768f`) |
+|---|---|---|---|
+| **M1 items** | one per client rect | one per client rect | **one per child node, extent = union bbox of its rects** |
+| **M1 banding** | `round(centreY / 4px)` | vertical-interval overlap ≥50% | overlap bands, **membership by ink span**, plus the **continuation-band cut** |
+| **Can it read a mixed-size baseline?** | **No** — splits any row whose children differ in font size, which under a six-token type ladder is every row | Yes | Yes |
+| **Can it read a wrapped cell?** | No | **No** — measures a short last line against a neighbour with the long first line invisibly between them | Yes |
+| **M1b container cut** | none | child taller than 60px ⇒ container, not a row | unchanged |
+| **Viz exemption** | none | `[data-viz-row]` counted as M1x | unchanged (registry in backlog) |
+| **M5 extra-wrap** | centre buckets | centre buckets | **overlap clustering; duplicate paths keep the MAX, not last-wins** |
+| **M5 overflow** | one number | one number | **M5x design-clip vs bucket (b) real** |
+| **Leg C anchor** | `/` (breaking rows) | product route, walked as a fallback list | **a committed fixture** (§8) |
+| **Artifacts** | fixed filename, overwritten | SHA-stamped, never overwritten | unchanged |
+
+### What v3 changed, and why each was a definition rather than a threshold
+
+**No threshold moved.** 120px gap · 600px M1b width floor · 40px M2 slack ·
+40px/12-char M4 emitter are all untouched, which is the line between correcting an
+instrument and tuning one.
+
+1. **Ink-span items (M1).** An element is present in **every band its union bbox
+   overlaps**, so a gap can never be measured across it. v2's per-rect items let a
+   wrapped cell's short last line be measured against the next cell. See the
+   oddity: C1 remediation *manufactures* that geometry, so the error term grew
+   with the fixes it was scoring.
+2. **The continuation-band cut (M1).** A band whose member set is a **subset** of
+   another band's is not a line. It holds no item not already measured somewhere
+   richer, so it can only report a gap across items the fuller band contains.
+   Membership, never position or count — a genuine two-line row keeps distinct
+   items on line 2 and is still measured. **This one was not in the plan; the
+   measurement forced it** (a `/trades` row's second band held exactly
+   `{date, amount}` and reported the 625px between them).
+3. **Overlap clustering for M5 extra-wrap.** `round(centreY / 4px)` split a single
+   baseline-aligned row whose children differed in font size, and **whether it did
+   so depended on the row's absolute y** — the fixture samples all four 1px
+   residues of the bucket cycle, and copy 1 splits while copies 0/2/3 do not.
+4. **M5x, the design-clip column.** An element whose OWN computed style declares
+   `text-overflow: ellipsis` or a line clamp was authored to truncate; it reports
+   `scrollWidth > clientWidth` forever and no narrow-width work will change it.
+   Counting it beside real overflow gave bucket (b) a large permanent
+   non-actionable population — `/members`' 721/217/1301, which turned out to be
+   **100% design-clip**. Known limitation, filed in the backlog: a
+   scroll-by-design third category (marquees, `<pre>`) is still landing in (b).
+
+### What v3 still cannot read
+
+- **A per-line far-right anchor that another line's content spans horizontally.**
+  The continuation-band cut is by membership, so this is rare rather than
+  impossible; it is the accepted cost of removing the wrap artifact.
+- **Anything off-screen.** No measurement in this audit sees "the reader cannot
+  reach it" — see §8's note on the HO 615 rail, where every number was green on a
+  layout that had put a filter 19,643px down the page.
+- **Conditional chrome.** An element that renders only in a state the crawl does
+  not enter is unmeasured. `/?stage=committee` is in the route list for exactly
+  that reason.
+- **M1x as a row count.** M1x counts *candidates*, not visual rows —
+  `/lobbying`'s 125 is 50 rows and 75 wrappers and tracks.
+
+---
+
+## 8. The fixture — why leg C left the product
+
+**`scripts/diagnostic/fixtures/layout-legc.html`,** committed, loaded over
+`file://`, versioned with the instrument, reachable by no route and by no
+remediation.
+
+**Why it had to leave.** Leg C's job is to prove the detector still fires. Pinned
+to a product route, its shelf life is exactly as long as that route's defect — and
+a remediation phase is in the business of ending them. It expired **three times in
+four handoffs**: HO 612 re-anchored `/members` → `/changes` in its own commit
+because 612 was about to take `/members` to ~20 by design; HO 613 was saved only
+because the leg walks a fallback list and fell through to `/stale` when `/changes`
+collapsed to 1; HO 614 had to dependency-grep its own components against `/stale`
+before its first commit, because the list had no depth left. **A silenced
+instrument and a successful remediation read identically on an expiring anchor**,
+which is the same-as-success shape §4 keeps naming.
+
+**The both-direction contract.** Legs A and B of the falsification both assert
+that the new instrument reports **less** than the old one, and on their own they
+are satisfied by an instrument that reports nothing at all. Leg C is the only leg
+that separates a correction from a silencing, so it asserts both directions in one
+place:
+
+- **POSITIVES — must fire.** A ≥600px row with a ≥300px far-right interior gap
+  (M1) · a bordered panel with >40px trailing slack (M2) · a ≥40px reserved empty
+  box (M4) · a genuinely overflowing cell (M5 bucket (b)).
+- **NEGATIVES — must stay silent**, each a preserved false positive of an earlier
+  instrument version, marked `data-legc-clean`: a single-line row mixing `--fs-9`
+  / `--fs-11` / `--fs-14` on one baseline, **at four 1px offsets so the v2
+  position-dependent split is reproducible rather than lucky** · a row with one
+  wrapped cell between single-line neighbours · an ellipsized cell that must land
+  in M5x and not (b) · a bordered grid child sized to its own content, which M2
+  must **not** report.
+- **CALIBRATION — must count exactly.** A three-row `label · bar · value` block
+  under `[data-viz-row]` reads **M1x = 3**, never 0 and never folded into M1. Its
+  container sits under the 600px M1b floor and has no siblings on purpose, so it
+  is not itself a candidate and cannot inflate the count. This is what lets leg B
+  survive the day the live funnel changes shape.
+
+**Rules for changing it.** Every case has exactly one assertion in
+`assertLegC()`; a case with no assertion is decoration. Adding a positive means
+adding its assertion. **A failing negative is an instrument defect or a fixture
+defect, and the order of investigation is fixture-first** — HO 615's own NEG-2
+failed because the fixture had right-aligned its trailing cell, putting a real
+135px anchor inside the row meant to isolate the phantom. The instrument was
+right. **Never edit the fixture to make a leg pass**; edit it only when a case is
+carrying a property it does not mean to test.
+
+**What it does not cover.** Everything in §7's "cannot read" list. The fixture
+proves the detectors fire and that four specific false positives stay dead; it
+does not and cannot prove the measurement is the right measurement. That is what
+the eyeball pass is for, and HO 615's rail reversal is the standing example of the
+eyeball finding what four green numbers could not.
