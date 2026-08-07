@@ -233,12 +233,21 @@ export function HearingsDaySchedule({
           {weekKeys.map((k) => {
             const n = countOf(k);
             const p = dayKeyParts(k);
+            // HO 623 — a past day dims, matching the schedule rows' .is-past.
+            // Without it the ribbon ARGUES WITH THE BAR: in NEXT mode the bar
+            // reads "NEXT · THU SEP 17" while the ribbon still shows TUE 7 ·
+            // WED 9 · THU 4 at full strength, which reads as three pending days
+            // the bar is ignoring. The counts are correct — the ribbon is a
+            // week total, not a forecast — so this is a DISPLAY contradiction,
+            // not a data one, and dimming resolves it: past days read `done`.
+            // Keys are YYYY-MM-DD so a lexical compare is a date compare.
+            const isPast = k < todayKey;
             return (
               <span
                 key={k}
                 className={`hsch-cell${n > 0 ? " has" : ""}${
                   k === shownKey ? " on" : ""
-                }`}
+                }${isPast ? " is-past" : ""}`}
               >
                 {p.dow}
                 <br />

@@ -8882,6 +8882,14 @@ a.hearing-watch:hover {
   color: var(--text-primary);
   background-color: rgba(251, 191, 36, 0.045);
 }
+/* HO 623 — a past day reads `done`, at the same 0.42 the schedule rows already
+   use for a concluded meeting, so one opacity means one thing in this panel.
+   Listed AFTER .on deliberately: the two never co-occur (the shown day is today
+   or later, so it is never past), and if that ever changes, dim-over-active is
+   the honest render of a day that is both. */
+.hsch-cell.is-past {
+  opacity: 0.42;
+}
 .hsch-tot {
   color: var(--text-dim);
   font-size: var(--fs-9);
