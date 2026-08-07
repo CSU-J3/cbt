@@ -23,7 +23,13 @@ import { getStaleBills } from "@/lib/queries";
 // full BillExpandedPanel (the list + accordion state live in the TopStallsList
 // client island). This stays a server component for the data fetch.
 
-const ROW_LIMIT = 5;
+// HO 627: this one is a CEILING, not a target. The stale set under the default
+// /stale scope (past-committee, 60+ days, procedural filtered) is SMALL — 5 rows
+// at the time of writing — so raising the limit renders everything there is and
+// the tab simply stays short until the corpus produces more. That is the honest
+// behaviour, and it is why this tab carries no [+N MORE] arithmetic. No variant
+// split — see the ActivityTicker note.
+const ROW_LIMIT = 60;
 
 export async function TopStalls({
   variant,

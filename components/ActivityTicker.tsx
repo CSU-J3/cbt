@@ -13,7 +13,28 @@ import {
 // more discoverable than the prior `[ View all changes → ]` chrome and
 // keeps the home page no-scroll at 1920x1080 inside its new tabbed
 // quadrant neighbor.
-const CAP = 5;
+//
+// HO 627: 5 -> 30. The dashboard gives this feed a full-viewport sticky column
+// that scrolls internally (the scroller is `.v2f` itself, overflow-y:auto, inside
+// `.dash-bills` — NOT the `.bills`/`.feed` classes the 627 handoff names, which do
+// not exist in the shipped DOM), so a 5-row slice capped the column at ~370px and
+// left the rest of the viewport beside it empty. A pre-arc content LIMIT surviving
+// into a shell that budgets far more room — not the layout arc misbehaving.
+//
+// NO VARIANT SPLIT, deliberately: `/dashboard-classic` was REMOVED at HO 608-610
+// (the route 404s), and app/page.tsx is the only caller of this component, always
+// with variant="v2". A depth constant keyed on the variant would have been an
+// unreachable branch carrying a comment about a page that no longer exists — the
+// Group-D "delete dead code, don't feed it" rule. (The `variant` prop still
+// branches the RENDERER; that its fallback arm is now also unreachable is a
+// separate cleanup, noted not done.)
+//
+// Cost of the deeper slice, measured at HEAD fcf6009 on 2026-08-07 against a
+// 17,463-bill corpus: rows_read 1,018 -> 1,094 (+76). The ~1,000 baseline is the
+// mention subquery's news_mentions GROUP BY, not the LIMIT — the walk is a
+// pre-ordered idx_bills_stage_changed_at range that short-circuits at LIMIT
+// either way, so depth here is close to free.
+const CAP = 30;
 
 // Reuses the /changes query helper. Empty FeedFilters means getStageChanges
 // excludes ceremonial bills by default (via buildFeedWhere). The dashboard

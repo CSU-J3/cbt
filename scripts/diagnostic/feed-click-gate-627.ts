@@ -49,30 +49,74 @@ const NAME_SHIM = () => {
   if (!g.__name) g.__name = (fn: unknown) => fn;
 };
 
-/** Scroll the feed so we are testing a row that is NOT the first one at rest. */
+/**
+ * Scroll the feed so we are testing a row that is NOT the first one at rest.
+ *
+ * THE SCROLL CONTAINER IS `.v2f` ITSELF, and finding that empirically mattered.
+ * The HO 627 handoff describes it as "`.bills` is max-height: calc(100vh - 32px)
+ * with `.feed { overflow-y: auto }`" — NEITHER CLASS EXISTS in the shipped DOM
+ * (measured at HEAD fcf6009: the column is `.dash-bills`, the scroller is
+ * `.v2f`). A harness that scrolls a missing selector silently scrolls nothing
+ * and then reports "feed too short to scroll", which is the same-as-success
+ * shape. So this discovers the scroller by WALKING UP from a row and taking the
+ * first ancestor that actually overflows, rather than trusting a class name.
+ *
+ * A row must also be clipped-tested against the CONTAINER's rect, not the
+ * viewport: inside an overflow:auto box a row can be inside the window and still
+ * be scrolled out of its own container, and clicking its reported centre then
+ * lands on whatever is painted there instead.
+ */
 async function scrollFeedAndPickRow(
   page: Page,
-): Promise<{ index: number; total: number; scrolled: number } | null> {
+): Promise<{ index: number; total: number; scrolled: number; scroller: string } | null> {
   return page.evaluate(() => {
-    const feed = document.querySelector(".feed") as HTMLElement | null;
     const groups = Array.from(document.querySelectorAll(".v2f-group"));
     if (groups.length === 0) return null;
-    let scrolled = 0;
-    if (feed && feed.scrollHeight > feed.clientHeight + 20) {
-      feed.scrollTop = Math.floor((feed.scrollHeight - feed.clientHeight) * 0.5);
-      scrolled = feed.scrollTop;
+
+    // Walk up from the first row to the nearest genuinely-overflowing ancestor.
+    let scroller: HTMLElement | null = null;
+    let e: HTMLElement | null = groups[0] as HTMLElement;
+    while (e && e !== document.body) {
+      const cs = getComputedStyle(e);
+      if (
+        (cs.overflowY === "auto" || cs.overflowY === "scroll") &&
+        e.scrollHeight > e.clientHeight + 8
+      ) {
+        scroller = e;
+        break;
+      }
+      e = e.parentElement;
     }
-    // Pick the LAST group whose row is fully inside the viewport — the "last
-    // visible position of a scrolled feed" the 609 §2 reproduction names.
+
+    let scrolled = 0;
+    if (scroller) {
+      scroller.scrollTop = Math.floor(
+        (scroller.scrollHeight - scroller.clientHeight) * 0.5,
+      );
+      scrolled = scroller.scrollTop;
+    }
+
+    const bounds = scroller
+      ? scroller.getBoundingClientRect()
+      : ({ top: 0, bottom: window.innerHeight } as DOMRect);
+    const top = Math.max(0, bounds.top);
+    const bottom = Math.min(window.innerHeight, bounds.bottom);
+
+    // Last row fully inside BOTH the scroller and the viewport.
     let pick = -1;
     groups.forEach((g, i) => {
       const row = g.querySelector(".v2f-row") as HTMLElement | null;
       if (!row) return;
       const r = row.getBoundingClientRect();
-      if (r.top >= 0 && r.bottom <= window.innerHeight && r.width > 0) pick = i;
+      if (r.top >= top && r.bottom <= bottom && r.width > 0) pick = i;
     });
     if (pick < 0) pick = 0;
-    return { index: pick, total: groups.length, scrolled };
+    return {
+      index: pick,
+      total: groups.length,
+      scrolled,
+      scroller: scroller ? `${scroller.tagName}.${scroller.className}`.slice(0, 40) : "NONE",
+    };
   });
 }
 
@@ -99,11 +143,16 @@ async function isOpen(page: Page, groupIndex: number): Promise<boolean> {
   }, groupIndex);
 }
 
+// Collapse via the disclosure glyph: it is always present, leading, carries no
+// href, and is a stable target. (Clicking the row's right edge worked but is
+// fragile — after HO 609's left-packing that space is empty by construction, and
+// an empty region is exactly what a future layout change reclaims.)
 async function collapseAll(page: Page, groupIndex: number) {
   if (await isOpen(page, groupIndex)) {
-    const r = await rectOf(page, groupIndex, ".v2f-row");
-    if (r) await page.mouse.click(r.x + r.w - 6, r.y + r.h / 2);
-    await page.waitForTimeout(180);
+    const d = await rectOf(page, groupIndex, ".v2f-disc");
+    const r = d ?? (await rectOf(page, groupIndex, ".v2f-row"));
+    if (r) await page.mouse.click(r.x + r.w / 2, r.y + r.h / 2);
+    await page.waitForTimeout(200);
   }
 }
 
@@ -147,12 +196,14 @@ async function runWidth(ctx: BrowserContext, label: string, w: number, h: number
   }
   const gi = picked.index;
   console.log(
-    `   feed: ${picked.total} rows · scrolled ${picked.scrolled}px · testing row index ${gi} (last fully visible)`,
+    `   feed: ${picked.total} rows · scroller ${picked.scroller} · scrolled ${picked.scrolled}px · testing row index ${gi} (last fully visible)`,
   );
   record(
     `${label} tested from a scrolled position`,
-    picked.scrolled > 0 || picked.total <= 6,
-    picked.scrolled > 0 ? `scrollTop=${picked.scrolled}` : `feed too short to scroll (${picked.total} rows)`,
+    picked.scrolled > 0,
+    picked.scrolled > 0
+      ? `scrollTop=${picked.scrolled} in ${picked.scroller}`
+      : `NOT SCROLLED — scroller=${picked.scroller}, ${picked.total} rows (the column is not overflowing: commit 1's premise)`,
   );
 
   // ---- G1: click the TITLE -> expands
@@ -225,6 +276,19 @@ async function runWidth(ctx: BrowserContext, label: string, w: number, h: number
   const idRect3 = await rectOf(page, gi, ".v2f-id");
   if (idRect3) await clickCentre(page, idRect3);
   await page.waitForTimeout(400);
+  // The panel opens BELOW a row that is deliberately near the scroller's bottom
+  // edge, so the drill can be scrolled out of the overflow box. getBoundingClientRect
+  // still returns coordinates for a clipped element — they are simply not where
+  // anything is painted — so measuring without bringing it into view is how a
+  // harness ends up clicking the page background and calling it a product failure.
+  // A user scrolls; so do we. `block: "nearest"` scrolls the container, not the window.
+  await page.evaluate((i) => {
+    const g = document.querySelectorAll(".v2f-group")[i];
+    (g?.querySelector(".bxp-head-drill") as HTMLElement | null)?.scrollIntoView({
+      block: "nearest",
+    });
+  }, gi);
+  await page.waitForTimeout(250);
   const drill = await rectOf(page, gi, ".bxp-head-drill");
   if (drill) {
     // Is it actually reachable without hunting? Report its offset from the row.

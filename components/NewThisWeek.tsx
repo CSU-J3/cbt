@@ -12,7 +12,12 @@ import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
 // only difference is daysFrom="intro" (age since introduction, not staleness).
 // Server component for the data fetch; the accordion state lives in the client
 // TopStallsList island.
-const ROW_LIMIT = 5;
+// HO 627: 5 -> 30, filling the scrolling feed column. No variant split — see the
+// ActivityTicker note (/dashboard-classic was removed at HO 608-610, so a
+// variant-keyed depth would be an unreachable branch). Cost measured at HEAD
+// fcf6009 on 2026-08-07: rows_read 1,027 -> 1,103 (+76), the ~1,000 baseline
+// being the mention subquery rather than the LIMIT.
+const ROW_LIMIT = 30;
 
 export async function NewThisWeek({
   variant,
