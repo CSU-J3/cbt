@@ -22,13 +22,38 @@
 // the streak newest->oldest: a not_voting row extends it, any other explicit position
 // (yea/nay/present) breaks it, a missing row is skipped (neither extends nor breaks).
 //
-// Facts copied verbatim (NOT imported — no queries.ts touch, HO 588 §3):
-//   - population predicate = getParticipationStrip (queries.ts:4547-4577): is_current=1,
-//     GROUP BY bioguide_id, HAVING COUNT(*) >= PARTICIPATION_FLOOR.
-//   - delegate carve = the strip's isDelegate CASE (queries.ts:4553) / MISSED_CARVE_EXPR
-//     (queries.ts:5834): chamber='house' AND state IN ('DC','AS','GU','MP','PR','VI').
-//   - PARTICIPATION_FLOOR = 50 (queries.ts:7726).
-//   - zero-roster instrument = HO 566/540 lag query (vote-detail-cost-540.ts:67).
+// Facts copied verbatim (NOT imported — no queries.ts touch, HO 588 §3).
+// RECONCILED TO HEAD ba03e51 AT HO 621 — every ref below re-read, not trusted:
+//   - population predicate = getParticipationStrip (queries.ts:4734-4766). MECHANISM
+//     CHANGED at HO 595, SEMANTICS DID NOT. The strip no longer aggregates
+//     member_votes live; it reads the materialized `member_participation` table:
+//       FROM member_participation p JOIN members m ON m.bioguide_id = p.bioguide_id
+//       WHERE m.is_current = 1 AND p.total >= PARTICIPATION_FLOOR
+//     and that table's writer (lib/participation-refresh.ts:109-115) computes exactly
+//     COUNT(*) AS total + SUM(position='not_voting') AS nv GROUP BY bioguide_id — the
+//     same two integers this probe used to compute inline. So the OLD predicate and
+//     the NEW one select the same members and the same rate, and differ ONLY by the
+//     table's freshness. THIS PROBE NOW READS THE MATERIALIZED TABLE (M1), because the
+//     ruling turns on the probe's population being the STRIP's population, and adds M1.0
+//     to measure the staleness that is now the only way the two can diverge.
+//   - delegate carve = the strip's isDelegate CASE (queries.ts:4740-4742) /
+//     MISSED_CARVE_EXPR (queries.ts:6033). UNCHANGED, byte-for-byte:
+//     chamber='house' AND state IN ('DC','AS','GU','MP','PR','VI').
+//   - PARTICIPATION_FLOOR = 50 (queries.ts:7925). UNCHANGED value; it is still a
+//     QUERY-TIME constant, not stored in the materialized table — member_participation
+//     holds every bioguide in member_votes (~554) and each reader applies `total >= 50`
+//     itself. So the floor did not migrate into the materializer.
+//   - zero-roster instrument = HO 566/540 lag query (vote-detail-cost-540.ts:68).
+//     UNCHANGED in shape (line moved by one).
+//
+// HO 621 §1 question — is `member_participation` per-roll or windowed?
+// NO. It is CUMULATIVE-ONLY, as expected. The DDL (scripts/migrate.ts:425-430) is
+// (bioguide_id PK, total, not_voting, refreshed_at) — four columns, one row per
+// member, no vote_id, no date, no window. There is no per-roll or recency structure
+// anywhere in it. CONSEQUENCE FOR THE RULING: R1/R2 read a resident ~554-row table
+// (their cost premise got STRONGER than 588 priced — see M3a), while R3's window
+// query remains a genuinely NEW read path over member_votes that nothing materializes,
+// and M3b below is the live price of it.
 //
 // Same idiom as motion-outcome-model-554.ts: raw @libsql/client, SELECT/EXPLAIN only,
 // dotenv/config, npx tsx. Bounded aggregate SELECTs — no per-member query loops.
@@ -64,23 +89,68 @@ async function main(): Promise<number> {
   const chambers = ["house", "senate"] as const;
 
   // ══════════════════════════════════════════════════════════════════════════
+  // M1.0 — freshness of the materialized population (HO 621)
+  // HO 595 made the strip's population a STORED artifact, so "is the probe reading
+  // the strip's population?" stopped being a question about the predicate and became
+  // a question about staleness. A stale member_participation renders correct-LOOKING
+  // numbers with no error and no visual tell (the reason refreshed_at exists at all),
+  // so measure it rather than assume it: print the stamp, then recompute the live
+  // aggregate over member_votes and diff. Nonzero drift means the ruling's cumulative
+  // figures describe what the STRIP would show, not what the corpus currently is —
+  // which is the honest thing to rule on, but it must be visible.
+  // ══════════════════════════════════════════════════════════════════════════
+  console.log("################ M1.0 — materialized-population freshness (HO 621) ################\n");
+  const stampRes = await db.execute(
+    `SELECT COUNT(*) AS n, MIN(refreshed_at) AS mn, MAX(refreshed_at) AS mx,
+            CAST(julianday('now') - julianday(MAX(refreshed_at)) AS REAL) AS age_days
+       FROM member_participation`,
+  );
+  const stamp = stampRes.rows[0];
+  console.log(`   member_participation rows: ${num(stamp, "n")}`);
+  console.log(`   refreshed_at: ${s(stamp, "mx")}  (age ${num(stamp, "age_days").toFixed(2)} days)`);
+  console.log(`   stamp uniform across rows: ${s(stamp, "mn") === s(stamp, "mx") ? "✓ yes (one atomic batch)" : "⚠ NO — mixed stamps, a partial write"}`);
+
+  // live recompute = exactly what participation-refresh.ts:109-115 writes
+  const liveAggRes = await db.execute(
+    `SELECT mv.bioguide_id AS bioguide, COUNT(*) AS total,
+            SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
+       FROM member_votes mv
+      GROUP BY mv.bioguide_id`,
+  );
+  const live = new Map<string, { total: number; nv: number }>();
+  for (const r of liveAggRes.rows) live.set(s(r, "bioguide"), { total: num(r, "total"), nv: num(r, "nv") });
+  const storedRes = await db.execute(`SELECT bioguide_id AS bioguide, total, not_voting AS nv FROM member_participation`);
+  let driftRows = 0; let driftVotes = 0; let missingFromTable = 0;
+  for (const r of storedRes.rows) {
+    const l = live.get(s(r, "bioguide"));
+    if (!l) continue;
+    if (l.total !== num(r, "total") || l.nv !== num(r, "nv")) {
+      driftRows++; driftVotes += Math.abs(l.total - num(r, "total"));
+    }
+  }
+  for (const bio of live.keys()) if (!storedRes.rows.some((r) => s(r, "bioguide") === bio)) missingFromTable++;
+  console.log(`   live member_votes aggregate: ${live.size} members`);
+  console.log(`   drift vs stored: ${driftRows} members differ (${driftVotes} vote-rows) · ${missingFromTable} in member_votes but ABSENT from the table`);
+  console.log(`   → ${driftRows === 0 && missingFromTable === 0 ? "✓ table is current — probe population == strip population == corpus" : "⚠ table lags member_votes — M1 below is the STRIP's population (correct for the ruling); the corpus has moved"}`);
+  console.log("");
+
+  // ══════════════════════════════════════════════════════════════════════════
   // M1 — cumulative distribution + threshold sweep (R1/R2)
-  // Population = getParticipationStrip's EXACT predicate (queries.ts:4547-4577),
-  // + m.state so the delegate carve can be applied here.
+  // Population = getParticipationStrip's EXACT predicate (queries.ts:4734-4750),
+  // now the materialized read (HO 595), + m.state so the delegate carve applies here.
   // ══════════════════════════════════════════════════════════════════════════
   console.log("################ M1 — cumulative distribution + threshold sweep (R1/R2) ################\n");
-  const popSql = `SELECT mv.bioguide_id AS bioguide, m.name AS name, m.party AS party,
+  const popSql = `SELECT p.bioguide_id AS bioguide, m.name AS name, m.party AS party,
                          m.state AS state, m.chamber AS chamber,
                          CASE WHEN m.chamber = 'house'
                                AND m.state IN ('DC','AS','GU','MP','PR','VI')
                               THEN 1 ELSE 0 END AS isDelegate,
-                         COUNT(*) AS total,
-                         SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-                    FROM member_votes mv
-                    JOIN members m ON m.bioguide_id = mv.bioguide_id
+                         p.total AS total,
+                         p.not_voting AS nv
+                    FROM member_participation p
+                    JOIN members m ON m.bioguide_id = p.bioguide_id
                    WHERE m.is_current = 1
-                   GROUP BY mv.bioguide_id
-                  HAVING total >= ?`;
+                     AND p.total >= ?`;
   const popRes = await db.execute({ sql: popSql, args: [PARTICIPATION_FLOOR] });
   console.log(`getParticipationStrip population (is_current=1, total>=${PARTICIPATION_FLOOR}): ${popRes.rows.length} rows read\n`);
 
@@ -147,14 +217,17 @@ async function main(): Promise<number> {
   }
 
   // 4. floor-excluded current members (invisible to the rule)
-  console.log(`── M1.4 floor-excluded current members (total < ${PARTICIPATION_FLOOR}; invisible to the rule) ──`);
+  // HO 621: driven off member_participation, not a live member_votes subquery — the
+  // rule inherits the STRIP's exclusions, and post-595 a member is invisible to it
+  // either by falling under the floor OR by having no row in the materialized table
+  // at all. COALESCE(...,0) folds both into one honest `total`.
+  console.log(`── M1.4 floor-excluded current members (total < ${PARTICIPATION_FLOOR} or absent from member_participation; invisible to the rule) ──`);
   const exclSql = `SELECT m.bioguide_id AS bioguide, m.name AS name, m.chamber AS chamber, m.state AS state,
                           CASE WHEN m.chamber = 'house' AND m.state IN ('DC','AS','GU','MP','PR','VI')
                                THEN 1 ELSE 0 END AS isDelegate,
-                          COALESCE(cnt.total, 0) AS total
+                          COALESCE(p.total, 0) AS total
                      FROM members m
-                     LEFT JOIN (SELECT bioguide_id, COUNT(*) AS total FROM member_votes GROUP BY bioguide_id) cnt
-                            ON cnt.bioguide_id = m.bioguide_id
+                     LEFT JOIN member_participation p ON p.bioguide_id = m.bioguide_id
                     WHERE m.is_current = 1`;
   const exclRes = await db.execute(exclSql);
   console.log(`   current members read: ${exclRes.rows.length}`);
@@ -332,10 +405,13 @@ async function main(): Promise<number> {
   // M3 — cost
   // ══════════════════════════════════════════════════════════════════════════
   console.log("################ M3 — cost (rows read is the currency) ################\n");
-  console.log(`── M3a (code-read) R1/R2 reuse path ──`);
+  console.log(`── M3a (code-read) R1/R2 reuse path — RE-READ AT HO 621, premise STRONGER ──`);
   console.log(`   getParticipationStrip is unstable_cache with key ["getParticipationStrip"] and NO args`);
-  console.log(`   (queries.ts:4547-4579), so a dashboard consumer shares the /members cache entry —`);
+  console.log(`   (queries.ts:4734-4766), so a dashboard consumer shares the /members cache entry —`);
   console.log(`   marginal regen cost for an R1/R2 rule is ~0 beyond today's participation-strip read.`);
+  console.log(`   HO 595 STRENGTHENED this: even on a cache MISS the regen is now a ~554-row read of`);
+  console.log(`   the resident member_participation table, not the 366k-row member_votes scan HO 588`);
+  console.log(`   priced. R1/R2 read cost is no longer a consideration in the ruling at all.`);
   console.log("");
   console.log(`── M3b (measured) R3 NEW window path ──`);
   console.log(`   cold wall: ${m3bTotalMs}ms across both chambers · total rows read: ${m3bTotalRows} (see EXPLAIN above)`);
