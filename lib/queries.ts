@@ -7583,7 +7583,20 @@ export const searchMembers = unstable_cache(
     const sql = `
       WITH bills_agg AS (
         SELECT sponsor_bioguide_id, COUNT(*) AS total
-        FROM bills
+        -- HO 626: forced INDEXED BY idx_bills_sponsor_agg, mirroring billsAggCte
+        -- (HO 277). This is a LEAN COPY of that CTE and it was the one the hint
+        -- never reached: unhinted, the statless planner drove it off
+        -- idx_bills_is_ceremonial as a NON-COVERING MULTI-INDEX OR (both the
+        -- is_ceremonial=0 and IS NULL branches, then row-fetching each match).
+        -- Measured by the HO 624 probe against 17,463 bills on 2026-08-07:
+        -- 35,129 rows / 594.6ms unhinted vs the hinted CTE's 17,463 — 2.01x, the
+        -- row-fetch doubling a non-covering OR predicts.
+        -- Safe only because the query always constrains sponsor_bioguide_id
+        -- (IS NOT NULL) — keep that clause if editing, or SQLite throws "no query
+        -- solution". The index (sponsor_bioguide_id, is_ceremonial, stage,
+        -- congress) also covers the is_ceremonial predicate, so the scan is
+        -- index-only.
+        FROM bills INDEXED BY idx_bills_sponsor_agg
         WHERE sponsor_bioguide_id IS NOT NULL
           AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
         GROUP BY sponsor_bioguide_id
