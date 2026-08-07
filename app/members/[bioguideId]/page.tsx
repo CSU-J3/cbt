@@ -753,7 +753,9 @@ export default async function MemberPage({
                     ← Back to members
                   </Link>
                   <span
-                    className="ml-auto text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
+                    /* HO 617 (C1) — ml-auto removed; the attribution followed
+                       the back-link 1,751px away at 2560. */
+                    className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                     style={{ color: "var(--text-dim)" }}
                   >
                     Member data via Congress.gov · Ideology via Voteview ·

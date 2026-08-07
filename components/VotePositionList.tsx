@@ -76,7 +76,21 @@ export function VotePositionList({ positions }: { positions: VoteMemberPosition[
             </h2>
             {/* CSS multi-column so a 374-member Nay group flows across columns
                 rather than one very tall column; break-inside-avoid keeps a row whole. */}
-            <ul className="columns-2 gap-x-6 px-[14px] py-2 sm:columns-3 lg:columns-4">
+            {/* HO 617 (C8) — a column WIDTH, not a count. At 2560 the count
+                ladder topped out at 4 columns ~630px wide holding 120-235px
+                names, so a row read up to 511px of gap across the gutter. The
+                count now follows the width the content needs instead of the
+                breakpoint it landed on.
+                240px/16px is the ELBOW of the applied curve, not a target —
+                (colw, gutter) -> worst gap: (260,24) 196px · (240,16) 160px ·
+                (228,12) 132px · (220,12) 132px · (200,12) 1192px. It plateaus at
+                132 because below ~240 the binding term stops being the column
+                width and becomes the ragged fill of the last column, which no
+                width reaches under; and 200 breaks it outright by leaving a
+                near-empty final column. So no cap gets this list to zero, 240
+                takes the improvement where it is real, and the residual is
+                filed as decomposed rather than chased. 0 names wrap at 240. */}
+            <ul className="columns-[240px] gap-x-4 px-[14px] py-2">
               {list.map((p) => (
                 <MemberItem key={p.bioguideId} p={p} />
               ))}

@@ -9470,12 +9470,27 @@ a.hearing-watch:hover {
 .bdp .bdp-foot[open] .bdp-rawcue::before {
   content: "▾ ";
 }
+/* HO 617 (C1) — `margin-left: auto` removed; the summary attribution sat
+   1,938px right of the footer's buttons. */
 .bdp .bdp-attrib {
-  margin-left: auto;
   font-size: var(--fs-11);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
+}
+/* HO 617 (C1) — the stage bar is CAPPED, not exempted, and the scope is the
+   point. Six ordinal stage nodes spread across a 2,486px hero left 379px between
+   INTRO and COMMITTEE. Applied curve (max-width -> worst ink gap / minimum label
+   separation): live 2486 -> 379/359 · 1600 -> 232/212 · 1200 -> 165/145 ·
+   1000 -> 132/112 · 800 -> 98/78 · 640 -> 72/52. A cap reaches it, so clause 2
+   says cap — and unlike the ideology axis, position here encodes SEQUENCE, not
+   magnitude, so compressing the bar costs nothing the reader was reading. 800px
+   keeps 78px between labels.
+   SCOPED TO `.bdp`. `.v2f-bar` is the shared BillStageBar, and SKILL's HO 507
+   rule is explicit: never edit the shared `.bxp-*` / `.v2f-bar` rules for this
+   page's benefit — the feed expand panel must stay byte-identical. */
+.bdp .v2f-bar {
+  max-width: 800px;
 }
 .bdp .bdp-rawpre {
   margin-top: 8px;
@@ -9544,8 +9559,10 @@ a.hearing-watch:hover {
   color: var(--text-dim);
   margin-left: 4px;
 }
+/* HO 617 (C1) — `margin-left: auto` removed. This one row is SHARED by the
+   member hub and /bill/[id], so the same pin scored on both: 1,688px and
+   1,781px. The out-link now follows the last tab. */
 .rec-out {
-  margin-left: auto;
   align-self: center;
   font-size: 11.5px;
   letter-spacing: 0.5px;

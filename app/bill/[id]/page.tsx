@@ -332,7 +332,9 @@ export default async function BillDetailPage({
             borderColor: "var(--border-strong)",
           }}
         >
-          <div className="flex items-start justify-between gap-4">
+          {/* HO 617 (C1) — justify-between removed; the WATCH control sat 2,237px
+              right of the bill title at 2560. It now follows the title. */}
+          <div className="flex items-start gap-4">
             <div className="flex min-w-0 items-baseline gap-3">
               <span
                 className="whitespace-nowrap text-[16px] font-medium"

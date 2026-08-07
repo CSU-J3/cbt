@@ -76,6 +76,17 @@ export function MemberIdeology({
           member's identity is the caret STRICTLY BELOW the rail — the two never
           share vertical space. The above-rail member bar is a secondary readout. */}
       <div
+        /* HO 617 — data-viz-row. A fixed -1..+1 DW-NOMINATE domain with
+           positioned markers: the end labels mark the domain's ends and the
+           distance between the two party medians IS the finding. Narrowing the
+           track is the only lever and it costs the encoding linearly — applied
+           curve (axis width -> worst gap / scale / median spread): 2490 ->
+           2299px / 1195px per unit / 1878px · 1400 -> 1209 / 672 / 1055 ·
+           1000 -> 809 / 480 / 753 · 700 -> 509 / 336 / 527 · 500 -> 309 / 240 /
+           376. Reaching the 120px threshold needs a ~420px axis, a 6x loss of
+           resolution on the one thing the rail exists to show. Clause 1 by
+           construction, clause 2 by the curve. */
+        data-viz-row
         className="ideology-axis"
         role="img"
         aria-label={`DW-NOMINATE first dimension ${dim1.toFixed(3)} on a −1 (liberal) to +1 (conservative) scale`}
