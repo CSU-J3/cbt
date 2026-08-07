@@ -744,9 +744,16 @@ body {
   .dash-page {
     /* minmax(0,…) not bare fr: a bare-fr track keeps min-width:auto, so a column
        grows to the longest feed title's intrinsic width and the title never
-       ellipsizes (HO 297). The right column is capped at 27% but floored at 400px
-       so the feed stays readable on a 1440 laptop. */
-    grid-template-columns: minmax(0, 1fr) minmax(400px, 27%);
+       ellipsizes (HO 297). The right column is capped at 31% but floored at 480px
+       so the feed stays readable on a 1440 laptop.
+
+       HO 623 — 400px/27% -> 480px/31%, an owner ruling and a RECORDED MOCK
+       DEVIATION (the committed mock says 400/27%; the masthead packing at HO 610
+       is the precedent for the mock losing to a later call). At 2560 the column
+       reads ~794px and at 2400 ~744px, both under the C8 ceiling of ~850px past
+       which a row of text buys nothing from more width; at 1440 the floor gives
+       480. The bxp container query moves WITH this — see the .bxp block. */
+    grid-template-columns: minmax(0, 1fr) minmax(480px, 31%);
   }
 }
 .dash-left {
@@ -4466,7 +4473,16 @@ body {
   grid-template-columns: 1.35fr 1fr;
   gap: 0;
 }
-@container bxp (max-width: 440px) {
+/* HO 623 — 440px -> 520px, and the threshold MOVES WITH THE COLUMN it was tuned
+   against. 440 was derived from a 400px column; at the new 480px floor the panel's
+   inner width lands ~456-464px, which is just ABOVE 440 — so the query would stop
+   firing at 1440 and the panel would flip to wide mode at exactly the width it was
+   built to stack at, flapping across the boundary. 520 keeps 1440 stacked and lets
+   wide mode arrive only where the container is genuinely wide (a >520px column
+   needs a viewport of roughly 1680+). /bills is unaffected by construction — its
+   panel is ~1140px at 1440, far past either threshold — which is the point of a
+   container query over a route branch. */
+@container bxp (max-width: 520px) {
   .bxp-body {
     grid-template-columns: minmax(0, 1fr);
   }
