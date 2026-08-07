@@ -1248,6 +1248,16 @@ body {
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-md);
 }
+/* HO 616 (C1) — the three strip heads pack left; the `flex: 1` spacer elements
+   are gone. Pinned right, "how it's scored →" and the chamber toggle opened
+   1,534-1,843px interior gaps at 2560 — the same shape as ActiveFilterStrip
+   (HO 611) and the five filter bars (HO 613), and this is that fix's seventh
+   application. The leftover width now collects after the last item, which is
+   the target state and is unthresholded.
+   HEADS ONLY. The HO 612 guard fenced these three strips off so a roster-row HO
+   could not drift into redesigning a dotplot; the fence lifts for the head rows,
+   which are ordinary chrome, and stays over the strip BODIES (the SVG plots and
+   their scales), which are what it was protecting. */
 .ideo-strip-head {
   display: flex;
   align-items: baseline;
@@ -1264,9 +1274,6 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
-}
-.ideo-strip-spacer {
-  flex: 1;
 }
 .ideo-strip-how {
   font-size: var(--fs-11);
@@ -1317,9 +1324,6 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
-}
-.part-strip-spacer {
-  flex: 1;
 }
 .part-strip-how {
   font-size: var(--fs-11);
@@ -1384,9 +1388,6 @@ body {
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: var(--text-dim);
-}
-.pol-time-spacer {
-  flex: 1;
 }
 .pol-time-collapsed-hint {
   font-size: var(--fs-11);

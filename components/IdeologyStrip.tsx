@@ -137,7 +137,6 @@ export function IdeologyStrip({ dots }: { dots: IdeologyDot[] }) {
       <div className="ideo-strip-head">
         <span className="ideo-strip-title">POLARIZATION</span>
         <span className="ideo-strip-desc">every scored member on dim1 · party medians ticked</span>
-        <span className="ideo-strip-spacer" />
         <span
           className="ideo-strip-how"
           title="DW-NOMINATE dim1 — the economic left–right axis from Voteview's roll-call vote analysis of the 119th Congress. Lower = liberal, higher = conservative."

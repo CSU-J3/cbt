@@ -123,7 +123,6 @@ export function PolarizationOverTime({
           <span className="pol-time-title">POLARIZATION OVER TIME · 1879–2025</span>
           <span className="pol-time-desc">party median on dim1 · per Congress</span>
         </button>
-        <span className="pol-time-spacer" />
         {open ? (
           <span className="pol-time-seg">
             <button

@@ -184,7 +184,6 @@ export function ParticipationStrip({ dots }: { dots: ParticipationDot[] }) {
         <span className="part-strip-desc">
           every current member&apos;s 119th missed-vote rate · chamber medians ticked
         </span>
-        <span className="part-strip-spacer" />
         <span
           className="part-strip-how"
           title="Missed rate = share of the member's 119th roll calls recorded not-voting. Non-voting delegates are excluded — they're structurally ineligible on final-passage votes, so their not-voting isn't absenteeism."
