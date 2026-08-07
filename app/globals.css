@@ -5053,9 +5053,10 @@ body {
   height: 8px;
   border-radius: 4px;
 }
+/* HO 619 (C1) — the hint FOLLOWS the gradient key; `margin-left: auto` pinned it
+   to the far right of a 1,502px legend and opened an 834px void. */
 .pattern-legend-hint {
   color: var(--text-dim);
-  margin-left: auto;
 }
 .pattern-drilldown {
   margin-top: 20px;
@@ -5152,8 +5153,12 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
 }
+/* HO 619 (C1) — `flex: 1` is gone. It made the summary absorb the row's leftover
+   width, which pushed the chevron to the far right and opened a 1,460px void:
+   the same stretch-a-middle-cell mechanism as the HO 616 strip spacers, spelled
+   as a property on a real cell instead of as a spacer element. `min-width: 0`
+   stays — it is what lets the summary shrink rather than overflow. */
 .filler-watch-summary {
-  flex: 1;
   min-width: 0;
   color: var(--text-muted);
 }
@@ -5163,8 +5168,10 @@ body {
 .fw-texture {
   color: var(--text-muted);
 }
+/* HO 619 (C1) — the chevron FOLLOWS the summary. The whole row is one button, so
+   the disclosure marker gains nothing from sitting 1,460px away from the text it
+   discloses; `margin-left: auto` is the other half of the same pin. */
 .filler-watch-chevron {
-  margin-left: auto;
   color: var(--text-dim);
 }
 .filler-watch-body {
@@ -7264,8 +7271,9 @@ body {
   color: var(--party-republican);
   pointer-events: none;
 }
+/* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
+   to the right of a 2,528px control bar and opened a 1,821px void. */
 .cart-summary {
-  margin-left: auto;
   font-size: var(--fs-12);
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -7416,9 +7424,10 @@ body {
   padding: 11px 14px 9px;
   margin-top: var(--space-md);
 }
+/* HO 619 (C1) — `justify-content: space-between` removed; the right-hand legend
+   FOLLOWS the title rather than being thrown 1,960px across the band. */
 .electoral-tl-head {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
   margin-bottom: 2px;
   flex-wrap: wrap;

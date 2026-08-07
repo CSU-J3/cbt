@@ -54,7 +54,9 @@ export default async function ReportsPage({
           style={{ borderColor: "var(--border-strong)" }}
         >
           <div
-            className="flex items-baseline justify-between px-4 py-2"
+            /* HO 619 (C1) — `justify-between` removed; the axis caption follows
+               the title instead of being pinned 2,062px away. */
+            className="flex items-baseline gap-3 px-4 py-2"
             style={{
               backgroundColor: "var(--bg-panel)",
               borderBottom: "0.5px solid var(--border-strong)",

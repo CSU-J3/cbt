@@ -106,7 +106,9 @@ export async function TopicMixByChamber() {
 
   return (
     <section className="dashboard-pane mt-3">
-      <div className="mb-2 flex items-baseline justify-between">
+      {/* HO 619 (C1) — `justify-between` removed; the count follows the title
+          rather than sitting 2,088px away from it. */}
+      <div className="mb-2 flex items-baseline gap-3">
         <p
           className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--accent-amber)" }}

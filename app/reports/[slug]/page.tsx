@@ -34,7 +34,9 @@ export default async function ReportDetailPage({
               </Link>
               <a
                 href={`/reports/${report.slug}/download`}
-                className="ml-auto text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+                /* HO 619 (C1) — `ml-auto` removed; the download follows the back
+                   link rather than sitting 2,257px from it. */
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
                 style={{ color: "var(--accent-amber)" }}
               >
                 Download .md ↓

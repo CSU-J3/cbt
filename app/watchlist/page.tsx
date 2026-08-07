@@ -71,7 +71,9 @@ export default async function WatchlistPage({
               return qs ? `/watchlist?${qs}` : "/watchlist";
             }}
           />
-          <span className="ml-auto flex items-center gap-2">
+          {/* HO 619 (C1) — `ml-auto` removed; the sort control follows the
+              chamber toggle, the HO 613 /bills fbar form. */}
+          <span className="flex items-center gap-2">
             <span>Sort</span>
             <SortDropdown current={sort} basePath="/watchlist" />
           </span>

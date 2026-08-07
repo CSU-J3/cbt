@@ -31,7 +31,20 @@ export function PatternBars({
   const maxCount = Math.max(1, ...stats.map((s) => s.count));
 
   return (
-    <div className="pattern-bars">
+    // HO 619 — data-viz-row. Clause 1: this is a bar chart, not a text table —
+    // bar LENGTH is the bill count and bar COLOUR is % past committee, on a
+    // shared origin (the `2fr` track), which is what makes five patterns
+    // comparable at a glance. Clause 2, the APPLIED curve at 2560: the void is
+    // header `Pattern` -> `Bills`, spanning the empty cell over the bar column,
+    // and it reads 781px live and gets monotonically WORSE at every cap tried
+    // (600 -> 746, 500 -> 846, 420 -> 926, 340 -> 1006, 260 -> 1086, 180 ->
+    // 1166) while clipping 0 of 5 labels, because the bar sits in a FRACTIONAL
+    // track that absorbs whatever the label column gives up — the TopicCrosswalk
+    // shape, not the FirmsLeaderboard one. No cap reaches it. Clause 4: the
+    // attribute goes on the TABLE because there IS a column header, and a
+    // header's geometry is not independently choosable — it has to sit over the
+    // columns it labels. The bar ROWS themselves are never over threshold (14px).
+    <div className="pattern-bars" data-viz-row>
       <div className="pattern-bars-header">
         <span>Pattern</span>
         <span aria-hidden />
