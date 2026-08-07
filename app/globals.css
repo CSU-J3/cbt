@@ -4134,6 +4134,28 @@ body {
   gap: 8px;
   min-width: 0;
 }
+/* HO 627: the disclosure glyph. HO 609 retired the far-right caret because a
+   right-anchored element is C1's exact defect (it stretches the row and opens a
+   horizontal void); the affordance came back LEADING, where it costs nothing.
+   Dim so C3 holds — stage is still the only colour in this row. Rotates 90deg
+   instantly on open (the .feed-row chevron's house behaviour, no transition:
+   the dashboard's motion budget is cursor-blink + the two tape marquees). */
+.v2f-disc {
+  flex: none;
+  display: inline-block;
+  font-size: var(--fs-9);
+  color: var(--text-dim);
+  line-height: 1;
+  /* Nudge onto the id's baseline — .v2f-l1 is baseline-aligned and an
+     inline-block's baseline is its bottom margin edge. */
+  transform-origin: 50% 50%;
+  position: relative;
+  top: -1px;
+}
+.v2f-group.open .v2f-disc {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
+}
 /* Plain amber id (C3) — the bordered .bill-id-chip primitive is untouched and
    still used by the weekly band + hearings; the feed just stopped rendering it. */
 .v2f-id {
@@ -4467,6 +4489,28 @@ body {
   padding: 14px 16px 16px;
   container-type: inline-size;
   container-name: bxp;
+}
+/* HO 627 §2 — the drill leads the panel. Packed LEFT (a far-right anchor here is
+   C1's defect), quiet until hover so C3 holds and the stage bar above stays the
+   panel's only colour at rest. It replaces the `Full Bill Page →` primary button
+   that used to sit at the bottom of .bxp-metabox, which the container-query stack
+   pushed below the whole left column in the dashboard's narrow panel. */
+.bxp-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+.bxp-head-drill {
+  font-size: var(--fs-10);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bxp-head-drill:hover {
+  color: var(--accent-amber-bright);
 }
 .bxp-body {
   display: grid;

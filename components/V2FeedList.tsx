@@ -227,6 +227,38 @@ function Metric({
 // shared TopicChips renderer is still what /bills uses, it just isn't rendered
 // here. All three sponsor fields ride the FeedBill via the HO 300 SPONSOR_ENRICH
 // join — no query change.
+// HO 627 (owner-reported): THE ROW IS THE CLICK TARGET, everywhere in it.
+//
+// The defect this fixes: the id was the only COLOURED element in the row and the
+// only one that NAVIGATED. C3 had deliberately made stage the sole carrier of
+// colour elsewhere, so the amber id read as "the thing to click" — and clicking
+// it left the dashboard instead of expanding, while clicking two pixels to its
+// right expanded. The row advertised one affordance and delivered two.
+//
+// The rule now: a PLAIN click anywhere in the row expands it. A MODIFIED click
+// (cmd/ctrl for a new tab, shift for a new window, alt for download, any
+// non-primary button) navigates. That is why these stay real `<a href>` elements
+// rather than becoming spans — the href is what makes new-tab, "copy link
+// address", middle-click and screen-reader link semantics keep working. We only
+// suppress the DEFAULT navigation on the unmodified case; we never stop the
+// event bubbling, because the row's toggle is what has to receive it.
+//
+// Note there is no stopPropagation here by design (it is what this HO removed).
+function rowLinkClick(e: React.MouseEvent<HTMLAnchorElement>) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) {
+    // Let the browser do its normal thing (new tab / new window / download) —
+    // but STOP the bubble, or the row toggle also fires and a cmd-click opens
+    // the bill in a background tab AND leaves the row expanded behind it. That
+    // is the same "one affordance, two outcomes" defect this HO is fixing, just
+    // mirrored, and the HO 627 gate caught it on the first honest run: the ctrl
+    // legs read `open=true · tabs 1->2` — navigation correct, toggle spurious.
+    e.stopPropagation();
+    return;
+  }
+  // Unmodified: suppress navigation and let the click reach the row's toggle.
+  e.preventDefault();
+}
+
 function SubLine({
   bill,
   mode,
@@ -261,7 +293,14 @@ function SubLine({
               className="v2f-sponsor"
               style={{ color: partyColor(party) }}
               href={`/members/${bill.sponsor_bioguide_id}`}
-              onClick={(e) => e.stopPropagation()}
+              // HO 627 §4: the sponsor was the row's OTHER colour-carrying link
+              // and had the same swallow-the-click problem as the id. Same
+              // modifier-aware treatment — plain click expands, modified click
+              // goes to the member hub. The expanded panel's own sponsor link
+              // navigates on a plain click (it is a sibling of the row, not a
+              // child, so it never reaches the toggle), which is the "one level
+              // in" the drill moved to rather than being removed.
+              onClick={rowLinkClick}
             >
               {sponsorText}
             </a>
@@ -341,14 +380,25 @@ export function V2FeedList({
               }}
             >
               <div className="v2f-l1">
-                {/* Plain amber id, not the bordered chip (C3). Still a link, and
-                    still stops the click bubbling to the row toggle so it
-                    navigates instead of also firing a wasted panel fetch. */}
+                {/* HO 627 §3: leading disclosure glyph. LEADING, not far-right —
+                    a right-anchored caret is the exact C1 defect HO 609 removed
+                    from this row, so the affordance goes at the head of line 1
+                    where it costs no horizontal void. aria-hidden because the
+                    row already carries role=button + aria-expanded, which is
+                    what assistive tech reads; a second announcement would be
+                    noise. Rotates 90deg on open (instantly, house style). */}
+                <span className="v2f-disc" aria-hidden>
+                  ▸
+                </span>
+                {/* Plain amber id, not the bordered chip (C3). Still a real link
+                    (href kept for new-tab / copy-link / a11y), but a PLAIN click
+                    now expands the row like every other pixel in it — see
+                    rowLinkClick. */}
                 <a
                   className="v2f-id"
                   href={`/bill/${bill.id}`}
                   title={BILL_TYPE_LABELS[bill.bill_type]}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={rowLinkClick}
                 >
                   {formatBillId(bill.bill_type, bill.bill_number)}
                 </a>

@@ -440,6 +440,31 @@ export function BillExpandPanel({
     <div className="bxp">
       <BillStageBar bill={bill} nowMs={nowMs} />
 
+      {/* HO 627 §2 — THE DRILL, moved one level in rather than removed.
+          Commit 0 made a plain click on the row's id expand instead of navigate,
+          so the panel is now the only place the bill page is reachable from the
+          feed — and the pre-627 drill (the `Full Bill Page →` button that used to
+          sit in .bxp-btns) was at the BOTTOM of the meta column. That is fine on
+          /bills, where the panel is ~1140px and two-column, but the dashboard
+          column is 480-780px, so the @container (max-width: 520px) rule stacks
+          the panel and pushes those buttons below the whole summary / hearing /
+          news / odds run — a long scroll from the row you just clicked.
+          So the drill leads the panel instead, packed LEFT (C1 — not a
+          far-right anchor), and the duplicate primary button was removed rather
+          than leaving the same link twice in one panel. Congress.gov keeps its
+          place in .bxp-btns. Shared component: this lands on /bills, /stale,
+          /changes, /president, /watchlist and the member hub too — deliberately,
+          so the drill sits in one place on every surface. */}
+      <div className="bxp-head">
+        <a
+          className="bxp-head-drill"
+          href={`/bill/${bill.id}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          → Full page
+        </a>
+      </div>
+
       <div className="bxp-body">
         {/* LEFT — summary + HEARING / RELATED NEWS / ODDS (mock order) */}
         <div className="bxp-left">
@@ -578,14 +603,9 @@ export function BillExpandPanel({
             </div>
           ) : null}
 
+          {/* HO 627 §2: the `Full Bill Page →` primary button moved to the panel
+              header (.bxp-head) — see the note there. Congress.gov stays. */}
           <div className="bxp-btns">
-            <a
-              className="bxp-btn bxp-btn--primary"
-              href={`/bill/${bill.id}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              Full Bill Page →
-            </a>
             <a
               className="bxp-btn bxp-btn--secondary"
               href={cgUrl}
