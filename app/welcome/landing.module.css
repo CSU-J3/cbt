@@ -37,7 +37,12 @@
 .cta .savenote{grid-column:2;font-size:10.5px;color:var(--text-dim);justify-self:start}
 
 /* hook: terminal readout (scale vs outcome) */
-.readout{margin:26px 0 0;display:inline-flex;align-items:stretch;border:1px solid var(--border-soft);border-radius:3px}
+/* HO 620 (C8 / narrow) — the readout WRAPS rather than overflowing its column.
+   At 900 the 44% pitch column leaves ~292px and the three stats need 331px, so
+   this was the last real bucket-(b) item on the site — on the front door, at
+   that. Wrap, don't pin, and don't shrink the padding to buy 39px: a tuned
+   number goes stale the next time a stat's digits grow. */
+.readout{margin:26px 0 0;display:inline-flex;flex-wrap:wrap;align-items:stretch;border:1px solid var(--border-soft);border-radius:3px}
 .readout .stat{padding:11px 18px 10px}
 .readout .stat + .stat{border-left:1px solid var(--border-soft)}
 .readout .num{font-family:var(--font-mono);font-size:23px;font-weight:600;color:var(--text-primary);line-height:1;letter-spacing:-.01em}

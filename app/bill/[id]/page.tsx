@@ -454,7 +454,14 @@ export default async function BillDetailPage({
                 <div className="bxp-mrow">
                   <div className="bxp-mlabel">Topics</div>
                   <div className="bxp-mval">
-                    <TopicChips topics={topics} />
+                    {/* HO 620 — plain, by the same rule and with no special case.
+                        HO 619 left these three bordered on the argument that a
+                        metabox FIELD is not a repeated row, which is true and is
+                        not what the rule asks: the rule asks what the chip DOES.
+                        These carry no href and no handler — grepped, the sole
+                        non-plain TopicChips consumer left — so they are labels,
+                        and the last chip divergence on the site closes here. */}
+                    <TopicChips topics={topics} plain />
                   </div>
                 </div>
               ) : null}
