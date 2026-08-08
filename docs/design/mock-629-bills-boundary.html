@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mock 629 — bills column boundary</title>
+<style>
+/* ============================================================
+   mock-629-bills-boundary — the fraction is the knob.
+   Tokens lifted verbatim from app/globals.css @ 97eed89.
+   Live parts: the column fraction, the --fs viewport ladder,
+   the bxp container query (real 520px threshold), the 628
+   hairline, row truncation. Static parts: all data, tapes
+   (no marquee), hovers approximate.
+   ============================================================ */
+:root {
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+  --stage-introduced:#94a3b8; --stage-committee:#06b6d4; --stage-floor:#fbbf24;
+  --stage-other-chamber:#f59e0b; --stage-president:#fb923c; --stage-enacted:#10b981;
+  --market-up:#10b981; --market-down:#ef4444; --ticker-closed:#9b3d3d;
+  --space-md:12px;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
+  --fs-9:9px; --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  --bills-frac:42%;
+}
+@media (min-width:1600px){:root{--fs-9:10px;--fs-10:11px;--fs-11:12px;--fs-12:13px;--fs-13:14px;--fs-14:15px}}
+@media (min-width:2000px){:root{--fs-9:11px;--fs-10:12px;--fs-11:13px;--fs-12:14px;--fs-13:15px;--fs-14:16px}}
+@media (min-width:2400px){:root{--fs-9:12px;--fs-10:13px;--fs-11:14px;--fs-12:15px;--fs-13:16px;--fs-14:17px}}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg-base);color:var(--text-primary);font-family:var(--mono)}
+a{color:inherit;text-decoration:none}
+
+/* ---- knob bar (mock chrome, not product) ---- */
+.knob{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:99;
+  display:flex;align-items:center;gap:10px;padding:8px 14px;background:#000;
+  border:1px solid var(--border-strong);border-radius:4px;font-size:12px;box-shadow:0 4px 24px rgba(0,0,0,.6)}
+.knob b{color:var(--accent-amber-bright);font-weight:600;letter-spacing:.06em}
+.knob button{font-family:var(--mono);font-size:12px;background:none;border:1px solid var(--border-strong);
+  color:var(--text-muted);padding:3px 9px;border-radius:2px;cursor:pointer}
+.knob button:hover{color:var(--text-primary)}
+.knob button.on{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+.knob .ro{color:var(--text-dim);white-space:nowrap}
+.knob .ro em{font-style:normal;color:var(--text-secondary)}
+
+/* ---- page grid: THE line under judgment ---- */
+.dash-page{display:grid;grid-template-columns:minmax(0,1fr) minmax(480px,var(--bills-frac));
+  gap:var(--space-md);padding:10px 24px 90px;align-items:start}
+.dash-left{display:flex;flex-direction:column;gap:var(--space-md);min-width:0}
+
+/* ---- shared panel chrome ---- */
+.panel{background:var(--bg-panel);border:0.5px solid var(--border-soft);padding:10px 14px}
+.plabel{font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em}
+.dim{color:var(--text-dim)}.mut{color:var(--text-muted)}.amb{color:var(--accent-amber)}
+.ambb{color:var(--accent-amber-bright)}.up{color:var(--market-up)}.dn{color:var(--market-down)}
+.rep{color:var(--party-republican)}.dem{color:var(--party-democrat)}
+
+/* ---- masthead ---- */
+.mast{display:flex;align-items:baseline;gap:14px;padding:6px 0 2px;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
+.mast .brand{font-size:calc(var(--fs-14) + 6px);font-weight:700;letter-spacing:.02em}
+.mast .brand .sep{color:var(--accent-amber)}
+.mast .meta{font-size:var(--fs-11);color:var(--text-dim)}
+.mast .meta b{color:var(--text-primary);font-weight:600}
+
+/* ---- tapes (static) ---- */
+.tape{display:flex;gap:0;align-items:center;overflow:hidden;white-space:nowrap;
+  border:0.5px solid var(--border-soft);background:var(--bg-panel);padding:5px 10px;font-size:var(--fs-11)}
+.tape .tag{color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.14em;margin-right:12px}
+.tape .cell{padding:0 12px;border-left:0.5px solid var(--border-soft)}
+.tape .cell:first-of-type{border-left:none}
+.tape .as{margin-left:auto;color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.08em;padding-left:12px}
+.tape .live{color:var(--market-up)}
+
+/* ---- nav ---- */
+.nav{display:flex;gap:22px;font-size:var(--fs-12);padding:4px 2px;border-bottom:0.5px solid var(--border-soft);overflow:hidden;white-space:nowrap}
+.nav .it{color:var(--text-muted)}
+.nav .act{color:var(--accent-amber-bright)}
+
+/* ---- absence watch ---- */
+.abw .hd{color:var(--accent-amber);font-size:var(--fs-10);letter-spacing:.12em;margin-bottom:6px}
+.abw .row{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-11);padding:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.abw .row+.row{border-top:0.5px solid var(--border-soft)}
+.abw .nm{font-weight:700}
+.abw .ft{color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.08em;margin-top:6px}
+
+/* ---- hearings band ---- */
+.hrg .tabs{display:flex;gap:16px;font-size:var(--fs-11);letter-spacing:.1em;margin-bottom:8px}
+.hrg .tabs .on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber);padding-bottom:2px}
+.hrg .bar{display:flex;align-items:center;gap:10px;font-size:var(--fs-11);white-space:nowrap;overflow:hidden}
+.hrg .cell{border:0.5px solid var(--border-soft);padding:2px 6px;font-size:var(--fs-9);color:var(--text-muted);text-align:center;line-height:1.3}
+.hrg .cell.past{opacity:.42}
+.hrg .sched{display:flex;gap:12px;font-size:var(--fs-11);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- week strip ---- */
+.wstrip{display:flex;align-items:center;gap:14px;font-size:var(--fs-11);white-space:nowrap;overflow:hidden}
+.wstrip b{font-weight:600}
+.wstrip .chip{border:0.5px solid var(--border-soft);padding:2px 8px;font-size:var(--fs-10)}
+
+/* ---- two-up ---- */
+.dash-twoup{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-md);align-items:start}
+@media (min-width:1100px){.dash-twoup{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}}
+
+/* breaking */
+.brk .hd{font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em;margin-bottom:4px}
+.brk .row{display:flex;gap:14px;align-items:baseline;padding:6px 2px;font-size:var(--fs-12);
+  border-top:0.5px solid var(--border-soft);white-space:nowrap;overflow:hidden}
+.brk .row:first-of-type{border-top:none}
+.brk .id{color:var(--accent-amber);font-size:var(--fs-11);flex:none;min-width:9ch}
+.brk .hl{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brk .age{color:var(--text-dim);font-size:var(--fs-10);flex:none}
+.brk .more{color:var(--accent-amber);text-align:center;font-size:var(--fs-11);padding:8px 0 2px}
+
+/* distribution */
+.dst .hd{font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em;margin-bottom:8px}
+.dst .sub{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin:10px 0 6px}
+.dst .drow{display:grid;grid-template-columns:6ch minmax(0,1fr) 6ch;gap:10px;align-items:center;
+  font-size:var(--fs-10);padding:3px 0}
+.dst .lb{color:var(--text-muted)}
+.dst .track{height:9px;background:#0d1420;min-width:0}
+.dst .bar{height:100%}
+.dst .val{text-align:right;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+
+/* ============================================================
+   THE BILLS RAIL — near-exact .v2f anatomy from globals.css
+   ============================================================ */
+.dash-bills{position:sticky;top:10px;max-height:calc(100vh - 20px);display:flex;flex-direction:column;
+  background:var(--bg-panel);border:0.5px solid var(--border-soft);min-width:0}
+.rail-tabs{display:flex;gap:20px;padding:10px 14px 8px;font-size:var(--fs-11);letter-spacing:.1em;flex:none}
+.rail-tabs .t{color:var(--text-muted)}
+.rail-tabs .t.on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber);padding-bottom:3px}
+.v2f{overflow-y:auto;min-height:0;flex:1}
+.pfoot{flex:none;padding:8px 12px;font-size:var(--fs-11);color:var(--accent-amber)}
+
+/* HO 628 hairline — declared ABOVE .open on purpose: both selectors are
+   (0,2,0), so source order is what lets the amber frame win. */
+.v2f-group + .v2f-group{border-top:0.5px solid var(--border-soft)}
+.v2f-group.open{background:var(--bg-row-hover);border:1px solid var(--accent-amber);
+  margin:-1px 0;position:relative;z-index:1}
+
+.v2f-row{padding:5px 12px;cursor:pointer;line-height:1.4}
+.v2f-row:hover{background:var(--bg-row-hover)}
+.v2f-l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.v2f-disc{flex:none;display:inline-block;font-size:var(--fs-9);color:var(--text-dim);line-height:1;position:relative;top:-1px}
+.v2f-group.open .v2f-disc{transform:rotate(90deg);color:var(--accent-amber)}
+.v2f-id{flex:none;font-size:var(--fs-11);color:var(--accent-amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.v2f-title-wrap{flex:0 1 auto;min-width:0}
+.v2f-title{display:block;font-family:var(--sans);font-size:var(--fs-14);color:var(--text-primary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2f-l2{margin-top:1px;font-size:var(--fs-10);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2f-l2 .sp{margin:0 6px}
+.v2f-stage{letter-spacing:.08em}
+.v2f-topics{letter-spacing:.04em}
+
+/* ---- expanded panel (bxp) — real 520px container threshold ---- */
+.bxp-wrap{container:bxp / inline-size;padding:4px 12px 14px}
+.bxp-stage{display:grid;grid-template-columns:repeat(6,1fr);margin:10px 0 4px}
+.bxp-stage .st{position:relative;text-align:center}
+.bxp-stage .dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--text-dim);background:var(--bg-panel);margin:0 auto}
+.bxp-stage .st.done .dot{background:var(--stage-committee);border-color:var(--stage-committee)}
+.bxp-stage .st::before{content:"";position:absolute;top:4px;left:-50%;width:100%;height:1px;background:var(--border-strong)}
+.bxp-stage .st:first-child::before{display:none}
+.bxp-stage .st.done::before{background:var(--stage-committee)}
+.bxp-stage .lb{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.08em;margin-top:6px}
+.bxp-stage .dt{font-size:var(--fs-9);color:var(--stage-committee);margin-top:2px;min-height:1em}
+.bxp-drill{font-size:var(--fs-10);color:var(--accent-amber);letter-spacing:.1em;margin:10px 0}
+.bxp-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,300px);gap:18px}
+@container bxp (max-width:520px){.bxp-body{grid-template-columns:minmax(0,1fr)}}
+.bxp-sum{font-family:var(--sans);font-size:var(--fs-13);line-height:1.5;color:var(--text-secondary)}
+.bxp-sec{margin-top:12px}
+.bxp-sec .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-bottom:3px}
+.bxp-sec .v{font-size:var(--fs-11);color:var(--text-dim)}
+.bxp-meta{border:0.5px solid var(--border-strong);padding:12px 14px;align-self:start}
+.bxp-meta .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin:10px 0 3px}
+.bxp-meta .k:first-child{margin-top:0}
+.bxp-meta .v{font-size:var(--fs-11);color:var(--text-secondary)}
+.bxp-meta .v.sans{font-family:var(--sans);font-size:var(--fs-12);line-height:1.45}
+.bxp-meta .btn{display:inline-block;margin-top:12px;border:0.5px solid var(--border-strong);
+  padding:4px 10px;font-size:var(--fs-10);letter-spacing:.1em;color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<div class="knob">
+  <b>BILLS COL</b>
+  <button data-f="31">31% <span style="color:var(--text-dim)">now</span></button>
+  <button data-f="36">36%</button>
+  <button data-f="40">40%</button>
+  <button data-f="42" class="on">42%</button>
+  <button data-f="45">45%</button>
+  <span class="ro">vp <em id="ro-vp">—</em> · col <em id="ro-col">—</em> · panel inner <em id="ro-inner">—</em> <em id="ro-mode">—</em></span>
+</div>
+
+<div class="dash-page">
+  <!-- ================= LEFT REGION ================= -->
+  <div class="dash-left">
+    <div class="mast">
+      <span class="brand">Congressional Terminal<span class="sep">:\</span>119TH<span class="sep">\</span>Dashboard<span class="sep">&gt;</span></span>
+      <span class="meta"><b class="dem">17,008</b> tracked · <b class="up">98</b> enacted_ · LAST SYNC 2:08 PM PT · <span class="amb">SIGN IN</span></span>
+    </div>
+
+    <div class="tape"><span class="tag">MARKETS</span>
+      <span class="cell">LMT <b>587.95</b> <span class="up">▲+0.90%</span></span>
+      <span class="cell">CPI <b>3.5%</b></span>
+      <span class="cell">TNX <b>4.69%</b> <span class="up">▲+1.30%</span></span>
+      <span class="cell">GOOGL <b>354.30</b> <span class="dn">▼−0.96%</span></span>
+      <span class="cell">WTI <b>81.96</b> <span class="dn">▼−2.72%</span></span>
+      <span class="cell">AAPL <b>313.23</b> <span class="up">▲+0.29%</span></span>
+      <span class="as">AS OF 5:00 PM PT · <span style="color:var(--ticker-closed)">CLOSED</span></span>
+    </div>
+    <div class="tape"><span class="tag">ODDS</span>
+      <span class="cell">SEP CUT <span class="amb">K</span><b>2.0%</b> <span class="dem">P</span><b>2.7%</b></span>
+      <span class="cell">SHUTDOWN <span class="amb">K</span><b>20.0%</b> <span class="dem">P</span> N/A</span>
+      <span class="cell">RECESSION <span class="amb">K</span><b>6.0%</b> <span class="dem">P</span><b>8.0%</b></span>
+      <span class="cell">FED CUT SEP <span class="amb">K</span><b>2.0%</b> <span class="dem">P</span><b>2.7%</b></span>
+      <span class="as">AS OF 5:00 PM PT · <span class="live">● LIVE</span></span>
+    </div>
+
+    <div class="nav">
+      <span class="act">[ \DASHBOARD ]</span><span class="it">\WATCHLIST</span><span class="it">\LEGISLATION</span>
+      <span class="it">\HEARINGS</span><span class="it">\MEMBERS</span><span class="it">\ELECTORAL</span>
+      <span class="it">\PATTERNS</span><span class="it">\LOBBYING</span><span class="it">\NOMINATIONS</span>
+      <span class="it">\AMENDMENTS</span><span class="it">\REPORTS</span>
+    </div>
+
+    <div class="panel abw">
+      <div class="hd">▲ ABSENCE WATCH <span class="dim">(2)</span></div>
+      <div class="row"><span class="nm">Mitch McConnell</span> <span class="rep">R-KY</span> <span>NO VOTE CAST SINCE JUN 11</span> <span class="dim">· 51 CONSECUTIVE ROLL CALLS · 14.1% OF 119TH VOTES</span></div>
+      <div class="row"><span class="nm">Frederica S. Wilson</span> <span class="dem">D-FL</span> <span>NO VOTE CAST SINCE JUL 16</span> <span class="dim">· 34 CONSECUTIVE ROLL CALLS · 29.3% OF 119TH VOTES</span></div>
+      <div class="ft">NON-VOTING DELEGATES EXCLUDED · REFRESHES AFTER SYNC-VOTES</div>
+    </div>
+
+    <div class="panel hrg">
+      <div class="tabs"><span class="on">HEARINGS</span><span class="mut">RACES</span></div>
+      <div class="bar">
+        <b>NEXT</b> · <b>THU SEP 17</b> <span class="dim">· 1 SCHEDULED</span>
+        <span class="cell past">MON<br>—</span><span class="cell past">TUE<br>7</span><span class="cell past">WED<br>9</span>
+        <span class="cell past">THU<br>4</span><span class="cell past">FRI<br>—</span>
+        <span class="dim">20 THIS WEEK <span class="up">▲10</span></span> <span class="amb">→ ALL</span>
+      </div>
+      <div class="sched"><span class="mut">9:30a</span> <span class="dim">HEARING</span> <span style="overflow:hidden;text-overflow:ellipsis">Implementation of the National Defense Strategy and its impact on global defense post…</span></div>
+    </div>
+
+    <div class="panel wstrip">
+      <b>WEEK OF AUG 3</b> · <span class="up">0 ENACTED</span> <span class="dn">▼3</span> ·
+      <b>139</b> NEW BILLS <span class="up">▲39</span> · <b>198</b> STAGE TRANSITIONS <span class="dn">▼53</span> ·
+      <b>20</b> HEARINGS <span class="up">▲10</span> · FILLER <b>11%</b> <span class="dim">· 18/157</span>
+      <span class="chip">POLARIZATION · HSE <b>0.92</b> · SEN <b>0.92</b> · <span class="amb">IDEOLOGY →</span></span>
+      <span class="amb">JUL 27 REPORT →</span>
+    </div>
+
+    <div class="dash-twoup">
+      <div class="panel brk">
+        <div class="hd">BREAKING · LAST 72H (32)</div>
+        <div class="row"><span class="id">S 5299</span><span class="hl">Trump administration targets Head Start for overhaul</span><span class="age">2h</span></div>
+        <div class="row"><span class="id">SRES 817</span><span class="hl">Senate confirms 74 Trump nominees: Here are 5 notable ones</span><span class="age">2h</span></div>
+        <div class="row"><span class="id">S 4668</span><span class="hl">Trump urges GOP to keep Senate in session until college sports bill passes</span><span class="age">3h</span></div>
+        <div class="row"><span class="id">S 4668</span><span class="hl">College sports bill holding up Senate's path to August recess</span><span class="age">5h</span></div>
+        <div class="row"><span class="id">HR 9874</span><span class="hl">What to know about the Minnesota Senate election</span><span class="age">6h</span></div>
+        <div class="row"><span class="id">HCONRES 89</span><span class="hl">With no definite end in sight on Iran, the president has to either fish or cut bait</span><span class="age">9h</span></div>
+        <div class="row"><span class="id">SRES 817</span><span class="hl">Watch live: Senate looks to power through major priorities before August recess</span><span class="age">9h</span></div>
+        <div class="row"><span class="id">HR 10055</span><span class="hl">White House ballroom must be approved by Congress, court rules</span><span class="age">10h</span></div>
+        <div class="row"><span class="id">S 4668</span><span class="hl">College athletics faces crisis without national rules in place</span><span class="age">11h</span></div>
+        <div class="row"><span class="id">HR 9892</span><span class="hl">Section 31 tariffs are meant to be a scalpel, not a sledgehammer</span><span class="age">12h</span></div>
+        <div class="more">[ + 22 MORE → ]</div>
+      </div>
+
+      <div class="panel dst">
+        <div class="hd">DISTRIBUTION (17,008 BILLS)</div>
+        <div class="sub">BY STAGE</div>
+        <div class="drow"><span class="lb">INTRO</span><span class="track"><span class="bar" style="width:1%;background:var(--stage-introduced)"></span></span><span class="val">127</span></div>
+        <div class="drow"><span class="lb">CMTE</span><span class="track"><span class="bar" style="width:100%;background:var(--stage-committee)"></span></span><span class="val">15,482</span></div>
+        <div class="drow"><span class="lb">FLOOR</span><span class="track"><span class="bar" style="width:5%;background:var(--stage-floor)"></span></span><span class="val">776</span></div>
+        <div class="drow"><span class="lb">OTHER</span><span class="track"><span class="bar" style="width:3.4%;background:var(--stage-other-chamber)"></span></span><span class="val">524</span></div>
+        <div class="drow"><span class="lb">PRES</span><span class="track"><span class="bar" style="width:.5%;background:var(--stage-president)"></span></span><span class="val">1</span></div>
+        <div class="drow"><span class="lb">ENACT</span><span class="track"><span class="bar" style="width:.7%;background:var(--stage-enacted)"></span></span><span class="val">98</span></div>
+        <div class="sub">BY TOPIC</div>
+        <div class="drow"><span class="lb">GOV</span><span class="track"><span class="bar" style="width:100%;background:#f43f5e"></span></span><span class="val">5,449</span></div>
+        <div class="drow"><span class="lb">HLTH</span><span class="track"><span class="bar" style="width:52%;background:#ec4899"></span></span><span class="val">2,875</span></div>
+        <div class="drow"><span class="lb">TECH</span><span class="track"><span class="bar" style="width:40%;background:#ef4444"></span></span><span class="val">2,163</span></div>
+        <div class="drow"><span class="lb">CIV</span><span class="track"><span class="bar" style="width:39%;background:#22c55e"></span></span><span class="val">2,140</span></div>
+        <div class="drow"><span class="lb">ENV</span><span class="track"><span class="bar" style="width:35%;background:#d946ef"></span></span><span class="val">1,900</span></div>
+        <div class="drow"><span class="lb">CONS</span><span class="track"><span class="bar" style="width:33%;background:#4ade80"></span></span><span class="val">1,777</span></div>
+        <div class="drow"><span class="lb">CRIM</span><span class="track"><span class="bar" style="width:27%;background:#a855f7"></span></span><span class="val">1,489</span></div>
+        <div class="drow"><span class="lb">FRGN</span><span class="track"><span class="bar" style="width:27%;background:#fb7185"></span></span><span class="val">1,479</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= BILLS RAIL ================= -->
+  <div class="dash-bills">
+    <div class="rail-tabs"><span class="t on">MOVERS <span class="dim">(198)</span></span><span class="t">TOP STALLS <span class="dim">(5)</span></span><span class="t">NEW THIS WEEK <span class="dim">(139)</span></span></div>
+    <div class="v2f">
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 9972</span><span class="v2f-title-wrap"><span class="v2f-title">American Patients First Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 1h</span><span class="sp">·</span><span class="rep">SESSIONS [R-TX]</span><span class="sp">·</span><span class="v2f-topics">HLTH</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 5108</span><span class="v2f-title-wrap"><span class="v2f-title">Right to IVF Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 1h</span><span class="sp">·</span><span class="dem">DUCKWORTH [D-IL]</span><span class="sp">·</span><span class="v2f-topics">HLTH VET</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 5114</span><span class="v2f-title-wrap"><span class="v2f-title">PATH Act</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 1h</span><span class="sp">·</span><span class="rep">CURTIS [R-UT]</span><span class="sp">·</span><span class="v2f-topics">TRNS</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 5116</span><span class="v2f-title-wrap"><span class="v2f-title">MERIT Act</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 1h</span><span class="sp">·</span><span class="rep">YOUNG [R-IN]</span><span class="sp">·</span><span class="v2f-topics">EDU GOV</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">SRES 797</span><span class="v2f-title-wrap"><span class="v2f-title">A resolution requesting information on Israel's human rights practices pursuant to section 502B(c) of the Foreign Assistance Act of 1961</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 1h</span><span class="sp">·</span><span class="dem">WELCH [D-VT]</span><span class="sp">·</span><span class="v2f-topics">FRGN CIV DEF</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 9990</span><span class="v2f-title-wrap"><span class="v2f-title">Increasing Mental Health Options Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="rep">MALLIOTAKIS [R-NY]</span><span class="sp">·</span><span class="v2f-topics">HLTH</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 9994</span><span class="v2f-title-wrap"><span class="v2f-title">Family Poverty is Not Child Neglect Act</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="dem">MOORE [D-WI]</span><span class="sp">·</span><span class="v2f-topics">SS HSG LAB</span></div>
+      </div></div>
+
+      <!-- OPEN GROUP -->
+      <div class="v2f-group open"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HJRES 212</span><span class="v2f-title-wrap"><span class="v2f-title">Providing congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Environmental Protection Agency relating to vehicle emissions waivers</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="rep">PFLUGER [R-TX]</span><span class="sp">·</span><span class="v2f-topics">ENV ENRG</span></div>
+      </div>
+      <div class="bxp-wrap" id="bxp">
+        <div class="bxp-stage">
+          <div class="st done"><div class="dot"></div><div class="lb">INTRO</div><div class="dt">2026-08-06</div></div>
+          <div class="st done"><div class="dot"></div><div class="lb">COMMITTEE</div><div class="dt">2026-08-07</div></div>
+          <div class="st"><div class="dot"></div><div class="lb">FLOOR</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">OTHER CHAMBER</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">PRESIDENT</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">ENACTED</div><div class="dt"></div></div>
+        </div>
+        <div class="bxp-drill">→ FULL PAGE</div>
+        <div class="bxp-body">
+          <div>
+            <div class="bxp-sum">This bill would reverse a decision by the Environmental Protection Agency (EPA) that currently allows California to set its own stricter vehicle emissions standards. If enacted, states that have adopted California's clean car standards would no longer be able to enforce those rules, potentially affecting consumers who would otherwise have access to more fuel-efficient or lower-emission vehicles in those states. This would essentially prevent California and participating states from implementing advanced clean car programs.</div>
+            <div class="bxp-sec"><div class="k">HEARING</div><div class="v">NO RELATED HEARINGS</div></div>
+            <div class="bxp-sec"><div class="k">RELATED NEWS</div><div class="v">NO RELATED NEWS</div></div>
+            <div class="bxp-sec"><div class="k">ODDS</div><div class="v">NO PREDICTIONS MADE</div></div>
+          </div>
+          <div class="bxp-meta">
+            <div class="k">SPONSOR</div><div class="v"><span class="rep" style="text-decoration:underline">Rep. August Pfluger [R-TX-11]</span></div>
+            <div class="k">COMMITTEE</div><div class="v dim">—</div>
+            <div class="k">INTRODUCED</div><div class="v">2026-08-06</div>
+            <div class="k">LATEST ACTION</div><div class="v sans">Referred to the House Committee on Energy and Commerce. <span class="dim">· 2d</span></div>
+            <div class="btn">CONGRESS.GOV ↗</div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10056</span><span class="v2f-title-wrap"><span class="v2f-title">To amend title XVIII of the Social Security Act to provide for patient protection by limiting cost-sharing under Medicare Advantage plans</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="dem">MATSUI [D-CA]</span><span class="sp">·</span><span class="v2f-topics">HLTH LAB</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10052</span><span class="v2f-title-wrap"><span class="v2f-title">To protect the right to the free exercise of religion.</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="rep">KNOTT [R-NC]</span><span class="sp">·</span><span class="v2f-topics">CIV GOV</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HJRES 210</span><span class="v2f-title-wrap"><span class="v2f-title">Providing for congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Department of Transportation relating to fuel economy standards</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="rep">FONG [R-CA]</span><span class="sp">·</span><span class="v2f-topics">ENV TRNS</span></div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10048</span><span class="v2f-title-wrap"><span class="v2f-title">To create national standards for labeling of covered materials as recyclable, compostable, or reusable, and for other purposes</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage">CMTE 7h</span><span class="sp">·</span><span class="dem">CORREA [D-CA]</span><span class="sp">·</span><span class="v2f-topics">ENV CONS</span></div>
+      </div></div>
+
+    </div>
+    <div class="pfoot">[ + 168 MORE → ]</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement, btns=document.querySelectorAll('.knob button');
+  var roVp=document.getElementById('ro-vp'), roCol=document.getElementById('ro-col'),
+      roIn=document.getElementById('ro-inner'), roMode=document.getElementById('ro-mode');
+  function readout(){
+    var col=document.querySelector('.dash-bills').getBoundingClientRect().width;
+    var inner=document.getElementById('bxp').clientWidth - 24; /* wrap side padding */
+    roVp.textContent=window.innerWidth+'px';
+    roCol.textContent=Math.round(col)+'px';
+    roIn.textContent=Math.round(inner)+'px';
+    roMode.textContent=inner>520?'· WIDE':'· STACKED';
+    roMode.style.color=inner>520?'#10b981':'#fbbf24';
+  }
+  btns.forEach(function(b){b.addEventListener('click',function(){
+    btns.forEach(function(x){x.classList.remove('on')}); b.classList.add('on');
+    root.style.setProperty('--bills-frac', b.dataset.f+'%');
+    requestAnimationFrame(readout);
+  })});
+  window.addEventListener('resize',readout);
+  readout();
+})();
+</script>
+</body>
+</html>
