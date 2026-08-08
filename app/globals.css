@@ -4171,6 +4171,20 @@ body {
    rich expand, per the docs/dashboard-2col mock's MOVERS box. v2-specific
    (V2FeedList); `/`'s feed keeps the old BillRowList/TopStallsList. Prose
    inherits the app's mono (no --sans in CBT); labels/ids stay mono. */
+/* HO 628 — the mock's `.mv` carries `border-top:.5px solid var(--border-soft)`
+   alongside its 5px padding and hover background; the HO 609 rebuild took the
+   padding and the hover and dropped the line. At depth 5 the omission never read;
+   HO 627's raise to 30 made thirty borderless two-line rows at 5px padding one
+   undifferentiated block. Mock wins (the standing precedent, cited at 627 for
+   this page's distributions panel).
+   Sibling combinator, so the first group carries no line against the tab strip —
+   no :first-child carve. Group-level rather than row-level so the .open frame's
+   amber border overrides the grey top edge; it is declared BELOW this rule and
+   the two are equal specificity (0,2,0), so source order is what makes that
+   override work — keep them in this order. */
+.v2f-group + .v2f-group {
+  border-top: 0.5px solid var(--border-soft);
+}
 .v2f-group.open {
   background: var(--bg-row-hover);
   /* HO 303 (B6 coherence): amber frame on the open row — the mock's expanded-row
