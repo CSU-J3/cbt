@@ -29,6 +29,14 @@ const COMMITTEE_CAP = 8;
 // expanded card shows a member's full committee set). Members-only component, so
 // the prop is the minimal change; defaults to the HO 198 cap of 8 everywhere else.
 
+// HO 631 — the COMPACT density's caps, exported because they are needed in two
+// places that must not drift: this render, and the band's assembly-site slice
+// (commit 3), which cuts `recentBills` to the cap before it is ever serialized.
+// If the slice and the cap disagreed, the +N closer would be computed against a
+// list that had already been trimmed and would silently under-report.
+export const COMPACT_BILLS_CAP = 10;
+export const COMPACT_COMMITTEE_CAP = 10;
+
 const STAGE_BADGES: {
   key: keyof SponsorStats;
   glyph: string;
@@ -70,7 +78,9 @@ export function SponsorExpandedPanel({
   palestineRank = null,
   palestineScore = null,
   includeCeremonial = false,
-  committeeCap = COMMITTEE_CAP,
+  committeeCap,
+  recentBillsCap,
+  density = "full",
 }: {
   sponsorKey: string;
   sponsorName: string;
@@ -90,6 +100,15 @@ export function SponsorExpandedPanel({
   palestineScore?: string | null;
   includeCeremonial?: boolean;
   committeeCap?: number;
+  recentBillsCap?: number;
+  // HO 631 — the compact density, OPT-IN. `/members` passes nothing and takes
+  // "full", which is the HO 198/328 card unchanged; the dashboard's Absence Watch
+  // band passes "compact" because it opens the card as an overlay over the page
+  // rather than inside a pane sized for it. An explicit opt-in is what satisfies
+  // the HO 507 shared-component rule here — the full path cannot be reached by a
+  // compact-only override leaking, because every compact rule is scoped to a
+  // modifier class this branch does not emit.
+  density?: "full" | "compact";
 }) {
   const partyColor = sharedPartyColor(sponsorParty);
   const enactedPct =
@@ -99,34 +118,90 @@ export function SponsorExpandedPanel({
   const detailHref = bioguideId ? `/members/${bioguideId}` : null;
   const prefix = chamber === "senate" ? "Sen." : "Rep.";
 
-  const shownBills = recentBills.slice(0, RECENT_BILLS_CAP);
-  const shownCommittees = committees.slice(0, committeeCap);
+  const compact = density === "compact";
+  // Caps default FROM the density, so a compact caller opts in once and gets both
+  // ruled caps; an explicit prop still wins (that is how /members keeps its
+  // committeeCap={Infinity} uncapping).
+  const billsCap = recentBillsCap ?? (compact ? COMPACT_BILLS_CAP : RECENT_BILLS_CAP);
+  const cmteCap = committeeCap ?? (compact ? COMPACT_COMMITTEE_CAP : COMMITTEE_CAP);
+
+  const shownBills = recentBills.slice(0, billsCap);
+  const shownCommittees = committees.slice(0, cmteCap);
   const moreCommittees = committees.length - shownCommittees.length;
+
+  // HO 631 — THE COUNT SOURCE. The see-all used to gate on `recentBills.length`,
+  // which is the length of the array this render was handed. Commit 3 slices that
+  // array at the band's assembly site, so gating on it would have silently killed
+  // the closer at exactly the moment it became load-bearing: a member with 24
+  // bills, sliced to 10, reads `10 > 10 = false` and the "+14 more" never renders.
+  //
+  // `stats.total` is the count that does not move under a slice. The two are NOT
+  // the same predicate — getSponsorRecentBills is `summary IS NOT NULL`-gated and
+  // getSponsorStats is not — so this is a real source change, not a rename, and it
+  // was measured rather than assumed: at 537 current members on 2026-08-08, ZERO
+  // had total != summarized, so the gate is a no-op on /members today and the
+  // panel's label (which already printed stats.total) stops disagreeing with the
+  // gate that decides whether to show it.
+  const moreBills = stats.total - shownBills.length;
 
   return (
     <div className="sponsor-expanded-panel">
-      <div className="sponsor-card-grid">
+      <div className={compact ? "sponsor-card-grid sponsor-card-grid--compact" : "sponsor-card-grid"}>
         {/* ---- LEFT RAIL ---- */}
         <div className="sponsor-card-rail">
-          <SponsorPhoto
-            bioguideId={bioguideId}
-            name={sponsorName}
-            partyColor={partyColor}
-            width={96}
-          />
+          {/* Compact runs the photo INLINE with the identity block instead of
+              stacked above it (the ruled mock): at 56px the photo no longer needs
+              a row of its own, and the pair reclaims ~60px of card height — which
+              is what the overlay is spending its budget on. */}
+          {compact ? (
+            <div className="sponsor-card-idline">
+              <SponsorPhoto
+                bioguideId={bioguideId}
+                name={sponsorName}
+                partyColor={partyColor}
+                width={56}
+              />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span
+                  className="text-[length:var(--fs-13)] font-bold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {prefix} {sponsorName}
+                </span>
+                <span
+                  className="text-[length:var(--fs-12)] tabular-nums"
+                  style={{ color: partyColor }}
+                >
+                  [{sponsorParty ?? "?"}-{sponsorState ?? "?"}]
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <SponsorPhoto
+                bioguideId={bioguideId}
+                name={sponsorName}
+                partyColor={partyColor}
+                width={96}
+              />
 
-          {/* Identity */}
-          <div className="flex flex-col gap-0.5">
-            <span
-              className="text-[length:var(--fs-13)] font-bold"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {prefix} {sponsorName}
-            </span>
-            <span className="text-[length:var(--fs-12)] tabular-nums" style={{ color: partyColor }}>
-              [{sponsorParty ?? "?"}-{sponsorState ?? "?"}]
-            </span>
-          </div>
+              {/* Identity */}
+              <div className="flex flex-col gap-0.5">
+                <span
+                  className="text-[length:var(--fs-13)] font-bold"
+                  style={{ color: "var(--text-primary)" }}
+                >
+                  {prefix} {sponsorName}
+                </span>
+                <span
+                  className="text-[length:var(--fs-12)] tabular-nums"
+                  style={{ color: partyColor }}
+                >
+                  [{sponsorParty ?? "?"}-{sponsorState ?? "?"}]
+                </span>
+              </div>
+            </>
+          )}
 
           {/* Stats */}
           <div className="flex flex-col gap-1">
@@ -305,13 +380,23 @@ export function SponsorExpandedPanel({
               No summarized bills yet.
             </p>
           )}
-          {detailHref && recentBills.length > RECENT_BILLS_CAP ? (
+          {detailHref && moreBills > 0 ? (
             <Link
               href={detailHref}
               className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
-              See all {stats.total.toLocaleString()} bills →
+              {/* The full branch keeps its ORIGINAL JSX child shape (three
+                  children, not one interpolated string). React emits text-segment
+                  markers between adjacent children, so collapsing these into a
+                  template literal changes the served HTML — visually identical,
+                  but no longer byte-identical, which is the gate this commit is
+                  held to. The render-diff caught exactly that. */}
+              {compact ? (
+                `[ + ${moreBills.toLocaleString()} MORE → ]`
+              ) : (
+                <>See all {stats.total.toLocaleString()} bills →</>
+              )}
             </Link>
           ) : null}
         </div>
@@ -325,7 +410,11 @@ export function SponsorExpandedPanel({
             ) : null}
           </p>
           {shownCommittees.length > 0 ? (
-            <ul className="flex flex-col">
+            // Compact drops the flex column for a real BLOCK container, because
+            // `column-count` is a multicol property and a flex container ignores
+            // it. The li's own `break-inside: avoid` (CSS) is what stops a
+            // committee row being split across the column boundary.
+            <ul className={compact ? "sponsor-card-cmtes" : "flex flex-col"}>
               {shownCommittees.map((c) => {
                 const role = c.role?.toLowerCase() ?? "";
                 const isSub = c.parentSystemCode !== null;
@@ -386,13 +475,29 @@ export function SponsorExpandedPanel({
               No committee assignments on file.
             </p>
           )}
+          {/* Compact closes BOTH columns with the same house closer, drilling to
+              the member page — the full card's closer here is a dim, unlinked
+              count, which is fine in a pane the reader can scroll but wrong in an
+              overlay whose whole job is to hand off. Committees use the pre-cap
+              array length rather than a stats field because, unlike bills, the
+              roster is never sliced upstream: what arrived is the whole set. */}
           {moreCommittees > 0 ? (
-            <span
-              className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              +{moreCommittees} more subcommittee{moreCommittees === 1 ? "" : "s"}
-            </span>
+            compact && detailHref ? (
+              <Link
+                href={detailHref}
+                className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"
+                style={{ color: "var(--accent-amber)" }}
+              >
+                [ + {moreCommittees.toLocaleString()} MORE → ]
+              </Link>
+            ) : (
+              <span
+                className="mt-1 inline-block text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-dim)" }}
+              >
+                +{moreCommittees} more subcommittee{moreCommittees === 1 ? "" : "s"}
+              </span>
+            )
           ) : null}
         </div>
       </div>

@@ -6628,6 +6628,54 @@ body {
   }
 }
 
+/* ── HO 631 — the COMPACT density ───────────────────────────────────────────
+   Ruled off docs/design/mock-631-absence-card-overlay.html (the live variant
+   knob). The card was tuned against the /members pane, which the reader scrolls;
+   the Absence Watch band now opens it as an OVERLAY over the dashboard, where
+   height is the scarce thing. Compact spends the rail's width and the photo's
+   row to buy back card height, and fills the space that frees up.
+
+   EVERY RULE HERE IS SCOPED TO THE MODIFIER, which is the HO 507 shared-component
+   discipline made structural rather than careful: `/members` emits
+   `.sponsor-card-grid` with no modifier and cannot reach a single declaration
+   below, so "byte-identical" is a property of the selector, not of my restraint.
+   The modifier also lives ON the component (HO 486) — not on an ancestor — so a
+   third consumer opting in gets the same card without inheriting the band's
+   surroundings.
+
+   The mock's grid `gap:18px` is deliberately NOT carried: this card's columns
+   ABUT and are separated by border dividers (the HO 191/198 one-continuous-surface
+   idiom), so a grid gap would open two seams the shipped card does not have. The
+   compaction it was standing in for is taken out of the column padding instead. */
+.sponsor-card-grid--compact {
+  /* Rail narrows 210 -> 168; the committees column widens 1fr -> 1.5fr because it
+     is two columns now and needs the width to be worth splitting. */
+  grid-template-columns: 168px minmax(0, 1.5fr) minmax(0, 1.5fr);
+}
+.sponsor-card-grid--compact .sponsor-card-rail,
+.sponsor-card-grid--compact .sponsor-card-mid,
+.sponsor-card-grid--compact .sponsor-card-right {
+  padding: 12px 16px;
+}
+.sponsor-card-grid--compact .sponsor-card-rail {
+  gap: 7px;
+}
+/* Photo inline with the identity block (the compact rail's first row). */
+.sponsor-card-idline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+/* Two-column committees. A multicol container, not flex — see the component. */
+.sponsor-card-cmtes {
+  column-count: 2;
+  column-gap: 22px;
+}
+.sponsor-card-cmtes > li {
+  break-inside: avoid;
+}
+
 /* ---- member hub (handoff 60) ------------------------------------------ */
 .member-header {
   display: flex;
@@ -10163,6 +10211,15 @@ a.hearing-watch:hover {
   .abw-card-wrap .sponsor-card-mid {
     border-right: none;
     border-bottom: 1px solid var(--border-strong);
+  }
+  /* HO 631 — the compact committees column collapses to ONE column at the SAME
+     threshold. The threshold itself does not move: 1050px is HO 630's measured
+     figure (the width at which this card reaches the readability of the pane it
+     was built for), and nothing in this HO changes the container's width. Two
+     columns of already-truncated committee names in a single stacked column would
+     be the truncation curve above, halved again. */
+  .abw-card-wrap .sponsor-card-cmtes {
+    column-count: 1;
   }
 }
 .abw-drill {
