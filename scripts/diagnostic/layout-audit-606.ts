@@ -257,9 +257,16 @@ const LEG_A: {
   { path: "/lobbying", v2Count: 64, minCountDrop: 8, v2Worst: 1051, maxWorst: 1100 },
 ];
 
-// The live DISTRIBUTION panel's exempted-candidate count. Asserted exactly, in
-// both directions: an attribute that stops reaching its rows makes this fall, one
-// that spreads makes it climb, and either is a finding.
+// The live DISTRIBUTION panel's marking and its curve.
+//
+// HO 629 — THE COUNT BELOW IS NO LONGER ASSERTED, and the reason is recorded
+// because the number stays useful as the registry figure. It counts CANDIDATES,
+// and candidacy is width-gated (m1bMinWidth), so it moves when the panel resizes
+// even though the marking has not. HO 629 widened the bills column to 45%, the
+// left region narrowed, the widest marked node went 659px -> 518px against a
+// 600px gate, and this fell 30 -> 0 with [data-viz-row] reaching exactly the same
+// nodes. Leg B now asserts the marking's REACH instead; see it for the
+// measurement. The curve below is unchanged and still the exemption's licence.
 //
 // HO 627: 13 -> 30. The panel un-tabbed, so BY STAGE (StageFunnel, 6 rows) and BY
 // TOPIC (TopicDistributionList, 8 rows) are now BOTH mounted instead of one being
@@ -278,10 +285,11 @@ const LEG_A: {
 // The shape is identical to the StageFunnel marking directly above it in the same
 // panel, at slightly smaller magnitude, which is the calibration.
 //
-// Counts CANDIDATES, not visual rows (14 visual rows -> 30 candidates): wrappers
-// and tracks that clear a width-based gate are counted too. Registry form:
-// M1x 30 / 14 rows.
-const HOME_M1X_EXPECTED = 30;
+// Counts CANDIDATES, not visual rows: wrappers and tracks that clear a
+// width-based gate are counted too. Registry form was M1x 30 / 14 rows at the
+// 31% column; at 45% it reads M1x 0 / 14 rows, the marking dormant because no row
+// under it is wide enough to be an M1 candidate. The 14 is the width-invariant
+// half of that pair and the one worth reading.
 
 const SUBSET_SLUGS = new Set([
   "home",
@@ -1007,6 +1015,16 @@ function measureInPage(t: Thresholds) {
       m1bCount: rows.filter((r) => r.mode === "M1b" && r.interiorGapPx > t.gapThreshold).length,
       candidateRows: rows.length,
       vizExempt,
+      // HO 629 — the STRUCTURAL half of the exemption, beside the counted one.
+      // vizExempt counts CANDIDATES, so it is width-dependent by construction: a
+      // marked row that falls under m1bMinWidth stops being a candidate and drops
+      // out of the count without the attribute moving at all. That is not a
+      // property leg B can assert on. These two are width-invariant — they say
+      // what the attribute REACHES, which is the thing that can actually rot.
+      vizMarkedCount: document.querySelectorAll("[data-viz-row]").length,
+      vizMarkedKeys: Array.from(document.querySelectorAll("[data-viz-row]"))
+        .map((m) => `${m.tagName.toLowerCase()}.${(m.className || "").toString().trim().split(/\s+/)[0] ?? ""}`)
+        .sort(),
       gaps: allGaps.map((g) => Math.round(g)),
     },
     m2: { panels, count: panels.length },
@@ -1419,21 +1437,52 @@ async function main() {
   // The fixture's calibration block is an off-product anchor for the counted
   // exemption, so leg B survives the day the live funnel changes shape. The live
   // funnel is asserted beside it because the two together catch the two ways the
-  // exemption can rot: an attribute that stops reaching its rows (count falls),
-  // and an attribute that spreads (count climbs).
+  // exemption can rot: an attribute that stops reaching its rows, and an
+  // attribute that spreads.
+  //
+  // HO 629 RE-ANCHORED THE LIVE HALF, and the re-anchor rides the commit that
+  // invalidated it (the HO 612 discipline). The old assertion was `live M1x ===
+  // 30` — a CANDIDATE count, and candidacy is width-gated (m1bMinWidth). Widening
+  // the bills column to 45% narrowed the left region until the widest marked node
+  // read 518px against a 600px gate, so M1x went 30 -> 0 with the attribute
+  // completely untouched: measured at 2560 on one build, [data-viz-row] reaches
+  // the same 2 nodes (ul.stage-funnel, ul.topic-dist) and the same 86 visible
+  // nodes under them at 45% and at an injected 31%; only the widest node moved,
+  // 659px -> 518px. The instrument was right and the ANCHOR was wrong — a
+  // product number that a legitimate layout change moves, which is the shelf-life
+  // failure the fixture exists to avoid.
+  //
+  // So the live half now asserts what the attribute REACHES, which is
+  // width-invariant: the marked-node count and their identities. Deleting the
+  // attribute from a list fails it; adding it to a third list fails it; a column
+  // resize does not. M1x is still PRINTED beside it — it is the registry figure —
+  // but it is an observation, not a gate, and it reads 0 whenever the panel is
+  // too narrow for its rows to be candidates at all.
+  const HOME_VIZ_MARKED = ["ul.stage-funnel", "ul.topic-dist"];
   console.log("");
   console.log("LEG B — exemptions stable (the fixture's calibration block AND the live funnel).");
   const fixtureForB = await openFixture();
   const home = await openMeasured("/", 2);
   const homeFunnelScored = home.data.m1.rows.filter((r) => /funnel/i.test(r.selectorPath)).length;
+  const homeMarked = home.data.m1.vizMarkedKeys ?? [];
+  const markedOk =
+    homeMarked.length === HOME_VIZ_MARKED.length &&
+    HOME_VIZ_MARKED.every((k, i) => homeMarked[i] === k);
   console.log(`  fixture calibration block M1x : ${fixtureForB.m1.vizExempt}  (must be exactly 3)`);
-  console.log(`  live / M1x                    : ${home.data.m1.vizExempt}  (must be exactly ${HOME_M1X_EXPECTED}; funnel rows scored as M1: ${homeFunnelScored}, must be 0)`);
+  console.log(
+    `  live / [data-viz-row] reaches : ${homeMarked.length ? homeMarked.join(", ") : "(nothing)"}  ` +
+      `(must be exactly ${HOME_VIZ_MARKED.join(", ")}; funnel rows scored as M1: ${homeFunnelScored}, must be 0)`,
+  );
+  console.log(
+    `  live / M1x (observed, not a gate): ${home.data.m1.vizExempt}  ` +
+      `— candidates under the marking; width-gated, so 0 means "too narrow to be a candidate", not "unmarked"`,
+  );
   if (fixtureForB.m1.vizExempt !== 3) {
     console.log("      ** the fixture's own exemption count moved — the attribute is not reaching its rows. **");
     falsificationOk = false;
   }
-  if (home.data.m1.vizExempt !== HOME_M1X_EXPECTED || homeFunnelScored > 0) {
-    console.log("      ** the live funnel's exemption moved or leaked into M1. **");
+  if (!markedOk || homeFunnelScored > 0) {
+    console.log("      ** the live funnel's marking moved or leaked into M1. **");
     falsificationOk = false;
   }
   await home.close();
