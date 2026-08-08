@@ -4,6 +4,7 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
+import { COMPACT_BILLS_CAP } from "./member-card-caps";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import {
   SENATE_MOTION_RESIDUAL,
@@ -5034,7 +5035,24 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
           m.palestineScore = s.score;
         }
         try {
-          m.card = await getMemberCardExpansion(m.bioguideId, false);
+          const expansion = await getMemberCardExpansion(m.bioguideId, false);
+          // HO 631 — SLICE AT THE CONSUMER, not in the shared helper.
+          // getSponsorRecentBills has no LIMIT: it returns every summarized bill
+          // the member sponsored, and the card renders 10. The band was therefore
+          // caching and serializing the whole list to draw a tenth of it — Wilson
+          // alone carries 24. /members' own path calls getMemberCardExpansion
+          // directly and is untouched, so its uncapped column keeps its data.
+          //
+          // Legal ONLY because commit 1 moved the "+N more" gate and its N off
+          // `recentBills.length` and onto `stats.total`. Against the old gate this
+          // slice would have silently deleted the closer at exactly the moment it
+          // applied: 10 sliced rows read `10 > 10 = false`.
+          //
+          // Committees are deliberately NOT sliced here — see lib/member-card-caps.
+          m.card = {
+            ...expansion,
+            recentBills: expansion.recentBills.slice(0, COMPACT_BILLS_CAP),
+          };
         } catch (err) {
           console.error(`[absence-watch] card assembly failed for ${m.bioguideId}:`, err);
           m.card = null; // identity-only; the row survives, the band survives

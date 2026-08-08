@@ -4,6 +4,7 @@ import { PalestineBadge } from "@/components/PalestineBadge";
 import { SponsorPhoto } from "@/components/SponsorPhoto";
 import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
 import { formatBillId, formatDateShort } from "@/lib/format";
+import { COMPACT_BILLS_CAP, COMPACT_COMMITTEE_CAP } from "@/lib/member-card-caps";
 import { isPalestineGrade } from "@/lib/palestine-config";
 import {
   type Chamber,
@@ -29,13 +30,11 @@ const COMMITTEE_CAP = 8;
 // expanded card shows a member's full committee set). Members-only component, so
 // the prop is the minimal change; defaults to the HO 198 cap of 8 everywhere else.
 
-// HO 631 — the COMPACT density's caps, exported because they are needed in two
-// places that must not drift: this render, and the band's assembly-site slice
-// (commit 3), which cuts `recentBills` to the cap before it is ever serialized.
-// If the slice and the cap disagreed, the +N closer would be computed against a
-// list that had already been trimmed and would silently under-report.
-export const COMPACT_BILLS_CAP = 10;
-export const COMPACT_COMMITTEE_CAP = 10;
+// HO 631 — the COMPACT density's caps live in a leaf (lib/member-card-caps.ts)
+// because the band's assembly site slices `recentBills` to the same number before
+// the card is ever cached or serialized, and neither layer can safely import the
+// other. See that file for why the committees cap is deliberately NOT applied
+// upstream.
 
 const STAGE_BADGES: {
   key: keyof SponsorStats;
