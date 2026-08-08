@@ -744,16 +744,33 @@ body {
   .dash-page {
     /* minmax(0,…) not bare fr: a bare-fr track keeps min-width:auto, so a column
        grows to the longest feed title's intrinsic width and the title never
-       ellipsizes (HO 297). The right column is capped at 31% but floored at 480px
-       so the feed stays readable on a 1440 laptop.
+       ellipsizes (HO 297). The right column is capped at a fraction but floored at
+       480px so the feed stays readable on a 1440 laptop.
 
-       HO 623 — 400px/27% -> 480px/31%, an owner ruling and a RECORDED MOCK
-       DEVIATION (the committed mock says 400/27%; the masthead packing at HO 610
-       is the precedent for the mock losing to a later call). At 2560 the column
-       reads ~794px and at 2400 ~744px, both under the C8 ceiling of ~850px past
-       which a row of text buys nothing from more width; at 1440 the floor gives
-       480. The bxp container query moves WITH this — see the .bxp block. */
-    grid-template-columns: minmax(0, 1fr) minmax(480px, 31%);
+       Lineage: 400px/27% (HO 608) -> 480px/31% (HO 623) -> 480px/45% (HO 629).
+       Both later moves are owner rulings and RECORDED MOCK DEVIATIONS (the
+       committed mock says 400/27%; the masthead packing at HO 610 is the
+       precedent for the mock losing to a later call). HO 629's value was chosen
+       off an interactive mock with a live fraction knob, not estimated from
+       stills.
+
+       HO 629 RETIRED THE ~850px CEILING THIS COMMENT USED TO CITE. That number
+       read C8 as a cap on ROW WIDTH in general; C8's actual scope (SKILL:1829) is
+       rows that carry a right-hand element — its stated mechanism is that extra
+       width "just pushes its right-hand element further away, which is C1 again."
+       This row has no right-hand element: HO 609 removed the pinned metric and
+       caret columns and HO 627's disclosure glyph is LEADING. The title is
+       packed-left, nowrap + ellipsis, so every added pixel is a visible character
+       until the title fits, and a short title simply ends mid-row with nothing
+       anchored past it to open a gap. The ceiling was never tested at 623 (both
+       values sat under it) and is false for a truncating row, so it is gone
+       rather than re-justified. C8's "wide screens buy columns" clause is
+       answered literally by the expanded panel, which is two panes in wide mode.
+
+       THE FRACTION IS THE KNOB — do not reintroduce a px cap. The bxp container
+       query is derived from this column and must be re-derived whenever this
+       value moves (HO 623's rule) — see the .bxp block. */
+    grid-template-columns: minmax(0, 1fr) minmax(480px, 45%);
   }
 }
 .dash-left {
