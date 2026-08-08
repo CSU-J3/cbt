@@ -10073,6 +10073,10 @@ a.hearing-watch:hover {
 .abw {
   border: 0.5px solid var(--border-soft);
   background-color: var(--bg-panel);
+  /* HO 631 — the overlay's anchor. The BAND, deliberately, not the row: a
+     row-anchored pop would cover the band's own second row and its footnote, and
+     the band's whole claim is the set of names, not whichever one is open. */
+  position: relative;
 }
 .abw-head {
   display: flex;
@@ -10159,6 +10163,53 @@ a.hearing-watch:hover {
 /* HO 630 — the expanded card's head-drill. Mirrors .bxp-head-drill exactly (HO
    627) so the drill reads the same on both expand surfaces; packed LEFT, quiet
    until hover so C3 holds and the card below stays the panel's content. */
+/* ── HO 631 — THE POP ───────────────────────────────────────────────────────
+   The card stops reshaping the dashboard. It hangs off the band's bottom edge,
+   full band width, over the page instead of inside it.
+
+   STACKING, reasoned and then verified rather than asserted. The pop can only
+   overlap the band's LATER SIBLINGS in the left region — the hearings/races box,
+   the weekly strip, the two-up — and every one of those is `z-index: auto`, so a
+   modest z-index puts the pop above all of them; later-sibling paint order is the
+   only thing it has to beat. It never reaches the sticky bills rail by GEOMETRY,
+   not by z-order: the pop is `left: 0; right: 0` of a band that ends at the
+   column gap, so it has no width in that column to paint into. Verified visually
+   at 1440 and 2560, both states.
+
+   The internal scroll is new behaviour and is the honest consequence of the
+   stacked form: at 1440 the band is 754px wide, the card stacks to one column and
+   runs ~1079px tall, which is taller than the viewport can give it. It scrolls
+   inside itself rather than growing the page, because a pop that grows the page
+   is the thing this commit removed. */
+.abw-card-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 2px;
+  background-color: var(--bg-row-hover);
+  border: 1px solid var(--accent-amber);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.72);
+  max-height: min(72vh, 760px);
+  overflow-y: auto;
+}
+/* Inside the pop the amber FRAME is the affordance, so the panel's own amber
+   left-border + 24px indent (which read as "expanded under this row" when the
+   card was in flow) would be the same signal drawn twice, indented off-centre in
+   a box that is already framed. Scoped to the band's pop — /members is untouched. */
+.abw-card-pop .sponsor-expanded-panel {
+  margin-left: 0;
+  border-left: none;
+  border-bottom: none;
+}
+/* Even inset inside the framed pop. Only the TOP padding changes (0 -> 12px, the
+   card used to sit flush under its row); the horizontal padding is untouched on
+   purpose, because it is what the container query measures and the 1050px
+   threshold is HO 630's measured figure. */
+.abw-card-pop .abw-card-wrap {
+  padding-top: var(--space-md);
+}
 .abw-card-wrap {
   padding: 0 var(--space-md) var(--space-md);
   /* HO 630 commit 3 — the scoped narrow collapse. SponsorExpandedPanel has no

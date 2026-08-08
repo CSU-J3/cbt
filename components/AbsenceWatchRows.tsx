@@ -28,7 +28,15 @@
 //
 // Single-open is the feed's contract (useSingleOpenPanel's shape, hand-rolled
 // here because there is no lazy fetch to cache: the props are already present).
-import { type ReactNode, useState } from "react";
+//
+// HO 631 — THE CARD IS AN OVERLAY NOW, and the structural consequence is that it
+// is no longer rendered inside the <li> whose row opened it. It is a sibling of
+// the whole <ul>, positioned against the BAND (see the CSS): anchoring on the row
+// would have put the pop over the band's own second row and footnote, and the
+// point of the overlay is that everything the band says stays readable while a
+// card is open. So this island renders a fragment — the rows, then the one open
+// card — and the band's `position: relative` is what they are both measured from.
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { partyColor } from "@/lib/race-colors";
 
 export type AbsenceRowData = {
@@ -65,9 +73,53 @@ function nameLinkClick(e: React.MouseEvent<HTMLAnchorElement>) {
 
 export function AbsenceWatchRows({ rows }: { rows: AbsenceRowData[] }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Keyed by bioguide so Esc can hand focus back to the row that opened the card
+  // — a card that closes into nowhere strands a keyboard reader at the top of the
+  // document, which is the whole reason this map exists.
+  const rowRefs = useRef(new Map<string, HTMLDivElement | null>());
+
+  // CLOSE SEMANTICS. Both listeners are registered only while a card is open, and
+  // both live on `document` rather than on the band.
+  //
+  // The outside click is a BUBBLE-phase `click` with no preventDefault, and that
+  // is the whole ruling: the target's own behaviour has already run by the time
+  // this fires (React's root handler sits below document in the tree), so one
+  // click both closes the card and does the thing that was clicked. Clicking a
+  // feed bill row while a card is open expands that bill AND closes the card —
+  // one click, not two. A `mousedown` listener, or a capture-phase one, or
+  // anything calling preventDefault, would take the first click away from the
+  // page and is the defect this is written against.
+  //
+  // The in-band test is `closest('.abw')`, not a ref to the <ul>: the header and
+  // the footnote are inside the band and clicking them must not close, and the
+  // pop itself is inside the band so its links keep working.
+  useEffect(() => {
+    if (!expandedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const row = rowRefs.current.get(expandedId);
+      setExpandedId(null);
+      row?.focus();
+    };
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest(".abw")) return;
+      setExpandedId(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onDocClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onDocClick);
+    };
+  }, [expandedId]);
+
+  const openRow =
+    (expandedId ? rows.find((r) => r.bioguideId === expandedId) : null) ?? null;
 
   return (
-    <ul className="abw-rows">
+    <>
+      <ul className="abw-rows">
       {rows.map((m) => {
         const expandable = m.card !== null;
         const open = expandable && expandedId === m.bioguideId;
@@ -117,6 +169,9 @@ export function AbsenceWatchRows({ rows }: { rows: AbsenceRowData[] }) {
                 role="button"
                 tabIndex={0}
                 aria-expanded={open}
+                ref={(el) => {
+                  rowRefs.current.set(m.bioguideId, el);
+                }}
                 onClick={toggle}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
@@ -132,10 +187,25 @@ export function AbsenceWatchRows({ rows }: { rows: AbsenceRowData[] }) {
               // name is still a plain link, so the member page stays reachable.
               <div className="abw-row abw-row--flat">{inner}</div>
             )}
-            {open ? <div className="abw-card-wrap">{m.card}</div> : null}
           </li>
         );
       })}
-    </ul>
+      </ul>
+
+      {/* THE OVERLAY. One card, a sibling of the rows rather than a child of any
+          one of them, so it hangs off the band's bottom edge and the rows above
+          it — and the footnote's delegate disclosure — stay on screen. It is
+          absolutely positioned, so nothing below the band moves when it opens;
+          that is the property the zero-reflow instrument measures. */}
+      {openRow ? (
+        <div
+          className="abw-card-pop"
+          role="region"
+          aria-label={`${openRow.name} — member card`}
+        >
+          <div className="abw-card-wrap">{openRow.card}</div>
+        </div>
+      ) : null}
+    </>
   );
 }

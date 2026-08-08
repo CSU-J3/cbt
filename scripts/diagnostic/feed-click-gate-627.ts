@@ -356,28 +356,64 @@ async function runAbsenceWidth(
       return { x: r.x, y: r.y, w: r.width, h: r.height };
     });
   const cardOpen = async () => (await page.locator(".abw-card-wrap").count()) > 0;
+  // Close whichever row is actually open — NOT row 0. HO 631's switch leg (8) can
+  // leave row B open, and clicking row A then SWITCHES to A rather than closing,
+  // so the old row-0 cleanup silently left a card open and the next leg failed
+  // looking for content it had just re-opened. The cleanup has to follow the
+  // single-open state rather than assume where it is.
   const collapse = async () => {
-    if (await cardOpen()) {
-      const r = await rowRect();
-      if (r) await clickCentre(page, r);
-      await page.waitForTimeout(250);
-    }
+    if (!(await cardOpen())) return;
+    const r = await page.evaluate(() => {
+      const lis = Array.from(document.querySelectorAll(".abw-li"));
+      const openLi = lis.find((li) => li.classList.contains("is-open"));
+      const el = (openLi ?? lis[0])?.querySelector(".abw-row");
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height };
+    });
+    if (r) await clickCentre(page, r);
+    await page.waitForTimeout(250);
   };
 
-  // 1 — plain click at the ROW CENTRE expands, and does not navigate.
+  // HO 631 — the zero-reflow probe. The element AFTER the band, resolved from the
+  // DOM rather than named, so it stays correct when the dashboard order changes.
+  await page.evaluate(() => {
+    const band = document.querySelector(".abw");
+    let n = band?.nextElementSibling ?? null;
+    if (!n && band?.parentElement) n = band.parentElement.nextElementSibling;
+    n?.setAttribute("data-reflow-probe", "1");
+  });
+  const probeTop = async (): Promise<number | null> =>
+    page.evaluate(() => {
+      const e = document.querySelector("[data-reflow-probe]");
+      if (!e) return null;
+      return Math.round(e.getBoundingClientRect().top * 100) / 100;
+    });
+
+  // 1 — plain click at the ROW CENTRE expands, does not navigate, and — HO 631 —
+  // opens as an OVERLAY: the page below the band does not move. The delta is the
+  // discriminating half. Before this HO the card expanded in flow and the same
+  // measurement read ~523px at 2560, so a leg that only asserted "open" was
+  // equally green either side of the change and proved nothing about the overlay.
   const urlBefore = page.url();
+  const topClosed = await probeTop();
   const r1 = await rowRect();
   if (r1) {
     await clickCentre(page, r1);
     await page.waitForTimeout(400);
     const opened = await cardOpen();
     const stayed = page.url() === urlBefore;
+    const topOpen = await probeTop();
+    const delta =
+      topClosed !== null && topOpen !== null
+        ? Math.round((topOpen - topClosed) * 100) / 100
+        : null;
     record(
-      `${label} absence row click EXPANDS (not navigates)`,
-      opened && stayed,
-      `open=${opened} url-unchanged=${stayed} at (${Math.round(r1.x + r1.w / 2)},${Math.round(r1.y + r1.h / 2)})`,
+      `${label} absence row click OPENS AS OVERLAY (no reflow)`,
+      opened && stayed && delta === 0,
+      `open=${opened} url-unchanged=${stayed} page-shift=${delta === null ? "unmeasurable" : `${delta}px`}`,
     );
-  } else record(`${label} absence row click EXPANDS (not navigates)`, false, ".abw-row rect not measurable");
+  } else record(`${label} absence row click OPENS AS OVERLAY (no reflow)`, false, ".abw-row rect not measurable");
   await collapse();
 
   // 2 — plain click on the NAME expands too (the name is an <a>; the plain case
@@ -437,6 +473,110 @@ async function runAbsenceWidth(
   await page.waitForTimeout(350);
   const spaceClosed = !(await cardOpen());
   record(`${label} absence Space toggles`, spaceClosed, `closed-again=${spaceClosed}`);
+
+  // 6 — HO 631: Esc closes AND focus returns to the row that opened the card.
+  // Both halves are asserted: a card that closes while focus stays on the pop (or
+  // worse, resets to <body>) strands a keyboard reader at the top of the document,
+  // which is a different defect from "Esc does nothing" and reads identically if
+  // you only check that the card went away.
+  const r6 = await rowRect();
+  if (r6) {
+    await clickCentre(page, r6);
+    await page.waitForTimeout(350);
+    const openedFirst = await cardOpen();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    const closed = !(await cardOpen());
+    const focusBack = await page.evaluate(() => {
+      const rows = document.querySelectorAll(".abw-row");
+      return document.activeElement === rows[0];
+    });
+    record(
+      `${label} absence Esc closes AND returns focus to row`,
+      openedFirst && closed && focusBack,
+      `opened=${openedFirst} closed=${closed} focus-on-row=${focusBack}`,
+    );
+  } else record(`${label} absence Esc closes AND returns focus to row`, false, ".abw-row rect not measurable");
+  await collapse();
+
+  // 7 — HO 631: an outside click closes the card AND the thing that was clicked
+  // does its own job. ONE click, not two. Both halves are asserted deliberately:
+  // a leg that only checks the close passes just as well against an implementation
+  // that swallows the first click with preventDefault, which is precisely the
+  // behaviour the ruling forbids. So this clicks a FEED BILL ROW — a real target
+  // with its own click behaviour, in the other column — and requires the card to
+  // be gone and that bill to be expanded after the single click.
+  await collapseAll(page, 0);
+  const r7 = await rowRect();
+  const feedTitle = await rectOf(page, 0, ".v2f-title");
+  if (r7 && feedTitle) {
+    await clickCentre(page, r7);
+    await page.waitForTimeout(350);
+    const cardWasOpen = await cardOpen();
+    await clickCentre(page, feedTitle);
+    await page.waitForTimeout(450);
+    const cardClosed = !(await cardOpen());
+    const billExpanded = await isOpen(page, 0);
+    record(
+      `${label} absence outside click CLOSES + target still acts`,
+      cardWasOpen && cardClosed && billExpanded,
+      `card-was-open=${cardWasOpen} card-closed=${cardClosed} clicked-bill-expanded=${billExpanded}`,
+    );
+  } else {
+    record(
+      `${label} absence outside click CLOSES + target still acts`,
+      false,
+      `rects not measurable (row=${!!r7} feedTitle=${!!feedTitle})`,
+    );
+  }
+  await collapseAll(page, 0);
+  await collapse();
+
+  // 8 — HO 631: opening A then clicking B SWITCHES rather than stacking. Needs a
+  // second row; with one absent member there is nothing to switch to, and saying
+  // so beats a silent skip.
+  if (rowCount >= 2) {
+    const rects = await page.evaluate(() =>
+      Array.from(document.querySelectorAll(".abw-row")).map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x, y: r.y, w: r.width, h: r.height };
+      }),
+    );
+    const a = rects[0];
+    const b = rects[1];
+    if (a && b) {
+      await clickCentre(page, a);
+      await page.waitForTimeout(350);
+      await clickCentre(page, b);
+      await page.waitForTimeout(400);
+      const state = await page.evaluate(() => {
+        const lis = Array.from(document.querySelectorAll(".abw-li"));
+        const openIdx = lis.findIndex((li) => li.classList.contains("is-open"));
+        return {
+          openCount: lis.filter((li) => li.classList.contains("is-open")).length,
+          openIdx,
+          pops: document.querySelectorAll(".abw-card-pop").length,
+          popLabel:
+            document.querySelector(".abw-card-pop")?.getAttribute("aria-label") ?? "",
+          expandedAttrs: Array.from(document.querySelectorAll(".abw-row"))
+            .map((r) => r.getAttribute("aria-expanded"))
+            .join(","),
+        };
+      });
+      record(
+        `${label} absence open A -> click B SWITCHES (single-open)`,
+        state.openCount === 1 && state.openIdx === 1 && state.pops === 1,
+        `open-rows=${state.openCount} open-index=${state.openIdx} pops=${state.pops} aria=[${state.expandedAttrs}] · ${state.popLabel}`,
+      );
+    } else record(`${label} absence open A -> click B SWITCHES (single-open)`, false, "row rects not measurable");
+  } else {
+    record(
+      `${label} absence open A -> click B SWITCHES (single-open)`,
+      true,
+      `only ${rowCount} row — nothing to switch to, leg not exercised`,
+    );
+  }
+  await collapse();
 
   // 5 — the card's head-drill navigates, and it LEADS the card (HO 630 measured
   // the panel's own buttons ~85% of the way down, which is why it exists).
