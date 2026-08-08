@@ -10113,6 +10113,57 @@ a.hearing-watch:hover {
    until hover so C3 holds and the card below stays the panel's content. */
 .abw-card-wrap {
   padding: 0 var(--space-md) var(--space-md);
+  /* HO 630 commit 3 — the scoped narrow collapse. SponsorExpandedPanel has no
+     container handling of its own (only a <700px media tweak, HO 198) and its
+     three columns were tuned against the /members pane. A CONTAINER query, not a
+     media query, because the band's width is a function of the dashboard grid's
+     fraction, not of the viewport — HO 629 moved that fraction and would have
+     silently moved a media threshold's meaning with it. */
+  container: abwcard / inline-size;
+}
+/* THE THRESHOLD IS MEASURED, and the handoff's stated failure mode was the wrong
+   instrument. It named "committee names wrapping unreadably"; measured, they
+   NEVER wrap at any width (0/14 from 1370px down to 560px) because they are
+   TRUNCATED instead. So the curve below reads truncation — how much of the worst
+   committee name survives — and it is anchored against the pane the card was
+   designed for rather than against a bare pixel count.
+
+   REFERENCE — the card on /members, the surface it was tuned against:
+     2560: 1073px wide, columns 210/518/345, committees truncated 12/14, worst 30%
+     1440: 1068px wide, columns 210/515/343, committees truncated  9/14, worst 38%
+
+   APPLIED CURVE — the same card in the band's wrapper (wrapper -> col2/col3,
+   committees truncated, worst-name visible):
+     1370 -> 666/444   9/14   41%     <- the band at 2560; BETTER than the reference
+     1200 -> 564/376  11/14   33%
+     1050 -> 474/316  13/14   26%     <- parity with the /members reference
+      950 -> 414/276  14/14   21%     <- every name now truncated
+      880 -> 372/248  14/14   18%
+      820 -> 336/224  14/14   15%
+      754 -> 296/198  14/14   12%     <- the band at the 1440 floor
+      640 -> 228/152  14/14    6%
+
+   1050px is where the band's card reaches the readability of the pane it was
+   built for. Above it the band is no worse than /members already is; below it the
+   card degrades past any existing surface, and by 950 every committee name is
+   cut. So: three columns at 2560 (band 1370), stacked at the 1440 floor (band
+   754), which is where the third column has fallen to 198px and the worst name
+   shows 12% of itself.
+
+   Scoped to the band's mount, never to the card (the HO 507 shared-component
+   rule): .sponsor-card-grid's global rules are untouched and /members renders
+   byte-identical. The stack reuses the shape of the existing <700 media tweak —
+   one column, dividers become bottom borders — so there is one stacked treatment,
+   not two that can drift. */
+@container abwcard (max-width: 1050px) {
+  .abw-card-wrap .sponsor-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .abw-card-wrap .sponsor-card-rail,
+  .abw-card-wrap .sponsor-card-mid {
+    border-right: none;
+    border-bottom: 1px solid var(--border-strong);
+  }
 }
 .abw-drill {
   display: inline-block;
