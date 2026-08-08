@@ -306,8 +306,171 @@ async function runWidth(ctx: BrowserContext, label: string, w: number, h: number
   await page.close();
 }
 
+/**
+ * HO 630 — the Absence Watch band, which now expands in place instead of
+ * navigating. Same discipline as the feed legs above: real mouse clicks at each
+ * target's own rect centre, never a selector click, because the defect class this
+ * gate exists for is a child that swallows the event at exactly the pixels a user
+ * aims at.
+ *
+ * NO SCROLL LEG HERE, and it is dropped deliberately rather than silently: the
+ * band sits directly under the nav at the top of the page, so the coordinate
+ * divergence the feed legs exist to catch (client rect vs page position inside an
+ * overflowing scroller) cannot arise. The feed legs still carry it.
+ */
+async function runAbsenceWidth(
+  ctx: BrowserContext,
+  label: string,
+  w: number,
+  h: number,
+) {
+  const page = await ctx.newPage();
+  await page.setViewportSize({ width: w, height: h });
+  await page.goto(BASE_URL, { waitUntil: "networkidle" });
+  await page.waitForTimeout(SETTLE_MS);
+
+  const rowCount = await page.locator(".abw-row").count();
+  if (rowCount === 0) {
+    // Zero absent members is the GOOD-NEWS state (C4) and renders nothing, so an
+    // empty band is not a failure — but it is also not a pass, and saying so is
+    // the point: a skip-on-empty guard here would go green while measuring
+    // nothing (the HO 503 false-green).
+    record(`${label} absence band present`, true, "band empty (0 absent) — legs N/A, nothing exercised");
+    await page.close();
+    return;
+  }
+  record(`${label} absence band present`, true, `${rowCount} row(s)`);
+
+  const rowRect = async (): Promise<Rect | null> =>
+    page.evaluate(() => {
+      const el = document.querySelector(".abw-row");
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    });
+  const nameRect = async (): Promise<Rect | null> =>
+    page.evaluate(() => {
+      const el = document.querySelector(".abw-row .abw-name");
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height };
+    });
+  const cardOpen = async () => (await page.locator(".abw-card-wrap").count()) > 0;
+  const collapse = async () => {
+    if (await cardOpen()) {
+      const r = await rowRect();
+      if (r) await clickCentre(page, r);
+      await page.waitForTimeout(250);
+    }
+  };
+
+  // 1 — plain click at the ROW CENTRE expands, and does not navigate.
+  const urlBefore = page.url();
+  const r1 = await rowRect();
+  if (r1) {
+    await clickCentre(page, r1);
+    await page.waitForTimeout(400);
+    const opened = await cardOpen();
+    const stayed = page.url() === urlBefore;
+    record(
+      `${label} absence row click EXPANDS (not navigates)`,
+      opened && stayed,
+      `open=${opened} url-unchanged=${stayed} at (${Math.round(r1.x + r1.w / 2)},${Math.round(r1.y + r1.h / 2)})`,
+    );
+  } else record(`${label} absence row click EXPANDS (not navigates)`, false, ".abw-row rect not measurable");
+  await collapse();
+
+  // 2 — plain click on the NAME expands too (the name is an <a>; the plain case
+  // must reach the row's toggle rather than navigating).
+  const rn = await nameRect();
+  if (rn) {
+    await clickCentre(page, rn);
+    await page.waitForTimeout(400);
+    const opened = await cardOpen();
+    record(
+      `${label} absence NAME plain-click expands`,
+      opened && page.url() === urlBefore,
+      `open=${opened} url-unchanged=${page.url() === urlBefore}`,
+    );
+  } else record(`${label} absence NAME plain-click expands`, false, ".abw-name rect not measurable");
+  await collapse();
+
+  // 3 — ctrl-click the NAME navigates in a background tab and must NOT expand.
+  // This is the HO 627 MIRRORED defect: letting the default happen is not enough,
+  // because the event still bubbles to the row's toggle.
+  const rn2 = await nameRect();
+  if (rn2) {
+    const before = ctx.pages().length;
+    await page.mouse.move(rn2.x + rn2.w / 2, rn2.y + rn2.h / 2);
+    await page.keyboard.down("Control");
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.keyboard.up("Control");
+    await page.waitForTimeout(800);
+    const after = ctx.pages().length;
+    const opened = await cardOpen();
+    // The background tab can still be about:blank when we look — a first pass
+    // asserted only "a tab opened" and reported "no /members tab" while passing,
+    // which is a leg that proves less than it prints. Wait for the destination.
+    const newTab = ctx.pages().find((p) => p !== page);
+    let dest = "no new tab";
+    if (newTab) {
+      await newTab.waitForURL(/\/members\//, { timeout: 4000 }).catch(() => {});
+      dest = newTab.url().replace(BASE_URL, "") || "about:blank";
+    }
+    record(
+      `${label} absence ctrl-click NAME does NOT expand`,
+      !opened && after > before && /\/members\//.test(dest),
+      `open=${opened} · tabs ${before}->${after} · ${dest}`,
+    );
+    for (const p of ctx.pages()) if (p !== page) await p.close();
+  } else record(`${label} absence ctrl-click NAME does NOT expand`, false, ".abw-name rect not measurable");
+  await collapse();
+
+  // 4 — Enter opens, Space closes.
+  await page.locator(".abw-row").first().focus();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(350);
+  const enterOpen = await cardOpen();
+  record(`${label} absence Enter expands`, enterOpen, `open=${enterOpen}`);
+  await page.keyboard.press(" ");
+  await page.waitForTimeout(350);
+  const spaceClosed = !(await cardOpen());
+  record(`${label} absence Space toggles`, spaceClosed, `closed-again=${spaceClosed}`);
+
+  // 5 — the card's head-drill navigates, and it LEADS the card (HO 630 measured
+  // the panel's own buttons ~85% of the way down, which is why it exists).
+  const r5 = await rowRect();
+  if (r5) {
+    await clickCentre(page, r5);
+    await page.waitForTimeout(400);
+  }
+  const drill = await page.evaluate(() => {
+    const wrap = document.querySelector(".abw-card-wrap");
+    const a = wrap?.querySelector(".abw-drill");
+    if (!wrap || !a) return null;
+    const wr = wrap.getBoundingClientRect();
+    const r = a.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height, dy: Math.round(r.top - wr.top) };
+  });
+  if (drill) {
+    await clickCentre(page, { x: drill.x, y: drill.y, w: drill.w, h: drill.h });
+    await page.waitForLoadState("domcontentloaded").catch(() => {});
+    await page.waitForTimeout(600);
+    const ok = /\/members\//.test(page.url());
+    record(
+      `${label} absence card -> FULL PAGE navigates`,
+      ok && drill.dy < 40,
+      `${drill.dy}px from card top · url=${page.url().replace(BASE_URL, "")}`,
+    );
+  } else record(`${label} absence card -> FULL PAGE navigates`, false, ".abw-drill not found in the open card");
+
+  await page.close();
+}
+
 async function main(): Promise<number> {
   console.log("=== HO 627 COMMIT 0 GATE — clicking the pixels users click ===");
+  console.log("    (HO 630 extends it to the Absence Watch band's expand-in-place)");
   console.log(`    base: ${BASE_URL}\n`);
 
   const browser = await chromium.launch();
@@ -320,6 +483,11 @@ async function main(): Promise<number> {
       await runWidth(ctx, label, w, h);
     } catch (e) {
       record(`${label} harness`, false, String(e).slice(0, 160));
+    }
+    try {
+      await runAbsenceWidth(ctx, label, w, h);
+    } catch (e) {
+      record(`${label} absence harness`, false, String(e).slice(0, 160));
     }
   }
 

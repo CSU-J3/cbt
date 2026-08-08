@@ -10068,11 +10068,64 @@ a.hearing-watch:hover {
 .abw-row:hover {
   background-color: var(--bg-row-hover);
 }
+/* HO 630 — the row was a whole-row <Link> and is now a role=button that expands
+   in place, so the pointer affordance has to be declared rather than inherited
+   from the anchor it used to be. */
+.abw-row {
+  cursor: pointer;
+}
+/* Identity-only (a per-member card-assembly failure): no expand, so no pointer
+   and no glyph. A row that advertises an affordance it cannot honor is the HO 627
+   defect. The name inside it is still a real link. */
+.abw-row--flat {
+  cursor: default;
+}
+/* The leading disclosure glyph, the .v2f-disc idiom (HO 627 §3): LEADING, never
+   far-right — a right-anchored caret is the exact C1 defect HO 609 removed from
+   the feed row. Dim so C3 holds; the name stays the row's one bright element.
+   Rotates instantly on open (house style: the dashboard's motion budget is
+   cursor-blink plus the two tape marquees). */
+.abw-disc {
+  flex: none;
+  display: inline-block;
+  font-size: var(--fs-9);
+  color: var(--text-dim);
+  line-height: 1;
+  position: relative;
+  top: -1px;
+  transform-origin: 50% 50%;
+}
+.abw-li.is-open .abw-disc {
+  transform: rotate(90deg);
+  color: var(--accent-amber);
+}
 .abw-name {
   color: var(--text-primary);
   font-size: var(--fs-13);
   font-weight: 600;
   white-space: nowrap;
+  /* It is an <a> now (modifier-click reaches the member page) — the row's own
+     hover rule below still carries the amber. */
+  text-decoration: none;
+}
+/* HO 630 — the expanded card's head-drill. Mirrors .bxp-head-drill exactly (HO
+   627) so the drill reads the same on both expand surfaces; packed LEFT, quiet
+   until hover so C3 holds and the card below stays the panel's content. */
+.abw-card-wrap {
+  padding: 0 var(--space-md) var(--space-md);
+}
+.abw-drill {
+  display: inline-block;
+  margin: 2px 0 6px;
+  font-size: var(--fs-10);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.abw-drill:hover {
+  color: var(--accent-amber-bright);
 }
 .abw-row:hover .abw-name {
   color: var(--accent-amber-bright);

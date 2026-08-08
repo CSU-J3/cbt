@@ -1,8 +1,18 @@
 // HO 622 — the Absence Watch band, in the HO 608 slot between nav and hearings
 // (docs/design/dashboard-layout-target.html, the band directly after the nav).
 //
-// Server component. Everything it renders is already in the props; there is no
-// interaction beyond the row link, so no client island.
+// Server component. HO 630 gave it one client island — AbsenceWatchRows — because
+// a plain click now EXPANDS the member's card in place instead of leaving the
+// dashboard (the HO 627 ruling: the drill moves one level in, not away).
+//
+// The split is deliberate and load-bearing in two directions. The band keeps every
+// time derivation (formatSince below), so the island holds no clock at all — the
+// HO 574/589 constraint by construction, not by discipline. And the band renders
+// each SponsorExpandedPanel here, on the server, passing it into the island as a
+// ReactNode: SponsorExpandedPanel is a server component reused VERBATIM (no
+// absence-specific variant), and a client island cannot import one. That is the
+// ActivityTabs idiom, and it is what keeps lib/queries — and with it next/cache —
+// out of the client bundle.
 //
 // TWO DEVIATIONS FROM THE MOCK, both deliberate, both recorded here so neither
 // reads as drift:
@@ -26,9 +36,9 @@
 // C3 one bright element per row (the name); the party bracket carries party and
 // nothing else (the HO 610 token rule); the evidence clauses are dim. Every size
 // in 9-14px is an --fs token.
-import Link from "next/link";
-import type { AbsentMember } from "@/lib/queries";
-import { partyColor } from "@/lib/race-colors";
+import { AbsenceWatchRows } from "@/components/AbsenceWatchRows";
+import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
+import type { AbsentMember, Chamber } from "@/lib/queries";
 
 const MONTHS = [
   "JAN",
@@ -75,27 +85,59 @@ export function AbsenceWatchBand({
         <span className="abw-title">▲ ABSENCE WATCH</span>
         <span className="abw-count">({members.length})</span>
       </div>
-      <ul className="abw-rows">
-        {members.map((m) => (
-          <li key={m.bioguideId}>
-            <Link className="abw-row" href={`/members/${m.bioguideId}`}>
-              <span className="abw-name">{m.name}</span>
-              <span className="abw-party" style={{ color: partyColor(m.party) }}>
-                {(m.party ?? "?").toUpperCase()}-{m.state}
-              </span>
-              <span className="abw-claim">
-                NO VOTE CAST SINCE{m.atBound ? " BEFORE" : ""}{" "}
-                {formatSince(m.lastCastDate, nowMs)}
-              </span>
-              <span className="abw-ev">
-                · {m.streak}
-                {m.atBound ? "+" : ""} CONSECUTIVE ROLL CALLS
-              </span>
-              <span className="abw-ev">· {m.missedPct.toFixed(1)}% OF 119TH VOTES</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <AbsenceWatchRows
+        rows={members.map((m) => ({
+          bioguideId: m.bioguideId,
+          name: m.name,
+          party: m.party,
+          state: m.state,
+          // Formatted HERE so the island carries no clock — see the header note.
+          sinceLabel: formatSince(m.lastCastDate, nowMs),
+          atBound: m.atBound,
+          streak: m.streak,
+          missedPct: m.missedPct,
+          // `card === null` is HO 630's identity-only degrade (a per-member
+          // assembly failure): the row still renders, without an expand
+          // affordance. It is NOT the same as "no data" — the band still names
+          // the member, which is the claim this surface exists to make.
+          card: m.card ? (
+            <>
+              {/* HO 630 — the head-drill, MEASURED into existence rather than
+                  added on principle. The handoff made it conditional on where
+                  SponsorExpandedPanel's own buttons land at band widths; the card
+                  puts its first `View detail →` 447px down at 2560 and 402px at
+                  1440, i.e. ~85% of the way down a 482-536px card, and the commit
+                  3 stack pushes it further still. So the drill leads, packed left,
+                  exactly as HO 627 did it for the bill panel — same reason (the
+                  container-query stack buried the old bottom button) and the same
+                  idiom, so the drill sits in one place on both expand surfaces.
+                  It is a sibling of the row, not a child, so a plain click here
+                  navigates and never reaches the toggle. */}
+              <a className="abw-drill" href={`/members/${m.bioguideId}`}>
+                → Full page
+              </a>
+              <SponsorExpandedPanel
+                sponsorKey={m.bioguideId}
+                sponsorName={m.name}
+                sponsorParty={m.party}
+                sponsorState={m.state}
+                bioguideId={m.bioguideId}
+                chamber={m.chamber as Chamber}
+                stats={m.card.stats}
+                topics={m.card.topics}
+                recentBills={m.card.recentBills}
+                committees={m.card.committees}
+                affiliations={m.card.affiliations}
+                palestineGrade={m.palestineGrade}
+                palestineRank={m.palestineRank}
+                palestineScore={m.palestineScore}
+                includeCeremonial={false}
+                committeeCap={Number.POSITIVE_INFINITY}
+              />
+            </>
+          ) : null,
+        }))}
+      />
       {/* Designed into the mock, and load-bearing: the delegate carve is a
           population-correctness rule (HO 527), so Radewagen at 82.4% missed is
           absent from this band BY RULE. Without the disclosure that absence is
