@@ -10180,7 +10180,41 @@ a.hearing-watch:hover {
    stacked form: at 1440 the band is 754px wide, the card stacks to one column and
    runs ~1079px tall, which is taller than the viewport can give it. It scrolls
    inside itself rather than growing the page, because a pop that grows the page
-   is the thing this commit removed. */
+   is the thing this commit removed.
+
+   THE FOLD BOUND — the third term, and why a viewport-fraction alone is not one.
+   `72vh` bounds the pop against the viewport's HEIGHT but knows nothing about
+   where the pop STARTS. The pop hangs at `top: 100%` of the band, and the band
+   sits below the whole dashboard header stack, so its top edge is already well
+   down the viewport. Measured at scrollTop 0, the band's bottom — the pop's
+   origin — is 344.5px (1440x900), 352px (1920x1080), 346.5px (2560x1400). Under
+   the old two-term bound the pop's bottom therefore landed at 992.5 against a
+   900px fold: 92.5px of the card hung below it, reachable only by scrolling the
+   page — the same page-growth commit 2 set out to remove, re-entered through the
+   bottom edge instead of the top.
+
+   `calc(100vh - 360px)` subtracts the ORIGIN before taking the viewport, so the
+   bound is on the pop's BOTTOM rather than its height.
+
+   360 IS THE LARGEST MEASURED ORIGIN PLUS CLEARANCE, NOT A ROUND NUMBER, AND THE
+   ORIGIN IS NOT WIDTH-INVARIANT — it spreads 7.5px across the three widths above
+   (the header stack's nav wraps differently at 1920, which is why the WIDEST
+   viewport is not the worst case and 1920 is). So the constant is sized against
+   the worst of the three, 352, leaving 8px of clearance there and 15.5px at 1440.
+   Sizing it against 1440 alone would have shipped a bound that still hung 7.5px
+   below the fold at 1920.
+
+   It is COUPLED TO THE HEADER STACK ABOVE THE BAND: masthead, tape, nav, hero
+   band, races box. If anything in that stack changes height — or changes its wrap
+   behaviour at some width — this constant is wrong by exactly that much and the
+   card hangs below the fold again. Re-measure the band's bottom rect at scrollTop
+   0 ACROSS WIDTHS, not at one, and move the 360 to the new maximum. It is a
+   measured offset, not a design margin; do not round it for taste.
+
+   All three terms stay, and they are not decorative: the fold term wins at 1440
+   (540px) and 1920 (720px) — the viewports where the defect actually was — while
+   the 760px cap still wins at 2560x1400, where the fold term is idle and this
+   commit changes nothing. */
 .abw-card-pop {
   position: absolute;
   top: 100%;
@@ -10191,7 +10225,7 @@ a.hearing-watch:hover {
   background-color: var(--bg-row-hover);
   border: 1px solid var(--accent-amber);
   box-shadow: 0 14px 44px rgba(0, 0, 0, 0.72);
-  max-height: min(72vh, 760px);
+  max-height: min(72vh, 760px, calc(100vh - 360px));
   overflow-y: auto;
 }
 /* Inside the pop the amber FRAME is the affordance, so the panel's own amber
