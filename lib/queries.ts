@@ -4839,6 +4839,24 @@ export type AbsentMember = {
   // recorded local date is the honest one and needs no timezone handling.
   lastCastDate: string;
   missedPct: number; // cumulative 119th rate, 0-100 (the evidence clause)
+  // ── HO 630: the expand-in-place card, prefetched ───────────────────────────
+  // The band expands the member's card inline instead of navigating (the HO 627
+  // ruling: the drill moves one level in, not away). /members' own expand is URL
+  // state and server-renders the selected member — borrowing that here would BE
+  // navigation, the exact defect — so the band prefetches instead and the client
+  // wrapper only toggles.
+  //
+  // `card === null` is the DEGRADED case and it is a real render state, not an
+  // error: the row still shows from the base query and simply carries no expand
+  // affordance (see the per-member try/catch below). "Card data missing" must
+  // never collapse into "nobody is absent" — that is the HO 622 silent-wrong
+  // answer one level up, and on this surface empty is the good-news state.
+  card: MemberCardExpansion | null;
+  // Identity scalars SponsorExpandedPanel needs that the participation join does
+  // not carry. Nullable throughout: only 47 members are scored.
+  palestineGrade: string | null;
+  palestineRank: number | null;
+  palestineScore: string | null;
 };
 
 async function queryAbsenceWatch(): Promise<AbsentMember[]> {
@@ -4965,12 +4983,66 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         atBound,
         lastCastDate,
         missedPct: meta.missedPct,
+        card: null, // filled below, per member, so one failure can't empty the band
+        palestineGrade: null,
+        palestineRank: null,
+        palestineScore: null,
       });
     }
   }
 
   // Longest absence first; name is the deterministic tiebreak.
   out.sort((a, b) => b.streak - a.streak || a.name.localeCompare(b.name));
+
+  // ── HO 630 — card prefetch, per member, AFTER the sort ─────────────────────
+  // Bounded by band membership, which the streak >= 30 rule holds to a handful
+  // (2 today). Each member is assembled independently and a failure degrades ONLY
+  // that member to identity-only: the row still renders and the band still names
+  // everyone it found. A single try/catch around the whole loop would let one bad
+  // member cost every card in the band, and hoisting it any further would let it
+  // cost the band itself.
+  //
+  // `includeCeremonial: false` is the app-wide default and the dashboard's framing
+  // — this surface has no ceremonial toggle to honor.
+  //
+  // Everything added here is plain objects/arrays/scalars, which is load-bearing:
+  // the return crosses an unstable_cache boundary and a Map or Set would round-trip
+  // to `{}` on a cache HIT only (HO 533).
+  if (out.length > 0) {
+    const scoreRes = await db.execute({
+      sql: `SELECT bioguide_id AS bio, grade, rank, total_score AS score
+              FROM palestine_scorecard
+             WHERE bioguide_id IN (${out.map(() => "?").join(",")})`,
+      args: out.map((m) => m.bioguideId),
+    });
+    const scores = new Map<string, { grade: string | null; rank: number | null; score: string | null }>();
+    for (const r of scoreRes.rows) {
+      scores.set(String(r.bio ?? ""), {
+        grade: (r.grade as string | null) ?? null,
+        rank:
+          r.rank === null || r.rank === undefined ? null : Number(r.rank),
+        score: r.score === null || r.score === undefined ? null : String(r.score),
+      });
+    }
+
+    await Promise.all(
+      out.map(async (m) => {
+        const s = scores.get(m.bioguideId);
+        if (s) {
+          m.palestineGrade = s.grade;
+          m.palestineRank = s.rank;
+          m.palestineScore = s.score;
+        }
+        try {
+          m.card = await getMemberCardExpansion(m.bioguideId, false);
+        } catch (err) {
+          console.error(`[absence-watch] card assembly failed for ${m.bioguideId}:`, err);
+          m.card = null; // identity-only; the row survives, the band survives
+        }
+      }),
+    );
+  }
+
   return out;
 }
 
@@ -6617,6 +6689,42 @@ export const getSponsorTopTopics = unstable_cache(
   ["getSponsorTopTopics"],
   { revalidate: 3600, tags: ["bills"] },
 );
+
+// HO 630 — the member card's data bundle, extracted from an inlined IIFE in
+// app/members/page.tsx because this HO makes it two-consumer (the /members
+// browser and the dashboard's Absence Watch band), which is the promotion bar.
+//
+// It is a pure ASSEMBLY over five already-cached helpers and deliberately carries
+// no cache of its own: each part keeps its own key/TTL/tag, so a `bills` flush
+// still reaches stats/topics/recent-bills and a `committees` flush still reaches
+// the roster, exactly as before. Wrapping the bundle would have invented a sixth
+// cache entry whose invalidation is the intersection of five different tags.
+//
+// The shape is the SponsorExpandedPanel prop set, minus the identity scalars the
+// caller already holds (name/party/state/chamber/palestine*) — those differ per
+// consumer and neither one needs them re-fetched.
+export type MemberCardExpansion = {
+  key: string;
+  stats: SponsorStats;
+  topics: SponsorTopic[];
+  recentBills: FeedBill[];
+  committees: MemberCommitteeRow[];
+  affiliations: MemberAffiliation[];
+};
+
+export async function getMemberCardExpansion(
+  bioguideId: string,
+  includeCeremonial: boolean,
+): Promise<MemberCardExpansion> {
+  const [stats, topics, recentBills, committees, affiliations] = await Promise.all([
+    getSponsorStats(bioguideId, includeCeremonial),
+    getSponsorTopTopics(bioguideId, 3, includeCeremonial),
+    getSponsorRecentBills(bioguideId, includeCeremonial),
+    getMemberCommittees(bioguideId),
+    getMemberAffiliations(bioguideId),
+  ]);
+  return { key: bioguideId, stats, topics, recentBills, committees, affiliations };
+}
 
 function buildChangesWhere(
   filters: FeedFilters,

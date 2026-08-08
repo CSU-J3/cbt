@@ -29,18 +29,14 @@ import {
   getCommitteeRoster,
   getCommitteesIndex,
   getIdeologyStrip,
-  getMemberAffiliations,
+  getMemberCardExpansion,
   getParticipationStrip,
   getPolarizationBand,
   getPolarizationHistory,
-  getMemberCommittees,
   getMembersRanked,
   getMembersTopicMix,
   getMemberStates,
   getUpcomingMeetings,
-  getSponsorRecentBills,
-  getSponsorStats,
-  getSponsorTopTopics,
   type MemberRanking,
   sanitizeChamber,
   sanitizeIncludeCeremonial,
@@ -207,19 +203,10 @@ export default async function MembersPage({
   const expandedMember = expandedParam
     ? rows.find((r) => r.bioguide_id === expandedParam)
     : undefined;
+  // HO 630 extracted this assembly to lib/queries::getMemberCardExpansion — same
+  // five cached helpers, same shape, now shared with the Absence Watch band.
   const expansion = expandedMember
-    ? await (async () => {
-        const key = expandedMember.bioguide_id;
-        const [stats, topics, recentBills, committees, affiliations] =
-          await Promise.all([
-            getSponsorStats(key, includeCeremonial),
-            getSponsorTopTopics(key, 3, includeCeremonial),
-            getSponsorRecentBills(key, includeCeremonial),
-            getMemberCommittees(key),
-            getMemberAffiliations(key),
-          ]);
-        return { key, stats, topics, recentBills, committees, affiliations };
-      })()
+    ? await getMemberCardExpansion(expandedMember.bioguide_id, includeCeremonial)
     : null;
 
   // Member → rail marking: the systemCodes the expanded member sits on, marked
