@@ -94,8 +94,17 @@
   /* HO 297 (B6): the FIRST sans face in CBT — prose/titles only, a deliberate
      departure from the mono-only convention (per the b6 mock). Mono stays for
      all chrome: chips, ids, metrics, labels. First use is the v2 feed-row title;
-     everything else stays `var(--font-mono)`. */
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+     everything else stays `var(--font-mono)`.
+
+     HO 633 — the face is now IBM PLEX SANS, self-hosted via next/font in
+     app/layout.tsx (weights 400/500/600, latin). The old system stack is
+     DEMOTED TO FALLBACK rather than deleted, so a font that fails to load
+     degrades to what shipped before it rather than to a serif default.
+     This token is the seam and the scope: no consumer was edited, so every
+     `var(--sans)` site moved together. Changing the face is one line here plus
+     one import there — keep it that way. */
+  --sans: var(--font-plex-sans), system-ui, -apple-system, "Segoe UI", Roboto,
+    sans-serif;
 
   /* Home-header height. Drives the no-scroll calc on .home-grid:
      `height: calc(100vh - var(--home-header-height) - 24px)`. The
