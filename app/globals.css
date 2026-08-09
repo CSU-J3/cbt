@@ -4219,11 +4219,24 @@ body {
    The header is also why the open-group frame still reads: `.v2f-group.open` has
    margin:-1px 0, so an open group directly under a header pulls its amber border
    into the header's bottom edge — the same 1px band the 628 hairline already
-   shares with it, and the open group's z-index:1 wins there too. */
+   shares with it, and the open group's z-index:1 wins there too.
+
+   HO 632 C4 — WEIGHT 400, A DELIBERATE DEVIATION FROM THE MOCK, WHICH STAYS AT
+   600. mock-632's `.grp` is the ruled-state record and is not edited; the owner
+   then read the shipped surface and asked for the bold to be scaled back, which
+   is the HO 623 precedent (an owner ruling made off the live render, the mock
+   left standing and the deviation recorded rather than back-fitted). A mock is
+   the record of what was ruled, not a claim about what the pixels do — so when
+   the two disagree after the owner has seen the render, the render wins and the
+   mock keeps the history.
+   NOTHING ELSE MOVES: amber-bright, .18em tracking, the 8px 12px 5px padding and
+   the 2px left edge are all still verbatim from the mock. That is the point of
+   the shape of this change — one variable, so the next screenshot attributes
+   whatever it shows to the weight and to nothing else. */
 .v2f-grp {
   color: var(--accent-amber-bright);
   font-size: var(--fs-10);
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.18em;
   padding: 8px 12px 5px;
   border-top: 1px solid var(--border-strong);
