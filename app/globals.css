@@ -3909,8 +3909,15 @@ body {
 /* HO 260 — v2 COMPETITIVE rich race cards (the mock's `.race-card`). v2-only
    (CompetitiveRacesStrip variant="v2"); `/` keeps the 2×2 popover cards. The
    mock's --party-dem/--party-rep map to the app's --party-democrat/-republican;
-   the name stays mono (HO 257 established CBT has no --sans), distinguished by
-   size + --text-primary. .hl is the card↔battlefield-marker cross-highlight. */
+   the name stays mono, distinguished by size + --text-primary. .hl is the
+   card↔battlefield-marker cross-highlight.
+   HO 633 — the CHOICE above stands, its old justification does not. This used
+   to read "HO 257 established CBT has no --sans", which had been false since
+   the 609-era title work and is now doubly so: the sans face is IBM Plex Sans,
+   self-hosted (HO 633, superseding HO 257). The rule the mono choice actually
+   rests on: chrome, labels and ids are MONO; --sans is the reading face, for
+   titles and prose. A seat label is chrome, so it is mono — by the rule, not by
+   the absence of an alternative. */
 /* HO 610 — the track floor. `repeat(4, 1fr)` could not hold four ~280–372px
    min-content cards below 1400px: the page scrolled 120px sideways at 1200 and
    20px at 1300, and at 1440 the grid overflowed its own container by 327px
@@ -4195,8 +4202,15 @@ body {
 
 /* HO 257 — Dashboard v2 feed (MOVERS / TOP STALLS / NEW THIS WEEK) rows +
    rich expand, per the docs/dashboard-2col mock's MOVERS box. v2-specific
-   (V2FeedList); `/`'s feed keeps the old BillRowList/TopStallsList. Prose
-   inherits the app's mono (no --sans in CBT); labels/ids stay mono. */
+   (V2FeedList); `/`'s feed keeps the old BillRowList/TopStallsList.
+   HO 633 — this used to read "Prose inherits the app's mono (no --sans in
+   CBT)", and it described neither the rule nor the shipped state: this feed's
+   titles and summaries have been on --sans since the 609-era title work, and
+   the token now resolves to IBM Plex Sans, self-hosted (HO 633, superseding
+   HO 257). The rule: chrome, labels and ids are MONO; --sans is the reading
+   face, for titles and prose — which is what these rows do. A comment stating
+   the opposite of the shipped state is its own defect (the HO 632 finding, on
+   the feed-groups refusal three rules below this one). */
 /* HO 628 — the mock's `.mv` carries `border-top:.5px solid var(--border-soft)`
    alongside its 5px padding and hover background; the HO 609 rebuild took the
    padding and the hover and dropped the line. At depth 5 the omission never read;
