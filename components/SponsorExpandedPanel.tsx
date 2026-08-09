@@ -316,21 +316,42 @@ export function SponsorExpandedPanel({
             )}
           </div>
 
-          {/* Buttons (stacked) */}
+          {/* Buttons (stacked).
+
+              HO 632 C3 — under COMPACT density only, these lose their boxes and
+              become plain amber links, the same quiet idiom the bxp metabox took.
+              `/members` renders at full density, where no such ruling was made, so
+              it keeps its boxes and must stay byte-identical (render-diffed, per
+              HO 631).
+
+              The arrow MOVES rather than doubling: the boxed labels already end in
+              a trailing →, and the quiet idiom puts a leading → on the link, so the
+              compact label drops the trailing one. Writing both would render
+              "→ View detail →". Both branches render a SINGLE text child, so
+              neither gains the text-segment markers that broke byte-identity at
+              HO 631 — verified by the render-diff, not assumed. */}
           <div className="mt-auto flex flex-col gap-2 pt-1">
             {detailHref ? (
               <Link
                 href={detailHref}
-                className="sponsor-card-btn sponsor-card-btn--amber"
+                className={
+                  compact
+                    ? "sponsor-card-link"
+                    : "sponsor-card-btn sponsor-card-btn--amber"
+                }
               >
-                View detail →
+                {compact ? "→ View detail" : "View detail →"}
               </Link>
             ) : null}
             <Link
               href={openInFeedHref}
-              className="sponsor-card-btn sponsor-card-btn--soft"
+              className={
+                compact
+                  ? "sponsor-card-link"
+                  : "sponsor-card-btn sponsor-card-btn--soft"
+              }
             >
-              Open in feed →
+              {compact ? "→ Open in feed" : "Open in feed →"}
             </Link>
           </div>
         </div>

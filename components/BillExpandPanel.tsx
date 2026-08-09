@@ -605,15 +605,19 @@ export function BillExpandPanel({
 
           {/* HO 627 §2: the `Full Bill Page →` primary button moved to the panel
               header (.bxp-head) — see the note there. Congress.gov stays. */}
+          {/* HO 632 C3 — the last boxed button in this panel becomes a plain
+              amber link. The leading → is the quiet idiom's affordance (mock-632),
+              and the ↗ stays because it means something different: one marks the
+              link, the other marks that it leaves the site. */}
           <div className="bxp-btns">
             <a
-              className="bxp-btn bxp-btn--secondary"
+              className="bxp-golink"
               href={cgUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
             >
-              Congress.gov ↗
+              → Congress.gov ↗
             </a>
           </div>
         </div>

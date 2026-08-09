@@ -4775,12 +4775,20 @@ body {
   color: var(--accent-amber-bright);
 }
 /* right column — boxed meta card with hairline dividers between every row. */
+/* HO 632 C3 — the metabox goes quiet. SUBTRACTION ONLY: the box (background,
+   border, radius, padding) is removed and nothing is added in its place, because
+   `.bxp-mrow` below already carries `border-bottom: 1px solid var(--border-strong)`
+   — the hairline-separated rows the mock's quiet variant draws are what this panel
+   has had all along, wearing a box. Rows are deliberately NOT retuned here (the
+   mock also tightens their padding to 8px; that is out of this ruling's scope, and
+   the separator weight is unruled).
+
+   GLOBAL, NOT DASHBOARD-SCOPED, and that is the ruling rather than an oversight:
+   this panel is shared with /bills, so a dashboard-only fork would put two
+   treatments on the same panel showing the same rows on two surfaces — the pre-316
+   chip problem in reverse. /bills rides this deliberately. */
 .bxp-metabox {
   align-self: start;
-  background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 3px;
-  padding: 1px 14px;
 }
 .bxp-mrow {
   padding: 11px 0;
@@ -4868,6 +4876,21 @@ body {
   display: flex;
   gap: 10px;
   padding: 13px 0 4px;
+}
+/* HO 632 C3 — the quiet replacement for .bxp-btn--secondary, which had exactly
+   one consumer (the Congress.gov link; the primary moved to .bxp-head at HO 627).
+   Same type treatment, no box: no border, no radius, no horizontal padding. */
+.bxp-golink {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--accent-amber);
+  padding: 2px 0;
+}
+.bxp-golink:hover {
+  color: var(--accent-amber-bright);
 }
 .bxp-btn {
   font-size: 10.5px;
@@ -6617,6 +6640,25 @@ body {
 .sponsor-card-rail,
 .sponsor-card-mid {
   border-right: 1px solid var(--border-strong);
+}
+/* HO 632 C3 — the COMPACT card's quiet button treatment. Not a modifier on
+   .sponsor-card-btn but its own class, because it shares none of the box: the
+   boxed rule is border + centred text + block padding, and the quiet one keeps
+   only the type. Scoped by the component to density="compact", so /members'
+   full-density card is untouched (HO 507 rule: opt in explicitly, do not hope an
+   override fails to reach the other consumer). The mock also flattens the
+   secondary link's muted colour to amber — both read as one list of actions once
+   the boxes are gone, and a dim one would read as disabled. */
+.sponsor-card-link {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--accent-amber);
+  padding: 2px 0;
+}
+.sponsor-card-link:hover {
+  color: var(--accent-amber-bright);
 }
 .sponsor-card-btn {
   display: block;
