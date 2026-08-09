@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mock 632 — quiet cards + feed groups</title>
+<style>
+/* ============================================================
+   mock-632-quiet-cards-and-groups
+   Bridges the uploaded mock-591 revision (feed groups, stage-
+   colored tokens, quiet idiom) onto the CURRENT dashboard:
+   45% column, 628 hairline, 631 compact overlay card.
+   KNOB A: FEED GROUPS — TODAY/YESTERDAY/EARLIER headers,
+           the earlier revision's treatment, refused at 609
+           because the committed mock lacked them.
+   KNOB B: STAGE COLOR — l2 stage token colored by stage.
+   KNOB C: CARDS — SHIPPED (boxed metabox, boxed buttons)
+           vs QUIET (hairline sections, plain amber links).
+   CONSTANTS: topic chips in the member card STAY BORDERED in
+   both variants — they are links (HO 619 chip rule, function
+   not taste). The six-member two-column absence band from the
+   reference is NOT carried (ruled out at HO 621/622).
+   All data illustrative. Tokens verbatim @ bd8fe92.
+   ============================================================ */
+:root {
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --party-republican:#ef4444; --party-democrat:#3b82f6;
+  --stage-committee:#06b6d4; --stage-floor:#fbbf24; --stage-enacted:#10b981;
+  --market-up:#10b981; --market-down:#ef4444;
+  --space-md:12px;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
+  --fs-9:9px; --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+}
+@media (min-width:1600px){:root{--fs-9:10px;--fs-10:11px;--fs-11:12px;--fs-12:13px;--fs-13:14px;--fs-14:15px}}
+@media (min-width:2000px){:root{--fs-9:11px;--fs-10:12px;--fs-11:13px;--fs-12:14px;--fs-13:15px;--fs-14:16px}}
+@media (min-width:2400px){:root{--fs-9:12px;--fs-10:13px;--fs-11:14px;--fs-12:15px;--fs-13:16px;--fs-14:17px}}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg-base);color:var(--text-primary);font-family:var(--mono)}
+a{color:inherit;text-decoration:none}
+.dim{color:var(--text-dim)}.mut{color:var(--text-muted)}.amb{color:var(--accent-amber)}
+.rep{color:var(--party-republican)}.dem{color:var(--party-democrat)}.up{color:var(--market-up)}
+
+.knob{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;align-items:center;gap:14px;padding:8px 14px;background:#000;
+  border:1px solid var(--border-strong);border-radius:4px;font-size:12px;box-shadow:0 4px 24px rgba(0,0,0,.6);white-space:nowrap}
+.knob .grp-k{display:flex;align-items:center;gap:6px}
+.knob b{color:var(--accent-amber-bright);letter-spacing:.06em}
+.knob button{font-family:var(--mono);font-size:12px;background:none;border:1px solid var(--border-strong);
+  color:var(--text-muted);padding:3px 9px;border-radius:2px;cursor:pointer}
+.knob button.on{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+
+.dash-page{display:grid;grid-template-columns:minmax(0,1fr) minmax(480px,45%);
+  gap:var(--space-md);padding:10px 24px 90px;align-items:start}
+.dash-left{display:flex;flex-direction:column;gap:var(--space-md);min-width:0}
+.panel{background:var(--bg-panel);border:0.5px solid var(--border-soft);padding:10px 14px}
+
+/* ---- absence band + overlay (631 state) ---- */
+.abw{position:relative;padding:0}
+.abw .hd{color:var(--accent-amber);font-size:var(--fs-10);letter-spacing:.12em;padding:8px var(--space-md) 4px}
+.abw-row{display:flex;align-items:baseline;gap:8px;padding:4px var(--space-md);cursor:pointer;
+  border-top:0.5px solid var(--border-soft);font-size:var(--fs-11)}
+.abw-row:hover{background:var(--bg-row-hover)}
+.abw-row .disc{flex:none;font-size:var(--fs-9);color:var(--text-dim);position:relative;top:-1px}
+.abw-row.open-row .disc{transform:rotate(90deg);color:var(--accent-amber)}
+.abw-row .nm{font-weight:700}
+.abw .ft{color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.08em;padding:6px var(--space-md) 8px}
+.abw-pop{position:absolute;top:100%;left:0;right:0;z-index:50;margin-top:2px;
+  background:var(--bg-row-hover);border:1px solid var(--accent-amber);
+  box-shadow:0 14px 44px rgba(0,0,0,.72);max-height:min(72vh,760px,calc(100vh - 360px));overflow-y:auto}
+
+/* compact card (631) */
+.sxp{display:grid;grid-template-columns:168px minmax(0,1.5fr) minmax(0,1.5fr);gap:18px;padding:12px 16px;container:abwcard / inline-size}
+.sxp .rail{display:flex;flex-direction:column;gap:7px}
+.sxp .idline{display:flex;gap:10px;align-items:center}
+.sxp .photo{width:56px;height:66px;background:#1a2230;display:flex;align-items:center;justify-content:center;
+  color:var(--text-dim);font-size:14px;letter-spacing:.1em;flex:none}
+.sxp .who{font-size:var(--fs-13);font-weight:700}
+.sxp .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-top:4px}
+.sxp .v{font-size:var(--fs-11)}
+.sxp .chips{display:flex;gap:6px;flex-wrap:wrap}
+.sxp .chip{border:1px solid;border-radius:2px;padding:1px 7px;font-size:var(--fs-10)} /* LINKS — border stays, both variants */
+.sxp .colhd{font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em;margin-bottom:8px}
+.sxp .brow{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-12);padding:3px 0;white-space:nowrap;overflow:hidden}
+.sxp .brow .id{color:var(--accent-amber);font-size:var(--fs-11);flex:none;min-width:8ch}
+.sxp .brow .t{overflow:hidden;text-overflow:ellipsis;min-width:0;font-family:var(--sans)}
+.sxp .brow .d{color:var(--text-dim);font-size:var(--fs-10);flex:none;margin-left:auto}
+.sxp .seeall{color:var(--accent-amber);font-size:var(--fs-11);letter-spacing:.08em;margin-top:8px}
+.sxp .crow{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-11);padding:3px 0;white-space:nowrap;overflow:hidden;break-inside:avoid}
+.sxp .crow .cn{overflow:hidden;text-overflow:ellipsis;min-width:0;font-family:var(--sans)}
+.sxp .crow .tag{flex:none;margin-left:auto;font-size:var(--fs-9);letter-spacing:.1em;color:var(--text-dim)}
+.sxp .crow .tag.chair{color:#000;background:var(--accent-amber);padding:1px 6px;border-radius:2px;font-weight:700}
+.sxp .cols2{column-count:2;column-gap:22px}
+@container abwcard (max-width:1050px){.sxp{grid-template-columns:minmax(0,1fr)}.sxp .cols2{column-count:1}
+  .sxp .rail{flex-direction:row;flex-wrap:wrap;gap:8px 20px}}
+
+/* card buttons — the C knob's absence-side delta */
+.sxp .btn{border:1px solid var(--accent-amber);color:var(--accent-amber-bright);text-align:center;
+  padding:5px 0;font-size:var(--fs-10);letter-spacing:.1em;cursor:pointer}
+.sxp .btn.sec{border-color:var(--border-strong);color:var(--text-muted)}
+body.q .sxp .btn{border:none;text-align:left;padding:2px 0;color:var(--accent-amber)}
+body.q .sxp .btn.sec{color:var(--accent-amber)}
+body.q .sxp .btn::before{content:"→ "}
+
+/* ---- left stubs the overlay paints over ---- */
+.hrgline{display:flex;gap:12px;font-size:var(--fs-11);white-space:nowrap;overflow:hidden}
+.brk-row{display:flex;gap:14px;padding:5px 2px;font-size:var(--fs-12);border-top:0.5px solid var(--border-soft);white-space:nowrap;overflow:hidden}
+.brk-row:first-of-type{border-top:none}
+.brk-row .id{color:var(--accent-amber);font-size:var(--fs-11);flex:none;min-width:9ch}
+.brk-row .hl{overflow:hidden;text-overflow:ellipsis}
+
+/* ---- bills rail ---- */
+.dash-bills{position:sticky;top:10px;max-height:calc(100vh - 20px);display:flex;flex-direction:column;
+  background:var(--bg-panel);border:0.5px solid var(--border-soft);min-width:0}
+.rail-tabs{display:flex;gap:20px;padding:10px 14px 8px;font-size:var(--fs-11);letter-spacing:.1em;flex:none}
+.rail-tabs .t{color:var(--text-muted)}
+.rail-tabs .t.on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber);padding-bottom:3px}
+.v2f{overflow-y:auto;min-height:0;flex:1}
+.pfoot{flex:none;padding:8px 12px;font-size:var(--fs-11);color:var(--accent-amber)}
+
+/* KNOB A — the uploaded revision's group header, verbatim treatment */
+.grp{display:none;color:var(--accent-amber-bright);font-size:var(--fs-10);font-weight:600;letter-spacing:.18em;
+  padding:8px 12px 5px;border-top:1px solid var(--border-strong);border-left:2px solid var(--accent-amber);background:#080b11}
+body.g .grp{display:block}
+body.g .grp + .v2f-group{border-top:none} /* header's strong line replaces the hairline — seam for the handoff */
+.v2f-group + .v2f-group{border-top:0.5px solid var(--border-soft)}
+.v2f-group.open{background:var(--bg-row-hover);border:1px solid var(--accent-amber);
+  margin:-1px 0;position:relative;z-index:1}
+.v2f-row{padding:5px 12px;cursor:pointer;line-height:1.4}
+.v2f-row:hover{background:var(--bg-row-hover)}
+.v2f-l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.v2f-disc{flex:none;font-size:var(--fs-9);color:var(--text-dim);line-height:1;position:relative;top:-1px}
+.v2f-group.open .v2f-disc{transform:rotate(90deg);color:var(--accent-amber)}
+.v2f-id{flex:none;font-size:var(--fs-11);color:var(--accent-amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.v2f-title-wrap{flex:0 1 auto;min-width:0}
+.v2f-title{display:block;font-family:var(--sans);font-size:var(--fs-14);color:var(--text-primary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2f-l2{margin-top:1px;font-size:var(--fs-10);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2f-l2 .sp{margin:0 6px}
+.v2f-stage{letter-spacing:.08em}
+/* KNOB B — stage token color: FLOOR/ENACTED speak, CMTE stays dim */
+body.s .v2f-stage.floor{color:var(--stage-floor)}
+body.s .v2f-stage.enac{color:var(--stage-enacted)}
+
+/* ---- bxp panel ---- */
+.bxp-wrap{container:bxp / inline-size;padding:4px 12px 14px}
+.bxp-stage{display:grid;grid-template-columns:repeat(6,1fr);margin:10px 0 4px}
+.bxp-stage .st{position:relative;text-align:center}
+.bxp-stage .dot{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--text-dim);background:var(--bg-panel);margin:0 auto}
+.bxp-stage .st.done .dot{background:var(--stage-committee);border-color:var(--stage-committee)}
+.bxp-stage .st::before{content:"";position:absolute;top:4px;left:-50%;width:100%;height:1px;background:var(--border-strong)}
+.bxp-stage .st:first-child::before{display:none}
+.bxp-stage .st.done::before{background:var(--stage-committee)}
+.bxp-stage .lb{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.08em;margin-top:6px}
+.bxp-stage .dt{font-size:var(--fs-9);color:var(--stage-committee);margin-top:2px;min-height:1em}
+.bxp-drill{font-size:var(--fs-10);color:var(--accent-amber);letter-spacing:.1em;margin:10px 0}
+.bxp-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,300px);gap:18px}
+@container bxp (max-width:520px){.bxp-body{grid-template-columns:minmax(0,1fr)}}
+.bxp-sum{font-family:var(--sans);font-size:var(--fs-13);line-height:1.5;color:var(--text-secondary)}
+.bxp-sec{margin-top:12px}
+.bxp-sec .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-bottom:3px}
+.bxp-sec .v{font-size:var(--fs-11);color:var(--text-dim)}
+
+/* KNOB C on the metabox: SHIPPED boxed vs QUIET hairline sections */
+.bxp-meta{align-self:start;background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:3px;padding:1px 14px}
+.bxp-meta .mrow{padding:11px 0}
+.bxp-meta .mrow + .mrow{border-top:0.5px solid var(--border-soft)}
+.bxp-meta .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-bottom:3px}
+.bxp-meta .v{font-size:var(--fs-11);color:var(--text-secondary)}
+.bxp-meta .v.sans{font-family:var(--sans);font-size:var(--fs-12);line-height:1.45}
+.bxp-meta .cg{display:inline-block;margin-top:2px;border:0.5px solid var(--border-strong);
+  padding:4px 10px;font-size:var(--fs-10);letter-spacing:.1em;color:var(--text-muted)}
+body.q .bxp-meta{background:none;border:none;border-radius:0;padding:0}
+body.q .bxp-meta .mrow{padding:8px 0}
+body.q .bxp-meta .mrow:first-child{padding-top:0}
+body.q .bxp-meta .cg{border:none;padding:2px 0;color:var(--accent-amber)}
+body.q .bxp-meta .cg::before{content:"→ "}
+</style>
+</head>
+<body class="g s q">
+
+<div class="knob">
+  <span class="grp-k"><b>A GROUPS</b><button data-k="g" class="on">ON</button></span>
+  <span class="grp-k"><b>B STAGE COLOR</b><button data-k="s" class="on">ON</button></span>
+  <span class="grp-k"><b>C CARDS</b><button data-k="q" class="on">QUIET</button></span>
+  <span class="dim" style="font-size:11px">off = shipped state · chips stay bordered (links, HO 619 rule)</span>
+</div>
+
+<div class="dash-page">
+  <div class="dash-left">
+    <div class="panel abw" id="band">
+      <div class="hd">▲ MIA <span class="dim">(2)</span></div>
+      <div class="abw-row open-row"><span class="disc">▸</span><span class="nm">Mitch McConnell</span> <span class="rep">R-KY</span>
+        <span>NO VOTE CAST SINCE JUN 11</span><span class="dim">· 51 CONSECUTIVE ROLL CALLS · 14.1% OF 119TH VOTES</span></div>
+      <div class="abw-row"><span class="disc">▸</span><span class="nm">Frederica S. Wilson</span> <span class="dem">D-FL</span>
+        <span>NO VOTE CAST SINCE JUL 16</span><span class="dim">· 34 CONSECUTIVE ROLL CALLS · 29.3% OF 119TH VOTES</span></div>
+      <div class="ft">NON-VOTING DELEGATES EXCLUDED · REFRESHES AFTER SYNC-VOTES</div>
+
+      <div class="abw-pop">
+        <div class="sxp">
+          <div class="rail">
+            <div class="idline"><div class="photo">MM</div><div>
+              <div class="who">Sen. Mitch McConnell</div><div class="rep" style="font-size:var(--fs-12)">[R-KY]</div></div></div>
+            <div class="k">TOTAL BILLS</div><div class="v"><b>12</b></div>
+            <div class="k">ENACTED</div><div class="v up"><b>0 (0%)</b></div>
+            <div class="k">STAGES</div><div class="v amb">▸ COMM 6 ▸▸ FLOOR 6</div>
+            <div class="k">TOPICS</div>
+            <div class="chips">
+              <span class="chip" style="border-color:#f43f5e;color:#f43f5e">GOV 6</span>
+              <span class="chip" style="border-color:#06b6d4;color:#06b6d4">AGR 2</span>
+              <span class="chip" style="border-color:#d946ef;color:#d946ef">ENV 2</span>
+            </div>
+            <div class="k">USCPR SCORECARD</div><div class="v mut">NOT SCORED</div>
+            <div style="flex:1"></div>
+            <div class="btn">VIEW DETAIL</div><div class="btn sec">OPEN IN FEED</div>
+          </div>
+          <div>
+            <div class="colhd">RECENT BILLS · 12 TOTAL</div>
+            <div class="brow"><span class="id">S 4530</span><span class="t">A bill to amend chapters 83 and 84 of title 5, United States Code</span><span class="d">05-19-26</span></div>
+            <div class="brow"><span class="id">SRES 388</span><span class="t">A resolution recognizing September 16, 2025, as National Guard Day</span><span class="d">09-15-25</span></div>
+            <div class="brow"><span class="id">S 2572</span><span class="t">Department of Defense Appropriations Act, 2026</span><span class="d">07-31-25</span></div>
+            <div class="brow"><span class="id">SRES 362</span><span class="t">A resolution to provide for the printing of a revised edition</span><span class="d">07-31-25</span></div>
+            <div class="brow"><span class="id">S 1674</span><span class="t">Mammoth Cave National Park Boundary Adjustment Act</span><span class="d">05-08-25</span></div>
+            <div class="brow"><span class="id">S 930</span><span class="t">A bill to amend the Internal Revenue Code of 1986</span><span class="d">03-11-25</span></div>
+            <div class="brow"><span class="id">SRES 117</span><span class="t">A resolution providing for members on the part of the Senate</span><span class="d">03-06-25</span></div>
+            <div class="brow"><span class="id">S 812</span><span class="t">A bill to reauthorize certain programs under the SUPPORT Act</span><span class="d">02-27-25</span></div>
+            <div class="brow"><span class="id">SRES 98</span><span class="t">A resolution honoring the University of Kentucky</span><span class="d">02-13-25</span></div>
+            <div class="brow"><span class="id">S 455</span><span class="t">A bill to designate the facility of the United States Postal Service</span><span class="d">02-06-25</span></div>
+            <div class="seeall">[ + 2 MORE → ]</div>
+          </div>
+          <div>
+            <div class="colhd">COMMITTEES · 14</div>
+            <div class="cols2">
+              <div class="crow"><span class="cn">Agriculture, Nutrition, and Forestry Committee</span><span class="tag">SENATE</span></div>
+              <div class="crow"><span class="cn">Appropriations Committee</span><span class="tag">SENATE</span></div>
+              <div class="crow"><span class="cn">Rules and Administration Committee</span><span class="tag chair">CHAIR</span></div>
+              <div class="crow"><span class="cn">Joint Committee on Printing</span><span class="tag chair">CHAIR</span></div>
+              <div class="crow"><span class="cn">Joint Committee on the Library</span><span class="tag chair">CHAIR</span></div>
+              <div class="crow"><span class="cn dim">└</span><span class="cn">Commodities, Derivatives, Risk Mgmt Sub.</span><span class="tag">SENATE</span></div>
+              <div class="crow"><span class="cn dim">└</span><span class="cn">Food and Nutrition, Specialty Crops Sub.</span><span class="tag chair">CHAIR</span></div>
+              <div class="crow"><span class="cn dim">└</span><span class="cn">Rural Development, Energy, Credit Sub.</span><span class="tag">SENATE</span></div>
+              <div class="crow"><span class="cn dim">└</span><span class="cn">Agriculture, Rural Development, FDA Sub.</span><span class="tag">SENATE</span></div>
+              <div class="crow"><span class="cn dim">└</span><span class="cn">Department of Defense Subcommittee</span><span class="tag chair">CHAIR</span></div>
+            </div>
+            <div class="seeall">[ + 4 MORE → ]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="hrgline"><b>NEXT</b> · <b>THU SEP 17</b> <span class="dim">· 1 SCHEDULED</span>
+        <span class="dim">20 THIS WEEK <span class="up">▲10</span></span> <span class="amb">→ ALL</span></div>
+    </div>
+    <div class="panel">
+      <div style="font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em;margin-bottom:4px">BREAKING · LAST 72H (32)</div>
+      <div class="brk-row"><span class="id">S 5299</span><span class="hl">Trump administration targets Head Start for overhaul</span><span class="dim">3h</span></div>
+      <div class="brk-row"><span class="id">SRES 817</span><span class="hl">Senate confirms 74 Trump nominees: Here are 5 notable ones</span><span class="dim">4h</span></div>
+      <div class="brk-row"><span class="id">S 4668</span><span class="hl">Trump urges GOP to keep Senate in session until college sports bill passes</span><span class="dim">5h</span></div>
+      <div class="brk-row"><span class="id">HR 9874</span><span class="hl">What to know about the Minnesota Senate election</span><span class="dim">8h</span></div>
+    </div>
+  </div>
+
+  <div class="dash-bills">
+    <div class="rail-tabs"><span class="t on">MOVERS <span class="dim">(198)</span></span><span class="t">TOP STALLS <span class="dim">(5)</span></span><span class="t">NEW THIS WEEK <span class="dim">(139)</span></span></div>
+    <div class="v2f">
+      <div class="grp">TODAY</div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 9972</span><span class="v2f-title-wrap"><span class="v2f-title">American Patients First Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 2h<span class="sp">·</span><span class="rep">SESSIONS [R-TX]</span><span class="sp">·</span>HLTH</div>
+      </div></div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 5108</span><span class="v2f-title-wrap"><span class="v2f-title">Right to IVF Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 2h<span class="sp">·</span><span class="dem">DUCKWORTH [D-IL]</span><span class="sp">·</span>HLTH VET</div>
+      </div></div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 4118</span><span class="v2f-title-wrap"><span class="v2f-title">Continuing Appropriations Extension Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage floor">FLOOR</span> 4h<span class="sp">·</span><span class="rep">COLLINS [R-ME]</span><span class="sp">·</span>GOV</div>
+      </div></div>
+
+      <!-- OPEN GROUP -->
+      <div class="v2f-group open"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HJRES 212</span><span class="v2f-title-wrap"><span class="v2f-title">Providing congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Environmental Protection Agency relating to vehicle emissions waivers</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 7h<span class="sp">·</span><span class="rep">PFLUGER [R-TX]</span><span class="sp">·</span>ENV ENRG</div>
+      </div>
+      <div class="bxp-wrap">
+        <div class="bxp-stage">
+          <div class="st done"><div class="dot"></div><div class="lb">INTRO</div><div class="dt">2026-08-06</div></div>
+          <div class="st done"><div class="dot"></div><div class="lb">COMMITTEE</div><div class="dt">2026-08-07</div></div>
+          <div class="st"><div class="dot"></div><div class="lb">FLOOR</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">OTHER CHAMBER</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">PRESIDENT</div><div class="dt"></div></div>
+          <div class="st"><div class="dot"></div><div class="lb">ENACTED</div><div class="dt"></div></div>
+        </div>
+        <div class="bxp-drill">→ FULL PAGE</div>
+        <div class="bxp-body">
+          <div>
+            <div class="bxp-sum">This bill would reverse a decision by the Environmental Protection Agency (EPA) that currently allows California to set its own stricter vehicle emissions standards. If enacted, states that have adopted California's clean car standards would no longer be able to enforce those rules, potentially affecting consumers who would otherwise have access to more fuel-efficient or lower-emission vehicles in those states.</div>
+            <div class="bxp-sec"><div class="k">HEARING</div><div class="v">NO RELATED HEARINGS</div></div>
+            <div class="bxp-sec"><div class="k">RELATED NEWS</div><div class="v">NO RELATED NEWS</div></div>
+            <div class="bxp-sec"><div class="k">ODDS</div><div class="v">NO PREDICTIONS MADE</div></div>
+          </div>
+          <div class="bxp-meta">
+            <div class="mrow"><div class="k">SPONSOR</div><div class="v"><span class="rep" style="text-decoration:underline">Rep. August Pfluger [R-TX-11]</span></div></div>
+            <div class="mrow"><div class="k">COMMITTEE</div><div class="v dim">—</div></div>
+            <div class="mrow"><div class="k">INTRODUCED</div><div class="v">2026-08-06</div></div>
+            <div class="mrow"><div class="k">LATEST ACTION</div><div class="v sans">Referred to the House Committee on Energy and Commerce. <span class="dim">· 2d</span></div></div>
+            <div class="mrow"><span class="cg">CONGRESS.GOV ↗</span></div>
+          </div>
+        </div>
+      </div></div>
+
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 9990</span><span class="v2f-title-wrap"><span class="v2f-title">Increasing Mental Health Options Act of 2026</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 8h<span class="sp">·</span><span class="rep">MALLIOTAKIS [R-NY]</span><span class="sp">·</span>HLTH</div>
+      </div></div>
+
+      <div class="grp">YESTERDAY</div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 629</span><span class="v2f-title-wrap"><span class="v2f-title">Veterans Telehealth Access Improvement Act</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage enac">ENACTED</span> 1d<span class="sp">·</span><span class="dem">TESTER [D-MT]</span><span class="sp">·</span>HLTH DEF</div>
+      </div></div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10052</span><span class="v2f-title-wrap"><span class="v2f-title">To protect the right to the free exercise of religion.</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 1d<span class="sp">·</span><span class="rep">KNOTT [R-NC]</span><span class="sp">·</span>CIV GOV</div>
+      </div></div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10048</span><span class="v2f-title-wrap"><span class="v2f-title">To create national standards for labeling of covered materials as recyclable, compostable, reusable, and refillable</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 1d<span class="sp">·</span><span class="dem">CORREA [D-CA]</span><span class="sp">·</span>ENV CONS</div>
+      </div></div>
+
+      <div class="grp">EARLIER THIS WEEK</div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">S 1188</span><span class="v2f-title-wrap"><span class="v2f-title">Semiconductor Supply Chain Resilience Act</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage floor">FLOOR</span> 4d<span class="sp">·</span><span class="rep">YOUNG [R-IN]</span><span class="sp">·</span>TECH TRD</div>
+      </div></div>
+      <div class="v2f-group"><div class="v2f-row">
+        <div class="v2f-l1"><span class="v2f-disc">▸</span><span class="v2f-id">HR 10066</span><span class="v2f-title-wrap"><span class="v2f-title">To prohibit the purchase, sale, or exchange of nonpublic information, and for other purposes.</span></span></div>
+        <div class="v2f-l2"><span class="v2f-stage cmte">CMTE</span> 5d<span class="sp">·</span><span class="dem">SALINAS [D-OR]</span><span class="sp">·</span>CRIM TECH FIN</div>
+      </div></div>
+    </div>
+    <div class="pfoot">[ + 168 MORE → ]</div>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.knob button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var k=b.dataset.k, on=document.body.classList.toggle(k);
+    b.classList.toggle('on',on);
+    b.textContent = k==='q' ? (on?'QUIET':'SHIPPED') : (on?'ON':'OFF');
+  });
+});
+</script>
+</body>
+</html>
