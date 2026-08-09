@@ -4202,6 +4202,34 @@ body {
 .v2f-group + .v2f-group {
   border-top: 0.5px solid var(--border-soft);
 }
+/* HO 632 C2 — the feed's day-group header (TODAY / YESTERDAY / EARLIER THIS WEEK
+   / OLDER), treatment verbatim from mock-632's `.grp`. MOVERS and NEW only;
+   TOP STALLS is ordered by stall age and is deliberately ungrouped.
+
+   THE SEAM NEEDS NO OVERRIDE, and that is a property of the selector rather than
+   a coincidence. The 628 hairline is `.v2f-group + .v2f-group`; a header sits
+   BETWEEN two groups as their sibling, so the adjacency simply does not match
+   across it and the hairline is absent exactly where this rule's own border-top
+   takes over. The mock ships a defensive `.grp + .v2f-group{border-top:none}`;
+   it is genuinely redundant here and is deliberately NOT carried, because a
+   no-op override is indistinguishable from a load-bearing one to the next reader.
+   Verified rather than reasoned: no doubled line under a header, and none at the
+   tab-strip seam, at 1440 and 2560.
+
+   The header is also why the open-group frame still reads: `.v2f-group.open` has
+   margin:-1px 0, so an open group directly under a header pulls its amber border
+   into the header's bottom edge — the same 1px band the 628 hairline already
+   shares with it, and the open group's z-index:1 wins there too. */
+.v2f-grp {
+  color: var(--accent-amber-bright);
+  font-size: var(--fs-10);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  padding: 8px 12px 5px;
+  border-top: 1px solid var(--border-strong);
+  border-left: 2px solid var(--accent-amber);
+  background: #080b11;
+}
 .v2f-group.open {
   background: var(--bg-row-hover);
   /* HO 303 (B6 coherence): amber frame on the open row — the mock's expanded-row

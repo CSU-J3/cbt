@@ -32,11 +32,14 @@
 // ellipsizes as a unit, which also removes it from M1's candidate set by
 // construction rather than by tuning.
 //
-// NOT here, and not an oversight: no date-group headers. Backlog revision-J asked
-// for TODAY / YESTERDAY / EARLIER THIS WEEK, but the committed mock has no feed
-// groups — its TODAY/YESTERDAY strings belong to the hearings day bar — and the
-// mock wins (the HO 608 polarization precedent). Per-row relative age carries it.
-import { useEffect, useRef, useState } from "react";
+// DATE-GROUP HEADERS: here since HO 632, and the reversal is recorded rather than
+// quietly overwritten. HO 609 refused them on a sound rule — the committed mock had
+// no feed groups (its TODAY/YESTERDAY strings belonged to the hearings day bar) and
+// the mock wins. What changed is the mock, not the rule: mock-632 carries the groups
+// as knob A, so the same precedent that refused them now requires them. Grouping is
+// MOVERS + NEW only, and the buckets come from lib/feed-buckets (which owns the
+// per-mode field choice and the ET boundary — read its header before touching this).
+import { Fragment, useEffect, useRef, useState } from "react";
 import { daysSince, formatBillId, formatRelativeAge, parseTopics } from "@/lib/format";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
@@ -44,8 +47,12 @@ import { BILL_TYPE_LABELS } from "@/lib/enums";
 import { partyColor } from "@/lib/race-colors";
 import { topicLabel } from "@/lib/topic-colors";
 import type { FeedBill } from "@/lib/queries";
+import { groupFeed, type V2MetricMode } from "@/lib/feed-buckets";
 
-export type V2MetricMode = "movers" | "stalls" | "new";
+// Re-exported, not re-declared: lib/feed-buckets owns the union because its
+// signature turns on it (the mode IS the bucket-field choice). Two identical
+// declarations would typecheck today and drift the first time a mode is added.
+export type { V2MetricMode };
 
 // Stage → compact abbreviation for the collapsed-row transition (mock spec).
 const STAGE_ABBR: Record<string, string> = {
@@ -360,11 +367,16 @@ export function V2FeedList({
     };
   }, [expandedId, panelCache, handleLoaded]);
 
-  return (
-    <div className="v2f">
-      {bills.map((bill) => {
-        const open = expandedId === bill.id;
-        return (
+  // HO 632 — null for STALLS (ungrouped by design), otherwise the non-empty
+  // buckets in order. Headers render as SIBLINGS of the groups inside `.v2f`, not
+  // as wrappers: the 628 hairline is `.v2f-group + .v2f-group`, so a header
+  // between two groups breaks that adjacency on its own and the header's own
+  // border-top takes over the seam. No override rule, and nothing nests.
+  const groups = groupFeed(bills, metricMode, nowMs);
+
+  const renderBill = (bill: FeedBill) => {
+    const open = expandedId === bill.id;
+    return (
           <div key={bill.id} className={`v2f-group${open ? " open" : ""}`}>
             <div
               className="v2f-row"
@@ -414,8 +426,25 @@ export function V2FeedList({
               />
             ) : null}
           </div>
-        );
-      })}
+    );
+  };
+
+  return (
+    <div className="v2f">
+      {groups === null
+        ? bills.map(renderBill)
+        : groups.map((g) => (
+            // Fragment, so the header and its rows stay DIRECT children of `.v2f`
+            // — a wrapper div would break the `.v2f-group + .v2f-group` adjacency
+            // the 628 hairline rides, everywhere, not just at the header.
+            <Fragment key={g.bucket}>
+              {/* Inert by construction: no handler, no tabIndex, no role. It is a
+                  caption for the rows beneath it, and aria-hidden would be wrong
+                  (the text is real content); it simply isn't interactive. */}
+              <div className="v2f-grp">{g.label}</div>
+              {g.bills.map(renderBill)}
+            </Fragment>
+          ))}
     </div>
   );
 }
