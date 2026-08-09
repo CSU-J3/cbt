@@ -79,10 +79,17 @@ export function AbsenceWatchBand({
   // C4 — the conditional. No band, no header, no reserved space.
   if (members.length === 0) return null;
 
+  // HO 632 — display copy only. The FEATURE is still "Absence Watch" in the
+  // roadmap, the backlog and this file's name; MIA is what the band calls itself
+  // on screen. The two strings differ ON PURPOSE: the visible title is terse
+  // chrome (C3 — one bright element, and the ▲ already carries the alarm), while
+  // the accessible name keeps the context a sighted reader gets free from the
+  // band's position and neighbours. "MIA" alone would announce an initialism with
+  // none of that, which is a downgrade for the reader who can least afford one.
   return (
-    <section className="abw" aria-label="Absence watch">
+    <section className="abw" aria-label="MIA: absence watch">
       <div className="abw-head">
-        <span className="abw-title">▲ ABSENCE WATCH</span>
+        <span className="abw-title">▲ MIA</span>
         <span className="abw-count">({members.length})</span>
       </div>
       <AbsenceWatchRows
