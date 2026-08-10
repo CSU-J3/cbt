@@ -28,6 +28,35 @@ const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",
 });
 
+// HO 633 C1b — THE PRELOAD IS ON AND WORKS IN PRODUCTION. DO NOT HAND-ROLL A
+// <link rel="preload">, and do not "fix" this by adding one: it would double the
+// preload on prod and paper over a defect that is not in this repo.
+//
+// next/font's preload is entirely build-time and needs no option here (preload
+// defaults true). The loader marks the latin subset by emitting it as
+// `*.p.woff2`; NextFontManifestPlugin collects those into
+// .next/server/next-font-manifest.json; app-render's getPreloadableFonts reads
+// that manifest and calls ReactDOM.preload. Every link in that chain is Next's.
+//
+// THE CHAIN BREAKS ON WINDOWS, AND ONLY ON WINDOWS. The plugin finds the font
+// module with `mod.request.includes('/next-font-loader/index.js?')` — a
+// forward-slash literal — while the loader path is built with path.join, which
+// is backslash-separated here. The predicate never matches, the manifest ships
+// as {"pages":{},"app":{}}, getPreloadableFonts returns null, and nothing is
+// preloaded. Vercel builds on Linux, so prod is unaffected.
+//
+// The consequence that actually matters: A LOCAL FONT-TIMING MEASUREMENT ON
+// WINDOWS MEASURES THE UN-PRELOADED PATH, and reads as a product defect that
+// isn't there. Measured 2026-08-09 at this commit, 400kbps/150ms emulation, 3
+// runs each — local build: woff2 starts 3240-4070ms, AFTER the CSS that
+// discovers it, swap window +2776/+2783/+2798ms. Prod, identical source: woff2
+// starts 360-422ms, ~1.9s BEFORE the CSS finishes, swap window
+// +477/+543/+700ms. Unthrottled there is no flash either way (the font lands
+// before FCP: local -11 to -15ms, prod -74 to -142ms). Instruments live in
+// docs/handoffs/633-artifacts/ (flash-window, preload-check, zero-external);
+// preload-check is the one that reads the <link> out of the DOM, which is what
+// separates "we shipped it wrong" from "this build cannot emit it."
+
 export const metadata: Metadata = {
   // HO 361/364 — metadataBase so /welcome's OG card resolves to an absolute URL.
   // Points at the branded host congressional-terminal-chi-silk.vercel.app, which
