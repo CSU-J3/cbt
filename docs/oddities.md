@@ -1766,3 +1766,102 @@ was entirely in how the result was described, and that is the layer nothing else
 this arc's toolchain inspects. It is now a SKILL rule.
 
 ---
+
+## A constant fitted to a measured MINIMUM scores a row safe by 6px and it still gaps 121 — because ink is not an input to the geometry (HO 634, Aug 2026)
+
+`/lobbying`'s registrant→client column is capped at **340px**, and the cap is
+derived on the record: rc ink measured **min 239 · median 379 · max 561**, so
+`cap = threshold (120) + min-ink (239) − column-gap (14) = 345`, taken at 340. The
+model behind it is `gap ≈ cap − ink`, and it has two independent failure modes
+that look alike on a crawl and are not alike at all.
+
+**(i) The stale minimum — repairable.** A minimum is the one statistic over a
+growing corpus that can only move one way. Six of the seven over-threshold rows
+had natural ink **below 239** — 173, 173, 223, 231 among them — strings shorter
+than anything in the sample the cap was fitted to. Every pixel under 239 goes
+straight into the gap. **No commit, no regression: the data crossed under a
+constant.** Re-fitting the constant moves these rows, which is what makes them the
+easy half.
+
+**(ii) The false negative INSIDE the model's safe zone — and this is the one worth
+the entry.** One row measured natural ink **346px**: *above* the fitted minimum and
+near the fitted median, i.e. sitting in the middle of the distribution the cap was
+sized against. `cap − ink` scores it **6px, safe**. It gaps **121**. The cell wraps
+at a space, so what the geometry actually reads is the **widest resulting line**
+(231px), and the widest line has no relation to the natural width the model takes
+as input. Lowering the cap re-breaks the lines and moves that width in a way no
+track arithmetic predicts — which is why the disposition curve had to be **applied
+in the page and re-read** rather than computed.
+
+**The distinction that earns the entry:** (i) says the constant is stale and can be
+re-fitted. (ii) says **re-fitting is the wrong operation**, because no value of the
+cap makes the model's input the quantity that determines its output. A model can be
+wrong about a row *and score it comfortably safe* — 6px of margin on a 121px gap.
+Sharper sibling of *measured slack is a property of that day's feed* (HO 494),
+*illustrative mock data sets no numeric expectation* (HO 631), and *a mock or
+specimen is evidence about itself* (HO 633). Filed with disposition **(a) accepted
+residue**: the class is admitted to the permanent-residue register as class + bound
++ statistic rather than a px constant, precisely because it cannot have one.
+
+---
+
+## A criterion fixed in advance to be unfittable had a sample COUNT in it — so it failed on drift, not on mechanism (HO 634, Aug 2026)
+
+The ruling criterion for the `(c′)` disposition was written down and encoded
+**before** the measurement ran, specifically so the result could not be fitted to
+it afterwards. Clause 2 read: **"the six (i) rows each read gap 12"**, encoded as
+`count === 6 && atTwelve === 6`.
+
+At the run there were **four** (i) rows, and **all four read exactly 12**. The
+clause reported FAIL. Nothing about the mechanism had failed — the drift control in
+the *same script* independently showed the per-page over-counts moving
+`2/1/1/2/0 → 0/2/1/1/0`, because `/lobbying`'s feed is date-ordered and new filings
+push rows across page boundaries between crawls.
+
+**The instrument built to be immune to fitting carried the arc's own subject inside
+it: a sample reading baked into a constant, on the route where that count was
+already known to vary 1–3.** The rule that falls out: **a pre-fixed criterion must
+be written in the quantities that DON'T vary.** "Six" was a reading, not a
+mechanism.
+
+What saved it was that the clause also stated its **failure condition** — *"the (i)
+rows not reaching 12 (mechanism wrong, not margin thin)"* — and that half is what
+disambiguated the count half at ruling time, which is how it was ruled PASS on the
+mechanism. **A criterion that states what failure would MEAN survives its own stale
+constants; one that states only a threshold does not.** Same shape one level up as
+the cap entry above: a constant fitted to a sample, then used as though it were a
+property.
+
+---
+
+## An override that loses to `!important` silently re-reads the unchanged value — and the tell is a column identical to the one it should differ from (HO 634, Aug 2026)
+
+Third instance of one family: an instrument applies an override, re-reads, and
+reports the **unchanged** number because the override never took effect. It reads
+as a clean pass every time.
+
+- **The cap curve.** `feedH` / `pageH` were captured in the return expression,
+  which ran *after* the style was restored — so every cap reported an identical
+  feed height and the entire height cost of wrapping was invisible.
+- **The bound check.** `el.style.gridTemplateColumns = "…min-content…"` — a plain
+  inline declaration — **lost to the injected `!important` stylesheet**, so the
+  min-content column re-read the `fit-content` track it was supposed to differ
+  from. Fix: inline `!important` outranks author `!important`, so
+  `setProperty(…, "important")`. With it applied, min-content read **115px against
+  a 340px bound** where the broken version had read 340.
+
+**The tell is the reusable part, and it was the same tell both times: a column
+identical to the one it was supposed to differ from.** The cap curve's `feedH` was
+flat across every cap; the bound check's `maxMinContent` equalled `maxRcTrack` at
+all five widths (340/340 four times, 230/230 once). **An instrument that reports the
+same number for every input is not measuring its input** — check that before
+believing a clean result, because both of these presented as passes.
+
+One asymmetry worth keeping, because it stops the lesson being over-applied: the
+gate the clause actually turned on (`maxRcTrack ≤ 340`) was read **directly under
+the applied style and needed no override**, so its PASS was sound. Only the
+diagnostic beside it was dead. **A broken instrument does not automatically
+invalidate every number it printed — it invalidates every number that depended on
+the override.**
+
+---
