@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mock 633 — type specimen: the sans question</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   mock-633-sans-specimen — one variable: the face on --sans
+   surfaces. Knob: CURRENT (system-ui -> Segoe on Windows) ·
+   ALL-MONO (the HO 257 restoration) · INTER · IBM PLEX SANS.
+   Mock loads webfonts from Google CDN as transport; prod ships
+   them self-hosted via next/font — zero external requests.
+   Mono chrome is constant. Tokens @ f077a4f. Data illustrative.
+   ============================================================ */
+:root {
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --party-republican:#ef4444; --party-democrat:#3b82f6;
+  --stage-committee:#06b6d4; --stage-floor:#fbbf24; --stage-enacted:#10b981;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","Fira Code",Menlo,Consolas,monospace;
+  --sans-current:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --sans-inter:"Inter",sans-serif;
+  --sans-plex:"IBM Plex Sans",sans-serif;
+  --sans-active:var(--sans-current);
+  --fs-9:9px; --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+}
+@media (min-width:1600px){:root{--fs-9:10px;--fs-10:11px;--fs-11:12px;--fs-12:13px;--fs-13:14px;--fs-14:15px}}
+@media (min-width:2000px){:root{--fs-9:11px;--fs-10:12px;--fs-11:13px;--fs-12:14px;--fs-13:15px;--fs-14:16px}}
+@media (min-width:2400px){:root{--fs-9:12px;--fs-10:13px;--fs-11:14px;--fs-12:15px;--fs-13:16px;--fs-14:17px}}
+body.f-mono{--sans-active:var(--mono)}
+body.f-inter{--sans-active:var(--sans-inter)}
+body.f-plex{--sans-active:var(--sans-plex)}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg-base);color:var(--text-primary);font-family:var(--mono)}
+.dim{color:var(--text-dim)}.mut{color:var(--text-muted)}.amb{color:var(--accent-amber)}
+.rep{color:var(--party-republican)}.dem{color:var(--party-democrat)}
+.wrap{max-width:1150px;margin:0 auto;padding:16px 24px 100px}
+.hdr{color:var(--text-dim);font-size:12px;border-bottom:1px solid var(--border-strong);padding-bottom:8px;margin-bottom:14px}
+.hdr b{color:var(--accent-amber-bright)}
+
+.knob{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;align-items:center;gap:8px;padding:8px 14px;background:#000;
+  border:1px solid var(--border-strong);border-radius:4px;font-size:12px;box-shadow:0 4px 24px rgba(0,0,0,.6)}
+.knob b{color:var(--accent-amber-bright);letter-spacing:.06em;margin-right:4px}
+.knob button{font-family:var(--mono);font-size:12px;background:none;border:1px solid var(--border-strong);
+  color:var(--text-muted);padding:3px 10px;border-radius:2px;cursor:pointer}
+.knob button.on{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+
+.panel{background:var(--bg-panel);border:0.5px solid var(--border-soft);margin-bottom:14px}
+.rail-tabs{display:flex;gap:20px;padding:10px 14px 8px;font-size:var(--fs-11);letter-spacing:.1em}
+.rail-tabs .t{color:var(--text-muted)} .rail-tabs .t.on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber);padding-bottom:3px}
+.v2f-grp{color:var(--accent-amber-bright);font-size:var(--fs-10);font-weight:400;letter-spacing:.18em;
+  padding:8px 12px 5px;border-top:1px solid var(--border-strong);border-left:2px solid var(--accent-amber);background:#080b11}
+.g + .g{border-top:0.5px solid var(--border-soft)}
+.row{padding:5px 12px}
+.row:hover{background:var(--bg-row-hover)}
+.l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+.disc{flex:none;font-size:var(--fs-9);color:var(--text-dim);position:relative;top:-1px}
+.id{flex:none;font-size:var(--fs-11);color:var(--accent-amber);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ttl{font-family:var(--sans-active);font-size:var(--fs-14);color:var(--text-primary);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.l2{margin-top:1px;font-size:var(--fs-10);color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l2 .sp{margin:0 6px}
+.l2 .floor{color:var(--stage-floor)} .l2 .enac{color:var(--stage-enacted)}
+
+.open{background:var(--bg-row-hover);border:1px solid var(--accent-amber);margin:-1px 0;position:relative}
+.bxp{padding:4px 12px 14px}
+.drill{font-size:var(--fs-10);color:var(--accent-amber);letter-spacing:.1em;margin:10px 0}
+.bbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,300px);gap:18px}
+.sum{font-family:var(--sans-active);font-size:var(--fs-13);line-height:1.5;color:var(--text-secondary)}
+.sec{margin-top:12px}
+.sec .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-bottom:3px}
+.sec .v{font-size:var(--fs-11);color:var(--text-dim)}
+.meta .mrow{padding:9px 0}
+.meta .mrow + .mrow{border-top:1px solid var(--border-strong)}
+.meta .k{font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.14em;margin-bottom:3px}
+.meta .v{font-size:var(--fs-11);color:var(--text-secondary)}
+.meta .v.sans{font-family:var(--sans-active);font-size:var(--fs-12);line-height:1.45}
+.golink{font-size:var(--fs-10);letter-spacing:.1em;color:var(--accent-amber)}
+
+.card{display:grid;grid-template-columns:168px minmax(0,1fr);gap:18px;padding:12px 16px}
+.idline{display:flex;gap:10px;align-items:center}
+.photo{width:56px;height:66px;background:#1a2230;display:flex;align-items:center;justify-content:center;
+  color:var(--text-dim);font-size:14px;flex:none}
+.who{font-family:var(--sans-active);font-size:var(--fs-13);font-weight:700}
+.colhd{font-size:var(--fs-10);color:var(--text-muted);letter-spacing:.12em;margin-bottom:8px}
+.brow{display:flex;gap:10px;align-items:baseline;font-size:var(--fs-12);padding:3px 0;white-space:nowrap;overflow:hidden}
+.brow .bid{color:var(--accent-amber);font-size:var(--fs-11);flex:none;min-width:8ch}
+.brow .bt{font-family:var(--sans-active);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.brow .bd{color:var(--text-dim);font-size:var(--fs-10);flex:none;margin-left:auto}
+.note{color:var(--text-dim);font-size:12px;line-height:1.6;max-width:820px;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="knob">
+  <b>SANS</b>
+  <button data-f="">CURRENT</button>
+  <button data-f="f-mono">ALL-MONO</button>
+  <button data-f="f-inter">INTER</button>
+  <button data-f="f-plex">IBM PLEX</button>
+</div>
+
+<div class="wrap">
+  <div class="hdr"><b>MOCK 633 · type specimen</b> — one variable: the face on every --sans surface. Mono chrome constant. Flip and read.</div>
+
+  <div class="panel">
+    <div class="rail-tabs"><span class="t on">NEW THIS WEEK <span class="dim">(145)</span></span><span class="t">MOVERS <span class="dim">(202)</span></span></div>
+    <div class="v2f-grp">YESTERDAY</div>
+    <div class="g"><div class="row"><div class="l1"><span class="disc">▸</span><span class="id">S 5366</span><span class="ttl">A bill to amend the Internal Revenue Code of 1986 to allow 5-year carrybacks for the low-income housing tax credit.</span></div>
+      <div class="l2">INTRO 2d<span class="sp">·</span><span class="dem">GALLEGO [D-AZ]</span><span class="sp">·</span>HSG TAX</div></div></div>
+    <div class="g"><div class="row"><div class="l1"><span class="disc">▸</span><span class="id">S 5375</span><span class="ttl">A bill to provide for records preservation processes for certain at-risk Afghan allies.</span></div>
+      <div class="l2">INTRO 2d<span class="sp">·</span><span class="rep">ROUNDS [R-SD]</span><span class="sp">·</span>IMM DEF GOV</div></div></div>
+    <div class="v2f-grp">EARLIER THIS WEEK</div>
+    <div class="g"><div class="row"><div class="l1"><span class="disc">▸</span><span class="id">HRES 1479</span><span class="ttl">Impeaching Russell Thurlow Vought, Director of the Office of Management and Budget, for high crimes and misdemeanors.</span></div>
+      <div class="l2">INTRO 3d<span class="sp">·</span><span class="dem">KAMLAGER-DOVE [D-CA]</span><span class="sp">·</span>GOV</div></div></div>
+    <div class="g"><div class="row"><div class="l1"><span class="disc">▸</span><span class="id">S 4118</span><span class="ttl">Continuing Appropriations Extension Act of 2026</span></div>
+      <div class="l2"><span class="floor">FLOOR</span> 3d<span class="sp">·</span><span class="rep">COLLINS [R-ME]</span><span class="sp">·</span>GOV</div></div></div>
+    <div class="g"><div class="row"><div class="l1"><span class="disc">▸</span><span class="id">S 629</span><span class="ttl">Veterans Telehealth Access Improvement Act</span></div>
+      <div class="l2"><span class="enac">ENACTED</span> 4d<span class="sp">·</span><span class="dem">TESTER [D-MT]</span><span class="sp">·</span>HLTH DEF</div></div></div>
+
+    <div class="g open"><div class="row"><div class="l1"><span class="disc amb">▸</span><span class="id">HR 10066</span><span class="ttl">Stop Corrupt Trading Act</span></div>
+      <div class="l2">INTRO 3d<span class="sp">·</span><span class="dem">SALINAS [D-OR]</span><span class="sp">·</span>GOV CRIM</div></div>
+      <div class="bxp">
+        <div class="drill">→ FULL PAGE</div>
+        <div class="bbody">
+          <div>
+            <div class="sum">This bill would make it illegal for the President, Vice President, or entities they control to sell or exchange nonpublic information gained from their official positions for financial benefit. It would also prohibit anyone else from buying or selling such information. Violators could face criminal penalties, including fines and imprisonment, and civil penalties such as disgorgement of profits.</div>
+            <div class="sec"><div class="k">HEARING</div><div class="v">NO RELATED HEARINGS</div></div>
+            <div class="sec"><div class="k">ODDS</div><div class="v">NO PREDICTIONS MADE</div></div>
+          </div>
+          <div class="meta">
+            <div class="mrow"><div class="k">SPONSOR</div><div class="v"><span class="dem" style="text-decoration:underline">Rep. Andrea Salinas [D-OR-6]</span></div></div>
+            <div class="mrow"><div class="k">COMMITTEE</div><div class="v">Judiciary Committee <span class="dim">· Referred To · 2d</span></div></div>
+            <div class="mrow"><div class="k">LATEST ACTION</div><div class="v sans">Referred to the House Committee on the Judiciary. <span class="dim">· 3d</span></div></div>
+            <div class="mrow"><span class="golink">→ CONGRESS.GOV ↗</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel card">
+    <div>
+      <div class="idline"><div class="photo">MM</div><div>
+        <div class="who">Sen. Mitch McConnell</div><div class="rep" style="font-size:var(--fs-12)">[R-KY]</div></div></div>
+    </div>
+    <div>
+      <div class="colhd">RECENT BILLS · 12 TOTAL</div>
+      <div class="brow"><span class="bid">S 4530</span><span class="bt">A bill to amend chapters 83 and 84 of title 5, United States Code</span><span class="bd">05-19-26</span></div>
+      <div class="brow"><span class="bid">S 2572</span><span class="bt">Department of Defense Appropriations Act, 2026</span><span class="bd">07-31-25</span></div>
+      <div class="brow"><span class="bid">S 1674</span><span class="bt">Mammoth Cave National Park Boundary Adjustment Act</span><span class="bd">05-08-25</span></div>
+    </div>
+  </div>
+
+  <div class="note">CURRENT is whatever your OS gives system-ui — Segoe on this machine, different elsewhere, which is its own defect. ALL-MONO is the HO 257 ruling restored (two live comments still assert it). INTER and IBM PLEX ship self-hosted via next/font in prod — no external requests; the CDN load here is mock transport only, so let the fonts finish loading before judging.</div>
+</div>
+
+<script>
+document.querySelectorAll('.knob button').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.body.className=b.dataset.f;
+    document.querySelectorAll('.knob button').forEach(function(x){x.classList.toggle('on',x===b)});
+  });
+});
+document.querySelector('.knob button').classList.add('on');
+</script>
+</body>
+</html>
