@@ -1080,6 +1080,49 @@ async function main() {
     "CREATE INDEX IF NOT EXISTS idx_bills_stage_changed_at ON bills(stage_changed_at DESC)",
   );
   console.log("ok: idx_bills_stage_changed_at");
+
+  // ── HO 635 EXPAND STEP — `stage_changed_at` -> `stage_observed_at` ─────────
+  // The column records WHEN THE SYNC OBSERVED an advance, not when the stage
+  // changed: both write sites stamp the wall clock of the run. The name says
+  // occurrence and 15 readers read it as occurrence, so it is being renamed.
+  //
+  // THIS IS THE ADDITIVE HALF OF AN EXPAND/CONTRACT, RUN BEFORE THE CODE CUTOVER.
+  // A bare ALTER TABLE RENAME COLUMN would open a window in which deployed code
+  // queries a column that no longer exists — every dashboard surface and any cron
+  // that fires. Adding first means nothing breaks: the old column is still present
+  // and still written, and the new index exists BEFORE any `INDEXED BY` hint names
+  // it (a missing named index is a hard SQL error, not a silent fallback).
+  //
+  // The backfill is idempotent and stays until the contract step, because it also
+  // serves as the top-up for rows advanced between this run and the cutover deploy.
+  await ensureColumn(db, "bills", "stage_observed_at", "TEXT");
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_bills_stage_observed_at ON bills(stage_observed_at DESC)",
+  );
+  await db.execute(
+    `UPDATE bills SET stage_observed_at = stage_changed_at
+     WHERE stage_observed_at IS NULL AND stage_changed_at IS NOT NULL`,
+  );
+  console.log("ok: idx_bills_stage_observed_at (+ idempotent backfill from stage_changed_at)");
+
+  // `stage_transitions.changed_at` carries the SAME observation clock — both
+  // writers pass it the identical value. It is folded into this rename.
+  // VERIFIED, not inherited from the backlog: it has ZERO production readers (the
+  // only production references are the two INSERTs). But reader-lessness does NOT
+  // make a bare rename safe — `sync.ts:269` and `summarize-runner.ts:342` name the
+  // column explicitly in an UNGUARDED `await db.execute`, so renaming it under
+  // running code fails the sync and summarize paths outright. Hence the same
+  // expand/contract shape here rather than the bare RENAME a reader-only analysis
+  // would have licensed.
+  await ensureColumn(db, "stage_transitions", "observed_at", "TEXT");
+  await db.execute(
+    "CREATE INDEX IF NOT EXISTS idx_stage_transitions_observed_at ON stage_transitions(observed_at DESC)",
+  );
+  await db.execute(
+    `UPDATE stage_transitions SET observed_at = changed_at
+     WHERE observed_at IS NULL AND changed_at IS NOT NULL`,
+  );
+  console.log("ok: idx_stage_transitions_observed_at (+ idempotent backfill from changed_at)");
   await ensureColumn(db, "bills", "is_ceremonial", "INTEGER");
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_is_ceremonial ON bills(is_ceremonial)",
