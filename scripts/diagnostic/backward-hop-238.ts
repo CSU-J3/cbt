@@ -14,7 +14,7 @@ async function main() {
   // --- Item 1: the specific bill ---
   console.log("=== Item 1: 119-hr-8467 ===");
   const bill = await db.execute({
-    sql: `SELECT id, title, stage, previous_stage, stage_changed_at,
+    sql: `SELECT id, title, stage, previous_stage, stage_observed_at,
                  latest_action_date, latest_action_text
           FROM bills WHERE id = ?`,
     args: ["119-hr-8467"],
@@ -24,13 +24,13 @@ async function main() {
     console.log("  (bill not found)");
   } else {
     console.log(`  title: ${String(b.title).slice(0, 80)}`);
-    console.log(`  stage: ${b.previous_stage} -> ${b.stage}   (changed_at ${b.stage_changed_at})`);
+    console.log(`  stage: ${b.previous_stage} -> ${b.stage}   (observed_at ${b.stage_observed_at})`);
     console.log(`  latest_action_date: ${b.latest_action_date}`);
     console.log(`  latest_action_text: ${b.latest_action_text}`);
   }
   const hist = await db.execute({
-    sql: `SELECT from_stage, to_stage, changed_at
-          FROM stage_transitions WHERE bill_id = ? ORDER BY changed_at ASC`,
+    sql: `SELECT from_stage, to_stage, observed_at
+          FROM stage_transitions WHERE bill_id = ? ORDER BY observed_at ASC`,
     args: ["119-hr-8467"],
   });
   console.log(`  stage_transitions log (${hist.rows.length} rows):`);
@@ -39,7 +39,7 @@ async function main() {
     const n = STAGE_RANK[String(r.to_stage)];
     const dir =
       p === undefined || n === undefined ? "?" : n > p ? "fwd" : n < p ? "BACK" : "same";
-    console.log(`    ${r.changed_at}  ${String(r.from_stage)}->${r.to_stage}  [${dir}]`);
+    console.log(`    ${r.observed_at}  ${String(r.from_stage)}->${r.to_stage}  [${dir}]`);
   }
 
   // --- Item 2: corpus backward rate ---

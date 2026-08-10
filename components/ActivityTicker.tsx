@@ -32,7 +32,7 @@ import {
 // Cost of the deeper slice, measured at HEAD fcf6009 on 2026-08-07 against a
 // 17,463-bill corpus: rows_read 1,018 -> 1,094 (+76). The ~1,000 baseline is the
 // mention subquery's news_mentions GROUP BY, not the LIMIT — the walk is a
-// pre-ordered idx_bills_stage_changed_at range that short-circuits at LIMIT
+// pre-ordered idx_bills_stage_observed_at range that short-circuits at LIMIT
 // either way, so depth here is close to free.
 const CAP = 30;
 

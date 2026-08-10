@@ -32,7 +32,7 @@ async function main() {
 
   console.log("\n=== overlap on the three feed slices ===");
   for (const [label, where] of [
-    ["movers(7d)", `b.stage_changed_at IS NOT NULL AND date(b.stage_changed_at)>=date('now','-7 days') AND (b.is_ceremonial=0 OR b.is_ceremonial IS NULL)`],
+    ["movers(7d)", `b.stage_observed_at IS NOT NULL AND date(b.stage_observed_at)>=date('now','-7 days') AND (b.is_ceremonial=0 OR b.is_ceremonial IS NULL)`],
     ["new(7d)", `b.introduced_date>=date('now','-7 days') AND (b.is_ceremonial=0 OR b.is_ceremonial IS NULL)`],
   ] as const) {
     await q(

@@ -12,7 +12,7 @@
 // no single field that satisfies that, because the three feeds measure different
 // things (V2FeedList's Metric, per mode):
 //
-//   MOVERS  stage_changed_at   "→ FLOOR 3h"    when the stage last moved
+//   MOVERS  stage_observed_at   "→ FLOOR 3h"    when the stage last moved
 //   NEW     introduced_date    "INTRO 2d"      when the bill was introduced
 //   STALLS  latest_action_date "14d stuck"     how long it has been quiet
 //
@@ -23,7 +23,7 @@
 // ── WHY THE TWO GROUPED FIELDS ARE HANDLED DIFFERENTLY (the HO 622 trap) ──────
 // Measured on live data, they do not store the same shape:
 //
-//   stage_changed_at   ISO INSTANT in UTC   '2026-08-08T13:04:11.000Z'
+//   stage_observed_at   ISO INSTANT in UTC   '2026-08-08T13:04:11.000Z'
 //   introduced_date    DATE-ONLY            '2026-08-06'
 //
 // An instant is a moment and genuinely needs a zone to land on a calendar day.
@@ -113,7 +113,7 @@ export function feedDay(bill: FeedBill, mode: V2MetricMode): string | null {
     return DATE_ONLY.test(raw) ? raw.slice(0, 10) : etDayOfInstant(Date.parse(raw));
   }
   // movers (and any future instant-valued mode)
-  const raw = bill.stage_changed_at;
+  const raw = bill.stage_observed_at;
   if (!raw) return null;
   // Defensive: if this field ever becomes date-only upstream, slice it rather
   // than backdating every row by a timezone.
@@ -124,7 +124,7 @@ export function feedDay(bill: FeedBill, mode: V2MetricMode): string | null {
 
 export function bucketOf(day: string | null, cal: EtCalendar): FeedBucket {
   // Unreachable in both grouped feeds — getStageChanges constrains
-  // `stage_changed_at IS NOT NULL` and getNewBillsThisWeek constrains
+  // `stage_observed_at IS NOT NULL` and getNewBillsThisWeek constrains
   // `introduced_date >= date(...)`, so neither can yield a null here. If it ever
   // does, OLDER is the least-wrong home: it is the only one of the four that
   // makes no positive claim about WHEN, which is precisely what we don't know.

@@ -81,7 +81,7 @@ export function BillStageBar({
   const introDate = bill.introduced_date
     ? formatDateLong(bill.introduced_date)
     : "";
-  const curRaw = bill.stage_changed_at ?? bill.latest_action_date;
+  const curRaw = bill.stage_observed_at ?? bill.latest_action_date;
   const curDate = curRaw ? formatDateLong(curRaw) : "";
 
   return (

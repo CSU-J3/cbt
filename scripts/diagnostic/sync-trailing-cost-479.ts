@@ -275,16 +275,16 @@ async function timeGatherLeadReads(): Promise<void> {
   await timed("lead DB · transitions query", async () => {
     const rs = await db.execute(
       `SELECT id, bill_type, bill_number, title, stage, previous_stage FROM bills
-       WHERE ${NON_CEREMONIAL} AND stage_changed_at IS NOT NULL
-         AND stage_changed_at > datetime('now', '-${LEAD_DAYS} days')
-       ORDER BY stage_changed_at DESC`,
+       WHERE ${NON_CEREMONIAL} AND stage_observed_at IS NOT NULL
+         AND stage_observed_at > datetime('now', '-${LEAD_DAYS} days')
+       ORDER BY stage_observed_at DESC`,
     );
     return rs.rows.length;
   }, (n) => `${n} rows`);
   await timed("lead DB · enacted-this-week", async () => {
     const rs = await db.execute(
       `SELECT COUNT(*) n FROM bills WHERE ${NON_CEREMONIAL}
-         AND stage='enacted' AND stage_changed_at > datetime('now','-${LEAD_DAYS} days')`,
+         AND stage='enacted' AND stage_observed_at > datetime('now','-${LEAD_DAYS} days')`,
     );
     return Number(rs.rows[0]?.n ?? 0);
   }, (n) => `${n} enacted (approx; real path uses queryEnactedThisWeek)`);
@@ -299,8 +299,8 @@ async function timeGatherLeadReads(): Promise<void> {
     const rs = await db.execute(
       `SELECT je.value topic, COUNT(*) n FROM bills, json_each(bills.topics) je
        WHERE ${NON_CEREMONIAL} AND bills.topics IS NOT NULL
-         AND bills.stage_changed_at IS NOT NULL
-         AND bills.stage_changed_at > datetime('now','-${LEAD_DAYS} days')
+         AND bills.stage_observed_at IS NOT NULL
+         AND bills.stage_observed_at > datetime('now','-${LEAD_DAYS} days')
        GROUP BY je.value ORDER BY n DESC LIMIT 1`,
     );
     return rs.rows.length;

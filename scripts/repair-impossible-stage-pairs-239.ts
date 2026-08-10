@@ -10,14 +10,14 @@
 //   stage           <- previous_stage   (strictly closer to truth; for hr-8467
 //                                         this may still understate — accepted)
 //   previous_stage  <- NULL
-//   stage_changed_at<- NULL
+//   stage_observed_at<- NULL
 // The NULLs keep these bills OUT of MOVERS / `/changes` (an admin correction is
 // not real movement). No NEW stage_transitions log rows are written — nothing
 // "moved"; a wrong label was corrected.
 //
 // Log cleanup (the handoff's premise correction): the HO 232 plant logs every
 // transition, so an impossible pair that flipped *after* the 2026-06-11 anchor
-// already wrote a `committee→introduced` log row. Nulling stage_changed_at drops
+// already wrote a `committee→introduced` log row. Nulling stage_observed_at drops
 // that bill from the validator's A-side (bills moved post-anchor) while the log
 // row remains — an ORPHAN that FAILs the HO 232 invariant. Those rows record the
 // same non-event the slot repair just undid, so we delete them too: any
@@ -37,7 +37,7 @@ async function main() {
 
   // Candidates: stage is introduced (rank 0) but previous_stage outranks it.
   const rs = await db.execute(
-    `SELECT id, stage, previous_stage, stage_changed_at
+    `SELECT id, stage, previous_stage, stage_observed_at
      FROM bills
      WHERE stage = 'introduced' AND previous_stage IS NOT NULL`,
   );
@@ -60,7 +60,7 @@ async function main() {
 
   // Impossible logged transitions to clear (to_stage='introduced' from higher).
   const logRs = await db.execute(
-    `SELECT id, bill_id, from_stage, to_stage, changed_at
+    `SELECT id, bill_id, from_stage, to_stage, observed_at
      FROM stage_transitions WHERE to_stage = 'introduced'`,
   );
   const orphanLogs = logRs.rows.filter(
@@ -72,7 +72,7 @@ async function main() {
       `  log#${r.id}`,
       String(r.bill_id).padEnd(16),
       `${r.from_stage}→${r.to_stage}`,
-      r.changed_at,
+      r.observed_at,
     );
   }
 
@@ -87,7 +87,7 @@ async function main() {
   for (const r of rows) {
     await db.execute({
       sql: `UPDATE bills
-            SET stage = ?, previous_stage = NULL, stage_changed_at = NULL
+            SET stage = ?, previous_stage = NULL, stage_observed_at = NULL
             WHERE id = ?`,
       args: [r.previous_stage as string, r.id as string],
     });

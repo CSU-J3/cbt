@@ -311,11 +311,11 @@ export async function runSummarize(
         bill.pendingStage,
       );
       if (decision === "advance") {
-        const changedAt = new Date().toISOString();
+        const observedAt = new Date().toISOString();
         await db.execute({
           sql: `UPDATE bills
                 SET summary = ?, summary_model = ?, summary_updated_at = ?,
-                    topics = ?, stage = ?, previous_stage = ?, stage_changed_at = ?,
+                    topics = ?, stage = ?, previous_stage = ?, stage_observed_at = ?,
                     is_ceremonial = ?, text_length = ?,
                     summarize_failed_at = NULL, summarize_attempts = 0,
                     pending_stage = NULL, pending_stage_at = NULL
@@ -327,7 +327,7 @@ export async function runSummarize(
             JSON.stringify(result.topics),
             computedStage,
             bill.oldStage,
-            changedAt,
+            observedAt,
             ceremonialArg,
             out!.textLength,
             bill.id,
@@ -335,13 +335,16 @@ export async function runSummarize(
         });
         // HO 232: append-only stage-transition log (write-only plant). Same
         // condition + same timestamp as the single-slot previous_stage/
-        // stage_changed_at write above — bill.oldStage may be NULL (first
+        // stage_observed_at write above — bill.oldStage may be NULL (first
         // observed already past introduced), recorded as a NULL-from row. A
         // confirmed backward move logs honestly as a from→to setback row.
         await db.execute({
-          sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
-                VALUES (?, ?, ?, ?)`,
-          args: [bill.id, bill.oldStage, computedStage, changedAt],
+          // HO 635: DUAL-WRITE for one release — `changed_at` is NOT NULL with no
+          // default and cannot leave this INSERT until the contract migration
+          // drops the column. Same value in both.
+          sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at, observed_at)
+                VALUES (?, ?, ?, ?, ?)`,
+          args: [bill.id, bill.oldStage, computedStage, observedAt, observedAt],
         });
       } else {
         // No slot move. "reject"/"pend" keep the current stage; "noop" persists

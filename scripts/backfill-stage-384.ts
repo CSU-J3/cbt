@@ -10,9 +10,9 @@
 // Recomputes each bill's stage from latest_action_text via computeStage, then
 // runs the HO 239 monotonicity guard (decideStage) — REUSED from the live path,
 // not reimplemented, so the backfill can't drift from sync/the runner. Only the
-// `stage` column is touched: no stage_transitions rows, no stage_changed_at /
+// `stage` column is touched: no stage_transitions rows, no stage_observed_at /
 // previous_stage writes (those would flood /changes + the Monday report with
-// ~1.4k fake recent advances). Leaving previous_stage/stage_changed_at stale on
+// ~1.4k fake recent advances). Leaving previous_stage/stage_observed_at stale on
 // corrected rows is the accepted cosmetic cost.
 //
 // Direct createClient (no boundedFetch wrapper) so the full-corpus read isn't
@@ -144,7 +144,7 @@ function bucketAndReport(plans: Plan[]) {
   hr(`advances within /changes window (latest_action_date ≥ ${cutoff})`);
   console.log(
     `${inWindow.length} of ${advances.length} advances are recent. ` +
-      `(stage_changed_at is UNTOUCHED, so none of these surface on /changes — awareness only.)`,
+      `(stage_observed_at is UNTOUCHED, so none of these surface on /changes — awareness only.)`,
   );
 
   // Would-regress FULL list — eyes on whether any are genuine over-staging.

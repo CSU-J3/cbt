@@ -292,7 +292,7 @@ export default async function WelcomePage() {
                   ) : null}
                   <span className={styles.age}>
                     {" "}
-                    · {formatRelativeAge(b.stage_changed_at ?? b.latest_action_date, nowMs)}
+                    · {formatRelativeAge(b.stage_observed_at ?? b.latest_action_date, nowMs)}
                   </span>
                 </div>
                 <span className={styles.caret}>▾</span>

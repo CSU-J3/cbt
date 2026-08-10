@@ -130,8 +130,8 @@ async function bug2(stage: string | null, topic: string | null) {
     const clauses = [
       "summary IS NOT NULL",
       "(is_ceremonial = 0 OR is_ceremonial IS NULL)",
-      "stage_changed_at IS NOT NULL",
-      "stage_changed_at > datetime('now', '-7 days')",
+      "stage_observed_at IS NOT NULL",
+      "stage_observed_at > datetime('now', '-7 days')",
     ];
     const args: unknown[] = [];
     if (stage) {
@@ -142,7 +142,7 @@ async function bug2(stage: string | null, topic: string | null) {
       clauses.push("EXISTS (SELECT 1 FROM json_each(bills.topics) WHERE value = ?)");
       args.push(topic);
     }
-    const sql = `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${clauses.join(
+    const sql = `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at WHERE ${clauses.join(
       " AND ",
     )}`;
     await timed("getStageChangesCount.filtered", sql, args);
@@ -167,7 +167,7 @@ async function bug1() {
   const selectSql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at,
+      summary, topics, stage, stage_observed_at,
       sponsor_bioguide_id, cosponsor_count,
       msp.depiction_url AS sponsor_depiction_url,
       msp.first_name AS sponsor_first_name,

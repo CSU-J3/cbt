@@ -15,9 +15,9 @@ export type EnactedBill = {
   billNumber: number;
 };
 
-// HO 635 — THE WINDOW IS `latest_action_date`, NOT `stage_changed_at`.
+// HO 635 — THE WINDOW IS `latest_action_date`, NOT `stage_observed_at`.
 //
-// `stage_changed_at` is an OBSERVATION clock: both write sites stamp the wall
+// `stage_observed_at` is an OBSERVATION clock: both write sites stamp the wall
 // clock of the sync run (`lib/sync.ts:235`, `lib/summarize-runner.ts:314`), so a
 // count windowed on it counts things WE NOTICED this week, and its week-over-week
 // delta partly measures sync behaviour rather than congressional behaviour.
@@ -31,7 +31,7 @@ export type EnactedBill = {
 // other class-(C) readers window on transitions generally, where the latest action
 // is only usually the advancing one.
 //
-// AND WHY THE `stage_changed_at IS NOT NULL` GUARD IS DROPPED HERE, when the
+// AND WHY THE `stage_observed_at IS NOT NULL` GUARD IS DROPPED HERE, when the
 // general (4) shape keeps it: that guard exists to prove a transition HAPPENED,
 // because nothing else records one. `stage = 'enacted'` already proves it — the
 // bill is enacted, and the enacting action is its latest. Requiring the stamp as
@@ -56,7 +56,7 @@ export async function queryEnactedThisWeek(
   // query carries `AND stage='enacted'`, so the hint qualifies: scan the small
   // partial enacted set (a few hundred rows), filter the window + sort in
   // memory (trivial at that count). NB idx_bills_enacted keys
-  // (congress, latest_action_date), not stage_changed_at, so a residual temp
+  // (congress, latest_action_date), not stage_observed_at, so a residual temp
   // sort remains — correcting the stale HO 335 read that this rode it cleanly.
   // HO 635: the window column is now `latest_action_date`, which IS the index's
   // second key — but without a `congress` constraint that is still a partial-index

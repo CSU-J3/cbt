@@ -265,7 +265,7 @@ export function BillExpandedPanel({
 // the current stage gets a larger bright marker + bold label, unreached stages
 // show a dim hollow dot. Connectors are colored up to the current stage, then
 // --border-strong. Dates appear under a stage only when one is actually stored:
-// INTRO from introduced_date, the current stage from stage_changed_at (only
+// INTRO from introduced_date, the current stage from stage_observed_at (only
 // ~4% of bills carry it — HO 188). Intermediate reached stages show label only.
 //
 // Suppressed entirely when stage is NULL (unsummarized) or off-path (`other`):
@@ -292,7 +292,7 @@ function StagePipeline({
           i === 0
             ? (bill.introduced_date ?? null)
             : current
-              ? (bill.stage_changed_at ?? null)
+              ? (bill.stage_observed_at ?? null)
               : null;
 
         // Connector half-segments meet at each dot's center. A half is

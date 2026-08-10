@@ -187,7 +187,7 @@ function Metric({
 }) {
   if (mode === "movers") {
     const from = bill.previous_stage ? stageAbbr(bill.previous_stage) : null;
-    const ago = formatRelativeAge(bill.stage_changed_at, nowMs);
+    const ago = formatRelativeAge(bill.stage_observed_at, nowMs);
     return (
       <span className="v2f-metric">
         {from ? (

@@ -8,7 +8,7 @@ import { getDb } from "../../lib/db";
 //
 // The write lives in lib/summarize-runner.ts's `transitioned` branch: on a
 // stage change it writes BOTH the single-slot bills.previous_stage/
-// stage_changed_at AND one stage_transitions row, sharing the same timestamp.
+// stage_observed_at AND one stage_transitions row, sharing the same timestamp.
 // The table started EMPTY at deploy; rows only accrue from post-plant ticks.
 //
 // Verdict:
@@ -26,10 +26,10 @@ const PLANT = "2026-06-11T18:38:18Z";
 async function main() {
   const db = getDb();
 
-  // A: bills whose single-slot stage_changed_at is newer than the plant.
+  // A: bills whose single-slot stage_observed_at is newer than the plant.
   const movedRs = await db.execute({
-    sql: `SELECT id, previous_stage, stage, stage_changed_at FROM bills
-          WHERE stage_changed_at > ? ORDER BY stage_changed_at DESC`,
+    sql: `SELECT id, previous_stage, stage, stage_observed_at FROM bills
+          WHERE stage_observed_at > ? ORDER BY stage_observed_at DESC`,
     args: [PLANT],
   });
   const A = movedRs.rows.length;
@@ -49,7 +49,7 @@ async function main() {
     const cur = (r.stage as string | null) ?? null;
     const stRs = await db.execute({
       sql: `SELECT from_stage, to_stage FROM stage_transitions
-            WHERE bill_id = ? ORDER BY changed_at DESC LIMIT 1`,
+            WHERE bill_id = ? ORDER BY observed_at DESC LIMIT 1`,
       args: [id],
     });
     if (stRs.rows.length === 0) {
@@ -66,10 +66,10 @@ async function main() {
     }
   }
 
-  // Orphans: transition rows whose bill_id has NO post-plant stage_changed_at.
+  // Orphans: transition rows whose bill_id has NO post-plant stage_observed_at.
   const orphanRs = await db.execute({
     sql: `SELECT DISTINCT st.bill_id FROM stage_transitions st
-          LEFT JOIN bills b ON b.id = st.bill_id AND b.stage_changed_at > ?
+          LEFT JOIN bills b ON b.id = st.bill_id AND b.stage_observed_at > ?
           WHERE b.id IS NULL`,
     args: [PLANT],
   });
@@ -84,8 +84,8 @@ async function main() {
 
   // Spot-check sample: 3 most-recent transition rows.
   const sampleRs = await db.execute(
-    `SELECT bill_id, from_stage, to_stage, changed_at FROM stage_transitions
-     ORDER BY changed_at DESC LIMIT 3`,
+    `SELECT bill_id, from_stage, to_stage, observed_at FROM stage_transitions
+     ORDER BY observed_at DESC LIMIT 3`,
   );
 
   let verdict: "PASS" | "FAIL" | "INCONCLUSIVE";
@@ -111,7 +111,7 @@ async function main() {
   console.log(`spot-check (3 newest rows):`);
   for (const s of sampleRs.rows) {
     console.log(
-      `  ${s.bill_id}: ${s.from_stage}→${s.to_stage} @ ${s.changed_at}`,
+      `  ${s.bill_id}: ${s.from_stage}→${s.to_stage} @ ${s.observed_at}`,
     );
   }
   if (verdict === "INCONCLUSIVE")

@@ -48,21 +48,21 @@ function stageLabel(stage: string | null): string {
 async function gatherLeadData(): Promise<LeadData> {
   const db = getDb();
 
-  // HO 480: INDEXED BY forces the stage_changed_at index — the same fix HO 407
+  // HO 480: INDEXED BY forces the stage_observed_at index — the same fix HO 407
   // applied to the sibling gatherReportData (report-generation.ts:676) but never
   // swept here. Unhinted, the stateless Turso planner is lured by the
   // `is_ceremonial=0 OR IS NULL` predicate into a MULTI-INDEX OR over
   // idx_bills_is_ceremonial (~the whole 16.8k corpus) + a temp b-tree sort, and
   // cold-aborts at the 10+10s boundedFetch wall (HO 479: the lead step failing,
-  // not just slow). The index walks the sorted stage_changed_at range directly
+  // not just slow). The index walks the sorted stage_observed_at range directly
   // (serves the ORDER BY, no temp sort); the window + ceremonial are cheap residuals.
   const transRs = await db.execute(
     `SELECT id, bill_type, bill_number, title, stage, previous_stage
-     FROM bills INDEXED BY idx_bills_stage_changed_at
+     FROM bills INDEXED BY idx_bills_stage_observed_at
      WHERE ${NON_CEREMONIAL}
-       AND stage_changed_at IS NOT NULL
-       AND stage_changed_at > datetime('now', '-${LEAD_DAYS} days')
-     ORDER BY stage_changed_at DESC`,
+       AND stage_observed_at IS NOT NULL
+       AND stage_observed_at > datetime('now', '-${LEAD_DAYS} days')
+     ORDER BY stage_observed_at DESC`,
   );
   const topTransitions: Transition[] = transRs.rows.slice(0, 5).map((r) => ({
     id: formatBillId(r.bill_type as string, r.bill_number as number),
@@ -90,17 +90,17 @@ async function gatherLeadData(): Promise<LeadData> {
   );
 
   // HO 480: same OR-lure. The hint drives the json_each cross-join off the
-  // stage_changed_at range (~113 rows) instead of MULTI-INDEX OR-ing the whole
+  // stage_observed_at range (~113 rows) instead of MULTI-INDEX OR-ing the whole
   // corpus into json_each. The residual GROUP BY / ORDER BY temp b-trees are
   // over the aggregate (je.value, COUNT) and inherent — no index removes them;
   // they run on the tiny hinted row set (the 407 Q6 json_each precedent).
   const topicRs = await db.execute(
     `SELECT je.value AS topic, COUNT(*) AS n
-     FROM bills INDEXED BY idx_bills_stage_changed_at, json_each(bills.topics) je
+     FROM bills INDEXED BY idx_bills_stage_observed_at, json_each(bills.topics) je
      WHERE (bills.is_ceremonial = 0 OR bills.is_ceremonial IS NULL)
        AND bills.topics IS NOT NULL
-       AND bills.stage_changed_at IS NOT NULL
-       AND bills.stage_changed_at > datetime('now', '-${LEAD_DAYS} days')
+       AND bills.stage_observed_at IS NOT NULL
+       AND bills.stage_observed_at > datetime('now', '-${LEAD_DAYS} days')
      GROUP BY je.value
      ORDER BY n DESC
      LIMIT 1`,

@@ -137,7 +137,7 @@ export type FeedBill = {
   topics: string | null;
   stage: string | null;
   previous_stage?: string | null;
-  stage_changed_at?: string | null;
+  stage_observed_at?: string | null;
   // HO 130: news-mentions count in the trailing 7d window, gated by
   // NEWS_CONFIDENCE_FLOOR. 0 when the bill has no high-confidence press;
   // every feed-shape query joins news_mentions to populate it.
@@ -680,7 +680,7 @@ export const getNewBillsThisWeek = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at,
+      summary, topics, stage, stage_observed_at,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY idx_bills_introduced_date
@@ -1348,7 +1348,7 @@ export const getMemberBills = unstable_cache(
       sql: `SELECT id, congress, bill_type, bill_number, title,
               sponsor_name, sponsor_party, sponsor_state, introduced_date,
               latest_action_date, latest_action_text, update_date,
-              summary, topics, stage, stage_changed_at
+              summary, topics, stage, stage_observed_at
             FROM bills
             WHERE sponsor_bioguide_id = ?
             ORDER BY latest_action_date DESC NULLS LAST, id DESC
@@ -5955,7 +5955,7 @@ export const getFeedBills = unstable_cache(
       const sql = `SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number, bills.title,
         bills.sponsor_name, bills.sponsor_party, bills.sponsor_state, bills.introduced_date,
         bills.latest_action_date, bills.latest_action_text, bills.update_date,
-        bills.summary, bills.topics, bills.stage, bills.stage_changed_at,
+        bills.summary, bills.topics, bills.stage, bills.stage_observed_at,
         bills.sponsor_bioguide_id, bills.cosponsor_count,
         msp.depiction_url AS sponsor_depiction_url,
         msp.first_name AS sponsor_first_name,
@@ -6064,7 +6064,7 @@ export const getFeedBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at,
+      summary, topics, stage, stage_observed_at,
       sponsor_bioguide_id, cosponsor_count,
       msp.depiction_url AS sponsor_depiction_url,
       msp.first_name AS sponsor_first_name,
@@ -6143,7 +6143,7 @@ export const getStaleBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at,
+      summary, topics, stage, stage_observed_at,
       EXISTS (SELECT 1 FROM meeting_bills mb WHERE mb.bill_id = bills.id) AS heard,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
@@ -6607,7 +6607,7 @@ export const getSponsorRecentBills = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at
+      summary, topics, stage, stage_observed_at
       FROM bills INDEXED BY idx_bills_sponsor_agg
       WHERE sponsor_bioguide_id = ?
         AND summary IS NOT NULL${ceremonialClause}
@@ -6754,8 +6754,8 @@ function buildChangesWhere(
 } {
   const { stage: _ignored, ...rest } = filters;
   const { clauses, args } = buildFeedWhere(rest);
-  clauses.push("stage_changed_at IS NOT NULL");
-  clauses.push(`stage_changed_at > datetime('now', '-${days} days')`);
+  clauses.push("stage_observed_at IS NOT NULL");
+  clauses.push(`stage_observed_at > datetime('now', '-${days} days')`);
   // Dashboard click-to-filter (handoff 56). Stage matches transitions
   // involving that stage in either direction; topic uses the json_each
   // EXISTS pattern shared with the other dashboard helpers.
@@ -6786,22 +6786,22 @@ export const getStageChanges = unstable_cache(
     const sql = `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, previous_stage, stage_changed_at,
+      summary, topics, stage, previous_stage, stage_observed_at,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
-      FROM bills INDEXED BY idx_bills_stage_changed_at
-      -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial and scans ~all rows (~20s). buildChangesWhere always constrains stage_changed_at.
+      FROM bills INDEXED BY idx_bills_stage_observed_at
+      -- HO 241: forced — Turso blocks ANALYZE so the planner else picks idx_bills_is_ceremonial and scans ~all rows (~20s). buildChangesWhere always constrains stage_observed_at.
       ${MENTION_SUBQUERY}
       ${SPONSOR_ENRICH_JOIN}
       WHERE ${clauses.join(" AND ")}
-      ORDER BY stage_changed_at DESC
+      ORDER BY stage_observed_at DESC
       LIMIT ?`;
 
     const rs = await db.execute({ sql, args });
     return rs.rows.map((r) => ({
       ...rowToFeedBill(r),
       previous_stage: (r.previous_stage as string | null) ?? null,
-      stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+      stage_observed_at: (r.stage_observed_at as string | null) ?? null,
     }));
   },
   ["getStageChanges"],
@@ -6830,15 +6830,15 @@ export const getStageChangesCount = unstable_cache(
       days,
       dashboard,
     );
-    // HO 241: force idx_bills_stage_changed_at on both counts — Turso blocks
+    // HO 241: force idx_bills_stage_observed_at on both counts — Turso blocks
     // ANALYZE so the planner else scans via idx_bills_is_ceremonial (~20s).
-    // buildChangesWhere always constrains stage_changed_at, so it always applies.
+    // buildChangesWhere always constrains stage_observed_at, so it always applies.
     const totalRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${totalClauses.join(" AND ")}`,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at WHERE ${totalClauses.join(" AND ")}`,
       args: totalArgs,
     });
     const filteredRs = await db.execute({
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${filteredClauses.join(" AND ")}`,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at WHERE ${filteredClauses.join(" AND ")}`,
       args: filteredArgs,
     });
     return {
@@ -6870,7 +6870,7 @@ export const getEnactedThisWeek = unstable_cache(
 //   - enacted: queryEnactedPriorWeekCount (shares the enacted-this-week predicate)
 //   - new bills: same non-ceremonial introduced_date slice as getNewBillsThisWeekCount
 //   - transitions: buildChangesWhere({}, 14) — the IDENTICAL predicate to
-//     getStageChangesCount (summary + non-ceremonial + stage_changed_at) — capped
+//     getStageChangesCount (summary + non-ceremonial + stage_observed_at) — capped
 //     to (-14d, -7d] so it can't drift from the this-week count.
 // One cached read (three COUNTs); tag "bills" so the sync cron flushes it.
 export const getWeeklyBandPriorWeek = unstable_cache(
@@ -6881,7 +6881,7 @@ export const getWeeklyBandPriorWeek = unstable_cache(
   }> => {
     const db = getDb();
     const { clauses: txClauses, args: txArgs } = buildChangesWhere({}, 14);
-    txClauses.push("stage_changed_at <= datetime('now', '-7 days')");
+    txClauses.push("stage_observed_at <= datetime('now', '-7 days')");
     const [enacted, newBillsRs, txRs] = await Promise.all([
       queryEnactedPriorWeekCount(db),
       db.execute(
@@ -6892,7 +6892,7 @@ export const getWeeklyBandPriorWeek = unstable_cache(
            AND introduced_date <= date('now', '-7 days')`,
       ),
       db.execute({
-        sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE ${txClauses.join(" AND ")}`,
+        sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at WHERE ${txClauses.join(" AND ")}`,
         args: txArgs,
       }),
     ]);
@@ -6951,7 +6951,7 @@ export const getWeeklyBandHearings = unstable_cache(
 
 // STAGE TRANSITIONS "where they went": destination-stage split of the SAME
 // predicate as getStageChangesCount({},7) — buildChangesWhere({},7) + GROUP BY
-// stage, forced onto idx_bills_stage_changed_at — so the rows sum to the
+// stage, forced onto idx_bills_stage_observed_at — so the rows sum to the
 // headline .total. Returns a sparse stage→count map; the card renders the fixed
 // 5-row ladder (committee/floor/other_chamber/president/enacted) reading 0 for
 // absent stages.
@@ -6960,7 +6960,7 @@ export const getWeeklyBandTransitionLadder = unstable_cache(
     const db = getDb();
     const { clauses, args } = buildChangesWhere({}, 7);
     const rs = await db.execute({
-      sql: `SELECT stage, COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at
+      sql: `SELECT stage, COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at
             WHERE ${clauses.join(" AND ")} GROUP BY stage`,
       args,
     });
@@ -7180,10 +7180,10 @@ function rowToFeedBill(r: Record<string, unknown>): FeedBill {
     // HO 125: pulled into every feed-shape query so the StagePillStrip can
     // render the current pill's time-since. Undefined-safe so callers that
     // don't yet SELECT the column degrade to no-time on the current pill.
-    stage_changed_at:
-      r.stage_changed_at === undefined
+    stage_observed_at:
+      r.stage_observed_at === undefined
         ? null
-        : ((r.stage_changed_at as string | null) ?? null),
+        : ((r.stage_observed_at as string | null) ?? null),
     // HO 130: same undefined-safe pattern — defaults to 0 if the caller
     // didn't SELECT mention_count_7d (a getBillById caller, for example).
     mentionCount7d:
@@ -7237,7 +7237,7 @@ export async function getBillById(id: string): Promise<BillDetail | null> {
       sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
       cosponsor_count,
       introduced_date, latest_action_date, latest_action_text, update_date,
-      summary, summary_model, summary_updated_at, topics, stage, stage_changed_at,
+      summary, summary_model, summary_updated_at, topics, stage, stage_observed_at,
       raw_json
       FROM bills WHERE id = ? LIMIT 1`,
     args: [id],
@@ -7264,7 +7264,7 @@ export async function getBillById(id: string): Promise<BillDetail | null> {
     summary_updated_at: (r.summary_updated_at as string | null) ?? null,
     topics: (r.topics as string | null) ?? null,
     stage: (r.stage as string | null) ?? null,
-    stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+    stage_observed_at: (r.stage_observed_at as string | null) ?? null,
     raw_json: r.raw_json as string,
   };
 }
@@ -7550,7 +7550,7 @@ export const getClusterDrilldown = unstable_cache(
         sql: `SELECT id, congress, bill_type, bill_number, title,
                      sponsor_name, sponsor_party, sponsor_state, introduced_date,
                      latest_action_date, latest_action_text, update_date,
-                     summary, topics, stage, stage_changed_at
+                     summary, topics, stage, stage_observed_at
               FROM bills
               WHERE cluster_id = ?
               ORDER BY latest_action_date DESC NULLS LAST, id DESC
@@ -7659,7 +7659,7 @@ export const searchBills = unstable_cache(
       sql: `SELECT bills.id, bills.congress, bills.bill_type, bills.bill_number, bills.title,
                    bills.sponsor_name, bills.sponsor_party, bills.sponsor_state, bills.introduced_date,
                    bills.latest_action_date, bills.latest_action_text, bills.update_date,
-                   bills.summary, bills.topics, bills.stage, bills.stage_changed_at
+                   bills.summary, bills.topics, bills.stage, bills.stage_observed_at
             ${BILLS_FTS_FROM}
             ORDER BY bm25(bills_fts)
             LIMIT ?`,
@@ -7908,7 +7908,7 @@ export async function getWatchlistBills(
   const sql = `SELECT b.id, b.congress, b.bill_type, b.bill_number, b.title,
       b.sponsor_name, b.sponsor_party, b.sponsor_state, b.introduced_date,
       b.latest_action_date, b.latest_action_text, b.update_date,
-      b.summary, b.topics, b.stage, b.stage_changed_at,
+      b.summary, b.topics, b.stage, b.stage_observed_at,
       COALESCE(nm.n, 0) AS mention_count_7d
       FROM watchlist w INDEXED BY sqlite_autoindex_watchlist_1
       INNER JOIN bills b ON b.id = w.bill_id
@@ -8511,7 +8511,7 @@ export const getCommitteeBills = unstable_cache(
                    bills.sponsor_state, bills.introduced_date,
                    bills.latest_action_date, bills.latest_action_text,
                    bills.update_date, bills.summary, bills.topics, bills.stage,
-                   bills.previous_stage, bills.stage_changed_at,
+                   bills.previous_stage, bills.stage_observed_at,
                    cb.latest_activity AS activity_date,
                    (SELECT activity_type FROM committee_bills cb2
                     WHERE cb2.committee_system_code = ?
@@ -8544,7 +8544,7 @@ export const getCommitteeBills = unstable_cache(
         topics: (r.topics as string | null) ?? null,
         stage: (r.stage as string | null) ?? null,
         previous_stage: (r.previous_stage as string | null) ?? null,
-        stage_changed_at: (r.stage_changed_at as string | null) ?? null,
+        stage_observed_at: (r.stage_observed_at as string | null) ?? null,
         mentionCount7d: Number(r.mention_count_7d ?? 0),
       },
       activityType: (r.activity_type as string | null) ?? null,
@@ -8622,7 +8622,7 @@ async function attachMeetingBills(
                  bills.sponsor_state, bills.introduced_date,
                  bills.latest_action_date, bills.latest_action_text,
                  bills.update_date, bills.summary, bills.topics, bills.stage,
-                 bills.previous_stage, bills.stage_changed_at,
+                 bills.previous_stage, bills.stage_observed_at,
                  ${MENTION_SELECT}
           FROM meeting_bills mb
           JOIN bills ON bills.id = mb.bill_id

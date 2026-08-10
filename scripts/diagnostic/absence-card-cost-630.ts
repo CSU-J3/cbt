@@ -144,7 +144,7 @@ async function main() {
       `SELECT id, congress, bill_type, bill_number, title,
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
-      summary, topics, stage, stage_changed_at
+      summary, topics, stage, stage_observed_at
       FROM bills INDEXED BY idx_bills_sponsor_agg
       WHERE sponsor_bioguide_id = ?
         AND summary IS NOT NULL AND (is_ceremonial = 0 OR is_ceremonial IS NULL)

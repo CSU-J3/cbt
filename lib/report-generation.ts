@@ -399,7 +399,7 @@ type MostTalkedAbout = {
 };
 
 // HO 268: COMMITTEE ACTIVITY. Fallback version (Gate A probe found no reliable
-// markup→stage-change join — bills.stage_changed_at tracking began 2026-05-11
+// markup→stage-change join — bills.stage_observed_at tracking began 2026-05-11
 // and doesn't align with markup dates), so markup blocks show bills at their
 // CURRENT stage and the firehose VIA annotations are dropped.
 type MarkupBill = {
@@ -436,8 +436,8 @@ type ReportData = {
   // HO 358: the week's floor votes (named + collapsed + recess state).
   floorVotes: FloorVotes;
   committeeActivity: CommitteeActivity;
-  // Earliest date(stage_changed_at) in the corpus, or null if nothing has
-  // ever been tracked. stage_changed_at is never backfilled, so a report
+  // Earliest date(stage_observed_at) in the corpus, or null if nothing has
+  // ever been tracked. stage_observed_at is never backfilled, so a report
   // whose week ends before this date legitimately predates tracking — the
   // zero-movements copy says so rather than implying Congress was idle.
   stageTrackingStart: string | null;
@@ -663,21 +663,21 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // 1. Stage transitions within the week, bucketed by DESTINATION stage into the
   // ladder (HO 352). Sponsor columns are no longer selected — the ladder names
   // bills by ID + title only (the doubled party/state was dropped). previous_stage
-  // is kept solely to detect backward moves. ORDER BY stage_changed_at DESC so a
+  // is kept solely to detect backward moves. ORDER BY stage_observed_at DESC so a
   // capped advance rung lists its most-recent bills first.
   const transRs = await db.execute({
-    // HO 407: INDEXED BY forces the stage_changed_at index. Unhinted, the
+    // HO 407: INDEXED BY forces the stage_observed_at index. Unhinted, the
     // stateless Turso planner MULTI-INDEX-ORs idx_bills_is_ceremonial over ~the
     // whole 16k corpus + a temp b-tree sort and cold-aborts at the 10+10s
     // boundedFetch wall (the weekly-report + catch-up killer). The index gives
-    // the ~689-row stage_changed_at IS NOT NULL subset in DESC order (serves the
+    // the ~689-row stage_observed_at IS NOT NULL subset in DESC order (serves the
     // ORDER BY, no temp sort); date()+ceremonial are cheap residual filters.
     sql: `SELECT bill_type, bill_number, title, previous_stage, stage
-          FROM bills INDEXED BY idx_bills_stage_changed_at
-          WHERE stage_changed_at IS NOT NULL
-            AND date(stage_changed_at) BETWEEN ? AND ?
+          FROM bills INDEXED BY idx_bills_stage_observed_at
+          WHERE stage_observed_at IS NOT NULL
+            AND date(stage_observed_at) BETWEEN ? AND ?
             AND ${NON_CEREMONIAL}
-          ORDER BY stage_changed_at DESC`,
+          ORDER BY stage_observed_at DESC`,
     args: [week.start, week.end],
   });
   const stageCount = new Map<string, number>();
@@ -717,8 +717,8 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // 1b. Earliest tracked stage transition in the corpus. Lets assembleMarkdown
   // tell "this week predates stage tracking" apart from "this week was quiet".
   const trackRs = await db.execute(
-    `SELECT MIN(date(stage_changed_at)) AS first
-     FROM bills WHERE stage_changed_at IS NOT NULL`,
+    `SELECT MIN(date(stage_observed_at)) AS first
+     FROM bills WHERE stage_observed_at IS NOT NULL`,
   );
   const stageTrackingStart =
     (trackRs.rows[0]?.first as string | null) ?? null;
@@ -839,7 +839,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
 
   // 6. Topic breakdown — what got introduced this week, by topic. Aggregates
   // the topics JSON for bills whose introduced_date falls in the week.
-  // (Previously used stage_changed_at, which returned empty when bug 1's
+  // (Previously used stage_observed_at, which returned empty when bug 1's
   // first-time-enactment case bypassed the transition write.)
   const topicRs = await db.execute({
     // HO 407: force idx_bills_introduced_date so the driver seeks the week's
@@ -971,7 +971,7 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
             FROM meeting_bills mb
             JOIN bills b ON b.id = mb.bill_id
             WHERE mb.event_id IN (${placeholders})
-            ORDER BY b.stage_changed_at DESC NULLS LAST`,
+            ORDER BY b.stage_observed_at DESC NULLS LAST`,
       args: ids,
     });
     for (const r of mbRs.rows) {

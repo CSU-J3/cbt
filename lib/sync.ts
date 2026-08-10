@@ -195,7 +195,7 @@ ON CONFLICT(id) DO UPDATE SET
   -- right after the upsert, so the later re-summarization noops and never
   -- double-logs.
   previous_stage = CASE WHEN ? IS NOT NULL THEN bills.stage ELSE bills.previous_stage END,
-  stage_changed_at = COALESCE(?, bills.stage_changed_at),
+  stage_observed_at = COALESCE(?, bills.stage_observed_at),
   stage = COALESCE(?, bills.stage)
 `;
 
@@ -232,7 +232,7 @@ async function upsertBill(
     prior !== undefined &&
     (prior.update_date as string | null) !== update &&
     stageRank(computedStage) > stageRank(priorStage);
-  const stageChangedAt = stageAdvanced ? new Date().toISOString() : null;
+  const stageObservedAt = stageAdvanced ? new Date().toISOString() : null;
   const newStageArg = stageAdvanced ? computedStage : null;
 
   await db.execute({
@@ -254,9 +254,9 @@ async function upsertBill(
       JSON.stringify(detail),
       clusterId,
       cosponsorCount,
-      // HO 383 stage trio (previous_stage gate, stage_changed_at, stage).
+      // HO 383 stage trio (previous_stage gate, stage_observed_at, stage).
       newStageArg,
-      stageChangedAt,
+      stageObservedAt,
       newStageArg,
     ],
   });
@@ -266,9 +266,14 @@ async function upsertBill(
   // logged exactly once regardless of which path sees it first.
   if (stageAdvanced) {
     await db.execute({
-      sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at)
-            VALUES (?, ?, ?, ?)`,
-      args: [id, priorStage, computedStage, stageChangedAt],
+      // HO 635: DUAL-WRITE for one release. `changed_at` is `NOT NULL` with no
+      // default, so this INSERT cannot stop writing it until the contract
+      // migration drops the column — omitting it would fail every transition log
+      // the moment this deploys. Both columns take the identical value; the
+      // contract commit removes `changed_at` from the schema and from here.
+      sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at, observed_at)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [id, priorStage, computedStage, stageObservedAt, stageObservedAt],
     });
   }
 }

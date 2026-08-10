@@ -1,4 +1,4 @@
-// HO 635 — `bills.stage_changed_at` is an OBSERVATION clock. Read-only probe.
+// HO 635 — `bills.stage_observed_at` is an OBSERVATION clock. Read-only probe.
 // Measured 2026-08-10 against prod Turso at HEAD `33e5910`.
 //
 // WHAT THIS MEASURES. HO 634 established from code that both write sites stamp
@@ -72,18 +72,18 @@ async function main() {
   // ── corpus size + date, attached to every figure (guard 5) ────────────────
   const corpus = await db.execute({
     sql: `SELECT COUNT(*) AS total,
-                 SUM(CASE WHEN stage_changed_at IS NOT NULL THEN 1 ELSE 0 END) AS tracked,
-                 SUM(CASE WHEN stage_changed_at IS NULL AND stage IS NOT NULL AND stage != 'introduced' THEN 1 ELSE 0 END) AS legacy_null,
-                 MIN(date(stage_changed_at)) AS first_tracked,
-                 MAX(date(stage_changed_at)) AS last_tracked
+                 SUM(CASE WHEN stage_observed_at IS NOT NULL THEN 1 ELSE 0 END) AS tracked,
+                 SUM(CASE WHEN stage_observed_at IS NULL AND stage IS NOT NULL AND stage != 'introduced' THEN 1 ELSE 0 END) AS legacy_null,
+                 MIN(date(stage_observed_at)) AS first_tracked,
+                 MAX(date(stage_observed_at)) AS last_tracked
           FROM bills`,
     args: [],
   });
   const c = corpus.rows[0]!;
-  rule("HO 635 — stage_changed_at observation-clock probe   read-only   prod Turso");
+  rule("HO 635 — stage_observed_at observation-clock probe   read-only   prod Turso");
   console.log(`   run at            : ${new Date().toISOString()}`);
   console.log(`   corpus            : ${c.total} bills`);
-  console.log(`   stage_changed_at  : ${c.tracked} non-null (${pct(Number(c.tracked), Number(c.total))} of corpus)`);
+  console.log(`   stage_observed_at  : ${c.tracked} non-null (${pct(Number(c.tracked), Number(c.total))} of corpus)`);
   console.log(`   legacy NULL cohort: ${c.legacy_null} rows past 'introduced' with NO stamp (StagePillStrip case 3)`);
   console.log(`   tracking window   : ${c.first_tracked} .. ${c.last_tracked}`);
 
@@ -102,8 +102,8 @@ async function main() {
   //     impossible under either clock. Expect zero and MEAN it.
   const preIntro = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM bills
-          WHERE stage_changed_at IS NOT NULL AND introduced_date IS NOT NULL
-            AND date(stage_changed_at) < introduced_date`,
+          WHERE stage_observed_at IS NOT NULL AND introduced_date IS NOT NULL
+            AND date(stage_observed_at) < introduced_date`,
     args: [],
   });
   const preIntroN = Number(preIntro.rows[0]?.n ?? 0);
@@ -115,10 +115,10 @@ async function main() {
   //     `latest_action_date` advances past them. Classify with computeStage
   //     ITSELF (guard 3) rather than re-implementing its predicate.
   const preRows = await db.execute({
-    sql: `SELECT id, stage, stage_changed_at, latest_action_date, latest_action_text
+    sql: `SELECT id, stage, stage_observed_at, latest_action_date, latest_action_text
           FROM bills
-          WHERE stage_changed_at IS NOT NULL AND latest_action_date IS NOT NULL
-            AND date(stage_changed_at) < latest_action_date`,
+          WHERE stage_observed_at IS NOT NULL AND latest_action_date IS NOT NULL
+            AND date(stage_observed_at) < latest_action_date`,
     args: [],
   });
   let benign = 0;
@@ -145,8 +145,8 @@ async function main() {
   rule("M2 PREMISE — is the stage-advancing action recoverable? (schema has no actions table)");
   const rj = await db.execute({
     sql: `SELECT id, raw_json FROM bills
-          WHERE raw_json IS NOT NULL AND stage_changed_at IS NOT NULL
-          ORDER BY stage_changed_at DESC LIMIT 2`,
+          WHERE raw_json IS NOT NULL AND stage_observed_at IS NOT NULL
+          ORDER BY stage_observed_at DESC LIMIT 2`,
     args: [],
   });
   for (const r of rj.rows) {
@@ -165,10 +165,10 @@ async function main() {
   // ── M2 — lag, against latest_action_date (PROXY) ──────────────────────────
   rule(`M2 — lag distribution, sample of ${SAMPLE} most-recent tracked rows (bounded, guard 4)`);
   const rs = await db.execute({
-    sql: `SELECT id, stage, previous_stage, stage_changed_at, latest_action_date, introduced_date
-          FROM bills INDEXED BY idx_bills_stage_changed_at
-          WHERE stage_changed_at IS NOT NULL
-          ORDER BY stage_changed_at DESC LIMIT ?`,
+    sql: `SELECT id, stage, previous_stage, stage_observed_at, latest_action_date, introduced_date
+          FROM bills INDEXED BY idx_bills_stage_observed_at
+          WHERE stage_observed_at IS NOT NULL
+          ORDER BY stage_observed_at DESC LIMIT ?`,
     args: [SAMPLE],
   });
 
@@ -181,7 +181,7 @@ async function main() {
   const byStage = new Map<string, number[]>();
 
   for (const r of rs.rows) {
-    const sca = String(r.stage_changed_at ?? "");
+    const sca = String(r.stage_observed_at ?? "");
     byMinute.set(sca.slice(0, 16), (byMinute.get(sca.slice(0, 16)) ?? 0) + 1);
     const lad = r.latest_action_date ? String(r.latest_action_date) : "";
     if (!lad) continue;
@@ -223,7 +223,7 @@ async function main() {
   // ── M3 — stage_transitions: a better clock, or the same one? ──────────────
   rule("M3 — stage_transitions: does it hold a better timestamp?");
   const stMeta = await db.execute({
-    sql: `SELECT COUNT(*) AS n, MIN(date(changed_at)) AS first, MAX(date(changed_at)) AS last,
+    sql: `SELECT COUNT(*) AS n, MIN(date(observed_at)) AS first, MAX(date(observed_at)) AS last,
                  COUNT(DISTINCT bill_id) AS bills
           FROM stage_transitions`,
     args: [],
@@ -232,14 +232,14 @@ async function main() {
   console.log(`   rows ${m.n} across ${m.bills} bills, window ${m.first} .. ${m.last}`);
   const stJoin = await db.execute({
     sql: `SELECT COUNT(*) AS n,
-                 SUM(CASE WHEN st.changed_at = b.stage_changed_at THEN 1 ELSE 0 END) AS identical
+                 SUM(CASE WHEN st.observed_at = b.stage_observed_at THEN 1 ELSE 0 END) AS identical
           FROM stage_transitions st JOIN bills b ON b.id = st.bill_id
-          WHERE b.stage_changed_at IS NOT NULL AND st.to_stage = b.stage`,
+          WHERE b.stage_observed_at IS NOT NULL AND st.to_stage = b.stage`,
     args: [],
   });
   const j = stJoin.rows[0]!;
   console.log(
-    `   current-stage rows joinable: ${j.n} · byte-identical timestamp to bills.stage_changed_at: ${j.identical} (${pct(Number(j.identical), Number(j.n))})`,
+    `   current-stage rows joinable: ${j.n} · byte-identical timestamp to bills.stage_observed_at: ${j.identical} (${pct(Number(j.identical), Number(j.n))})`,
   );
   console.log(
     `   READ: both writers pass the SAME wall-clock value to the bills UPDATE and the stage_transitions\n` +
@@ -260,22 +260,22 @@ async function main() {
   for (const w of weeks) {
     const lo = (w + 1) * 7;
     const hi = w * 7;
-    const hiClause = hi === 0 ? "" : ` AND stage_changed_at <= datetime('now','-${hi} days')`;
+    const hiClause = hi === 0 ? "" : ` AND stage_observed_at <= datetime('now','-${hi} days')`;
     const hiClauseOcc = hi === 0 ? "" : ` AND latest_action_date <= date('now','-${hi} days')`;
     const [eo, ec, to, tc] = await Promise.all([
-      db.execute(`SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at
-                  WHERE stage='enacted' AND stage_changed_at IS NOT NULL
-                    AND stage_changed_at > datetime('now','-${lo} days')${hiClause}`),
+      db.execute(`SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at
+                  WHERE stage='enacted' AND stage_observed_at IS NOT NULL
+                    AND stage_observed_at > datetime('now','-${lo} days')${hiClause}`),
       db.execute(`SELECT COUNT(*) AS n FROM bills
                   WHERE stage='enacted' AND latest_action_date IS NOT NULL
                     AND latest_action_date > date('now','-${lo} days')${hiClauseOcc}`),
-      db.execute(`SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at
+      db.execute(`SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at
                   WHERE summary IS NOT NULL AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
-                    AND stage_changed_at IS NOT NULL
-                    AND stage_changed_at > datetime('now','-${lo} days')${hiClause}`),
+                    AND stage_observed_at IS NOT NULL
+                    AND stage_observed_at > datetime('now','-${lo} days')${hiClause}`),
       db.execute(`SELECT COUNT(*) AS n FROM bills
                   WHERE summary IS NOT NULL AND (is_ceremonial = 0 OR is_ceremonial IS NULL)
-                    AND stage_changed_at IS NOT NULL AND latest_action_date IS NOT NULL
+                    AND stage_observed_at IS NOT NULL AND latest_action_date IS NOT NULL
                     AND latest_action_date > date('now','-${lo} days')${hiClauseOcc}`),
     ]);
     const v = [eo, ec, to, tc].map((x) => Number(x.rows[0]?.n ?? 0));

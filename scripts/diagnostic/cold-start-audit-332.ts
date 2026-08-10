@@ -40,7 +40,7 @@ const ENRICH_JOIN =
 const FEED_COLS = `id, congress, bill_type, bill_number, title,
   sponsor_name, sponsor_party, sponsor_state, introduced_date,
   latest_action_date, latest_action_text, update_date,
-  summary, topics, stage, stage_changed_at`;
+  summary, topics, stage, stage_observed_at`;
 const FUNNEL = ["introduced", "committee", "floor", "other_chamber", "president", "enacted"];
 const STALE_ELIGIBLE = ["introduced", "committee", "floor", "other_chamber", "other"];
 
@@ -202,9 +202,9 @@ async function main() {
     { fn: "getMembersTopicMix", route: "/members topic bars", cache: "1d, tag bills",
       sql: `SELECT sponsor_bioguide_id AS bid, je.value AS topic, COUNT(*) AS n FROM bills INDEXED BY idx_bills_sponsor_topics, json_each(bills.topics) je WHERE sponsor_bioguide_id IS NOT NULL AND topics IS NOT NULL${CER_AND} GROUP BY sponsor_bioguide_id, je.value`, args: [] },
     { fn: "getStageChanges (rows)", route: "/changes, ActivityTicker", cache: "1h, tag bills",
-      sql: `SELECT ${FEED_COLS}, previous_stage, ${ENRICH_SELECT}, ${MENTION_SELECT} FROM bills INDEXED BY idx_bills_stage_changed_at ${MENTION_SUBQUERY} ${ENRICH_JOIN} WHERE summary IS NOT NULL${CER_AND} AND stage_changed_at IS NOT NULL AND stage_changed_at > datetime('now', '-7 days') ORDER BY stage_changed_at DESC LIMIT ?`, args: [200] },
+      sql: `SELECT ${FEED_COLS}, previous_stage, ${ENRICH_SELECT}, ${MENTION_SELECT} FROM bills INDEXED BY idx_bills_stage_observed_at ${MENTION_SUBQUERY} ${ENRICH_JOIN} WHERE summary IS NOT NULL${CER_AND} AND stage_observed_at IS NOT NULL AND stage_observed_at > datetime('now', '-7 days') ORDER BY stage_observed_at DESC LIMIT ?`, args: [200] },
     { fn: "getStageChangesCount", route: "/changes, ACTIVITY badge", cache: "1h, tag bills",
-      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_changed_at WHERE summary IS NOT NULL${CER_AND} AND stage_changed_at IS NOT NULL AND stage_changed_at > datetime('now', '-7 days')`, args: [] },
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_stage_observed_at WHERE summary IS NOT NULL${CER_AND} AND stage_observed_at IS NOT NULL AND stage_observed_at > datetime('now', '-7 days')`, args: [] },
     { fn: "getWeeklyBandPriorWeek intro", route: "/ weekly band WoW", cache: "1h, tag bills",
       sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date WHERE ${CER} AND introduced_date IS NOT NULL AND introduced_date > date('now', '-14 days') AND introduced_date <= date('now', '-7 days')`, args: [] },
     { fn: "getSponsorStats (HO331 GOOD ref)", route: "/members?expanded", cache: "1h, tag bills",
@@ -226,8 +226,18 @@ async function main() {
       sql: `SELECT COUNT(*) AS bills_sponsored, SUM(CASE WHEN stage='enacted' THEN 1 ELSE 0 END) AS bills_enacted, AVG(cosponsor_count) AS avg_cosponsor_count FROM bills WHERE sponsor_bioguide_id = ?${CER_AND}`, args: [HEAVY] },
     { fn: "getMemberBills", route: "/members/[id] hub", cache: "1d, tag members,bills",
       sql: `SELECT ${FEED_COLS} FROM bills WHERE sponsor_bioguide_id = ? ORDER BY latest_action_date DESC NULLS LAST, id DESC LIMIT ?`, args: [HEAVY, 10] },
+    // RECONCILED HO 635 against lib/enacted-this-week.ts @ 9e95b21. This is a
+    // verbatim mirror, so re-running the audit without reconciling it would have
+    // EXPLAINed a query that no longer exists and passed it — a stale copy and a
+    // current one emit identical green. Two things moved: the window column is
+    // now `latest_action_date` (the enactment date; the stamp was an observation
+    // clock), and the `INDEXED BY idx_bills_enacted` hint the copy had lost is
+    // restored, so this now mirrors the shipped statement rather than an unhinted
+    // variant of it.
     { fn: "queryEnactedThisWeek (getEnactedThisWeek)", route: "/ ENACTED banner", cache: "1h, tag bills", accept: true,
-      sql: `SELECT id, bill_type, bill_number FROM bills WHERE ${CER} AND stage = 'enacted' AND stage_changed_at IS NOT NULL AND stage_changed_at > datetime('now', '-7 days') ORDER BY stage_changed_at DESC`, args: [] },
+      sql: `SELECT id, bill_type, bill_number FROM bills INDEXED BY idx_bills_enacted WHERE ${CER} AND stage = 'enacted' AND latest_action_date IS NOT NULL AND latest_action_date > date('now', '-7 days') ORDER BY latest_action_date DESC`, args: [] },
+    { fn: "queryEnactedPriorWeekCount", route: "/ ENACTED WoW delta", cache: "1h, tag bills", accept: true,
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_enacted WHERE ${CER} AND stage = 'enacted' AND latest_action_date IS NOT NULL AND latest_action_date > date('now', '-14 days') AND latest_action_date <= date('now', '-7 days')`, args: [] },
     // getSponsorsRanked / getSponsorCount deleted in HO 335 (dead code) — dropped.
     // getSponsorStates deleted in HO 356 (dead code) — dropped. The probe carried
     // a hardcoded copy of its SQL and timed it, reporting a false SLOW (HO 404's

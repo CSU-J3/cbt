@@ -1,13 +1,13 @@
 import { formatRelativeAgeLong } from "@/lib/format";
 
 // Three-state stage display (HO 125). Pre-flight found only 3% of bills
-// have a recorded `stage_changed_at`, so the mockup's "INTRODUCED · 9MO
+// have a recorded `stage_observed_at`, so the mockup's "INTRODUCED · 9MO
 // AGO → COMMITTEE · 1D AGO" literal design fails on the other 97%. This
 // strip degrades gracefully:
 //
 //   1. stage='introduced' + no transition recorded  →  one pill "INTRODUCED · Xmo"
-//   2. stage_changed_at present                     →  "INTRODUCED · Xmo → STAGE · Yd"
-//   3. stage != 'introduced' but stage_changed_at NULL (the 14k legacy
+//   2. stage_observed_at present                     →  "INTRODUCED · Xmo → STAGE · Yd"
+//   3. stage != 'introduced' but stage_observed_at NULL (the 14k legacy
 //      committee bills)                             →  "INTRODUCED · Xmo → STAGE" (no time on pill 2)
 //
 // Pill 1 anchors to introduced_date because that column is 100% populated.
@@ -46,7 +46,7 @@ function stageDisplay(stage: string): string {
 // Expanded form per the home-dashboard-cleanup tooltip audit: "2 weeks
 // in Introduced" rather than the descriptive STAGE_LABELS prose. Falls
 // back to a stage-only sentence when `age` isn't available (the 14k
-// legacy committee bills without a recorded stage_changed_at).
+// legacy committee bills without a recorded stage_observed_at).
 function stageTitle(stage: string, age: string | null): string {
   const name = stageDisplay(stage);
   return age ? `${age} in ${name}` : `In ${name}`;
@@ -83,12 +83,12 @@ function StagePill({
 export function StagePillStrip({
   stage,
   introducedDate,
-  stageChangedAt,
+  stageObservedAt,
   nowMs,
 }: {
   stage: string | null;
   introducedDate: string | null;
-  stageChangedAt: string | null;
+  stageObservedAt: string | null;
   // HO 490: page-computed clock threaded down so the age buckets match between
   // SSR and hydration (this runs client-side via BillRow). See lib/format.ts.
   nowMs: number;
@@ -107,15 +107,15 @@ export function StagePillStrip({
     );
   }
 
-  // Cases 2 + 3: two pills. The current pill's age is `stage_changed_at`
+  // Cases 2 + 3: two pills. The current pill's age is `stage_observed_at`
   // when we have it, else null (which renders as a pill without a · age
   // segment). The introduced pill always shows time-since intro when the
   // column is populated.
   const introAge = introducedDate
     ? formatRelativeAgeLong(introducedDate, nowMs)
     : null;
-  const currentAge = stageChangedAt
-    ? formatRelativeAgeLong(stageChangedAt, nowMs)
+  const currentAge = stageObservedAt
+    ? formatRelativeAgeLong(stageObservedAt, nowMs)
     : null;
 
   return (

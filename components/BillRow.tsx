@@ -158,7 +158,7 @@ export function BillRow({
         <StagePillStrip
           stage={bill.stage}
           introducedDate={bill.introduced_date}
-          stageChangedAt={bill.stage_changed_at ?? null}
+          stageObservedAt={bill.stage_observed_at ?? null}
           nowMs={nowMs}
         />
 

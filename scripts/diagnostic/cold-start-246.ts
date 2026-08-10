@@ -38,7 +38,7 @@ const QUERIES: { label: string; sql: string }[] = [
   },
   {
     label: "enactedThisWeek",
-    sql: `SELECT id, bill_type, bill_number FROM bills WHERE ${ON} AND stage = 'enacted' AND stage_changed_at IS NOT NULL AND stage_changed_at > datetime('now', '-7 days') ORDER BY stage_changed_at DESC`,
+    sql: `SELECT id, bill_type, bill_number FROM bills WHERE ${ON} AND stage = 'enacted' AND stage_observed_at IS NOT NULL AND stage_observed_at > datetime('now', '-7 days') ORDER BY stage_observed_at DESC`,
   },
 ];
 

@@ -44,7 +44,7 @@ function buildQueries(key: string) {
       sql: `SELECT id, congress, bill_type, bill_number, title,
               sponsor_name, sponsor_party, sponsor_state, introduced_date,
               latest_action_date, latest_action_text, update_date,
-              summary, topics, stage, stage_changed_at
+              summary, topics, stage, stage_observed_at
             FROM bills
             WHERE summary IS NOT NULL
               AND (sponsor_bioguide_id = ? OR sponsor_name = ?)${CEREM}

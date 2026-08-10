@@ -22,7 +22,7 @@ function getDb() {
 //    `## Stage movements (N)` header. That N is the exact generation-time
 //    value the reader sees, so the strip will agree with the body. This is
 //    NOT a fresh recompute on purpose: `moves` is derived at generation from
-//    the SINGLE-SLOT bills.stage_changed_at, which later transitions
+//    the SINGLE-SLOT bills.stage_observed_at, which later transitions
 //    overwrite — so recomputing an old week now would UNDERCOUNT. The header
 //    is the only faithful record. `laws` is stable either way (enacted is
 //    terminal) but is taken from the header for the same agree-with-the-body
