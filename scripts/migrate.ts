@@ -686,15 +686,18 @@ const statements = [
   // reads it yet. It exists so the deferred MOVERS hop-count rank (+ the from→to
   // arrow rendering) has an accruing series when that handoff comes; no backfill
   // is possible (the single-slot previous_stage has no history to recover).
+  // HO 635: `changed_at` -> `observed_at`. It carries the SAME observation clock
+  // as bills.stage_observed_at — both writers pass the identical value — so it is
+  // named for what it records. A FRESH database gets the new name here directly;
+  // an EXISTING one is migrated by the expand/contract further down.
   `CREATE TABLE IF NOT EXISTS stage_transitions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bill_id TEXT NOT NULL,
     from_stage TEXT,
     to_stage TEXT NOT NULL,
-    changed_at TEXT NOT NULL
+    observed_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_stage_transitions_bill ON stage_transitions(bill_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_stage_transitions_changed_at ON stage_transitions(changed_at DESC)`,
 
   // HO 263: committee meetings (hearings) data layer — Phase 1, no UI. Spine is
   // Congress.gov committee-meeting/{congress}/{chamber} (HO 261 probe). NO
@@ -1057,6 +1060,27 @@ async function ensureColumn(
   console.log(`added column ${table}.${column}`);
 }
 
+// HO 635 — the CONTRACT half of an expand/contract, and it is a FALSIFICATION LEG
+// rather than cleanup. While the old column and its index still exist, a missed
+// reference is SILENT: the query keeps working against a column nobody writes any
+// more and goes stale invisibly. Dropping them is what makes a missed reference
+// fail loudly, so a clean run here IS the proof that the cutover was complete.
+// Idempotent (PRAGMA-checked) so re-running migrate is safe. The index must go
+// first — SQLite refuses to drop a column that an index references.
+async function dropColumnIfExists(
+  db: Db,
+  table: string,
+  column: string,
+): Promise<void> {
+  const r = await db.execute(`PRAGMA table_info(${table})`);
+  if (!r.rows.some((row) => (row.name as string) === column)) {
+    console.log(`column ${table}.${column} already dropped`);
+    return;
+  }
+  await db.execute(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+  console.log(`DROPPED column ${table}.${column}`);
+}
+
 async function main() {
   const db = getDb();
   for (const sql of statements) {
@@ -1075,13 +1099,8 @@ async function main() {
   );
   console.log("ok: idx_bills_sponsor_bioguide");
   await ensureColumn(db, "bills", "previous_stage", "TEXT");
-  await ensureColumn(db, "bills", "stage_changed_at", "TEXT");
-  await db.execute(
-    "CREATE INDEX IF NOT EXISTS idx_bills_stage_changed_at ON bills(stage_changed_at DESC)",
-  );
-  console.log("ok: idx_bills_stage_changed_at");
 
-  // ── HO 635 EXPAND STEP — `stage_changed_at` -> `stage_observed_at` ─────────
+  // ── HO 635 — `stage_changed_at` -> `stage_observed_at` ────────────────────
   // The column records WHEN THE SYNC OBSERVED an advance, not when the stage
   // changed: both write sites stamp the wall clock of the run. The name says
   // occurrence and 15 readers read it as occurrence, so it is being renamed.
@@ -1099,11 +1118,10 @@ async function main() {
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_stage_observed_at ON bills(stage_observed_at DESC)",
   );
-  await db.execute(
-    `UPDATE bills SET stage_observed_at = stage_changed_at
-     WHERE stage_observed_at IS NULL AND stage_changed_at IS NOT NULL`,
-  );
-  console.log("ok: idx_bills_stage_observed_at (+ idempotent backfill from stage_changed_at)");
+  console.log("ok: idx_bills_stage_observed_at");
+  // CONTRACT. Index first — SQLite refuses to drop an indexed column.
+  await db.execute("DROP INDEX IF EXISTS idx_bills_stage_changed_at");
+  await dropColumnIfExists(db, "bills", "stage_changed_at");
 
   // `stage_transitions.changed_at` carries the SAME observation clock — both
   // writers pass it the identical value. It is folded into this rename.
@@ -1118,11 +1136,9 @@ async function main() {
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_stage_transitions_observed_at ON stage_transitions(observed_at DESC)",
   );
-  await db.execute(
-    `UPDATE stage_transitions SET observed_at = changed_at
-     WHERE observed_at IS NULL AND changed_at IS NOT NULL`,
-  );
-  console.log("ok: idx_stage_transitions_observed_at (+ idempotent backfill from changed_at)");
+  console.log("ok: idx_stage_transitions_observed_at");
+  await db.execute("DROP INDEX IF EXISTS idx_stage_transitions_changed_at");
+  await dropColumnIfExists(db, "stage_transitions", "changed_at");
   await ensureColumn(db, "bills", "is_ceremonial", "INTEGER");
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_is_ceremonial ON bills(is_ceremonial)",

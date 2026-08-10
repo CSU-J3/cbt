@@ -339,12 +339,10 @@ export async function runSummarize(
         // observed already past introduced), recorded as a NULL-from row. A
         // confirmed backward move logs honestly as a from→to setback row.
         await db.execute({
-          // HO 635: DUAL-WRITE for one release — `changed_at` is NOT NULL with no
-          // default and cannot leave this INSERT until the contract migration
-          // drops the column. Same value in both.
-          sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at, observed_at)
-                VALUES (?, ?, ?, ?, ?)`,
-          args: [bill.id, bill.oldStage, computedStage, observedAt, observedAt],
+          // HO 635: the observation stamp, under the name that describes it.
+          sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, observed_at)
+                VALUES (?, ?, ?, ?)`,
+          args: [bill.id, bill.oldStage, computedStage, observedAt],
         });
       } else {
         // No slot move. "reject"/"pend" keep the current stage; "noop" persists

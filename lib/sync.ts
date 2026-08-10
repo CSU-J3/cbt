@@ -266,14 +266,12 @@ async function upsertBill(
   // logged exactly once regardless of which path sees it first.
   if (stageAdvanced) {
     await db.execute({
-      // HO 635: DUAL-WRITE for one release. `changed_at` is `NOT NULL` with no
-      // default, so this INSERT cannot stop writing it until the contract
-      // migration drops the column — omitting it would fail every transition log
-      // the moment this deploys. Both columns take the identical value; the
-      // contract commit removes `changed_at` from the schema and from here.
-      sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, changed_at, observed_at)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [id, priorStage, computedStage, stageObservedAt, stageObservedAt],
+      // HO 635: writes the observation stamp under the name that describes it.
+      // The one-release dual-write of the old `changed_at` column ended with the
+      // contract migration that dropped it.
+      sql: `INSERT INTO stage_transitions (bill_id, from_stage, to_stage, observed_at)
+            VALUES (?, ?, ?, ?)`,
+      args: [id, priorStage, computedStage, stageObservedAt],
     });
   }
 }
