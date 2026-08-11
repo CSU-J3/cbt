@@ -455,7 +455,7 @@ The markets tape froze for ~1.7 days and the leading theory was a dead data sour
 
 ## Vercel's Data Cache persists across deployments — a redeploy does NOT cold `unstable_cache` (HO 312, Jun 2026)
 
-Chased a "reports index is stale, missing the June 8 report" bug that had already self-resolved. Two things to internalize: (1) `unstable_cache` entries live in Vercel's **Data Cache, which survives redeploys** — shipping a fix does not flush a stale cached query; you need an explicit `revalidateTag`, the entry's TTL to expire, or the next cron that revalidates. (2) To surface a backfilled row on demand there's an affordance: `POST /api/revalidate?tag=<tag>` (Bearer `CRON_SECRET`, tags allow-listed). Don't assume "I redeployed, so the cache is fresh."
+Chased a "reports index is stale, missing the June 8 report" bug that had already self-resolved. Two things to internalize: (1) `unstable_cache` entries live in Vercel's **Data Cache, which survives redeploys** — shipping a fix does not flush a stale cached query; you need an explicit `revalidateTag`, the entry's TTL to expire, or the next cron that revalidates. (2) To surface a backfilled row on demand there's an affordance: `POST /api/revalidate?tag=<tag>` (Bearer `CRON_SECRET`, tags allow-listed). Don't assume "I redeployed, so the cache is fresh." **(HO 636) A local `next start` reproduces the same behaviour against `.next/cache`** — so a local render check can show a pre-change value after a correct rebuild, and the value only turns over on a `revalidateTag`, the TTL, or a wiped `.next`. That is verification hygiene rather than a second platform finding, noted here because the local case is where you will actually meet it; the HO 635 flip that prompted it was observed locally, never on prod.
 
 ## The HO 285 report catch-up absorbs `/api/sync` morning soft-timeouts — a report can land a day late with no bug (HO 312, Jun 2026)
 
@@ -723,7 +723,7 @@ The motion-aware amendment surface carried a model, from HO 550 through 554, tha
 
 ## A probe that pins a verbatim copy of shipped logic goes stale silently — and its green is then a measurement of the past (HO 554 → 556 WATCH → 557, Jul 2026)
 
-`motion-outcome-model-554.ts` deliberately re-declares `deriveDisposition` verbatim rather than importing it (importing `lib/queries.ts` drags `next/cache` into a node script, and the probe wants a pinned baseline to compare against). Correct at the time. Then HO 555 widened the shipped classifier, and the copy became a **measurement of a version that no longer runs** — while still printing a clean DISAGREE=0. HO 556's sweep predicted this in a WATCH ("any future edit to `deriveDisposition` must update the probe's copy in the same change or it reads a stale classifier"); HO 557 discharged it on the first opportunity and the reconciled probe immediately read **DISAGREE=2**, catching a model error that would otherwise have shipped as a rendered contradiction on two live rows. The rule: **when a probe embeds a copy of production logic, the copy is a dependency with no compiler edge and no test** — nothing links them, so nothing breaks when they diverge. Two mitigations, applied here: name the mirrored SHA in the copy's comment (so a reader can check it in one `git log`), and treat "re-run the probe" as **including** "reconcile its copies first" — a probe re-run against stale copies isn't a re-run, it's a replay. The generalizable tell is the HO 503/506 same-as-success shape: a stale copy and a current one emit identical green, so the instrument reads the same whether or not the thing it watches has moved.
+`motion-outcome-model-554.ts` deliberately re-declares `deriveDisposition` verbatim rather than importing it (importing `lib/queries.ts` drags `next/cache` into a node script, and the probe wants a pinned baseline to compare against). Correct at the time. Then HO 555 widened the shipped classifier, and the copy became a **measurement of a version that no longer runs** — while still printing a clean DISAGREE=0. HO 556's sweep predicted this in a WATCH ("any future edit to `deriveDisposition` must update the probe's copy in the same change or it reads a stale classifier"); HO 557 discharged it on the first opportunity and the reconciled probe immediately read **DISAGREE=2**, catching a model error that would otherwise have shipped as a rendered contradiction on two live rows. The rule: **when a probe embeds a copy of production logic, the copy is a dependency with no compiler edge and no test** — nothing links them, so nothing breaks when they diverge. Two mitigations, applied here: name the mirrored SHA in the copy's comment (so a reader can check it in one `git log`), and treat "re-run the probe" as **including** "reconcile its copies first" — a probe re-run against stale copies isn't a re-run, it's a replay. The generalizable tell is the HO 503/506 same-as-success shape: a stale copy and a current one emit identical green, so the instrument reads the same whether or not the thing it watches has moved. **Second citation, HO 635 — and this time it was inside the standing instrument built to catch the neighbouring class.** `cold-start-audit-332.ts` pins verbatim copies of production SQL so it can EXPLAIN them, and its `queryEnactedThisWeek` copy still windowed on `stage_changed_at` after `9e95b21` re-sourced the shipped query onto `latest_action_date`; re-running it unreconciled would have EXPLAINed a statement **that no longer exists in the product** and passed it green — a misplan audit reporting on a query nobody runs. The cutover reconciled the copy and added its missing prior-week sibling. **The reusable half is one line past the rule above: an instrument that HOLDS a copy needs a check that the copy still matches its original**, because here the instrument's own green is exactly what the staleness buys you.
 
 ## An empty collection in a seed file means "no assertion," not "assert empty" (HO 560, Jul 2026)
 
@@ -1863,5 +1863,67 @@ the applied style and needed no override**, so its PASS was sound. Only the
 diagnostic beside it was dead. **A broken instrument does not automatically
 invalidate every number it printed — it invalidates every number that depended on
 the override.**
+
+---
+
+## A field named for the EVENT gets read as the event by everyone who arrives later (HO 632 → 634 → 635, Aug 2026)
+
+`bills.stage_changed_at` recorded when the sync **observed** an advance, not when
+the stage changed: both write sites stamp `new Date().toISOString()` at the top of
+the run, so one run stamps a whole batch of referrals with one clock. Measured over
+the 40 most recent movers: lag positive on **40 of 40**, median 3.76 days, max
+20.76, and the 40 rows carried **two distinct minute-stamps** while the actions
+behind them spanned 2026-07-21 → 2026-08-08. That is correct behaviour for a field
+named for observation, and it is exactly what the field is. **The defect was
+entirely in the name.**
+
+**Fifteen consumers read it, nine of them windowing counts on it, and every one was
+written by someone reading the column name.** Nothing catches this: both an
+occurrence timestamp and a write timestamp are `TEXT`, so the type system is blind;
+and no query can catch it either, because each query is *correct* about the column
+it names. So the general form is the entry, not this instance: **a timestamp column
+whose name describes the EVENT rather than the WRITE will be read as the event by
+every consumer that arrives later**, and the misreading compounds silently because
+each new reader inherits the previous reader's interpretation rather than the
+column's semantics.
+
+It surfaced only when a display change (HO 632's day-grouping) put two readings of
+the same field beside each other on one row — `INTRODUCED · 2D` next to
+`COMMITTEE · 28M` — and even then the two were **internally consistent**, both off
+the observation clock, which is why nothing looked broken from inside. An
+externally-wrong, internally-consistent surface is the hard case: it has no
+self-contradiction to trip over.
+
+**Name the write, not the event.** `stage_observed_at`, `ingested_at`, `fetched_at`,
+`last_seen`, `first_seen` — CBT already gets this right everywhere the name wasn't
+inherited from a hurry, which is what made the one exception invisible. And a rename
+alone is worth shipping even though it **fixes no instance**: it converts every
+reader from an unexamined default into a deliberate choice, which is the only cheap
+move available against a defect whose whole mechanism is that nobody re-reads the
+semantics.
+
+---
+
+## Reader-lessness does not license a bare rename — a writer binds a schema name as hard as a reader (HO 635, Aug 2026)
+
+`stage_transitions.changed_at` has **zero production readers**, verified rather than
+inherited from the backlog: the only production references are the two INSERTs. That
+is what a "so just rename it" ruling keys on, and the premise held. **The conclusion
+didn't.** Both writers name the column explicitly in an **unguarded
+`await db.execute`**, and the column is `NOT NULL` with no default — so a bare
+`ALTER TABLE RENAME COLUMN` under running code fails the sync and summarize paths
+outright the moment it lands, with no reader involved at all. It took the same
+expand/contract as its reader-heavy sibling, plus a **one-release dual-write**: the
+INSERT cannot stop naming `changed_at` until the contract drops it, so both columns
+take the identical value for exactly one release, and the ordering is forced (code
+first, drop second — dropping under the dual-writing build would fail every
+transition log).
+
+**The rule: a rename's blast radius is every statement that NAMES the column, not
+every statement that READS it.** A reader census answers "who breaks on the value";
+whether a rename can be bare is a **reference** question, and the `NOT NULL`-with-no-
+default case is the one that also fixes the *order* of the two commits. Filed
+because the reader-only analysis is the natural one to reach for and it is right up
+until it is expensively wrong.
 
 ---
