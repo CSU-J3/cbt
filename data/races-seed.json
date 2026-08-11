@@ -15,8 +15,9 @@
       "rating_source": "Ballotpedia",
       "source_url": "https://ballotpedia.org/United_States_Senate_election_in_Maine,_2026",
       "candidates": [
-        { "name": "Janet Mills", "party": "D", "bioguide_id": null, "status": "running" },
-        { "name": "Graham Platner", "party": "D", "bioguide_id": null, "status": "running" }
+        { "name": "Troy Jackson", "party": "D", "bioguide_id": null, "status": "nominee" },
+        { "name": "Graham Platner", "party": "D", "bioguide_id": null, "status": "withdrew" },
+        { "name": "Janet Mills", "party": "D", "bioguide_id": null, "status": "withdrew" }
       ]
     },
     {
