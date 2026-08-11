@@ -1344,6 +1344,17 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > then shipped); HO 599 found it one arc later. **This is the measured-number rule
 > one level up: the doc that catches drifting comments drifts the same way, and
 > nothing re-checks it either.**
+>
+> **AND ANCHOR THE GREPS THE SWEEP IS VERIFIED WITH (HO 637).** A bare numeric or
+> `HO NNN` grep matches through substrings, so a pointer or figure check reads
+> green off a collision — use `grep -ow`, `\bN\b`, `^\*\*Also \(HO N\)`. **Three
+> collisions in three arcs:** `= 15` against `>= 150` (HO 634) and `126` against a
+> bill number `1267` (HO 637). The demonstration is the argument — on the roadmap
+> at HO 637, bare `126` matched **9** times and `grep -ow 126` matched **6**, so
+> three of the bare hits were substrings of longer numbers. This is the same-as-
+> success shape at the verification layer: a collision and a real hit are
+> indistinguishable in the output, and the check that was supposed to confirm the
+> sweep is what conceals it.
 
 > **AUTHORING RULE — when a measured improvement fails its margin gate, the three
 > conditions that make shipping it correct (HO 598).** Written fence-first, because
@@ -2245,6 +2256,7 @@ When a change needs the reviewer to see the **actual text**, not a summary of it
 - **Prod can lag the fast-forward (mechanism in oddities, not restated here).** Because the review-ref push builds the SHA as a *preview* first, the later `main` fast-forward onto that same SHA can leave the production alias on the predecessor — a **verification blocker on a UI change, harmless on a docs one**. The mechanism, recognition symptom, and `list_deployments` diagnosis live in oddities (*"A git fast-forward onto a preview-built SHA can leave prod behind"*, HO 540) — the HO 505 ownership split: the route lives here, the phenomenon there.
 - **Why it satisfies the SKILL self-mod guard rather than bypassing it.** The guard exists to stop `SKILL.md` landing on `main` without an approved diff. **A review ref is not `main`** — nothing on it is deployed or canonical until the fast-forward, which happens only after the read. The guard holds; the ref is just where the read happens.
 - **Scope — wider than SKILL.md.** Use this by default for any change where the reviewer needs the real text, not a paraphrase: **SKILL edits** (the self-mod guard) and **append-only roadmap blocks** (a wrong clause there is permanent — correctable only by a later block — so it gets read before it lands). Ordinary code and most docs still ship paste-or-inline; this is the exception for read-before-land text.
+- **Any claim about REMOTE state is made with `git ls-remote`, never `git rev-parse origin/main` (HO 637).** `ls-remote` opens a connection and caches nothing; `rev-parse origin/main` reads `refs/remotes/origin/main`, **a local cache exactly as stale as the last fetch**. **The trap is the refspec-limited fetch:** `git fetch origin '+refs/heads/X:refs/remotes/origin/X'` updates **only the ref it names**, leaving every other `origin/*` ref at whatever the last *full* fetch saw — it looks like a fetch and is not one for any other ref. **And the limiting refspec can be baked into the clone rather than typed:** a `--depth`/single-branch clone sets `remote.origin.fetch` to `+refs/heads/main:refs/remotes/origin/main`, which `--unshallow` does NOT widen — so in such a tree a bare `git fetch origin` updates `origin/main` and **no other ref**, and nothing on the command line says so. Measured in HO 637: the reviewer's clone fetched clean, resolved `origin/main` to the new tip, and still could not resolve `origin/637-sweep-review` while `ls-remote` showed it on the remote. Check `git config --get-all remote.origin.fetch` before concluding a ref is missing; re-running the fetch cannot fix it. That is how HO 637 produced a reviewer reading `origin/main` at `89eb8cb` while the remote had carried `875d493` for an hour, with a live-verified prod deploy on it. So: **`ls-remote` for any claim about the remote; `rev-parse origin/main` only after an explicit FULL fetch; never as arbiter while sessions run concurrently** (which, per the concurrent-session rule, is the normal case here). **Corollary, and it is why this is a rule rather than a note: when the ground truth contradicts a correction, say so with the command output rather than agreeing** — HO 637's session was told its push had silently failed and refused to confirm; agreeing would have filed a phantom push failure for the next session to hunt.
 - **Recognition symptom (so a future session switches fast).** A *summary* of a diff arrives and the diff itself doesn't — **twice**. Stop pasting at the second swallowed paste and switch to the ref. Established HO 508 (a pasted diff swallowed three times before switching); it fired twice more in the HO 537 arc (the roadmap block described-not-delivered on two consecutive attempts, then routed through `537-review`).
 
 ## Owner verdicts in a relay (HO 632) — an unfilled slot is a HALT, and a verdict is a quotation
