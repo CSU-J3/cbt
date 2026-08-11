@@ -361,6 +361,10 @@ async function main(): Promise<number> {
   const CTRL_BINS = [0, 1, 5, 10, 15, 20, 30, Number.POSITIVE_INFINITY];
   let ctrlRowsRead = 0;
   const ctrlAll: { chamber: string; bio: string; streak: number; atBound: boolean }[] = [];
+  // RETAINED for M-OCCUPANCY below — the position matrix this walk already fetched.
+  // Keeping it is what lets the 60-cursor replay add ZERO queries; re-deriving it
+  // per cursor would be 120 statements for an answer already in memory.
+  const matrix = new Map<string, Map<string, Map<string, string>>>();
   for (const chamber of CHAMBERS) {
     const rr = rolls[chamber];
     if (!rr || rr.ids.length === 0) continue;
@@ -382,6 +386,7 @@ async function main(): Promise<number> {
       }
       m.set(S(r[1]), S(r[2]));
     }
+    matrix.set(chamber, byMember);
     const streaks: number[] = [];
     for (const [bio, positions] of byMember) {
       if (pop.get(bio)?.chamber !== chamber) continue; // population carve
@@ -429,6 +434,259 @@ async function main(): Promise<number> {
     `  → CONTROL: ${ctrlInBand} member(s) anywhere in [10, ${ABSENCE_STREAK_MIN}) across the whole population.` +
       ` control rows_read ${ctrlRowsRead} (NOT in the cost gate — this statement is a control, not a shipped shape).`,
   );
+  console.log("");
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // M-OCCUPANCY — is the [5,30) band EVER occupied? (HO 642 follow-up)
+  //
+  // The snapshot above answers "who is in the band TODAY" and got 0. That does not
+  // answer "is the band ever occupied", because OCCUPANCY OF A TRANSIENT STATE IS
+  // NOT MEASURABLE FROM ONE SAMPLE — a member passes through [5,30) on the way to
+  // 30+, so a single cursor can easily land between crossings and report an empty
+  // band that is in fact routinely occupied. One sample cannot distinguish "never"
+  // from "not right now", and a tier declined on the former would be declined on
+  // evidence that only supports the latter.
+  //
+  // So: replay the identical streak rule with the newest-roll cursor set to each of
+  // the last OCCUPANCY_CURSORS roll calls, reusing the M-CONTROL matrix. ZERO new
+  // queries — the matrix already holds every (member, roll, position) in the bound,
+  // and a cursor is just a different starting index into the same roll list.
+  //
+  // TRUNCATION, stated because it bounds what the far cursors can say: at cursor k
+  // only (bound - k) rolls remain visible, so a streak observed there is CENSORED at
+  // that length. With bound 120 and 60 cursors the shallowest lookback is 61 rolls —
+  // still more than twice the 30 that defines the MIA tier, so neither band is
+  // clipped by construction. It would be at, say, 110 cursors.
+  //
+  // Ruling criteria, fixed in the handoff BEFORE the numbers existed:
+  //   VIABLE      median occupancy >= 1 AND max <= 6
+  //   DECLINED    max == 0 across every cursor (structurally empty; no threshold
+  //               rescues it)
+  //   CONDITIONAL anything else (median 0, max > 0) — a band that renders rarely.
+  //               Report and stop; whether that earns a slot is an owner call.
+  // ══════════════════════════════════════════════════════════════════════════
+  const OCCUPANCY_CURSORS = 60;
+  const BAND_LO = 5;
+  console.log("#".repeat(96));
+  console.log(
+    `# M-OCCUPANCY — [${BAND_LO},${ABSENCE_STREAK_MIN}) band occupancy across the last ${OCCUPANCY_CURSORS} roll calls`,
+  );
+  console.log("#".repeat(96));
+
+  type OccChamber = {
+    series: number[];
+    miaSeries: number[];
+    distinct: Set<string>;
+    firstDate: string;
+    lastDate: string;
+    cursors: number;
+  };
+  const occ: Record<string, OccChamber> = {};
+
+  for (const chamber of CHAMBERS) {
+    const rr = rolls[chamber];
+    const byMember = matrix.get(chamber);
+    if (!rr || !byMember || rr.ids.length === 0) continue;
+    const cursors = Math.min(OCCUPANCY_CURSORS, rr.ids.length);
+    const series: number[] = [];
+    const miaSeries: number[] = [];
+    const distinct = new Set<string>();
+
+    for (let k = 0; k < cursors; k++) {
+      let inBand = 0;
+      let inMia = 0;
+      for (const [bio, positions] of byMember) {
+        if (pop.get(bio)?.chamber !== chamber) continue; // the same population carve
+        let streak = 0;
+        for (let i = k; i < rr.ids.length; i++) {
+          const pos = positions.get(rr.ids[i] ?? "");
+          if (pos === undefined) continue; // NO DATA — neither extends nor breaks
+          if (pos === "not_voting") {
+            streak++;
+            continue;
+          }
+          break;
+        }
+        if (streak >= BAND_LO && streak < ABSENCE_STREAK_MIN) {
+          inBand++;
+          distinct.add(bio);
+        } else if (streak >= ABSENCE_STREAK_MIN) {
+          inMia++;
+        }
+      }
+      series.push(inBand);
+      miaSeries.push(inMia);
+    }
+
+    occ[chamber] = {
+      series,
+      miaSeries,
+      distinct,
+      firstDate: rr.dates[cursors - 1] ?? "?",
+      lastDate: rr.dates[0] ?? "?",
+      cursors,
+    };
+
+    const sorted = [...series].sort((a, b) => a - b);
+    const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))] ?? 0;
+    const median = at(0.5);
+    const p90 = at(0.9);
+    const max = Math.max(...series);
+
+    console.log(
+      `  ${pad(chamber, 6)} cursors ${padL(cursors, 3)}  window ${occ[chamber]?.firstDate} … ${occ[chamber]?.lastDate}` +
+        `   (cursor 0 = newest roll; cursor ${cursors - 1} sees ${rr.ids.length - cursors + 1} rolls back)`,
+    );
+    console.log(`         [${BAND_LO},${ABSENCE_STREAK_MIN}) series (newest -> oldest cursor):`);
+    for (let i = 0; i < series.length; i += 20) {
+      console.log(`            ${series.slice(i, i + 20).map((v) => padL(v, 2)).join(" ")}`);
+    }
+    console.log(`         >=${ABSENCE_STREAK_MIN} series:`);
+    for (let i = 0; i < miaSeries.length; i += 20) {
+      console.log(`            ${miaSeries.slice(i, i + 20).map((v) => padL(v, 2)).join(" ")}`);
+    }
+    console.log(
+      `         occupancy  median ${median} · p90 ${p90} · max ${max}   ·   DISTINCT members ever in band: ${distinct.size}`,
+    );
+    if (distinct.size > 0) {
+      for (const bio of distinct) {
+        const m = pop.get(bio);
+        console.log(`            · ${pad(m?.name ?? bio, 26)} ${pad(m?.party ?? "?", 2)} ${pad(m?.state ?? "", 3)}`);
+      }
+    }
+  }
+
+  // ── pooled, DATE-ALIGNED (not by cursor index) ────────────────────────────
+  // The chambers do not vote on the same days: house cursor 0 and senate cursor 0
+  // are different DATES (16 days apart at the time of writing, because the House is
+  // in recess). Summing series[k] + series[k] would add two different points in
+  // time and call it one — so pool on the DATE axis, restricted to the overlap of
+  // the two cursor windows, since outside it one chamber contributes no sample and
+  // a zero there would read as "nobody absent" rather than "not measured".
+  const pooledDistinct = new Set<string>();
+  for (const c of CHAMBERS) for (const b of occ[c]?.distinct ?? []) pooledDistinct.add(b);
+
+  const dated: Record<string, { date: string; v: number }[]> = {};
+  for (const c of CHAMBERS) {
+    const o = occ[c];
+    const rr = rolls[c];
+    if (!o || !rr) continue;
+    dated[c] = o.series.map((v, k) => ({ date: rr.dates[k] ?? "", v }));
+  }
+  const lo = CHAMBERS.map((c) => occ[c]?.firstDate ?? "").filter(Boolean).sort().at(-1) ?? "";
+  const hi = CHAMBERS.map((c) => occ[c]?.lastDate ?? "").filter(Boolean).sort()[0] ?? "";
+  const dateSet = new Set<string>();
+  for (const c of CHAMBERS)
+    for (const d of dated[c] ?? []) if (d.date >= lo && d.date <= hi) dateSet.add(d.date);
+  const dates = [...dateSet].sort().reverse();
+  const pooledSeries: number[] = [];
+  for (const d of dates) {
+    let v = 0;
+    for (const c of CHAMBERS) {
+      // that chamber's most recent cursor at or before this date
+      const hit = (dated[c] ?? []).find((x) => x.date <= d);
+      v += hit?.v ?? 0;
+    }
+    pooledSeries.push(v);
+  }
+  console.log("");
+  console.log(
+    `  pooled on the DATE axis over the window both chambers cover: ${lo} … ${hi}` +
+      ` (${dates.length} distinct roll dates). Cursor-index pooling is NOT used —` +
+      ` the chambers' cursor 0 differ by ${Math.round(
+        (Date.parse(`${(occ.senate?.lastDate ?? lo)}T00:00:00Z`) -
+          Date.parse(`${(occ.house?.lastDate ?? lo)}T00:00:00Z`)) / 86_400_000,
+      )} days.`,
+  );
+  const ps = [...pooledSeries].sort((a, b) => a - b);
+  const pAt = (q: number) => ps[Math.min(ps.length - 1, Math.floor(q * (ps.length - 1)))] ?? 0;
+  const pMedian = pAt(0.5);
+  const pP90 = pAt(0.9);
+  const pMax = pooledSeries.length ? Math.max(...pooledSeries) : 0;
+  console.log("");
+  console.log(
+    `  POOLED  median ${pMedian} · p90 ${pP90} · max ${pMax}  ·  distinct members ever in band: ${pooledDistinct.size}`,
+  );
+
+  const verdictOcc =
+    pMax === 0
+      ? "DECLINED"
+      : pMedian >= 1 && pMax <= 6
+        ? "VIABLE"
+        : "CONDITIONAL";
+  console.log(`  VERDICT ${verdictOcc}`);
+  if (verdictOcc === "DECLINED") {
+    console.log(
+      `    max occupancy is 0 at EVERY one of the ${pooledSeries.length} sampled dates — the band is`,
+    );
+    console.log(
+      "    structurally empty over the measured window, and no threshold inside it rescues the tier.",
+    );
+    console.log(
+      "    This is the criterion the handoff fixed in advance for exactly this reading; nothing more is swept.",
+    );
+  } else if (verdictOcc === "CONDITIONAL") {
+    // The criteria name CONDITIONAL with the parenthetical "(median 0, max > 0)".
+    // That is ONE of the two ways to land here and the branch must not narrate it
+    // when the other one fired — a canned explanation that contradicts the numbers
+    // above it is worse than no explanation.
+    if (pMedian === 0) {
+      console.log(
+        `    the band is reachable (max ${pMax}) but sits EMPTY at the median — a tier that renders`,
+      );
+      console.log(
+        "    rarely. Reported as that and stopped: whether a rarely-firing band earns its slot is an",
+      );
+      console.log("    owner call, not a measurement.");
+    } else {
+      console.log(
+        `    NOT the case the criteria's parenthetical anticipated. The band is OCCUPIED at the median`,
+      );
+      console.log(
+        `    (${pMedian}, so the >= 1 half PASSES) and fails on the CEILING instead: max ${pMax} > 6. That ceiling`,
+      );
+      console.log(
+        "    exists so the at-risk tier cannot outnumber the MIA tier and stop the band reading as an",
+      );
+      console.log(
+        `    alarm — and at its peak this band carries ${pMax} at-risk against ${Math.max(
+          ...CHAMBERS.map((c) => Math.max(0, ...(occ[c]?.miaSeries ?? [0]))),
+        )} MIA. So the failure is over-population,`,
+      );
+      console.log(
+        "    not emptiness, and the lever is a HIGHER threshold than 5, which this probe did not sweep",
+      );
+      console.log(
+        "    because the handoff fixed the band at [5,30). Reported and stopped: the rule shape is the",
+      );
+      console.log("    owner's call.");
+    }
+  }
+
+  // The window's reach is load-bearing: a window that only spans idle days measures
+  // nothing, so it is stated rather than left for the reader to infer from dates.
+  console.log("");
+  console.log("  ── window reach (state plainly; an idle window measures nothing) ──");
+  for (const chamber of CHAMBERS) {
+    const o = occ[chamber];
+    const rr = rolls[chamber];
+    if (!o || !rr) continue;
+    const spanDays = Math.round(
+      (Date.parse(`${o.lastDate}T00:00:00Z`) - Date.parse(`${o.firstDate}T00:00:00Z`)) / 86_400_000,
+    );
+    const idleDays = Math.round(
+      (Date.now() - Date.parse(`${o.lastDate}T00:00:00Z`)) / 86_400_000,
+    );
+    console.log(
+      `     ${pad(chamber, 6)} ${o.cursors} cursors span ${o.firstDate} … ${o.lastDate} = ${spanDays} calendar days` +
+        ` · newest roll is ${idleDays} days old` +
+        `${idleDays > 10 ? "  ⚠ CHAMBER IS IDLE — the newest cursor is not 'today'" : ""}`,
+    );
+    console.log(
+      `            full ${rr.ids.length}-roll bound reaches ${rr.dates[rr.dates.length - 1]}; the cursor window covers` +
+        ` ${o.cursors}/${rr.ids.length} of it`,
+    );
+  }
   console.log("");
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -581,19 +839,31 @@ async function main(): Promise<number> {
       `    threshold, it means NO threshold in this range selects anybody today. The M-CONTROL`,
     );
     console.log(
-      `    histogram is the reason and it is independent of Phase A: the streak distribution is`,
+      `    histogram is the reason and it is independent of Phase A: AT THIS CURSOR the streak`,
     );
     console.log(
-      `    bimodal with an empty middle — a large mass at 0, a short tail at 1-4, NOTHING from 5`,
+      `    distribution is bimodal with an empty middle — a large mass at 0, a short tail at 1-4,`,
     );
     console.log(
-      `    to 29, then the ${verdicts[0]?.pooledMia ?? 0} already-MIA members at ${ABSENCE_STREAK_MIN}+. Any WARN in 5..29 selects zero.`,
+      `    nothing from 5 to 29, then the ${verdicts[0]?.pooledMia ?? 0} already-MIA members at ${ABSENCE_STREAK_MIN}+.`,
+    );
+    console.log("");
+    // A SNAPSHOT CANNOT GENERALISE, and an earlier draft of this note did: it read
+    // "any WARN in 5..29 selects zero", which is a claim about the corpus made from
+    // one sample. M-OCCUPANCY replays the same rule across 60 cursors and refutes
+    // it. The note keeps its today-reading and defers the durable answer.
+    console.log(
+      `    DO NOT READ THAT AS "the band is never occupied" — that is a claim about the corpus and`,
     );
     console.log(
-      "    So the at-risk tier is buildable and cheap, and would render an empty band until",
+      `    this is one sample. M-OCCUPANCY above replays the same rule across ${pooledSeries.length} sampled dates:`,
     );
     console.log(
-      "    somebody starts a streak. Whether that is acceptable is the owner's call, not this probe's.",
+      `    occupancy median ${pMedian} / p90 ${pP90} / max ${pMax}, ${pooledDistinct.size} distinct members ever in band,` +
+        ` verdict ${verdictOcc}.`,
+    );
+    console.log(
+      "    Today's zero is a between-crossings sample, not an empty band.",
     );
   }
   console.log("");
