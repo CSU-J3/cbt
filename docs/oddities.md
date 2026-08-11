@@ -1987,3 +1987,76 @@ resolving to no active roster member, which `favoredMember` already computes and
 discards (backlog QUEUED).
 
 ---
+
+## A guard whose predicate is a SUBSET of what one write produces can fire on a partial write (HO 640/641, Aug 2026)
+
+`primaries-sync.ts::isSettled` decides a contest is finished on **two**
+conditions: its date has passed, and some candidate row carries a non-NULL
+`vote_pct`. The write it is guarding produces **three** things in a single
+INSERT — the roster, the share, and `status` (`c.isWinner ? "winner" :
+"running"`). The guard reads one of the two columns that arrive together and
+infers the whole write landed.
+
+It usually has. Ballotpedia normally posts a result and marks the winning
+votebox row at the same time, so shares and a winner arrive in one scrape and
+the contest settles complete. But the two are **independently timed at the
+source**, and a scrape that lands in the window after results post and before
+the race is called writes shares + `running`. That row now satisfies the
+predicate. Every later tick refuses it — at all three write paths, because the
+guard is consulted *before* the incoming roster is even built, so the correct
+roster the next tick would have written is never compared against what's there.
+
+**Measured:** 516 of 718 completed contests are settled. Most froze correctly.
+**11 froze mid-write** — CA-04/14/16/43, WA-05/07/08/09, ME-D, ME-R,
+NJ-09-R — carrying shares and no winner. The sharpest exhibit is WA: all ten
+completed WA contests were touched at or after their own 2026-08-04 date, and in
+the **same 2026-08-06 tick** WA-04/06/10 each took two winner rows while
+WA-05/07/08/09 took none. Same date, same run, same code path — the difference
+was entirely whether Ballotpedia had called that particular race yet.
+
+**The generalizable tell: when a guard's predicate is a strict subset of what
+one write produces, the guard can fire on a partial write, and it will do so
+exactly on the rows where the source was slowest** — which is to say, on the
+close and the contested ones. Ask of any done-flag: does it observe *everything*
+the write produces, or the part that happens to arrive first?
+
+Not irreversible, and the distinction matters. `isSettled` is module-private and
+guards only the three sync paths; `backfill:primary-results` and
+`reingest:primary-slate` bypass it and write both columns. So the freeze is
+**unreachable by any automatic path but recoverable by hand** — while the cron
+reports success on every tick without ever touching these rows, which is the
+same-as-success shape (HO 503/506) arriving on the ingestion side.
+
+---
+
+## `primaries.race_id` is the RUNOFF join key — the name promises a generality it does not have (HO 640/641, Aug 2026)
+
+`primaries` carries a `race_id TEXT REFERENCES races(id)` column. Reading the
+schema, it is the obvious way to get from a primary contest to the race it
+belongs to. It is not, and the column is not broken — it is **narrow**.
+
+**4 of 876 rows carry it**, and **0 of the 718 completed** ones do:
+`senate-GA-2026-R-runoff` → `S-GA-2026`, `senate-LA-2026-{D,R}-runoff` →
+`S-LA-2026`, and `senate-SC-2026-special-R` → `S-SC-2026`. Those are exactly the
+rows that need it: `getRunoffsForRace` (`lib/queries.ts:1608`) matches
+`p.race_id = ? AND p.election_round = 'runoff'`, and a runoff has no other way
+to name its parent race. The column does its job. It just isn't the general
+primary→race link.
+
+The general link is a **shape join** — `state` + `chamber` +
+`CAST(district AS INTEGER)`, which is what `backfill:race-challengers` uses.
+
+**The exhibit is this probe's own first pass.** HO 640 set out to measure which
+of the 11 the harvest could reach, read `primaries.race_id`, found it NULL on
+all eleven, and reported **all 11 unreachable**. Re-measured on the shape join
+gated by `EXISTS(race_ratings)`, the answer is **5** — NJ-09, WA-05, WA-08,
+ME-D, ME-R. The wrong number was not obviously wrong: "the harvest can't reach
+any of them" is a plausible finding that would have quietly closed the product
+question. **When a column's name matches the join you want, check what the
+consumer actually joins on before believing it.**
+
+Ride-along, no separate line: the comment at `lib/queries.ts:1684` states this
+density as **3/907**. Current corpus is **4/876**. Correct it whenever
+`queries.ts` is next open for another reason.
+
+---
