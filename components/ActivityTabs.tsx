@@ -24,6 +24,12 @@ import { type ReactNode, useState } from "react";
 // the redesign spec's MOVERS / TOP STALLS / NEW THIS WEEK feed. newCount is
 // getNewBillsThisWeekCount — the same window its row list uses, so the label
 // can't drift from the rows. Still data-fetch-free here; content is wired in.
+//
+// HO 642: `filterSlot` renders INSIDE this nav, after the three tab buttons and
+// separated by a dim middot — packed left against the last tab, never anchored to
+// the panel's right edge (C1). It is a rendered node, not data: the page builds
+// the chamber <Link>s server-side so the toggle is real navigation and the state
+// is shareable, and this island stays free of both data fetches and URL logic.
 type Tab = "movers" | "stalls" | "new";
 
 export function ActivityTabs({
@@ -33,6 +39,7 @@ export function ActivityTabs({
   activityCount,
   stallsCount,
   newCount,
+  filterSlot,
 }: {
   activityContent: ReactNode;
   stallsContent: ReactNode;
@@ -40,6 +47,7 @@ export function ActivityTabs({
   activityCount: number;
   stallsCount: number;
   newCount: number;
+  filterSlot?: ReactNode;
 }) {
   const [tab, setTab] = useState<Tab>("movers");
 
@@ -77,6 +85,16 @@ export function ActivityTabs({
           New This Week
           <span className="count">({newCount.toLocaleString()})</span>
         </button>
+        {filterSlot ? (
+          // One flex item, so .search-tabs' 24px gap separates it from the last
+          // tab while the middot stays tight against the options inside it.
+          <span className="feed-filterslot">
+            <span className="feed-chamber-sep" aria-hidden>
+              ·
+            </span>
+            {filterSlot}
+          </span>
+        ) : null}
       </nav>
 
       <div className="flex flex-1 flex-col min-h-0">

@@ -608,9 +608,24 @@ export const getCorpusStats = unstable_cache(
 // the other dashboard aggregates; deliberately NOT summary-gated (a brand-new
 // introduction is usually unsummarized, and the band counts arrivals, not
 // summarized arrivals). Cached, tag "bills".
+//
+// HO 642: optional trailing `chamber`, for the dashboard feed panel's chamber
+// selector. It moves in lockstep with getNewBillsThisWeek below — that helper's
+// own comment says its predicate is EXACTLY this one so the tab label can't drift
+// from the rows, and changing one is the drift that comment exists to prevent.
+// `chamber` joins the unstable_cache key, so house / senate / undefined are three
+// entries per query rather than a rewrite of the existing one.
 export const getNewBillsThisWeekCount = unstable_cache(
-  async (): Promise<number> => {
+  async (chamber?: Chamber): Promise<number> => {
     const db = getDb();
+    // The bill_type predicate is additive to the forced index below, not a
+    // replacement for the date constraint the hint depends on (HO 246).
+    const chamberClause =
+      chamber === "house"
+        ? ` AND bill_type IN (${HOUSE_BILL_TYPES})`
+        : chamber === "senate"
+          ? ` AND bill_type IN (${SENATE_BILL_TYPES})`
+          : "";
     // HO 246: forced INDEXED BY idx_bills_introduced_date (introduced_date,
     // is_ceremonial). Turso is statless (no ANALYZE), so without the hint the
     // planner drives off idx_bills_is_ceremonial — the (=0 OR IS NULL) OR
@@ -623,7 +638,7 @@ export const getNewBillsThisWeekCount = unstable_cache(
       `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_introduced_date
        WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
          AND introduced_date IS NOT NULL
-         AND introduced_date > date('now', '-7 days')`,
+         AND introduced_date > date('now', '-7 days')${chamberClause}`,
     );
     return Number(rs.rows[0]?.n ?? 0);
   },
@@ -667,8 +682,17 @@ export const getWeeklyBandFiller = unstable_cache(
 );
 
 export const getNewBillsThisWeek = unstable_cache(
-  async (limit = 5): Promise<FeedBill[]> => {
+  async (limit = 5, chamber?: Chamber): Promise<FeedBill[]> => {
     const db = getDb();
+    // HO 642 — the chamber selector's half of the pair. Must move in the same
+    // edit as getNewBillsThisWeekCount above (see its comment): the two share one
+    // predicate on purpose so the tab label can't disagree with the rows.
+    const chamberClause =
+      chamber === "house"
+        ? ` AND bill_type IN (${HOUSE_BILL_TYPES})`
+        : chamber === "senate"
+          ? ` AND bill_type IN (${SENATE_BILL_TYPES})`
+          : "";
     // HO 249: row list for the NEW THIS WEEK feed tab. EXACT same predicate as
     // getNewBillsThisWeekCount above — non-ceremonial, introduced in the last 7
     // days — so the tab-label count and this list can't drift. Forced INDEXED
@@ -688,7 +712,7 @@ export const getNewBillsThisWeek = unstable_cache(
       ${SPONSOR_ENRICH_JOIN}
       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)
         AND introduced_date IS NOT NULL
-        AND introduced_date > date('now', '-7 days')
+        AND introduced_date > date('now', '-7 days')${chamberClause}
       ORDER BY introduced_date DESC
       LIMIT ?`;
 

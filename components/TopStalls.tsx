@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TopStallsList } from "@/components/TopStallsList";
 import { V2FeedList } from "@/components/V2FeedList";
-import { getStaleBills } from "@/lib/queries";
+import { type Chamber, getStaleBills } from "@/lib/queries";
 
 // HO 126 — home-page quadrant answering "what's stuck?" Pairs with
 // BREAKING (above) and ACTIVITY (next quadrant) to give a complete WTF
@@ -32,14 +32,19 @@ import { getStaleBills } from "@/lib/queries";
 const ROW_LIMIT = 60;
 
 export async function TopStalls({
+  chamber,
   variant,
   nowMs,
 }: {
+  // HO 642: the dashboard feed panel's chamber selector. buildStaleWhere composes
+  // on buildFeedWhere, which already emits the bill_type predicate — so this needs
+  // no query work, only a populated first argument.
+  chamber?: Chamber;
   variant?: "v2";
   // HO 490: page-computed clock threaded to the feed's client rows.
   nowMs: number;
 }) {
-  const bills = await getStaleBills({}, ROW_LIMIT);
+  const bills = await getStaleBills({ chamber }, ROW_LIMIT);
 
   if (bills.length === 0) {
     return (

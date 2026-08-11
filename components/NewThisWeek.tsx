@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { TopStallsList } from "@/components/TopStallsList";
 import { V2FeedList } from "@/components/V2FeedList";
-import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
+import {
+  type Chamber,
+  getNewBillsThisWeek,
+  getNewBillsThisWeekCount,
+} from "@/lib/queries";
 
 // HO 249 — the third dashboard feed tab (MOVERS / TOP STALLS / NEW THIS WEEK),
 // completing the redesign spec. "New" = non-ceremonial bills introduced in the
@@ -20,16 +24,21 @@ import { getNewBillsThisWeek, getNewBillsThisWeekCount } from "@/lib/queries";
 const ROW_LIMIT = 30;
 
 export async function NewThisWeek({
+  chamber,
   variant,
   nowMs,
 }: {
+  // HO 642: the dashboard feed panel's chamber selector. BOTH calls take it —
+  // the two share one predicate precisely so the label can't drift from the rows
+  // (see the comment on getNewBillsThisWeekCount).
+  chamber?: Chamber;
   variant?: "v2";
   // HO 490: page-computed clock threaded to the feed's client rows.
   nowMs: number;
 }) {
   const [bills, total] = await Promise.all([
-    getNewBillsThisWeek(ROW_LIMIT),
-    getNewBillsThisWeekCount(),
+    getNewBillsThisWeek(ROW_LIMIT, chamber),
+    getNewBillsThisWeekCount(chamber),
   ]);
   const remaining = Math.max(0, total - bills.length);
 

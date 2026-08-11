@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AbsenceWatchBand } from "@/components/AbsenceWatchBand";
@@ -25,6 +26,7 @@ import {
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
+  sanitizeChamber,
   sanitizeStage,
   sanitizeTopic,
 } from "@/lib/queries";
@@ -61,7 +63,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string; topics?: string }>;
+  searchParams: Promise<{ stage?: string; topics?: string; chamber?: string }>;
 }) {
   // HO 361 — first-touch landing gate (no middleware; A1 deliberately added none).
   // An anonymous visitor with no `ct_seen` cookie is bounced to /welcome; the
@@ -81,6 +83,30 @@ export default async function DashboardPage({
     stage: sanitizeStage(sp.stage),
     topic: sanitizeTopic(sp.topics),
   };
+  // HO 642 — the feed panel's chamber selector. THIS PARAM IS FEED-PANEL SCOPE
+  // ONLY, and it is written down because a URL param that reshapes exactly one
+  // panel is surprising and the next reader will otherwise "fix" it: `chamber`
+  // does NOT enter DashboardFilters, does NOT touch WeeklyBand (a whole-Congress
+  // week strip), and does NOT rebase BREAKING, the distributions, the masthead
+  // counts or the races panel. It narrows MOVERS / TOP STALLS / NEW THIS WEEK and
+  // nothing else.
+  const chamber = sanitizeChamber(sp.chamber);
+  // Built here (not in the client tab island) so the toggle is real navigation and
+  // the state is shareable. Copied from app/bills/page.tsx's chamberHref: preserve
+  // the other params, delete the key on the empty option.
+  const chamberHref = (value: "" | "house" | "senate") => {
+    const next = new URLSearchParams();
+    if (filters.stage) next.set("stage", filters.stage);
+    if (filters.topic) next.set("topics", filters.topic);
+    if (value) next.set("chamber", value);
+    const qs = next.toString();
+    return qs ? `/?${qs}` : "/";
+  };
+  const CHAMBER_OPTIONS: { value: "" | "house" | "senate"; label: string }[] = [
+    { value: "", label: "All" },
+    { value: "house", label: "House" },
+    { value: "senate", label: "Senate" },
+  ];
 
   const [
     corpus,
@@ -97,8 +123,8 @@ export default async function DashboardPage({
     getStageDistribution(filters, true), // funnel — rebases on TOPIC
     getTopicDistribution(filters, true), // treemap — rebases on STAGE
     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
-    getStageChangesCount({}, 7, filters),
-    getNewBillsThisWeekCount(),
+    getStageChangesCount({ chamber }, 7, filters),
+    getNewBillsThisWeekCount(chamber),
     getAbsenceWatch(),
   ]);
 
@@ -127,7 +153,7 @@ export default async function DashboardPage({
           {/* Conditional chrome — renders nothing unless a filter is active, which
               is C4-compliant as-is, so it keeps its slot at the top of the left
               region even though the mock (an unfiltered snapshot) doesn't show it. */}
-          <ActiveFilterStrip filters={filters} />
+          <ActiveFilterStrip filters={filters} chamber={chamber} />
 
           {/* HO 622 — Absence Watch, the mock's slot: directly after the nav,
               above hearings. Conditional by construction — with nobody on a
@@ -200,13 +226,45 @@ export default async function DashboardPage({
           <section className="home-quadrant home-feed-panel">
             <ActivityTabs
               activityContent={
-                <ActivityTicker variant="v2" filters={filters} nowMs={nowMs} />
+                <ActivityTicker
+                  variant="v2"
+                  filters={filters}
+                  chamber={chamber}
+                  nowMs={nowMs}
+                />
               }
-              stallsContent={<TopStalls variant="v2" nowMs={nowMs} />}
-              newContent={<NewThisWeek variant="v2" nowMs={nowMs} />}
-              activityCount={activityCount.total}
+              stallsContent={
+                <TopStalls variant="v2" chamber={chamber} nowMs={nowMs} />
+              }
+              newContent={
+                <NewThisWeek variant="v2" chamber={chamber} nowMs={nowMs} />
+              }
+              // `.filtered`, not `.total`: getStageChangesCount derives `total`
+              // from buildChangesWhere({}, …), which drops its own `filters` arg,
+              // so a chamber passed in never reaches it. The two arms are
+              // byte-identical when no chamber is set, so the unfiltered badge is
+              // unchanged. Same reasoning as ActivityTicker's footer count.
+              activityCount={activityCount.filtered}
               stallsCount={TOP_STALLS_COUNT}
               newCount={newBillsCount}
+              filterSlot={
+                <span className="feed-chamber" aria-label="Chamber">
+                  {CHAMBER_OPTIONS.map((o) => (
+                    <Link
+                      key={o.value || "all"}
+                      href={chamberHref(o.value)}
+                      className={`feed-chamber-opt${
+                        (chamber ?? "") === o.value ? " is-on" : ""
+                      }`}
+                      aria-current={
+                        (chamber ?? "") === o.value ? "true" : undefined
+                      }
+                    >
+                      {o.label}
+                    </Link>
+                  ))}
+                </span>
+              }
             />
           </section>
         </div>

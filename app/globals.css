@@ -1518,6 +1518,44 @@ body {
   color: var(--text-dim);
   margin-left: 4px;
 }
+/* HO 642 — the feed panel's chamber selector, rendered INSIDE this nav after the
+   three tabs. Packed LEFT against the last tab, no far-right anchor (C1). The
+   options are server-rendered <Link>s, so the toggle is real navigation and the
+   state is shareable. Existing token sizes only; no new CSS variables.
+   The .feed-chamber descendant scoping is load-bearing: `.search-tabs a` above is
+   (0,1,1) and would otherwise win the colour over a bare single-class rule, and
+   its padding/border-bottom would give each option a phantom tab underline. */
+.feed-filterslot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0; /* the tab buttons' vertical box, so the run sits on one line */
+}
+.feed-chamber-sep {
+  color: var(--text-dim);
+  font-size: var(--fs-12);
+}
+.feed-chamber {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.feed-chamber .feed-chamber-opt {
+  padding: 0;
+  border-bottom: none;
+  font-size: var(--fs-12);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+.feed-chamber .feed-chamber-opt:hover {
+  color: var(--text-secondary);
+}
+.feed-chamber .feed-chamber-opt.is-on {
+  color: var(--accent-amber-bright);
+}
 
 /* HO 244 (commit 3) — merged STAGE | TOPIC distributions panel. The body is a
    FIXED height so the dense funnel and the (shorter, 4:1) treemap occupy the

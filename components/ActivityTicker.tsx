@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { V2FeedList } from "@/components/V2FeedList";
 import {
+  type Chamber,
   type DashboardFilters,
   getStageChanges,
   getStageChangesCount,
@@ -42,10 +43,14 @@ const CAP = 30;
 // in either direction, topic narrows via json_each.
 export async function ActivityTicker({
   filters,
+  chamber,
   variant,
   nowMs,
 }: {
   filters?: DashboardFilters;
+  // HO 642: the dashboard feed panel's chamber selector. Feed-panel scope only —
+  // see the note where `chamber` is derived in app/page.tsx.
+  chamber?: Chamber;
   // HO 257: "v2" renders the mock-matching V2FeedList (rich rows + expand);
   // default keeps the `/` dashboard's compact BillRowList untouched.
   variant?: "v2";
@@ -53,11 +58,22 @@ export async function ActivityTicker({
   nowMs: number;
 }) {
   const [bills, counts, watchedIds] = await Promise.all([
-    getStageChanges({}, 7, CAP, filters),
-    getStageChangesCount({}, 7),
+    getStageChanges({ chamber }, 7, CAP, filters),
+    // BOTH calls take the chamber, not one: `remaining` below drives the
+    // `[ + N more → ]` footer, so filtering the rows while the count stayed
+    // corpus-wide would make that number silently wrong and clamp it to 0 once
+    // the count dropped under the rendered rows. That is the HO 637 Group A
+    // coupling and this is the same arithmetic.
+    //
+    // It is `.filtered`, NOT `.total`, and that is load-bearing: getStageChangesCount
+    // computes `total` from buildChangesWhere({}, days, dashboard) — it DROPS its
+    // own `filters` argument by construction, so a chamber passed in would never
+    // reach it. `.filtered` is the arm that reads the filters. With no chamber the
+    // two arms are byte-identical, so this is a no-op on the unfiltered default.
+    getStageChangesCount({ chamber }, 7),
     getWatchedBillIds(),
   ]);
-  const remaining = Math.max(0, counts.total - bills.length);
+  const remaining = Math.max(0, counts.filtered - bills.length);
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
