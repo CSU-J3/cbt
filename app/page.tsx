@@ -22,7 +22,6 @@ import {
   getBreakingNewsForHomeCount,
   getCorpusStats,
   getNewBillsThisWeekCount,
-  getPolarizationBand,
   getStageChangesCount,
   getStageDistribution,
   getTopicDistribution,
@@ -91,7 +90,6 @@ export default async function DashboardPage({
     breakingCount,
     activityCount,
     newBillsCount,
-    polarization,
     absent,
   ] = await Promise.all([
     getCorpusStats(true),
@@ -101,7 +99,6 @@ export default async function DashboardPage({
     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
     getStageChangesCount({}, 7, filters),
     getNewBillsThisWeekCount(),
-    getPolarizationBand(),
     getAbsenceWatch(),
   ]);
 
@@ -146,12 +143,13 @@ export default async function DashboardPage({
             racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" nowMs={nowMs} />}
           />
 
-          {/* Weekly line, divider rule above (its own border-top). HO 608 folded
-              the HO 424 full-width PolarizationBand into it as three inline chips
-              — the band is gone, its numbers survive in miniature (see §5 of the
-              handoff; the mock overrides the backlog's flat CUT). getPolarizationBand()
-              stays; /members reads the same query for its own ideology surfaces. */}
-          <WeeklyBand band={polarization} />
+          {/* Weekly line, divider rule above (its own border-top). The HO 424
+              full-width PolarizationBand was cut from `/` at HO 608, which kept its
+              numbers alive as one inline chip in this strip; HO 642 cut the chip too,
+              on an owner ruling that ideology belongs to /members only. So `/` no
+              longer reads getPolarizationBand at all — the query itself stays, and
+              /members still reads it for its own three ideology surfaces. */}
+          <WeeklyBand />
 
           {/* The mock's .twoup — breaking BESIDE the distributions (they were
               stacked in the old left column), align-items:start. */}

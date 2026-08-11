@@ -824,13 +824,6 @@ body {
     min-height: 0;
   }
 }
-/* Mirror the HO 178 cross-column hover-overrun: the breaking row's full-headline
-   overlay spills rightward and the feed dims behind it. (Was .dv2-grid :has
-   .dv2-col-right.) */
-.dash-page:has(.breaking-row:hover) .dash-bills {
-  opacity: 0.4;
-  transition: opacity 120ms ease;
-}
 /* The mock's `.twoup` — BREAKING beside the distributions rather than stacked. */
 .dash-twoup {
   display: grid;
@@ -1059,7 +1052,6 @@ body {
   background-color: var(--bg-row-hover);
   border: 1px solid var(--border-strong);
   border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   padding: 6px 10px;
 }
 .breaking-row:hover .breaking-row-full {
@@ -3295,33 +3287,6 @@ body {
 .weekly-band-filler-label {
   color: var(--text-muted);
 }
-/* HO 608 — the polarization fold: the HO 424 full-width band's numbers, in
-   miniature, as one chip in the metric run (the mock's `.polchip`). Inherits the
-   strip's 11px/uppercase; the values are the one bright thing in it. */
-.weekly-band-polchip {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  border: 0.5px solid var(--border-strong);
-  padding: 0 6px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.weekly-band-polchip b {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-.weekly-band-polsep {
-  color: var(--border-strong);
-}
-.weekly-band-polchip a {
-  color: var(--accent-amber);
-  text-decoration: none;
-  transition: color 0.12s;
-}
-.weekly-band-polchip a:hover {
-  color: var(--accent-amber-bright);
-}
 .weekly-band-readfull {
   /* HO 365 pinned this right with `margin-left: auto`; HO 610 (C1) removed it.
      The strip is content-then-links already, so the report link now simply
@@ -4402,7 +4367,16 @@ body {
   display: block;
   font-family: var(--sans);
   font-size: var(--fs-14);
-  color: var(--text-primary);
+  /* HO 642 — explicit, so the next reader doesn't have to walk the chain to
+     learn this was never bold. The perceived weight was contrast, not weight:
+     stepping --text-primary -> --text-secondary is the lever that moves on
+     Windows. Smoothing is a MacOS/Retina-only thinner and a no-op on Windows —
+     it is here for the machine this project is moving to, and it is not the
+     fix. */
+  font-weight: 400;
+  color: var(--text-secondary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -10258,9 +10232,16 @@ a.hearing-watch:hover {
   color: var(--accent-amber);
 }
 .abw-name {
+  font-family: var(--sans);
+  font-weight: 500;
+  /* HO 642 — was an unfamilied 600, so it inherited --font-mono and asked
+     Consolas (the Windows resolution of that stack) for a weight it does not
+     ship; the browser synthesized it. 500 is a REAL loaded Plex face (HO 633
+     loads 400/500/600), so no synthesis on any platform. The family move is
+     also the HO 297 rule applied where it always belonged: sans for names and
+     prose, mono for chrome. .v2f-title already reads a bill title this way. */
   color: var(--text-primary);
   font-size: var(--fs-13);
-  font-weight: 600;
   white-space: nowrap;
   /* It is an <a> now (modifier-click reaches the member page) — the row's own
      hover rule below still carries the amber. */
