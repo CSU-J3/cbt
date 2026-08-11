@@ -1847,7 +1847,12 @@ export const getRaceCandidates = unstable_cache(
             WHERE race_id = ?
             ORDER BY
               CASE
-                WHEN status = 'won_primary' THEN 0
+                -- HO 638: 'nominee' (convention / ballot-vacancy replacement)
+                -- ranks WITH 'won_primary' — both mean "the party's general
+                -- candidate". A status missing here falls to ELSE 4 and sorts
+                -- BELOW withdrawn candidates. Mirrored in lib/race-matchup.ts's
+                -- NOMINATED set and in getRaceCandidatesForCycle below.
+                WHEN status IN ('won_primary', 'nominee') THEN 0
                 WHEN status = 'running' THEN 1
                 WHEN status = 'declared' THEN 2
                 WHEN status = 'withdrew' THEN 3
@@ -1887,7 +1892,9 @@ export const getRaceCandidatesForCycle = unstable_cache(
             WHERE r.cycle = ?
             ORDER BY
               CASE
-                WHEN rc.status = 'won_primary' THEN 0
+                -- HO 638: see getRaceCandidates above — 'nominee' ranks with
+                -- 'won_primary'; keep the two CASE ladders in step.
+                WHEN rc.status IN ('won_primary', 'nominee') THEN 0
                 WHEN rc.status = 'running' THEN 1
                 WHEN rc.status = 'declared' THEN 2
                 WHEN rc.status = 'withdrew' THEN 3

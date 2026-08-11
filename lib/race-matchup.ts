@@ -31,11 +31,24 @@ const WITHDRAWN = new Set([
   "eliminated",
 ]);
 
+// HO 638: statuses that mean "this is the party's general-election candidate."
+// `won_primary` is the ordinary route; `nominee` is the ballot-vacancy /
+// convention-replacement route (ME 2026: Platner won the primary and withdrew,
+// Troy Jackson was nominated at a party convention and never ran in one).
+// Handled IDENTICALLY everywhere — the two are different HOW, not different
+// WHAT. Do NOT collapse them: `won_primary` on a convention nominee is a false
+// claim in a status column, and nothing downstream would ever re-read it.
+// Mirrored in SQL at getRaceCandidates / getRaceCandidatesForCycle's ORDER BY
+// CASE (lib/queries.ts) — a status added here needs adding there too.
+const NOMINATED = new Set(["won_primary", "nominee"]);
+
 export type RosterMember = {
   name: string;
   party: PartyKey | null;
   isIncumbent: boolean;
-  wonPrimary: boolean;
+  // True for either nomination route — NOT "won a primary" (a convention
+  // nominee sets this without having run in one).
+  isNominee: boolean;
 };
 
 // Active challengers: a name present, NOT the incumbent (when the roster carries
@@ -62,21 +75,22 @@ function buildRoster(
       name: row.incumbentName,
       party: row.incumbentParty,
       isIncumbent: true,
-      wonPrimary: false,
+      isNominee: false,
     });
   for (const c of active)
     r.push({
       name: c.name,
       party: c.party,
       isIncumbent: false,
-      wonPrimary: c.status === "won_primary",
+      isNominee: !!c.status && NOMINATED.has(c.status),
     });
   return r;
 }
 
 // Resolve a market's favored ROSTER member. Name market → surname match. Party
-// market → that party's sole candidate, or its won_primary nominee. null when a
-// party market can't name a single candidate (the caller falls back to a label).
+// market → that party's sole candidate, or its nominee (won_primary OR
+// convention `nominee`). null when a party market can't name a single candidate
+// (the caller falls back to a label).
 export function favoredMember(
   fav: FavoriteSource | null | undefined,
   roster: RosterMember[],
@@ -90,7 +104,7 @@ export function favoredMember(
   if (!p) return null;
   const ofParty = roster.filter((m) => m.party === p);
   if (ofParty.length === 1) return ofParty[0]!;
-  return ofParty.find((m) => m.wonPrimary) ?? null;
+  return ofParty.find((m) => m.isNominee) ?? null;
 }
 
 // The card-level favorite that drives the edge accent + the contested-leader
@@ -161,7 +175,7 @@ export function deriveMatchup(
   let presumptiveParty: PartyKey | null = null;
 
   if (active.length > 0) {
-    const won = active.filter((c) => c.status === "won_primary");
+    const won = active.filter((c) => !!c.status && NOMINATED.has(c.status));
     const nominee =
       active.length === 1 ? active[0]! : won.length === 1 ? won[0]! : null;
     if (nominee) {

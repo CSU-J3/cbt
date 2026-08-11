@@ -8,10 +8,17 @@ function partyColor(party: PartyKey | null): string {
   return "var(--text-dim)";
 }
 
+// NOTE: the `default:` below renders the RAW status string, so a status added
+// to the vocabulary without a case here ships as lowercase `nominee` beside
+// title-case `Withdrew`. Add the case when you add the status.
 function statusLabel(status: string | null): string {
   switch (status) {
     case "won_primary":
       return "Won primary";
+    // HO 638: convention / ballot-vacancy replacement nominee. Deliberately NOT
+    // labelled "Won primary" — a convention nominee never ran in one.
+    case "nominee":
+      return "Nominee";
     case "running":
       return "Running";
     case "declared":

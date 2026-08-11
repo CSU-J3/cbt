@@ -78,6 +78,13 @@ function ChallengerRow({ c }: { c: CartogramChallenger }) {
       )}
       <span className="racecard-cand-meta" style={{ color: "var(--text-dim)" }}>
         {c.party ?? "?"}
+        {/* HO 638: this GENERIC path is load-bearing — it renders any status
+            verbatim, so a new one (e.g. `nominee`) degrades correctly with no
+            edit here. That is the OPPOSITE failure mode from an explicit
+            switch, whose `default:` silently ships the raw string as a bug (see
+            RaceCandidates.tsx's statusLabel). Do not "tidy" this into a switch
+            without adding every status — you'd be creating a third silent
+            default, not removing a stringly-typed render. */}
         {c.status && c.status !== "running" ? ` · ${c.status.replace(/_/g, " ")}` : ""}
       </span>
     </div>

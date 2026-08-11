@@ -69,6 +69,13 @@ function resultLine(margin: number | null | undefined, chamber: "house" | "senat
   return `2024 general: ${margin > 0 ? "R" : "D"}+${mag.toFixed(1)}`;
 }
 
+// HO 638: the fall-through here is load-bearing — an unrecognized status is
+// rendered verbatim, so a new one (e.g. `nominee`) degrades correctly with no
+// edit. That is the OPPOSITE failure mode from an explicit switch, whose
+// `default:` silently ships the raw string as a bug (see RaceCandidates.tsx's
+// statusLabel). The `won primary` rewrite is a display nicety layered on top,
+// NOT an exhaustive mapping — do not convert this to a switch without covering
+// every status, or you create a third silent-default site.
 function humanStatus(status: string | null): string {
   if (!status || status === "running") return "running";
   return status.replace(/_/g, " ").replace("won primary", "primary winner");
