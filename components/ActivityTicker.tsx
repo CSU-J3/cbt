@@ -59,18 +59,25 @@ export async function ActivityTicker({
 }) {
   const [bills, counts, watchedIds] = await Promise.all([
     getStageChanges({ chamber }, 7, CAP, filters),
-    // BOTH calls take the chamber, not one: `remaining` below drives the
-    // `[ + N more → ]` footer, so filtering the rows while the count stayed
-    // corpus-wide would make that number silently wrong and clamp it to 0 once
-    // the count dropped under the rendered rows. That is the HO 637 Group A
-    // coupling and this is the same arithmetic.
+    // The count takes EVERY dimension the row query takes — chamber AND the
+    // dashboard stage/topic filters. `remaining` below drives the `[ + N more → ]`
+    // footer, so a count narrower or wider than the rows makes that number
+    // silently wrong and clamps it to 0 once the count drops under the rendered
+    // rows. That is the HO 637 Group A coupling and this is the same arithmetic.
+    //
+    // The `filters` third argument closes the last loose dimension (HO 642
+    // follow-up): the rows had taken it since HO 320 while the count did not, so
+    // under an active ?stage= / ?topics= the footer OVERSTATED what was left. It
+    // is the identical call app/page.tsx makes for the tab badge, so it shares
+    // that unstable_cache entry — no new query, no new key.
     //
     // It is `.filtered`, NOT `.total`, and that is load-bearing: getStageChangesCount
     // computes `total` from buildChangesWhere({}, days, dashboard) — it DROPS its
     // own `filters` argument by construction, so a chamber passed in would never
-    // reach it. `.filtered` is the arm that reads the filters. With no chamber the
-    // two arms are byte-identical, so this is a no-op on the unfiltered default.
-    getStageChangesCount({ chamber }, 7),
+    // reach it. `.filtered` is the arm that reads the filters. With no chamber and
+    // no dashboard filter the two arms are byte-identical, so this is a no-op on
+    // the unfiltered default.
+    getStageChangesCount({ chamber }, 7, filters),
     getWatchedBillIds(),
   ]);
   const remaining = Math.max(0, counts.filtered - bills.length);
