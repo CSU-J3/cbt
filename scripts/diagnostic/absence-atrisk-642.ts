@@ -467,11 +467,6 @@ async function main(): Promise<number> {
   // ══════════════════════════════════════════════════════════════════════════
   const OCCUPANCY_CURSORS = 60;
   const BAND_LO = 5;
-  console.log("#".repeat(96));
-  console.log(
-    `# M-OCCUPANCY — [${BAND_LO},${ABSENCE_STREAK_MIN}) band occupancy across the last ${OCCUPANCY_CURSORS} roll calls`,
-  );
-  console.log("#".repeat(96));
 
   type OccChamber = {
     series: number[];
@@ -481,57 +476,117 @@ async function main(): Promise<number> {
     lastDate: string;
     cursors: number;
   };
-  const occ: Record<string, OccChamber> = {};
+  type Occ = {
+    per: Record<string, OccChamber>;
+    pooled: number[];
+    pooledDistinct: Set<string>;
+    lo: string;
+    hi: string;
+  };
+
+  // quantiles over a series (nearest-rank; the series are 13-60 points, so an
+  // interpolating quantile would invent values the band cannot take)
+  const stats = (xs: number[]) => {
+    if (xs.length === 0) return { median: 0, p90: 0, max: 0 };
+    const s = [...xs].sort((a, b) => a - b);
+    const at = (q: number) => s[Math.min(s.length - 1, Math.floor(q * (s.length - 1)))] ?? 0;
+    return { median: at(0.5), p90: at(0.9), max: Math.max(...s) };
+  };
+
+  // ONE replay, parameterised by the band's lower bound. Used for the [5,30)
+  // display below AND for the W-sweep — so the sweep cannot drift from the series
+  // it is meant to extend, and both get the date-axis pooling rather than one of
+  // them quietly keeping the cursor-index bug.
+  const occupancyFor = (bandLo: number): Occ => {
+    const per: Record<string, OccChamber> = {};
+    for (const chamber of CHAMBERS) {
+      const rr = rolls[chamber];
+      const byMember = matrix.get(chamber);
+      if (!rr || !byMember || rr.ids.length === 0) continue;
+      const cursors = Math.min(OCCUPANCY_CURSORS, rr.ids.length);
+      const series: number[] = [];
+      const miaSeries: number[] = [];
+      const distinct = new Set<string>();
+
+      for (let k = 0; k < cursors; k++) {
+        let inBand = 0;
+        let inMia = 0;
+        for (const [bio, positions] of byMember) {
+          if (pop.get(bio)?.chamber !== chamber) continue; // the same population carve
+          let streak = 0;
+          for (let i = k; i < rr.ids.length; i++) {
+            const pos = positions.get(rr.ids[i] ?? "");
+            if (pos === undefined) continue; // NO DATA — neither extends nor breaks
+            if (pos === "not_voting") {
+              streak++;
+              continue;
+            }
+            break;
+          }
+          if (streak >= bandLo && streak < ABSENCE_STREAK_MIN) {
+            inBand++;
+            distinct.add(bio);
+          } else if (streak >= ABSENCE_STREAK_MIN) {
+            inMia++;
+          }
+        }
+        series.push(inBand);
+        miaSeries.push(inMia);
+      }
+
+      per[chamber] = {
+        series,
+        miaSeries,
+        distinct,
+        firstDate: rr.dates[cursors - 1] ?? "?",
+        lastDate: rr.dates[0] ?? "?",
+        cursors,
+      };
+    }
+
+    // DATE-AXIS pooling (never cursor index — the chambers' cursor 0 are different
+    // days, so summing by index adds two different moments and calls it one).
+    // Restricted to the overlap both windows cover: outside it one chamber
+    // contributes no sample, and a zero there would read as "nobody absent" rather
+    // than "not measured".
+    const dated: Record<string, { date: string; v: number }[]> = {};
+    for (const c of CHAMBERS) {
+      const o = per[c];
+      const rr = rolls[c];
+      if (!o || !rr) continue;
+      dated[c] = o.series.map((v, k) => ({ date: rr.dates[k] ?? "", v }));
+    }
+    const lo = CHAMBERS.map((c) => per[c]?.firstDate ?? "").filter(Boolean).sort().at(-1) ?? "";
+    const hi = CHAMBERS.map((c) => per[c]?.lastDate ?? "").filter(Boolean).sort()[0] ?? "";
+    const dateSet = new Set<string>();
+    for (const c of CHAMBERS)
+      for (const d of dated[c] ?? []) if (d.date >= lo && d.date <= hi) dateSet.add(d.date);
+    const pooled: number[] = [];
+    for (const d of [...dateSet].sort().reverse()) {
+      let v = 0;
+      for (const c of CHAMBERS) v += (dated[c] ?? []).find((x) => x.date <= d)?.v ?? 0;
+      pooled.push(v);
+    }
+    const pooledDistinct = new Set<string>();
+    for (const c of CHAMBERS) for (const b of per[c]?.distinct ?? []) pooledDistinct.add(b);
+    return { per, pooled, pooledDistinct, lo, hi };
+  };
+
+  console.log("#".repeat(96));
+  console.log(
+    `# M-OCCUPANCY — [${BAND_LO},${ABSENCE_STREAK_MIN}) band occupancy across the last ${OCCUPANCY_CURSORS} roll calls`,
+  );
+  console.log("#".repeat(96));
+
+  const base = occupancyFor(BAND_LO);
+  const occ = base.per;
 
   for (const chamber of CHAMBERS) {
     const rr = rolls[chamber];
-    const byMember = matrix.get(chamber);
-    if (!rr || !byMember || rr.ids.length === 0) continue;
-    const cursors = Math.min(OCCUPANCY_CURSORS, rr.ids.length);
-    const series: number[] = [];
-    const miaSeries: number[] = [];
-    const distinct = new Set<string>();
-
-    for (let k = 0; k < cursors; k++) {
-      let inBand = 0;
-      let inMia = 0;
-      for (const [bio, positions] of byMember) {
-        if (pop.get(bio)?.chamber !== chamber) continue; // the same population carve
-        let streak = 0;
-        for (let i = k; i < rr.ids.length; i++) {
-          const pos = positions.get(rr.ids[i] ?? "");
-          if (pos === undefined) continue; // NO DATA — neither extends nor breaks
-          if (pos === "not_voting") {
-            streak++;
-            continue;
-          }
-          break;
-        }
-        if (streak >= BAND_LO && streak < ABSENCE_STREAK_MIN) {
-          inBand++;
-          distinct.add(bio);
-        } else if (streak >= ABSENCE_STREAK_MIN) {
-          inMia++;
-        }
-      }
-      series.push(inBand);
-      miaSeries.push(inMia);
-    }
-
-    occ[chamber] = {
-      series,
-      miaSeries,
-      distinct,
-      firstDate: rr.dates[cursors - 1] ?? "?",
-      lastDate: rr.dates[0] ?? "?",
-      cursors,
-    };
-
-    const sorted = [...series].sort((a, b) => a - b);
-    const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))] ?? 0;
-    const median = at(0.5);
-    const p90 = at(0.9);
-    const max = Math.max(...series);
+    const o = occ[chamber];
+    if (!rr || !o) continue;
+    const { series, miaSeries, distinct, cursors } = o;
+    const { median, p90, max } = stats(series);
 
     console.log(
       `  ${pad(chamber, 6)} cursors ${padL(cursors, 3)}  window ${occ[chamber]?.firstDate} … ${occ[chamber]?.lastDate}` +
@@ -556,39 +611,12 @@ async function main(): Promise<number> {
     }
   }
 
-  // ── pooled, DATE-ALIGNED (not by cursor index) ────────────────────────────
-  // The chambers do not vote on the same days: house cursor 0 and senate cursor 0
-  // are different DATES (16 days apart at the time of writing, because the House is
-  // in recess). Summing series[k] + series[k] would add two different points in
-  // time and call it one — so pool on the DATE axis, restricted to the overlap of
-  // the two cursor windows, since outside it one chamber contributes no sample and
-  // a zero there would read as "nobody absent" rather than "not measured".
-  const pooledDistinct = new Set<string>();
-  for (const c of CHAMBERS) for (const b of occ[c]?.distinct ?? []) pooledDistinct.add(b);
-
-  const dated: Record<string, { date: string; v: number }[]> = {};
-  for (const c of CHAMBERS) {
-    const o = occ[c];
-    const rr = rolls[c];
-    if (!o || !rr) continue;
-    dated[c] = o.series.map((v, k) => ({ date: rr.dates[k] ?? "", v }));
-  }
-  const lo = CHAMBERS.map((c) => occ[c]?.firstDate ?? "").filter(Boolean).sort().at(-1) ?? "";
-  const hi = CHAMBERS.map((c) => occ[c]?.lastDate ?? "").filter(Boolean).sort()[0] ?? "";
-  const dateSet = new Set<string>();
-  for (const c of CHAMBERS)
-    for (const d of dated[c] ?? []) if (d.date >= lo && d.date <= hi) dateSet.add(d.date);
-  const dates = [...dateSet].sort().reverse();
-  const pooledSeries: number[] = [];
-  for (const d of dates) {
-    let v = 0;
-    for (const c of CHAMBERS) {
-      // that chamber's most recent cursor at or before this date
-      const hit = (dated[c] ?? []).find((x) => x.date <= d);
-      v += hit?.v ?? 0;
-    }
-    pooledSeries.push(v);
-  }
+  // pooled, DATE-ALIGNED — computed inside occupancyFor (see its comment).
+  const pooledSeries = base.pooled;
+  const pooledDistinct = base.pooledDistinct;
+  const lo = base.lo;
+  const hi = base.hi;
+  const dates = pooledSeries;
   console.log("");
   console.log(
     `  pooled on the DATE axis over the window both chambers cover: ${lo} … ${hi}` +
@@ -598,11 +626,7 @@ async function main(): Promise<number> {
           Date.parse(`${(occ.house?.lastDate ?? lo)}T00:00:00Z`)) / 86_400_000,
       )} days.`,
   );
-  const ps = [...pooledSeries].sort((a, b) => a - b);
-  const pAt = (q: number) => ps[Math.min(ps.length - 1, Math.floor(q * (ps.length - 1)))] ?? 0;
-  const pMedian = pAt(0.5);
-  const pP90 = pAt(0.9);
-  const pMax = pooledSeries.length ? Math.max(...pooledSeries) : 0;
+  const { median: pMedian, p90: pP90, max: pMax } = stats(pooledSeries);
   console.log("");
   console.log(
     `  POOLED  median ${pMedian} · p90 ${pP90} · max ${pMax}  ·  distinct members ever in band: ${pooledDistinct.size}`,
@@ -687,6 +711,127 @@ async function main(): Promise<number> {
         ` ${o.cursors}/${rr.ids.length} of it`,
     );
   }
+  console.log("");
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // M-SWEEP — the at-risk LOWER BOUND, W in [6, 20]  (HO 642 continuation P2)
+  //
+  // [5,30) came back median 4 / max 9 against a pre-fixed ceiling of 6. The ceiling
+  // stands; 5 was chosen to make a snapshot legible and was never measured. Sweep
+  // the lower bound for the boundary that satisfies the constraint, or establish
+  // that none does.
+  //
+  // ZERO new queries — every W is another pass over the same in-memory matrix.
+  //
+  // THE UPPER BOUND IS A PRODUCT CONSTRAINT, NOT A CONVENIENCE. The band must span
+  // at least 10 roll calls or a member promotes to MIA within a couple of sessions
+  // of appearing and the tier warns nobody about anything. W > 20 is a tier that
+  // cannot function, so it is not searched — and "extend the range until something
+  // passes" is exactly the fitting the fixed criteria exist to prevent.
+  //
+  // THE MIA BAR STAYS AT 30 AND IS NOT SWEPT. The S=30 review is a separate open
+  // loop gated on the House returning from recess, and the House's newest roll here
+  // is 20 days old — that gate is still shut. Moving both boundaries in one pass
+  // would make neither attributable.
+  //
+  // Selection rule, fixed in the handoff before the numbers existed:
+  //   · smallest W in [6,20] with max <= 6 AND median >= 1        -> VIABLE
+  //   · some W clears the ceiling but none of those has median>=1 -> CONDITIONAL (rare)
+  //   · no W clears the ceiling                                   -> DECLINED
+  // ══════════════════════════════════════════════════════════════════════════
+  const W_MIN = 6;
+  const W_MAX = 20; // product constraint: the band must span >= 10 rolls
+  console.log("#".repeat(96));
+  console.log(`# M-SWEEP — at-risk lower bound, W in [${W_MIN}, ${W_MAX}]  (MIA bar fixed at ${ABSENCE_STREAK_MIN})`);
+  console.log("#".repeat(96));
+
+  type Rung = {
+    w: number;
+    house: { median: number; p90: number; max: number; distinct: number };
+    senate: { median: number; p90: number; max: number; distinct: number };
+    pooled: { median: number; p90: number; max: number; distinct: number };
+  };
+  const rungs: Rung[] = [];
+  for (let w = W_MIN; w <= W_MAX; w++) {
+    const o = occupancyFor(w);
+    const mk = (chamber: string) => {
+      const c = o.per[chamber];
+      return { ...stats(c?.series ?? []), distinct: c?.distinct.size ?? 0 };
+    };
+    rungs.push({
+      w,
+      house: mk("house"),
+      senate: mk("senate"),
+      pooled: { ...stats(o.pooled), distinct: o.pooledDistinct.size },
+    });
+  }
+
+  console.log(
+    `  ${pad("W", 4)}${pad("band", 10)}` +
+      `${padL("HOUSE med/p90/max (dist)", 28)}${padL("SENATE med/p90/max (dist)", 28)}${padL("POOLED med/p90/max (dist)", 28)}   gate`,
+  );
+  for (const r of rungs) {
+    const f = (x: { median: number; p90: number; max: number; distinct: number }) =>
+      padL(`${x.median}/${x.p90}/${x.max} (${x.distinct})`, 28);
+    const ceilOk = r.pooled.max <= VIABLE_MAX_POOLED;
+    const medOk = r.pooled.median >= 1;
+    const gate = `${ceilOk ? "ceil OK" : `ceil ${r.pooled.max}>6`}  ${medOk ? "med OK" : "med 0"}`;
+    console.log(
+      `  ${pad(r.w, 4)}${pad(`[${r.w},${ABSENCE_STREAK_MIN})`, 10)}${f(r.house)}${f(r.senate)}${f(r.pooled)}   ${gate}`,
+    );
+  }
+  console.log("");
+
+  // ── the selection rule, applied ───────────────────────────────────────────
+  const clearsCeiling = rungs.filter((r) => r.pooled.max <= VIABLE_MAX_POOLED);
+  const clearsBoth = clearsCeiling.filter((r) => r.pooled.median >= 1);
+  let sweepVerdict: string;
+  if (clearsBoth.length > 0) {
+    const pick = clearsBoth[0]!; // rungs are ascending, so [0] IS the smallest
+    sweepVerdict = `VIABLE at W=${pick.w}`;
+    console.log(`  VERDICT ${sweepVerdict}`);
+    console.log(
+      `    smallest W in [${W_MIN},${W_MAX}] with pooled max <= ${VIABLE_MAX_POOLED} AND median >= 1:` +
+        ` band [${pick.w},${ABSENCE_STREAK_MIN}), pooled median ${pick.pooled.median} / p90 ${pick.pooled.p90} / max ${pick.pooled.max},` +
+        ` ${pick.pooled.distinct} distinct members.`,
+    );
+    console.log(
+      "    SMALLEST, because the most inclusive band that respects the ceiling gives the most warning —",
+    );
+    console.log(
+      `    and the band still spans ${ABSENCE_STREAK_MIN - pick.w} roll calls before promotion to MIA.`,
+    );
+  } else if (clearsCeiling.length > 0) {
+    const pick = clearsCeiling[0]!;
+    sweepVerdict = `CONDITIONAL (rare) at W=${pick.w}`;
+    console.log(`  VERDICT ${sweepVerdict}`);
+    console.log(
+      `    W=${pick.w} is the smallest that respects the ceiling (max ${pick.pooled.max}), but its median is` +
+        ` ${pick.pooled.median} — the band usually renders nothing.`,
+    );
+    console.log(
+      "    Reported and stopped: whether a band that usually renders nothing earns its slot is an owner call.",
+    );
+  } else {
+    sweepVerdict = "DECLINED";
+    console.log("  VERDICT DECLINED");
+    console.log(
+      `    NO W in [${W_MIN},${W_MAX}] brings pooled max occupancy to <= ${VIABLE_MAX_POOLED}` +
+        ` (best is W=${rungs.reduce((a, b) => (b.pooled.max < a.pooled.max ? b : a)).w}` +
+        ` at max ${Math.min(...rungs.map((r) => r.pooled.max))}).`,
+    );
+    console.log(
+      "    The tier cannot be both a warning and an alarm on this corpus. The range is NOT extended to",
+    );
+    console.log(
+      "    rescue it — W > 20 leaves under 10 rolls before promotion, which is a tier that cannot function.",
+    );
+  }
+  console.log("");
+  console.log(
+    "  The whole table is printed regardless of which rung fired — the verdict is one row of it, and the",
+  );
+  console.log("  shape of the curve is what a later reader needs.");
   console.log("");
 
   // ══════════════════════════════════════════════════════════════════════════
