@@ -28,12 +28,24 @@ function isSenate(race: CompetitiveRace): boolean {
   );
 }
 
-// HO 163: dashboard races strip. A Senate-led chamber mix — top 2 Senate then
-// top 2 House by competitiveness — rather than pure competitive-first, which
-// would surface 4 House toss-ups and underweight the Senate-control narrative
+// HO 163: dashboard races strip. A Senate-led chamber mix — the top N Senate then
+// the top N House by competitiveness — rather than pure competitive-first, which
+// would surface only House toss-ups and underweight the Senate-control narrative
 // a glance most wants. getMostCompetitiveRaces has no chamber arg, so pull a
 // competitiveness-ordered pool and partition here; the top Senate seats sit
 // ~rank 20 behind the House toss-ups, so POOL clears that comfortably.
+//
+// HO 642: 2+2 -> 3+3, i.e. 4 cards -> 6. The cards land in `.race-grid`, which is
+// `repeat(auto-fit, minmax(min(400px,100%), 1fr))` — so the column count is
+// whatever the container buys. Measured on the shipped dashboard at three widths:
+// .dash-left 756px -> 1 column (1440), 1020px -> 2 (1920), 1372px -> 3 (2560).
+// FOUR cards divide by 1 and 2 but not 3, so at 2560 they wrap 3+1 and the fourth
+// sits alone with two thirds of a row empty — the hole this HO was pointed at.
+// SIX divides by 1, 2 AND 3, so it fills both rows at every column count this
+// panel actually resolves to. The fix is the CARD COUNT, not the grid: widening
+// to a flat 2×2 would trade the hole for four ~680px cards, which is C8's failure
+// mode (wide screens buy columns, not wider rows). Six cards keep their designed
+// ~440px and the panel carries more seats.
 //
 // HO 178: stays a server component, now a 2×2 grid with a hover popover instead
 // of HO 166's click-drawer. The hover detail must be instant, so this fetches
@@ -41,7 +53,7 @@ function isSenate(race: CompetitiveRace): boolean {
 // passes it as props — no client fetch, no loading flash. The CompetitiveRaces-
 // Strip is now a pure server render with CSS-hover popovers.
 const POOL = 30;
-const PER_CHAMBER = 2;
+const PER_CHAMBER = 3;
 
 export async function CompetitiveRacesBlock({
   cycle = 2026,
