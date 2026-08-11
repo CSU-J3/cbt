@@ -1927,3 +1927,63 @@ because the reader-only analysis is the natural one to reach for and it is right
 until it is expensively wrong.
 
 ---
+
+## A hardcoded label off the matchup SHAPE is not evidence that the status column changed — `RaceCard:206` reads identically either way (HO 638, Aug 2026)
+
+After the S-ME-2026 roster correction, the live race card renders
+`Jackson  D · nominee` — which looks exactly like proof that the new
+`race_candidates.status` value landed. It is not. That string is a **hardcoded
+label at `RaceCard:206`**, printed for the `challenger.kind === "nominee"`
+**matchup shape** (HO 305) — a display classification of how a challenger row
+was derived, computed upstream of and unrelated to the status column. It would
+read **byte-identically** if Jackson's status were `won_primary`, or `declared`,
+or a typo. Two same-spelled things at different layers, and the one that renders
+is the one that proves nothing.
+
+**The instruments that do discriminate**, all three used before the change was
+believed: the **two `ORDER BY` fires** — `getRaceCandidates` via
+`GET /api/race/S-ME-2026/hub` and `getRaceCandidatesForCycle` via a rendered
+`/electoral`, both returning Jackson 0 / Platner 1 / Mills 2 where a
+non-landing would have sorted Jackson to 3+, below the withdrawn rows — and
+`RaceCandidates`' **title-case `Nominee`**, which is derived from the status
+value rather than the shape. Plus the raw column read back as the literal string,
+because `seed:races` does not validate status (backlog WATCH) and a typo fails
+identically to a correct value at the seed step.
+
+**The rule this instance belongs to: a layer check has to look where the value
+LANDS, not where a similar-looking string is AUTHORED.** The trap is not that
+the label is wrong — it is right, and it was right before the change too. That
+is the whole problem: a string that reads correct under both hypotheses is a
+constant, not a measurement. Same family as the same-as-success instruments
+(HO 503/506/637), one layer over: there the check couldn't fail, here it
+couldn't distinguish.
+
+---
+
+## `races.last_verified` records when `seed:races` last RAN, not when a roster was last checked (HO 638, Aug 2026)
+
+`seed:races` upserts every entry it walks and **stamps `last_verified` whether
+or not the entry's content changed** — there is no diff step between reading the
+JSON and writing the row. So the column answers *"when did the script last touch
+this race"*, while its name, and every surface that renders it, promise *"when
+was this roster last confirmed correct"*.
+
+The gap is not theoretical and it shipped to a user-facing surface:
+`/race/S-ME-2026` printed **"last verified 2026-07-03"** underneath a roster
+that was **two candidate-states stale** — Platner had won the June 9 primary and
+withdrawn on July 10, and Troy Jackson had been nominated at a July 25
+convention, none of which the card knew. The stamp was not lying about its own
+semantics; the 2026-07-03 run **did** happen and **did** touch ME. It changed
+nothing, and stamped anyway.
+
+The same misreading caught the HO 638 handoff itself, which asserted the entry
+was frozen at HO 171 with `last_verified` 2026-06-01 — inferring from a frozen
+JSON entry that no run had occurred. **A frozen entry and an unrun script are
+different facts and this column cannot tell them apart.** Do not use
+`last_verified` as a staleness instrument for curated rosters; it is the
+same-as-success shape (HO 503/506/637) wearing a date. The stronger available
+signal is an independent feed disagreeing with the roster — a name market
+resolving to no active roster member, which `favoredMember` already computes and
+discards (backlog QUEUED).
+
+---
