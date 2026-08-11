@@ -1354,7 +1354,14 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > three of the bare hits were substrings of longer numbers. This is the same-as-
 > success shape at the verification layer: a collision and a real hit are
 > indistinguishable in the output, and the check that was supposed to confirm the
-> sweep is what conceals it.
+> sweep is what conceals it. **It reaches the plumbing too:** an HO 637
+> verification `grep -c '^[+-][^+-]'` excluded a diff line that legitimately
+> begins `--` (a markdown bullet), returned 0, exited 1, and silently stopped the
+> `&&` chain **before the commit it was guarding** — the check meant to verify the
+> edit is what prevented it, with nothing on stderr, which is the piped-command
+> exit-status rule under *Pre-flight verification* wearing a different hat: a
+> check whose own failure mode is indistinguishable from the condition it checks
+> for.
 
 > **AUTHORING RULE — when a measured improvement fails its margin gate, the three
 > conditions that make shipping it correct (HO 598).** Written fence-first, because
