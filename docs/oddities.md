@@ -33,6 +33,8 @@ A close criterion is only real if its instrument reads *differently* depending o
 
 **The tell, and why this is worth a named entry:** ask what the check reads **when the work didn't happen.** If that reading is the same as success, it isn't a check — it's a formality. Write the instrument to read differently on a no-op (here: a **vote-COUNT** comparison against the certified SoS file on one known seat, which reads *wrong* until the certified canvass is actually reflected).
 
+**Two live confirmations, one arc, HO 644–645 — noted here rather than filed again, because they are this rule firing, not new rules.** (1) HO 644's `/electoral` control read **0 vs 0** on both candidate strings: equality by absence, indistinguishable from *"neither surface renders it"*. It was rescued by forcing the state into existence — `RaceMapCard` only mounts on `pinnedCell`, and `onStatePick` routes to the district modal, so the check had to pin Michigan by search before it could read anything at all. (2) HO 645 forced `card === null` on one live member to prove a degraded panel omits its two card-dependent blocks; **`0 blocks / 0 empty-shelled` on that member is trivially true**, so the reading only became evidence beside a control member in the same page load showing **2 blocks / 0 empty-shelled**. Both are the same shape: a number that would be identical if the work had never happened, made discriminating by adding the case where the thing *does* appear.
+
 ## Skip-on-empty guards invert a fixture's failure mode — the same line is honest against prod and silently green against a fixture (HO 503–504, Jul 2026)
 
 A spec that reads `if (await x.count()) … test.skip(...)` is **honest against prod**, where zero rows can be genuine data variability (a race with no news, a member with zero amendments). Against a **fixture** — deterministic by construction, so a guard can never legitimately be needed — the same line means an **under-seeded fixture passes while exercising nothing.** Playwright reports a skip as not-a-failure, so the suite goes green. That is strictly **worse than the red-blindness the fixture was being built to cure**, and it is what killed the Phase-2 fixture at HO 503 *after* the bucket count (73 tests, **A 41 · B 28 · C 2 · D 2 · E 0** — 95% nominally servable) said build it. The number said go; the failure-mode analysis said stop, and the failure-mode analysis was right. **The corollary that outlived the verdict:** those guards are in the specs **today, running against prod** — so a surface that regresses to zero rows currently **skips its test and the run stays green.** HO 504 converted the one instance in `smoke.spec.ts` where empty means *regression* not *variability* — the `/electoral` cartogram, whose `.us-map-state` cells are static us-atlas topojson, never DB rows, so zero = the map failed to render — from a `test.skip` to a hard `toBeGreaterThan(0)`. `fit-finish.spec.ts` still carries the bulk of the guards and stays manual, by design. **See also** the *"close criterion whose instrument can't fail"* entry above: skip-on-empty is its **self-removing** form; HO 506's saturated NULL-recount is the other.
@@ -2162,3 +2164,65 @@ two near-identical code paths, merge them rather than patching both** — two
 copies of a fix are two chances for the next one to miss.
 
 ---
+
+## A threshold expressed in the wrong variable cannot see the thing that moves (HO 645/646, Aug 2026)
+
+The absence band's payload trigger read *"band membership grows past a handful —
+at today's 2 members the payload is not the problem it becomes at ten"*: a
+**population** threshold. HO 645's ship gate then priced the new tier at *"2× the
+15,481-byte post-HO-631 baseline"*: a **total-bytes** threshold. Both were blind
+to the same thing.
+
+The population never moved — **2 members before, 2 members after** — and
+**bytes-per-member went 7,740 → 14,760 on corpus drift alone, with no code change
+between the two readings**. The gate came in at **1.91×**, so it very nearly fired
+on a change that had added nothing to the payload; and had the at-risk tier
+actually carried members, one number would have fused drift and tier with no way
+left to separate them.
+
+**A gate must be expressed in the variable the change moves, or it measures the
+background.** The re-priced entry watches bytes-per-member, which is the quantity
+that was actually growing the whole time and which neither original threshold
+could see.
+
+This is the proxy-instrument family one level up: there the *reading* stands in
+for the thing you care about, here the *threshold* does. Same tell, asked of the
+gate instead of the measurement — **if the quantity in the threshold can hold
+still while the thing you are protecting against doubles, it is not the
+threshold.**
+
+## `__name is not defined` inside `page.evaluate` is a build artifact, not a product failure (HO 646, Aug 2026)
+
+A Playwright probe run through `tsx` dies with `ReferenceError: __name is not
+defined` the first time it evaluates a function in the page. Nothing is wrong with
+the page: esbuild's `keepNames` rewrites every arrow function to reference a
+`__name` helper that exists in the Node module scope and **not** in the browser
+context `page.evaluate` serializes into.
+
+It presents as the product being broken — the harness reports a failure, in a
+run whose whole purpose was to find one — and the repo already carries the fix
+twice, as `NAME_SHIM` in `feed-click-gate-627.ts` and `layout-audit-606.ts`. The
+new harness simply did not inherit it. `await ctx.addInitScript(NAME_SHIM)` before
+the first navigation, and it goes away.
+
+## A lesson encoded in one instrument is not inherited by the next (HO 615 + HO 646, Aug 2026)
+
+Two instances, one arc apart, and the second is what makes it a rule rather than
+an anecdote.
+
+- **HO 615.** The ink-span rule lived inside the layout audit. An ad-hoc collision
+  check written later re-learned it from scratch, by reporting five overlaps that
+  were not there.
+- **HO 646.** `NAME_SHIM` above, carried by two committed harnesses and absent
+  from the third.
+
+The failure is structural rather than careless: these harnesses share a language,
+a runner and a set of traps, but **no base**. Every new probe re-derives the same
+ones, and the cost is paid in a red run that looks like a product defect. The
+instruments that do carry the fix carry it as a copied constant, which is the same
+no-compiler-edge dependency the verbatim-SQL-mirror entry is about.
+
+*Promote to a shared harness preamble when:* a third probe hits either trap, or
+the next one is written from scratch rather than copied from one that already has
+them. Not before — a premature shared module is one more thing to keep current,
+and two instances is a pattern, not yet a cost.
