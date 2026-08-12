@@ -142,7 +142,10 @@ export function marketFavorite(
 }
 
 export type ChallengerShape =
+  // HO 644: `empty` and `unknown` are two different states that shipped as one.
+  // See the initialiser in deriveMatchup for which is which and why.
   | { kind: "empty" }
+  | { kind: "unknown" }
   | { kind: "nominee"; fullName: string; party: PartyKey | null }
   | { kind: "leader"; fullName: string; party: PartyKey | null; others: string[] }
   | { kind: "nolead"; fullNames: string[]; party: PartyKey | null; count: number };
@@ -171,7 +174,23 @@ export function deriveMatchup(
   const favorite = cardFavorite(row, roster);
   const favoredIsIncumbent = favorite?.isIncumbent === true;
 
-  let challenger: ChallengerShape = { kind: "empty" };
+  // HO 644 — these are two different states and the card rendered both as one.
+  //   candidates.length === 0  -> nothing has ever been harvested for this seat.
+  //     The card knows NOTHING about the challenger field. `unknown`.
+  //   candidates.length > 0, active.length === 0 -> a roster exists and contains
+  //     no active non-incumbent. That is a real finding. `empty`.
+  // Measured at HO 642 P1: 129 of 186 rated seats are the first case and ZERO are
+  // the second, so the branch that shipped ("no challenger filed") has never once
+  // been true. See roadmap R1.
+  //
+  // SUB-CASE NAMED, NOT BUILT FOR: `activeChallengers` also filters WITHDRAWN, so
+  // a roster whose challengers have all withdrawn lands on `empty` and renders
+  // "no challenger filed" — arguably wrong for a field that WAS filed and then
+  // vacated. It has zero members today. It is flagged here so the next reader
+  // meets it as a known edge rather than a surprise; a third variant on zero
+  // evidence is the mistake this change exists to fix.
+  let challenger: ChallengerShape =
+    candidates.length === 0 ? { kind: "unknown" } : { kind: "empty" };
   let presumptiveParty: PartyKey | null = null;
 
   if (active.length > 0) {

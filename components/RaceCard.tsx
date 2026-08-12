@@ -197,6 +197,24 @@ export function RaceCard({
         <span className="rc-line-meta">—</span>
       </>
     );
+  } else if (challenger.kind === "unknown") {
+    // HO 644 — the seat has no roster at all, so the card knows nothing about the
+    // challenger field and says so instead of asserting a negative it has never
+    // earned. The STRING IS VERBATIM from components/RaceMapCard.tsx:216, which
+    // has always rendered this state correctly on /electoral: one state, two
+    // surfaces, and their divergence WAS the defect. If it ever has to be
+    // shortened, shorten BOTH sites in the same commit.
+    // Same classes as `empty` above — a hedge and a negative finding are both
+    // absences and read the same, so no new CSS.
+    challengerInner = (
+      <>
+        <span className="rc-dot8 is-hollow" />
+        <span className="rc-nm rc-nm--empty">
+          Challenger field not yet available
+        </span>
+        <span className="rc-line-meta">—</span>
+      </>
+    );
   } else if (challenger.kind === "nominee") {
     challengerInner = (
       <>
