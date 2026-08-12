@@ -238,13 +238,32 @@ const controls: Control[] = [];
   });
 }
 {
-  const f = join(ROOT, "components", "DashboardTopicTreemap.tsx");
-  const reached = reachedByPages.has(f);
+  // RE-ANCHORED AT HO 650, in the commit that expired the old anchor.
+  //
+  // C3a used to assert that `components/DashboardTopicTreemap.tsx` came back
+  // not-reachable, which proved the graph ignores `import type` edges. HO 650
+  // DELETED that file — so the control kept passing for an entirely different
+  // reason (a path that is not in the map is trivially unreachable) and could
+  // never fail again. A silenced instrument and a successful fix read
+  // identically; that is the documented rule, and this is it firing on the very
+  // arc that closed the finding.
+  //
+  // The anchor is now an INLINE FIXTURE against `valueImports` itself — the
+  // function whose type-blindness caused the original false reading. No product
+  // file can expire it, and it tests the mechanism rather than a symptom.
+  const V = 'import { Thing } from "@/components/Live";';
+  const T = 'import type { Thing } from "@/components/Dead";';
+  const M = 'import { type A, B } from "@/components/Mixed";';
+  const TO = 'import { type A } from "@/components/AllType";';
+  const okV = valueImports(V).includes("@/components/Live");
+  const okT = !valueImports(T).includes("@/components/Dead");
+  const okM = valueImports(M).includes("@/components/Mixed");
+  const okTO = !valueImports(TO).includes("@/components/AllType");
   controls.push({
-    name: "C3a negative · DashboardTopicTreemap NOT reachable (type-only importers)",
-    expect: "not reachable",
-    got: reached ? "REACHABLE" : "not reachable",
-    pass: !reached,
+    name: "C3a mechanism · valueImports counts value edges and ignores type-only ones",
+    expect: "value yes · type no · mixed yes · inline-all-type no",
+    got: `${okV ? "yes" : "NO"} · ${okT ? "no" : "YES"} · ${okM ? "yes" : "NO"} · ${okTO ? "no" : "YES"}`,
+    pass: okV && okT && okM && okTO,
   });
 }
 {

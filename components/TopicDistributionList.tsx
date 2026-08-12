@@ -2,7 +2,21 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent } from "react";
-import type { TopicDatum } from "@/components/DashboardTopicTreemap";
+
+// HO 650 — REHOMED from DashboardTopicTreemap, which is deleted here. The type
+// outlived its component: HO 627 swapped BY TOPIC to this ranked bar list, and
+// the treemap file then survived a chore already logged against it because its
+// only remaining importers were `import type` — an edge that is erased at
+// compile time, so nothing rendered it and nothing complained. It lives with
+// the live renderer now, and the shape is unchanged.
+export type TopicDatum = {
+  id: string;
+  label: string;
+  count: number;
+  color: string;
+  /** Full category name for the hover popover. Falls back to `label`. */
+  fullName?: string;
+};
 
 // HO 627 — BY TOPIC as a RANKED BAR LIST, per the committed mock
 // (docs/design/dashboard-layout-target.html:304-313: `.dsub` "BY TOPIC" over a
@@ -13,8 +27,10 @@ import type { TopicDatum } from "@/components/DashboardTopicTreemap";
 // stacked instead of hiding one behind a tab, so the two halves have to read as
 // one panel. A squarified treemap beside a bar run reads as two unrelated
 // widgets, and it cannot share the vertical rhythm the stacked layout depends
-// on. DashboardTopicTreemap is NOT deleted — it stays exported and unchanged; it
-// simply has no dashboard caller now.
+// on. DashboardTopicTreemap was left in place at HO 627 with no dashboard caller
+// and is DELETED at HO 650, once the HO 649 probe surfaced it: its only surviving
+// importers were type-only, so it read as live to a reachability check and to
+// SKILL's islands list while rendering nowhere.
 //
 // The interaction contract is copied from StageFunnel deliberately, so the two
 // halves of one panel behave identically: a plain click toggles `?topics=<id>`

@@ -8,7 +8,7 @@ import { ActivityTabs } from "@/components/ActivityTabs";
 import { ActivityTicker } from "@/components/ActivityTicker";
 import { BreakingNewsBlock } from "@/components/BreakingNewsBlock";
 import { CompetitiveRacesBlock } from "@/components/CompetitiveRacesBlock";
-import type { TopicDatum } from "@/components/DashboardTopicTreemap";
+import type { TopicDatum } from "@/components/TopicDistributionList";
 import { DashboardV2Header } from "@/components/DashboardV2Header";
 import { HearingsTab } from "@/components/HearingsTab";
 import { NewThisWeek } from "@/components/NewThisWeek";
