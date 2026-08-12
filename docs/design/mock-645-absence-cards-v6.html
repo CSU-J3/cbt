@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>mock 645 v6 — absence cards, attached back</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --vote-nay:#f87171;
+    --party-republican:#ef4444; --party-democrat:#3b82f6;
+    --space-md:12px;
+    --fs-9:12px; --fs-10:13px; --fs-11:14px; --fs-12:15px; --fs-13:16px; --fs-14:17px;
+    --mono: ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans: "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px;background:var(--bg-base);color:var(--text-primary);
+       font-family:var(--mono);font-size:var(--fs-12)}
+  .note{width:min(1370px,100%);margin:0 0 18px;color:var(--text-muted);font-size:var(--fs-11);line-height:1.6}
+  .note b{color:var(--text-primary);font-weight:600}
+  .note code{color:var(--accent-amber-bright)}
+  .stage{width:min(1370px,100%)}
+
+  .abw{border:0.5px solid var(--border-soft);background:var(--bg-panel);position:relative;z-index:5}
+  .abw-head{display:flex;align-items:center;flex-wrap:wrap;gap:9px;
+            padding:5px var(--space-md);border-bottom:0.5px solid var(--border-soft)}
+  .abw-title{color:var(--vote-nay);font-size:var(--fs-11);letter-spacing:1.2px;font-weight:600}
+  .abw-title--warn{color:var(--accent-amber)}
+  .abw-count{color:var(--text-dim);font-size:var(--fs-10)}
+  .abw-sep{color:var(--border-strong)}
+  .abw-foot{padding:5px var(--space-md);border-top:0.5px solid var(--border-soft);
+            color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.6px}
+  .cards{display:flex;flex-wrap:wrap;gap:10px;padding:12px var(--space-md);margin:0;list-style:none}
+
+  /* ---------------- the card — unchanged ---------------- */
+  .card{width:126px;flex:0 0 auto;padding:0;font:inherit;color:inherit;text-align:left;
+        cursor:pointer;background:#151d29;border:1px solid var(--border-strong);display:block}
+  .card:hover{background:#1b2431}
+  .card:focus-visible{outline:1px solid var(--accent-amber-bright);outline-offset:2px}
+  .card--mia{border-color:var(--vote-nay)}
+  .card--warn{border-color:var(--accent-amber)}
+  .card[aria-expanded="true"]{background:#20293a}
+  .card--mia[aria-expanded="true"]{box-shadow:0 0 0 2px var(--vote-nay)}
+  .card--warn[aria-expanded="true"]{box-shadow:0 0 0 2px var(--accent-amber)}
+  .card-mat{padding:5px}
+  .card-face{position:relative;height:134px;overflow:hidden;background:#0b1119;border:1px solid rgba(0,0,0,.55)}
+  .card-face svg{width:100%;height:100%;display:block}
+  .card-face--initials{display:flex;align-items:center;justify-content:center;
+                       color:#2f3e52;font-size:34px;letter-spacing:3px;font-weight:600}
+  .card-disc{position:absolute;top:-1px;left:-1px;min-width:34px;height:30px;padding:0 5px;
+             display:flex;align-items:center;justify-content:center;
+             font-size:19px;font-weight:600;line-height:1;letter-spacing:-.5px;color:#07090d}
+  .card--mia .card-disc{background:var(--vote-nay)}
+  .card--warn .card-disc{background:var(--accent-amber-bright)}
+  .card-disc-cut{position:absolute;top:29px;left:-1px;width:0;height:0;border-style:solid;border-width:6px 6px 0 0}
+  .card--mia .card-disc-cut{border-color:var(--vote-nay) transparent transparent transparent}
+  .card--warn .card-disc-cut{border-color:var(--accent-amber-bright) transparent transparent transparent}
+  .card-pos{position:absolute;top:4px;right:4px;font-size:var(--fs-9);letter-spacing:.6px;
+            color:var(--text-secondary);background:rgba(7,9,13,.8);padding:1px 4px;
+            border:0.5px solid rgba(255,255,255,.14)}
+  .card-plate{position:absolute;left:0;right:0;bottom:0;padding:4px 6px 5px;
+              background:linear-gradient(to top,rgba(6,9,13,.96) 62%,rgba(6,9,13,0))}
+  .card-name{font-family:var(--sans);font-weight:500;font-size:var(--fs-12);line-height:1.15;
+             color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .card-team{font-size:var(--fs-9);font-weight:600;letter-spacing:.6px;line-height:1.25;display:block}
+  .p-r{color:var(--party-republican)} .p-d{color:var(--party-democrat)}
+  .card-stats{display:flex;margin:5px 0 0;padding:0;font-size:var(--fs-9);line-height:1.25}
+  .card-stats > div{flex:1;padding:0 2px}
+  .card-stats > div + div{border-left:1px solid rgba(255,255,255,.09);text-align:right}
+  .card-stats dt{color:var(--text-dim);letter-spacing:.5px}
+  .card-stats dd{margin:1px 0 0;color:var(--text-secondary)}
+
+  /* ---------------- the back ----------------
+     `top` is set in JS to the bottom of the lowest card, so the notch's
+     tip lands ON the open card's edge. It anchors to the LOWEST card
+     rather than the open one, so if the list ever wraps to a second row
+     the panel still cannot cover it — the notch then points at the
+     column instead of touching, which is the honest degrade. */
+  .cardback{position:absolute;width:330px;z-index:60;
+            background:#151d29;border:1px solid var(--border-strong);padding:5px;
+            box-shadow:0 10px 30px rgba(0,0,0,.7)}
+  .cardback[hidden]{display:none}
+  .cardback--mia{border-color:var(--vote-nay)}
+  .cardback--warn{border-color:var(--accent-amber)}
+  .cardback-inner{border:1px solid rgba(0,0,0,.55);background:#0b1119}
+  .cardback-notch{position:absolute;top:-7px;width:12px;height:12px;background:#151d29;
+                  border-left:1px solid;border-top:1px solid;border-color:inherit;transform:rotate(45deg)}
+
+  .bk-head{display:flex;align-items:baseline;gap:7px;padding:6px 9px 5px;
+           border-bottom:1px solid rgba(255,255,255,.1)}
+  .bk-head h4{margin:0;font-family:var(--sans);font-weight:500;font-size:var(--fs-12);color:#fff;line-height:1.1}
+  .bk-head .team{font-size:var(--fs-9);font-weight:600;letter-spacing:.6px}
+  .bk-head .close{margin-left:auto;color:var(--text-dim);font-size:var(--fs-10);background:none;
+                  border:none;cursor:pointer;font-family:inherit;line-height:1}
+  .bk-head .close:hover{color:var(--text-primary)}
+  .bk-sub{margin:0;padding:3px 9px 5px;color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.5px;
+          border-bottom:1px solid rgba(255,255,255,.1)}
+  .bk-rows{margin:0;padding:0;font-size:var(--fs-10)}
+  .bk-rows > div{display:flex;justify-content:space-between;gap:10px;padding:3px 9px;
+                 border-bottom:1px solid rgba(255,255,255,.055)}
+  .bk-rows > div:nth-child(odd){background:rgba(255,255,255,.022)}
+  .bk-rows dt{color:var(--text-dim);letter-spacing:.5px;font-size:var(--fs-9);white-space:nowrap}
+  .bk-rows dd{margin:0;color:var(--text-secondary);text-align:right;white-space:nowrap}
+  .bk-rows dd b{color:var(--text-primary);font-weight:600}
+  .bk-block{margin:0;padding:4px 9px 5px;border-bottom:1px solid rgba(255,255,255,.055)}
+  .bk-block dt{color:var(--text-dim);letter-spacing:.5px;font-size:var(--fs-9)}
+  .bk-block dd{margin:1px 0 0;color:var(--text-secondary);font-size:var(--fs-10);line-height:1.35}
+  .bk-foot{margin:0;padding:4px 9px;color:var(--text-dim);font-size:var(--fs-9);letter-spacing:.5px}
+
+  /* filler dashboard */
+  .below{margin-top:10px;display:flex;flex-direction:column;gap:10px}
+  .box{border:0.5px solid var(--border-soft);background:var(--bg-panel);padding:6px var(--space-md)}
+  .box h5{margin:0 0 6px;font-size:var(--fs-10);letter-spacing:1px;color:var(--text-dim);font-weight:400}
+  .tabs{display:flex;gap:18px;font-size:var(--fs-11);color:var(--text-dim);
+        border-bottom:0.5px solid var(--border-soft);padding-bottom:5px;margin-bottom:7px}
+  .tabs b{color:var(--accent-amber-bright);font-weight:400;
+          border-bottom:1px solid var(--accent-amber-bright);padding-bottom:5px;margin-bottom:-6px}
+  .hrow{font-size:var(--fs-11);color:var(--text-muted);padding:3px 0}
+  .hrow em{font-style:normal;color:var(--accent-amber);margin-right:10px}
+  .week{font-size:var(--fs-11);color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;margin:0}
+  .week b{color:var(--text-primary);font-weight:600}
+  .brk{display:flex;gap:12px;font-size:var(--fs-11);padding:3px 0;color:var(--text-secondary)}
+  .brk i{font-style:normal;color:var(--accent-amber);min-width:74px}
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>v6 — the notch lands on the open card.</b> The panel's <code>top</code> is now computed from the
+  bottom edge of the lowest card rather than pinned under the whole band, so the arrow's tip sits on the
+  card you clicked and the panel reads as hanging off it. It covers the band's footnote while open, which
+  is the price. <code>119TH PARTICIPATION</code> was clipping at 330px — shortened to
+  <code>119TH VOTES</code> with the count as <code>1,061/1,262</code>.
+</div>
+
+<div class="stage">
+  <section class="abw" id="band">
+    <div class="abw-head">
+      <span class="abw-title">▲ MIA</span><span class="abw-count">(2)</span>
+      <span class="abw-sep">·</span>
+      <span class="abw-title abw-title--warn">AT RISK</span><span class="abw-count">(3)</span>
+    </div>
+    <ul class="cards" id="cards"></ul>
+    <p class="abw-foot">NON-VOTING DELEGATES EXCLUDED · MIA = 30+ CONSECUTIVE MISSED · AT RISK = 8+ · REFRESHES AFTER SYNC-VOTES</p>
+
+    <div class="cardback" id="back" hidden>
+      <span class="cardback-notch" id="notch"></span>
+      <div class="cardback-inner">
+        <div class="bk-head">
+          <h4 id="bk-name"></h4>
+          <span class="team" id="bk-team"></span>
+          <button class="close" id="bk-close">✕</button>
+        </div>
+        <p class="bk-sub" id="bk-sub"></p>
+        <dl class="bk-rows" id="bk-rows"></dl>
+        <dl class="bk-block" id="bk-cmte"></dl>
+        <dl class="bk-block" id="bk-spon"></dl>
+        <p class="bk-foot">STREAK COUNTED BACK TO A 120-ROLL BOUND</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="below">
+    <div class="box">
+      <div class="tabs"><b>HEARINGS</b><span>RACES</span></div>
+      <div class="hrow"><em>NEXT · THU SEP 17</em>1 SCHEDULED · 0 THIS WEEK ▼20</div>
+      <div class="hrow"><em>9:30a</em>Implementation of the National Defense Strategy and its impact on global defense post…</div>
+    </div>
+    <div class="box">
+      <p class="week">WEEK OF AUG 10<span>· <b>0</b> ENACTED ±0</span><span>· <b>173</b> NEW BILLS ▲54</span><span>· <b>335</b> STAGE TRANSITIONS ▲107</span><span>· <b>13</b> HEARINGS ▼4</span><span>· FILLER <b>11%</b> · 21/194</span></p>
+    </div>
+    <div class="box">
+      <h5>BREAKING · LAST 72H (23)</h5>
+      <div class="brk"><i>SJRES 181…</i>US military disables Panama-flagged tanker in violation of blockade …</div>
+      <div class="brk"><i>SCONRES 3…</i>Deficit will be $200B more than initially anticipated: CBO projection</div>
+      <div class="brk"><i>HR 10052</i>Supreme Court schedules November arguments in major religion case</div>
+      <div class="brk"><i>HR 9919</i>Three cheers for trying to end birth tourism</div>
+      <div class="brk"><i>S 5271</i>Sen. Kennedy says Kamala Harris 'no longer relevant'</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const M = [
+  { tier:"mia", tone:["#26313f","#46586e"], pos:"SEN", streak:60,
+    surname:"McConnell", full:"Mitch McConnell", team:"R-KY", party:"p-r", last:"JUN 11", pct:"14.9%",
+    sub:"SENATE · CLASS II · SWORN 1985",
+    rows:[["CONSECUTIVE MISSED","<b>60</b> roll calls"],["LAST VOTE CAST","JUN 11 · S 2201"],
+          ["119TH VOTES","<b>14.9%</b> · 188/1,262"],["SENIORITY","41 yrs · rank 1"]],
+    cmte:"Appropriations · Rules · Agriculture", spon:"S 1394 · S 2201 · S 2688 · +14" },
+  { tier:"mia", tone:["#2a3444","#4d5f76"], pos:"HSE", streak:34,
+    surname:"Wilson", full:"Frederica S. Wilson", team:"D-FL", party:"p-d", last:"JUL 16", pct:"29.3%",
+    sub:"HOUSE · FL-24 · SWORN 2011",
+    rows:[["CONSECUTIVE MISSED","<b>34</b> roll calls"],["LAST VOTE CAST","JUL 16 · HR 5868"],
+          ["119TH VOTES","<b>29.3%</b> · 370/1,262"],["SENIORITY","15 yrs · rank 118"]],
+    cmte:"Education & Workforce · Transportation", spon:"HR 2210 · HR 4471 · +9" },
+  { tier:"warn", tone:["#232e3b","#415266"], pos:"HSE", streak:19,
+    surname:"Napolitano", full:"Grace F. Napolitano", team:"D-CA", party:"p-d", last:"JUL 29", pct:"61.4%",
+    sub:"HOUSE · CA-31 · SWORN 1999",
+    rows:[["CONSECUTIVE MISSED","<b>19</b> roll calls"],["LAST VOTE CAST","JUL 29 · HR 6012"],
+          ["119TH VOTES","<b>61.4%</b> · 775/1,262"],["SENIORITY","27 yrs · rank 22"]],
+    cmte:"Natural Resources · Transportation", spon:"HR 3388 · HR 5109 · +6" },
+  { tier:"warn", tone:["#28323f","#47596d"], pos:"HSE", streak:12,
+    surname:"Scott", full:"David Scott", team:"D-GA", party:"p-d", last:"AUG 04", pct:"72.8%",
+    sub:"HOUSE · GA-13 · SWORN 2003",
+    rows:[["CONSECUTIVE MISSED","<b>12</b> roll calls"],["LAST VOTE CAST","AUG 04 · HR 6144"],
+          ["119TH VOTES","<b>72.8%</b> · 919/1,262"],["SENIORITY","23 yrs · rank 41"]],
+    cmte:"Agriculture · Financial Services", spon:"HR 2901 · HR 4620 · +11" },
+  { tier:"warn", tone:null, initials:"HR", pos:"HSE", streak:9,
+    surname:"Rogers", full:"Harold Rogers", team:"R-KY", party:"p-r", last:"AUG 06", pct:"84.1%",
+    sub:"HOUSE · KY-05 · SWORN 1981",
+    rows:[["CONSECUTIVE MISSED","<b>9</b> roll calls"],["LAST VOTE CAST","AUG 06 · HR 6150"],
+          ["119TH VOTES","<b>84.1%</b> · 1,061/1,262"],["SENIORITY","45 yrs · rank 1"]],
+    cmte:"Appropriations", spon:"HR 1188 · HR 3902 · +7" },
+];
+
+const face = (m,i) => m.tone
+  ? `<div class="card-face"><svg viewBox="0 0 114 134" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
+       <defs><linearGradient id="bg${i}" x1="0" y1="0" x2="0" y2="1">
+         <stop offset="0" stop-color="${m.tone[0]}"/><stop offset="1" stop-color="#0b1119"/></linearGradient>
+       <linearGradient id="fg${i}" x1="0" y1="0" x2="0" y2="1">
+         <stop offset="0" stop-color="${m.tone[1]}"/><stop offset="1" stop-color="${m.tone[0]}"/></linearGradient></defs>
+       <rect width="114" height="134" fill="url(#bg${i})"/>
+       <ellipse cx="57" cy="52" rx="21" ry="25" fill="url(#fg${i})"/>
+       <path d="M46 72h22v13H46z" fill="url(#fg${i})"/>
+       <path d="M14 134c0-24 16-40 43-40s43 16 43 40z" fill="url(#fg${i})"/>
+     </svg>`
+  : `<div class="card-face card-face--initials">${m.initials}`;
+
+document.getElementById("cards").innerHTML = M.map((m,i)=>`
+  <li><button class="card card--${m.tier}" data-i="${i}" aria-expanded="false">
+    <div class="card-mat">
+      ${face(m,i)}
+        <span class="card-disc">${m.streak}</span><span class="card-disc-cut"></span>
+        <span class="card-pos">${m.pos}</span>
+        <span class="card-plate">
+          <span class="card-name">${m.surname}</span>
+          <span class="card-team ${m.party}">${m.team}</span>
+        </span>
+      </div>
+      <dl class="card-stats">
+        <div><dt>LAST</dt><dd>${m.last}</dd></div>
+        <div><dt>119TH</dt><dd>${m.pct}</dd></div>
+      </dl>
+    </div>
+  </button></li>`).join("");
+
+const band=document.getElementById("band"), back=document.getElementById("back"),
+      notch=document.getElementById("notch"), list=document.getElementById("cards");
+const NOTCH_TIP = 8;   // px the rotated square pokes above the panel's top edge
+let open=null;
+
+function close(){
+  if(open===null) return;
+  const b=band.querySelector(`.card[data-i="${open}"]`); if(b) b.setAttribute("aria-expanded","false");
+  back.hidden=true; open=null;
+}
+function place(btn){
+  const br=band.getBoundingClientRect(), cr=btn.getBoundingClientRect();
+  // anchor to the LOWEST card, so a wrapped second row can never be covered
+  const lowest=Math.max(...[...list.querySelectorAll(".card")].map(c=>c.getBoundingClientRect().bottom));
+  back.style.top=(lowest - br.top + NOTCH_TIP) + "px";
+  const W=back.offsetWidth, PAD=12;
+  const left=Math.max(PAD, Math.min(cr.left-br.left, br.width-W-PAD));
+  back.style.left=left+"px";
+  notch.style.left=Math.max(9, Math.min(cr.left+cr.width/2-br.left-left-6, W-21))+"px";
+}
+function show(i){
+  if(open===i){ close(); return; }
+  if(open!==null){ const p=band.querySelector(`.card[data-i="${open}"]`); if(p) p.setAttribute("aria-expanded","false"); }
+  const m=M[i], btn=band.querySelector(`.card[data-i="${i}"]`);
+  btn.setAttribute("aria-expanded","true");
+  back.className="cardback cardback--"+m.tier;
+  document.getElementById("bk-name").textContent=m.full;
+  const team=document.getElementById("bk-team"); team.textContent=m.team; team.className="team "+m.party;
+  document.getElementById("bk-sub").textContent=m.sub;
+  document.getElementById("bk-rows").innerHTML=m.rows.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  document.getElementById("bk-cmte").innerHTML=`<dt>COMMITTEES</dt><dd>${m.cmte}</dd>`;
+  document.getElementById("bk-spon").innerHTML=`<dt>SPONSORED, 119TH</dt><dd>${m.spon}</dd>`;
+  back.hidden=false;
+  place(btn);
+  open=i;
+}
+band.addEventListener("click",e=>{
+  const btn=e.target.closest(".card");
+  if(btn){ show(+btn.dataset.i); return; }
+  if(e.target.id==="bk-close") close();
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") close(); });
+document.addEventListener("click",e=>{ if(!band.contains(e.target)) close(); });
+addEventListener("resize",()=>{ if(open!==null) place(band.querySelector(`.card[data-i="${open}"]`)); });
+</script>
+</body>
+</html>
