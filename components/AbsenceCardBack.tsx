@@ -29,7 +29,11 @@
 // claim is absence and AbsentMember.missedPct is a missed rate, so the label says
 // so. Printing a missed rate under a "119TH VOTES" heading that the mock uses for
 // votes CAST would be the same number reading as its own complement.
-import { ABSENCE_WALK_BOUND, type AbsentMember } from "@/lib/queries";
+import {
+  ABSENCE_BACK_BILLS_CAP,
+  ABSENCE_WALK_BOUND,
+  type AbsentMember,
+} from "@/lib/queries";
 import { formatBillId } from "@/lib/format";
 import { partyColor } from "@/lib/race-colors";
 
@@ -37,8 +41,12 @@ import { partyColor } from "@/lib/race-colors";
 // the panel is 330px and an uncapped roster is exactly what made the HO 631 pop
 // need a scrollbar. The tail is one click away on the member page — the card
 // name links there.
+//
+// CMTE_CAP stays LOCAL and unexported, deliberately: the assembly site must not
+// slice committees, because this file's "+N" counts off the full array (see the
+// projection in queryAbsenceWatch). The bills cap is the shared one — that list
+// IS sliced upstream now, so a second literal here could go quietly false.
 const CMTE_CAP = 3;
-const BILL_CAP = 3;
 
 // Display-only, and only on this 330px panel: the stored name is the full one
 // ("Rules and Administration Committee") and every other surface keeps it. Three
@@ -63,9 +71,13 @@ export function AbsenceCardBack({
   const billTotal = member.card?.stats.total ?? 0;
   const cmteMore = Math.max(0, cmtes.length - CMTE_CAP);
   // The "+N" counts against the member's FULL sponsored total, not against the
-  // prefetched list's length — queryAbsenceWatch slices recentBills to 10 before
-  // it caches (HO 631), so `bills.length` is a render cap and would understate.
-  const billMore = Math.max(0, billTotal - Math.min(BILL_CAP, bills.length));
+  // prefetched list's length — queryAbsenceWatch slices recentBills to
+  // ABSENCE_BACK_BILLS_CAP before it caches (HO 647; it was 10 under HO 631), so
+  // `bills.length` is a render cap and would understate.
+  const billMore = Math.max(
+    0,
+    billTotal - Math.min(ABSENCE_BACK_BILLS_CAP, bills.length),
+  );
 
   return (
     <>
@@ -125,8 +137,14 @@ export function AbsenceCardBack({
         <dl className="abw-bk-block">
           <dt>SPONSORED, 119TH</dt>
           <dd>
+            {/* Redundant against this payload — queryAbsenceWatch already caps
+                the list at the same constant — and kept so the render's cap
+                does not depend on its producer. NOT justified by a stale-cache
+                window: HO 647 measured that an edit inside the cached callback
+                ROTATES its key, so the fat pre-647 entry is orphaned rather
+                than served to this component (oddities). */}
             {bills
-              .slice(0, BILL_CAP)
+              .slice(0, ABSENCE_BACK_BILLS_CAP)
               .map((b) => formatBillId(b.bill_type, b.bill_number))
               .join(" · ")}
             {billMore > 0 ? ` · +${billMore}` : ""}

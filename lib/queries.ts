@@ -4,7 +4,6 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
-import { COMPACT_BILLS_CAP } from "./member-card-caps";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import {
   SENATE_MOTION_RESIDUAL,
@@ -4877,7 +4876,33 @@ const ABSENCE_WINDOW = ABSENCE_WARN_MIN; // Phase A candidate window, in roll ca
 // ("streak counted back to a 120-roll bound"), and a second literal in the
 // component would be a number that can go quietly false when this one moves.
 export const ABSENCE_WALK_BOUND = 120; // Phase B walk ceiling, in roll calls
+// HO 647 — what the 330px back prints; the assembly slices to it. Shared rather
+// than local because the projection below and the render must cap at the same
+// number: the payload now carries exactly what the card draws, so a render cap
+// larger than the slice would silently print fewer bills than it claims to cap
+// at. AbsenceCardBack is a server component and already imports from this
+// module, so this needs no leaf — the constraint that produced
+// lib/member-card-caps.ts was SponsorExpandedPanel's "use client", and it does
+// not apply here. The committee cap deliberately stays local to the component;
+// see the projection's own note on why committees are not sliced.
+export const ABSENCE_BACK_BILLS_CAP = 3;
 const ABSENCE_CHAMBERS = ["house", "senate"] as const;
+
+// HO 647 — what AbsenceCardBack actually reads, and nothing else. The band used
+// to cache the whole MemberCardExpansion (a FeedBill[] with title+summary on every
+// row) to print three bill numbers and a committee list. The shape is the contract:
+// if the back ever needs another field, it is added here deliberately rather than
+// found already sitting in the blob.
+//
+// stats is narrowed to { total } for SHAPE HONESTY, not bytes — the six unread
+// numbers it drops are worth roughly seventy bytes, and no byte figure should
+// ever be cited for this clause. Carrying them would re-open this same question
+// in six months.
+export type AbsenceCardPayload = {
+  stats: { total: number };
+  recentBills: { bill_type: string; bill_number: number }[];
+  committees: { name: string }[];
+};
 
 export type AbsentMember = {
   bioguideId: string;
@@ -4914,7 +4939,7 @@ export type AbsentMember = {
   // affordance (see the per-member try/catch below). "Card data missing" must
   // never collapse into "nobody is absent" — that is the HO 622 silent-wrong
   // answer one level up, and on this surface empty is the good-news state.
-  card: MemberCardExpansion | null;
+  card: AbsenceCardPayload | null;
   // Identity scalars SponsorExpandedPanel needs that the participation join does
   // not carry. Nullable throughout: only 47 members are scored.
   palestineGrade: string | null;
@@ -5110,22 +5135,31 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         }
         try {
           const expansion = await getMemberCardExpansion(m.bioguideId, false);
-          // HO 631 — SLICE AT THE CONSUMER, not in the shared helper.
-          // getSponsorRecentBills has no LIMIT: it returns every summarized bill
-          // the member sponsored, and the card renders 10. The band was therefore
-          // caching and serializing the whole list to draw a tenth of it — Wilson
-          // alone carries 24. /members' own path calls getMemberCardExpansion
-          // directly and is untouched, so its uncapped column keeps its data.
+          // HO 647 — PROJECT AT THE CONSUMER, not in the shared helper. The band
+          // caches exactly the six values AbsenceCardBack prints and nothing else.
           //
-          // Legal ONLY because commit 1 moved the "+N more" gate and its N off
-          // `recentBills.length` and onto `stats.total`. Against the old gate this
-          // slice would have silently deleted the closer at exactly the moment it
-          // applied: 10 sliced rows read `10 > 10 = false`.
+          // It used to spread the whole MemberCardExpansion and slice one key.
+          // Measured on the cached blob (HO 645 probe M4, 2026-08-11): 29,520 B
+          // for two members, of which `recentBills` was 23,098 B / 78.2% — ten
+          // FeedBills carrying title and summary, serialized so that three bill
+          // numbers could be joined with a "·" — while `topics` and `affiliations`
+          // were cached for no consumer at all. A spread carries whatever the
+          // shared helper happens to return; naming the fields is what stops the
+          // next field added to MemberCardExpansion from silently landing here.
           //
-          // Committees are deliberately NOT sliced here — see lib/member-card-caps.
+          // COMMITTEES ARE PROJECTED BUT NOT SLICED, and the asymmetry against
+          // recentBills is deliberate: the back's "+N" closer counts off
+          // `cmtes.length - CMTE_CAP`, i.e. the FULL array, so slicing here would
+          // make that closer silently under-report. recentBills is safe to slice
+          // only because its closer counts off stats.total instead (HO 631 moved
+          // it there) — and Math.min(CAP, bills.length) is unchanged for a member
+          // with fewer than CAP sponsored bills.
           m.card = {
-            ...expansion,
-            recentBills: expansion.recentBills.slice(0, COMPACT_BILLS_CAP),
+            stats: { total: expansion.stats.total },
+            recentBills: expansion.recentBills
+              .slice(0, ABSENCE_BACK_BILLS_CAP)
+              .map((b) => ({ bill_type: b.bill_type, bill_number: b.bill_number })),
+            committees: expansion.committees.map((c) => ({ name: c.name })),
           };
         } catch (err) {
           console.error(`[absence-watch] card assembly failed for ${m.bioguideId}:`, err);
