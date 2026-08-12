@@ -33,17 +33,28 @@
 // The mock's SHELL is what carries over. Two further mock rows have no source at
 // all and are absent rather than invented — see AbsenceCardBack's header.
 //
+// HO 645 COMMIT B — TWO TIERS, AND THEY MUST NOT READ AS ONE LIST. MIA (streak
+// >= 30) keeps --vote-nay; AT RISK ([8, 30)) takes --accent-amber and a
+// --text-secondary surname. Amber is attention, red is alarm, and the whole
+// reason the band splits its header into two counted segments is that a single
+// heading over five cards claims five people are missing when two are.
+//
 // Conventions: C1 packed left, trailing gap right, no far-right anchor. C4 the
 // whole band is conditional — zero qualifying members renders `null`, no wrapper
-// and no header for nothing, because on this surface empty is the GOOD-NEWS state.
-// C3 one bright element per card (the surname); the party bracket carries party
-// and nothing else (the HO 610 token rule), and --vote-nay carries the alarm on
-// the frame and disc precisely BECAUSE it is not a party token — a red frame that
-// meant Republican would collapse alarm into party. Every size in 9-14px is an
-// --fs token.
+// and no header for nothing, because on this surface empty is the GOOD-NEWS state
+// — and each header segment is independently conditional for the same reason.
+// C3 one bright element per card (the surname; dimmed a step on the amber tier);
+// the party bracket carries party and nothing else (the HO 610 token rule), and
+// neither tier colour is a party token precisely BECAUSE a red frame that meant
+// Republican would collapse alarm into party. Every size in 9-14px is an --fs
+// token.
 import { AbsenceCardBack } from "@/components/AbsenceCardBack";
 import { AbsenceWatchCards } from "@/components/AbsenceWatchCards";
-import type { AbsentMember } from "@/lib/queries";
+import {
+  ABSENCE_STREAK_MIN,
+  ABSENCE_WARN_MIN,
+  type AbsentMember,
+} from "@/lib/queries";
 
 const MONTHS = [
   "JAN",
@@ -81,7 +92,13 @@ export function AbsenceWatchBand({
   members: AbsentMember[];
   nowMs: number;
 }) {
-  // C4 — the conditional. No band, no header, no reserved space.
+  // C4 — the conditional, and after HO 645 it is a PER-SEGMENT one. Both counts
+  // zero renders null for the whole band (no wrapper, no header for nothing —
+  // empty is the good-news state on this surface); either count zero drops that
+  // segment and, with it, the separator. A band reading "AT RISK (0)" reserves a
+  // box to report an absence of news.
+  const mia = members.filter((m) => m.tier === "mia");
+  const warn = members.filter((m) => m.tier === "warn");
   if (members.length === 0) return null;
 
   // HO 632 — display copy only. The FEATURE is still "Absence Watch" in the
@@ -94,8 +111,29 @@ export function AbsenceWatchBand({
   return (
     <section className="abw" aria-label="MIA: absence watch">
       <div className="abw-head">
-        <span className="abw-title">▲ MIA</span>
-        <span className="abw-count">({members.length})</span>
+        {/* The `·` is a SEPARATOR, not the at-risk segment's own marker: it
+            renders only between two present segments, so an at-risk-only band
+            reads "AT RISK (3)" rather than opening on a dangling middot. That
+            also gives the two tiers the glyph split the handoff asks for — the
+            alarm triangle belongs to MIA and nothing else on this band carries
+            it. */}
+        {mia.length > 0 ? (
+          <>
+            <span className="abw-title">▲ MIA</span>
+            <span className="abw-count">({mia.length})</span>
+          </>
+        ) : null}
+        {mia.length > 0 && warn.length > 0 ? (
+          <span className="abw-sep" aria-hidden>
+            ·
+          </span>
+        ) : null}
+        {warn.length > 0 ? (
+          <>
+            <span className="abw-title abw-title--warn">AT RISK</span>
+            <span className="abw-count">({warn.length})</span>
+          </>
+        ) : null}
       </div>
       <AbsenceWatchCards
         rows={members.map((m) => {
@@ -109,6 +147,7 @@ export function AbsenceWatchBand({
             party: m.party,
             state: m.state,
             chamber: m.chamber,
+            tier: m.tier,
             sinceLabel,
             atBound: m.atBound,
             streak: m.streak,
@@ -127,12 +166,16 @@ export function AbsenceWatchBand({
           };
         })}
       />
-      {/* Designed into the mock, and load-bearing: the delegate carve is a
-          population-correctness rule (HO 527), so Radewagen at 82.4% missed is
-          absent from this band BY RULE. Without the disclosure that absence is
-          mysterious rather than legible. */}
+      {/* Designed into the mock, and load-bearing three times over. The delegate
+          carve is a population-correctness rule (HO 527), so Radewagen at 82.4%
+          missed is absent from this band BY RULE — without the disclosure that
+          absence is mysterious rather than legible. And both thresholds are now
+          stated, interpolated from the constants that enforce them, because with
+          two tiers on screen "AT RISK" means nothing until the reader knows what
+          it is at risk OF. */}
       <p className="abw-foot">
-        NON-VOTING DELEGATES EXCLUDED · REFRESHES AFTER SYNC-VOTES
+        NON-VOTING DELEGATES EXCLUDED · MIA = {ABSENCE_STREAK_MIN}+ CONSECUTIVE
+        MISSED · AT RISK = {ABSENCE_WARN_MIN}+ · REFRESHES AFTER SYNC-VOTES
       </p>
     </section>
   );

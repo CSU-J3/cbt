@@ -65,6 +65,14 @@ export type AbsenceCardData = {
   party: string | null;
   state: string;
   chamber: string;
+  /**
+   * HO 645 commit B. Drives the frame, the disc and the surname's weight, and
+   * it is the ONE thing on the card that must not be allowed to default: a
+   * warn member rendered in mia styling makes the band claim someone is gone
+   * who is not. Hence a required field with no fallback rather than an optional
+   * one — tsc is what keeps a new call site from omitting it.
+   */
+  tier: "mia" | "warn";
   /** Server-formatted; see the clock note above. */
   sinceLabel: string;
   atBound: boolean;
@@ -201,7 +209,7 @@ export function AbsenceWatchCards({ rows }: { rows: AbsenceCardData[] }) {
           return (
             <li key={m.bioguideId}>
               <div
-                className="abw-card abw-card--mia"
+                className={`abw-card abw-card--${m.tier}`}
                 role="button"
                 tabIndex={0}
                 aria-expanded={open}
@@ -291,7 +299,7 @@ export function AbsenceWatchCards({ rows }: { rows: AbsenceCardData[] }) {
 
       {openRow ? (
         <div
-          className="abw-cardback abw-cardback--mia"
+          className={`abw-cardback abw-cardback--${openRow.tier}`}
           style={{ left: pos.left }}
           role="region"
           aria-label={`${openRow.name} — member card`}

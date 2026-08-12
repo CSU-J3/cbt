@@ -10212,9 +10212,21 @@ a.hearing-watch:hover {
   letter-spacing: 1.2px;
   font-weight: 600;
 }
+/* HO 645 commit B — the second segment. Amber is ATTENTION, --vote-nay above is
+   ALARM, and the two must not read as one graded list; neither is a party token
+   (HO 610), which is the whole reason a red frame on a Republican card does not
+   collapse alarm into party. */
+.abw-title--warn {
+  color: var(--accent-amber);
+}
 .abw-count {
   color: var(--text-dim);
   font-size: var(--fs-10);
+}
+/* Rendered by the band only BETWEEN two present segments, so an at-risk-only
+   band never opens on a dangling middot. */
+.abw-sep {
+  color: var(--border-strong);
 }
 /* ── HO 645 — THE RACK, THE CARD, AND THE BACK ──────────────────────────────
    docs/design/mock-645-absence-cards-v6.html. This REPLACES the HO 630/631 row
@@ -10268,6 +10280,9 @@ a.hearing-watch:hover {
 .abw-card--mia {
   border-color: var(--vote-nay);
 }
+.abw-card--warn {
+  border-color: var(--accent-amber);
+}
 .abw-card:hover {
   background-color: #1b2431;
 }
@@ -10280,6 +10295,9 @@ a.hearing-watch:hover {
 }
 .abw-card--mia[aria-expanded="true"] {
   box-shadow: 0 0 0 2px var(--vote-nay);
+}
+.abw-card--warn[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--accent-amber);
 }
 .abw-card-mat {
   padding: 5px;
@@ -10314,6 +10332,12 @@ a.hearing-watch:hover {
 .abw-card--mia .abw-card-disc {
   background-color: var(--vote-nay);
 }
+/* --accent-amber-bright rather than --accent-amber: the disc carries dark text
+   on a filled block, and the dimmer amber does not clear it. The FRAME keeps the
+   dimmer one, where there is no text to clear. */
+.abw-card--warn .abw-card-disc {
+  background-color: var(--accent-amber-bright);
+}
 /* The 6px mitre under the disc — the corner-fold that keeps the disc reading as
    printed onto the card rather than floated over it. */
 .abw-card-cut {
@@ -10327,6 +10351,9 @@ a.hearing-watch:hover {
 }
 .abw-card--mia .abw-card-cut {
   border-color: var(--vote-nay) transparent transparent transparent;
+}
+.abw-card--warn .abw-card-cut {
+  border-color: var(--accent-amber-bright) transparent transparent transparent;
 }
 .abw-card-pos {
   position: absolute;
@@ -10365,6 +10392,12 @@ a.hearing-watch:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* C3, per tier: the surname is still the card's one bright element, but a step
+   dimmer on the amber tier — "going" should not read as loud as "gone". The
+   hover rule below still lights it, so the affordance is unchanged. */
+.abw-card--warn .abw-card-name {
+  color: var(--text-secondary);
 }
 .abw-card:hover .abw-card-name,
 .abw-card-name:hover {
@@ -10434,6 +10467,9 @@ a.hearing-watch:hover {
 }
 .abw-cardback--mia {
   border-color: var(--vote-nay);
+}
+.abw-cardback--warn {
+  border-color: var(--accent-amber);
 }
 .abw-cardback-notch {
   position: absolute;

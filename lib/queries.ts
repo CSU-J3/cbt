@@ -4823,19 +4823,29 @@ export const getParticipationStrip = unstable_cache(
 // about every member of that chamber the moment it recesses. The date is the one
 // framing that survives it.
 //
-// SHAPE — candidate filter first, walk second. Phase A is the probe's M3b window
-// query per chamber (~16k rows both chambers, measured 306ms cold at HO 621),
-// aggregated DB-side: a member with a >= 30 streak necessarily has EVERY explicit
-// position in the last 30 rolls equal to 'not_voting', so that cheap bounded
-// aggregate is a NECESSARY condition and bounds the expensive walk. It is not
-// sufficient (a member with NO-DATA gaps can be all-not_voting over 3 rows), which
-// is what Phase B is for.
+// TWO TIERS SINCE HO 645, one query. MIA is streak >= ABSENCE_STREAK_MIN (30);
+// AT RISK is [ABSENCE_WARN_MIN, 30). The chronic/acute division above is
+// unaffected — both tiers are acute, they differ in how far gone.
 //
-// The Phase A predicate is `nv = n AND nv > 0`, deliberately NOT `nv >= 30`: a
-// genuine 30-streak member with NO-DATA rows inside the window has fewer than 30
+// SHAPE — candidate filter first, walk second. Phase A is the probe's M3b window
+// query per chamber, aggregated DB-side: a member with a >= W streak necessarily
+// has EVERY explicit position in the last W rolls equal to 'not_voting', so that
+// cheap bounded aggregate is a NECESSARY condition and bounds the expensive walk.
+// It is not sufficient (a member with NO-DATA gaps can be all-not_voting over 3
+// rows), which is what Phase B is for.
+//
+// NARROWING W MADE PHASE A CHEAPER, WHICH IS THE OPPOSITE OF THE INTUITION AND
+// WORTH STATING: the window is an `IN (...)` over vote ids, so W IS the scan, and
+// a wider window reads more rows to return fewer candidates. Measured on the
+// current corpus (rows_read off the libsql ResultSet, W=30 vs W=8, both chambers,
+// 2026-08-11): see scripts/diagnostic/absence-payload-645.ts, which is the
+// standing instrument for this and re-runnable.
+//
+// The Phase A predicate is `nv = n AND nv > 0`, deliberately NOT `nv >= W`: a
+// genuine W-streak member with NO-DATA rows inside the window has fewer than W
 // rows there, so the tighter-looking filter would DROP exactly the member this
 // band exists to name. Coverage is near-total today (~434 rows per House roll
-// against 437 floored members), so the loose predicate still returns 1-3
+// against 437 floored members), so the loose predicate still returns a handful of
 // candidates per chamber — the bound comes from the window, not from the count.
 //
 // Phase B walks newest -> oldest under the 588 streak rule, verbatim: an explicit
@@ -4851,7 +4861,18 @@ export const getParticipationStrip = unstable_cache(
 // ineligible on final passage, so a 30-roll "streak" is their job description, not
 // absence. The consumer discloses the exclusion in its footer for that reason.
 export const ABSENCE_STREAK_MIN = 30;
-const ABSENCE_WINDOW = 30; // Phase A candidate window, in roll calls
+// HO 645 — W = 8, and the SAME number is Phase A's window and the at-risk floor.
+// That is by construction, not coincidence: Phase A's `nv = n` over the last W
+// rolls is a NECESSARY condition for a streak of W, so the window can never be
+// wider than the smallest streak the band reports or it filters that member out
+// before Phase B ever sees them. It was 30 while 30 was the only floor.
+//
+// W was RULED at HO 642 P2, by a criterion fixed before the numbers existed:
+// the smallest W in [6,20] with a pooled max <= 6 and a median >= 1. Do not
+// re-tune it against a day's population — that is what fixing the criterion
+// first was for.
+export const ABSENCE_WARN_MIN = 8;
+const ABSENCE_WINDOW = ABSENCE_WARN_MIN; // Phase A candidate window, in roll calls
 // Exported since HO 645: the card's back prints the bound in its footnote
 // ("streak counted back to a 120-roll bound"), and a second literal in the
 // component would be a number that can go quietly false when this one moves.
@@ -4865,6 +4886,13 @@ export type AbsentMember = {
   state: string;
   chamber: string; // 'house' | 'senate'
   streak: number; // consecutive missed roll calls, newest -> oldest
+  // HO 645 — the tier, bucketed off the streak Phase B already computes:
+  // >= ABSENCE_STREAK_MIN is "mia" (gone), [ABSENCE_WARN_MIN, MIN) is "warn"
+  // (going). They are ONE population under two headings, not two queries — and
+  // the consumer must keep them visibly distinct, because a band that renders
+  // five names under one alarm heading claims five people are missing when two
+  // are.
+  tier: "mia" | "warn";
   atBound: boolean; // the walk hit ABSENCE_WALK_BOUND without observing a cast vote
   // 'YYYY-MM-DD'. The date of the last roll call this member CAST a vote on;
   // when atBound, the oldest roll in the bound window (the consumer says "since
@@ -5001,7 +5029,8 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         breakIndex = i; // an explicit cast vote — the streak ends here
         break;
       }
-      if (streak < ABSENCE_STREAK_MIN) continue;
+      if (streak < ABSENCE_WARN_MIN) continue;
+      const tier = streak >= ABSENCE_STREAK_MIN ? "mia" : "warn";
 
       const atBound = breakIndex === -1;
       const lastCastDate = atBound
@@ -5015,6 +5044,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         state: meta.state,
         chamber,
         streak,
+        tier,
         atBound,
         lastCastDate,
         missedPct: meta.missedPct,
@@ -5026,8 +5056,18 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
     }
   }
 
-  // Longest absence first; name is the deterministic tiebreak.
-  out.sort((a, b) => b.streak - a.streak || a.name.localeCompare(b.name));
+  // TIER FIRST, then longest absence, then name as the deterministic tiebreak.
+  // Tier leads rather than streak because the two tiers are different claims: a
+  // pure streak sort would interleave an amber 29 above a red 30 and the rack
+  // would read as one graded list instead of two populations. Within a tier the
+  // ordering is unchanged (streak desc, name).
+  const TIER_RANK = { mia: 0, warn: 1 } as const;
+  out.sort(
+    (a, b) =>
+      TIER_RANK[a.tier] - TIER_RANK[b.tier] ||
+      b.streak - a.streak ||
+      a.name.localeCompare(b.name),
+  );
 
   // ── HO 630 — card prefetch, per member, AFTER the sort ─────────────────────
   // Bounded by band membership, which the streak >= 30 rule holds to a handful
