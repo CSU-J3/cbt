@@ -3397,6 +3397,18 @@ body {
   font-size: var(--fs-11);
   color: var(--text-dim);
 }
+/* HO 654 — a metric's disclosure, sitting where `.wb-card-sub` would. It takes
+   the same dim treatment on purpose: it is context for the number above it, not
+   a second claim competing with it (C3 — one bright element per row, and here
+   that is the value). Wraps, because the copy is a sentence rather than a
+   figure; `.wb-card-sub` never needed to. */
+.wb-card-note {
+  margin-top: 4px;
+  font-size: var(--fs-11);
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-wrap: pretty;
+}
 .wb-card-divider {
   height: 1px;
   background: var(--border-strong);

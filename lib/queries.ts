@@ -7007,6 +7007,12 @@ export const getWeeklyBandPriorWeek = unstable_cache(
     return {
       enacted,
       newBills: Number(newBillsRs.rows[0]?.n ?? 0),
+      // HO 654 — UNREAD as of this HO, and left in place deliberately. The
+      // TRANSITIONS OBSERVED strip no longer renders a week-over-week delta
+      // (neither clock yields a correct one), so nothing consumes this field.
+      // It is NOT an oversight to wire back: the other two fields still serve
+      // ENACTED and NEW BILLS, so the query stays, and a display commit does
+      // not delete a query.
       transitions: Number(txRs.rows[0]?.n ?? 0),
     };
   },

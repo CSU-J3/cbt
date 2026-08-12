@@ -64,15 +64,34 @@ export function WeeklyBandMetricCard({
   value,
   prior,
   priorDate,
+  note,
   spark,
   breakdown,
   children,
 }: {
   label: string;
   value: number;
-  prior: number;
+  /**
+   * HO 654 — OPTIONAL, and its absence is a deliberate claim rather than a gap.
+   * A metric omits `prior`/`priorDate` when no week-over-week delta can be right
+   * for it, and then the card renders NO delta and NO "last wk" line. TRANSITIONS
+   * OBSERVED is the first: its count is on the observation clock, where a delta
+   * partly measures sync cadence (an outage dips, the catch-up spikes), while the
+   * occurrence alternative is biased negative by construction. Rendering it
+   * anywhere — including on hover, for the reader who asked for detail — is the
+   * thing that was declined; `last wk 176` beside `361` is the delta with extra
+   * steps.
+   */
+  prior?: number;
   /** ISO date (YYYY-MM-DD) of the prior 7d window's edge — rendered MON DD. */
-  priorDate: string;
+  priorDate?: string;
+  /**
+   * HO 654 — the metric's disclosure, rendered under the value. This is where a
+   * count states what it actually counts when the label alone cannot carry it.
+   * Hover-only, which is why the LABEL has to be honest at rest: a reader who
+   * never hovers must not be misled by the strip.
+   */
+  note?: string;
   /** ≤8 weekly values, oldest→newest; the LAST is the running (current) week. */
   spark: number[];
   breakdown: WeeklyBandBreakdown;
@@ -90,7 +109,8 @@ export function WeeklyBandMetricCard({
   }, []);
   const hide = useCallback(() => setPos(null), []);
 
-  const diff = value - prior;
+  const hasDelta = prior !== undefined && priorDate !== undefined;
+  const diff = hasDelta ? value - prior : 0;
   const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
   const deltaText =
     dir === "flat" ? "±0" : `${dir === "up" ? "▲" : "▼"}${Math.abs(diff).toLocaleString()}`;
@@ -115,13 +135,18 @@ export function WeeklyBandMetricCard({
               <span className="wb-card-val tabular-nums">
                 {value.toLocaleString()}
               </span>
-              <span className={`weekly-band-delta weekly-band-delta--${dir}`}>
-                {deltaText} vs last wk
-              </span>
+              {hasDelta ? (
+                <span className={`weekly-band-delta weekly-band-delta--${dir}`}>
+                  {deltaText} vs last wk
+                </span>
+              ) : null}
             </div>
-            <div className="wb-card-sub">
-              last wk {prior.toLocaleString()} · {monDd(priorDate)}
-            </div>
+            {hasDelta ? (
+              <div className="wb-card-sub">
+                last wk {prior.toLocaleString()} · {monDd(priorDate)}
+              </div>
+            ) : null}
+            {note ? <div className="wb-card-note">{note}</div> : null}
 
             <div className="wb-card-divider" />
             <div className="wb-card-section">

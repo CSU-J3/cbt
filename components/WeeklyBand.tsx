@@ -248,19 +248,35 @@ export async function WeeklyBand() {
       </span>
 
       <span className="weekly-band-seg">
+        {/* HO 654 — the label states what the count IS, and NO delta is rendered
+            here or in the card. The count is of stage advances the SYNC OBSERVED
+            in the window, not advances Congress made in it: `stage_observed_at`
+            is stamped with the wall clock of the run, so one run batch-stamps a
+            week of referrals at one instant. HO 635 measured 243 observed against
+            163 on occurrence with the four-week shape INVERTING, and HO 637 then
+            disqualified that 163 too (windowing on `latest_action_date` admits a
+            May referral that picked up a cosponsor yesterday). Neither number is
+            known true and no third anchor exists in the DB.
+            The LEVEL survives that — it is a real count of a real thing, and the
+            label now names the thing. The DELTA does not: under the observation
+            clock it partly measures sync cadence (an outage dips, the catch-up
+            spikes, both reading as activity in Congress); under occurrence it is
+            biased negative by construction, since 54% of a week's final count
+            arrives after the week closes. A delta that cannot be right under
+            EITHER available clock is not rendered. Deliberate, not an oversight —
+            do not wire one back. `prior`/`priorDate` are omitted for exactly this
+            reason (WeeklyBandMetricCard treats their absence as the claim). */}
         <WeeklyBandMetricCard
-          label="STAGE TRANSITIONS"
+          label="TRANSITIONS OBSERVED"
           value={transitions.total}
-          prior={prior.transitions}
-          priorDate={priorDateISO}
+          note="Counts stage advances the sync observed in this window, not advances Congress made in it. Median observation lag 3.8 days, p90 16.0 days."
           spark={transitionsSpark}
           breakdown={transitionsBreakdown}
         >
           <span className="weekly-band-num">
             {transitions.total.toLocaleString()}
           </span>{" "}
-          stage transitions{" "}
-          <WeekDelta now={transitions.total} prior={prior.transitions} />
+          transitions observed
         </WeeklyBandMetricCard>
       </span>
 
