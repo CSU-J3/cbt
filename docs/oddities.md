@@ -2060,3 +2060,105 @@ density as **3/907**. Current corpus is **4/876**. Correct it whenever
 `queries.ts` is next open for another reason.
 
 ---
+
+## An instrument that reads a PROXY for the thing instead of the thing — three from one arc (HO 642/643, Aug 2026)
+
+Three separate measurement failures in one arc turned out to be the same
+failure, so they are filed once as a family rather than as three unconnected
+notes. In each, the instrument read something that **looks like** the quantity
+it wants, is **adjacent to** it, and is not it — and in each, the wrong reading
+was the *plausible* one, which is why nothing caught it on sight.
+
+**1. An index is not a clock.** Two per-chamber occupancy series were pooled by
+array position: `series[k] + series[k]`. But cursor 0 is each chamber's own
+newest roll call, and the House was in recess — **house cursor 0 = 2026-07-23,
+senate cursor 0 = 2026-08-08, sixteen days apart**. Summing by index adds two
+different moments and calls it one. It moved the headline: **median 3 / max 7 by
+index against median 4 / max 9 by date**. The fix is to pool on the shared axis
+(date), restricted to the window both series actually cover — outside it one
+chamber contributes no sample, and a zero there reads as "nobody absent" rather
+than "not measured". Same family as *`primaries.race_id` is the RUNOFF join key*
+above: a field that looks like the axis you want and isn't.
+
+**2. An element rect is not rendered ink.** Battlefield label collision was
+measured on `.cm-lbl` bounding boxes and reported **five overlaps at 1440**
+(5px + 4×23px). The boxes are wider than their glyphs and centred on the dot, so
+the boxes overlap while the text does not. Re-measured by **ink span** (a
+`Range` over the text node), the gaps are **51/35/35/33/30px** and it is clean —
+and the screenshot agreed with the ink, not the rects. This is the HO 615
+ink-span rule arriving one instrument down: a layout audit already knew to band
+by ink, and an ad-hoc collision check did not inherit it.
+
+**3. `grep -c '^-[^-]'` is not a deletion count.** In unified diff a deleted
+markdown bullet `- **text**` renders as `-- **text**`, which `^-[^-]`
+**excludes by construction**. So the count reads **0** on a diff that deleted
+bullets, and 0 is exactly what "no deletions" looks like. It was reported as
+verification across the HO 639–641 arc by two different readers. The ruled
+instrument is **`git diff --numstat`'s deletions column** (or normal-format
+`^<`). Related trap in the same family: diffing against `git show HEAD:file`,
+which reports every line changed because `core.autocrlf` is true with no
+`.gitattributes` — an LF blob against a CRLF worktree.
+
+**The check that catches all three:** state what the instrument would read if
+the work had gone wrong in the specific way it is meant to detect. If that
+reading is indistinguishable from success — 0 deletions, no overlaps, a plausible
+median — the instrument is measuring a proxy, and the proxy is where to look.
+
+---
+
+## A verdict string that does not read its own numbers (HO 642/643, Aug 2026)
+
+Distinct from the proxy family above, and worth its own entry because the half
+that failed is the half nothing tests. A probe's ruling criteria named three
+outcomes, one of them `CONDITIONAL` with the parenthetical *"(median 0, max >
+0)"*. The measured result landed in that bucket from the **other side** —
+median **4** (passing the `>= 1` half) and max **9** (breaching the `<= 6`
+ceiling) — and the branch printed its canned line anyway:
+
+> the band is reachable but **sits empty at the median**
+
+directly beneath a printed median of 4. **The computation was right and the
+sentence describing it was wrong.** No assertion covers that: the numbers were
+correct, the verdict label was correct, and only the prose contradicted the
+table two lines above it. This is the same-as-success shape relocated into the
+**reporting layer** — a reader skimming for the conclusion gets a false one from
+an otherwise sound probe.
+
+The fix is to **derive the verdict text from the values, or drop the prose and
+print the table**. Here the branch became two-armed on `median === 0`, and the
+non-anticipated arm says what actually happened (the failure is
+over-population, not rarity, and the lever is a higher threshold). The general
+rule: **a summary sentence is an assertion about the data and needs the same
+scepticism as a computed one** — if it is written once and printed under every
+outcome, it is a claim nobody re-checks.
+
+---
+
+## Occupancy of a transient state is not measurable from one sample (HO 642/643, Aug 2026)
+
+Not an instrument failure but a sampling one, and it inverted a finding. A probe
+measured how many members sat in a `[5, 30)` missed-vote streak band, found
+**zero**, and its summary generalised that to *"any WARN in 5..29 selects
+zero"* — a claim about the **corpus** made from a **single cursor**.
+
+The state is transient by construction: a member **passes through** the band on
+the way to the 30-roll MIA tier. So one sample can easily land between crossings
+and report a permanently-empty band that is in fact routinely occupied. Replaying
+the identical streak rule with the cursor set to each of the last 60 roll calls:
+**median 4, p90 7, max 9, and 31 distinct members entering the band** over the
+window. Today's zero was real and was the last five House cursors only — a
+well-attended closing series before the recess had reset everybody's streak.
+
+**One sample cannot distinguish "never" from "not right now",** and a tier
+declined on the former would have been declined on evidence supporting only the
+latter. The replay cost nothing: the position matrix was already in memory from
+the control walk, so 60 cursors and later a 15-rung threshold sweep added **zero
+queries** — the statement count was byte-identical before and after.
+
+The structural follow-on is worth copying: the replay and the sweep were made to
+share **one** `occupancyFor(W)` function, so the date-axis pooling could not be
+fixed in one and left broken in the other. **When a correction lands in one of
+two near-identical code paths, merge them rather than patching both** — two
+copies of a fix are two chances for the next one to miss.
+
+---
