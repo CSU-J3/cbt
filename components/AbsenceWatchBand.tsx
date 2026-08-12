@@ -1,44 +1,49 @@
 // HO 622 — the Absence Watch band, in the HO 608 slot between nav and hearings
 // (docs/design/dashboard-layout-target.html, the band directly after the nav).
 //
-// Server component. HO 630 gave it one client island — AbsenceWatchRows — because
-// a plain click now EXPANDS the member's card in place instead of leaving the
+// Server component. HO 630 gave it one client island — AbsenceWatchCards — because
+// a plain click EXPANDS the member's card in place instead of leaving the
 // dashboard (the HO 627 ruling: the drill moves one level in, not away).
 //
-// The split is deliberate and load-bearing in two directions. The band keeps every
-// time derivation (formatSince below), so the island holds no clock at all — the
-// HO 574/589 constraint by construction, not by discipline. And the band renders
-// each SponsorExpandedPanel here, on the server, passing it into the island as a
-// ReactNode: SponsorExpandedPanel is a server component reused VERBATIM (no
-// absence-specific variant), and a client island cannot import one. That is the
-// ActivityTabs idiom, and it is what keeps lib/queries — and with it next/cache —
-// out of the client bundle.
+// HO 645 — THE BAND RENDERS CARDS, NOT ROWS
+// (docs/design/mock-645-absence-cards-v6.html). Each member is a 126px trading
+// card and the expand is a 330px BACK hanging off the rack's bottom edge. Three
+// things this replaces, so none of them reads as still true below:
+//   - the packed-left row anatomy (dated claim + two evidence clauses) is now the
+//     card front's plate + two stat cells, with the long form on the back;
+//   - the single-column ruling is moot — cards WRAP, which is what a rack is, and
+//     the two-column question the row anatomy raised does not arise;
+//   - SponsorExpandedPanel is no longer reused here at all. AbsenceCardBack is the
+//     band's own back, and SponsorExpandedPanel is UNTOUCHED for /members, its
+//     other consumer (HO 507's shared-component rule).
 //
-// TWO DEVIATIONS FROM THE MOCK, both deliberate, both recorded here so neither
-// reads as drift:
-//   1. The mock drew a DIFFERENT RULE — "MISSED >= 20 · LAST 21 DAYS", six
-//      members, with a 30-cell miss sparkline and a CHRONIC % chip per row. HO 621
-//      ruled that rule out (a rate/window count makes a present-tense claim off a
-//      career statistic; 6 false positives to 1 false negative in the live corpus),
-//      so the row anatomy here is the ruled one: the dated claim leads and the
-//      cumulative rate demotes to an evidence clause. The mock's SHELL — panel,
-//      head, packed-left rows, footer — is what carries over.
-//   2. SINGLE COLUMN, not the mock's `.abw2` two-up at >= 1200px. That grid existed
-//      to fit six rows; a streak rule returns 0-3, so two columns would leave one
-//      empty most days — a reserved box under another name (C4). The row is also
-//      much longer under the ruled anatomy than the mock's, so one column reads
-//      better at width. If the corpus ever sustains six-plus names, the mock's grid
-//      is the thing to restore.
+// The server/client split survives all of it, and is load-bearing in the same two
+// directions. The band keeps every time derivation (formatSince below), so the
+// island holds no clock at all — the HO 574/589 constraint by construction, not by
+// discipline. And the band renders each AbsenceCardBack here, on the server,
+// passing it into the island as a ReactNode: a client island cannot import a
+// server component. That is the ActivityTabs idiom, and it is what keeps
+// lib/queries — and with it next/cache — out of the client bundle.
+//
+// THE DEVIATION FROM THE MOCK THAT SURVIVES THE REWORK: the mock drew a DIFFERENT
+// RULE — "MISSED >= 20 · LAST 21 DAYS" — and HO 621 ruled that out (a rate/window
+// count makes a present-tense claim off a career statistic; 6 false positives to 1
+// false negative in the live corpus). So the trigger is still the streak, the
+// dated claim still leads, and the cumulative rate is still demoted to evidence.
+// The mock's SHELL is what carries over. Two further mock rows have no source at
+// all and are absent rather than invented — see AbsenceCardBack's header.
 //
 // Conventions: C1 packed left, trailing gap right, no far-right anchor. C4 the
 // whole band is conditional — zero qualifying members renders `null`, no wrapper
 // and no header for nothing, because on this surface empty is the GOOD-NEWS state.
-// C3 one bright element per row (the name); the party bracket carries party and
-// nothing else (the HO 610 token rule); the evidence clauses are dim. Every size
-// in 9-14px is an --fs token.
-import { AbsenceWatchRows } from "@/components/AbsenceWatchRows";
-import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
-import type { AbsentMember, Chamber } from "@/lib/queries";
+// C3 one bright element per card (the surname); the party bracket carries party
+// and nothing else (the HO 610 token rule), and --vote-nay carries the alarm on
+// the frame and disc precisely BECAUSE it is not a party token — a red frame that
+// meant Republican would collapse alarm into party. Every size in 9-14px is an
+// --fs token.
+import { AbsenceCardBack } from "@/components/AbsenceCardBack";
+import { AbsenceWatchCards } from "@/components/AbsenceWatchCards";
+import type { AbsentMember } from "@/lib/queries";
 
 const MONTHS = [
   "JAN",
@@ -92,65 +97,35 @@ export function AbsenceWatchBand({
         <span className="abw-title">▲ MIA</span>
         <span className="abw-count">({members.length})</span>
       </div>
-      <AbsenceWatchRows
-        rows={members.map((m) => ({
-          bioguideId: m.bioguideId,
-          name: m.name,
-          party: m.party,
-          state: m.state,
+      <AbsenceWatchCards
+        rows={members.map((m) => {
           // Formatted HERE so the island carries no clock — see the header note.
-          sinceLabel: formatSince(m.lastCastDate, nowMs),
-          atBound: m.atBound,
-          streak: m.streak,
-          missedPct: m.missedPct,
-          // `card === null` is HO 630's identity-only degrade (a per-member
-          // assembly failure): the row still renders, without an expand
-          // affordance. It is NOT the same as "no data" — the band still names
-          // the member, which is the claim this surface exists to make.
-          card: m.card ? (
-            <>
-              {/* HO 630 — the head-drill, MEASURED into existence rather than
-                  added on principle. The handoff made it conditional on where
-                  SponsorExpandedPanel's own buttons land at band widths; the card
-                  puts its first `View detail →` 447px down at 2560 and 402px at
-                  1440, i.e. ~85% of the way down a 482-536px card, and the commit
-                  3 stack pushes it further still. So the drill leads, packed left,
-                  exactly as HO 627 did it for the bill panel — same reason (the
-                  container-query stack buried the old bottom button) and the same
-                  idiom, so the drill sits in one place on both expand surfaces.
-                  It is a sibling of the row, not a child, so a plain click here
-                  navigates and never reaches the toggle. */}
-              <a className="abw-drill" href={`/members/${m.bioguideId}`}>
-                → Full page
-              </a>
-              <SponsorExpandedPanel
-                sponsorKey={m.bioguideId}
-                sponsorName={m.name}
-                sponsorParty={m.party}
-                sponsorState={m.state}
-                bioguideId={m.bioguideId}
-                chamber={m.chamber as Chamber}
-                stats={m.card.stats}
-                topics={m.card.topics}
-                recentBills={m.card.recentBills}
-                committees={m.card.committees}
-                affiliations={m.card.affiliations}
-                palestineGrade={m.palestineGrade}
-                palestineRank={m.palestineRank}
-                palestineScore={m.palestineScore}
-                includeCeremonial={false}
-                // HO 631 — the compact density. This REPLACES HO 630's
-                // committeeCap={Infinity}: uncapping made sense when the card
-                // expanded the band and the reader could scroll the page to reach
-                // the tail, but the card is an overlay now, and an uncapped roster
-                // is exactly what makes it tall enough to need one. Compact caps
-                // both columns at 10 and closes each with a drill to the member
-                // page, so the tail is one click away rather than 14 rows down.
-                density="compact"
-              />
-            </>
-          ) : null,
-        }))}
+          // Computed once and handed to BOTH the front's LAST cell and the back's
+          // LAST VOTE CAST row, so the two can never disagree.
+          const sinceLabel = formatSince(m.lastCastDate, nowMs);
+          return {
+            bioguideId: m.bioguideId,
+            name: m.name,
+            party: m.party,
+            state: m.state,
+            chamber: m.chamber,
+            sinceLabel,
+            atBound: m.atBound,
+            streak: m.streak,
+            missedPct: m.missedPct,
+            // HO 645 — the back ALWAYS renders, which retires HO 630's
+            // identity-only degrade rather than dropping it by accident. That
+            // degrade existed because SponsorExpandedPanel is card-data all the
+            // way down, so `m.card === null` left nothing to expand into and a
+            // card advertising an affordance it cannot honor is the HO 627
+            // defect. The new back is mostly BASE-QUERY data — the streak, the
+            // last cast date, the missed rate — and only its two closing blocks
+            // read `m.card`, which self-omit. So the affordance is now honorable
+            // on a failed prefetch and the condition that produced the degrade
+            // no longer holds.
+            back: <AbsenceCardBack member={m} sinceLabel={sinceLabel} />,
+          };
+        })}
       />
       {/* Designed into the mock, and load-bearing: the delegate carve is a
           population-correctness rule (HO 527), so Radewagen at 82.4% missed is

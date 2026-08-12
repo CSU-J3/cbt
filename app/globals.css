@@ -10216,258 +10216,344 @@ a.hearing-watch:hover {
   color: var(--text-dim);
   font-size: var(--fs-10);
 }
-.abw-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+/* ── HO 645 — THE RACK, THE CARD, AND THE BACK ──────────────────────────────
+   docs/design/mock-645-absence-cards-v6.html. This REPLACES the HO 630/631 row
+   + overlay-pop CSS wholesale: there is no .abw-row, .abw-disc, .abw-name,
+   .abw-claim, .abw-ev, .abw-card-pop, .abw-card-wrap or .abw-drill any more, and
+   with them go the container query and the measured `calc(100vh - 360px)` fold
+   bound that existed only to fit SponsorExpandedPanel into a band-width overlay.
+   The band no longer renders that panel at all (see AbsenceCardBack), so the
+   whole apparatus is gone rather than merely unused.
+
+   THE MAT IS A REAL ELEMENT. .abw-card carries the tier border and the rack
+   background; .abw-card-mat is the 5px inset that reads as a printed card's
+   border; .abw-card-face draws its own 1px inner frame around the photo. Collapse
+   the mat into a thick border on .abw-card and the inner frame collapses with it,
+   which is exactly the difference between a card and a tile.
+
+   COLOUR IS TIERED, NOT PARTISAN. The frame and the disc take --vote-nay, chosen
+   BECAUSE it is not a party token: a red frame on a Republican card would collapse
+   alarm into party. Party appears once, on the plate's team line, coloured inline
+   by the component. C3 — the surname is the card's one bright element (#fff);
+   disc text is dark-on-tier, the position chip and both stat cells are dim.
+
+   Every size in the 9-14px band is an --fs token. The three that are not — the
+   disc's 19px, the face's 134px, the card's 126px — are outside that range, where
+   the type rule says a literal is correct. */
+.abw-rack {
+  /* The panel's positioning context, and the reason it is a wrapper rather than
+     the <ul> itself: the panel has to be a SIBLING of the list (a <div> is not
+     valid inside a <ul>), and anchoring it to the open card's own <li> would move
+     its origin every time a different card opened. */
+  position: relative;
 }
-.abw-row {
+.abw-cards {
   display: flex;
-  align-items: baseline;
   flex-wrap: wrap;
-  gap: 2px 8px;
-  padding: 4px var(--space-md);
-  border-top: 0.5px solid var(--border-soft);
-  text-decoration: none;
-  /* C6 — full-width hover target. */
-  width: 100%;
+  gap: 10px;
+  /* The 12px vertical padding is read back by .abw-cardback's `top` below, and
+     the 12px horizontal one is the PAD the island clamps the panel to. Both are
+     load-bearing in two files. */
+  padding: 12px var(--space-md);
+  margin: 0;
+  list-style: none;
 }
-.abw-rows > li:first-child .abw-row {
-  border-top: none;
-}
-.abw-row:hover {
-  background-color: var(--bg-row-hover);
-}
-/* HO 630 — the row was a whole-row <Link> and is now a role=button that expands
-   in place, so the pointer affordance has to be declared rather than inherited
-   from the anchor it used to be. */
-.abw-row {
+.abw-card {
+  width: 126px;
+  flex: 0 0 auto;
+  background-color: #151d29;
+  border: 1px solid var(--border-strong);
   cursor: pointer;
 }
-/* Identity-only (a per-member card-assembly failure): no expand, so no pointer
-   and no glyph. A row that advertises an affordance it cannot honor is the HO 627
-   defect. The name inside it is still a real link. */
-.abw-row--flat {
-  cursor: default;
+.abw-card--mia {
+  border-color: var(--vote-nay);
 }
-/* The leading disclosure glyph, the .v2f-disc idiom (HO 627 §3): LEADING, never
-   far-right — a right-anchored caret is the exact C1 defect HO 609 removed from
-   the feed row. Dim so C3 holds; the name stays the row's one bright element.
-   Rotates instantly on open (house style: the dashboard's motion budget is
-   cursor-blink plus the two tape marquees). */
-.abw-disc {
-  flex: none;
-  display: inline-block;
-  font-size: var(--fs-9);
-  color: var(--text-dim);
-  line-height: 1;
+.abw-card:hover {
+  background-color: #1b2431;
+}
+.abw-card:focus-visible {
+  outline: 1px solid var(--accent-amber-bright);
+  outline-offset: 2px;
+}
+.abw-card[aria-expanded="true"] {
+  background-color: #20293a;
+}
+.abw-card--mia[aria-expanded="true"] {
+  box-shadow: 0 0 0 2px var(--vote-nay);
+}
+.abw-card-mat {
+  padding: 5px;
+}
+.abw-card-face {
   position: relative;
-  top: -1px;
-  transform-origin: 50% 50%;
+  /* 134 tall and 114 wide (126 - 2 card border - 10 mat padding), both including
+     this 1px frame — so the photo inside is 112x132, which is the pair of numbers
+     AbsenceWatchCards passes to SponsorPhoto. Change one, change both. */
+  height: 134px;
+  overflow: hidden;
+  background-color: #0b1119;
+  border: 1px solid rgba(0, 0, 0, 0.55);
 }
-.abw-li.is-open .abw-disc {
-  transform: rotate(90deg);
-  color: var(--accent-amber);
-}
-.abw-name {
-  font-family: var(--sans);
-  font-weight: 500;
-  /* HO 642 — was an unfamilied 600, so it inherited --font-mono and asked
-     Consolas (the Windows resolution of that stack) for a weight it does not
-     ship; the browser synthesized it. 500 is a REAL loaded Plex face (HO 633
-     loads 400/500/600), so no synthesis on any platform. The family move is
-     also the HO 297 rule applied where it always belonged: sans for names and
-     prose, mono for chrome. .v2f-title already reads a bill title this way. */
-  color: var(--text-primary);
-  font-size: var(--fs-13);
-  white-space: nowrap;
-  /* It is an <a> now (modifier-click reaches the member page) — the row's own
-     hover rule below still carries the amber. */
-  text-decoration: none;
-}
-/* HO 630 — the expanded card's head-drill. Mirrors .bxp-head-drill exactly (HO
-   627) so the drill reads the same on both expand surfaces; packed LEFT, quiet
-   until hover so C3 holds and the card below stays the panel's content. */
-/* ── HO 631 — THE POP ───────────────────────────────────────────────────────
-   The card stops reshaping the dashboard. It hangs off the band's bottom edge,
-   full band width, over the page instead of inside it.
-
-   STACKING, reasoned and then verified rather than asserted. The pop can only
-   overlap the band's LATER SIBLINGS in the left region — the hearings/races box,
-   the weekly strip, the two-up — and every one of those is `z-index: auto`, so a
-   modest z-index puts the pop above all of them; later-sibling paint order is the
-   only thing it has to beat. It never reaches the sticky bills rail by GEOMETRY,
-   not by z-order: the pop is `left: 0; right: 0` of a band that ends at the
-   column gap, so it has no width in that column to paint into. Verified visually
-   at 1440 and 2560, both states.
-
-   The internal scroll is new behaviour and is the honest consequence of the
-   stacked form: at 1440 the band is 754px wide, the card stacks to one column and
-   runs ~1079px tall, which is taller than the viewport can give it. It scrolls
-   inside itself rather than growing the page, because a pop that grows the page
-   is the thing this commit removed.
-
-   THE FOLD BOUND — the third term, and why a viewport-fraction alone is not one.
-   `72vh` bounds the pop against the viewport's HEIGHT but knows nothing about
-   where the pop STARTS. The pop hangs at `top: 100%` of the band, and the band
-   sits below the whole dashboard header stack, so its top edge is already well
-   down the viewport. Measured at scrollTop 0, the band's bottom — the pop's
-   origin — is 344.5px (1440x900), 352px (1920x1080), 346.5px (2560x1400). Under
-   the old two-term bound the pop's bottom therefore landed at 992.5 against a
-   900px fold: 92.5px of the card hung below it, reachable only by scrolling the
-   page — the same page-growth commit 2 set out to remove, re-entered through the
-   bottom edge instead of the top.
-
-   `calc(100vh - 360px)` subtracts the ORIGIN before taking the viewport, so the
-   bound is on the pop's BOTTOM rather than its height.
-
-   360 IS THE LARGEST MEASURED ORIGIN PLUS CLEARANCE, NOT A ROUND NUMBER, AND THE
-   ORIGIN IS NOT WIDTH-INVARIANT — it spreads 7.5px across the three widths above
-   (the header stack's nav wraps differently at 1920, which is why the WIDEST
-   viewport is not the worst case and 1920 is). So the constant is sized against
-   the worst of the three, 352, leaving 8px of clearance there and 15.5px at 1440.
-   Sizing it against 1440 alone would have shipped a bound that still hung 7.5px
-   below the fold at 1920.
-
-   It is COUPLED TO THE HEADER STACK ABOVE THE BAND: masthead, tape, nav, hero
-   band, races box. If anything in that stack changes height — or changes its wrap
-   behaviour at some width — this constant is wrong by exactly that much and the
-   card hangs below the fold again. Re-measure the band's bottom rect at scrollTop
-   0 ACROSS WIDTHS, not at one, and move the 360 to the new maximum. It is a
-   measured offset, not a design margin; do not round it for taste.
-
-   All three terms stay, and they are not decorative: the fold term wins at 1440
-   (540px) and 1920 (720px) — the viewports where the defect actually was — while
-   the 760px cap still wins at 2560x1400, where the fold term is idle and this
-   commit changes nothing. */
-.abw-card-pop {
+.abw-card-disc {
   position: absolute;
-  top: 100%;
+  top: -1px;
+  left: -1px;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+  color: #07090d;
+}
+.abw-card--mia .abw-card-disc {
+  background-color: var(--vote-nay);
+}
+/* The 6px mitre under the disc — the corner-fold that keeps the disc reading as
+   printed onto the card rather than floated over it. */
+.abw-card-cut {
+  position: absolute;
+  top: 29px;
+  left: -1px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 6px 0 0;
+}
+.abw-card--mia .abw-card-cut {
+  border-color: var(--vote-nay) transparent transparent transparent;
+}
+.abw-card-pos {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: var(--fs-9);
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+  background-color: rgba(7, 9, 13, 0.8);
+  padding: 1px 4px;
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+}
+.abw-card-plate {
+  position: absolute;
   left: 0;
   right: 0;
-  z-index: 50;
-  margin-top: 2px;
-  background-color: var(--bg-row-hover);
-  border: 1px solid var(--accent-amber);
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.72);
-  max-height: min(72vh, 760px, calc(100vh - 360px));
-  overflow-y: auto;
+  bottom: 0;
+  padding: 4px 6px 5px;
+  /* The scrim, not a solid bar: the photo keeps reading through the top of it. */
+  background-image: linear-gradient(
+    to top,
+    rgba(6, 9, 13, 0.96) 62%,
+    rgba(6, 9, 13, 0)
+  );
 }
-/* Inside the pop the amber FRAME is the affordance, so the panel's own amber
-   left-border + 24px indent (which read as "expanded under this row" when the
-   card was in flow) would be the same signal drawn twice, indented off-centre in
-   a box that is already framed. Scoped to the band's pop — /members is untouched. */
-.abw-card-pop .sponsor-expanded-panel {
-  margin-left: 0;
-  border-left: none;
-  border-bottom: none;
-}
-/* Even inset inside the framed pop. Only the TOP padding changes (0 -> 12px, the
-   card used to sit flush under its row); the horizontal padding is untouched on
-   purpose, because it is what the container query measures and the 1050px
-   threshold is HO 630's measured figure. */
-.abw-card-pop .abw-card-wrap {
-  padding-top: var(--space-md);
-}
-.abw-card-wrap {
-  padding: 0 var(--space-md) var(--space-md);
-  /* HO 630 commit 3 — the scoped narrow collapse. SponsorExpandedPanel has no
-     container handling of its own (only a <700px media tweak, HO 198) and its
-     three columns were tuned against the /members pane. A CONTAINER query, not a
-     media query, because the band's width is a function of the dashboard grid's
-     fraction, not of the viewport — HO 629 moved that fraction and would have
-     silently moved a media threshold's meaning with it. */
-  container: abwcard / inline-size;
-}
-/* THE THRESHOLD IS MEASURED, and the handoff's stated failure mode was the wrong
-   instrument. It named "committee names wrapping unreadably"; measured, they
-   NEVER wrap at any width (0/14 from 1370px down to 560px) because they are
-   TRUNCATED instead. So the curve below reads truncation — how much of the worst
-   committee name survives — and it is anchored against the pane the card was
-   designed for rather than against a bare pixel count.
-
-   REFERENCE — the card on /members, the surface it was tuned against:
-     2560: 1073px wide, columns 210/518/345, committees truncated 12/14, worst 30%
-     1440: 1068px wide, columns 210/515/343, committees truncated  9/14, worst 38%
-
-   APPLIED CURVE — the same card in the band's wrapper (wrapper -> col2/col3,
-   committees truncated, worst-name visible):
-     1370 -> 666/444   9/14   41%     <- the band at 2560; BETTER than the reference
-     1200 -> 564/376  11/14   33%
-     1050 -> 474/316  13/14   26%     <- parity with the /members reference
-      950 -> 414/276  14/14   21%     <- every name now truncated
-      880 -> 372/248  14/14   18%
-      820 -> 336/224  14/14   15%
-      754 -> 296/198  14/14   12%     <- the band at the 1440 floor
-      640 -> 228/152  14/14    6%
-
-   1050px is where the band's card reaches the readability of the pane it was
-   built for. Above it the band is no worse than /members already is; below it the
-   card degrades past any existing surface, and by 950 every committee name is
-   cut. So: three columns at 2560 (band 1370), stacked at the 1440 floor (band
-   754), which is where the third column has fallen to 198px and the worst name
-   shows 12% of itself.
-
-   Scoped to the band's mount, never to the card (the HO 507 shared-component
-   rule): .sponsor-card-grid's global rules are untouched and /members renders
-   byte-identical. The stack reuses the shape of the existing <700 media tweak —
-   one column, dividers become bottom borders — so there is one stacked treatment,
-   not two that can drift. */
-@container abwcard (max-width: 1050px) {
-  .abw-card-wrap .sponsor-card-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .abw-card-wrap .sponsor-card-rail,
-  .abw-card-wrap .sponsor-card-mid {
-    border-right: none;
-    border-bottom: 1px solid var(--border-strong);
-  }
-  /* HO 631 — the compact committees column collapses to ONE column at the SAME
-     threshold. The threshold itself does not move: 1050px is HO 630's measured
-     figure (the width at which this card reaches the readability of the pane it
-     was built for), and nothing in this HO changes the container's width. Two
-     columns of already-truncated committee names in a single stacked column would
-     be the truncation curve above, halved again. */
-  .abw-card-wrap .sponsor-card-cmtes {
-    column-count: 1;
-  }
-}
-.abw-drill {
-  display: inline-block;
-  margin: 2px 0 6px;
-  font-size: var(--fs-10);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+.abw-card-name {
+  display: block;
+  /* Sans for a name, mono for chrome (HO 297/642). 500 is a real loaded Plex
+     face — 600 here would be synthesized on Windows. */
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: var(--fs-12);
+  line-height: 1.15;
+  color: #fff;
   text-decoration: none;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.abw-drill:hover {
+.abw-card:hover .abw-card-name,
+.abw-card-name:hover {
   color: var(--accent-amber-bright);
 }
-.abw-row:hover .abw-name {
-  color: var(--accent-amber-bright);
-}
-.abw-party {
-  font-size: var(--fs-10);
+.abw-card-team {
+  display: block;
+  font-size: var(--fs-9);
   font-weight: 600;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
+  letter-spacing: 0.6px;
+  line-height: 1.25;
 }
-/* The claim — the one thing the row asserts. Dated, so it stays true in recess. */
-.abw-claim {
-  color: var(--text-secondary);
-  font-size: var(--fs-11);
-  letter-spacing: 0.5px;
-  white-space: nowrap;
+.abw-card-stats {
+  display: flex;
+  margin: 5px 0 0;
+  padding: 0;
+  font-size: var(--fs-9);
+  line-height: 1.25;
 }
-/* Evidence, not claim: dim, and it wraps to a second line before anything pins. */
-.abw-ev {
+.abw-card-stats > div {
+  flex: 1;
+  padding: 0 2px;
+  min-width: 0;
+}
+.abw-card-stats > div + div {
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+  text-align: right;
+}
+.abw-card-stats dt {
   color: var(--text-dim);
-  font-size: var(--fs-10);
   letter-spacing: 0.5px;
+}
+.abw-card-stats dd {
+  margin: 1px 0 0;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* ── the back ───────────────────────────────────────────────────────────────
+   VERTICAL IS CSS AND NEEDS NO MEASUREMENT. `100% - 12px` is the rack's bottom
+   padding, which lands the panel's top edge on the bottom edge of the LOWEST
+   card; `+ 8px` is exactly how far a 12px square rotated 45 degrees pokes above
+   its box, so the notch's TIP meets that edge rather than nearly meeting it.
+
+   Anchoring to the lowest card rather than the open one is deliberate: with one
+   row of cards they are the same card and the notch touches, and if the rack ever
+   wraps the panel drops below BOTH rows instead of covering the second. Covering
+   other members is what HO 631 ruled against, and the reason survives the rework.
+
+   HORIZONTAL cannot be done here — a 330px panel against a 126px card that may
+   sit anywhere across the rack — so `left` and the notch's own `left` are inline
+   styles from the island, clamped into the rack. z-index 50 is the figure HO 631
+   verified: the panel can only overlap the band's LATER SIBLINGS in the left
+   region (hearings/races box, weekly strip, two-up) and every one of those is
+   z-index auto, so beating later-sibling paint order is all it has to do. It
+   never reaches the sticky bills rail by GEOMETRY rather than z-order. */
+.abw-cardback {
+  position: absolute;
+  top: calc(100% - 12px + 8px);
+  width: 330px;
+  z-index: 50;
+  background-color: #151d29;
+  border: 1px solid var(--border-strong);
+  padding: 5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+.abw-cardback--mia {
+  border-color: var(--vote-nay);
+}
+.abw-cardback-notch {
+  position: absolute;
+  top: -7px;
+  width: 12px;
+  height: 12px;
+  background-color: #151d29;
+  border-left: 1px solid;
+  border-top: 1px solid;
+  /* Inherits the tier colour from .abw-cardback, so the notch is the panel's
+     own corner rather than a shape that has to be re-tinted per tier. */
+  border-color: inherit;
+  transform: rotate(45deg);
+}
+.abw-cardback-close {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  z-index: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-10);
+  color: var(--text-dim);
+}
+.abw-cardback-close:hover {
+  color: var(--text-primary);
+}
+.abw-cardback-inner {
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  background-color: #0b1119;
+}
+.abw-bk-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  /* The right padding clears the absolutely-positioned close control. */
+  padding: 6px 26px 5px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.abw-bk-name {
+  margin: 0;
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: var(--fs-12);
+  color: #fff;
+  line-height: 1.1;
+}
+.abw-bk-team {
+  font-size: var(--fs-9);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+}
+.abw-bk-sub {
+  margin: 0;
+  padding: 3px 9px 5px;
+  color: var(--text-dim);
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.abw-bk-rows {
+  margin: 0;
+  padding: 0;
+  font-size: var(--fs-10);
+}
+/* A key/value stat row, not a C1 stretch: the label and its figure are the row's
+   whole content and the panel is 330px wide, so the gap between them can never
+   open into the kind of void C1 is about. */
+.abw-bk-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 9px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+.abw-bk-rows > div:nth-child(odd) {
+  background-color: rgba(255, 255, 255, 0.022);
+}
+.abw-bk-rows dt {
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  font-size: var(--fs-9);
+  white-space: nowrap;
+}
+.abw-bk-rows dd {
+  margin: 0;
+  color: var(--text-secondary);
+  text-align: right;
+  white-space: nowrap;
+}
+.abw-bk-rows dd b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.abw-bk-block {
+  margin: 0;
+  padding: 4px 9px 5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+}
+.abw-bk-block dt {
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  font-size: var(--fs-9);
+}
+.abw-bk-block dd {
+  margin: 1px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--fs-10);
+  line-height: 1.35;
+}
+.abw-bk-foot {
+  margin: 0;
+  padding: 4px 9px;
+  color: var(--text-dim);
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
 }
 .abw-foot {
   color: var(--text-dim);
@@ -10477,10 +10563,8 @@ a.hearing-watch:hover {
   border-top: 0.5px solid var(--border-soft);
   margin: 0;
 }
-/* Narrow: wrap, never pin. The name + party stay together on line 1 and the claim
-   leads line 2 with its evidence after it (the kit's two-line collapse). */
-@media (max-width: 720px) {
-  .abw-claim {
-    flex-basis: 100%;
-  }
-}
+/* HO 645 removed the narrow two-line collapse with the row it collapsed: the
+   card is a fixed 126px at every width and the rack simply wraps to fewer cards
+   per line, so there is nothing left to reflow. The panel's own narrow case is
+   handled by the island's clamp (it pins to PAD once the rack is narrower than
+   330 + 2*PAD), not by a breakpoint. */

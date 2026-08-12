@@ -4852,7 +4852,10 @@ export const getParticipationStrip = unstable_cache(
 // absence. The consumer discloses the exclusion in its footer for that reason.
 export const ABSENCE_STREAK_MIN = 30;
 const ABSENCE_WINDOW = 30; // Phase A candidate window, in roll calls
-const ABSENCE_WALK_BOUND = 120; // Phase B walk ceiling, in roll calls
+// Exported since HO 645: the card's back prints the bound in its footnote
+// ("streak counted back to a 120-roll bound"), and a second literal in the
+// component would be a number that can go quietly false when this one moves.
+export const ABSENCE_WALK_BOUND = 120; // Phase B walk ceiling, in roll calls
 const ABSENCE_CHAMBERS = ["house", "senate"] as const;
 
 export type AbsentMember = {

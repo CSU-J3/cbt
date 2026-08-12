@@ -317,6 +317,18 @@ async function runWidth(ctx: BrowserContext, label: string, w: number, h: number
  * band sits directly under the nav at the top of the page, so the coordinate
  * divergence the feed legs exist to catch (client rect vs page position inside an
  * overflowing scroller) cannot arise. The feed legs still carry it.
+ *
+ * HO 645 — RECONCILED WITH THE CARD RACK. Every selector this leg pins moved when
+ * the band became cards, and a diagnostic that pins shipped structure emits the
+ * same green against a stale copy as against a current one, so reconciling it is
+ * part of the change rather than after it. The mapping, once: .abw-row ->
+ * .abw-card, .abw-name -> .abw-card-name, the open-state test .abw-li.is-open ->
+ * .abw-card[aria-expanded="true"], and the open panel .abw-card-wrap /
+ * .abw-card-pop -> .abw-cardback. Leg 5 changed SUBJECT rather than selector: the
+ * head-drill it asserted does not exist on the card back (navigation is the
+ * card name's modified-click, which leg 3 already covers), so its slot now
+ * asserts the one thing HO 645 added that nothing else measures — that the
+ * panel's notch tip lands ON the open card and the panel stays inside the rack.
  */
 async function runAbsenceWidth(
   ctx: BrowserContext,
@@ -329,7 +341,7 @@ async function runAbsenceWidth(
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
   await page.waitForTimeout(SETTLE_MS);
 
-  const rowCount = await page.locator(".abw-row").count();
+  const rowCount = await page.locator(".abw-card").count();
   if (rowCount === 0) {
     // Zero absent members is the GOOD-NEWS state (C4) and renders nothing, so an
     // empty band is not a failure — but it is also not a pass, and saying so is
@@ -339,36 +351,36 @@ async function runAbsenceWidth(
     await page.close();
     return;
   }
-  record(`${label} absence band present`, true, `${rowCount} row(s)`);
+  record(`${label} absence band present`, true, `${rowCount} card(s)`);
 
   const rowRect = async (): Promise<Rect | null> =>
     page.evaluate(() => {
-      const el = document.querySelector(".abw-row");
+      const el = document.querySelector(".abw-card");
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.x, y: r.y, w: r.width, h: r.height };
     });
   const nameRect = async (): Promise<Rect | null> =>
     page.evaluate(() => {
-      const el = document.querySelector(".abw-row .abw-name");
+      const el = document.querySelector(".abw-card .abw-card-name");
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.x, y: r.y, w: r.width, h: r.height };
     });
-  const cardOpen = async () => (await page.locator(".abw-card-wrap").count()) > 0;
-  // Close whichever row is actually open — NOT row 0. HO 631's switch leg (8) can
-  // leave row B open, and clicking row A then SWITCHES to A rather than closing,
-  // so the old row-0 cleanup silently left a card open and the next leg failed
-  // looking for content it had just re-opened. The cleanup has to follow the
-  // single-open state rather than assume where it is.
+  const cardOpen = async () => (await page.locator(".abw-cardback").count()) > 0;
+  // Close whichever card is actually open — NOT card 0. HO 631's switch leg (8)
+  // can leave card B open, and clicking card A then SWITCHES to A rather than
+  // closing, so the old card-0 cleanup silently left a panel open and the next leg
+  // failed looking for content it had just re-opened. The cleanup has to follow
+  // the single-open state rather than assume where it is.
   const collapse = async () => {
     if (!(await cardOpen())) return;
     const r = await page.evaluate(() => {
-      const lis = Array.from(document.querySelectorAll(".abw-li"));
-      const openLi = lis.find((li) => li.classList.contains("is-open"));
-      const el = (openLi ?? lis[0])?.querySelector(".abw-row");
-      if (!el) return null;
-      const b = el.getBoundingClientRect();
+      const cards = Array.from(document.querySelectorAll(".abw-card"));
+      const openCard =
+        cards.find((c) => c.getAttribute("aria-expanded") === "true") ?? cards[0];
+      if (!openCard) return null;
+      const b = openCard.getBoundingClientRect();
       return { x: b.x, y: b.y, w: b.width, h: b.height };
     });
     if (r) await clickCentre(page, r);
@@ -409,11 +421,11 @@ async function runAbsenceWidth(
         ? Math.round((topOpen - topClosed) * 100) / 100
         : null;
     record(
-      `${label} absence row click OPENS AS OVERLAY (no reflow)`,
+      `${label} absence card click OPENS AS OVERLAY (no reflow)`,
       opened && stayed && delta === 0,
       `open=${opened} url-unchanged=${stayed} page-shift=${delta === null ? "unmeasurable" : `${delta}px`}`,
     );
-  } else record(`${label} absence row click OPENS AS OVERLAY (no reflow)`, false, ".abw-row rect not measurable");
+  } else record(`${label} absence card click OPENS AS OVERLAY (no reflow)`, false, ".abw-card rect not measurable");
   await collapse();
 
   // 2 — plain click on the NAME expands too (the name is an <a>; the plain case
@@ -428,7 +440,7 @@ async function runAbsenceWidth(
       opened && page.url() === urlBefore,
       `open=${opened} url-unchanged=${page.url() === urlBefore}`,
     );
-  } else record(`${label} absence NAME plain-click expands`, false, ".abw-name rect not measurable");
+  } else record(`${label} absence NAME plain-click expands`, false, ".abw-card-name rect not measurable");
   await collapse();
 
   // 3 — ctrl-click the NAME navigates in a background tab and must NOT expand.
@@ -460,11 +472,11 @@ async function runAbsenceWidth(
       `open=${opened} · tabs ${before}->${after} · ${dest}`,
     );
     for (const p of ctx.pages()) if (p !== page) await p.close();
-  } else record(`${label} absence ctrl-click NAME does NOT expand`, false, ".abw-name rect not measurable");
+  } else record(`${label} absence ctrl-click NAME does NOT expand`, false, ".abw-card-name rect not measurable");
   await collapse();
 
   // 4 — Enter opens, Space closes.
-  await page.locator(".abw-row").first().focus();
+  await page.locator(".abw-card").first().focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(350);
   const enterOpen = await cardOpen();
@@ -488,15 +500,15 @@ async function runAbsenceWidth(
     await page.waitForTimeout(300);
     const closed = !(await cardOpen());
     const focusBack = await page.evaluate(() => {
-      const rows = document.querySelectorAll(".abw-row");
-      return document.activeElement === rows[0];
+      const cards = document.querySelectorAll(".abw-card");
+      return document.activeElement === cards[0];
     });
     record(
-      `${label} absence Esc closes AND returns focus to row`,
+      `${label} absence Esc closes AND returns focus to card`,
       openedFirst && closed && focusBack,
-      `opened=${openedFirst} closed=${closed} focus-on-row=${focusBack}`,
+      `opened=${openedFirst} closed=${closed} focus-on-card=${focusBack}`,
     );
-  } else record(`${label} absence Esc closes AND returns focus to row`, false, ".abw-row rect not measurable");
+  } else record(`${label} absence Esc closes AND returns focus to card`, false, ".abw-card rect not measurable");
   await collapse();
 
   // 7 — HO 631: an outside click closes the card AND the thing that was clicked
@@ -537,7 +549,7 @@ async function runAbsenceWidth(
   // so beats a silent skip.
   if (rowCount >= 2) {
     const rects = await page.evaluate(() =>
-      Array.from(document.querySelectorAll(".abw-row")).map((el) => {
+      Array.from(document.querySelectorAll(".abw-card")).map((el) => {
         const r = el.getBoundingClientRect();
         return { x: r.x, y: r.y, w: r.width, h: r.height };
       }),
@@ -550,25 +562,25 @@ async function runAbsenceWidth(
       await clickCentre(page, b);
       await page.waitForTimeout(400);
       const state = await page.evaluate(() => {
-        const lis = Array.from(document.querySelectorAll(".abw-li"));
-        const openIdx = lis.findIndex((li) => li.classList.contains("is-open"));
+        // HO 645: open state lives on the card's own aria-expanded now — there is
+        // no .is-open wrapper class to read, and the card IS the toggle.
+        const cards = Array.from(document.querySelectorAll(".abw-card"));
+        const expanded = cards.map((c) => c.getAttribute("aria-expanded"));
         return {
-          openCount: lis.filter((li) => li.classList.contains("is-open")).length,
-          openIdx,
-          pops: document.querySelectorAll(".abw-card-pop").length,
+          openCount: expanded.filter((v) => v === "true").length,
+          openIdx: expanded.indexOf("true"),
+          pops: document.querySelectorAll(".abw-cardback").length,
           popLabel:
-            document.querySelector(".abw-card-pop")?.getAttribute("aria-label") ?? "",
-          expandedAttrs: Array.from(document.querySelectorAll(".abw-row"))
-            .map((r) => r.getAttribute("aria-expanded"))
-            .join(","),
+            document.querySelector(".abw-cardback")?.getAttribute("aria-label") ?? "",
+          expandedAttrs: expanded.join(","),
         };
       });
       record(
         `${label} absence open A -> click B SWITCHES (single-open)`,
         state.openCount === 1 && state.openIdx === 1 && state.pops === 1,
-        `open-rows=${state.openCount} open-index=${state.openIdx} pops=${state.pops} aria=[${state.expandedAttrs}] · ${state.popLabel}`,
+        `open-cards=${state.openCount} open-index=${state.openIdx} panels=${state.pops} aria=[${state.expandedAttrs}] · ${state.popLabel}`,
       );
-    } else record(`${label} absence open A -> click B SWITCHES (single-open)`, false, "row rects not measurable");
+    } else record(`${label} absence open A -> click B SWITCHES (single-open)`, false, "card rects not measurable");
   } else {
     record(
       `${label} absence open A -> click B SWITCHES (single-open)`,
@@ -578,32 +590,67 @@ async function runAbsenceWidth(
   }
   await collapse();
 
-  // 5 — the card's head-drill navigates, and it LEADS the card (HO 630 measured
-  // the panel's own buttons ~85% of the way down, which is why it exists).
+  // 5 — HO 645: THE NOTCH LANDS ON THE OPEN CARD, and the panel stays inside the
+  // rack. This is the whole geometric claim of the back, and it is the one thing
+  // no other leg touches — legs 1-8 all pass equally well against a panel pinned
+  // to the far left with its notch pointing at nothing.
+  //
+  // Both halves are asserted for the usual reason. The vertical half (tip on the
+  // lowest card's bottom edge) is pure CSS and would only break if the rack's
+  // padding and the 8px poke of a rotated 12px square stopped agreeing; the
+  // horizontal half is the measured one, and it is the half that can silently go
+  // wrong when the rack is narrower than the panel. Clamped, `left` pins to PAD
+  // and the notch slides to keep pointing at its card — so the test is the NOTCH
+  // over the card, never the panel over the card.
   const r5 = await rowRect();
   if (r5) {
     await clickCentre(page, r5);
     await page.waitForTimeout(400);
   }
-  const drill = await page.evaluate(() => {
-    const wrap = document.querySelector(".abw-card-wrap");
-    const a = wrap?.querySelector(".abw-drill");
-    if (!wrap || !a) return null;
-    const wr = wrap.getBoundingClientRect();
-    const r = a.getBoundingClientRect();
-    return { x: r.x, y: r.y, w: r.width, h: r.height, dy: Math.round(r.top - wr.top) };
-  });
-  if (drill) {
-    await clickCentre(page, { x: drill.x, y: drill.y, w: drill.w, h: drill.h });
-    await page.waitForLoadState("domcontentloaded").catch(() => {});
-    await page.waitForTimeout(600);
-    const ok = /\/members\//.test(page.url());
-    record(
-      `${label} absence card -> FULL PAGE navigates`,
-      ok && drill.dy < 40,
-      `${drill.dy}px from card top · url=${page.url().replace(BASE_URL, "")}`,
+  const geo = await page.evaluate(() => {
+    const card = Array.from(document.querySelectorAll(".abw-card")).find(
+      (c) => c.getAttribute("aria-expanded") === "true",
     );
-  } else record(`${label} absence card -> FULL PAGE navigates`, false, ".abw-drill not found in the open card");
+    const panel = document.querySelector(".abw-cardback");
+    const notch = document.querySelector(".abw-cardback-notch");
+    const rack = document.querySelector(".abw-rack");
+    const cards = Array.from(document.querySelectorAll(".abw-card"));
+    if (!card || !panel || !notch || !rack || cards.length === 0) return null;
+    const c = card.getBoundingClientRect();
+    const p = panel.getBoundingClientRect();
+    const n = notch.getBoundingClientRect();
+    const k = rack.getBoundingClientRect();
+    const lowest = Math.max(...cards.map((e) => e.getBoundingClientRect().bottom));
+    return {
+      notchCx: n.x + n.width / 2,
+      notchTop: n.top,
+      cardL: c.left,
+      cardR: c.right,
+      lowest,
+      panelL: p.left,
+      panelR: p.right,
+      rackL: k.left,
+      rackR: k.right,
+    };
+  });
+  if (geo) {
+    const pointsAtCard = geo.notchCx >= geo.cardL && geo.notchCx <= geo.cardR;
+    const tipGap = Math.round((geo.notchTop - geo.lowest) * 100) / 100;
+    const touches = Math.abs(tipGap) <= 2;
+    const inRack =
+      geo.panelL >= geo.rackL + 11 - 0.5 && geo.panelR <= geo.rackR - 11 + 0.5;
+    record(
+      `${label} absence notch lands ON the open card`,
+      pointsAtCard && touches && inRack,
+      `notch-over-card=${pointsAtCard} tip-to-card-edge=${tipGap}px clamped-in-rack=${inRack}`,
+    );
+  } else {
+    record(
+      `${label} absence notch lands ON the open card`,
+      false,
+      "open card / .abw-cardback / .abw-cardback-notch / .abw-rack not all measurable",
+    );
+  }
 
   await page.close();
 }
