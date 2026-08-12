@@ -288,26 +288,34 @@ for (const c of candidates) {
 type Control = { name: string; expect: string; got: string; pass: boolean };
 const controls: Control[] = [];
 {
-  // C1 TESTS THE MECHANISM, not just the outcome. Asserting "reads PHANTOM"
-  // alone is satisfied by any classifier whose window is too short to reach the
-  // marker — which is how the first cut of this control passed under naive
-  // proximity and discriminated nothing. So it also asserts the trap is REAL:
-  // that a proximity window DOES find a deletion marker near this mention, and
-  // that ownership scoping is therefore what is doing the work.
-  const hits = m2.filter((r) => r.name === "DistributionsTabs" && r.line === 2043);
-  const line = skill[2042] ?? "";
-  const col = line.indexOf("`DistributionsTabs`");
-  const near = line.slice(Math.max(0, col - NAIVE_WINDOW), col);
+  // RE-ANCHORED AT HO 652, in the commit that expired it — and the expiry came
+  // through a mechanism C4 did NOT anticipate, which is the whole lesson.
+  //
+  // C1 used to look up SKILL **line 2043**. HO 652 deleted one line 300+ lines
+  // ABOVE it (the /dashboard-classic bullet), every later line shifted up by one,
+  // and the control silently began testing a DIFFERENT mention of the same name —
+  // one with a marker 1039 chars away, which classifies RECORD. It failed loudly
+  // here, but the general form is worse: **a line-number anchor is invalidated by
+  // ANY edit above it, not merely by a repair of its subject.** C4 predicted
+  // expiry-on-repair and prescribed a fixture; it expired on an unrelated deletion
+  // instead, which is the stronger argument for the fixture.
+  //
+  // The anchor is now an INLINE FIXTURE reproducing the exact shape: a deletion
+  // marker about name A, an intervening backticked token that BOUNDS the ownership
+  // scope, then name B carrying no marker of its own. No product edit can reach it,
+  // and it still fails under PHANTOM_NAIVE=1.
+  const FIX =
+    "`Alpha` (the live thing; **HO 627** replaced the `Gamma` treemap with it, and the treemap file was **deleted at HO 650** after the probe found it surviving on `import type` edges alone — erased at compile time, so it read as live while rendering nowhere), `Beta` (**HO 244**, tab state — merges the two former panels)";
+  const bcol = FIX.indexOf("`Beta`");
+  const { cls } = classify("Beta", { line: 0, col: bcol, text: FIX });
+  const near = FIX.slice(Math.max(0, bcol - NAIVE_WINDOW), bcol);
   const trapReal = MARKER.test(near);
-  const dist = col - line.lastIndexOf("deleted", col);
-  const got =
-    (hits.map((h) => h.cls).join(",") || "no mention found") +
-    ` · marker within ${NAIVE_WINDOW} chars: ${trapReal ? "yes" : "NO"} (nearest at ${dist})`;
+  const dist = bcol - FIX.lastIndexOf("deleted", bcol);
   controls.push({
-    name: "C1 negative · L2043 DistributionsTabs (marker about ANOTHER name, nearby)",
+    name: "C1 negative · FIXTURE: marker about ANOTHER name, inside the window",
     expect: "PHANTOM, and the adjacent-marker trap demonstrably present",
-    got,
-    pass: hits.length > 0 && hits.every((h) => h.cls === "PHANTOM") && trapReal,
+    got: `${cls} · marker within ${NAIVE_WINDOW} chars: ${trapReal ? "yes" : "NO"} (nearest at ${dist})`,
+    pass: cls === "PHANTOM" && trapReal,
   });
 }
 {
@@ -331,9 +339,12 @@ const controls: Control[] = [];
   });
 }
 controls.push({
-  name: "C4 anchor · C1's anchor is a product line HO 652 will repair",
-  expect: "expiry named in-script with re-anchoring cost",
-  got: "named (see CONTROLS block comment) — fixture preferred over a second product line",
+  // UPDATED AT HO 652. This used to read “C1's anchor is a product line HO 652
+  // will repair” — true when written, false the moment C1 became a fixture. A
+  // control that misdescribes itself is the same defect this probe measures.
+  name: "C4 anchor · C1 is anchored to a FIXTURE, not to a product line",
+  expect: "no product edit can expire C1",
+  got: "inline fixture (HO 652; the line-2043 anchor expired on an unrelated deletion above it)",
   pass: true,
 });
 
