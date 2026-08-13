@@ -2244,3 +2244,48 @@ So the two cases look identical from outside — “I changed the code and the n
 **This SUBSUMES *Vercel's Data Cache persists across deployments* (HO 312) rather than contradicting it:** a deploy does not rotate the key precisely *because* the key is derived from the function's text and not from the build, which is the same fact seen from the other side (measured here: a new `BUILD_ID` reused the entry byte-for-byte). It also corrects a conclusion drawn from the older framing and shipped in this arc's first draft — that a body edit's blob “shrinks when the entry regenerates.” **It does not — and that correction is DERIVED, not observed.** The derivation: `generateCacheKey` is handed `fixedKey` + args in Next's shared path (`unstable-cache.ts:133-134`) **before any cache handler is consulted**, so a rotated key resolves to a different entry regardless of which handler backs it — the step is handler-agnostic, which is what lets a local `.next/cache` reading carry to Vercel's Data Cache rather than being a fact about the filesystem. On that derivation a rotated key has no prod entry at all, so the first read after deploy is a cold miss that builds the new value directly: no convergence window and nothing to wait out. Convergence-by-repeated-hits (the HO 555 rule) applies to the *stable-key* branch — where the value changed underneath an unchanged callback — and not to this one.
 
 **The prod arm is UNOBSERVED, and why it stayed that way is the durable part.** HO 647 measured all three rows of the table locally, and on prod confirmed the served SHA, the render and the population — but never the prod cache state, because **the band's public surface cannot discriminate**: a fat payload is a *superset* of a thin one, so `AbsenceCardBack` reads the same three keys out of either and renders byte-identically (prod md5 `a3278f5b9ae5afef8083573658f88f4f`, unchanged across five consecutive hits). No amount of hitting prod would have settled it — the observation was never available, so its absence is not a gap in diligence. Read the prod clause as **derived-and-unfalsified**, not measured. The two-arm instrument that would close it, and the three traps that make the obvious version invalid, are banked in `docs/backlog.md`.
+
+## A matching check whose pattern cannot fail for some inputs reports those inputs as passing (HO 651 + HO 655, Aug 2026)
+
+**Instances of the existing close-criterion rule — a success signal that does not
+depend on the check succeeding — not a new principle.** What earns a separate entry
+is the DIAGNOSIS: in all three the fault is in the **pattern's reach**, not in what
+the check was pointed at. The check is aimed correctly, runs correctly, and still
+cannot discriminate — so the output is byte-identical to a real result, which is
+why none of the three was caught by reading the output.
+
+It has two polarities, and they look nothing alike until the mechanism is named:
+
+- **The pattern cannot MATCH, so everything reports absent.** HO 651's control used
+  a ±120-character window to find a deletion marker sitting ~162 characters away.
+  Unreachable — so the control passed under the correct classifier AND under the
+  deliberately broken one, discriminating nothing.
+- **The pattern cannot MISS, so everything reports present.** Two of these. HO 651's
+  phantom probe scanned a tree containing its own source, and its own comments name
+  the components it hunts, so it vouched for a phantom it was enumerating. HO 655's
+  selector census used a bare substring match over `components/` + `app/`: the token
+  `open` matched the English word in a comment, `v2f-id` matched inside the longer
+  string `bill-id-chip`, and a short token therefore could not fail the test no
+  matter what the specs contained.
+
+**The pre-flight question is cheap and would have caught all three: what input would
+make this pattern report the OTHER answer?** If you cannot name one, the check is a
+constant wearing the costume of a measurement. A ±120-char window has no input that
+reports a marker at 162. A substring search for `open` over a large tree has no
+input that reports absent.
+
+**A corrected instrument that reaches the SAME answer is the interesting case, and
+it is why a result can never vouch for its method.** HO 655's strict re-run —
+whole-word on a `className=` line, or `.token` in CSS — returned the same
+`0 tokens with no producer` as the broken matcher, with the attributions now
+correct. **The RESULT stood and the INSTRUMENT did not**, and nothing in the first
+output distinguished them. Had the corrected run disagreed, the defect would have
+announced itself; agreement is the silent case, so the re-run is worth doing even
+when you expect it to confirm.
+
+**And what none of the three could catch, because it bounds the whole family:** all
+are EXISTENCE checks, and the defect that motivated HO 655 was *selector exists,
+behaviour moved* — `a.v2f-id` is real, and the assertion wrapped around it encoded
+a contract HO 609/613/627 had reversed. A pattern with perfect reach still cannot
+see that. Only running the test does, which is why HO 655's rot ruling came out at
+*accept manual rot* rather than at a static gate.
