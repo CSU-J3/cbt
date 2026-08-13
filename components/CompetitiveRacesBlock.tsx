@@ -1,9 +1,8 @@
 import { Battlefield } from "@/components/Battlefield";
 import { CompetitiveRacesStrip } from "@/components/CompetitiveRacesStrip";
 import type { RaceHubData } from "@/components/CompetitiveRacesStrip";
-import { DashboardPrimaries } from "@/components/DashboardPrimaries";
 import { RaceCrossHighlight } from "@/components/RaceCrossHighlight";
-import { RacesPanelTabs } from "@/components/RacesPanelTabs";
+import { NextPrimariesLine } from "@/components/NextPrimariesLine";
 import {
   type CompetitiveRace,
   getDashboardPrimaries,
@@ -134,13 +133,12 @@ export async function CompetitiveRacesBlock({
         return { race, incumbent, candidates, runoffs, news } as RaceHubData;
       }),
     ),
-    // HO 233: the PRIMARIES tab's 6-month rollup. Fetched here alongside the
-    // competitive hubs so the tab island gets both views as server-rendered
-    // props.
+    // The 6-month primaries rollup (HO 233), re-pointed at the NEXT PRIMARIES
+    // line by HO 657 — the sub-tab it was built for is gone. The QUERY is
+    // deliberately unchanged: the line consumes the same `cards`/`strip` payload
+    // the retired 2×2 grid did, so no SQL moved for a display merge.
     getDashboardPrimaries(),
   ]);
-
-  const primariesCount = primariesData.strip.reduce((s, p) => s + p.count, 0);
 
   const strip = (
     <CompetitiveRacesStrip
@@ -158,10 +156,33 @@ export async function CompetitiveRacesBlock({
   // card hover lights its battlefield marker and vice versa (matched on the
   // shared `data-seat` = raceId). `/` keeps its plain strip (no battlefield, no
   // cross-highlight).
+  // HO 657 — the panel MERGED: no sub-tabs, one body. The shell is server-
+  // rendered now (RacesPanelTabs was a client island only because it held the
+  // toggle, and the toggle is gone), but it carries `dashboard-pane
+  // home-races-pane` on the SAME <section> tag it always did. That is
+  // load-bearing twice over: `.home-races-pane` is the HO 230 popover
+  // containment box (position:relative + overflow:hidden), and
+  // `.dv2-racesbox .home-races-pane` is live styling on this route (border/bg
+  // stripped so the pane blends into the box body). Preserved by construction —
+  // same tag, same classes — rather than re-derived.
+  //
+  // Containment note, measured at HO 657 rather than assumed: the hover popover
+  // renders only on the `default` variant, and `/dashboard-classic` no longer
+  // exists, so this box currently confines nothing on any live route. The
+  // classes stay anyway — they cost nothing and the property survives if the
+  // default variant is ever reachable again. See the backlog entry for the
+  // unreachable-variant sweep.
+  //
+  // `.races-panel-body` is kept, but its rationale is thinner than it looks: the
+  // 240px min-height was SUB-tab parity, and measured at HO 657 it is INERT
+  // (body 879px). It does NOT steady the HEARINGS↔RACES flip either — that goes
+  // 980px to 102px and always did. Kept as a harmless floor for a shrunken
+  // competitive body, not as the thing holding the column still.
   return (
-    <RacesPanelTabs
-      competitiveContent={
-        showBattlefield ? (
+    <section className="dashboard-pane home-races-pane">
+      <NextPrimariesLine data={primariesData} allHref="/electoral" />
+      <div className="races-panel-body">
+        {showBattlefield ? (
           <RaceCrossHighlight>
             <Battlefield
               cycle={cycle}
@@ -171,11 +192,8 @@ export async function CompetitiveRacesBlock({
           </RaceCrossHighlight>
         ) : (
           strip
-        )
-      }
-      primariesContent={<DashboardPrimaries data={primariesData} />}
-      competitiveCount={races.length}
-      primariesCount={primariesCount}
-    />
+        )}
+      </div>
+    </section>
   );
 }

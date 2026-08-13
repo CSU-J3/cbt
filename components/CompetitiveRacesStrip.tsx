@@ -64,9 +64,12 @@ function partyColor(party: PartyKey | null): string {
   return "var(--text-dim)";
 }
 
-// HO 233: the outer panel chrome + header moved to RacesPanelTabs (the tab strip
-// now owns the panel). This renders ONLY the 2×2 grid — cards, popovers, and the
-// HO 230 confinement are byte-identical, just hosted by the tab body now.
+// HO 233: the outer panel chrome + header moved OUT of this component. It went
+// to RacesPanelTabs then, and RacesPanelTabs was DELETED at HO 657 when the
+// panel merged to one body — the chrome now sits on the server-rendered
+// <section className="dashboard-pane home-races-pane"> in CompetitiveRacesBlock.
+// Same tag, same classes, so the HO 230 confinement is unchanged. This component
+// still renders ONLY the grid; cards and popovers are byte-identical.
 export function CompetitiveRacesStrip({
   races,
   hubs,

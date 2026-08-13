@@ -1,14 +1,25 @@
 "use client";
 
 // HO 270 (Piece 1 of 3) — the v2 races box becomes a tabbed box with HEARINGS |
-// RACES top tabs. Mirrors the ActivityTabs / RacesPanelTabs idiom: both panels
-// are server-rendered and passed in as ReactNode props, so this island holds
-// only the top-tab toggle.
+// RACES top tabs. Mirrors the ActivityTabs idiom: both panels are
+// server-rendered and passed in as ReactNode props, so this island holds only
+// the top-tab toggle.
 //
 // Both panels stay MOUNTED (the inactive one hidden via the `hidden` attribute,
-// not unmounted) so the RACES panel's nested COMPETITIVE|PRIMARIES sub-tab state
-// (RacesPanelTabs useState) survives HEARINGS↔RACES switches — the locked
-// "sub-tab remembers its position" decision (HO 270 Phase 1).
+// not unmounted). HALF OF THAT RATIONALE IS NOW DEAD, and saying so is the point
+// (HO 657): it was written to preserve the RACES panel's nested
+// COMPETITIVE|PRIMARIES sub-tab state across HEARINGS↔RACES switches, and those
+// sub-tabs — with RacesPanelTabs itself — were deleted when the panel merged to
+// one body. There is no nested tab position left to remember. What survives is
+// the cheaper reason to keep mounting: the panels hold client state worth not
+// discarding (this island's own RacesUpdatesContext registries below).
+//
+// AND DO NOT CREDIT `.races-panel-body`'s min-height with steadying this flip —
+// measured at HO 657, the box goes 980px on RACES to 102px on HEARINGS, so the
+// flip jumps by design and always did. That min-height was SUB-tab parity
+// (competitive vs primaries), it is currently INERT (the body renders 879px
+// against a 240px floor), and it now only matters if the competitive body ever
+// shrinks below 240. Kept as a harmless floor; retiring it is a separate call.
 //
 // HO 272 — this island also owns the RACES-tab update state: it provides
 // RacesUpdatesContext (the localStorage "last opened RACES" timestamp + a

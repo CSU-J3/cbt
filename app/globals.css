@@ -4997,117 +4997,104 @@ body {
    (.v2f-sc-card inside .bxp) is bounded by .v2f's overflow — an INNER ancestor —
    which this rule never governed. Both render identically with it and without it. */
 
-.dash-prim {
+/* HO 657 RETIRED the .dash-prim-* block (18 selectors: the 6-month tick
+   timeline, the 2×2 date-card grid, the empty notice, the mobile override).
+   The races panel merged to ONE body — no COMPETITIVE|PRIMARIES sub-tabs — and
+   the primaries residue is now the NEXT PRIMARIES line (.prim-* below), which
+   renders NOTHING on an empty window rather than a notice. Recorded as a
+   deletion rather than left live: DashboardPrimaries.tsx is gone, so a
+   surviving rule naming it would be the globals.css:1563 vouching shape. */
+
+/* HO 657 — NEXT PRIMARIES line + its click-open detail row. Existing tokens
+   only. Spacing follows the conventions arc, not the mock pixels: the line is
+   flex packed LEFT with ALL → the only right-anchored element (C1 permits an
+   end-anchored control on a chrome row; the dates never stretch), and type is
+   var(--fs-*) throughout (C2 — no literals in the 9–14px range). Colour is
+   state, not decoration (C3): amber marks a SOON date, everything else is
+   secondary/dim. */
+.prim-line {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: 0 0 var(--space-sm);
+  margin-bottom: var(--space-md);
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: var(--fs-11);
 }
-.dash-prim-empty {
-  padding: var(--space-md);
-  text-align: center;
-  font-size: var(--fs-13);
+.prim-line-k {
   color: var(--text-dim);
-}
-/* Six-month calendar strip: axis 16px off the bottom, ticks grow up from it,
-   TODAY + month labels sit in the band below. */
-.dash-prim-strip {
-  position: relative;
-  height: 52px;
-}
-.dash-prim-axis {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 16px;
-  border-top: 1px solid var(--border-strong);
-}
-.dash-prim-nowline {
-  position: absolute;
-  left: 0;
-  bottom: 16px;
-  height: 26px;
-  border-left: 1px solid var(--accent-amber);
-}
-.dash-prim-today {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  font-size: var(--fs-9);
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
-  color: var(--accent-amber);
 }
-.dash-prim-month {
-  position: absolute;
-  bottom: 0;
-  transform: translateX(-50%);
-  font-size: var(--fs-9);
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-.dash-prim-tickwrap {
-  position: absolute;
-  bottom: 16px;
-  transform: translateX(-50%);
-  line-height: 0;
-}
-/* Suppress the tooltip-term dotted underline — it doesn't read on a vertical
-   tick (same suppression the bill-rail does). */
-.dash-prim-tickwrap .tooltip-term {
-  border-bottom: none;
+.prim-date {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-11);
+  color: var(--text-muted);
   cursor: pointer;
 }
-.dash-prim-tick {
-  display: block;
-  width: 3px;
-  border-radius: 1px 1px 0 0;
-  background: var(--text-dim);
+.prim-date-d {
+  color: var(--text-secondary);
 }
-.dash-prim-tick--soon {
-  background: var(--accent-amber-bright);
+.prim-date--soon .prim-date-d {
+  color: var(--accent-amber-bright);
 }
-/* 2×2 per-date cards — pre-results (no ShareBar/★); same card chrome as the
-   competitive cells, shorter floor since the content is denser. */
-.dash-prim-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-md);
-  align-items: start;
+.prim-date:hover .prim-date-d,
+.prim-date:focus-visible .prim-date-d {
+  text-decoration: underline;
 }
-.dash-prim-card {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 64px;
-  padding: var(--space-sm) var(--space-md);
+.prim-date-n {
+  color: var(--text-dim);
+}
+.prim-line-all {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: var(--fs-10);
+  letter-spacing: 0.4px;
+  text-decoration: none;
+}
+.prim-line-all:hover {
+  color: var(--text-muted);
+}
+.prim-open {
   border: 0.5px solid var(--border-soft);
   border-radius: 2px;
   background: var(--bg-base);
-  text-decoration: none;
-}
-.dash-prim-card:hover {
-  background: var(--bg-row-hover);
-  border-color: var(--border-strong);
-}
-.dash-prim-card-date {
-  font-size: var(--fs-12);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--accent-amber);
-}
-.dash-prim-card-meta {
+  padding: var(--space-sm) var(--space-md);
+  margin: calc(-1 * var(--space-xs)) 0 var(--space-md);
   font-size: var(--fs-11);
-  color: var(--text-muted);
 }
-.dash-prim-card-seats {
+.prim-open-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.prim-open-d {
+  color: var(--accent-amber-bright);
   font-size: var(--fs-12);
+}
+.prim-open-x {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+.prim-open-x:hover {
+  color: var(--text-secondary);
+}
+.prim-open-row {
+  margin-top: 3px;
   color: var(--text-muted);
   line-height: 1.5;
 }
-@media (max-width: 700px) {
-  .dash-prim-grid {
-    grid-template-columns: 1fr;
-  }
+.prim-open-row b {
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 /* ---- cluster index ----------------------------------------------------- */
