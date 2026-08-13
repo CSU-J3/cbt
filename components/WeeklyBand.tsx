@@ -129,6 +129,13 @@ export async function WeeklyBand() {
   // HO 365: each metric's card delta/subline uses the SAME prior trailing-7d
   // value as the strip's inline WeekDelta (so card delta == strip delta); the
   // subline date is the prior window's edge, today−7d (MON DD via the card).
+  // HO 654 — TRUE OF THREE OF THE FOUR METRICS. The mechanism is unchanged
+  // wherever a delta exists; TRANSITIONS OBSERVED is the exception because it
+  // renders NO delta, in either place, so there is nothing for the two to
+  // agree about. It passes neither `prior` nor `priorDate`, and that omission
+  // IS the claim (see WeeklyBandMetricCard). So this value is consumed by
+  // ENACTED, NEW BILLS and HEARINGS only — a fifth metric that wants a delta
+  // still reads it here.
   const priorDateISO = new Date(Date.now() - 7 * 86_400_000)
     .toISOString()
     .slice(0, 10);
