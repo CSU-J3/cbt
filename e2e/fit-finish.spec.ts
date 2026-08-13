@@ -134,21 +134,68 @@ test.describe("home /", () => {
     assertClean(c, "home feed expand");
   });
 
-  test("feed id chip navigates to /bill/[id]; body click expands", async ({ page }) => {
+  // HO 655 — this test used to be titled "feed id chip navigates to /bill/[id];
+  // body click expands" and asserted exactly that. Both halves were rot:
+  //   · the SELECTOR (a.bill-id-chip) stopped rendering here when the v2 row
+  //     swapped the bordered chip for plain amber id text (C3) — the row uses
+  //     a.v2f-id now, and BillIdChip is still live on other surfaces;
+  //   · the BEHAVIOUR was deliberately reversed (HO 609/613/627) — a plain
+  //     click now EXPANDS the row rather than navigating.
+  // Repointing the selector alone would have satisfied the old line 143 and
+  // failed four lines later, where it reads as an app regression rather than as
+  // a stale fixture. The contract below is the current one, and it is richer
+  // than the one it replaces: the third leg (modified click navigates AND does
+  // not also expand) had no spec coverage at all.
+  test("feed id: plain click expands the row; modified click opens /bill/[id] in a new tab", async ({
+    page,
+    context,
+  }) => {
     const c = attachCollectors(page);
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
     const firstGroup = page.locator(".v2f-group").first();
-    const idChip = firstGroup.locator("a.bill-id-chip").first();
-    await expect(idChip, "feed row should carry a bill-id-chip link").toBeVisible({ timeout: 15_000 });
-    const href = await idChip.getAttribute("href");
-    expect(href, "id chip should link to a bill detail").toMatch(/^\/bill\//);
-    // id-click navigates (stopPropagation means the row does NOT expand)
-    await idChip.click();
-    await page.waitForURL(/\/bill\//, { timeout: 15_000 }).catch(() => {});
-    expect(page.url(), "id chip click should navigate to /bill/[id]").toContain("/bill/");
-    logClean("home-id-chip-nav", c);
-    assertClean(c, "home id-chip nav");
+    const id = firstGroup.locator("a.v2f-id").first();
+
+    // (1) still a REAL link — this is the new-tab / copy-link / a11y guarantee
+    // the component comment claims, and it is what makes leg 3 meaningful.
+    await expect(id, "feed row should carry an id link").toBeVisible({ timeout: 15_000 });
+    const href = await id.getAttribute("href");
+    expect(href, "row id should link to a bill detail").toMatch(/^\/bill\//);
+
+    // (2) PLAIN click expands, does not navigate.
+    const urlBefore = page.url();
+    await id.click();
+    await page.waitForTimeout(600);
+    expect(page.url(), "a plain id click must NOT navigate").toBe(urlBefore);
+    await expect(
+      page.locator(".v2f-group.open"),
+      "a plain id click must expand exactly one row",
+    ).toHaveCount(1);
+
+    // (3) MODIFIED click navigates in a new tab and must NOT also expand. The
+    // second half is the mirrored defect rowLinkClick's stopPropagation exists
+    // to prevent (open in a background tab AND leave the row expanded) — assert
+    // it, or the guard is untested and its removal reads green.
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+    const id2 = page.locator(".v2f-group").first().locator("a.v2f-id").first();
+    await expect(id2).toBeVisible({ timeout: 15_000 });
+    const popupP = context.waitForEvent("page", { timeout: 10_000 });
+    await id2.click({ modifiers: ["ControlOrMeta"] });
+    const popup = await popupP;
+    // The page event fires while the new tab is still about:blank, so WAIT for
+    // the navigation rather than sampling popup.url() — reading it immediately
+    // is a race that reports about:blank on a working app.
+    await popup.waitForURL(/\/bill\//, { timeout: 15_000 });
+    expect(popup.url(), "a modified id click should open the bill detail").toContain("/bill/");
+    await expect(
+      page.locator(".v2f-group.open"),
+      "a modified id click must NOT also expand the row",
+    ).toHaveCount(0);
+    await popup.close();
+
+    logClean("home-id-click-contract", c);
+    assertClean(c, "home id click contract");
   });
 
   test("markets tape hover → portaled detail popover appears + on-screen", async ({ page }) => {
