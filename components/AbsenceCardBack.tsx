@@ -21,9 +21,12 @@
 //     scoped item with its own cost.
 // A third is narrower than the mock rather than missing: the sub-line reads
 // chamber · state, because AbsentMember carries no district (the mock's "FL-24").
-// And the 119TH row renders the percentage alone — m.card.stats is a BILL
-// aggregate (total/enacted/stage counts), so it carries no vote denominator for
-// the mock's "1,061/1,262".
+// The 119TH row's denominator was the third, and it is CLOSED (HO 656): HO 645
+// checked `m.card.stats` — a BILL aggregate (total/enacted/stage counts) — and
+// correctly found no vote denominator there, but `queryAbsenceWatch`'s own
+// population pass was already SELECTing `member_participation.total` and
+// `.not_voting` and discarding both after dividing. Two fields on AbsentMember,
+// no new statement. The row reads `<pct>% · <missed>/<total>`.
 //
 // The figure it does carry is MISSED, not the mock's participation: the band's
 // claim is absence and AbsentMember.missedPct is a missed rate, so the label says
@@ -111,7 +114,14 @@ export function AbsenceCardBack({
         <div>
           <dt>119TH MISSED</dt>
           <dd>
-            <b>{member.missedPct.toFixed(1)}%</b> of votes
+            {/* HO 656 — the denominator now rides AbsentMember (missedVotes /
+                totalVotes, the two counts member_participation was already
+                selecting). It stays MISSED over TOTAL, not the mock's
+                cast/total: the band's claim is absence, so the numerator has to
+                be the same quantity the percentage is a rate of, or the row
+                prints a figure and its own complement side by side. */}
+            <b>{member.missedPct.toFixed(1)}%</b> ·{" "}
+            {member.missedVotes.toLocaleString()}/{member.totalVotes.toLocaleString()}
           </dd>
         </div>
       </dl>

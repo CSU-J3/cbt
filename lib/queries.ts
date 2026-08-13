@@ -4927,6 +4927,14 @@ export type AbsentMember = {
   // recorded local date is the honest one and needs no timezone handling.
   lastCastDate: string;
   missedPct: number; // cumulative 119th rate, 0-100 (the evidence clause)
+  // HO 656 — the two COUNTS behind missedPct, carried so the card can show the
+  // denominator. NOT a new read: the population pass below already SELECTs
+  // `p.total` and `p.not_voting` and was throwing both away after dividing.
+  // Counts rather than a formatted string because the consumer picks the units
+  // (the card prints `missed/total`); a pre-divided figure is what forced the
+  // percentage-alone render in the first place.
+  missedVotes: number; // = member_participation.not_voting
+  totalVotes: number; // = member_participation.total (>= PARTICIPATION_FLOOR)
   // ── HO 630: the expand-in-place card, prefetched ───────────────────────────
   // The band expands the member's card inline instead of navigating (the HO 627
   // ruling: the drill moves one level in, not away). /members' own expand is URL
@@ -4966,7 +4974,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
     args: [PARTICIPATION_FLOOR],
   });
 
-  type Pop = { name: string; party: string | null; state: string; chamber: string; missedPct: number };
+  type Pop = { name: string; party: string | null; state: string; chamber: string; missedPct: number; missedVotes: number; totalVotes: number };
   const pop = new Map<string, Pop>();
   for (const r of popRes.rows) {
     const total = Number(r.total ?? 0);
@@ -4977,6 +4985,8 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
       state: String(r.state ?? ""),
       chamber: String(r.chamber ?? ""),
       missedPct: (Number(r.nv ?? 0) / total) * 100,
+      missedVotes: Number(r.nv ?? 0),
+      totalVotes: total,
     });
   }
 
@@ -5073,6 +5083,8 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         atBound,
         lastCastDate,
         missedPct: meta.missedPct,
+        missedVotes: meta.missedVotes,
+        totalVotes: meta.totalVotes,
         card: null, // filled below, per member, so one failure can't empty the band
         palestineGrade: null,
         palestineRank: null,
