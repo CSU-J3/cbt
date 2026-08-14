@@ -1,12 +1,14 @@
 "use client";
 
 // HO 164 — single-open accordion state + per-row data cache, extracted from
-// BillRowList so the dashboard TOP STALLS accordion (TopStallsList) shares the
-// exact same contract: one open row at a time, and the lazy-loaded panel
-// payload cached by id so re-opening a row never refetches.
+// BillRowList so the dashboard TOP STALLS accordion (TopStallsList) could share
+// the exact same contract: one open row at a time, and the lazy-loaded panel
+// payload cached by id so re-opening a row never refetches. TopStallsList is
+// deleted at HO 664 (its only callers were the dead non-v2 feed arms); the
+// contract stands, with BillRowList and V2FeedList as the consumers.
 //
 // HO 166 — generic over the cached payload `T`. Default `PanelData` keeps the
-// HO 164 callers (BillRowList, TopStallsList) calling `useSingleOpenPanel()`
+// HO 164 callers calling `useSingleOpenPanel()`
 // unchanged. The generic was added for the competitive-races drawer's
 // `useSingleOpenPanel<RaceHubData>()`; that drawer became a CSS hover popover at
 // HO 178 and the popover is deleted at HO 658, so nothing instantiates `T` today
@@ -19,9 +21,10 @@ export function useSingleOpenPanel<T = PanelData>() {
   const [panelCache, setPanelCache] = useState<Map<string, T>>(() => new Map());
 
   // HO 473 — Esc closes the open row, matching the electoral district modal.
-  // Guard on null so no listener is attached when nothing's open. All three
-  // consumers (BillRowList, TopStallsList, V2FeedList) inherit this from the
-  // shared hook. HO 658: the list said FOUR and named CompetitiveRacesStrip —
+  // Guard on null so no listener is attached when nothing's open. Both
+  // consumers (BillRowList, V2FeedList) inherit this from the shared hook;
+  // TopStallsList was the third until HO 664 deleted it.
+  // HO 658: the list said FOUR and named CompetitiveRacesStrip —
   // that surface stopped using the hook at HO 178 (hover popover, no state) and
   // is deleted now; it was never a consumer of this Esc behaviour.
   useEffect(() => {

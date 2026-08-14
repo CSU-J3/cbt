@@ -106,8 +106,12 @@
   --sans: var(--font-plex-sans), system-ui, -apple-system, "Segoe UI", Roboto,
     sans-serif;
 
-  /* Home-header height. Drives the no-scroll calc on .home-grid:
-     `height: calc(100vh - var(--home-header-height) - 24px)`. The
+  /* Home-header height. DEAD — kept as a documented no-op (see the standing
+     note in SKILL's spacing-tokens section). It drove a no-scroll calc,
+     `height: calc(100vh - var(--home-header-height) - 24px)`, on the HO 178
+     `.home-grid`; that calc went when the dashboard became scrollable, and
+     `.home-grid` itself was excised at HO 664. The rest of this note is the
+     HO 133 sizing history that set the number. The
      home-dashboard-cleanup restructure put the LEGEND BOX next to the
      title block (was a full-width strip below the nav), which traded
      vertical chrome for horizontal — the header is now title block
@@ -376,9 +380,11 @@ body {
 }
 
 /* ---- /trends pane grid ------------------------------------------------- */
-/* HO 126 legacy quadrant grid retained for /trends. The home page moved
-   to .home-grid in HO 131; this 2x2 .dashboard-pane styling still backs
-   the trends page and any future surface that wants the same chrome. */
+/* HO 126 legacy quadrant grid retained for /trends. The home page moved off it
+   to `.home-grid` in HO 131, and off THAT to the HO 608 two-region shell
+   (`.home-grid` excised at HO 664) — so this is the last live descendant of the
+   quadrant era, and it still backs the trends page and any future surface that
+   wants the same chrome. */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -699,28 +705,17 @@ body {
   gap: var(--space-md);
   min-height: 0;
 }
-/* HO 178: the full-width .home-breaking-strip (HO 150) is retired — BREAKING now
-   lives as a panel in the left column of the 56/44 grid. The grid is 56/44 with
-   a 16px gutter (was equal 1fr 1fr, 12px). */
-.home-grid {
-  display: grid;
-  grid-template-columns: 56fr 44fr;
-  gap: var(--space-lg);
-  align-items: start;
-  min-height: 0;
-}
-.home-col-stack {
-  display: flex;
-  flex-direction: column;
-  /* HO 178: 16px vertical gap between stacked panels in each column. */
-  gap: var(--space-lg);
-  min-height: 0;
-}
+/* HO 664: the HO 178 `.home-grid` 56/44 body grid and its `.home-col-stack`
+   column wrapper are excised — the HO 608 two-region shell (.dash-page /
+   .dash-left / .dash-bills, below) replaced them and neither selector had a TSX
+   consumer (0 each, against a `.breaking-row` positive control reading 7). The
+   `.home-grid` media rule and the :has() cross-column dim went in the same pass. */
 
 /* ── HO 253: Dashboard v2 shell (now `/`; was the /dashboard-v2 route, HO 311) ──
    v2 reuses the home-* header, quadrant, weekly-band, and tape classes wholesale;
    only three things are net-new here: the two-tape stack border collapse, and the
-   49/51 body grid (vs `/`'s 56/44 .home-grid). Scoped to dv2-* so `/` is
+   49/51 body grid (vs the 56/44 `.home-grid` `/` carried at the time — excised at
+   HO 664 once the HO 608 shell replaced it). Scoped to dv2-* so `/` is
    untouched. */
 .dv2-tapes {
   display: flex;
@@ -973,19 +968,18 @@ body {
   text-transform: uppercase;
 }
 
-/* HO 178 — BREAKING compact rows + cross-column hover-overrun.
+/* HO 178 — BREAKING compact rows + overrun.
    The panel must NOT clip (it inherits .home-quadrant overflow:hidden) so the
-   full-headline overlay can spill rightward across the gutter into the races
-   column. The right column dims to 0.4 while any breaking row is hovered, via
-   :has(), so the popped headline reads cleanly over it. */
+   full-headline overlay can spill rightward across the gutter.
+   HO 664: the companion `.home-grid:has(.breaking-row:hover) .home-col-right`
+   rule — which dimmed the right column to 0.4 while a breaking row was hovered —
+   is excised. Both of its scoping selectors died with the HO 608 shell (0 TSX
+   consumers each); HO 642 §3 had already deleted the .dash-page/.dash-bills twin
+   of that dim, leaving this one as the pre-608 orphan. */
 /* Compound selector beats the .home-quadrant overflow:hidden regardless of
    source order (both are single-class; this is two-class). */
 .home-quadrant.home-breaking-panel {
   overflow: visible;
-}
-.home-grid:has(.breaking-row:hover) .home-col-right {
-  opacity: 0.4;
-  transition: opacity 120ms ease;
 }
 /* HO 610 (C1) — packed left, was `grid-template-columns: 92px 1fr auto`. The 1fr
    headline track stretched to the row's full width, so a short headline ended and
@@ -1682,12 +1676,6 @@ body {
 /* HO 178: the HO 162 viewport-tier line-clamps (3/2/1) are retired — the LEAD
    now full-wraps to the right of the title and the row height follows it. */
 
-@media (max-width: 1023px) {
-  .home-grid {
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-rows: minmax(280px, auto);
-  }
-}
 @media (max-width: 700px) {
   .home-header {
     padding: var(--space-md);
@@ -1698,76 +1686,18 @@ body {
     padding: var(--space-md);
   }
 }
-/* HO 126 TOP STALLS quadrant row — minimal `[chip] [title] [Xd]` layout,
-   deliberately distinct from the compact BillRow used by ActivityTicker.
-   At 2x2 quadrant widths the compact row's 3-line stacked content stops
-   being scannable; the one-line format here packs ~5 rows where compact
-   would fit ~3. */
-.top-stalls-row {
-  display: grid;
-  grid-template-columns: minmax(72px, max-content) 1fr 48px 14px;
-  align-items: baseline;
-  gap: 10px;
-  padding: 7px 6px;
-  border-bottom: 0.5px solid var(--border-soft);
-  text-decoration: none;
-}
-.top-stalls-row:hover {
-  background-color: var(--bg-row-hover);
-}
-/* HO 164: rows are click-to-expand accordions (TopStallsList). The chevron is
-   the 4th grid column; the BillExpandedPanel renders as a block sibling below
-   the row inside the <li>, so it spans full width on its own. */
-.top-stalls-row--expandable {
-  cursor: pointer;
-  outline: none;
-}
-.top-stalls-row--expandable:focus-visible {
-  outline: 1px solid var(--accent-amber);
-  outline-offset: -1px;
-}
-.top-stalls-row.is-open {
-  background-color: var(--bg-row-hover);
-}
-.top-stalls-row .row-chevron {
-  color: var(--text-dim);
-  font-size: var(--fs-12);
-  line-height: 1;
-  display: inline-block;
-  transition: transform 120ms ease, color 120ms ease;
-}
-.top-stalls-row .row-chevron.is-open {
-  transform: rotate(90deg);
-  color: var(--accent-amber);
-}
-
-/* Horizontal bill-id chip — chamber-tinted variant of HO 125's
-   BillIdRail. Same --rail-house / --rail-senate tokens, same 10% tint +
-   border treatment, just turned 90° and sized for inline use. Reused in
-   TOP STALLS today; available as a primitive for any future surface that
-   wants a chamber-tinted bill-id pill. */
-.bill-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  font-size: var(--fs-12);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  border-radius: 2px;
-  border-left: 2px solid var(--text-dim);
-  background-color: var(--bg-panel);
-  color: var(--text-primary);
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-.bill-chip--house {
-  border-left-color: var(--rail-house);
-  background-color: color-mix(in srgb, var(--rail-house) 12%, var(--bg-panel));
-}
-.bill-chip--senate {
-  border-left-color: var(--rail-senate);
-  background-color: color-mix(in srgb, var(--rail-senate) 12%, var(--bg-panel));
-}
+/* HO 664: the HO 126 `.top-stalls-row*` block (the TOP STALLS
+   `[chip] [title] [Xd]` one-line row + its HO 164 accordion/chevron rules) and
+   the HO 125-derived `.bill-chip*` chamber-tinted pill are both excised. Their
+   sole renderer was `components/TopStallsList.tsx`, deleted here with the dead
+   non-v2 feed arms that were its only callers — 0 TSX renderers each, against a
+   `.breaking-row` positive control reading 7. `.row-chevron`'s own base rule is
+   untouched (still live on BillRow); only the `.top-stalls-row` descendants died.
+   TOMBSTONE: `.bill-chip` was written as a reusable primitive "available for any
+   future surface that wants a chamber-tinted bill-id pill" and never gained a
+   second consumer. Zero renderers is the criterion and a comment is not a caller,
+   so it goes; the chamber-tint concept survives in --rail-house / --rail-senate
+   via BillIdRail, and the pill itself is recoverable from git history. */
 /* active filter strip — between HeaderBar and the dashboard grid */
 .active-filter-strip {
   display: flex;
@@ -4046,8 +3976,11 @@ body {
 }
 
 /* HO 257 — Dashboard v2 feed (MOVERS / TOP STALLS / NEW THIS WEEK) rows +
-   rich expand, per the docs/dashboard-2col mock's MOVERS box. v2-specific
-   (V2FeedList); `/`'s feed keeps the old BillRowList/TopStallsList.
+   rich expand, per the docs/dashboard-2col mock's MOVERS box. V2FeedList is now
+   the ONLY renderer of all three tabs: the clause here used to read "`/`'s feed
+   keeps the old BillRowList/TopStallsList", which went stale at HO 608-610 when
+   /dashboard-classic was removed and false at HO 664, which stripped the dead
+   non-v2 arms and deleted TopStallsList.
    HO 633 — this used to read "Prose inherits the app's mono (no --sans in
    CBT)", and it described neither the rule nor the shipped state: this feed's
    titles and summaries have been on --sans since the 609-era title work, and

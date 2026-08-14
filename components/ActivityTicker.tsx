@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { BillRowList } from "@/components/BillRowList";
 import { V2FeedList } from "@/components/V2FeedList";
 import {
   type Chamber,
   type DashboardFilters,
   getStageChanges,
   getStageChangesCount,
-  getWatchedBillIds,
 } from "@/lib/queries";
 
 // HO 133: row cap drops from 15 to 5, footer becomes [ + N MORE → ]
@@ -22,13 +20,12 @@ import {
 // left the rest of the viewport beside it empty. A pre-arc content LIMIT surviving
 // into a shell that budgets far more room — not the layout arc misbehaving.
 //
-// NO VARIANT SPLIT, deliberately: `/dashboard-classic` was REMOVED at HO 608-610
-// (the route 404s), and app/page.tsx is the only caller of this component, always
-// with variant="v2". A depth constant keyed on the variant would have been an
-// unreachable branch carrying a comment about a page that no longer exists — the
-// Group-D "delete dead code, don't feed it" rule. (The `variant` prop still
-// branches the RENDERER; that its fallback arm is now also unreachable is a
-// separate cleanup, noted not done.)
+// NO VARIANT SPLIT: `/dashboard-classic` was REMOVED at HO 608-610 (the route
+// 404s), and app/page.tsx is the only caller of this component. HO 627 declined a
+// variant-keyed depth constant as an unreachable branch (the Group-D "delete dead
+// code, don't feed it" rule) and noted the renderer's own fallback arm as a
+// separate cleanup not done; HO 664 is that cleanup. The `variant` prop and its
+// `<BillRowList compact>` arm are gone, so there is one renderer and no fallback.
 //
 // Cost of the deeper slice, measured at HEAD fcf6009 on 2026-08-07 against a
 // 17,463-bill corpus: rows_read 1,018 -> 1,094 (+76). The ~1,000 baseline is the
@@ -44,20 +41,16 @@ const CAP = 30;
 export async function ActivityTicker({
   filters,
   chamber,
-  variant,
   nowMs,
 }: {
   filters?: DashboardFilters;
   // HO 642: the dashboard feed panel's chamber selector. Feed-panel scope only —
   // see the note where `chamber` is derived in app/page.tsx.
   chamber?: Chamber;
-  // HO 257: "v2" renders the mock-matching V2FeedList (rich rows + expand);
-  // default keeps the `/` dashboard's compact BillRowList untouched.
-  variant?: "v2";
   // HO 490: page-computed clock threaded to the feed's client rows.
   nowMs: number;
 }) {
-  const [bills, counts, watchedIds] = await Promise.all([
+  const [bills, counts] = await Promise.all([
     getStageChanges({ chamber }, 7, CAP, filters),
     // The count takes EVERY dimension the row query takes — chamber AND the
     // dashboard stage/topic filters. `remaining` below drives the `[ + N more → ]`
@@ -78,7 +71,6 @@ export async function ActivityTicker({
     // no dashboard filter the two arms are byte-identical, so this is a no-op on
     // the unfiltered default.
     getStageChangesCount({ chamber }, 7, filters),
-    getWatchedBillIds(),
   ]);
   const remaining = Math.max(0, counts.filtered - bills.length);
 
@@ -91,12 +83,8 @@ export async function ActivityTicker({
         >
           No stage changes in the last 7 days.
         </div>
-      ) : variant === "v2" ? (
-        <V2FeedList bills={bills} metricMode="movers" nowMs={nowMs} />
       ) : (
-        // HO 164: compact rows that expand into the full BillExpandedPanel,
-        // single-open within this tab (resets when you switch to TOP STALLS).
-        <BillRowList compact bills={bills} watchedIds={watchedIds} nowMs={nowMs} />
+        <V2FeedList bills={bills} metricMode="movers" nowMs={nowMs} />
       )}
       <Link href="/changes" className="home-expander v2f-foot">
         {remaining > 0

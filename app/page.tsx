@@ -227,18 +227,13 @@ export default async function DashboardPage({
             <ActivityTabs
               activityContent={
                 <ActivityTicker
-                  variant="v2"
                   filters={filters}
                   chamber={chamber}
                   nowMs={nowMs}
                 />
               }
-              stallsContent={
-                <TopStalls variant="v2" chamber={chamber} nowMs={nowMs} />
-              }
-              newContent={
-                <NewThisWeek variant="v2" chamber={chamber} nowMs={nowMs} />
-              }
+              stallsContent={<TopStalls chamber={chamber} nowMs={nowMs} />}
+              newContent={<NewThisWeek chamber={chamber} nowMs={nowMs} />}
               // `.filtered`, not `.total`: getStageChangesCount derives `total`
               // from buildChangesWhere({}, …), which drops its own `filters` arg,
               // so a chamber passed in never reaches it. The two arms are

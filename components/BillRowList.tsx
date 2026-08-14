@@ -11,9 +11,17 @@
 // HO 317 — /bills now renders the SHARED components/BillExpandPanel (the same
 // rich panel the dashboard `/` shows, click-to-expand here vs hover there). That
 // panel is presentational, so the list owns the lazy fetch. The compact path
-// (the old dashboard ACTIVITY ticker; the classic route it lived on was removed
-// at HO 608) keeps the pipeline-only BillExpandedPanel, which self-fetches
-// nothing in compact mode.
+// keeps the pipeline-only BillExpandedPanel, which self-fetches nothing in
+// compact mode.
+//
+// HO 664 — the `compact` passthrough now has ZERO callers. Its last one was
+// ActivityTicker's dead non-v2 arm, stripped there; the classic route that arm
+// served went at HO 608. NOT chased here on purpose: BillRowList is live on 6+
+// routes, so stripping the prop is its own change behind its own gates (HO 507
+// shared-component rule), and it would cascade into BillExpandedPanel, which
+// this branch is the last consumer of. Filed QUEUED in docs/backlog.md.
+// `BillRow`'s OWN compact prop is unaffected and stays live, link-only, on
+// SearchResultsBills / /patterns / /committee/[systemCode].
 import { useEffect, useMemo } from "react";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { BillExpandedPanel } from "@/components/BillExpandedPanel";

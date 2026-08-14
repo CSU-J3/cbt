@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { TopStallsList } from "@/components/TopStallsList";
 import { V2FeedList } from "@/components/V2FeedList";
 import { type Chamber, getStaleBills } from "@/lib/queries";
 
@@ -8,20 +7,20 @@ import { type Chamber, getStaleBills } from "@/lib/queries";
 // snapshot. Drives off the same getStaleBills helper /stale uses, with
 // limit=5; the rendered leader row should match /stale's top entry.
 //
-// Format is deliberately *not* the HO 125 compact BillRow — at a 2x2
-// quadrant width (~720px at 1440px viewport, narrower at smaller
-// breakpoints), the title + stage strip + sponsor strip stack of compact
-// BillRow stops being scannable. This is a 3-column one-line row:
+// RECORD (HO 126, renderer deleted at HO 664 — kept because the reasoning is
+// why this tab exists, not a claim about what it renders today): the row was
+// deliberately *not* the HO 125 compact BillRow. At a 2x2 quadrant width the
+// compact row's stacked title + stage strip + sponsor strip stopped being
+// scannable, so TopStallsList rendered a 3-column one-line row
+// `[HR-9011 chip] truncated title… 505d`, the chip carrying HO 125's chamber
+// tint (--rail-house / --rail-senate). That island and its `.top-stalls-row` /
+// `.bill-chip` CSS went with the dead non-v2 arm; the tab now renders
+// V2FeedList like the other two, and the tint survives only in BillIdRail.
 //
-//   [HR-9011 chip]  truncated bill title…       505d
-//
-// The chip inherits HO 125's chamber tint (--rail-house cyan /
-// --rail-senate purple) so chamber identity carries through the home page
-// without introducing a new color vocabulary.
-//
-// HO 164: the row layout is unchanged, but rows now click-to-expand into the
-// full BillExpandedPanel (the list + accordion state live in the TopStallsList
-// client island). This stays a server component for the data fetch.
+// HO 164 gave the rows a click-to-expand accordion in the client island named
+// in the RECORD above; HO 664 deleted it with the dead non-v2 arm that was its
+// only caller. This stays a server component for the data fetch, and the rows
+// are V2FeedList's.
 
 // HO 627: this one is a CEILING, not a target. The stale set under the default
 // /stale scope (past-committee, 60+ days, procedural filtered) is SMALL — 5 rows
@@ -33,14 +32,12 @@ const ROW_LIMIT = 60;
 
 export async function TopStalls({
   chamber,
-  variant,
   nowMs,
 }: {
   // HO 642: the dashboard feed panel's chamber selector. buildStaleWhere composes
   // on buildFeedWhere, which already emits the bill_type predicate — so this needs
   // no query work, only a populated first argument.
   chamber?: Chamber;
-  variant?: "v2";
   // HO 490: page-computed clock threaded to the feed's client rows.
   nowMs: number;
 }) {
@@ -59,11 +56,7 @@ export async function TopStalls({
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
-      {variant === "v2" ? (
-        <V2FeedList bills={bills} metricMode="stalls" nowMs={nowMs} />
-      ) : (
-        <TopStallsList bills={bills} nowMs={nowMs} />
-      )}
+      <V2FeedList bills={bills} metricMode="stalls" nowMs={nowMs} />
       <Link href="/stale" className="home-expander v2f-foot">
         [ View all stale → ]
       </Link>

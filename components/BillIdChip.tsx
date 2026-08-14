@@ -6,8 +6,10 @@ import { BILL_TYPE_LABELS } from "@/lib/enums";
 // HO 466 — the shared amber tier-1 bill-id chip (chip-family). The canonical
 // treatment lifted from HO 287's .v2f-id: bordered --accent-amber, 11px/600, 2px
 // radius. Used on every NON-chamber id surface (dashboard feed, weekly band,
-// hearings, sponsor card). The chamber-tinted BillIdRail/.bill-chip are a
-// deliberate separate system (HO 125 — chamber-of-origin) and do NOT use this.
+// hearings, sponsor card). The chamber-tinted BillIdRail is a deliberate
+// separate system (HO 125 — chamber-of-origin) and does NOT use this. Its
+// horizontal sibling `.bill-chip` was excised at HO 664 along with its only
+// renderer, so BillIdRail is the whole of that system now.
 //
 // `onClick` exists for the one caller (V2FeedList) whose chip sits inside a
 // role=button expander row: it stops the click bubbling to the row toggle so the
