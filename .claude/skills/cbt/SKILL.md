@@ -5,6 +5,13 @@ description: Use this skill when working on CBT (Congress Bill Terminal), the pe
 
 # CBT — Congress Bill Terminal
 
+> **Scope of this file (HO 662).** This is the product and its implementation.
+> **How the project is *worked* — roles, session start, handoff and relay
+> discipline, doc authority, product scope, environment, memory hygiene — lives
+> in `docs/method.md`.** That file cross-references this one by section rather
+> than restating it; where the two ever appear to disagree about implementation,
+> **SKILL wins.**
+
 ## What this is
 
 A personal dashboard that pulls bills from the Congress.gov API, runs them through an LLM for plain-English summaries, and shows a filtered feed plus a watchlist. **Logged-out is the demo — every page renders anonymously; auth (GitHub OAuth, HO 355) only gates the per-user watchlist (HO 356).** The multi-user arc is A1 (auth) + A2 (per-user watchlist) + B1 (the live `/welcome` landing, HO 361) all shipped. Not a broadly public product yet.
@@ -1162,6 +1169,19 @@ Reference numbers for the routes whose runtimes have been characterized, useful 
 > in `wrapCronRoute` and log to `cron_runs.error_message`. There is **no
 > query-layer fallback** to empty/null. This 10s bound is exactly what turns a cold
 > full-table scan into a 500 — the forced indexes below are the fix.
+
+> **AUTHORING RULE — an `unstable_cache` return type must be JSON-serializable,
+> and nothing enforces it (HO 533 → 662).** The cache round-trips the value
+> through JSON, so a `Map`, `Set`, `Date` or class instance comes back as `{}` on
+> a **cache HIT** while reading correctly on every miss. **TypeScript cannot
+> catch this** — the declared return type is still satisfied at the call site,
+> and the miss path is what a fresh local run exercises. Return plain objects,
+> arrays and primitives from every cached query; where a keyed lookup is wanted,
+> return a `Record<K, V>` and build the `Map` in the consumer. The worked
+> instance is `getBillAmendmentVotes` below (a `Map` that 500'd every
+> amendment-bearing `/bill/[id]` on the hit path, latent from HO 530 to HO 533);
+> the verification that catches it is the harness double-hit under "Playwright
+> smoke crawler".
 
 > **Forced indexes on the homepage feed queries (HO 241).** `ANALYZE` and
 > `VACUUM` are **both blocked on hosted Turso** (`SQL_PARSE_ERROR: SQL not
@@ -2328,7 +2348,7 @@ When a change needs the reviewer to see the **actual text**, not a summary of it
 - **Scope — wider than SKILL.md.** Use this by default for any change where the reviewer needs the real text, not a paraphrase: **SKILL edits** (the self-mod guard) and **append-only roadmap blocks** (a wrong clause there is permanent — correctable only by a later block — so it gets read before it lands). Ordinary code and most docs still ship paste-or-inline; this is the exception for read-before-land text.
 - **Any claim about REMOTE state is made with `git ls-remote`, never `git rev-parse origin/main` (HO 637).** `ls-remote` opens a connection and caches nothing; `rev-parse origin/main` reads `refs/remotes/origin/main`, **a local cache exactly as stale as the last fetch**. **The trap is the refspec-limited fetch:** `git fetch origin '+refs/heads/X:refs/remotes/origin/X'` updates **only the ref it names**, leaving every other `origin/*` ref at whatever the last *full* fetch saw — it looks like a fetch and is not one for any other ref. **And the limiting refspec can be baked into the clone rather than typed:** a `--depth`/single-branch clone sets `remote.origin.fetch` to `+refs/heads/main:refs/remotes/origin/main`, which `--unshallow` does NOT widen — so in such a tree a bare `git fetch origin` updates `origin/main` and **no other ref**, and nothing on the command line says so. Measured in HO 637: the reviewer's clone fetched clean, resolved `origin/main` to the new tip, and still could not resolve `origin/637-sweep-review` while `ls-remote` showed it on the remote. Check `git config --get-all remote.origin.fetch` before concluding a ref is missing; re-running the fetch cannot fix it. That is how HO 637 produced a reviewer reading `origin/main` at `89eb8cb` while the remote had carried `875d493` for an hour, with a live-verified prod deploy on it. So: **`ls-remote` for any claim about the remote; `rev-parse origin/main` only after an explicit FULL fetch; never as arbiter while sessions run concurrently** (which, per the concurrent-session rule, is the normal case here). **Corollary, and it is why this is a rule rather than a note: when the ground truth contradicts a correction, say so with the command output rather than agreeing** — HO 637's session was told its push had silently failed and refused to confirm; agreeing would have filed a phantom push failure for the next session to hunt.
 - **And any claim about LOCAL state is `git rev-parse main` AFTER the move, never the exit code of the move (HO 655).** The guard that makes this route work is that **local `main` stays at `origin/main` until approval** — so the one command that enforces it, `git branch -f main <sha>`, is the one whose failure matters most. **Git REFUSES it while you are standing on `main`:** `fatal: cannot force update the branch 'main' used by worktree at …`, **exit 128**, branch unmoved. **It is loud; what silences it is the caller.** At HO 655 it was run as `git branch -f main <sha> 2>/dev/null` inside a `;`-separated compound, so the fatal went to `/dev/null` and the status was never read — the report then said local main had been reset while it sat on the unapproved commit. **That is the piped-command exit-status rule (“a check whose own failure is indistinguishable from the condition it checks for”) wearing a git hat**, and it is worth its own line because it lands on the review-ref guard specifically. **Two habits, and the first removes the need for the second:** `git checkout -b <ho>-review-local` FIRST, then move `main` — off the branch, the force-update simply works. And **never `2>/dev/null` a state-changing git command**; verify the state you intended (`git rev-parse main`), not the absence of visible output.
-- **Recognition symptom (so a future session switches fast).** A *summary* of a diff arrives and the diff itself doesn't — **twice**. Stop pasting at the second swallowed paste and switch to the ref. Established HO 508 (a pasted diff swallowed three times before switching); it fired twice more in the HO 537 arc (the roadmap block described-not-delivered on two consecutive attempts, then routed through `537-review`).
+- **Recognition symptom (so a future session switches fast) — ONE strike (tightened HO 662).** A *summary* of a diff arrives and the diff itself doesn't. **Switch to the ref on the first swallowed block; never re-paste a second time.** **RECORD (HO 508 → 537, the two-strike form this replaces):** the rule was originally written as *stop pasting at the second swallowed paste*, on the evidence of HO 508 (a pasted diff swallowed three times before switching) and the HO 537 arc, where it fired twice more (the roadmap block described-not-delivered on two consecutive attempts, then routed through `537-review`). **That history is what tightened it:** across every occurrence on record the second paste was swallowed too, so the second attempt has never once bought delivery — it has only cost a round trip. The general form of the rule, including that swallow runs in **both** directions and that the re-delivery is a gitignored file, lives in `docs/method.md` under "Relay".
 
 ## Owner verdicts in a relay (HO 632) — an unfilled slot is a HALT, and a verdict is a quotation
 
@@ -2429,6 +2449,16 @@ When sources disagree — legal reality vs. data source, vendor docs vs. third-p
 **A piped command reports the exit status of the LAST stage, not the one you care about — and a broken toolchain therefore passes silently** (HO 634). `npm run build 2>&1 | tail -40` exits with `tail`'s status, which is **always 0**; the build can fail outright and the step reads green. This is how a `node_modules` breakage survived a build in the first place. **Run verification commands UNPIPED and read the status directly**; where output genuinely must be captured or trimmed, set `pipefail` first, or capture to a file and check the status before reading it. Same-as-success shape, one layer below the instrument: the command measured nothing because its result was discarded by the plumbing.
 
 **`npm ls` validates the dependency TREE, not the files on disk** (HO 634). It reads `package.json` and the lockfile and reports version satisfaction, so a tree that is **version-clean can still be missing files** — a clean `npm ls` is evidence that a package is *recorded* correctly, never that it is *installed* correctly. The check that actually settles it is **`npm ci`**, which removes `node_modules` and reinstalls from the lockfile. Borne out at HO 634: an incremental repair reported "added 17 packages, changed 13" and left the tree broken; `npm ci` then installed **235**. If a build or a script fails in a way that implicates the install, do not reason from `npm ls` output — reinstall and re-read.
+
+**A clean `EXPLAIN` is a statement about the PLAN, not about cold latency (HO 662).** It is checked at authoring time and it is not a substitute for a measurement: the planner is statless here, the plan a query gets warm is not the plan it gets cold, and the 10s `DB_REQUEST_TIMEOUT_MS` bound is spent in milliseconds the plan never mentions. **Any new cold query, or any structurally risky change to an existing one, is probed and timed before anything is built on it** — the instruments and the bar (`USING COVERING INDEX`, the unbounded-aggregate class, `cold-start-audit-332.ts`) are stated under "Query helpers"; this is the rule that says to run them first rather than reason from the plan.
+
+**The append-only doc-commit deletion gate is `git diff --numstat`'s deletions column, and both alternatives are wrong rather than weaker (HO 639–641 → 662; oddities).** A doc commit that claims to be additive is verified by reading a deletion count, so the count itself has to be trustworthy:
+
+- **`grep -c '^-[^-]'` is not a deletion count.** In unified diff a deleted markdown bullet `- **text**` renders as `-- **text**`, which `^-[^-]` **excludes by construction** — the count reads **0** on a diff that deleted bullets, which is exactly what "no deletions" looks like. Two readers reported it as verification across the HO 639–641 arc.
+- **A normal-format diff against `git show HEAD:file` is invalid here.** `core.autocrlf` is true with no `.gitattributes`, so an LF blob is compared against a CRLF worktree and **every** line reports as changed.
+- **The ruled instruments** are `git diff --numstat`'s deletions column, or normal-format `^<`. Neither of the two above is a fallback for it.
+
+**Two corollaries for reading files and checksums under `core.autocrlf` (HO 662).** **Python text-mode reads normalize line endings silently**, so a `split("\r\n")` over a CRLF file returns **one element** and any CRLF-shaped assertion built on it passes vacuously — open in **binary mode** when line endings are what is being measured. And **checksum the committed blob, never the working copy**: `git cat-file -p <ref>:<path> | md5sum`, because `md5sum` on the checked-out file hashes the CRLF rendering and will not match the same content on any other machine or ref.
 
 ## Things to watch for
 
