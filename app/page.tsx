@@ -166,7 +166,7 @@ export default async function DashboardPage({
           <RacesBoxTabs
             defaultTab="hearings"
             hearingsContent={<HearingsTab />}
-            racesContent={<CompetitiveRacesBlock showBattlefield variant="v2" nowMs={nowMs} />}
+            racesContent={<CompetitiveRacesBlock showBattlefield />}
           />
 
           {/* Weekly line, divider rule above (its own border-top). The HO 424

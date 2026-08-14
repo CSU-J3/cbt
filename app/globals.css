@@ -841,8 +841,8 @@ body {
    chrome (bg-panel + border); the top-tab header strip sits above the panels.
    The RACES panel re-houses the existing .home-races-pane unchanged, so its own
    pane frame is neutralized here (border/bg/padding stripped) to blend into the
-   box body — position/overflow stay so the COMPETITIVE hover-popover containment
-   is preserved. Existing tokens only. */
+   box body. Existing tokens only. (HO 658: the popover containment this comment
+   used to also claim for position/overflow is deleted — see below.) */
 .dv2-racesbox {
   border: 0.5px solid var(--border-soft);
   background-color: var(--bg-panel);
@@ -880,7 +880,7 @@ body {
   outline: 1px solid var(--accent-amber);
   outline-offset: 2px;
 }
-/* Re-housed races pane: drop its standalone frame, keep popover containment. */
+/* Re-housed races pane: drop its standalone frame. */
 .dv2-racesbox .home-races-pane {
   border: none;
   background: transparent;
@@ -903,11 +903,10 @@ body {
    cost, stated because it undoes a deliberate decision, is that a HEARINGS↔RACES
    click changes the box height and shifts the week strip below it. RacesBoxTabs
    itself is untouched — this is CSS only, and `hidden`/aria-hidden still drive it.
-   .dv2-racesbox-panels keeps position:relative for the RACES pane's popover
-   containment. */
-.dv2-racesbox-panels {
-  position: relative;
-}
+   HO 658: `.dv2-racesbox-panels { position: relative }` went with the popover it
+   was held for. Measured on both panes before removing it — no descendant
+   resolved its containing block to this box, and dropping the declaration moved
+   0 of 338 (RACES) / 0 of 22 (HEARINGS) visible nodes. */
 .dv2-racesbox-panel--races[aria-hidden="true"] {
   display: none;
 }
@@ -3503,185 +3502,15 @@ body {
   }
 }
 
-/* ---- competitive races strip (handoff 72; HO 163 dashboard cards) ------ */
-/* 4-across card strip on the dashboard: top 2 Senate + top 2 House. Each
-   card stacks seat label / incumbent / multi-source rating chips, and links
-   to /race/[id]. Collapses 4 → 2x2 → 1-col. */
-/* HO 178: races reflowed to a 2×2 grid in the 44% right column. The cell is the
-   positioning anchor for the hover popover (which replaced HO 166/170's click
-   drawer). overflow stays visible up the chain so the popover can spill. */
-.competitive-races-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--space-md);
-  align-items: start;
-}
-/* HO 230 (item 4): the pane is the popover's containment box. position + overflow
-   clip anything that would exit the panel edges (the firm "popover never exits
-   the panel" requirement); the popover positions INWARD (down for the top row, up
-   for the bottom row, toward center horizontally) so clipping is a backstop, not
-   the normal path. Replaces the HO 178 overflow:visible that let it spill. */
-.home-races-pane {
-  position: relative;
-  overflow: hidden;
-}
-.competitive-race-cell {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  transition: opacity 120ms ease;
-}
-.competitive-race-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  /* Floor so the two cards in a row stay equal height under align-items:start. */
-  min-height: 88px;
-  padding: var(--space-sm) var(--space-md);
-  border: 0.5px solid var(--border-soft);
-  border-radius: 2px;
-  background: var(--bg-base);
-  text-decoration: none;
-}
-.competitive-race-card:hover {
-  background: var(--bg-row-hover);
-  border-color: var(--border-strong);
-}
-.competitive-race-card:focus-visible {
-  outline: 1px solid var(--accent-amber);
-  outline-offset: -1px;
-}
-.competitive-race-card .race-card-seat {
-  font-size: var(--fs-12);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.competitive-race-card .race-card-incumbent {
-  min-width: 0;
-  font-size: var(--fs-13);
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.competitive-race-card .race-card-ratings {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-  margin-top: 2px;
-}
-/* HO 178: ticker-style hover popover (matches the markets-tape hover idiom):
-   absolute so it never reflows the grid, opaque --bg-row-hover so nothing bleeds
-   through, z-index above the nav. Shown on cell hover; pointer-events stay on so
-   the user can move into it and click candidate/member links. Centered under the
-   card, capped width — the right-edge card's popover stays within the page
-   gutter. The RaceHubBody preview is left-aligned prose inside. */
-.competitive-race-popover {
-  position: absolute;
-  /* HO 230 (item 4): anchor INWARD so the popover stays inside the panel.
-     Default = top-LEFT card: open downward, left-aligned to the card. The
-     [data-col]/[data-row] rules below flip it for the other three cells so each
-     opens toward the panel interior. */
-  top: calc(100% + 6px);
-  bottom: auto;
-  left: 0;
-  right: auto;
-  transform: none;
-  z-index: 60;
-  display: none;
-  width: max-content;
-  min-width: 300px;
-  max-width: 360px;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--bg-row-hover);
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  text-align: left;
-}
-/* Right column → right-align to the card and open leftward, so it never spills
-   past the panel's right edge. */
-.competitive-race-cell[data-col="right"] .competitive-race-popover {
-  left: auto;
-  right: 0;
-}
-/* Bottom row → open upward into the panel interior, not past the bottom edge. */
-.competitive-race-cell[data-row="bottom"] .competitive-race-popover {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-.competitive-race-cell:hover .competitive-race-popover,
-.competitive-race-cell:focus-within .competitive-race-popover {
-  display: block;
-}
-/* HO 432 — transparent hover bridge across the 6px card↔popover gap. Without it
-   the mouse crosses dead space (cell :hover drops, popover hides) before it can
-   reach the now-clickable IN THE PRESS headlines. The bridge is a popover child,
-   so hovering it keeps .competitive-race-cell:hover alive; it sits on the gap
-   side, mirroring the popover's open direction (down default, up for bottom row). */
-.competitive-race-popover::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -6px;
-  height: 6px;
-}
-.competitive-race-cell[data-row="bottom"] .competitive-race-popover::before {
-  top: auto;
-  bottom: -6px;
-}
-/* HO 230 (item 4): hovering a card dims the siblings to 0.4 (the HO 131
-   breaking-news pattern) — hovered card stays full, the rest recede. */
-.competitive-races-grid:hover .competitive-race-cell:not(:hover) {
-  opacity: 0.4;
-}
-@media (max-width: 700px) {
-  .competitive-races-grid {
-    grid-template-columns: 1fr;
-  }
-}
-/* HO 245 (commit 2): on wide desktops the full-width races panel puts the 4
-   toss-up cards in ONE balanced row (was 2×2, which read sparse at full width).
-   2-up is the fallback below 1200px so the cards never crush on a narrower
-   laptop; <700 stays 1-up (mobile is a separate pass). Card width lands ~280px
-   (1200) → ~460px (1920) — no longer the ~675px floaters of the 2×2.
-   The popover confinement (HO 230) is keyed to the 2×2 (data-col/data-row set
-   by index in the TSX) and assumes a tall 2-row panel. In the single row those
-   no longer map to screen position and a downward popover would clip the short
-   row, so here: let it escape the pane, force downward open, and re-derive the
-   horizontal direction from actual column (nth-child). The 2-up/1-up paths keep
-   the original 2×2 confinement untouched. */
-@media (min-width: 1200px) {
-  .competitive-races-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .home-races-pane {
-    overflow: visible;
-  }
-  .competitive-race-cell[data-row="bottom"] .competitive-race-popover {
-    top: calc(100% + 6px);
-    bottom: auto;
-  }
-  /* HO 432: single-row layout opens bottom-row popovers downward again, so the
-     bridge flips back to the top gap. */
-  .competitive-race-cell[data-row="bottom"] .competitive-race-popover::before {
-    top: -6px;
-    bottom: auto;
-  }
-  .competitive-race-cell:nth-child(-n + 2) .competitive-race-popover {
-    left: 0;
-    right: auto;
-  }
-  .competitive-race-cell:nth-child(n + 3) .competitive-race-popover {
-    left: auto;
-    right: 0;
-  }
-}
+/* HO 658 — the `.competitive-race-*` block that stood here is DELETED: the 2×2
+   card grid (HO 178, from handoff 72 / HO 163), its hover popover, the HO 230
+   [data-col]/[data-row] confinement rules, the HO 432 hover bridge, and the
+   HO 245 wide-desktop single-row overrides. All of it dressed the `default`
+   variant of CompetitiveRacesStrip, which went unreachable when
+   /dashboard-classic was deleted (HO 608-610). `/` renders the rich `.race-card`
+   grid instead (`.race-grid`, below). `.home-races-pane` keeps its
+   `.dv2-racesbox` styling rule up in the races-box block — only the HO 230
+   containment declarations went, with the popover they confined. */
 
 /* HO 233 — PRIMARIES tab on the races panel (design item 8). The tab body holds
    a stable min-height so toggling COMPETITIVE/PRIMARIES doesn't shift the right
@@ -3921,8 +3750,9 @@ body {
   color: var(--party-republican);
 }
 
-/* HO 260 — v2 COMPETITIVE rich race cards (the mock's `.race-card`). v2-only
-   (CompetitiveRacesStrip variant="v2"); `/` keeps the 2×2 popover cards. The
+/* HO 260 — the COMPETITIVE rich race cards (the mock's `.race-card`), rendered
+   by CompetitiveRacesStrip. HO 658: these are what `/` renders, full stop — the
+   2×2 popover cards this comment contrasted them with are deleted. The
    mock's --party-dem/--party-rep map to the app's --party-democrat/-republican;
    the name stays mono, distinguished by size + --text-primary. .hl is the
    card↔battlefield-marker cross-highlight.

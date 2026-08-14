@@ -31,8 +31,9 @@ import {
 // server render from one getRacesIndex row (the corrected incumbent join + cash
 // + margin + 3 ratings + Kalshi + Polymarket). The card↔battlefield cross-
 // highlight is wired by the RaceCrossHighlight client wrapper off `data-seat`
-// (the full raceId, matching the Battlefield featured markers). v2-only — `/`'s
-// cards (CompetitiveRacesStrip default variant) are untouched.
+// (the full raceId, matching the Battlefield featured markers). HO 658: this is
+// the ONLY competitive-races card now — the `default`-variant cards this line
+// used to hold itself apart from are deleted.
 
 // Human-readable seat label from a deterministic race id (lib/race-id.ts):
 //   S-GA-2026 → "GA SENATE" · FL-23-2026 → "FL-23 HOUSE".

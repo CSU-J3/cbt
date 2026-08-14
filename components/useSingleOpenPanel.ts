@@ -7,8 +7,10 @@
 //
 // HO 166 — generic over the cached payload `T`. Default `PanelData` keeps the
 // HO 164 callers (BillRowList, TopStallsList) calling `useSingleOpenPanel()`
-// unchanged; the competitive-races drawer caches `RaceHubData` via
-// `useSingleOpenPanel<RaceHubData>()`.
+// unchanged. The generic was added for the competitive-races drawer's
+// `useSingleOpenPanel<RaceHubData>()`; that drawer became a CSS hover popover at
+// HO 178 and the popover is deleted at HO 658, so nothing instantiates `T` today
+// — every live caller takes the default.
 import { useCallback, useEffect, useState } from "react";
 import type { PanelData } from "@/components/BillExpandedPanel";
 
@@ -17,9 +19,11 @@ export function useSingleOpenPanel<T = PanelData>() {
   const [panelCache, setPanelCache] = useState<Map<string, T>>(() => new Map());
 
   // HO 473 — Esc closes the open row, matching the electoral district modal.
-  // Guard on null so no listener is attached when nothing's open. All four
-  // consumers (BillRowList, TopStallsList, V2FeedList, CompetitiveRacesStrip)
-  // inherit this from the shared hook.
+  // Guard on null so no listener is attached when nothing's open. All three
+  // consumers (BillRowList, TopStallsList, V2FeedList) inherit this from the
+  // shared hook. HO 658: the list said FOUR and named CompetitiveRacesStrip —
+  // that surface stopped using the hook at HO 178 (hover popover, no state) and
+  // is deleted now; it was never a consumer of this Esc behaviour.
   useEffect(() => {
     if (expandedId === null) return;
     const onKey = (e: KeyboardEvent) => {

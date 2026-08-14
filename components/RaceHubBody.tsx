@@ -15,13 +15,16 @@ import type {
   RaceRating,
 } from "@/lib/queries";
 
-// HO 166 — shared race-hub body, rendered both on `/race/[id]` (server,
-// server-fetched data) and inside the dashboard competitive-races drawer
-// (client, fetched via /api/race/[id]/hub). Pure presentational: no async,
-// no DB — every sub-component (RaceHeader / RaceIncumbentCard / RaceRunoffs /
-// RaceCandidates) renders from props, so this works in either tree. The page
-// chrome (HeaderBar / Back link / <main>) stays in the route; only the body
-// content lives here so the two surfaces never drift.
+// HO 166 — the race-hub body. Pure presentational: no async, no DB — every
+// sub-component (RaceHeader / RaceIncumbentCard / RaceRunoffs / RaceCandidates)
+// renders from props. The page chrome (HeaderBar / Back link / <main>) stays in
+// the route; only the body content lives here.
+//
+// HO 658: `/race/[id]` is now the ONLY consumer. This was a two-surface
+// component — the second was HO 166/170's dashboard drawer, then HO 178's hover
+// popover, which passed `preview` to trim the body down. That surface is
+// deleted, so `preview` and its gates are gone and every section renders
+// unconditionally.
 
 type RatingMeta = { label: string; color: string };
 
@@ -56,33 +59,24 @@ export function RaceHubBody({
   pac,
   news,
   nowMs,
-  preview = false,
 }: {
   race: Race;
   candidates: RaceCandidate[];
   incumbent: Member | null;
   ratings: RaceRating[];
   runoffs: PrimaryWithCandidates[];
-  // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line). Full
-  // hub only — gated `!preview`, so the dashboard popover doesn't need it. This
+  // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line). This
   // is the surface that actually renders IL-07/KY-04 (competitive PRIMARIES with
   // UDP spend but no forecaster GENERAL rating → absent from the competitive
   // map/list, which is rated-only via getRacesIndex).
   pac?: PacIeRow[];
-  // HO 398: news around this race's incumbent (the observation join). Full hub
-  // only — gated `!preview` like `pac`, and fetched by the server page, so the
-  // dashboard drawer (which renders no `news`) stays a pure prop render. An
-  // empty array renders the empty state; the open-seat (null-incumbent) case is
-  // distinguished off `race.incumbent_bioguide_id`.
+  // HO 398: news around this race's incumbent (the observation join), fetched by
+  // the server page. An empty array renders the empty state; the open-seat
+  // (null-incumbent) case is distinguished off `race.incumbent_bioguide_id`.
   news?: RaceNewsItem[];
   // HO 490: page-computed clock for the race-news relative ages (RaceNewsRow
-  // renders in RaceHubBody's shared server/client tree). See lib/format.ts.
+  // renders in RaceHubBody's server tree). See lib/format.ts.
   nowMs: number;
-  // HO 170: drawer-only trim. When true, drops the incumbent photo card and
-  // the source/last-verified footer (those stay on /race/[id], which renders
-  // with no `preview` prop). Keeps RaceHeader (name + countdown + multi-source
-  // chips), the rating block, runoffs, and the candidate roster/stub.
-  preview?: boolean;
 }) {
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
@@ -128,36 +122,34 @@ export function RaceHubBody({
         </div>
       ) : null}
 
-      {!preview && pac && pac.length > 0 ? (
+      {pac && pac.length > 0 ? (
         <div className="mt-5">
           <PacSpendingLine rows={pac} />
         </div>
       ) : null}
 
-      {!preview ? (
-        <section
-          className="mt-6 border"
-          style={{ borderColor: "var(--border-strong)" }}
+      <section
+        className="mt-6 border"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <div
+          className="px-4 py-3"
+          style={{
+            backgroundColor: "var(--bg-panel)",
+            borderBottom: "0.5px solid var(--border-strong)",
+          }}
         >
-          <div
-            className="px-4 py-3"
-            style={{
-              backgroundColor: "var(--bg-panel)",
-              borderBottom: "0.5px solid var(--border-strong)",
-            }}
+          <h2
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-secondary)" }}
           >
-            <h2
-              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Incumbent
-            </h2>
-          </div>
-          <div className="px-4">
-            <RaceIncumbentCard member={incumbent} race={race} />
-          </div>
-        </section>
-      ) : null}
+            Incumbent
+          </h2>
+        </div>
+        <div className="px-4">
+          <RaceIncumbentCard member={incumbent} race={race} />
+        </div>
+      </section>
 
       <RaceRunoffs runoffs={runoffs} />
 
@@ -195,100 +187,63 @@ export function RaceHubBody({
         </section>
       )}
 
-      {!preview ? (
-        <section
-          className="mt-6 border"
-          style={{ borderColor: "var(--border-strong)" }}
+      <section
+        className="mt-6 border"
+        style={{ borderColor: "var(--border-strong)" }}
+      >
+        <div
+          className="px-4 py-3"
+          style={{
+            backgroundColor: "var(--bg-panel)",
+            borderBottom: "0.5px solid var(--border-strong)",
+          }}
         >
-          <div
-            className="px-4 py-3"
-            style={{
-              backgroundColor: "var(--bg-panel)",
-              borderBottom: "0.5px solid var(--border-strong)",
-            }}
+          <h2
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-secondary)" }}
           >
-            <h2
-              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-secondary)" }}
+            News · around the incumbent
+          </h2>
+        </div>
+        <div className="px-4 py-2">
+          {news && news.length > 0 ? (
+            <div>
+              {news.map((n) => (
+                <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
+              ))}
+            </div>
+          ) : (
+            <p
+              className="py-2 text-[length:var(--fs-13)]"
+              style={{ color: "var(--text-muted)" }}
             >
-              News · around the incumbent
-            </h2>
-          </div>
-          <div className="px-4 py-2">
-            {news && news.length > 0 ? (
-              <div>
-                {news.map((n) => (
-                  <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
-                ))}
-              </div>
-            ) : (
-              <p
-                className="py-2 text-[length:var(--fs-13)]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {race.incumbent_bioguide_id
-                  ? "No recent news linked to this race's incumbent."
-                  : "Open seat — no incumbent to track news for."}
-              </p>
-            )}
-          </div>
-        </section>
-      ) : null}
+              {race.incumbent_bioguide_id
+                ? "No recent news linked to this race's incumbent."
+                : "Open seat — no incumbent to track news for."}
+            </p>
+          )}
+        </div>
+      </section>
 
-      {/* HO 432: preview-only IN THE PRESS block for the dashboard popover — a
-          compact echo of the full hub's news section, capped at 3 rows. The
-          popover is a sibling of the card <Link> (not nested), so these RaceNewsRow
-          <a> headlines are valid, clickable HTML here. Empty/open-seat renders
-          nothing (no empty-state row in the cramped popover); the full hub keeps
-          its empty state above. */}
-      {preview && news && news.length > 0 ? (
-        <section
-          className="mt-5 border"
-          style={{ borderColor: "var(--border-strong)" }}
-        >
-          <div
-            className="px-4 py-2"
-            style={{
-              backgroundColor: "var(--bg-panel)",
-              borderBottom: "0.5px solid var(--border-strong)",
-            }}
+      {race.source_url ? (
+        <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
+          <span className="uppercase tracking-[0.5px]">Source: </span>
+          <a
+            href={race.source_url}
+            target="_blank"
+            rel="noreferrer"
+            className="transition hover:text-[var(--accent-amber-bright)]"
+            style={{ color: "var(--accent-amber)" }}
           >
-            <h2
-              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              In the press
-            </h2>
-          </div>
-          <div className="px-4 py-2">
-            {news.slice(0, 3).map((n) => (
-              <RaceNewsRow key={n.obsId} item={n} nowMs={nowMs} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {!preview ? (
-        race.source_url ? (
-          <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
-            <span className="uppercase tracking-[0.5px]">Source: </span>
-            <a
-              href={race.source_url}
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-[var(--accent-amber-bright)]"
-              style={{ color: "var(--accent-amber)" }}
-            >
-              {race.source_url}
-            </a>
-            <span> · last verified {formatDateLong(race.last_verified)}</span>
-          </div>
-        ) : (
-          <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
-            Last verified {formatDateLong(race.last_verified)}
-          </div>
-        )
-      ) : null}
+            {race.source_url}
+          </a>
+          <span> · last verified {formatDateLong(race.last_verified)}</span>
+        </div>
+      ) : (
+        <div className="mt-6 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
+          Last verified {formatDateLong(race.last_verified)}
+        </div>
+      )}
     </>
   );
 }
