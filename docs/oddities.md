@@ -2315,3 +2315,39 @@ declaration was safe to delete.
 The shape: a control leg proves the instrument can see movement, and coordinate
 normalization proves what it sees is the SCENE. A 0 without the first is vacuous;
 a 100% without the second is an artifact. Neither number is evidence on its own.
+
+## A cost stated in units the architecture doesn't spend — the parameter looked expensive because nobody priced the mechanism (HO 656 → HO 661, Aug 2026)
+
+HO 656 recommended a bounded re-check window for `isSettled` and told the build
+to be honest about its price: *"Cost is N wasted fetches per uncontested seat;
+say that in the build rather than pretending the parameter is free."* That is a
+careful sentence, written by someone deliberately refusing to hide a cost — and
+the cost does not exist. **`isSettled` is a WRITE-freeze, not a fetch-skip.** All
+three call sites evaluate *after* the page has been fetched and parsed, and the
+cursor's unit selection (`buildScrapeUnits` / `readCursor`) carries no settled
+term at all, so **the unit is fetched whether the row is settled or not**.
+Widening the window from 0 days to 30 changes the fetch count by zero. What N
+actually buys is N days of *rewrite-eligibility* on decided-but-uncalled rows —
+which is not a cost paid for the healing, it **is** the healing.
+
+**Why it survived review, and this is the part worth keeping.** The claim was
+never checked because it was never checkable from where it was written: it is a
+statement about a *mechanism* ("settled ⇒ we skip work") smuggled inside a
+statement about a *parameter* ("N ⇒ N units of that work"). The parameter half is
+arithmetic and reads as rigorous; the mechanism half is an assumption and is
+where the error lives. And the framing was **conservative** — it overstated the
+cost of the author's own recommendation — so every incentive that normally
+catches a wrong number was pointing the other way. A cost you are talking
+yourself *out of* gets audited; a cost you are talking yourself *into* gets
+believed. It sat through the recommendation, the QUEUED entry and the handoff,
+each restating it faithfully, until a STEP 0 that had to name the three call
+sites for an unrelated reason read what they actually do.
+
+**The check, which is cheap:** before quoting a per-N cost, name the operation N
+multiplies and find the line that performs it. If the guard sits *downstream* of
+the expensive thing, N is not multiplying that thing. Same family as *`EXPLAIN`
+prices the plan, not the runtime scan* and *rows read and milliseconds are
+different currencies* — a real quantity, measured or reasoned honestly, attached
+to the wrong mechanism. The tell here was available in the original sentence:
+"wasted fetches **per uncontested seat**" prices a per-seat loop, while the thing
+being changed is a per-row predicate consulted inside one.
