@@ -34,6 +34,9 @@
     "app/api/cron/rating-history/route.ts": {
       "maxDuration": 60
     },
+    "app/api/cron/race-challengers/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/cron/lda/route.ts": {
       "maxDuration": 300
     },
@@ -71,6 +74,10 @@
     {
       "path": "/api/cron/primaries",
       "schedule": "0 0,12 * * *"
+    },
+    {
+      "path": "/api/cron/race-challengers",
+      "schedule": "30 12 * * *"
     },
     {
       "path": "/api/cron/summarize",

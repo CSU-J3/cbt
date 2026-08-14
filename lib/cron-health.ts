@@ -62,6 +62,7 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/sync-votes", schedule: "0 10 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/primaries", schedule: "0 12 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/rating-history", schedule: "0 15 * * *", maxStaleMs: 26 * HOUR }, // daily
+  { path: "/api/cron/race-challengers", schedule: "30 12 * * *", maxStaleMs: 26 * HOUR }, // daily (HO 660)
   { path: "/api/cron/lda", schedule: "0 8 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/amendments", schedule: "0 7 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/nominations", schedule: "0 9 * * *", maxStaleMs: 26 * HOUR }, // daily
