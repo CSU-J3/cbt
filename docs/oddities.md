@@ -2289,3 +2289,29 @@ behaviour moved* — `a.v2f-id` is real, and the assertion wrapped around it enc
 a contract HO 609/613/627 had reversed. A pattern with perfect reach still cannot
 see that. Only running the test does, which is why HO 655's rot ruling came out at
 *accept manual rot* rather than at a static gate.
+
+## A perturbation instrument can fail in BOTH directions — falsify it for each (HO 658)
+
+Removing a CSS declaration and diffing every descendant's rect is the standard way
+to ask *"does anything depend on this?"* — and it has two failure modes that look
+like clean answers.
+
+**Vacuous zero.** Aimed at a pane that is `display:none` (an inactive tab, a
+collapsed disclosure), every rect is `0×0` and nothing can move. The perturbation
+reports "nothing depends on it" **without ever having measured the thing**. Guard:
+assert the target renders with non-zero area first, count VISIBLE nodes as the
+denominator, and run a control that MUST move things — the padding injection that
+moved 22/22 (HEARINGS) and 317/338 (RACES) here is the pattern.
+
+**Spurious one hundred percent.** The first RACES run reported **338 of 338 nodes
+moved** on dropping `position: relative` — a total dependency that did not exist.
+`getBoundingClientRect()` is viewport-relative, and the driver's `hover()` scrolls
+its target into view, so re-hovering between snapshot A and snapshot B moved the
+CAMERA, not the layout. Every rect shifted by one uniform delta. **The tell is the
+uniformity**, and the fix is document-relative coordinates (`+ window.scrollX/Y`)
+or a scroll reset before each reading. With that, both legs read 0 and the
+declaration was safe to delete.
+
+The shape: a control leg proves the instrument can see movement, and coordinate
+normalization proves what it sees is the SCENE. A 0 without the first is vacuous;
+a 100% without the second is an artifact. Neither number is evidence on its own.
