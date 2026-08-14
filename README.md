@@ -106,7 +106,14 @@ Vercel Hobby caps cron at once per day, so the topology is split:
 - `scripts/` — standalone `tsx` CLI entry points: `migrate`, `sync`, `summarize`,
   the seed/backfill scripts, and the per-source syncs.
 - `docs/handoffs/` — the chronological handoff prompts that drove each step of
-  development, kept for posterity.
+  development. **Repo-ignored and local-only** (Tailwind build-input parity), so
+  a clone does not carry them.
+- `docs/roadmap.md` — where the dashboard is going; append-only narrative, one
+  block per handoff.
+- `docs/backlog.md` — the open-loops ledger: open, queued, banked, watched, done.
+- `docs/oddities.md` — field notes on what broke and why.
+- `docs/method.md` — how this project is worked: roles, session start, handoff
+  and relay discipline, scope, environment.
 - `.claude/skills/cbt/` — `SKILL.md` with project context for Claude Code.
 
 ## Data & acknowledgments
