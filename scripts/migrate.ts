@@ -1569,6 +1569,23 @@ async function main() {
     );
     console.log("ok: idx_lda_filings_client_id");
   }
+  // HO 659: the reach stamp on `race_candidates`. The table recorded nothing
+  // temporal, so a harvest's effect could only be BRACKETED behaviourally
+  // (HO 642 compared newest-date-reached against newest-reachable; HO 656 had to
+  // hand-capture a before-state) — a staleness check is now one query.
+  //
+  // Semantics, pinned: `updated_at` is LAST WRITE (reach), not last content
+  // change — an idempotent rewrite stamps, because what the instrument measures
+  // is what a run TOUCHED. One `runStamp` per script invocation is bound into
+  // every write of that run, so "which run touched this row" is a GROUP BY, not
+  // a range guess. **NULL = pre-instrumentation** and is never backfilled with a
+  // fabricated time; the behavioural bracket stays the record for pre-column
+  // history, and the curated HO 171/174/182 rows read NULL until something
+  // rewrites them.
+  //
+  // ensureColumn, not the CREATE array — the `activity_count` (HO 597) rule at
+  // the top of this file governs: the array only runs for a fresh DB.
+  await ensureColumn(db, "race_candidates", "updated_at", "TEXT");
   console.log("migration complete");
 }
 

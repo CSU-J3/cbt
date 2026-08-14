@@ -48,6 +48,11 @@ interface RaceSeed {
 async function main() {
   const db = getDb();
   const today = new Date().toISOString().slice(0, 10);
+  // HO 659: one reach stamp per invocation for `race_candidates.updated_at`,
+  // bound into every roster write below. Full ISO (not `today`'s date-only
+  // form) because the column identifies a RUN, and two seed runs can share a
+  // date. An idempotent re-seed re-stamps — reach, not last content change.
+  const runStamp = new Date().toISOString();
 
   const knownIdsRes = await db.execute("SELECT id FROM races");
   const knownIds = new Set(knownIdsRes.rows.map((r) => r.id as string));
@@ -120,13 +125,14 @@ async function main() {
     for (const c of race.candidates ?? []) {
       await db.execute({
         sql: `INSERT INTO race_candidates
-                (race_id, name, party, bioguide_id, status, source_url)
-              VALUES (?, ?, ?, ?, ?, ?)
+                (race_id, name, party, bioguide_id, status, source_url, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT(race_id, name) DO UPDATE SET
                 party = excluded.party,
                 bioguide_id = excluded.bioguide_id,
                 status = excluded.status,
-                source_url = excluded.source_url`,
+                source_url = excluded.source_url,
+                updated_at = excluded.updated_at`,
         args: [
           race.id,
           c.name,
@@ -134,6 +140,7 @@ async function main() {
           c.bioguide_id ?? null,
           c.status ?? null,
           race.source_url ?? null,
+          runStamp,
         ],
       });
       candidates++;

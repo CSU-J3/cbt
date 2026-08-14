@@ -48,6 +48,14 @@ const HARVEST_FROM_WHERE = `
 async function main() {
   const db = getDb();
 
+  // HO 659: one stamp per invocation, bound into every row this run writes, so
+  // "which run touched this" is a GROUP BY on `updated_at` rather than a range
+  // guess. Reach semantic — the harvest DELETEs and re-derives, so an unchanged
+  // roster still re-stamps, and that is the point: the column records what the
+  // run reached, which is the quantity HO 642/656 had to bracket behaviourally.
+  const runStamp = new Date().toISOString();
+  console.log(`run stamp: ${runStamp}`);
+
   const before = await db.execute(
     `SELECT COUNT(*) AS rows, COUNT(DISTINCT race_id) AS races FROM race_candidates`,
   );
@@ -67,11 +75,11 @@ async function main() {
   //    status='won_primary' surfaces them first in the card's roster ordering.
   const ins = await db.execute({
     sql: `INSERT OR IGNORE INTO race_candidates
-            (race_id, name, party, bioguide_id, status, source_url)
+            (race_id, name, party, bioguide_id, status, source_url, updated_at)
           SELECT DISTINCT r.id, pc.name, pc.party, pc.bioguide_id,
-                 'won_primary', '${HARVEST_SOURCE}'
+                 'won_primary', '${HARVEST_SOURCE}', ?
           ${HARVEST_FROM_WHERE}`,
-    args: [],
+    args: [runStamp],
   });
   console.log(`inserted ${ins.rowsAffected} harvested challenger rows`);
 
