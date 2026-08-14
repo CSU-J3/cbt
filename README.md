@@ -108,6 +108,8 @@ Vercel Hobby caps cron at once per day, so the topology is split:
 - `docs/handoffs/` — the chronological handoff prompts that drove each step of
   development. **Repo-ignored and local-only** (Tailwind build-input parity), so
   a clone does not carry them.
+- `docs/handoffs-archive-362-661.tar.gz` — handoffs 362–661 (267 files), tracked
+  as one gzip so the directory ignore can stay in place. `tar -xzf` it to read.
 - `docs/roadmap.md` — where the dashboard is going; append-only narrative, one
   block per handoff.
 - `docs/backlog.md` — the open-loops ledger: open, queued, banked, watched, done.
