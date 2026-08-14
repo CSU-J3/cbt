@@ -18,6 +18,7 @@ import "dotenv/config";
 import { getDb } from "../../lib/db";
 import {
   runSpecialPriorityPass,
+  settleWindowFloor,
   syncSenateCandidates,
 } from "../../lib/primaries-sync";
 
@@ -98,6 +99,9 @@ function diff(before: Map<string, Print>, after: Map<string, Print>, ids: string
 async function main() {
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
+  // HO 661 — runSpecialPriorityPass now takes the settle-window floor as its
+  // 4th argument (isSettled settles on decided-or-expired, not on shares).
+  const windowFloor = settleWindowFloor(now);
   console.log(`HO 601 §4 falsification — ${now}\n`);
 
   const before = await snapshot();
@@ -109,7 +113,7 @@ async function main() {
 
   // ---------------------------------------------------------------- LEG 1 ---
   hr("LEG 1 — the payoff: runSpecialPriorityPass writes the Aug 11 field");
-  const pri = await runSpecialPriorityPass(db, now, today);
+  const pri = await runSpecialPriorityPass(db, now, today, windowFloor);
   console.log(`\n  attemptedIds:    ${JSON.stringify(pri.attemptedIds)}`);
   console.log(`  populatedIds:    ${JSON.stringify(pri.populatedIds)}`);
   console.log(`  fetchFailures:   ${JSON.stringify(pri.fetchFailures)}`);

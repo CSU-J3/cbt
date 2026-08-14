@@ -10,11 +10,22 @@
 // rows. The test asserts the guard PREVENTED that rebuild (candidate updated_at unchanged)
 // and that the date is untouched. Read-first snapshot, one scrape, no --apply flag needed
 // (the whole point is that a working guard writes nothing here).
+//
+// HO 661 — RECONCILED TO THE NEW PREDICATE. `isSettled` no longer settles on a recorded
+// SHARE; it settles on DECIDED (a candidate marked status='winner') or EXPIRED (older than
+// SETTLE_WINDOW_DAYS). An instrument selecting its exemplars by the retired definition
+// would pick rows the guard no longer freezes and read FAIL as though the guard broke —
+// the lied-twice family. The precondition below therefore asserts CALLED, not scored.
+// GA-01 survives the change on its own merits (D carries 2 winner rows, R carries 1,
+// measured 2026-08-14), so the targets are unchanged and the test is still non-vacuous —
+// and it is genuinely-settled under the new rule by DECISION, not merely by age.
 import "dotenv/config";
 import { getDb } from "@/lib/db";
-import { syncHouseDistricts } from "@/lib/primaries-sync";
+import { settleWindowFloor, syncHouseDistricts } from "@/lib/primaries-sync";
 
-const TODAY = new Date().toISOString().slice(0, 10);
+const NOW = new Date().toISOString();
+const TODAY = NOW.slice(0, 10);
+const FLOOR = settleWindowFloor(NOW); // HO 661 — the re-check window floor.
 const IDS = ["house-GA-01-2026-D", "house-GA-01-2026-R"];
 
 async function snap(db: ReturnType<typeof getDb>) {
@@ -37,19 +48,24 @@ async function snap(db: ReturnType<typeof getDb>) {
 
 async function main() {
   const db = getDb();
-  console.log(`HO 577 guard falsification. today=${TODAY}\n`);
+  console.log(`HO 577 guard falsification. today=${TODAY} windowFloor=${FLOOR}\n`);
 
-  // Precondition: the target rows must be SETTLED (past-dated + recorded share), else the
-  // test is vacuous (guard would legitimately not fire). isSettled predicate inline.
+  // Precondition: the target rows must be SETTLED — past-dated AND (called OR expired) —
+  // else the test is vacuous (the guard would legitimately not fire). isSettled predicate
+  // inline; mirrors lib/primaries-sync.ts::isSettled as of HO 661. `called` is printed
+  // beside `expired` deliberately: a row that is settled ONLY by age proves the window
+  // expired, not that the guard freezes a decided contest, so the assertion below demands
+  // CALLED and treats age as context.
   const pre = await db.execute({
-    sql: `SELECT id, primary_date < ? AS past,
-                 EXISTS(SELECT 1 FROM primary_candidates pc WHERE pc.primary_id=primaries.id AND pc.vote_pct IS NOT NULL) AS share
+    sql: `SELECT id, primary_date < ? AS past, primary_date < ? AS expired,
+                 EXISTS(SELECT 1 FROM primary_candidates pc WHERE pc.primary_id=primaries.id AND pc.status='winner') AS called
             FROM primaries WHERE id IN (?, ?)`,
-    args: [TODAY, ...IDS],
+    args: [TODAY, FLOOR, ...IDS],
   });
-  const settled = pre.rows.every((r) => Number(r.past) === 1 && Number(r.share) === 1);
-  console.log(`  precondition — all target rows settled: ${settled}`);
-  for (const r of pre.rows) console.log(`    ${r.id}: past=${r.past} share=${r.share}`);
+  const settled = pre.rows.every((r) => Number(r.past) === 1 && Number(r.called) === 1);
+  console.log(`  precondition — all target rows settled by DECISION: ${settled}`);
+  for (const r of pre.rows)
+    console.log(`    ${r.id}: past=${r.past} called=${r.called} (expired=${r.expired})`);
   if (!settled) {
     console.log("\n  ABORT — targets not settled (run the repair first). Test would be vacuous.");
     process.exitCode = 1;

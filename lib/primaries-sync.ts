@@ -523,10 +523,45 @@ async function buildSenateMatcher(
   };
 }
 
-// The HO 560 C2 settled predicate, extracted verbatim so the base sync AND the
-// HO 561 special-page writes make the SAME call (§3 C1: "same predicate, same
-// call"). A row is settled ⇔ its date has passed AND it already carries a
-// recorded share. Unchanged from HO 560 — only the call site is shared now.
+// HO 661 — the bounded re-check window. A past-dated row stays REWRITE-ELIGIBLE
+// for this many days, then settles regardless of whether a winner was ever
+// marked. N = 30 is GENEROUS, not fitted: the recovery timings that motivated it
+// give upper bounds only (the live residuals sat unmarked at 9 days WA / 65 days
+// ME at measurement), so it is sized to clear a slow tail rather than to hug the
+// observed one.
+//
+// THE WINDOW'S PRICE IS NOT WASTED FETCHES — isSettled is a WRITE-freeze, not a
+// fetch-skip. All three call sites evaluate AFTER the page has been fetched and
+// parsed, and the cursor selects its unit with no settled term at all, so the
+// unit is fetched either way. What the window re-opens is N days of rewrite
+// eligibility on decided-but-uncalled rows — which is precisely the healing
+// being bought, and it is self-correcting because the source is unchanged. The
+// router (HO 601) still keeps substitution off these ids; the HO 564 non-empty
+// gate still refuses erasure.
+export const SETTLE_WINDOW_DAYS = 30;
+
+// today − SETTLE_WINDOW_DAYS as a YYYY-MM-DD key. Computed beside `today` at
+// each of the THREE sites that derive one (syncSenateCandidates,
+// syncHouseDistricts, runPrimariesCronTick) and threaded into isSettled, so the
+// window has ONE derivation rather than one per call site.
+export function settleWindowFloor(now: string): string {
+  return new Date(Date.parse(now) - SETTLE_WINDOW_DAYS * 864e5)
+    .toISOString()
+    .slice(0, 10);
+}
+
+// The settled predicate, extracted verbatim so the base sync AND the HO 561
+// special-page writes make the SAME call (§3 C1: "same predicate, same call").
+//
+// HO 661 — "SETTLED" NOW MEANS **DECIDED OR EXPIRED**, NOT "SCORED". A row is
+// settled ⇔ its date has passed AND (a candidate carries status='winner' OR the
+// date is older than windowFloor). The vote_pct term is GONE. The old predicate
+// froze rows that were not decided and retried forever rows that were: a contest
+// scraped in the window after Ballotpedia posts shares but before it marks a
+// winner took shares and froze in that same instant, and every later tick
+// refused the write that would have landed the call — HO 656 watched two rows
+// join that class mid-run. "Settled" and "decided or expired" agree here for the
+// first time.
 //
 // HO 601/603 — READ THE ROLE, NOT JUST THE PREDICATE. This guard was built for
 // SUBSTITUTION: Ballotpedia rebuilding a seat's page around a LATER contest, so
@@ -552,14 +587,16 @@ async function isSettled(
   db: ReturnType<typeof getDb>,
   primaryId: string,
   today: string,
+  windowFloor: string,
 ): Promise<boolean> {
   const rs = await db.execute({
     sql: `SELECT 1 FROM primaries p
            WHERE p.id = ? AND p.primary_date < ?
-             AND EXISTS (SELECT 1 FROM primary_candidates pc
-                         WHERE pc.primary_id = p.id AND pc.vote_pct IS NOT NULL)
+             AND ( EXISTS (SELECT 1 FROM primary_candidates pc
+                            WHERE pc.primary_id = p.id AND pc.status = 'winner')
+                   OR p.primary_date < ? )
            LIMIT 1`,
-    args: [primaryId, today],
+    args: [primaryId, today, windowFloor],
   });
   return rs.rows.length > 0;
 }
@@ -597,6 +634,7 @@ async function scrapeSenateSpecialState(
   seededIds: Set<string>,
   now: string,
   today: string,
+  windowFloor: string,
   matchMember: SenateMatcher,
 ): Promise<SenateSpecialResult> {
   const attemptedIds = [...seededIds];
@@ -643,7 +681,7 @@ async function scrapeSenateSpecialState(
   for (const contest of ["D", "R", "open"] as const) {
     const primaryId = `senate-${abbr}-2026-special-${contest}`;
     if (!seededIds.has(primaryId)) continue; // never auto-create an unseeded row
-    if (await isSettled(db, primaryId, today)) {
+    if (await isSettled(db, primaryId, today, windowFloor)) {
       settledSkipped.push(primaryId);
       continue;
     }
@@ -735,6 +773,7 @@ export async function runSpecialPriorityPass(
   db: ReturnType<typeof getDb>,
   now: string,
   today: string,
+  windowFloor: string,
 ): Promise<SpecialPriorityResult> {
   const windowRs = await db.execute({
     sql: `SELECT id, state FROM primaries
@@ -783,6 +822,7 @@ export async function runSpecialPriorityPass(
       idsByState.get(st)!,
       now,
       today,
+      windowFloor,
       matchMember,
     );
     out.attemptedIds.push(...sp.attemptedIds);
@@ -849,7 +889,9 @@ export async function syncSenateCandidates(
   const rosterDeletesRefused: string[] = []; // HO 564: deletes declined (empty incoming roster)
   let budgetStopped = false;
   // HO 560: today (YYYY-MM-DD) for the settled-row clobber guard below.
+  // HO 661: + the re-check window floor, threaded into the same guard.
   const today = now.slice(0, 10);
+  const windowFloor = settleWindowFloor(now);
 
   for (let i = 0; i < states.length; i++) {
     if (opts.deadlineMs !== undefined && Date.now() >= opts.deadlineMs) {
@@ -896,13 +938,18 @@ export async function syncSenateCandidates(
       // around a LATER contest (e.g. the SC Aug special), so an unconditional
       // delete-rebuild would overwrite a past election's stored results with a
       // different contest's field. Skip the rewrite when the target row is
-      // SETTLED: past-dated AND already carrying at least one recorded share.
-      // The predicate is narrow on purpose (HO 559 confirmed the re-poll):
-      // past-dated-but-shareless rows (mid-count / late-ingest) and future rows
-      // stay OPEN, so only truly-decided results freeze. The escape hatch for a
-      // legitimate post-settle correction is scripts/reingest-primary-slate.ts
-      // (UPDATE by name, never a clobber — HO 341).
-      if (await isSettled(db, primaryId, today)) {
+      // SETTLED: past-dated AND (decided, i.e. a candidate marked winner — OR
+      // expired past the HO 661 re-check window).
+      //
+      // HO 661 — the predicate's claim of narrowness is now TRUE rather than
+      // aspirational. It read "only truly-decided results freeze" while freezing
+      // on shares alone, which froze SCORED-BUT-UNCALLED rows (decided nowhere
+      // but in the tally) and retried CALLED-BUT-SHARELESS ones forever. Rows
+      // that are mid-count, uncalled and inside the window stay OPEN, so a call
+      // arriving after the shares still lands. The escape hatch for a legitimate
+      // post-settle correction is scripts/reingest-primary-slate.ts (UPDATE by
+      // name, never a clobber — HO 341); past the window it is the ONLY route.
+      if (await isSettled(db, primaryId, today, windowFloor)) {
         settledSkipped.push(primaryId);
         continue;
       }
@@ -962,7 +1009,7 @@ export async function syncSenateCandidates(
     // state. Folded into the same summary counters as the normal pass.
     const specialIds = specialIdsByState.get(abbr);
     if (specialIds) {
-      const sp = await scrapeSenateSpecialState(db, abbr, specialIds, now, today, matchMember);
+      const sp = await scrapeSenateSpecialState(db, abbr, specialIds, now, today, windowFloor, matchMember);
       totalCandidates += sp.totalCandidates;
       matchedCandidates += sp.matchedCandidates;
       settledSkipped.push(...sp.settledSkipped);
@@ -1078,6 +1125,7 @@ export async function syncHouseDistricts(
   const db = getDb();
   const now = new Date().toISOString();
   const today = now.slice(0, 10); // HO 577 Part 2 — date key for the isSettled guard.
+  const windowFloor = settleWindowFloor(now); // HO 661 — its re-check window floor.
   if (districts.length === 0) {
     console.log(`No House districts to sync for "${label}".`);
     return {
@@ -1303,12 +1351,17 @@ export async function syncHouseDistricts(
     for (const contest of contests) {
       const primaryId = `house-${d.state}-${dd}-2026-${contest}`;
       // HO 577 Part 2 — settled-row guard, parity with the Senate path (~:707). A row is
-      // settled ⇔ past-dated AND already carrying a recorded share; once decided, neither
-      // its date nor its roster is rewritten (a re-scrape must never overwrite a finished
-      // contest's stored results). This lands AFTER the Part 1 calByState root fix AND the
-      // date repair — a guard over a still-poisoned value would freeze the WRONG date (the
-      // untriggered-guard trap; scripts/verify-house-settled-guard-577.ts proves it fires).
-      if (await isSettled(db, primaryId, today)) {
+      // settled ⇔ past-dated AND (a candidate marked winner OR expired past the HO 661
+      // window); once settled, neither its date nor its roster is rewritten (a re-scrape
+      // must never overwrite a finished contest's stored results). This lands AFTER the
+      // Part 1 calByState root fix AND the date repair — a guard over a still-poisoned
+      // value would freeze the WRONG date (the untriggered-guard trap;
+      // scripts/verify-house-settled-guard-577.ts proves it fires).
+      //
+      // HO 661 widened the House exposure the same way it widened the Senate's: a House
+      // contest that posts shares before Ballotpedia marks its winner now keeps taking
+      // writes for SETTLE_WINDOW_DAYS, so the call lands instead of being refused forever.
+      if (await isSettled(db, primaryId, today, windowFloor)) {
         settledSkipped.push(primaryId);
         continue;
       }
@@ -1932,7 +1985,8 @@ export async function runPrimariesCronTick(
   // one indexed query and returns [].
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
-  const priorityScraped = await runSpecialPriorityPass(db, now, today);
+  const windowFloor = settleWindowFloor(now); // HO 661 — re-check window floor.
+  const priorityScraped = await runSpecialPriorityPass(db, now, today, windowFloor);
 
   const units = buildScrapeUnits();
   let cursor = await readCursor(db);
