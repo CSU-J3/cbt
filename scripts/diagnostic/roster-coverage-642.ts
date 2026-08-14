@@ -26,8 +26,14 @@
 // verbatim copy is a dependency with no compiler edge, HO 554 -> 557):
 //   · the rated-set predicate      lib/queries.ts::getRacesIndex (INNER JOIN
 //                                  race_ratings ON race_id AND cycle, WHERE cycle=?)
-//   · the harvest join             scripts/backfill-race-challengers.ts
-//                                  HARVEST_FROM_WHERE, at 3de13e6
+//   · the harvest join             lib/harvest-challengers.ts HARVEST_FROM_WHERE,
+//                                  at 23fa9fa. RECONCILED HO 663: HO 660 moved the
+//                                  harvest out of scripts/backfill-race-challengers.ts
+//                                  (which now only wraps it), so the old pointer
+//                                  dangled. The SQL itself is UNCHANGED — HO 660's
+//                                  byte-identical claim verified term-by-term, not
+//                                  inherited. The NOT EXISTS curated-roster guard is
+//                                  still deliberately dropped here (see M2).
 //   · the withdrawn-status set     lib/race-matchup.ts WITHDRAWN
 //   · the active-challenger filter lib/race-matchup.ts activeChallengers
 //   · the kalshi close-time gate   lib/race-colors.ts kalshiActive
@@ -395,19 +401,39 @@ async function main(): Promise<number> {
   // ══════════════════════════════════════════════════════════════════════════
   // M5 — freshness
   //
-  // `race_candidates` HAS NO TIMESTAMP COLUMN (migrate.ts: race_id, name, party,
-  // bioguide_id, status, source_url — PK (race_id,name)). So the "when did the
-  // harvest last run" question cannot be answered from the table, and saying so is
-  // the honest half of this measurement. The testable half is BEHAVIOURAL and is
-  // stronger than a timestamp would be: the harvest is deterministic, so the newest
-  // primary date it has ALREADY reached, versus the newest primary date it COULD
-  // reach, brackets its last run.
+  // RECONCILED HO 663 — THE PREMISE OF THIS SECTION EXPIRED. At HO 642 the comment
+  // here read "race_candidates HAS NO TIMESTAMP COLUMN", which is why the freshness
+  // question had to be answered behaviourally. HO 659 ADDED `race_candidates.
+  // updated_at` (migrate.ts ensureColumn) precisely to close that gap — it is the
+  // per-run reach stamp both harvest callers bind. The old claim is now FALSE and is
+  // printed below as the correction rather than deleted, so a re-run cannot repeat it.
+  //
+  // The BEHAVIOURAL bracket is kept, because it measures a different thing and still
+  // does: the stamp says WHEN a run touched a row, the bracket says HOW FAR the
+  // harvest's derivation reaches. A run that fires on schedule and derives nothing
+  // new stamps fresh and reaches no further. Both readings are wanted.
+  // The stamp census itself lives in scripts/diagnostic/race-candidates-stamp-659.ts.
   // ══════════════════════════════════════════════════════════════════════════
   console.log("#".repeat(100));
-  console.log("# M5 — freshness (and what this schema can and cannot tell us)");
+  console.log("# M5 — freshness (stamp + behavioural reach)");
   console.log("#".repeat(100));
-  console.log("  race_candidates carries NO updated_at / fetched_at column — the last-run time is");
-  console.log("  NOT recoverable from the table. Bracketing it behaviourally instead:");
+  console.log("  race_candidates.updated_at EXISTS (HO 659) — the HO 642 'no timestamp column' note is");
+  console.log("  corrected. Stamp census below, then the behavioural reach bracket (a different reading:");
+  console.log("  the stamp is when a run touched a row, the bracket is how far its derivation gets).");
+  console.log("");
+  const stampE = await exec(
+    `SELECT updated_at AS u, COUNT(*) AS rows, COUNT(DISTINCT race_id) AS races
+       FROM race_candidates WHERE source_url = ?
+      GROUP BY updated_at ORDER BY updated_at DESC`,
+    [HARVEST_SOURCE],
+  );
+  const stamps = obj(stampE);
+  console.log(`  distinct sentinel updated_at stamps: ${stamps.length}`);
+  for (const s of stamps) {
+    console.log(
+      `     ${pad(S(s.u) || "(NULL — pre-instrumentation)", 30)} ${padL(N(s.rows), 4)} rows / ${padL(N(s.races), 3)} seats`,
+    );
+  }
   console.log("");
   const sentinelE = await exec(
     `SELECT COUNT(*) AS rows, COUNT(DISTINCT race_id) AS races
