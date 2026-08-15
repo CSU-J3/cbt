@@ -95,8 +95,9 @@ export async function CompetitiveRacesBlock({
   // HO 658: the per-seat getMember + getRunoffsForRace prefetches are GONE with
   // the popover — they fed RaceHubBody's preview mode and nothing else, so this
   // loop was doing 12 reads per dashboard render (6 seats × 2) for a surface no
-  // route rendered. This no longer mirrors /api/race/[id]/hub; the full-hub
-  // shape lives on /race/[id], which fetches its own.
+  // route rendered. It had already stopped mirroring /api/race/[id]/hub, which
+  // was a zero-caller orphan in its own right and was DELETED at HO 665; the
+  // full-hub shape lives on /race/[id], which fetches its own.
   const [hubs, primariesData] = await Promise.all([
     Promise.all(
       races.map(async (r) => {
