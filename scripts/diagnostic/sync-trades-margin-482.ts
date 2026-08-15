@@ -2,7 +2,18 @@
 //
 // Measure → classify → recommend. WRITES NOTHING to prod (the Part B insert
 // benchmark collides on the PK and is IGNORED → zero rows written; the FMP
-// probe is GET-only). Does NOT run ingestTrades / writeDashboardLead.
+// probe is GET-only). Does NOT run ingestTrades.
+//
+// !! HO 667 — §1's LEAD REGRESSION GUARD IS RETIRED, AND THE REASON MATTERS.
+// !! The lead step was removed from /api/sync at HO 667, so post-667 rows carry
+// !! no `payload.timings.lead`. Left alone, §1 would have filtered to an EMPTY
+// !! leadVals, taken `leadD.max ?? 0` → 0, fallen through both thresholds and
+// !! printed "✓ All post-fix leads < 5000ms — hint holding, HO 480/481
+// !! confirmed" — a CONFIRMATION PRINTED OFF AN ABSENT MEASUREMENT. That is the
+// !! same-as-success shape: an instrument whose silence is indistinguishable
+// !! from its pass. §1 now short-circuits on n === 0 and says so. `residual()`
+// !! likewise no longer requires a lead term. Rows BEFORE HO 667 still carry
+// !! the field and still measure the 480/481 fix correctly.
 //
 // Answers: HO 480/481 collapsed the sync lead step to ~1-3s, yet tick #3446
 // still landed at 50.0s (~10s over the post-fix wall prediction of 33-40s).
@@ -153,12 +164,16 @@ function parseRow(r: Record<string, unknown>): SyncRow {
   };
 }
 
+// HO 667: `lead` is now OPTIONAL in the residual. Pre-667 rows carry it and it
+// must be subtracted; post-667 rows have no lead step, so requiring it here
+// would silently drop every post-667 tick out of the residual analysis and
+// leave §4 reasoning about a cohort that had quietly stopped growing. The other
+// three terms stay REQUIRED — a row missing those genuinely can't be attributed.
 function residualOf(row: SyncRow): number | null {
   if (row.elapsedMs == null || !row.timings) return null;
   const { reportCatchup, sync, lead, trades } = row.timings;
-  if (reportCatchup == null || sync == null || lead == null || trades == null)
-    return null;
-  return row.elapsedMs - (reportCatchup + sync + lead + trades);
+  if (reportCatchup == null || sync == null || trades == null) return null;
+  return row.elapsedMs - (reportCatchup + sync + (lead ?? 0) + trades);
 }
 
 // ===========================================================================
@@ -245,7 +260,14 @@ async function partA(db: ReturnType<typeof getDb>): Promise<{
   console.log(
     `  lead  n=${leadD.n}  min=${ms(leadD.min)}  p50=${ms(leadD.p50)}  p90=${ms(leadD.p90)}  max=${ms(leadD.max)}`,
   );
-  if ((leadD.max ?? 0) >= LEAD_REGRESSION_FLAG_MS) {
+  // HO 667: n === 0 means the sampled rows are post-667 and carry no lead step
+  // at all. Say that, rather than letting the absent measurement fall through
+  // to the "✓ hint holding" branch below and read as a pass. See the header.
+  if (leadD.n === 0) {
+    console.log(
+      `  — lead step RETIRED at HO 667 — no measurement. Not a pass and not a regression: /api/sync no longer runs a lead step, so these rows carry no timings.lead. Sample rows from before HO 667 to exercise this guard.`,
+    );
+  } else if ((leadD.max ?? 0) >= LEAD_REGRESSION_FLAG_MS) {
     console.log(
       `  ⚠ FINDING: a post-fix lead reached ${ms(leadD.max)} (≥${LEAD_REGRESSION_FLAG_MS}ms, toward the 14-20s stall band) — the hint may not be holding on some plan. HIGHER PRIORITY than the margin question.`,
     );

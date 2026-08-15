@@ -1,12 +1,16 @@
 import type { getDb } from "./db";
 
-// HO 232: single source for the "enacted this week" slice. Two consumers:
-// the dashboard lead generator (lib/dashboard-lead.ts, runs in the cron with
-// a fresh raw read) and the ENACTED THIS WEEK banner (getEnactedThisWeek in
-// lib/queries.ts, request-time + unstable_cache). The cron must NOT consume
-// the cached wrapper — it reads after sync/summarize but before
-// revalidateTag("bills"), so a cached read would be stale; both layers call
-// this raw query directly instead.
+// HO 232: single source for the "enacted this week" slice. ONE consumer today:
+// the ENACTED THIS WEEK banner (getEnactedThisWeek in lib/queries.ts,
+// request-time + unstable_cache).
+//
+// RECORD (HO 667): there were two. The second was the dashboard lead generator
+// (lib/dashboard-lead.ts), which ran inside the sync cron and called this raw
+// query directly — deliberately, because a cron step that reads after
+// sync/summarize but BEFORE revalidateTag("bills") would get a stale value from
+// the cached wrapper. That rule still holds for any future cron-side consumer;
+// it simply has no consumer right now, because the lead path was retired at
+// HO 667 (orphaned since HO 244).
 export const ENACTED_THIS_WEEK_DAYS = 7;
 
 export type EnactedBill = {

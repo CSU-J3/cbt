@@ -1068,26 +1068,13 @@ export const getLawsEnactedBySessionWeek = unstable_cache(
   { revalidate: 86400, tags: ["bills"] },
 );
 
-// The cron-generated 3-sentence dashboard lead, stored in dashboard_state
-// under key 'weekly_lead'. Returns null if the cron hasn't generated one yet
-// (fresh DB). Tagged "bills" so the cron's revalidateTag flushes it after a
-// fresh generation writes the new lead.
-export const getDashboardLead = unstable_cache(
-  async (): Promise<{ text: string; updatedAt: string } | null> => {
-    const db = getDb();
-    const rs = await db.execute(
-      `SELECT value, updated_at FROM dashboard_state WHERE key = 'weekly_lead'`,
-    );
-    const r = rs.rows[0];
-    if (!r) return null;
-    return {
-      text: r.value as string,
-      updatedAt: r.updated_at as string,
-    };
-  },
-  ["getDashboardLead"],
-  { revalidate: 3600, tags: ["bills"] },
-);
+// RECORD (HO 667): `getDashboardLead` lived here — it read the cron-generated
+// 3-sentence lead from dashboard_state under key 'weekly_lead'. It was orphaned
+// at HO 244 (the masthead became the stat readout) and carried a
+// "deprecated-candidate, do NOT remove" note pending a design call on re-homing
+// a glance one-liner. Corey ruled RETIRE on 2026-08-15, so the helper, the
+// generator (lib/dashboard-lead.ts) and the row itself are gone. Restoring a
+// lead surface is a NEW entry, not a revert.
 
 export type ReportListItem = {
   slug: string;
@@ -6972,8 +6959,11 @@ export const getStageChangesCount = unstable_cache(
 
 // HO 232: bills that reached `enacted` in the last 7 days, for the dashboard
 // ENACTED THIS WEEK banner. Cached + tag "bills" (flushed by the sync cron's
-// revalidateTag), unlike the cron's raw read in lib/dashboard-lead.ts — both
-// share the queryEnactedThisWeek predicate.
+// revalidateTag). RECORD (HO 667): this was one of TWO consumers of the shared
+// queryEnactedThisWeek predicate — the other was the cron's raw read in
+// lib/dashboard-lead.ts, which existed precisely because it ran before
+// revalidateTag("bills") and a cached read would have been stale. That path was
+// retired at HO 667, so this is now the predicate's only consumer.
 export const getEnactedThisWeek = unstable_cache(
   async (): Promise<EnactedBill[]> => {
     const db = getDb();

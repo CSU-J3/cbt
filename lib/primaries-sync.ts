@@ -1859,8 +1859,10 @@ const DEADLINE_MS = 50_000;
 
 // dashboard_state key holding the cron cursor — the index into buildScrapeUnits
 // of the next unit to process. dashboard_state is the project's existing
-// key-value store (lib/queries.ts getDashboardLead reads 'weekly_lead' from
-// it); no migration needed.
+// key-value store (the kalshi, committees and LDA-rollup keys are the other
+// live tenants); no migration needed. RECORD (HO 667): this comment used to
+// cite getDashboardLead reading 'weekly_lead' as the example tenant — both the
+// helper and the row were retired at HO 667.
 const CURSOR_KEY = "primaries_cron_cursor";
 
 function buildScrapeUnits(): ScrapeUnit[] {

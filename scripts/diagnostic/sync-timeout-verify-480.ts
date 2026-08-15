@@ -5,6 +5,15 @@
 // and correctness (did dashboard_state.weekly_lead.updated_at advance —
 // i.e. did the lead step actually SUCCEED, not just run fast-and-fail).
 //
+// !! DATED INSTRUMENT — scoped to the HO 480/481 window, and it CANNOT report on
+// !! a tick after HO 667. The lead step was retired from /api/sync at HO 667, so
+// !! post-667 rows carry no `payload.timings.lead`: every one reads `no-timing`,
+// !! `inBand` stays empty, and the verdict below prints "NOT YET: only 0 in-band
+// !! success tick(s)". That is OUT-OF-WINDOW, **not** a regression of the 480/481
+// !! fix — do not read it as one. The weekly_lead row this also reads was deleted
+// !! at HO 667 and correctly reports MISSING. Kept as the record of how that loop
+// !! was closed; run it only against rows between the 5bf9354 cutoff and HO 667.
+//
 // Payload shape note: wrapCronRoute stores responseBody = {ok, elapsedMs,
 // payload:{timings, sync, reportCatchup}}, so timings live at
 // $.payload.timings.* (NOT $.timings.*). Timed-out rows carry the error

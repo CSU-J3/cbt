@@ -77,7 +77,9 @@ const statements = [
   )`,
   // Key-value store for cron-generated dashboard content. Flexible so future
   // dashboard state (other generated text, cached aggregates) needs no further
-  // migration. Currently holds key = 'weekly_lead'.
+  // migration. RECORD (HO 667): the original tenant was key = 'weekly_lead'
+  // (the dashboard lead), retired at HO 667 — the TABLE stays and carries the
+  // kalshi, committees-cursor, primaries-cursor, cron-lock and LDA-rollup keys.
   `CREATE TABLE IF NOT EXISTS dashboard_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,

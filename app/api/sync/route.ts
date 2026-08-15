@@ -1,10 +1,6 @@
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
-import {
-  generateDashboardLead,
-  writeDashboardLead,
-} from "@/lib/dashboard-lead";
 import { runReportCatchup } from "@/lib/report-generation";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
@@ -12,10 +8,14 @@ import { ingestTrades } from "@/lib/trades-ingest";
 // Daily sync cron. HO 115 split summarize out; HO 116 bounded runSync;
 // HO 117 split news ingestion into /api/cron/news; HO 139 split the
 // weekly report into /api/cron/weekly-report and migrated this route to
-// the `wrapCronRoute` finalize pattern. This route now runs: bill sync
-// (≤30s budget) → dashboard lead → trades. Report and news live on their
-// own crons. Per-step wall-clock times are logged and included in the
-// cron_runs payload.
+// the `wrapCronRoute` finalize pattern. HO 667 retired the dashboard-lead
+// step (orphaned since HO 244 — nothing had rendered the lead in ~400
+// handoffs, and it was the dominant step at ~25.3s of a 40.4s run).
+// This route now runs: report catch-up → bill sync (≤30s budget) → trades.
+// Report and news live on their own crons. Per-step wall-clock times are
+// logged and included in the cron_runs payload — note `timings.lead` is
+// GONE from that payload as of HO 667, so a row with no `lead` key is a
+// post-667 tick, not a truncated payload.
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
@@ -52,7 +52,6 @@ async function handle(request: Request) {
     const timings: Record<string, number | null> = {
       reportCatchup: null,
       sync: null,
-      lead: null,
       trades: null,
     };
 
@@ -108,20 +107,6 @@ async function handle(request: Request) {
     // Invalidate after sync writes new bill rows so the dashboard sees them
     // before any later step in this tick fails.
     revalidateTag("bills");
-
-    // Regenerate the dashboard lead from the freshly synced data. Non-fatal:
-    // if Gemini errors or rate-limits, the prior lead stays in the DB and the
-    // dashboard keeps rendering it.
-    const tLead = Date.now();
-    try {
-      const lead = await generateDashboardLead();
-      await writeDashboardLead(lead);
-      revalidateTag("bills");
-    } catch (err) {
-      console.warn("[sync] lead generation failed; keeping prior lead", err);
-    }
-    timings.lead = Date.now() - tLead;
-    console.log(`[sync] lead: ${timings.lead}ms`);
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck

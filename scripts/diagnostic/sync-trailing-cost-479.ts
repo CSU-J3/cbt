@@ -1,9 +1,17 @@
 // HO 479 — /api/sync trailing-step timeout probe. READ-ONLY.
-// No INSERT/UPDATE/DELETE, no writeDashboardLead, no ingestTrades, no route
-// touch. Reads cron_runs, replicates gatherLeadData's reads to cold-time them,
-// times the Gemini lead call and the FMP trade fetches, prints the numbers,
-// and classifies the overrun. Sibling to markets-cadence-474.ts /
-// lda-bill-cost-439.ts / amendments-actions-probe-452.ts.
+// No INSERT/UPDATE/DELETE, no ingestTrades, no route touch. Reads cron_runs,
+// times the FMP trade fetches, prints the numbers, and classifies the overrun.
+// Sibling to markets-cadence-474.ts / lda-bill-cost-439.ts /
+// amendments-actions-probe-452.ts.
+//
+// HO 667 — THE LEAD ARM IS REMOVED. This probe originally had two Part B arms:
+// the dashboard-lead step (a read-only replica of gatherLeadData's four reads,
+// plus a timed generateDashboardLead call to split DB from Gemini) and the
+// trades step. HO 667 retired the lead step from /api/sync entirely, so that
+// arm measured a step that no longer runs — it was deleted rather than left to
+// report a number nobody could act on. The trades and sync-tail arms are
+// untouched and still meaningful. Historical cron_runs rows from before HO 667
+// still carry `payload.timings.lead`; rows after it do not.
 //   npx tsx scripts/diagnostic/sync-trailing-cost-479.ts
 //
 // The load-bearing structural finding is printed in Part A: wrapCronRoute
@@ -15,9 +23,7 @@
 // the cause by cold-timing the two trailing steps in isolation.
 import "dotenv/config";
 import { createClient } from "@libsql/client";
-import { generateDashboardLead } from "@/lib/dashboard-lead";
 import { fetchHouseTrades, fetchSenateTrades } from "@/lib/fmp";
-import { getDb } from "@/lib/db";
 
 const SYNC_BUDGET_MS = 30_000; // route.ts
 const SOFT_CAP_MS = 55_000; // cron-log.ts DEFAULT_SOFT_TIMEOUT_MS
@@ -266,74 +272,12 @@ async function timed<T>(
   }
 }
 
-// Read-only replica of the private gatherLeadData() reads (dashboard-lead.ts),
-// so we can cold-time the DB half of the lead step separately from Gemini.
-const LEAD_DAYS = 7;
-const NON_CEREMONIAL = "(is_ceremonial = 0 OR is_ceremonial IS NULL)";
-async function timeGatherLeadReads(): Promise<void> {
-  const db = getDb();
-  await timed("lead DB · transitions query", async () => {
-    const rs = await db.execute(
-      `SELECT id, bill_type, bill_number, title, stage, previous_stage FROM bills
-       WHERE ${NON_CEREMONIAL} AND stage_observed_at IS NOT NULL
-         AND stage_observed_at > datetime('now', '-${LEAD_DAYS} days')
-       ORDER BY stage_observed_at DESC`,
-    );
-    return rs.rows.length;
-  }, (n) => `${n} rows`);
-  await timed("lead DB · enacted-this-week", async () => {
-    const rs = await db.execute(
-      `SELECT COUNT(*) n FROM bills WHERE ${NON_CEREMONIAL}
-         AND stage='enacted' AND stage_observed_at > datetime('now','-${LEAD_DAYS} days')`,
-    );
-    return Number(rs.rows[0]?.n ?? 0);
-  }, (n) => `${n} enacted (approx; real path uses queryEnactedThisWeek)`);
-  await timed("lead DB · introductions count", async () => {
-    const rs = await db.execute(
-      `SELECT COUNT(*) n FROM bills WHERE ${NON_CEREMONIAL}
-         AND introduced_date >= date('now','-${LEAD_DAYS} days')`,
-    );
-    return Number(rs.rows[0]?.n ?? 0);
-  }, (n) => `${n} rows`);
-  await timed("lead DB · top-topic json_each", async () => {
-    const rs = await db.execute(
-      `SELECT je.value topic, COUNT(*) n FROM bills, json_each(bills.topics) je
-       WHERE ${NON_CEREMONIAL} AND bills.topics IS NOT NULL
-         AND bills.stage_observed_at IS NOT NULL
-         AND bills.stage_observed_at > datetime('now','-${LEAD_DAYS} days')
-       GROUP BY je.value ORDER BY n DESC LIMIT 1`,
-    );
-    return rs.rows.length;
-  }, () => "");
-}
-
 async function partB(): Promise<void> {
   console.log("\n\n========================================================");
   console.log("PART B — cold-time the trailing steps in isolation");
   console.log("========================================================");
-  console.log(`(${PART_B_GUARD_MS / 1000}s guard per call; read-only — no writeDashboardLead, no ingestTrades)`);
-
-  // LEAD — split DB reads vs Gemini.
-  console.log("\n--- lead step ---");
-  const hasGemini = !!process.env.GEMINI_API_KEY;
-  const leadDbStart = Date.now();
-  await timeGatherLeadReads();
-  const leadDbMs = Date.now() - leadDbStart;
-  console.log(`  → gatherLeadData DB reads total: ${leadDbMs}ms`);
-  if (hasGemini) {
-    const full = await timed(
-      "generateDashboardLead (DB+Gemini)",
-      () => generateDashboardLead(),
-      (s) => `${String(s).length} chars`,
-    );
-    if (full.ok) {
-      console.log(
-        `  → inferred Gemini call: ~${Math.max(0, full.ms - leadDbMs)}ms (full ${full.ms}ms − DB reads ${leadDbMs}ms)`,
-      );
-    }
-  } else {
-    console.log("  generateDashboardLead SKIPPED — GEMINI_API_KEY not set.");
-  }
+  console.log(`(${PART_B_GUARD_MS / 1000}s guard per call; read-only — no ingestTrades)`);
+  console.log("(HO 667: the lead arm is GONE — that step was retired from /api/sync.)");
 
   // TRADES — the FMP GETs only, pages 0/1/2 per chamber. No insert loop.
   console.log("\n--- trades step (FMP GETs only, no inserts) ---");
