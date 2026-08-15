@@ -2414,3 +2414,32 @@ A confirmation rendered by the **absence** of data. Nothing errored, nothing rea
 **What makes this an entry rather than a bug report is how it was found.** The handoff's recon had classified that file as **prose-only** — three comment mentions, RECORD-and-stay — because it was located by grepping the *name*. The name-grep is a search over mentions; what mattered was the set of **readers**, and `timings.lead` was structurally consumed there: a required field on the `SyncRow["timings"]` type, a term in `residualOf()`, and §1's entire subject. Two files down the same list, `sync-timeout-verify-480.ts` was also carrying an unnoticed `payload.timings.lead` read at `:44`. **When retiring a field, enumerate its readers by type and by use, not by name** — the name-grep finds the comments and misses the consumers, which is the wrong half.
 
 **And the corollary that decides what to do with the survivors: an instrument that measures a retired step is not neutral, it is a future false reading.** It will be re-run by someone who does not know the step is gone, and it will answer. The three diagnostics here needed three different answers — 482 a real guard change, 480 a header dating it to its window (its post-667 verdict is a false *negative*, `"NOT YET: only 0 in-band success tick(s)"`, which reads as a regression of a closed fix), and 479 the arm deleted outright. Filing them all as "RECORD, stays" would have left three instruments able to lie in two directions.
+
+---
+
+## HO 668 (2026-08-15) — a silently-failed kill makes a byte-identical gate pass by construction
+
+**The failure mode: you compare the new build against the old build, except the "new" server is the old server, so you compare the old build against itself and `cmp` says identical.** HO 668's gate is a before/after `/electoral` render diff — the HO 603 shape, and exactly right for a CSS-only excision. The sequence that nearly certified nothing:
+
+1. Start a server on port 3108, capture `electoral-pre.html`.
+2. Kill it with `taskkill //PID <pid> //T //F | tail -1`, then check `netstat -ano | grep ":3108" | grep LISTENING`, which printed nothing.
+3. Read "nothing" as *released*, edit the CSS, rebuild, start "the post server" on 3108, capture `electoral-post.html`, `cmp`.
+
+Step 3's server **never started** — `EADDRINUSE`, into a log file nobody is forced to read — and the process from step 1 was still serving the pre-change build. The `curl` in step 3 would have been answered by the pre-change build, `cmp` would have reported **byte-identical**, and the gate would have certified the excision by comparing a build with itself. Every individual reading would have been true. The conclusion would have been worthless.
+
+**Two independent defects, and the first is the general one.**
+
+- **The kill's exit status was discarded by a pipe.** `taskkill … | tail -1` exits with `tail`'s status, always 0. This is the piped-command exit-status rule (SKILL, *Pre-flight verification*) landing on process management rather than on a build: **the command that was supposed to guarantee the precondition reported success unconditionally.**
+- **The verification was an absence-of-evidence reading.** `grep LISTENING` printing nothing is consistent with *port released* and with *grep ran during a transient*, and the two are indistinguishable in the output. A check whose failure mode is indistinguishable from the condition it checks for is not a check.
+
+**What caught it was a coincidence worth converting into a rule: the "new" server reported the SAME PID as the old one.** That is not a coincidence at all — a bind failure means no new process took the port — but nothing in the procedure required comparing them. **So: after restarting a server for a before/after comparison, assert the PID CHANGED.** It is one line, and it falsifies the entire class.
+
+**Three fixes shipped, and the third is the one that survives a future procedural slip.**
+
+- Kill **unpiped**, exit status read.
+- Verify the port is down **positively and redundantly**: `tasklist` reporting *No tasks are running which match the specified criteria*, `netstat` empty, and a `curl --max-time 4` that must fail with **exit 7** (connection refused). Three instruments, one of which is an active probe rather than a passive look.
+- **Give the gate a BUILD DISCRIMINATOR** — something in the response that differs between the two builds, checked before the comparison is trusted. Here: the served stylesheet hash had to move (`4e8dbc70…` → `788dc503…`) and the served bundle had to carry **0 `pdc`** against **5 `rdm-action`**. This is the durable one, because it does not depend on the operator having killed anything correctly: **if the discriminator does not move, the comparison is invalid no matter how clean the process hygiene looked.**
+
+**The generalization: a before/after gate needs a way to prove the "after" is actually after.** A diff of two captures is evidence about the captures, not about the code — and it is at its most convincing precisely when it is measuring the same artifact twice, because then it is perfectly identical. Any such gate should carry a cheap assertion that the two sides genuinely differ *somewhere they must* (a build hash, a version endpoint, a deliberately-changed marker) before the identity of everything else is read as a result.
+
+**Related, and worth keeping adjacent:** a normalization step that strips ~70% of the payload should itself be controlled. HO 668's normalizer removed scripts and the hashed stylesheet link, taking 821,768 bytes to 252,214; the compared remainder was checked to still contain real page markup (`cart-` 19, `race` 24) rather than an emptied shell. Two empty files also `cmp` identical.
