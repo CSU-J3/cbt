@@ -4,30 +4,31 @@
 // Renders the <ul> of BillRow accordions; opening one closes any other.
 // Per-bill panel data (committees + news + meetings) is cached keyed by bill id
 // so re-expanding the same row does not refetch. HO 164 lifted the open-state +
-// cache into the shared useSingleOpenPanel hook and added a `compact`
-// passthrough so the dashboard ACTIVITY ticker can render compact rows that
-// still expand.
+// cache into the shared useSingleOpenPanel hook (and added a `compact`
+// passthrough, since removed — see the HO 666 paragraph below).
 //
-// HO 317 — /bills now renders the SHARED components/BillExpandPanel (the same
-// rich panel the dashboard `/` shows, click-to-expand here vs hover there). That
-// panel is presentational, so the list owns the lazy fetch. The compact path
-// keeps the pipeline-only BillExpandedPanel, which self-fetches nothing in
-// compact mode.
+// HO 317 — /bills renders the SHARED components/BillExpandPanel (the same rich
+// panel the dashboard `/` shows, click-to-expand here vs hover there). That
+// panel is presentational, so the list owns the lazy fetch.
 //
-// HO 664 — the `compact` passthrough now has ZERO callers. Its last one was
-// ActivityTicker's dead non-v2 arm, stripped there; the classic route that arm
-// served went at HO 608. NOT chased here on purpose: BillRowList is live on 6+
-// routes, so stripping the prop is its own change behind its own gates (HO 507
-// shared-component rule), and it would cascade into BillExpandedPanel, which
-// this branch is the last consumer of. Filed QUEUED in docs/backlog.md.
-// `BillRow`'s OWN compact prop is unaffected and stays live, link-only, on
-// SearchResultsBills / /patterns / /committee/[systemCode].
+// HO 666 — the `compact` passthrough is GONE, and `BillExpandPanel` is now the
+// only panel this list can render. RECORD of the chain: HO 164 added the
+// passthrough so the dashboard ACTIVITY ticker could render compact rows that
+// still expanded, via the pipeline-only `BillExpandedPanel` (which self-fetched
+// nothing in compact mode); HO 608 deleted the classic route that path served;
+// HO 664 stripped ActivityTicker's dead non-v2 arm, the passthrough's last
+// caller, and filed the strip QUEUED rather than widening that commit; this HO
+// closed it. `components/BillExpandedPanel.tsx` was deleted with the branch —
+// it was its last consumer — and the four `/api/bill/[id]/panel` payload types
+// it carried moved to `components/bill-panel-types.ts`.
+//
+// `BillRow`'s OWN compact prop was never part of this and stays live, link-only,
+// on SearchResultsBills / /patterns / /committee/[systemCode].
 import { useEffect, useMemo } from "react";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
-import { BillExpandedPanel } from "@/components/BillExpandedPanel";
 import { BillRow } from "@/components/BillRow";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
-import type { PanelData } from "@/components/BillExpandedPanel";
+import type { PanelData } from "@/components/bill-panel-types";
 import type { FeedBill } from "@/lib/queries";
 
 type DaysSinceMode = "staleness" | "desk-time";
@@ -38,7 +39,6 @@ export function BillRowList({
   nowMs,
   daysSinceMode,
   className,
-  compact = false,
   showMomentum = false,
 }: {
   bills: FeedBill[];
@@ -48,7 +48,6 @@ export function BillRowList({
   nowMs: number;
   daysSinceMode?: DaysSinceMode;
   className?: string;
-  compact?: boolean;
   // HO 371: gate the /stale momentum overlay (collapsed support figure + HEARD,
   // expand cosponsor bar + "then silent" line). True only from the /stale page —
   // BillRow + BillExpandPanel are shared across surfaces, so without this the
@@ -59,10 +58,9 @@ export function BillRowList({
   const { expandedId, toggle, panelCache, handleLoaded } = useSingleOpenPanel();
 
   // HO 317: the shared full panel is presentational, so the list fetches the
-  // open row's committees / news / meetings here (compact keeps self-managing
-  // via BillExpandedPanel, which does 0 queries in compact mode).
+  // open row's committees / news / meetings here.
   useEffect(() => {
-    if (compact || !expandedId || panelCache.has(expandedId)) return;
+    if (!expandedId || panelCache.has(expandedId)) return;
     let cancelled = false;
     fetch(`/api/bill/${encodeURIComponent(expandedId)}/panel`)
       .then((r) => (r.ok ? (r.json() as Promise<PanelData>) : Promise.reject(r.status)))
@@ -76,7 +74,7 @@ export function BillRowList({
     return () => {
       cancelled = true;
     };
-  }, [compact, expandedId, panelCache, handleLoaded]);
+  }, [expandedId, panelCache, handleLoaded]);
 
   return (
     <ul className={className}>
@@ -87,7 +85,6 @@ export function BillRowList({
             key={b.id}
             bill={b}
             nowMs={nowMs}
-            compact={compact}
             daysSinceMode={daysSinceMode}
             showMomentum={showMomentum}
             onWatchlist={watchedSet.has(b.id)}
@@ -95,22 +92,12 @@ export function BillRowList({
             onToggle={() => toggle(b.id)}
             expandedPanel={
               isOpen ? (
-                compact ? (
-                  <BillExpandedPanel
-                    bill={b}
-                    nowMs={nowMs}
-                    compact
-                    cached={panelCache.get(b.id) ?? null}
-                    onLoaded={(data) => handleLoaded(b.id, data)}
-                  />
-                ) : (
-                  <BillExpandPanel
-                    bill={b}
-                    nowMs={nowMs}
-                    panel={panelCache.get(b.id) ?? null}
-                    showMomentum={showMomentum}
-                  />
-                )
+                <BillExpandPanel
+                  bill={b}
+                  nowMs={nowMs}
+                  panel={panelCache.get(b.id) ?? null}
+                  showMomentum={showMomentum}
+                />
               ) : null
             }
           />

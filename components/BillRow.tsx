@@ -57,18 +57,21 @@ function supportFigure(count: number | null | undefined): {
 // HO 148 — when an `onToggle` callback is provided (rows wrapped in
 // BillRowList), the rail+content becomes a div-role-button click target
 // that fires `onToggle` and the row renders `expandedPanel` below itself
-// inside the same <li>. When no callback (compact rows on the ticker,
-// search results, committee detail, patterns drilldown), the original HO
+// inside the same <li>. When no callback (compact rows on search results,
+// committee detail, patterns drilldown), the original HO
 // 125 + HO 127 shape is preserved: outer <Link> for navigation, star and
 // media-attention as right-edge siblings. HO 148 also drops the inline
 // summary and "View detail →" text from every full-row consumer; the
 // summary moves into the expanded panel, navigation moves to the panel's
 // `full bill page →` chip.
 //
-// HO 164 — expandability no longer excludes compact rows: a compact row that
-// IS given `onToggle` (dashboard ACTIVITY via `<BillRowList compact />`) now
-// expands like a full row. Compact callers that pass no `onToggle` (search,
-// committee, patterns) are unaffected and stay link-only.
+// RECORD (HO 164, ended HO 666) — expandability once did not exclude compact
+// rows: a compact row given `onToggle` (dashboard ACTIVITY via
+// `<BillRowList compact />`) expanded like a full row. That passthrough was
+// stripped at HO 666, so no caller pairs `compact` with `onToggle` any more and
+// every compact row is link-only. The prop below still supports both shapes —
+// the three live compact callers (search, committee, patterns) simply pass no
+// `onToggle`, which is the branch that has always served them.
 export function BillRow({
   bill,
   nowMs,

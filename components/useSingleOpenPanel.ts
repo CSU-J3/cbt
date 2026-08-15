@@ -14,7 +14,7 @@
 // HO 178 and the popover is deleted at HO 658, so nothing instantiates `T` today
 // — every live caller takes the default.
 import { useCallback, useEffect, useState } from "react";
-import type { PanelData } from "@/components/BillExpandedPanel";
+import type { PanelData } from "@/components/bill-panel-types";
 
 export function useSingleOpenPanel<T = PanelData>() {
   const [expandedId, setExpandedId] = useState<string | null>(null);

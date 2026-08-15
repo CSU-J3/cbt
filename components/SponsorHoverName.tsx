@@ -1,8 +1,11 @@
 "use client";
 
 // HO 192 — the sponsor name as a member link plus an additive hover card
-// (photo + full name + party-state). Shared by the expanded bill panel
-// (BillExpandedPanel) and the collapsed feed row (BillRow). The <a> still
+// (photo + full name + party-state). RECORD: it was shared by the expanded bill
+// panel (BillExpandedPanel) and the collapsed feed row — that panel was deleted
+// at HO 666 and the live shared panel (BillExpandPanel, no "ed") renders its own
+// `bxp-sponsor*` markup, never this component, so `BillRow` is now the sole
+// consumer. The <a> still
 // navigates to /members/[bioguideId]; the card is a pure-CSS hover/focus
 // reveal (matches the tape/topic-chip popover idiom), opaque with
 // border+shadow, absolute so it overlays without shifting layout.

@@ -35,7 +35,7 @@ import {
 } from "@/lib/hearings";
 import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
-import type { PanelData, PanelMeeting } from "@/components/BillExpandedPanel";
+import type { PanelData, PanelMeeting } from "@/components/bill-panel-types";
 
 // ---- shared stage bar (HO 298, lifted) --------------------------------------
 
