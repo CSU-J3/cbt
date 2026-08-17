@@ -71,9 +71,11 @@
 // fetchKalshi). All four new symbols probed swap-ready from egress in HO 250.
 // HO 259 — Polymarket macro signals (POLY-FEDCUT / POLY-SHUTDOWN) join the tape
 // as a second source paired against the Kalshi macro ticks, for the v2 SIGNALS
-// strip only. They write to market_ticks like every other symbol, but the bare
-// `<MarketsTape />` on `/` + inner pages excludes source="polymarket" (see
-// MarketsTape) so only the v2 paired tape surfaces them.
+// strip only. They write to market_ticks like every other symbol. RECORD (HO
+// 669): the bare `<MarketsTape />` on `/` + inner pages used to filter them out
+// by source="polymarket"; that mount died at HO 608–610 and the branch itself was
+// struck at HO 669, so a symbol now surfaces wherever a tape's explicit `symbols`
+// list names it — for these, the v2 ODDS strip, as each pair's secondary half.
 import { KALSHI_BASE } from "@/lib/kalshi";
 import {
   fetchPolymarketFedCut,
@@ -115,12 +117,6 @@ export type MarketSymbol = {
   // HO 302: pin the Polymarket fed-decision MONTH slug (e.g. "september") so a
   // second fed symbol targets a later meeting than the soonest (July).
   polyMonth?: string;
-  // HO 289: keep this symbol OFF the bare static tape (/ + inner pages). The HO
-  // 251 static row is sized for exactly 8 symbols, so the expanded B2 roster (the
-  // tech/defense equities) renders on v2's SCROLLING MARKETS strip only — same
-  // "extended roster, v2-only" treatment the polymarket "P" halves already get
-  // (excluded by source). Default (omitted) = on the bare tape.
-  bareTape?: boolean;
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
@@ -132,13 +128,13 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // clean price + change from prod egress). RTX/NOC/GD were specced but 402 on the
   // FMP free tier (tier-determined, confirmed in 288) so they're out. Intraday like
   // the indices → eod=false → NO EOD micro-tag (an EOD tag on a live intraday print
-  // would be the exact mislabel the tag exists to prevent). bareTape:false keeps
-  // them on v2's scrolling MARKETS strip only (the static bare row fits 8).
-  { internal: "NVDA", source: "fmp", remote: "NVDA", label: "Nvidia", fullName: "NVIDIA Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
-  { internal: "AAPL", source: "fmp", remote: "AAPL", label: "Apple", fullName: "Apple Inc.", format: "price", group: "equities", cadence: "daily", bareTape: false },
-  { internal: "MSFT", source: "fmp", remote: "MSFT", label: "Microsoft", fullName: "Microsoft Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
-  { internal: "GOOGL", source: "fmp", remote: "GOOGL", label: "Alphabet", fullName: "Alphabet Inc.", format: "price", group: "equities", cadence: "daily", bareTape: false },
-  { internal: "LMT", source: "fmp", remote: "LMT", label: "Lockheed", fullName: "Lockheed Martin Corp.", format: "price", group: "equities", cadence: "daily", bareTape: false },
+  // would be the exact mislabel the tag exists to prevent). They ride the v2
+  // scrolling MARKETS strip, which names them in its explicit `symbols` list.
+  { internal: "NVDA", source: "fmp", remote: "NVDA", label: "Nvidia", fullName: "NVIDIA Corp.", format: "price", group: "equities", cadence: "daily" },
+  { internal: "AAPL", source: "fmp", remote: "AAPL", label: "Apple", fullName: "Apple Inc.", format: "price", group: "equities", cadence: "daily" },
+  { internal: "MSFT", source: "fmp", remote: "MSFT", label: "Microsoft", fullName: "Microsoft Corp.", format: "price", group: "equities", cadence: "daily" },
+  { internal: "GOOGL", source: "fmp", remote: "GOOGL", label: "Alphabet", fullName: "Alphabet Inc.", format: "price", group: "equities", cadence: "daily" },
+  { internal: "LMT", source: "fmp", remote: "LMT", label: "Lockheed", fullName: "Lockheed Martin Corp.", format: "price", group: "equities", cadence: "daily" },
   // Rates — FRED EOD.
   { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities", cadence: "daily" },
   // Econ — FRED monthly. CPI uses units=pc1 → YoY % directly (the raw index ~334
@@ -152,22 +148,22 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // HO 302 (B2 ODDS): the SEPTEMBER Fed-cut horizon alongside July. Same
   // KXFEDDECISION series + cut-sum compute, but PINNED to the Sep event
   // (kalshiEvent) so it doesn't collide with FEDCUT's soonest-open discovery
-  // (which resolves to July). bareTape:false → v2 ODDS strip only (one Fed-cut
-  // on the bare `/` tape is enough; the strip disambiguates JUL/SEP via showMonth).
-  { internal: "FEDCUT-SEP", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", kalshiEvent: "KXFEDDECISION-26SEP", label: "Fed Cut Odds (Sep)", fullName: "Fed Rate-Cut Odds — September", format: "percent", group: "commodities", cadence: "kalshi", bareTape: false },
+  // (which resolves to July). It rides the v2 ODDS strip, which disambiguates
+  // JUL/SEP via showMonth.
+  { internal: "FEDCUT-SEP", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", kalshiEvent: "KXFEDDECISION-26SEP", label: "Fed Cut Odds (Sep)", fullName: "Fed Rate-Cut Odds — September", format: "percent", group: "commodities", cadence: "kalshi" },
   // HO 290 (B2 ODDS): recession, dual-source. Kalshi series KXRECSSNBER discovers
   // the soonest open event (the year-only parseTickerDate fix picks -26 over -27);
   // single-yes = "Recession this year?" yes-price. Polymarket reads the fixed-slug
-  // us-recession-by-end-of-2026 binary (polyKind "recession"). bareTape:false keeps
-  // the Kalshi half off the static bare tape (v2 ODDS strip only); the Polymarket
-  // half is excluded by source. cadence "kalshi" → no change arrow (a % move on a
-  // probability misleads), same as shutdown/fed.
-  { internal: "RECESSION", source: "kalshi", remote: "KXRECSSNBER", kalshiKind: "single-yes", label: "Recession Odds", fullName: "US Recession Odds (2026)", format: "percent", group: "commodities", cadence: "kalshi", bareTape: false },
+  // us-recession-by-end-of-2026 binary (polyKind "recession"). Both halves ride
+  // the v2 ODDS strip as one pair. cadence "kalshi" → no change arrow (a % move
+  // on a probability misleads), same as shutdown/fed.
+  { internal: "RECESSION", source: "kalshi", remote: "KXRECSSNBER", kalshiKind: "single-yes", label: "Recession Odds", fullName: "US Recession Odds (2026)", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "POLY-RECESSION", source: "polymarket", remote: "", polyKind: "recession", label: "Recession (Polymarket)", fullName: "US Recession Odds (2026) — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // HO 259: Polymarket macro pairs — same questions as the Kalshi macro above,
-  // rendered as the "P" half of the v2 SIGNALS pair. Excluded from the bare tape
-  // on `/` + inner pages via source="polymarket" (MarketsTape). remote is unused
-  // (discovery is by Gamma search in fetchPolymarket*); polyKind selects which.
+  // rendered as the "P" half of the v2 SIGNALS pair. RECORD (HO 669): these were
+  // kept off the bare tape on `/` + inner pages by source="polymarket"; that
+  // filter went with the branch. remote is unused (discovery is by Gamma search
+  // in fetchPolymarket*); polyKind selects which.
   { internal: "POLY-SHUTDOWN", source: "polymarket", remote: "", polyKind: "shutdown", label: "Shutdown (Polymarket)", fullName: "Govt Shutdown Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "POLY-FEDCUT", source: "polymarket", remote: "", polyKind: "fed", label: "Fed Cut (Polymarket)", fullName: "Fed Rate-Cut Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // HO 302: the Polymarket "P" half of FED CUT SEP. Same fed-decision discovery

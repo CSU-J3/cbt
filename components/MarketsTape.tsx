@@ -1,37 +1,28 @@
 // HO 149 — markets ticker tape. Server parent fetches the MarketTicks, then
 // hands them to the client marquee for animation + staleness.
 //
-// HO 178 — the tape can render a single symbol GROUP. HO 234 (design item 1)
+// RECORD (HO 669) — the BARE shape is gone from the CODE, not just from the
+// tree. HO 178 gave the tape a single-symbol-GROUP form; HO 234 (design item 1)
 // collapsed the dashboard's dual counter-scrolling pair back to ONE combined
-// line: both the dashboard (HomeHeader) and every inner page (HeaderBar) now
-// mount a single no-group `<MarketsTape />` (all symbols, single AS OF). HO 251
-// made that row STATIC (no crawl) and swapped to the 8-symbol econ/prediction
-// set; the `reverse` prop is gone with the marquee. `group`/`showMeta` are
-// retained for the grouped form but unused. `placeholderSymbols` (the group's
-// full internal-symbol list) drives both the no-data placeholder row and the
-// client's poll filter, so a tape only ever updates its own symbols.
+// no-prop line, mounted by HomeHeader (`/dashboard-classic`) and HeaderBar
+// (every inner page); HO 251 made that row STATIC (no crawl) on an 8-symbol
+// econ/prediction set. HO 323 took it off the inner pages and HO 608–610 deleted
+// HomeHeader and `/dashboard-classic` together — which left the bare arm with
+// ZERO mounts. HO 669 struck it: `BARE_TAPE_EXCLUDED` (sole reader of
+// `lib/markets`' `bareTape` tag, retired with it), the `group` prop (zero callers
+// since HO 234), and the whole `lib/markets` import went with the arm. `symbols`
+// is now REQUIRED — every mount is explicit — and the only two render sites are
+// DashboardV2Header's MARKETS and ODDS strips. `placeholderSymbols` is now just
+// that list; it still drives both the no-data placeholder row and the client's
+// poll filter, so a tape only ever updates its own symbols. `showMeta` is
+// untouched (its `false` path is unreachable from both mounts — filed at HO 669).
 import {
   MarketsTapeClient,
   type TapePair,
 } from "@/components/MarketsTapeClient";
-import { MARKET_SYMBOLS, type MarketGroup } from "@/lib/markets";
 import { getLatestMarketTicks } from "@/lib/queries";
 
-// Symbols kept OFF the bare `<MarketsTape />` (/ + inner pages), surfaced only on
-// the v2 explicit-symbol tapes. Two cohorts:
-//   - HO 259: source="polymarket" — the v2 SIGNALS pair's "P" half.
-//   - HO 289: bareTape===false — the B2 tech/defense equities (v2 MARKETS strip
-//     only; the HO 251 static bare row is sized for 8 symbols).
-// Both are listed in MARKET_SYMBOLS (fetched + stored) but the bare no-`symbols`/
-// no-`group` default filters them so `/`'s static tape stays unchanged.
-const BARE_TAPE_EXCLUDED = new Set(
-  MARKET_SYMBOLS.filter(
-    (s) => s.source === "polymarket" || s.bareTape === false,
-  ).map((s) => s.internal),
-);
-
 export async function MarketsTape({
-  group,
   showMeta = true,
   symbols,
   pairs,
@@ -40,14 +31,14 @@ export async function MarketsTape({
   reverse = false,
   label,
 }: {
-  group?: MarketGroup;
   showMeta?: boolean;
   // HO 253: the v2 two-tape split. `symbols` is an explicit internal-symbol
-  // allowlist (e.g. ["SPX","NDQ","TNX","WTI"]); when present it overrides the
-  // `group` filter and ALSO drives render ORDER (the client lays symbols out in
-  // this exact sequence), so MARKETS reads S&P / NASDAQ / 10Y / WTI and SIGNALS
-  // reads SHUTDOWN / FEDCUT / CPI / UNEMP regardless of MARKET_SYMBOLS order.
-  symbols?: readonly string[];
+  // allowlist (e.g. ["SPX","NDQ","TNX","WTI"]) that ALSO drives render ORDER
+  // (the client lays symbols out in this exact sequence), so MARKETS reads
+  // S&P / NASDAQ / 10Y / WTI and SIGNALS reads SHUTDOWN / FEDCUT / CPI / UNEMP
+  // regardless of MARKET_SYMBOLS order. HO 669 made it REQUIRED when the bare
+  // no-`symbols` default arm was struck.
+  symbols: readonly string[];
   // HO 259: dual-source pairing (v2 SIGNALS). Each pair renders its primary
   // (Kalshi) and secondary (Polymarket) tick as ONE item — `LABEL K x% P y%` —
   // and the secondary symbol is fetched/polled but not drawn standalone.
@@ -63,26 +54,16 @@ export async function MarketsTape({
   reverse?: boolean;
   // HO 274: left-pinned strip label ("MARKETS" / "SIGNALS"), v2 two-tape only.
   label?: string;
-} = {}) {
+}) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
     ticks = await getLatestMarketTicks();
   } catch {
     // Swallow — the client falls through to the no-data state below.
   }
-  const symbolSet = symbols ? new Set(symbols) : null;
-  const groupTicks = symbolSet
-    ? ticks.filter((t) => symbolSet.has(t.symbol))
-    : group
-      ? ticks.filter((t) => t.group === group)
-      : // bare default — exclude the v2-only symbols (polymarket halves + equities)
-        ticks.filter((t) => !BARE_TAPE_EXCLUDED.has(t.symbol));
-  const placeholderSymbols = symbols
-    ? [...symbols]
-    : MARKET_SYMBOLS.filter(
-        (s) =>
-          (!group || s.group === group) && !BARE_TAPE_EXCLUDED.has(s.internal),
-      ).map((s) => s.internal);
+  const symbolSet = new Set(symbols);
+  const tapeTicks = ticks.filter((t) => symbolSet.has(t.symbol));
+  const placeholderSymbols = [...symbols];
   return (
     <MarketsTapeClient
       // HO 590: server-computed clock, prop-drilled so SSR and first client paint
@@ -93,7 +74,7 @@ export async function MarketsTape({
       // → a structural (args[]=HTML) hydration mismatch. Trade: a cached first paint
       // can show a state one tick stale; the 60s interval corrects it on mount.
       nowMs={Date.now()}
-      ticks={groupTicks}
+      ticks={tapeTicks}
       placeholderSymbols={placeholderSymbols}
       pairs={pairs}
       showMeta={showMeta}
