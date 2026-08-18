@@ -1,84 +1,101 @@
 import type { Metadata } from "next";
 import { BreakingTicker } from "@/components/BreakingTicker";
 import { LandingCTAs } from "@/components/LandingCTAs";
-import { formatRelativeAge } from "@/lib/format";
+import { WelcomeClock } from "@/components/WelcomeClock";
+import { isMarketOpen } from "@/lib/market-hours";
+import { MARKET_SYMBOLS } from "@/lib/markets";
 import {
-  type FeedBill,
   type MarketTick,
   getCorpusStats,
   getLatestMarketTicks,
-  getStageChanges,
   getStageChangesCount,
   getStageDistribution,
-  normalizePartyVariant,
 } from "@/lib/queries";
-import { topicColor, topicLabel } from "@/lib/topic-colors";
+import { Panel, loadBoard } from "./panels";
 import styles from "./landing.module.css";
 
-// HO 361 (B1, last piece of the multi-user arc) — the split-layout landing.
-// Built from the signed-off mock docs/design/landing.html. The LIVE panel is
-// real: MOVERS rows + readout stats + markets tape all read the same cached
-// Turso queries the `/` dashboard serves (reuse, don't recompute). Only the
-// BREAKING strip is invented — a rotating evergreen flavor ticker (the deadpan
-// red tag is the joke). Rows use the mock's compact markup (no star/expand/media
-// column), NOT the live BillRow. force-dynamic so the cached reads stay fresh
-// (revalidated by the sync cron's tags), same as the dashboard.
+// HO 670 — /welcome rebuilt as the BOARD: top rail (brand · IN BETA · clock) ·
+// BREAKING · banner (headline + lead + CTA grid) · MARKETS tape · ODDS tape ·
+// three cycling demo panels · bottom rail. Supersedes the HO 361 split layout
+// built from docs/design/landing.html; the board is docs/design/welcome-formats-
+// mock.html format 1, ruled by Corey 2026-08-17. Where the mock and the handoff
+// spec disagreed, the spec won.
+//
+// STILL A SERVER COMPONENT. The page gains exactly ONE client island — the
+// ticking clock (components/WelcomeClock.tsx) — because a clock cannot be
+// server-rendered without lying by the next second. Its zone is PINNED to MT,
+// matching the two AS OF stamps and LAST SYNC below: the shared useZoneCycle
+// rotation is right for a stamp of a FIXED moment and wrong for a running clock,
+// whose hour would jump every 4s while its seconds ran on. Everything else that moves
+// (both marquees, the panels' vertical scroll, the 45s crossfade, the IN BETA
+// pulse, the cursor blink) is CSS, and every one of them is pinned under
+// prefers-reduced-motion. LandingCTAs + BreakingTicker were already islands.
+//
+// force-dynamic so the cached reads stay fresh (revalidated by the sync cron's
+// tags), same as the dashboard — and so the market-hours CLOSED/OPEN derivation
+// below is computed per render rather than frozen into a cached page.
 export const dynamic = "force-dynamic";
 
-const SUBLINE =
-  "A live feed of the current Congress: every bill summarized and staged, every member tracked, every competitive race rated.";
+const LEAD =
+  "Ever wanted to know the ROI on your Congress Critter? Are they working hard, or hardly working? Here, I've centralized it for ya.";
 
 export const metadata: Metadata = {
   title: "Congressional Terminal",
-  description: SUBLINE,
+  description: LEAD,
   openGraph: {
     title: "Congressional Terminal",
-    description: SUBLINE,
+    description: LEAD,
     url: "/welcome",
     type: "website",
   },
 };
 
-// Real stages span all six; the mock had only cmte/floor/enacted. Labels are the
-// mock's compact form; colors are the existing --stage-* tokens (no new var),
-// driven into the module's generalized .metric .st via inline --st-color.
-const STAGE_META: Record<string, { label: string; color: string }> = {
-  introduced: { label: "INTRO", color: "var(--stage-introduced)" },
-  committee: { label: "CMTE", color: "var(--stage-committee)" },
-  floor: { label: "FLOOR", color: "var(--stage-floor)" },
-  other_chamber: { label: "OTHER", color: "var(--stage-other-chamber)" },
-  president: { label: "PRES", color: "var(--stage-president)" },
-  enacted: { label: "ENACTED", color: "var(--stage-enacted)" },
-};
-
-// The mock's 8 tape symbols, mapped to live internal market symbols. Keep the
-// mock's short labels; pull values live, omit a symbol whose tick is missing.
-const TAPE_SLOTS = [
-  { label: "S&P 500", sym: "SPX" },
-  { label: "NASDAQ", sym: "NDQ" },
-  { label: "10Y", sym: "TNX" },
-  { label: "CPI", sym: "CPI" },
-  { label: "UNEMP", sym: "UNEMP" },
-  { label: "SHUTDOWN", sym: "SHUTDOWN" },
-  { label: "FED CUT", sym: "FEDCUT" },
-  { label: "WTI", sym: "WTI" },
+// HO 670 — the tape rosters are DERIVED FROM lib/markets CONFIG, which is what
+// retires the eight hardcoded label→symbol pairs the old page carried (HO 669
+// pinned that divergence on the record). MARKETS is every FMP/FRED symbol —
+// verified set-identical to DashboardV2Header's MARKETS_TAPE — and ODDS is every
+// Kalshi symbol. Labels, formats and cadences all come from the config now, so a
+// symbol renamed there renames here for free.
+//
+// What is still local: render ORDER and the K↔P pairing. Deriving the pairing
+// from polyKind/polyMonth would be an inference about two independent fields, so
+// the four pairs are written out. `lib/markets.ts` is NOT edited by this HO, and
+// the full unification with components/MarketsTape (which owns the shared live
+// island and its hover portal on `/`) is filed in the backlog, not taken here.
+const MARKETS_ROSTER = MARKET_SYMBOLS.filter(
+  (s) => s.source === "fmp" || s.source === "fred",
+);
+const ODDS_PAIRS: { primary: string; secondary: string }[] = [
+  { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN" },
+  { primary: "FEDCUT", secondary: "POLY-FEDCUT" },
+  { primary: "FEDCUT-SEP", secondary: "POLY-FEDCUT-SEP" },
+  { primary: "RECESSION", secondary: "POLY-RECESSION" },
 ];
 
-function sponsorSurname(b: FeedBill): string {
-  if (b.sponsor_last_name) return b.sponsor_last_name.toUpperCase();
-  const n = b.sponsor_name ?? "";
-  const last = n.split(",")[0]?.trim();
-  return (last || n).toUpperCase();
-}
-
-function billTopics(b: FeedBill): string[] {
-  if (!b.topics) return [];
-  try {
-    const arr = JSON.parse(b.topics) as unknown;
-    return Array.isArray(arr) ? (arr as string[]).slice(0, 2) : [];
-  } catch {
-    return [];
-  }
+// The AS OF / LAST SYNC stamps render server-side in MT, the same zone the rail
+// clock is pinned to — every time on this page is in one zone, and none of them
+// rotate. Cycling a stamp is right where the moment is fixed (the live tape, the
+// masthead LAST SYNC); it is wrong beside a running clock.
+//
+// `formatInZone` is NOT imported here even though it emits exactly this string:
+// `lib/zone-cycle.ts` also exports the `useZoneCycle` HOOK, which makes the whole
+// module client-only ("You're importing a component that needs useState"), so a
+// server component cannot reach the pure formatter sitting beside it. The clock
+// island reuses the hook; this stamp reproduces the format. Splitting the pure
+// half out of that module would be a lib edit, which this HO does not take.
+const MT_TZ = "America/Denver";
+let mtFormatter: Intl.DateTimeFormat | undefined;
+function formatMt(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  mtFormatter ??= new Intl.DateTimeFormat("en-US", {
+    timeZone: MT_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${mtFormatter.format(d)} MT`;
 }
 
 function formatTapeValue(t: MarketTick): string {
@@ -100,42 +117,88 @@ function formatTapeValue(t: MarketTick): string {
 // change agrees across both surfaces; render the price with no arrow/change.
 const MAX_PLAUSIBLE_DAILY_MOVE_PCT = 8;
 
-function TapeItem({ label, tick }: { label: string; tick: MarketTick }) {
-  const value = formatTapeValue(tick);
-  const isOdds = tick.cadence === "kalshi";
-  const isMonthly = tick.cadence === "monthly";
-  const rawPct = tick.changePct;
+function MarketsItem({ tick }: { tick: MarketTick }) {
+  const raw = tick.changePct;
   const implausible =
     tick.cadence === "daily" &&
-    rawPct !== null &&
-    Math.abs(rawPct) > MAX_PLAUSIBLE_DAILY_MOVE_PCT;
-  const pct = implausible ? null : rawPct;
-  const dir = pct == null ? null : pct >= 0 ? "up" : "dn";
+    raw !== null &&
+    Math.abs(raw) > MAX_PLAUSIBLE_DAILY_MOVE_PCT;
+  const pct = implausible ? null : raw;
   return (
-    <span className={styles.ti}>
-      <span className={styles.tl}>{label}</span>
-      {isOdds ? (
-        <span className={styles.odds}>{value}</span>
-      ) : (
+    <span className={styles.tapeitem}>
+      <span className={styles.sym}>{tick.label.toUpperCase()}</span>{" "}
+      <span className={styles.val}>{formatTapeValue(tick)}</span>
+      {pct !== null ? (
         <>
-          <span className={styles.tv}>{value}</span>
-          {isMonthly ? (
-            <span className={styles.badge}>MO</span>
-          ) : dir ? (
-            <span className={styles[dir] ?? ""}>
-              {dir === "up" ? "▲" : "▼"}
-              {Math.abs(pct as number).toFixed(2)}%
-            </span>
-          ) : null}
+          {" "}
+          <span className={pct >= 0 ? styles.up : styles.down}>
+            {pct >= 0 ? "▲ +" : "▼ -"}
+            {Math.abs(pct).toFixed(2)}%
+          </span>
         </>
+      ) : null}
+      {tick.eod ? <span className={styles.badge}>EOD</span> : null}
+      {tick.cadence === "monthly" ? (
+        <span className={styles.cad}> MO</span>
+      ) : null}
+    </span>
+  );
+}
+
+// The two halves are INDEPENDENT readings, never blended into one number: K is
+// Kalshi, P is Polymarket, and a missing half renders N/A rather than hiding the
+// pair (which would silently imply the question isn't being priced at all).
+function OddsItem({
+  label,
+  kalshi,
+  poly,
+}: {
+  label: string;
+  kalshi: MarketTick | undefined;
+  poly: MarketTick | undefined;
+}) {
+  return (
+    <span className={styles.tapeitem}>
+      <span className={styles.sym}>{label}</span>{" "}
+      <span className={styles.srcK}>K</span>{" "}
+      {kalshi ? (
+        <span className={styles.val}>{kalshi.price.toFixed(1)}%</span>
+      ) : (
+        <span className={styles.na}>N/A</span>
+      )}{" "}
+      <span className={styles.srcP}>P</span>{" "}
+      {poly ? (
+        <span className={styles.val}>{poly.price.toFixed(1)}%</span>
+      ) : (
+        <span className={styles.na}>N/A</span>
       )}
     </span>
   );
 }
 
+// A CSS-only marquee loops by translating the track -50%, which is seamless ONLY
+// while each half is at least as wide as the strip. MARKETS carries 11 symbols and
+// clears that on its own; ODDS carries 4 pairs (~900px), so a single copy per half
+// leaves a visible dead gap on a wide screen. The live client tape solves this by
+// MEASURING and setting a repeat count in JS; a server-rendered strip cannot
+// measure, so it overshoots — three copies per half, ~2,700px, past any desktop.
+const ODDS_COPIES_PER_HALF = 3;
+
+function latestTickedAt(ticks: MarketTick[]): string | null {
+  let best: string | null = null;
+  let max = 0;
+  for (const t of ticks) {
+    const ms = Date.parse(t.tickedAt);
+    if (Number.isFinite(ms) && ms > max) {
+      max = ms;
+      best = t.tickedAt;
+    }
+  }
+  return best;
+}
+
 export default async function WelcomePage() {
-  const [movers, moversCount, corpus, stageDist, ticks] = await Promise.all([
-    getStageChanges({}, 7, 7),
+  const [moversCount, corpus, stageDist, ticks] = await Promise.all([
     getStageChangesCount({}, 7),
     getCorpusStats(true),
     getStageDistribution(undefined, true),
@@ -144,164 +207,215 @@ export default async function WelcomePage() {
     // an empty tape rather than a 500.
     getLatestMarketTicks().catch(() => [] as MarketTick[]),
   ]);
-  // HO 490: page-computed clock for the sample-mover relative ages (#418).
+  // HO 490: page-computed clock for every relative age below (#418).
   const nowMs = Date.now();
+  const moved7d = moversCount.total;
+  const board = await loadBoard(nowMs, moved7d);
 
   const introduced = corpus.total;
   const enacted = stageDist.bars.find((b) => b.stage === "enacted")?.count ?? 0;
   const lawRatio = introduced > 0 ? (enacted / introduced) * 100 : 0;
-  const moved7d = moversCount.total;
 
-  const tickBySym = new Map(ticks.map((t) => [t.symbol, t]));
-  const liveSlots = TAPE_SLOTS.flatMap((s) => {
-    const tick = tickBySym.get(s.sym);
-    return tick ? [{ label: s.label, tick }] : [];
+  const bySymbol = new Map(ticks.map((t) => [t.symbol, t]));
+  const marketTicks = MARKETS_ROSTER.flatMap((s) => {
+    const t = bySymbol.get(s.internal);
+    return t ? [t] : [];
+  });
+  const oddsItems = ODDS_PAIRS.flatMap((p) => {
+    const kalshi = bySymbol.get(p.primary);
+    const poly = bySymbol.get(p.secondary);
+    if (!kalshi && !poly) return [];
+    const label = (
+      MARKET_SYMBOLS.find((s) => s.internal === p.primary)?.label ?? p.primary
+    ).toUpperCase();
+    return [{ key: p.primary, label, kalshi, poly }];
   });
 
-  return (
-    <div className={styles.split}>
-      <section className={styles.pitch}>
-        <div className={styles.prompt}>
-          Congressional Terminal<b>:\&gt;</b>
-        </div>
-        <h1 className={styles.q}>
-          WTF is going on in Congress?<span className={styles.cur}>_</span>
-        </h1>
-        <p className={styles.sub}>{SUBLINE}</p>
-        <div className={styles.readout}>
-          <div className={styles.stat}>
-            <div className={styles.num}>{introduced.toLocaleString()}</div>
-            <div className={styles.lbl}>Introduced</div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.num}>{enacted.toLocaleString()}</div>
-            <div className={styles.lbl}>
-              Became law <span className={styles.pct}>{lawRatio.toFixed(1)}%</span>
-            </div>
-          </div>
-          <div className={styles.stat}>
-            <div className={styles.num}>{moved7d.toLocaleString()}</div>
-            <div className={styles.lbl}>Moved / 7d</div>
-          </div>
-        </div>
-        <nav className={styles.cta}>
-          <LandingCTAs
-            primaryClassName={`${styles.btn} ${styles.primary}`}
-            secondaryClassName={`${styles.btn} ${styles.secondary}`}
-            arrowClassName={styles.arr ?? ""}
-          />
-          <span className={styles.reassure}>
-            <span className={styles.b}>No account needed</span> to look around.
-            Full read access.
-          </span>
-          <span className={styles.savenote}>unlocks saving · watchlist</span>
-        </nav>
-      </section>
+  // Market state comes from the DATA + the shared NYSE calendar (lib/market-hours,
+  // the same helper the live tape's wash reads), never from a constant. ODDS is a
+  // prediction/24-7 strip, so it is always LIVE — the same rule the live tape
+  // applies to a "signals" strip.
+  const marketsOpen = isMarketOpen(new Date(nowMs));
+  const marketsAsOf = formatMt(latestTickedAt(marketTicks));
+  const oddsAsOf = formatMt(
+    latestTickedAt(
+      oddsItems.flatMap(
+        (o) => [o.kalshi, o.poly].filter(Boolean) as MarketTick[],
+      ),
+    ),
+  );
 
-      <aside className={styles.live}>
-        <div className={styles.winbar}>
-          <div className={styles.wl}>
-            <span className={styles.livedot} />
-            119TH CONGRESS · LIVE FEED
-          </div>
-          <div className={styles.wr}>
-            <span className={styles.n}>{moved7d.toLocaleString()}</span> MOVED ·
-            7D
-          </div>
+  return (
+    <div className={styles.page}>
+      <div className={styles.rail}>
+        <span className={styles.brand}>
+          Congressional Terminal<b className={styles.prompt}>:\&gt;</b>
+        </span>
+        <span className={styles.beta}>IN BETA</span>
+        <span className={styles.spacer} />
+        <WelcomeClock
+          className={styles.clock ?? ""}
+          timeClassName={styles.clockTime ?? ""}
+          zoneClassName={styles.clockZone ?? ""}
+        />
+      </div>
+
+      <div className={styles.breaking}>
+        <span className={styles.tag}>BREAKING</span>
+        <BreakingTicker
+          txtClassName={styles.txt ?? ""}
+          lineClassName={styles.flavorLine ?? ""}
+        />
+      </div>
+
+      <div className={styles.banner}>
+        <div className={styles.headwrap}>
+          <h1 className={styles.h1}>
+            WTF is going on in Congress?
+            <span className={styles.cursor} aria-hidden="true" />
+          </h1>
         </div>
-        <div className={styles.breaking}>
-          <span className={styles.tag}>BREAKING</span>
-          <BreakingTicker
-            txtClassName={styles.txt ?? ""}
-            lineClassName={styles.flavorLine ?? ""}
-          />
+        <div className={styles.leadwrap}>
+          <p className={styles.lead}>{LEAD}</p>
         </div>
-        <div className={styles.tape}>
-          {liveSlots.length > 0 ? (
-            <div className={styles.ttrack}>
-              {[0, 1].map((run) => (
-                <span key={run}>
-                  {liveSlots.map((s, i) => (
-                    <span key={`${run}-${i}`}>
-                      <TapeItem label={s.label} tick={s.tick} />
-                      <span className={styles.tsep}>·</span>
-                    </span>
-                  ))}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className={styles.ti}>
-              <span className={styles.tl}>MARKET DATA UNAVAILABLE</span>
-            </div>
-          )}
-        </div>
-        <div className={styles.feedhead}>
-          <span className={`${styles.tab} ${styles.active}`}>
-            MOVERS<span className={styles.ct}>({moversCount.total})</span>
-          </span>
-          {/* The other two tabs are decorative + non-interactive on the landing;
-              they carry no fabricated count (only MOVERS is wired). */}
-          <span className={styles.tab}>TOP STALLS</span>
-          <span className={styles.tab}>NEW</span>
-        </div>
-        <div className={styles.feed}>
-          {movers.map((b) => {
-            const stage = b.stage ? STAGE_META[b.stage] : undefined;
-            const party = normalizePartyVariant(b.sponsor_party);
-            const topics = billTopics(b);
-            return (
-              <div className={styles.row} key={b.id}>
-                <span className={styles.idchip}>
-                  {b.bill_type.toUpperCase()} {b.bill_number}
-                </span>
-                <div className={styles.main}>
-                  <div className={styles.title}>{b.title}</div>
-                  <div className={styles.subline}>
-                    <span className={styles.sponsor}>{sponsorSurname(b)}</span>
-                    {party ? (
-                      <span
-                        className={`${styles.party} ${styles[party.toLowerCase()] ?? ""}`}
-                      >
-                        [{party}
-                        {b.sponsor_state ? `-${b.sponsor_state}` : ""}]
-                      </span>
-                    ) : null}
-                    {topics.length > 0 ? (
-                      <span className={styles.sep}>·</span>
-                    ) : null}
-                    {topics.map((t) => (
-                      <span
-                        key={t}
-                        className={styles.chip}
-                        style={{ ["--tc" as string]: topicColor(t) }}
-                      >
-                        {topicLabel(t)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className={styles.metric}>
-                  {stage ? (
-                    <span
-                      className={styles.st}
-                      style={{ ["--st-color" as string]: stage.color }}
-                    >
-                      {stage.label}
-                    </span>
-                  ) : null}
-                  <span className={styles.age}>
-                    {" "}
-                    · {formatRelativeAge(b.stage_observed_at ?? b.latest_action_date, nowMs)}
-                  </span>
-                </div>
-                <span className={styles.caret}>▾</span>
+
+        <div className={styles.right}>
+          <div className={styles.ctagrid}>
+            <div className={styles.stats}>
+              <div className={styles.stat}>
+                <div className={styles.v}>{introduced.toLocaleString()}</div>
+                <div className={styles.l}>Introduced</div>
               </div>
-            );
-          })}
-          <div className={styles.fade} />
+              <div className={styles.stat}>
+                <div className={styles.v}>{enacted.toLocaleString()}</div>
+                <div className={styles.l}>
+                  Became law <em>{lawRatio.toFixed(1)}%</em>
+                </div>
+              </div>
+              <div className={styles.stat}>
+                <div className={styles.v}>{moved7d.toLocaleString()}</div>
+                <div className={styles.l}>Moved / 7d</div>
+              </div>
+            </div>
+
+            {/* Mathematical Bold Script (U+1D4D0 block) + U+0361 combining marks:
+                neither Plex face covers them, so the fallback stack is DECLARED
+                rather than left to whatever the browser picks. Decorative — the
+                microcopy under the button carries the meaning — hence aria-hidden
+                rather than a screen reader spelling it out codepoint by codepoint. */}
+            <span className={styles.flourish} aria-hidden="true">
+              (☞ ͡° ͜ʖ ͡°)☞ 𝓖𝓸 𝓯𝓲𝓷𝓭 &apos;𝓮𝓶! ♥♥
+            </span>
+
+            <LandingCTAs
+              primaryClassName={`${styles.btn} ${styles.btnPrimary}`}
+              secondaryClassName={`${styles.btn} ${styles.btnSecondary}`}
+              arrowClassName={styles.arr ?? ""}
+            />
+
+            <span className={styles.micro1}>
+              <b>No account needed</b> to poke around.
+            </span>
+            <span className={styles.micro2}>
+              <span className={styles.arrow}>↑</span> Want your own watchlist?
+            </span>
+          </div>
         </div>
-      </aside>
+      </div>
+
+      <div className={styles.tapes}>
+        <div className={styles.taperow}>
+          <span className={styles.tapelabel}>MARKETS</span>
+          <span className={styles.tapemask}>
+            {marketTicks.length > 0 ? (
+              <span
+                className={styles.tapetrack}
+                style={{ ["--tdur" as string]: "64s" }}
+              >
+                {/* Duplicated EXACTLY twice — the -50% loop depends on it. */}
+                {[0, 1].map((run) => (
+                  <span key={run} className={styles.taperun}>
+                    {marketTicks.map((t) => (
+                      <MarketsItem key={`${run}-${t.symbol}`} tick={t} />
+                    ))}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className={styles.tapeitem}>
+                <span className={styles.sym}>MARKET DATA UNAVAILABLE</span>
+              </span>
+            )}
+          </span>
+          <span className={styles.asof}>
+            AS OF {marketsAsOf} ·{" "}
+            {marketsOpen ? (
+              <>
+                <span className={styles.livedot} />
+                <span className={styles.live}>OPEN</span>
+              </>
+            ) : (
+              <span className={styles.closed}>CLOSED</span>
+            )}
+          </span>
+        </div>
+
+        <div className={styles.taperow}>
+          <span className={styles.tapelabel}>ODDS</span>
+          <span className={styles.tapemask}>
+            {oddsItems.length > 0 ? (
+              <span
+                className={`${styles.tapetrack} ${styles.rtl}`}
+                style={{ ["--tdur" as string]: "52s" }}
+              >
+                {[0, 1].map((half) => (
+                  <span key={half} className={styles.taperun}>
+                    {Array.from({ length: ODDS_COPIES_PER_HALF }, (_, copy) =>
+                      oddsItems.map((o) => (
+                        <OddsItem
+                          key={`${half}-${copy}-${o.key}`}
+                          label={o.label}
+                          kalshi={o.kalshi}
+                          poly={o.poly}
+                        />
+                      )),
+                    )}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className={styles.tapeitem}>
+                <span className={styles.sym}>ODDS UNAVAILABLE</span>
+              </span>
+            )}
+          </span>
+          <span className={styles.asof}>
+            AS OF {oddsAsOf} · <span className={styles.livedot} />
+            <span className={styles.live}>LIVE</span>
+          </span>
+        </div>
+      </div>
+
+      <div className={styles.board}>
+        {board.panels.map((p) => (
+          <Panel key={p.key} panel={p} />
+        ))}
+      </div>
+
+      <div className={styles.bottom}>
+        <span className={styles.foot}>
+          119th Congress <span className={styles.sep}>·</span> congress.gov{" "}
+          <span className={styles.sep}>·</span> FRED{" "}
+          <span className={styles.sep}>·</span> Kalshi{" "}
+          <span className={styles.sep}>·</span> Polymarket{" "}
+          <span className={styles.sep}>·</span> FEC{" "}
+          <span className={styles.sep}>·</span> synced 4× daily
+        </span>
+        <span className={styles.spacer} />
+        <span className={styles.foot}>
+          LAST SYNC <span className={styles.footK}>{formatMt(corpus.lastSync)}</span>
+        </span>
+      </div>
     </div>
   );
 }

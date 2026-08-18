@@ -1,141 +1,279 @@
-/* HO 361 — landing page, ported from the approved mock docs/design/landing.html.
-   Scoped CSS module for /welcome. Deliberately does NOT redeclare the mock's
-   :root token block — every token (--accent-amber, --party-republican,
-   --stage-*, --text-*, --border-*) already lives app-wide in globals.css, so
-   this references them. The mock's --mono is CBT's --font-mono; --sans matches.
-   Layout/clamp/color-mix/mask/keyframes are carried verbatim so nothing drifts
-   from the signed-off pixels. Chip colors are NOT inlined here — they're set per
-   row from lib/topic-colors.ts in page.tsx so they match the live feed. */
+/* HO 670 — /welcome, rebuilt as the BOARD. Supersedes the HO 361 split layout
+   ported from docs/design/landing.html; the geometry here is format 1 of
+   docs/design/welcome-formats-mock.html, ruled by Corey 2026-08-17, with the
+   handoff spec winning wherever the two disagreed.
 
-.split *{box-sizing:border-box}
+   TOKENS, NOT FACES. Every font-family below is var(--font-mono) or var(--sans)
+   and every 9-14px size is on the --fs-* ladder (HO 604), so this page inherits
+   whatever those tokens become — which is the actual fix for "the welcome page
+   doesn't match the app". (The HO 361 module was already on-token for FAMILY;
+   what drifted was SIZE: 23px / 11.5px / 10.5px / clamp(28px,3.5vw,46px) literals.
+   Those are gone.) The four literals that remain are deliberate one-offs the
+   ladder does not cover and the spec names: the 68px headline, the 24px stat
+   numerals, the 16px lead, and the flourish's 15px.
 
-.split{display:grid;grid-template-columns:44% 56%;min-height:100vh;
-       background:var(--bg-base);color:var(--text-primary);
-       font-family:var(--font-mono);-webkit-font-smoothing:antialiased}
+   MOTION. Five animations live here — both marquees, the panel scroll, the panel
+   crossfade, the IN BETA pulse and the cursor blink — and EVERY one is killed by
+   the prefers-reduced-motion block at the bottom of this file. A persistent pulse
+   is a real problem for photosensitive and vestibular users; the media query is
+   one line and there is no argument for skipping it. */
 
-/* left pitch */
-.pitch{display:flex;flex-direction:column;justify-content:center;padding:46px 52px}
-.prompt{font-size:16px;letter-spacing:.02em;color:var(--text-muted)}.prompt b{color:var(--accent-amber)}
-.q{margin:13px 0 0;font-weight:600;font-size:clamp(28px,3.5vw,46px);line-height:1.08;
-   letter-spacing:-.01em;color:var(--text-primary)}
-.cur{color:var(--accent-amber-bright);font-weight:600;margin-left:.04em;animation:blink 1.06s steps(1) infinite}
-@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.sub{margin:18px 0 0;font-size: var(--fs-13);line-height:1.55;color:var(--text-muted);max-width:440px}
-.cta{margin:30px 0 0;display:inline-grid;grid-template-columns:auto auto;gap:11px 14px;
-     align-items:center;justify-content:start}
-.btn{font-family:var(--font-mono);font-size: var(--fs-12);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-     text-decoration:none;border-radius:2px;padding:13px 22px;white-space:nowrap;cursor:pointer;
-     display:inline-flex;align-items:center;gap:9px;background:none}
-.btn.primary{color:var(--accent-amber-bright);border:1px solid var(--accent-amber);
-             background:color-mix(in srgb,var(--accent-amber) 9%,transparent)}
-.btn.primary:hover{background:color-mix(in srgb,var(--accent-amber) 18%,transparent)}
-.btn.secondary{color:var(--text-muted);border:1px solid var(--border-strong);padding:13px 18px}
-.btn.secondary:hover{background:var(--bg-row-hover);color:var(--text-secondary)}
-.btn .arr{font-weight:400}
-.cta .reassure{grid-column:1;font-size: var(--fs-11);letter-spacing:.02em;color:var(--text-dim)}
-.cta .reassure .b{color:var(--text-muted)}
-.cta .savenote{grid-column:2;font-size:10.5px;color:var(--text-dim);justify-self:start}
+.page *{box-sizing:border-box}
+.page{background:var(--bg-base);color:var(--text-primary);min-height:100vh;
+      font-family:var(--font-mono);font-size:var(--fs-12);-webkit-font-smoothing:antialiased;
+      display:flex;flex-direction:column}
 
-/* hook: terminal readout (scale vs outcome) */
-/* HO 620 (C8 / narrow) — the readout WRAPS rather than overflowing its column.
-   At 900 the 44% pitch column leaves ~292px and the three stats need 331px, so
-   this was the last real bucket-(b) item on the site — on the front door, at
-   that. Wrap, don't pin, and don't shrink the padding to buy 39px: a tuned
-   number goes stale the next time a stat's digits grow. */
-.readout{margin:26px 0 0;display:inline-flex;flex-wrap:wrap;align-items:stretch;border:1px solid var(--border-soft);border-radius:3px}
-.readout .stat{padding:11px 18px 10px}
-.readout .stat + .stat{border-left:1px solid var(--border-soft)}
-.readout .num{font-family:var(--font-mono);font-size:23px;font-weight:600;color:var(--text-primary);line-height:1;letter-spacing:-.01em}
-.readout .lbl{margin-top:8px;font-size: var(--fs-9);letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);white-space:nowrap}
-.readout .lbl .pct{color:var(--accent-amber-bright);margin-left:5px}
+/* ── top rail ─────────────────────────────────────────────────────────────── */
+.rail{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 28px;
+      border-bottom:1px solid var(--border-strong);font-size:var(--fs-12);color:var(--text-muted)}
+.brand{white-space:nowrap}
+.prompt{color:var(--accent-amber);font-weight:400}
+.spacer{flex:1}
+/* Bracket form: no border box — the brackets ARE the frame. */
+.beta{font-size:var(--fs-13);font-weight:600;letter-spacing:.2em;text-transform:uppercase;
+      color:var(--accent-amber-bright);white-space:nowrap;padding:5px 0;line-height:1;
+      animation:betafade 2.4s ease-in-out infinite}
+.beta::before{content:"[ "}
+.beta::after{content:" ]"}
+@keyframes betafade{0%,100%{opacity:1}50%{opacity:.32}}
+.clock{font-size:var(--fs-11);letter-spacing:.08em;color:var(--text-dim);white-space:nowrap}
+.clockTime{color:var(--text-muted)}
+.clockZone{color:var(--accent-amber)}
 
-/* hook: breaking strip on the live panel */
-.breaking{display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--border-strong);
-          background:color-mix(in srgb,var(--party-republican) 6%,transparent);flex:none}
-.breaking .tag{font-size: var(--fs-9);font-weight:700;letter-spacing:.11em;color:var(--party-republican);
-               border:1px solid color-mix(in srgb,var(--party-republican) 55%,transparent);border-radius:2px;padding:3px 6px;white-space:nowrap}
-.breaking .txt{font-size:11.5px;letter-spacing:.01em;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.breaking .txt .cd{color:var(--party-republican);font-weight:600}
-.breaking .txt .odds{color:var(--accent-amber-bright);font-weight:600}
-
-/* right live terminal */
-.live{border-left:1px solid var(--border-strong);background:var(--bg-panel);
-      display:flex;flex-direction:column;min-height:0;overflow:hidden}
-/* HO 619 (C1) — `justify-content: space-between` removed; the MOVED/7D readout
-   follows the window title instead of sitting 1,073px across the bar. */
-.winbar{display:flex;align-items:center;gap:14px;padding:8px 14px;
-        border-bottom:1px solid var(--border-strong);font-size: var(--fs-10);letter-spacing:.06em;flex:none}
-.winbar .wl{color:var(--text-dim);text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.winbar .wl .blk{color:var(--accent-amber);margin-right:6px}
-.winbar .wl .livedot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--stage-enacted);margin-right:8px;vertical-align:1px;animation:blink 1.6s steps(1) infinite}
-.winbar .wr{color:var(--text-dim);white-space:nowrap;flex:none}.winbar .wr .n{color:var(--text-secondary)}
-
-.tape{border-bottom:1px solid var(--border-strong);overflow:hidden;padding:8px 0;flex:none;
-      -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
-              mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent)}
-.ttrack{display:inline-flex;align-items:center;white-space:nowrap;animation:marq 40s linear infinite}
-.tape:hover .ttrack{animation-play-state:paused}
-@keyframes marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.ti{font-size: var(--fs-11);letter-spacing:.03em;padding:0 16px;display:inline-flex;gap:7px;align-items:baseline}
-.ti .tl{color:var(--text-dim);text-transform:uppercase}.ti .tv{color:var(--text-secondary)}
-.ti .up{color:var(--stage-enacted)}.ti .dn{color:var(--party-republican)}.ti .odds{color:var(--accent-amber-bright)}
-.ti .badge{color:var(--text-dim);font-size: var(--fs-9)} .tsep{color:#2a3340;font-size: var(--fs-11)}
-
-.feedhead{display:flex;align-items:center;padding:8px 14px 0;border-bottom:1px solid var(--border-strong);
-          font-size: var(--fs-11);letter-spacing:.04em;gap:22px;flex:none}
-.tab{color:var(--text-dim);text-transform:uppercase;padding-bottom:7px}.tab .ct{color:var(--text-dim);margin-left:5px}
-.tab.active{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber-bright)}.tab.active .ct{color:var(--accent-amber)}
-
-.feed{overflow:hidden;position:relative}
-/* HO 619 (C3) — the row's base ink is DIM, and everything quiet inherits it.
-   M3 counts a colour difference in EITHER direction, so dimming an element to
-   quiet it scored exactly like brightening one: the first pass left 7 survivors
-   of which three (subline, age, caret) were scoring only because they were
-   quieter than a bright parent. Moving the baseline down means the only
-   declarations left are the ones that mean something. */
-.row{display:grid;grid-template-columns:auto 1fr auto 14px;gap:12px;padding:11px 14px;align-items:start;
-     color:var(--text-dim)}
-.row + .row{border-top:1px solid var(--border-soft)}.row:hover{background:var(--bg-row-hover)}
-/* HO 619 (C3) — the landing feed row is a static REPLICA of the pre-609 dashboard
-   row, so it still carried every element C3 was written against: a boxed id, an
-   underlined sponsor, and bordered topic chips, 8.86 own-styled objects per row
-   against a 2-5 norm. The quiet pass mirrors the live reference row on / rather
-   than inventing a second treatment: the id keeps its amber and loses the box,
-   the sponsor loses an underline it never earned (it is not a link here), the
-   topics become plain dim text, and the two things that carry meaning — party
-   colour and stage colour — stay. */
-.idchip{font-family:var(--font-mono);font-size: var(--fs-11);font-weight:600;letter-spacing:.02em;color:var(--accent-amber);
-        white-space:nowrap;line-height:1}
-.main{min-width:0}
-.title{font-family:var(--sans);font-size: var(--fs-14);color:var(--text-primary);line-height:1.3;
-       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* The subline sets the dim baseline the row's quiet elements inherit, so the
-   separator and the topics stop declaring a colour of their own. */
-.subline{margin-top:6px;display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden}
-.sponsor{font-family:var(--font-mono);font-size: var(--fs-11);letter-spacing:.02em;color:var(--text-muted)}
-.party{font-family:var(--font-mono);font-size:10.5px;font-weight:600}
-.party.r{color:var(--party-republican)}.party.d{color:var(--party-democrat)}.party.i{color:var(--party-independent)}
-.sep{font-size: var(--fs-11)}
-/* --tc is still set per chip in page.tsx and is deliberately unread now: the
-   topic colour is a 24-value key nothing on this page decodes. */
-.chip{font-family:var(--font-mono);font-size: var(--fs-10);letter-spacing:.04em;text-transform:uppercase;line-height:1}
-.metric{font-family:var(--font-mono);font-size: var(--fs-11);white-space:nowrap;justify-self:end;letter-spacing:.02em;padding-top:2px}
-/* HO 361 live data: the mock had 3 stage classes (cmte/floor/enacted); real
-   movers span all 6 stages, so color is driven by an inline --st-color set from
-   the existing --stage-* tokens in page.tsx (no new token, same hues). */
-.metric .st{color:var(--st-color,var(--text-dim))}
-.caret{font-family:var(--font-mono);font-size: var(--fs-10);justify-self:center;padding-top:3px}
-.feed .fade{position:absolute;left:0;right:0;bottom:0;height:60px;
-            background:linear-gradient(180deg,transparent,var(--bg-panel) 90%);pointer-events:none}
-
-/* HO 361 — the rotating BREAKING flavor line (components/BreakingTicker.tsx).
-   Each cycle remounts the keyed inner span, replaying this subtle fade-in. */
+/* ── BREAKING strip — no top border, the rail already drew one ────────────── */
+.breaking{display:flex;align-items:center;gap:14px;padding:10px 28px;
+          background:color-mix(in srgb,var(--party-republican) 8%,transparent);
+          border-bottom:1px solid var(--border-soft)}
+.tag{font-size:var(--fs-9);letter-spacing:.16em;color:var(--party-republican);
+     border:1px solid color-mix(in srgb,var(--party-republican) 50%,transparent);
+     padding:3px 6px;line-height:1;white-space:nowrap}
+.txt{font-size:var(--fs-12);color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .flavorLine{display:inline-block;animation:landingFlavorFade .5s ease}
 @keyframes landingFlavorFade{from{opacity:0}to{opacity:1}}
 
-@media (max-width:860px){
-  .split{grid-template-columns:1fr}
-  .pitch{padding:38px 26px}
-  .live{border-left:none;border-top:1px solid var(--border-strong)}
+/* ── banner ───────────────────────────────────────────────────────────────── */
+.banner{display:grid;grid-template-columns:1.35fr 1fr;column-gap:48px;row-gap:0;
+        padding:12px 28px 24px;align-items:end;
+        grid-template-areas:"head right" "lead right"}
+.headwrap{grid-area:head}
+.leadwrap{grid-area:lead;margin-top:14px}
+.right{grid-area:right;align-self:end;padding-bottom:4px}
+
+.h1{grid-area:head;font-family:var(--sans);font-weight:600;font-size:68px;line-height:1.05;
+    letter-spacing:-.025em;margin:0;max-width:15ch;text-wrap:balance;color:var(--text-primary)}
+/* The cursor is a BLOCK, not a glyph — an underscore in the sans face sits at a
+   different depth than the mono one the terminal chrome uses. */
+.cursor{display:inline-block;width:.6em;height:6px;background:var(--accent-amber-bright);
+        vertical-align:baseline;margin-left:.08em;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+/* 14px measured from the title's LINE BOX, which carries ~10px of descender
+   slack the gap cannot see. Do not "correct" for it — the optical gap is right. */
+.lead{font-family:var(--sans);font-size:16px;line-height:1.55;color:var(--text-secondary);
+      max-width:46ch;text-wrap:pretty;margin:0}
+
+/* One grid so the stats, the buttons and the microcopy share column edges: the
+   stats align to the primary button, each microcopy line sits under the button it
+   describes, and the flourish hangs in column 1 pointing across at ENTER TERMINAL. */
+.ctagrid{display:grid;grid-template-columns:auto auto auto;column-gap:14px;row-gap:0;
+         align-items:center;justify-content:start}
+.stats{grid-row:1;grid-column:2/4;justify-self:start;margin-bottom:22px;
+       display:flex;border:1px solid var(--border-strong);width:max-content;max-width:100%}
+.stat{padding:12px 20px;border-right:1px solid var(--border-strong)}
+.stat:last-child{border-right:0}
+.v{font-size:24px;color:var(--text-primary);letter-spacing:-.01em;line-height:1}
+.l{margin-top:4px;font-size:var(--fs-9);letter-spacing:.14em;color:var(--text-dim);
+   text-transform:uppercase;white-space:nowrap}
+.l em{font-style:normal;color:var(--accent-amber)}
+
+/* Declared fallback stack: the Lenny face's U+0361 combining marks and the
+   U+1D4D0 Mathematical Bold Script run are covered by NEITHER Plex face, so the
+   substitution is chosen here rather than left to the browser's last resort. */
+.flourish{grid-row:2;grid-column:1;justify-self:end;
+          font-family:'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2',serif;
+          font-size:15px;color:var(--accent-amber-bright);white-space:nowrap;line-height:1}
+
+.btn{font-family:var(--font-mono);font-size:var(--fs-12);letter-spacing:.14em;text-transform:uppercase;
+     padding:14px 20px;border:1px solid var(--border-strong);background:transparent;
+     color:var(--text-muted);cursor:pointer;white-space:nowrap;
+     display:inline-flex;align-items:center;gap:9px}
+.btn:hover{color:var(--text-primary);border-color:#374151}
+.btnPrimary{grid-row:2;grid-column:2;border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+.btnPrimary:hover{background:color-mix(in srgb,var(--accent-amber) 8%,transparent);
+                  border-color:var(--accent-amber-bright);color:var(--accent-amber-bright)}
+.btnSecondary{grid-row:2;grid-column:3}
+.arr{font-weight:400}
+
+.micro1,.micro2{font-size:var(--fs-11);color:var(--text-dim);align-self:start;margin-top:11px;white-space:nowrap}
+.micro1{grid-row:3;grid-column:2}
+.micro2{grid-row:3;grid-column:3}
+.micro1 b{font-weight:400;color:var(--text-secondary)}
+.arrow{color:var(--accent-amber-bright)}
+
+/* ── the two tapes ────────────────────────────────────────────────────────── */
+.tapes{border-bottom:1px solid var(--border-soft)}
+.taperow{display:flex;align-items:center;padding:7px 20px;font-size:var(--fs-10);
+         letter-spacing:.05em;color:var(--text-dim);overflow:hidden}
+.taperow + .taperow{border-top:1px solid var(--border-soft)}
+.tapelabel{flex:none;padding-right:16px;font-size:var(--fs-10);letter-spacing:.16em;color:var(--text-dim)}
+.tapemask{flex:1;min-width:0;overflow:hidden;position:relative}
+.tapetrack{display:inline-flex;white-space:nowrap;animation:tapescroll var(--tdur,60s) linear infinite}
+.taperun{display:inline-flex}
+/* ODDS counter-scrolls: same keyframes, reversed. */
+.rtl{animation-direction:reverse}
+@keyframes tapescroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tapeitem{flex:none;padding:0 14px;border-left:1px solid var(--border-strong)}
+.sym{color:var(--accent-amber);letter-spacing:.1em}
+.val{color:var(--text-primary)}
+.na{color:var(--text-dim)}
+.cad{color:var(--text-dim);letter-spacing:.08em}
+.badge{font-size:var(--fs-9);letter-spacing:.12em;color:var(--text-dim);
+       border:1px solid var(--border-strong);padding:1px 4px;margin-left:5px}
+/* K and P are two INDEPENDENT readings of the same question, coloured apart so
+   they can't be read as one blended number. */
+.srcK{color:var(--stage-committee);letter-spacing:.08em}
+.srcP{color:#a78bfa;letter-spacing:.08em}
+.up{color:var(--market-up)}
+.down{color:var(--market-down)}
+.asof{flex:none;padding-left:20px;color:var(--text-dim);letter-spacing:.12em;white-space:nowrap}
+.closed{color:var(--text-dim)}
+.live{color:var(--market-up)}
+.livedot{display:inline-block;width:5px;height:5px;border-radius:50%;
+         background:var(--market-up);margin-right:5px;vertical-align:middle}
+
+/* ── the three panels ─────────────────────────────────────────────────────── */
+/* The board takes its NATURAL height (header + a 420px viewport per panel) and is
+   deliberately not the page's flex filler. Stretching it was tried and reverted:
+   a taller viewport than the data fills breaks the -50% scroll loop, because a
+   5-row dataset duplicated twice is ~590px and any viewport past that shows the
+   gap between the two halves. 420px is the height every dataset covers. */
+.board{display:grid;grid-template-columns:repeat(3,1fr)}
+.pcol{position:relative;overflow:hidden;min-width:0;border-right:1px solid var(--border-strong);
+      display:flex;flex-direction:column}
+.pcol:last-child{border-right:0}
+
+/* The three labels share ONE grid cell (grid-area 1/1) rather than stacking
+   absolutely: an absolutely-positioned label takes no height and the header
+   collapses to bare padding. z-index + its own background keep the header ABOVE
+   the frost overlays, or the top strip samples the title and dims it. */
+.colhead{position:relative;z-index:4;background:var(--bg-base);
+         display:grid;grid-template-columns:1fr;align-items:baseline;
+         padding:11px 16px;border-bottom:1px solid var(--border-strong);
+         font-size:var(--fs-11);letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim)}
+.swaplabel{grid-area:1/1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.on{color:var(--accent-amber-bright)}
+.note{color:var(--text-muted);margin-left:8px}
+
+/* FADE AND FROST ARE TWO JOBS. The rows fade by ALPHA via this mask, so glyphs
+   stay sharp all the way out; the frost below is a separate surface blur, itself
+   masked so it only engages past the point where the text has already gone to
+   nothing. A backdrop-filter placed over live text smears the type — that is the
+   bug this arrangement exists to avoid. */
+.pviewport{height:420px;overflow:hidden;position:relative;
+           -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 60%,transparent 99%);
+                   mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 60%,transparent 99%)}
+.stack{position:absolute;inset:0;overflow:hidden}
+.ptrack{animation:drift var(--dur,30s) linear infinite}
+.rev{animation-direction:reverse}
+.runset{display:block}
+@keyframes drift{from{transform:translateY(0)}to{transform:translateY(-50%)}}
+
+.pfade{position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;
+       background:linear-gradient(to bottom,rgba(10,14,20,0),rgba(10,14,20,.55) 60%,var(--bg-base) 96%);
+       -webkit-backdrop-filter:blur(5px) saturate(.85);backdrop-filter:blur(5px) saturate(.85);
+       -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70%);
+               mask-image:linear-gradient(to bottom,transparent 0,#000 70%)}
+.pfadeTop{position:absolute;left:0;right:0;top:37px;height:34px;pointer-events:none;z-index:2;
+          background:linear-gradient(to top,rgba(10,14,20,0),rgba(10,14,20,.75) 85%);
+          -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+          -webkit-mask-image:linear-gradient(to top,transparent 0,#000 75%);
+                  mask-image:linear-gradient(to top,transparent 0,#000 75%)}
+
+/* 45s cycle, three phases: 1 visible 0-29%, 2 visible 33-62%, 3 visible 66-96%,
+   wrapping 96->100%. The per-panel delays (-0s / -15s / -30s) mean no two panels
+   ever swap datasets on the same beat. */
+.cyc1{animation:cy1 45s ease-in-out infinite}
+.cyc2{animation:cy2 45s ease-in-out infinite}
+.cyc3{animation:cy3 45s ease-in-out infinite}
+.d2 .cyc1,.d2 .cyc2,.d2 .cyc3{animation-delay:-15s}
+.d3 .cyc1,.d3 .cyc2,.d3 .cyc3{animation-delay:-30s}
+@keyframes cy1{0%,29%{opacity:1}33%,96%{opacity:0}100%{opacity:1}}
+@keyframes cy2{0%,29%{opacity:0}33%,62%{opacity:1}66%,100%{opacity:0}}
+@keyframes cy3{0%,62%{opacity:0}66%,96%{opacity:1}100%{opacity:0}}
+
+/* ── panel row ────────────────────────────────────────────────────────────── */
+.row{display:grid;grid-template-columns:66px 1fr;gap:12px;padding:9px 16px;
+     border-bottom:1px solid var(--border-soft);align-items:baseline;color:var(--text-dim)}
+.rident{font-size:var(--fs-10);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.identType{color:var(--accent-amber)}
+.identNum{color:var(--text-muted)}
+.rmain{min-width:0}
+.rtitle{font-family:var(--sans);font-size:var(--fs-14);color:var(--text-primary);line-height:1.28;
+        overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.rmeta{margin-top:3px;font-size:var(--fs-11);letter-spacing:.06em;color:var(--text-dim);
+       white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who{color:var(--text-muted)}
+.d{color:var(--party-democrat)}
+.r{color:var(--party-republican)}
+.i{color:var(--party-independent)}
+
+/* ── bottom rail ──────────────────────────────────────────────────────────── */
+/* margin-top:auto pins the rail to the bottom of a tall viewport. The board is a
+   fixed height by design (above), so on a big screen the slack has to go
+   somewhere: below the board as plain background, with the rail anchored, rather
+   than inside the panels where it would break their scroll loop. */
+.bottom{display:flex;align-items:center;gap:16px;padding:14px 28px;margin-top:auto;
+        border-top:1px solid var(--border-strong)}
+.foot{font-size:var(--fs-10);letter-spacing:.08em;color:var(--text-dim)}
+.footK{color:var(--text-muted)}
+.sep{color:var(--border-strong)}
+
+/* ── responsive ───────────────────────────────────────────────────────────── */
+/* 1460: the three CTA columns stop fitting beside a 68px headline — collapse to
+   two and drop the flourish to its own row above the stats. */
+@media (max-width:1460px){
+  .ctagrid{grid-template-columns:auto auto}
+  .flourish{grid-row:1;grid-column:1/3;justify-self:start;margin-bottom:10px}
+  .stats{grid-row:2;grid-column:1/3}
+  .btnPrimary{grid-row:3;grid-column:1}
+  .btnSecondary{grid-row:3;grid-column:2}
+  .micro1{grid-row:4;grid-column:1}
+  .micro2{grid-row:4;grid-column:2}
 }
-@media (prefers-reduced-motion:reduce){.cur,.ttrack,.winbar .wl .livedot,.flavorLine{animation:none}.cur{opacity:.55}}
+/* 1180: the banner is one column and the panels stack. */
+@media (max-width:1180px){
+  .banner{grid-template-columns:1fr;grid-template-areas:"head" "lead" "right";row-gap:0}
+  .right{align-self:start;margin-top:26px;padding-bottom:0}
+  .h1{font-size:52px;max-width:20ch}
+  .board{grid-template-columns:1fr}
+  .pcol{border-right:0;border-bottom:1px solid var(--border-strong)}
+  .pcol:last-child{border-bottom:0}
+}
+/* 900: single column throughout — and /welcome is the first page many people
+   see on a phone, where three stacked 420px panels cycling nine datasets is
+   simply too much. ONE panel, ONE dataset, no crossfade: the movers feed, which
+   is the page's headline claim. The scroll stays (it is the point); only the
+   swap goes. */
+@media (max-width:900px){
+  .rail,.breaking,.banner,.bottom{padding-left:18px;padding-right:18px}
+  .h1{font-size:40px;max-width:none}
+  .lead{font-size:15px}
+  .stats{flex-wrap:wrap}
+  .taperow{padding-left:14px;padding-right:14px}
+  .asof{display:none}
+  .pcol:not(:first-child){display:none}
+  .pviewport{height:340px}
+  .cyc1,.cyc2,.cyc3{animation:none}
+  .cyc2,.cyc3{display:none}
+  .cyc1{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){
+  .beta,.cursor,.tapetrack,.ptrack,.cyc1,.cyc2,.cyc3,.flavorLine{animation:none}
+  .cyc2,.cyc3{display:none}
+  .cyc1{opacity:1}
+  .cursor{opacity:.55}
+  /* The fade and the frost exist to hand rows off at the edges of a MOVING list.
+     With the scroll stopped they are pure damage: the top fade permanently
+     half-erases the first row's title and the bottom frost blurs the last one. */
+  .pviewport{-webkit-mask-image:none;mask-image:none}
+  .pfade,.pfadeTop{display:none}
+}
