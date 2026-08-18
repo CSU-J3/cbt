@@ -2497,3 +2497,14 @@ Neither is about product code; both cost a red gate on a clean change.
 
 **`next build` typechecks the untracked diagnostics.** A scratch probe carrying an unused `@ts-expect-error` red-lit `npm run build` on a commit the file is not part of. This is the same `tsconfig.json` `include: scripts/**/*.ts` exposure HO 669 filed as a QUEUED entry from the opposite direction — there a probe's `TS2532`s failed the gate, here a stale directive did — and it is worth noting that it fires on the **build**, not only on `typecheck`, so "I'll just run the build" is not a way around it.
 
+## `npx tsx -e` cannot run top-level await — but the reason it looked like a silent no-op was my own `tail` (HO 671, Aug 2026)
+
+A one-liner meant to null a single column read as if it had done nothing: `npx tsx -e "…await…" 2>&1 | tail -3` printed only `Node.js v25.5.0`, the write appeared not to have happened, and the tick that followed found nothing to do. **For a WRITE that is the worst possible failure mode — not "it failed" but "it is unclear whether it landed."**
+
+Two separate things, and only one of them is the tool's:
+
+- **The real error.** `tsx -e` transforms its input as `/eval.ts` in **CJS** output format, and esbuild refuses top-level await there: `Top-level await is currently not supported with the "cjs" output format`. The *same code in a `.ts` file* runs fine, which is why every committed probe in `scripts/diagnostic/` does. So `-e` is for expressions, not for scripts, and the workaround is a file — not a rewrite of the logic.
+- **Why it looked silent, which is the transferable half.** The failure was reported in full: an uncaught promise rejection whose **first** lines carry the message and whose last lines are stack frames. `| tail -3` shows the frames. **Never `tail` a command whose failure mode is a stack trace** — the informative line is the first one; `head`, or no pipe at all, is the right instrument. The same pipeline had already hidden this once earlier in the session's family of probes, and it read as tool flakiness both times.
+
+**The check that catches it costs one line and is the same one this file keeps arriving at:** make the write report its own effect — `rowsAffected`, then re-read the row and print it. The replacement script did exactly that (`UPDATE rowsAffected: 1`, `AFTER: {"summary_null":1}`, then the runner's own eligibility predicate re-run to prove the next tick would claim it), and the ambiguity disappeared. A write instrument that does not read back is not an instrument.
+
