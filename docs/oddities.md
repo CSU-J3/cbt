@@ -2469,3 +2469,31 @@ The same probe carried a second, independent trap in one screenful: it classifie
 **Both traps are caught by the same discipline and neither is caught by re-reading the code: a control on the same invocation.** Require a row that *must* show the thing being looked for — here, a pre-change tick printing a **numeric** lead — and refuse to trust any zero until it does. 15 of 16 pre-change rows printed one (the 16th being a `timeout` row with no timings at all), which is what made the 8 post-change zeros mean something.
 
 **Keep the running count, because at this point the ratio is the argument.** Across HO 664–669 the tally stands at **thirteen instrument failures against zero code failures**: ten through HO 668, and three more in HO 669 alone — the payload-nesting read, the `'T' > ' '` boundary compare, and the void discriminator in the entry above. Every one of the thirteen was caught by a control, and not one was caught by re-reading the instrument's source, which always looks correct. The operational conclusion is not "be careful"; it is that **the default posture toward one's own measuring apparatus should be the same suspicion applied to the code under test** — budget for controls first, treat an uncontrolled zero as unread rather than as evidence, and expect the next failure to be in the ruler.
+
+## A CSS-only marquee has a minimum content width, and the number appears nowhere in the CSS (HO 670, Aug 2026)
+
+The seamless-loop idiom is `translate(0 → -50%)` over a track holding the item set exactly twice. It is seamless **only while each half is at least as wide (or tall) as the strip it runs in**; below that the two halves cannot cover the viewport and the loop shows a dead gap that reads as missing data, not as motion. Nothing in the CSS states the threshold, and nothing fails loudly when it is crossed — the animation runs perfectly, over a hole.
+
+`/welcome` hit it on both axes in one build:
+
+- **Horizontal.** MARKETS carries 11 symbols (~2,400px per half) and covers any desktop. ODDS carries 4 pairs (~900px per half), so at 1920 — a strip mask of ~1,750px — the right third of the row was empty. Fixed by **overshooting**: three copies per half (`ODDS_COPIES_PER_HALF`), ~2,700px, past any desktop.
+- **Vertical**, and this one was *created* by the fix for something else. The panels were briefly grown from the spec'd 420px to fill the board (a fixed height had left a dead zone under the rows on tall viewports), which pushed the viewport past what the 5-row Patterns dataset covers — 10 rows ≈ 590px in a ~700px viewport, gap. Reverted to the spec'd fixed 420px, which **every** dataset covers, with `margin-top:auto` on the bottom rail so the slack on a tall screen lands below the board instead of inside a panel.
+
+**The live tape does not have this bug and the reason is the general lesson.** `MarketsTapeClient` **measures** the rendered set and computes a repeat count (`:800–813`), so it adapts to any roster and any width. A server-rendered strip cannot measure, so it has exactly two options: **overshoot the content, or fix the viewport** — and if it does neither, the failure is silent and width-dependent, which means it will not appear on the machine that built it.
+
+## The layout gates were all green and the layout was still wrong three times (HO 670, Aug 2026)
+
+`npm run build` green, `npm run typecheck` green, `/welcome` 200, both stylesheets 200, all **nine** panel datasets present in the served HTML with every row matched, `TAPE_SLOTS`/`TapeItem` at 0 with a positive control reading 11. On that evidence the rebuild was shippable. It had three real render defects, and **every one was found by looking at a screenshot**: a ~300px dead zone under each panel's rows, an empty right third of the ODDS strip, and — under `prefers-reduced-motion`, where nothing scrolls — a top fade permanently half-erasing the first row's title and a bottom frost blurring the last.
+
+Each is invisible to every gate that was run, and not because the gates were weak: a string is in the markup whether or not it is inside the visible box, and a mask that erases text does not change the DOM. **A content assertion answers "is it there", never "is it legible".**
+
+**The tally inverts here, and that is the point of keeping it.** HO 664–669 ran **thirteen instrument failures against zero code failures**; HO 670's instruments were sound and the **code** was wrong three times. The two lessons do not compete — control your instruments *and* look at the artifact — but the operational rule for a layout change is the narrower one: **a rendered screenshot at more than one width is a gate, not a courtesy**, and the reduced-motion path needs its own capture because it is a different layout, not a dimmer one (the run measured 32 animating elements normally against **0** under `reduce`, with 3 dataset layers visible and 6 `display:none` — a discriminator that can fail, unlike "the media query is in the file").
+
+## Two throwaway-instrument traps in one session: esbuild's `keepNames` and a build that typechecks untracked probes (HO 670, Aug 2026)
+
+Neither is about product code; both cost a red gate on a clean change.
+
+**`page.evaluate(() => …)` under `tsx` throws `ReferenceError: __name is not defined`.** esbuild compiles with `keepNames`, which wraps function declarations in a `__name` helper that exists in the *script's* module scope and not in the *page's*. Playwright serializes the closure's source and evaluates it in the browser, where the helper is undefined. The fix is to pass the body as a **string** — the failure has nothing to do with the code inside the closure, so reading it does not help.
+
+**`next build` typechecks the untracked diagnostics.** A scratch probe carrying an unused `@ts-expect-error` red-lit `npm run build` on a commit the file is not part of. This is the same `tsconfig.json` `include: scripts/**/*.ts` exposure HO 669 filed as a QUEUED entry from the opposite direction — there a probe's `TS2532`s failed the gate, here a stale directive did — and it is worth noting that it fires on the **build**, not only on `typecheck`, so "I'll just run the build" is not a way around it.
+
