@@ -44,6 +44,16 @@ cbt-*.png
 test-results/
 playwright-report/
 
+# diagnostic scratch (HO 672). Probes default to TRACKED — 126 of the 154
+# diagnostics already were, and the 28 that weren't produced six citations in
+# SKILL/backlog/roadmap pointing at files that existed on one machine. This
+# directory is the opt-in for a probe known to be disposable when it is written,
+# and it is the ONLY place under scripts/ that git and tsc both skip: tsconfig
+# excludes it too, so a throwaway can never red-light `typecheck` or `build`.
+# The README is negated back in so the directory and its rule ship with the repo.
+scripts/diagnostic/scratch/*
+!scripts/diagnostic/scratch/README.md
+
 # handoff docs (HO 604). These were already ignored per-machine via
 # core.excludesFile (~/.gitignore_global), so they never reach the repo and a
 # deploy never sees them. Repeating it HERE is what stops Tailwind reading them:

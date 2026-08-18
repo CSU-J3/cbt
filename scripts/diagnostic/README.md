@@ -1,6 +1,12 @@
 # scripts/diagnostic
 
-Read-only diagnostic scripts kept around for the next "something cron-related hung" investigation. None of these write to the DB.
+Diagnostic scripts kept around for the next "something cron-related hung" investigation.
+
+**Almost all are read-only, but "none of these write to the DB" is no longer true** — it stopped being true when `reset-bill-671.ts` was written, and this line said otherwise until HO 672 audited the directory. A write instrument is marked by a header block naming exactly what it mutates and is gated behind an explicit `--write`, so the default of a bare invocation is always read-only. `reset-bill-671.ts` is the only one today. **Do not assume a file here is safe because of the directory it is in** — check for the header.
+
+**Probes default to TRACKED (HO 672).** At write time you cannot know whether a finding will come to rest on a probe; six untracked ones turned out to be cited by `SKILL.md` / `docs/backlog.md` / `docs/roadmap.md` while existing on a single machine. A probe you know is disposable when you write it goes in [`scratch/`](scratch/README.md), which git ignores and `tsconfig.json` excludes — the only place under `scripts/` where a file cannot red-light `typecheck` or `build`. A write instrument never goes there.
+
+This file documents a selected few of the scripts, not all of them; the directory listing is the index.
 
 - **`sync-diagnostic.ts`** — `summary_updated_at` distribution, summarize backlog by `update_date` age, the 24h-failure-defer split, `cron_runs` recent rows + per-route rollup, and corpus freshness. First-pass triage when sync/summarize looks stuck. Built for HO 114 Phase 1; extended for HO 115. Run: `npx tsx scripts/diagnostic/sync-diagnostic.ts`.
 

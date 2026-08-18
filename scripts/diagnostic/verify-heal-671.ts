@@ -1,0 +1,10 @@
+import "dotenv/config";
+import { createClient } from "@libsql/client";
+const db = createClient({ url: process.env.TURSO_DATABASE_URL ?? "", authToken: process.env.TURSO_AUTH_TOKEN });
+const tr = await db.execute({ sql: "SELECT COUNT(*) AS n FROM stage_transitions WHERE bill_id = ?", args: ["119-hr-3370"] });
+const recent = await db.execute({ sql: "SELECT COUNT(*) AS n FROM stage_transitions WHERE bill_id = ? AND observed_at > datetime('now','-1 hour')", args: ["119-hr-3370"] });
+const corpus = await db.execute("SELECT COUNT(*) AS n FROM bills WHERE summary IS NOT NULL");
+const total = await db.execute("SELECT COUNT(*) AS n FROM bills");
+console.log("  stage_transitions rows for the bill (all time):", tr.rows[0]?.n);
+console.log("  ... appended in the last hour (predicted 0)   :", recent.rows[0]?.n);
+console.log("  bills WITH a summary now                      :", corpus.rows[0]?.n, "/", total.rows[0]?.n);
