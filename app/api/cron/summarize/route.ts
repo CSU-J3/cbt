@@ -7,10 +7,13 @@
 // Gemini call. See lib/summarize-runner.ts for the loop logic.
 //
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
-// Schedule lives in vercel.json (13:00 UTC daily, clear of /api/sync at
-// 09:00, sync-votes at 10:00, race-ratings at 11:00 Wed, primaries at
-// 12:00). revalidateTag("bills") flushes the cached bill queries so the
-// dashboard sees fresh summaries.
+// Schedule lives in vercel.json: */10, every ten minutes. The neighbours this
+// route was once written to dodge have moved too — /api/sync is 0 */6,
+// sync-votes 0 10, race-ratings 0 11 Wed, primaries 0 0,12 — so it no longer
+// has a reserved slot and does not need one (the HO 432 lock handles overlap).
+// revalidateTag("bills") flushes the cached bill queries so the dashboard sees
+// fresh summaries — GUARDED as of HO 671: it fires only when the tick actually
+// wrote one.
 //
 // HO 139: migrated to wrapCronRoute. Chronic >=3-attempt summarize
 // failures flow through `chronicErr` so they still land in the
@@ -85,7 +88,37 @@ async function handle(request: Request) {
         limit: 200,
         deadlineMs: routeStart + SUMMARIZE_BUDGET_MS,
       });
-      revalidateTag("bills");
+      // HO 671 — FLUSH ON THE WRITE, NOT ON THE SCHEDULE. This call was
+      // unconditional, so a `*/10` tick invalidated the `bills` tag ~144×/day
+      // whether or not it had written anything. That is a cost multiplier, not a
+      // safety margin: the tag governs **37** cache entries in lib/queries.ts
+      // (27 tagged ["bills"] alone, 10 in combination), so one flush costs the
+      // next visitor of every bills-tagged surface a full regeneration —
+      // measured at ~89,090 rows_read for /welcome alone (HO 670). And it was
+      // almost always pointless: over 300 consecutive ticks (2026-08-16 →
+      // 2026-08-18), **296 (98.7%) summarized ZERO bills and flushed anyway**.
+      // That ratio is HO 406 working, not failing — the queue is drained and
+      // inflow is ~30/day against a tick that clears 100–120 — so the waste was
+      // the unconditional flush, never the schedule.
+      //
+      // `stats.ok` carries the guard because of a code boundary, not a
+      // convention: both content-write paths (the advance branch's UPDATE +
+      // stage_transitions INSERT, and the no-move branch's UPDATE) fall through
+      // to `stats.ok++` with no branch between, so ok > 0 iff a summary landed.
+      //
+      // A FAILED-ONLY TICK DELIBERATELY DOES NOT FLUSH, and this is the half a
+      // future reader is most likely to "fix": the failure path (markBillFailed)
+      // writes only `summarize_failed_at` and `summarize_attempts`, and **0 of
+      // the 37 tagged queries read either column** — so there is nothing for a
+      // flush to propagate. The observed window contained zero (ok = 0,
+      // failed > 0) ticks, so that branch is argued from column visibility
+      // rather than from counts; this comment is where the argument lives.
+      //
+      // NOT extended to /api/sync (HO 671 STEP 0): its upsert sits INSIDE the
+      // loop's try/catch, so a throw after the row commits is caught and leaves
+      // `upserted` at 0 with the write landed — invisible in the return value,
+      // so its 4 flushes/day stay unconditional as cheap insurance.
+      if (stats.ok > 0) revalidateTag("bills");
 
       const payload = {
         summarized: stats.ok,
