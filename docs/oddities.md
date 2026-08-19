@@ -2565,3 +2565,66 @@ Regenerating the identical commit with `--word-diff=plain` produced **38,313 byt
 **Rule: when writing a diff to a file, use a format whose markers survive being written to a file** — `--word-diff=plain`, or plain unified. Never `--word-diff=color` into anything but a terminal. `git --no-pager` and `--color=never` do not help; the marker information genuinely is the colour in that mode.
 
 It landed in `docs/method.md` § Gates as the sixth instance, and it earned that placement by occurring **inside the delivery step of the commit that closes the gate entry** — the export intended to let a reviewer read the change was itself a check that could not fail visibly.
+
+---
+
+## `git grep -c` counts matching FILES, not matching lines (HO 673)
+
+A STEP 2 gate asked how many references to the retired `.v2f-sc-*` classes
+survived in render code. The instrument was
+`git grep -c 'v2f-sc-' -- '*.tsx' '*.ts' | wc -l`, which printed **2** and was
+labelled "expect 0". The real answer was **3 lines in 2 files** — `-c` emits one
+`path:count` line per matching file, so piping it to `wc -l` counts *files* and
+silently discards the per-file counts it just computed.
+
+The failure is mild in one direction and dangerous in the other: the number is
+always ≤ the true occurrence count, so a grep like this **under-reports** and can
+read 1 where there are twenty. It is the same class as the §Gates entry on
+`grep -c '^-[^-]'` for deletions — a cheap instrument answering a *different*
+question than the one asked, and returning a plausible small integer either way.
+
+The re-run that gave the real answer classified rather than counted: 3 lines
+total, **2 comments, 1 absence assertion** (`expect(await page.locator('.v2f-sc-card').count()).toBe(0)`,
+which is a *correct* live reference — it asserts the class is gone), and
+**0 render usages** — against a control confirming the `className` grep finds
+surviving `v2f-` classes. "Zero occurrences" would have been the wrong claim to
+make; "zero render usages, two comments and one absence assertion" is the true
+one, and only the classified form distinguishes them.
+
+**Rule: `git grep -c` for an occurrence count is wrong. Use `git grep -h … | wc -l`
+for lines, or classify the hits when some of them are legitimate.**
+
+---
+
+## A capture that does not wait for a remote image disproves the feature it was taken to prove (HO 673)
+
+HO 673's whole point was that the sponsor portrait is now visible without hover,
+and the first capture sweep produced a screenshot of the panel showing an **empty
+dark box** where the portrait belongs. The readings taken alongside it said
+`photo=true, fallback=false` — the `<img>` was in the DOM and was not the initials
+tile — so the numbers and the picture disagreed.
+
+Neither was wrong. Portraits load from `congress.gov` over the network, the
+harness screenshotted 500ms after opening the panel, and `.bxp-sponsor-photo`
+carries `background: var(--bg-panel)`, so an `<img>` that has not painted is
+indistinguishable from a deliberately dark tile. `onError` never fires — nothing
+failed, it simply had not arrived. A follow-up probe with a 3.5s settle read
+`complete: true, naturalWidth: 175`, rendered 80×94: the feature was working the
+whole time, and the artifact retained as its proof showed it not working.
+
+This is the visual-gate rule turning on itself. §Gates requires captures because
+greps and 200s cannot see a layout — but **a capture is an instrument too, and an
+under-waited one reads the same as a broken feature.** The fix is a
+`waitForFunction` on `el.complete && el.naturalWidth > 0`, falling through when
+the element is the initials `<span>` (nothing to load), before the screenshot.
+
+**Rule: a visual capture of anything fetched over the network must wait for the
+fetch, and the wait must have a defined pass for the no-fetch case.** Retaining an
+under-waited capture is worse than retaining none: it is filed as evidence, and it
+argues the opposite of what it was taken to show.
+
+A second, duller instance sat next to it and is recorded because it cost two
+debugging rounds: **`npm run build` while `next start` is running leaves the server
+serving a hybrid tree**, which surfaced as `net::ERR_ABORTED` on a CSS chunk and a
+`.bxp-sponsor-photo` that had vanished from the DOM entirely. Rebuild, then
+restart — and re-check the port owner, not just that something answers.

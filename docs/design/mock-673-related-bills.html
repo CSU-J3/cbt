@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Related bills — R2, companion promoted (RULED)</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6;
+    --stage-committee:#06b6d4;
+    --mono:ui-monospace,"JetBrains Mono","SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --fs-9:9.5px; --fs-10:10.5px; --fs-11:11px; --fs-12:12px; --fs-13:13px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-base);color:var(--text-primary);
+       font-family:var(--mono);-webkit-font-smoothing:antialiased;padding:26px 22px 90px}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  .note{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 2px 20px}
+  .note b{color:var(--text-muted);font-weight:600}
+  .note .warn{color:var(--accent-amber)}
+  .note .ruled{color:var(--stage-committee);font-weight:600}
+
+  h2.sec{font-size:var(--fs-11);letter-spacing:.1em;text-transform:uppercase;
+         color:var(--accent-amber-bright);margin:36px 0 4px;font-weight:600}
+  h2.sec .n{color:var(--text-dim);margin-right:8px}
+  p.sub{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 0 14px;max-width:92ch}
+  p.sub b{color:var(--text-muted);font-weight:600}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+  .colhd{font-size:var(--fs-10);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);
+         margin:0 0 8px;padding-left:2px}
+  .colhd .sm{color:var(--text-dim);letter-spacing:0;text-transform:none}
+  .isobox{border:1px solid var(--border-strong);border-radius:3px;background:var(--bg-panel);padding:12px 14px 14px}
+
+  /* ---- the block, as ruled ---- */
+  .relblock{margin-top:16px}
+  .relblock:first-child{margin-top:0}
+  .relhdr{font-size:var(--fs-9);letter-spacing:.09em;color:var(--text-dim);
+          text-transform:uppercase;margin:0 0 6px}
+  .relempty{font-size:var(--fs-11);color:var(--text-dim)}
+
+  .comp{border-left:2px solid var(--stage-committee);padding:2px 0 2px 10px;margin:2px 0 9px}
+  .complbl{font-size:var(--fs-9);letter-spacing:.08em;text-transform:uppercase;color:var(--stage-committee)}
+  .comprow{display:flex;gap:8px;align-items:baseline;margin-top:3px;text-decoration:none}
+  .compmeta{font-size:var(--fs-9);color:var(--text-dim);margin-top:3px;letter-spacing:.05em}
+
+  .restlbl{font-size:var(--fs-9);letter-spacing:.08em;text-transform:uppercase;
+           color:var(--text-dim);margin:11px 0 2px}
+  .rb{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:baseline;
+      padding:5px 0;text-decoration:none}
+  .rb:hover .rbt{color:var(--text-primary)}
+  .rbid{font-size:var(--fs-10);font-weight:600;color:var(--accent-amber);flex:none}
+  .rbt{font-family:var(--sans);font-size:var(--fs-12);color:var(--text-secondary);line-height:1.35;
+       overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .rbrel{font-size:var(--fs-9);letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim);flex:none}
+  .rbmore{font-size:var(--fs-10);color:var(--text-dim);text-decoration:none;display:inline-block;margin-top:5px}
+  .rbmore:hover{color:var(--accent-amber)}
+
+  /* ---- panel chrome, for the in-place section ---- */
+  .panelwrap{max-width:920px}
+  .panel{border:1px solid var(--accent-amber);border-radius:3px;background:var(--bg-panel);padding:0 0 20px}
+  .rowhead{display:grid;grid-template-columns:auto 1fr;gap:11px;padding:15px 16px 0;align-items:start}
+  .idchip{font-size:var(--fs-11);font-weight:600;color:var(--accent-amber);letter-spacing:.02em}
+  .ptitle{font-family:var(--sans);font-size:14px;color:var(--text-primary);line-height:1.3;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .subline{margin-top:7px;font-size:var(--fs-11);letter-spacing:.02em;color:var(--text-dim);
+           white-space:nowrap;overflow:hidden}
+  .subline .sp{color:var(--accent-amber)}
+  .stagebar{width:100%;display:block;margin:22px 0 12px;padding:0 22px}
+  @keyframes nodepulse{0%,100%{opacity:.12;transform:scale(1)}50%{opacity:.34;transform:scale(1.5)}}
+  .pulse{transform-box:fill-box;transform-origin:center;animation:nodepulse 1.8s ease-in-out infinite}
+  @media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:.16}}
+  .drill{font-size:var(--fs-10);letter-spacing:.04em;text-transform:uppercase;color:var(--accent-amber);
+         text-decoration:none;display:inline-block;padding:0 16px;margin:12px 0 16px}
+  .body{display:grid;grid-template-columns:1.35fr 1fr;gap:0;padding:0 16px}
+  .left{padding-right:28px;min-width:0}
+  .left>p{font-family:var(--sans);font-size:var(--fs-13);line-height:1.55;color:var(--text-secondary);margin:0}
+  .metabox{align-self:start;min-width:0}
+  .mrow{padding:11px 0;border-bottom:1px solid var(--border-strong)}
+  .mlabel{font-size:var(--fs-9);letter-spacing:.08em;color:var(--text-dim);text-transform:uppercase}
+  .mval{font-family:var(--sans);font-size:12.5px;color:var(--text-secondary);margin-top:4px;line-height:1.45}
+  .mval .dim{color:var(--text-dim);font-family:var(--mono);font-size:var(--fs-11)}
+
+  .ruleblock{border-left:2px solid var(--border-strong);padding:2px 0 2px 14px;margin:26px 2px 0}
+  .ruleblock .rl{font-size:10px;color:var(--text-dim);line-height:1.65;margin:0 0 6px}
+  .ruleblock .rl b{color:var(--text-muted);font-weight:600}
+  .ruleblock .rl .q{color:var(--accent-amber)}
+  .ruleblock .rl .k{color:var(--stage-committee)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="note">
+    <span class="ruled">RULING RECORD — R2, companion promoted. Approved by Corey 2026-08-18.</span><br>
+    The RELATED BILLS block for <b>BillExpandPanel</b>'s left column, sitting as a fourth
+    <b>.bxp-relblock</b> between RELATED NEWS and ODDS, inheriting the always-on-with-an-empty-state pattern the
+    other three already follow. R1 (a flat list with the relationship as a trailing tag) was the alternative and
+    was not taken.<br>
+    <span class="warn">Every bill, title and relationship below is a stand-in.</span> Related-bill identities are
+    not in the database — only <b>bills.cosponsor_count</b>'s sibling <b>$.relatedBills.count</b> is expected to
+    be free in <b>raw_json</b>, and even that is a probe, not a measurement. This file records the SHAPE, not
+    data.
+  </p>
+
+  <!-- ══ 01 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">01</span>The canonical state</h2>
+  <p class="sub">The identical or companion bill is lifted out of the list into its own bordered line, because
+     "does this have a twin in the other chamber" is the question the corpus cannot answer today and everything
+     else in the list is context for it. The promoted line carries the twin's own stage and introduced date —
+     the one related bill whose status is worth knowing without a second click.</p>
+
+  <div class="pair">
+    <div>
+      <p class="colhd">Companion + also related</p>
+      <div class="isobox">
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <div class="comp">
+            <div class="complbl">Senate companion · identical</div>
+            <a class="comprow" href="#" onclick="event.preventDefault();event.stopPropagation()">
+              <span class="rbid">S 4529</span>
+              <span class="rbt">Diabetes Prevention Program Reauthorization Act of 2026</span></a>
+            <div class="compmeta">INTRODUCED 2026-08-14 · COMMITTEE</div>
+          </div>
+          <div class="restlbl">Also related · 6</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">HR 9912</span>
+            <span class="rbt">Preventive Health Access and Equity Act</span>
+            <span class="rbrel">Related</span></a>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">HR 10214</span>
+            <span class="rbt">Chronic Disease Prevention Modernization Act</span>
+            <span class="rbrel">Related</span></a>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">S 4711</span>
+            <span class="rbt">Community Health Screening Expansion Act</span>
+            <span class="rbrel">Procedural</span></a>
+          <a class="rbmore" href="#" onclick="event.preventDefault();event.stopPropagation()">+3 more →</a>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="colhd">Companion only <span class="sm">· nothing else related</span></p>
+      <div class="isobox">
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <div class="comp">
+            <div class="complbl">House companion · identical</div>
+            <a class="comprow" href="#" onclick="event.preventDefault();event.stopPropagation()">
+              <span class="rbid">HR 8801</span>
+              <span class="rbt">Rural Broadband Deployment Acceleration Act</span></a>
+            <div class="compmeta">INTRODUCED 2026-07-29 · FLOOR</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 02 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">02</span>The states that are not the canonical one</h2>
+  <p class="sub">The promoted block is <b>conditional</b> — no companion means no bordered line and no
+     "also related" label, just the list. Nothing is reserved when there is nothing to put in it, which is the
+     C4 rule the other three blocks in this column already follow.</p>
+
+  <div class="pair">
+    <div>
+      <p class="colhd">No companion <span class="sm">· list only, no promoted block</span></p>
+      <div class="isobox">
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">HR 9912</span>
+            <span class="rbt">Preventive Health Access and Equity Act</span>
+            <span class="rbrel">Related</span></a>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">S 4711</span>
+            <span class="rbt">Community Health Screening Expansion Act</span>
+            <span class="rbrel">Procedural</span></a>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="colhd">Empty <span class="sm">· matches HEARING / NEWS / ODDS</span></p>
+      <div class="isobox">
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <div class="relempty">NO RELATED BILLS</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 03 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">03</span>The dedup requirement</h2>
+  <p class="sub">The HEARING block already renders sibling bills off the markup agenda, filtered against the
+     current bill at <b>BillExpandPanel.tsx:335</b>. A related bill that is already on that agenda must not print
+     twice in one panel. Left: what the two blocks look like when the overlap is removed. Right: the defect this
+     rule exists to prevent — <b>HR 9912</b> reported by both blocks in the same column.</p>
+
+  <div class="pair">
+    <div>
+      <p class="colhd">Deduped <span class="sm">· correct</span></p>
+      <div class="isobox">
+        <div class="relblock">
+          <div class="relhdr">Hearing</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">HR 9912</span>
+            <span class="rbt">Preventive Health Access and Equity Act</span>
+            <span class="rbrel">Agenda</span></a>
+        </div>
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <div class="comp">
+            <div class="complbl">Senate companion · identical</div>
+            <a class="comprow" href="#" onclick="event.preventDefault();event.stopPropagation()">
+              <span class="rbid">S 4529</span>
+              <span class="rbt">Diabetes Prevention Program Reauthorization Act of 2026</span></a>
+            <div class="compmeta">INTRODUCED 2026-08-14 · COMMITTEE</div>
+          </div>
+          <div class="restlbl">Also related · 5</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">S 4711</span>
+            <span class="rbt">Community Health Screening Expansion Act</span>
+            <span class="rbrel">Procedural</span></a>
+        </div>
+      </div>
+    </div>
+    <div>
+      <p class="colhd" style="color:var(--party-republican)">Double-reported <span class="sm">· the defect</span></p>
+      <div class="isobox" style="border-color:var(--party-republican)">
+        <div class="relblock">
+          <div class="relhdr">Hearing</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">HR 9912</span>
+            <span class="rbt">Preventive Health Access and Equity Act</span>
+            <span class="rbrel">Agenda</span></a>
+        </div>
+        <div class="relblock">
+          <div class="relhdr">Related bills</div>
+          <div class="restlbl">Also related · 6</div>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid" style="color:var(--party-republican)">HR 9912</span>
+            <span class="rbt">Preventive Health Access and Equity Act</span>
+            <span class="rbrel">Related</span></a>
+          <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+            <span class="rbid">S 4711</span>
+            <span class="rbt">Community Health Screening Expansion Act</span>
+            <span class="rbrel">Procedural</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 04 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">04</span>In place</h2>
+  <p class="sub">Fourth block in the left column, after RELATED NEWS and before ODDS, so the column's rhythm can
+     be judged against the metabox beside it rather than in a box on its own. The stage bar above is unchanged
+     and is drawn for context only.</p>
+
+  <div class="panelwrap">
+    <div class="panel">
+      <div class="rowhead">
+        <span class="idchip">HR 10086</span>
+        <div>
+          <div class="ptitle">Diabetes Prevention Program Reauthorization Act of 2026</div>
+          <div class="subline">CMTE 3d · <span class="sp">DE LA CRUZ</span>
+            <span style="color:var(--party-republican);font-weight:600">[R-TX]</span> · HLTH</div>
+        </div>
+      </div>
+      <svg class="stagebar" viewBox="0 0 880 58" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"
+           role="img" aria-label="Stage: committee, reached 2026-08-14">
+        <line x1="60" y1="12" x2="820" y2="12" stroke="#1f2937" stroke-width="2"/>
+        <line x1="60" y1="12" x2="212" y2="12" stroke="#06b6d4" stroke-width="2"/>
+        <circle cx="60" cy="12" r="4.5" fill="#94a3b8"/>
+        <text x="60" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#94a3b8">INTRO</text>
+        <text x="60" y="46" text-anchor="middle" font-family="ui-monospace,monospace" font-size="8" fill="#6b7280">2026-08-13</text>
+        <circle class="pulse" cx="212" cy="12" r="9" fill="#06b6d4" opacity="0.16"/>
+        <circle cx="212" cy="12" r="6" fill="#0a0e14" stroke="#06b6d4" stroke-width="2"/>
+        <circle cx="212" cy="12" r="2.6" fill="#06b6d4"/>
+        <text x="212" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#06b6d4">COMMITTEE</text>
+        <text x="212" y="46" text-anchor="middle" font-family="ui-monospace,monospace" font-size="8" fill="#06b6d4">2026-08-14</text>
+        <circle cx="364" cy="12" r="4.5" fill="none" stroke="#3a4452" stroke-width="1.5"/>
+        <text x="364" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#6b7280">FLOOR</text>
+        <circle cx="516" cy="12" r="4.5" fill="none" stroke="#3a4452" stroke-width="1.5"/>
+        <text x="516" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#6b7280">OTHER CHAMBER</text>
+        <circle cx="668" cy="12" r="4.5" fill="none" stroke="#3a4452" stroke-width="1.5"/>
+        <text x="668" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#6b7280">PRESIDENT</text>
+        <circle cx="820" cy="12" r="4.5" fill="none" stroke="#3a4452" stroke-width="1.5"/>
+        <text x="820" y="33" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" letter-spacing="0.5" fill="#6b7280">ENACTED</text>
+      </svg>
+      <a class="drill" href="#" onclick="event.preventDefault()">→ Full page</a>
+      <div class="body">
+        <div class="left">
+          <p>This bill would extend funding for the National Diabetes Prevention Program, which helps people at
+             risk for type 2 diabetes prevent or delay its onset. If enacted, the program would receive specific
+             funding amounts annually from fiscal year 2027 through 2031.</p>
+          <div class="relblock"><div class="relhdr">Hearing</div><div class="relempty">NO RELATED HEARINGS</div></div>
+          <div class="relblock"><div class="relhdr">Related news</div><div class="relempty">NO RELATED NEWS</div></div>
+          <div class="relblock">
+            <div class="relhdr">Related bills</div>
+            <div class="comp">
+              <div class="complbl">Senate companion · identical</div>
+              <a class="comprow" href="#" onclick="event.preventDefault();event.stopPropagation()">
+                <span class="rbid">S 4529</span>
+                <span class="rbt">Diabetes Prevention Program Reauthorization Act of 2026</span></a>
+              <div class="compmeta">INTRODUCED 2026-08-14 · COMMITTEE</div>
+            </div>
+            <div class="restlbl">Also related · 6</div>
+            <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+              <span class="rbid">HR 9912</span>
+              <span class="rbt">Preventive Health Access and Equity Act</span>
+              <span class="rbrel">Related</span></a>
+            <a class="rb" href="#" onclick="event.preventDefault();event.stopPropagation()">
+              <span class="rbid">HR 10214</span>
+              <span class="rbt">Chronic Disease Prevention Modernization Act</span>
+              <span class="rbrel">Related</span></a>
+            <a class="rbmore" href="#" onclick="event.preventDefault();event.stopPropagation()">+4 more →</a>
+          </div>
+          <div class="relblock"><div class="relhdr">Odds</div><div class="relempty">NO PREDICTIONS MADE</div></div>
+        </div>
+        <div class="metabox">
+          <div class="mrow"><div class="mlabel">Sponsor</div>
+            <div class="mval">Rep. Monica De La Cruz
+              <span style="color:var(--party-republican);font-family:var(--mono);font-weight:600">[R-TX-15]</span></div></div>
+          <div class="mrow"><div class="mlabel">Cosponsors</div><div class="mval">14 cosponsors</div></div>
+          <div class="mrow"><div class="mlabel">Committee</div>
+            <div class="mval"><span style="color:var(--accent-amber)">Energy and Commerce Committee</span>
+              <span class="dim">· Referred To · 4d</span></div></div>
+          <div class="mrow"><div class="mlabel">Introduced</div><div class="mval">2026-08-13</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ruleblock">
+    <p class="rl"><span class="k">RULED — R2.</span> The identical/companion bill is promoted into its own
+       bordered line above the list, labelled by chamber and relationship, carrying that bill's own introduced
+       date and stage. The remainder falls under an <b>Also related · N</b> label as a flat list with the
+       relationship as a trailing tag, capped with a <b>+N more</b>. R1 (one flat list, no promotion) was the
+       alternative and was not taken.</p>
+    <p class="rl"><span class="q">CONDITIONAL, per C4.</span> No companion → no bordered block and no
+       "Also related" label, just the list. No relations at all → the same <b>NO RELATED BILLS</b> empty state
+       its three neighbours use. Nothing is reserved to report an absence.</p>
+    <p class="rl"><span class="q">DEDUP IS A REQUIREMENT.</span> Section 03. A bill already rendered by the
+       HEARING block's markup agenda must not appear again here. The agenda is already filtered against the
+       current bill at <b>BillExpandPanel.tsx:335</b>; this is the second filter, against the agenda itself.</p>
+    <p class="rl"><span class="q">CLICK TARGETS.</span> Every row here is a link inside a panel under a feed row
+       whose whole surface expands, so each needs <b>stopPropagation</b> and the HO 627 gate grows legs. Counted
+       before the gate runs, not after.</p>
+    <p class="rl"><span class="q">NOT RULED HERE.</span> The cap on the "Also related" list (drawn at 3 + a
+       <b>+N</b>, not measured), and the ordering within it. Both want the real distribution of
+       <b>$.relatedBills.count</b> across the corpus first — which is the probe the ingestion HO opens with.</p>
+    <p class="rl"><b>STILL BLOCKED:</b> related-bill identities are not in the database. The detail endpoint
+       returns a count and a URL, never a list; the list needs a per-bill sweep against
+       <b>/bill/{congress}/{type}/{number}/relatedbills</b>, which is why HO 673 files it in ONE entry with the
+       cosponsor roster — the corpus loop is the expensive half and one pass can fetch both.</p>
+  </div>
+
+</div>
+</body>
+</html>
