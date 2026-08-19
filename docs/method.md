@@ -57,6 +57,118 @@
   verification" — build-input parity). Handoff files are therefore untracked and
   absent from `git status`; dropping one is `rm`, not `git rm`.
 
+## Gates
+
+**A gate you cannot fail is not a gate.** Before running a check, say what it
+reads if the work was never done at all. If that is the same as success, it is
+not the check you think it is, and a green from it is worth nothing. The filed
+version of this was narrower — *look at render output* (HO 670) — and it was
+widened at the HO 671 close because the same principle had by then produced three
+more failures in two sessions, none of them about looking at a page.
+
+**Six instances. Three are about reading an instrument wrongly rather than about
+the thing under test; one is a tool reporting an action it did not perform; one
+is an export whose output is indistinguishable from a working one; one is a set
+of gates that could not see the artifact at all:**
+
+- **HO 670 — a visual check with no capture is not a check.** Every gate green
+  while the layout was wrong three times: a ~300px dead zone under each panel, an
+  empty ODDS third, and a reduced-motion mask that erased the first row's title.
+  Greps and 200s cannot see a layout — a string is in the markup whether or not it
+  is inside the visible box, and a mask that erases text changes no DOM.
+- **HO 671 — never `tail` a command whose failure mode is a stack trace.**
+  `npx tsx -e "…await…" 2>&1 | tail -3` printed only `Node.js v25.5.0`. The tool
+  had reported the error in full; the pipeline showed the frames and hid the
+  message. The informative line is the **first** one.
+- **HO 671 — a write instrument that does not read back is not an instrument.**
+  That same one-liner was a *write*, so its failure mode was not "it failed" but
+  **"unclear whether it landed"** — the worst answer a write can give.
+- **HO 672 — `git check-ignore -v` exits 0 on a negated pattern**, printing the
+  `!` rule for a file that is **not** ignored. The flag added to make the answer
+  legible is the flag that makes both answers print the same shape. Authoritative
+  instrument: `git add --dry-run`.
+- **HO 672 — `TaskStop` reported success twice and left the detached child
+  processes running.** The first instance here where **a tool lied about an
+  action rather than about a state**: three latency samplers ran concurrently
+  against prod for 45 minutes, and the load change when two of them exited
+  destroyed two of the four measurements the run existed to take. **When a
+  process is supposed to have stopped, verify that it stopped.** And the
+  counterintuitive half, which is the part worth carrying: **the tidier design
+  would have hidden it.** One shared output file meant 540 lines for 240 cycles
+  and the mismatch was unmissable; per-run filenames would have produced three
+  inflated, internally consistent, entirely clean-looking series. **Prefer the
+  output arrangement in which contamination is visible over the one that is
+  merely neater.**
+- **HO 672 — `git show --word-diff=color > file.txt` writes a diff containing no
+  change information.** The markers exist only as ANSI escapes, which are gone
+  the moment the file is read as text; what survives is the document's prose with
+  nothing indicating what moved. Measured on the delivered file: **0 `[-old-]` /
+  `{+new+}` markers in 38,468 bytes** — and the `-` lines in it are markdown
+  bullets in the content, not removals. It is the right size, correctly named,
+  contains the right document, and answers a different question. **An empty
+  word-diff and a diff with no changes are the same bytes**, which is the
+  operational test failing in its purest form. Rule: **when writing a diff to a
+  file, use a format whose markers are text** — `--word-diff=plain` or plain
+  unified, never `--word-diff=color`. It happened inside the delivery step of the
+  commit that closes this very entry.
+
+**What the gate requires**
+
+- **Render-touching work: capture, and keep the captures.** A named viewport set
+  (HO 670 used 1920 / 1440 / 1100 / 430), a **separate `prefers-reduced-motion`
+  pass** — it is a different layout, not a dimmer one — and the screenshots
+  retained in the paste. "I looked at it" is not a capture.
+- **Any instrument: state what its zero means, and fire a control that can
+  produce a non-zero on the same instrument.** An untriggered guard is unproven,
+  not protection. Where a state can mimic the condition being tested, the control
+  has to separate them: "no rows yet" and "ran and produced nothing" are both a
+  zero, and only one of them is an answer.
+- **Any write: read back and print the effect.** `rowsAffected`, then re-read the
+  row, then — where one exists — re-run the predicate the write was meant to
+  satisfy.
+- **Any pipeline: do not truncate from the end** of output whose failure mode is
+  a trace, and read the exit status of the *command* rather than of the pipeline.
+- **Any convenient check: name the authoritative one.** If the cheap instrument
+  answers a different question than the one being asked, it is decoration —
+  `check-ignore` reports which rule matched last, not the verdict.
+- **A check built from the same expression as the thing it checks is a tautology
+  wearing a verdict.** An audit that shares its mapping expression with the
+  collector that wrote the rows cannot catch a wrong mapping — only stale ones —
+  so a clean result is evidence about freshness and none at all about
+  correctness. Say which of the two a check is buying. *(Adopted from outside
+  this project; the five instances above are ours.)*
+- **A gate binds to the state at the paste, not to the state when it ran.** Every
+  instance above is a check that was run and misread; this is the one where
+  nothing was wrong at the moment anything was checked. HO 670's tree went red
+  *after* its final gate, because a probe was written afterwards — so the report
+  was true when made and false when read. **Re-run the cheap gates immediately
+  before the paste** rather than reporting the last green, and say which reading
+  the paste carries. (Distinct from the reopening criterion below, which asks
+  whether the *next* HO complies; this asks whether *this* paste is current.)
+- **Deletion counting on an append-only doc: `git diff --numstat`'s deletions
+  column, or normal-format `^<`.** The rule and both wrong alternatives are
+  SKILL's (Pre-flight verification); what belongs here is the reproduction,
+  because HO 639 filed it on reasoning and HO 672 caught it red-handed **on the
+  very commit that closes the gate entry about not trusting it**. Striking a
+  backlog line edits a line beginning `- **`, so the removed side of the diff
+  reads `-- **…` — and `^-[^-]` requires the second character not to be a dash,
+  so it **excludes deleted markdown bullets by construction**. Measured on that
+  diff: `grep -c '^-[^-]'` returned **0** while `--numstat` reported **2**. A
+  clean grep and a genuinely additive commit are the same output, which is this
+  section's whole subject wearing its plainest disguise.
+
+**Cross-references, because these are owned elsewhere and restating them would
+drift them:** SKILL, "Pre-flight verification" — the `pipefail` / piped-exit-status
+rule, `npm ls` vs `npm ci`, coverage-vs-breakage instruments, and why a
+falsification anchor lives in a fixture rather than on a product route. SKILL,
+"Playwright smoke crawler" — why a skip-on-empty guard inverts a fixture's failure
+mode. `docs/oddities.md` carries each instance as a field note.
+
+**This step's own instrument can fail, which is the point.** If the step is
+written and the next render-touching HO's paste carries no capture, the step is
+decoration and the backlog entry reopens. That criterion was in the HO 670 filing
+and it survives the widening.
+
 ## Relay
 
 - **Swallow runs both directions.** A block can be lost carrying work out to the

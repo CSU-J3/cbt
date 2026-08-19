@@ -2508,3 +2508,60 @@ Two separate things, and only one of them is the tool's:
 
 **The check that catches it costs one line and is the same one this file keeps arriving at:** make the write report its own effect — `rowsAffected`, then re-read the row and print it. The replacement script did exactly that (`UPDATE rowsAffected: 1`, `AFTER: {"summary_null":1}`, then the runner's own eligibility predicate re-run to prove the next tick would claim it), and the ambiguity disappeared. A write instrument that does not read back is not an instrument.
 
+
+## `git check-ignore -v` exits 0 on a **negated** pattern, so "not ignored" reads as "ignored" (HO 672, Aug 2026)
+
+HO 672 added a `scratch/` directory that git ignores and `tsconfig` excludes, with the directory's own README negated back in so the rule ships with the repo:
+
+```
+scripts/diagnostic/scratch/*
+!scripts/diagnostic/scratch/README.md
+```
+
+The obvious check for the negation is `git check-ignore -v <path>`, and it answered:
+
+```
+.gitignore:55:!scripts/diagnostic/scratch/README.md   scripts/diagnostic/scratch/README.md
+exit 0
+```
+
+Read at a glance — a matched rule printed, status 0 — that says **ignored**, and the negation had failed. It had not. `-v` documents that *"exclude patterns which are negated are also shown (prefixed with `!`)"*, and the exit status is about whether the command matched anything to report, not about whether the path ends up ignored. So the one flag added to make the answer legible is the flag that makes success and failure print the same shape, distinguished only by a `!` that is easy to read past when it is the thing you were hoping to see.
+
+**The authoritative instrument is `git add --dry-run`**, which answers the question actually being asked — *can git stage this without `--force`?*:
+
+```
+$ git add --dry-run scripts/diagnostic/scratch/README.md
+add 'scripts/diagnostic/scratch/README.md'      # exit 0 — negation works
+```
+
+**The transferable half is the family, not the flag.** This is the same shape as `| tail -3` on a stack trace (HO 671, above) and as a skip-on-empty guard going green: **a check whose failure mode is indistinguishable from the condition it checks for.** Three of the four instances now on record are about reading an instrument wrongly rather than about the thing under test, which is why the rule landed in `docs/method.md` § Gates as a class — *a gate you cannot fail is not a gate* — rather than as a fourth one-off note here.
+
+The narrow, memorable form: **`check-ignore` reports which rule matched last; it does not report the verdict.** When the last matching rule may be a negation, ask git to do the thing instead of asking it what it thinks.
+
+## `TaskStop` reports success without killing the detached child — and the tidier output design would have hidden the damage (HO 672, Aug 2026)
+
+HO 672's prod measurement was a latency sampler: fetch `/welcome` every 20s across a window containing one known flush and one known idle tick. The window was revised twice, so the sampler was stopped and relaunched twice, and `TaskStop` answered both times with `Successfully stopped task`.
+
+**It stopped the task wrappers. All three `node` processes kept running to their own end times.** For 45 minutes three clients hit the subject URL simultaneously every 20s.
+
+**How it was caught, and it was nearly not:** the output file held **540 lines for 240 cycles**. The duplicates share `n` and share the timestamp to the millisecond — all three woke from the same absolute `setTimeout` target — but carry **different latencies** (`1681` / `1675` / `1866` ms on cycle 1), which is what proves three independent clients rather than a write-duplication bug. The copies-per-cycle histogram then dated each exit exactly: `3` writers for cycles 1–135, `2` from 00:40:01, `1` from 00:50:02.
+
+**The damage was specific rather than general.** Concurrency was constant across the sensitivity slot, the clean positive and the clean negative, so those three readings are internally comparable and survived. But the two later negatives sat at **00:40Z and 00:50Z — the exact instants the load changed** — so a latency change there could not be attributed to cache state, and both were discarded. Half the negatives, lost to the instrument rather than to the phenomenon.
+
+**The transferable half is counterintuitive, and it is why this is here rather than in a commit message: the neater design would have concealed it.** One shared append-only output file is what made the line count wrong and the contamination unmissable. Per-run filenames — the obvious tidy-up, and what a second pass would likely have "fixed" — would have produced three separate series, each internally consistent, each inflated by concurrent load, none showing any sign of the other two. The analysis would have run on one of them believing it was the only client, and every latency in it would have been wrong in the same direction with nothing to indicate it.
+
+Two rules: **when a process is supposed to have stopped, verify that it stopped** (`Get-CimInstance Win32_Process | Where-Object CommandLine -like …` on this box); and **prefer the output arrangement in which contamination is visible over the one that is merely neater.**
+
+Filed in `docs/method.md` § Gates as its fifth instance, and it is the first one there where **a tool lied about an action rather than about a state** — `check-ignore -v` misreports a verdict, `| tail` hides a message, but both at least did what they said. This did not.
+
+## `git show --word-diff=color > file.txt` writes a diff with no change information in it (HO 672, Aug 2026)
+
+The HO 672 SKILL diff was exported for review with `--word-diff=color`. The delivered file was **38,468 bytes containing 0 `[-old-]` and 0 `{+new+}` markers** — because in `color` mode git marks changed tokens with **ANSI escape sequences and nothing else**, and those are meaningless the instant the file is read as text rather than piped to a terminal. What arrives is the document's prose with no indication of what moved.
+
+**It is undetectable by inspection, which is the whole problem.** The file is the right size, correctly named, contains the right document, and opens cleanly. The `-` lines in it look like removals and are markdown bullets in the content. A reviewer skimming it sees a plausible diff of a document with, apparently, nothing changed in it — and **an empty word-diff and a diff of a commit with no changes are the same bytes.**
+
+Regenerating the identical commit with `--word-diff=plain` produced **38,313 bytes with 2 `[-` and 3 `{+`** markers (three edits, one a pure append, so it shows only additions). Same commit, same range, same file — the only difference is a format whose markers are text.
+
+**Rule: when writing a diff to a file, use a format whose markers survive being written to a file** — `--word-diff=plain`, or plain unified. Never `--word-diff=color` into anything but a terminal. `git --no-pager` and `--color=never` do not help; the marker information genuinely is the colour in that mode.
+
+It landed in `docs/method.md` § Gates as the sixth instance, and it earned that placement by occurring **inside the delivery step of the commit that closes the gate entry** — the export intended to let a reviewer read the change was itself a check that could not fail visibly.
