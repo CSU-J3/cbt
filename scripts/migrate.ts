@@ -1044,6 +1044,77 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_nominations_military    ON nominations(is_military)`,
   `CREATE INDEX IF NOT EXISTS idx_nominations_update      ON nominations(update_date DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_nominations_committee   ON nominations(committee_system_code)`,
+
+  // ── HO 674: the two per-bill rosters. Both hang off the SAME Congress.gov
+  // sub-endpoint shape (`/bill/{c}/{t}/{n}/cosponsors` and `/relatedbills`),
+  // which is why they are one data domain and not two. The bill DETAIL endpoint
+  // returns only `{count, url}` for each, so neither roster can be recovered
+  // from `bills.raw_json` -- these tables are the only place the identities live.
+  //
+  // FK to bills is LOOSE (no REFERENCES clause), per HO 447: FK enforcement is ON
+  // in this database, and a strict FK would reject a roster row whose bill has
+  // not been ingested yet, turning an ordering accident into data loss.
+  `CREATE TABLE IF NOT EXISTS bill_cosponsors (
+    bill_id TEXT NOT NULL,
+    bioguide_id TEXT NOT NULL,
+    sponsorship_date TEXT,
+    -- NULL for an active cosponsor; a date for a withdrawn one. HO 674 measured
+    -- that the API RETURNS withdrawn cosponsors in the list (119-hr-452: the
+    -- list yields 300 entries, one carrying sponsorshipWithdrawnDate), so a
+    -- roster CAN mark them rather than silently dropping them.
+    --
+    -- THE TRAP, and it is load-bearing for the integrity check: pagination.count
+    -- EXCLUDES withdrawn cosponsors (299) while the list INCLUDES them (300).
+    -- bills.cosponsor_count is sourced from the detail endpoints
+    -- $.cosponsors.count, i.e. the ACTIVE count. So any check comparing this
+    -- table against that column MUST filter to sponsorship_withdrawn_date IS
+    -- NULL. A naive COUNT(*) disagrees on exactly the bills that have a
+    -- withdrawal -- measured at 2 of 30 high-cosponsor bills.
+    sponsorship_withdrawn_date TEXT,
+    is_original INTEGER NOT NULL DEFAULT 0,
+    ingested_at TEXT,
+    PRIMARY KEY (bill_id, bioguide_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bill_cosponsors_bill     ON bill_cosponsors(bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_bill_cosponsors_bioguide ON bill_cosponsors(bioguide_id)`,
+
+  // The composite PK carries the relationship type deliberately. HO 674 measured
+  // that ONE related bill can arrive with MORE THAN ONE relationshipDetails
+  // entry (e.g. both "Related bill" and "Procedurally related", identified by
+  // different sources), so (bill_id, related_bill_id) alone would collide on
+  // real data -- a unique-constraint failure partway through a backfill rather
+  // than at its start.
+  //
+  // This is also why `$.relatedBills.count` is NOT a row count for this table:
+  // it counts RELATIONSHIP ENTRIES, not related bills. Measured across 40 bills:
+  // summed pagination.count 1,078 == summed relationshipDetails 1,078, against
+  // 1,004 distinct listed bills.
+  //
+  // Observed `relationship_type` value set (40-bill sample): "Related bill" 848,
+  // "Identical bill" 143, "Procedurally related" 46, "Public law contains the
+  // text" 41. There is NO "Companion" value -- see docs/backlog.md, the open
+  // question about what HO 673 ruling 3 should promote.
+  `CREATE TABLE IF NOT EXISTS bill_related_bills (
+    bill_id TEXT NOT NULL,
+    related_bill_id TEXT NOT NULL,
+    relationship_type TEXT NOT NULL,
+    -- LOSSY, DELIBERATELY. identified_by records ONE of possibly several
+    -- sources. Where CRS and the House both identify the SAME relationship,
+    -- the two API entries share this table's primary key and the second
+    -- write replaces the first -- measured at 1 in 167 (0.6%) on the HO 674
+    -- STEP 2 slice: 119-s-1318 -> 119-hr-1919 'Related bill', identified by
+    -- both. Ruled at HO 674: the relationship is the same fact whichever
+    -- body asserted it, and adding the source to the key would push a dedupe
+    -- into every consumer to preserve a distinction no ruling asks for.
+    -- Do NOT read this column as a complete list of who identified a
+    -- relationship.
+    identified_by TEXT,
+    ingested_at TEXT,
+    PRIMARY KEY (bill_id, related_bill_id, relationship_type)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_bill_related_bill    ON bill_related_bills(bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_bill_related_related ON bill_related_bills(related_bill_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_bill_related_type    ON bill_related_bills(relationship_type)`,
 ];
 
 async function ensureColumn(
