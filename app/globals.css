@@ -4089,65 +4089,22 @@ body {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.v2f-sc-card {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 80;
-  display: none;
-  width: 252px;
-  gap: 11px;
-  padding: 11px;
-  text-transform: none;
-  background-color: var(--bg-row-hover);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.55);
-}
-.v2f-sc-photo {
-  flex: none;
-  width: 80px;
-  height: 94px;
-  object-fit: cover;
-  border-radius: 3px;
-  background: var(--bg-panel);
-}
-.v2f-sc-photo--fb {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: 600;
-  background: linear-gradient(135deg, var(--bg-panel), var(--border-strong));
-}
-.v2f-sc-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-}
-.v2f-sc-name {
-  font-family: var(--sans);
-  font-size: var(--fs-13);
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.25;
-}
-.v2f-sc-party {
-  font-size: var(--fs-12);
-  font-weight: 600;
-}
-.v2f-sc-meta {
-  font-size: var(--fs-11);
-  color: var(--text-dim);
-}
+/* HO 673 RETIRED the .v2f-sc-* sponsor hover card (7 rules: -card, -photo,
+   -photo--fb, -info, -name, -party, -meta) together with the two hover-gate
+   selectors that revealed it. The portrait it hid is now ALWAYS ON in the
+   panel — see .bxp-sponsor below, which carries the replacement
+   .bxp-sponsor-photo / -info / -meta rules. Nothing renders these class names
+   any more; they were excised rather than left unreferenced (HO 669's dead
+   branch, HO 668's .pdc* excision). */
 
 /* ── HO 317: the ONE shared unified expand panel (.bxp), rendered on BOTH the
    dashboard `/` (hover) and /bills (click). Visual source of truth:
    docs/design/expanded-panel-unified.html. The stage bar (.v2f-bar / .v2f-bdot /
-   .v2f-bping above) and the sponsor hover card (.v2f-sc-* above) are LIVE — lifted
-   from the old private Expand and REUSED by .bxp (the card is revealed by
-   .bxp-sponsor:hover .v2f-sc-card below). The body grid + boxed meta below are new
+   .v2f-bping above) is LIVE — lifted from the old private Expand and REUSED by
+   .bxp. The sponsor hover card (.v2f-sc-*) was lifted the same way and is now
+   GONE: HO 673 made the portrait always-on and excised the card with its two
+   hover-gate selectors (see the tombstone above and .bxp-sponsor below).
+   The body grid + boxed meta below are new
    to match the mock. (HO 570 C1 swept the truly-dead per-surface Expand rules —
    .v2f-exp, -grid, -summary, -related, -side, -sk, -sv, -btns, and the -cmte- and
    -sponsor families.)
@@ -4406,11 +4363,40 @@ body {
   color: var(--text-dim);
   font-size: var(--fs-11);
 }
-/* sponsor meta: name link (dim underline) + party-colored bracket; the lifted
-   .v2f-sc-card hover card opens off the name. */
+/* sponsor meta (HO 673): the portrait ALWAYS ON at 80x94 beside a stacked
+   name / party-bracket / state-chamber column. Source: docs/design/
+   mock-673-sponsor-cosponsor.html (.spblock / .spinfo / .spmeta).
+   This REPLACES the .v2f-sc-card hover reveal, which is excised above — the
+   portrait was already fetched on every surface that renders the panel and was
+   hidden behind display:none, so nothing here spends a new read.
+   .bxp-sponsor-meta is the card's ONE non-duplicated field carried over: full
+   state name + chamber, which the [D-NV-4] bracket does not spell out. */
 .bxp-sponsor {
-  position: relative;
-  display: inline;
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+}
+.bxp-sponsor-photo {
+  flex: none;
+  width: 80px;
+  height: 94px;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--bg-panel);
+}
+.bxp-sponsor-photo--fb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--bg-panel), var(--border-strong));
+}
+.bxp-sponsor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 .bxp-sponsor-name {
   color: var(--text-secondary);
@@ -4424,9 +4410,11 @@ body {
 .bxp-sponsor-bracket {
   font-weight: 600;
 }
-.bxp-sponsor:hover .v2f-sc-card,
-.bxp-sponsor:focus-within .v2f-sc-card {
-  display: flex;
+.bxp-sponsor-meta {
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 .bxp-btns {
   display: flex;
@@ -4491,7 +4479,13 @@ body {
    row's full-title popover is position:fixed off the trigger's rect (HO 609), so
    no ancestor overflow can reach it; and the expanded panel's own sponsor card
    (.v2f-sc-card inside .bxp) is bounded by .v2f's overflow — an INNER ancestor —
-   which this rule never governed. Both render identically with it and without it. */
+   which this rule never governed. Both render identically with it and without it.
+   HO 673 NOTE: the second of those two overlays no longer exists — the sponsor
+   card was retired and the portrait is always-on, so it is not an overlay at all
+   any more. The reasoning above is kept as the record of why the rule was
+   removed; its conclusion is unaffected, and the row's full-title popover (the
+   first overlay, position:fixed off the trigger rect) still stands as a live
+   case. */
 
 /* HO 657 RETIRED the .dash-prim-* block (18 selectors: the 6-month tick
    timeline, the 2×2 date-card grid, the empty notice, the mobile override).

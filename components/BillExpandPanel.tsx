@@ -161,7 +161,11 @@ function SponsorPhoto({
   const [errored, setErrored] = useState(false);
   if (!url || errored) {
     return (
-      <span className="v2f-sc-photo v2f-sc-photo--fb" style={{ color }} aria-hidden>
+      <span
+        className="bxp-sponsor-photo bxp-sponsor-photo--fb"
+        style={{ color }}
+        aria-hidden
+      >
         {initials(name)}
       </span>
     );
@@ -169,7 +173,7 @@ function SponsorPhoto({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="v2f-sc-photo"
+      className="bxp-sponsor-photo"
       src={url}
       alt=""
       loading="lazy"
@@ -178,8 +182,19 @@ function SponsorPhoto({
   );
 }
 
-// Meta SPONSOR row: natural "Rep./Sen. First Last" + a single party-colored
-// [party-state-district] bracket (mock), with the HO 300 hover card on the name.
+// Meta SPONSOR row: the sponsor portrait ALWAYS ON at 80x94 beside a stacked
+// name / party-bracket / state-chamber column (HO 673, docs/design/
+// mock-673-sponsor-cosponsor.html). The HO 300 hover card (.v2f-sc-card) that
+// used to reveal the portrait on hover is RETIRED — it is gone from the markup
+// and from globals.css, not merely hidden.
+//
+// The retirement is safe because this block RE-HOMES the card's one
+// non-duplicated field. The card showed name, bracket and `cardMeta`; the first
+// two already rendered beside it, but `cardMeta` (full state NAME + chamber
+// word, "Nevada / House") had no visible counterpart -- the bracket carries the
+// abbreviation only ("[D-NV-4]"). It now renders as .bxp-sponsor-meta. Retiring
+// the card on the reasoning that it duplicated everything would have dropped
+// that field silently.
 function SponsorMeta({ bill }: { bill: FeedBill }) {
   const raw = bill.sponsor_name ?? "";
   if (!raw) return null;
@@ -204,38 +219,29 @@ function SponsorMeta({ bill }: { bill: FeedBill }) {
 
   return (
     <span className="bxp-sponsor">
-      {bill.sponsor_bioguide_id ? (
-        <a
-          className="bxp-sponsor-name"
-          href={`/members/${bill.sponsor_bioguide_id}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {name}
-        </a>
-      ) : (
-        <span className="bxp-sponsor-name bxp-sponsor-name--plain">{name}</span>
-      )}
-      {bracket ? (
-        <span className="bxp-sponsor-bracket" style={{ color }}>
-          {" "}
-          {bracket}
-        </span>
-      ) : null}
-      <span className="v2f-sc-card" role="tooltip">
-        <SponsorPhoto
-          url={bill.sponsor_depiction_url ?? null}
-          name={raw}
-          color={color}
-        />
-        <span className="v2f-sc-info">
-          <span className="v2f-sc-name">{name}</span>
-          {bracket ? (
-            <span className="v2f-sc-party" style={{ color }}>
-              {bracket}
-            </span>
-          ) : null}
-          <span className="v2f-sc-meta">{cardMeta}</span>
-        </span>
+      <SponsorPhoto
+        url={bill.sponsor_depiction_url ?? null}
+        name={raw}
+        color={color}
+      />
+      <span className="bxp-sponsor-info">
+        {bill.sponsor_bioguide_id ? (
+          <a
+            className="bxp-sponsor-name"
+            href={`/members/${bill.sponsor_bioguide_id}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {name}
+          </a>
+        ) : (
+          <span className="bxp-sponsor-name bxp-sponsor-name--plain">{name}</span>
+        )}
+        {bracket ? (
+          <span className="bxp-sponsor-bracket" style={{ color }}>
+            {bracket}
+          </span>
+        ) : null}
+        <span className="bxp-sponsor-meta">{cardMeta}</span>
       </span>
     </span>
   );

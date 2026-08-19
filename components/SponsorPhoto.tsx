@@ -21,11 +21,22 @@ export function SponsorPhoto({
   // the original 150px. Initials scale proportionally (36/150 ratio).
   width = 150,
   // HO 645: an explicit height, which REPLACES the 3:4 aspect rather than adding
-  // to it. The absence card's face is 112x132 (0.85), not 3:4, and the whole
-  // point of this prop is that there stays exactly ONE implementation of the
-  // bioguide URL and of the onError->initials fallback — the card must not carry
-  // a second copy of either (HO 507's shared-component rule). Omitted, every
-  // existing caller renders byte-identically.
+  // to it. The absence card's face is 112x132 (0.85), not 3:4, and the point of
+  // this prop was that the ABSENCE CARD must not carry a second copy of the
+  // bioguide URL or the onError->initials fallback (HO 507's shared-component
+  // rule). Omitted, every existing caller renders byte-identically.
+  //
+  // HO 673 CORRECTION: this comment used to claim there stays "exactly ONE
+  // implementation" of that URL and fallback. That is false and was false when
+  // written. A second implementation lives at components/BillExpandPanel.tsx
+  // (the local `SponsorPhoto`), and it resolves a DIFFERENT source: this one
+  // CONSTRUCTS bioguide.congress.gov/bioguide/photo/<X>/<ID>.jpg from the
+  // bioguide id, while that one renders the STORED members.depiction_url
+  // (a congress.gov/img/member/... URL). Both carry their own onError->initials
+  // fallback. HO 673 edited the BillExpandPanel copy (portrait always-on) and
+  // deliberately did NOT unify them: switching the panel's image source is a
+  // behaviour change beyond that HO's ruling. The unification is filed in
+  // docs/backlog.md with both hosts named.
   height,
   // The card's face already draws its own 1px inner border, so a second hairline
   // here would double it. Default keeps every prior caller unchanged.

@@ -316,38 +316,68 @@ test.describe("home /", () => {
     assertClean(c, "home races tabs");
   });
 
-  test("sponsor hover card renders inside the expand panel", async ({ page }) => {
+  // HO 673 — REPLACES "sponsor hover card renders inside the expand panel".
+  //
+  // The test this supersedes asserted the portrait appeared ON HOVER, and it
+  // guarded the assertion with `if (await card.count())`. That guard made it
+  // green-on-deletion: remove `.v2f-sc-card` and the count is 0, the assertion
+  // never runs, and the test passes while annotating itself "not a finding" —
+  // the check reads the same whether the work was done or never existed
+  // (docs/method.md § Gates). HO 673 removes that card, so the replacement
+  // asserts the OPPOSITE property and carries no skip-on-empty guard:
+  //   - the portrait is visible WITHOUT any hover, and
+  //   - a run that finds no resolved-sponsor row FAILS rather than annotating.
+  test("sponsor portrait is always on inside the expand panel", async ({ page }) => {
     const c = attachCollectors(page);
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
-    // open a row that has a resolved sponsor link
+
     const rows = page.locator(".v2f-row");
     const count = Math.min(await rows.count(), 6);
-    let found = false;
+    expect(count, "feed should render rows to open").toBeGreaterThan(0);
+
+    let sponsorRows = 0;
     for (let i = 0; i < count; i++) {
       await rows.nth(i).click();
       const panel = page.locator(".v2f-group.open .bxp").first();
       await expect(panel).toBeVisible({ timeout: 10_000 });
-      const sponsor = panel.locator("a.bxp-sponsor-name").first();
+
+      const sponsor = panel.locator(".bxp-sponsor").first();
       if (await sponsor.count()) {
-        await sponsor.hover();
-        const card = page.locator(".v2f-sc-card").first();
-        if (await card.count()) {
-          await expect(card, "sponsor hover card should appear").toBeVisible({ timeout: 4_000 });
-          found = true;
-          break;
-        }
+        sponsorRows++;
+        // The portrait must be visible with NO hover and NO focus. Deliberately
+        // asserted before any pointer interaction with the sponsor block.
+        const photo = sponsor.locator(".bxp-sponsor-photo").first();
+        await expect(
+          photo,
+          "sponsor portrait should be visible without hovering",
+        ).toBeVisible({ timeout: 4_000 });
+
+        // The re-homed field: the retired hover card was the ONLY place full
+        // state name + chamber rendered (the bracket carries "[D-NV-4]" only).
+        await expect(
+          sponsor.locator(".bxp-sponsor-meta").first(),
+          "state/chamber line should survive the hover-card retirement",
+        ).toBeVisible({ timeout: 4_000 });
+
+        // The retired card must be gone, not merely hidden.
+        expect(
+          await page.locator(".v2f-sc-card").count(),
+          "retired sponsor hover card should not be in the DOM",
+        ).toBe(0);
+        break;
       }
       await rows.nth(i).click(); // close before next
     }
-    if (!found) {
-      test.info().annotations.push({
-        type: "note",
-        description: "no resolved-sponsor row in first 6 feed rows — sponsor card not exercised (not a finding).",
-      });
-    }
-    logClean("home-sponsor-hover", c);
-    assertClean(c, "home sponsor hover");
+
+    // No skip-on-empty: if nothing was exercised, that is a failure, not a note.
+    expect(
+      sponsorRows,
+      `no resolved-sponsor row in first ${count} feed rows — portrait not exercised`,
+    ).toBeGreaterThan(0);
+
+    logClean("home-sponsor-portrait", c);
+    assertClean(c, "home sponsor portrait");
   });
 });
 
