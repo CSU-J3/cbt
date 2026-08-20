@@ -2628,3 +2628,95 @@ debugging rounds: **`npm run build` while `next start` is running leaves the ser
 serving a hybrid tree**, which surfaced as `net::ERR_ABORTED` on a CSS chunk and a
 `.bxp-sponsor-photo` that had vanished from the DOM entirely. Rebuild, then
 restart — and re-check the port owner, not just that something answers.
+
+---
+
+## An unqualified alias in GROUP BY resolves against the joined table, and it produced a confident wrong answer (HO 674)
+
+Characterising the 82 related-bill ids that do not resolve to a `bills.id`, the
+first query was:
+
+```sql
+SELECT substr(x.related_bill_id, 1, instr(x.related_bill_id,'-')-1) AS congress,
+       COUNT(*) AS n
+FROM bill_related_bills x LEFT JOIN bills b ON b.id = x.related_bill_id
+WHERE b.id IS NULL GROUP BY congress ORDER BY n DESC
+```
+
+It returned **`[{congress: "117", n: 82}]`** — all 82 in a prior Congress, which
+reads as a complete non-finding: the corpus is 119th-only, so of course
+references to older bills dangle. It is also **wrong**. `bills` has its own
+`congress` column, and the unqualified `congress` in `GROUP BY` binds to **that
+input column, not to the SELECT alias** — so every row grouped under a single
+value. Wrapping the expression in a subquery and grouping on the derived column
+gives the real answer: **119: 74 · 118: 6 · 117: 2.**
+
+The two answers point in opposite directions. The wrong one says *nothing to see,
+prior-Congress artifact*; the right one says **74 bills of the CURRENT Congress
+are referenced but absent from the corpus**, which is a completeness gap and is
+now a filed entry. The sample rows visible alongside the wrong aggregate
+(`118-hr-1398`, `118-s-3763`) even contradicted it — the aggregate said 117, the
+sample showed 118s — and that contradiction is what made it worth re-running.
+
+This is the HO 535 `MISSED_CARVE_EXPR` gotcha in a second dress: there it was
+`ORDER BY`, here `GROUP BY`, same rule — **an unqualified column in an ORDER BY
+or GROUP BY expression resolves against the input tables before it resolves
+against a SELECT alias.** The joined table only has to *contain* a column of that
+name for the query to become silently wrong rather than an error.
+
+**Rule: alias a derived grouping column to something no input table has, or group
+on the expression inside a subquery. And when an aggregate and the row sample
+beside it disagree, believe the sample.**
+
+---
+
+## The relationship-type value set has a capital-B variant that a straight equality misses (HO 674)
+
+Congress.gov's related-bill `relationshipDetails.type` reads, corpus-wide across
+10,254 stored rows:
+
+| type | rows |
+|---|---|
+| `Related bill` | 6,187 |
+| `Identical bill` | 3,454 |
+| `Procedurally related` | 375 |
+| `Public law contains the text` | 114 |
+| `Contained in public law` | 100 |
+| **`Identical Bill (Became Law)`** | **24** |
+
+Note the **capital B** on the last one. It is the only value in the set that
+capitalises `Bill`, and it is semantically a member of the `Identical bill`
+family — so `WHERE relationship_type = 'Identical bill'` silently drops 24 rows
+that a reader would expect it to include, and `LIKE 'Identical%'` catches both
+while `LIKE 'Identical bill%'` catches only one.
+
+Two of the six values (`Contained in public law`, `Identical Bill (Became Law)`)
+**did not appear at all** in a 40-bill sample that produced 1,078 relationship
+entries. They are rare-but-real tail values, and the tail is exactly where a
+value set gets its inconsistent casing. A sample large enough to be convincing
+about the common values said nothing about these.
+
+**Rule: an observed value set from a sample is a lower bound on the value set.
+Re-derive it at full scale before writing an equality against it** — and where a
+family of values exists, match the family rather than one spelling.
+
+---
+
+## Pricing a job against a limit it never approaches (HO 674)
+
+The full backfill was costed at **~1.5h** and took **~4h**. The request estimate
+in the same breath was **24,505** against an actual **24,429 — 0.3% off.**
+
+The difference is which number was measured. The request count came from counting
+the corpus: bills with cosponsors, bills with related bills, pages at limit 250.
+The wall clock came from dividing that count by the **rate limit** — 24,505 ÷
+20,000/hr ≈ 1.2h — a limit the job never came near. Observed throughput was
+**~2.1 requests/second ≈ 7,500/hr**, so the binding constraint was per-request
+round-trip latency, not the quota, and the slice had already said so: 50 bills in
+17.9s is 2.8 bills/sec, which extrapolates to roughly the right answer and was
+available before the estimate was given.
+
+**Rule: a ceiling is only a schedule if you are going to hit it.** Cost wall clock
+from observed throughput — and prefer the throughput you already measured on a
+slice over any headline limit. This sits beside *price before optimize*: the
+quantity was priced properly and the duration was not, in the same sentence.
