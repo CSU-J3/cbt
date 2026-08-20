@@ -28,6 +28,7 @@ import { useEffect, useMemo } from "react";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { BillRow } from "@/components/BillRow";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
+import { EMPTY_PANEL } from "@/components/bill-panel-types";
 import type { PanelData } from "@/components/bill-panel-types";
 import type { FeedBill } from "@/lib/queries";
 
@@ -69,7 +70,7 @@ export function BillRowList({
       })
       .catch(() => {
         if (!cancelled)
-          handleLoaded(expandedId, { committees: [], news: [], meetings: [] });
+          handleLoaded(expandedId, EMPTY_PANEL);
       });
     return () => {
       cancelled = true;

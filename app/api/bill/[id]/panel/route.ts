@@ -4,10 +4,23 @@
 // page feed query if pre-rendered. This route runs them on first expand
 // only; BillRowList caches the result per row so re-expanding the same
 // row is free.
+//
+// HO 675 widened it by two more: the cosponsor roster and the related-bill
+// roster. They land HERE rather than on the row payload for the same reason the
+// original two did — carrying them on the feed costs +504 rows per 50-row page
+// render, on a `bills`-tagged entry, where the lazy route costs ~63 rows once
+// per bill actually opened. Both are reduced to what the panel DRAWS before
+// they are serialized; see lib/bill-rosters-view.ts.
 import { NextResponse } from "next/server";
 import { formatBillId } from "@/lib/format";
 import {
+  buildCosponsorRoster,
+  shapeRelatedBills,
+} from "@/lib/bill-rosters-view";
+import {
   getBillCommittees,
+  getBillCosponsors,
+  getBillRelatedBills,
   getCommitteeBySystemCode,
   getMeetingsForBill,
   getNewsForBill,
@@ -26,11 +39,14 @@ export async function GET(
     return NextResponse.json({ error: "invalid bill id" }, { status: 400 });
   }
 
-  const [committees, news, meetings] = await Promise.all([
-    getBillCommittees(billId),
-    getNewsForBill(billId, NEWS_LIMIT),
-    getMeetingsForBill(billId),
-  ]);
+  const [committees, news, meetings, cosponsorRows, relatedRows] =
+    await Promise.all([
+      getBillCommittees(billId),
+      getNewsForBill(billId, NEWS_LIMIT),
+      getMeetingsForBill(billId),
+      getBillCosponsors(billId),
+      getBillRelatedBills(billId),
+    ]);
 
   // HO 299: resolve committee names for the meetings' system codes (cached
   // single-row lookups; a bill usually has 1–2 distinct committees, so this is a
@@ -87,5 +103,11 @@ export async function GET(
         label: formatBillId(b.bill_type, b.bill_number),
       })),
     })),
+    // HO 675 — apportioned to the six-face budget HERE, so the payload carries
+    // the faces the panel draws and not the roster behind them.
+    cosponsors: buildCosponsorRoster(cosponsorRows),
+    // Shaped but not capped: the component removes anything the HEARING block
+    // is already printing off its chosen meeting's agenda, then cuts.
+    relatedBills: shapeRelatedBills(billId, relatedRows),
   });
 }

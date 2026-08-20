@@ -36,6 +36,14 @@ import {
 import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
 import type { PanelData, PanelMeeting } from "@/components/bill-panel-types";
+import type {
+  CosponsorFace,
+  CosponsorRoster,
+  PartyKey,
+  PromotedRelatedBill,
+  RelatedBillView,
+  RelatedBillsShape,
+} from "@/lib/bill-rosters-view";
 
 // ---- shared stage bar (HO 298, lifted) --------------------------------------
 
@@ -149,20 +157,33 @@ function initials(name: string): string {
   return ((p[0]?.[0] ?? "") + (p[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+// HO 675 — `className` added so the 32x38 cosponsor face reuses this ONE
+// onError->initials fallback rather than declaring a second copy of it eight
+// lines away. The default reproduces the pre-675 class strings byte for byte
+// ("bxp-sponsor-photo" and "bxp-sponsor-photo bxp-sponsor-photo--fb"), so the
+// sponsor block's markup is unchanged and its before/after capture is a byte
+// diff that a reordered attribute would have failed for no reason.
+//
+// This is NOT the SponsorPhoto unification filed at HO 673 — that one is about
+// two DIFFERENT image sources (constructed bioguide URL vs stored
+// depiction_url) living in two files. This is one file, one source, one
+// fallback, now with two sizes.
 function SponsorPhoto({
   url,
   name,
   color,
+  className = "bxp-sponsor-photo",
 }: {
   url: string | null;
   name: string;
   color: string;
+  className?: string;
 }) {
   const [errored, setErrored] = useState(false);
   if (!url || errored) {
     return (
       <span
-        className="bxp-sponsor-photo bxp-sponsor-photo--fb"
+        className={`${className} ${className}--fb`}
         style={{ color }}
         aria-hidden
       >
@@ -173,7 +194,7 @@ function SponsorPhoto({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      className="bxp-sponsor-photo"
+      className={className}
       src={url}
       alt=""
       loading="lazy"
@@ -256,6 +277,37 @@ function SponsorMeta({ bill }: { bill: FeedBill }) {
 // meetingStatus LIVE signal exists — it's planning-state). Reuses the hearings
 // badge + ET time/day formatters; renders nothing pre-load (panel === null),
 // then the empty state or the three populated lines.
+// HO 371 selection, EXTRACTED at HO 675 — expression unchanged, now with two
+// callers instead of one. In momentum mode (/stale, silentDays set) the "life"
+// being surfaced is a PAST hearing — these bills are 60+ days stale, so
+// HO 324's current-or-upcoming filter (3h window) would drop every one and the
+// block would read NO RELATED HEARINGS even when the collapsed HEARD badge is
+// lit. So pick the most-recent hearing regardless of past/future, matching the
+// badge + the "then silent" story. Non-momentum surfaces keep HO 324's
+// soonest-current-or-upcoming selection unchanged.
+//
+// The second caller is the RELATED BILLS block, which must not reprint a bill
+// the HEARING block is already showing off this meeting's agenda (HO 675, the
+// mock's dedup requirement — 76 bills corpus-wide). That dedup has to run
+// against the meeting actually CHOSEN, and the choice depends on `silentDays`,
+// which is why it could not be done in the route. Two copies of this expression
+// would let the two blocks disagree about which meeting is on screen, which is
+// the exact defect the dedup exists to prevent.
+export function selectHearingMeeting(
+  meetings: PanelMeeting[],
+  silentDays: number | null,
+  now: number,
+): PanelMeeting | null {
+  const dated = meetings
+    .map((mt) => ({ mt, t: Date.parse(mt.meetingDate) }))
+    .filter((x) => Number.isFinite(x.t));
+  return silentDays != null
+    ? (dated.sort((a, b) => b.t - a.t)[0]?.mt ?? null)
+    : (dated
+        .filter((x) => x.t + LIVE_WINDOW_MS >= now)
+        .sort((a, b) => a.t - b.t)[0]?.mt ?? null);
+}
+
 function HearingBlock({
   meetings,
   currentBillId,
@@ -270,22 +322,7 @@ function HearingBlock({
   silentDays: number | null;
 }) {
   const now = Date.now();
-  // HO 371: in momentum mode (/stale, silentDays set) the "life" being surfaced
-  // is a PAST hearing — these bills are 60+ days stale, so HO 324's
-  // current-or-upcoming filter (3h window) would drop every one and the block
-  // would read NO RELATED HEARINGS even when the collapsed HEARD badge is lit.
-  // So pick the most-recent hearing regardless of past/future, matching the
-  // badge + the "then silent" story. Non-momentum surfaces keep HO 324's
-  // soonest-current-or-upcoming selection unchanged.
-  const dated = meetings
-    .map((mt) => ({ mt, t: Date.parse(mt.meetingDate) }))
-    .filter((x) => Number.isFinite(x.t));
-  const m =
-    silentDays != null
-      ? (dated.sort((a, b) => b.t - a.t)[0]?.mt ?? null)
-      : (dated
-          .filter((x) => x.t + LIVE_WINDOW_MS >= now)
-          .sort((a, b) => a.t - b.t)[0]?.mt ?? null);
+  const m = selectHearingMeeting(meetings, silentDays, now);
 
   return (
     <div className="bxp-relblock">
@@ -407,6 +444,261 @@ function PopulatedHearing({
   );
 }
 
+// ---- cosponsor faces (HO 675) -----------------------------------------------
+
+// docs/design/mock-673-sponsor-cosponsor.html, format C: the total line, then
+// one group per party PRESENT — header with the party's own count, then up to
+// six 32x38 faces apportioned across the groups, then a "+N" chip for the
+// remainder. Names on hover.
+//
+// The apportionment itself is NOT here: it runs in the panel route so the
+// payload carries the six drawn faces rather than the roster behind them
+// (119-hr-842 has 338). See lib/bill-rosters-view.ts, which also carries the
+// worked cases and why a proportional split was ruled against.
+//
+// THE HOVER TIP IS CSS-ONLY — :hover / :focus-visible flipping `display`,
+// exactly as the mock does it. No state, no handler, no portal, and therefore
+// no new client boundary: this file is already "use client" (line 1), so island
+// membership is unchanged and no changelog entry is owed (HO 665).
+const PARTY_NAME: Record<PartyKey, string> = {
+  D: "Democrat",
+  R: "Republican",
+  I: "Independent",
+};
+
+function CosponsorFaces({ roster }: { roster: CosponsorRoster | null }) {
+  // Nothing pre-load, and nothing for a bill whose roster is empty — the same
+  // C4 rule the related blocks follow: nothing is reserved when there is
+  // nothing to put in it.
+  if (!roster || roster.groups.length === 0) return null;
+  return (
+    <>
+      {roster.groups.map((g) => {
+        const faces = roster.faces.filter((f) => f.party === g.party);
+        const remainder = g.count - faces.length;
+        return (
+          <div className="bxp-cospgrp" key={g.party}>
+            <div className="bxp-cospghdr" style={{ color: partyColor(g.party) }}>
+              {PARTY_NAME[g.party].toUpperCase()}
+              <span className="bxp-cospgn">
+                {" · "}
+                {g.count.toLocaleString()}
+              </span>
+            </div>
+            <div className="bxp-cosgrid">
+              {faces.map((f) => (
+                <CosponsorFaceLink key={f.bioguideId} face={f} />
+              ))}
+              {remainder > 0 ? (
+                // PLAIN TEXT, not a link. The mock renders this as an
+                // <a href="#">, but there is no cosponsor-roster surface to
+                // send anyone to; shipping a mock's placeholder href is how a
+                // link that goes nowhere gets built. Filed in docs/backlog.md
+                // with the destination that would be needed.
+                <span className="bxp-cosmore" aria-hidden>
+                  +{remainder.toLocaleString()}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function CosponsorFaceLink({ face }: { face: CosponsorFace }) {
+  const color = partyColor(face.party);
+  return (
+    // An <a> with a REAL destination, unlike the two "+N" affordances: the
+    // member hub exists, and the mock's element is an anchor too. Native focus
+    // means the tip's :focus-visible reveal works without a tabIndex.
+    <a
+      className="bxp-face"
+      href={`/members/${face.bioguideId}`}
+      style={{ "--pc": color } as CSSProperties}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <SponsorPhoto
+        url={face.depictionUrl}
+        name={face.name}
+        color={color}
+        className="bxp-face-photo"
+      />
+      <span className="bxp-tip">
+        <span className="bxp-tipname">{face.name}</span>
+        <span className="bxp-tipmeta">
+          <span className="bxp-tipbracket" style={{ color }}>
+            {face.bracket}
+          </span>
+          {" · "}
+          {face.meta}
+        </span>
+      </span>
+    </a>
+  );
+}
+
+// ---- related bills (HO 675) -------------------------------------------------
+
+// docs/design/mock-673-related-bills.html, R2. Fourth block in the left column,
+// after RELATED NEWS and before ODDS.
+//
+// The list is capped at five. 98.24% of bills with related rows carry five or
+// fewer once the promoted twin is removed, which matters because the "+N more"
+// overflow — like the cosponsor "+N" chip — is PLAIN TEXT with no destination,
+// so the cap is chosen to make it almost never appear rather than to make the
+// block a convenient length.
+const RELATED_LIST_CAP = 5;
+
+// "Senate companion · identical" / "House companion · identical, became law".
+// The chamber is the TARGET's, because that is what makes it a companion rather
+// than a duplicate filing. The became-law clause is ruling 2's: those 24 rows
+// arrive as `Identical Bill (Became Law)` and say the twin is now law while
+// this bill is not, which is the most interesting thing the block can report.
+function promotedLabel(p: PromotedRelatedBill): string {
+  return (
+    `${p.chamber === "senate" ? "Senate" : "House"} companion · identical` +
+    (p.becameLaw ? ", became law" : "")
+  );
+}
+
+function RelatedBillsBlock({
+  shape,
+  agendaIds,
+  loaded,
+}: {
+  shape: RelatedBillsShape | null;
+  // Bills the HEARING block is already printing off its CHOSEN meeting's
+  // agenda. The mock's dedup requirement: a bill must not appear twice in one
+  // panel column. Measured at 76 bills corpus-wide.
+  agendaIds: Set<string>;
+  loaded: boolean;
+}) {
+  const promoted = shape?.promoted ?? [];
+  // The promoted block is NEVER deduped against the agenda, and that is a
+  // ruling rather than an omission. A companion is the fact that this bill has
+  // a parallel track in the other chamber; suppressing it because the twin also
+  // happens to sit on today's markup agenda would erase the one thing the block
+  // exists to report. The dedup applies to the list below, which is where the
+  // double-reporting the mock objects to actually happens.
+  const rest = (shape?.rest ?? []).filter((r) => !agendaIds.has(r.id));
+  const shown = rest.slice(0, RELATED_LIST_CAP);
+  const overflow = rest.length - shown.length;
+  const uniformLabel =
+    promoted.length > 0 &&
+    promoted.every((p) => promotedLabel(p) === promotedLabel(promoted[0]!));
+
+  return (
+    <div className="bxp-relblock">
+      <div className="bxp-relhdr">Related Bills</div>
+      {promoted.length > 0 ? (
+        // ONE bordered block holding one to n rows, per ruling 3 — "the
+        // promoted element is a bordered block of one to n, not *the*
+        // companion", because 25 bills have more than one cross-chamber twin
+        // and a singular referent does not exist for them.
+        //
+        // The label prints ONCE when every promoted target carries the same
+        // one, and per-row when they do not. Measured at HO 675 STEP 3: 0 of
+        // those 25 bills currently carry mixed labels, against a control of 24
+        // bills that do have a became-law twin — so the shared-label path is
+        // the only one that renders today. The per-row branch exists anyway
+        // because "the twin became law and this bill did not" is the most
+        // interesting fact in the set, and collapsing it to one label the day a
+        // mixed pair appears would delete it silently.
+        <div className="bxp-comp">
+          {uniformLabel ? (
+            <div className="bxp-complbl">{promotedLabel(promoted[0]!)}</div>
+          ) : null}
+          {promoted.map((p) => (
+            <div className="bxp-compitem" key={p.id}>
+              {uniformLabel ? null : (
+                <div className="bxp-complbl">{promotedLabel(p)}</div>
+              )}
+              <RelatedBillLine
+                bill={p}
+                className="bxp-comprow"
+                showRelationship={false}
+              />
+              {p.resolved && (p.introducedDate || p.stage) ? (
+                <div className="bxp-compmeta">
+                  {p.introducedDate
+                    ? `INTRODUCED ${formatDateLong(p.introducedDate)}`
+                    : null}
+                  {p.introducedDate && p.stage ? " · " : null}
+                  {p.stage
+                    ? (STAGE_BAR_LABEL[p.stage] ?? p.stage.toUpperCase())
+                    : null}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {/* The "Also related" label appears only when there is a promoted block
+          to distinguish the list FROM. With no companion the list IS the whole
+          block and needs no sub-heading — the mock's section 02 left pane. */}
+      {promoted.length > 0 && shown.length > 0 ? (
+        <div className="bxp-restlbl">Also related · {rest.length}</div>
+      ) : null}
+      {shown.map((r) => (
+        <RelatedBillLine
+          key={r.id}
+          bill={r}
+          className="bxp-rb"
+          showRelationship
+        />
+      ))}
+      {overflow > 0 ? (
+        <div className="bxp-rbmore">+{overflow.toLocaleString()} more</div>
+      ) : null}
+      {promoted.length === 0 && rest.length === 0 && loaded ? (
+        <div className="bxp-relempty">NO RELATED BILLS</div>
+      ) : null}
+    </div>
+  );
+}
+
+function RelatedBillLine({
+  bill,
+  className,
+  showRelationship,
+}: {
+  bill: RelatedBillView;
+  className: string;
+  showRelationship: boolean;
+}) {
+  const body = (
+    <>
+      <span className="bxp-rbid">{bill.label}</span>
+      <span className="bxp-rbt">{bill.title ?? ""}</span>
+      {showRelationship ? (
+        <span className="bxp-rbrel">{bill.relationship}</span>
+      ) : null}
+    </>
+  );
+  // NOT A LINK when the target is absent from `bills` — app/bill/[id]/page.tsx
+  // calls notFound(), so the link would 404. 82 relationship rows corpus-wide
+  // point at a bill the sync has not reached and 16 of them sit on rows this
+  // block PROMOTES, so this renders in practice rather than in theory. The id
+  // still prints: "there is a Senate twin, S 4885" is the fact, and dropping
+  // the row to avoid a dead link would hide it.
+  if (!bill.resolved) {
+    return (
+      <span className={`${className} ${className}--unresolved`}>{body}</span>
+    );
+  }
+  return (
+    <a
+      className={className}
+      href={`/bill/${bill.id}`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {body}
+    </a>
+  );
+}
+
 // ---- the shared panel -------------------------------------------------------
 
 // HO 371: cosponsor support bar — 5 segments span 1–50 (segment width 10), the
@@ -441,6 +733,21 @@ export function BillExpandPanel({
     showMomentum && bill.latest_action_date
       ? daysSince(bill.latest_action_date, nowMs)
       : null;
+  // HO 675 — the bills the HEARING block is about to print off its chosen
+  // meeting's agenda, so the RELATED BILLS list below does not print them a
+  // second time in the same column. Computed from the SAME selector the
+  // HEARING block calls (`selectHearingMeeting`), because a second copy of that
+  // expression could pick a different meeting and the dedup would then filter
+  // against a hearing that is not on screen.
+  //
+  // The current bill is excluded here for the same reason PopulatedHearing
+  // excludes it from the agenda line: it is never its own related bill, and
+  // leaving it in would make this set look like it had matched something.
+  const hearingAgendaIds = new Set(
+    (selectHearingMeeting(meetings, silentDays, nowMs)?.agenda ?? [])
+      .map((a) => a.id)
+      .filter((id) => id !== bill.id),
+  );
 
   return (
     <div className="bxp">
@@ -509,6 +816,15 @@ export function BillExpandPanel({
             ) : null}
           </div>
 
+          {/* RELATED BILLS — HO 675. Fourth block, after RELATED NEWS and
+              before ODDS, per docs/design/mock-673-related-bills.html section
+              04. Deduped against the agenda the HEARING block above chose. */}
+          <RelatedBillsBlock
+            shape={panel?.relatedBills ?? null}
+            agendaIds={hearingAgendaIds}
+            loaded={panel !== null}
+          />
+
           {/* ODDS — always; empty state (no bill↔market join today). */}
           <div className="bxp-relblock">
             <div className="bxp-relhdr">Odds</div>
@@ -554,6 +870,18 @@ export function BillExpandPanel({
                   {bill.cosponsor_count === 1 ? "" : "s"}
                 </div>
               )}
+              {/* HO 675 — the party-split faces, BELOW whichever total line
+                  the surface shows. /stale keeps its HO 371 support bar and
+                  gains the faces; every other surface keeps its plain count.
+                  One behaviour on all seven routes (the HO 673 ruling).
+
+                  The total above stays sourced from `bills.cosponsor_count`
+                  while these group headers come from the roster, and on 1,919
+                  of 13,926 bills (13.78%) the two disagree — median +1, max
+                  +50. That is HO 674's filed drift becoming visible, NOT a
+                  defect introduced here, and repairing the column is
+                  explicitly out of this HO's scope. Ruled visible. */}
+              <CosponsorFaces roster={panel?.cosponsors ?? null} />
             </div>
           ) : null}
 

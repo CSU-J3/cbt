@@ -9483,3 +9483,129 @@ export async function getLatestCronRun(route: string): Promise<CronRun | null> {
   const r = rs.rows[0];
   return r ? rowToCronRun(r as Record<string, unknown>) : null;
 }
+
+// ── HO 675: the expand panel's roster half ───────────────────────────────────
+//
+// The two reads behind the cosponsor faces and the related-bills block. Both
+// hang off `/api/bill/[id]/panel` — the LAZY fetch, paid once per bill actually
+// opened — and NOT off the feed's row payload. That was the HO's single biggest
+// cost decision and it was measured, not argued: carrying the rosters on the
+// row payload costs +504 rows PER 50-row page render, on a `bills`-tagged entry
+// that is re-read after every flush; on the lazy route the same data costs ~63
+// rows and only for bills someone expands.
+//
+// TAG: "bill-rosters", NOT "bills". Nothing writes these tables on a schedule —
+// `scripts/backfill-bill-rosters.ts` is the only writer and no cron calls it —
+// so joining the `bills` tag would throw the entries away ~7.3 times a day
+// (89,090 rows per flush, HO 671/672) for data that had not changed. The tag
+// exists now so the roster cron, when one is wired, has something to flush.
+//
+// The sibling panel reads are tagged `committees` / `meetings` /
+// `news-breaking`; none of them is `bills` either, so this follows the route's
+// existing convention rather than establishing one.
+
+export type BillCosponsorQueryRow = {
+  bioguideId: string;
+  firstName: string | null;
+  lastName: string | null;
+  name: string | null;
+  party: string | null;
+  state: string | null;
+  district: number | null;
+  chamber: string | null;
+  depictionUrl: string | null;
+};
+
+// ONE full join, every ACTIVE cosponsor, ordered earliest-first.
+//
+// The shape was priced rather than reasoned, and the intuitive optimisation
+// lost badly. On `119-hr-842` (338 cosponsors) this reads 1,015 rows; fetching
+// the party counts and then a `LIMIT 6` per party reads 3,384 — 3.3x WORSE —
+// because the ORDER BY scans the whole party group whether or not six rows come
+// back, and doing it per party pays that scan twice. There is no cheaper shape
+// that can produce the split: the split needs a party per cosponsor, and party
+// lives in `members`, so the join is not optional.
+//
+// WITHDRAWN COSPONSORS ARE EXCLUDED HERE, in SQL, which is the load-bearing
+// half. HO 674 stored them (`sponsorship_withdrawn_date`, 77 rows corpus-wide)
+// precisely so this could be a decision rather than an inheritance: a withdrawn
+// cosponsor is not a cosponsor, so it is absent from the faces AND from the
+// counts the party split is computed on. Filtering downstream instead would
+// leave the count and the faces disagreeing on exactly the bills that have one.
+export const getBillCosponsors = unstable_cache(
+  async (billId: string): Promise<BillCosponsorQueryRow[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT bc.bioguide_id,
+                   m.first_name, m.last_name, m.name, m.party,
+                   m.state, m.district, m.chamber, m.depiction_url
+            FROM bill_cosponsors bc
+            JOIN members m ON m.bioguide_id = bc.bioguide_id
+            WHERE bc.bill_id = ?
+              AND bc.sponsorship_withdrawn_date IS NULL
+            ORDER BY bc.sponsorship_date ASC NULLS LAST, bc.bioguide_id ASC`,
+      args: [billId],
+    });
+    return rs.rows.map((r) => ({
+      bioguideId: r.bioguide_id as string,
+      firstName: (r.first_name as string | null) ?? null,
+      lastName: (r.last_name as string | null) ?? null,
+      name: (r.name as string | null) ?? null,
+      party: (r.party as string | null) ?? null,
+      state: (r.state as string | null) ?? null,
+      district: r.district == null ? null : Number(r.district),
+      chamber: (r.chamber as string | null) ?? null,
+      depictionUrl: (r.depiction_url as string | null) ?? null,
+    }));
+  },
+  ["bill-cosponsors"],
+  { tags: ["bill-rosters"], revalidate: 3600 },
+);
+
+export type BillRelatedQueryRow = {
+  relatedBillId: string;
+  relationshipType: string;
+  title: string | null;
+  introducedDate: string | null;
+  stage: string | null;
+  resolved: boolean;
+};
+
+// Every relationship row for the bill, LEFT JOINed to its target.
+//
+// LEFT, not INNER, and that is the whole point: 82 of 10,254 rows corpus-wide
+// point at a bill the sync has not reached (74 of them 119th-Congress, filed at
+// HO 674), and 16 of those sit on rows this panel PROMOTES. An INNER JOIN would
+// silently drop a bill's Senate twin from the block whose entire job is to
+// report that the twin exists. `resolved` is carried explicitly so the renderer
+// can show the id without a link — `/bill/[id]` calls notFound().
+//
+// Rows are NOT deduped here. One target can arrive under several relationship
+// types (484 of 9,736 pairs do), and `relationship_type` sits inside the
+// primary key for exactly that reason (HO 674). The fold to one entry per
+// target is `shapeRelatedBills` in lib/bill-rosters-view.ts, where it can also
+// decide which type wins.
+export const getBillRelatedBills = unstable_cache(
+  async (billId: string): Promise<BillRelatedQueryRow[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT r.related_bill_id, r.relationship_type,
+                   b.id AS resolved_id, b.title, b.introduced_date, b.stage
+            FROM bill_related_bills r
+            LEFT JOIN bills b ON b.id = r.related_bill_id
+            WHERE r.bill_id = ?
+            ORDER BY r.related_bill_id ASC, r.relationship_type ASC`,
+      args: [billId],
+    });
+    return rs.rows.map((r) => ({
+      relatedBillId: r.related_bill_id as string,
+      relationshipType: r.relationship_type as string,
+      title: (r.title as string | null) ?? null,
+      introducedDate: (r.introduced_date as string | null) ?? null,
+      stage: (r.stage as string | null) ?? null,
+      resolved: r.resolved_id != null,
+    }));
+  },
+  ["bill-related-bills"],
+  { tags: ["bill-rosters"], revalidate: 3600 },
+);

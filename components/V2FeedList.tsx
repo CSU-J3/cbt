@@ -41,6 +41,7 @@
 // per-mode field choice and the ET boundary — read its header before touching this).
 import { Fragment, useEffect, useRef, useState } from "react";
 import { daysSince, formatBillId, formatRelativeAge, parseTopics } from "@/lib/format";
+import { EMPTY_PANEL } from "@/components/bill-panel-types";
 import { BillExpandPanel } from "@/components/BillExpandPanel";
 import { useSingleOpenPanel } from "@/components/useSingleOpenPanel";
 import { BILL_TYPE_LABELS } from "@/lib/enums";
@@ -360,7 +361,7 @@ export function V2FeedList({
       })
       .catch(() => {
         if (!cancelled)
-          handleLoaded(expandedId, { committees: [], news: [], meetings: [] });
+          handleLoaded(expandedId, EMPTY_PANEL);
       });
     return () => {
       cancelled = true;
