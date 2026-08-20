@@ -2720,3 +2720,122 @@ available before the estimate was given.
 from observed throughput — and prefer the throughput you already measured on a
 slice over any headline limit. This sits beside *price before optimize*: the
 quantity was priced properly and the duration was not, in the same sentence.
+
+## A capture harness that never reached the page reported three clean greens (HO 675, Aug 2026)
+
+The STEP 3 render gate ran 70 passes and reported **0 console errors, 0 non-200
+stylesheets, 0 horizontal overflow** — and had not opened a single panel. Two
+independent faults, either of which alone was enough:
+
+**The trigger selector was unscoped.** `[role="button"][aria-expanded]` looked
+specific. The only element it matched was the header's **mobile-nav toggle**, so
+Playwright clicked the hamburger 70 times. The bill row's trigger is the same
+shape (`BillRow.tsx:222`) but lives inside `li.feed-row`, and the page also
+carries 24 `role="button"` topic-rail rows that use `aria-pressed`.
+
+**The search returned nothing.** The harness filtered `/bills?q=119-hr-842`,
+which reads like an id lookup. `buildFeedWhere`'s `q` clause does match on
+`LOWER(id) LIKE`, but **`getFeedBills` passes `skipQ` and matches through
+`bills_fts MATCH` instead** (`lib/queries.ts:229`) — so on `/bills`, and only on
+`/bills`, a bill cannot be found by its id at all. `?q=Social Security` returned
+231; `?q=842` returned 0.
+
+Every metric the run printed was *true of the page it was on*. A page with no
+panel has no panel errors, and its stylesheet loads fine. **The failure mode of a
+zero-counting gate is that an instrument which never arrives is indistinguishable
+from one that arrives and finds nothing.** The check that separates them is not a
+better assertion, it is a **census**: count the things you expected to visit and
+fail if the count is short. The harness now exits 2 unless `opened ===
+readings.length`, and the message says every other number above it is meaningless.
+
+Rule: **before believing a gate's zeros, make it prove it arrived.** A pass count
+is not a nicety on top of the assertions — on this class of harness it is the only
+assertion that can fail for the right reason.
+
+## A `border` shorthand silently deleted a party token, and only the computed style knew (HO 675)
+
+`.bxp-face-photo` and `.bxp-face-photo--fb` shared a rule setting
+`border-bottom: 2px solid var(--pc)` — the party-coloured edge that is the whole
+encoding of a grouped face strip. The `--fb` rule then set
+`border: 1px solid var(--border-strong)` for its own hairline. **The shorthand
+resets all four sides**, so every initials fallback lost its party edge.
+
+Nothing in the markup showed it: same element, same classes, same `--pc` custom
+property set inline and still resolving. The class list was correct. The variable
+was correct. Only the **computed** `border-bottom-color` was wrong, reading
+`rgb(31, 41, 55)` where a face with a photo read `rgb(59, 130, 246)`.
+
+Two faces in the entire corpus have no `depiction_url`, so the defect's live
+surface is about 5 renders in 219 — small enough that browsing would never have
+found it and a screenshot might have been dismissed as a dark tile.
+
+Rule: **when a shared rule sets a longhand and a variant sets the shorthand, read
+the computed value, not the source.** And the reading needs a control from the
+same instrument — the party colour of a *different* party on a working face is
+what proves `rgb(31,41,55)` is a defect rather than what that token happens to be.
+
+## A grid that reads as a ledger in the mock strands its own labels in the real container (HO 675)
+
+`docs/design/mock-673-related-bills.html` lays each related-bill row out as
+`grid-template-columns: auto 1fr auto` — id, title, relationship. Inside the
+mock's ~560px isolation box that is exactly right: the labels align down the
+right edge and the rows read as a table.
+
+The real left column of the expand panel is **~880px at 1920**. The `1fr` title
+column stretches to fill it, so a short title left its `RELATED` label floating
+roughly **500px away** against the panel's right edge, with nothing in between
+and no visual tie to the row it belonged to.
+
+The mock was not wrong; it was **measured in a container the product does not
+have**. The sibling element in the same mock — the promoted companion row — was
+already flex, and it rendered correctly at the same width in the same capture,
+which is what identified the grid as the cause rather than the panel width.
+
+Rule: **a mock's layout primitive is scoped to the mock's container.** Before
+transplanting one, check the width it will actually live at — and when a mock
+contains two elements of the same kind built differently, the one that survives
+the real width is telling you which to copy.
+
+## `grep -c` against minified CSS counts lines, and minified CSS is one line (HO 675)
+
+The built-CSS gate ran `grep -c "\.bxp-face[^a-z-]" app.css` per selector and got
+**1** for all 21 new classes. That reads as "one rule each", which is plausible
+and wrong: `-c` counts matching **lines**, the production stylesheet is a single
+159KB line, so every present selector reads 1 and every absent one reads 0. The
+instrument was a **presence test wearing a count's clothes**.
+
+`grep -o … | sort | uniq -c` on the same file reports what is actually there:
+`.bxp-face` ×1, `.bxp-face:focus-visible` ×1, `.bxp-face:hover .bxp-tip` ×1,
+`.bxp-face-photo` ×1, `.bxp-face-photo--fb` ×2 — which is the reading that shows
+the tip-reveal rule survived minification at all.
+
+This is `git grep -c` counting FILES (HO 673) in a new costume, one HO later, and
+it landed in the same section of the same gate. The generalisation both instances
+share: **`-c` counts the container, not the thing.** Whenever a count is the
+answer, use `-o` and aggregate, and say what one unit of the number means.
+
+## Bounding a payload where the budget is known, and only there (HO 675)
+
+The expand panel draws six cosponsor faces. `119-hr-842` has 338 active
+cosponsors, so serialising the roster to the client would ship ~50KB of member
+objects to render six 32×38 images. The apportionment therefore runs in the
+**route**, and the payload carries the drawn faces plus the per-party totals.
+
+The related-bill half looks like the same problem and is not. Its last filter is
+against the agenda of the **one meeting the HEARING block chose**, and that
+choice depends on `showMomentum` — a prop the route cannot see (`/stale` picks
+the most recent hearing, every other surface the soonest current-or-upcoming). So
+the route can promote, dedupe and order, but it cannot cut; the component
+finishes it.
+
+The asymmetry looks like an inconsistency in review and is a consequence of where
+the deciding input lives. Worth writing down because the tidier-looking
+alternatives are both wrong: bounding both in the route would filter against a
+hearing that is not on screen, and bounding both in the component would put 338
+member objects on the wire.
+
+Rule: **push a cut as far upstream as the inputs allow — and no further.** When
+two halves of one feature bound at different layers, the reason is which layer
+first knows enough, and it belongs in a comment before someone "fixes" the
+asymmetry.
+
