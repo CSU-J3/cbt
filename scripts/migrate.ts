@@ -1115,6 +1115,78 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_bill_related_bill    ON bill_related_bills(bill_id)`,
   `CREATE INDEX IF NOT EXISTS idx_bill_related_related ON bill_related_bills(related_bill_id)`,
   `CREATE INDEX IF NOT EXISTS idx_bill_related_type    ON bill_related_bills(relationship_type)`,
+
+  // HO 676 — the refresh watermark for the two roster tables above. Neither of
+  // them can answer "have we ever looked at this bill?": row presence conflates
+  // a genuinely EMPTY roster with one never fetched, which HO 674 filed as a
+  // ~3,800-request tax on a resumed run and which, on a CRON, is worse than a
+  // tax -- 3,695 candidate bills with zero rows would sit at the head of the
+  // queue permanently, because they can never gain a row to exit on.
+  //
+  // A SEPARATE TABLE RATHER THAN A COLUMN ON `bills`, for two measured reasons:
+  //
+  //   COST. Caching the two counts is what makes the trigger cheap. Evaluating
+  //   it against the roster tables means aggregating 168,610 cosponsor rows:
+  //   measured 228,223 rows_read / 98ms. The same selection against a per-bill
+  //   table is a bills scan plus one index probe -- the identically-shaped
+  //   never-checked selection measured 31,652 rows_read / 61ms.
+  //
+  //   BLAST RADIUS. A column on `bills` would put a new invariant on the sync's
+  //   ON CONFLICT DO UPDATE SET, which would have to omit it forever (the HO 459
+  //   committee_hydrated_at rule). A separate table cannot be clobbered by a
+  //   re-sync at all.
+  //
+  // Seeded once in main() below; see the seed for what it asserts and the one
+  // thing it gets wrong on purpose.
+  `CREATE TABLE IF NOT EXISTS bill_roster_state (
+    bill_id TEXT PRIMARY KEY,
+    -- Last check where BOTH fetches succeeded. Stamped LAST and only then, so a
+    -- bill whose related fetch threw after its cosponsor write is left unstamped
+    -- and retried, rather than recorded as checked (HO 552: a row you could not
+    -- evaluate is deferred, never stamped).
+    checked_at TEXT NOT NULL,
+    -- What was SEEN at that check, not what is true now. These two are the
+    -- comparands the directional triggers read:
+    --   bills.cosponsor_count            > active_count   -> roster behind
+    --   $.relatedBills.count (raw_json)  > related_count  -> roster behind
+    -- Directional deliberately. HO 674's STEP 0.4 wrote the trigger as
+    -- "active roster <> cosponsor_count", and HO 676 measured that predicate
+    -- selecting 1,910 bills of which 1,906 are ones where the ROSTER is the
+    -- fresher side -- fetching them writes nothing and they are selected again
+    -- forever, because the stale half is bills.cosponsor_count, which this
+    -- table's cron is scoped out of repairing. THE RULE, general: a trigger
+    -- compared against a value you are not allowed to correct must be
+    -- directional, or it has no exit.
+    active_count INTEGER NOT NULL,
+    -- RELATIONSHIP ENTRIES, not related bills -- the unit $.relatedBills.count
+    -- reports and the unit this table stores one row per (HO 674 measured the
+    -- two equal at 1,078/1,078).
+    related_count INTEGER NOT NULL,
+    -- Last check that actually WROTE a difference. Distinct from checked_at on
+    -- purpose: "we looked" and "something moved" are different facts, and the
+    -- sweep is tuned against the second.
+    changed_at TEXT,
+    -- THE COMPARAND AS IT READ AT THAT CHECK, and the reason the trigger fires
+    -- on MOVEMENT rather than on disagreement. Direction alone is not enough:
+    -- HO 676's STEP 3 slice found 5 bills that re-selected on evidence a fetch
+    -- cannot change -- 4 where bills.cosponsor_count sits one ABOVE the true
+    -- active roster (a cosponsor withdrew after the count was captured;
+    -- pagination.count dropped and the stored column did not) and 1 where
+    -- $.relatedBills.count reads 1 against an API returning 0 entries. The
+    -- roster can never catch up to a count that is stale ABOVE the truth, so a
+    -- disagreement test re-fires forever on exactly those bills.
+    --
+    -- Storing what the comparand read lets the trigger ask the only question a
+    -- fetch can answer: has it MOVED since we last looked? NULL = never compared
+    -- (the seed), which fires once and then settles.
+    cosponsor_count_at_check INTEGER,
+    related_count_at_check INTEGER
+  )`,
+  // The sweep's ordering key. The oldest-checked-first pass is the ONLY path
+  // that reaches a bill carrying no count signal at all -- 3,799 bills store
+  // cosponsor_count NULL and 109 of them have a roster anyway, so a "count > 0"
+  // trigger structurally cannot see them.
+  `CREATE INDEX IF NOT EXISTS idx_bill_roster_state_checked ON bill_roster_state(checked_at)`,
 ];
 
 async function ensureColumn(
@@ -1659,6 +1731,65 @@ async function main() {
   // ensureColumn, not the CREATE array — the `activity_count` (HO 597) rule at
   // the top of this file governs: the array only runs for a fresh DB.
   await ensureColumn(db, "race_candidates", "updated_at", "TEXT");
+
+  // ── HO 676 — seed bill_roster_state once ─────────────────────────────────
+  // WHAT THIS ASSERTS: every bill the HO 674 backfill considered was checked,
+  // and bills carrying roster rows were checked when those rows were ingested.
+  // Both are true of that run -- it considered 17,722 bills, fetched 17,677 and
+  // skipped 45 as already covered, so a bill left with zero rows was checked and
+  // found empty, not missed.
+  //
+  // WHAT IT GETS WRONG, DECLARED RATHER THAN HIDDEN: the <=6 bills that entered
+  // `bills` AFTER that candidate list was fixed (2026-08-19T21:44Z) get a
+  // checked_at they did not earn. It costs at most one sweep cycle and costs
+  // nothing for the five HO 675 named -- all five carry cosponsor_count > 0
+  // against an empty roster, so the directional trigger selects them on the
+  // first tick regardless of this stamp.
+  //
+  // WITHOUT IT the first sweep is a second full backfill: every bill would read
+  // as never-checked and the queue would carry ~24,400 requests of work that was
+  // already done.
+  //
+  // The two counts are seeded from the TABLE (active rows / relationship rows),
+  // where the refresh stores the API's OWN counts. Those agree except where a
+  // row was legitimately dropped on the way in — the 1-in-167 case where two
+  // API entries share the related table's primary key, chiefly. So the seed is a
+  // LOWER BOUND, it selects those bills once via the directional trigger, and
+  // the first check replaces it with the API count and settles them. Self-
+  // correcting on first contact rather than permanently behind.
+  //
+  // Guarded on the table being empty, so re-running migrate is a no-op rather
+  // than a re-stamp that would reset the sweep order.
+  // The two comparand-at-check columns are added here as well as in the CREATE
+  // array, because that array only ever runs against a fresh DB (the HO 597
+  // activity_count rule). Left NULL by the seed on purpose: NULL means "never
+  // compared", which fires the trigger once per bill and then settles.
+  await ensureColumn(db, "bill_roster_state", "cosponsor_count_at_check", "INTEGER");
+  await ensureColumn(db, "bill_roster_state", "related_count_at_check", "INTEGER");
+
+  const seeded = await db.execute("SELECT COUNT(*) AS n FROM bill_roster_state");
+  if (Number(seeded.rows[0]?.n ?? 0) === 0) {
+    const r = await db.execute({
+      sql: `INSERT INTO bill_roster_state (bill_id, checked_at, active_count, related_count, changed_at)
+            SELECT b.id,
+                   COALESCE(
+                     (SELECT MAX(c.ingested_at) FROM bill_cosponsors c WHERE c.bill_id = b.id),
+                     (SELECT MAX(rb.ingested_at) FROM bill_related_bills rb WHERE rb.bill_id = b.id),
+                     ?),
+                   (SELECT COUNT(*) FROM bill_cosponsors c
+                     WHERE c.bill_id = b.id AND c.sponsorship_withdrawn_date IS NULL),
+                   (SELECT COUNT(*) FROM bill_related_bills rb WHERE rb.bill_id = b.id),
+                   NULL
+            FROM bills b`,
+      // The HO 674 backfill's last write. Bills with no roster rows have no
+      // stamp of their own, so they inherit the run that checked them.
+      args: ["2026-08-20T01:02:19.943Z"],
+    });
+    console.log(`ok: seeded bill_roster_state (${r.rowsAffected} rows)`);
+  } else {
+    console.log(`bill_roster_state already seeded (${Number(seeded.rows[0]?.n ?? 0)} rows) — not re-stamping`);
+  }
+
   console.log("migration complete");
 }
 

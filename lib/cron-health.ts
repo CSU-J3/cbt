@@ -50,12 +50,19 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 14 watched route keys (15 vercel.json crons — the two /api/cron/markets
-// entries collapse to one route string). Thresholds from vercel.json@45e70f6.
+// The 16 watched route keys, against 17 distinct route strings across 18
+// vercel.json crons — the two /api/cron/markets entries collapse to one route
+// string, and /api/cron/lda-rollup is NOT watched (a pre-existing gap, found
+// while adding the roster route at HO 676; filed rather than fixed here).
+// The count read 14 while listing 15 before HO 676; corrected with the addition
+// rather than left to drift further.
 export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/summarize", schedule: "*/10 * * * *", maxStaleMs: 30 * MIN }, // every 10m
   { path: "/api/cron/news", schedule: "*/30 * * * *", maxStaleMs: 70 * MIN }, // every 30m
   { path: "/api/cron/kalshi", schedule: "15 */2 * * *", maxStaleMs: 5 * HOUR }, // every 2h
+  // Every 3h (HO 676). 2x cadence + 1h grace: a tick that hits its 240s deadline
+  // still finalizes a cron_runs row, so a missing row means it did not fire.
+  { path: "/api/cron/bill-rosters", schedule: "40 */3 * * *", maxStaleMs: 7 * HOUR }, // every 3h
   { path: "/api/cron/markets", schedule: "0 */4 * * *", maxStaleMs: 9 * HOUR, signal: "market_ticks" }, // bare every 4h
   { path: "/api/sync", schedule: "0 */6 * * *", maxStaleMs: 13 * HOUR }, // every 6h
   { path: "/api/cron/committees", schedule: "0 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
