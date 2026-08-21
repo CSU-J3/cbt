@@ -2839,3 +2839,75 @@ two halves of one feature bound at different layers, the reason is which layer
 first knows enough, and it belongs in a comment before someone "fixes" the
 asymmetry.
 
+## A cache-flush latency reading needs an untagged control in the same pair (HO 676)
+
+The `bill-rosters` flush guard had to be shown firing both ways: a tick that wrote
+should discard the tagged cache entry so the next panel open pays the roster read,
+and a tick that wrote nothing should leave it alone. The obvious instrument is
+latency, and on its own it is unreadable.
+
+**The first request after ANY idle period costs about the same as a
+regeneration.** Measured on the local prod server: steady-state cache hits on
+`/api/bill/[id]/panel` run ~5ms, and the first hit after a ~40s idle tick read
+**42ms** — with no flush, nothing written, and the guard correctly not fired. The
+first attempt at this proof recorded 148.7ms after a writing tick and 46.5ms after
+another, concluded both were flushes, and could not tell either from warm-up.
+
+The fix is one extra read per sample: **`/api/version`, which is DB-free,
+`no-store` and carries no cache tag**, hit immediately after the panel in the same
+pair. It is flat at 4.1–5.4ms across every idle period in the run, so it prices
+the idle cost and leaves the panel's excess attributable:
+
+    wrote 40 changed   -> panel 96.9ms   control 4.1ms
+    wrote 0  changed   -> panel  7.7ms   control 4.3ms
+    wrote 4  changed   -> panel 47.6ms   control 5.4ms
+
+The panel's magnitude varies with the known query-cost spread; **only its
+separation from the control is load-bearing.** Rule: when timing one surface to
+detect an invalidation, sample a second surface that the invalidation cannot
+reach, in the same pair, or the reading measures the pause and not the flush. Same
+shape as the HO 672 prod flush confirmation, which used the same control for the
+same reason — recorded here because that precedent was about a different tag and
+the instrument had to be re-derived rather than reused.
+
+## A watermark's cached count must be the comparand's own number, not the rows that survived the write (HO 676)
+
+`bill_roster_state` caches what was seen at each check so the refresh trigger can
+be evaluated without aggregating 168,610 roster rows. The obvious thing to store
+is what the table ended up holding. It is wrong, and it fails silently and
+permanently.
+
+`bill_related_bills` has `(bill_id, related_bill_id, relationship_type)` as its
+primary key, and **one related bill can arrive under several relationship
+entries that collide on that key** — `identified_by` is lossy by ruling (HO 674,
+measured 1 in 167). The trigger compares against `$.relatedBills.count`, which
+counts **relationship ENTRIES**. Store the surviving row count and a colliding
+bill reads one short of its comparand **forever**: selected every tick, fetched,
+found unchanged, written nothing, selected again. The seed exposed the population
+directly — of the first 20 rows the selection returned, most read `rel N/N-1`.
+
+The same trap sits on the cosponsor half: a cosponsor with no `bioguideId` is
+skipped on the way in, so a parsed count would read below `pagination.count`
+permanently. Both are stored as the API's own number (`pagination.count`, which on
+the cosponsors endpoint already excludes withdrawals and is therefore the right
+comparand for `bills.cosponsor_count`).
+
+Rule: **a cached comparand is a copy of the thing you will compare against, not a
+measurement of your own storage.** Where the two can legitimately differ, storing
+yours turns every difference into a permanent trigger.
+
+## A SQL comment with a backtick in it terminates the TypeScript template literal holding the DDL (HO 676)
+
+`scripts/migrate.ts` keeps every `CREATE TABLE` in a `statements` array of
+template literals, and this project writes long explanatory SQL comments inside
+them. Adding a `bill_roster_state` comment that quoted an identifier the way the
+rest of the codebase does — with backticks — closed the literal mid-comment. The
+build failed at `scripts/migrate.ts:1153` with **`Type error: ',' expected.`**,
+pointing at a line of prose, with nothing about strings or literals in the
+message.
+
+It survives review easily because the surrounding file is full of backticked
+identifiers in `//` line comments, where they are harmless; only the ones inside
+the DDL literals are load-bearing. Rule: **inside the `statements` array, quote
+identifiers with `'` or nothing at all.** The tell, if it happens again, is a
+`tsc` syntax error whose line number lands on a comment rather than on code.

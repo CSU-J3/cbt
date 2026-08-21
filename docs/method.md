@@ -156,6 +156,17 @@ of gates that could not see the artifact at all:**
   diff: `grep -c '^-[^-]'` returned **0** while `--numstat` reported **2**. A
   clean grep and a genuinely additive commit are the same output, which is this
   section's whole subject wearing its plainest disguise.
+- **A close criterion that cannot become false again does not close a living
+  thing.** Ask whether the criterion would still read true if the system stopped
+  being maintained tomorrow. If yes, it describes a state, not a capability.
+  Everything above is about instruments; this one is about **criteria**, which is
+  why it reads as the odd item in the list and is not. Two instances, both from
+  the roster arc: `backlog:83` closed on *"a named bill's roster readable from
+  the local DB without a network call"* — true **forever** after a one-shot
+  backfill, so the entry struck closed while the gap it covered was still
+  growing; and `backlog:81` rested its premise, *once the rosters exist the
+  roster is the better source*, on a refresh that **did not exist**, leaving a
+  filed entry load-bearing on nothing. Ruled at the HO 675 close, landed HO 676.
 
 **Cross-references, because these are owned elsewhere and restating them would
 drift them:** SKILL, "Pre-flight verification" — the `pipefail` / piped-exit-status
