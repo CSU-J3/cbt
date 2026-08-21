@@ -6,8 +6,9 @@
 //   bill_cosponsors      — one row per (bill_id, bioguide_id)
 //   bill_related_bills   — one row per (bill_id, related_bill_id, relationship_type)
 //   bill_roster_state    — the watermark, one row per bill
-// `bills` is never touched — `bills.cosponsor_count` is left exactly as it is
-// (HO 676 scope), even though this path has the live count in hand.
+//   bills.cosponsor_count — THAT COLUMN ONLY (HO 677 gave it this owner; the
+//                           sync no longer writes it). No other column of
+//                           `bills` is touched.
 //
 // READ-ONLY BY DEFAULT. A bare invocation and `--check` select, fetch and diff,
 // and report what WOULD be written, touching nothing. `--write` is required to
@@ -73,6 +74,7 @@ async function main() {
   console.log(`bills WOULD change    : ${r.wouldChangeBills}  (check mode only)`);
   console.log(`cosponsor rows written: ${r.cosponsorRowsWritten} (deleted ${r.cosponsorRowsDeleted})`);
   console.log(`related rows written  : ${r.relatedRowsWritten} (deleted ${r.relatedRowsDeleted})`);
+  console.log(`cosponsor_count fixed  : ${r.countsWritten}   <- HO 677: this module owns that column`);
   console.log(`watermarks stamped    : ${r.stamped}`);
   console.log(`deferred (unstamped)  : ${r.deferred}`);
   console.log(`empty-payload skips   : ${r.emptyPayloadSkips.length}${r.emptyPayloadSkips.length ? ` (${r.emptyPayloadSkips.slice(0, 10).join(", ")})` : ""}`);

@@ -1,12 +1,20 @@
 // HO 676 — the refresh path for `bill_cosponsors` and `bill_related_bills`.
 //
 // WHAT THIS WRITES, exactly:
-//   bill_cosponsors      — one row per (bill_id, bioguide_id)
-//   bill_related_bills   — one row per (bill_id, related_bill_id, relationship_type)
-//   bill_roster_state    — one row per bill, the watermark
-// It writes NOTHING ELSE. `bills` is never touched — in particular
-// `bills.cosponsor_count` is left exactly as it is (HO 676 scope), even though
-// this module has the live count in hand and can see it disagree on 1,906 bills.
+//   bill_cosponsors        — one row per (bill_id, bioguide_id)
+//   bill_related_bills     — one row per (bill_id, related_bill_id, relationship_type)
+//   bill_roster_state      — one row per bill, the watermark
+//   bills.cosponsor_count  — THAT COLUMN ONLY, and this module is its sole owner
+// It writes NOTHING ELSE — no other column of `bills` is touched.
+//
+// The last line is new at HO 677 and REPLACES the opposite claim rather than
+// amending it: this header used to read "`bills` is never touched — in
+// particular `bills.cosponsor_count` is left exactly as it is (HO 676 scope),
+// even though this module has the live count in hand and can see it disagree on
+// 1,906 bills." That was true of HO 676 and is now false in both halves, so it
+// is rewritten whole. `/api/sync` no longer writes the column (the omission is
+// stated on its UPSERT_SQL, the HO 459 rule); the write site below carries the
+// NULL rule and the reason there is no `bills` flush.
 //
 // READ-ONLY BY DEFAULT: `write` is opt-in. The CLI mirrors that with a
 // `--write` flag; the cron route is the one caller that passes it, and says so
@@ -103,6 +111,13 @@ export type RefreshResult = {
   cosponsorRowsDeleted: number;
   relatedRowsWritten: number;
   relatedRowsDeleted: number;
+  /**
+   * Bills whose `bills.cosponsor_count` this run corrected (HO 677). Counted
+   * separately from `changedBills` because the two move independently: a bill
+   * whose roster did not change can still carry a stale column, and that is the
+   * common case — 1,905 of 13,931 at the handover.
+   */
+  countsWritten: number;
   /** Bills whose watermark advanced (both fetches succeeded). */
   stamped: number;
   /** Bills left UNSTAMPED because a fetch threw — retried next tick (HO 552). */
@@ -328,6 +343,7 @@ export async function refreshBillRosters(opts: RefreshOptions = {}): Promise<Ref
     cosponsorRowsDeleted: 0,
     relatedRowsWritten: 0,
     relatedRowsDeleted: 0,
+    countsWritten: 0,
     stamped: 0,
     deferred: 0,
     emptyPayloadSkips: [],
@@ -557,6 +573,38 @@ export async function refreshBillRosters(opts: RefreshOptions = {}): Promise<Ref
         ],
       });
       s.stamped++;
+
+      // ── HO 677 — THIS MODULE OWNS `bills.cosponsor_count` ──────────────────
+      // `/api/sync` no longer writes it (see the omission comment on its
+      // UPSERT_SQL). Written from `seenActive`, the same `pagination.count` the
+      // watermark caches, so the column and `bill_roster_state.active_count`
+      // cannot drift apart by construction.
+      //
+      // NULL WHEN ZERO, ruled at HO 677 STEP 0.5. No bill in the corpus has ever
+      // stored `0` — NULL already IS the zero — so writing `0` would invent a
+      // third state and flip the panel's `cosponsor_count != null` gate true on
+      // 3,690 bills, rendering an empty COSPONSORS row nobody asked for. The
+      // ambiguity NULL used to carry is now resolved in the DATA MODEL instead:
+      // `active_count = 0` beside a `checked_at` is a VERIFIED zero, where the
+      // column alone could only say "the API omitted the key".
+      //
+      // Written only on a difference — the write is the exception, not the tick.
+      //
+      // NO `revalidateTag("bills")` HERE, DELIBERATELY. The corrected value is
+      // read through the feed row payload (`SPONSOR_ENRICH_SELECT`, tag `bills`,
+      // `revalidate: 86400` — a backstop, not a refresh path), so it surfaces on
+      // the next `bills` flush: ~7.3/day, mean gap ~3.3h (HO 672). Flushing here
+      // would add up to 8 scheduled flushes/day at ~89,090 rows each to correct a
+      // handful of bills, which is exactly the multiplier HO 671 removed from
+      // summarize. The one-shot reconcile flushes once; the steady state waits.
+      const newCount = seenActive > 0 ? seenActive : null;
+      if ((c.cosponsorCount ?? null) !== newCount) {
+        await db.execute({
+          sql: `UPDATE bills SET cosponsor_count = ? WHERE id = ?`,
+          args: [newCount, c.id],
+        });
+        s.countsWritten++;
+      }
     }
 
     await sleep(sleepMs);

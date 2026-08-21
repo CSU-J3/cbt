@@ -25,6 +25,7 @@
     "sync:crosswalk": "tsx scripts/sync-crosswalk.ts",
     "sync:lda": "tsx scripts/sync-lda.ts",
     "sync:amendments": "tsx scripts/sync-amendments.ts",
+    "reconcile:cosponsor-count": "tsx scripts/reconcile-cosponsor-count-677.ts",
     "refresh:bill-rosters": "tsx scripts/refresh-bill-rosters.ts",
     "sync:amendment-votes": "tsx scripts/sync-amendment-votes.ts",
     "sync:nominations": "tsx scripts/sync-nominations.ts",

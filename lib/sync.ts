@@ -151,17 +151,36 @@ async function getStoredUpdates(
   return result;
 }
 
-// cosponsor_count is refreshed on every upsert (cosponsors accrete over the
-// life of a bill). Intentionally NOT cleared when update_date changes —
-// re-nulling would create unnecessary backfill churn since the count is
-// fresh from every detail fetch.
+// ── cosponsor_count is NOT written here, and the omission is deliberate ──────
+// HO 677 gave the column ONE owner: /api/cron/bill-rosters, via
+// lib/bill-rosters-refresh.ts, which writes it from the roster it just fetched.
+// This is the HO 459 rule — a column omitted from an upsert is a permanent
+// invariant on the sync, so it is stated here rather than discovered later by
+// someone helpfully adding the field back.
+//
+// WHAT THIS SYNC USED TO DO, and why it was not enough: it wrote the column from
+// the detail endpoint's $.cosponsors.count, which is the LIVE count at upsert
+// time — so its writes were never wrong, they were merely infrequent. Measured
+// at HO 677: of bills upserted within 7 days, 501 of 501 agreed with their
+// roster; of the 1,905 that disagreed, ZERO had been upserted in that window,
+// and the oldest carried an update_date from 2025-02-28. Cosponsors accrue
+// without reliably moving updateDate, so no upsert fires and the column freezes.
+// Re-adding the write would not fix that; it would restore a second writer for a
+// value the refresh already owns.
+//
+// A NEW bill therefore carries NULL until the refresh's first check (its
+// never-checked trigger is the priority band, so <= one ~3h tick). That window
+// is deliberate: the panel gates its COSPONSORS row on `!= null`, so a
+// not-yet-checked bill renders NO row rather than a total above no groups —
+// absence over a wrong number, and a broken refresh fails VISIBLY instead of
+// silently reverting to a frozen column.
 const UPSERT_SQL = `
 INSERT INTO bills (
   id, congress, bill_type, bill_number, title,
   introduced_date, latest_action_date, latest_action_text,
   sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
-  update_date, raw_json, cluster_id, cosponsor_count
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  update_date, raw_json, cluster_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   title = excluded.title,
   introduced_date = excluded.introduced_date,
@@ -174,7 +193,6 @@ ON CONFLICT(id) DO UPDATE SET
   raw_json = excluded.raw_json,
   update_date = excluded.update_date,
   cluster_id = excluded.cluster_id,
-  cosponsor_count = excluded.cosponsor_count,
   summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
@@ -212,7 +230,6 @@ async function upsertBill(
   const sponsor = detail.sponsors?.[0];
   const billType = String(detail.type).toLowerCase();
   const clusterId = classifyCluster(detail.title, billType);
-  const cosponsorCount = detail.cosponsors?.count ?? null;
 
   // HO 383: decide whether this sync advances the stored stage. Read the prior
   // row first so we can (a) gate on a real update_date change — the same trigger
@@ -253,7 +270,6 @@ async function upsertBill(
       update,
       JSON.stringify(detail),
       clusterId,
-      cosponsorCount,
       // HO 383 stage trio (previous_stage gate, stage_observed_at, stage).
       newStageArg,
       stageObservedAt,

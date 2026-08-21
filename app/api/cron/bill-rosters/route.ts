@@ -76,6 +76,7 @@ async function handle(request: Request) {
           `fetched=${r.fetched} requests=${r.requests} changed=${r.changedBills} ` +
           `cosW=${r.cosponsorRowsWritten} cosD=${r.cosponsorRowsDeleted} ` +
           `relW=${r.relatedRowsWritten} relD=${r.relatedRowsDeleted} ` +
+          `countsW=${r.countsWritten} ` +
           `stamped=${r.stamped} deferred=${r.deferred} deadlineHit=${r.deadlineHit}`,
       );
 
@@ -87,6 +88,13 @@ async function handle(request: Request) {
       // same branch that performs the write, and that branch is selected by the
       // diff being non-empty, so it cannot be truthy while nothing was written.
       if (r.changedBills > 0) revalidateTag("bill-rosters");
+      // NOTE (HO 677): `countsWritten` deliberately does NOT flush `bills`.
+      // The corrected column reaches the panel through the feed row payload,
+      // which is `bills`-tagged, so a correction surfaces on the next `bills`
+      // flush (~7.3/day, mean gap ~3.3h) rather than immediately. Flushing here
+      // would add up to 8 scheduled flushes/day at ~89,090 rows each for a
+      // handful of bills — the HO 671 multiplier, re-created. The reasoning
+      // lives at the write site in lib/bill-rosters-refresh.ts.
 
       // Non-fatal, surfaced rather than swallowed: a deferred bill keeps its old
       // watermark and retries next tick, and an empty-payload skip is a delete
