@@ -2911,3 +2911,55 @@ identifiers in `//` line comments, where they are harmless; only the ones inside
 the DDL literals are load-bearing. Rule: **inside the `statements` array, quote
 identifiers with `'` or nothing at all.** The tell, if it happens again, is a
 `tsc` syntax error whose line number lands on a comment rather than on code.
+## A run that succeeded and reported failure — non-zero exit after a committed write (HO 677)
+
+`scripts/reconcile-cosponsor-count-677.ts` wrote **2,013** rows, read the tables
+back, printed a correct before/after census — and then exited **non-zero with a
+stack trace**, because its final step POSTs `REVALIDATE_URL` and that variable
+points at `http://localhost:3000/api/revalidate`, which was not running.
+
+This is the § Gates rule *"a write instrument that does not read back is not an
+instrument"* **inverted**. There, the failure mode is *"unclear whether it
+landed"*. Here the write landed, the read-back proved it landed, and the process
+still said it failed. That is worse in one specific way: it teaches the reader to
+distrust the exit code, and the exit code is the one signal that has to stay
+trustworthy, because it is what every wrapper, `&&` chain and CI step reads.
+
+The tell that it is this shape and not a real failure: **the stack trace is
+BELOW the read-back**. Everything the script exists to do had already printed.
+
+Rule: **a tail step that is not part of the write must not be able to fail the
+run.** Cache flushes, notifications, revalidate pings — wrap them, report the
+failure in words, and say what the reader should do about it ("the writes are
+committed; flush the tag separately"). Reserve a non-zero exit for *the write
+did not happen*. Related and not the same: the piped-exit-status rule (SKILL,
+Pre-flight verification), which is about an exit code being **discarded**; this
+is about one being **fabricated**.
+
+## An empty collection read from a lazily-hydrated panel is indistinguishable from a genuinely empty one (HO 677)
+
+The HO 677 gate harness waited for `.bxp` — the expand panel's root — and then
+read its cosponsor groups. `.bxp` mounts immediately; the roster arrives
+afterwards from `/api/bill/[id]/panel`. So the reading raced the fetch, and the
+first run reported `groups: []` **at the first viewport of every browser
+context** and populated groups at the rest.
+
+`groups: []` is a perfectly good reading of a bill with no cosponsors. That is
+the whole problem — the harness was built to assert *total == sum of groups*, and
+an empty groups array silently satisfies nothing while looking like data. Had the
+first viewport been the only one, or had the two states not been visibly
+inconsistent across a run, it would have read as a finding about the bills rather
+than about the instrument.
+
+HO 675's harness already carried the wait (a `waitForTimeout(1400)` plus an image
+`complete` check, with a comment explaining the face-image half). The new harness
+was written fresh against the same page and re-acquired the defect, which is the
+argument for the fix carrying **a comment naming what it prevents** rather than a
+bare `waitForTimeout` — a wait with no stated reason is the first thing removed as
+redundant.
+
+Rule: **when reading a surface that hydrates in two stages, wait on the SECOND
+stage's own evidence, not on the container.** And where the awaited thing can
+legitimately be absent, wait for *either* the populated state or the explicit
+empty state (`.bxp-cospgrp` or `.bxp-relempty`), so "not yet" and "none" stop
+being the same reading.

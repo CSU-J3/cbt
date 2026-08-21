@@ -167,6 +167,20 @@ of gates that could not see the artifact at all:**
   growing; and `backlog:81` rested its premise, *once the rosters exist the
   roster is the better source*, on a refresh that **did not exist**, leaving a
   filed entry load-bearing on nothing. Ruled at the HO 675 close, landed HO 676.
+- **A close criterion that names the wrong quantity does not close what it claims
+  to.** The criterion can be perfectly falsifiable and still measure something
+  other than the capability it was written to gate. The sibling of the clause
+  above — that one is about a criterion that cannot become false, this one about
+  one that can, loudly, while pointing at the wrong thing. Both citations are
+  from `backlog:80`'s own close: **leg 1** demanded *"a bill whose INTRODUCTION
+  postdates the backfill"*, when the class that matters is **ingested-after** —
+  `/api/sync` reaches a bill weeks after it is introduced, so `119-hr-9641`
+  (introduced 2026-07-13) and `119-hres-1400` (2026-06-30) both satisfied the
+  spirit and failed the letter; and **leg 3** demanded a disagreement fraction
+  move, when that fraction belonged to `backlog:81`'s stale column rather than to
+  roster freshness — so the HO that closed leg 3 was scoped out of moving it, and
+  a version that had moved it would have been out of scope. Ruled at the HO 676
+  close, landed HO 677.
 
 **Cross-references, because these are owned elsewhere and restating them would
 drift them:** SKILL, "Pre-flight verification" — the `pipefail` / piped-exit-status
