@@ -7,6 +7,7 @@
 import "dotenv/config";
 import { createClient } from "@libsql/client";
 import { getCurrentCongress } from "../../lib/congress";
+import { fetchError } from "@/lib/redact";
 
 const db = createClient({
   url: process.env.TURSO_DATABASE_URL!,
@@ -33,7 +34,7 @@ async function fetchJson<T>(url: string, attempt = 0): Promise<T> {
     await new Promise((r) => setTimeout(r, wait));
     return fetchJson<T>(url, attempt + 1);
   }
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw fetchError(url, res.status, await res.text());
   return (await res.json()) as T;
 }
 

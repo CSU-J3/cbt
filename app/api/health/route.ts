@@ -14,6 +14,7 @@
 // cron freshness + timestamps, nothing sensitive.
 import { NextResponse } from "next/server";
 import { computeCronHealth } from "@/lib/cron-health";
+import { redactSecrets } from "@/lib/redact";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,13 @@ export async function GET() {
   } catch (err) {
     // The check itself failed (DB unreachable, etc.) — that's an outage from a
     // monitor's point of view, so surface it as 503, never a misleading 200.
-    const message = err instanceof Error ? err.message : String(err);
+    // HO 679. This route is deliberately NOT wrapCronRoute-wrapped (it is a
+    // monitor, not a cron), so neither the row sink nor the body sink reaches
+    // it — and it is the one response body that leaves the project's own
+    // consumers. Redact at the call site. Ruled HO 679 STEP 0.
+    const message = redactSecrets(
+      err instanceof Error ? err.message : String(err),
+    );
     return NextResponse.json(
       { healthy: false, checkedAt: new Date().toISOString(), error: message },
       { status: 503, headers: { "Cache-Control": "no-store" } },

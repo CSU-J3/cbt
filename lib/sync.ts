@@ -2,6 +2,7 @@ import { classifyCluster } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { computeStage, stageRank } from "./enums";
+import { fetchError } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -89,7 +90,7 @@ async function fetchJson<T>(
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`fetch ${url} -> ${res.status}: ${body.slice(0, 300)}`);
+    throw fetchError(url, res.status, body);
   }
   return (await res.json()) as T;
 }

@@ -5,6 +5,7 @@ import {
   ALLOWED_TOPICS_SET,
   TOPIC_ALIASES,
 } from "./enums";
+import { fetchError } from "./redact";
 
 export { ALLOWED_STAGES, ALLOWED_TOPICS };
 
@@ -76,7 +77,7 @@ async function fetchText(url: string, signal?: AbortSignal): Promise<string> {
     headers: { Accept: "text/html,*/*" },
     signal,
   });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
+  if (!res.ok) throw fetchError(url, res.status);
   return res.text();
 }
 
@@ -85,7 +86,7 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     headers: { Accept: "application/json" },
     signal,
   });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
+  if (!res.ok) throw fetchError(url, res.status);
   return (await res.json()) as T;
 }
 

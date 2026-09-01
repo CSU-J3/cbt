@@ -28,6 +28,7 @@
 import { extractBillIds } from "./bill-id-extract";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
+import { fetchError } from "./redact";
 
 const BASE = "https://lda.gov/api/v1";
 const EPOCH_MS = 0;
@@ -206,11 +207,13 @@ async function fetchPage(url: string, opts: FetchOpts = {}): Promise<Page | null
     }
     if (!r.ok) {
       opts.onError?.();
-      throw new Error(`LDA ${r.status} on ${url}`);
+      throw fetchError(url, r.status);
     }
     return (await r.json()) as Page;
   }
-  throw new Error(`LDA exhausted retries on ${url}`);
+  // Only the 429 branch `continue`s to exhaustion — the network-error branch
+  // rethrows at maxRetries — so 429 is the accurate status here, not a filler.
+  throw fetchError(url, 429, "LDA exhausted retries");
 }
 
 // Preload the current-Congress bill ids into a Set so the per-activity join is a

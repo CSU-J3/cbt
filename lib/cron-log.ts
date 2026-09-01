@@ -10,6 +10,7 @@
 // `success` (clean), `error` (handler threw), `timeout` (hit soft limit),
 // `orphaned` (reaper found a stale row from a prior SIGKILL).
 import { getDb } from "./db";
+import { redactSecrets, redactValue } from "./redact";
 
 export type CronRunStatus =
   | "running"
@@ -78,8 +79,16 @@ export async function finishCronRun(
       endedAt,
       endedAt,
       status,
-      JSON.stringify(payload ?? null),
-      errorMessage ?? null,
+      // HO 679 ROW SINK. This function is the single writer of
+      // `cron_runs.payload` and `cron_runs.error_message`, so redacting here
+      // covers the catch path, the success path's `chronicErr`, and every
+      // handler-level message that rides a success payload — with no change at
+      // any of those call sites. The HO 678 audit found CONGRESS_API_KEY in
+      // cleartext in three rows written through exactly this statement.
+      redactSecrets(JSON.stringify(payload ?? null)),
+      errorMessage === undefined || errorMessage === null
+        ? null
+        : redactSecrets(errorMessage),
       id,
     ],
   });
@@ -156,7 +165,9 @@ export async function wrapCronRoute<T>(
     const elapsedMs = Date.now() - routeStart;
     const responseBody = { ok: true as const, elapsedMs, payload: result.payload };
     await finishCronRun(runId, "success", responseBody, result.chronicErr);
-    return { body: responseBody, httpStatus: 200 };
+    // HO 679 BODY SINK (success path). The row is redacted independently inside
+    // finishCronRun; this covers the response that leaves the function.
+    return { body: redactValue(responseBody), httpStatus: 200 };
   } catch (err) {
     if (timeoutHandle) clearTimeout(timeoutHandle);
     const elapsedMs = Date.now() - routeStart;
@@ -170,6 +181,8 @@ export async function wrapCronRoute<T>(
       status,
     };
     await finishCronRun(runId, status, responseBody, message);
-    return { body: responseBody, httpStatus: isTimeout ? 504 : 500 };
+    // HO 679 BODY SINK (error path). This is the return that carried the key:
+    // `message` is a raw `err.message` from a keyed fetch.
+    return { body: redactValue(responseBody), httpStatus: isTimeout ? 504 : 500 };
   }
 }

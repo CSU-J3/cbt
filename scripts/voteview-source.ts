@@ -21,6 +21,8 @@
 
 // Both chambers, 119th only (~535 rows) — not the ~50k-row HSall history. File
 // scheme confirmed by UCLA: HSnnn_members.csv for both chambers of congress nnn.
+import { fetchError } from "@/lib/redact";
+
 export const VOTEVIEW_119_URL =
   "https://voteview.com/static/data/out/members/HS119_members.csv";
 
@@ -103,7 +105,7 @@ async function fetchVoteviewCsv(
 ): Promise<{ rows: string[][]; require: (name: string) => number }> {
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`${url} HTTP ${res.status}`);
+    throw fetchError(url, res.status);
   }
   const rows = parseCSV(await res.text());
   const header = rows[0];

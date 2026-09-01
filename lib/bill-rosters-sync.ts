@@ -19,6 +19,7 @@
 // writes. That keeps the read-only default of the backfill script honest —
 // a fetch path that cannot write cannot write by accident.
 import { getDb } from "./db";
+import { fetchError } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 
@@ -74,7 +75,7 @@ async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
     headers: { Accept: "application/json" },
     signal,
   });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
+  if (!res.ok) throw fetchError(url, res.status);
   return (await res.json()) as T;
 }
 

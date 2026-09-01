@@ -6,6 +6,7 @@
 // Run: `npx tsx scripts/diagnostic/kalshi-218.ts`
 import "dotenv/config";
 import { getDb } from "../../lib/db";
+import { fetchError } from "@/lib/redact";
 
 const BASE = "https://external-api.kalshi.com/trade-api/v2";
 
@@ -29,10 +30,10 @@ async function getJSON(url: string): Promise<any> {
       await sleep(6000);
       continue;
     }
-    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    if (!res.ok) throw fetchError(url, res.status);
     return res.json();
   }
-  throw new Error(`429 exhausted: ${url}`);
+  throw fetchError(url, 429, "exhausted retries");
 }
 
 // favorite = nested market with the highest implied prob

@@ -21,6 +21,7 @@
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { VOTEVIEW_HSALL_URL } from "./voteview-source";
+import { fetchError } from "@/lib/redact";
 
 const VOTES_BASE = "https://voteview.com/static/data/out/votes";
 // Voteview zero-pads the congress number to width 3 (H094_votes.csv); unpadded
@@ -212,7 +213,7 @@ async function accumulateVotesFile(
 ): Promise<number | null> {
   const res = await fetch(url);
   if (res.status === 404) return null;
-  if (!res.ok || !res.body) throw new Error(`${url} HTTP ${res.status}`);
+  if (!res.ok || !res.body) throw fetchError(url, res.status);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

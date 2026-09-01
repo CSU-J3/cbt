@@ -18,6 +18,7 @@ import { XMLParser } from "fast-xml-parser";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { buildSenatorResolver, type SenatorResolver } from "./lis-map";
+import { fetchError } from "./redact";
 
 // Polite delay between detail fetches. senate.gov publishes no rate limit
 // but ~3-4 req/s is well within tolerance for their static XML.
@@ -137,7 +138,7 @@ async function fetchXml(url: string, attempt = 0): Promise<any> {
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`fetch ${url} -> ${res.status}: ${body.slice(0, 200)}`);
+    throw fetchError(url, res.status, body);
   }
   const text = await res.text();
   const parser = new XMLParser({ ignoreAttributes: false, trimValues: true });

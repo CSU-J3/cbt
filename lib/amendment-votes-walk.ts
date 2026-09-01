@@ -35,6 +35,7 @@
 // and the cron delta is usually 0.
 import { HOUSE_AMDT_QUESTION_LIKE } from "./amendment-vote-key";
 import { getDb } from "./db";
+import { fetchError } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PER_FETCH_TIMEOUT_MS = 15_000; // mirrors amendments-sync PER_DETAIL_TIMEOUT_MS
@@ -63,7 +64,7 @@ async function fetchJson<T>(url: string, attempt = 0): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`fetch ${url} -> ${res.status}: ${body.slice(0, 200)}`);
+    throw fetchError(url, res.status, body);
   }
   return (await res.json()) as T;
 }

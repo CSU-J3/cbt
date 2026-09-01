@@ -20,6 +20,7 @@
 // districts expected) so a silent Ballotpedia restructure fails loud.
 
 import { stateAbbr } from "./states";
+import { fetchError } from "./redact";
 
 const HOUSE_URL =
   "https://ballotpedia.org/United_States_House_of_Representatives_elections,_2026";
@@ -86,7 +87,7 @@ async function fetchHtml(url: string): Promise<string> {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     redirect: "follow",
   });
-  if (!res.ok) throw new Error(`Ballotpedia fetch ${res.status}: ${url}`);
+  if (!res.ok) throw fetchError(url, res.status);
   return res.text();
 }
 

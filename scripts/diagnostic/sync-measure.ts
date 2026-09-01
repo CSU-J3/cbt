@@ -5,6 +5,7 @@
 import "dotenv/config";
 import { getDb } from "../../lib/db";
 import { getCurrentCongress } from "../../lib/congress";
+import { fetchError } from "@/lib/redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -55,7 +56,7 @@ async function timedFetch<T>(
   const res = await fetch(url, {
     headers: { Accept: acceptJson ? "application/json" : "text/html,*/*" },
   });
-  if (!res.ok) throw new Error(`fetch ${url} -> ${res.status}`);
+  if (!res.ok) throw fetchError(url, res.status);
   const text = await res.text();
   const data = (acceptJson ? JSON.parse(text) : text) as T;
   return { data, ms: Date.now() - t0, bytes: text.length };

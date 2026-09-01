@@ -26,6 +26,7 @@
 // MAX(update_date) and continues.
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
+import { fetchError } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
@@ -137,7 +138,7 @@ async function fetchJson<T>(url: string, attempt = 0): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`fetch ${url} -> ${res.status}: ${body.slice(0, 200)}`);
+    throw fetchError(url, res.status, body);
   }
   return (await res.json()) as T;
 }
