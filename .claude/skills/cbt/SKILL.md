@@ -2389,11 +2389,88 @@ TURSO_AUTH_TOKEN=
 CRON_SECRET=              # used to authenticate Vercel Cron hits to /api/sync
 FMP_API_KEY=              # Financial Modeling Prep, free tier 250 calls/day
 FRED_API_KEY=             # St. Louis Fed (FRED) JSON API, free; markets tape EOD symbols (HO 228). MUST be in Vercel Production scope — fredgraph.csv was bot-walled from egress
+FEC_API_KEY=              # api.data.gov key for FEC fundraising. A SECOND key on the same 60 req/hr budget as CONGRESS_API_KEY, not a copy of it
+LDA_API_KEY=              # lda.gov lobbying disclosure. Sent as `Authorization: Token <key>`, NOT a query parameter. Production + Preview
+AUTH_SECRET=              # signs the NextAuth v5 JWT/session cookie. Production only
+AUTH_GITHUB_ID=           # GitHub OAuth app client id. Auth.js v5 reads it IMPLICITLY — no `process.env` reference exists, so a name-grep of the code will not find it (auth.ts:13)
+AUTH_GITHUB_SECRET=       # GitHub OAuth app client secret. Same implicit read. Production only
+REVALIDATE_URL=           # POST target the backfill scripts hit to flush a cache tag. Not a secret; listed because a missing one silently skips the flush
 ```
 
 The cron route should reject requests where `Authorization` header doesn't match `Bearer ${CRON_SECRET}`.
 
 No Polymarket or Kalshi key is needed — both are public/no-auth read APIs (HO 217/255). No new env var was added in HO 249–260.
+
+### Redaction sink (HO 679)
+
+**Any string that can reach a `cron_runs` row, a route response body, or a log
+line passes through `redactSecrets` (`lib/redact.ts`), and any failed keyed
+fetch throws `fetchError(url, status, body?)`, which redacts at construction.**
+HO 678 found `CONGRESS_API_KEY` in cleartext in three production `cron_runs`
+rows: `wrapCronRoute`’s catch took a raw `err.message` into both the response and
+the row, and the fetch helpers under it built messages containing the whole
+request URL. A permanent DB column is strictly worse than a log line, whose
+retention is one day.
+
+**Three layers.** The **row sink** is `finishCronRun` — the single writer of
+`payload` and `error_message`, so it covers the catch path, the success path’s
+`chronicErr`, and every handler-level message riding a success payload **with no
+change at those call sites**. The **body sink** is both `wrapCronRoute` return
+paths. The **sources** are fixed as well, because a script printing to a
+terminal never reaches the sink and that terminal is a transcript.
+
+**TWO PASSES, AND THEY ARE NOT PEERS — do not "simplify" one into the other.**
+The **value pass is the PRIMARY defence**: it replaces the literal value of each
+name in `SECRET_ENV_NAMES` with `[REDACTED:<NAME>]`, so a secret of ours is
+caught wherever it appears, in any casing, at any length, in a URL or not. The
+**header pass is DEFENCE IN DEPTH**: `Bearer`/`Token` followed by a token-shaped
+tail, **case-sensitive with a 12-character floor**, which exists to catch a
+THIRD-PARTY token echoed back to us — a value in no env var we hold, and
+therefore invisible to the value pass. It is deliberately narrow: an earlier
+`gi` + unbounded-tail cut rewrote the prose `token expired` to `token
+[REDACTED]`, a mutation with no security value on a string carrying no secret.
+The cost of the narrowing is real and stated rather than hidden — `Bearer
+abc123` is not matched by the pattern pass — and it is acceptable *because* the
+value pass is the one doing the work.
+
+**The query-parameter pass REMOVES the parameter entirely** rather than
+substituting a placeholder, so a redacted string carries no `api_key=` at all.
+That is deliberate and load-bearing: the scrub predicate is `api_key=` **with
+the `=`**, and a placeholder would keep matching it forever. Pattern pass runs
+first so a stripped value can never re-emerge as a `[REDACTED:…]` token still
+sitting inside a URL.
+
+**THE SOURCE RULE, as ruled: every throw that interpolates a URL goes through
+`fetchError`; a throw that does not interpolate one is untouched.** Twenty sites
+route through it — the eleven key-bearing ones and nine whose URLs are keyless
+today, taken in for uniformity rather than as a fix, because a keyless URL can
+gain a key later and nothing would flag it. **The three status-only throws are
+safe BY CONSTRUCTION and stay as they are: `lib/committees-sync.ts:72`,
+`lib/markets.ts:261` (`keyLen`, no value), `lib/meetings-sync.ts:49`** — each
+reports a status and a label, never a URL. Do not "harmonise" them into
+`fetchError`; they have nothing to redact, and the distinction is what keeps the
+rule checkable by grep.
+
+**Redacting at the THROW is what makes the fourteen `console.*` sites that log
+`err.message` safe for free** — they print a string that was already clean when
+it was constructed. No call-site wrapping was needed anywhere, and adding some
+would imply the sources are untrusted, which they no longer are.
+
+**One route is covered by neither sink and is wrapped at its call site:
+`app/api/health/route.ts`.** It is deliberately not `wrapCronRoute`-wrapped (a
+monitor, not a cron — it must not log itself into `cron_runs`), so it is the one
+response body that leaves the project’s own consumers. Any future route outside
+`wrapCronRoute` that returns an error string needs the same one-line treatment.
+
+**`scripts/diagnostic/redact-fixtures-679.ts` is the gate and must stay green.**
+Thirteen fixtures: **nine positives and four negatives**. Stubbed to identity it
+reads **4/13, exit 1** — every positive fails, every negative passes, and the
+negatives pass BY CONSTRUCTION because each asserts byte-identical output. **The
+negatives are not padding.** Two of them exist because the helper was caught
+mutating innocent strings that eleven green positives said nothing about: `token
+expired` (the header pass) and `is the row there?` (the trailing-separator
+repair, whose `[/=]` guard exists for exactly that). A redaction gate with only
+positives measures whether it redacts, never whether it over-redacts.
 
 ## Deploy verification (HO 252) — the standard ship step
 
