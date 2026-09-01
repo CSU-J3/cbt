@@ -2963,3 +2963,99 @@ stage's own evidence, not on the container.** And where the awaited thing can
 legitimately be absent, wait for *either* the populated state or the explicit
 empty state (`.bxp-cospgrp` or `.bxp-relempty`), so "not yet" and "none" stop
 being the same reading.
+
+## HO 678 (2026-08-31) — a quoted heredoc collapsed `\` to `\`, silently rewriting the one pattern that catches an api.data.gov key
+
+A targeted secret-scan over `git log --all -p` reported `hits=0` across 1,141
+commits. The number was meaningless, and only the control said so.
+
+The scanner was written to a file through a quoted heredoc (`<<'EOF'`), which
+should pass backslashes through literally. It did not: `"\s*"` in the source
+arrived on disk as `"\s*"`, and JavaScript parses `"\s"` as plain `s` — an
+unrecognized escape, not an error. `new RegExp("\b(NAME)\s*[=:]…")` therefore
+compiled to `(NAME)s*[=:]…`, a regex that is **valid, silent, and asking a
+different question**. `\b` fared worse: `"\b"` is a backspace character, so the
+word boundary became a literal control byte.
+
+The pattern it destroyed was `env-assign` — the one that matches
+`CONGRESS_API_KEY=<40 alnum>`, which is precisely the shape gitleaks' default
+rule set has no rule for (api.data.gov keys carry no prefix and no separator, so
+nothing distinguishes them from a hex blob). That pattern existed *because*
+gitleaks is blind there. It was itself blind, and the scan still printed a
+confident zero.
+
+**It was caught only because the instrument was fired at synthetic bait first.**
+The control reported `7/8 patterns fired` and named the missing one. Rewritten
+with regex **literals** rather than `RegExp`-from-string, the control went 8/8 and
+the corrected scan found two hits — both documentation placeholders in the initial
+commit, neither matching a live value.
+
+Two rules, and the second is the durable one. **Do not build a regex from a
+string that had to survive a shell.** Write regex literals: a lost backslash is
+then a **syntax error** at load, not a semantic change at run time — the failure
+announces itself instead of returning zero. And **a scanner's zero is worth
+exactly as much as its last control run**, which is § Gates' subject arriving in
+the one place that is supposed to be immune to it: an instrument built
+specifically to cover a known blind spot, blinded by its own transport.
+
+## HO 678 (2026-08-31) — the Vercel runtime-log `level` filter returns nothing for a window that demonstrably contains a matching line
+
+Instrument D of the key audit asked whether any runtime log line had carried
+`api_key=`. The text query over the 24h retention window returned *"No logs found
+for the specified criteria"* — which reads as a clean answer and is not one.
+
+Two independent checks show the log surface cannot support that reading.
+**First**, the control for the text path — a search for `bill-rosters`, a string
+the route logs on every single tick — **times out** ("Query did not finish within
+the time budget") at 24h, at 6h, and even scoped to a single `deploymentId`, which
+is the tool's own suggested remedy. A path that cannot retrieve a string known to
+be there cannot be trusted to report its absence. **Second**, and this one is
+flatly self-contradictory: `level=["warning"]` over 24h returns nothing, while a
+`statusCode=500` query over **the same window** returns a line the tool itself
+labels `[warn/serverless]`. One filter denies what the other displays.
+
+Structured aggregation does work — `group_by=statusCode` over 24h returned 2,449
+events (200 ×2,435, 308 ×7, 307 ×6, 500 ×1) — so the distinction worth carrying is
+**which query path** was used, not whether "the logs" answered. Counts and
+status-filters are usable; full-text and `level` filters are not.
+
+A third trap sits underneath: a 3-day window returns "No logs found" because Pro
+retention is **1 day**, and a 30-day window fails outright with
+`ExceedsBillingLimitError`. So the same empty-looking answer is produced by
+*absence*, *retention*, *timeout*, and *a billing limit* — four causes, one
+output, and only the explicit error messages tell them apart.
+
+Rule: **treat a Vercel runtime-log zero as UNAVAILABLE until a control string
+known to be in that window comes back.** The audit recorded instrument D's log
+half as unavailable rather than passed. It changed no verdict — the durable DB
+evidence had already decided the row — but a version of this audit that rested on
+the log query would have reported the key as never emitted, while three rows of
+`cron_runs` held it.
+
+## HO 678 (2026-08-31) — a blanket process kill during a device-auth flow removes the listener the browser approval needs
+
+`vercel login` uses a device-code flow: the CLI prints a URL, then **stays alive
+polling** while the human approves in a browser. The approval is delivered to that
+waiting process. Kill it and the browser still shows a success page — the token
+has nowhere to land.
+
+That is what happened, twice, and the second time cost a full round trip. A
+`vercel whoami` check spawned a device flow; the session then ran a blanket
+"clean up any stray vercel process" kill over every `node.exe` whose command line
+matched `vc.js`. The owner approved the code in the browser and reported the login
+as landed; on disk `auth.json` was **3 bytes — `{}`, no `token` key** — and its
+sibling temp file was named `.auth.json.<pid>.<ts>.tmp` carrying **the pid of the
+killed process**, which is what identified the killer as the same session that was
+waiting for the credential.
+
+The diagnostic worth keeping is that **the browser's success page is not the
+signal**. The signal is the CLI itself printing the account. A success page plus an
+empty `auth.json` is the exact fingerprint of an approval with no listener, and it
+is otherwise indistinguishable from "the user did not finish".
+
+Rule: **cleanup stays port-scoped** (SKILL, "Process cleanup" — the box hosts
+other Next apps, which is why the rule exists at all) **and never runs while an
+auth flow is open.** A kill selected by matching a binary name is not scoped; it
+is a blast radius that happens to have hit the right binary. The narrower reading
+generalizes: an interactive flow's waiting process **is** application state, not
+debris, and a cleanup pass cannot tell the two apart by name.

@@ -66,10 +66,11 @@ version of this was narrower — *look at render output* (HO 670) — and it was
 widened at the HO 671 close because the same principle had by then produced three
 more failures in two sessions, none of them about looking at a page.
 
-**Six instances. Three are about reading an instrument wrongly rather than about
+**Eight instances. Four are about reading an instrument wrongly rather than about
 the thing under test; one is a tool reporting an action it did not perform; one
 is an export whose output is indistinguishable from a working one; one is a set
-of gates that could not see the artifact at all:**
+of gates that could not see the artifact at all; and one is an instrument that
+was silently rewritten in transit and went on answering a different question:**
 
 - **HO 670 — a visual check with no capture is not a check.** Every gate green
   while the layout was wrong three times: a ~300px dead zone under each panel, an
@@ -111,6 +112,32 @@ of gates that could not see the artifact at all:**
   file, use a format whose markers are text** — `--word-diff=plain` or plain
   unified, never `--word-diff=color`. It happened inside the delivery step of the
   commit that closes this very entry.
+- **HO 678 — a quoted heredoc collapsed `\\` to `\`, and the regex still
+  compiled.** A secret scan over 1,141 commits printed `hits=0`. `"\\s*"` reached
+  disk as `"\s*"`, which JavaScript parses as plain `s`; `new RegExp` built a
+  **valid** expression asking a different question, and the pattern it destroyed
+  was the only one matching an api.data.gov key — the exact shape gitleaks has no
+  rule for, which is why that pattern existed. **The control caught it: 7 of 8
+  patterns fired on synthetic bait, and it named the missing one.** Two rules:
+  **never build a regex from a string that had to survive a shell** — use regex
+  literals, so a lost backslash is a syntax error at load rather than a semantic
+  change at run time — and **a scanner's zero is worth exactly as much as its last
+  control run.** This is the section's own subject reaching the place meant to be
+  immune to it: an instrument built to cover a known blind spot, blinded by its
+  own transport.
+- **HO 678 — one log filter denies what another displays, and four causes share
+  one output.** Vercel's runtime-log `level=["warning"]` returned nothing for a
+  24h window in which a `statusCode=500` query returned a line the tool itself
+  labelled `[warn/serverless]`. The control for the text path — searching a string
+  the route logs every tick — **timed out** at 24h, at 6h, and scoped to a single
+  deployment. Meanwhile "no logs found" is also what retention (Pro = 1 day) and a
+  billing limit produce, so **absence, retention, timeout and a quota all render
+  identically**; only the explicit error text separates them. Structured
+  aggregation (`group_by=statusCode`) does work. Rule: **treat a runtime-log zero
+  as UNAVAILABLE until a control string known to be in that window comes back**,
+  and say which query path produced the reading. The audit that found this
+  recorded its log evidence as unavailable rather than passed — and was right to:
+  the key it was looking for was sitting in three database rows.
 
 **What the gate requires**
 
@@ -248,6 +275,16 @@ either set.**
   never WSL, Docker, or any VM-dependent path. Killing dev servers: SKILL,
   "Process cleanup" (port-scoped only; other Next apps share the box).
 - **The MacBook.** Plain Unix; none of those constraints apply.
+- **Every command references a secret by env name (`$CRON_SECRET`), never by
+  value** (ruled HO 678). A literal pasted into a command travels through the API
+  inside the tool call and lands in the local transcripts — so the value is
+  disclosed by the act of running the command, whatever the command does. `curl`
+  and `Invoke-WebRequest` headers are where this bites in this repo. The residue
+  is visible afterwards in `.claude/settings.local.json`, whose permission
+  allowlist records approved commands verbatim: HO 678 found `CRON_SECRET` in
+  cleartext six times there and rotated the secret, because **the allowlist
+  entries are the residue, not the cause** — deleting them does not un-send the
+  value. Applies to any auth flow too: never `vercel login --token <value>`.
 
 ## Memory hygiene
 
