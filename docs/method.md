@@ -282,9 +282,10 @@ either set.**
   and `Invoke-WebRequest` headers are where this bites in this repo. The residue
   is visible afterwards in `.claude/settings.local.json`, whose permission
   allowlist records approved commands verbatim: HO 678 found `CRON_SECRET` in
-  cleartext six times there and rotated the secret, because **the allowlist
-  entries are the residue, not the cause** — deleting them does not un-send the
-  value. Applies to any auth flow too: never `vercel login --token <value>`.
+  cleartext six times there and queued the rotation (backlog), because **the
+  allowlist entries are the residue, not the cause** — deleting them does not
+  un-send the value. Applies to any auth flow too: never
+  `vercel login --token <value>`.
 
 ## Memory hygiene
 

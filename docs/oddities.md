@@ -2964,13 +2964,13 @@ legitimately be absent, wait for *either* the populated state or the explicit
 empty state (`.bxp-cospgrp` or `.bxp-relempty`), so "not yet" and "none" stop
 being the same reading.
 
-## HO 678 (2026-08-31) — a quoted heredoc collapsed `\` to `\`, silently rewriting the one pattern that catches an api.data.gov key
+## HO 678 (2026-08-31) — a quoted heredoc collapsed `\\` to `\`, silently rewriting the one pattern that catches an api.data.gov key
 
 A targeted secret-scan over `git log --all -p` reported `hits=0` across 1,141
 commits. The number was meaningless, and only the control said so.
 
 The scanner was written to a file through a quoted heredoc (`<<'EOF'`), which
-should pass backslashes through literally. It did not: `"\s*"` in the source
+should pass backslashes through literally. It did not: `"\\s*"` in the source
 arrived on disk as `"\s*"`, and JavaScript parses `"\s"` as plain `s` — an
 unrecognized escape, not an error. `new RegExp("\b(NAME)\s*[=:]…")` therefore
 compiled to `(NAME)s*[=:]…`, a regex that is **valid, silent, and asking a
@@ -3059,3 +3059,48 @@ auth flow is open.** A kill selected by matching a binary name is not scoped; it
 is a blast radius that happens to have hit the right binary. The narrower reading
 generalizes: an interactive flow's waiting process **is** application state, not
 debris, and a cleanup pass cannot tell the two apart by name.
+
+## HO 678 (2026-08-31) — a public-repo secret audit needs two history instruments, and their commit counts have to reconcile exactly
+
+gitleaks' default rule set has **no shape for an api.data.gov key**. The value is
+40 alphanumeric characters with no prefix, no separator and no checksum — nothing
+distinguishes one from a hex blob, a hash, or a minified identifier. So a
+committed `CONGRESS_API_KEY` or `FEC_API_KEY` passes a clean gitleaks run, and
+the run says so with a zero. **One instrument's zero is a statement about its
+rule set, not about the history it read.**
+
+That is why the audit ran a second, value-aware instrument: an exact-value and
+8-char-prefix search for the values actually held, over `git log --all -p` — plus
+the **134 reflog-only commits `--all` never reaches**. Different blind spots on
+purpose: the rule-based scanner finds shapes nobody enumerated, the value-based
+one finds the shapes the rules have no entry for.
+
+**And then the two instruments disagreed about how much history they had read.**
+`git rev-list --all --count` reported **1141**; gitleaks reported **1128**. A
+13-commit gap, and an unreconciled gap is unread history — a secret could sit in
+any of the 13 and both zeros would still print. The pre-read's explanation was
+that gitleaks' default path allowlist skipped `package-lock.json`-only commits;
+measured, there are **0** such commits in this repo.
+
+The real rule was established on **purpose-built control repos**, not by reading
+documentation: **gitleaks counts a commit only if it has ≥ 1 added text line.**
+Isolated two-commit repos scanned 1 of 2 for an empty commit, a pure deletion and
+a rename-only change, and 2 of 2 for a normal add. CBT carries **17** commits with
+zero added lines; the **4** gitleaks counts anyway are exactly the 4 that also
+contain a Modified file — a removals-only modification still presents a
+post-image, a pure deletion does not. **1141 − 13 = 1128, exact**, with no
+residue to hand-wave.
+
+The reconciliation also settles the gap rather than merely explaining it: **none
+of the 13 can carry a secret**, because a commit that adds no line introduces
+nothing, and every line it deleted was added by an earlier commit that *was*
+scanned.
+
+Rule: **two history instruments with different blind spots, and a commit count
+that reconciles to the last commit.** A single scanner's clean run is scoped to
+its rules; a coverage number you cannot derive is a coverage number you are
+guessing at, and "probably the path allowlist" was a guess that measured wrong.
+The companion failure is the sibling entry above — the value-aware instrument's
+own first run printed a confident `hits=0` while the pattern that catches an
+api.data.gov key had been silently rewritten in transit, and only a control fired
+at synthetic bait caught it.
