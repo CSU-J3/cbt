@@ -66,7 +66,7 @@ version of this was narrower — *look at render output* (HO 670) — and it was
 widened at the HO 671 close because the same principle had by then produced three
 more failures in two sessions, none of them about looking at a page.
 
-**Eight instances. Four are about reading an instrument wrongly rather than about
+**Nine instances. Five are about reading an instrument wrongly rather than about
 the thing under test; one is a tool reporting an action it did not perform; one
 is an export whose output is indistinguishable from a working one; one is a set
 of gates that could not see the artifact at all; and one is an instrument that
@@ -194,6 +194,23 @@ was silently rewritten in transit and went on answering a different question:**
   growing; and `backlog:81` rested its premise, *once the rosters exist the
   roster is the better source*, on a refresh that **did not exist**, leaving a
   filed entry load-bearing on nothing. Ruled at the HO 675 close, landed HO 676.
+- **An instrument that cannot distinguish the work having landed from the work
+  never happening is not a read-back, however official it looks.** The HO 680
+  handoff designated its own proof — *the `vercel env ls` age column resetting
+  from 120d to seconds is proof a value changed* — and the column is labelled
+  `created` and means it: it moves when an add **replaces** a record, never when
+  `--force` overwrites one **in place**. So the first write of a rotation resets
+  it and every correction after that does not, which is exactly backwards. A
+  41-byte value (an unstripped trailing space) was corrected, and the corrected
+  write read as `8m ago` — the *bad* write's timestamp. `--format json` carries
+  `createdAt` **and** `updatedAt`; only the pair answers the question. **The
+  handoff's stated method is a premise like any other and is verified before it
+  is leaned on** — this is the first instance where the blind instrument was
+  *prescribed* rather than chosen. It also produced a misreport that cannot be
+  retested: an earlier write read the same wrong column, was reported as a tool
+  no-op, and its record was deleted in the ordinary course of the rotation
+  before the distinction surfaced — **unverifiable, not a tool defect**, and
+  recorded as a misreading rather than dropped.
 - **A close criterion that names the wrong quantity does not close what it claims
   to.** The criterion can be perfectly falsifiable and still measure something
   other than the capability it was written to gate. The sibling of the clause

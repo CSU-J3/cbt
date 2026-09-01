@@ -3104,3 +3104,82 @@ The companion failure is the sibling entry above — the value-aware instrument'
 own first run printed a confident `hits=0` while the pattern that catches an
 api.data.gov key had been silently rewritten in transit, and only a control fired
 at synthetic bait caught it.
+
+## HO 680 (2026-09-01) — the designated read-back instrument was blind to the operation it was chosen to verify
+
+The HO 680 handoff named its own proof: *"Read-back instrument for Vercel is
+`vercel env ls <env>`: the age column reset from 120d to seconds is the proof a
+value changed. There is no other one that doesn't involve reading the value."*
+
+It is wrong, and it is wrong in the direction that reads as success. The column
+is labelled **`created`**, and it means it. It moves when an add **replaces the
+record** — which is what happens the first time a variable scoped to
+`Preview, Production` is written for one target, because that splits it into a
+new single-target record. It does **not** move when a subsequent `--force`
+overwrites that record in place. So the first write of a rotation resets the age
+and every correction after it does not, which is precisely backwards from what
+you want an instrument to do.
+
+The sequence that exposed it: a Congress key went in at 41 bytes (a trailing
+space the pipeline did not strip), was corrected, and the corrected write was
+re-read as **`8m ago`** — the timestamp of the *bad* write. Read literally, the
+correction had not landed. `vercel env ls <env> --format json` settles it: the
+record carries **`createdAt` AND `updatedAt`**, and they read `21:07` and
+`21:15`. The correction had landed all along; the instrument could not see it.
+
+**The misreport, and its correction, in sequence — because the order is the
+lesson.** Earlier in the same HO, a Preview write reported exit 0 and
+`Overrode Environment Variable` while the age column sat at 121d, and it was
+reported as *a no-op that claimed success* — a tool defect. It was not. It was
+the same blindness, read the same wrong way, one step earlier. By the time the
+`created`/`updatedAt` distinction surfaced, that Preview record had been deleted
+in the ordinary course of the rotation, so the claim cannot be re-tested:
+**unverifiable, not a tool defect**, and recorded here as a misreading rather
+than quietly dropped.
+
+Rule: **an instrument that cannot distinguish "the write landed" from "the write
+did not land" is not a read-back, however official it looks.** Before trusting
+one, state what it reads in each case; if the answer is the same, find another.
+The corrected instrument is `--format json` → `updatedAt`, and it is now named
+in both HO 680 rotation scripts' docblocks and on the annual-calendar backlog
+line, so next year's rotation does not re-derive it from a wrong sentence.
+
+Related, one layer up: the handoff **designated** the blind instrument. A
+handoff's stated method is a premise like any other and gets verified before it
+is leaned on (method.md § Session start; SKILL, "Pre-flight verification").
+
+## HO 679 (2026-08-31) — a redaction gate built only from positives measures whether it redacts, never whether it over-redacts
+
+`scripts/diagnostic/redact-fixtures-679.ts` shipped with eleven fixtures and read
+**11/11**. Every one of them asserted that something *was* removed: a query
+parameter stripped, a header replaced, an env value substituted. Nine positives
+and two incidental negatives, none of the negatives chosen to test for reach.
+
+Meanwhile `redactSecrets` was rewriting the prose `token expired` to
+`token [REDACTED]`. `BEARER_TOKEN` had shipped as `gi` with an unbounded
+`[^\s"',;]+` tail, so the English word `token` followed by any word matched the
+header shape. Nothing in the gate could see it, because **no fixture asked what
+the helper leaves alone**. Review caught it; the instrument could not.
+
+The general form: a filter has two failure modes and they are not symmetric in
+how they are noticed. Under-redaction leaks a secret and is what the whole
+fixture set was aimed at. **Over-redaction damages a string that had nothing to
+protect** — a diagnostic message, a log line, an error a human is about to read —
+and it fails *silently*, because the output still looks plausible. A gate made
+of positives is structurally blind to it. This is the same-as-success shape
+(HO 503/506/637) at the fixture layer: the passing reading is identical whether
+or not the defect exists.
+
+The fix was two fixtures, and what they cover is the point: `libsql: token
+expired` (guards `BEARER_TOKEN`) and `is the row there? yes` (guards the
+trailing-separator repair, which without its `[/=]` condition eats the question
+mark off any sentence ending in one). The gate is now **thirteen: nine positives
+and four negatives**, reading **4/13, exit 1** under an identity stub — every
+positive fails, every negative passes.
+
+Rule: **any transform that decides what to keep needs fixtures on both sides of
+that decision.** For a redactor, at least one negative per pattern: a string the
+pattern nearly matches and must not touch. Count them separately in the summary
+line — `nine positives and four negatives` — so a later reader can see at a
+glance whether the reach half was ever tested, rather than inferring it from a
+total.
