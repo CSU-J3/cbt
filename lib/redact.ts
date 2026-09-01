@@ -38,9 +38,20 @@ const KEYED_PARAM =
 // `Bearer <value>` / `Token <value>` header shapes. Deliberately NOT anchored to
 // `Authorization:` — `authorize()` in the cron routes builds a bare
 // `Bearer ${secret}` string that can land in a comparison or a message on its
-// own. No minimum length gate either: a short secret is still a secret, and
-// over-redacting the word "Token" in prose is the safe direction to fail.
-const BEARER_TOKEN = /\b(Bearer|Token)\s+[^\s"',;]+/gi;
+// own.
+//
+// CASE-SENSITIVE, AND THE TAIL MUST LOOK LIKE A TOKEN. An earlier cut used `gi`
+// with an unbounded `[^\s"',;]+` tail and rewrote the prose `token expired` to
+// `token [REDACTED]` — a mutation with no security value, on a string that
+// carries no secret. HTTP writes these keywords capitalized and this repo builds
+// them that way at every site (`Bearer ${secret}`, `Token ${key}`), so dropping
+// the `i` costs nothing real. The `{12,}` floor and the base64url/hex character
+// class are what separate a credential from an English word.
+//
+// This pass is defence in depth, not the primary defence: a secret of OURS is
+// caught by the value pass below whatever the header casing. What this catches
+// is a THIRD-PARTY token echoed back to us, which is in no env var we hold.
+const BEARER_TOKEN = /\b(Bearer|Token) +[A-Za-z0-9._~+/=-]{12,}/g;
 
 // Every env name whose value is a credential. TURSO_DATABASE_URL and
 // REVALIDATE_URL are deliberately absent: they are hostnames, not secrets, and

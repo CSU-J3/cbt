@@ -3,10 +3,18 @@
 // fails the Vercel build).
 //
 // IT IS A GATE BECAUSE IT CAN FAIL. Stub `redactSecrets` to the identity
-// function and fixtures 1-9 and 11 all fail; only 10 passes, and 10 is the
-// negative control whose whole job is to pass under a no-op. That asymmetry is
-// the point — an instrument that reads the same whether or not the work happened
-// measures nothing (method.md § Gates).
+// function and every one of the NINE positive fixtures fails (1-7, 9, 11).
+// The FOUR negatives (8, 10, 12, 13) pass under a no-op BY CONSTRUCTION — each
+// asserts byte-identical output — which is what makes them negatives rather
+// than gaps: they prove the helper does not over-redact, and an instrument that
+// read the same whether or not the work happened would measure nothing
+// (method.md § Gates).
+//
+// The two negatives added at review guard the two places this helper was caught
+// mutating an innocent string: 12 covers BEARER_TOKEN (an earlier `gi` +
+// unbounded-tail cut rewrote the prose `token expired`), 13 covers the
+// trailing-separator repair (which without its `[/=]` guard eats the question
+// mark off `is the row there?`).
 //
 // It sets SYNTHETIC env values and never reads a real one. The synthetic values
 // are not key-shaped and match nothing in the repo.
@@ -81,8 +89,9 @@ const checks: Check[] = [
     n: 6,
     what: "Bearer and Token header shapes",
     run: () => {
-      const a = redactSecrets("Authorization: Bearer SYN123");
-      const b = redactSecrets("Authorization: Token SYN123");
+      // 18 chars — clears BEARER_TOKEN's {12,} token-shaped tail floor.
+      const a = redactSecrets("Authorization: Bearer SYN123456789abcdef");
+      const b = redactSecrets("Authorization: Token SYN123456789abcdef");
       const okA = a === "Authorization: Bearer [REDACTED]";
       const okB = b === "Authorization: Token [REDACTED]";
       return {
@@ -145,6 +154,22 @@ const checks: Check[] = [
         ok: startsRight && bodyLen === 300,
         detail: `startsWithPrefix=${startsRight} bodyLen=${bodyLen} (want 300)`,
       };
+    },
+  },
+  {
+    n: 12,
+    what: "negative — lowercase prose `token expired` is NOT a header",
+    run: () => {
+      const s = "libsql: token expired";
+      return { actual: redactSecrets(s), expected: s };
+    },
+  },
+  {
+    n: 13,
+    what: "negative — prose ending in a question mark keeps its punctuation",
+    run: () => {
+      const s = "is the row there? yes";
+      return { actual: redactSecrets(s), expected: s };
     },
   },
 ];
