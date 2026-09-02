@@ -64,9 +64,13 @@ const OVERFLOW_PREFIX = "smoke-overflow-";
 // prod actually being broken.
 const OVERFLOW_ARMED = !!process.env.SMOKE_OVERFLOW_GATE;
 const OVERFLOW_FORCE = !!process.env.SMOKE_OVERFLOW_FORCE;
-// Counted per worker, reported in afterAll. With `workers: 2` in CI this prints
-// once PER WORKER, so two lines whose counts sum to the route total is correct
-// and not a missing line.
+// Counted per worker, reported in afterAll. The line prints MORE THAN ONCE per
+// run and that is expected: under `fullyParallel: true` Playwright batches tests
+// across workers and `afterAll` fires per BATCH, not per worker. Measured on the
+// first armed prod run (33673524519, 40 routes, 2 CI workers): SIX lines, counts
+// 1 · 1 · 2 · 5 · 15 · 16, summing to 40. **Read the sum, not any one line** —
+// this comment first said "once per worker, so two lines", which was wrong, and
+// a reader who trusted it would have gone looking for four missing lines.
 let overflowChecks = 0;
 
 /** The single writer. Forced-red goes through it too — not a special case. */
