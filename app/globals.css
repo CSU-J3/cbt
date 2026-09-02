@@ -8816,6 +8816,28 @@ a.hearing-watch:hover {
   display: grid;
   grid-template-columns: 1fr;
 }
+/* HO 682 — the column divs are grid items, so their default `min-width: auto`
+   resolves to min-content, and the min-content of a row whose `.hsch-title` is
+   `white-space: nowrap` is the WHOLE unbreakable string. The title kit below
+   (`:8860`) already carries overflow/ellipsis/min-width:0, and it was defeated
+   from above: on 2026-09-02 a markup whose published title is the full
+   semicolon-joined ten-measure list rendered at 669 chars, the title's box grew
+   to 5517px against a content width of 5517px (0 of 16 rows ellipsized), and the
+   intrinsic width propagated through `.hsch` / the tab panel / `.dash-left` /
+   `main.home-main` — every one `overflow-x: visible` — to the document scroller.
+   Measured, HEAD 5bdbe9e: doc scrollWidth 6719 vs clientWidth 2560 at 2560, and
+   4586 vs 430 at 430.
+
+   THIS RULE IS DELIBERATELY OUTSIDE THE 1700px QUERY. The two-column split is
+   how the blowout is ARRANGED, not why it happens: the defect fires identically
+   at 1440 and 430 where the grid is a single `1fr` track sized to 4572px. A
+   bisection at the live repro moved `min-width: 0` down the tree one level at a
+   time — this level snapped the document back to exactly clientWidth at
+   2560/1920/1700/1440/430, and the row wrapper, `.hsch`, the tab panel and
+   `.dash-left` each changed nothing, so no ancestor constraint is committed. */
+.hsch-wrap > div {
+  min-width: 0;
+}
 @media (min-width: 1700px) {
   .hsch-wrap {
     grid-template-columns: 1fr 1fr;

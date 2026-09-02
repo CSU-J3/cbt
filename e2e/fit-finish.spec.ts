@@ -373,6 +373,60 @@ test.describe("home /", () => {
     assertClean(c, "home races tabs");
   });
 
+  // HO 682 — the document must not scroll horizontally on `/`, at either width,
+  // in either tab state.
+  //
+  // THE INVARIANT IS THE DURABLE FORM OF THE GATE; THE CAPTURE IS NOT. The
+  // defect this closes was latent from the component's build and armed by the
+  // DATA: on 2026-09-02 a markup whose published Congress.gov title is the full
+  // semicolon-joined ten-measure list landed on the shown day, the nowrap title
+  // set the grid track's min-content, and the document went 6719 wide against a
+  // 2560 viewport. The mandated 1440/2560 captures passed at HO 610 and HO 670
+  // because a capture is about the data on the table that day, and no long title
+  // was on the table on those days. So this assertion is deliberately about the
+  // PAGE and not about hearings: it holds after today's row rotates out, and it
+  // fires on the next unbounded string anywhere on `/`.
+  //
+  // Both tab states, because the two panels are different subtrees and only one
+  // of them is mounted at a time. No skip-on-empty guard: the races box is not
+  // optional on `/`, so absent tabs are a regression, not a reason to go green
+  // (docs/method.md § Gates).
+  test("/ does not scroll horizontally at 1440 or 2560, in either tab state", async ({ page }) => {
+    const c = attachCollectors(page);
+
+    const readDoc = () =>
+      page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+
+    for (const width of [1440, 2560]) {
+      await page.setViewportSize({ width, height: 1400 });
+      await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await settle(page);
+
+      const tabs = page.locator("button.dv2-racesbox-tab");
+      await expect(
+        tabs.first(),
+        `races box tabs should render on / at ${width}`,
+      ).toBeVisible({ timeout: 15_000 });
+
+      for (const tab of ["Hearings", "Races"]) {
+        await tabs.filter({ hasText: tab }).first().click();
+        await page.waitForTimeout(500);
+        const d = await readDoc();
+        expect(
+          d.scrollWidth,
+          `/ at ${width} on the ${tab} tab must not overflow the document scroller ` +
+            `(scrollWidth ${d.scrollWidth} vs clientWidth ${d.clientWidth})`,
+        ).toBeLessThanOrEqual(d.clientWidth);
+      }
+    }
+
+    logClean("home-no-horizontal-scroll", c);
+    assertClean(c, "home horizontal scroll");
+  });
+
   // HO 673 — REPLACES "sponsor hover card renders inside the expand panel".
   //
   // The test this supersedes asserted the portrait appeared ON HOVER, and it

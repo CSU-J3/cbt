@@ -1557,6 +1557,57 @@ async function main() {
   }
 
   // =========================================================================
+  // M0 — DOCUMENT HORIZONTAL OVERFLOW (HO 682)
+  //
+  // This instrument has collected `docScrollWidth` and `docClientWidth` on every
+  // route since HO 606 and has never COMPARED them, which is half an instrument:
+  // a reading nothing gates on cannot fail, so it reports the same thing whether
+  // the page is sound or 4,159px over (docs/method.md § Gates). HO 682's blowout
+  // on `/` — the HEARINGS day schedule sizing its grid track to an unbreakable
+  // 669-character title — sat inside this audit's own output as two numbers side
+  // by side and was never read.
+  //
+  // The gate is one comparison and it EXITS NON-ZERO, because that is the whole
+  // difference between a gate and another column. What a zero here means: every
+  // wide-viewport route fit its own scroller on this run, on this day's data —
+  // NOT that the class is closed. This defect was latent for many green runs and
+  // was armed by a title arriving in the corpus, so a clean M0 is a statement
+  // about today's content as much as about today's CSS.
+  //
+  // Scoped to the WIDE crawl deliberately. The narrow ladder (1024/900/720) has
+  // its own overflow buckets in M5, and the two filed narrow cases — `/` and
+  // `/members/[id]` at 430, both pre-existing and open in docs/backlog.md — sit
+  // below even that ladder, so this gate neither covers nor reds on them.
+  // =========================================================================
+  console.log("");
+  console.log("M0 — document horizontal overflow (wide viewport only)");
+  console.log("-".repeat(100));
+  const docOver = results
+    .map((r) => ({
+      slug: r.slug,
+      scrollWidth: r.data.docScrollWidth,
+      clientWidth: r.data.docClientWidth,
+      over: r.data.docScrollWidth - r.data.docClientWidth,
+    }))
+    .filter((r) => r.over > 1);
+  if (docOver.length === 0) {
+    console.log(
+      `  0 of ${results.length} routes overflow at ${WIDE_W}px — every document fit its own scroller.`,
+    );
+  } else {
+    for (const o of docOver) {
+      console.log(
+        `  ${o.slug.padEnd(22)} ** OVERFLOWS by ${String(o.over).padStart(5)}px ` +
+          `(scrollWidth ${o.scrollWidth} vs clientWidth ${o.clientWidth})`,
+      );
+    }
+    console.log(
+      `  ${docOver.length} of ${results.length} routes scroll horizontally at ${WIDE_W}px. M0 FAILS.`,
+    );
+    process.exitCode = 1;
+  }
+
+  // =========================================================================
   // M5 — narrow-width baseline
   // =========================================================================
   console.log("");
