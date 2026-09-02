@@ -66,11 +66,13 @@ version of this was narrower — *look at render output* (HO 670) — and it was
 widened at the HO 671 close because the same principle had by then produced three
 more failures in two sessions, none of them about looking at a page.
 
-**Nine instances. Five are about reading an instrument wrongly rather than about
+**Ten instances. Five are about reading an instrument wrongly rather than about
 the thing under test; one is a tool reporting an action it did not perform; one
 is an export whose output is indistinguishable from a working one; one is a set
-of gates that could not see the artifact at all; and one is an instrument that
-was silently rewritten in transit and went on answering a different question:**
+of gates that could not see the artifact at all; one is an instrument that
+was silently rewritten in transit and went on answering a different question;
+and one is an evidence path the runner itself deletes, so the check could not
+have fired at all:**
 
 - **HO 670 — a visual check with no capture is not a check.** Every gate green
   while the layout was wrong three times: a ~300px dead zone under each panel, an
@@ -138,6 +140,22 @@ was silently rewritten in transit and went on answering a different question:**
   and say which query path produced the reading. The audit that found this
   recorded its log evidence as unavailable rather than passed — and was right to:
   the key it was looking for was sitting in three database rows.
+- **HO 683 — the handoff designated an evidence path the runner deletes, so the
+  alarm's failure was identical to its success.** The overflow alarm was
+  specified to write `playwright-report/smoke-overflow.md` and the workflow to
+  fire on that file's presence. The Playwright HTML reporter **clears its output
+  folder at run END**, so the row written during the run is gone before any step
+  can read it: `hashFiles()` empty, issue step skipped, **an alarm structurally
+  unable to fire and rendering exactly like a quiet prod**. Caught at STEP 0 by
+  measurement rather than by reading the minified reporter source — a stale file
+  placed, a row appended, **four candidate paths raced** — which also produced
+  the replacement: `test-results/` is cleaned at run **START** and never at end,
+  so a stale file cannot ping AND a live row survives. **Second
+  architect-prescribed blind instrument on record (HO 680 is the first), and the
+  first one caught BEFORE the gate ever ran** — which is the only reason it is
+  an entry here rather than a post-mortem. The general form is already stated
+  above: a handoff's designated method is a premise like any other and is
+  verified before it is leaned on.
 
 **What the gate requires**
 
