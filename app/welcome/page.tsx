@@ -67,8 +67,12 @@ const MARKETS_ROSTER = MARKET_SYMBOLS.filter(
 );
 const ODDS_PAIRS: { primary: string; secondary: string }[] = [
   { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN" },
+  // HO 681: one Fed-cut horizon. A September-pinned pair sat here from HO 670
+  // until the roller reached September and the two resolved one event. Note this
+  // strip labels from `MARKET_SYMBOLS[].label` and does NOT use `showMonth`, so
+  // it read "FED CUT ODDS" / "FED CUT ODDS (SEP)" — visually distinct while
+  // carrying identical numbers, which is the harder duplication to notice.
   { primary: "FEDCUT", secondary: "POLY-FEDCUT" },
-  { primary: "FEDCUT-SEP", secondary: "POLY-FEDCUT-SEP" },
   { primary: "RECESSION", secondary: "POLY-RECESSION" },
 ];
 

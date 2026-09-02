@@ -171,6 +171,13 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export type PolymarketMacroQuote = {
   pct: number; // 0-100 headline probability
   resolveDate: string | null; // the market's resolution date (YYYY-MM-DD)
+  // HO 681: the Gamma event SLUG this quote was priced off — the identity of the
+  // market, which `pct` and `resolveDate` cannot express (two symbols resolving
+  // one market agree on both). Additive and OPTIONAL: only the fed path fills it,
+  // because only the fed path has ever had two symbols aimed at one question.
+  // The markets cron asserts uniqueness across the filled ones per run; symbols
+  // that leave it undefined are simply not compared. See `fetchQuote`'s consumer.
+  resolvedId?: string;
 };
 export type PolymarketMacro = {
   fed: PolymarketMacroQuote | null;
@@ -251,7 +258,15 @@ export async function fetchPolymarketFedCut(
     }
   }
   if (!found) return null;
-  return { pct: sum * 100, resolveDate: next.endDate?.slice(0, 10) ?? null };
+  return {
+    pct: sum * 100,
+    resolveDate: next.endDate?.slice(0, 10) ?? null,
+    // HO 681: the slug is the market's identity. `next` is the soonest-ending
+    // open fed-decision event matching the slug pattern — with no monthSlug that
+    // is the next meeting, with one it is that month's. Two symbols landing on
+    // the same slug is the collision the cron flags.
+    resolvedId: next.slug ?? undefined,
+  };
 }
 
 // SHUTDOWN — P(government shutdown by the funding deadline), to MATCH Kalshi's

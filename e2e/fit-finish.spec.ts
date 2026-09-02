@@ -253,6 +253,63 @@ test.describe("home /", () => {
     assertClean(c, "home tape hover");
   });
 
+  // HO 681 — ONE Fed-cut horizon on the ODDS strip.
+  //
+  // Why this lives here and NOT in smoke.spec.ts, which is the suite that
+  // actually runs unattended: BotID withholds the markets tape from headless
+  // prod, so `.markets-tape-item` reads 0 there and smoke's tape test
+  // `test.skip`s on empty. An odds-count assertion behind that skip would be
+  // STRUCTURALLY INCAPABLE OF FIRING on prod and would report green forever —
+  // the skip-on-empty inversion this repo has already been bitten by. Local is
+  // the only place the strip renders, so local is the only place the gate is
+  // real. Cost, stated plainly: it is a manual gate, not a CI one.
+  //
+  // The count is DERIVED FROM THE DOM, not hardcoded, because the live tape
+  // picks its repeat count by measurement — `copies = max(2, ceil(container /
+  // setWidth))` per half — so it varies with viewport. SHUTDOWN is the
+  // reference: it is the one ODDS pair that has always been singular, so
+  // "FED CUT appears exactly as often as SHUTDOWN" says one horizon regardless
+  // of how many copies the marquee laid down.
+  //
+  // Reading at c84c02f (pre-change): FED CUT was 2x SHUTDOWN. That is the
+  // failure mode, which is what makes this a gate rather than a decoration.
+  test("ODDS strip carries ONE FED CUT per marquee copy", async ({ page }) => {
+    test.slow();
+    const c = attachCollectors(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page, 2500);
+    await page.addStyleTag({
+      content: ".markets-tape-track { animation-play-state: paused !important; }",
+    });
+    await page.waitForTimeout(300);
+
+    const texts = await page.locator(".markets-tape-item").allTextContents();
+    // An empty tape is a REGRESSION here, not a variability to skip past: on
+    // local there is no BotID and the strip is server-fed from market_ticks.
+    expect(texts.length, "tape rendered items on local").toBeGreaterThan(0);
+
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+    const fedCut = texts.filter((t) => norm(t).startsWith("FED CUT"));
+    const shutdown = texts.filter((t) => norm(t).startsWith("SHUTDOWN"));
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[odds-one-fedcut] / → items=${texts.length} FED CUT=${fedCut.length} SHUTDOWN=${shutdown.length}` +
+        ` | sample=${JSON.stringify(fedCut.slice(0, 2).map(norm))}`,
+    );
+
+    expect(shutdown.length, "SHUTDOWN reference pair present").toBeGreaterThan(0);
+    expect(
+      fedCut.length,
+      "exactly one FED CUT per marquee copy (was 2x SHUTDOWN at c84c02f)",
+    ).toBe(shutdown.length);
+
+    await page.screenshot({ path: `${SHOT_DIR}/odds-one-fedcut-home.png` });
+    logClean("odds-one-fedcut-home", c);
+    assertClean(c, "odds one fedcut home");
+  });
+
   test("WeeklyBand metric hover → portaled card", async ({ page }) => {
     const c = attachCollectors(page);
     await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
@@ -378,6 +435,51 @@ test.describe("home /", () => {
 
     logClean("home-sponsor-portrait", c);
     assertClean(c, "home sponsor portrait");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// /welcome — its own tape markup, so its own assertion (HO 681)
+// ─────────────────────────────────────────────────────────────────────────────
+test.describe("welcome /welcome", () => {
+  // /welcome renders its OWN strip — bespoke markup in app/welcome/page.tsx,
+  // NOT the shared MarketsTape client island — so it needs its own assertion
+  // rather than riding the `/` one above. Two differences that matter:
+  // its copy count is a SERVER CONSTANT (2 halves x ODDS_COPIES_PER_HALF = 6,
+  // because a server-rendered strip cannot measure and so overshoots), and it
+  // labels from MARKET_SYMBOLS[].label rather than `showMonth`, so the string
+  // is "FED CUT ODDS" and never "FED CUT SEP".
+  //
+  // Reading at c84c02f (pre-change): 12 — six "FED CUT ODDS" and six
+  // "FED CUT ODDS (SEP)", visually distinct while carrying identical numbers.
+  test("/welcome ODDS strip carries ONE FED CUT per copy", async ({ page }) => {
+    const c = attachCollectors(page);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page, 1500);
+
+    // Class names are CSS-module-hashed, so select the row structurally: the
+    // ODDS taperow is the element with a DIRECT span child reading exactly
+    // "ODDS" (the pinned left label).
+    const oddsRow = page.locator('div:has(> span:text-is("ODDS"))').last();
+    await expect(oddsRow, "welcome ODDS row present").toBeVisible({ timeout: 10_000 });
+
+    const rowText = (await oddsRow.innerText()).replace(/\s+/g, " ");
+    const count = rowText.split("FED CUT ODDS").length - 1;
+
+    // eslint-disable-next-line no-console
+    console.log(`[odds-one-fedcut] /welcome → "FED CUT ODDS" occurrences=${count}`);
+
+    expect(
+      count,
+      "6 = 2 halves x ODDS_COPIES_PER_HALF (was 12 at c84c02f)",
+    ).toBe(6);
+    // The pinned-September label must be gone outright, not merely deduped.
+    expect(rowText, "no September-pinned label survives").not.toContain("(SEP)");
+
+    await page.screenshot({ path: `${SHOT_DIR}/odds-one-fedcut-welcome.png` });
+    logClean("odds-one-fedcut-welcome", c);
+    assertClean(c, "odds one fedcut welcome");
   });
 });
 

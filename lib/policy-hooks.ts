@@ -3,7 +3,7 @@
 // name) and an optional `note` (the policy / Congress angle, shown muted below).
 // Keyed by the roster's INTERNAL symbol: TickItem passes tick.symbol (SPX/NVDA/
 // TNX/CPI/…), PairItem passes the primary/Kalshi symbol (SHUTDOWN/FEDCUT/
-// FEDCUT-SEP/RECESSION). An item with no entry shows neither line; an entry with
+// RECESSION). An item with no entry shows neither line; an entry with
 // no `note` shows the sector only (no empty note slot).
 //
 // THIS IS THE SINGLE EDITABLE SOURCE for the sector + note copy — edit here.
@@ -24,10 +24,11 @@ export const POLICY_HOOKS: Record<string, PolicyHook> = {
   LMT: { sector: "Defense prime", note: "Tracks NDAA appropriations" },
   CPI: { sector: "Inflation · YoY" },
   UNEMP: { sector: "Labor · U-3" },
-  // Odds (Kalshi primary symbols; FED CUT JUL = FEDCUT, SEP = FEDCUT-SEP).
+  // Odds (Kalshi primary symbols). RECORD (HO 681): this line read "FED CUT
+  // JUL = FEDCUT, SEP = FEDCUT-SEP" while two Fed-cut horizons existed. One
+  // horizon now; FEDCUT is the roller and names whichever meeting is next.
   SHUTDOWN: { sector: "Prediction market", note: "Funding lapse if no CR passes" },
   FEDCUT: { sector: "Prediction market" },
-  "FEDCUT-SEP": { sector: "Prediction market" },
   RECESSION: { sector: "Prediction market", note: "NBER-defined" },
 };
 

@@ -48,17 +48,22 @@ const ODDS_TAPE = [
   "POLY-SHUTDOWN",
   "FEDCUT",
   "POLY-FEDCUT",
-  "FEDCUT-SEP",
-  "POLY-FEDCUT-SEP",
   "RECESSION",
   "POLY-RECESSION",
 ];
 const ODDS_PAIRS = [
   { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN", label: "SHUTDOWN" },
-  // FED CUT JUL / FED CUT SEP — same label, disambiguated by showMonth, which
-  // appends each pair's resolution month (from its primary symbol's marketDate).
+  // ONE Fed-cut horizon (HO 681). `showMonth` stays ON and is doing MORE work
+  // now, not less: with a single row it is no longer disambiguating a pair, it
+  // is naming which meeting the roller currently sits on — the label reads
+  // "FED CUT SEP" today and rolls to "FED CUT OCT" after 2026-09-16 on its own.
+  //
+  // RECORD: a second row pinned to September sat beside this one from HO 302
+  // until HO 681. The pin existed because soonest-open then resolved to July;
+  // once July passed, the roller reached September and the two rows resolved
+  // ONE event and printed the same string. `showMonth` was never broken — it
+  // faithfully reported that both pairs had the same resolution month.
   { primary: "FEDCUT", secondary: "POLY-FEDCUT", label: "FED CUT", showMonth: true },
-  { primary: "FEDCUT-SEP", secondary: "POLY-FEDCUT-SEP", label: "FED CUT", showMonth: true },
   { primary: "RECESSION", secondary: "POLY-RECESSION", label: "RECESSION" },
 ];
 

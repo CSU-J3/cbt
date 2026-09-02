@@ -113,9 +113,28 @@ export type MarketSymbol = {
   polyKind?: "fed" | "shutdown" | "recession";
   // HO 302: pin a SPECIFIC Kalshi event (a Fed-meeting horizon) instead of the
   // series' soonest-open. e.g. "KXFEDDECISION-26SEP" for FED CUT SEP.
+  //
+  // RECORD (HO 681): NO SYMBOL CARRIES THIS TODAY. Its only carrier was
+  // FEDCUT-SEP, deleted when the July meeting passed, the soonest-open roller
+  // reached September and the pinned row became a duplicate of it. The READER
+  // survives at `:415` and the field is kept for a future pin — but note that
+  // fork B (a second horizon as a "next-after-next" ROLLER) would NOT use it:
+  // a roller discovers, it does not pin. Carrier-less config, strike-or-keep,
+  // filed to ride the next markets HO.
+  //
+  // One behaviour the departing carrier was the sole exerciser of: the pinned
+  // path derives `when` from `parseTickerDate(kalshiEvent)`, whose DAY DEFAULTS
+  // TO 01 (`:418-421`) — so FEDCUT-SEP stored market_date 2026-09-01 for a
+  // meeting on 2026-09-16, while the discovery path stored the real date. Only
+  // the month is read downstream (`showMonth`), which is why it never surfaced.
+  // A future pin inherits that day-default.
   kalshiEvent?: string;
   // HO 302: pin the Polymarket fed-decision MONTH slug (e.g. "september") so a
   // second fed symbol targets a later meeting than the soonest (July).
+  //
+  // RECORD (HO 681): likewise carrier-less — POLY-FEDCUT-SEP was its only one.
+  // Reader survives at `:510`; `fetchPolymarketFedCut(monthSlug?)` now takes
+  // `undefined` from every call site.
   polyMonth?: string;
 };
 
@@ -145,12 +164,15 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // cron). Dynamic nearest-open-event discovery + compute in fetchKalshi.
   { internal: "SHUTDOWN", source: "kalshi", remote: "KXGOVTSHUTDOWN", kalshiKind: "single-yes", label: "Shutdown Odds", fullName: "Govt Shutdown Odds", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "FEDCUT", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", label: "Fed Cut Odds", fullName: "Fed Rate-Cut Odds", format: "percent", group: "commodities", cadence: "kalshi" },
-  // HO 302 (B2 ODDS): the SEPTEMBER Fed-cut horizon alongside July. Same
-  // KXFEDDECISION series + cut-sum compute, but PINNED to the Sep event
-  // (kalshiEvent) so it doesn't collide with FEDCUT's soonest-open discovery
-  // (which resolves to July). It rides the v2 ODDS strip, which disambiguates
-  // JUL/SEP via showMonth.
-  { internal: "FEDCUT-SEP", source: "kalshi", remote: "KXFEDDECISION", kalshiKind: "cut-sum", kalshiEvent: "KXFEDDECISION-26SEP", label: "Fed Cut Odds (Sep)", fullName: "Fed Rate-Cut Odds — September", format: "percent", group: "commodities", cadence: "kalshi" },
+  // RECORD (HO 681): FEDCUT-SEP lived here — the SEPTEMBER Fed-cut horizon,
+  // added at HO 302 alongside July and PINNED via kalshiEvent so it would not
+  // collide with FEDCUT's soonest-open discovery (which then resolved to July).
+  // The July meeting passed, the roller reached September, and the pin became a
+  // duplicate of the symbol it existed to sit beside: measured 2026-09-01, both
+  // resolved KXFEDDECISION-26SEP and both read K 2.0% / P 0.7%. The ODDS strip
+  // rendered "FED CUT SEP" twice. Single horizon now; a second one is a
+  // next-after-next ROLLER, not a pin (backlog). Quote history is untouched —
+  // the rows stay, unread, like the retired legacy symbols before them.
   // HO 290 (B2 ODDS): recession, dual-source. Kalshi series KXRECSSNBER discovers
   // the soonest open event (the year-only parseTickerDate fix picks -26 over -27);
   // single-yes = "Recession this year?" yes-price. Polymarket reads the fixed-slug
@@ -166,11 +188,11 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // in fetchPolymarket*); polyKind selects which.
   { internal: "POLY-SHUTDOWN", source: "polymarket", remote: "", polyKind: "shutdown", label: "Shutdown (Polymarket)", fullName: "Govt Shutdown Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "POLY-FEDCUT", source: "polymarket", remote: "", polyKind: "fed", label: "Fed Cut (Polymarket)", fullName: "Fed Rate-Cut Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
-  // HO 302: the Polymarket "P" half of FED CUT SEP. Same fed-decision discovery
-  // as POLY-FEDCUT but pinned to the September meeting via polyMonth ("september"
-  // → slug fed-decision-in-september-762); without the pin it would resolve to
-  // July (the soonest-open) and duplicate POLY-FEDCUT.
-  { internal: "POLY-FEDCUT-SEP", source: "polymarket", remote: "", polyKind: "fed", polyMonth: "september", label: "Fed Cut Sep (Polymarket)", fullName: "Fed Rate-Cut Odds — September — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
+  // RECORD (HO 681): POLY-FEDCUT-SEP lived here — the "P" half of FED CUT SEP,
+  // pinned to the September meeting via polyMonth. It went with its K half: by
+  // 2026-09-01 both it and POLY-FEDCUT resolved the same fed-decision event
+  // (market_date 2026-09-16 on both) and read 0.7%, which is the duplication
+  // the pin had been added to prevent, arriving from the other direction.
   // Commodities — FRED EOD.
   { internal: "WTI", source: "fred", remote: "DCOILWTICO", label: "WTI Crude", fullName: "Crude Oil (WTI)", format: "price", group: "commodities", cadence: "daily" },
 ] as const;
@@ -178,6 +200,14 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
 export type FetchedQuote = {
   price: number;
   marketDate: string; // YYYY-MM-DD
+  // HO 681: the upstream thing this quote was priced off — a Kalshi EVENT TICKER
+  // or a Polymarket event SLUG. Additive and OPTIONAL; FMP/FRED leave it unset
+  // (their `remote` is already a stable per-symbol id, so two of them cannot
+  // silently converge). It exists because `price` and `marketDate` cannot
+  // express IDENTITY: FEDCUT and FEDCUT-SEP agreed on both while quietly
+  // resolving one event, and nothing in the pipeline could say so. The markets
+  // cron asserts uniqueness across the filled ones, per source, per run.
+  resolvedId?: string;
 };
 
 class FetchQuoteError extends Error {
@@ -463,7 +493,10 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
     prob = yp;
   }
 
-  return { price: prob * 100, marketDate: when.slice(0, 10) };
+  // HO 681: `eventTicker` is the identity of what was actually priced — from the
+  // pin on the pinned path, from soonest-open discovery otherwise. Reported so a
+  // run can tell two symbols apart from two symbols reading one event.
+  return { price: prob * 100, marketDate: when.slice(0, 10), resolvedId: eventTicker };
 }
 
 // HO 259: Polymarket macro quote. Reads only the one market this symbol needs
@@ -487,6 +520,9 @@ async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQ
   return {
     price: q.pct,
     marketDate: q.resolveDate ?? new Date().toISOString().slice(0, 10),
+    // HO 681: only the fed path fills this (see PolymarketMacroQuote). Shutdown
+    // and recession pass it through as undefined and are not compared.
+    resolvedId: q.resolvedId,
   };
 }
 

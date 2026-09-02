@@ -16,6 +16,7 @@ import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
+import { findCollisions } from "@/lib/markets-collisions";
 import { MARKET_SYMBOLS, fetchQuote, type MarketSymbol } from "@/lib/markets";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +38,20 @@ function authorize(request: Request): NextResponse | null {
 }
 
 type SymbolOutcome =
-  | { internal: string; ok: true; price: number; changePct: number | null; marketDate: string }
+  | {
+      internal: string;
+      ok: true;
+      price: number;
+      changePct: number | null;
+      marketDate: string;
+      // HO 681: the upstream event/market this symbol actually resolved to, when
+      // the source reports one (Kalshi always; Polymarket's fed path only).
+      resolvedId?: string;
+    }
   | { internal: string; ok: false; error: string };
+
+// HO 681 — the collision flag lives in `lib/markets-collisions.ts` (a leaf, so
+// it can be exercised without this route's DB write). Read the WHY there.
 
 async function processSymbol(symbol: MarketSymbol): Promise<SymbolOutcome> {
   try {
@@ -79,6 +92,9 @@ async function processSymbol(symbol: MarketSymbol): Promise<SymbolOutcome> {
       price: quote.price,
       changePct,
       marketDate: quote.marketDate,
+      // HO 681: undefined for FMP/FRED and for the non-fed Polymarket symbols —
+      // those sources report no resolved identity, so they are not compared.
+      resolvedId: quote.resolvedId,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -136,7 +152,22 @@ async function handle(request: Request) {
       throw new Error(`markets cron fetched 0/${symbols.length} symbols: ${failSummary}`);
     }
 
-    const payload = { ticked, failed: failed.length, outcomes };
+    // HO 681: run after the throw above, so a run that fetched nothing reports
+    // the outage rather than a vacuous "no collisions among zero resolutions".
+    const collisions = findCollisions(outcomes, symbols);
+    for (const c of collisions) {
+      console.warn(`[markets] collision: ${JSON.stringify(c)}`);
+    }
+
+    // Spread, not a conditional field: absent collisions the key is absent, which
+    // is what makes `payload NOT LIKE '%collisions%'` a real read-back rather
+    // than a string that is present either way.
+    const payload = {
+      ticked,
+      failed: failed.length,
+      outcomes,
+      ...(collisions.length > 0 ? { collisions } : {}),
+    };
     const chronicErr = failed.length > 0 ? `markets fetch failures: ${failSummary}` : undefined;
 
     return { payload, chronicErr };
