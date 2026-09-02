@@ -3183,3 +3183,87 @@ pattern nearly matches and must not touch. Count them separately in the summary
 line — `nine positives and four negatives` — so a later reader can see at a
 glance whether the reach half was ever tested, rather than inferring it from a
 total.
+
+## HO 681 (2026-09-01) — a stale Data Cache is a build input, and it can make a RED falsification leg pass
+
+The e2e gate for the FED-CUT de-duplication was proved able to fire by running
+it against the pre-change tree. On the first attempt the `/` leg went RED as
+predicted (FED CUT 12 vs SHUTDOWN 6) and **the `/welcome` leg PASSED** — reading
+6 where the baseline should have read 12. Nothing was wrong with the assertion.
+
+`npm run build` **preserves `.next/cache`**, so the post-change run's
+`unstable_cache` entry for `getLatestMarketTicks` — computed from a
+`MARKET_SYMBOLS` roster that no longer contained the two September symbols —
+survived into the baseline build. `/`'s tape renders its pairs from CONFIG and
+so still drew the second pair (as `K N/A P N/A`, which is why that leg still
+went red); `/welcome` builds its items with `if (!kalshi && !poly) return []`
+and **dropped the pair entirely**, so the surface looked already-fixed. `rm -rf
+.next/cache` before the baseline build and it read 12.
+
+**The rule: when a falsification baseline is built by reverting code, revert the
+CACHE too.** A Data Cache entry is derived from the code that filled it, so it
+is an input to the next build in exactly the way the source files are — and this
+is the same-as-success shape entering through the cache rather than through the
+code: a leg that passes because the detector is blind is indistinguishable from
+a leg that passes because the work is done. The tell here was cheap and worth
+looking for — **one leg red and its sibling green, on a change that touched both
+surfaces identically**.
+
+Note the asymmetry, because it decides how much of this you have to redo: the
+POST-change readings were never at risk. Both surfaces render the ODDS pairs
+from their own config lists, so once the pair is gone from the config no cached
+tick can put it back. **Only the direction that needs a thing to be PRESENT is
+cache-sensitive.**
+
+## HO 681 (2026-09-01) — do not ask a capture to observe something the system randomizes on purpose
+
+The handoff's mandatory-capture criterion asked for the ODDS strip's **item
+order intact (`SHUTDOWN · FED CUT · RECESSION`)**. That order is the CONFIG
+order and it is not what `/` renders: HO 376 shuffles each scrolling strip once
+on mount (Fisher-Yates, post-mount so SSR is stable), deliberately, so the two
+counter-scrolling strips look uncorrelated. Four capture passes read three
+different first-copy orders — `SHUTDOWN · RECESSION · FED CUT SEP`, `SHUTDOWN ·
+FED CUT SEP · RECESSION`, `FED CUT SEP · RECESSION · SHUTDOWN`.
+
+Had the criterion been taken at face value it would have produced one of two bad
+outcomes: a reported failure against a feature working exactly as designed, or —
+worse — a pass written up from the one run that happened to come out in config
+order, which is a **1-in-6 coin flip reported as a verified property**.
+
+**What was asserted instead: the SET on `/` (three pairs, 6/6/6 across every
+pass, one FED CUT per marquee copy) and the literal ORDER on `/welcome`**, which
+is server-rendered and does not shuffle. The general form — **before asserting a
+property of a render, check whether the code deliberately varies it**; an
+unstable property needs an invariant of the same fact (here: a count) or a
+surface where it is stable.
+
+## HO 681 (2026-09-01) — two records that agree on every stored observable because they ARE one record
+
+`FEDCUT` (soonest-open discovery) and `FEDCUT-SEP` (pinned to the September
+event) resolved the same Kalshi event for weeks. Every signal the pipeline
+carries read healthy throughout, and **not by accident** — the two rows agreed
+on `price` and very nearly on `market_date` *precisely because they were one
+market*. There is no threshold, no staleness wash and no failure-honesty check
+that fires on this, because nothing was failing: the cron fetched both, both
+succeeded, both wrote. The only witness was a human noticing `FED CUT SEP`
+printed twice on a tape, which the record duly shows happening — in a screenshot
+taken for an unrelated HO.
+
+**The missing quantity was IDENTITY, and no amount of comparing values recovers
+it.** The fix is to have each fetch report *what it resolved to* (`resolvedId` —
+a Kalshi event ticker, a Gamma slug) and to assert uniqueness across a run. Two
+design points worth carrying:
+
+- **Scope the uniqueness check per source.** A Kalshi ticker and a Gamma slug
+  live in unrelated namespaces and can never collide with each other; pooling
+  them is a false positive waiting to happen.
+- **Absence of an id must mean "nothing to check", never "checked and unique".**
+  FMP/FRED report no `resolvedId` (their `remote` is already a stable per-symbol
+  id, so two of them cannot silently converge) and are simply not compared.
+
+And one trap specific to reading this class: a `market_date` comparison would
+**not** have caught it. The two symbols stored `2026-09-16` and `2026-09-01`,
+because the pinned path derives its date from the ticker with the day defaulting
+to 01 — so the field that looks like it identifies the meeting *disagreed*, on
+two rows reading the same meeting. Only the month is read downstream, which is
+why nothing noticed either way.
