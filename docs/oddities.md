@@ -3267,3 +3267,68 @@ because the pinned path derives its date from the ticker with the day defaulting
 to 01 — so the field that looks like it identifies the meeting *disagreed*, on
 two rows reading the same meeting. Only the month is read downstream, which is
 why nothing noticed either way.
+
+## HO 682 (2026-09-02) — a layout defect can be latent in the CSS and armed by the data, so a capture gate passes on every day the string is short
+
+`.hsch-wrap`'s two column divs have been grid items at the default
+`min-width: auto` since the component was built at HO 610. Nothing about that
+changed on 2026-09-02. What changed is that a House markup landed on the shown
+day whose published Congress.gov title is the full semicolon-joined ten-measure
+list — 706 characters stored, 669 after `cleanMeetingTitle` — and a grid item at
+`auto` resolves to min-content, which for `white-space: nowrap` text is the whole
+unbreakable string. The track went to 5517px, the intrinsic width propagated
+through five `overflow-x: visible` ancestors to the document scroller, and `/`
+read **6719 wide against a 2560 viewport**, with column B — the NOW marker and
+the 2:00p birthright-citizenship hearing — parked at x=5733, roughly 3,170px off
+the right edge of the screen.
+
+**So the mandated 1440/2560 captures passed at HO 610 and at HO 670 while the
+defect was fully present.** They were not sloppy and they were not wrong: a
+capture is a statement about the data on the table that day, and on those days
+the longest title on the shown day was ordinary. This is the same-as-success
+shape reached through the corpus rather than through an instrument — the check
+reads identically whether the CSS is sound or merely unexercised, and no amount
+of looking harder at those screenshots would have found it. **The durable form of
+this gate is therefore an invariant, not a capture:** `scrollWidth <= clientWidth`
+holds after today's row rotates out and fires on the next unbounded string
+anywhere on the page, which is precisely what a screenshot of a quiet Tuesday
+cannot do.
+
+**The ellipsis kit was complete and it was defeated from above.** `.hsch-title`
+carried `overflow: hidden` + `text-overflow: ellipsis` + `white-space: nowrap` +
+`min-width: 0` — every declaration correct, the intent unambiguous, and **0 of
+16 rows ellipsized**, the longest title's box measuring 5517px against a content
+width of 5517px. A shrink-to-fit kit is only as good as the first ancestor that
+refuses to shrink, and the ancestor here was two levels up and carried no CSS at
+all. When a kit visibly is not working, the useful question is which ancestor is
+sizing to content, not which declaration is missing from the kit.
+
+**The two-column framing was the wrong variable, and it would have produced a fix
+that looked right.** The blowout presents as a wide-viewport problem, `.hsch-wrap`
+does take `grid-template-columns: 1fr 1fr` at `>=1700px`, and the exhibit is a
+column-B row stranded off-screen — three signals all pointing at the media query.
+The bisection said otherwise: the defect fires identically at 1440 and at 430
+through a **single** `1fr` track sized to 4572px. A `min-width: 0` scoped inside
+the `>=1700px` block would have snapped the viewport under examination clean and
+left every narrower one broken, with the RED capture that motivated it now GREEN.
+The split is how the blowout is *arranged*; `display: grid` plus `min-width: auto`
+is why it happens.
+
+**And the instrument that would have caught it had the number and no comparison.**
+`layout-audit-606.ts` has collected `docScrollWidth` and `docClientWidth` on every
+route since HO 606 and never compared them, so this defect sat inside the audit's
+own output as two adjacent numbers through every run. A reading nothing gates on
+cannot fail — it is not a weak check, it is not a check — and the fix is one
+comparison that exits non-zero, which is the entire difference between a gate and
+another column. It was falsified in both directions before being trusted: RED on
+the HEAD build (`home`, 6757 vs 2560, exit 1), clean across the full crawl
+afterwards (0 of 26 routes, exit 0).
+
+Bisection method, since it is reusable: with the defect live, inject
+`min-width: 0` **one level at a time** and re-read the document scroller, and
+**remove each injection before the next** so the control shows the defect
+restored between levels. Five levels were tried — the column divs, the per-row
+wrapper, `.hsch`, the tab panel, `.dash-left` — and exactly one snapped the
+document back to *exactly* `clientWidth`. That is what let the commit carry one
+rule instead of a defensive cluster: the four levels that changed nothing are
+four lines not written.
