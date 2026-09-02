@@ -12,6 +12,19 @@ on:
   schedule:
     - cron: '0 15 * * *'
   workflow_dispatch:
+    inputs:
+      force_overflow_red:
+        description: 'Force a synthetic overflow finding (proves the alarm reaches a human)'
+        type: boolean
+        default: false
+
+# HO 683 — needed by the overflow-alarm issue step. Declaring ANY permissions
+# block drops every other scope to none, so `contents: read` is spelled out
+# rather than relied on: the checkout would break silently otherwise, and this
+# workflow's whole job is not to fail silently.
+permissions:
+  contents: read
+  issues: write
 
 # A burst of deploys (Vercel fired 5 in one minute for the last push train) all
 # point at the same eventual prod; keep only the latest smoke, cancel the rest.
@@ -66,6 +79,17 @@ jobs:
         # the prod domain at the deploy whose success event woke us. Anyone who
         # caches that install to speed the job up must re-verify the crawl still
         # starts AFTER the alias swap, not before.
+        #
+        # HO 683 — the overflow alarm is ARMED HERE, and only on the two
+        # human/clock triggers. A `deployment_status` run leaves SMOKE_OVERFLOW_GATE
+        # empty and the spec does no reads, so a red deploy keeps meaning "your
+        # change broke it". The class is DATA-armed (HO 682: a long committee
+        # title arriving overnight blew `/` open with no commit behind it), and a
+        # defect nobody caused must not block somebody else's deploy — it files an
+        # issue instead. Both branches print a gate line in the log.
+        env:
+          SMOKE_OVERFLOW_GATE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
+          SMOKE_OVERFLOW_FORCE: ${{ inputs.force_overflow_red && '1' || '' }}
         run: npx playwright test e2e/smoke.spec.ts --grep-invert "@nonci" --retries=2
 
       - name: Upload report on failure
@@ -73,5 +97,50 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          # HO 683 — the overflow rows ride the artifact too. If issue creation
+          # itself ever fails (a permissions regression, a gh outage), this is the
+          # surviving record that an alarm TRIED to fire; without it that failure
+          # mode is silent, which is the defect this whole HO exists to remove.
+          path: |
+            playwright-report/
+            test-results/smoke-overflow-*.md
           retention-days: 14
+
+      # HO 683 — the alarm's human end. Corey runs the GitHub app on his phone, so
+      # the issue IS the ping.
+      #
+      # KEYED ON FILE PRESENCE, NEVER ON `failure()`. The crawl's other failure
+      # class — the intermittent `pageErr` on backlog `:50` — reds this workflow
+      # without writing any overflow row, so a bare `failure()` would file overflow
+      # issues for hydration noise and the two classes would become one. File
+      # presence is what keeps them separate. `always()` so a run that reds for
+      # BOTH reasons still pings for the overflow half.
+      - name: File overflow alarm
+        if: always() && hashFiles('test-results/smoke-overflow-*.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE='[smoke-overflow] prod horizontal overflow'
+          {
+            echo "The prod smoke crawl found the document scrolling horizontally at the crawl's 1280 viewport."
+            echo
+            echo "| route | scrollWidth | clientWidth | over |"
+            echo "|---|---|---|---|"
+            cat test-results/smoke-overflow-*.md
+            echo
+            echo "Run: ${RUN_URL}"
+            echo
+            echo "Trigger: ${{ github.event_name }}. This alarm is armed on schedule/dispatch only — it never blocks a deploy."
+            echo "A FORCED-RED row means someone dispatched the proof leg; prod is fine."
+          } > /tmp/overflow-body.md
+          # Dedupe on the title marker rather than a label, so nothing has to
+          # pre-exist in the repo for the alarm to work on its first fire.
+          EXISTING=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body-file /tmp/overflow-body.md
+            echo "commented on existing issue #${EXISTING}"
+          else
+            gh issue create --title "$TITLE" --body-file /tmp/overflow-body.md
+          fi

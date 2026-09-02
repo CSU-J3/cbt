@@ -24,6 +24,64 @@ const BASE_URL =
   process.env.BASE_URL ?? "https://congressional-terminal-chi-silk.vercel.app";
 const SHOT_DIR = "test-results/smoke";
 
+// ── HO 683: the overflow ALARM ────────────────────────────────────────────────
+//
+// A prod horizontal-scroll check that rides this crawl at its existing 1280
+// viewport for ZERO new requests, and that is deliberately NOT deploy-blocking.
+//
+// ARMED ONLY ON `schedule` / `workflow_dispatch` (e2e-prod.yml sets the env from
+// `github.event_name`). A `deployment_status` run never reads, so a red deploy
+// keeps meaning "your change broke it" — this class is DATA-ARMED (HO 682: a
+// long committee title arriving overnight blew `/` open with no commit behind
+// it), and a defect nobody caused must not red somebody else's deploy. The
+// alarm is a GitHub issue instead, which is a phone ping.
+//
+// 1280 SUFFICES because HO 682 measured the class viewport-independent: the
+// blowout fired identically from 430 through 2560. Widening the crawl would buy
+// nothing and cost prod requests against the standing 74-request WATCH.
+//
+// THE EVIDENCE PATH IS `test-results/`, AND THAT IS LOAD-BEARING (HO 683 STEP 0
+// row 4). The handoff designated `playwright-report/`; measured, the HTML
+// reporter CLEARS that directory at run **END**, so a row written during the run
+// is deleted before any workflow step can read it — `hashFiles()` empty, issue
+// step skipped, alarm silently unable to fire, and indistinguishable from "prod
+// is fine". `test-results/` is the config's `outputDir`, which Playwright cleans
+// at run **START** and never at end: a stale file cannot ping AND a row written
+// during the run survives. Both properties measured, four paths raced.
+// **Keep this in sync with `playwright.config.ts`'s `outputDir` and with
+// e2e-prod.yml's `test-results/smoke-overflow-*.md` glob — three places, one
+// contract.**
+//
+// ONE FILE PER ROUTE, never a shared append. `--retries=2` means a failing route
+// runs up to three times, and a retry overwriting its OWN file is the whole
+// argument — a shared append would stack duplicate rows for one defect. (It also
+// sidesteps two CI workers appending concurrently, which is a real question this
+// shape never has to answer.)
+const OVERFLOW_DIR = "test-results";
+const OVERFLOW_PREFIX = "smoke-overflow-";
+// Set by the workflow, never by a developer. GATE arms the read; FORCE writes one
+// synthetic row so writer → condition → issue can be proven end to end without
+// prod actually being broken.
+const OVERFLOW_ARMED = !!process.env.SMOKE_OVERFLOW_GATE;
+const OVERFLOW_FORCE = !!process.env.SMOKE_OVERFLOW_FORCE;
+// Counted per worker, reported in afterAll. With `workers: 2` in CI this prints
+// once PER WORKER, so two lines whose counts sum to the route total is correct
+// and not a missing line.
+let overflowChecks = 0;
+
+/** The single writer. Forced-red goes through it too — not a special case. */
+function writeOverflowRow(
+  slug: string,
+  scrollWidth: number,
+  clientWidth: number,
+): void {
+  fs.mkdirSync(OVERFLOW_DIR, { recursive: true });
+  fs.writeFileSync(
+    `${OVERFLOW_DIR}/${OVERFLOW_PREFIX}${slug}.md`,
+    `| ${slug} | ${scrollWidth} | ${clientWidth} | ${scrollWidth - clientWidth} |\n`,
+  );
+}
+
 // Real seeds pulled from Turso (HO 379 recon), env-overridable for other data.
 const BILL = process.env.SEED_BILL ?? "119-s-2";
 const MEMBER = process.env.SEED_MEMBER ?? "A000055";
@@ -183,6 +241,28 @@ test.describe("route crawl", () => {
       // a green hit 2 is a "no serialization regression observed," not a stronger claim.
       const status2 = await nav();
 
+      // ── HO 683 overflow alarm. Joins HERE, after hit 2's settle: `nav()` waits
+      // for `load` plus a fixed 2.5s, so this is the last fully-settled state of
+      // the route, and reading before the route's own waits would measure a page
+      // mid-layout. Unarmed runs do no reads at all.
+      if (OVERFLOW_ARMED) {
+        overflowChecks++;
+        const doc = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+        }));
+        // `over > 1` — the same 1px subpixel tolerance the layout audit's M0 uses,
+        // for the same reason and deliberately not tighter.
+        if (doc.scrollWidth - doc.clientWidth > 1) {
+          writeOverflowRow(route.slug, doc.scrollWidth, doc.clientWidth);
+          expect(
+            doc.scrollWidth,
+            `${route.path} scrolls horizontally on prod ` +
+              `(scrollWidth ${doc.scrollWidth} vs clientWidth ${doc.clientWidth})`,
+          ).toBeLessThanOrEqual(doc.clientWidth);
+        }
+      }
+
       const failed1 = c.failed.slice(0, mark.failed);
       const failed2 = c.failed.slice(mark.failed);
       const bad1 = realBad(c.bad.slice(0, mark.bad));
@@ -238,6 +318,40 @@ test.describe("route crawl", () => {
       expect.soft(pageErr2, `${route.path} hit-2 uncaught page errors`).toEqual([]);
     });
   }
+
+  // HO 683 — the forced-red leg. An alarm nobody has ever seen fire is not
+  // protection, and the part most likely to be silently broken is the plumbing
+  // BETWEEN the writer and the phone: the file glob, the step condition, the
+  // token permission, the dedupe. This exercises all of it end to end without
+  // prod being broken, through the SAME writer as a real finding — a special
+  // case here would prove the special case rather than the path.
+  //
+  // DECLARED ONLY WHEN FORCED, not skipped-when-unforced: a permanently-skipped
+  // test in every run's output is a thing readers learn to scroll past, and this
+  // one is supposed to be conspicuous on the two runs it exists for.
+  if (OVERFLOW_FORCE) {
+    test("FORCED-RED — overflow alarm plumbing, writer → file → condition → issue", async () => {
+      writeOverflowRow("FORCED-RED", 1, 0);
+      expect(
+        1,
+        "SMOKE_OVERFLOW_FORCE is set — this failure is synthetic and prod is not " +
+          "overflowing. It exists to prove the alarm can reach a human.",
+      ).toBeLessThanOrEqual(0);
+    });
+  }
+
+  // Both branches of the arming gate are readable in the run output, so "the
+  // alarm did not fire" and "the alarm never looked" are never the same line.
+  // Prints once PER WORKER (CI runs 2), so two lines summing to the route count
+  // is correct — see OVERFLOW_ARMED above.
+  test.afterAll(() => {
+    // eslint-disable-next-line no-console
+    console.log(
+      OVERFLOW_ARMED
+        ? `overflow gate: armed, ${overflowChecks} checks`
+        : "overflow gate: unarmed, 0 checks",
+    );
+  });
 });
 
 // The deep-link bug the handoff wants confirmed: an anonymous (no-cookie) visit
