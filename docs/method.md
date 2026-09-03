@@ -66,13 +66,14 @@ version of this was narrower — *look at render output* (HO 670) — and it was
 widened at the HO 671 close because the same principle had by then produced three
 more failures in two sessions, none of them about looking at a page.
 
-**Ten instances. Five are about reading an instrument wrongly rather than about
-the thing under test; one is a tool reporting an action it did not perform; one
-is an export whose output is indistinguishable from a working one; one is a set
-of gates that could not see the artifact at all; one is an instrument that
-was silently rewritten in transit and went on answering a different question;
-and one is an evidence path the runner itself deletes, so the check could not
-have fired at all:**
+**Eleven instances. Five are about reading an instrument wrongly rather than
+about the thing under test; one is a tool reporting an action it did not
+perform; one is an export whose output is indistinguishable from a working one;
+one is a set of gates that could not see the artifact at all; one is an
+instrument that was silently rewritten in transit and went on answering a
+different question; one is an evidence path the runner itself deletes, so the
+check could not have fired at all; and one is an instrument that does not
+exist:**
 
 - **HO 670 — a visual check with no capture is not a check.** Every gate green
   while the layout was wrong three times: a ~300px dead zone under each panel, an
@@ -156,6 +157,25 @@ have fired at all:**
   an entry here rather than a post-mortem. The general form is already stated
   above: a handoff's designated method is a premise like any other and is
   verified before it is leaned on.
+- **HO 685 — the handoff designated an instrument that does not exist.** A row
+  was to be closed by reading a workflow run's resolved concurrency group,
+  *"visible via `gh run view --json` / the UI."* It is not: `gh run view --json`
+  offers seventeen fields and none is concurrency, and
+  `gh api …/actions/runs/<id> --jq 'keys'` carries no concurrency key either.
+  **Third architect-prescribed blind instrument (HO 680, HO 683), and the second
+  caught before its gate ran** — a pattern now, not a coincidence, and the three
+  differ instructively: HO 680's read the wrong column, HO 683's wrote to a path
+  the runner deletes, and this one names a field the API has never had. The
+  distinctive hazard here is that **the honest replacement is necessarily a
+  tautology**, because a step cannot read `concurrency.group` and the only
+  available echo must re-state the key's own expression — so it verifies
+  expression semantics (what `|| 'na'` resolves to per event class) and can
+  never catch a typo in the key. That limit is written beside the echo rather
+  than left to be over-read, and the property it cannot reach — that two groups
+  are genuinely distinct — is carried behaviourally instead, by a collision test
+  in which a working run survives a mid-crawl skipped one. **When the only
+  instrument available shares an expression with its subject, say which half it
+  buys and name what carries the other half.**
 
 **What the gate requires**
 
@@ -182,6 +202,16 @@ have fired at all:**
   so a clean result is evidence about freshness and none at all about
   correctness. Say which of the two a check is buying. *(Adopted from outside
   this project; the five instances above are ours.)*
+- **A count invariant whose two sides derive from one upstream gate is blind to
+  upstream staleness.** The sibling of the clause above, and the distinction is
+  worth keeping straight: that one is about a check sharing an *expression* with
+  its subject, this one about two independently-computed numbers sharing a
+  *source*. HO 684's `promised = shown` compared a badge count against a rendered
+  chip count — genuinely two computations — and would still have read green over
+  chips silently absent, had the Data Cache served the old query shape: both
+  sides degrade together, because both descend from the same read. The
+  authoritative check was the served content, not the count that agreed with
+  itself.
 - **A gate binds to the state at the paste, not to the state when it ran.** Every
   instance above is a check that was run and misread; this is the one where
   nothing was wrong at the moment anything was checked. HO 670's tree went red

@@ -3382,3 +3382,47 @@ interaction is *structurally* at risk of clearing its referent in the same tick.
 If a badge and its items share a predicate, the click that acknowledges the badge
 will unmount the items unless something deliberately holds the display value
 still.
+
+---
+
+## GitHub Actions evaluates `concurrency` BEFORE the job `if`, so a run that does no work cancels the run doing the work (HO 685, Sep 2026)
+
+A workflow's `concurrency` block is resolved at **run creation**, before any job's
+`if` is considered. The two are not sequential stages of one decision — the group
+is claimed by the *event*, and the `if` only decides whether the job that already
+holds the group does anything. So a workflow gated with a job-level `if` still
+has every filtered-out event competing for the group, and with
+`cancel-in-progress: true` those events cancel real work before skipping
+themselves.
+
+`e2e-prod.yml` held one global group, `e2e-prod`, while its job `if` admitted
+only `deployment_status` events with `environment == 'Production' && state ==
+'success'`. Every Preview deploy — which is to say every ordinary push to any
+review ref — therefore entered the group, cancelled whatever crawl was running,
+and then skipped. Twice on the record in six minutes on 2026-09-02, the second
+being the one that cost something: the armed `0 15 * * *` daily
+(`33667308181`) was killed 2m46s in by `33667584259`, a Preview run whose job
+skipped one second later, so the overflow alarm filed nothing for that day and
+the day was indistinguishable from a quiet prod. Figures and the full
+cancellation chain are in the backlog strike; this note is the mechanism.
+
+**The fix is the group key, not the cancel flag.** Keying the group on the same
+discriminators the `if` reads (`github.event_name` plus the `deployment_status`
+`environment` and `state`) makes the partition follow the skip decision, so each
+skipped class collides only with itself. Dropping `cancel-in-progress` instead
+would have thrown away the behaviour the block exists for.
+
+Two smaller things found while proving it, both of which invert an intuition:
+
+- **A `deployment_status` run checks out the DEPLOYMENT's own ref, not the
+  default branch.** So during a review-ref transition the branch's own Preview
+  runs already execute the branch's yaml, which is why a pre-merge collision test
+  is a real end-state test rather than a trivially-passing one. It also bounds
+  the transition residual: deploys of pre-fix commits run the old yaml under the
+  old group, and group matching is exact-string, so they can only cancel each
+  other and can never reach a new-key group.
+- **A cancelled run emits no per-route output at all.** Anything downstream that
+  counts findings across runs — here the standing `pageErr` intermittent — was
+  not seeing zeros from these runs, it was missing samples entirely. An absent
+  sample and a clean one are not the same reading, and only one of them is
+  visible in a run list.
