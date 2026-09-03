@@ -3426,3 +3426,46 @@ Two smaller things found while proving it, both of which invert an intuition:
   not seeing zeros from these runs, it was missing samples entirely. An absent
   sample and a clean one are not the same reading, and only one of them is
   visible in a run list.
+
+---
+
+## A deadline filed against a predicate must be DERIVED BY RUNNING THE PREDICATE, never by arithmetic beside it (HO 686, Sep 2026)
+
+HO 662 filed four settle-window floor dates into `docs/backlog.md` so the reads
+would not be lost across a migration. The predicate is
+`isSettled`'s expiry term — `primary_date < today − SETTLE_WINDOW_DAYS` — and the
+filing computed each floor as `primary_date + 30`. **All four were one day
+early.** The comparison is **strict**, so the term first flips at `+31`:
+`house-AZ-03-2026-R` (Jul 21) floors **2026-08-21**, not 08-20, and the three
+Aug 4 rows float to **2026-09-04**, not 09-03.
+
+Nothing was wrong with the code. `SETTLE_WINDOW_DAYS = 30` is genuinely 30, the
+exported `settleWindowFloor` is correct, and the predicate behaved exactly as
+designed at its first live window crossing. **The defect is entirely in a number
+transcribed alongside the logic rather than produced by it** — which is why it
+survived: `+30` beside a constant named `30` reads as obviously right, and there
+is no reader for whom the missing `+1` is visible. A wrong date filed this way is
+indistinguishable from a right one until the day it fires.
+
+The fix is a method, not an arithmetic correction. `settle-window-686.ts` finds
+each floor by **simulation** — walking candidate `today` values through the
+*shipped* `settleWindowFloor` until the term flips — so the derivation cannot
+disagree with the predicate even if the window length, the inequality or the
+timezone handling changes underneath it. The successor windows filed by the same
+HO (`house-AK-00-2026-open`, `senate-AK-2026-open`, floor **2026-09-18**) were
+produced by running that instrument on those ids, and the backlog entry says so,
+because the statement *"derived, not calculated"* is the part that stops the
+error recurring.
+
+This is the **"a measurement is about the table it was taken on"** family (HO 677)
+wearing dates: a quantity computed *near* a system is not a quantity computed
+*by* it, and only the second one stays true when the system moves.
+
+**The error was benign twice over, and both reasons are luck rather than
+design.** The three not-yet-expired rows were already frozen on the predicate's
+**decided** term — a winner had landed — so their expiry floor never mattered and
+the read was complete a day before the wrong date would have bitten. And the late
+AZ read cost nothing, because the sync had re-visited that row *inside* its
+window anyway (last roster write seven days before the floor) and the source
+still carried no winner. Had either coincidence not held, the filed date would
+have sent someone to look on the wrong day and the miss would have been silent.
