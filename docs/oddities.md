@@ -3469,3 +3469,39 @@ AZ read cost nothing, because the sync had re-visited that row *inside* its
 window anyway (last roster write seven days before the floor) and the source
 still carried no winner. Had either coincidence not held, the filed date would
 have sent someone to look on the wrong day and the miss would have been silent.
+
+---
+
+## `tsx` wraps named functions inside `page.evaluate` in a `__name` helper the browser doesn't have (HO 687, Sep 2026)
+
+Any Playwright script run through `tsx` in this tree — a diagnostic under
+`scripts/`, a spec under `e2e/` — can hand the browser source referencing a
+symbol that exists only in the bundler's output. esbuild's keep-names transform
+rewrites a named arrow or function expression as `__name(fn, "fn")`, and
+Playwright serializes the callback's **source text** to evaluate it in the page.
+The page has no `__name`, so every `page.evaluate` throws:
+
+```
+Error: page.evaluate: ReferenceError: __name is not defined
+```
+
+**It is invisible until it fires, and it fires all at once.** The HO 687 capture
+probe's first cut had no inner named consts and ran clean across all 14 routes;
+adding two helpers (`const win = (a, b) => {…}`, `const keep = (d) => …`) broke
+every route on the next run. Nothing about the diff looks browser-related — the
+helpers are ordinary local functions, and the failure names a symbol that appears
+nowhere in the source.
+
+**The fix is to keep the body out of the transform: pass it as a plain string and
+evaluate it in the page**, either `new Function("arg", src)(arg)` or an `eval`
+of a string constant. A template literal is not rewritten, so it is immune by
+construction rather than by avoiding a style. Both the HO 687 probe
+(`scripts/diagnostic/hydration-capture-687.ts`) and the crawl's own alignment
+(`e2e/smoke.spec.ts`, `ALIGN_BODY`) are written that way, each with a comment
+saying why, because the natural instinct on reading them is to "tidy" the string
+back into a callback.
+
+The general shape is one this file already knows in other clothes: **the code the
+runtime executes is not the code you wrote**, and a transform that is invisible
+in every other context becomes load-bearing the moment the source crosses a
+process boundary as text.
