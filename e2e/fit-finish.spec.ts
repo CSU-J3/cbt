@@ -373,6 +373,94 @@ test.describe("home /", () => {
     assertClean(c, "home races tabs");
   });
 
+  // HO 684 — THE BADGE'S REFERENT. The RACES tab advertises `MOVES n` / `NEW n`;
+  // this asserts that clicking it opens a panel actually carrying n markers.
+  //
+  // It is a SIBLING of the stamp test above rather than an addition to it,
+  // deliberately: that test asserts the CAUSE (the localStorage stamp lands) and
+  // is exactly the shape HO 684 was filed against — the one e2e in the area
+  // verified the mechanism that was destroying the artifact, so the artifact's
+  // absence was invisible to it for ~250 handoffs. It stays green as written.
+  //
+  // NO SKIP-ON-EMPTY. The branch is LOGGED either way — `chips gate: armed
+  // moves=X new=Y` or `chips gate: unarmed (badges 0)` — because a zero reading
+  // here is same-as-success: if no featured seat has any move or news history at
+  // run time, both the pre-click badges and the post-click chips are 0 and the
+  // assertion passes without having tested anything. That reading is
+  // UNAVAILABLE, not green, and the log line is the only thing that separates
+  // them (docs/method.md § Gates). Measured on prod at HO 684: MOVES 3 / NEW 6,
+  // sum 9 — so the armed branch is the expected one, and the unarmed branch is a
+  // named contingency rather than a hope.
+  //
+  // The context is fresh per Playwright test, so localStorage carries no stamp:
+  // lastViewMs hydrates to 0 and every real move/news item registers.
+  test("opening RACES leaves the chips the badge counted on screen", async ({
+    page,
+  }) => {
+    const c = attachCollectors(page);
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await settle(page);
+
+    const tabs = page.locator("button.dv2-racesbox-tab");
+    await expect(
+      tabs.first(),
+      "races box tabs should render on / — the races box is not optional here",
+    ).toBeVisible({ timeout: 15_000 });
+
+    // Pre-click badge counts. Absent badge = 0 (RacesBoxTabs renders the span
+    // only when the count is > 0), which is a real reading, not a missing one.
+    const badgeCount = async (cls: string) => {
+      const el = page.locator(`.${cls}`);
+      if ((await el.count()) === 0) return 0;
+      const txt = (await el.first().textContent()) ?? "";
+      const m = txt.match(/(\d+)/);
+      return m?.[1] ? Number(m[1]) : 0;
+    };
+    const moves = await badgeCount("rbx-badge-moves");
+    const news = await badgeCount("rbx-badge-new");
+    const promised = moves + news;
+
+    if (promised === 0) {
+      console.log("chips gate: unarmed (badges 0) — reading is UNAVAILABLE, not a pass");
+    } else {
+      console.log(`chips gate: armed moves=${moves} new=${news}`);
+    }
+
+    await tabs.filter({ hasText: "Races" }).first().click();
+    await page.waitForTimeout(600);
+    await expect(
+      page.locator(".dv2-racesbox-panel--races"),
+      "RACES panel should be visible after the tab click",
+    ).toBeVisible();
+
+    const shown =
+      (await page.locator(".rc-moved:visible").count()) +
+      (await page.locator(".rc-new:visible").count());
+
+    console.log(`chips gate: promised=${promised} shown=${shown}`);
+    expect(
+      shown,
+      `the RACES tab promised ${promised} update(s) (MOVES ${moves} + NEW ${news}); ` +
+        `the opened panel shows ${shown} chip(s). A click that acknowledges N ` +
+        `updates must not delete the evidence for them.`,
+    ).toBe(promised);
+
+    // The badges themselves must still clear on open — the HO 684 split is only
+    // correct if the acknowledge half is untouched.
+    expect
+      .soft(
+        await badgeCount("rbx-badge-moves"),
+        "MOVES badge should clear on open",
+      )
+      .toBe(0);
+    expect
+      .soft(await badgeCount("rbx-badge-new"), "NEW badge should clear on open")
+      .toBe(0);
+
+    logClean("home-races-chips", c);
+    assertClean(c, "home races chips");
+  });
+
   // HO 682 — the document must not scroll horizontally on `/`, at either width,
   // in either tab state.
   //

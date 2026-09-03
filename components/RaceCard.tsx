@@ -2,13 +2,18 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
-import { RaceNewIndicator } from "@/components/RaceNewIndicator";
+import {
+  RaceNewIndicator,
+  type RaceNewsHead,
+} from "@/components/RaceNewIndicator";
+import { SourceTag } from "@/components/SourceTag";
 import { formatDollarsCompact } from "@/lib/format";
 import type {
   PacIeRow,
   PartyKey,
   RaceCandidate,
   RaceIndexRow,
+  RaceMove,
 } from "@/lib/queries";
 import {
   kalshiActive,
@@ -52,30 +57,78 @@ function partyLetter(p: PartyKey | null): string {
   return p === "R" || p === "D" || p === "I" ? p : "—";
 }
 
-// One market strip cell: "{MARKET} {favorite name} {pct}", the name party-
-// colored. Absent market (House Polymarket) → dim "n/a".
-function MarketStat({
-  label,
-  fav,
-  pct,
+type MarketFav = { name: string; party: PartyKey | null } | null;
+
+// HO 684 — the K/P line, collapsing HO 305's two-column KALSHI | POLYMARKET
+// stat block onto ONE line in the ODDS-tape dual-source idiom (HO 287/303):
+//
+//   K Ossoff 94% · P 94%          both venues, same favorite (the name dedupes)
+//   K Ossoff 94% · P Smith 61%    both venues, different favorites
+//   K Mendoza 85% · P n/a         House — no Polymarket market for the seat
+//
+// The K/P letters are the shared <SourceTag> (brand-colored --kalshi / --poly),
+// the percentages are --text-primary, and the favorite name keeps the party
+// color it already had. THE DEDUPE COMPARES THE RENDERED NAME, not the raw
+// `favorite_label`: marketFavorite resolves a candidate-named market against the
+// seat's roster and returns a SURNAME, so comparing labels would miss a match
+// that renders identically. Measured at HO 684 on the six featured seats — all
+// three Senate cards name the same favorite on both venues (94/94, 69/70,
+// 64/65); the three House cards carry Kalshi only.
+//
+// This replaces .rc-stats / .rc-stat / .rc-stat-k / .rc-stat-v, which had this
+// one render site and no other consumer (grepped before deleting).
+function KpLine({
+  kalshiFav,
+  kalshiPct,
+  polyFav,
+  polyPct,
 }: {
-  label: string;
-  fav: { name: string; party: PartyKey | null } | null;
-  pct: number | null;
+  kalshiFav: MarketFav;
+  kalshiPct: number | null;
+  polyFav: MarketFav;
+  polyPct: number | null;
 }) {
+  const sameFavorite =
+    !!kalshiFav &&
+    !!polyFav &&
+    kalshiFav.name.trim().toLowerCase() === polyFav.name.trim().toLowerCase();
+
   return (
-    <div className="rc-stat">
-      <div className="rc-stat-k">{label}</div>
-      {fav ? (
-        <div className="rc-stat-v">
-          <span style={{ color: partyColor(fav.party) }}>{fav.name}</span>{" "}
-          {pct}%
-        </div>
-      ) : (
-        <div className="rc-stat-v" style={{ color: "var(--text-dim)" }}>
-          n/a
-        </div>
-      )}
+    <div className="rc-kpline">
+      <span className="rc-kp">
+        <SourceTag source="kalshi" />
+        {kalshiFav ? (
+          <>
+            <span style={{ color: partyColor(kalshiFav.party) }}>
+              {kalshiFav.name}
+            </span>
+            <span className="rc-kp-pct">{kalshiPct}%</span>
+          </>
+        ) : (
+          <span className="rc-kp-na">n/a</span>
+        )}
+      </span>
+      <span className="rc-kp-sep" aria-hidden="true">
+        ·
+      </span>
+      <span className="rc-kp">
+        <SourceTag source="polymarket" />
+        {polyFav ? (
+          <>
+            {/* Name suppressed when both venues name the same person — the K
+                half already said it, and repeating it is what made the old
+                two-column block wide for no information. */}
+            {sameFavorite ? null : (
+              <span style={{ color: partyColor(polyFav.party) }}>
+                {polyFav.name}
+              </span>
+            )}
+            <span className="rc-kp-pct">{polyPct}%</span>
+          </>
+        ) : (
+          <span className="rc-kp-na">n/a</span>
+        )}
+      </span>
     </div>
   );
 }
@@ -88,15 +141,20 @@ export function RaceCard({
   // the surname. Incumbent-only resolution left the K/P pair uncomparable
   // (candidate label beside a party label). v2 general-election cards only.
   candidates = [],
-  // HO 272: ISO date of this race's latest rating MOVE (getRecentRaceMoves);
-  // undefined when it hasn't moved. The client RaceMovedIndicator compares it to
-  // the per-browser last-RACES-open time to show MOVED + feed the tab badge.
-  lastMoveAt,
-  // HO 432: ISO timestamp of this race's freshest incumbent-linked news
-  // (hubs[i].news[0].observedAt); undefined when the seat has no news / open seat.
-  // The client RaceNewIndicator compares it to last-RACES-open to show NEWS +
-  // feed the (previously dark) tab NEW badge — the news sibling of lastMoveAt.
-  lastNewsAt,
+  // HO 272, RESHAPED HO 684: this race's latest rating MOVE (getRecentRaceMoves)
+  // as { date, source, to, from }; undefined when it hasn't moved. Was a bare ISO
+  // date — the chip then had nothing to render but the seat's CURRENT CONSENSUS,
+  // which is not the move, so it echoed an unchanged value whenever one source
+  // moved and the consensus didn't. The client RaceMovedIndicator compares
+  // `date` against the frozen display stamp to render, and against the last-open
+  // stamp to feed the tab badge.
+  move,
+  // HO 432, RESHAPED HO 684: the head of this race's incumbent-linked news
+  // (hubs[i].news[0]) as { observedAt, title }; undefined for a seat with no news
+  // or an open seat. Was the bare timestamp — the chip could say NEWS but not
+  // what the news was. No new fetch: `title` was already on the object the
+  // timestamp came off.
+  news,
   // HO 305: page-level ambiguous surnames (e.g. "collins" — Susan Collins ME +
   // Mike Collins GA). Surnames in this set render with a first initial. Computed
   // once by CompetitiveRacesStrip across all four cards.
@@ -108,8 +166,8 @@ export function RaceCard({
 }: {
   row: RaceIndexRow;
   candidates?: RaceCandidate[];
-  lastMoveAt?: string | null;
-  lastNewsAt?: string | null;
+  move?: RaceMove | null;
+  news?: RaceNewsHead | null;
   ambiguous?: Set<string>;
   pac?: PacIeRow[];
 }) {
@@ -331,13 +389,9 @@ export function RaceCard({
         </div>
       </div>
 
-      <RaceMovedIndicator
-        raceId={row.raceId}
-        lastMoveAt={lastMoveAt}
-        lean={row.consensusRating}
-      />
+      <RaceMovedIndicator raceId={row.raceId} move={move} />
 
-      <RaceNewIndicator raceId={row.raceId} lastNewsAt={lastNewsAt} />
+      <RaceNewIndicator raceId={row.raceId} news={news} />
 
       <div className="sb-wrap">
         <div className="sb-ends">
@@ -396,17 +450,17 @@ export function RaceCard({
         ) : null}
       </div>
 
-      {/* HO 305: market strip — names the favorite (party-colored) per market.
-          Cash moved up to the incumbent line. Senate KALSHI + POLYMARKET; House
-          KALSHI + dim n/a. */}
-      <div className="rc-stats">
-        <MarketStat label="KALSHI" fav={kalshiFav} pct={kalshiPct} />
-        <MarketStat
-          label="POLYMARKET"
-          fav={isSenate ? polyFav : null}
-          pct={isSenate ? polyPct : null}
-        />
-      </div>
+      {/* HO 305 market strip, COLLAPSED TO ONE LINE at HO 684 — see KpLine.
+          Cash moved up to the incumbent line back at HO 305, so this block has
+          been two cells (not the three "WAR CHEST | KALSHI | POLYMARKET" that
+          SKILL described until HO 684 corrected it) for a long while. Senate
+          carries both venues; House carries Kalshi + a dim n/a. */}
+      <KpLine
+        kalshiFav={kalshiFav}
+        kalshiPct={kalshiPct}
+        polyFav={isSenate ? polyFav : null}
+        polyPct={isSenate ? polyPct : null}
+      />
 
       {/* HO 393: PAC SPENDING glance line — non-linked (whole card is a
           <Link>). Renders only when the seat carries UDP IE rows. */}

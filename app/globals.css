@@ -934,38 +934,107 @@ body {
   color: var(--ticker-closed);
   background-color: color-mix(in srgb, var(--ticker-closed) 16%, transparent);
 }
-/* Per-card MOVED indicator (COMPETITIVE rich cards). Amber-bright, no red. */
-.rc-moved {
+/* Per-card MOVED / NEWS indicators (COMPETITIVE rich cards). MOVED is
+   amber-bright, NEWS is --ticker-closed (matching the .rbx-badge-new tab badge)
+   so the two read as distinct signals; the NEWS red is deliberately NOT
+   --party-republican, so a red marker on a races card can't read as a party cue.
+   A card that both moved and has fresh news stacks both (two rows).
+
+   HO 684 — THE CHIPS GAINED CONTENT, so they gained a bounded three-part
+   interior: label · separator · body. Two consequences that are not cosmetic:
+
+   (1) text-transform MOVED OFF THE CONTAINER onto .rc-chip-label. The bodies
+       carry data now — a headline, and a rating pair rendered as stored
+       ("SABATO Toss Up → Tilt R") — and uppercasing a headline would be a
+       different claim about the source text than the source makes. Only the
+       label is chrome, so only the label is caps.
+
+   (2) THE HO 682 SIGNATURE IS LIVE HERE AND IS SEVERED AT BOTH LEVELS. These
+       chips are flex items of .race-card, which is itself a grid item of
+       .race-grid at the default min-width:auto — so an unbounded nowrap string
+       inside a chip sets the card's min-content, which sets the track, which
+       (measured at HO 684: no clipping ancestor between .race-card and the
+       document — RacesBoxTabs is a direct child of .dash-left, and the only
+       overflow:hidden on the dashboard is .home-quadrant, not an ancestor)
+       reaches the document scroller. min-width:0 therefore lands on .race-card
+       AND on both chips; max-width:100% bounds the chip inside the card. The
+       durable gates behind all of it are fit-finish's 1440/2560 doc-scroll
+       invariant and the layout audit's M0 — not this comment. */
+.rc-moved,
+.rc-new {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   align-self: flex-start;
+  /* HO 682 rule: a flex item whose subtree contains nowrap text carries an
+     explicit min-width:0. The MOVED body is nowrap; the NEWS body wraps but is
+     clamped, and both sit inside a card that must not be widened by either. */
+  min-width: 0;
+  max-width: 100%;
   margin: 2px 0;
   padding: 1px 5px;
-  border: 0.5px solid var(--accent-amber-bright);
   border-radius: 2px;
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+}
+.rc-moved {
+  border: 0.5px solid var(--accent-amber-bright);
   background-color: color-mix(
     in srgb,
     var(--accent-amber-bright) 16%,
     transparent
   );
   color: var(--accent-amber-bright);
-  font-size: var(--fs-10);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
 }
-/* HO 432 — per-card NEWS indicator, the news sibling of .rc-moved. Same chrome
-   but keyed to --ticker-closed (matching the .rbx-badge-new tab badge) so NEWS
-   reads as a distinct signal from MOVED's amber. A card that both moved and has
-   fresh news stacks both markers (two small rows) — acceptable, and rare. */
 .rc-new {
-  align-self: flex-start;
-  margin: 2px 0;
-  padding: 1px 5px;
   border: 0.5px solid var(--ticker-closed);
-  border-radius: 2px;
   background-color: color-mix(in srgb, var(--ticker-closed) 16%, transparent);
   color: var(--ticker-closed);
-  font-size: var(--fs-10);
-  letter-spacing: 0.5px;
+  /* The clamped body is two lines tall, so the label tops out with the first
+     line rather than centring against the block. */
+  align-items: flex-start;
+}
+/* The label is chrome: caps, and it NEVER truncates — the whole point of the
+   inner-span split is that "NEWS ·" survives whatever the body does. */
+.rc-chip-label,
+.rc-chip-sep {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.rc-chip-label {
   text-transform: uppercase;
+}
+.rc-chip-sep {
+  opacity: 0.6;
+}
+/* The body is the only shrinkable part. */
+.rc-chip-body {
+  min-width: 0;
+}
+/* MOVED: one line, ellipsised. The content is a bounded shape (SOURCE + two
+   rating labels), so it fits at every measured width and the ellipsis is a
+   backstop rather than the normal case. */
+.rc-moved .rc-chip-body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* NEWS: two lines, clamped — ruled at HO 684 over a single-line ellipsis. At the
+   tightest box the grid bottoms out at (the 400px single-column floor) the live
+   maximum 95-character headline resolves in full across two lines; the clamp
+   only bites past ~120 characters, against a corpus maximum of 123. A one-line
+   ellipsis would have truncated the TYPICAL headline to buy nothing on the
+   exceptional one. Wrapping also takes this body out of the nowrap class
+   entirely — wrapping text's min-content is its longest WORD — which is why the
+   nowrap hazard on this card is now the MOVED body and the K/P line below. */
+.rc-new .rc-chip-body {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
 }
 
 /* HO 178 — BREAKING compact rows + overrun.
@@ -3461,6 +3530,19 @@ body {
   flex-direction: column;
   text-decoration: none;
   color: var(--text-primary);
+  /* HO 684 — the HO 682 rule, applied at the level that actually governs the
+     track. This is a GRID ITEM of .race-grid, whose tracks are
+     minmax(min(400px,100%), 1fr): the 400px is a floor, not a cap, and a grid
+     item at the default min-width:auto takes its automatic minimum from its
+     min-content — so an unbounded string anywhere in the subtree widens the
+     track and, with no clipping ancestor between here and the document
+     (measured HO 684), scrolls the page. HO 610 sized that floor to the then
+     largest measured card min-content and noted the overflow was "invisible as
+     a document scroll only because an ancestor clipped it"; that clipping
+     ancestor does not exist on the live DOM, so this severs it at the source
+     instead of relying on the floor staying ahead of the content. The chips and
+     the K/P line carry min-width:0 of their own. */
+  min-width: 0;
 }
 .race-card.hot {
   border-color: var(--accent-amber);
@@ -3603,25 +3685,47 @@ body {
   padding: 1px 5px;
   margin-top: 5px;
 }
-.rc-stats {
+/* HO 684 — the K/P line. REPLACES .rc-stats / .rc-stat / .rc-stat-k /
+   .rc-stat-v, the HO 305 two-column KALSHI | POLYMARKET block (single render
+   site, no other consumer — grepped before deleting). That block spent two
+   stacked label+value cells and ~11px of height restating a venue name the
+   brand-colored letter already carries, and on the seats where both venues name
+   the same favorite it printed that name twice.
+
+   The shape is the ODDS-tape dual-source idiom (HO 287/303): brand-colored K/P
+   via the shared <SourceTag>, values in --text-primary, favorite name in its
+   party color. Bottom-pinned exactly as before — border-top + margin-top:auto
+   are retained, so the card's footer geometry is unchanged.
+
+   min-width:0 because the names are nowrap: this is the line that keeps the HO
+   682 hazard live on this card even though the NEWS body now wraps. */
+.rc-kpline {
   display: flex;
-  gap: 14px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
   border-top: 1px solid var(--border-soft);
   padding-top: 11px;
   margin-top: auto;
-}
-.rc-stat {
-  flex: 1;
-}
-.rc-stat-k {
-  font-size: 8.5px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  margin-bottom: 3px;
-}
-.rc-stat-v {
   font-size: var(--fs-12);
   color: var(--text-secondary);
+}
+.rc-kp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.rc-kp-pct {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.rc-kp-na {
+  color: var(--text-dim);
+}
+.rc-kp-sep {
+  color: var(--text-dim);
 }
 
 /* HO 305 — matchup block (incumbent line + challenger line). The subhead + cash

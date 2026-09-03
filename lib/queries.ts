@@ -2002,34 +2002,85 @@ export type CompetitiveRace = {
 // "Toss Up" rating from any forecaster floats the race to the top). Ties
 // break on the most recently updated rating per race so freshly-moved
 // races surface ahead of stale ones at the same lean.
-// HO 272: latest real rating-MOVE date per race, for the v2 RACES-tab MOVES
-// badge. rating_history (HO 220) appends a row only when a (race_id, source)'s
-// rating actually changes, BUT the first run logs a baseline row per pair — so a
-// "move" is any row whose observed_at is later than that pair's earliest
-// observed_at. Returns { raceId: latestMoveDate } only for races that have moved
-// at least once (races with no real move are absent → no badge). The client
-// compares each against the per-browser "last opened RACES" timestamp
-// (localStorage) to count moves-since-last-view. Tagged `races` so a ratings
-// refresh flushes it alongside the rest of the races surface.
+// HO 272: latest real rating-MOVE per race, for the v2 RACES-tab MOVES badge
+// and (HO 684) the per-card MOVED chip's content. rating_history (HO 220)
+// appends a row only when a (race_id, source)'s rating actually changes, BUT the
+// first run logs a baseline row per pair — so a "move" is any row whose
+// observed_at is later than that pair's earliest observed_at. Races that have
+// never moved are absent → no chip, no badge.
+//
+// HO 684 RESHAPED THE RETURN, and the reason is that the chip was lying. It
+// rendered `row.consensusRating` — the seat's CURRENT CONSENSUS, not the move —
+// so when one source moved and the consensus did not, the chip echoed an
+// unchanged value and called it a move. This now returns the actual latest
+// post-baseline move: `{ date, source, to, from }`.
+//   - baseline exclusion is unchanged in meaning, expressed as a window
+//     (`MIN(observed_at) OVER (PARTITION BY race_id, source)`) rather than a
+//     correlated subquery, so one pass yields both it and the LAG below;
+//   - `from` is `LAG(rating) OVER (PARTITION BY race_id, source ORDER BY
+//     observed_at)` — the same pair's previous rating;
+//   - `rn = 1` takes the latest row per RACE (several sources may have moved;
+//     the ratings line under the score bar carries all three current values
+//     regardless, so showing the latest one here loses nothing).
+// Parity was measured before anything was built on it (HO 684 STEP 0): 64 races
+// both shapes, 0 date mismatches against the query this replaces.
+//
+// `from` is the baseline rating for a pair's FIRST real move, so it should never
+// be null — measured 0 of 64 at HO 684. The null branch in the renderer is
+// therefore SHIPPED UNEXERCISED, i.e. unproven rather than protection.
+//
+// Return stays JSON-plain (Record of plain objects) — the unstable_cache
+// authoring rule; a Map would round-trip to {} on a cache HIT. Tagged `races` so
+// a ratings refresh flushes it alongside the rest of the races surface.
+export type RaceMove = {
+  /** ISO date (day granularity) of the move. */
+  date: string;
+  /** Raw source key: 'cook' | 'sabato' | 'inside_elections'. */
+  source: string;
+  /** Rating moved TO, verbatim from rating_history ("Toss Up", "Tilt R", …). */
+  to: string;
+  /** Rating moved FROM; null only if a pair's first row is somehow post-baseline. */
+  from: string | null;
+};
+
 export const getRecentRaceMoves = unstable_cache(
-  async (raceIds: string[]): Promise<Record<string, string>> => {
+  async (raceIds: string[]): Promise<Record<string, RaceMove>> => {
     if (raceIds.length === 0) return {};
     const db = getDb();
     const placeholders = raceIds.map(() => "?").join(",");
     const rs = await db.execute({
-      sql: `SELECT rh.race_id, MAX(rh.observed_at) AS last_move
-            FROM rating_history rh
-            WHERE rh.race_id IN (${placeholders})
-              AND rh.observed_at > (
-                SELECT MIN(r2.observed_at) FROM rating_history r2
-                WHERE r2.race_id = rh.race_id AND r2.source = rh.source
-              )
-            GROUP BY rh.race_id`,
+      sql: `WITH h AS (
+              SELECT rh.race_id, rh.source, rh.rating, rh.observed_at,
+                     LAG(rh.rating) OVER (
+                       PARTITION BY rh.race_id, rh.source ORDER BY rh.observed_at
+                     ) AS prev_rating,
+                     MIN(rh.observed_at) OVER (
+                       PARTITION BY rh.race_id, rh.source
+                     ) AS baseline_at
+              FROM rating_history rh
+              WHERE rh.race_id IN (${placeholders})
+            ),
+            m AS (
+              SELECT race_id, source, rating, prev_rating, observed_at,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY race_id ORDER BY observed_at DESC, source DESC
+                     ) AS rn
+              FROM h
+              WHERE observed_at > baseline_at
+            )
+            SELECT race_id, observed_at AS last_move, source,
+                   rating AS to_rating, prev_rating AS from_rating
+            FROM m WHERE rn = 1`,
       args: raceIds,
     });
-    const out: Record<string, string> = {};
+    const out: Record<string, RaceMove> = {};
     for (const r of rs.rows) {
-      out[r.race_id as string] = r.last_move as string;
+      out[r.race_id as string] = {
+        date: r.last_move as string,
+        source: r.source as string,
+        to: r.to_rating as string,
+        from: (r.from_rating as string | null) ?? null,
+      };
     }
     return out;
   },

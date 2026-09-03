@@ -6,6 +6,7 @@ import type {
   Race,
   RaceCandidate,
   RaceIndexRow,
+  RaceMove,
   RaceNewsItem,
 } from "@/lib/queries";
 import {
@@ -43,9 +44,10 @@ export function CompetitiveRacesStrip({
   races,
   hubs,
   rich,
-  // HO 272: { raceId → latest rating-move date } for the featured seats; only
+  // HO 272, RESHAPED HO 684: { raceId → RaceMove } for the featured seats; only
   // races that have moved appear. Threaded into each RaceCard for its MOVED
-  // indicator.
+  // indicator, which now renders the move itself (source, from → to) rather than
+  // the seat's current consensus.
   moves,
   // HO 393: { raceId → UDP IE direction rows } for the card's PAC SPENDING
   // glance line.
@@ -54,7 +56,7 @@ export function CompetitiveRacesStrip({
   races: CompetitiveRace[];
   hubs: (RaceHubData | null)[];
   rich?: (RaceIndexRow | null)[];
-  moves?: Record<string, string>;
+  moves?: Record<string, RaceMove>;
   pacByRace?: Record<string, PacIeRow[]>;
 }) {
   // HO 305: page-level passes for the matchup block. (1) Ambiguous surnames —
@@ -93,10 +95,13 @@ export function CompetitiveRacesStrip({
               // names the market favorites from it.
               candidates={hubs[i]?.candidates ?? []}
               ambiguous={ambiguous}
-              lastMoveAt={moves?.[race.raceId]}
-              // HO 432: freshest incumbent news date falls out of the prefetched
-              // hub — no recency query, mirroring how lastMoveAt rides `moves`.
-              lastNewsAt={hubs[i]?.news?.[0]?.observedAt}
+              move={moves?.[race.raceId]}
+              // HO 432: the freshest incumbent news falls out of the prefetched
+              // hub — no recency query, mirroring how `move` rides `moves`.
+              // HO 684 passes the news HEAD OBJECT rather than just its
+              // timestamp; `title` was always on it, so the headline the chip now
+              // renders costs no additional read.
+              news={hubs[i]?.news?.[0]}
               pac={pacByRace?.[race.raceId]}
             />
           ) : null;

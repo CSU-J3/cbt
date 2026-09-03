@@ -22,12 +22,22 @@
 // shrinks below 240. Kept as a harmless floor; retiring it is a separate call.
 //
 // HO 272 — this island also owns the RACES-tab update state: it provides
-// RacesUpdatesContext (the localStorage "last opened RACES" timestamp + a
-// moved-race registry) so the per-card RaceMovedIndicators can both render and
-// register, and renders the MOVES badge (= registry size) on the RACES tab. The
-// NEW badge slot is dark until the news→race linkage lands. Keeping both panels
-// mounted means the (hidden) RACES cards still register, so MOVES shows while the
-// user sits on HEARINGS. Opening RACES marks-viewed → registry clears → badge 0.
+// RacesUpdatesContext (the localStorage "last opened RACES" timestamp + the
+// moved/news registries) so the per-card indicators can both render and
+// register, and renders the MOVES / NEW badges (= registry sizes) on the RACES
+// tab. Keeping both panels mounted means the (hidden) RACES cards still
+// register, so the badges show while the user sits on HEARINGS. Opening RACES
+// marks-viewed → registry clears → badge 0.
+//
+// HO 684 — AND THAT LAST SENTENCE IS STILL TRUE, WHICH IS EXACTLY WHY IT NEEDED
+// A SECOND ONE. The stamp that clears the badge used to be the same value the
+// chips rendered against, so the click that acknowledged N updates also unmounted
+// all N markers before the panel was painted — the badge promised N things and
+// opening it destroyed the evidence. This island now carries TWO timestamps:
+// `lastViewMs` (ACKNOWLEDGE — restamped on open, drives registration → badges)
+// and `sinceMs` (DISPLAY — frozen at the value lastViewMs held BEFORE the
+// restamp, drives whether a chip renders). See RacesUpdatesContext's header for
+// the full contract and the decided edge behaviours.
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { RacesUpdatesContext } from "@/components/RacesUpdatesContext";
 
@@ -50,6 +60,12 @@ export function RacesBoxTabs({
   // epoch of the last RACES open. Read from localStorage after mount so server
   // and first client render agree (both render no badges).
   const [lastViewMs, setLastViewMs] = useState<number | null>(null);
+  // HO 684 — the DISPLAY stamp. Hydrates EQUAL to lastViewMs (so a first paint
+  // shows exactly what the badges count), then diverges: openTab freezes it at
+  // the pre-restamp value while lastViewMs moves to now. In-memory only — never
+  // written to localStorage, so a reload rehydrates it to the stored stamp and
+  // the chips are correctly gone (reload = new visit).
+  const [sinceMs, setSinceMs] = useState<number | null>(null);
   const [movedSet, setMovedSet] = useState<Set<string>>(() => new Set());
   // HO 432: the news registry, parallel to movedSet — feeds the NEW badge the
   // same way movedSet feeds MOVES.
@@ -57,7 +73,9 @@ export function RacesBoxTabs({
 
   useEffect(() => {
     const raw = window.localStorage.getItem(LAST_VIEW_KEY);
-    setLastViewMs(raw ? Number(raw) : 0);
+    const stored = raw ? Number(raw) : 0;
+    setLastViewMs(stored);
+    setSinceMs(stored);
   }, []);
 
   const registerMoved = useCallback((raceId: string) => {
@@ -93,27 +111,53 @@ export function RacesBoxTabs({
     });
   }, []);
 
-  const openTab = useCallback((next: TopTab) => {
-    setTab(next);
-    // Opening RACES marks it viewed: stamp now so every card's "moved since" goes
-    // false (effects unregister → MOVES badge clears). HEARINGS doesn't reset.
-    if (next === "races") {
-      const now = Date.now();
-      window.localStorage.setItem(LAST_VIEW_KEY, String(now));
-      setLastViewMs(now);
-    }
-  }, []);
+  const openTab = useCallback(
+    (next: TopTab) => {
+      setTab(next);
+      // Opening RACES marks it viewed: stamp now so every card's "moved since"
+      // goes false (effects unregister → the badges clear). HEARINGS doesn't
+      // reset.
+      //
+      // HO 684 — FREEZE BEFORE STAMPING, and the order is the entire fix.
+      // `sinceMs` takes the value lastViewMs holds right now, so the chips keep
+      // rendering against the PREVIOUS open for the whole of this visit while the
+      // badges clear exactly as they always did.
+      //
+      // `lastViewMs` IS A REAL DEPENDENCY AND IS DECLARED AS ONE. The tempting
+      // alternative — reading the previous value out of a `setLastViewMs(prev =>
+      // …)` updater to keep the dep array empty — puts a `setSinceMs` call inside
+      // an updater, and React may invoke an updater twice (StrictMode). It would
+      // be harmless here only because the write is idempotent, which is an
+      // argument about this instance rather than about the rule. The cost of the
+      // honest version is nil: openTab is consumed by two inline arrow handlers
+      // that are recreated every render anyway, so re-identifying it buys nothing
+      // back.
+      if (next === "races") {
+        const now = Date.now();
+        // A click before hydration freezes null → no chips, matching today's
+        // hydration guard exactly (null is never > anything).
+        setSinceMs(lastViewMs);
+        setLastViewMs(now);
+        window.localStorage.setItem(LAST_VIEW_KEY, String(now));
+      }
+    },
+    [lastViewMs],
+  );
 
   const movesCount = movedSet.size;
   // HO 432: NEW = featured seats whose latest incumbent news postdates last view
   // (sum of the per-card RaceNewIndicators). openTab("races") stamps lastViewMs,
   // which unregisters them → badge clears on open, exactly like MOVES.
+  // HO 684: registration — and therefore both counts — still keys on lastViewMs,
+  // deliberately unchanged. Only the chips' RENDER predicate moved to sinceMs, so
+  // the badge behaviour these two lines describe is byte-for-byte what it was.
   const newCount = newsSet.size;
 
   return (
     <RacesUpdatesContext.Provider
       value={{
         lastViewMs,
+        sinceMs,
         registerMoved,
         unregisterMoved,
         registerNews,
@@ -154,14 +198,23 @@ export function RacesBoxTabs({
           </button>
         </nav>
 
-        {/* Both mounted; inactive hidden so nested sub-tab state + the hidden
-            RACES cards' move-registration persist. HO 282: RACES stays in normal
-            flow at all times (hidden via aria-hidden + CSS, not the `hidden`
-            attribute) so it pins the box height to its own footprint; at desktop
-            the HEARINGS panel overlays absolutely and fills that height, so
-            switching tabs never resizes the box or shifts the week strip below.
-            (On mobile CSS collapses RACES to display:none when inactive — still
-            mounted, so move-registration keeps working.) */}
+        {/* Both mounted; inactive hidden so the hidden RACES cards' move/news
+            registration persists — that is what lets a badge show while the user
+            sits on HEARINGS.
+
+            HO 684 CORRECTS THE REST OF THIS COMMENT, which described a layout
+            reversed four HOs after it was written. It claimed RACES stays in flow
+            to pin the box height, that HEARINGS overlays absolutely at desktop so
+            a tab switch never resizes the box, and that the display:none is
+            MOBILE-ONLY. HO 610 undid all three: the hearings interior became a day
+            schedule ~a third of the RACES height, so pinning would hold ~240px of
+            dead space open under the DEFAULT tab (C4/C7), and each panel now sizes
+            to its own content — a tab switch DOES change the box height and shift
+            the week strip below it, by decision. The live rule is unconditional at
+            every width and carries no media query at all:
+              .dv2-racesbox-panel--races[aria-hidden="true"] { display: none }
+            RACES therefore still uses aria-hidden rather than the `hidden`
+            attribute, but as a CSS hook, not for height-pinning. */}
         <div className="dv2-racesbox-panels">
           <div
             className="dv2-racesbox-panel dv2-racesbox-panel--hearings"
