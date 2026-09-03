@@ -26,10 +26,53 @@ permissions:
   contents: read
   issues: write
 
-# A burst of deploys (Vercel fired 5 in one minute for the last push train) all
-# point at the same eventual prod; keep only the latest smoke, cancel the rest.
+# CONCURRENCY. The group key is built from the SAME discriminators the job `if`
+# below reads, and that mirroring is the design, not a coincidence: every skipped
+# class collides only with itself, so no run that does no work can share a group
+# with one doing the work. Change the key and the `if` together, or neither.
+#
+# Original purpose, preserved byte-for-byte WITHIN a group: a burst of deploys
+# (Vercel fired 5 in one minute for the last push train) all point at the same
+# eventual prod, so keep only the latest smoke and cancel the rest. Production
+# successes still carry identical key inputs, so they still collapse.
+#
+# HO 685 — WHY THE KEY AND NOT THE `cancel-in-progress` FLAG. Concurrency is
+# evaluated BEFORE the job `if`. Under the old global `e2e-prod` group that meant
+# ANY deployment_status event — including a Preview deploy from an ordinary
+# review-ref push, whose job the `if` then SKIPS — cancelled an in-flight crawl.
+# A run that did no work at all cancelled the run doing the work. Twice on the
+# record, both 2026-09-02:
+#   * 33667308181 — the ARMED daily (0 15 * * *, GitHub-delivered 18:27), killed
+#     2m46s in by 33667584259, a Preview run whose job then skipped. The overflow
+#     alarm arms only on schedule/workflow_dispatch, so a cancelled armed run
+#     files nothing and is indistinguishable from a quiet prod. That is the
+#     alarm's blind window, realized on its actual carrier.
+#   * 33673317612 — a dispatch, cancelled 89s into its ~3-minute crawl by
+#     33673395814, a run created 47s after it: also a skipped Preview event.
+#     Re-dispatched clean as 33673524519.
+#
+# THE SAFETY PROPERTY IS TOTAL, not incidental. A group is working iff
+# event != deployment_status OR (environment == Production AND state == success).
+# The key contains exactly those three discriminators, so a working run and a
+# skipped run can never share a group for any value Vercel might emit, including
+# states never yet observed. Measured at HO 685 STEP 0, `state` is a constant
+# `success` across the 62-status corpus (Preview 36 / Production 26) and does no
+# discriminating today — it is in the key for that totality, not for a live
+# distinction. Per-event-only was weighed and rejected: it closes the alarm's
+# window but still lets a skipped Preview run cancel a working Production crawl
+# inside a shared deploy group — same mechanism, narrower victim.
+#
+# schedule and workflow_dispatch carry no deployment_status object, so both
+# resolve to constant singleton groups: e2e-prod-schedule-na-na and
+# e2e-prod-workflow_dispatch-na-na.
+#
+# Transition residual, bounded and harmless: a deployment_status run checks out
+# the DEPLOYMENT's own ref, so deploys of commits predating this change execute
+# the old yaml under the bare `e2e-prod` group. Group matching is exact-string,
+# so those runs can only cancel each other and can never reach a new-key group.
+# Ends as live branches rebase past this commit.
 concurrency:
-  group: e2e-prod
+  group: e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}
   cancel-in-progress: true
 
 jobs:
@@ -46,6 +89,23 @@ jobs:
     # GitHub default of 360 min before anyone notices. A full crawl is ~1-2 min.
     timeout-minutes: 20
     steps:
+      # HO 685 — prints the group this run actually resolved to.
+      #
+      # SCOPE, stated because it is easy to over-read. A step cannot read
+      # `concurrency.group`: the value is not exposed to the job, and the runs API
+      # carries no concurrency field either (both checked at HO 685 STEP 0, which
+      # is why the handoff's "read the group off the run" instrument does not
+      # exist). So this echo necessarily SHARES its expression with the key above.
+      # It therefore verifies EXPRESSION SEMANTICS — what the three discriminators
+      # and the `|| 'na'` fallbacks resolve to per event class — and CANNOT catch a
+      # typo in the key itself, whose content is verified by reading the yaml.
+      # It also cannot report a skip-only group, because the job that would print
+      # it is the job being skipped; those groups' distinctness is carried
+      # behaviorally instead, by the collision test (a dispatch that SURVIVES a
+      # mid-crawl Preview event is proof the two are in different groups).
+      - name: Show resolved concurrency group
+        run: echo "concurrency group = e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}"
+
       - name: Checkout
         uses: actions/checkout@v4
 
