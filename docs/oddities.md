@@ -3332,3 +3332,53 @@ wrapper, `.hsch`, the tab panel, `.dash-left` — and exactly one snapped the
 document back to *exactly* `clientWidth`. That is what let the commit carry one
 rule instead of a defensive cluster: the four levels that changed nothing are
 four lines not written.
+
+
+
+## A badge whose referent the click deletes — and the one e2e in the area asserted the cause (HO 684)
+
+The dashboard RACES tab rendered `MOVES 3` / `NEW 6`, and clicking it opened a
+panel carrying **zero** markers. Both per-card chips — `RaceMovedIndicator` (HO
+272) and `RaceNewIndicator` (HO 432) — were built, styled, mounted on every
+featured card, and **structurally unreachable on the primary flow for roughly 250
+handoffs**.
+
+The mechanism is one variable doing two jobs. `openTab("races")` stamps
+`localStorage["cbt:racesLastView"]` with `Date.now()` and calls
+`setLastViewMs(now)` **synchronously in the click handler**, and that same
+`lastViewMs` drove *both* the effect that registers a chip with the badge registry
+*and* the `if (!moved) return null` that renders it. So the state update from the
+click re-rendered every indicator against the new stamp **before the panel was
+painted visible**: each evaluated false, unmounted, and unregistered. The badge
+clearing was intended. The panel opening empty was the same line of code.
+
+**What makes it an oddity rather than a bug report is the gate.** The one e2e test
+covering this interaction (`fit-finish.spec.ts:350`) asserts that the stamp
+lands — `expect.soft(stamp).not.toBeNull()`. It is a correct test of the
+acknowledge half, and it is an assertion **about the mechanism that was destroying
+the artifact**. It passed on every run, for the whole 250 handoffs, and it would
+have kept passing no matter how thoroughly the chips failed to appear, because a
+successful stamp is exactly what the defect required. A test can verify a cause
+and be blind to the effect, and the closer it sits to the defect the more
+convincing its green looks.
+
+The fix separates the two roles (`lastViewMs` acknowledges, `sinceMs` displays)
+and the new gate asserts the **artifact**: read the badges, click, count the
+chips, and require equality. Two properties it was given deliberately, both
+because a zero here is ambiguous:
+
+- **It logs the armed/unarmed branch either way.** If no featured seat has any
+  move or news history at run time, promised and shown are both 0 and the
+  assertion passes having tested nothing. That reading is UNAVAILABLE, and the log
+  line is the only thing distinguishing it from a pass.
+- **An all-or-nothing green does not prove the predicate discriminates.** 9 of 9
+  is also what an indicator hard-wired true would produce, so a separate leg seeds
+  the stamp *between* the live item dates and requires a strict subset — 6 of 9,
+  with the three NEWS items shown being exactly those postdating the seed.
+
+Related, and the reason the class is worth naming beyond this instance: a count
+and the thing it counts are different artifacts, and a UI that clears a count on
+interaction is *structurally* at risk of clearing its referent in the same tick.
+If a badge and its items share a predicate, the click that acknowledges the badge
+will unmount the items unless something deliberately holds the display value
+still.
