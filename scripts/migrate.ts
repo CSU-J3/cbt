@@ -1619,6 +1619,14 @@ async function main() {
   await ensureColumn(db, "reports", "laws_count", "INTEGER");
   await ensureColumn(db, "reports", "intro_count", "INTEGER");
   await ensureColumn(db, "reports", "moves_count", "INTEGER");
+  // HO 689 — the three-sentence week summary. A COLUMN rather than a table:
+  // the row is already 1:1 with the week, shares its lifecycle and its cache
+  // tag, and `getDashboardReportSnapshot` already SELECTs this table on the
+  // dashboard's render path — so the dashboard reads the summary for ZERO new
+  // queries. NULL means "no summary for this week", which is a real and
+  // expected state (generation refused by the grounding gate or the
+  // three-sentence cap; see lib/week-summary.ts), never "not yet backfilled".
+  await ensureColumn(db, "reports", "summary_text", "TEXT");
   // HO 411: Senate class (1|2|3) ingested from legislators-current.yaml by
   // sync:members. The year-pair (next_election_year / current_term_end_year)
   // now derives from this deterministically instead of the drift-prone

@@ -1760,11 +1760,16 @@ export async function writeReport(report: {
   lawsCount?: number;
   introCount?: number;
   movesCount?: number;
+  // HO 689 — the three-sentence week summary. Optional and NULL-preserving for
+  // the same reason as the counts above: a caller without one must degrade to
+  // NULL rather than fail. NULL here is a real state (the grounding gate or the
+  // sentence cap refused the generation), not "not yet populated".
+  summaryText?: string | null;
 }): Promise<void> {
   const db = getDb();
   await db.execute({
-    sql: `INSERT INTO reports (slug, week_start, week_end, title, content_md, created_at, laws_count, intro_count, moves_count)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    sql: `INSERT INTO reports (slug, week_start, week_end, title, content_md, created_at, laws_count, intro_count, moves_count, summary_text)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(slug) DO UPDATE SET
             week_start = excluded.week_start,
             week_end = excluded.week_end,
@@ -1773,7 +1778,8 @@ export async function writeReport(report: {
             created_at = excluded.created_at,
             laws_count = excluded.laws_count,
             intro_count = excluded.intro_count,
-            moves_count = excluded.moves_count`,
+            moves_count = excluded.moves_count,
+            summary_text = excluded.summary_text`,
     args: [
       report.slug,
       report.weekStart,
@@ -1784,6 +1790,7 @@ export async function writeReport(report: {
       report.lawsCount ?? null,
       report.introCount ?? null,
       report.movesCount ?? null,
+      report.summaryText ?? null,
     ],
   });
 }

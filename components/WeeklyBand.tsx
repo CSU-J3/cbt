@@ -179,7 +179,44 @@ export async function WeeklyBand() {
   const fillerPct =
     filler.total > 0 ? Math.round((filler.filler / filler.total) * 100) : 0;
 
+  // HO 689 — the three-sentence week summary, ABOVE the band and carrying its
+  // OWN week label (placement A, ruled by Corey 2026-09-03).
+  //
+  // THE LABEL IS NOT DECORATION — it is what stops the strip contradicting
+  // itself. This text describes a COMPLETED CALENDAR WEEK; the band's metrics
+  // below are TRAILING 7 DAYS and its own header names the CURRENT in-progress
+  // week. Three windows, and on 2026-09-03 the band read 72 new bills where the
+  // completed week held 47. Sitting the text inside the band, under one header,
+  // would print both numbers as if they described the same period. Above it,
+  // with its own dates, they read as what they are: two windows.
+  //
+  // STALE IS LABELLED, NEVER HIDDEN. The newest report can lack a summary (the
+  // grounding gate or the sentence cap refused that week), so the newest text
+  // may be older than the newest report; when it is, the line says so instead of
+  // quietly passing as current. No row at all renders nothing — no empty box.
+  const summaryStale =
+    snap?.summary != null && snap.summary.weekStart !== snap.latest.weekStart;
+
   return (
+    <>
+      {snap?.summary ? (
+        <section className="week-sentences" aria-label="Week summary">
+          <span className="week-sentences-label">
+            Week of{" "}
+            <span className="tabular-nums week-sentences-week">
+              {monDd(snap.summary.weekStart)}
+            </span>{" "}
+            · summary
+            {summaryStale ? (
+              <span className="week-sentences-stale">
+                {" "}
+                · last generated week
+              </span>
+            ) : null}
+          </span>
+          <p className="week-sentences-text">{snap.summary.text}</p>
+        </section>
+      ) : null}
     <section className="weekly-band" aria-label="This week">
       <span className="weekly-band-weekof">
         Week of <span className="tabular-nums">{monDd(weekStartISO())}</span>
@@ -344,5 +381,6 @@ export async function WeeklyBand() {
         </Link>
       ) : null}
     </section>
+    </>
   );
 }

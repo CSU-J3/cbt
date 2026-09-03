@@ -2952,6 +2952,57 @@ body {
    races panel; the border-top IS the "divider rule above it" from the spec.
    Folds in the former ENACTED banner (the green segment) and replaces the
    report snapshot teaser (READ FULL → pushed to the right edge). */
+/* HO 689 — the week in three sentences, directly above the weekly band.
+   Placement A (ruled by Corey 2026-09-03): its OWN line carrying its OWN week
+   label, because the text describes a COMPLETED CALENDAR WEEK while the band
+   below it shows TRAILING-7d metrics under a CURRENT-week header. The label is
+   what keeps two different windows from reading as one contradiction.
+
+   Prose, so it takes --sans — the mono/sans split is "mono for chrome, sans for
+   prose" and this is the only prose on the strip. The label above it stays mono
+   because it is chrome. Sizes ride the --fs-* ladder (THE TYPE RULE, HO 604);
+   no literal px in the 9-14 range. */
+.week-sentences {
+  border-top: 0.5px solid var(--border-strong);
+  background-color: var(--bg-panel);
+  padding: var(--space-md);
+}
+
+.week-sentences-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: var(--space-xs);
+}
+
+.week-sentences-week {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* Amber is attention, and a stale line is exactly that: the text is real, it is
+   simply describing an older week than the newest report. Never hidden, never
+   silently current. */
+.week-sentences-stale {
+  color: var(--accent-amber);
+  font-weight: 600;
+}
+
+.week-sentences-text {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: var(--fs-14);
+  line-height: 1.62;
+  color: var(--text-secondary);
+  /* C8: past ~900px a line of prose gains nothing from more width, it just
+     pushes the ragged edge further from the eye. This is the one measure-capped
+     element on the dashboard and it is capped for readability, not layout. */
+  max-width: 88ch;
+}
+
 .weekly-band {
   border-top: 0.5px solid var(--border-strong);
   background-color: var(--bg-panel);

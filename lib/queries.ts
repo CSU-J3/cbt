@@ -1158,8 +1158,26 @@ export const getReportsWithLead = unstable_cache(
 // archive row left the dashboard for /reports, which already lists past
 // weeks). Returns null when zero reports exist so the slot can stay empty
 // rather than render a placeholder.
+// HO 689 — the three-sentence week summary rides this snapshot rather than a
+// query of its own, so the dashboard reads it for ZERO extra round trips: the
+// two correlated subqueries below resolve inside the single statement this
+// helper already ran, over a table with well under a hundred rows.
+//
+// IT IS A SEPARATE ROW LOOKUP FROM `latest`, AND THAT IS THE POINT. The newest
+// report may have no summary — the grounding gate or the sentence cap can
+// refuse a week (lib/week-summary.ts) — so the newest SUMMARY can be older than
+// the newest REPORT. `summaryWeekStart` carries whichever week the text
+// actually describes, and the band compares it against `latest.weekStart` to
+// decide whether to mark the line stale. Reading the summary off `latest` and
+// assuming the weeks match is exactly how a stale line would pass as current.
+export type DashboardWeekSummary = {
+  text: string;
+  weekStart: string;
+};
+
 export type DashboardReportSnapshot = {
   latest: ReportListItemWithLead;
+  summary: DashboardWeekSummary | null;
 };
 
 export const getDashboardReportSnapshot = unstable_cache(
@@ -1167,7 +1185,13 @@ export const getDashboardReportSnapshot = unstable_cache(
     const db = getDb();
     const rs = await db.execute(
       `SELECT slug, title, week_start, week_end, content_md,
-              laws_count, intro_count, moves_count
+              laws_count, intro_count, moves_count,
+              (SELECT summary_text FROM reports
+                WHERE summary_text IS NOT NULL
+                ORDER BY week_start DESC LIMIT 1) AS summary_text,
+              (SELECT week_start FROM reports
+                WHERE summary_text IS NOT NULL
+                ORDER BY week_start DESC LIMIT 1) AS summary_week_start
        FROM reports
        ORDER BY week_start DESC
        LIMIT 1`,
@@ -1188,6 +1212,13 @@ export const getDashboardReportSnapshot = unstable_cache(
         introCount: num(head!.intro_count),
         movesCount: num(head!.moves_count),
       },
+      summary:
+        head!.summary_text && head!.summary_week_start
+          ? {
+              text: head!.summary_text as string,
+              weekStart: head!.summary_week_start as string,
+            }
+          : null,
     };
   },
   ["getDashboardReportSnapshot"],

@@ -18,9 +18,15 @@
 //
 // revalidateTag("reports") flushes both getReports and getReportCount so
 // the /reports index picks up the new row on the next request.
+import { GoogleGenAI } from "@google/genai";
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
+import { getDb } from "@/lib/db";
+import {
+  buildWeekSummaryPayload,
+  generateWeekSummary,
+} from "@/lib/week-summary";
 import {
   generateWeeklyReport,
   getPriorWeek,
@@ -52,6 +58,40 @@ async function handle(request: Request) {
   const result = await wrapCronRoute("/api/cron/weekly-report", async () => {
     const week = getPriorWeek(new Date());
     const report = await generateWeeklyReport(week);
+
+    // HO 689 — the three-sentence week summary, generated HERE at the weekly
+    // cadence and stored, never on request: the page's render budget does not
+    // pay for an LLM call.
+    //
+    // NON-FATAL BY CONSTRUCTION. The report is the cron's job; the summary is a
+    // rider on it. A refusal or a thrown client must not cost the week its
+    // report, so this whole block degrades to `summaryText: null` and reports
+    // itself through the payload + chronicErr rather than throwing.
+    //
+    // A REFUSAL STORES NOTHING AND IS NOT RETRIED HERE. generateWeekSummary
+    // already spends its one corrective retry internally; looping past that
+    // would burn the cron's budget arguing with the model. The week simply has
+    // no summary, and the dashboard falls back to the last week that does —
+    // under that week's own label, which is what keeps a stale line honest.
+    let summaryText: string | null = null;
+    let summaryNote: string | null = null;
+    try {
+      const geminiKey = process.env.GEMINI_API_KEY;
+      if (!geminiKey) {
+        summaryNote = "week-summary skipped: GEMINI_API_KEY missing";
+      } else {
+        const payload = await buildWeekSummaryPayload(getDb(), week.start);
+        const gen = await generateWeekSummary(
+          new GoogleGenAI({ apiKey: geminiKey }),
+          payload,
+        );
+        if (gen.ok) summaryText = gen.text;
+        else summaryNote = `week-summary refused after ${gen.attempts} attempts: ${gen.reason}`;
+      }
+    } catch (e) {
+      summaryNote = `week-summary error: ${String(e).slice(0, 200)}`;
+    }
+
     await writeReport({
       slug: report.slug,
       weekStart: week.start,
@@ -61,6 +101,7 @@ async function handle(request: Request) {
       lawsCount: report.lawsCount,
       introCount: report.introCount,
       movesCount: report.movesCount,
+      summaryText,
     });
     revalidateTag("reports");
     return {
@@ -70,8 +111,13 @@ async function handle(request: Request) {
           weekStart: week.start,
           weekEnd: week.end,
           title: report.title,
+          // Visible either way: a stored summary reports its length, a refused
+          // one reports why. "no summary this week" and "the step never ran"
+          // must not read the same in cron_runs.
+          summary: summaryText ? { chars: summaryText.length } : null,
         },
       },
+      ...(summaryNote ? { chronicErr: summaryNote } : {}),
     };
   });
 
