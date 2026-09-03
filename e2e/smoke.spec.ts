@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import zlib from "node:zlib";
 import { isKnownNoise } from "./console-noise";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
@@ -154,11 +155,131 @@ const ROUTES: Route[] = [
   { slug: "vote", path: `/vote/${VOTE}` },
 ];
 
+// ── HO 687: the #418 attribution capture ─────────────────────────────────────
+//
+// The `:50` arc ruled out six hypotheses and established that the prod message
+// can NEVER identify a component: `Minified React error #418 … args[]=HTML` is
+// byte-identical for every structural mismatch anywhere in the app. Across 42+
+// fires this collector recorded `err.message` and nothing else — no stack, no
+// served bytes, no DOM. A hydration mismatch means the served HTML and the
+// client render disagreed, and BOTH artifacts are in the crawler's hands at the
+// moment of the fire; they were simply discarded. This captures them.
+//
+// THE DIFF IS AN INSERTION-TOLERANT ALIGNMENT, NOT A PREFIX/SUFFIX WINDOW, and
+// that is a measured correction to the HO 687 handoff rather than a preference.
+// STEP 0 measured the clean-load floor on all 14 firing-set routes: the catalog
+// is exactly TWO legitimate deltas — `next-route-announcer` (one element, end of
+// body, every route) and `span.micro-tag` (the markets-tape freshness badges,
+// client-only, ~100 per load). The announcer sits at the END, so prefix/suffix
+// handles it and non-tape routes floor at a window of 1. The micro-tags sit
+// EARLY, so ~100 insertions shift every later index and the prefix/suffix window
+// becomes the WHOLE DOCUMENT — 1,429-1,959 elements on the eight tape routes,
+// which are the top firers. Alignment collapses that to ~+101/-12. A
+// prefix/suffix instrument would have reported "somewhere in these ~1,948
+// elements" on precisely the routes it exists to explain.
+//
+// COST CONTROL, and it doubles as correctness: the LCS runs on the sequence
+// AFTER common prefix and suffix are trimmed. Trimming is O(n) and exact — a
+// common prefix is aligned by definition — so this is not an approximation, it
+// is the same answer computed on the part that can differ. `committees-redirect`
+// carries 12,685 elements and trims to a window of 1.
+//
+// THE GUARD IS VISIBLE, NEVER A SILENT ABSENCE (HO 687 ruling 4): if the trimmed
+// window still exceeds the cap, `lcsIns`/`lcsDel` report -1 and `lcsSkipped`
+// says so in the dump. A missing number and an unrunnable one must not look
+// alike.
+const PAGEERR_DIR = "test-results";
+const PAGEERR_MARK = /Minified React error #418/;
+const LCS_CAP = 4000; // trimmed-window ceiling; beyond it the DP is not worth the memory
+const MAX_DUMPS = 12; // per run — past this the class is established, not better evidenced
+let dumpsWritten = 0;
+
+// Runs in the PAGE, as a string. It cannot be an ordinary inline callback:
+// tsx/esbuild wraps named arrow and function expressions in a `__name(...)`
+// helper that does not exist in the browser, so Playwright serializes source
+// referencing an undefined symbol and every evaluate throws `ReferenceError:
+// __name is not defined`. Measured at HO 687 STEP 0 — the first cut had no inner
+// named consts and worked; adding two broke all 14 routes at once. A plain
+// string is not transformed, so it is immune. (oddities)
+const ALIGN_BODY = `
+  var describe = function (el) {
+    var cls = (el.getAttribute("class") || "").trim().split(/\\s+/)[0] || "";
+    var id = el.getAttribute("id") || "";
+    return el.tagName.toLowerCase() + (id ? "#" + id : "") + (cls ? "." + cls : "");
+  };
+  // Head-only elements are injected by the client runtime and are not the render
+  // under test; a single such insertion would otherwise shift every later index.
+  var DROP = ["link", "script", "style", "noscript", "meta", "title"];
+  var keep = function (d) { return DROP.indexOf(d.split(/[#.]/)[0]) === -1; };
+  var doc = new DOMParser().parseFromString(ssrHtml, "text/html");
+  var a = Array.prototype.slice.call(doc.querySelectorAll("*")).map(describe).filter(keep);
+  var b = Array.prototype.slice.call(document.querySelectorAll("*")).map(describe).filter(keep);
+  var p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  var s = 0;
+  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
+  var aw = a.slice(p, a.length - s), bw = b.slice(p, b.length - s);
+  var ins = -1, del = -1, skipped = false;
+  if (aw.length <= ${LCS_CAP} && bw.length <= ${LCS_CAP}) {
+    var m = aw.length, n = bw.length;
+    var prev = new Int32Array(n + 1), cur = new Int32Array(n + 1);
+    for (var i = 1; i <= m; i++) {
+      for (var j = 1; j <= n; j++) {
+        cur[j] = aw[i - 1] === bw[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+      }
+      var t = prev; prev = cur; cur = t; cur.fill(0);
+    }
+    var lcs = prev[n];
+    del = m - lcs; ins = n - lcs;
+  } else { skipped = true; }
+  // LOCALIZATION BY IDENTITY. The edit COUNTS say how many nodes differ; they do
+  // not say which, and "6 of these 1,389 elements" is not an attribution. A
+  // multiset difference over the descriptors names them outright — the planted
+  // STEP 2.1 defect surfaces as \`span.ho687-plant +1\` — and it costs one pass,
+  // no DP table and no O(n^2) backtrack (which at the 4000 cap would need ~64 MB
+  // just to walk back through).
+  var count = function (arr) {
+    var m = {};
+    for (var i = 0; i < arr.length; i++) m[arr[i]] = (m[arr[i]] || 0) + 1;
+    return m;
+  };
+  var ca = count(aw), cb = count(bw);
+  var added = [], removed = [];
+  var k;
+  for (k in cb) if ((cb[k] || 0) > (ca[k] || 0)) added.push(k + " +" + (cb[k] - (ca[k] || 0)));
+  for (k in ca) if ((ca[k] || 0) > (cb[k] || 0)) removed.push(k + " -" + (ca[k] - (cb[k] || 0)));
+  // First positional divergence inside the trimmed window, as a coarse anchor
+  // for where in document order the drift starts.
+  var firstDiff = -1;
+  for (var q = 0; q < Math.min(aw.length, bw.length); q++) {
+    if (aw[q] !== bw[q]) { firstDiff = q; break; }
+  }
+  return {
+    ssrCount: a.length, domCount: b.length, prefix: p, suffix: s,
+    windowSsrLen: aw.length, windowDomLen: bw.length,
+    lcsIns: ins, lcsDel: del, lcsSkipped: skipped,
+    addedInDom: added, removedFromSsr: removed,
+    firstDivergenceAt: firstDiff,
+    contextSsr: firstDiff < 0 ? [] : aw.slice(Math.max(0, firstDiff - 4), firstDiff + 8),
+    contextDom: firstDiff < 0 ? [] : bw.slice(Math.max(0, firstDiff - 4), firstDiff + 8)
+  };
+`;
+
 type Collected = {
   failed: string[]; // requestfailed (network-level), excl. client aborts
   bad: string[]; // any response with status >= 400
   consoleErr: string[];
   pageErr: string[];
+  // HO 687 — parallel to `pageErr`, pushed in the SAME handler so indices align
+  // 1:1 and the existing mark/slice attribution works on it unchanged. A second
+  // array rather than a richer `pageErr` element type is deliberate: `pageErr`
+  // feeds the assertions and the log line, and the gate semantics of this crawl
+  // are not being touched.
+  pageErrStack: (string | null)[];
+  // Main-document bodies, one per navigation, in order. The ACTUAL served bytes:
+  // a re-fetch would be a different render on these force-dynamic routes and
+  // would diff against markup the browser never hydrated.
+  docBodies: Promise<string>[];
 };
 
 // favicon/manifest 404s are cosmetic and noisy; record them in the run log but
@@ -168,7 +289,22 @@ function isIgnorableBad(url: string, status: number): boolean {
 }
 
 function attachCollectors(page: Page): Collected {
-  const c: Collected = { failed: [], bad: [], consoleErr: [], pageErr: [] };
+  const c: Collected = {
+    failed: [],
+    bad: [],
+    consoleErr: [],
+    pageErr: [],
+    pageErrStack: [],
+    docBodies: [],
+  };
+  page.on("response", (resp) => {
+    const req = resp.request();
+    if (req.isNavigationRequest() && req.frame() === page.mainFrame()) {
+      // Buffered here, resolved only if this route actually fires — the body is
+      // held either way, but nothing is written on a clean route.
+      c.docBodies.push(resp.text().catch(() => ""));
+    }
+  });
   page.on("requestfailed", (req) => {
     const err = req.failure()?.errorText ?? "unknown";
     // Client-cancelled requests during navigation are not real failures.
@@ -188,8 +324,94 @@ function attachCollectors(page: Page): Collected {
   });
   page.on("pageerror", (err) => {
     c.pageErr.push(err.message);
+    // HO 687 channel A — one property read, never taken in 42+ fires. Minified
+    // frames may name nothing on their own (prod serves no sourcemaps: measured
+    // at STEP 0, chunk 200 / .map 404 / no sourceMappingURL), but they are
+    // evidence, and they cost nothing to keep.
+    c.pageErrStack.push(err.stack ?? null);
   });
   return c;
+}
+
+// HO 687 — dump the differential for one fire. Called IMMEDIATELY after the hit
+// that fired, never at end of test: hit 2's navigation destroys hit 1's DOM, so
+// a post-both snapshot can only ever describe hit 2 and would silently
+// mis-attribute every hit-1 fire.
+async function dumpPageErrFire(
+  page: Page,
+  c: Collected,
+  slug: string,
+  path: string,
+  hit: 1 | 2,
+  from: number,
+  attempt: number,
+): Promise<string | null> {
+  const idx = c.pageErr.findIndex((m, i) => i >= from && PAGEERR_MARK.test(m));
+  if (idx < 0) return null;
+  if (dumpsWritten >= MAX_DUMPS) {
+    // Visible, not silent — a cap that swallows evidence without saying so is
+    // the same defect class this instrument exists to remove.
+    // eslint-disable-next-line no-console
+    console.log(`[${slug}] pageerr-dump SKIPPED (cap ${MAX_DUMPS} reached)`);
+    return null;
+  }
+
+  const ssr = c.docBodies[hit - 1] ? await c.docBodies[hit - 1]! : "";
+  if (!ssr) {
+    // eslint-disable-next-line no-console
+    console.log(`[${slug}] pageerr-dump hit=${hit}: no served bytes retained — capture void`);
+    return null;
+  }
+
+  let align: Record<string, unknown> = { error: "align-failed" };
+  try {
+    align = (await page.evaluate(
+      ([ssrHtml, src]) => new Function("ssrHtml", src as string)(ssrHtml),
+      [ssr, ALIGN_BODY] as const,
+    )) as Record<string, unknown>;
+  } catch (e) {
+    align = { error: String(e).slice(0, 300) };
+  }
+
+  const dom = await page.content().catch(() => "");
+  const base = `${PAGEERR_DIR}/pageerr-${slug}-hit${hit}-att${attempt}`;
+  fs.mkdirSync(PAGEERR_DIR, { recursive: true });
+  // gzipped: the largest firing-set page is /members at 2.41 MB served (STEP 0),
+  // so an uncompressed SSR+DOM pair is ~4.8 MB and a bad run could carry ~38 MB.
+  fs.writeFileSync(`${base}.ssr.html.gz`, zlib.gzipSync(ssr));
+  fs.writeFileSync(`${base}.dom.html.gz`, zlib.gzipSync(dom));
+  fs.writeFileSync(
+    `${base}.json`,
+    JSON.stringify(
+      {
+        slug,
+        path,
+        hit,
+        attempt,
+        at: new Date().toISOString(),
+        message: c.pageErr[idx],
+        stack: c.pageErrStack[idx] ?? null,
+        ssrBytes: ssr.length,
+        domBytes: dom.length,
+        align,
+      },
+      null,
+      2,
+    ),
+  );
+  dumpsWritten++;
+  const a = align as {
+    lcsIns?: number; lcsDel?: number; lcsSkipped?: boolean; addedInDom?: string[];
+  };
+  // HO 574's rule — if a collector stores it, print it. The alignment numbers on
+  // the log line are what make a failing unattended run self-diagnosing.
+  // eslint-disable-next-line no-console
+  console.log(
+    `[${slug}] pageerr-dump hit=${hit} att=${attempt} ` +
+      `lcs(+${a.lcsIns ?? "?"}/-${a.lcsDel ?? "?"})${a.lcsSkipped ? " GUARD-SKIPPED" : ""}` +
+      ` added=[${(a.addedInDom ?? []).slice(0, 6).join(", ") || "none"}] → ${base}.json`,
+  );
+  return `${base}.json`;
 }
 
 test.beforeAll(() => {
@@ -200,7 +422,7 @@ test.describe("route crawl", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   for (const route of ROUTES) {
-    test(`${route.slug} (${route.path})`, async ({ page, context }) => {
+    test(`${route.slug} (${route.path})`, async ({ page, context }, testInfo) => {
       await context.addCookies([GATE_COOKIE]);
       // The collectors accumulate across BOTH navigations. To attribute a failure
       // to the right hit, mark each array's length after hit 1 and assert the
@@ -229,6 +451,11 @@ test.describe("route crawl", () => {
       const status1 = await nav();
       // Screenshot BEFORE assertions so failures still leave an image to eyeball.
       await page.screenshot({ path: `${SHOT_DIR}/${route.slug}.png`, fullPage: true });
+      // HO 687 — capture hit 1's differential HERE, while hit 1's DOM still
+      // exists. The next nav() replaces it.
+      const dump1 = await dumpPageErrFire(
+        page, c, route.slug, route.path, 1, 0, testInfo.retry,
+      );
       const mark = {
         failed: c.failed.length,
         bad: c.bad.length,
@@ -244,6 +471,12 @@ test.describe("route crawl", () => {
       // route here reads searchParams / is dynamic, so the component DOES re-run — but
       // a green hit 2 is a "no serialization regression observed," not a stronger claim.
       const status2 = await nav();
+      // HO 687 — hit 2's differential. `mark.pageErr` is the attribution boundary
+      // the crawl already maintains, so this reuses it rather than inventing a
+      // second notion of which hit a fire belongs to.
+      const dump2 = await dumpPageErrFire(
+        page, c, route.slug, route.path, 2, mark.pageErr, testInfo.retry,
+      );
 
       // ── HO 683 overflow alarm. Joins HERE, after hit 2's settle: `nav()` waits
       // for `load` plus a fixed 2.5s, so this is the last fully-settled state of
@@ -300,6 +533,9 @@ test.describe("route crawl", () => {
         ...detail("console", 2, console2),
         ...detail("bad", 1, bad1),
         ...detail("bad", 2, bad2),
+        // HO 687 — the dump path rides the EXISTING message line rather than a
+        // second reporting path, so there is one place a reader looks.
+        ...[dump1, dump2].filter(Boolean).map((p) => `dump=${p}`),
       ];
       if (msgs.length) {
         // eslint-disable-next-line no-console

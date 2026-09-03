@@ -166,6 +166,30 @@ jobs:
             test-results/smoke-overflow-*.md
           retention-days: 14
 
+      # HO 687 — the #418 attribution dumps (served bytes + settled DOM + stack +
+      # SSR/DOM alignment), one set per captured fire.
+      #
+      # KEYED ON FILE PRESENCE, NOT `failure()`, and the ledger is why: a run with
+      # `--retries=2` concludes `success` when a retry passes, so a fire-carrying
+      # run frequently is not a failed run. The 2026-08-29 daily concluded
+      # `success` carrying SEVEN fire-lines; under `if: failure()` every one of
+      # those dumps would have been discarded. Same rule, same reason, as the
+      # overflow step below.
+      #
+      # Its own artifact name rather than a path added to the failure upload
+      # above: two steps writing one artifact name collide, and these must
+      # survive independently of whether the run went red.
+      # NOTE the quoting: an unquoted `#` after a space starts a YAML comment, so
+      # `name: Upload #418 …` parses to the step name "Upload" and silently drops
+      # the rest. Valid YAML, working workflow, meaningless label.
+      - name: "Upload #418 attribution dumps"
+        if: always() && hashFiles('test-results/pageerr-*.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pageerr-dumps
+          path: test-results/pageerr-*
+          retention-days: 14
+
       # HO 683 — the alarm's human end. Corey runs the GitHub app on his phone, so
       # the issue IS the ping.
       #
