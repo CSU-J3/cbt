@@ -493,6 +493,32 @@ body {
 .breadcrumb-seg-label {
   white-space: nowrap;
 }
+/* HO 694 — the segment label breaks at phone widths. `.breadcrumb-path` above
+   sets `white-space: normal` + `overflow-wrap: anywhere` precisely so a deep
+   path wraps instead of overflowing, and then this pair reimposes `nowrap` on
+   the labels so a name never breaks mid-word — which is right until the name is
+   longer than the viewport. `/committee/hlig00`'s crumb carries "Permanent
+   Select Committee on Intelligence": ONE label, 471px of unbreakable ink,
+   scrolling the document to 487 against 430 (over 57). Below 700 the label
+   yields and `overflow-wrap: anywhere` takes over; above it, nothing changes,
+   because at desktop widths the no-mid-word-break rule is the better one. The
+   root (`Congressional Terminal:`) keeps `nowrap` either way — it is fixed-length
+   and it is the masthead. */
+@media (max-width: 700px) {
+  .breadcrumb-seg-label {
+    white-space: normal;
+    /* `break-word`, NOT the `anywhere` the path inherits, and the difference is
+       the whole rule. `anywhere` participates in min-content sizing, so the
+       browser stops trying to keep a word together at all: the first cut of this
+       broke `Members` into `Memb / ers>` on /members at 430, replacing a clean
+       separator wrap with a mid-word one — a regression, caught in the capture.
+       `break-word` breaks only a word that cannot fit a line by itself, so short
+       labels stay whole and wrap at the `\` as they always did, and a long one
+       wraps at its spaces (`Permanent Select Committee on / Intelligence`) with
+       a mid-word break reserved for a single word wider than the viewport. */
+    overflow-wrap: break-word;
+  }
+}
 /* True shell spacing: kill the 2px margin .terminal-prompt .prompt-accent adds
    before each accent glyph (and the caret's margin) so `:\`, the `\` separators,
    and `>_` sit flush — `Congressional Terminal:\119TH\Dashboard>_`. */
@@ -1574,6 +1600,19 @@ body {
   letter-spacing: 0.3px;
   color: var(--text-muted);
   white-space: nowrap;
+}
+/* HO 694 — the head wraps at phone widths, and the COLLAPSED state is the only
+   one that ever needed it. Measured on prod at 430: collapsed, the head's
+   scrollWidth is 465 against a 396px box, and the 286px nowrap hint is the whole
+   of the excess; expanded, the hint is gone, the segmented control takes its
+   place and the head measures 396/396 — it fits. So one rule, on the container,
+   and NOT a second one dropping `nowrap` from the hint: wrapping the head moves
+   the hint to its own line at its full 286px, which fits inside 396, and the
+   hint stays one legible line rather than breaking mid-sentence. */
+@media (max-width: 700px) {
+  .pol-time-head {
+    flex-wrap: wrap;
+  }
 }
 .pol-time-seg {
   display: inline-flex;
@@ -6044,6 +6083,54 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   }
 }
 
+/* HO 694 — THE OTHER TWO PANES STACK TOO, and the reason they did not is a
+   measurement taken at the wrong width.
+
+   The block above stacks `/members` at <=900 and `.bl-pane` stacks `/bills` at
+   <=720, both "SCOPED BY MEASUREMENT" — and HO 615's own comment records that
+   measurement: `/lobbying 720 (clear)`, `/news 720 (clear)`. Both readings are
+   correct AT 720. At 430 the 312px rail leaves an 84px content column and both
+   routes scroll the document: `/news` 527/430 (over 97), `/lobbying` 521/430
+   (over 91), the over-edge elements being the filing rows' issue and bill chips
+   and the news rows' `.bill-cell` — content that has nowhere to go inside 84px.
+   Neither was a finding anyone could make, because the gate that would have
+   asked the question at 430 did not exist until this HO.
+
+   SO THE SELECTOR IS BARE `.mc-pane` AND THAT IS DELIBERATE, not a widening
+   accident. All four consumers now stack at phone widths, which is what the
+   convention already said; the two that stack at wider breakpoints reach 700
+   already stacked, so this rule restates their computed value rather than
+   changing it (verified: /members and /bills are byte-identical at 430 either
+   side of this commit). Writing it as two more scoped selectors would leave the
+   next `.mc-pane` consumer to be found by the gate rather than by the rule.
+
+   The rails here are ALREADY bounded and scroll internally (`.lob-rail-scroll`
+   and `.nw-rail-scroll`, both 520px) so, unlike `.mb-pane`, there is no
+   unbounded spine to cap — the stacked shape is the HO 492 convention arriving
+   at the width it was always going to be needed at. */
+@media (max-width: 700px) {
+  .mc-pane {
+    grid-template-columns: 1fr;
+    /* Stacked — no column seam to paint (HO 619). */
+    background-image: none;
+  }
+  /* THE SEAM MOVES ONLY ON THE TWO RAILS THAT STILL DRAW ONE, named rather than
+     inherited, and the 1px that forced this is worth recording. The first cut
+     wrote `.mc-pane > .mc-rail`, which is a no-op on `.mb-pane` (its own <=900
+     block already sets exactly these two declarations) but NOT on `.bl-pane`:
+     HO 619 had already nulled that rail's right border at every width and its
+     <=720 stack adds no bottom one, so the rule introduced a border /bills had
+     never had. The HO 692 ON baseline caught it — 3 of 552 cells moved, all on
+     /bills @430, all by 1px — against a comment two lines up asserting /bills
+     was byte-identical. Naming the two rails makes that assertion true instead
+     of nearly true. */
+  .lob-rail,
+  .nw-rail {
+    border-right: none;
+    border-bottom: 1px solid var(--border-strong);
+  }
+}
+
 /* UPCOMING HEARINGS group (HO 328 premise-3 fallback — schedule-derived) */
 .mc-upgrp {
   border-bottom: 1px solid var(--border-strong);
@@ -6365,6 +6452,58 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 }
 .mc-bar-seg:last-child {
   border-right: none;
+}
+
+/* HO 694 — THE ROSTER ROW AT 430, and the arithmetic that made it inevitable.
+
+   `.mc-row`'s five tracks are `minmax(0, 240px) 320px 56px 64px 52px`. Only the
+   FIRST is flexible: the four fixed ones total 492px, plus four 12px gaps and
+   28px of padding = 568px of floor before the name column is allowed a single
+   pixel. Measured on prod at 430 the name track computed to `0px` — collapsed
+   to nothing, the member name rendering at zero width — and the document still
+   scrolled to 571 against a 430 client width, 141px over. No `@media` had ever
+   touched `.mc-row`, so /members had been the widest thing in the app at phone
+   widths since HO 328 and nothing could see it (there was no narrow gate; that
+   is what `e2e/narrow.spec.ts` is).
+
+   THE FIX IS A TWO-ROW CELL, not a narrower bar. The three numerals are the
+   row's payload and 172px of them is not negotiable; the 320px bar is what has
+   to move. Row 1 is `name | RATE | ENACT | BILLS` on an 8px gap, row 2 is the
+   topic bar spanning every column at `width: 100%`, so the fill's percentages
+   re-scale to the row instead of to a fixed track. Floor becomes
+   0 + 56 + 64 + 52 + 3x8 + 28 = 224px.
+
+   PLACEMENT IS EXPLICIT FOR ONE ITEM ONLY. `.mc-bar-track` is pinned to row 2
+   spanning `1 / -1`; the three `.mc-r-num` are left to auto-placement, which
+   fills (1,2) (1,3) (1,4) around the already-placed name and bar. Pinning them
+   too would add three rules that say what the algorithm already does.
+
+   SCOPED OFF `.lob-filing-row` BY NAME (the HO 486 shared-component rule).
+   /lobbying's FilingRow and /bill/[id]'s BillLobbying both carry `.mc-row` and
+   override the template outright; this block sits LATER in the file than that
+   override, so an unqualified selector would win over it and restyle two other
+   surfaces. It carries neither `.mc-mem` nor `.mc-bar-track`, so only the
+   template line can reach it, and only the template line is excluded.
+
+   The header row rides the same template minus the bar, which needs no rule:
+   `.mc-row-hdr` has five children and the fifth (`BILLS`) lands at (2,1) under
+   the name. Its second child is the `BILLS · TOPIC MIX` label, which is what
+   row 2 is, so the header reads correctly stacked. */
+@media (max-width: 700px) {
+  .mc-row:not(.lob-filing-row) {
+    grid-template-columns: minmax(0, 1fr) 56px 64px 52px;
+    column-gap: 8px;
+    row-gap: 6px;
+  }
+  .mc-row .mc-mem {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .mc-row .mc-bar-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
 }
 
 .mc-roster-showall {
@@ -10235,6 +10374,14 @@ a.hearing-watch:hover {
   .mhp-stats {
     width: 100%;
     justify-content: flex-start;
+    /* HO 694 — the five stat cells wrap. `.mhp-hb1` already carried
+       `flex-wrap: wrap` so the stat RUN dropped below the header, but the run
+       itself never wrapped and its own five cells at a 22px gap overran 430 by
+       10px (measured 440/430 on prod). The row-gap keeps the wrapped second
+       line off the first rather than letting the 22px column gap read as a
+       vertical one. */
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
   .mhp-stat {
     text-align: left;
