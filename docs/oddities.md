@@ -3505,3 +3505,49 @@ The general shape is one this file already knows in other clothes: **the code th
 runtime executes is not the code you wrote**, and a transform that is invisible
 in every other context becomes load-bearing the moment the source crosses a
 process boundary as text.
+
+## HO 690 — three ways a hydration-mismatch control reads as working while proving nothing
+
+**2026-09-03.** HO 690 added a `data-*` attribute to `<html>` before hydration and
+owed a reading, not an argument, that React does not care. The A/B legs were
+trivial; the **control** — plant a real mismatch, confirm the detector fires —
+took three attempts, and all three failures printed the same thing the passing
+case would have printed if the subject were clean: **no fire**.
+
+1. **A `<body>` className rewrite is TOLERATED.** React deliberately does not
+   reconcile `<html>` / `<body>` attribute drift, because browser extensions do
+   exactly that. So the plant landed, changed the DOM, and React said nothing —
+   and the control reported "cannot fire" when the truth was "not reconciled".
+   The choice of plant location was itself the bug, and it was chosen *because*
+   it resembled the subject.
+2. **A `pageerror`-only listener MISSES a recoverable mismatch.** React 19
+   reports a recoverable hydration mismatch through `console.error` and only
+   throws for the unrecoverable ones. The detector was copied verbatim from
+   `hydration-clock-harness-590.ts`, which listens on `pageerror` — correct for
+   the prod `#418` it was built for, and blind to the class the plant produced.
+   Copying an instrument copies its blind spots along with its authority.
+3. **The plant ran at the wrong time, twice.** A `MutationObserver` from a
+   Playwright init script **throws** — `document.documentElement` is null that
+   early — and the throw surfaced only as one line in a console dump. A
+   `DOMContentLoaded` listener runs, but can land **after** hydration has walked
+   the subtree, making the edit a post-hydration DOM change React never sees. A
+   1ms poll takes the node the instant the parser emits it.
+
+**What fixed it is not the poll, it is the readback.** The plant now increments a
+counter and the run prints it, so a control that failed to plant is
+distinguishable from one that planted and was tolerated — two states that had
+been rendering as the same word. This is `docs/method.md` § Gates' *"fire a
+control that can produce a non-zero on the same instrument"* met one level
+deeper: **the control needs its own control**, because a silent plant is a green
+that certifies nothing, and it arrives dressed as the result you wanted.
+
+The general shape, which is why this is filed rather than left in a commit
+message: **when a control is built to resemble its subject, it inherits the
+subject's immunities.** Here the subject was "an attribute React never rendered",
+and the first plant was an attribute React never reconciles — the same property,
+which is precisely what made it useless as a contrast. A control has to differ
+from its subject in the one dimension being tested and in no other.
+
+Instrument: `scripts/diagnostic/pref-hydration-690.ts` (local-only, dev-build
+only). Reading at HO 690: four A/B legs silent, leg C `FIRE (HTML, via
+pageerror)`.

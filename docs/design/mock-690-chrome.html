@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HO 690 — dashboard chrome: portrait size · nav spacing · nav above tapes · collapsible week summary</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+    --stage-enacted:#10b981; --market-up:#10b981; --market-down:#ef4444; --kalshi:#4de4b2; --poly:#2e5cff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --fs-9:9.5px; --fs-10:10.5px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-base);color:var(--text-primary);font-family:var(--mono);
+       -webkit-font-smoothing:antialiased;padding:26px 22px 90px}
+  .wrap{max-width:1420px;margin:0 auto}
+  .note{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 2px 18px;max-width:100ch}
+  .note b{color:var(--text-muted);font-weight:600}
+  .note .warn{color:var(--accent-amber)}
+  h1{font-size:14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin:0 0 6px}
+  h2.sec{font-size:var(--fs-11);letter-spacing:.1em;text-transform:uppercase;color:var(--accent-amber-bright);
+         margin:40px 0 4px;font-weight:600}
+  h2.sec .n{color:var(--text-dim);margin-right:8px}
+  p.sub{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 0 14px;max-width:100ch}
+  p.sub b{color:var(--text-muted);font-weight:600}
+  .tag{display:inline-block;font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;
+       border:1px solid var(--border-strong);color:var(--text-dim);border-radius:2px;margin-left:8px;vertical-align:middle}
+  .tag.rec{color:var(--accent-amber);border-color:var(--accent-amber)}
+  .tag.ship{color:var(--text-muted)}
+  .tag.ruled{color:var(--stage-enacted);border-color:var(--stage-enacted)}
+  .harness{display:flex;gap:9px;align-items:center;font-size:10px;color:var(--text-dim);letter-spacing:.05em;margin:0 0 16px;flex-wrap:wrap}
+  .wbtn{font-family:var(--mono);font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:6px 10px;
+        border-radius:2px;background:none;cursor:pointer;color:var(--text-muted);border:1px solid var(--border-strong)}
+  .wbtn.on{color:var(--accent-amber);border-color:var(--accent-amber)}
+  .wbtn:focus-visible{outline:2px solid var(--accent-amber-bright);outline-offset:2px}
+  .caption{font-size:10px;color:var(--text-dim);margin:6px 0 22px;line-height:1.6}
+  .caption b{color:var(--text-muted);font-weight:600}
+  .frame{border:1px dashed var(--border-strong);padding:0;position:relative}
+  .frame::after{content:attr(data-w);position:absolute;right:6px;top:-9px;background:var(--bg-base);padding:0 6px;
+                font-size:9px;color:var(--text-dim);letter-spacing:.06em}
+
+  /* ── 01 metabox replica (bxp-* idiom, 673 mock) ── */
+  .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:start}
+  .metabox{border:1px solid var(--border-strong);background:var(--bg-panel);padding:0 14px;align-self:start;min-width:0}
+  .mrow{padding:11px 0;border-bottom:1px solid var(--border-strong)}
+  .mrow:last-child{border-bottom:none}
+  .mlabel{font-size:9.5px;letter-spacing:.08em;color:var(--text-dim);text-transform:uppercase}
+  .mval{font-size:var(--fs-12);color:var(--text-secondary);margin-top:4px;line-height:1.5}
+  .mval .dim{color:var(--text-dim)}
+  .spblock{display:flex;gap:11px;align-items:flex-start;margin-top:6px}
+  .ph,.fb{flex:none;object-fit:cover;border-radius:3px;background:var(--bg-panel)}
+  .fb{display:flex;align-items:center;justify-content:center;font-weight:600;
+      background:linear-gradient(135deg,var(--bg-panel),var(--border-strong))}
+  .s80 .ph,.s80 .fb{width:80px;height:94px;font-size:24px}
+  .s104 .ph,.s104 .fb{width:104px;height:125px;font-size:31px}
+  .s120 .ph,.s120 .fb{width:120px;height:144px;font-size:36px}
+  .s136 .ph,.s136 .fb{width:136px;height:163px;font-size:41px}
+  .spinfo{min-width:0;display:flex;flex-direction:column;gap:4px;padding-top:1px}
+  .spname{font-family:var(--sans);font-size:var(--fs-13);font-weight:600;color:var(--text-secondary);
+          text-decoration:underline;text-decoration-color:#39424f;text-underline-offset:2px}
+  .spbr{font-size:var(--fs-12);font-weight:600}
+  .spmeta{font-size:var(--fs-11);color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em}
+  .cosp{display:flex;gap:6px;margin-top:6px}
+  .cosp .fb{width:32px;height:38px;font-size:11px;border-radius:2px}
+  .sizecap{font-size:10px;color:var(--text-muted);margin:0 0 6px;letter-spacing:.06em}
+  .sizecap i{color:var(--text-dim);font-style:normal}
+
+  /* ── 02 nav: SHIPPED (reserved brackets + 14px gap) ── */
+  .navwrap{background:var(--bg-base);padding:0}
+  .nav{display:flex;flex-wrap:wrap;justify-content:flex-start;align-items:center;border-top:.5px solid var(--border-soft);
+       font-size:var(--fs-12);letter-spacing:.5px;text-transform:uppercase;margin-top:8px}
+  .nav a{display:inline-flex;align-items:baseline;padding:7px 0;border-bottom:2px solid transparent;color:var(--text-muted);
+         text-decoration:none;white-space:nowrap;cursor:pointer}
+  .nav a:hover{color:var(--text-primary)}
+  .nav a[aria-current="page"]{color:var(--accent-amber-bright);border-bottom-color:var(--accent-amber)}
+  .nav a.mine:not([aria-current="page"]){color:var(--text-secondary)}
+  .nav .sl{color:var(--text-dim);margin-right:2px}
+  .nav a[aria-current="page"] .sl,.nav a[aria-current="page"] .br{color:var(--accent-amber)}
+  .nav .div{flex:0 0 auto;width:1px;height:16px;background:var(--border-strong);align-self:center}
+  /* shipped: transparent brackets take layout width, plus a 14px column gap */
+  .nav.shipped{gap:4px 14px}
+  .nav.shipped .br{color:transparent;padding-inline:3px}
+  /* proposed: uniform 10px item padding, gap 0, brackets absolute in the padding zone (zero width) */
+  .nav.proposed{gap:4px 0;margin-inline:-10px}
+  .nav.proposed a{position:relative;padding:7px 10px}
+  .nav.proposed .br{position:absolute;top:7px;color:transparent}
+  .nav.proposed .br.l{left:1px}
+  .nav.proposed .br.r{right:1px}
+  .nav.proposed .div{margin:0 6px}
+  .ruler{position:relative;height:0}
+  .ruler::before{content:"";position:absolute;left:0;top:0;width:1px;height:38px;background:var(--accent-amber);opacity:.55}
+  .ruler::after{content:"masthead text edge";position:absolute;left:5px;top:22px;font-size:9px;color:var(--accent-amber);opacity:.8;letter-spacing:.06em}
+
+  /* ── 02 v2 variants (Corey 2026-09-03: "condense the dead space more.. make it look more like tabs") ──
+     Shared: gap 0, one --pad knob, no reserved space anywhere. What differs is how the row reads as tabs. */
+  .nav.v2{--pad:6px;gap:4px 0;margin-inline:calc(-1 * var(--pad));margin-top:8px}
+  .nav.v2 a{position:relative;padding:7px var(--pad)}
+  /* N1 — tight path. Brackets on the active item only, drawn centred on the item's box edge
+     (the middle of the 2×pad gap), zero layout width. */
+  .nav.n1 .br{position:absolute;top:7px;width:7px;text-align:center;color:transparent}
+  .nav.n1 .br.l{left:-3.5px} .nav.n1 .br.r{right:-3.5px}
+  .nav.n1 .div{margin:0 5px}
+  /* N2 — tab strip. A hairline between EVERY tab, active tab filled + amber underline, no brackets:
+     the cell and the rule carry the active state, which is what buys the density. */
+  .nav.n2{border-bottom:1px solid var(--border-soft);row-gap:0}
+  .nav.n2 .br{display:none}
+  .nav.n2 a{padding:8px var(--pad)}
+  .nav.n2 a + a{border-left:1px solid var(--border-soft)}
+  .nav.n2 a:hover{background:var(--bg-row-hover)}
+  .nav.n2 a[aria-current="page"]{background:var(--bg-row-hover)}
+  .nav.n2 .div{width:1px;height:auto;align-self:stretch;background:var(--border-strong);margin:0 4px}
+  .nav.n2 .div + a{border-left:none}
+  /* N3 — boxed tabs. Each tab a bordered cell on a baseline rule; the active one opens onto the content
+     and carries a 2px amber TOP edge instead of the underline. Also bracketless. */
+  .nav.n3{border-top:none;border-bottom:1px solid var(--border-strong);row-gap:0}
+  .nav.n3 .br{display:none}
+  .nav.n3 a{padding:7px var(--pad);border:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);
+            margin-right:-1px;margin-bottom:-1px;border-top:2px solid transparent}
+  .nav.n3 a:hover{background:var(--bg-row-hover)}
+  .nav.n3 a[aria-current="page"]{background:var(--bg-panel);border-color:var(--border-strong);border-top-color:var(--accent-amber);
+            border-bottom-color:var(--bg-panel);color:var(--accent-amber-bright)}
+  .nav.n3 .div{width:1px;height:auto;align-self:stretch;background:var(--border-strong);margin:0 6px 0 7px}
+
+  /* ── 03 header stack replica ── */
+  .hdr{border:1px solid var(--border-strong);background:var(--bg-base);padding:10px 12px 0}
+  .mast{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding-bottom:5px}
+  .mast .brand{font-size:26px;font-weight:500;letter-spacing:-.01em;color:var(--text-primary)}
+  .mast .brand .a{color:var(--accent-amber)} .mast .brand .b{color:var(--accent-amber-bright)}
+  .mast .counts{color:var(--text-muted);font-size:var(--fs-14)} .mast .counts b{color:#06b6d4;font-weight:600} .mast .counts .en{color:var(--stage-enacted);font-weight:600}
+  .mast .sync{color:var(--text-dim);font-size:var(--fs-11)} .mast .sign{color:var(--accent-amber);font-size:var(--fs-11)}
+  .mast .odds-toggle{color:var(--text-dim);font-size:var(--fs-11)} .mast .odds-toggle b{color:var(--text-muted);font-weight:600}
+  .tape{border-left:2px solid var(--accent-amber);background:var(--bg-panel);display:flex;align-items:center;gap:0;
+        font-size:var(--fs-11);height:26px;overflow:hidden;white-space:nowrap;border-top:1px solid var(--border-soft)}
+  .tape .lbl{color:var(--text-dim);font-size:9px;letter-spacing:.12em;padding:0 9px 0 8px;flex:none}
+  .tape .tk{padding:0 10px;border-left:1px solid var(--border-soft)}
+  .tape .tk:first-of-type{border-left:none}
+  .tape .sym{color:var(--accent-amber-bright)} .tape .up{color:var(--market-up)} .tape .dn{color:var(--market-down)}
+  .tape .k{color:var(--kalshi);font-weight:600} .tape .p{color:var(--poly);font-weight:600}
+  .tape .asof{margin-left:auto;color:var(--text-dim);font-size:9.5px;padding:0 9px;background:var(--bg-panel);flex:none}
+  .tape .live{color:var(--market-up)}
+  .stackcap{font-size:9px;letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;margin:14px 0 6px}
+  .below{border:1px dashed var(--border-strong);padding:10px 12px;font-size:10px;color:var(--text-dim);margin-top:10px}
+
+  /* ── 04 week summary + band ── */
+  .ws{border-top:.5px solid var(--border-strong);background:var(--bg-panel);padding:12px}
+  .ws-head{display:flex;align-items:baseline;gap:8px;width:100%;background:none;border:0;padding:0;margin:0;
+           cursor:pointer;color:inherit;font:inherit;text-align:left}
+  .ws-label{font-size:var(--fs-10);letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim)}
+  .ws-label .wk{color:var(--text-muted);font-weight:600}
+  .ws-label .stale{color:var(--accent-amber);font-weight:600}
+  .ws-chev{color:var(--text-dim);font-size:var(--fs-10)}
+  .ws-report{margin-left:auto;font-size:var(--fs-10);letter-spacing:.6px;text-transform:uppercase;color:var(--accent-amber);text-decoration:none;white-space:nowrap}
+  .ws-report:hover{color:var(--accent-amber-bright)}
+  .ws-text{margin:6px 0 0;font-family:var(--sans);font-size:var(--fs-14);line-height:1.62;color:var(--text-secondary);max-width:88ch}
+  .ws[data-collapsed] .ws-text{display:none}
+  .band{border-top:.5px solid var(--border-strong);background:var(--bg-panel);padding:8px 12px;display:flex;align-items:baseline;
+        gap:8px;flex-wrap:wrap;font-size:var(--fs-11);color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+  .band .weekof{color:var(--text-dim)} .band .weekof b{color:var(--text-muted);font-weight:600}
+  .band .num{color:var(--text-primary);font-weight:600}
+  .band .sep{color:var(--text-dim)}
+  .band .d-up{color:var(--market-up)} .band .d-flat{color:var(--text-dim)}
+  .band .dot{color:var(--stage-enacted)}
+  .band .readfull{margin-left:auto;color:var(--accent-amber);text-decoration:none}
+  .band .readfull.gone{text-decoration:line-through;opacity:.45}
+  .cap2{font-size:10px;color:var(--text-dim);margin:8px 0 0;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>HO 690 — dashboard chrome</h1>
+  <p class="note">Four render changes, one mock. <b>01</b> the sponsor portrait size on the shared bill panel · <b>02</b> the nav spacing
+    mechanism · <b>03</b> the header stack with the nav above the tapes · <b>04</b> the collapsible week summary with the
+    report link moved onto the completed week's own row. Portraits load live from congress.gov; a failed load falls back
+    to the initials tile the shipped <b>SponsorPhoto</b> already draws. Tokens are copied from <b>:root</b>; the type
+    ladder is pinned at the 1440 values. <span class="warn">Ruling record: section 01 ruled <b>D</b> (Corey, 2026-09-03, verbatim <i>"D"</i>); section 02 ruled <b>N2 at 6px</b> (Corey, 2026-09-03: <i>"2. 6px"</i>, read as the N2 variant at a
+    6px side pad; section 03 <i>"3. yes"</i>; section 04 <i>"4. yes to the new one"</i>). Committed as the ruling record (HO 673 / 689 precedent).</span></p>
+
+  <!-- ══ 01 ═══════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">01</span>Sponsor portrait — four sizes in the live metabox</h2>
+  <p class="sub">The shipped block is <b>80×94</b> (<b>.bxp-sponsor-photo</b>, globals.css:4779) beside a three-line stack. Every
+    candidate keeps the bioguide 5:6 ratio; the initials fallback scales with it. The metabox is the panel's right column —
+    <b>1fr</b> of a 1.35fr/1fr grid, or full width when the container query stacks the panel (≤520px, which is what the
+    dashboard's 480px feed column produces at 1440). Set the width to the surface you're judging.</p>
+  <div class="harness">METABOX WIDTH
+    <button class="wbtn" data-w="320" type="button">320 · phone</button>
+    <button class="wbtn on" data-w="456" type="button">456 · dashboard @1440 (stacked)</button>
+    <button class="wbtn" data-w="485" type="button">485 · /bills @1440</button>
+    <button class="wbtn" data-w="620" type="button">620 · /bills @2560</button>
+  </div>
+  <div class="grid4" id="sizes">
+    <div>
+      <p class="sizecap">A · 80×94 <i>· shipped (HO 673)</i><span class="tag ship">SHIPPED</span></p>
+      <div class="metabox s80" data-mb></div>
+    </div>
+    <div>
+      <p class="sizecap">B · 104×125 <i>· +30%</i></p>
+      <div class="metabox s104" data-mb></div>
+    </div>
+    <div>
+      <p class="sizecap">C · 120×144 <i>· +50%, the retired HO 194 hover-card size · architect's recommendation, not taken</i></p>
+      <div class="metabox s120" data-mb></div>
+    </div>
+    <div>
+      <p class="sizecap">D · 136×163 <i>· +70%</i><span class="tag ruled">RULED · Corey 2026-09-03 · "D"</span></p>
+      <div class="metabox s136" data-mb></div>
+    </div>
+  </div>
+  <p class="caption"><b>What to look at:</b> the text stack is three lines (~62px); at C the photo is ~2.3× the stack and the COSPONSORS
+    row moves down ~50px. At D the portrait starts to dominate the metabox at 320. B changes little. C is the size these
+    same photos rendered at on the HO 194 hover card, so the crop is known-good; the mock's photos are the
+    <b>_200</b> congress.gov variant the app stores, downscaled at every size here.</p>
+
+  <!-- ══ 02 ═══════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">02</span>Nav spacing — shipped vs proposed, at real widths</h2>
+  <p class="sub">Eleven items need ~1050px on one row; the left region is <b>~756px at 1440</b> and <b>~1370px at 2560</b>, so the wrap at
+    1440 is structural. What changes is the geometry of the wrap and of the gaps. <b>Shipped:</b> every item carries two
+    transparent reserved brackets (<b>.pnav-bracket</b>, 3px pad each) <i>and</i> a 14px column gap, so the divider sits in a
+    ~51px hole beside ~36px item gaps, and row 2 indents by a bracket. <b>Three condensed variants below</b> share one
+    mechanism — gap 0, one side-padding knob, no reserved space — and differ in how the row reads as tabs. Click any
+    item to move the active state; nothing shifts in any of them. Ruling on the first mock: <i>"could we condence the
+    dead space more.. make it look more like tabs-esk"</i>, which is why the 20px proposal was withdrawn for these.</p>
+  <div class="harness">REGION WIDTH
+    <button class="wbtn on" data-nw="756" type="button">756 · 1440 left region</button>
+    <button class="wbtn" data-nw="975" type="button">975 · the screenshot</button>
+    <button class="wbtn" data-nw="1370" type="button">1370 · 2560 left region</button>
+  </div>
+
+  <p class="sizecap">SHIPPED<span class="tag ship">SHIPPED</span></p>
+  <div class="frame navframe" data-w="756px" style="width:756px"><div class="ruler"></div>
+    <nav class="nav shipped" data-nav></nav>
+  </div>
+  <p class="caption">Row 2's first slash sits a bracket-width right of row 1's; the divider gap is asymmetric because the gap on each side
+    is bracket + 14px on one item and bracket + 14px + the divider's own width on the other.</p>
+
+  <div class="harness" style="margin-top:6px">SIDE PADDING (the one knob)
+    <button class="wbtn on" data-pad="6" type="button">6px · 13 between labels with the tab rule (12 in N1) · RULED</button>
+    <button class="wbtn" data-pad="8" type="button">8px · 17 / 16</button>
+    <button class="wbtn" data-pad="10" type="button">10px · 21 / 20</button>
+  </div>
+
+  <p class="sizecap">N1 · TIGHT PATH <i>· the PowerShell-path idiom kept; brackets zero-width on the active item; no separators</i></p>
+  <div class="frame navframe" data-w="756px" style="width:756px"><div class="ruler"></div>
+    <nav class="nav v2 n1" data-nav data-interactive></nav>
+  </div>
+  <p class="caption">Closest to what ships, minus every pixel of reserved space: text-to-text is <b>2×pad</b> (12px at the ruled 6px),
+    the group divider adds 11px, wrapped rows align. Reads as a path, not as tabs. Not chosen.</p>
+
+  <p class="sizecap">N2 · TAB STRIP <i>· a hairline between every tab, active tab filled + amber underline, bracketless</i><span class="tag ruled">RULED · Corey 2026-09-03 · "2. 6px"</span></p>
+  <div class="frame navframe" data-w="756px" style="width:756px"><div class="ruler"></div>
+    <nav class="nav v2 n2" data-nav data-interactive></nav>
+  </div>
+  <p class="caption">The rule between cells is what makes <b>13px</b> (6 + the 1px rule + 6) read as "adjacent tabs" rather than "dead
+    space": every gap has a visible edge in it. Across the group divider it is 21px (6 + 4 + 1 + 4 + 6). The active state is the filled cell + the 2px amber underline the app already uses; the
+    brackets go, because a filled cell is the same statement made denser. The group divider is the stronger
+    <b>--border-strong</b> rule. Wrapped rows keep their hairlines, so the second row still reads as tabs.</p>
+
+  <p class="sizecap">N3 · BOXED TABS <i>· bordered cells on a baseline rule, the active one opens onto the content, 2px amber top edge</i></p>
+  <div class="frame navframe" data-w="756px" style="width:756px"><div class="ruler"></div>
+    <nav class="nav v2 n3" data-nav data-interactive></nav>
+  </div>
+  <p class="caption">The most literally tab-shaped. Its cost is the wrap: on the 1440 two-row layout the first row's boxes sit
+    over the second row rather than over content, so the "opens onto the content" cue only means something at 2560. Look
+    at it at 756 before choosing it.</p>
+
+  <!-- ══ 03 ═══════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">03</span>Header stack — nav above the tapes</h2>
+  <p class="sub">Shipped order in <b>DashboardV2Header</b> is masthead → MARKETS → ODDS → nav. Ruled order: masthead → <b>nav</b> → MARKETS → ODDS.
+    Inner pages have no tapes, so only the spacing lands there. The masthead row also shows where HO 692's <b>ODDS ON/OFF</b>
+    control will sit — after LOGIN, middot-joined like every other masthead item (HO 610's C1 packing). It is drawn here
+    only so the row is judged once with everything it will carry; HO 692 builds it.</p>
+  <div class="frame" data-w="1370px" style="width:1370px;max-width:100%">
+    <div class="hdr">
+      <div class="mast">
+        <span class="brand">Congressional Terminal:<span class="a">\119TH\</span><span class="b">Dashboard</span><span class="a">&gt;</span></span>
+        <span class="counts"><b>17,368</b> tracked · <span class="en">98</span> enacted</span>
+        <span class="sync">· LAST SYNC 2:50 PM MT</span>
+        <span class="sign">· LOGIN</span>
+        <span class="odds-toggle">· ODDS <b>ON</b></span>
+      </div>
+      <div class="stackcap">↓ nav (moved up · drawn as N2 at 6px, the ruled variant)</div>
+      <nav class="nav v2 n2" data-nav style="margin-top:0"></nav>
+      <div class="stackcap">↓ tapes (unchanged, now below the nav)</div>
+      <div class="tape"><span class="lbl">MARKETS</span>
+        <span class="tk"><span class="sym">UNEMP</span> 4.1% <span style="color:var(--text-dim)">MO</span></span>
+        <span class="tk"><span class="sym">NDQ</span> 26,584.06 <span class="up">▲ +1.40%</span></span>
+        <span class="tk"><span class="sym">WTI</span> 91.48 <span style="color:var(--text-dim)">EOD</span></span>
+        <span class="tk"><span class="sym">MSFT</span> 510.12 <span class="dn">▼ −0.36%</span></span>
+        <span class="tk"><span class="sym">SPX</span> 6,852.34 <span class="up">▲ +0.29%</span></span>
+        <span class="asof">AS OF 6:00 PM MT · CLOSED</span></div>
+      <div class="tape"><span class="lbl">ODDS</span>
+        <span class="tk"><span class="sym">FED CUT SEP</span> <span class="k">K</span> 2.0% <span class="p">P</span> 0.8%</span>
+        <span class="tk"><span class="sym">RECESSION</span> <span class="k">K</span> 6.0% <span class="p">P</span> 7.0%</span>
+        <span class="tk"><span class="sym">SHUTDOWN</span> <span class="k">K</span> 35.0% <span class="p">P</span> N/A</span>
+        <span class="asof">AS OF 6:00 PM MT · <span class="live">● LIVE</span></span></div>
+    </div>
+    <div class="below">↓ ActiveFilterStrip · Absence Watch · HEARINGS | RACES · week summary · week band · breaking + distributions (unchanged)</div>
+  </div>
+  <p class="caption">The nav's <b>.5px</b> top rule now separates it from the masthead; the MARKETS strip keeps its own top hairline, so the
+    tape block reads as one chrome block below the nav. The hover box still drops <b>below</b> the tape block (HO 375
+    preferBelow), so it lands over the first body panel instead of over the nav — no z-index change.</p>
+
+  <!-- ══ 04 ═══════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">04</span>Week summary — collapsible, report link on its own week</h2>
+  <p class="sub">Two rows, three windows. The summary row describes the <b>completed</b> calendar week (Aug 24); the band's metrics are
+    <b>trailing 7 days</b> under the <b>current</b> week's Monday (Aug 31 — the week we are in). The <b>AUG 24 REPORT →</b>
+    link is about the completed week, so it moves off the band and onto the summary row, right-pinned; it stays visible
+    when the text is collapsed. Default <b>open</b>; a collapse <b>persists</b> across visits (localStorage
+    <b>cbt:pref:weekSummary</b>, applied pre-paint so a collapsed reader never sees the text flash in). Click the row.</p>
+  <div style="max-width:1100px">
+    <section class="ws" id="ws1">
+      <button class="ws-head" type="button" aria-expanded="true">
+        <span class="ws-label">Week of <span class="wk">Aug 24</span> · summary</span>
+        <span class="ws-chev" aria-hidden>▾</span>
+        <a class="ws-report" href="#" onclick="event.preventDefault();event.stopPropagation()">Aug 24 report →</a>
+      </button>
+      <p class="ws-text">47 bills were introduced, with 71 stage transitions occurring. One hearing was held, and zero laws were enacted.
+        House Concurrent Resolution 89 moved to the other chamber.</p>
+    </section>
+    <div class="band">
+      <span class="weekof">Week of <b>Aug 31</b></span><span class="sep">·</span>
+      <span><span class="dot">●</span> <span class="num">0</span> enacted <span class="d-flat">±0</span></span><span class="sep">·</span>
+      <span><span class="num">57</span> new bills <span class="d-up">▲10</span></span><span class="sep">·</span>
+      <span><span class="num">115</span> transitions observed</span><span class="sep">·</span>
+      <span><span class="num">25</span> hearings <span class="d-up">▲24</span></span><span class="sep">·</span>
+      <span>filler <span class="num">15%</span> · 10/67</span>
+      <a class="readfull gone" href="#" onclick="event.preventDefault()">Aug 24 report →</a>
+    </div>
+    <p class="cap2"><b>Struck link</b> = where it sat; it is removed from the band when the summary row renders and <b>stays on the band only
+      when no summary row exists</b> (the no-row degraded state), so the report is always reachable.</p>
+
+    <p class="stackcap" style="margin-top:22px">stale variant — summary older than the newest report</p>
+    <section class="ws" id="ws2" data-collapsed>
+      <button class="ws-head" type="button" aria-expanded="false">
+        <span class="ws-label">Week of <span class="wk">Aug 17</span> · summary <span class="stale">· last generated week</span></span>
+        <span class="ws-chev" aria-hidden>▸</span>
+        <a class="ws-report" href="#" onclick="event.preventDefault();event.stopPropagation()">Aug 24 report →</a>
+      </button>
+      <p class="ws-text">The stale text, whatever week it describes, sits under a label naming that week; the report link names its own.
+        The two dates differing is the honest reading, not a defect.</p>
+    </section>
+    <p class="cap2">Shown collapsed to demonstrate the persisted state: the label row (with the report link) is all that renders.</p>
+  </div>
+</div>
+
+<script>
+  var PC = {D:"var(--party-democrat)", R:"var(--party-republican)", I:"var(--party-independent)"};
+  function initials(n){
+    var p = n.replace(/^(Rep\.|Sen\.|Del\.)\s*/,"").trim().split(/\s+/);
+    return (((p[0]||"")[0]||"") + ((p[p.length-1]||"")[0]||"")).toUpperCase();
+  }
+  function img(bio,name,party){
+    var i = document.createElement("img");
+    i.className = "ph";
+    i.src = "https://www.congress.gov/img/member/" + bio.toLowerCase() + "_200.jpg";
+    i.alt = ""; i.loading = "lazy";
+    i.onerror = function(){
+      var s = document.createElement("span");
+      s.className = "fb"; s.style.color = PC[party] || "var(--text-muted)";
+      s.textContent = initials(name); s.setAttribute("aria-hidden","true");
+      if (i.parentNode) i.parentNode.replaceChild(s,i);
+    };
+    return i;
+  }
+  // 01 — metabox replica per size. Sponsor is the screenshot's bill (HR 10235, Rep. Linda Sánchez, D-CA-38).
+  var SP = ["S001156","Rep. Linda Sánchez","D","California · House","[D-CA-38]"];
+  document.querySelectorAll("[data-mb]").forEach(function(mb){
+    var sp = document.createElement("div"); sp.className = "mrow";
+    sp.innerHTML = '<div class="mlabel">Sponsor</div><div class="spblock"></div>';
+    var blk = sp.querySelector(".spblock");
+    blk.appendChild(img(SP[0],SP[1],SP[2]));
+    var info = document.createElement("div"); info.className = "spinfo";
+    info.innerHTML = '<span class="spname">'+SP[1]+'</span><span class="spbr" style="color:'+PC[SP[2]]+'">'+SP[4]+'</span>'+
+      '<span class="spmeta">'+SP[3]+'</span>';
+    blk.appendChild(info);
+    mb.appendChild(sp);
+    var co = document.createElement("div"); co.className = "mrow";
+    co.innerHTML = '<div class="mlabel">Cosponsors</div><div class="mval">6 cosponsors</div>'+
+      '<div class="mval" style="font-size:var(--fs-10);color:var(--party-democrat);font-weight:600">DEMOCRAT <span class="dim">· 6</span></div>'+
+      '<div class="cosp"></div>';
+    var faces = co.querySelector(".cosp");
+    ["AB","CD","EF","GH","IJ","KL"].forEach(function(t){
+      var f = document.createElement("span"); f.className = "fb"; f.style.color = PC.D; f.textContent = t; faces.appendChild(f);
+    });
+    mb.appendChild(co);
+    var cm = document.createElement("div"); cm.className = "mrow";
+    cm.innerHTML = '<div class="mlabel">Committee</div><div class="mval"><span style="color:var(--accent-amber)">Ways and Means Committee</span> <span class="dim">· Referred To · 1d</span></div>';
+    mb.appendChild(cm);
+    var intro = document.createElement("div"); intro.className = "mrow";
+    intro.innerHTML = '<div class="mlabel">Introduced</div><div class="mval">2026-09-02</div>';
+    mb.appendChild(intro);
+  });
+  document.querySelectorAll(".harness [data-w]").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".harness [data-w]").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      var w = b.getAttribute("data-w") + "px";
+      document.getElementById("sizes").style.gridTemplateColumns = "repeat(auto-fit, minmax(" + w + ", " + w + "))";
+    });
+  });
+  document.getElementById("sizes").style.gridTemplateColumns = "repeat(auto-fit, minmax(456px, 456px))";
+
+  // 02/03 — nav replicas. NAV_ITEMS order + the HO 608 divider before index 2.
+  var ITEMS = ["Dashboard","Watchlist","Legislation","Hearings","Members","Electoral","Patterns","Lobbying","Nominations","Amendments","Reports"];
+  document.querySelectorAll("[data-nav]").forEach(function(nav){
+    ITEMS.forEach(function(label, i){
+      if (i === 2){ var d = document.createElement("span"); d.className = "div"; d.setAttribute("aria-hidden","true"); nav.appendChild(d); }
+      var a = document.createElement("a");
+      a.href = "#"; a.className = label === "Watchlist" ? "mine" : "";
+      if (i === 0) a.setAttribute("aria-current","page");
+      a.innerHTML = '<span class="br l" aria-hidden>[</span><span class="sl" aria-hidden>\\</span><span class="tx">'+label+'</span><span class="br r" aria-hidden>]</span>';
+      a.addEventListener("click", function(e){
+        e.preventDefault();
+        if (!nav.hasAttribute("data-interactive")) return;
+        nav.querySelectorAll("a").forEach(function(x){ x.removeAttribute("aria-current"); });
+        a.setAttribute("aria-current","page");
+      });
+      nav.appendChild(a);
+    });
+  });
+  document.querySelectorAll(".harness [data-nw]").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".harness [data-nw]").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      var w = b.getAttribute("data-nw");
+      document.querySelectorAll(".navframe").forEach(function(f){ f.style.width = w + "px"; f.setAttribute("data-w", w + "px"); });
+    });
+  });
+
+  document.querySelectorAll(".harness [data-pad]").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll(".harness [data-pad]").forEach(function(x){ x.classList.remove("on"); });
+      b.classList.add("on");
+      document.querySelectorAll(".nav.v2").forEach(function(n){ n.style.setProperty("--pad", b.getAttribute("data-pad") + "px"); });
+    });
+  });
+
+  // 04 — collapse toggle (instant, no animation, matching the app's expand rows).
+  document.querySelectorAll(".ws-head").forEach(function(h){
+    h.addEventListener("click", function(){
+      var s = h.closest(".ws");
+      var collapsed = s.toggleAttribute("data-collapsed");
+      h.setAttribute("aria-expanded", String(!collapsed));
+      h.querySelector(".ws-chev").textContent = collapsed ? "▸" : "▾";
+    });
+  });
+</script>
+</body>
+</html>
