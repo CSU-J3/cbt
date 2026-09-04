@@ -197,10 +197,16 @@ export async function HeaderBar({
       </p>
 
       {/* Nav on its own full-width row, matching the dashboard: PrimaryNav
-          variant="home" = the `.home-header-nav` styling (bracketed active item,
-          group dividers, reserved bracket space → no horizontal jump, the subtle
+          variant="home" = the `.home-header-nav` styling (the HO 690 tab strip —
+          fill-on-active, a hairline between tabs, the group divider, the subtle
           top-border separator). `.header-nav-row` adds the inner-page `--space-lg`
-          padding so it aligns with the title + page content. */}
+          padding so it aligns with the title + page content, and its own strong
+          bottom rule is why the strip's soft one is suppressed here (globals.css).
+
+          RECORD: this read "bracketed active item … reserved bracket space → no
+          horizontal jump" until HO 690, which deleted the brackets. The no-jump
+          property survives — an active FILL costs no width where a bracket
+          reserved it — but the mechanism named here was gone. */}
       <div className="header-nav-row">
         <PrimaryNav active={pathToNavKey(basePath)} variant="home" />
       </div>
