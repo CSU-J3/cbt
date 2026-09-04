@@ -11,6 +11,15 @@
 // sync:fec is itself a manual script). Reuses the FEC client / FEC_API_KEY from
 // lib/fec.ts; minds the shared api.data.gov 1000/hr budget via fetchScheduleE's
 // per-page politeness sleep. Run: `npm run sync:pac-ie`.
+//
+// HO 691 — `-- --dry-run` walks the SAME fetch + collapse + resolve and prints
+// each group, but skips the upsert AND the revalidate POST. The flag's ABSENCE
+// is byte-identical to the pre-691 script: the two gated statements are the only
+// difference, and the read path above them is untouched. It exists so a fresh
+// Schedule E read can be diffed against the stored rows without a write — the
+// STEP 0 question ("has the upstream moved?") must be answerable before the
+// STEP 1 decision, and answering it with a real sync would destroy the before
+// side of that diff.
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { type FecScheduleERow, fetchScheduleE, logResolvedFecKey } from "../lib/fec";
@@ -107,9 +116,11 @@ ON CONFLICT(committee_id, candidate_id, support_oppose, cycle) DO UPDATE SET
 `;
 
 async function main(): Promise<void> {
+  const dryRun = process.argv.includes("--dry-run");
   logResolvedFecKey();
   const db = getDb();
   const cycle = PAC_IE_CYCLE;
+  if (dryRun) console.log("DRY RUN — no upsert, no revalidate.\n");
 
   const raw = await fetchScheduleE(UDP_COMMITTEE_ID, cycle);
   if (raw === null) {
@@ -137,24 +148,26 @@ async function main(): Promise<void> {
       dropped.push(`${office} ${g.candidateName} (${dir})`);
       continue;
     }
-    await db.execute({
-      sql: UPSERT_SQL,
-      args: [
-        UDP_COMMITTEE_ID,
-        UDP_SPENDER,
-        raceId,
-        g.candidateId,
-        g.candidateName,
-        g.supportOppose,
-        g.earliest,
-        g.latest,
-        cycle,
-        now,
-      ],
-    });
+    if (!dryRun) {
+      await db.execute({
+        sql: UPSERT_SQL,
+        args: [
+          UDP_COMMITTEE_ID,
+          UDP_SPENDER,
+          raceId,
+          g.candidateId,
+          g.candidateName,
+          g.supportOppose,
+          g.earliest,
+          g.latest,
+          cycle,
+          now,
+        ],
+      });
+    }
     stored++;
     console.log(
-      `  stored ${raceId} ← ${office} ${g.candidateName} (${dir}) · ${g.earliest}..${g.latest}`,
+      `  ${dryRun ? "would store" : "stored"} ${raceId} ← ${office} ${g.candidateName} (${dir}) · ${g.earliest}..${g.latest}`,
     );
   }
 
@@ -169,7 +182,9 @@ async function main(): Promise<void> {
   // /api/revalidate route (same pattern as sync:fec). Soft-fail when unset.
   const revalidateUrl = process.env.REVALIDATE_URL;
   const secret = process.env.CRON_SECRET;
-  if (revalidateUrl && secret) {
+  if (dryRun) {
+    console.log("\nDRY RUN — nothing written, `races` tag not flushed.");
+  } else if (revalidateUrl && secret) {
     try {
       await fetch(`${revalidateUrl}?tag=races`, {
         method: "POST",

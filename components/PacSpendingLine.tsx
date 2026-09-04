@@ -13,13 +13,23 @@
 // committee" attribution in the tooltip. There is one spender, so the direction
 // items carry no per-line spender prefix.
 //
-// Two variants:
+// Two variants, and since HO 691 they DIVERGE ON TARGET STATUS deliberately —
+// this is the whole shape of Corey's ruling (2026-09-03): "the races on the
+// dashboard needs to say what is currently happening. that can be filed in
+// races". The glance card is a statement about the race NOW; the races surface
+// is where the race's history lives.
 //   full   — header "AIPAC SUPER PAC · via FEC" + FEC-deep-linked direction
-//            items + "since {month}". Used in the /electoral list & map expands
-//            and the /race/[id] hub (containers where a nested <a> is valid).
-//   glance — a single non-linked line "AIPAC super PAC · backing X, opposing Y",
-//            for the dashboard RaceCard (a whole-card <Link>, so no nested
-//            anchors — the clickable version lives one click away on the hub).
+//            items + "since {month}". Renders EVERY target: current ones first,
+//            then lost/withdrawn ones in the past tense and dimmed. The deep
+//            link stays on the past-tense item, because the dollars are real and
+//            the reader can still go see them. Used in the /electoral list & map
+//            expands and the /race/[id] hub (a nested <a> is valid there).
+//   glance — a single non-linked line "AIPAC super PAC · opposing X", for the
+//            dashboard RaceCard (a whole-card <Link>, so no nested anchors).
+//            Renders CURRENT targets only, and when none remain the line is
+//            ABSENT — the seat has no current UDP direction, and absence is the
+//            signal (the USCPR-badge convention this component already follows).
+//            Never "backed", never dimmed, never history.
 //
 // Client island because the full variant's FEC links stop row-toggle
 // propagation (they live inside the expand of a role=button accordion row).
@@ -35,35 +45,57 @@ import {
   pacSurname,
 } from "@/lib/pac-ie";
 
-// Dedup by direction+surname (a target can carry two candidate_ids across FEC
-// filings — e.g. redistricted seats — which would otherwise render the same
-// "opposing X" twice), backing (S) before opposing (O), tracking the earliest
-// date for the "since {month}" cue.
-function prepare(rows: PacIeRow[]): {
-  items: { row: PacIeRow; surname: string }[];
-  earliest: string | null;
-} {
+const CURRENT = new Set(["active", "unknown"]);
+const isCurrent = (row: PacIeRow) => CURRENT.has(row.targetStatus);
+
+// Dedup by direction+surname+STATUS (a target can carry two candidate_ids across
+// FEC filings — e.g. redistricted seats, and NJ-11 carries two for Malinowski —
+// which would otherwise render the same "opposing X" twice). HO 691 added the
+// status leg: without it a target that somehow both lost and won would collapse
+// two different facts into whichever row came first, which is precisely the
+// collision the dedup must not silently make.
+//
+// Order: current items first (backing before opposing within each), then the
+// past-tense ones. `earliest` is tracked per group so the "since {month}" cue
+// can be computed over whatever the caller actually renders.
+type Item = { row: PacIeRow; surname: string };
+function prepare(rows: PacIeRow[]): { current: Item[]; past: Item[] } {
   const seen = new Set<string>();
-  const items: { row: PacIeRow; surname: string }[] = [];
-  let earliest: string | null = null;
+  const items: Item[] = [];
   for (const row of rows) {
     const surname = pacSurname(row.candidateName);
-    const key = `${row.supportOppose}:${surname}`;
+    const key = `${row.supportOppose}:${surname}:${row.targetStatus}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (row.earliestDate && (!earliest || row.earliestDate < earliest)) {
-      earliest = row.earliestDate;
-    }
     items.push({ row, surname });
   }
-  items.sort((a, b) =>
+  const bySupportFirst = (a: Item, b: Item) =>
     a.row.supportOppose === b.row.supportOppose
       ? 0
       : a.row.supportOppose === "S"
         ? -1
-        : 1,
-  );
-  return { items, earliest };
+        : 1;
+  return {
+    current: items.filter((i) => isCurrent(i.row)).sort(bySupportFirst),
+    past: items.filter((i) => !isCurrent(i.row)).sort(bySupportFirst),
+  };
+}
+
+function earliestOf(items: Item[]): string | null {
+  let earliest: string | null = null;
+  for (const { row } of items)
+    if (row.earliestDate && (!earliest || row.earliestDate < earliest))
+      earliest = row.earliestDate;
+  return earliest;
+}
+
+// Past tense, and it names WHY the target is out rather than just dimming it —
+// "backed Stevens · lost primary" is a complete sentence about the race; a
+// dimmed "backing Stevens" would still be the present-tense claim, quieter.
+const PAST_VERB = { S: "backed", O: "opposed" } as const;
+const OUTCOME = { lost: "lost primary", withdrew: "withdrew" } as const;
+function outcomeLabel(status: PacIeRow["targetStatus"]): string {
+  return status === "withdrew" ? OUTCOME.withdrew : OUTCOME.lost;
 }
 
 export function PacSpendingLine({
@@ -74,12 +106,16 @@ export function PacSpendingLine({
   variant?: "full" | "glance";
 }) {
   if (!rows || rows.length === 0) return null;
-  const { items, earliest } = prepare(rows);
+  const { current, past } = prepare(rows);
 
   if (variant === "glance") {
     // Compact, non-linked snapshot for the dashboard card:
-    //   "AIPAC super PAC · backing Stevens" / "… · backing Gallrein, opposing Massie"
-    const dirs = items
+    //   "AIPAC super PAC · opposing El-Sayed"
+    // CURRENT TARGETS ONLY. When every direction on the seat points at somebody
+    // who is out of the race, the whole line goes — the card would otherwise
+    // assert a live PAC position on a contest that is already decided.
+    if (current.length === 0) return null;
+    const dirs = current
       .map(({ row, surname }) =>
         `${row.supportOppose === "S" ? "backing" : "opposing"} ${surname}`,
       )
@@ -92,7 +128,13 @@ export function PacSpendingLine({
     );
   }
 
-  const since = pacSinceMonth(earliest);
+  const items = [...current, ...past];
+  // "since {month}" describes the spending the reader is looking at. Over the
+  // CURRENT items when there are any — a 2025 date belonging to a decided
+  // primary would date the line to a contest it is no longer about — and over
+  // everything when the seat has only history left, where the full span is the
+  // honest answer.
+  const since = pacSinceMonth(earliestOf(current.length > 0 ? current : items));
   return (
     <div className="rc-pac">
       <span className="rc-pac-k" title={PAC_IE_ATTRIBUTION}>
@@ -100,12 +142,20 @@ export function PacSpendingLine({
       </span>
       <div className="rc-pac-line">
         {items.map(({ row, surname }, i) => {
-          const verb = row.supportOppose === "S" ? "backing" : "opposing";
+          const done = !isCurrent(row);
+          const verb = done
+            ? PAST_VERB[row.supportOppose]
+            : row.supportOppose === "S"
+              ? "backing"
+              : "opposing";
           return (
-            <span key={`${row.candidateId}:${row.supportOppose}`}>
+            <span key={`${row.candidateId}:${row.supportOppose}:${row.targetStatus}`}>
               {i > 0 ? <span className="rc-pac-sep"> </span> : null}
               <a
-                className="rc-pac-link"
+                // The FEC deep link STAYS on the past-tense item. The dollars
+                // were really spent and the reader can still go look at them —
+                // dimming is about tense, not about hiding the filing.
+                className={done ? "rc-pac-link rc-pac-link--past" : "rc-pac-link"}
                 href={fecIeUrl(
                   row.committeeId,
                   row.candidateId,
@@ -120,6 +170,12 @@ export function PacSpendingLine({
                 <span className="rc-pac-verb">{verb}</span> {surname}
                 <span className="rc-pac-arrow"> ↗</span>
               </a>
+              {done ? (
+                <span className="rc-pac-outcome">
+                  {" "}
+                  · {outcomeLabel(row.targetStatus)}
+                </span>
+              ) : null}
             </span>
           );
         })}

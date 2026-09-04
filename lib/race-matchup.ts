@@ -40,6 +40,13 @@ const WITHDRAWN = new Set([
 // claim in a status column, and nothing downstream would ever re-read it.
 // Mirrored in SQL at getRaceCandidates / getRaceCandidatesForCycle's ORDER BY
 // CASE (lib/queries.ts) — a status added here needs adding there too.
+//
+// HO 691 gave this set a SECOND consumer with a different failure mode. It now
+// also decides the `general` shape (every active challenger nominated → both
+// parties have their candidate, no dagger, no footnote). A status missing from
+// here used to cost sort position; it now also costs a seat its general-election
+// reading, sending a decided race back to `leader` and re-lighting the
+// "primary unresolved" footnote under it.
 const NOMINATED = new Set(["won_primary", "nominee"]);
 
 export type RosterMember = {
@@ -147,6 +154,12 @@ export type ChallengerShape =
   | { kind: "empty" }
   | { kind: "unknown" }
   | { kind: "nominee"; fullName: string; party: PartyKey | null }
+  // HO 691 — BOTH parties have their candidate: the primaries are over and this
+  // is the general-election field. The shape existed nowhere before, which is
+  // why S-MI-2026 fell through to `leader` after Michigan voted on 2026-08-04 and
+  // rendered El-Sayed with a dagger, under a page footnote reading "Democratic
+  // primary unresolved" — a false statement, on the primary surface, for a month.
+  | { kind: "general"; members: { fullName: string; party: PartyKey | null }[] }
   | { kind: "leader"; fullName: string; party: PartyKey | null; others: string[] }
   | { kind: "nolead"; fullNames: string[]; party: PartyKey | null; count: number };
 
@@ -203,6 +216,24 @@ export function deriveMatchup(
         fullName: nominee.name,
         party: nominee.party,
       };
+    } else if (active.length >= 2 && won.length === active.length) {
+      // HO 691 — every active challenger is NOMINATED, so there is no primary
+      // left to have a leader in. PARTY MIX IS DELIBERATELY IRRELEVANT: a
+      // top-two seat (CA/WA) can send two candidates of the same party to
+      // November, and "D v D · nominees" is the honest label for that. Testing
+      // for one-of-each would silently fall back to `leader` there and put a
+      // dagger on a decided contest — the exact defect this shape closes.
+      //
+      // Reachable only after the single-nominee test above fails, which needs
+      // active.length >= 2, so the two branches cannot both fire.
+      challenger = {
+        kind: "general",
+        members: active.map((c) => ({ fullName: c.name, party: c.party })),
+      };
+      // presumptiveParty stays null: nothing here is presumptive, so the page
+      // footnote cannot fire for this seat. That is the mechanism, not a
+      // side effect — CompetitiveRacesStrip collects presumptiveParty and
+      // renders the "† presumptive — … primary unresolved" line from it.
     } else {
       // ≥2 active, no single nominee. Leader iff the market favorite is one of
       // them; otherwise the favorite is the incumbent/party → no-lead primary.

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import {
@@ -282,6 +282,33 @@ export function RaceCard({
         <span className="rc-line-meta">
           {partyLetter(challenger.party)} · nominee
         </span>
+      </>
+    );
+  } else if (challenger.kind === "general") {
+    // HO 691 — the general-election field. Each nominee carries its OWN party
+    // dot (this is the one shape where the challengers are not all of one
+    // party), dot-joined: "El-Sayed · Rogers", meta "D v R · nominees".
+    // NO DAGGER — nothing here is presumptive.
+    //
+    // The market favourite still drives the edge accent and the K/P line exactly
+    // as before, so the card loses none of what it knew; only the false claim
+    // goes. Surnames go through the same `sn()` the other shapes use, so
+    // page-level ambiguous-surname disambiguation still applies.
+    const letters = challenger.members
+      .map((m) => partyLetter(m.party))
+      .join(" v ");
+    challengerInner = (
+      <>
+        {challenger.members.map((m, i) => (
+          <Fragment key={`${m.fullName}:${i}`}>
+            {i > 0 ? <span className="rc-gen-sep">·</span> : null}
+            <span className="rc-gen-member">
+              {dot(m.party)}
+              <span className="rc-nm">{sn(m.fullName)}</span>
+            </span>
+          </Fragment>
+        ))}
+        <span className="rc-line-meta">{letters} · nominees</span>
       </>
     );
   } else if (challenger.kind === "leader") {

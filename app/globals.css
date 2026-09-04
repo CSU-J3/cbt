@@ -3976,6 +3976,21 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .rc-nm--empty {
   color: var(--text-dim);
 }
+/* HO 691 — the `general` shape's per-nominee dot+name pair. `min-width: 0` is
+   MANDATORY (the HO 682 rule): this is a flex item whose subtree ends in the
+   nowrap+ellipsis `.rc-line .rc-nm`, and at the default `auto` the track would
+   size to the unbreakable name and push the card open from the inside. The
+   ellipsis kit cannot enforce this for itself — it is defeated from above. */
+.rc-gen-member {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.rc-gen-sep {
+  flex: none;
+  color: var(--text-dim);
+}
 .rc-dot8.is-hollow {
   box-shadow: inset 0 0 0 1.5px var(--text-dim);
 }
@@ -8223,6 +8238,24 @@ a.racecard-cand-name:hover {
 }
 .rc-pac-since {
   color: var(--text-dim);
+}
+/* HO 691 — a target who is out of the race. Past tense carries the meaning
+   (`backed X` / `opposed X`); the dim is the supporting cue, not the claim, so
+   the item still reads on its own if the colour is missed. It stays a link and
+   still lifts to amber on hover — the filing is real and reachable; only the
+   tense changed. `--text-dim` rather than a new token: this is the same "older
+   than the current thing beside it" the surface already spells that way. */
+.rc-pac-link--past,
+.rc-pac-link--past .rc-pac-verb,
+.rc-pac-link--past .rc-pac-arrow {
+  color: var(--text-dim);
+}
+.rc-pac-link--past {
+  border-bottom-color: var(--border-strong);
+}
+.rc-pac-outcome {
+  color: var(--text-dim);
+  font-style: italic;
 }
 /* Dashboard RaceCard glance line — non-linked snapshot (whole card is a
    <Link>), one compact row. */

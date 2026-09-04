@@ -35,6 +35,12 @@ import {
   type TopicCrosswalkRow,
 } from "./lda-rollup";
 import { median } from "./median";
+import {
+  type ContestRow,
+  type RosterRow,
+  type TargetStatus,
+  classifyTarget,
+} from "./pac-target-status";
 import { auth } from "../auth";
 import {
   type EnactedBill,
@@ -2132,6 +2138,14 @@ export type PacIeRow = {
   candidateName: string;
   supportOppose: "S" | "O";
   earliestDate: string | null;
+  // HO 691 — is this target still in the race? Computed here, once, so both
+  // render variants read a decided value instead of each re-deriving one.
+  // `unknown` is NOT a soft `lost`: it renders exactly as the line always has,
+  // present tense and undimmed. A classifier's silence is never a reason to hide
+  // a stored fact, and that asymmetry is the whole safety property of the rule —
+  // the failure mode of a missing status is a line that is merely out of date,
+  // not a spent dollar the reader can no longer see.
+  targetStatus: TargetStatus;
 };
 
 export const getPacIeSpending = unstable_cache(
@@ -2145,17 +2159,82 @@ export const getPacIeSpending = unstable_cache(
             ORDER BY race_id, support_oppose DESC, earliest_date ASC`,
       args: [cycle],
     });
+    if (rs.rows.length === 0) return {};
+
+    // The seat set is the DISTINCT race_ids on the table — 11 today (HO 691,
+    // was 7 before that HO's refresh). Two small reads over one IN list, and
+    // both are bounded by that set rather than by the corpus: the contest read
+    // returned ~120 rows across the 11 seats. Says "two", not "one", because it
+    // is two statements — the contest shape and the roster shape don't fold
+    // into a single result set, and a comment that undercounts its own reads is
+    // how a cost claim goes stale (the measured-number rule).
+    const seatIds = [...new Set(rs.rows.map((r) => r.race_id as string))];
+    const marks = seatIds.map(() => "?").join(",");
+
+    // Contests are joined through races on (state, chamber, district) — the same
+    // shape backfill:race-challengers uses — because primaries.race_id is a dead
+    // link (3 of 907 populated, HO 233). Districts: primaries.district is a
+    // zero-padded TEXT ("07"), races.district an INTEGER, so CAST is required.
+    const contestRs = await db.execute({
+      sql: `SELECT r.id AS race_id, p.id AS primary_id, p.primary_date,
+                   p.runoff_date, p.election_round, pc.name, pc.status, pc.vote_pct
+            FROM races r
+            JOIN primaries p
+              ON p.state = r.state AND p.chamber = r.chamber
+             AND ((p.district IS NULL AND r.district IS NULL)
+                  OR CAST(p.district AS INTEGER) = r.district)
+            JOIN primary_candidates pc ON pc.primary_id = p.id
+            WHERE r.id IN (${marks})`,
+      args: seatIds,
+    });
+    const rosterRs = await db.execute({
+      sql: `SELECT race_id, name, status FROM race_candidates
+            WHERE race_id IN (${marks})`,
+      args: seatIds,
+    });
+
+    const contestsBySeat: Record<string, ContestRow[]> = {};
+    for (const c of contestRs.rows)
+      (contestsBySeat[c.race_id as string] ??= []).push({
+        primaryId: c.primary_id as string,
+        primaryDate: (c.primary_date as string | null) ?? null,
+        runoffDate: (c.runoff_date as string | null) ?? null,
+        round: c.election_round as string,
+        name: c.name as string,
+        status: (c.status as string | null) ?? null,
+        votePct: (c.vote_pct as number | null) ?? null,
+      });
+    const rosterBySeat: Record<string, RosterRow[]> = {};
+    for (const c of rosterRs.rows)
+      (rosterBySeat[c.race_id as string] ??= []).push({
+        name: c.name as string,
+        status: (c.status as string | null) ?? null,
+      });
+
+    // Wall clock of the render, not a request param: this read is cached under
+    // the `races` tag, which sync:pac-ie and EVERY Kalshi tick (`15 */2`) flush,
+    // so a primary result backfilled at noon is reflected within ~2h with no new
+    // wiring. The 3600s TTL is the backstop under that, not the refresh path.
+    const today = new Date().toISOString().slice(0, 10);
+
     const out: Record<string, PacIeRow[]> = {};
     for (const row of rs.rows) {
       const raceId = row.race_id as string;
       const so = (row.support_oppose as string) === "O" ? "O" : "S";
+      const name = row.candidate_name as string;
       (out[raceId] ??= []).push({
         raceId,
         committeeId: row.committee_id as string,
         candidateId: row.candidate_id as string,
-        candidateName: row.candidate_name as string,
+        candidateName: name,
         supportOppose: so,
         earliestDate: (row.earliest_date as string | null) ?? null,
+        targetStatus: classifyTarget(
+          name,
+          contestsBySeat[raceId] ?? [],
+          rosterBySeat[raceId] ?? [],
+          today,
+        ).status,
       });
     }
     return out;
