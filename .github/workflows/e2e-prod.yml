@@ -150,7 +150,17 @@ jobs:
         env:
           SMOKE_OVERFLOW_GATE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
           SMOKE_OVERFLOW_FORCE: ${{ inputs.force_overflow_red && '1' || '' }}
-        run: npx playwright test e2e/smoke.spec.ts --grep-invert "@nonci" --retries=2
+        #
+        # HO 693 — the OFF pass joins the crawl. It sets `cbt:pref:odds=off`
+        # before navigation and asserts NO visible `[data-market]` element, which
+        # is the only way an ungated market site can be caught: the crawl
+        # otherwise measures the ON path only, where an ungated site is by
+        # definition correct. It carries no `@nonci`, so it runs on every
+        # trigger, and it feeds NOTHING into the overflow alarm — it writes no
+        # `smoke-overflow-*.md`, so a failure here is an ordinary red run, which
+        # is the signal wanted for an authoring mistake rather than a data-armed
+        # one.
+        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts --grep-invert "@nonci" --retries=2
 
       - name: Upload report on failure
         if: failure()
