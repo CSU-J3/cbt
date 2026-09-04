@@ -160,7 +160,28 @@ jobs:
         # `smoke-overflow-*.md`, so a failure here is an ordinary red run, which
         # is the signal wanted for an authoring mistake rather than a data-armed
         # one.
-        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts --grep-invert "@nonci" --retries=2
+        #
+        # HO 694 — the narrow gate joins. It walks the SAME `ROUTES` the crawl
+        # does (both import `e2e/routes.ts`, so the two cannot disagree about
+        # what "every route" is) at a 430 viewport and asserts the doc-scroll
+        # invariant `fit-finish.spec.ts` has only ever asserted at 1440 and
+        # 2560. That gap is why /members shipped scrolling horizontally by 141px
+        # and stayed that way across three filings: no gate could see a narrow
+        # defect.
+        #
+        # IT IS DEPLOY-BLOCKING, AND THAT IS THE DIFFERENCE FROM THE OVERFLOW
+        # ALARM ABOVE. The alarm is unarmed on `deployment_status` because its
+        # class is DATA-armed — a long committee title arriving overnight blows a
+        # page open with no commit behind it, and a defect nobody caused must not
+        # red somebody else's deploy. This is the opposite: a 430 regression comes
+        # from CSS, so the deploy that introduced it is the right thing to red,
+        # and the author is the right person to tell. Same reading, different
+        # arming, for a reason each comment states.
+        #
+        # WIRED ONLY NOW, after the fixes: on prod at 409e074 this spec was red
+        # on seven routes, so adding it in the same commit as itself would have
+        # made the first CI run on that SHA red by construction.
+        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts --grep-invert "@nonci" --retries=2
 
       - name: Upload report on failure
         if: failure()
