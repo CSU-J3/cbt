@@ -6606,6 +6606,47 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   align-items: center;
   gap: 8px;
 }
+/* HO 694 — the controls group wraps, and the search takes its own line.
+
+   FOUND BY THE NARROW GATE'S FIRST CI RUN, which is the only reason it is here:
+   `/lobbying` came back over by 7px on `input.lob-fbar-search-input`, and the
+   by-hand prod run on Windows had read the same route 430/430 twenty minutes
+   earlier. The difference is FONT METRICS — CI is Ubuntu — moving where the
+   parent `.mc-fbar`'s flex line breaks. So the same build is over on one host
+   and clean on the other, which is exactly the shape a gate exists to catch and
+   a local eyeball cannot.
+
+   THE INPUT WAS THE SYMPTOM. Swept 380-760 against prod, `.lob-fbar-controls`
+   itself overflowed the bar's content box at EVERY width from 380 to 460 — by
+   54 / 43 / 34 / 25 / 8px — because it is a non-wrapping flex row holding three
+   controls (sort segment, BILL-LINKED, search) inside a bar that wraps around
+   it. The input is merely its rightmost child, so it is what the over-edge sweep
+   named. It is also the same defect that renders as BILL-LINKED sitting on top
+   of the RECENT/VOLUME segment on a phone.
+
+   `flex-wrap: wrap` on the group, and below 700 the search takes a full line of
+   its own (`flex-basis: 100%`) with the input filling it. **The full-line basis
+   is what makes this font-INDEPENDENT**: a 100%-basis flex item always starts a
+   new line whatever the metrics, where `max-width: 42vw` (181px at 430, 46% of
+   the 396px bar) only fits if a sibling happens not to share its line. Verified
+   across the whole 380-760 sweep rather than at 430 alone, because a font change
+   moves the break point and a single-width check would only prove today's break
+   point is clear. */
+.lob-fbar-controls {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+@media (max-width: 700px) {
+  .lob-fbar-search {
+    flex-basis: 100%;
+  }
+  .lob-fbar-search-input {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: none;
+  }
+}
 .lob-fbar-linked {
   display: inline-flex;
   align-items: center;
