@@ -144,6 +144,23 @@ export async function DashboardV2Header({
 
       <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
 
+      {/* HO 690 — THE NAV MOVED ABOVE THE TAPES (ruled by Corey 2026-09-03, "3.
+          yes", against docs/design/mock-690-chrome.html § 03). It had sat under
+          them since the B2 stack landed, so the two market strips separated the
+          masthead from the destinations, and the reader's route out of the page
+          was the last thing in the header rather than the first. The tapes are
+          ambient; the nav is chrome you act on.
+
+          Nothing about the tapes changes — `.dv2-tapes` and both `MarketsTape`
+          mounts are byte-identical below, and only this one JSX node moved. The
+          separator comes for free: `.home-header-nav` already carries the
+          `border-top` + `margin-top` that used to divide the nav from the tapes
+          (globals.css), and it now divides it from the masthead instead.
+
+          INNER PAGES ARE UNTOUCHED BY THE MOVE — they mount the same PrimaryNav
+          through HeaderBar, which has no tapes at all (HO 323 removed them). */}
+      <PrimaryNav active="dashboard" variant="home" />
+
       {/* Two stacked tapes — MARKETS (closes) over ODDS (prediction markets, always
           LIVE). HO 258: each its own marquee (scroll); HO 290 relabelled the second
           strip ODDS and made it prediction-markets-only (CPI/UNEMP moved up). */}
@@ -158,8 +175,6 @@ export async function DashboardV2Header({
           label="ODDS"
         />
       </div>
-
-      <PrimaryNav active="dashboard" variant="home" />
     </header>
   );
 }

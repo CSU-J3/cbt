@@ -56,9 +56,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // HO 230 (design items 9+10) — text-only PowerShell-path nav. Shared by the
 // dashboard (HomeHeader, `variant="home"`) and inner pages (HeaderBar,
 // `variant="bar"`) so the two never diverge. Each item is `\LABEL` (dim slash,
-// no icons); the active item gets amber `[ \LABEL ]` brackets + amber-bright
-// label + amber-bright underline, with bracket space reserved on every item so
-// switching the active item causes no horizontal shift. HO 608 regrouped this to
+// no icons); the active item gets an amber-bright label + amber-bright
+// underline. HO 608 regrouped this to
 // the mock: TWO groups split by ONE short vertical rule — \DASHBOARD \WATCHLIST |
 // \LEGISLATION \HEARINGS \MEMBERS \ELECTORAL \PATTERNS \LOBBYING \NOMINATIONS
 // \AMENDMENTS \REPORTS (divider before index 2). \WATCHLIST carries `pnav-mine`,
@@ -68,6 +67,18 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // \LOBBYING \NOMINATIONS | \REPORTS \WATCHLIST (dividers before index 1 and 8 — HO
 // 264 inserted \HEARINGS, HO 437 inserted \LOBBYING, and HO 456 inserted
 // \NOMINATIONS into the middle group, bumping \REPORTS from 5 → 6 → 7 → 8).
+//
+// HO 690 — THE TWO `.pnav-bracket` SPANS ARE GONE FROM THE MARKUP, not hidden.
+// They were transparent-at-rest and amber-on-active, and they RESERVED LAYOUT
+// WIDTH on every item precisely so the active item could not shift the row.
+// Ruled N2 (Corey, 2026-09-03, "2. 6px") replaces that mechanism rather than
+// tightening it: the active tab is now a `--bg-row-hover` FILL inside a tab
+// strip, which is a state that costs no width at all, so no-shift is bought by
+// construction instead of by reserved space. Measured either side of the change:
+// active and inactive box widths for the same label are identical before AND
+// after (scripts/diagnostic/nav-geometry-690.ts). The brackets were also the
+// whole of the row's dead space — 13.11px of reserved width on EACH side of
+// every label at 1440, on top of the 14px column-gap.
 // Styling lives under
 // `.primary-nav .pnav-*` in globals.css (specificity beats `.home-header-nav a`).
 export function PrimaryNav({
@@ -95,16 +106,10 @@ export function PrimaryNav({
               item.key === "watchlist" ? "pnav-item pnav-mine" : "pnav-item"
             }
           >
-            <span className="pnav-bracket" aria-hidden>
-              [
-            </span>
             <span className="pnav-slash" aria-hidden>
               {"\\"}
             </span>
             <span className="pnav-text">{item.label}</span>
-            <span className="pnav-bracket" aria-hidden>
-              ]
-            </span>
           </Link>
         </Fragment>
       ))}

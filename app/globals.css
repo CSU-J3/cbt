@@ -620,23 +620,112 @@ body {
 /* HO 230 (design items 9+10) — text-only PowerShell-path nav, shared by the
    dashboard (.home-header-nav) and inner pages (.header-nav) via the
    .primary-nav hook. `.primary-nav .pnav-item` is (0,2,0) so it beats the
-   wrapper-scoped `.home-header-nav a` (0,1,1) base rules above. */
+   wrapper-scoped `.home-header-nav a` (0,1,1) base rules above.
+
+   HO 690 — N2 TAB STRIP, ruled by Corey 2026-09-03 ("2. 6px", read as the N2
+   variant at a 6px side pad) off docs/design/mock-690-chrome.html § 02, against
+   "theirs a lot of dead space between the tabs" / "could we condence the dead
+   space more.. make it look more like tabs-esk". The shipped row spent its width
+   three ways and this replaces all three at once:
+
+     (1) EVERY item carried two transparent `.pnav-bracket` spans at
+         `padding-inline: 3px`, i.e. ~13px of reserved width on each side of every
+         label at 1440 (~15px at 2560 — the C2 ladder scales the glyph);
+     (2) a 14px `column-gap` on top of that, so label-to-label measured 40.22px at
+         1440 / 43.5px at 2560;
+     (3) the group divider sat in a 55.22px / 58.5px hole.
+
+   N2 keeps ONE knob, `--pnav-pad` (the ruled 6px), and buys the density back:
+   `column-gap: 0`, brackets deleted from the markup (HeaderBar.tsx), a 1px
+   `--border-soft` hairline between adjacent tabs, and the active state carried by
+   a `--bg-row-hover` FILL + the existing 2px amber underline. Label-to-label is
+   then 2*pad + the rule = 13px, and 21px across the group boundary
+   (6 + 4 + 1 + 4 + 6). `margin-inline: calc(-1 * var(--pnav-pad))` pulls the row
+   back so the FIRST LABEL'S TEXT — not its tab's padding box — sits flush with
+   the masthead text edge; before this, the first label was indented by exactly
+   one reserved bracket on both header mounts. Type is untouched
+   (var(--fs-14) mobile / var(--fs-12) desktop) and `.pnav-mine` is untouched.
+
+   The measurements above and their AFTER counterparts are read off the DOM by
+   scripts/diagnostic/nav-geometry-690.ts, never inferred from this file.
+
+   NOT CHOSEN, and why, so the roadmap block is not the only record: N1 (a tight
+   path keeping brackets on the active item only, absolutely positioned and
+   centred on the box edge at zero layout width) — the path idiom survives, but the
+   tab reading Corey asked for does not. N3 (boxed tabs on a baseline rule, active
+   cell opening onto the content with a 2px amber TOP edge) — its wrap cost is
+   drawn in the mock: at the 756px left region the first row's cells sit over the
+   second, so "opens onto the content" only means anything at 2560. */
+.primary-nav {
+  --pnav-pad: 6px;
+  /* Beats `.home-header-nav`'s `gap: var(--space-xs) 30px` above on source order
+     (both are (0,1,0)) — the pad is the only spacing knob now. row-gap 0 so
+     wrapped rows abut. */
+  column-gap: 0;
+  row-gap: 0;
+  margin-inline: calc(-1 * var(--pnav-pad));
+  border-bottom: 1px solid var(--border-soft);
+}
+/* TWO SUPPRESSIONS, because the strip's closing rule is only ever wanted when
+   nothing stronger already sits at that y. Both are cases where an ADJACENT
+   element carries its own rule, so the soft one would render as a doubled
+   hairline rather than as a close:
+     - inner pages: `.header-nav-row` carries the chrome's strong bottom edge
+       directly under the nav (HO 323);
+     - the dashboard at >=701px: the nav now sits directly on top of `.dv2-tapes`,
+       and `.markets-tape` carries `border-top: 1px var(--border-strong)`.
+   The dashboard suppression is breakpoint-scoped ON PURPOSE — the tapes are
+   `display: none` below 700px (HO 156), so at 430 there is nothing under the nav
+   and the strip keeps its own rule. */
+.header-nav-row .primary-nav {
+  border-bottom: none;
+}
+@media (min-width: 701px) {
+  .home-header > .primary-nav {
+    border-bottom: none;
+  }
+}
 .primary-nav .pnav-item {
   display: inline-flex;
   align-items: baseline;
   gap: 0;
-  padding: 10px 0;
+  /* One knob, applied identically at both breakpoints — the desktop block below
+     no longer overrides padding. Mobile vertical goes 10px → 8px with it, which
+     is the mock's N2 value and keeps the tab cells uniform. */
+  padding: 8px var(--pnav-pad);
   border-bottom: 2px solid transparent;
   color: var(--text-muted);
   text-decoration: none;
   white-space: nowrap;
   transition: color 120ms ease, border-color 120ms ease;
 }
+/* The tab rule. `+` and not `:not(:first-child)` on purpose: the group divider is
+   a real sibling between items 1 and 2, so the item after it is NOT adjacent to an
+   item and never draws a left rule — which is the same thing the explicit
+   `.pnav-divider + .pnav-item` reset below states, kept because a future markup
+   change could put a wrapper between them.
+
+   MEASURED RESIDUE, DO NOT "FIX" IT WITHOUT RE-RULING THE VARIANT: a WRAPPED
+   row's first tab is still an adjacent sibling in DOM order, so it draws this
+   rule with nothing to its left and its label sits 1px right of the row above
+   (25px vs 24px, `/` at 1440 — nav-geometry-690.ts). CSS cannot see a wrap
+   boundary. The two escapes both move the same pixel somewhere else rather than
+   removing it: a transparent 1px left border on EVERY item aligns the rows but
+   pushes the group-divider gap 21px → 22px, and moving the rule to a
+   `border-right` leaves a dangling rule at the end of each wrapped row, which is
+   more visible than 1px. This is the ruled N2 mechanism drawn verbatim
+   (docs/design/mock-690-chrome.html `.nav.n2 a + a`), so the residue is reported
+   rather than designed around. */
+.primary-nav .pnav-item + .pnav-item {
+  border-left: 1px solid var(--border-soft);
+}
 .primary-nav .pnav-item:hover {
   color: var(--text-primary);
+  background: var(--bg-row-hover);
 }
 .primary-nav .pnav-item[aria-current="page"] {
   color: var(--accent-amber-bright);
+  background: var(--bg-row-hover);
   border-bottom-color: var(--accent-amber);
 }
 /* HO 608 — the mock's `.nav a.mine`: WATCHLIST, the reader's own list, sits one
@@ -648,22 +737,27 @@ body {
   color: var(--text-dim);
   margin-right: 2px;
 }
-/* Brackets hold their space at rest (transparent) and light amber on the active
-   item, so switching the active item never shifts the row horizontally. */
-.primary-nav .pnav-bracket {
-  color: transparent;
-  padding-inline: 3px;
-}
-.primary-nav .pnav-item[aria-current="page"] .pnav-slash,
-.primary-nav .pnav-item[aria-current="page"] .pnav-bracket {
+/* HO 690 RETIRED `.pnav-bracket` — the transparent reserved-width brackets are
+   gone from the markup, not hidden, so the rule is excised rather than left
+   unreferenced (the HO 669 dead-branch / HO 673 `.v2f-sc-*` precedent). The
+   active item's amber `.pnav-slash` survives; the filled cell is the same
+   statement made denser. */
+.primary-nav .pnav-item[aria-current="page"] .pnav-slash {
   color: var(--accent-amber);
 }
+/* The group divider becomes the STRONGER rule of the two, so the boundary still
+   reads as a boundary against the hairlines between tabs: full-height
+   (align-self: stretch), 4px of air either side, and the tab after it drops its
+   own left rule so the strong rule is never doubled. */
 .primary-nav .pnav-divider {
   flex: 0 0 auto;
   width: 1px;
-  height: 16px;
   background: var(--border-strong);
-  align-self: center;
+  align-self: stretch;
+  margin: 0 4px;
+}
+.primary-nav .pnav-divider + .pnav-item {
+  border-left: none;
 }
 /* HO 281 — B1 + B3 header type scale, DESKTOP ONLY. The base rules above hold
    the HO 244 sizes (title 20 / readout + nav 14 / sync 11), which mobile keeps
@@ -688,14 +782,13 @@ body {
      nav grows on the wide screens where there is room for it. */
   .primary-nav .pnav-item {
     font-size: var(--fs-12);
-    padding: 7px 0;
   }
-  /* HO 608 — 14px between items (was 28). Same reason: eleven items, one row.
-     Inner pages keep their tighter titlebar gap (the nav shares that row with the
-     path + sync, where the extra gap would force a wrap). */
-  .home-header-nav {
-    column-gap: 14px;
-  }
+  /* HO 690 — the desktop `padding: 7px 0` and the HO 608 `.home-header-nav
+     { column-gap: 14px }` are BOTH gone. They were the two halves of the shipped
+     spacing mechanism (no side pad, a real gap between boxes); N2 inverts it (a
+     6px side pad, gap 0), so a surviving override here would have zeroed the pad
+     on desktop and reopened the 14px hole. The padding is now stated once, on the
+     base rule, and applies identically at both breakpoints. */
 }
 .home-main {
   flex: 1;
