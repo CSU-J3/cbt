@@ -46,7 +46,21 @@ import {
 } from "@/lib/pac-ie";
 
 const CURRENT = new Set(["active", "unknown"]);
-const isCurrent = (row: PacIeRow) => CURRENT.has(row.targetStatus);
+// HO 692 rider, from HO 691's deploy. THE MISSING VALUE IS TREATED AS `unknown`,
+// i.e. as CURRENT, and the `?? "unknown"` is the whole point of the line.
+//
+// The Data Cache survives deploys. HO 691 widened `PacIeRow` with `targetStatus`,
+// so for as long as a pre-691 entry lived in that cache it deserialized into the
+// new type with `targetStatus === undefined` — which a bare `CURRENT.has()`
+// rejects, making EVERY target read as past: the glance line absent on every
+// seat, the hub line entirely past-tense. HO 691 avoided it only by flushing the
+// `races` tag after the deploy, i.e. by remembering.
+//
+// So the reader defaults instead of the deployer remembering. A stale entry now
+// renders the pre-691 line — present tense, nothing hidden — which is the same
+// direction the `unknown` asymmetry already leans: a missing status may leave a
+// line out of date, never silently erased.
+const isCurrent = (row: PacIeRow) => CURRENT.has(row.targetStatus ?? "unknown");
 
 // Dedup by direction+surname+STATUS (a target can carry two candidate_ids across
 // FEC filings — e.g. redistricted seats, and NJ-11 carries two for Malinowski —
