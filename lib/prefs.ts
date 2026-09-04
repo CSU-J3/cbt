@@ -31,7 +31,7 @@
 // No React import, no `next/*` import: this file is imported by the root layout
 // (a server component) AND by client islands, so it must be safe in both.
 
-export type PrefName = "weekSummary";
+export type PrefName = "weekSummary" | "odds";
 
 export type PrefSpec = {
   /** localStorage key. Namespaced `cbt:pref:` so it is greppable and cannot
@@ -54,6 +54,22 @@ export const PREFS: Record<PrefName, PrefSpec> = {
     attr: "data-week-summary",
     values: ["open", "collapsed"] as const,
     default: "open",
+  },
+  // HO 692 — prediction markets on/off, app-wide. Ruled by Corey 2026-09-03:
+  // "yea that and everywhere else that those odds are being used, i.e. It needs
+  // to propagate throughout the application."
+  //
+  // Fifteen render sites across nine components, and NOT ONE of them is threaded
+  // a prop: every one is gated by CSS off `html[data-odds="off"]`. That is why
+  // this is a row in a table rather than an arc — no cookie, no `cookies()` read,
+  // no route going dynamic, no `router.refresh()`. `on` is the default, so the
+  // attribute is ABSENT for every reader who never touches the toggle and the
+  // page they get is byte-identical to the pre-692 one.
+  odds: {
+    key: "cbt:pref:odds",
+    attr: "data-odds",
+    values: ["on", "off"] as const,
+    default: "on",
   },
 };
 

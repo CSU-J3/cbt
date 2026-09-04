@@ -30,6 +30,7 @@ export async function MarketsTape({
   scroll = false,
   reverse = false,
   label,
+  className,
 }: {
   showMeta?: boolean;
   // HO 253: the v2 two-tape split. `symbols` is an explicit internal-symbol
@@ -54,6 +55,8 @@ export async function MarketsTape({
   reverse?: boolean;
   // HO 274: left-pinned strip label ("MARKETS" / "SIGNALS"), v2 two-tape only.
   label?: string;
+  /** HO 692 — passed through to the tape root; the ODDS strip gets `odds-only`. */
+  className?: string;
 }) {
   let ticks: Awaited<ReturnType<typeof getLatestMarketTicks>> = [];
   try {
@@ -82,6 +85,7 @@ export async function MarketsTape({
       scroll={scroll}
       reverse={reverse}
       label={label}
+      className={className}
     />
   );
 }

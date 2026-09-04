@@ -181,6 +181,11 @@ function RaceListRow({
         />
 
         <span
+          // HO 692 site 10 — NO `odds-only` class here: this is a direct child of
+          // the 8-track `.race-list-row` grid, and removing a grid item re-flows
+          // every following item one track earlier. Its own attribute rule uses
+          // `visibility: hidden` so the cell keeps its box. Measured at HO 692:
+          // `display:none` grew the row 40->64px and moved cash x 1304->1140.
           className="race-list-diverge"
           title={
             diverges ? "Kalshi market favors the opposite party from the raters" : ""
@@ -318,12 +323,16 @@ export function RaceListView({
           {likely} likely/solid
         </span>
         {diverge > 0 ? (
-          <>
+          // HO 692 site 11 — the separator goes inside the gate with the clause;
+          // left outside, odds-off would leave a dangling " · " at the end of the
+          // readout. Already self-hides at diverge === 0, but zero is not the
+          // case the class is for.
+          <span className="odds-only">
             {" · "}
             <span style={{ color: "var(--accent-amber)" }}>
               ◆ {diverge} market{diverge === 1 ? "" : "s"} disagree with raters
             </span>
-          </>
+          </span>
         ) : null}
       </div>
 

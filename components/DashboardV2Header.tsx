@@ -5,6 +5,7 @@ import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { OddsToggle } from "@/components/OddsToggle";
 import type { Stage } from "@/lib/enums";
 import type { CorpusStats } from "@/lib/queries";
 
@@ -138,6 +139,15 @@ export async function DashboardV2Header({
                 user={session?.user ? { name: session.user.name ?? null } : null}
               />
             </p>
+
+            {/* HO 692: ODDS ON/OFF, following LOGIN with a `·` like every other
+                masthead item (the HO 610 packing). It gates every prediction-market
+                render site in the app via `html[data-odds="off"]`; see the odds
+                block in globals.css. */}
+            <p className="home-header-meta">
+              ·{" "}
+              <OddsToggle />
+            </p>
           </div>
         </div>
       </div>
@@ -166,6 +176,12 @@ export async function DashboardV2Header({
           strip ODDS and made it prediction-markets-only (CPI/UNEMP moved up). */}
       <div className="dv2-tapes">
         <MarketsTape symbols={MARKETS_TAPE} kind="markets" scroll label="MARKETS" />
+        {/* HO 692 site 1 — the gate goes on the tape ROOT via `className`, NOT in
+            a wrapper <div>. A wrapper would sit between the two strips and break
+            `.dv2-tapes .markets-tape + .markets-tape { border-top: none }`, whose
+            adjacent-sibling combinator is the only thing stopping MARKETS and
+            ODDS drawing a double rule between them — a regression on the ON
+            path, i.e. on every reader who never touches the toggle. */}
         <MarketsTape
           symbols={ODDS_TAPE}
           pairs={ODDS_PAIRS}
@@ -173,6 +189,7 @@ export async function DashboardV2Header({
           scroll
           reverse
           label="ODDS"
+          className="odds-only"
         />
       </div>
     </header>

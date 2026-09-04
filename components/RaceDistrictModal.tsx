@@ -35,7 +35,17 @@ function buildReport(c: CartogramContest): string {
     L.push(`**Raters:** Cook ${s.cook ?? "—"} · Sabato ${s.sabato ?? "—"} · Inside Elections ${s.ie ?? "—"}`);
   if (c.chamber === "house" && c.margin2024 != null)
     L.push(`**2024 margin:** ${c.margin2024 > 0 ? "R" : "D"}+${Math.abs(c.margin2024).toFixed(1)}`);
-  if (c.kalshiOdds) L.push(`**Kalshi market:** ${c.kalshiOdds.favoriteLabel} ${c.kalshiOdds.impliedPct}%`);
+  // HO 692 site 13 — the ONLY site not gated by CSS, because this is a string
+  // being written to a file, not an element being painted. Read at CLICK time
+  // (never at render): the attribute is set pre-paint by lib/prefs.ts and this
+  // function runs inside an event handler, so reading it here is a genuine
+  // client-only read with no SSR counterpart to disagree with. A reader with the
+  // markets off gets an export that matches the screen they exported it from.
+  const oddsOff =
+    typeof document !== "undefined" &&
+    document.documentElement.dataset.odds === "off";
+  if (c.kalshiOdds && !oddsOff)
+    L.push(`**Kalshi market:** ${c.kalshiOdds.favoriteLabel} ${c.kalshiOdds.impliedPct}%`);
   if (c.incumbent) {
     L.push("", "## Incumbent", `- ${c.incumbent.name} [${c.party ?? "?"}]${c.isOpen ? " (retiring)" : ""}`);
     if (c.incumbentFirstElected) L.push(`- First elected: ${c.incumbentFirstElected}`);

@@ -364,7 +364,14 @@ export default async function WelcomePage() {
           </span>
         </div>
 
-        <div className={styles.taperow}>
+        {/* HO 692 site 2 — the global `odds-only` class rides ALONGSIDE the CSS
+            module class; the two live in different namespaces and do not collide.
+            /welcome carries no masthead and so no toggle of its own, but a reader
+            who set the preference elsewhere gets it honoured here too — "propagate
+            throughout the application" is literal. Unlike the dashboard tape this
+            row is NOT hidden below 700px (it is a module `taperow`, not
+            `.markets-tape`), so 430 is a real test of this site. */}
+        <div className={`${styles.taperow} odds-only`}>
           <span className={styles.tapelabel}>ODDS</span>
           <span className={styles.tapemask}>
             {oddsItems.length > 0 ? (

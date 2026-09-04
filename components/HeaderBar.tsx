@@ -7,6 +7,7 @@ import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { OddsToggle } from "@/components/OddsToggle";
 import { SearchBox } from "@/components/SearchBox";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
 import { type FeedFilters, getCorpusStats } from "@/lib/queries";
@@ -182,6 +183,12 @@ export async function HeaderBar({
         <span className="header-titlebar-auth">
           <span aria-hidden>·</span>{" "}
           <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+          {/* HO 692 — the same ODDS control the dashboard masthead carries.
+              Inner pages render market data too (the /electoral hero band, the
+              KALSHI lines, the bill panel's ODDS block), so the control has to
+              be reachable from them and not only from `/`. */}
+          <span aria-hidden>{" · "}</span>
+          <OddsToggle />
         </span>
       </div>
 

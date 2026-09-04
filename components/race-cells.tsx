@@ -65,7 +65,9 @@ export function KalshiLine({
   const color = party ? partyColor(party) : "var(--text-secondary)";
   return (
     <div
-      className="racecard-kalshi"
+      // HO 692 site 12 — one class, three consumers: RaceMapCard, RaceListView
+      // and RaceDistrictCard all render this line.
+      className="racecard-kalshi odds-only"
       title={`Kalshi market — ${odds.favoriteLabel} ${odds.impliedPct}% implied probability`}
     >
       <span className="racecard-kalshi-tag">KALSHI</span>

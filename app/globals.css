@@ -3055,6 +3055,85 @@ body {
    prose" and this is the only prose on the strip. The label above it stays mono
    because it is chrome. Sizes ride the --fs-* ladder (THE TYPE RULE, HO 604);
    no literal px in the 9-14 range. */
+/* ── HO 692 — ODDS ON / OFF, one reader preference, every market render site ──
+   Ruled by Corey 2026-09-03: "yea that and everywhere else that those odds are
+   being used, i.e. It needs to propagate throughout the application."
+
+   The gate is CSS off `html[data-odds="off"]` (lib/prefs.ts, the same pre-paint
+   mechanism HO 690 built). `on` is the default, so the attribute is ABSENT for
+   anyone who never touches the toggle and their page is byte-identical to the
+   pre-692 one. Specificity: (0,2,1) against the (0,1,0) single-class rules every
+   gated element carries, so it wins without !important. Verified at HO 692
+   STEP 0: no gated element has an inline `display`, and the only !important
+   display rules in this file (.show-desktop/.show-mobile) land on no gated site.
+
+   THE DATA IS STILL FETCHED WHEN HIDDEN — the same posture as the tape being
+   display:none below 700px. Do NOT later "optimise" the fetch away behind this
+   attribute: the attribute is client-side and per-reader, the fetch is shared
+   and cached, and skipping it would break the ON path's freshness for everyone.
+
+   ADDING A SITE: give it `odds-only` — UNLESS it is a direct child of a
+   fixed-track grid. Grid AUTO-PLACEMENT re-flows every following item one track
+   earlier when an item leaves the flow, so `display: none` on such a child
+   scrambles the row: measured at HO 692 on `.race-list-diverge`, the row grew
+   40->64px, the margin cell collapsed 152->14px and cash jumped x 1304->1140.
+   Such a site is hidden with `visibility: hidden` (it keeps its box), or with an
+   attribute rule that RE-SHAPES the grid — which is what `.races-hero-band`
+   below does, and why `display: none` is correct on its cells. */
+.odds-off-only {
+  display: none;
+}
+html[data-odds="off"] .odds-only {
+  display: none;
+}
+html[data-odds="off"] .odds-off-only {
+  display: inline;
+}
+/* Site 6 — the market-favoured edge accent. The colour moves to a custom
+   property so the attribute rule can blank it without touching the 2px border
+   itself; geometry is identical in both states, only the hue goes. */
+html[data-odds="off"] .rc-line--edge {
+  border-left-color: transparent;
+}
+/* Site 9 — re-shape, so the two hidden KALSHI cells do not leave SEATS IN PLAY
+   sitting in one third of the band. DESKTOP ONLY: the <=700px block already
+   collapses this band to a single column (measured stacked at 430). */
+html[data-odds="off"] .races-hero-band {
+  grid-template-columns: 1fr;
+}
+/* Site 10 — the grid-child case above. `.race-list-row` is an 8-track grid and
+   this cell is a direct child, so it keeps its box and loses only its ink. */
+html[data-odds="off"] .race-list-diverge {
+  visibility: hidden;
+}
+/* The control itself. Sits in the masthead meta row beside LOGIN, so it takes
+   that row's type rather than declaring its own; `font: inherit` is required
+   because a <button> does not inherit font by default. The state word is one
+   tier brighter than the label so ON/OFF reads at a glance without colour. */
+.odds-toggle {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.odds-toggle:hover,
+.odds-toggle:focus-visible {
+  color: var(--accent-amber-bright);
+}
+.odds-toggle-state {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.odds-toggle:hover .odds-toggle-state,
+.odds-toggle:focus-visible .odds-toggle-state {
+  color: var(--accent-amber-bright);
+}
+
+
 .week-sentences {
   border-top: 0.5px solid var(--border-strong);
   background-color: var(--bg-panel);
@@ -3962,8 +4041,12 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 }
 /* The favored line's 2px party-colored edge, pulled into the card padding so the
    line content stays aligned with the non-edge line (−9 margin + 9 padding). */
+/* HO 692 — the colour comes from `--rc-edge` (set inline by RaceCard on whichever
+   line the MARKET favours) so `html[data-odds="off"]` can blank it without
+   touching the 2px box. The fallback keeps a card that sets no property looking
+   exactly as it did before. */
 .rc-line--edge {
-  border-left: 2px solid var(--border-strong);
+  border-left: 2px solid var(--rc-edge, var(--border-strong));
   margin-left: -9px;
   padding-left: 9px;
 }

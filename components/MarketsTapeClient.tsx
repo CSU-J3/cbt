@@ -577,6 +577,7 @@ export function MarketsTapeClient({
   scroll = false,
   reverse = false,
   label,
+  className,
 }: {
   // HO 590: the server's Date.now() at SSR, prop-drilled so the initial `now` state
   // is identical on the server render and the first client (hydration) render. No
@@ -614,6 +615,15 @@ export function MarketsTapeClient({
   // right-pinned AS OF meta. Only v2's two marquee tapes pass it; `/` + inner
   // pages omit it (no label, unchanged static row).
   label?: string;
+  /** HO 692 — extra classes for the tape ROOT (the odds gate passes `odds-only`).
+   *  ON THE ROOT RATHER THAN IN A WRAPPER <div> on purpose: a wrapper would sit
+   *  between the two stacked strips and break
+   *  `.dv2-tapes .markets-tape + .markets-tape { border-top: none }`, whose
+   *  adjacent-sibling combinator is the only thing stopping them drawing a
+   *  double rule between MARKETS and ODDS. Merged into all THREE root branches
+   *  (no-data / scroll / static) — a gate that only reaches the branch you
+   *  happened to be looking at is the variant-branch trap. */
+  className?: string;
 }) {
   // Live tick values. Seeded from the server-rendered prop; the poll updates it
   // in place. Re-synced if the server re-renders with newer ticks.
@@ -864,7 +874,10 @@ export function MarketsTapeClient({
   // No-data branch — empty fetch or all rows had unparseable tickedAt.
   if (currentTicks.length === 0 || latestTickedAt === null) {
     return (
-      <div className="markets-tape markets-tape--no-data" aria-label="Markets">
+      <div
+        className={`markets-tape markets-tape--no-data${className ? ` ${className}` : ""}`}
+        aria-label="Markets"
+      >
         {labelNode}
         <div className="markets-tape-row markets-tape-row--placeholder">
           {(placeholderSymbols ?? ["SPX", "NDQ", "TNX", "CPI", "WTI"]).map(
@@ -989,7 +1002,7 @@ export function MarketsTapeClient({
         ref={containerRef}
         className={`markets-tape markets-tape--scroll${
           stripStale ? " markets-tape--stale" : ""
-        }${closed ? " markets-tape--closed" : ""}`}
+        }${closed ? " markets-tape--closed" : ""}${className ? ` ${className}` : ""}`}
         aria-label="Markets"
       >
         {labelNode}
@@ -1026,7 +1039,7 @@ export function MarketsTapeClient({
       ref={containerRef}
       className={`markets-tape markets-tape--static${
         stripStale ? " markets-tape--stale" : ""
-      }${closed ? " markets-tape--closed" : ""}`}
+      }${closed ? " markets-tape--closed" : ""}${className ? ` ${className}` : ""}`}
       aria-label="Markets"
     >
       {labelNode}

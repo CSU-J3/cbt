@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Fragment, type ReactNode } from "react";
+import { type CSSProperties, Fragment, type ReactNode } from "react";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceMovedIndicator } from "@/components/RaceMovedIndicator";
 import {
@@ -22,7 +22,13 @@ import {
   resolveKalshiFavoriteParty,
   type RosterEntry,
 } from "@/lib/race-colors";
-import { deriveMatchup, displaySurname, marketFavorite } from "@/lib/race-matchup";
+import {
+  type ChallengerShape,
+  deriveMatchup,
+  displaySurname,
+  marketFavorite,
+  noLeadShape,
+} from "@/lib/race-matchup";
 import {
   axisPos,
   divergenceChip,
@@ -93,8 +99,11 @@ function KpLine({
     !!polyFav &&
     kalshiFav.name.trim().toLowerCase() === polyFav.name.trim().toLowerCase();
 
+  // HO 692 site 3 — the whole K/P line. Hiding it makes the PAC glance line the
+  // card footer; measured at 1440 the card goes 265->235px and the grid
+  // 1617->1437, no other geometry moving.
   return (
-    <div className="rc-kpline">
+    <div className="rc-kpline odds-only">
       <span className="rc-kp">
         <SourceTag source="kalshi" />
         {kalshiFav ? (
@@ -130,6 +139,29 @@ function KpLine({
         )}
       </span>
     </div>
+  );
+}
+
+// HO 692 — the no-lead line, extracted so the real `nolead` branch and the
+// odds-off fallback on a `leader` card render through ONE function. The label
+// rule (surnames dot-joined, degrading to "{N} candidates" past 24 chars) exists
+// once; the harness asserts the two callers produce identical markup, which only
+// means anything because they share this.
+function noLeadInner(
+  shape: Extract<ChallengerShape, { kind: "nolead" }>,
+  sn: (n: string) => string,
+  dot: (p: PartyKey | null) => ReactNode,
+): ReactNode {
+  const joined = shape.fullNames.map(sn).join(" · ");
+  const label = joined.length > 24 ? `${shape.count} candidates` : joined;
+  return (
+    <>
+      {dot(shape.party)}
+      <span className="rc-nm">{label}</span>
+      <span className="rc-line-meta">
+        {partyLetter(shape.party)} · primary ({shape.count})
+      </span>
+    </>
   );
 }
 
@@ -177,7 +209,7 @@ export function RaceCard({
   // HO 305: incumbent-vs-challenger matchup. Active roster + market favorite →
   // the challenger line shape + which line carries the edge accent.
   const matchup = deriveMatchup(row, candidates);
-  const { challenger, favoredIsIncumbent, favorite } = matchup;
+  const { active, challenger, favoredIsIncumbent, favorite } = matchup;
   const edgeColor = favorite ? partyColor(favorite.party) : null;
   const sn = (name: string) => displaySurname(name, ambiguous);
 
@@ -247,6 +279,11 @@ export function RaceCard({
   const dot = (party: PartyKey | null) => (
     <span className="rc-dot8" style={{ background: partyColor(party) }} />
   );
+  // Binds this card's surname-disambiguator and dot renderer, so both callers
+  // (the real `nolead` branch and the `leader` card's odds-off fallback) go
+  // through one function with one set of inputs.
+  const noLead = (shape: Extract<ChallengerShape, { kind: "nolead" }>) =>
+    noLeadInner(shape, sn, dot);
   let challengerInner: ReactNode;
   if (challenger.kind === "empty") {
     challengerInner = (
@@ -316,34 +353,42 @@ export function RaceCard({
       challenger.others.length === 1
         ? sn(challenger.others[0]!)
         : `${challenger.others.length} others`;
+    // HO 692 site 7 — THE ONE PLACE CSS CANNOT REACH, because the text itself is
+    // a market claim: "X leads · Y" says the market favours X. So the line is
+    // DUAL-RENDERED — the market reading behind `odds-only`, and behind
+    // `odds-off-only` the same active set rendered as `nolead`, which is exactly
+    // what this card would have shown had no market existed.
+    //
+    // The fallback is built by `noLeadShape` — the SAME function deriveMatchup
+    // uses for a real no-lead card — and rendered by the same `noLead()` below.
+    // A hand-copied fallback would be a second implementation of the label rule
+    // (including its ">24 chars → N candidates" degrade) with nothing keeping
+    // the two in step.
+    //
+    // After HO 691 this branch fires only for a genuinely contested field, so the
+    // fallback is rarely on screen; at HO 692 it was on screen NOWHERE (all six
+    // featured cards were general/nominee/nolead, `.rc-dagger` count 0), which is
+    // why the harness renders it rather than a capture proving it.
     challengerInner = (
       <>
-        {dot(challenger.party)}
-        <span className="rc-nm">
-          {challenger.fullName}
-          <span className="rc-dagger">†</span>
+        <span className="odds-only">
+          {dot(challenger.party)}
+          <span className="rc-nm">
+            {challenger.fullName}
+            <span className="rc-dagger">†</span>
+          </span>
+          <span className="rc-line-meta">
+            <span className="rc-meta-lead">
+              {partyLetter(challenger.party)} · leads
+            </span>{" "}
+            · {other}
+          </span>
         </span>
-        <span className="rc-line-meta">
-          <span className="rc-meta-lead">
-            {partyLetter(challenger.party)} · leads
-          </span>{" "}
-          · {other}
-        </span>
+        <span className="odds-off-only">{noLead(noLeadShape(active))}</span>
       </>
     );
   } else {
-    // no-lead: surnames dot-joined, degrading to "{N} candidates" when long.
-    const joined = challenger.fullNames.map(sn).join(" · ");
-    const label = joined.length > 24 ? `${challenger.count} candidates` : joined;
-    challengerInner = (
-      <>
-        {dot(challenger.party)}
-        <span className="rc-nm">{label}</span>
-        <span className="rc-line-meta">
-          {partyLetter(challenger.party)} · primary ({challenger.count})
-        </span>
-      </>
-    );
+    challengerInner = noLead(challenger);
   }
   const challengerEdge = !favoredIsIncumbent && favorite != null;
 
@@ -376,9 +421,14 @@ export function RaceCard({
             INCUMBENT badge is gone — HO 305 supersedes the HO 304 swap). */}
         <div
           className={`rc-line${favoredIsIncumbent ? " rc-line--edge" : ""}`}
+          // HO 692 site 6 — the accent COLOUR moves to a custom property so the
+          // attribute rule can blank it. It cannot be an `odds-only` class: the
+          // border is 2px of real geometry pulled into the card padding
+          // (margin-left:-9px + padding-left:9px), so hiding the element would
+          // move the line. Only the hue is market-derived; the box is not.
           style={
             favoredIsIncumbent && edgeColor
-              ? { borderLeftColor: edgeColor }
+              ? ({ "--rc-edge": edgeColor } as CSSProperties)
               : undefined
           }
         >
@@ -406,9 +456,10 @@ export function RaceCard({
             edge accent (exactly one per card). */}
         <div
           className={`rc-line${challengerEdge ? " rc-line--edge" : ""}`}
+          // HO 692 site 6 — see the incumbent line above.
           style={
             challengerEdge && edgeColor
-              ? { borderLeftColor: edgeColor }
+              ? ({ "--rc-edge": edgeColor } as CSSProperties)
               : undefined
           }
         >
@@ -440,7 +491,7 @@ export function RaceCard({
           ))}
           {kalshiDot?.rPos != null ? (
             <span
-              className="sb-mkt sb-mkt-kals"
+              className="sb-mkt sb-mkt-kals odds-only"
               style={{ left: `${kalshiDot.rPos}%` }}
               title="Kalshi market"
             >
@@ -449,7 +500,7 @@ export function RaceCard({
           ) : null}
           {polyDot?.rPos != null ? (
             <span
-              className="sb-mkt sb-mkt-poly"
+              className="sb-mkt sb-mkt-poly odds-only"
               style={{ left: `${polyDot.rPos}%` }}
               title="Polymarket market"
             >
@@ -468,12 +519,15 @@ export function RaceCard({
           </span>
         ))}
         {diverge ? (
-          <>
+          // HO 692 site 5 — the <br /> is INSIDE the gate with the chip. Left
+          // outside, odds-off would leave a bare line break hanging under the
+          // rater pills and pad the card by a line for nothing.
+          <span className="odds-only">
             <br />
             <span className="rc-diverge">
               {diverge.glyph} {diverge.text}
             </span>
-          </>
+          </span>
         ) : null}
       </div>
 

@@ -166,12 +166,35 @@ export type ChallengerShape =
 export type Matchup = {
   // incumbent + active challengers, for the market strip's favorite resolution.
   roster: RosterMember[];
+  // HO 692: the active challengers themselves, so a consumer can rebuild a
+  // market-free shape for the same set (the odds-off fallback on a `leader`
+  // card) without re-deriving the filter and risking a different answer.
+  active: RaceCandidate[];
   favorite: RosterMember | null;
   favoredIsIncumbent: boolean;
   challenger: ChallengerShape;
   // The presumptive party when the shape is "leader" — feeds the page footnote.
   presumptiveParty: PartyKey | null;
 };
+
+// HO 692 — the `nolead` shape, extracted so it has ONE producer. `deriveMatchup`
+// uses it for the real no-lead case, and RaceCard uses it to build the odds-off
+// fallback for a `leader` card: with the markets hidden there is no favourite,
+// so the honest rendering of that same active set is exactly what the card would
+// have shown had no market existed. Extracted rather than duplicated because a
+// hand-copied fallback is a second implementation that drifts silently — and the
+// falsification harness asserts the two produce identical markup, which is only
+// a real assertion if they share this function.
+export function noLeadShape(
+  active: RaceCandidate[],
+): Extract<ChallengerShape, { kind: "nolead" }> {
+  return {
+    kind: "nolead",
+    fullNames: active.map((c) => c.name),
+    party: commonParty(active),
+    count: active.length,
+  };
+}
 
 function commonParty(cands: RaceCandidate[]): PartyKey | null {
   const set = new Set(cands.map((c) => c.party));
@@ -251,17 +274,12 @@ export function deriveMatchup(
         };
         presumptiveParty = favActive.party;
       } else {
-        challenger = {
-          kind: "nolead",
-          fullNames: active.map((c) => c.name),
-          party: commonParty(active),
-          count: active.length,
-        };
+        challenger = noLeadShape(active);
       }
     }
   }
 
-  return { roster, favorite, favoredIsIncumbent, challenger, presumptiveParty };
+  return { roster, active, favorite, favoredIsIncumbent, challenger, presumptiveParty };
 }
 
 // Page-level surname disambiguation: a surname shared by ≥2 DISTINCT people

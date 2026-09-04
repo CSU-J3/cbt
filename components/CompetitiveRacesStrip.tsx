@@ -108,7 +108,11 @@ export function CompetitiveRacesStrip({
         })}
       </div>
       {presumptive.length > 0 ? (
-        <p className="race-grid-foot">
+        // HO 692 site 8 — the dagger footnote annotates a MARKET claim (the
+        // `leader` shape's "presumptive"), so it goes with the markets. Absent on
+        // prod since HO 691 gave decided seats the `general` shape, but the branch
+        // is live and fires the moment a contested seat is featured.
+        <p className="race-grid-foot odds-only">
           † presumptive —{" "}
           {presumptive.map(partyAdjective).join(" and ")} primar
           {presumptive.length > 1 ? "ies" : "y"} unresolved

@@ -49,7 +49,11 @@ export function RacesHeroBand({
 }) {
   return (
     <div className="races-hero-band">
-      <div className="races-hero-cell">
+      {/* HO 692 site 9 — a KALSHI control cell. `display:none` is safe here ONLY
+        because the attribute rule also re-shapes the band to a single column;
+        these are direct grid children, and without the re-shape SEATS IN PLAY
+        would sit in one third of the band with two empty tracks beside it. */}
+    <div className="races-hero-cell odds-only">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">HOUSE CONTROL</span>
@@ -58,7 +62,11 @@ export function RacesHeroBand({
         <ControlValue odds={control?.house ?? null} />
       </div>
 
-      <div className="races-hero-cell">
+      {/* HO 692 site 9 — a KALSHI control cell. `display:none` is safe here ONLY
+        because the attribute rule also re-shapes the band to a single column;
+        these are direct grid children, and without the re-shape SEATS IN PLAY
+        would sit in one third of the band with two empty tracks beside it. */}
+    <div className="races-hero-cell odds-only">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">SENATE CONTROL</span>
