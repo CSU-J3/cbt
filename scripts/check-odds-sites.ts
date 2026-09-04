@@ -29,11 +29,13 @@
 //   gate whose failures are mostly about wording is a gate people learn to
 //   silence.
 //
-// The stripper is `://`-aware so a URL containing a venue name is not mistaken
-// for a line comment and the rest of its line discarded — that would be a false
-// NEGATIVE in a safety gate, which is the one error class worth paying to avoid.
-// Measured at HO 693: no `.tsx` in the tree currently carries such a URL, so
-// this costs nothing today and stays correct when one appears.
+// The stripper treats `//` as a comment ONLY at line start or after whitespace,
+// so a url or path inside a string cannot be mistaken for one and have the rest
+// of its line discarded — that would be a false NEGATIVE in a safety gate, the
+// one error class worth paying to avoid because it reads as a pass. See the
+// note on `stripComments` for the two forms that shipped broken and were caught
+// in review. No `.tsx` in the tree carries such a string today, so this costs
+// nothing now and stays correct when one appears.
 //
 //   npm run check:odds-sites
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -57,12 +59,24 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Remove block and line comments. A `//` preceded by `:` is a URL scheme, not
- *  a comment — losing the rest of that line could hide a real match. */
+/** Remove block and line comments.
+ *
+ *  A `//` counts as a line comment ONLY at the start of a line or after
+ *  WHITESPACE. That is the whole rule, and it is deliberately stricter than
+ *  "not preceded by a colon", which is what this first shipped as: `[^:]`
+ *  protects `https://…` but nothing else, so it discarded the rest of the line
+ *  for a PROTOCOL-RELATIVE url (`src="//cdn.example.com/kalshi.png"`) and for
+ *  any path-ish string (`"a//kalshi"`) — in both cases silently swallowing a
+ *  genuine code reference. That is a false NEGATIVE in a safety gate: the one
+ *  error class here worth paying to avoid, because it reads as a pass.
+ *
+ *  Measured at HO 693 on both forms — `[^:]` said "no market reference", `(^|\s)`
+ *  says there is one, and both still strip a genuine `// comment` and a trailing
+ *  `x = 1; // comment`. The third falsification leg pins exactly this. */
 function stripComments(src: string): string {
   return src
     .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    .replace(/(^|\s)\/\/.*$/gm, "$1");
 }
 
 function main() {
