@@ -3632,3 +3632,35 @@ deleted five lines: all five were markdown bullets, which unified diff renders a
 `-- **text**`, and `^-[^-]` excludes them by construction. Already recorded as its
 own rule; noted here because it fired again on the very commit documenting a
 class of silent-zero readings.
+## A rule "scoped by measurement" is scoped to the WIDTH the measurement was taken at (HO 694, 2026-09-04)
+
+`/news` and `/lobbying` both scrolled the document horizontally at a 430
+viewport — 527/430 and 521/430 — because their `.mc-pane` keeps a 312px rail
+there and leaves an **84px** content column. Neither was carelessness. HO 615
+added the pane-stacking rule, scoped it to `.mb-pane` and `.bl-pane`, wrote
+**"SCOPED BY MEASUREMENT, not by class presence"** above it, and recorded the
+measurement in the same comment: `/lobbying 720 (clear)`, `/news 720 (clear)`.
+**Both readings are correct.** They were taken at 720, the width that rule's
+breakpoint sits at, and they say nothing about 430.
+
+The general form, and it is not about CSS: **a measurement scopes a rule only
+over the parameter values it was taken at, and a comment that records the
+measurement without recording the parameter reads as a statement about the
+rule.** "Clear" is a verdict; "clear at 720" is the evidence. HO 615 wrote the
+second and the next reader — including this one, at first — read the first.
+
+Two consequences worth carrying separately. **The scoping decision was right on
+its own evidence and still produced the defect**, so this is not an argument for
+wider scoping: it is an argument for stating the parameter, so the next person
+knows which question was actually asked. And **nothing could have caught it**:
+every standing width instrument in the repo was wide-viewport-only
+(`fit-finish` 1440/2560, the layout audit's M0 2560, the overflow alarm 1280),
+so the 430 column of the table was empty rather than green. An empty column and
+a green one are indistinguishable in a summary — the same-as-success shape, one
+axis over from where that rule is usually applied.
+
+Sibling, one layer up: the `.bxp` container threshold, stale from HO 629 to
+HO 694 because HO 623 wrote down the rule that would have caught it
+(*"the threshold moves with the column it was tuned against"*) in a CSS comment
+and nowhere a doc sweep would look. A warning is only as good as the place it
+is kept.
