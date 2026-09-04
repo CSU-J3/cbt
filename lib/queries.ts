@@ -2175,16 +2175,34 @@ export const getPacIeSpending = unstable_cache(
     // shape backfill:race-challengers uses — because primaries.race_id is a dead
     // link (3 of 907 populated, HO 233). Districts: primaries.district is a
     // zero-padded TEXT ("07"), races.district an INTEGER, so CAST is required.
+    //
+    // THE CTE + CROSS JOINs ARE LOAD-BEARING, NOT STYLE. Written as a plain
+    // 3-way JOIN the statless planner drives from `primary_candidates` — a SCAN
+    // of every candidate row in the corpus, then two index seeks per row — and
+    // ignores the 11-row `IN` list that is the only selective predicate in the
+    // statement. CROSS JOIN is SQLite's documented way to pin join order, so the
+    // seat set drives and the rest is seeks. Measured 2026-09-04 at 2,536
+    // `primary_candidates` / 876 `primaries` rows, 11 seats, from the laptop
+    // (so each figure carries an unquantified network component, and the
+    // pre-existing pac_ie_spending read's own 29ms warm median is roughly the
+    // floor that component sets):
+    //   plain JOIN   cold 387ms · warm median 277ms · warm WORST 326ms
+    //   this shape   cold  60ms · warm median  30ms · warm WORST  33ms
+    // Adding `AND p.state IN (…)` was also tried and only halved it (151ms
+    // worst) — it gives the planner a better filter, not a better drive order.
+    // If this is ever "simplified" back to a flat JOIN, that 8x returns.
     const contestRs = await db.execute({
-      sql: `SELECT r.id AS race_id, p.id AS primary_id, p.primary_date,
+      sql: `WITH seat AS (
+              SELECT id, state, chamber, district FROM races WHERE id IN (${marks})
+            )
+            SELECT r.id AS race_id, p.id AS primary_id, p.primary_date,
                    p.runoff_date, p.election_round, pc.name, pc.status, pc.vote_pct
-            FROM races r
-            JOIN primaries p
+            FROM seat r
+            CROSS JOIN primaries p
               ON p.state = r.state AND p.chamber = r.chamber
              AND ((p.district IS NULL AND r.district IS NULL)
                   OR CAST(p.district AS INTEGER) = r.district)
-            JOIN primary_candidates pc ON pc.primary_id = p.id
-            WHERE r.id IN (${marks})`,
+            CROSS JOIN primary_candidates pc ON pc.primary_id = p.id`,
       args: seatIds,
     });
     const rosterRs = await db.execute({

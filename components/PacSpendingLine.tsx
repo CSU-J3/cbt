@@ -148,9 +148,20 @@ export function PacSpendingLine({
             : row.supportOppose === "S"
               ? "backing"
               : "opposing";
+          // A past item ends in a "— lost primary" clause, so a bare space after
+          // it runs two items together ("— lost primary opposed Collins"). The
+          // stronger `·` is emitted ONLY across a boundary involving a past item;
+          // an all-current line keeps the original space separator, because the
+          // ambiguity this fixes did not exist there. That is also what makes the
+          // unchanged-seat controls a real measurement rather than an arranged
+          // one — their markup was never in scope to change.
+          const prev = items[i - 1];
+          const strongSep = i > 0 && (done || (prev && !isCurrent(prev.row)));
           return (
             <span key={`${row.candidateId}:${row.supportOppose}:${row.targetStatus}`}>
-              {i > 0 ? <span className="rc-pac-sep"> </span> : null}
+              {i > 0 ? (
+                <span className="rc-pac-sep">{strongSep ? " · " : " "}</span>
+              ) : null}
               <a
                 // The FEC deep link STAYS on the past-tense item. The dollars
                 // were really spent and the reader can still go look at them —
@@ -171,9 +182,11 @@ export function PacSpendingLine({
                 <span className="rc-pac-arrow"> ↗</span>
               </a>
               {done ? (
+                // Em-dash, not `·`, because `·` is now the item separator — two
+                // different roles must not share one glyph on the same line.
                 <span className="rc-pac-outcome">
                   {" "}
-                  · {outcomeLabel(row.targetStatus)}
+                  — {outcomeLabel(row.targetStatus)}
                 </span>
               ) : null}
             </span>
