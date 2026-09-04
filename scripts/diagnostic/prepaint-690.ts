@@ -17,13 +17,15 @@
 // preference still stored. A detector that has never produced its own failure is
 // unproven, not protection (docs/method.md § Gates).
 //
-// THREE LEGS:
+// FOUR LEGS:
 //   A  collapsed  key set, page as served       -> attr "collapsed", text hidden
 //   B  default    no key, page as served        -> attr null,        text visible
 //   C  control    key set, boot script STRIPPED -> attr null,        text visible
+//   D  order      boot script's bytes precede <body> in the served document
 //
 // A and C differ in exactly one byte-range of the served document, so C is the
-// pre-paint script's own falsification and not a different experiment.
+// pre-paint script's own falsification and not a different experiment. D exists
+// because A/B/C land at whichever readyState the evaluate wins — see its comment.
 //
 // The cache is disabled over CDP for every leg, so no leg can be served a frame
 // the browser had already painted once.
@@ -128,15 +130,42 @@ async function run(browser: Browser, leg: Leg) {
   return pass;
 }
 
+// LEG D — the ORDER, read out of the served bytes.
+//
+// A, B and C are taken at `domcontentloaded`, and which readyState the evaluate
+// actually lands on varies run to run (observed both `interactive` and
+// `complete`) — so on its own that trio shows the attribute is applied without
+// anything from the bundle, not that it is applied before the body exists. This
+// leg closes that gap without adding a timing race: the boot script is
+// synchronous and parser-blocking, so if its bytes precede `<body` in the served
+// document then it has run before the body element exists, and therefore before
+// anything in the body can paint. Byte offsets, printed, not asserted from the
+// source.
+async function legD(): Promise<boolean> {
+  const html = await (await fetch(`${BASE}/`, { headers: { cookie: "ct_seen=1" } })).text();
+  const boot = html.indexOf("(function(){try{var P=");
+  const head = html.indexOf("<head");
+  const body = html.indexOf("<body");
+  const ok = boot > -1 && head > -1 && body > -1 && boot > head && boot < body;
+  console.log(
+    `  ${ok ? "PASS" : "FAIL"}  D-order  <head>@${head} · boot script@${boot} · <body>@${body}` +
+      ` -> boot ${boot < body ? "PRECEDES" : "FOLLOWS"} <body>`,
+  );
+  if (boot === -1) console.log("      boot script not found in the served document at all");
+  return ok;
+}
+
 async function main() {
   mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
   let ok = true;
   for (const leg of LEGS) ok = (await run(browser, leg)) && ok;
+  console.log("\nD — the order, read out of the served bytes.");
+  ok = (await legD()) && ok;
   await browser.close();
   console.log(
     ok
-      ? "\nAll three legs as expected. Leg C is the falsification: with the boot script\nstripped and the preference still stored, the same instrument reads the text\nVISIBLE in the first frame — which is what it would read if the script were\nnever wired at all."
+      ? "\nAll four legs as expected. Leg C is the falsification: with the boot script\nstripped and the preference still stored, the same instrument reads the text\nVISIBLE in the first frame — which is what it would read if the script were\nnever wired at all. Leg D is what makes it a claim about the FIRST FRAME rather\nthan about the settled DOM: the script's bytes precede <body>, and it is\nsynchronous, so it ran before the body element existed."
       : "\nAt least one leg did not read as expected — see above.",
   );
   if (!ok) process.exit(1);
