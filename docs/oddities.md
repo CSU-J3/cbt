@@ -3664,3 +3664,39 @@ HO 694 because HO 623 wrote down the rule that would have caught it
 (*"the threshold moves with the column it was tuned against"*) in a CSS comment
 and nowhere a doc sweep would look. A warning is only as good as the place it
 is kept.
+## An assertion in a comment is covered by no instrument (HO 694, 2026-09-04)
+
+The `/members` two-row rule shipped with a paragraph explaining that the column
+header needed no rule of its own — *"its fifth child falls under the name and
+its second is the `BILLS · TOPIC MIX` label, which is what row 2 holds"*,
+therefore *"the header reads correctly stacked"*. Every clause is a plausible
+reading of the grid algorithm and the conclusion was wrong. The rule pinned
+`.mc-mem` and `.mc-bar-track`, class names only the DATA row carries, so nothing
+in the header was placed and all five children auto-flowed one cell early:
+numeral right-edges **header `[339, 399, 203]` against row `[267, 339, 399]`**,
+every label over the wrong column and `BILLS` orphaned on row 2.
+
+**What makes it an oddity rather than a bug is where it sat.** The same change
+measured the roster arithmetic off the computed template rather than the source,
+measured the polarization head in both states to prove one rule sufficed,
+measured `metaboxMin` by cloning the info column at `max-content`, and
+binary-searched the container crossover to 1959/1961. One paragraph reasoned
+about a layout instead of reading it, and that paragraph was the only wrong
+thing in the change.
+
+**No instrument covers it, and that is structural rather than bad luck.** The
+new 430 gate cannot see it — a misaligned header does not overflow, and doc
+scroll read 430/430 throughout. The HO 692 ON baseline cannot — `/members` at
+430 is not in its cell set, and it read 552/0 either side. A capture could have,
+and the capture taken at the time framed the roster body without the header.
+So the check that would have caught it is the one the comment replaced: reading
+the computed `grid-column` / `grid-row` of the header's children, which is four
+lines of `getComputedStyle` and was never run because the paragraph felt
+conclusive.
+
+The rule this sharpens is already here in another form — *a number in a comment
+that justifies a design decision carries its provenance* (SKILL). This is the
+same failure with no number in it: **a comment that explains why something needs
+no rule is making a claim about rendered output, and rendered output is measured,
+never argued.** If a comment says "X therefore needs no rule", the next line of
+work is measuring X, not writing the sentence.
