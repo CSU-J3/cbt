@@ -3551,3 +3551,84 @@ from its subject in the one dimension being tested and in no other.
 Instrument: `scripts/diagnostic/pref-hydration-690.ts` (local-only, dev-build
 only). Reading at HO 690: four A/B legs silent, leg C `FIRE (HTML, via
 pageerror)`.
+
+## A status column that never learned to say "lost" — and a false sentence that rendered for a month with every gate green (HO 691, Sep 2026)
+
+Two halves of one story. The first is a **content defect no instrument in this
+repo can see**; the second is why the obvious fix for it was a no-op.
+
+**The defect.** Michigan voted on 2026-08-04. From then until 2026-09-04, `/`
+rendered the S-MI-2026 card as `Abdul El-Sayed† D · leads · Rogers` over
+`AIPAC super PAC · backing Stevens`, beneath a page footnote reading
+`† presumptive — Democratic primary unresolved`. El-Sayed had *won* that primary
+48.5–47.5 and Rogers was unopposed. Every element was individually true of the
+primary and every one was false as a claim about the general; the footnote was
+false outright.
+
+**Nothing was broken, which is the point.** The page rendered, `tsc` passed, the
+build passed, the prod crawl passed, the overflow alarm stayed quiet, and no
+`cron_runs` row went yellow. A defect in what a sentence MEANS has no failing
+signal to emit — the shapes were all reachable and the data was all fresh. The
+class is *content*, and the repo's whole instrument fleet measures structure,
+timing and presence. **The only detector for this class is a person reading the
+screen** and noticing that the words describe a world that has moved on. File
+such findings as content defects explicitly, so the next reader does not go
+looking for the instrument that should have caught it.
+
+**And the shape that produced it was an ABSENT case, not a wrong branch.**
+`deriveMatchup` had five shapes and none of them meant "both parties have their
+candidate." With two `won_primary` challengers, `won.length === 2 ≠ 1` fell past
+the single-nominee test into `leader`, the market favourite became the "leader",
+and the dagger and footnote followed mechanically. A missing enum case does not
+announce itself; it silently routes to whichever neighbour is least wrong, and
+the neighbour still renders confidently.
+
+**The other half: the fix as specified matched zero rows.** The obvious repair is
+"stop rendering targets who lost," and `primary_candidates.status` looks like the
+place to read that from. It is not. Measured corpus-wide at HO 691:
+
+    running  1732
+    winner    804
+
+There is no `loser`, and `scripts/migrate.ts` says so plainly
+(`status TEXT DEFAULT 'running'  -- 'running' | 'winner'`).
+`backfill:primary-results` marks advancers `winner` and leaves everybody else
+`running`, so **a candidate who lost a primary is a `running` row carrying a
+`vote_pct`**. A classifier looking for `loser` finds nothing, classifies every
+stale target `unknown`, and — because `unknown` must render as today for safety
+reasons of its own — ships green while changing nothing on screen. It would have
+passed a code review, a typecheck, a build and a crawl, and the false sentence
+would still be there.
+
+**So the rule: where a status vocabulary lacks the state you need, DERIVE it from
+evidence that exists, and prefer a derivation that can only fire on positive
+evidence.** LOST here is *"the contest is past-dated, results are posted, and the
+target is in it and is not its winner."* That is self-limiting by construction —
+it cannot fire on a contest nobody has counted — which is what lets the unknown
+case stay safe rather than becoming a silent eraser.
+
+**Two traps inside the derivation, both live.**
+
+- **A derived-from column is not independent evidence of the thing it was derived
+  from.** `race_candidates` sentinel rows (`source_url='harvest:primary_winner'`)
+  are written by the HO 660 harvest FROM `primary_candidates.status='winner'`, so
+  they inherit its blind spots exactly. Consulting the roster before the contest
+  lets a copy overrule its own source — here it would have re-marked TX-23's
+  Herrera `active` and silently undone the round rule below. Consult the source
+  first; consult the copy only where the source is silent, which is the only
+  place it is genuinely additive.
+- **"Winner" is scoped to a round, and the later round can be known to exist while
+  being absent from the data.** `house-TX-23-2026-R` has two `winner` rows
+  (43.3% and 41.8% — runoff advancers) and a `runoff_date` of 2026-05-26, and the
+  corpus holds **3 runoff rows in total, none for Texas**. So the row-1 forward
+  link is the only trace that a decisive contest happened. A classifier reading
+  only `status` calls Herrera the nominee; reading the forward link too, it
+  correctly says it does not know. **The absence of a row is not the absence of an
+  event** — check for the pointer to the round you cannot see.
+
+**Companion trap, same HO, different layer.** The verification of the SKILL diff
+for this work ran `grep -c '^-[^-]'` and read **0 deletions** on a diff that
+deleted five lines: all five were markdown bullets, which unified diff renders as
+`-- **text**`, and `^-[^-]` excludes them by construction. Already recorded as its
+own rule; noted here because it fired again on the very commit documenting a
+class of silent-zero readings.
