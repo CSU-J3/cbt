@@ -55,5 +55,18 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      # HO 693 — the STATIC half of the odds gate. Before `build` because it is
+      # a second's worth of file reads and its failure is a merge-blocking
+      # authoring mistake, not a build problem: a new prediction-market render
+      # site must be gated (`odds-only` + `data-market`) and listed in
+      # e2e/odds-sites.allowlist.json. Deterministic — no browser, no network,
+      # no DB — so it is safe on the secretless PR path.
+      #
+      # It is the pre-merge half only. The DYNAMIC half (e2e/odds-off.spec.ts,
+      # asserting no visible [data-market] with the preference set) rides the
+      # prod crawl in e2e-prod.yml, deliberately off the PR path.
+      - name: Odds-site allowlist
+        run: npm run check:odds-sites
+
       - name: Build
         run: npm run build

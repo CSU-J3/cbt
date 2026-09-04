@@ -1,0 +1,50 @@
+{
+  "_README": {
+    "reason": "not-a-render-site",
+    "note": "HO 693. Every .tsx under components/ and app/ whose code (comments stripped) references kalshi|polymarket|SourceTag|impliedPct|favoriteLabel must appear here. `npm run check:odds-sites` fails CI on an unlisted match AND on a listed file that no longer matches. Reasons: gated = renders market data and carries odds-only + data-market; consumer-of-gated-primitive = renders market data only via SourceTag/KalshiLine/the signals tape, which carry the class and marker themselves; not-a-render-site = matches the words but renders no market data. This key is itself listed so the file is never empty-looking; it matches nothing and is skipped by the stale check via the leading underscore."
+  },
+  "components/SourceTag.tsx": {
+    "reason": "gated",
+    "note": "The K/P letter primitive. Emits data-market itself, so every consumer is covered."
+  },
+  "components/race-cells.tsx": {
+    "reason": "gated",
+    "note": "KalshiLine — odds-only + data-market on its root; three consumers ride it."
+  },
+  "components/MarketsTapeClient.tsx": {
+    "reason": "gated",
+    "note": "Emits data-market on all three root branches when kind === 'signals'. The MARKETS strip is deliberately ungated and is deliberately unmarked."
+  },
+  "components/RaceCard.tsx": {
+    "reason": "gated",
+    "note": "K/P line, both market diamonds, the divergence chip, and the leader line's dual render."
+  },
+  "components/RaceListView.tsx": {
+    "reason": "gated",
+    "note": "The divergence column (visibility:hidden — it is a fixed-track grid child) and the readout clause."
+  },
+  "components/RacesHeroBand.tsx": {
+    "reason": "gated",
+    "note": "Two KALSHI control cells; the attribute rule re-shapes the band to one column on OFF."
+  },
+  "components/RaceMapCard.tsx": {
+    "reason": "consumer-of-gated-primitive",
+    "note": "Renders KalshiLine only."
+  },
+  "components/RaceDistrictCard.tsx": {
+    "reason": "consumer-of-gated-primitive",
+    "note": "Renders KalshiLine only."
+  },
+  "components/RaceDistrictModal.tsx": {
+    "reason": "gated",
+    "note": "Not DOM: the export markdown drops its Kalshi line by reading data-odds at CLICK time. Covered by scripts/diagnostic/odds-toggle-692.ts, which intercepts the Blob — the OFF pass cannot see a string."
+  },
+  "app/welcome/page.tsx": {
+    "reason": "gated",
+    "note": "The landing's ODDS taperow. A CSS-module row, so unlike the dashboard tape it is NOT hidden below 700px — 430 is a real test of it."
+  },
+  "app/welcome/panels.tsx": {
+    "reason": "not-a-render-site",
+    "note": "A local sourceTag() that labels a NEWS source (politico / the_hill / roll_call). A false positive on the word; nothing to do with prediction markets."
+  }
+}

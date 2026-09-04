@@ -57,7 +57,8 @@
     "report": "tsx scripts/generate-report.ts",
     "verify:deploy": "tsx scripts/verify-deploy.ts",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:odds-sites": "tsx scripts/check-odds-sites.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",
