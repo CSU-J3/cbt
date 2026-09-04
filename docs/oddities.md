@@ -3700,3 +3700,43 @@ same failure with no number in it: **a comment that explains why something needs
 no rule is making a claim about rendered output, and rendered output is measured,
 never argued.** If a comment says "X therefore needs no rule", the next line of
 work is measuring X, not writing the sentence.
+## A layout defect can be host-dependent, so one machine's green is not a reading (HO 694, 2026-09-04)
+
+`e2e/narrow.spec.ts` shipped, `main` fast-forwarded, the by-hand prod run read
+**36/36 with `/lobbying` at 430/430**, and the very next CI run on that same SHA
+failed `/lobbying` at 430 by **7px**. Nothing had changed between them. The
+by-hand run was Windows Chromium; CI is Ubuntu; the fonts behind
+`var(--font-mono)` differ, the sibling controls in `.mc-fbar` measure
+differently, and the flex line breaks in a different place.
+
+**The defect was not marginal — only its visibility was.** Swept 380-760 against
+prod, `.lob-fbar-controls` overflowed the bar's content box at every width from
+380 to 460 (`+54 / +43 / +34 / +25 / +8`), and the document itself scrolled at
+380 and 400. A non-wrapping flex row of three controls sat inside a bar that
+wraps around it. Whether that 25px of overflow reached the *document* at 430
+came down to which sibling happened to share the search input's line, which is
+a font-metric question.
+
+Three things to carry.
+
+**A single-host green is evidence about that host.** The chain here was four
+green local runs, a green by-hand prod run, and a set of captures — all on one
+machine, all agreeing, all blind to the same thing. Two hosts disagreeing is
+what produced the reading; one host agreeing with itself five times produced
+none.
+
+**A viewport-relative cap inside a container-relative layout is the smell.**
+`max-width: 42vw` is 181px at 430 — 46% of the 396px bar it actually lives in —
+so it fits only when nothing shares its line. The fix is not a smaller cap but a
+`flex-basis: 100%`, which starts a new line whatever the metrics: **prefer the
+rule whose outcome does not depend on measurement over the rule tuned to
+today's measurements.**
+
+**And verify a font-sensitive fix across the range, not at the failing width.**
+A font change moves the break point, so a check at 430 alone would only prove
+that today's break point is clear. The sweep is the instrument; the single width
+is an anecdote.
+
+Related, one layer over: the same HO's header-alignment defect was invisible to
+every instrument because a misaligned header does not overflow. Different blind
+spot, same lesson — know which question your green answers.
