@@ -168,20 +168,37 @@ async function summarySection(browser: Browser) {
   }
 }
 
-// The bxp panel has TWO container branches (stacked <=520px / wide). The bills
-// column on `/` is the narrow one at 430; /bills at 1440 and 2560 is the wide one.
+// The bxp panel has TWO container branches and `@container bxp (max-width: 520px)`
+// is keyed on the PANEL'S column, not the viewport — so which route gives which is
+// a measurement, not a guess, and the branch each capture actually exercised is
+// recorded beside it below rather than assumed from the filename.
+//
+// MEASURED AT THIS COMMIT: /bills 1140px @1440 and 2260px @2560; `/` 598px @1440
+// and 1102px @2560 — all four WIDE. Only a ~430 viewport reaches the stacked
+// branch (394px). The `.bxp` block's own comment still says "520 keeps 1440
+// stacked", which was true of HO 623's 480px column and stopped being true when
+// HO 629 moved the fraction to 45% — flagged, not fixed here.
+//
+// The row trigger differs by route and a single selector silently produces a
+// false negative that reads like a panel defect: `/` renders V2FeedList
+// (`.v2f-row`), /bills renders BillRow (a bare role=button + aria-expanded). On
+// `/` the bare attribute selector matches the absence cards, the band's metric
+// cards and the races box FIRST, so it never reaches a feed row.
 async function portraitSection(browser: Browser) {
   const cases = [
-    { route: "/bills", v: VIEWPORTS[0]!, tag: "wide-1440" },
-    { route: "/bills", v: VIEWPORTS[1]!, tag: "wide-2560" },
-    { route: "/bills", v: VIEWPORTS[2]!, tag: "stacked-430" },
+    { route: "/bills", sel: '[role="button"][aria-expanded]', v: VIEWPORTS[0]!, tag: "wide-bills-1440" },
+    { route: "/bills", sel: '[role="button"][aria-expanded]', v: VIEWPORTS[1]!, tag: "wide-bills-2560" },
+    { route: "/", sel: ".v2f-row", v: VIEWPORTS[0]!, tag: "wide-home-1440" },
+    { route: "/", sel: ".v2f-row", v: VIEWPORTS[1]!, tag: "wide-home-2560" },
+    { route: "/bills", sel: '[role="button"][aria-expanded]', v: VIEWPORTS[2]!, tag: "stacked-bills-430" },
+    { route: "/", sel: ".v2f-row", v: VIEWPORTS[2]!, tag: "stacked-home-430" },
   ];
   for (const motion of ["normal", "reduce"] as Motion[]) {
     for (const c of cases) {
       const ctx = await ctxFor(browser, motion, c.v.w, c.v.h);
       const page = await open(ctx, c.route);
       // Expand the first feed row that has a sponsor, then shoot the meta box.
-      const rows = page.locator('[role="button"][aria-expanded]');
+      const rows = page.locator(c.sel);
       const n = await rows.count();
       let shot = false;
       for (let i = 0; i < Math.min(n, 6) && !shot; i++) {
@@ -189,11 +206,52 @@ async function portraitSection(browser: Browser) {
         const photo = page.locator(".bxp-sponsor").first();
         try {
           await photo.waitFor({ state: "visible", timeout: 6000 });
+          // The portraits are `loading="lazy"`, so an element screenshot taken
+          // the moment the row exists can capture an empty 136x163 BOX and look
+          // exactly like a broken image. Scroll it in and wait for real pixels
+          // (or for the initials fallback, which is a span and has no image to
+          // wait for).
+          await photo.scrollIntoViewIfNeeded();
+          await page
+            .waitForFunction(
+              () => {
+                const img = document.querySelector<HTMLImageElement>(
+                  "img.bxp-sponsor-photo",
+                );
+                if (!img) return true; // initials fallback: nothing to load
+                return img.complete && img.naturalWidth > 0;
+              },
+              undefined,
+              { timeout: 8000 },
+            )
+            .catch(() => {
+              notes.push(`portrait ${c.tag}/${motion}: sponsor image never loaded`);
+            });
         } catch {
           continue;
         }
         shot = await shotEl(page, ".bxp-metabox", `portrait-${c.tag}-${motion}.png`);
-        if (shot) await shotEl(page, ".bxp", `panel-${c.tag}-${motion}.png`);
+        if (shot) {
+          await shotEl(page, ".bxp", `panel-${c.tag}-${motion}.png`);
+          // Record which container branch actually fired, so a capture can't be
+          // filed under a branch it did not exercise.
+          const m = await page.evaluate(() => {
+            const body = document.querySelector(".bxp-body");
+            const photo = document.querySelector(".bxp-sponsor-photo");
+            const box = document.querySelector(".bxp-metabox");
+            const cs = body ? getComputedStyle(body) : null;
+            const pr = photo?.getBoundingClientRect();
+            return {
+              panelW: Math.round(document.querySelector(".bxp")?.getBoundingClientRect().width ?? 0),
+              cols: cs?.gridTemplateColumns ?? "(none)",
+              photo: pr ? `${Math.round(pr.width)}x${Math.round(pr.height)}` : "(none)",
+              metaboxH: Math.round(box?.getBoundingClientRect().height ?? 0),
+            };
+          });
+          notes.push(
+            `branch ${c.tag}/${motion}: panel ${m.panelW}px · bxp-body columns ${m.cols} · photo ${m.photo} · metabox ${m.metaboxH}px`,
+          );
+        }
       }
       if (!shot) notes.push(`portrait: no expandable row with a sponsor on ${c.route} @${c.v.tag}`);
       await ctx.close();

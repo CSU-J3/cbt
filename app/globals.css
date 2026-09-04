@@ -4942,10 +4942,33 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   gap: 11px;
   align-items: flex-start;
 }
+/* HO 690 — 80x94 -> 136x163, ruled by Corey 2026-09-03 (verbatim "D") against
+   docs/design/mock-690-chrome.html § 01, which drew four sizes live in this
+   metabox. D is the LARGEST of the four and the architect's recommendation (C,
+   120x144) lost.
+
+   A RECORDED MOCK DEVIATION, not a mock edit: the size was ruled at HO 673 off
+   mock-673-sponsor-cosponsor.html, and that mock still says 80x94. The later
+   owner ruling supersedes it (the HO 623/629 precedent for a mock losing to a
+   later call); the 673 mock is left as the record of what was ruled then.
+
+   163 holds the bioguide 5:6 at 136. The fallback tile scales with it — 41px is
+   30% of the width, exactly as 24 was at 80 — so the initials keep their optical
+   weight instead of rattling around a tile 70% larger.
+
+   The <img> carries no width/height attributes (BillExpandPanel), so this rule is
+   the only size and there is nothing to keep in step. SEVEN ROUTES render the
+   shared panel; the cosponsor faces reuse the same SponsorPhoto through its
+   `className` prop and are untouched at 32x38.
+
+   At 136 the portrait is ~2.6x the three-line text stack beside it and starts to
+   dominate the metabox at a narrow container — Corey chose it with the mock's
+   320px column in view, so the 430 capture is the one to look at hardest and is
+   NOT a reason to shrink it. */
 .bxp-sponsor-photo {
   flex: none;
-  width: 80px;
-  height: 94px;
+  width: 136px;
+  height: 163px;
   object-fit: cover;
   border-radius: 3px;
   background: var(--bg-panel);
@@ -4954,7 +4977,7 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 41px;
   font-weight: 600;
   background: linear-gradient(135deg, var(--bg-panel), var(--border-strong));
 }
