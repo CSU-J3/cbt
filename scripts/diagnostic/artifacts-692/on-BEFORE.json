@@ -1,0 +1,890 @@
+{
+  "1440|/": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".home-header": {
+        "w": 756,
+        "h": 216,
+        "x": 24,
+        "y": 12
+      },
+      ".dv2-tapes": {
+        "w": 756,
+        "h": 76,
+        "x": 24,
+        "y": 151
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(1)": {
+        "w": 756,
+        "h": 38,
+        "x": 24,
+        "y": 151
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(2)": {
+        "w": 756,
+        "h": 38,
+        "x": 24,
+        "y": 189
+      },
+      ".home-header-nav": {
+        "w": 768,
+        "h": 73,
+        "x": 18,
+        "y": 78
+      },
+      ".race-grid": {
+        "w": 730,
+        "h": 1617,
+        "x": 37,
+        "y": 1089
+      },
+      "a.race-card": {
+        "w": 730,
+        "h": 242,
+        "x": 37,
+        "y": 1089
+      },
+      "a.race-card .rc-kpline": {
+        "w": 700,
+        "h": 30,
+        "x": 52,
+        "y": 1286
+      },
+      "a.race-card .rc-pac--glance": {
+        "w": 700,
+        "h": 14,
+        "x": 52,
+        "y": 1837
+      },
+      ".weekly-band": {
+        "w": 756,
+        "h": 63,
+        "x": 24,
+        "y": 2833
+      },
+      ".dash-left": {
+        "w": 756,
+        "h": 3328,
+        "x": 24,
+        "y": 12
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": "flex",
+      ".rc-kpline": "flex",
+      ".sb-mkt": "block",
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440|/electoral": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".races-hero-band": {
+        "w": 1408,
+        "h": 102,
+        "x": 16,
+        "y": 223
+      },
+      ".races-hero-cell:nth-child(1)": {
+        "w": 469,
+        "h": 100,
+        "x": 17,
+        "y": 224
+      },
+      ".races-hero-cell:nth-child(3)": {
+        "w": 469,
+        "h": 100,
+        "x": 954,
+        "y": 224
+      },
+      ".cart-controls": {
+        "w": 1408,
+        "h": 30,
+        "x": 16,
+        "y": 337
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": "flex",
+      ".race-list-diverge": null
+    }
+  },
+  "1440|/bills": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".mc-pane": {
+        "w": 1408,
+        "h": 2422,
+        "x": 16,
+        "y": 285
+      },
+      ".bl-rail": {
+        "w": 264,
+        "h": 757,
+        "x": 17,
+        "y": 286
+      },
+      ".mc-content": {
+        "w": 1142,
+        "h": 2420,
+        "x": 281,
+        "y": 286
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440|/race/S-MI-2026": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".rc-pac": {
+        "w": 1408,
+        "h": 30,
+        "x": 16,
+        "y": 283
+      },
+      "main": {
+        "w": 1440,
+        "h": 1075,
+        "x": 0,
+        "y": 125
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440|/welcome": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      "[class*=\"taperow\"]:nth-of-type(1)": {
+        "w": 1440,
+        "h": 29,
+        "x": 0,
+        "y": 358
+      },
+      "[class*=\"taperow\"]:nth-of-type(2)": {
+        "w": 1440,
+        "h": 30,
+        "x": 0,
+        "y": 387
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "2560|/": {
+    "scroll": {
+      "s": 2560,
+      "c": 2560,
+      "odds": null
+    },
+    "boxes": {
+      ".home-header": {
+        "w": 1372,
+        "h": 159,
+        "x": 24,
+        "y": 12
+      },
+      ".dv2-tapes": {
+        "w": 1372,
+        "h": 76,
+        "x": 24,
+        "y": 94
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(1)": {
+        "w": 1372,
+        "h": 38,
+        "x": 24,
+        "y": 94
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(2)": {
+        "w": 1372,
+        "h": 38,
+        "x": 24,
+        "y": 132
+      },
+      ".home-header-nav": {
+        "w": 1384,
+        "h": 42,
+        "x": 18,
+        "y": 53
+      },
+      ".race-grid": {
+        "w": 1346,
+        "h": 647,
+        "x": 37,
+        "y": 877
+      },
+      "a.race-card": {
+        "w": 439,
+        "h": 315,
+        "x": 37,
+        "y": 877
+      },
+      "a.race-card .rc-kpline": {
+        "w": 409,
+        "h": 35,
+        "x": 52,
+        "y": 1142
+      },
+      "a.race-card .rc-pac--glance": {
+        "w": 409,
+        "h": 18,
+        "x": 958,
+        "y": 1158
+      },
+      ".weekly-band": {
+        "w": 1372,
+        "h": 44,
+        "x": 24,
+        "y": 1664
+      },
+      ".dash-left": {
+        "w": 1372,
+        "h": 2217,
+        "x": 24,
+        "y": 12
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": "flex",
+      ".rc-kpline": "flex",
+      ".sb-mkt": "block",
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "2560|/electoral": {
+    "scroll": {
+      "s": 2560,
+      "c": 2560,
+      "odds": null
+    },
+    "boxes": {
+      ".races-hero-band": {
+        "w": 2528,
+        "h": 111,
+        "x": 16,
+        "y": 245
+      },
+      ".races-hero-cell:nth-child(1)": {
+        "w": 842,
+        "h": 109,
+        "x": 17,
+        "y": 246
+      },
+      ".races-hero-cell:nth-child(3)": {
+        "w": 842,
+        "h": 109,
+        "x": 1701,
+        "y": 246
+      },
+      ".cart-controls": {
+        "w": 2528,
+        "h": 34,
+        "x": 16,
+        "y": 367
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": "flex",
+      ".race-list-diverge": null
+    }
+  },
+  "2560|/bills": {
+    "scroll": {
+      "s": 2560,
+      "c": 2560,
+      "odds": null
+    },
+    "boxes": {
+      ".mc-pane": {
+        "w": 2528,
+        "h": 2660,
+        "x": 16,
+        "y": 307
+      },
+      ".bl-rail": {
+        "w": 264,
+        "h": 851,
+        "x": 17,
+        "y": 308
+      },
+      ".mc-content": {
+        "w": 2262,
+        "h": 2658,
+        "x": 281,
+        "y": 308
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "2560|/race/S-MI-2026": {
+    "scroll": {
+      "s": 2560,
+      "c": 2560,
+      "odds": null
+    },
+    "boxes": {
+      ".rc-pac": {
+        "w": 2528,
+        "h": 38,
+        "x": 16,
+        "y": 298
+      },
+      "main": {
+        "w": 2560,
+        "h": 1266,
+        "x": 0,
+        "y": 134
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "2560|/welcome": {
+    "scroll": {
+      "s": 2560,
+      "c": 2560,
+      "odds": null
+    },
+    "boxes": {
+      "[class*=\"taperow\"]:nth-of-type(1)": {
+        "w": 2560,
+        "h": 34,
+        "x": 0,
+        "y": 366
+      },
+      "[class*=\"taperow\"]:nth-of-type(2)": {
+        "w": 2560,
+        "h": 35,
+        "x": 0,
+        "y": 399
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "430|/": {
+    "scroll": {
+      "s": 430,
+      "c": 430,
+      "odds": null
+    },
+    "boxes": {
+      ".home-header": {
+        "w": 406,
+        "h": 203,
+        "x": 12,
+        "y": -971
+      },
+      ".dv2-tapes": {
+        "w": 406,
+        "h": 0,
+        "x": 12,
+        "y": -769
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(1)": {
+        "w": 0,
+        "h": 0,
+        "x": 0,
+        "y": 0
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(2)": {
+        "w": 0,
+        "h": 0,
+        "x": 0,
+        "y": 0
+      },
+      ".home-header-nav": {
+        "w": 418,
+        "h": 119,
+        "x": 6,
+        "y": -888
+      },
+      ".race-grid": {
+        "w": 380,
+        "h": 1695,
+        "x": 25,
+        "y": 769
+      },
+      "a.race-card": {
+        "w": 380,
+        "h": 255,
+        "x": 25,
+        "y": 769
+      },
+      "a.race-card .rc-kpline": {
+        "w": 350,
+        "h": 30,
+        "x": 40,
+        "y": 979
+      },
+      "a.race-card .rc-pac--glance": {
+        "w": 350,
+        "h": 14,
+        "x": 40,
+        "y": 1556
+      },
+      ".weekly-band": {
+        "w": 406,
+        "h": 88,
+        "x": 12,
+        "y": 2614
+      },
+      ".dash-left": {
+        "w": 406,
+        "h": 4556,
+        "x": 12,
+        "y": -971
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": "none",
+      ".rc-kpline": "flex",
+      ".sb-mkt": "block",
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "430|/electoral": {
+    "scroll": {
+      "s": 430,
+      "c": 430,
+      "odds": null
+    },
+    "boxes": {
+      ".races-hero-band": {
+        "w": 398,
+        "h": 234,
+        "x": 16,
+        "y": 416
+      },
+      ".races-hero-cell:nth-child(1)": {
+        "w": 396,
+        "h": 66,
+        "x": 17,
+        "y": 417
+      },
+      ".races-hero-cell:nth-child(3)": {
+        "w": 396,
+        "h": 100,
+        "x": 17,
+        "y": 549
+      },
+      ".cart-controls": {
+        "w": 398,
+        "h": 60,
+        "x": 16,
+        "y": 661
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": "flex",
+      ".race-list-diverge": null
+    }
+  },
+  "430|/bills": {
+    "scroll": {
+      "s": 430,
+      "c": 430,
+      "odds": null
+    },
+    "boxes": {
+      ".mc-pane": {
+        "w": 398,
+        "h": 3025,
+        "x": 16,
+        "y": 521
+      },
+      ".bl-rail": {
+        "w": 396,
+        "h": 757,
+        "x": 17,
+        "y": 522
+      },
+      ".mc-content": {
+        "w": 396,
+        "h": 2267,
+        "x": 17,
+        "y": 1279
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "430|/race/S-MI-2026": {
+    "scroll": {
+      "s": 430,
+      "c": 430,
+      "odds": null
+    },
+    "boxes": {
+      ".rc-pac": {
+        "w": 398,
+        "h": 45,
+        "x": 16,
+        "y": 445
+      },
+      "main": {
+        "w": 430,
+        "h": 1157,
+        "x": 0,
+        "y": 252
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "430|/welcome": {
+    "scroll": {
+      "s": 430,
+      "c": 430,
+      "odds": null
+    },
+    "boxes": {
+      "[class*=\"taperow\"]:nth-of-type(1)": {
+        "w": 430,
+        "h": 29,
+        "x": 0,
+        "y": 539
+      },
+      "[class*=\"taperow\"]:nth-of-type(2)": {
+        "w": 430,
+        "h": 30,
+        "x": 0,
+        "y": 568
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440rm|/": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".home-header": {
+        "w": 756,
+        "h": 216,
+        "x": 24,
+        "y": 12
+      },
+      ".dv2-tapes": {
+        "w": 756,
+        "h": 76,
+        "x": 24,
+        "y": 151
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(1)": {
+        "w": 756,
+        "h": 38,
+        "x": 24,
+        "y": 151
+      },
+      ".dv2-tapes .markets-tape:nth-of-type(2)": {
+        "w": 756,
+        "h": 38,
+        "x": 24,
+        "y": 189
+      },
+      ".home-header-nav": {
+        "w": 768,
+        "h": 73,
+        "x": 18,
+        "y": 78
+      },
+      ".race-grid": {
+        "w": 730,
+        "h": 1617,
+        "x": 37,
+        "y": 1089
+      },
+      "a.race-card": {
+        "w": 730,
+        "h": 242,
+        "x": 37,
+        "y": 1089
+      },
+      "a.race-card .rc-kpline": {
+        "w": 700,
+        "h": 30,
+        "x": 52,
+        "y": 1286
+      },
+      "a.race-card .rc-pac--glance": {
+        "w": 700,
+        "h": 14,
+        "x": 52,
+        "y": 1837
+      },
+      ".weekly-band": {
+        "w": 756,
+        "h": 63,
+        "x": 24,
+        "y": 2833
+      },
+      ".dash-left": {
+        "w": 756,
+        "h": 3328,
+        "x": 24,
+        "y": 12
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": "flex",
+      ".rc-kpline": "flex",
+      ".sb-mkt": "block",
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440rm|/electoral": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".races-hero-band": {
+        "w": 1408,
+        "h": 102,
+        "x": 16,
+        "y": 223
+      },
+      ".races-hero-cell:nth-child(1)": {
+        "w": 469,
+        "h": 100,
+        "x": 17,
+        "y": 224
+      },
+      ".races-hero-cell:nth-child(3)": {
+        "w": 469,
+        "h": 100,
+        "x": 954,
+        "y": 224
+      },
+      ".cart-controls": {
+        "w": 1408,
+        "h": 30,
+        "x": 16,
+        "y": 337
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": "flex",
+      ".race-list-diverge": null
+    }
+  },
+  "1440rm|/bills": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".mc-pane": {
+        "w": 1408,
+        "h": 2422,
+        "x": 16,
+        "y": 285
+      },
+      ".bl-rail": {
+        "w": 264,
+        "h": 757,
+        "x": 17,
+        "y": 286
+      },
+      ".mc-content": {
+        "w": 1142,
+        "h": 2420,
+        "x": 281,
+        "y": 286
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440rm|/race/S-MI-2026": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      ".rc-pac": {
+        "w": 1408,
+        "h": 30,
+        "x": 16,
+        "y": 283
+      },
+      "main": {
+        "w": 1440,
+        "h": 1075,
+        "x": 0,
+        "y": 125
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  },
+  "1440rm|/welcome": {
+    "scroll": {
+      "s": 1440,
+      "c": 1440,
+      "odds": null
+    },
+    "boxes": {
+      "[class*=\"taperow\"]:nth-of-type(1)": {
+        "w": 1440,
+        "h": 29,
+        "x": 0,
+        "y": 358
+      },
+      "[class*=\"taperow\"]:nth-of-type(2)": {
+        "w": 1440,
+        "h": 30,
+        "x": 0,
+        "y": 387
+      }
+    },
+    "display": {
+      ".dv2-tapes .markets-tape:nth-of-type(2)": null,
+      ".rc-kpline": null,
+      ".sb-mkt": null,
+      ".rc-diverge": null,
+      ".racecard-kalshi": null,
+      ".races-hero-cell": null,
+      ".race-list-diverge": null
+    }
+  }
+}
