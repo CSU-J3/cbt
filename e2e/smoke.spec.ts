@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
 import zlib from "node:zlib";
 import { isKnownNoise } from "./console-noise";
+import { ROUTES } from "./routes";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -87,73 +88,10 @@ function writeOverflowRow(
   );
 }
 
-// Real seeds pulled from Turso (HO 379 recon), env-overridable for other data.
-const BILL = process.env.SEED_BILL ?? "119-s-2";
-const MEMBER = process.env.SEED_MEMBER ?? "A000055";
-const RACE = process.env.SEED_RACE ?? "AL-01-2026";
-const COMMITTEE = process.env.SEED_COMMITTEE ?? "hlig00";
-const REPORT = process.env.SEED_REPORT ?? "2026-06-15";
-// HO 548 — a Senate roll call with member positions AND a bill link (119-sjres-180),
-// so the /vote/[id] page renders both the positions list and the bill back-link.
-const VOTE = process.env.SEED_VOTE ?? "senate-119-2-207";
-
 // The gate cookie (`/` redirects anonymous → /welcome; the landing's "Enter
 // terminal" sets this). Only `/` gates — every other route is ungated — but we
 // set it context-wide so the home renders the terminal, not the landing.
 const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
-
-type Route = { slug: string; path: string };
-
-// Enumerated from the live app/ tree (every page.tsx), not the handoff seed list.
-// The six stage-filtered home variants exercise the `?stage=` deep links that the
-// gate is known to drop. other_chamber (not "other") is the real OTHER bar value.
-const STAGES = [
-  "introduced",
-  "committee",
-  "floor",
-  "other_chamber",
-  "president",
-  "enacted",
-] as const;
-
-const ROUTES: Route[] = [
-  { slug: "home", path: "/" },
-  ...STAGES.map((s) => ({ slug: `home-stage-${s}`, path: `/?stage=${s}` })),
-  { slug: "welcome", path: "/welcome" },
-  { slug: "bills", path: "/bills" },
-  { slug: "members", path: "/members" },
-  { slug: "members-pass-rate", path: "/members/pass-rate" },
-  { slug: "races", path: "/races" },
-  { slug: "electoral", path: "/electoral" },
-  { slug: "primaries", path: "/primaries" },
-  { slug: "reports", path: "/reports" },
-  { slug: "hearings", path: "/hearings" },
-  { slug: "news", path: "/news" },
-  { slug: "changes", path: "/changes" },
-  { slug: "stale", path: "/stale" },
-  { slug: "trends", path: "/trends" },
-  { slug: "patterns", path: "/patterns" },
-  { slug: "search", path: "/search" },
-  { slug: "president", path: "/president" },
-  // HO 461/456/437/389 aggregate surfaces — shipped after the HO 379 crawler was
-  // written, never before in the console/failed-request sweep (HO 472).
-  { slug: "amendments", path: "/amendments" },
-  { slug: "nominations", path: "/nominations" },
-  { slug: "lobbying", path: "/lobbying" },
-  { slug: "trades", path: "/trades" },
-  { slug: "committees-redirect", path: "/committees" }, // redirects → /members
-  { slug: "watchlist", path: "/watchlist" }, // anonymous: empty/sign-in, not a 500
-  { slug: "dashboard-v2", path: "/dashboard-v2" },
-  // dynamic detail routes (real IDs)
-  { slug: "bill-detail", path: `/bill/${BILL}` },
-  { slug: "member-detail", path: `/members/${MEMBER}` },
-  { slug: "race-detail", path: `/race/${RACE}` },
-  { slug: "committee-detail", path: `/committee/${COMMITTEE}` },
-  { slug: "report-detail", path: `/reports/${REPORT}` },
-  // HO 548 — the newest route (HO 540), not previously in ROUTES; inherits the
-  // double-hit + lands in the daily prod crawl.
-  { slug: "vote", path: `/vote/${VOTE}` },
-];
 
 // ── HO 687: the #418 attribution capture ─────────────────────────────────────
 //
