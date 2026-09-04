@@ -23,6 +23,7 @@ import {
   type WeeklyBandBreakdown,
   WeeklyBandMetricCard,
 } from "@/components/WeeklyBandMetricCard";
+import { WeekSentences } from "@/components/WeekSentences";
 import {
   getDashboardReportSnapshot,
   getEnactedThisWeek,
@@ -197,25 +198,33 @@ export async function WeeklyBand() {
   const summaryStale =
     snap?.summary != null && snap.summary.weekStart !== snap.latest.weekStart;
 
+  // HO 690 — the row is a client island now (collapse + persistence), and the
+  // REPORT LINK MOVED ONTO IT (ruled by Corey 2026-09-03: "move the aug 24 report
+  // button to the of aug 24" / "4. yes to the new one", mock § 04).
+  //
+  // The link is about a COMPLETED week, which is what this row is about and what
+  // the band below is not — the band's header names the CURRENT in-progress week,
+  // so a link labelled with the completed week sat under a header naming a
+  // different one. It keeps its OWN week label rather than inheriting the row's:
+  // on a stale summary the two dates legitimately differ, and printing the row's
+  // date on the link would claim a report that may not exist.
+  //
+  // EXACTLY ONE OF THE TWO RENDERS IT. Below, the band's `.weekly-band-readfull`
+  // is gated on `snap && !snap.summary`, so the report stays reachable in the
+  // no-summary state and is never printed twice.
+  const summaryReport = snap
+    ? { slug: snap.latest.slug, weekStart: monDd(snap.latest.weekStart) }
+    : null;
+
   return (
     <>
       {snap?.summary ? (
-        <section className="week-sentences" aria-label="Week summary">
-          <span className="week-sentences-label">
-            Week of{" "}
-            <span className="tabular-nums week-sentences-week">
-              {monDd(snap.summary.weekStart)}
-            </span>{" "}
-            · summary
-            {summaryStale ? (
-              <span className="week-sentences-stale">
-                {" "}
-                · last generated week
-              </span>
-            ) : null}
-          </span>
-          <p className="week-sentences-text">{snap.summary.text}</p>
-        </section>
+        <WeekSentences
+          weekStart={monDd(snap.summary.weekStart)}
+          stale={summaryStale}
+          text={snap.summary.text}
+          report={summaryReport}
+        />
       ) : null}
     <section className="weekly-band" aria-label="This week">
       <span className="weekly-band-weekof">
@@ -372,7 +381,12 @@ export async function WeeklyBand() {
         </span>
       </span>
 
-      {snap ? (
+      {/* HO 690 — the band keeps this link ONLY when the summary row does not
+          render (no summary on any report yet, or the newest weeks were refused).
+          `snap && !snap.summary` is the exact complement of the row's own
+          `snap?.summary` gate above, so the report is always reachable from
+          exactly one place. */}
+      {snap && !snap.summary ? (
         <Link
           href={`/reports/${snap.latest.slug}`}
           className="weekly-band-readfull"

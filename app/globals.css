@@ -3061,6 +3061,77 @@ body {
   padding: var(--space-md);
 }
 
+/* HO 690 — the label row: the toggle BUTTON and the report LINK as two flex
+   siblings, never nested (an <a> inside a <button> is invalid HTML, and the
+   nesting would make "open the report" and "collapse the row" one event). The
+   link is pinned right; at a narrow width it wraps UNDER the label rather than
+   being clipped, which is why the row wraps and the link is nowrap. */
+.week-sentences-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+}
+/* The whole label + chevron is the hit target. Reset the UA button chrome —
+   nothing about this should look like a form control. */
+.week-sentences-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  flex: 1 1 auto;
+  /* HO 682: a flex item over nowrap text needs an explicit min-width, or the
+     track sizes to the unbreakable string at any width. */
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.week-sentences-toggle:focus-visible {
+  outline: 2px solid var(--accent-amber-bright);
+  outline-offset: 2px;
+}
+.week-sentences-chev {
+  font-size: var(--fs-10);
+  color: var(--text-dim);
+}
+/* Both glyphs render; CSS shows exactly one, keyed on the SAME attribute as the
+   text below. That is what makes the chevron correct at first paint with no JS —
+   a JS-flipped glyph would point the wrong way until hydration. */
+.week-sentences-chev-collapsed {
+  display: none;
+}
+html[data-week-summary="collapsed"] .week-sentences-chev-open {
+  display: none;
+}
+html[data-week-summary="collapsed"] .week-sentences-chev-collapsed {
+  display: inline;
+}
+/* The collapse itself. Instant, no animation — the tree's collapse idiom
+   (FillerWatchStrip / PolarizationOverTime) and the dashboard's motion rule. */
+html[data-week-summary="collapsed"] .week-sentences-text {
+  display: none;
+}
+/* The report link, moved off the band (HO 690). Amber because it is the one
+   action on the row. */
+.week-sentences-report {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-10);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent-amber);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.week-sentences-report:hover {
+  color: var(--accent-amber-bright);
+}
+
 .week-sentences-label {
   display: block;
   font-family: var(--font-mono);
@@ -3068,7 +3139,7 @@ body {
   letter-spacing: 0.6px;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-bottom: var(--space-xs);
+  min-width: 0;
 }
 
 .week-sentences-week {
@@ -3085,7 +3156,9 @@ body {
 }
 
 .week-sentences-text {
-  margin: 0;
+  /* HO 690: the label is no longer a block above the text, so the gap that used
+     to be the label's margin-bottom lives here. */
+  margin: var(--space-xs) 0 0;
   font-family: var(--sans);
   font-size: var(--fs-14);
   line-height: 1.62;

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans } from "next/font/google";
+import { prefBootScript } from "@/lib/prefs";
 import "./globals.css";
 
 // HO 633 — the sans face is IBM Plex Sans, self-hosted. Owner ruling off
@@ -81,6 +82,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={plexSans.variable}>
+      <head>
+        {/* HO 690 — CLIENT UI PREFERENCES, APPLIED BEFORE FIRST PAINT.
+            Parser-blocking by design: it must run before the browser paints, or
+            a reader who collapsed a section sees it flash in on every visit,
+            which is the entire defect the mechanism exists to remove. The body
+            is GENERATED from the `PREFS` table in lib/prefs.ts, so the script
+            and the consumers cannot drift; read that file for why it writes
+            `data-*` and never `class`, and why the default is the attribute's
+            ABSENCE. The layout stays a plain server component — no `cookies()`
+            read, no render-mode change on any route. */}
+        <script
+          dangerouslySetInnerHTML={{ __html: prefBootScript() }}
+        />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );
