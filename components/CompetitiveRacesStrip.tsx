@@ -112,7 +112,7 @@ export function CompetitiveRacesStrip({
         // `leader` shape's "presumptive"), so it goes with the markets. Absent on
         // prod since HO 691 gave decided seats the `general` shape, but the branch
         // is live and fires the moment a contested seat is featured.
-        <p className="race-grid-foot odds-only">
+        <p className="race-grid-foot odds-only" data-market="1">
           † presumptive —{" "}
           {presumptive.map(partyAdjective).join(" and ")} primar
           {presumptive.length > 1 ? "ies" : "y"} unresolved

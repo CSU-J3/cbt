@@ -876,6 +876,10 @@ export function MarketsTapeClient({
     return (
       <div
         className={`markets-tape markets-tape--no-data${className ? ` ${className}` : ""}`}
+        // HO 693 marker — SIGNALS only. The MARKETS strip is indices/equities/
+        // FRED and is deliberately NOT gated, so marking it would make the OFF
+        // pass fail on an element that is correctly still visible.
+        data-market={kind === "signals" ? "signals" : undefined}
         aria-label="Markets"
       >
         {labelNode}
@@ -1003,6 +1007,7 @@ export function MarketsTapeClient({
         className={`markets-tape markets-tape--scroll${
           stripStale ? " markets-tape--stale" : ""
         }${closed ? " markets-tape--closed" : ""}${className ? ` ${className}` : ""}`}
+        data-market={kind === "signals" ? "signals" : undefined}
         aria-label="Markets"
       >
         {labelNode}
@@ -1040,6 +1045,7 @@ export function MarketsTapeClient({
       className={`markets-tape markets-tape--static${
         stripStale ? " markets-tape--stale" : ""
       }${closed ? " markets-tape--closed" : ""}${className ? ` ${className}` : ""}`}
+      data-market={kind === "signals" ? "signals" : undefined}
       aria-label="Markets"
     >
       {labelNode}

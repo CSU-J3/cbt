@@ -103,7 +103,7 @@ function KpLine({
   // card footer; measured at 1440 the card goes 265->235px and the grid
   // 1617->1437, no other geometry moving.
   return (
-    <div className="rc-kpline odds-only">
+    <div className="rc-kpline odds-only" data-market="1">
       <span className="rc-kp">
         <SourceTag source="kalshi" />
         {kalshiFav ? (
@@ -371,7 +371,7 @@ export function RaceCard({
     // why the harness renders it rather than a capture proving it.
     challengerInner = (
       <>
-        <span className="odds-only">
+        <span className="odds-only" data-market="1">
           {dot(challenger.party)}
           <span className="rc-nm">
             {challenger.fullName}
@@ -492,6 +492,7 @@ export function RaceCard({
           {kalshiDot?.rPos != null ? (
             <span
               className="sb-mkt sb-mkt-kals odds-only"
+              data-market="kalshi"
               style={{ left: `${kalshiDot.rPos}%` }}
               title="Kalshi market"
             >
@@ -501,6 +502,7 @@ export function RaceCard({
           {polyDot?.rPos != null ? (
             <span
               className="sb-mkt sb-mkt-poly odds-only"
+              data-market="polymarket"
               style={{ left: `${polyDot.rPos}%` }}
               title="Polymarket market"
             >
@@ -522,7 +524,7 @@ export function RaceCard({
           // HO 692 site 5 — the <br /> is INSIDE the gate with the chip. Left
           // outside, odds-off would leave a bare line break hanging under the
           // rater pills and pad the card by a line for nothing.
-          <span className="odds-only">
+          <span className="odds-only" data-market="1">
             <br />
             <span className="rc-diverge">
               {diverge.glyph} {diverge.text}

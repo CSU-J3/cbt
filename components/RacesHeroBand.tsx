@@ -53,7 +53,7 @@ export function RacesHeroBand({
         because the attribute rule also re-shapes the band to a single column;
         these are direct grid children, and without the re-shape SEATS IN PLAY
         would sit in one third of the band with two empty tracks beside it. */}
-    <div className="races-hero-cell odds-only">
+    <div className="races-hero-cell odds-only" data-market="kalshi">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">HOUSE CONTROL</span>
@@ -66,7 +66,7 @@ export function RacesHeroBand({
         because the attribute rule also re-shapes the band to a single column;
         these are direct grid children, and without the re-shape SEATS IN PLAY
         would sit in one third of the band with two empty tracks beside it. */}
-    <div className="races-hero-cell odds-only">
+    <div className="races-hero-cell odds-only" data-market="kalshi">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">SENATE CONTROL</span>

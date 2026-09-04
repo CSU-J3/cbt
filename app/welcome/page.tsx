@@ -371,7 +371,7 @@ export default async function WelcomePage() {
             throughout the application" is literal. Unlike the dashboard tape this
             row is NOT hidden below 700px (it is a module `taperow`, not
             `.markets-tape`), so 430 is a real test of this site. */}
-        <div className={`${styles.taperow} odds-only`}>
+        <div className={`${styles.taperow} odds-only`} data-market="signals">
           <span className={styles.tapelabel}>ODDS</span>
           <span className={styles.tapemask}>
             {oddsItems.length > 0 ? (

@@ -187,6 +187,7 @@ function RaceListRow({
           // `visibility: hidden` so the cell keeps its box. Measured at HO 692:
           // `display:none` grew the row 40->64px and moved cash x 1304->1140.
           className="race-list-diverge"
+          data-market="1"
           title={
             diverges ? "Kalshi market favors the opposite party from the raters" : ""
           }
@@ -327,7 +328,7 @@ export function RaceListView({
           // left outside, odds-off would leave a dangling " · " at the end of the
           // readout. Already self-hides at diverge === 0, but zero is not the
           // case the class is for.
-          <span className="odds-only">
+          <span className="odds-only" data-market="1">
             {" · "}
             <span style={{ color: "var(--accent-amber)" }}>
               ◆ {diverge} market{diverge === 1 ? "" : "s"} disagree with raters

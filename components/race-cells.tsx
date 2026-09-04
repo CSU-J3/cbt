@@ -68,6 +68,9 @@ export function KalshiLine({
       // HO 692 site 12 — one class, three consumers: RaceMapCard, RaceListView
       // and RaceDistrictCard all render this line.
       className="racecard-kalshi odds-only"
+      // HO 693 marker — on the primitive, so all three consumers (RaceMapCard,
+      // RaceListView, RaceDistrictCard) are covered, and a fourth is too.
+      data-market="kalshi"
       title={`Kalshi market — ${odds.favoriteLabel} ${odds.impliedPct}% implied probability`}
     >
       <span className="racecard-kalshi-tag">KALSHI</span>

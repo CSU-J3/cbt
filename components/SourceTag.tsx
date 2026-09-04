@@ -26,6 +26,13 @@ export function SourceTag({
   return (
     <span
       className="source-tag"
+      // HO 693 — the OFF pass's marker. Emitted by the PRIMITIVE so every
+      // present AND future consumer carries it without being told: the gate
+      // this feeds exists to catch a site built from a primitive whose author
+      // forgot the `odds-only` class, and a marker the author also has to
+      // remember would miss exactly that case. Purely an attribute; nothing
+      // reads it at runtime and no CSS matches it.
+      data-market={source}
       style={{ color: `var(${meta.varName})` }}
       title={title ?? meta.name}
     >

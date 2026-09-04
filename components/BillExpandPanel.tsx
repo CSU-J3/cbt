@@ -826,7 +826,7 @@ export function BillExpandPanel({
           />
 
           {/* ODDS — always; empty state (no bill↔market join today). */}
-          <div className="bxp-relblock odds-only">
+          <div className="bxp-relblock odds-only" data-market="1">
             <div className="bxp-relhdr">Odds</div>
             <div className="bxp-relempty">NO PREDICTIONS MADE</div>
           </div>
