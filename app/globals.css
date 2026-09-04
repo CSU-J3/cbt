@@ -4618,16 +4618,55 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   grid-template-columns: 1.35fr 1fr;
   gap: 0;
 }
-/* HO 623 — 440px -> 520px, and the threshold MOVES WITH THE COLUMN it was tuned
-   against. 440 was derived from a 400px column; at the new 480px floor the panel's
-   inner width lands ~456-464px, which is just ABOVE 440 — so the query would stop
-   firing at 1440 and the panel would flip to wide mode at exactly the width it was
-   built to stack at, flapping across the boundary. 520 keeps 1440 stacked and lets
-   wide mode arrive only where the container is genuinely wide (a >520px column
-   needs a viewport of roughly 1680+). /bills is unaffected by construction — its
-   panel is ~1140px at 1440, far past either threshold — which is the point of a
-   container query over a route branch. */
-@container bxp (max-width: 520px) {
+/* HO 694 — 520px -> 800px, DERIVED. Provenance in order, because this comment is
+   now a derivation record rather than a tuning note.
+
+   THE HO 623 SENTENCE STANDS AND IS THE REASON THIS EXISTS: the threshold MOVES
+   WITH THE COLUMN it was tuned against. That was written as a warning and it
+   came true. HO 623 set 520 against a 480px column and said so; HO 629 then
+   widened the column to 45% and nobody re-derived. Measured on prod at 409e074
+   with a row expanded, the `.bxp` border-box widths are `/` 378 / 598 / 1102 and
+   `/bills` 394 / 1140 / 2260 at 430 / 1440 / 2560 — ALL FOUR wide readings past
+   520, so no desktop width stacked `/` any more and 623's own claim that "520
+   keeps 1440 stacked" had been false for the whole span from HO 629 to here.
+
+   IT IS NOT COSMETIC AFTER HO 690. Corey ruled the 136x163 portrait off a mock
+   whose dashboard pane was labelled STACKED, which the tree had stopped doing —
+   so at 1440 the dashboard rendered the two-column body with a 241px metabox
+   holding a 136px portrait: the sponsor name broke across two lines, the
+   `KANSAS · SENATE` meta broke across two, and the six cosponsor faces wrapped
+   with the `+1` chip stranded on a row of its own. Re-deriving makes the label
+   true again.
+
+   THE DERIVATION, and every input is a measurement:
+     metaboxMin = 341px = 136 portrait + 11 gap + 194 info max-content, the info
+       column cloned at `width: max-content` and read across all 25 rows of
+       /bills page 1 (2026-09-04). Widest live sponsor: `Rep. Suhas Subramanyam`
+       / `Virginia · House`. THAT IS A SAMPLE, NOT A CORPUS MAXIMUM — a longer
+       name on another page would want a larger floor, and this number carries
+       its date and its sample for exactly that reason.
+     `.bxp-body` is `1.35fr 1fr`, so the metabox column is W / 2.35, where W is
+       the queried container width. `.bxp-left`'s 28px `padding-right` does NOT
+       enter this: it is inside the 1.35fr track. Confirmed against the live
+       readings — /bills @1440 content box 1108, 1108 / 2.35 = 471.5, measured
+       471.5; `/` @1440 content box 566, 566 / 2.35 = 240.9, measured 241.
+     metabox >= 341  =>  W >= 341 x 2.35 = 801.35  =>  stack at W <= 800.
+
+   WHERE THE FOUR LAND, which is the check that the number is the right one:
+     `/`      @1440   566 content / 598 border  -> STACKS   (the point of this HO)
+     `/`      @2560  1070 content / 1102 border -> wide
+     `/bills` @1440  1108 content / 1140 border -> wide
+     `/bills` @2560  2228 content / 2260 border -> wide
+     both    @430    346 / 362 content          -> stack
+   Both boxes are recorded because a container query on `inline-size` evaluates
+   the CONTENT box and the 32px of `.bxp` horizontal padding is the difference;
+   every verdict above is the same under either reading, so the choice of box
+   moves the crossover viewport, never which side these six land on.
+
+   /bills is unaffected by construction — its panel is ~1140px at 1440, far past
+   either threshold — which is the point of a container query over a route
+   branch. */
+@container bxp (max-width: 800px) {
   .bxp-body {
     grid-template-columns: minmax(0, 1fr);
   }
