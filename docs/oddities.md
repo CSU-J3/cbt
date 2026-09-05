@@ -3786,3 +3786,42 @@ string that had to survive a shell*) recurring verbatim, on prose rather than a
 regex. The fix was to stop escaping and say **"a carriage return"** in words.
 **A backslash that must survive a shell is a liability whatever it is being used
 for**, and the cheapest defence is not needing one.
+
+## The scope that makes a survey tractable is the scope that hides what it misses (HO 696, 2026-09-05)
+
+HO 696 enumerated every citation of `docs/design/` in tracked files and predicted
+**six** findings. The scanner built in the same HO found **ten sites**, and the
+two extra tokens were missed for two different reasons, neither of them a sloppy
+grep. Both are the same shape: a boundary chosen to make the enumeration
+*possible* is a boundary the enumeration cannot see past.
+
+**Boundary 1 — "outside the directory".** Both the handoff's ground truth and the
+STEP 0 table resolved citations `over tracked files outside docs/design/`. That
+exclusion is reasonable: a design directory is full of design filenames and
+scanning it would drown the result. It also hid `mock-588-absence-watch.html`,
+cited by a **tracked file inside that directory** — the identical fresh-clone
+breakage, in the one place nobody looked. The citing clause even says the file
+does not exist, which is true and is still a citation.
+
+**Boundary 2 — "before the commit".** The base-tree read is the control: run the
+instrument before the change so the reading can be compared. But the change here
+was *committing twelve files*, and **committing a mock imports whatever that mock
+itself cites**. `mock-591-dashboard-layout.html` is named in a mockbar inside a
+mock that was untracked until that commit, so **no base-tree read of any quality
+could have found it**. The control was correct and incomplete at the same time.
+
+**The transferable rule.** State a survey's exclusions as *findings it cannot
+produce*, not as scope. "Outside `docs/design/`" sounds like tidiness; "cannot
+see a citation inside the design directory" is the same sentence as a limitation,
+and only the second is checkable. And when a change ADDS files to the corpus a
+check reads, **re-run the check after the change** — the post-change reading is
+not a confirmation of the pre-change one, it is a different question.
+
+**Why it was caught at all**, which is the part worth copying: the handoff
+required the scanner to be **written first and run against the base tree**, and
+required the two readings to be **reconciled rather than rounded** — *"fewer
+means the scanner is blind somewhere; more means the grep enumeration missed
+something; either is a flag, not a rounding."* Ten against six was a flag. Had
+the instrument been built after the files landed, both extras would have been
+absorbed into the allowlist as though they had always been known, and the
+boundary that hid them would never have been visible.
