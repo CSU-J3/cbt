@@ -3740,3 +3740,49 @@ is an anecdote.
 Related, one layer over: the same HO's header-alignment defect was invisible to
 every instrument because a misaligned header does not overflow. Different blind
 spot, same lesson — know which question your green answers.
+
+## A CR-stripping grep reads 0 on a CRLF file, so "no CRLF here" and "grep cannot see CRLF" are the same output (HO 695, 2026-09-05)
+
+`docs/method.md` is checked out **CRLF** on the Windows box (`core.autocrlf=true`
+against an LF blob). A grep for a carriage return returned **0**. Git Bash's
+grep strips CR before matching, so the one-liner that looks like a line-ending
+check cannot produce a non-zero on the condition it is testing for — a CRLF file
+and an LF file give the identical answer.
+
+The authoritative read is a byte count, and it disagreed on the same file in the
+same minute:
+
+```
+CRLF 363 · bare CR 0 · LF 363     (python, binary mode)
+grep for a carriage return  ->  0
+```
+
+**What it would have cost.** The edit was applied by reading, normalizing line
+endings, replacing, and writing back. On the grep's answer the write-back would
+have emitted LF, rewriting **every one of 363 lines** — on a commit whose entire
+gate is `git diff --numstat`'s deletion count. A 363-line phantom diff is not a
+subtle failure, but it is one that arrives *after* the check that was supposed to
+prevent it read green.
+
+**Two rules, and the second is the transferable half.** Test line endings by
+**counting bytes**, never by grepping for a control character through a tool that
+may normalize it. And this is SKILL's *"Python text-mode reads normalize line
+endings silently"* with the actors swapped — there the language lied, here the
+search tool did — so the general form is: **when the thing you are measuring is
+a byte, use an instrument that reads bytes.** Every layer between you and the
+file is entitled to normalize.
+
+**The files in one repo do not agree, so check per file.** In the same working
+tree at the same moment: `docs/method.md` **CRLF**, `docs/roadmap.md` **LF**,
+`docs/oddities.md` **LF**. A reading taken on one file is not a property of the
+checkout.
+
+**Postscript, and it is the same disease one layer out.** The first draft of this
+entry was written through a quoted heredoc and the shell collapsed its escaped
+backslash, so the file describing a carriage-return trap was itself written
+carrying two real carriage returns — caught only by the byte count this entry
+recommends. That is method.md's HO 678 instance (*never build a regex from a
+string that had to survive a shell*) recurring verbatim, on prose rather than a
+regex. The fix was to stop escaping and say **"a carriage return"** in words.
+**A backslash that must survive a shell is a liability whatever it is being used
+for**, and the cheapest defence is not needing one.
