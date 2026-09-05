@@ -373,6 +373,11 @@ and it survives the widening.
   conventions, including that a logged line's mechanism or premise is **a claim,
   not a fact** — probe it before building on it.
 - **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
+- **`docs/design/`** — mocks and ruling records, tracked by default.
+  `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`
+  name, the one ignored `scratch/`, citations on one line, and what
+  `check:design-citations` reads and cannot. A mock a tracked file cites ships
+  with the repo, or it is a citation waiting to dangle (HO 672 → 696).
 - **`docs/method.md`** — this file.
 - **Cross-reference rather than restate.** Two copies of a rule drift, and nothing
   in the toolchain reports it when they do.
