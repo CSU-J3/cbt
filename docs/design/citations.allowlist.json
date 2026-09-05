@@ -1,0 +1,28 @@
+{
+  "_README": "Recorded dangles: a tracked file cites a design artefact that does not resolve, and the citation is CORRECT to keep. Each entry names the citing file:line and the record that explains it. Reasons: never-landed (specced, a copy exists outside the repo) | never-existed (named but never authored) | historical-name (the file exists under a different name, and the citing text usually says so). Entries go STALE LOUDLY: if the token later resolves to a tracked file, check:design-citations fails until the entry is removed. NOTHING below docs/design/scratch/ can ever be allowlisted - that class is a hard failure by design. See docs/design/README.md.",
+
+  "docs/design/layout-conventions-c1-c8.html": {
+    "reason": "never-landed",
+    "note": "Cited by .claude/skills/cbt/SKILL.md:1946, which states the situation itself: the C1-C8 visual dictionary is 'specced, not yet landed (a copy survives in the design chat)'. The citation is deliberate - it names the authority split between SKILL, layout-conventions-arc.md and this file. Landing it removes this entry, and the gate will say so."
+  },
+
+  "docs/design/welcome-670.html": {
+    "reason": "historical-name",
+    "note": "Cited by docs/roadmap.md:871 in a sentence that corrects itself: 'The handoff expected docs/design/welcome-670.html; the signed-off file is docs/design/welcome-formats-mock.html'. The dangling name is the point of the sentence, so it stays. The real file is tracked."
+  },
+
+  "mock-590-dashboard-declutter.html": {
+    "reason": "never-existed",
+    "note": "Cited by docs/backlog.md:252 and docs/oddities.md:1116. The oddities row already records it as 'absent from disk' - it is the worked example of a ruling whose mock was never saved, which is the defect HO 696 closes for everything after it. Nothing to commit."
+  },
+
+  "mock-588-absence-watch.html": {
+    "reason": "never-existed",
+    "note": "Cited by docs/design/layout-conventions-arc.md:28, in a clause that says so: 'that was wrong, and mock-588-absence-watch.html does not exist anywhere in the repo'. Zero commits touch that path. Found only by the scanner - both HO 696's ground truth and its STEP 0 grep excluded docs/design/ itself."
+  },
+
+  "mock-591-dashboard-layout.html": {
+    "reason": "never-existed",
+    "note": "Cited by docs/design/mock-591-conventions.html:166, a mockbar line reading 'companion to mock-591-dashboard-layout.html'. Zero commits touch that path. Only visible AFTER STEP 3: committing a mock imports whatever that mock itself cites, so this finding could not exist on the base tree."
+  }
+}
