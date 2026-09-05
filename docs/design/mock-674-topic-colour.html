@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Topic colour — treatment B at 62% (RULED)</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6;
+    --stage-committee:#06b6d4;
+    --mono:ui-monospace,"JetBrains Mono","SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --fs-9:9.5px; --fs-10:10.5px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg-base);color:var(--text-primary);
+       font-family:var(--mono);-webkit-font-smoothing:antialiased;padding:26px 22px 90px}
+  .wrap{max-width:1240px;margin:0 auto}
+
+  .note{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 2px 20px}
+  .note b{color:var(--text-muted);font-weight:600}
+  .note .warn{color:var(--accent-amber)}
+  .note .ruled{color:var(--stage-committee);font-weight:600}
+
+  h2.sec{font-size:var(--fs-11);letter-spacing:.1em;text-transform:uppercase;
+         color:var(--accent-amber-bright);margin:36px 0 4px;font-weight:600}
+  h2.sec .n{color:var(--text-dim);margin-right:8px}
+  p.sub{font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 0 14px;max-width:92ch}
+  p.sub b{color:var(--text-muted);font-weight:600}
+  p.sub code{color:var(--text-secondary)}
+
+  .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:start}
+  .col{min-width:0}
+  .colhd{font-size:var(--fs-10);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);
+         margin:0 0 8px;padding-left:2px}
+  .colhd .rec{color:var(--stage-committee)}
+  .colhd .sm{color:var(--text-dim);letter-spacing:0;text-transform:none}
+  .feed{border:1px solid var(--border-strong);border-radius:3px;background:var(--bg-panel);padding:2px 0}
+  .grouphd{font-size:var(--fs-9);letter-spacing:.09em;text-transform:uppercase;color:var(--text-dim);
+           padding:9px 12px 5px;border-bottom:1px solid var(--border-soft)}
+  .row{padding:8px 12px;border-bottom:1px solid var(--border-soft)}
+  .row:last-child{border-bottom:none}
+  .row:hover{background:var(--bg-row-hover)}
+  .l1{display:flex;align-items:baseline;gap:8px;min-width:0}
+  .disc{flex:none;font-size:var(--fs-9);color:var(--text-dim);line-height:1;position:relative;top:-1px}
+  .vid{font-size:var(--fs-11);font-weight:600;color:var(--accent-amber);flex:none;letter-spacing:.02em}
+  .vtitle{font-family:var(--sans);font-size:var(--fs-14);color:var(--text-secondary);line-height:1.3;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .l2{margin-top:1px;font-size:var(--fs-10);color:var(--text-dim);white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis}
+  .sep{margin:0 6px}
+  .tops i{font-style:normal}
+
+  .swatchrow{display:flex;flex-wrap:wrap;gap:0 4px;margin:10px 0 0;align-items:center}
+  .swpair{display:flex;flex-direction:column;gap:3px;align-items:center;margin:0 7px 9px 0}
+  .sw{font-size:var(--fs-10);letter-spacing:.04em;padding:3px 7px;border:1px solid var(--border-strong);
+      border-radius:2px;background:var(--bg-panel);min-width:52px;text-align:center}
+  .swlbl{font-size:8px;color:var(--text-dim);letter-spacing:.06em}
+
+  /* second surface — the plain chip run */
+  .chiprow{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:5px}
+  .chip{font-size:var(--fs-10);letter-spacing:.04em;padding:0;border:0;background:none}
+  .brow{padding:9px 12px;border-bottom:1px solid var(--border-soft)}
+  .brow:last-child{border-bottom:none}
+  .btitle{font-family:var(--sans);font-size:var(--fs-13);color:var(--text-secondary);line-height:1.35;
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bmeta{font-size:var(--fs-10);color:var(--text-dim);margin-top:3px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+
+  .ruleblock{border-left:2px solid var(--border-strong);padding:2px 0 2px 14px;margin:28px 2px 0}
+  .ruleblock .rl{font-size:10px;color:var(--text-dim);line-height:1.65;margin:0 0 6px}
+  .ruleblock .rl b{color:var(--text-muted);font-weight:600}
+  .ruleblock .rl .q{color:var(--accent-amber)}
+  .ruleblock .rl .k{color:var(--stage-committee)}
+  .ruleblock .rl code{color:var(--text-secondary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="note">
+    <span class="ruled">RULING RECORD — treatment B, 62% toward the line. Approved by Corey 2026-08-18.</span><br>
+    Topic codes carry their topic colour on the dashboard feed row and on every <b>TopicChips</b> <code>plain</code>
+    surface. Hex values are the real <b>TOPIC_COLORS</b> from <b>lib/topic-colors.ts:9</b> — the same map
+    <b>TopicDistributionList</b> reads for the BY TOPIC bars, so a code here and a bar there are one value by
+    construction, not two palettes kept in sync by hand.<br>
+    Labels are the nine confirmed off the live dashboard (GOV · HLTH · TECH · CIV · ENV · CONS · CRIM · FRGN ·
+    VET). <span class="warn">The rest of <b>topicLabel()</b>'s vocabulary is not guessed at here.</span>
+  </p>
+
+  <!-- ══ 01 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">01</span>The three states, on the same eight rows</h2>
+  <p class="sub">Judge the column top to bottom rather than a single row — the question was never whether one
+     code is legible, it is whether the feed still reads as titles with metadata under them. Note what colour is
+     already doing on line 2: the sponsor carries party colour and stage carries its own, so this is a third
+     carrier joining two, not a first joining none.</p>
+
+  <div class="cols">
+    <div class="col">
+      <p class="colhd">Today <span class="sm">· inherited --text-dim</span></p>
+      <div class="feed" data-feed="off"></div>
+    </div>
+    <div class="col">
+      <p class="colhd">A · raw <span class="sm">· the bar colour exactly — NOT taken</span></p>
+      <div class="feed" data-feed="raw"></div>
+    </div>
+    <div class="col">
+      <p class="colhd"><span class="rec">◆ B · RULED</span> <span class="sm">· 62% toward the line</span></p>
+      <div class="feed" data-feed="mix"></div>
+    </div>
+  </div>
+
+  <!-- ══ 02 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">02</span>The value, and where it lives</h2>
+  <p class="sub">The ruled colour is
+     <code>color-mix(in srgb, {topicColor} 62%, var(--text-dim))</code> — the same idiom the rails already use
+     for their 10–12% tints, so it introduces no literal outside the token set and stays one function call from
+     the source of truth. Hue survives (HLTH still reads pink against CIV's green); what drops is the
+     competition with the title above. Raw on top, ruled beneath.</p>
+
+  <div class="swatchrow" data-swatches></div>
+
+  <!-- ══ 03 ═════════════════════════════════════════════════════════════════ -->
+  <h2 class="sec"><span class="n">03</span>The second surface — this is not dashboard-only</h2>
+  <p class="sub">The same codes render through <b>TopicChips</b>'s <code>plain</code> branch on
+     <b>BillRow</b> (<code>/bills</code>, <code>/watchlist</code>, <code>/changes</code>, <code>/stale</code>,
+     <code>/members/[bioguideId]</code>) and on the bill hub page. Colouring one surface and not the other would
+     leave identical content reading two ways, which is the divergence HO 632's metabox ruling went global to
+     avoid. Both get treatment B. <b>The rows below are indicative of the chip run, not a replica of BillRow's
+     full markup</b> — the ruling is the colour, not this layout.</p>
+
+  <div class="pair">
+    <div>
+      <p class="colhd">Today <span class="sm">· plain chips inherit</span></p>
+      <div class="feed" data-chips="off"></div>
+    </div>
+    <div>
+      <p class="colhd"><span class="rec">◆ RULED</span> <span class="sm">· same 62% value</span></p>
+      <div class="feed" data-chips="mix"></div>
+    </div>
+  </div>
+
+  <div class="ruleblock">
+    <p class="rl"><span class="k">RULED — B at 62%.</span> Colour on the <b>text only</b>, both surfaces, from
+       the same <code>topicColor()</code> the BY TOPIC bars read. A (raw bar hex) was the alternative and was not
+       taken.</p>
+    <p class="rl"><span class="q">THE RATIO LIVES IN CSS, ONCE.</span> TSX passes the raw colour as a custom
+       property (<code>style={{ "--tc": topicColor(t) }}</code>); CSS computes the mix. Re-tuning 62% later must
+       be a one-line edit, which is the whole reason it is not inlined per-topic in TSX.</p>
+    <p class="rl"><span class="q">NO BORDER, EVER.</span> <b>TopicChips</b>' bordered non-plain branch is
+       already orphaned — both consumers pass <code>plain</code>. Reviving it would undo the HO 609/614/618 rule
+       that a border survives only on an interactive affordance, and would put width back under M3's predicate.
+       After the change <code>.v2f-topic--plain</code> must still compute <code>border-width: 0</code>.</p>
+    <p class="rl"><span class="q">THE COST, NAMED UP FRONT.</span> <b>V2FeedList.tsx:326</b> joins every topic
+       into ONE inheriting span today. Colour means one own-style span per code, so M3 moves off its measured
+       baseline by roughly one to two per row. A reported number, not a failure — but predicted before it is
+       measured, and reconciled if the two disagree.</p>
+    <p class="rl"><span class="q">THIS IS A REVERSAL, ARGUED ON THE STANDING RULE.</span> C3 stripped line 2's
+       decoration at HO 609. But the sponsor kept party colour through that same sweep because
+       <b>V2FeedList.tsx:230</b> judged it "the only thing that was carrying meaning" — so C3 as applied is not
+       "one colour per row", it is "colour must encode something." Topic colour passes the identical test: it is
+       the same value the bar uses, one fact rendered twice. Record it the way HO 632 recorded the date-group
+       reversal, not as an override.</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var T = {
+    HLTH:"#e05c8e", GOV:"#e05c7d", TECH:"#e05c62", CIV:"#3eda65", ENV:"#da3ecd",
+    CONS:"#3eda45", CRIM:"#a45ce0", FRGN:"#da6c3e", VET:"#5ce0a9"
+  };
+  var ORDER = ["GOV","HLTH","TECH","CIV","ENV","CONS","CRIM","FRGN","VET"];
+
+  var ROWS = [
+    {g:"TODAY"},
+    {id:"HR 10086", t:"Diabetes Prevention Program Reauthorization Act of 2026",
+     s:"CMTE 3d", n:"DE LA CRUZ", p:"[R-TX]", pc:"--party-republican", tp:["HLTH"]},
+    {id:"S 4529", t:"Veterans Community Care Transparency Act",
+     s:"CMTE 1d", n:"MORAN", p:"[R-KS]", pc:"--party-republican", tp:["VET","HLTH"]},
+    {id:"HR 9912", t:"Federal Data Center Energy Accountability Act",
+     s:"FLOOR 2d", n:"CASTOR", p:"[D-FL]", pc:"--party-democrat", tp:["TECH","ENV","GOV"]},
+    {g:"YESTERDAY"},
+    {id:"S 4711", t:"Election Infrastructure Modernization Act of 2026",
+     s:"CMTE 4d", n:"PADILLA", p:"[D-CA]", pc:"--party-democrat", tp:["CIV","GOV"]},
+    {id:"HR 10214", t:"Consumer Lending Disclosure Improvement Act",
+     s:"CMTE 5d", n:"WATERS", p:"[D-CA]", pc:"--party-democrat", tp:["CONS"]},
+    {id:"HR 10190", t:"Border Processing Facility Oversight Act",
+     s:"CMTE 6d", n:"GONZALES", p:"[R-TX]", pc:"--party-republican", tp:["CRIM","FRGN","GOV"]},
+    {id:"S 4688", t:"Rural Broadband Deployment Acceleration Act",
+     s:"CMTE 6d", n:"KLOBUCHAR", p:"[D-MN]", pc:"--party-democrat", tp:["TECH","CONS"]},
+    {id:"HR 10077", t:"Public Health Emergency Preparedness Reauthorization",
+     s:"CMTE 7d", n:"ESHOO", p:"[D-CA]", pc:"--party-democrat", tp:["HLTH","GOV","CIV"]}
+  ];
+
+  var CHIPROWS = [
+    {t:"Diabetes Prevention Program Reauthorization Act of 2026", m:"DE LA CRUZ [R-TX] · 2026-08-13", tp:["HLTH"]},
+    {t:"Federal Data Center Energy Accountability Act", m:"CASTOR [D-FL] · 2026-08-11", tp:["TECH","ENV","GOV"]},
+    {t:"Border Processing Facility Oversight Act", m:"GONZALES [R-TX] · 2026-08-09", tp:["CRIM","FRGN","GOV"]},
+    {t:"Veterans Community Care Transparency Act", m:"MORAN [R-KS] · 2026-08-08", tp:["VET","HLTH"]}
+  ];
+
+  function tint(hex, mode){
+    if (mode === "off") return null;
+    if (mode === "raw") return hex;
+    return "color-mix(in srgb, " + hex + " 62%, var(--text-dim))";
+  }
+
+  document.querySelectorAll("[data-feed]").forEach(function(el){
+    var mode = el.getAttribute("data-feed"), h = "";
+    ROWS.forEach(function(r){
+      if (r.g){ h += '<div class="grouphd">'+r.g+'</div>'; return; }
+      var tops = r.tp.map(function(c){
+        var col = tint(T[c], mode);
+        return col ? '<i style="color:'+col+'">'+c+'</i>' : '<i>'+c+'</i>';
+      }).join(" ");
+      h += '<div class="row"><div class="l1">'+
+           '<span class="disc">&#9656;</span>'+
+           '<span class="vid">'+r.id+'</span>'+
+           '<span class="vtitle">'+r.t+'</span></div>'+
+           '<div class="l2"><span>'+r.s+'</span><span class="sep">&middot;</span>'+
+           '<span style="color:var('+r.pc+')">'+r.n+' '+r.p+'</span>'+
+           '<span class="sep">&middot;</span><span class="tops">'+tops+'</span></div></div>';
+    });
+    el.innerHTML = h;
+  });
+
+  document.querySelectorAll("[data-chips]").forEach(function(el){
+    var mode = el.getAttribute("data-chips"), h = "";
+    CHIPROWS.forEach(function(r){
+      var chips = r.tp.map(function(c){
+        var col = tint(T[c], mode);
+        return '<span class="chip"'+(col?' style="color:'+col+'"':'')+'>'+c+'</span>';
+      }).join("");
+      h += '<div class="brow"><div class="btitle">'+r.t+'</div>'+
+           '<div class="bmeta">'+r.m+'</div>'+
+           '<div class="chiprow">'+chips+'</div></div>';
+    });
+    el.innerHTML = h;
+  });
+
+  var sw = document.querySelector("[data-swatches]");
+  if (sw){
+    ORDER.forEach(function(code){
+      var wrap = document.createElement("div");
+      wrap.className = "swpair";
+      var a = document.createElement("span");
+      a.className = "sw"; a.style.color = T[code]; a.textContent = code;
+      var la = document.createElement("span");
+      la.className = "swlbl"; la.textContent = "RAW";
+      var b = document.createElement("span");
+      b.className = "sw";
+      b.style.color = "color-mix(in srgb, " + T[code] + " 62%, var(--text-dim))";
+      b.textContent = code;
+      var lb = document.createElement("span");
+      lb.className = "swlbl"; lb.style.color = "var(--stage-committee)"; lb.textContent = "62%";
+      wrap.appendChild(a); wrap.appendChild(la);
+      wrap.appendChild(b); wrap.appendChild(lb);
+      sw.appendChild(wrap);
+    });
+  }
+})();
+</script>
+</body>
+</html>

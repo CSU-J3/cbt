@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>/stale — momentum overlay (matched to live)</title>
+<style>
+  :root{
+    --bg-base:#0a0e14;
+    --bg-panel:#050709;
+    --bg-row-hover:#0f1620;
+    --border-strong:#1f2937;
+    --border-soft:#111820;
+    --text-primary:#e5e7eb;
+    --text-secondary:#cbd5e1;
+    --text-muted:#94a3b8;
+    --text-dim:#6b7280;
+    --accent-amber:#d97706;
+    --accent-amber-bright:#fbbf24;
+    --stage-introduced:#94a3b8;
+    --stage-committee:#06b6d4;
+    --stage-floor:#fbbf24;
+    --stage-other-chamber:#f59e0b;
+    --stage-president:#fb923c;
+    --stage-enacted:#10b981;
+    --party-democrat:#3b82f6;
+    --party-republican:#ef4444;
+    --party-independent:#a78bfa;
+    --font-mono:'SF Mono','JetBrains Mono',Menlo,Consolas,'Liberation Mono',monospace;
+    --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    /* topic borders sampled from the live screenshot; topic-colors.ts governs in build */
+    --t-gov:#f59e0b;   /* amber */
+    --t-edu:#f59e0b;   /* amber */
+    --t-civ:#a78bfa;   /* purple */
+    --t-env:#a78bfa;   /* purple */
+    --t-crim:#a78bfa;  /* purple */
+    --t-cons:#10b981;  /* green */
+    --t-enrg:#10b981;  /* green */
+    --t-inm:#10b981;   /* green */
+    --t-soc:#ec4899;   /* pink (not in shot) */
+  }
+  *{box-sizing:border-box;}
+  body{
+    background:var(--bg-base);
+    color:var(--text-primary);
+    font-family:var(--font-mono);
+    margin:0;padding:26px 20px 64px;
+    font-size:13px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto;}
+  .tab{font-variant-numeric:tabular-nums;}
+  .sans{font-family:var(--font-sans);}
+
+  /* annotation bands — artifact only, not part of the row */
+  .note{border-left:2px solid var(--accent-amber);padding:8px 0 8px 14px;margin:0 0 6px;color:var(--text-muted);font-size:11px;}
+  .note b{color:var(--text-secondary);font-weight:600;letter-spacing:.04em;}
+  .note .k{color:var(--accent-amber-bright);}
+  .legend{border-collapse:collapse;margin-top:9px;}
+  .legend td{padding:3px 18px 3px 0;vertical-align:top;}
+  .legend .mk{white-space:nowrap;}
+  .seclabel{font-size:10px;letter-spacing:.18em;color:var(--text-dim);margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border-strong);}
+
+  /* page chrome */
+  .tabs{display:flex;gap:22px;font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border-strong);padding-bottom:11px;margin-bottom:2px;}
+  .tabs .on{color:var(--text-primary);border-bottom:1px solid var(--accent-amber-bright);padding-bottom:11px;margin-bottom:-12px;}
+  .tabs .n{color:var(--text-dim);}
+
+  /* list */
+  .list{}
+  .row{padding:13px 16px;border-bottom:1px solid var(--border-soft);border-radius:3px;}
+  .row:hover{background:var(--bg-row-hover);}
+  .l1{display:flex;align-items:center;gap:12px;}
+  .l2{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;}
+
+  .idchip{border:1px solid var(--accent-amber);color:var(--accent-amber);font-size:11px;padding:1px 7px;border-radius:2px;letter-spacing:.03em;white-space:nowrap;flex-shrink:0;}
+  .title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-primary);font-size:14.5px;}
+  .metrics{display:flex;align-items:center;gap:14px;flex-shrink:0;}
+
+  /* support figure, weighted by magnitude */
+  .sup{font-size:12px;letter-spacing:.01em;}
+  .sup.high{color:var(--accent-amber-bright);font-weight:600;}
+  .sup.mid{color:var(--text-secondary);}
+  .sup.low{color:var(--text-dim);}
+  .sup.nul{color:var(--text-dim);}
+
+  /* HEARD badge — quiet pill, date lives in the expand */
+  .heard{border:1px solid var(--border-strong);color:var(--text-muted);font-size:10px;padding:1px 6px;border-radius:2px;letter-spacing:.08em;white-space:nowrap;}
+  .hslot{width:52px;display:flex;justify-content:flex-end;}
+
+  .age{font-size:12px;color:var(--text-dim);white-space:nowrap;}
+  .caret{color:var(--text-dim);font-size:11px;width:10px;text-align:center;}
+
+  .spon{color:var(--text-muted);}
+  .spon u{text-decoration:none;border-bottom:1px solid rgba(148,163,184,.3);}
+  .pd{color:var(--party-democrat);}
+  .pr{color:var(--party-republican);}
+  .pi{color:var(--party-independent);}
+  .sep{color:var(--text-dim);}
+  .topic{border:1px solid;font-size:10px;padding:0 6px;border-radius:2px;letter-spacing:.04em;white-space:nowrap;}
+
+  /* expanded panel — HO 317 shell, matched to live */
+  .expand{border:1px solid var(--border-strong);background:#0b0f16;border-radius:4px;padding:15px 18px 17px;}
+  .exhead{display:flex;align-items:flex-start;gap:12px;}
+  .extitle{flex:1;min-width:0;color:var(--text-primary);font-size:14.5px;line-height:1.4;}
+  .exmetrics{display:flex;align-items:center;gap:14px;flex-shrink:0;padding-top:2px;}
+  .exspon{margin:7px 0 0;font-size:12px;}
+
+  .pipe{display:flex;align-items:flex-start;margin:16px 0 20px;padding:0 4px;}
+  .pnode{display:flex;flex-direction:column;align-items:center;gap:7px;flex-shrink:0;}
+  .pdot{width:9px;height:9px;border-radius:50%;}
+  .d-done{background:var(--stage-committee);}
+  .d-floor{background:var(--stage-floor);}
+  .d-cur{width:12px;height:12px;background:var(--stage-other-chamber);box-shadow:0 0 0 3px rgba(245,158,11,.16);}
+  .d-fut{background:transparent;border:1px solid var(--border-strong);}
+  .pl{font-size:9px;letter-spacing:.05em;white-space:nowrap;}
+  .pl-done{color:var(--text-muted);}
+  .pl-cur{color:var(--stage-other-chamber);}
+  .pl-fut{color:var(--text-dim);}
+  .pdate{font-size:9px;color:var(--text-dim);}
+  .pconn{flex:1;height:2px;margin-top:4px;min-width:16px;}
+  .c-on{background:var(--stage-committee);}
+  .c-on2{background:var(--stage-other-chamber);}
+  .c-off{background:var(--border-strong);}
+
+  .cols{display:flex;gap:24px;}
+  .cl{flex:1.3;min-width:0;}
+  .cr{flex:1;min-width:0;}
+  .summary{color:var(--text-secondary);font-size:12.5px;line-height:1.55;margin-bottom:16px;}
+  .slot{margin-bottom:15px;}
+  .slab{font-size:10px;letter-spacing:.1em;color:var(--text-dim);margin-bottom:7px;}
+  .hline{color:var(--text-secondary);font-size:11.5px;}
+  .hmeta{color:var(--text-muted);font-size:10px;margin-top:3px;letter-spacing:.03em;}
+  .silent{color:var(--accent-amber-bright);font-size:10px;margin-top:6px;letter-spacing:.05em;}
+  .empty{color:var(--text-dim);font-size:11.5px;}
+
+  .card{border:1px solid var(--border-strong);border-radius:3px;}
+  .field{padding:10px 13px;border-bottom:1px solid var(--border-soft);}
+  .field:last-child{border-bottom:none;}
+  .fk{font-size:9.5px;letter-spacing:.12em;color:var(--text-dim);}
+  .fv{margin-top:5px;font-size:12.5px;color:var(--text-primary);line-height:1.45;}
+  .fv u{text-decoration:none;border-bottom:1px solid rgba(229,231,235,.25);}
+  .fv .trail{color:var(--text-dim);font-size:10px;}
+  .fv.comm{color:var(--accent-amber);}
+  /* cosponsors overlay row */
+  .fv.cos{font-family:var(--font-mono);display:flex;align-items:center;gap:9px;}
+  .cos .n{color:var(--accent-amber-bright);font-weight:600;font-size:12px;}
+  .sbar{display:inline-flex;gap:2px;}
+  .seg{width:6px;height:9px;background:var(--border-strong);}
+  .seg.on{background:var(--accent-amber-bright);}
+
+  .btns{display:flex;gap:9px;margin-top:14px;}
+  .btn{border:1px solid var(--border-strong);color:var(--text-secondary);font-size:11px;padding:6px 14px;border-radius:2px;letter-spacing:.03em;}
+  .btn.pri{border-color:var(--accent-amber);color:var(--accent-amber-bright);}
+
+  /* variant strip */
+  .variants{border:1px solid var(--border-strong);border-radius:3px;margin-top:12px;}
+  .vrow{display:flex;border-bottom:1px solid var(--border-soft);}
+  .vrow:last-child{border-bottom:none;}
+  .vtag{width:128px;flex-shrink:0;padding:13px 14px;border-right:1px solid var(--border-soft);font-size:10px;color:var(--text-dim);letter-spacing:.07em;}
+  .vtag .pick{color:var(--accent-amber-bright);display:block;margin-top:4px;}
+  .vbody{flex:1;padding:13px 16px;min-width:0;}
+  .barwrap{display:inline-flex;align-items:center;gap:7px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="note">
+    <b>MOMENTUM OVERLAY</b> &nbsp;annotates the stage-led sort, <span class="k">does not re-order it</span>. the spine still answers "what's stalled where"; the marks add "which of these had life."
+    <table class="legend">
+      <tr>
+        <td class="mk tab"><span class="sup high">+118</span></td>
+        <td>cosponsor support · brighter = more backing · <span class="sup nul">—</span> when not stored · a delta slots in later (<span class="sup high tab">+118&nbsp;▲9</span>) with no redesign</td>
+      </tr>
+      <tr>
+        <td class="mk"><span class="heard">HEARD</span></td>
+        <td>got a committee hearing, then went silent · the "then silent" is the page itself · hearing date shows in the expand</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="seclabel">COLLAPSED — your live TOP STALLS, overlay applied</div>
+
+  <div class="tabs">
+    <span>MOVERS <span class="n">(43)</span></span>
+    <span class="on">TOP STALLS <span class="n">(5)</span></span>
+    <span>NEW THIS WEEK <span class="n">(44)</span></span>
+  </div>
+
+  <div class="list">
+
+    <!-- HR 189: longest title, low support, no hearing — stress + recede -->
+    <div class="row">
+      <div class="l1">
+        <span class="idchip">HR 189</span>
+        <span class="title sans">Securities and Exchange Commission Real Estate Leasing Authority Revocation Act</span>
+        <span class="metrics">
+          <span class="sup low tab">+6</span>
+          <span class="hslot"></span>
+          <span class="age tab">528d stuck</span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="l2">
+        <span class="spon"><u>NORTON</u> <span class="pd">[D-DC]</span></span>
+        <span class="sep">·</span>
+        <span class="topic" style="border-color:rgba(245,158,11,.5);color:var(--t-gov);">GOV</span>
+      </div>
+    </div>
+
+    <!-- HR 153: mid support, no hearing -->
+    <div class="row">
+      <div class="l1">
+        <span class="idchip">HR 153</span>
+        <span class="title sans">Post-Disaster Assistance Online Accountability Act</span>
+        <span class="metrics">
+          <span class="sup mid tab">+41</span>
+          <span class="hslot"></span>
+          <span class="age tab">527d stuck</span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="l2">
+        <span class="spon"><u>EZELL</u> <span class="pr">[R-MS]</span></span>
+        <span class="sep">·</span>
+        <span class="topic" style="border-color:rgba(245,158,11,.5);color:var(--t-gov);">GOV</span>
+        <span class="topic" style="border-color:rgba(16,185,129,.5);color:var(--t-cons);">CONS</span>
+      </div>
+    </div>
+
+    <!-- HR 28: HIGH support + HEARD + 2 chips = the busiest row -->
+    <div class="row">
+      <div class="l1">
+        <span class="idchip">HR 28</span>
+        <span class="title sans">Protection of Women and Girls in Sports Act of 2025</span>
+        <span class="metrics">
+          <span class="sup high tab">+118</span>
+          <span class="hslot"><span class="heard">HEARD</span></span>
+          <span class="age tab">527d stuck</span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="l2">
+        <span class="spon"><u>STEUBE</u> <span class="pr">[R-FL]</span></span>
+        <span class="sep">·</span>
+        <span class="topic" style="border-color:rgba(245,158,11,.5);color:var(--t-edu);">EDU</span>
+        <span class="topic" style="border-color:rgba(167,139,250,.5);color:var(--t-civ);">CIV</span>
+      </div>
+    </div>
+
+    <!-- HR 164: null support, HEARD, 2 chips -->
+    <div class="row">
+      <div class="l1">
+        <span class="idchip">HR 164</span>
+        <span class="title sans">POWER Act of 2025</span>
+        <span class="metrics">
+          <span class="sup nul tab">—</span>
+          <span class="hslot"><span class="heard">HEARD</span></span>
+          <span class="age tab">526d stuck</span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="l2">
+        <span class="spon"><u>HOYLE</u> <span class="pd">[D-OR]</span></span>
+        <span class="sep">·</span>
+        <span class="topic" style="border-color:rgba(16,185,129,.5);color:var(--t-enrg);">ENRG</span>
+        <span class="topic" style="border-color:rgba(167,139,250,.5);color:var(--t-env);">ENV</span>
+      </div>
+    </div>
+
+    <!-- HR 30: high support, no hearing, 2 chips -->
+    <div class="row">
+      <div class="l1">
+        <span class="idchip">HR 30</span>
+        <span class="title sans">Preventing Violence Against Women by Illegal Aliens Act</span>
+        <span class="metrics">
+          <span class="sup high tab">+95</span>
+          <span class="hslot"></span>
+          <span class="age tab">525d stuck</span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="l2">
+        <span class="spon"><u>MACE</u> <span class="pr">[R-SC]</span></span>
+        <span class="sep">·</span>
+        <span class="topic" style="border-color:rgba(16,185,129,.5);color:var(--t-inm);">INM</span>
+        <span class="topic" style="border-color:rgba(167,139,250,.5);color:var(--t-crim);">CRIM</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="seclabel">EXPANDED — HR 28, both signals, momentum living in existing slots</div>
+
+  <div class="expand">
+    <div class="exhead">
+      <span class="idchip">HR 28</span>
+      <span class="extitle sans">Protection of Women and Girls in Sports Act of 2025</span>
+      <span class="exmetrics">
+        <span class="sup high tab">+118</span>
+        <span class="heard">HEARD</span>
+        <span class="age tab">527d stuck</span>
+        <span class="caret">▴</span>
+      </span>
+    </div>
+    <div class="exspon">
+      <span class="spon"><u>STEUBE</u> <span class="pr">[R-FL]</span></span>
+      <span class="sep">·</span>
+      <span class="topic" style="border-color:rgba(245,158,11,.5);color:var(--t-edu);">EDU</span>
+      <span class="topic" style="border-color:rgba(167,139,250,.5);color:var(--t-civ);">CIV</span>
+    </div>
+
+    <div class="pipe">
+      <div class="pnode"><span class="pdot d-done"></span><span class="pl pl-done">INTRO</span><span class="pdate">2025-01-03</span></div>
+      <div class="pconn c-on"></div>
+      <div class="pnode"><span class="pdot d-done"></span><span class="pl pl-done">COMMITTEE</span></div>
+      <div class="pconn c-on2"></div>
+      <div class="pnode"><span class="pdot d-floor"></span><span class="pl pl-done">FLOOR</span></div>
+      <div class="pconn c-on2"></div>
+      <div class="pnode"><span class="pdot d-cur"></span><span class="pl pl-cur">OTHER CHAMBER</span><span class="pdate">2025-01-14</span></div>
+      <div class="pconn c-off"></div>
+      <div class="pnode"><span class="pdot d-fut"></span><span class="pl pl-fut">PRESIDENT</span></div>
+      <div class="pconn c-off"></div>
+      <div class="pnode"><span class="pdot d-fut"></span><span class="pl pl-fut">ENACTED</span></div>
+    </div>
+
+    <div class="cols">
+      <div class="cl">
+        <div class="summary sans">Bars schools and athletic programs that receive federal funds from allowing students assigned male at birth to compete in women's or girls' sports, tying the rule to Title IX compliance. Passed the House in January 2025; no Senate floor action since.</div>
+
+        <div class="slot">
+          <div class="slab">HEARING</div>
+          <div class="hline">Education &amp; the Workforce</div>
+          <div class="hmeta">MARKUP · HELD · FEB 11, 2025 · 10:15 ET · 2175 RHOB</div>
+          <div class="silent">NO ACTION IN 527d</div>
+        </div>
+        <div class="slot">
+          <div class="slab">RELATED NEWS</div>
+          <div class="empty">NO RELATED NEWS</div>
+        </div>
+        <div class="slot">
+          <div class="slab">ODDS</div>
+          <div class="empty">NO PREDICTIONS MADE</div>
+        </div>
+      </div>
+
+      <div class="cr">
+        <div class="card">
+          <div class="field">
+            <div class="fk">SPONSOR</div>
+            <div class="fv sans"><u>Rep. Greg Steube</u> <span class="pr">[R-FL-17]</span></div>
+          </div>
+          <div class="field">
+            <div class="fk">COSPONSORS</div>
+            <div class="fv cos"><span class="n tab">118</span><span class="sbar"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></span></div>
+          </div>
+          <div class="field">
+            <div class="fk">COMMITTEE</div>
+            <div class="fv comm sans">Education and the Workforce Committee <span class="trail">· Referred · 527d</span></div>
+          </div>
+          <div class="field">
+            <div class="fk">INTRODUCED</div>
+            <div class="fv tab">2025-01-03</div>
+          </div>
+          <div class="field">
+            <div class="fk">LATEST ACTION</div>
+            <div class="fv sans">Received in the Senate and referred to the Committee on Health, Education, Labor, and Pensions. <span class="trail">· 527d</span></div>
+          </div>
+        </div>
+        <div class="btns">
+          <span class="btn pri">FULL BILL PAGE →</span>
+          <span class="btn">CONGRESS.GOV ↗</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="seclabel">SUPPORT MARKER — pick the collapsed-row form</div>
+
+  <div class="variants">
+    <div class="vrow">
+      <div class="vtag">A · FIGURE<span class="pick">my lean</span></div>
+      <div class="vbody">
+        <div class="l1">
+          <span class="idchip">HR 28</span>
+          <span class="title sans">Protection of Women and Girls in Sports Act of 2025</span>
+          <span class="metrics">
+            <span class="sup high tab">+118</span>
+            <span class="hslot"><span class="heard">HEARD</span></span>
+            <span class="age tab">527d stuck</span>
+            <span class="caret">▾</span>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="vrow">
+      <div class="vtag">B · FIGURE + BAR</div>
+      <div class="vbody">
+        <div class="l1">
+          <span class="idchip">HR 28</span>
+          <span class="title sans">Protection of Women and Girls in Sports Act of 2025</span>
+          <span class="metrics">
+            <span class="barwrap"><span class="sbar"><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg on"></span><span class="seg"></span></span><span class="sup high tab">118</span></span>
+            <span class="hslot"><span class="heard">HEARD</span></span>
+            <span class="age tab">527d stuck</span>
+            <span class="caret">▾</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:18px;">
+    <b>A</b> keeps the row tight, reads "+118 backers" at a glance, hosts a future delta. <b>B</b> shows magnitude on every row for instant cross-row compare, which earns its keep the day SUPPORT becomes a sub-sort. either way the bar lives in one home, not both — in A it's reserved for the expand card.
+  </div>
+
+</div>
+</body>
+</html>
