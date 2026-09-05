@@ -17,9 +17,9 @@ import styles from "./landing.module.css";
 // HO 670 — /welcome rebuilt as the BOARD: top rail (brand · IN BETA · clock) ·
 // BREAKING · banner (headline + lead + CTA grid) · MARKETS tape · ODDS tape ·
 // three cycling demo panels · bottom rail. Supersedes the HO 361 split layout
-// built from docs/design/landing.html; the board is docs/design/welcome-formats-
-// mock.html format 1, ruled by Corey 2026-08-17. Where the mock and the handoff
-// spec disagreed, the spec won.
+// built from docs/design/landing.html; the board is format 1 of
+// docs/design/welcome-formats-mock.html, ruled by Corey 2026-08-17. Where the
+// mock and the handoff spec disagreed, the spec won.
 //
 // STILL A SERVER COMPONENT. The page gains exactly ONE client island — the
 // ticking clock (components/WelcomeClock.tsx) — because a clock cannot be
