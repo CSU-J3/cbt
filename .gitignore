@@ -54,6 +54,17 @@ playwright-report/
 scripts/diagnostic/scratch/*
 !scripts/diagnostic/scratch/README.md
 
+# design artefacts (HO 696). Mocks default to TRACKED. At the HO 672 close this
+# directory held 20 tracked and 13 untracked with no disposable location at all,
+# so every mock not deliberately committed was simply loose — and four tracked
+# files, one of them shipped source, cited a mock absent from a fresh clone. This
+# is the opt-in for a mock known disposable when it is saved (a browser-download
+# duplicate, an iteration superseded before it was ruled); nothing tracked may
+# cite a file in here, and `npm run check:design-citations` reds if one does.
+# A ruling record never goes here. README negated back in so the rule ships.
+docs/design/scratch/*
+!docs/design/scratch/README.md
+
 # handoff docs (HO 604). These were already ignored per-machine via
 # core.excludesFile (~/.gitignore_global), so they never reach the repo and a
 # deploy never sees them. Repeating it HERE is what stops Tailwind reading them:
