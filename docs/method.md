@@ -53,9 +53,57 @@
 - **Probe before build.** New upstream: SKILL, "External data sources" — the
   probe → wire cadence, diagnostic-only probe handoff first. New premise of any
   kind: SKILL, "Pre-flight verification".
+- **A ground-truth paragraph quotes what was read at the stated SHA and marks
+  everything else as an estimate.** A status domain, a column shape, a SKILL entry
+  or a CSS mechanism is read — the schema comment, the `CREATE TABLE`, the SKILL
+  heading, the computed style — and cited by `file:line`; it is never recalled. A
+  figure the architect cannot measure is written as `~N (estimate; STEP 0
+  measures)`, and STEP 0's job is to replace it. Five consecutive handoffs had
+  their ground truth corrected at STEP 0 (HO 690–694); the corrections that were
+  not estimates were all of this kind — a `loser` status the schema never had
+  (691), a SKILL clause that did not exist (694), a mechanism named from memory
+  (692). The loop caught every one, which is what STEP 0 is for; the rule exists
+  so it has less to catch.
 - **`docs/handoffs/` is repo-ignored** and must stay so (SKILL, "Pre-flight
   verification" — build-input parity). Handoff files are therefore untracked and
   absent from `git status`; dropping one is `rm`, not `git rm`.
+
+## Executing a handoff (Code)
+
+**The repo is ground truth, and this section is what Code reads at session start
+instead of a pasted block.** It supersedes the standing-instructions artifact that
+was pasted ahead of every handoff (HO 695).
+
+- **Before executing:** STEP 0 closure table, then HALT — nothing executes before
+  the table is read (§ Handoff discipline). Re-derive every line number at your
+  HEAD; a handoff's anchors are as-of its base SHA and any edit above them
+  invalidates them. Controls before zeros (§ Gates). Bare-substring greps — never
+  prefix-sweep, never quote-anchor.
+- **When the handoff is wrong:** flag, don't absorb. A forced consequence of an
+  approved change is not a widening; say which it is. A gate that is internally
+  inconsistent, or a discriminator that cannot fire on this change, is a defect in
+  the handoff — report it and propose the replacement; never gut a RECORD comment
+  or contort the tree to satisfy a literal check. Don't assert what you haven't
+  measured. Findings caught in relay are filed (backlog or oddities), never left
+  in chat.
+- **Gates, Code-side:** build, then typecheck (a stale `.next/types` reads as a
+  code failure otherwise). Bind check before any curl is trusted — the socket
+  mapped to your PID, kill by PID and port-scoped, foreign PIDs left alone (SKILL,
+  "Process cleanup"). A freshness discriminator derives from something this change
+  alters or from the transport — a token the change removes plus a control token
+  that survives. Real ids only in probes. Never trigger `/api/sync` locally.
+- **Commits:** review branch from the start, the SKILL diff approved alone,
+  `--force-with-lease` on the ref only, `HEAD:main` with no force, then
+  `git ls-remote` — SKILL, "Review-ref route". **Kinds are never mixed** —
+  `chore` / `docs` / `docs(skill)` are separate commits; § Doc authority and
+  conventions states the SKILL half (SKILL never rides with another doc), the
+  general rule is stated here.
+- **Paste-back:** table deltas as executed · `git show --stat` per commit · gate
+  outputs including the bind evidence · the backlog numstat with every deletion
+  explained · the docs and SKILL diffs · every remote claim via `git ls-remote`.
+  Never delete struck text; strike is `~~…~~` plus a one-line close note. The
+  numstat deletions column is the authority (§ Gates). One swallowed block
+  re-delivers as a gitignored file, never a second paste (§ Relay).
 
 ## Gates
 
@@ -196,6 +244,14 @@ exist:**
 - **Any convenient check: name the authoritative one.** If the cheap instrument
   answers a different question than the one being asked, it is decoration —
   `check-ignore` reports which rule matched last, not the verdict.
+- **An assertion in a comment is covered by no instrument.** A comment records a
+  measurement — what was read, where, when, the number — or says in so many words
+  that it is reasoning. HO 694's roster-header paragraph was the only unmeasured
+  claim in a change that measured everything else, and the only wrong one: five
+  children auto-flowed a cell early, RATE sat over ENACT, and neither the 430 gate
+  (misalignment does not overflow) nor the ON baseline (the cell was not in its
+  set) could see it. Measure it, or cut the claim back to the measured half and
+  say which you did.
 - **A check built from the same expression as the thing it checks is a tautology
   wearing a verdict.** An audit that shares its mapping expression with the
   collector that wrote the rows cannot catch a wrong mapping — only stale ones —
@@ -305,9 +361,14 @@ and it survives the widening.
   its own commit, its own review ref, the diff approved before `main` moves
   (SKILL, "Review-ref route"). SKILL never rides with another doc.
 - **`docs/roadmap.md`** — append-only narrative. One new `Also (HO N)` block per
-  handoff, pointer advanced; **never retro-edit a prior block's clause, figure or
-  pointer.** A supersession marker on a prior block's pointer is permitted
-  (HO 615); the correction itself goes in the new block.
+  handoff, pointer advanced. **A block is mutable until its FF lands; once on
+  `main` it is history.** On the review ref the block is a workspace: amend it so
+  it ships true (a "six commits" clause that is already false is worse than an
+  amended block). After FF, a correction goes into the next HO's block or the
+  commit message, never into the landed text; a supersession marker on a prior
+  block's pointer is the one permitted touch (HO 615). Ruled at HO 694, where the
+  block was amended twice before FF and the 690 correction had gone into a commit
+  message.
 - **`docs/backlog.md`** — the open-loops ledger; its header states its own
   conventions, including that a logged line's mechanism or premise is **a claim,
   not a fact** — probe it before building on it.
@@ -340,6 +401,14 @@ either set.**
   never WSL, Docker, or any VM-dependent path. Killing dev servers: SKILL,
   "Process cleanup" (port-scoped only; other Next apps share the box).
 - **The MacBook.** Plain Unix; none of those constraints apply.
+- **CI runs on Ubuntu; the Windows box and the MacBook do not.** Font metrics
+  differ per host, so anything that depends on where text breaks — a flex line, a
+  `nowrap` label, a wrapping breadcrumb — can read clean locally and fail in CI on
+  the same SHA (HO 694: `/lobbying` at 430 over by 7px in CI twenty minutes after
+  a by-hand prod run read 430/430). Prefer rules whose outcome does not depend on
+  metrics (`flex-basis: 100%` over a tuned cap; `break-word` over a fixed width),
+  and treat the CI reading as the reading for any width gate — a green local run
+  is a prediction of it, not a substitute.
 - **Every command references a secret by env name (`$CRON_SECRET`), never by
   value** (ruled HO 678). A literal pasted into a command travels through the API
   inside the tool call and lands in the local transcripts — so the value is
