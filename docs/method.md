@@ -63,7 +63,10 @@
   not estimates were all of this kind — a `loser` status the schema never had
   (691), a SKILL clause that did not exist (694), a mechanism named from memory
   (692). The loop caught every one, which is what STEP 0 is for; the rule exists
-  so it has less to catch.
+  so it has less to catch. **The same holds for every factual clause in text a
+  handoff asks to land verbatim: STEP 0 reads it against the tree before it
+  lands** — HO 695 and HO 696 each proposed a SKILL sentence naming a repo state
+  the repo contradicted.
 - **`docs/handoffs/` is repo-ignored** and must stay so (SKILL, "Pre-flight
   verification" — build-input parity). Handoff files are therefore untracked and
   absent from `git status`; dropping one is `rm`, not `git rm`.
@@ -349,6 +352,11 @@ and it survives the widening.
 - **After ONE swallowed block, re-deliver as a gitignored file** with the standard
   close. Never re-paste a second time (HO 662, tightening the two-strike form
   established at HO 508 — every re-paste on record bought nothing).
+- **Inbound has the same remedy.** A ruling or reply that arrives as a summary or
+  a subject line is read from its file, saved to `docs/handoffs/` (repo-ignored,
+  local) and named in the relay; it is never inferred from the line that arrived,
+  and an unnamed target is a HALT (HO 696: the STEP 0 ruling and two review
+  replies each arrived as their last line).
 - **Ground truth is `git ls-remote --heads origin`, never the pasted transcript.**
   A summary of a thing is not the thing.
 - Mechanics of routing text out for a real read: SKILL, "Review-ref route".
@@ -373,6 +381,11 @@ and it survives the widening.
   conventions, including that a logged line's mechanism or premise is **a claim,
   not a fact** — probe it before building on it.
 - **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
+- **`docs/design/`** — mocks and ruling records, tracked by default.
+  `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`
+  name, the one ignored `scratch/`, citations on one line, and what
+  `check:design-citations` reads and cannot. A mock a tracked file cites ships
+  with the repo, or it is a citation waiting to dangle (HO 672 → 696).
 - **`docs/method.md`** — this file.
 - **Cross-reference rather than restate.** Two copies of a rule drift, and nothing
   in the toolchain reports it when they do.
