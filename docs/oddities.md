@@ -3856,3 +3856,85 @@ something; either is a flag, not a rounding."* Ten against six was a flag. Had
 the instrument been built after the files landed, both extras would have been
 absorbed into the allowlist as though they had always been known, and the
 boundary that hid them would never have been visible.
+
+## The mono token named four families and loaded none, so three hosts rendered three faces (HO 697, 2026-09-06)
+
+`app/globals.css` set `--font-mono: ui-monospace, "JetBrains Mono", "SF Mono",
+SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`, and
+`app/layout.tsx` imported **`IBM_Plex_Sans` and nothing else**. A font stack is a
+list of *preferences among faces the machine already has*; it loads nothing. So
+CBT — an app whose entire chrome is monospace — rendered in **Consolas** on the
+Windows box, **SF Mono** on the MacBook, and **DejaVu or Liberation Mono** on the
+Ubuntu CI runner, for its whole life.
+
+**This is the mechanism behind half of the HO 694 entry above** (*a layout defect
+can be host-dependent, so one machine's green is not a reading*). That entry
+established the symptom — `/lobbying` over by 7px in CI twenty minutes after
+Windows read the same SHA clean — and named font metrics as the cause. This is
+*why* the metrics differed: not a subtle hinting difference between renderings of
+one face, but **three different typefaces**. HO 633 had already closed the sans
+half by self-hosting Plex Sans; nobody looked at the mono token, because it
+*named* a face and reading it does not reveal that the name is inert.
+
+**The tell, and it generalises past fonts.** A declaration that names a resource
+is not a declaration that *fetches* one. `--font-mono` looked maintained: it had
+a curated ordering, a vendor-neutral first entry, a generic last resort. Every
+property of a well-written stack was present except the one that mattered, and
+nothing in the file could show its absence — **the evidence was in a different
+file** (`layout.tsx`), which had no reason to mention mono at all. The backlog
+entry that eventually caught it described it as *"JetBrains → IBM Plex Mono"*, a
+swap between two served faces, and that framing survived nineteen days because it
+is what the token looks like.
+
+**What to check, once, when a token names an external resource:** find the thing
+that loads it. If nothing does, the token is documentation of an intention. The
+grep is cheap and the failure is invisible — a page in the wrong face looks like
+a page.
+
+## A fire counter on an intermittent with a moving base rate is not an attribution instrument (HO 697, 2026-09-06)
+
+HO 697 shipped two static changes and spent **27 local production crawls** trying
+to decide whether either of them raised the rate of the intermittent React #418
+this repo has carried since July (`docs/backlog.md:50`). It produced **three
+attributions and retracted all three**, and a fourth was one control away from
+being reported. This entry is about the method, not about any of the changes.
+
+**The three, and what each missed.** *The clock, by changed element structure* —
+read off a dump taken **after** the crawl's settle, so the clock's post-mount
+children appear on any fire whatever the cause; and the mechanism named was not
+one, since React compares the server HTML against the client's **first** render,
+which matched. *The clock, by pooled rate* — its clock-free controls were all
+**tag**-free too. *The tag, by the same pooling* — its tag-free controls had never
+run **at the same hour**.
+
+**The finding that ended it was accidental.** A harness bug killed the `npx`
+wrapper instead of the `next start` child, the child kept the port, the next arm
+died with `EADDRINUSE`, and four consecutive "arms" were all served by `main` —
+which turned that cycle into the one thing nobody had run: four crawls of the
+control, back to back. It read **3 fires in 4**, where the same tree had read
+**0 in 3** earlier the same day. **The base rate moves by hour.** Every clean
+control in the pooled readings came from a quiet window and every firing arm from
+a loud one.
+
+**The arithmetic, which is the transferable part.** Separating ~0.75 from ~1.2
+fires per crawl at two sigma takes roughly **forty crawls per arm, at matched
+hours**, against a baseline that drifts within a day. At that cost the instrument
+is not slow, it is *unavailable* — and no number of extra cycles converts it into
+an attribution. **Before running arms to attribute a rate change, measure the
+control's own variance first**; if the effect you are chasing is the same size as
+the drift, a counter cannot see it however many times you run it.
+
+**Two things that did work, both cheap.** A **control on every leg** — assert the
+change is actually present in the served artefact — caught the harness serving
+one build four times, which would otherwise have been a clean-looking table
+saying a static `<span>` moves the rate. And when counting failed, the gate was
+replaced by one on **class rather than count**: every fire, on either tree, must
+read at the known clean-load floor, and no dump may name a node the change
+introduced. That gate can fail, means something when it does not, and is immune
+to the drift that made the counter useless.
+
+**What replaces the counter is not a better counter.** The question a rate can
+never answer is *which node*; the instrument that can is one that reads the DOM
+at fire time, or a development build, where React prints the text that disagreed
+instead of a minified code. One fire from either names the node. Twenty-seven
+crawls of counting named nothing.
