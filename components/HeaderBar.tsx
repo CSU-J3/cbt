@@ -181,6 +181,10 @@ export async function HeaderBar({
             same control at HO 610, so leaving inner pages pinned was the chrome
             inconsistency, not the fix. */}
         <span className="header-titlebar-auth">
+          {/* HO 697: the IN BETA tag is the first `·` item after the path, on
+              every route. Global `.beta-tag`, no font-size of its own. */}
+          <span aria-hidden>·</span>{" "}
+          <span className="beta-tag">IN BETA</span>{" "}
           <span aria-hidden>·</span>{" "}
           <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
           {/* HO 692 — the same ODDS control the dashboard masthead carries.
