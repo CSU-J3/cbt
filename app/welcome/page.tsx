@@ -255,7 +255,7 @@ export default async function WelcomePage() {
         <span className={styles.brand}>
           Congressional Terminal<b className={styles.prompt}>:\&gt;</b>
         </span>
-        <span className={styles.beta}>IN BETA</span>
+        <span className="beta-tag">IN BETA</span>
         <span className={styles.spacer} />
         <WelcomeClock
           className={styles.clock ?? ""}

@@ -231,6 +231,63 @@ body {
   color: var(--text-dim);
   text-transform: uppercase;
 }
+/* HO 697 — the IN BETA tag, global. Ruled by Corey 2026-08-17 against the
+   /welcome mock and scoped to that page at HO 670; this is the same tag on every
+   masthead. It DELIBERATELY SETS NO font-size: it inherits the rung of the row it
+   sits in — --fs-13 on the /welcome rail, the mast row's rung on the mastheads —
+   which is how one class serves three render sites without a modifier. Lifted
+   from landing.module.css `.beta`, which is deleted; the brackets are content so
+   the markup stays the two words. */
+.beta-tag {
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-amber-bright);
+  white-space: nowrap;
+  line-height: 1;
+  animation: betafade 2.4s ease-in-out infinite;
+}
+.beta-tag::before {
+  content: "[ ";
+}
+.beta-tag::after {
+  content: " ]";
+}
+@keyframes betafade {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.32;
+  }
+}
+/* The guard sits beside the keyframes it guards, which is this file's pattern
+   (the `.v2f-bping` and `.markets-tape-track` blocks are the two precedents) —
+   there is no single "chrome" reduced-motion block to join. */
+@media (prefers-reduced-motion: reduce) {
+  .beta-tag {
+    animation: none;
+  }
+}
+
+/* HO 697 — the live clock on both mastheads. The component is `WelcomeClock`
+   MOUNTED, not re-implemented (its zone stays pinned to MT by the HO 670 review
+   ruling — see its header). Colours match landing.module.css's `.clock` family;
+   the size is inherited from the sync line rather than pinned to --fs-11, for the
+   same reason `.beta-tag` sets none. */
+.masthead-clock {
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.masthead-clock-time {
+  color: var(--text-muted);
+}
+.masthead-clock-zone {
+  color: var(--accent-amber);
+}
+
 /* HO 612: the auth control follows the path. `.header-titlebar` sets column-gap
    0 (HO 189, so a deep path + nav never wraps on a razor-thin bar), so the
    spacing is explicit here rather than inherited. */

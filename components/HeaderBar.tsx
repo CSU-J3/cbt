@@ -9,6 +9,7 @@ import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
 import { SearchBox } from "@/components/SearchBox";
+import { WelcomeClock } from "@/components/WelcomeClock";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
 import { type FeedFilters, getCorpusStats } from "@/lib/queries";
 
@@ -181,6 +182,10 @@ export async function HeaderBar({
             same control at HO 610, so leaving inner pages pinned was the chrome
             inconsistency, not the fix. */}
         <span className="header-titlebar-auth">
+          {/* HO 697: the IN BETA tag is the first `·` item after the path, on
+              every route. Global `.beta-tag`, no font-size of its own. */}
+          <span aria-hidden>·</span>{" "}
+          <span className="beta-tag">IN BETA</span>{" "}
           <span aria-hidden>·</span>{" "}
           <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
           {/* HO 692 — the same ODDS control the dashboard masthead carries.
@@ -200,7 +205,14 @@ export async function HeaderBar({
       <p className="header-sync-sub">
         ·{" "}
         <span className="show-desktop">LAST SYNC </span>
-        <CyclingTimestamp iso={corpus.lastSync} />
+        <CyclingTimestamp iso={corpus.lastSync} />{" "}
+        {/* HO 697: WelcomeClock MOUNTED, not re-implemented — zone pinned MT by
+            the HO 670 review ruling; see its header. Third render site. */}
+        <WelcomeClock
+          className="masthead-clock"
+          timeClassName="masthead-clock-time"
+          zoneClassName="masthead-clock-zone"
+        />
       </p>
 
       {/* Nav on its own full-width row, matching the dashboard: PrimaryNav

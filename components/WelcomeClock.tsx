@@ -20,6 +20,12 @@ import { useEffect, useState } from "react";
 // MT matches what the page's server-rendered AS OF / LAST SYNC stamps use, so
 // every time on the page is in one zone.
 //
+// HO 697 — THREE RENDER SITES now: the /welcome rail, and both mastheads
+// (`DashboardV2Header`, `HeaderBar`), where it follows LAST SYNC. Mounted, not
+// re-implemented. The MT pinning above is a ruling, not an oversight — do not
+// "harmonise" it with the CyclingTimestamp beside it on those rows: that stamp
+// is a FIXED moment whose projection rotates, this one is a running clock.
+//
 // HYDRATION: the digits render NOTHING on the server and mount on the client
 // (`now === null` until the first effect). A ticking clock cannot be
 // server-rendered without a guaranteed SSR/hydrate mismatch — the HO 489/490

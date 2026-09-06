@@ -6,6 +6,7 @@ import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
+import { WelcomeClock } from "@/components/WelcomeClock";
 import type { Stage } from "@/lib/enums";
 import type { CorpusStats } from "@/lib/queries";
 
@@ -116,6 +117,15 @@ export async function DashboardV2Header({
               </span>
             </p>
 
+            {/* HO 697: the IN BETA tag, first `·` item after the readout caret.
+                Ruled by Corey 2026-08-17 for every page; HO 670 scoped it to
+                /welcome because that HO was one page wide. `.beta-tag` is global
+                and sets no font-size, so it takes this row's rung. */}
+            <p className="home-header-meta">
+              ·{" "}
+              <span className="beta-tag">IN BETA</span>
+            </p>
+
             {/* HO 608: LAST SYNC joins the masthead line (the mock's single `.mast`
                 row: brand · counts · sync · SIGN IN) instead of taking a second
                 line under the readout. The prompt row wraps, so narrow widths
@@ -123,7 +133,12 @@ export async function DashboardV2Header({
             <p className="home-header-meta">
               ·{" "}
               <span className="show-desktop">LAST SYNC </span>
-              <CyclingTimestamp iso={corpus.lastSync} />
+              <CyclingTimestamp iso={corpus.lastSync} />{" "}
+              <WelcomeClock
+                className="masthead-clock"
+                timeClassName="masthead-clock-time"
+                zoneClassName="masthead-clock-zone"
+              />
             </p>
 
             {/* HO 355: the auth affordance. HO 610 (C1) moved it INTO the prompt
