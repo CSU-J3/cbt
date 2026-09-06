@@ -177,9 +177,21 @@
 }
 
 @theme {
+  /* HO 697 — IBM Plex Mono, self-hosted via next/font at 400/500/600/700 (the
+     weights measured in use; see app/layout.tsx). Ruled by Corey 2026-08-17.
+     THE OLD STACK STAYS BEHIND IT AS THE FALLBACK, exactly as HO 633 left the
+     system sans stack behind Plex Sans: a face that fails to load degrades to
+     what shipped before it rather than to a default.
+     This closes the MONO half of the HO 694 host-dependence finding. Until now
+     nothing in the repo loaded any of these families, so the app's default face
+     was whatever the host had — Consolas here, SF Mono on the MacBook, DejaVu or
+     Liberation on the Ubuntu CI runner — which is one of the reasons a width
+     gate could read clean locally and red in CI on the same SHA. The token is
+     the seam and the scope: no consumer is edited, and every var(--font-mono)
+     site moves together by construction. */
   --font-mono:
-    ui-monospace, "JetBrains Mono", "SF Mono", SFMono-Regular, Menlo, Consolas,
-    "Liberation Mono", monospace;
+    var(--font-plex-mono), ui-monospace, "JetBrains Mono", "SF Mono",
+    SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 
 html,
@@ -187,7 +199,16 @@ body {
   background-color: var(--bg-base);
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-feature-settings: "ss01", "cv02";
+  /* HO 697 — `font-feature-settings: "ss01", "cv02"` was here and is DROPPED. It
+     was chosen for a face this repo never loaded, and it is INERT on IBM Plex
+     Mono: measured 2026-09-05 by scripts/diagnostic/mono-features-697.ts, which
+     renders `ag l0O1I{}[]<>=!- 0123456789` twice in one box, with the
+     declaration and without, and got identical PNG bytes AND an identical text
+     advance width (571.203125 both) with the face confirmed loaded first — the
+     control that stops a failed font load reporting a confident "identical".
+     It was not cosmetic to check: it computed onto 33,964 of the 33,966 mono
+     text elements the weights probe walked. Inert FOR THOSE GLYPHS, which are
+     the ones a stylistic set would target. */
 }
 
 /* ---- HO 187 inner-page chrome (5-band consolidation) ------------------- */

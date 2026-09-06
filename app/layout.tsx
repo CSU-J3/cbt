@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { prefBootScript } from "@/lib/prefs";
 import "./globals.css";
 
@@ -27,6 +27,35 @@ const plexSans = IBM_Plex_Sans({
   weight: ["400", "500", "600"],
   display: "swap",
   variable: "--font-plex-sans",
+});
+
+// HO 697 — the MONO half, and it is the same fix as the sans one above rather
+// than a brand change dressed up. `--font-mono` was
+// `ui-monospace, "JetBrains Mono", …` and NOTHING IN THIS REPO EVER LOADED ANY OF
+// THOSE, so the app's default face was whatever the host happened to have:
+// Consolas on the Windows box, SF Mono on the MacBook, DejaVu or Liberation on
+// the Ubuntu runner. That is the mono half of the HO 694 host-dependence finding
+// (docs/method.md § Environment — font metrics differ per host), and the entry's
+// own name for it, "JetBrains -> IBM Plex Mono", is a misnomer: JetBrains Mono
+// was never served anywhere it was not already installed.
+//
+// FOUR WEIGHTS BECAUSE FOUR ARE RENDERED, measured not assumed
+// (scripts/diagnostic/mono-weights-697.ts, 2026-09-05, 36/36 routes at 1440,
+// 33,966 mono text elements): 400 = 27,508 (81.0%) · 600 = 4,636 (13.6%) ·
+// 500 = 1,549 (4.6%) · 700 = 273 (0.8%). 700 is small and real — /bills,
+// /members, /changes, /stale, /president, report-detail — and a used weight that
+// is not loaded gets synthesised, which is the faux-bold complaint HO 642
+// answered on the sans side. A loaded weight nobody uses is bytes on every page,
+// so the set is exactly what the probe saw.
+//
+// Ruled by Corey 2026-08-17 in the /welcome mock, which toggles the two faces via
+// a `body.plexmono` class; backlog:137. Same preload caveat as the sans above —
+// FONT TIMING IS MEASURED ON THE DEPLOY, NEVER ON THIS BOX.
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-plex-mono",
 });
 
 // HO 633 C1b — THE PRELOAD IS ON AND WORKS IN PRODUCTION. DO NOT HAND-ROLL A
@@ -81,7 +110,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={plexSans.variable}>
+    <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
       <head>
         {/* HO 690 — CLIENT UI PREFERENCES, APPLIED BEFORE FIRST PAINT.
             Parser-blocking by design: it must run before the browser paints, or
