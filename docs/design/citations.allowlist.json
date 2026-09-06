@@ -1,0 +1,23 @@
+{
+  "_README": "Recorded dangles: a tracked file cites a design artefact that does not resolve, and the citation is CORRECT to keep. Each entry names the citing file:line and the record that explains it. Reasons: never-existed (named but never authored) | historical-name (the artefact EXISTS under a different name - say which, and say how you identified it). Entries fail in BOTH directions: a token that later resolves to a tracked file is STALE, and an entry no tracked file cites any more is ORPHAN. Before writing 'never-existed', read the <title> of every candidate file on disk - HO 696 found that a filename grep answers whether a NAME was committed, not whether the ARTEFACT exists. NOTHING below docs/design/scratch/ can ever be allowlisted; that class is a hard failure by design. See docs/design/README.md.",
+
+  "docs/design/welcome-670.html": {
+    "reason": "historical-name",
+    "note": "Cited by docs/roadmap.md:871 in a sentence that corrects itself: 'The handoff expected docs/design/welcome-670.html; the signed-off file is docs/design/welcome-formats-mock.html'. The dangling name is the point of the sentence, so it stays. The artefact is tracked under the name Corey gave it."
+  },
+
+  "mock-590-dashboard-declutter.html": {
+    "reason": "never-existed",
+    "note": "Cited by docs/backlog.md:252 and docs/oddities.md:1116. The oddities row already records it as 'absent from disk'. Checked against the <title> of every mock on disk before this reason was written - no file carries the HO 590 declutter arc. Nothing to commit."
+  },
+
+  "mock-588-absence-watch.html": {
+    "reason": "never-existed",
+    "note": "Cited by docs/design/layout-conventions-arc.md:28, in a clause that says so: 'that was wrong, and mock-588-absence-watch.html does not exist anywhere in the repo'. Zero commits touch that path AND no file on disk carries an HO 588 absence-watch title. Found only by the scanner - both HO 696's ground truth and its STEP 0 grep excluded docs/design/ itself."
+  },
+
+  "mock-591-dashboard-layout.html": {
+    "reason": "historical-name",
+    "note": "Cited by docs/design/mock-591-conventions.html:166, a mockbar reading 'companion to mock-591-dashboard-layout.html'. The artefact EXISTS and is tracked as docs/design/dashboard-layout-target.html, identified by its <title>: 'MOCK 591 - dashboard layout reference', same mockbar CSS as its companion. It was RENAMED at HO 604 C0 from mock-591-dashboard-layout.html (604-type-scale.md:62, tracked archive), under that handoff's policy of descriptive names without HO numbers (:64) - so the rename is why this citation dangles while its companion's name still resolves. This entry read 'never-existed' in the first cut of HO 696, on a filename grep returning zero commits - the wrong question. Read titles, not filenames; and read the archive for provenance, which is the correction reply 2 made to that correction."
+  }
+}

@@ -58,7 +58,8 @@
     "verify:deploy": "tsx scripts/verify-deploy.ts",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "check:odds-sites": "tsx scripts/check-odds-sites.ts"
+    "check:odds-sites": "tsx scripts/check-odds-sites.ts",
+    "check:design-citations": "tsx scripts/check-design-citations.ts"
   },
   "dependencies": {
     "@google/genai": "^1.51.0",

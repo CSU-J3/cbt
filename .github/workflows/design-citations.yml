@@ -1,0 +1,55 @@
+# HO 696 — the design-citation gate. Closes docs/backlog.md:110 half (b).
+#
+# WHY THIS IS ITS OWN WORKFLOW AND NOT A STEP IN ci.yml, which is the one design
+# decision here: ci.yml carries `paths-ignore` for docs/** and **/*.md. Two of
+# the three ways a design citation dangles are exactly those paths — a docs push
+# that cites an uncommitted mock, and a mock removed or renamed. A step in ci.yml
+# would catch only the code-comment case, and a docs-made dangle would then
+# surface as a red on the next unrelated code push, attributed to whoever pushed
+# it. So: no path filter at all, on push to any ref (a review ref is read before
+# it fast-forwards) and on pull_request.
+#
+# HO 685 rule, carried deliberately: the concurrency key and any job `if` change
+# TOGETHER. Concurrency is evaluated BEFORE a job `if`, so a run that does no
+# work can otherwise cancel one that does. This job has no `if`, and the key
+# includes github.event_name so a dispatch can never cancel a working push run
+# on the same ref.
+name: design citations
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      plant:
+        description: 'Inject a synthetic FORBIDDEN finding and fail on purpose'
+        type: boolean
+        default: false
+
+concurrency:
+  group: design-citations-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  citations:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Secretless and deterministic: it reads tracked files and nothing else.
+      # The plant input is how a human proves the gate can still go red — an
+      # untriggered guard is unproven, not protection.
+      - name: Check design citations
+        env:
+          DESIGN_CITATIONS_PLANT: ${{ inputs.plant && '1' || '0' }}
+        run: npm run check:design-citations
