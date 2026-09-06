@@ -28,7 +28,13 @@ The dashboard was audited at 2560px and had four defect classes. They are not da
 **Reference implementations,** both committed to `docs/design/` (**not** repo root — that was wrong, and `mock-588-absence-watch.html` does not exist anywhere in the repo):
 
 - `dashboard-layout-target.html` — the target for `/`.
-- `layout-conventions-c1-c8.html` — the defect/fixed dictionary, for routes that look nothing like the dashboard.
+- `mock-591-conventions.html` — the defect/fixed dictionary, for routes that look nothing like the dashboard.
+  *(Pointer corrected HO 696. This read `layout-conventions-c1-c8.html`, the rename target HO 604 C0
+  assigned (`604-type-scale.md:63`); the file was saved to `docs/design/` under its original name and is
+  identified by its `<title>`, `MOCK 591 · layout conventions C1–C8`. The HO 605 sweep looked for it in
+  the project root (`605-doc-sweep-603-604.md:17`) sixteen minutes later and recorded it never landed. Its
+  companion, cited in that file's mockbar as `mock-591-dashboard-layout.html`, WAS renamed at C0 and is
+  `dashboard-layout-target.html` — which is why only this citation dangles.)*
 
 The HO 590 mock is recorded at backlog:130 as **absent from disk, not merely untracked**. These two are one session from the same fate until HO 604 C0 lands them.
 

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cut 1 in situ — /members compact strip</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+    --mono:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;
+    --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#05070a;color:var(--text-secondary);font-family:var(--mono);padding:24px;font-size:12px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+  .frame-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px;}
+
+  /* fixed "below-the-fold-clips-here" viewport */
+  .vp{height:720px;overflow:hidden;position:relative;background:var(--bg-base);
+      border:1px solid var(--border-strong);border-radius:2px;}
+  .foldtag{position:absolute;bottom:0;right:0;background:#0d1420;color:var(--text-dim);
+           font-size:9px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;
+           border-top:1px solid var(--border-strong);border-left:1px solid var(--border-strong);z-index:6;}
+
+  /* ---- ghosted global chrome (constant, ~130px on real site) ---- */
+  .chrome{background:var(--bg-panel);border-bottom:1px solid var(--border-strong);opacity:.5;}
+  .chrome .brand{padding:9px 16px 4px;font-size:15px;color:var(--text-primary);letter-spacing:-.5px;}
+  .chrome .brand b{color:var(--accent-amber);font-weight:400;}
+  .chrome .sub{padding:0 16px 6px;font-size:10px;color:var(--text-dim);}
+  .chrome .tape{padding:5px 16px;font-size:10px;color:var(--text-dim);border-top:1px solid var(--border-soft);
+                white-space:nowrap;overflow:hidden;}
+  .chrome .nav{padding:6px 16px;font-size:11px;color:var(--text-dim);letter-spacing:.5px;
+               border-top:1px solid var(--border-soft);}
+  .chrome .nav .on{color:var(--accent-amber-bright);}
+  .chrome-note{position:absolute;top:6px;right:10px;font-size:9px;color:var(--text-dim);letter-spacing:.5px;z-index:5;}
+
+  /* ================= THE PROPOSED STRIP ================= */
+  .strip{background:var(--bg-panel);border-bottom:1px solid var(--border-strong);
+         box-shadow:inset 2px 0 0 var(--accent-amber);}
+  .strip-head{display:flex;align-items:baseline;gap:12px;padding:8px 16px 4px;}
+  .strip-title{color:var(--accent-amber);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;}
+  .strip-desc{color:var(--text-dim);font-size:10px;letter-spacing:.5px;}
+  .strip-desc b{color:var(--text-muted);font-weight:400;}
+  .strip-proposed{color:var(--accent-amber);font-size:9px;letter-spacing:1px;text-transform:uppercase;
+                  border:1px solid var(--border-strong);border-radius:2px;padding:1px 5px;}
+  .strip-hub{margin-left:auto;color:var(--text-muted);font-size:10px;text-decoration:none;letter-spacing:.4px;}
+  .strip-hub:hover{color:var(--accent-amber);}
+  .strip svg{width:100%;height:auto;display:block;padding:0 4px;}
+  .strip-foot{padding:2px 16px 7px;font-size:9.5px;color:var(--text-dim);letter-spacing:.4px;}
+  .strip-foot .d{color:var(--party-democrat);} .strip-foot .r{color:var(--party-republican);}
+
+  /* ================= /members FILTER BAR ================= */
+  .fbar{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--bg-base);
+        border-bottom:1px solid var(--border-strong);flex-wrap:nowrap;font-size:11px;overflow:hidden;}
+  .fbar .mtitle{color:var(--text-primary);letter-spacing:1.5px;text-transform:uppercase;}
+  .fbar .mcount{color:var(--text-dim);}
+  .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:2px;overflow:hidden;}
+  .seg span{padding:3px 8px;color:var(--text-muted);letter-spacing:.5px;}
+  .seg span.on{background:var(--bg-row-hover);color:var(--accent-amber-bright);}
+  .seg span+span{border-left:1px solid var(--border-strong);}
+  .chip{border:1px solid var(--border-strong);border-radius:2px;padding:3px 8px;color:var(--text-muted);letter-spacing:.5px;}
+  .search{margin-left:auto;border:1px solid var(--border-strong);border-radius:2px;padding:3px 10px;
+          color:var(--text-dim);min-width:150px;}
+
+  /* ================= TWO-PANE BROWSER ================= */
+  .browser{display:grid;grid-template-columns:312px 1fr;}
+  .rail{border-right:1px solid var(--border-strong);background:var(--bg-base);}
+  .rail-grp{padding:7px 12px 5px;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent-amber);
+            border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;}
+  .rail-grp .cnt{color:var(--text-dim);}
+  .hrow{display:flex;gap:8px;padding:5px 12px;font-size:10.5px;border-bottom:1px solid var(--border-soft);}
+  .hrow .t{color:var(--stage-floor,#fbbf24);width:52px;}
+  .hrow .c{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .crow{display:grid;grid-template-columns:1fr auto 46px;gap:8px;align-items:center;
+        padding:6px 12px;border-bottom:1px solid var(--border-soft);font-size:11px;}
+  .crow .cn{color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .crow .tag{font-size:9px;color:var(--text-dim);border:1px solid var(--border-strong);border-radius:2px;padding:0 4px;}
+  .crow .bar{height:6px;background:var(--border-strong);border-radius:1px;position:relative;overflow:hidden;}
+  .crow .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent-amber);opacity:.7;}
+
+  .list{background:var(--bg-base);min-width:0;}
+  .tkey{display:flex;gap:10px;flex-wrap:wrap;padding:7px 14px;border-bottom:1px solid var(--border-soft);font-size:9.5px;color:var(--text-dim);}
+  .tkey span{display:inline-flex;align-items:center;gap:4px;letter-spacing:.5px;}
+  .tkey i{width:8px;height:8px;border-radius:1px;display:inline-block;}
+  .lhead{display:grid;grid-template-columns:1fr 220px 46px 52px 46px;gap:10px;
+         padding:6px 14px;background:var(--bg-panel);border-bottom:1px solid var(--border-strong);
+         font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--text-dim);}
+  .mrow{display:grid;grid-template-columns:1fr 220px 46px 52px 46px;gap:10px;align-items:center;
+        padding:7px 14px;border-bottom:1px solid var(--border-soft);}
+  .mname{font-family:var(--sans);color:var(--text-primary);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mps{font-family:var(--mono);font-size:10px;margin-left:6px;}
+  .mbar{display:flex;height:9px;border-radius:1px;overflow:hidden;}
+  .mbar i{height:100%;}
+  .mrate{font-size:11px;color:#10b981;text-align:right;}
+  .mrate.z{color:var(--text-dim);}
+  .menact{font-size:11px;color:var(--text-secondary);text-align:right;}
+  .mbills{font-size:11px;color:var(--text-secondary);text-align:right;}
+  .pbadge{display:inline-block;font-size:8px;color:#10b981;border:1px solid #10b981;border-radius:2px;padding:0 3px;margin-left:6px;vertical-align:middle;}
+
+  #tip{position:fixed;pointer-events:none;z-index:60;background:#0d1420;border:1px solid var(--border-strong);
+       border-radius:2px;padding:5px 8px;font-size:11px;color:var(--text-secondary);display:none;white-space:nowrap;}
+  #tip .h{color:var(--text-dim);}
+
+  .caption{margin-top:16px;border-left:2px solid var(--accent-amber);padding-left:14px;
+           font-size:12px;line-height:1.6;color:var(--text-secondary);max-width:900px;}
+  .caption b{color:var(--text-primary);font-weight:400;}
+  .caption .dim{color:var(--text-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="frame-label">/members — compact polarization strip in situ · viewport clips at laptop fold</div>
+
+  <div class="vp">
+    <div class="chrome-note">global chrome ≈130px (constant, condensed here)</div>
+
+    <!-- ghosted global chrome -->
+    <div class="chrome">
+      <div class="brand">Congressional Terminal:\119TH\<b>Members</b>></div>
+      <div class="sub">· LAST SYNC 9:14 AM MT · 15,903 BILLS TRACKED</div>
+      <div class="tape">MARKETS · SHUTDOWN 49% · FED CUT JUL 38% · GDP 2.4% · 10Y 4.21% · &nbsp; ODDS · SENATE R 71% · HOUSE D 54% ·</div>
+      <div class="nav">\Dashboard · \Legislation · [\<span class="on">Members</span>] · \Electoral · \Patterns · \Reports · \Watchlist</div>
+    </div>
+
+    <!-- ===== proposed strip ===== -->
+    <div class="strip">
+      <div class="strip-head">
+        <span class="strip-title">Polarization</span>
+        <span class="strip-proposed">◂ proposed</span>
+        <span class="strip-desc">every scored member on <b>dim1</b> · economic left→right · party medians ticked</span>
+        <a class="strip-hub" href="#">how it's scored →</a>
+      </div>
+      <svg id="strip-svg" viewBox="0 0 1140 132" role="img" aria-label="member dim1 distribution"></svg>
+      <div class="strip-foot">537 scored · <span class="d">D med −0.37</span> · <span class="r">R med +0.49</span> · gap 0.86 · HOUSE/SENATE toggle below rescopes this</div>
+    </div>
+
+    <!-- ===== /members filter bar ===== -->
+    <div class="fbar">
+      <span class="mtitle">Members</span>
+      <span class="mcount">537 of the 119th</span>
+      <span class="seg"><span class="on">ALL</span><span>HOUSE</span><span>SENATE</span></span>
+      <span class="seg"><span>R</span><span>D</span><span>I</span></span>
+      <span class="chip">STATE ▾</span>
+      <span class="seg"><span class="on">VOLUME</span><span>PASS RATE</span></span>
+      <span class="chip">◻ CEREMONIAL</span>
+      <span class="search">search member…</span>
+    </div>
+
+    <!-- ===== two-pane browser ===== -->
+    <div class="browser">
+      <div class="rail">
+        <div class="rail-grp"><span>◷ Upcoming hearings</span><span class="cnt">6 this week</span></div>
+        <div class="hrow"><span class="t">TUE 10:00</span><span class="c">Approps — FY26 Defense markup</span></div>
+        <div class="hrow"><span class="t">TUE 14:00</span><span class="c">Judiciary — oversight</span></div>
+        <div class="hrow"><span class="t">WED 09:30</span><span class="c">Energy & Commerce — hearing</span></div>
+        <div class="rail-grp"><span>Committees</span><span class="cnt">51</span></div>
+        <div class="crow"><span class="cn">Appropriations</span><span class="tag">H</span><span class="bar"><i style="width:100%"></i></span></div>
+        <div class="crow"><span class="cn">Armed Services</span><span class="tag">H</span><span class="bar"><i style="width:74%"></i></span></div>
+        <div class="crow"><span class="cn">Energy & Commerce</span><span class="tag">H</span><span class="bar"><i style="width:66%"></i></span></div>
+        <div class="crow"><span class="cn">Judiciary</span><span class="tag">H</span><span class="bar"><i style="width:58%"></i></span></div>
+        <div class="crow"><span class="cn">Finance</span><span class="tag">S</span><span class="bar"><i style="width:49%"></i></span></div>
+        <div class="crow"><span class="cn">Foreign Relations</span><span class="tag">S</span><span class="bar"><i style="width:41%"></i></span></div>
+        <div class="crow"><span class="cn">Banking, Housing & Urban…</span><span class="tag">S</span><span class="bar"><i style="width:33%"></i></span></div>
+      </div>
+
+      <div class="list">
+        <div class="tkey">
+          <span><i style="background:#3b82f6"></i>GOV</span>
+          <span><i style="background:#06b6d4"></i>HLTH</span>
+          <span><i style="background:#f59e0b"></i>DEF</span>
+          <span><i style="background:#10b981"></i>ECON</span>
+          <span><i style="background:#a78bfa"></i>ENV</span>
+          <span><i style="background:#ef4444"></i>IMM</span>
+          <span><i style="background:#6b7280"></i>OTHR</span>
+        </div>
+        <div class="lhead"><span>Member</span><span>Bills · Topic mix</span><span>Rate</span><span>Enact</span><span>Bills</span></div>
+
+        <div class="mrow">
+          <div><span class="mname">Rogers, Mike</span><span class="mps" style="color:var(--party-republican)">[R·AL]</span></div>
+          <div class="mbar"><i style="background:#f59e0b;width:44%"></i><i style="background:#3b82f6;width:26%"></i><i style="background:#10b981;width:16%"></i><i style="background:#6b7280;width:14%"></i></div>
+          <div class="mrate">31%</div><div class="menact">4 ✓</div><div class="mbills">61</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Pallone, Frank</span><span class="mps" style="color:var(--party-democrat)">[D·NJ]</span><span class="pbadge">P B+</span></div>
+          <div class="mbar"><i style="background:#06b6d4;width:52%"></i><i style="background:#a78bfa;width:22%"></i><i style="background:#3b82f6;width:15%"></i><i style="background:#6b7280;width:11%"></i></div>
+          <div class="mrate">18%</div><div class="menact">2 ✓</div><div class="mbills">54</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Cole, Tom</span><span class="mps" style="color:var(--party-republican)">[R·OK]</span></div>
+          <div class="mbar"><i style="background:#3b82f6;width:38%"></i><i style="background:#10b981;width:24%"></i><i style="background:#f59e0b;width:20%"></i><i style="background:#6b7280;width:18%"></i></div>
+          <div class="mrate">42%</div><div class="menact">9 ✓</div><div class="mbills">47</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Sanders, Bernard</span><span class="mps" style="color:var(--party-independent)">[I·VT]</span><span class="pbadge">P A</span></div>
+          <div class="mbar"><i style="background:#10b981;width:40%"></i><i style="background:#06b6d4;width:30%"></i><i style="background:#a78bfa;width:18%"></i><i style="background:#6b7280;width:12%"></i></div>
+          <div class="mrate z">6%</div><div class="menact">1 ✓</div><div class="mbills">44</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Cruz, Ted</span><span class="mps" style="color:var(--party-republican)">[R·TX]</span></div>
+          <div class="mbar"><i style="background:#3b82f6;width:34%"></i><i style="background:#f59e0b;width:28%"></i><i style="background:#ef4444;width:22%"></i><i style="background:#6b7280;width:16%"></i></div>
+          <div class="mrate z">9%</div><div class="menact">2 ✓</div><div class="mbills">41</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Underwood, Lauren</span><span class="mps" style="color:var(--party-democrat)">[D·IL]</span></div>
+          <div class="mbar"><i style="background:#06b6d4;width:58%"></i><i style="background:#10b981;width:18%"></i><i style="background:#3b82f6;width:14%"></i><i style="background:#6b7280;width:10%"></i></div>
+          <div class="mrate">22%</div><div class="menact">3 ✓</div><div class="mbills">38</div>
+        </div>
+        <div class="mrow">
+          <div><span class="mname">Bacon, Don</span><span class="mps" style="color:var(--party-republican)">[R·NE]</span></div>
+          <div class="mbar"><i style="background:#f59e0b;width:36%"></i><i style="background:#3b82f6;width:30%"></i><i style="background:#10b981;width:20%"></i><i style="background:#6b7280;width:14%"></i></div>
+          <div class="mrate">39%</div><div class="menact">6 ✓</div><div class="mbills">35</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foldtag">≈ laptop fold · browser continues below</div>
+  </div>
+
+  <div class="caption">
+    <p>The strip eats ~180px. After the ~130px of constant chrome, that leaves roughly <b>400px of browser above the fold</b>
+    — the filter bar, the full hearings-plus-committee rail, and about seven member rows before the clip. The overview reads,
+    then you're straight into browsing.</p>
+    <p>Honest tradeoff at this height: dots go small, so the strip reads as <b>shape and gap</b>, not a dot-by-dot explorer.
+    That's the right job for a header strip. If you want individual dots legible enough to pick one out by eye, it needs
+    ~260px and the browser drops another ~80px. <span class="dim">My lean is the 180px overview as shown — the member hub already
+    carries the single-member axis for detail, so this layer only owes you the population shape. Hover still gives the per-member
+    readout and hub link even at this size.</span></p>
+  </div>
+
+</div>
+
+<div id="tip"></div>
+
+<script>
+(function(){
+  function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+  var rng=mulberry32(0x1BADB002);
+  function randn(){var u=0,v=0;while(u===0)u=rng();while(v===0)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+  function clamp(x,lo,hi){return Math.max(lo,Math.min(hi,x));}
+  var C={R:'#ef4444',D:'#3b82f6',I:'#a78bfa'};
+  var members=[];
+  for(var i=0;i<272;i++){var d1;var r=rng();if(r<0.15)d1=0.72+randn()*0.09;else d1=0.47+randn()*0.11;members.push({p:'R',d1:clamp(d1,0.18,0.98)});}
+  for(i=0;i<262;i++){var dd;var rr=rng();if(rr<0.12)dd=-0.60+randn()*0.07;else if(rr<0.20)dd=-0.18+randn()*0.05;else dd=-0.37+randn()*0.10;members.push({p:'D',d1:clamp(dd,-0.98,-0.08)});}
+  for(i=0;i<3;i++){members.push({p:'I',d1:clamp(-0.30+randn()*0.05,-0.5,-0.15)});}
+  function median(a){a=a.slice().sort(function(x,y){return x-y;});var n=a.length;return n%2?a[(n-1)/2]:(a[n/2-1]+a[n/2])/2;}
+  var medD=median(members.filter(function(m){return m.p!=='R';}).map(function(m){return m.d1;}));
+  var medR=median(members.filter(function(m){return m.p==='R';}).map(function(m){return m.d1;}));
+
+  var NS='http://www.w3.org/2000/svg';
+  function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+  var tip=document.getElementById('tip');
+  function fmt(v){return (v>=0?'+':'')+v.toFixed(2);}
+
+  var svg=document.getElementById('strip-svg');
+  var W=1140,H=132,L=18,R=18,T=6,B=24;
+  var iW=W-L-R, iH=H-T-B, base=T+iH;
+  var xs=function(v){return L+((v+1)/2)*iW;};
+
+  // x ticks
+  [-1,-0.5,0,0.5,1].forEach(function(gx){
+    svg.appendChild(el('line',{x1:xs(gx),x2:xs(gx),y1:T,y2:base,stroke:'#111820','stroke-width':1}));
+    svg.appendChild(el('text',{x:xs(gx),y:H-8,'text-anchor':'middle','font-size':9,fill:'#6b7280','font-family':'monospace'})).textContent=(gx>0?'+':'')+gx;
+  });
+  svg.appendChild(el('line',{x1:xs(0),x2:xs(0),y1:T,y2:base,stroke:'#1f2937','stroke-width':1}));
+  svg.appendChild(el('line',{x1:L,x2:L+iW,y1:base,y2:base,stroke:'#1f2937','stroke-width':1}));
+  svg.appendChild(el('text',{x:L+2,y:H-8,'font-size':8.5,fill:'#6b7280','font-family':'monospace'})).textContent='LIBERAL';
+  svg.appendChild(el('text',{x:L+iW-2,y:H-8,'text-anchor':'end','font-size':8.5,fill:'#6b7280','font-family':'monospace'})).textContent='CONSERVATIVE';
+
+  // bin + stack
+  var binw=0.02, bins={};
+  members.forEach(function(m){var b=Math.floor((m.d1+1)/binw);(bins[b]=bins[b]||[]).push(m);});
+  var maxStack=0;Object.keys(bins).forEach(function(b){if(bins[b].length>maxStack)maxStack=bins[b].length;});
+  var step=Math.min(4,(iH-4)/maxStack), rDot=Math.max(1.4,Math.min(1.9,step*0.48));
+
+  Object.keys(bins).forEach(function(b){
+    var arr=bins[b].slice().sort(function(x,y){var o={R:0,I:1,D:2};return o[x.p]-o[y.p];});
+    var center=-1+(parseInt(b)+0.5)*binw;
+    arr.forEach(function(m,idx){
+      var c=el('circle',{cx:xs(center),cy:base-(idx+0.6)*step,r:rDot,fill:C[m.p],'fill-opacity':0.82,style:'cursor:pointer'});
+      c.addEventListener('mouseenter',function(){tip.style.display='block';tip.innerHTML='<span style="color:'+C[m.p]+'">&#9679;</span> '+m.p+' &middot; <span class="h">dim1</span> '+fmt(m.d1)+' &middot; <span class="h">&#8594; hub</span>';});
+      c.addEventListener('mousemove',function(ev){tip.style.left=(ev.clientX+12)+'px';tip.style.top=(ev.clientY+12)+'px';});
+      c.addEventListener('mouseleave',function(){tip.style.display='none';});
+      svg.appendChild(c);
+    });
+  });
+
+  // median ticks
+  function tick(v,col){svg.appendChild(el('line',{x1:xs(v),x2:xs(v),y1:base+2,y2:T+4,stroke:col,'stroke-width':1.4,'stroke-opacity':0.9}));
+    svg.appendChild(el('text',{x:xs(v),y:T+2,'text-anchor':'middle','font-size':8.5,fill:col,'font-family':'monospace'})).textContent=(col===C.R?'R':'D');}
+  tick(medD,C.D);tick(medR,C.R);
+  var g=(medD+medR)/2;
+  svg.appendChild(el('text',{x:xs(g),y:base-6,'text-anchor':'middle','font-size':8.5,fill:'#6b7280','font-family':'monospace'})).textContent='↑ empty center';
+})();
+</script>
+</body>
+</html>

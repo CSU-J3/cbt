@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Polarization over time</title>
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+    --mono:'SFMono-Regular',Menlo,Consolas,'Liberation Mono',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg-base);color:var(--text-secondary);font-family:var(--mono);padding:26px;font-size:12px;}
+  .wrap{max-width:1180px;margin:0 auto;}
+
+  .panel{background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:2px;overflow:hidden;}
+  .phead{display:flex;align-items:baseline;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border-soft);}
+  .ptitle{color:var(--accent-amber);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;}
+  .pdesc{color:var(--text-dim);font-size:10px;letter-spacing:.5px;}
+  .seg{margin-left:auto;display:inline-flex;border:1px solid var(--border-strong);border-radius:2px;overflow:hidden;font-size:10px;}
+  .seg button{background:none;border:none;color:var(--text-muted);font-family:var(--mono);
+              padding:3px 11px;letter-spacing:.8px;cursor:pointer;}
+  .seg button+button{border-left:1px solid var(--border-strong);}
+  .seg button.on{background:var(--bg-row-hover);color:var(--accent-amber-bright);}
+  .pbody{padding:8px 6px 4px;}
+  svg{width:100%;height:auto;display:block;}
+  .pfoot{display:flex;gap:16px;align-items:center;padding:8px 16px 12px;font-size:10px;color:var(--text-dim);letter-spacing:.4px;}
+  .pfoot .d{color:var(--party-democrat);} .pfoot .r{color:var(--party-republican);}
+  .pfoot .src{margin-left:auto;}
+
+  #tip{position:fixed;pointer-events:none;z-index:50;background:#0d1420;border:1px solid var(--border-strong);
+       border-radius:2px;padding:5px 9px;font-size:11px;color:var(--text-secondary);display:none;white-space:nowrap;}
+  #tip .h{color:var(--text-dim);} #tip .d{color:var(--party-democrat);} #tip .r{color:var(--party-republican);}
+
+  .caption{margin-top:18px;border-left:2px solid var(--accent-amber);padding-left:14px;
+           font-size:12px;line-height:1.65;color:var(--text-secondary);max-width:900px;}
+  .caption b{color:var(--text-primary);font-weight:400;}
+  .caption .dim{color:var(--text-dim);}
+  .caption p{margin-bottom:9px;} .caption p:last-child{margin-bottom:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="panel">
+    <div class="phead">
+      <span class="ptitle">Polarization over time</span>
+      <span class="pdesc">party median on DW&#8209;NOMINATE dim1 · per Congress · 1879&#8211;2025</span>
+      <span class="seg">
+        <button id="btn-house" class="on" onclick="setChamber('house')">HOUSE</button>
+        <button id="btn-senate" onclick="setChamber('senate')">SENATE</button>
+      </span>
+    </div>
+    <div class="pbody"><svg id="chart" viewBox="0 0 1140 384" role="img" aria-label="party polarization over time"></svg></div>
+    <div class="pfoot">
+      <span><span class="d">DEMOCRAT median</span> · <span class="r">REPUBLICAN median</span> · shaded = the gap</span>
+      <span class="src" id="src">Voteview HSall · House</span>
+    </div>
+  </div>
+
+  <div class="caption">
+    <p>The story reads left to right: the gap narrows into the <b>1940s&#8211;60s</b> when the parties overlapped
+    (conservative Southern Democrats, liberal Northeastern Republicans), bottoms out around 0.5, then climbs steadily
+    from the <b>1970s</b> to today. The red line does most of the moving. That's the asymmetry, Republicans shifted right
+    roughly twice as far as Democrats shifted left.</p>
+    <p>Toggle Senate: same shape, gap a touch narrower and noisier, ending at 0.81 vs the House's 0.88 — the same two
+    numbers the dashboard band shows. The current-Congress dots at the right edge are the tie-in: the band is that dot,
+    this chart is how it got there.</p>
+    <p class="dim">Idiom is BillsTimeSeries (SVG line, time on x). Hover any year for both medians and the gap. Illustrative
+    values on the real historical curve.</p>
+  </div>
+
+</div>
+<div id="tip"></div>
+
+<script>
+// ---- anchor series (approx real Voteview House/Senate party medians on dim1) ----
+var ANCHOR={
+  house:[[1879,-0.24,0.34],[1895,-0.28,0.36],[1910,-0.30,0.37],[1925,-0.29,0.34],[1937,-0.27,0.30],
+         [1949,-0.26,0.27],[1961,-0.26,0.25],[1971,-0.28,0.26],[1981,-0.30,0.31],[1991,-0.33,0.37],
+         [2001,-0.37,0.44],[2011,-0.38,0.49],[2021,-0.39,0.51],[2025,-0.38,0.50]],
+  senate:[[1879,-0.22,0.32],[1895,-0.26,0.34],[1910,-0.28,0.35],[1925,-0.27,0.32],[1937,-0.25,0.28],
+          [1949,-0.24,0.26],[1961,-0.25,0.24],[1971,-0.27,0.25],[1981,-0.29,0.30],[1991,-0.32,0.35],
+          [2001,-0.35,0.41],[2011,-0.37,0.46],[2021,-0.38,0.48],[2025,-0.34,0.47]]
+};
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function buildSeries(anchor,seed){
+  var rng=mulberry32(seed), out=[];
+  for(var y=1879;y<=2025;y+=2){
+    var lo=anchor[0], hi=anchor[anchor.length-1];
+    for(var i=0;i<anchor.length-1;i++){ if(y>=anchor[i][0]&&y<=anchor[i+1][0]){lo=anchor[i];hi=anchor[i+1];break;} }
+    var f=(hi[0]===lo[0])?0:(y-lo[0])/(hi[0]-lo[0]);
+    var d=lo[1]+(hi[1]-lo[1])*f + (rng()-0.5)*0.028;
+    var r=lo[2]+(hi[2]-lo[2])*f + (rng()-0.5)*0.028;
+    out.push({y:y,d:d,r:r});
+  }
+  return out;
+}
+var SERIES={house:buildSeries(ANCHOR.house,0xC0FFEE),senate:buildSeries(ANCHOR.senate,0xBEEF11)};
+
+var NS='http://www.w3.org/2000/svg';
+function el(n,a){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);return e;}
+function fmt(v){return (v>=0?'+':'')+v.toFixed(2);}
+var tip=document.getElementById('tip');
+
+var W=1140,H=384,L=52,Rp=70,T=20,B=42;
+var iW=W-L-Rp, iH=H-T-B;
+var xdom=[1879,2025], ydom=[-0.46,0.58];
+function xs(v){return L+((v-xdom[0])/(xdom[1]-xdom[0]))*iW;}
+function ys(v){return T+((ydom[1]-v)/(ydom[1]-ydom[0]))*iH;}
+
+var chamber='house';
+function setChamber(c){
+  chamber=c;
+  document.getElementById('btn-house').className=(c==='house')?'on':'';
+  document.getElementById('btn-senate').className=(c==='senate')?'on':'';
+  document.getElementById('src').textContent='Voteview HSall · '+(c==='house'?'House':'Senate');
+  draw();
+}
+
+function draw(){
+  var svg=document.getElementById('chart');
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  var S=SERIES[chamber];
+
+  // y grid
+  [-0.4,-0.2,0,0.2,0.4,0.6].forEach(function(gy){
+    svg.appendChild(el('line',{x1:L,x2:L+iW,y1:ys(gy),y2:ys(gy),stroke:(gy===0?'#1f2937':'#111820'),'stroke-width':1}));
+    svg.appendChild(el('text',{x:L-8,y:ys(gy)+3,'text-anchor':'end','font-size':9,fill:'#6b7280','font-family':'monospace'})).textContent=fmt(gy);
+  });
+  // x grid
+  [1880,1900,1920,1940,1960,1980,2000,2020].forEach(function(gx){
+    svg.appendChild(el('line',{x1:xs(gx),x2:xs(gx),y1:T,y2:T+iH,stroke:'#111820','stroke-width':1}));
+    svg.appendChild(el('text',{x:xs(gx),y:H-12,'text-anchor':'middle','font-size':9,fill:'#6b7280','font-family':'monospace'})).textContent=gx;
+  });
+
+  // shaded gap polygon
+  var pts=[];
+  S.forEach(function(p){pts.push(xs(p.y)+','+ys(p.r));});
+  for(var i=S.length-1;i>=0;i--){pts.push(xs(S[i].y)+','+ys(S[i].d));}
+  svg.appendChild(el('polygon',{points:pts.join(' '),fill:'#d97706','fill-opacity':0.07}));
+
+  // lines
+  function line(key,col){var d=S.map(function(p,i){return (i?'L':'M')+xs(p.y)+' '+ys(p[key]);}).join(' ');
+    svg.appendChild(el('path',{d:d,fill:'none',stroke:col,'stroke-width':1.6}));}
+  line('d','#3b82f6'); line('r','#ef4444');
+
+  // midcentury low guide + label
+  var lowYr=1961, low=S.find(function(p){return p.y===1961;})||S.find(function(p){return p.y===1960||p.y===1962;});
+  if(low){
+    svg.appendChild(el('line',{x1:xs(lowYr),x2:xs(lowYr),y1:ys(low.r)-4,y2:ys(low.d)+4,stroke:'#6b7280','stroke-width':1,'stroke-dasharray':'2 2','stroke-opacity':0.7}));
+    var gLow=(low.r-low.d);
+    svg.appendChild(el('text',{x:xs(lowYr),y:ys(low.d)+18,'text-anchor':'middle','font-size':9,fill:'#6b7280','font-family':'monospace'})).textContent='midcentury low · gap '+gLow.toFixed(2);
+  }
+
+  // current markers + right-edge gap callout
+  var last=S[S.length-1];
+  svg.appendChild(el('circle',{cx:xs(last.y),cy:ys(last.d),r:3,fill:'#3b82f6'}));
+  svg.appendChild(el('circle',{cx:xs(last.y),cy:ys(last.r),r:3,fill:'#ef4444'}));
+  var gNow=(last.r-last.d);
+  // bracket
+  svg.appendChild(el('line',{x1:xs(last.y)+8,x2:xs(last.y)+8,y1:ys(last.r),y2:ys(last.d),stroke:'#d97706','stroke-width':1,'stroke-opacity':0.9}));
+  svg.appendChild(el('text',{x:xs(last.y)+13,y:(ys(last.r)+ys(last.d))/2-2,'font-size':13,fill:'#fbbf24','font-family':'monospace'})).textContent=gNow.toFixed(2);
+  svg.appendChild(el('text',{x:xs(last.y)+13,y:(ys(last.r)+ys(last.d))/2+11,'font-size':8.5,fill:'#6b7280','font-family':'monospace','letter-spacing':'1'})).textContent='GAP · 119TH';
+
+  // axis titles
+  svg.appendChild(el('text',{x:14,y:T+iH/2,'text-anchor':'middle','font-size':9.5,fill:'#94a3b8','font-family':'monospace','letter-spacing':'0.6',transform:'rotate(-90,14,'+(T+iH/2)+')'})).textContent='DIM1 MEDIAN';
+
+  // hover hit layer
+  S.forEach(function(p){
+    var hit=el('rect',{x:xs(p.y)-4,y:T,width:8,height:iH,fill:'transparent',style:'cursor:crosshair'});
+    hit.addEventListener('mouseenter',function(){tip.style.display='block';
+      tip.innerHTML=p.y+' &middot; <span class="d">D '+fmt(p.d)+'</span> &middot; <span class="r">R '+fmt(p.r)+'</span> &middot; <span class="h">gap</span> '+(p.r-p.d).toFixed(2);});
+    hit.addEventListener('mousemove',function(ev){tip.style.left=(ev.clientX+12)+'px';tip.style.top=(ev.clientY+12)+'px';});
+    hit.addEventListener('mouseleave',function(){tip.style.display='none';});
+    svg.appendChild(hit);
+  });
+}
+draw();
+</script>
+</body>
+</html>

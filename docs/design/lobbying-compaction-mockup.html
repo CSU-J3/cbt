@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>/lobbying compaction — height mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --stage-committee:#06b6d4;
+  --track:#141a24;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --t-budget:#cae05c; --t-health:#e05c8e; --t-taxes:#785ce0; --t-defense:#da8c3e;
+  --t-trade:#e05ca9; --t-energy:#5ce0c5; --t-trans:#5c5ce0; --t-edu:#aee05c;
+  --t-agri:#3ec7da; --t-env:#da3ecd; --t-fin:#3e92da; --t-tech:#e05c62;
+  --t-labor:#3e72da; --t-gov:#e05c7d; --t-housing:#6bda3e; --t-frgn:#da6c3e;
+  --t-imm:#4bda3e; --t-crim:#a45ce0; --t-civ:#5cd6e0; --t-cons:#8ce05c;
+  --t-vet:#3edaa0; --t-ss:#9a5ce0; --t-other:#6b7280;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg-base);color:var(--text-secondary);
+  font-family:var(--font-mono);font-size:13px;}
+.wrap{max-width:1180px;margin:0 auto;padding:14px;position:relative;}
+.note{max-width:1180px;margin:0 auto 12px;padding:9px 12px;border:1px dashed var(--border-strong);
+  border-radius:3px;color:var(--text-muted);font-size:11px;line-height:1.55;background:#070b11;}
+.note b{color:var(--accent-amber-bright);}
+
+/* viewport fold markers */
+.fold{position:absolute;left:0;right:0;border-top:1px dashed #3b2a12;pointer-events:none;z-index:5;}
+.fold span{position:absolute;right:0;top:-9px;background:#0a0e14;padding:0 6px;
+  font-size:9px;letter-spacing:.5px;color:#7a5a22;}
+
+/* chrome */
+.mast{display:flex;align-items:center;justify-content:space-between;}
+.mast-path{font-size:14px;letter-spacing:.3px;}
+.mast-path .c1{color:var(--accent-amber-bright);}
+.mast-path .cur{color:var(--text-primary);}
+.mast-cursor{color:var(--accent-amber);}
+.mast-signin{font-size:11px;letter-spacing:.5px;color:var(--text-dim);}
+.sub{font-size:11px;color:var(--text-dim);letter-spacing:.5px;margin:5px 0 10px;}
+.topnav{display:flex;flex-wrap:wrap;gap:13px;font-size:12.5px;letter-spacing:.5px;
+  padding-bottom:11px;border-bottom:1px solid var(--border-strong);}
+.topnav a{text-decoration:none;color:var(--text-muted);}
+.topnav a .sl{color:var(--text-dim);}
+.topnav a.active{color:var(--accent-amber-bright);border-bottom:1px solid var(--accent-amber-bright);}
+.topnav .rule{width:1px;height:12px;background:var(--border-strong);align-self:center;}
+
+.readout{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;margin:10px 0 3px;}
+.readout h1{font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent-amber);margin:0;}
+.readout .nums{font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--text-muted);
+  font-variant-numeric:tabular-nums;}
+.blurb{max-width:78ch;font-family:var(--sans);font-size:11.5px;line-height:1.4;color:var(--text-muted);margin:0 0 10px;}
+
+/* fbar */
+.mc-fbar{display:flex;align-items:center;gap:10px;padding:8px 12px;
+  border:1px solid var(--border-strong);border-bottom:none;background:var(--bg-panel);}
+.mc-fbar-count{font-size:10.5px;letter-spacing:.5px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
+.mc-fbar-n{color:var(--text-secondary);}
+
+/* ===== THE CHANGE 1: bounded pane ===== */
+.mc-pane{display:grid;grid-template-columns:312px 1fr;border:1px solid var(--border-strong);}
+.lob-rail{border-right:1px solid var(--border-strong);background:var(--bg-panel);min-width:0;
+  display:flex;flex-direction:column;}
+.mc-rail-h{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.7px;
+  color:var(--text-dim);padding:7px 12px;border-bottom:1px solid var(--border-strong);flex:none;}
+.lob-rail-scroll{overflow-y:auto;max-height:560px;scrollbar-width:thin;
+  scrollbar-color:#243040 transparent;}
+.lob-rail-scroll::-webkit-scrollbar{width:7px;}
+.lob-rail-scroll::-webkit-scrollbar-thumb{background:#243040;border-radius:4px;}
+
+.mc-crow{display:grid;grid-template-columns:38px 1fr 50px 44px;align-items:center;column-gap:7px;
+  padding:5px 12px;border-bottom:.5px solid var(--border-soft);cursor:pointer;}
+.mc-crow:hover{background:var(--bg-row-hover);}
+.mc-crow-code{font-size:8.5px;color:var(--text-dim);}
+.mc-crow-name{font-size:11px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mc-crow-act{display:block;height:3px;background:var(--track);border-radius:1px;overflow:hidden;}
+.mc-crow-act-f{display:block;height:3px;}
+.mc-crow-mem{font-size:10.5px;color:var(--text-dim);text-align:right;font-variant-numeric:tabular-nums;}
+
+.mc-content{min-width:0;display:flex;flex-direction:column;}
+.lob-filing-row{display:grid;grid-template-columns:16px 46px 1fr auto auto;align-items:center;column-gap:9px;
+  padding:6px 13px;border-bottom:.5px solid var(--border-soft);}
+.mc-row-hdr{background:var(--bg-panel);border-bottom:1px solid var(--border-strong);
+  font-size:8.5px;letter-spacing:.6px;color:var(--text-dim);flex:none;}
+.mc-caret{font-size:10px;color:var(--text-dim);}
+.mc-age{font-size:10px;text-transform:uppercase;color:var(--text-dim);font-variant-numeric:tabular-nums;}
+.mc-party{min-width:0;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mc-party .reg{color:var(--text-primary);}
+.mc-party .arr{color:var(--text-dim);}
+.chips{display:flex;gap:3px;align-items:center;}
+.micro-tag{font-size:8.5px;color:var(--text-muted);border:1px solid var(--border-strong);
+  border-radius:2px;padding:0 3px;}
+.bill-chip{font-size:9px;text-transform:uppercase;font-variant-numeric:tabular-nums;
+  border:1px solid var(--accent-amber);color:var(--accent-amber);border-radius:2px;padding:0 4px;}
+.plus{font-size:9px;color:var(--text-dim);}
+.pager{display:flex;align-items:center;justify-content:center;gap:6px;padding:7px 0;font-size:10px;
+  letter-spacing:.5px;color:var(--text-dim);border-top:1px solid var(--border-soft);margin-top:auto;}
+.pager .pg{border:1px solid var(--border-strong);padding:1px 6px;border-radius:2px;color:var(--text-muted);}
+.pager .pg.on{color:var(--accent-amber-bright);border-color:var(--accent-amber);}
+
+/* ===== THE CHANGE 2: side-by-side, both bounded ===== */
+.lob-secs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px;}
+.sec{border:1px solid var(--border-strong);display:flex;flex-direction:column;min-width:0;}
+.sec-h{padding:8px 12px;border-bottom:1px solid var(--border-strong);background:var(--bg-panel);flex:none;}
+.sec-h .t{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-secondary);}
+.sec-h .s{font-size:9px;color:var(--text-dim);margin-top:2px;}
+.sec-scroll{overflow-y:auto;max-height:340px;scrollbar-width:thin;scrollbar-color:#243040 transparent;}
+.sec-scroll::-webkit-scrollbar{width:7px;}
+.sec-scroll::-webkit-scrollbar-thumb{background:#243040;border-radius:4px;}
+.sec-hdr{display:grid;align-items:center;column-gap:8px;padding:5px 12px;background:var(--bg-panel);
+  border-bottom:1px solid var(--border-strong);font-size:8.5px;letter-spacing:.6px;color:var(--text-dim);flex:none;}
+
+/* crosswalk rows */
+.cw-hdr{grid-template-columns:16px 1fr 52px 44px;}
+.cw-row{display:grid;grid-template-columns:16px 1fr 52px 44px;align-items:center;column-gap:8px;
+  padding:5px 12px;border-bottom:.5px solid var(--border-soft);}
+.cw-car{font-size:9px;color:var(--text-dim);}
+.cw-l{min-width:0;}
+.cw-name{font-size:11px;}
+.cw-sub{font-size:8.5px;color:var(--text-dim);}
+.cw-bar{height:6px;background:var(--track);border-radius:1px;overflow:hidden;margin-top:3px;}
+.cw-bar-f{display:block;height:6px;}
+.cw-n{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-secondary);}
+.cw-c{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-dim);}
+
+/* firms rows */
+.fm-hdr{grid-template-columns:20px 1fr 46px 40px;}
+.fm-row{display:grid;grid-template-columns:20px 1fr 46px 40px;align-items:center;column-gap:8px;
+  padding:5px 12px;border-bottom:.5px solid var(--border-soft);}
+.fm-rank{font-size:10px;color:var(--text-dim);text-align:right;font-variant-numeric:tabular-nums;}
+.fm-l{min-width:0;}
+.fm-name{font-size:10.5px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fm-iss{font-size:8.5px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.fm-bar{height:6px;background:var(--track);border-radius:1px;overflow:hidden;margin-top:3px;}
+.fm-bar-f{display:block;height:6px;background:var(--accent-amber);}
+.fm-n{font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-secondary);}
+.fm-c{font-size:10px;text-align:right;font-variant-numeric:tabular-nums;color:var(--text-dim);}
+</style>
+</head>
+<body>
+
+<div class="note">
+  <b>MOCKUP — /lobbying height compaction.</b> Real prod data (110,055 filings). Three changes: (1) issue rail bounded at <code>max-height:560px</code> with internal scroll, so the pane stops being 1,400px of mostly-whitespace; (2) crosswalk + firms moved <b>side-by-side</b> — both waste over half their width today; (3) both bounded at <code>340px</code> with internal scroll. Page goes ~3,000px → ~1,200px. Dashed amber lines mark where a 900px and 1080px viewport fold. Scroll the rail and both lower panels to see the bounds work.
+</div>
+
+<div class="wrap">
+  <div class="fold" style="top:900px"><span>900px viewport fold</span></div>
+  <div class="fold" style="top:1080px"><span>1080px viewport fold</span></div>
+
+  <div class="mast">
+    <div class="mast-path"><span class="c1">Congressional Terminal</span>:\119TH\<span class="cur">Lobbying</span><span class="mast-cursor">&gt;_</span></div>
+    <div class="mast-signin">SIGN IN</div>
+  </div>
+  <div class="sub">· LAST SYNC 1:41 PM ET</div>
+
+  <nav class="topnav">
+    <a><span class="sl">\</span>DASHBOARD</a><span class="rule"></span>
+    <a><span class="sl">\</span>LEGISLATION</a><a><span class="sl">\</span>HEARINGS</a>
+    <a><span class="sl">\</span>MEMBERS</a><a><span class="sl">\</span>ELECTORAL</a>
+    <a><span class="sl">\</span>PATTERNS</a>
+    <a class="active">[ <span class="sl">\</span>LOBBYING ]</a>
+    <a><span class="sl">\</span>NOMINATIONS</a><span class="rule"></span>
+    <a><span class="sl">\</span>AMENDMENTS</a><a><span class="sl">\</span>REPORTS</a>
+    <a><span class="sl">\</span>WATCHLIST</a>
+  </nav>
+
+  <div class="readout">
+    <h1>Lobbying</h1>
+    <span class="nums">110,055 FILINGS · 236,118 ACTIVITIES · 5,175 REGISTRANTS · 21,415 CLIENTS · 25.3% NAME A TRACKED BILL</span>
+  </div>
+  <p class="blurb">Who&rsquo;s paying to move what — LD-2 quarterly lobbying reports for the 119th, bucketed by issue area, with the numbered-bill link as an overlay.</p>
+
+  <div class="mc-fbar">
+    <span class="mc-fbar-count"><span class="mc-fbar-n">110,055</span> FILINGS · <span class="mc-fbar-n">21,415</span> CLIENTS</span>
+  </div>
+
+  <!-- BOUNDED TWO-PANE -->
+  <div class="mc-pane">
+    <div class="lob-rail">
+      <div class="mc-rail-h"><span>ISSUES · 79</span><span>VOL</span></div>
+      <div class="lob-rail-scroll">
+        <div class="mc-crow"><span class="mc-crow-code">BUD</span><span class="mc-crow-name">Budget/Appropriat…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:100%;background:var(--t-budget)"></span></span><span class="mc-crow-mem">29,022</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">HCR</span><span class="mc-crow-name">Health Issues</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:61%;background:var(--t-health)"></span></span><span class="mc-crow-mem">17,649</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TAX</span><span class="mc-crow-name">Taxation/Internal…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:60%;background:var(--t-taxes)"></span></span><span class="mc-crow-mem">17,513</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">DEF</span><span class="mc-crow-name">Defense</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:50%;background:var(--t-defense)"></span></span><span class="mc-crow-mem">14,528</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TRD</span><span class="mc-crow-name">Trade (domestic/f…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:37%;background:var(--t-trade)"></span></span><span class="mc-crow-mem">10,620</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ENG</span><span class="mc-crow-name">Energy/Nuclear</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:32%;background:var(--t-energy)"></span></span><span class="mc-crow-mem">9,365</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TRA</span><span class="mc-crow-name">Transportation</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:31%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">8,965</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MMM</span><span class="mc-crow-name">Medicare/Medicaid</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:30%;background:var(--t-health)"></span></span><span class="mc-crow-mem">8,699</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">EDU</span><span class="mc-crow-name">Education</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:22%;background:var(--t-edu)"></span></span><span class="mc-crow-mem">6,440</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">AGR</span><span class="mc-crow-name">Agriculture</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:21%;background:var(--t-agri)"></span></span><span class="mc-crow-mem">6,229</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ENV</span><span class="mc-crow-name">Environment/Super…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:21%;background:var(--t-env)"></span></span><span class="mc-crow-mem">6,154</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FIN</span><span class="mc-crow-name">Financial Institu…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:21%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">6,079</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">NAT</span><span class="mc-crow-name">Natural Resources</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:17%;background:var(--t-energy)"></span></span><span class="mc-crow-mem">4,923</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">LBR</span><span class="mc-crow-name">Labor Issues/Anti…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:17%;background:var(--t-labor)"></span></span><span class="mc-crow-mem">4,822</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">SCI</span><span class="mc-crow-name">Science/Technology</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:16%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">4,739</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">GOV</span><span class="mc-crow-name">Government Issues</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:14%;background:var(--t-gov)"></span></span><span class="mc-crow-mem">4,012</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TEC</span><span class="mc-crow-name">Telecommunications</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:13%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">3,636</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">BAN</span><span class="mc-crow-name">Banking</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:12%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">3,405</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">HOM</span><span class="mc-crow-name">Homeland Security</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:12%;background:var(--t-defense)"></span></span><span class="mc-crow-mem">3,389</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MAN</span><span class="mc-crow-name">Manufacturing</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:10%;background:var(--t-trade)"></span></span><span class="mc-crow-mem">3,046</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">AVI</span><span class="mc-crow-name">Aviation/Airlines…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:9%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">2,771</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">HOU</span><span class="mc-crow-name">Housing</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:9%;background:var(--t-housing)"></span></span><span class="mc-crow-mem">2,760</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CSP</span><span class="mc-crow-name">Consumer Issues/S…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:9%;background:var(--t-cons)"></span></span><span class="mc-crow-mem">2,610</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">IMM</span><span class="mc-crow-name">Immigration</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-imm)"></span></span><span class="mc-crow-mem">2,494</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">LAW</span><span class="mc-crow-name">Law Enforcement/C…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-crim)"></span></span><span class="mc-crow-mem">2,351</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FOR</span><span class="mc-crow-name">Foreign Relations</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-frgn)"></span></span><span class="mc-crow-mem">2,329</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">VET</span><span class="mc-crow-name">Veterans</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-vet)"></span></span><span class="mc-crow-mem">2,293</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CPT</span><span class="mc-crow-name">Copyright/Patent/…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">2,203</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CPI</span><span class="mc-crow-name">Computer Industry</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:8%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">2,196</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CAW</span><span class="mc-crow-name">Clean Air and Wat…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:7%;background:var(--t-env)"></span></span><span class="mc-crow-mem">2,045</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ECN</span><span class="mc-crow-name">Economics/Economi…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:7%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">1,967</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MAR</span><span class="mc-crow-name">Marine/Maritime/B…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:7%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">1,933</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">IND</span><span class="mc-crow-name">Indian/Native Ame…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:6%;background:var(--t-civ)"></span></span><span class="mc-crow-mem">1,795</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">INS</span><span class="mc-crow-name">Insurance</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:6%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">1,707</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">PHA</span><span class="mc-crow-name">Pharmacy</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:6%;background:var(--t-health)"></span></span><span class="mc-crow-mem">1,630</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TAR</span><span class="mc-crow-name">Tariff (miscellan…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:6%;background:var(--t-trade)"></span></span><span class="mc-crow-mem">1,622</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FOO</span><span class="mc-crow-name">Food Industry (sa…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:6%;background:var(--t-agri)"></span></span><span class="mc-crow-mem">1,610</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">DIS</span><span class="mc-crow-name">Disaster Planning…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:5%;background:var(--t-gov)"></span></span><span class="mc-crow-mem">1,589</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">SMB</span><span class="mc-crow-name">Small Business</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:5%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">1,569</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MED</span><span class="mc-crow-name">Medical/Disease R…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:5%;background:var(--t-health)"></span></span><span class="mc-crow-mem">1,530</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">URB</span><span class="mc-crow-name">Urban Development…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:5%;background:var(--t-housing)"></span></span><span class="mc-crow-mem">1,435</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">COM</span><span class="mc-crow-name">Communications/Br…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:4%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">1,305</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">AER</span><span class="mc-crow-name">Aerospace</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:4%;background:var(--t-defense)"></span></span><span class="mc-crow-mem">1,246</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">RET</span><span class="mc-crow-name">Retirement</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:4%;background:var(--t-ss)"></span></span><span class="mc-crow-mem">1,246</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">AUT</span><span class="mc-crow-name">Automotive Indust…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:4%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">1,110</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FUE</span><span class="mc-crow-name">Fuel/Gas/Oil</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:4%;background:var(--t-energy)"></span></span><span class="mc-crow-mem">1,027</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">RES</span><span class="mc-crow-name">Real Estate/Land …</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-housing)"></span></span><span class="mc-crow-mem">984</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CIV</span><span class="mc-crow-name">Civil Rights/Civi…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-civ)"></span></span><span class="mc-crow-mem">929</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">UTI</span><span class="mc-crow-name">Utilities</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-energy)"></span></span><span class="mc-crow-mem">920</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CHM</span><span class="mc-crow-name">Chemicals/Chemica…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-env)"></span></span><span class="mc-crow-mem">862</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ANI</span><span class="mc-crow-name">Animals</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-agri)"></span></span><span class="mc-crow-mem">838</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">SPO</span><span class="mc-crow-name">Sports/Athletics</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-other)"></span></span><span class="mc-crow-mem">798</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">RRR</span><span class="mc-crow-name">Railroads</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:3%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">766</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">INT</span><span class="mc-crow-name">Intelligence</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-defense)"></span></span><span class="mc-crow-mem">671</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TOB</span><span class="mc-crow-name">Tobacco</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-health)"></span></span><span class="mc-crow-mem">606</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TOU</span><span class="mc-crow-name">Travel/Tourism</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-other)"></span></span><span class="mc-crow-mem">603</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ROD</span><span class="mc-crow-name">Roads/Highway</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">592</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">GAM</span><span class="mc-crow-name">Gaming/Gambling/C…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-other)"></span></span><span class="mc-crow-mem">533</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">POS</span><span class="mc-crow-name">Postal</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:2%;background:var(--t-gov)"></span></span><span class="mc-crow-mem">453</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FAM</span><span class="mc-crow-name">Family issues/Abo…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-civ)"></span></span><span class="mc-crow-mem">427</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TRU</span><span class="mc-crow-name">Trucking/Shipping</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-trans)"></span></span><span class="mc-crow-mem">413</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ART</span><span class="mc-crow-name">Arts/Entertainment</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-other)"></span></span><span class="mc-crow-mem">389</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ACC</span><span class="mc-crow-name">Accounting</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">378</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">TOR</span><span class="mc-crow-name">Torts</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-crim)"></span></span><span class="mc-crow-mem">332</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">WEL</span><span class="mc-crow-name">Welfare</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-ss)"></span></span><span class="mc-crow-mem">329</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">FIR</span><span class="mc-crow-name">Firearms/Guns/Amm…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-crim)"></span></span><span class="mc-crow-mem">309</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">BEV</span><span class="mc-crow-name">Beverage Industry</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-agri)"></span></span><span class="mc-crow-mem">303</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ALC</span><span class="mc-crow-name">Alcohol and Drug …</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-health)"></span></span><span class="mc-crow-mem">294</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MIA</span><span class="mc-crow-name">Media (informatio…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-tech)"></span></span><span class="mc-crow-mem">277</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">WAS</span><span class="mc-crow-name">Waste (hazardous/…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-env)"></span></span><span class="mc-crow-mem">272</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CON</span><span class="mc-crow-name">Constitution</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-gov)"></span></span><span class="mc-crow-mem">257</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">CDT</span><span class="mc-crow-name">Commodities (big …</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">209</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">ADV</span><span class="mc-crow-name">Advertising</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-other)"></span></span><span class="mc-crow-mem">194</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">BNK</span><span class="mc-crow-name">Bankruptcy</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">122</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">APP</span><span class="mc-crow-name">Apparel/Clothing …</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-trade)"></span></span><span class="mc-crow-mem">119</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">DOC</span><span class="mc-crow-name">District of Colum…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-gov)"></span></span><span class="mc-crow-mem">95</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">REL</span><span class="mc-crow-name">Religion</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-civ)"></span></span><span class="mc-crow-mem">87</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">UNM</span><span class="mc-crow-name">Unemployment</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-labor)"></span></span><span class="mc-crow-mem">84</span></div>
+        <div class="mc-crow"><span class="mc-crow-code">MON</span><span class="mc-crow-name">Minting/Money/Gol…</span><span class="mc-crow-act"><span class="mc-crow-act-f" style="width:1%;background:var(--t-fin)"></span></span><span class="mc-crow-mem">65</span></div>
+      </div>
+    </div>
+
+    <div class="mc-content">
+      <div class="lob-filing-row mc-row-hdr"><span></span><span>AGE</span><span>REGISTRANT → CLIENT</span><span>ISSUES</span><span>BILLS</span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">today</span><span class="mc-party"><span class="reg">AKIN GUMP STRAUSS HAUER &amp; FELD</span><span class="arr"> → </span>BAYER CORPORATION</span><span class="chips"><span class="micro-tag">AGR</span><span class="micro-tag">ENV</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">THOMPSON COBURN LLP</span><span class="arr"> → </span>POETTKER CONSTRUCTION</span><span class="chips"><span class="micro-tag">BUD</span><span class="micro-tag">DEF</span></span><span class="chips"><span class="bill-chip">HR-3944</span><span class="bill-chip">HR-4816</span><span class="plus">+1</span></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">SQUIRE PATTON BOGGS</span><span class="arr"> → </span>IMPSA INTERNATIONAL INC</span><span class="chips"><span class="micro-tag">ENG</span><span class="micro-tag">FOR</span><span class="micro-tag">MAR</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">CAPEHILL LLC</span><span class="arr"> → </span>HELFIE AI</span><span class="chips"><span class="micro-tag">HCR</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">AMERICAN HIGHWAY USERS ALLIANCE</span><span class="arr"> → </span>AHUA</span><span class="chips"><span class="micro-tag">TRA</span><span class="micro-tag">ROD</span><span class="micro-tag">BUD</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">SAZERAC COMPANY, INC.</span><span class="arr"> → </span>SAZERAC COMPANY</span><span class="chips"><span class="micro-tag">ALC</span><span class="micro-tag">CPT</span><span class="plus">+2</span></span><span class="chips"><span class="bill-chip">HR-1484</span><span class="plus">+4</span></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">SUMMIT STRATEGIES GOV AFFAIRS</span><span class="arr"> → </span>ALLEGHENY COUNTY AIRPORT AUTH</span><span class="chips"><span class="micro-tag">TRA</span><span class="micro-tag">AVI</span><span class="micro-tag">BUD</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">LYNN TJEERDSMA CONSULTING</span><span class="arr"> → </span>AKIN GUMP (O/B/O BAYER)</span><span class="chips"><span class="micro-tag">AGR</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">ATRIO CONSULTING GROUP, LLC</span><span class="arr"> → </span>COUNCIL OF PRISON LOCALS</span><span class="chips"><span class="micro-tag">LBR</span><span class="micro-tag">LAW</span><span class="micro-tag">BUD</span></span><span class="chips"><span class="bill-chip">HR-2550</span><span class="plus">+5</span></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">SERVICENOW, INC.</span><span class="arr"> → </span>SERVICENOW, INC.</span><span class="chips"><span class="micro-tag">BUD</span><span class="micro-tag">CPI</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">FS VECTOR LLC</span><span class="arr"> → </span>AMERICAN LAND TITLE ASSOCIATION</span><span class="chips"><span class="micro-tag">HOU</span><span class="micro-tag">INS</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">GREEN T ADVISORS</span><span class="arr"> → </span>BERLINER, CORCORAN &amp; ROWE, LLP</span><span class="chips"><span class="micro-tag">FOR</span></span><span class="chips"></span></div>
+      <div class="lob-filing-row"><span class="mc-caret">▸</span><span class="mc-age">1d ago</span><span class="mc-party"><span class="reg">ARNALL GOLDEN GREGORY, LLP</span><span class="arr"> → </span>COUNCIL FOR AFFORDABLE HOUSING</span><span class="chips"><span class="micro-tag">HOU</span><span class="micro-tag">BUD</span><span class="micro-tag">TAX</span></span><span class="chips"></span></div>
+      <div class="pager">
+        <span>‹ PREV</span><span class="pg on">1</span><span class="pg">2</span><span class="pg">3</span><span>…</span><span class="pg">40</span><span>NEXT ›</span><span style="margin-left:8px">PAGE 1 OF 40</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE-BY-SIDE, BOTH BOUNDED -->
+  <div class="lob-secs">
+
+    <div class="sec">
+      <div class="sec-h">
+        <div class="t">Lobbying by topic · CBT taxonomy</div>
+        <div class="s">The same filings mapped to CBT&rsquo;s 24 topics. Tap a topic to see the issue codes it covers.</div>
+      </div>
+      <div class="sec-hdr cw-hdr"><span></span><span>TOPIC</span><span style="text-align:right">FILINGS</span><span style="text-align:right">CLIENTS</span></div>
+      <div class="sec-scroll">
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-budget)">Budget</span> <span class="cw-sub">BDGT · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:100%;background:var(--t-budget)"></span></span></span><span class="cw-n">29,022</span><span class="cw-c">6,483</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-health)">Healthcare</span> <span class="cw-sub">HLTH · 6 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:77%;background:var(--t-health)"></span></span></span><span class="cw-n">22,431</span><span class="cw-c">4,287</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-taxes)">Taxes</span> <span class="cw-sub">TAX · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:60%;background:var(--t-taxes)"></span></span></span><span class="cw-n">17,513</span><span class="cw-c">3,322</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-defense)">Defense</span> <span class="cw-sub">DEF · 3 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:58%;background:var(--t-defense)"></span></span></span><span class="cw-n">16,786</span><span class="cw-c">3,861</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-other)">Other</span> <span class="cw-sub">OTHR · 21 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:57%;background:var(--t-other)"></span></span></span><span class="cw-n">16,574</span><span class="cw-c">3,576</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-trans)">Transportation</span> <span class="cw-sub">TRNS · 5 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:41%;background:var(--t-trans)"></span></span></span><span class="cw-n">11,775</span><span class="cw-c">2,545</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-env)">Environment</span> <span class="cw-sub">ENV · 4 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:40%;background:var(--t-env)"></span></span></span><span class="cw-n">11,475</span><span class="cw-c">2,600</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-trade)">Trade</span> <span class="cw-sub">TRD · 2 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:40%;background:var(--t-trade)"></span></span></span><span class="cw-n">11,469</span><span class="cw-c">2,474</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-tech)">Technology</span> <span class="cw-sub">TECH · 4 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:38%;background:var(--t-tech)"></span></span></span><span class="cw-n">11,026</span><span class="cw-c">2,171</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-energy)">Energy</span> <span class="cw-sub">ENRG · 3 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:36%;background:var(--t-energy)"></span></span></span><span class="cw-n">10,431</span><span class="cw-c">2,259</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-fin)">Financial services</span> <span class="cw-sub">FIN · 6 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:33%;background:var(--t-fin)"></span></span></span><span class="cw-n">9,702</span><span class="cw-c">1,824</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-agri)">Agriculture</span> <span class="cw-sub">AGR · 2 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:24%;background:var(--t-agri)"></span></span></span><span class="cw-n">7,000</span><span class="cw-c">1,489</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-edu)">Education</span> <span class="cw-sub">EDU · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:22%;background:var(--t-edu)"></span></span></span><span class="cw-n">6,440</span><span class="cw-c">1,383</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-gov)">Government operations</span> <span class="cw-sub">GOV · 5 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:21%;background:var(--t-gov)"></span></span></span><span class="cw-n">6,064</span><span class="cw-c">1,521</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-housing)">Housing</span> <span class="cw-sub">HSG · 3 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:17%;background:var(--t-housing)"></span></span></span><span class="cw-n">4,910</span><span class="cw-c">1,170</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-labor)">Labor</span> <span class="cw-sub">LAB · 2 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:17%;background:var(--t-labor)"></span></span></span><span class="cw-n">4,856</span><span class="cw-c">1,043</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-civ)">Civil rights</span> <span class="cw-sub">CIV · 3 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:10%;background:var(--t-civ)"></span></span></span><span class="cw-n">2,765</span><span class="cw-c">606</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-cons)">Consumer protection</span> <span class="cw-sub">CONS · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:9%;background:var(--t-cons)"></span></span></span><span class="cw-n">2,610</span><span class="cw-c">533</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-crim)">Criminal justice</span> <span class="cw-sub">CRIM · 2 codes</span><span class="cw-bar"><span class="cw-bar-f" style="width:9%;background:var(--t-crim)"></span></span></span><span class="cw-n">2,569</span><span class="cw-c">596</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-imm)">Immigration</span> <span class="cw-sub">IMM · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:9%;background:var(--t-imm)"></span></span></span><span class="cw-n">2,494</span><span class="cw-c">580</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-frgn)">Foreign policy</span> <span class="cw-sub">FRGN · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:8%;background:var(--t-frgn)"></span></span></span><span class="cw-n">2,329</span><span class="cw-c">603</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-vet)">Veterans</span> <span class="cw-sub">VET · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:8%;background:var(--t-vet)"></span></span></span><span class="cw-n">2,293</span><span class="cw-c">532</span></div>
+        <div class="cw-row"><span class="cw-car">▸</span><span class="cw-l"><span class="cw-name" style="color:var(--t-ss)">Social security</span> <span class="cw-sub">SS · 1 code</span><span class="cw-bar"><span class="cw-bar-f" style="width:4%;background:var(--t-ss)"></span></span></span><span class="cw-n">1,246</span><span class="cw-c">238</span></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-h">
+        <div class="t">Top firms · by filing volume</div>
+        <div class="s">top 25 of 5,175 registrants</div>
+      </div>
+      <div class="sec-hdr fm-hdr"><span>#</span><span>FIRM</span><span style="text-align:right">FILINGS</span><span style="text-align:right">CLI</span></div>
+      <div class="sec-scroll">
+        <div class="fm-row"><span class="fm-rank">1</span><span class="fm-l"><span class="fm-name">CORNERSTONE GOVERNMENT AFFAIRS</span><span class="fm-iss">BUD Budget/Approp. · 169 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:100%"></span></span></span><span class="fm-n">1,749</span><span class="fm-c">384</span></div>
+        <div class="fm-row"><span class="fm-rank">2</span><span class="fm-l"><span class="fm-name">BROWNSTEIN HYATT FARBER SCHRECK</span><span class="fm-iss">TAX Taxation/Internal · 410 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:88%"></span></span></span><span class="fm-n">1,542</span><span class="fm-c">419</span></div>
+        <div class="fm-row"><span class="fm-rank">3</span><span class="fm-l"><span class="fm-name">HOLLAND &amp; KNIGHT LLP</span><span class="fm-iss">BUD Budget/Approp. · 384 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:85%"></span></span></span><span class="fm-n">1,493</span><span class="fm-c">392</span></div>
+        <div class="fm-row"><span class="fm-rank">4</span><span class="fm-l"><span class="fm-name">BGR GOVERNMENT AFFAIRS</span><span class="fm-iss">HCR Health Issues · 38 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:84%"></span></span></span><span class="fm-n">1,468</span><span class="fm-c">338</span></div>
+        <div class="fm-row"><span class="fm-rank">5</span><span class="fm-l"><span class="fm-name">BALLARD PARTNERS</span><span class="fm-iss">TRD Trade (domest. · 8 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:71%"></span></span></span><span class="fm-n">1,243</span><span class="fm-c">385</span></div>
+        <div class="fm-row"><span class="fm-rank">6</span><span class="fm-l"><span class="fm-name">THORN RUN PARTNERS</span><span class="fm-iss">BUD Budget/Approp. · 123 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:64%"></span></span></span><span class="fm-n">1,127</span><span class="fm-c">276</span></div>
+        <div class="fm-row"><span class="fm-rank">7</span><span class="fm-l"><span class="fm-name">AKIN GUMP STRAUSS HAUER &amp; FELD</span><span class="fm-iss">TAX Taxation/Internal · 192 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:62%"></span></span></span><span class="fm-n">1,078</span><span class="fm-c">306</span></div>
+        <div class="fm-row"><span class="fm-rank">8</span><span class="fm-l"><span class="fm-name">INVARIANT LLC</span><span class="fm-iss">TAX Taxation/Internal · 277 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:50%"></span></span></span><span class="fm-n">871</span><span class="fm-c">226</span></div>
+        <div class="fm-row"><span class="fm-rank">9</span><span class="fm-l"><span class="fm-name">CASSIDY &amp; ASSOCIATES, INC.</span><span class="fm-iss">BUD Budget/Approp. · 187 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:49%"></span></span></span><span class="fm-n">849</span><span class="fm-c">197</span></div>
+        <div class="fm-row"><span class="fm-rank">10</span><span class="fm-l"><span class="fm-name">STRATEGIC MARKETING INNOVATIONS</span><span class="fm-iss">DEF Defense · 11 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:47%"></span></span></span><span class="fm-n">823</span><span class="fm-c">201</span></div>
+        <div class="fm-row"><span class="fm-rank">11</span><span class="fm-l"><span class="fm-name">CAPITOL COUNSEL LLC</span><span class="fm-iss">TAX Taxation/Internal · 163 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:45%"></span></span></span><span class="fm-n">779</span><span class="fm-c">189</span></div>
+        <div class="fm-row"><span class="fm-rank">12</span><span class="fm-l"><span class="fm-name">VAN SCOYOC ASSOCIATES</span><span class="fm-iss">BUD Budget/Approp. · 555 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:44%"></span></span></span><span class="fm-n">770</span><span class="fm-c">176</span></div>
+        <div class="fm-row"><span class="fm-rank">13</span><span class="fm-l"><span class="fm-name">CROSSROADS STRATEGIES, LLC</span><span class="fm-iss">TAX Taxation/Internal · 455 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:42%"></span></span></span><span class="fm-n">726</span><span class="fm-c">189</span></div>
+        <div class="fm-row"><span class="fm-rank">14</span><span class="fm-l"><span class="fm-name">MILLER STRATEGIES, LLC</span><span class="fm-iss">TAX Taxation/Internal · 48 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:39%"></span></span></span><span class="fm-n">689</span><span class="fm-c">186</span></div>
+        <div class="fm-row"><span class="fm-rank">15</span><span class="fm-l"><span class="fm-name">FORBES-TATE</span><span class="fm-iss">HCR Health Issues · 108 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:36%"></span></span></span><span class="fm-n">638</span><span class="fm-c">159</span></div>
+        <div class="fm-row"><span class="fm-rank">16</span><span class="fm-l"><span class="fm-name">K&amp;L GATES, LLP</span><span class="fm-iss">ENG Energy/Nuclear · 267 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:36%"></span></span></span><span class="fm-n">628</span><span class="fm-c">163</span></div>
+        <div class="fm-row"><span class="fm-rank">17</span><span class="fm-l"><span class="fm-name">MEHLMAN CONSULTING, INC.</span><span class="fm-iss">TAX Taxation/Internal · 309 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:36%"></span></span></span><span class="fm-n">622</span><span class="fm-c">142</span></div>
+        <div class="fm-row"><span class="fm-rank">18</span><span class="fm-l"><span class="fm-name">S-3 GROUP</span><span class="fm-iss">TAX Taxation/Internal · 46 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:33%"></span></span></span><span class="fm-n">585</span><span class="fm-c">133</span></div>
+        <div class="fm-row"><span class="fm-rank">19</span><span class="fm-l"><span class="fm-name">WILLIAMS AND JENSEN, PLLC</span><span class="fm-iss">TAX Taxation/Internal · 180 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:33%"></span></span></span><span class="fm-n">581</span><span class="fm-c">138</span></div>
+        <div class="fm-row"><span class="fm-rank">20</span><span class="fm-l"><span class="fm-name">THE FERGUSON GROUP, LLC</span><span class="fm-iss">BUD Budget/Approp. · 35 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:33%"></span></span></span><span class="fm-n">571</span><span class="fm-c">116</span></div>
+        <div class="fm-row"><span class="fm-rank">21</span><span class="fm-l"><span class="fm-name">TOWNSEND PUBLIC AFFAIRS</span><span class="fm-iss">BUD Budget/Approp. · 28 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:30%"></span></span></span><span class="fm-n">525</span><span class="fm-c">121</span></div>
+        <div class="fm-row"><span class="fm-rank">22</span><span class="fm-l"><span class="fm-name">TIBER CREEK GROUP</span><span class="fm-iss">HCR Health Issues · 206 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:30%"></span></span></span><span class="fm-n">520</span><span class="fm-c">117</span></div>
+        <div class="fm-row"><span class="fm-rank">23</span><span class="fm-l"><span class="fm-name">SQUIRE PATTON BOGGS</span><span class="fm-iss">TAX Taxation/Internal · 49 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:30%"></span></span></span><span class="fm-n">518</span><span class="fm-c">145</span></div>
+        <div class="fm-row"><span class="fm-rank">24</span><span class="fm-l"><span class="fm-name">MERCURY PUBLIC AFFAIRS, LLC</span><span class="fm-iss">ENG Energy/Nuclear · 0 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:29%"></span></span></span><span class="fm-n">509</span><span class="fm-c">143</span></div>
+        <div class="fm-row"><span class="fm-rank">25</span><span class="fm-l"><span class="fm-name">MINDSET ADVOCACY, LLC</span><span class="fm-iss">TAX Taxation/Internal · 43 bill-linked</span><span class="fm-bar"><span class="fm-bar-f" style="width:28%"></span></span></span><span class="fm-n">496</span><span class="fm-c">113</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

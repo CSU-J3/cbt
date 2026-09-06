@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MOCK · /bill/[id] + the record box — same shell as the member hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* tokens: verbatim from app/globals.css @ 0108409 */
+:root {
+  --bg-base: #0a0e14;
+  --bg-panel: #050709;
+  --bg-row-hover: #0f1620;
+  --border-strong: #1f2937;
+  --border-soft: #111820;
+  --text-primary: #e5e7eb;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #6b7280;
+  --accent-amber: #d97706;
+  --accent-amber-bright: #fbbf24;
+  --party-republican: #ef4444;
+  --party-democrat: #3b82f6;
+  --party-independent: #a78bfa;
+  --stage-introduced: #94a3b8;
+  --stage-committee: #06b6d4;
+  --stage-floor: #fbbf24;
+  --stage-other-chamber: #f59e0b;
+  --stage-president: #fb923c;
+  --stage-enacted: #10b981;
+  --vote-yea: #10b981;
+  --vote-nay: #f87171;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg-base); color: var(--text-primary); font-family: var(--font-mono); font-size: 13px; }
+a { color: inherit; }
+
+.mast { padding: 10px 16px 0; }
+.mast-path { font-size: 15px; letter-spacing: 0.3px; }
+.mast-path .c1 { color: var(--accent-amber-bright); }
+.mast-path .sl { color: var(--accent-amber); }
+.mast-path .cur { color: var(--text-primary); }
+.mast-sub { margin-top: 5px; font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.5px; }
+.topnav { display: flex; flex-wrap: wrap; gap: 26px; font-size: 12.5px; letter-spacing: 0.5px; margin-top: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--border-strong); }
+.topnav a { text-decoration: none; color: var(--text-muted); }
+.topnav a .sl { color: var(--text-dim); }
+.topnav a.active { color: var(--accent-amber-bright); }
+
+main { padding: 14px 16px 24px; max-width: 1280px; }
+
+/* ═══ HERO — SHIPPED AT HO 507, UNTOUCHED. .bxp-* / .v2f-bar verbatim. ═══ */
+.hero { background: var(--bg-row-hover); border: 1px solid var(--border-strong); padding: 18px 20px 20px; }
+.hero-titlerow { display: flex; align-items: baseline; gap: 12px; }
+.hero-id { font-size: 16px; font-weight: 500; color: var(--accent-amber); white-space: nowrap; }
+.hero-title { font-family: var(--sans); font-size: 15px; color: var(--text-primary); flex: 1; min-width: 0; line-height: 1.4; }
+.hero-star { flex: none; cursor: pointer; font-size: 15px; color: var(--accent-amber-bright); border: 1px solid var(--accent-amber); border-radius: 2px; padding: 2px 8px; background: transparent; font-family: var(--font-mono); }
+
+.v2f-bar { display: flex; align-items: flex-start; margin: 18px 0 14px; }
+.v2f-bnode { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.v2f-bnode:not(:first-child)::before { content: ""; position: absolute; top: 4.5px; right: 50%; width: 100%; height: 2px; background: var(--bc); z-index: 0; }
+.v2f-bdotwrap { position: relative; width: 11px; height: 11px; z-index: 1; }
+.v2f-bdot { position: absolute; inset: 0; border-radius: 50%; box-sizing: border-box; }
+.v2f-bdot.future { background: transparent; border: 1.5px solid var(--text-dim); }
+.v2f-bdot.cur { box-shadow: 0 0 0 3px color-mix(in srgb, var(--sc) 22%, transparent); }
+.v2f-bping { position: absolute; inset: 0; border-radius: 50%; background: var(--sc); animation: v2f-ping 2.4s cubic-bezier(0,0,0.2,1) infinite; }
+@keyframes v2f-ping { 0% { transform: scale(1); opacity: .5; } 100% { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .v2f-bping { animation: none; opacity: 0; } }
+.v2f-blabel { font-size: 8.5px; letter-spacing: 0.04em; text-align: center; line-height: 1.15; min-height: 1.8em; }
+.v2f-blabel.future { color: var(--text-dim); }
+.v2f-blabel.reached { color: var(--text-muted); }
+.v2f-bdate { font-size: 8.5px; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.bxp-body { display: grid; grid-template-columns: 1.35fr 1fr; gap: 0; }
+.bxp-left { padding-right: 28px; min-width: 0; }
+.bxp-summary { font-family: var(--sans); font-size: 13px; line-height: 1.55; color: var(--text-secondary); margin: 0; }
+.bxp-relblock { margin-top: 16px; }
+.bxp-relhdr { font-size: 9.5px; letter-spacing: 0.09em; color: var(--text-dim); text-transform: uppercase; margin: 0 0 6px; }
+.bxp-relnews { display: block; margin-bottom: 7px; text-decoration: none; color: var(--text-secondary); }
+.bxp-relnews-title { font-family: var(--sans); font-size: 12.5px; }
+.bxp-relnews-meta { font-size: 10px; color: var(--text-dim); }
+.bxp-relnews:hover .bxp-relnews-title { color: var(--accent-amber-bright); }
+.bdp-relfoot { margin-top: 10px; font-size: 11px; color: var(--text-dim); }
+.bdp-relfoot a { color: var(--accent-amber); text-decoration: none; }
+.bxp-metabox { align-self: start; background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 14px; }
+.bxp-mrow { padding: 11px 0; border-bottom: 1px solid var(--border-strong); }
+.bxp-mrow:last-child { border-bottom: none; }
+.bxp-mlabel { font-size: 9.5px; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; }
+.bxp-mval { font-family: var(--sans); font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.45; }
+.bxp-cosrow { display: flex; align-items: center; gap: 9px; }
+.bxp-cosval { color: var(--accent-amber-bright); font-weight: 600; }
+.bxp-cosbar { display: inline-flex; gap: 2px; }
+.bxp-cosseg { width: 6px; height: 9px; border-radius: 1px; background: var(--border-strong); }
+.bxp-cosseg--on { background: var(--accent-amber-bright); }
+.bdp-latext { font-family: var(--sans); font-size: 11.5px; line-height: 1.5; color: var(--text-muted); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bdp-mlink { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.5px; color: var(--accent-amber); text-decoration: none; text-transform: uppercase; }
+.v2f-topics-inline { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.v2f-topic { font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em; border: 1px solid currentColor; border-radius: 2px; padding: 1px 5px; white-space: nowrap; cursor: help; }
+.bdp-ptag { font-size: 11px; font-weight: 600; }
+.bdp-sponsorlnk { color: var(--text-secondary); text-decoration: none; border-bottom: 1px dotted var(--text-dim); }
+
+/* ═══ THE RECORD BOX — identical shell to the member hub ═══ */
+.rec { margin-top: 14px; border: 1px solid var(--border-strong); background: var(--bg-panel); }
+.rec-hdr { display: flex; align-items: stretch; gap: 22px; padding: 0 16px; border-bottom: 1px solid var(--border-strong); }
+.rec-tab { appearance: none; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 0; font-family: inherit; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; white-space: nowrap; }
+.rec-tab:hover { color: var(--text-secondary); }
+.rec-tab[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--accent-amber); }
+.rec-tab[data-empty="true"] { opacity: 0.5; }
+.rec-tab .count { color: var(--text-dim); margin-left: 4px; }
+.rec-out { margin-left: auto; align-self: center; font-size: 11.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--accent-amber); text-decoration: none; white-space: nowrap; }
+.rec-out:hover { color: var(--accent-amber-bright); }
+.rec-body { height: 430px; overflow-y: auto; }
+.rec-panel[hidden] { display: none; }
+.rec-empty { padding: 60px 16px; text-align: center; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+.rec-note { padding: 7px 16px; border-bottom: 0.5px solid var(--border-soft); font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); position: sticky; top: 0; background: var(--bg-panel); z-index: 2; }
+
+/* rows — all UNCHANGED components */
+.cmte-row { padding: 10px 16px; font-size: 13px; color: var(--text-secondary); border-bottom: 0.5px solid var(--border-soft); }
+.cmte-row a { color: var(--text-primary); text-decoration: none; }
+.cmte-row a:hover { color: var(--accent-amber-bright); }
+.cmte-tag { margin-left: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+.cmte-meta { display: block; margin-top: 2px; font-size: 11px; color: var(--text-dim); }
+
+.arow { padding: 8px 16px; border-bottom: 0.5px solid var(--border-soft); }
+.arow-top { display: flex; align-items: baseline; gap: 9px; }
+.adot { width: 6px; height: 6px; border-radius: 50%; flex: none; align-self: center; }
+.aid { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.asp { font-size: 12px; white-space: nowrap; }
+.ameta { margin-left: 15px; margin-top: 2px; font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+.lob-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.lob-col { padding: 10px 16px 12px; }
+.lob-col + .lob-col { border-left: 0.5px solid var(--border-soft); }
+.lob-colh { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 8px; }
+.lob-brow { display: grid; grid-template-columns: 1fr 60px 30px; align-items: center; gap: 8px; padding: 3px 0; font-size: 11.5px; }
+.lob-bname { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lob-btrack { height: 3px; background: var(--border-strong); border-radius: 1px; overflow: hidden; }
+.lob-bfill { display: block; height: 100%; background: var(--accent-amber); }
+.lob-bn { text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.frow { display: flex; align-items: baseline; gap: 10px; padding: 6px 16px; border-bottom: 0.5px solid var(--border-soft); font-size: 12px; }
+.fage { color: var(--text-dim); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fparty { color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fparty .reg { color: var(--text-muted); }
+.micro-tag { font-size: 9px; font-weight: 600; letter-spacing: 0.5px; border: 1px solid var(--border-strong); color: var(--text-muted); border-radius: 2px; padding: 0 4px; }
+.bill-chip { font-size: 9px; letter-spacing: 0.5px; border: 1px solid var(--accent-amber); color: var(--accent-amber); border-radius: 2px; padding: 0 4px; text-decoration: none; white-space: nowrap; }
+
+/* footer — the shipped .bdp-foot row */
+.foot { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+.foot-btn { display: inline-block; border: 1px solid var(--border-strong); color: var(--text-dim); padding: 5px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; text-decoration: none; font-family: var(--font-mono); background: none; cursor: pointer; }
+.foot-btn:hover { border-color: var(--text-secondary); color: var(--text-secondary); }
+.attrib { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+
+.note { margin-top: 16px; border: 1px dashed #7a5a22; padding: 9px 13px; font-size: 11px; line-height: 1.65; color: #b98a3a; letter-spacing: 0.3px; }
+.note b { color: var(--accent-amber-bright); font-weight: 500; }
+.fold { position: relative; border-top: 1px dashed #7a5a22; margin: 0; height: 0; }
+.fold span { position: absolute; right: 0; top: -9px; background: var(--bg-base); padding: 0 6px; font-size: 9px; letter-spacing: 0.5px; color: #7a5a22; }
+
+@media (max-width: 760px) {
+  .bxp-body { grid-template-columns: 1fr; }
+  .bxp-left { padding-right: 0; }
+  .bxp-metabox { margin-top: 14px; }
+  .rec-hdr { flex-wrap: wrap; gap: 16px; }
+  .rec-out { margin-left: 0; }
+  .lob-grid { grid-template-columns: 1fr; }
+  .lob-col + .lob-col { border-left: none; border-top: 0.5px solid var(--border-soft); }
+}
+</style>
+</head>
+<body>
+
+<div class="mast">
+  <div class="mast-path"><span class="c1">Congressional Terminal</span><span class="sl">:\</span><span class="c1">119TH</span><span class="sl">\</span><span class="c1">Legislation</span><span class="sl">\</span><span class="cur">S 4784</span><span class="sl">&gt;</span></div>
+  <div class="mast-sub">· LAST SYNC 10:19 AM PT</div>
+  <div class="topnav">
+    <a href="#"><span class="sl">\</span>DASHBOARD</a>
+    <a href="#" class="active">[ <span class="sl">\</span>LEGISLATION ]</a>
+    <a href="#"><span class="sl">\</span>HEARINGS</a>
+    <a href="#"><span class="sl">\</span>MEMBERS</a>
+    <a href="#"><span class="sl">\</span>ELECTORAL</a>
+    <a href="#"><span class="sl">\</span>PATTERNS</a>
+    <a href="#"><span class="sl">\</span>LOBBYING</a>
+    <a href="#"><span class="sl">\</span>NOMINATIONS</a>
+    <a href="#"><span class="sl">\</span>AMENDMENTS</a>
+    <a href="#"><span class="sl">\</span>REPORTS</a>
+    <a href="#"><span class="sl">\</span>WATCHLIST</a>
+  </div>
+</div>
+
+<main>
+
+  <!-- ═══ HERO — byte-identical to what shipped at HO 507 ═══ -->
+  <div class="hero">
+    <div class="hero-titlerow">
+      <span class="hero-id">S 4784</span>
+      <span class="hero-title">National Defense Authorization Act for Fiscal Year 2027</span>
+      <button class="hero-star">★ Watch</button>
+    </div>
+
+    <div class="v2f-bar">
+      <div class="v2f-bnode">
+        <span class="v2f-bdotwrap"><span class="v2f-bdot" style="background:var(--stage-introduced)"></span></span>
+        <span class="v2f-blabel reached">INTRO</span><span class="v2f-bdate">2026-06-15</span>
+      </div>
+      <div class="v2f-bnode" style="--bc:var(--stage-committee)">
+        <span class="v2f-bdotwrap"><span class="v2f-bdot" style="background:var(--stage-committee)"></span></span>
+        <span class="v2f-blabel reached">COMMITTEE</span><span class="v2f-bdate">2026-06-18</span>
+      </div>
+      <div class="v2f-bnode" style="--bc:var(--stage-floor)">
+        <span class="v2f-bdotwrap" style="--sc:var(--stage-floor)"><span class="v2f-bping"></span><span class="v2f-bdot cur" style="background:var(--stage-floor)"></span></span>
+        <span class="v2f-blabel reached">FLOOR</span><span class="v2f-bdate">2026-07-15</span>
+      </div>
+      <div class="v2f-bnode" style="--bc:var(--text-dim)">
+        <span class="v2f-bdotwrap"><span class="v2f-bdot future"></span></span><span class="v2f-blabel future">OTHER CHAMBER</span>
+      </div>
+      <div class="v2f-bnode" style="--bc:var(--text-dim)">
+        <span class="v2f-bdotwrap"><span class="v2f-bdot future"></span></span><span class="v2f-blabel future">PRESIDENT</span>
+      </div>
+      <div class="v2f-bnode" style="--bc:var(--text-dim)">
+        <span class="v2f-bdotwrap"><span class="v2f-bdot future"></span></span><span class="v2f-blabel future">ENACTED</span>
+      </div>
+    </div>
+
+    <div class="bxp-body">
+      <div class="bxp-left">
+        <div class="bxp-relhdr">Summary</div>
+        <p class="bxp-summary">
+          This bill would set the budget and policies for the U.S. military for fiscal year 2027,
+          affecting all Department of Defense (DOD) personnel, programs, and operations. It authorizes
+          funding for equipment like aircraft and ships, sets military personnel levels and compensation,
+          and dictates policy across various areas including defense acquisitions, international relations,
+          cybersecurity, and research. It also directs policy for the Department of Energy's national
+          security programs and authorizes military construction projects.
+        </p>
+        <div class="bxp-relblock">
+          <div class="bxp-relhdr">Related news</div>
+          <a class="bxp-relnews" href="#"><span class="bxp-relnews-title">Peters calls Hegseth a 'failure' at hearing</span><br><span class="bxp-relnews-meta">THE HILL · 2d ago</span></a>
+          <a class="bxp-relnews" href="#"><span class="bxp-relnews-title">Senate Democrats press Hegseth on testosterone plan details</span><br><span class="bxp-relnews-meta">THE HILL · 3d ago</span></a>
+          <a class="bxp-relnews" href="#"><span class="bxp-relnews-title">Defense bill finally advances as House GOP steers rightward</span><br><span class="bxp-relnews-meta">POLITICO · 3d ago</span></a>
+          <a class="bxp-relnews" href="#"><span class="bxp-relnews-title">Kelly: Military 'doesn't need more testosterone, it needs better leadership'</span><br><span class="bxp-relnews-meta">THE HILL · 3d ago</span></a>
+          <a class="bxp-relnews" href="#"><span class="bxp-relnews-title">House overcomes key hurdle on reconciliation framework, CR and other measures</span><br><span class="bxp-relnews-meta">THE HILL · 3d ago</span></a>
+          <div class="bdp-relfoot"><a href="#">all coverage → /news?bill=119-s-4784</a></div>
+        </div>
+      </div>
+
+      <div class="bxp-metabox">
+        <div class="bxp-mrow">
+          <div class="bxp-mlabel">Sponsor</div>
+          <div class="bxp-mval"><a class="bdp-sponsorlnk" href="#">Sen. Wicker, Roger F.</a><span class="bdp-ptag" style="color:var(--party-republican)"> [R-MS]</span></div>
+        </div>
+        <div class="bxp-mrow">
+          <div class="bxp-mlabel">Cosponsors</div>
+          <div class="bxp-mval bxp-cosrow">
+            <span class="bxp-cosval">3</span>
+            <span class="bxp-cosbar"><span class="bxp-cosseg bxp-cosseg--on"></span><span class="bxp-cosseg"></span><span class="bxp-cosseg"></span><span class="bxp-cosseg"></span><span class="bxp-cosseg"></span></span>
+          </div>
+        </div>
+        <div class="bxp-mrow">
+          <div class="bxp-mlabel">Topics</div>
+          <div class="bxp-mval">
+            <span class="v2f-topics-inline">
+              <span class="v2f-topic" style="color:#da8c3e">DEF</span>
+              <span class="v2f-topic" style="color:#e05c7d">GOV</span>
+              <span class="v2f-topic" style="color:#e05c62">TECH</span>
+            </span>
+          </div>
+        </div>
+        <div class="bxp-mrow">
+          <div class="bxp-mlabel">Introduced</div>
+          <div class="bxp-mval" style="font-variant-numeric:tabular-nums">June 15, 2026</div>
+        </div>
+        <div class="bxp-mrow">
+          <div class="bxp-mlabel">Last action</div>
+          <div class="bxp-mval" style="font-variant-numeric:tabular-nums">July 20, 2026 · 4d ago</div>
+          <div class="bdp-latext">Motion to proceed to consideration of measure made in Senate. (CR S4145)</div>
+        </div>
+        <div class="bxp-mrow"><a class="bdp-mlink" href="#">Congress.gov ↗</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ THE RECORD BOX — replaces the four stacked sections ═══ -->
+  <div class="rec">
+    <div class="rec-hdr" role="tablist" aria-label="Bill record">
+      <button class="rec-tab" role="tab" aria-current="page" data-tab="amdt">Amendments <span class="count">(872)</span></button>
+      <button class="rec-tab" role="tab" data-tab="lob">Lobbying <span class="count">(85)</span></button>
+      <button class="rec-tab" role="tab" data-tab="cmte">Committees <span class="count">(1)</span></button>
+      <button class="rec-tab" role="tab" data-tab="hear" data-empty="true">Hearings <span class="count">(0)</span></button>
+      <a class="rec-out" href="#" id="recout">/amendments?bill=119-s-4784 →</a>
+    </div>
+
+    <div class="rec-body">
+
+      <!-- AMENDMENTS -->
+      <div class="rec-panel" data-panel="amdt">
+        <div class="rec-note">872 submitted · 0 agreed · 0 failed · 60 shown</div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6704</span><span class="asp" style="color:var(--party-republican)">Sen. Cruz, Ted [R-TX]</span></div>
+          <div class="ameta">Submitted 2026-07-21 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6703</span><span class="asp" style="color:var(--party-democrat)">Sen. Schumer, Charles E. [D-NY]</span></div>
+          <div class="ameta">Submitted 2026-07-20 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6702</span><span class="asp" style="color:var(--party-republican)">Sen. Daines, Steve [R-MT]</span></div>
+          <div class="ameta">Submitted 2026-07-16 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6701</span><span class="asp" style="color:var(--party-republican)">Sen. Daines, Steve [R-MT]</span></div>
+          <div class="ameta">Submitted 2026-07-16 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6700</span><span class="asp" style="color:var(--party-republican)">Sen. Murkowski, Lisa [R-AK]</span></div>
+          <div class="ameta">Submitted 2026-07-15 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6699</span><span class="asp" style="color:var(--party-republican)">Sen. Murkowski, Lisa [R-AK]</span></div>
+          <div class="ameta">Submitted 2026-07-15 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6698</span><span class="asp" style="color:var(--party-democrat)">Sen. Warner, Mark R. [D-VA]</span></div>
+          <div class="ameta">Submitted 2026-07-15 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6697</span><span class="asp" style="color:var(--party-republican)">Sen. Wicker, Roger F. [R-MS]</span></div>
+          <div class="ameta">Submitted 2026-07-15 · no floor action yet</div>
+        </div>
+        <div class="arow">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6696</span><span class="asp" style="color:var(--party-democrat)">Sen. Reed, Jack [D-RI]</span></div>
+          <div class="ameta">Submitted 2026-07-14 · no floor action yet</div>
+        </div>
+        <div class="arow" style="border-bottom:none">
+          <div class="arow-top"><span class="adot" style="background:var(--text-muted)"></span><span class="aid">SAMDT 6695</span><span class="asp" style="color:var(--party-republican)">Sen. Ernst, Joni [R-IA]</span></div>
+          <div class="ameta">Submitted 2026-07-14 · no floor action yet</div>
+        </div>
+      </div>
+
+      <!-- LOBBYING -->
+      <div class="rec-panel" data-panel="lob" hidden>
+        <div class="rec-note">85 filings · 83 clients</div>
+        <div class="lob-grid">
+          <div class="lob-col">
+            <div class="lob-colh">Top clients</div>
+            <div class="lob-brow"><span class="lob-bname">Electra Aero, Inc.</span><span class="lob-btrack"><span class="lob-bfill" style="width:100%"></span></span><span class="lob-bn">2</span></div>
+            <div class="lob-brow"><span class="lob-bname">General Dynamics Corporation</span><span class="lob-btrack"><span class="lob-bfill" style="width:100%"></span></span><span class="lob-bn">2</span></div>
+            <div class="lob-brow"><span class="lob-bname">A New Policy Inc.</span><span class="lob-btrack"><span class="lob-bfill" style="width:50%"></span></span><span class="lob-bn">1</span></div>
+            <div class="lob-brow"><span class="lob-bname">Academy of Model Aeronautics</span><span class="lob-btrack"><span class="lob-bfill" style="width:50%"></span></span><span class="lob-bn">1</span></div>
+            <div class="lob-brow"><span class="lob-bname">Accenture Federal Services LLC</span><span class="lob-btrack"><span class="lob-bfill" style="width:50%"></span></span><span class="lob-bn">1</span></div>
+          </div>
+          <div class="lob-col">
+            <div class="lob-colh">Top firms</div>
+            <div class="lob-brow"><span class="lob-bname">C. Baker Consulting, Inc.</span><span class="lob-btrack"><span class="lob-bfill" style="width:100%"></span></span><span class="lob-bn">7</span></div>
+            <div class="lob-brow"><span class="lob-bname">Westmoreland160, LLC</span><span class="lob-btrack"><span class="lob-bfill" style="width:100%"></span></span><span class="lob-bn">7</span></div>
+            <div class="lob-brow"><span class="lob-bname">American Defense International, Inc.</span><span class="lob-btrack"><span class="lob-bfill" style="width:86%"></span></span><span class="lob-bn">6</span></div>
+            <div class="lob-brow"><span class="lob-bname">Forza DC, LLC</span><span class="lob-btrack"><span class="lob-bfill" style="width:86%"></span></span><span class="lob-bn">6</span></div>
+            <div class="lob-brow"><span class="lob-bname">Lewis-Burke Associates, LLC</span><span class="lob-btrack"><span class="lob-bfill" style="width:86%"></span></span><span class="lob-bn">6</span></div>
+          </div>
+        </div>
+        <div style="border-top:0.5px solid var(--border-soft)">
+          <div class="lob-colh" style="padding:9px 16px 5px">Recent filings</div>
+          <div class="frow"><span class="fage">8d</span><span class="fparty"><span class="reg">The Nickles Group, LLC</span> → Professional Services Council (PSC)</span><span class="micro-tag">GOV</span><span class="micro-tag">BUD</span><a class="bill-chip" href="#">119-HR-8800</a><a class="bill-chip" href="#">119-S-4784</a></div>
+          <div class="frow"><span class="fage">8d</span><span class="fparty"><span class="reg">Palo Alto Networks, Inc.</span> → Palo Alto Networks, Inc.</span><span class="micro-tag">DEF</span><span class="micro-tag">HOM</span><a class="bill-chip" href="#">119-S-4784</a></div>
+          <div class="frow"><span class="fage">8d</span><span class="fparty"><span class="reg">Lewis-Burke Associates, LLC</span> → Activate Global, Inc.</span><span class="micro-tag">BUD</span><span class="micro-tag">SCI</span><a class="bill-chip" href="#">119-S-4784</a></div>
+          <div class="frow"><span class="fage">9d</span><span class="fparty"><span class="reg">The Nickles Group, LLC</span> → Emergent BioSolutions</span><span class="micro-tag">BUD</span><span class="micro-tag">HCR</span><a class="bill-chip" href="#">119-S-4784</a></div>
+          <div class="frow"><span class="fage">9d</span><span class="fparty"><span class="reg">Invariant LLC</span> → Uranium Producers of America</span><span class="micro-tag">DEF</span><span class="micro-tag">ENG</span><a class="bill-chip" href="#">119-S-4784</a></div>
+          <div class="frow" style="border-bottom:none"><span class="fage">9d</span><span class="fparty"><span class="reg">Theodore Kronmiller</span> → United Launch Alliance</span><span class="micro-tag">AER</span><a class="bill-chip" href="#">119-S-4784</a></div>
+        </div>
+      </div>
+
+      <!-- COMMITTEES -->
+      <div class="rec-panel" data-panel="cmte" hidden>
+        <div class="cmte-row" style="border-bottom:none">
+          <a href="#">Armed Services Committee</a><span class="cmte-tag">SENATE</span>
+          <span class="cmte-meta">Reported Original Measure · 5w ago</span>
+        </div>
+      </div>
+
+      <!-- HEARINGS -->
+      <div class="rec-panel" data-panel="hear" hidden>
+        <div class="rec-empty">No hearings covering this bill</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="foot">
+    <a class="foot-btn" href="#">← Back to feed</a>
+    <button class="foot-btn">▸ Raw JSON</button>
+    <span class="attrib">Summary by gemini-2.5-flash · 2026-07-23</span>
+  </div>
+
+  <div class="fold"><span>↑ FITS A 1080P VIEWPORT · S 4784 TODAY IS ~2,600PX</span></div>
+
+  <div class="note">
+    <b>THE HERO IS UNTOUCHED.</b> Every <code>.bxp-*</code> / <code>.v2f-bar</code> class renders exactly as it does now — the HO 507 containment rule holds and the feed expand panel stays byte-identical. The only change is that the four stacked sections below become one box.
+    <br><b>Tab order is by weight, not by arrival.</b> Amendments and Lobbying carry the volume on a bill like this; Committees is one row. Default tab = the highest-count non-empty tab, so a bill with 872 amendments opens on amendments and a fresh introduction opens on committees. The stat lines HO 507 folded into section headers become the sticky note line at the top of each panel.
+    <br><b>The pair dies.</b> <code>.bdp-pair</code> (committees | hearings side-by-side) and <code>.bdp-amend-scroll</code> both get deleted — the box supersedes them. That's ~40 lines of <code>.bdp</code> CSS retired.
+    <br><b>All-empty case:</b> a fresh introduction with no committees, hearings, amendments or lobbying renders no box at all, same as today's section-omission rule.
+    <br><b>The extraction call:</b> two consumers means one shared <code>RecordTabs</code> client island, not two copies — same trigger as the HO 428-A SVG scaffold. Props: <code>{ key, label, count, outLink?, content }[]</code>. Server pages keep every fetch and pass rendered <code>ReactNode</code>s in, exactly like <code>ActivityTabs</code>.
+  </div>
+
+</main>
+
+<script>
+  const tabs = [...document.querySelectorAll(".rec-tab")];
+  const panels = [...document.querySelectorAll(".rec-panel")];
+  const out = document.getElementById("recout");
+  const OUT = {
+    amdt: ["/amendments?bill=119-s-4784 →", true],
+    lob:  ["see all lobbying →", true],
+    cmte: ["", false],
+    hear: ["/hearings →", true],
+  };
+  tabs.forEach((t) => t.addEventListener("click", () => {
+    const key = t.dataset.tab;
+    tabs.forEach((x) => x.removeAttribute("aria-current"));
+    t.setAttribute("aria-current", "page");
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== key; });
+    const [label, show] = OUT[key];
+    out.textContent = label;
+    out.style.visibility = show ? "visible" : "hidden";
+    document.querySelector(".rec-body").scrollTop = 0;
+  }));
+</script>
+</body>
+</html>

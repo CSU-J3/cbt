@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOCK 591 · layout conventions C1–C8</title>
+<style>
+  :root{ --fs:12px;
+    --bg-base:#0a0e14;--bg-panel:#050709;--bg-row-hover:#0f1620;
+    --border-strong:#1f2937;--border-soft:#111820;
+    --text-primary:#e5e7eb;--text-secondary:#cbd5e1;--text-muted:#94a3b8;--text-dim:#6b7280;
+    --accent-amber:#d97706;--accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444;--party-democrat:#3b82f6;--party-independent:#a78bfa;
+    --stage-committee:#06b6d4;--stage-floor:#fbbf24;--stage-enacted:#10b981;
+    --vote-nay:#f87171;--up:#34d399;--cyan:#22d3ee;
+    --font-mono:ui-monospace,"SFMono-Regular","JetBrains Mono",Menlo,Consolas,monospace}
+  @media(min-width:1600px){:root{--fs:13px}}
+  @media(min-width:2000px){:root{--fs:14px}}
+  @media(min-width:2400px){:root{--fs:15px}}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg-base);color:var(--text-primary);font-family:var(--font-mono);
+    font-size:var(--fs);line-height:1.25;padding:16px 20px 80px}
+  a{text-decoration:none;color:var(--accent-amber)}
+  .sp{flex:1}
+
+  /* ---- page chrome ---------------------------------------------------- */
+  .mockbar{color:var(--text-dim);border-bottom:1px solid var(--border-strong);padding-bottom:7px;
+    margin-bottom:14px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;letter-spacing:.04em}
+  .mockbar b{color:var(--accent-amber-bright);font-weight:600}
+  .mockbar .ro{margin-left:auto;color:var(--text-muted);font-size:.833em}
+  .mockbar .ro b{color:var(--cyan)}
+  .lede{color:var(--text-muted);max-width:96ch;margin-bottom:20px;line-height:1.45}
+  .lede em{color:var(--text-secondary);font-style:normal}
+
+  /* ---- convention block ------------------------------------------------ */
+  .cx{border-top:1px solid var(--border-strong);padding:14px 0 18px}
+  .chead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:3px}
+  .ckey{color:var(--accent-amber-bright);font-weight:600;letter-spacing:.1em;font-size:1.083em}
+  .cname{color:var(--text-primary);font-size:1.083em}
+  .crule{color:var(--text-muted);max-width:100ch;line-height:1.45;margin-bottom:11px}
+  .cinstr{color:var(--text-dim);font-size:.833em;margin-top:9px;letter-spacing:.03em}
+  .cinstr b{color:var(--cyan);font-weight:600}
+
+  .pair{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+  @media(min-width:1100px){.pair{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+  .pair.stack{grid-template-columns:minmax(0,1fr)}
+
+  .spec{border:1px solid var(--border-strong);background:var(--bg-panel);min-width:0}
+  .spec.bad{border-color:#3b1d1f} .spec.good{border-color:#123526}
+  .slab{display:flex;align-items:baseline;gap:8px;padding:3px 9px;border-bottom:1px solid var(--border-soft);
+    font-size:.792em;letter-spacing:.11em}
+  .spec.bad .slab{color:var(--vote-nay);background:#140a0b}
+  .spec.good .slab{color:var(--up);background:#08150f}
+  .slab .note{color:var(--text-dim);letter-spacing:0;font-size:.95em;margin-left:auto}
+  .sbody{padding:7px 0}
+  .sbody.pad{padding:9px}
+
+  /* ---- generic row vocabulary ------------------------------------------ */
+  .row{display:flex;align-items:center;gap:9px;padding:4px 10px;border-top:.5px solid var(--border-soft)}
+  .row:first-child{border-top:none}
+  .row:hover{background:var(--bg-row-hover)}
+  .bid{color:var(--accent-amber);font-size:.917em;white-space:nowrap}
+  .ttl{color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .ttl.dimmed{color:var(--text-secondary)}
+  .ago{color:var(--text-dim);font-size:.833em;white-space:nowrap}
+  .src{color:var(--text-dim);font-size:.833em;white-space:nowrap}
+  .stg{font-size:.75em;letter-spacing:.09em;white-space:nowrap}
+  .stg.en{color:var(--stage-enacted)} .stg.fl{color:var(--stage-floor)} .stg.cm{color:var(--text-dim)}
+  .num{color:var(--text-dim);font-variant-numeric:tabular-nums;font-size:.833em;white-space:nowrap}
+
+  /* the noisy vocabulary C3 retires */
+  .boxnum{border:1px solid var(--border-strong);color:var(--text-muted);padding:0 4px;
+    font-size:.792em;font-variant-numeric:tabular-nums}
+  .spon{border-bottom:1px solid;font-size:.875em;white-space:nowrap}
+  .spon.d{color:var(--party-democrat);border-color:var(--party-democrat)}
+  .spon.r{color:var(--party-republican);border-color:var(--party-republican)}
+  .chip{border:.5px solid var(--border-strong);color:var(--text-muted);padding:0 5px;
+    font-size:.75em;letter-spacing:.06em;white-space:nowrap}
+  .chip.hot{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+  .plain{color:var(--text-dim);font-size:.792em;letter-spacing:.06em;white-space:nowrap}
+
+  /* ---- the gap marker: measures itself with M1's own rule -------------- */
+  .gapmark{flex:1;min-width:0;position:relative;height:1.1em;align-self:center}
+  .gapmark::before{content:"";position:absolute;left:0;right:0;top:50%;
+    border-top:1px dashed #3b1d1f}
+  .gapmark i{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    background:var(--bg-panel);color:var(--vote-nay);font-size:.75em;font-style:normal;
+    padding:0 5px;letter-spacing:.05em;white-space:nowrap}
+  .gapmark.ok::before{border-color:#123526}
+  .gapmark.ok i{color:var(--up)}
+
+  /* ---- C2 type scale --------------------------------------------------- */
+  .t12{font-size:12px} .t15{font-size:15px}
+  .tnote{color:var(--text-dim);font-size:.792em;padding:2px 10px}
+  .scale{display:flex;gap:0;border-top:.5px solid var(--border-soft);margin-top:6px}
+  .scale div{flex:1;padding:4px 8px;border-left:.5px solid var(--border-soft);text-align:center}
+  .scale div:first-child{border-left:none}
+  .scale .bp{color:var(--text-dim);font-size:.75em;letter-spacing:.08em;display:block}
+  .scale .v{color:var(--accent-amber-bright);font-weight:600}
+
+  /* ---- C4 empty states -------------------------------------------------- */
+  .wkgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:0}
+  .wkcol{border-left:.5px solid var(--border-soft);padding:5px 7px;min-height:132px}
+  .wkcol:first-child{border-left:none}
+  .wkday{color:var(--text-muted);font-size:.792em;letter-spacing:.09em;margin-bottom:5px}
+  .wkday b{color:var(--accent-amber-bright);font-weight:600}
+  .wkempty{color:var(--text-dim);font-size:.792em;letter-spacing:.08em;opacity:.55}
+  .wkitem{color:var(--text-secondary);font-size:.833em;margin-bottom:3px;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .wkline{display:flex;align-items:center;gap:9px;padding:4px 10px;flex-wrap:wrap}
+  .wkline .d{color:var(--text-muted);font-size:.833em;white-space:nowrap}
+  .wkline .d b{color:var(--accent-amber-bright);font-weight:600}
+  .wkline .off{color:var(--text-dim);font-size:.792em}
+
+  /* ---- C5 duplicate numbers -------------------------------------------- */
+  .mastline{padding:5px 10px;color:var(--text-muted)}
+  .mastline b{font-weight:600}
+  .mastline .n1{color:var(--cyan)} .mastline .n2{color:var(--stage-enacted)}
+  .funnel{padding:6px 10px 8px}
+  .frow{display:flex;align-items:center;gap:8px;padding:1.5px 0}
+  .flab{color:var(--text-dim);font-size:.792em;letter-spacing:.08em;flex:0 0 9.5em}
+  .fbar{height:8px;background:var(--stage-committee);opacity:.55}
+  .fbar.f{background:var(--stage-floor)} .fbar.o{background:#f59e0b} .fbar.e{background:var(--stage-enacted)}
+  .fval{color:var(--text-muted);font-size:.792em;font-variant-numeric:tabular-nums}
+  .fval.mute{color:var(--text-dim)}
+
+  /* ---- C6 density ------------------------------------------------------- */
+  .drow{display:flex;align-items:center;gap:9px;border-top:.5px solid var(--border-soft)}
+  .drow.loose{padding:11px 10px} .drow.floor{padding:3px 10px}
+  .ruler{color:var(--text-dim);font-size:.75em;padding:3px 10px 0;letter-spacing:.05em}
+
+  /* ---- C7 stretch ------------------------------------------------------- */
+  .twin{display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:9px}
+  .twin.start{align-items:start}
+  .mini{border:1px solid var(--border-strong);background:#070a10}
+  .mhead{color:var(--accent-amber-bright);font-size:.792em;letter-spacing:.11em;padding:3px 8px;
+    border-bottom:1px solid var(--border-soft)}
+  .mbody{padding:5px 8px}
+  .mbody .frow{padding:2px 0}
+  .stretchmark{border-top:1px dashed #3b1d1f;margin:0 8px;position:relative;height:1.2em}
+  .stretchmark i{position:absolute;left:0;top:2px;color:var(--vote-nay);font-size:.75em;font-style:normal}
+
+  /* ---- C8 columns ------------------------------------------------------- */
+  .panes{display:grid;grid-template-columns:1fr;gap:0}
+  @media(min-width:900px){.panes.two{grid-template-columns:1fr 1fr}
+    .panes.two>div+div{border-left:1px solid var(--border-soft)}}
+  .paneh{color:var(--accent-amber-bright);font-size:.792em;letter-spacing:.11em;padding:3px 9px;
+    border-bottom:.5px solid var(--border-soft)}
+
+  /* ---- key table -------------------------------------------------------- */
+  .key{border:1px solid var(--border-strong);background:var(--bg-panel);margin-top:20px}
+  .keyh{color:var(--accent-amber-bright);font-size:.917em;letter-spacing:.12em;font-weight:600;
+    padding:5px 10px;border-bottom:1px solid var(--border-strong)}
+  .krow{display:flex;gap:12px;padding:3px 10px;border-top:.5px solid var(--border-soft);flex-wrap:wrap}
+  .krow:first-of-type{border-top:none}
+  .kc{color:var(--accent-amber-bright);flex:0 0 2.6em;font-weight:600}
+  .km{color:var(--cyan);flex:0 0 9em;font-size:.917em}
+  .kt{color:var(--text-muted);min-width:0}
+  .foot{color:var(--text-dim);font-size:.833em;margin-top:14px;line-height:1.5;max-width:100ch}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <span>MOCK 591 · <b>LAYOUT CONVENTIONS C1–C8</b> · defect ⇄ fixed</span>
+  <span>companion to <b>mock-591-dashboard-layout.html</b></span>
+  <span class="ro">viewport <b id="vw">—</b> · --fs <b id="fsv">—</b> · gaps measured live</span>
+</div>
+
+<p class="lede">
+  The dashboard rework is the first application, not the deliverable. <em>These eight rules are.</em>
+  Each pair below is real CBT content — the left panel is the shape that ships today on at least one route,
+  the right is the shape the arc lands on. The dashed markers measure themselves on resize using the same
+  rule <em>M1</em> applies in the audit, so this page reads differently at 1440 than at 2560 — which is the
+  point of C1 and C2 both.
+</p>
+
+<!-- ══ C1 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C1</span><span class="cname">No far-right anchors in a row</span></div>
+  <p class="crule">A row must not pin an element to its right edge while its content packs left. Rows are flex,
+    packed left; leftover width collects at the end where it's invisible. Highest-yield rule in the set —
+    every other convention is cheaper to apply once this one lands.</p>
+
+  <div class="pair">
+    <div class="spec bad">
+      <div class="slab">DEFECT · space-between<span class="note">breaking strip · miss strip · masthead</span></div>
+      <div class="sbody">
+        <div class="row">
+          <span class="bid">119-hr-8800</span>
+          <span class="ttl">Senate clears defense authorization conference report, 68–29</span>
+          <span class="gapmark"><i>—</i></span>
+          <span class="src">POLITICO</span><span class="ago">14m</span>
+        </div>
+        <div class="row">
+          <span class="bid">119-s-2</span>
+          <span class="ttl">Cloture invoked on the reconciliation substitute after a nine-hour vote-a-rama</span>
+          <span class="gapmark"><i>—</i></span>
+          <span class="src">THE HILL</span><span class="ago">1h</span>
+        </div>
+        <div class="row">
+          <span class="ttl dimmed">Wilson <span class="num">FL-24</span></span>
+          <span class="gapmark"><i>—</i></span>
+          <span class="chip hot">CHRONIC</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · packed left<span class="note">leftover collects where nothing reads</span></div>
+      <div class="sbody">
+        <div class="row">
+          <span class="bid">119-hr-8800</span>
+          <span class="ttl">Senate clears defense authorization conference report, 68–29</span>
+          <span class="src">POLITICO</span><span class="ago">14m</span>
+          <span class="gapmark ok"><i>—</i></span>
+        </div>
+        <div class="row">
+          <span class="bid">119-s-2</span>
+          <span class="ttl">Cloture invoked on the reconciliation substitute after a nine-hour vote-a-rama</span>
+          <span class="src">THE HILL</span><span class="ago">1h</span>
+          <span class="gapmark ok"><i>—</i></span>
+        </div>
+        <div class="row">
+          <span class="ttl dimmed">Wilson <span class="num">FL-24</span></span>
+          <span class="plain">CHRONIC</span>
+          <span class="gapmark ok"><i>—</i></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M1a</b> interior gap → 0 · <b>M1b</b> singleton rows (masthead has no siblings) ·
+    trailing gap is measured and is <b>not</b> a defect — it's the target, so "count = 0" can't be reached by deleting rows.</p>
+</section>
+
+<!-- ══ C2 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C2</span><span class="cname">Type scales with the viewport</span></div>
+  <p class="crule">One root value, one step ladder, row padding and fixed glyph strips stepping at the same
+    breakpoints. 12px on a 2560px monitor is unreadable and no amount of layout fixes that. The unit is
+    <em>rem against an unclaimed root</em>, not em — em compounds through nesting, and this stylesheet nests deeply.</p>
+
+  <div class="pair">
+    <div class="spec bad">
+      <div class="slab">DEFECT · absolute px<span class="note">416 declarations, 8px → 38px</span></div>
+      <div class="sbody">
+        <div class="row t12"><span class="bid">119-hr-1</span><span class="ttl">One Big Beautiful Bill Act</span><span class="stg cm">CMTE</span></div>
+        <div class="row t12"><span class="bid">119-hr-5371</span><span class="ttl">Continuing Appropriations Act, 2026</span><span class="stg fl">FLOOR</span></div>
+        <div class="tnote">fixed at 12px whether the monitor is 1366 or 2560</div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · one root, four stops<span class="note">everything downstream in rem</span></div>
+      <div class="sbody">
+        <div class="row t15"><span class="bid">119-hr-1</span><span class="ttl">One Big Beautiful Bill Act</span><span class="stg cm">CMTE</span></div>
+        <div class="row t15"><span class="bid">119-hr-5371</span><span class="ttl">Continuing Appropriations Act, 2026</span><span class="stg fl">FLOOR</span></div>
+        <div class="scale">
+          <div><span class="bp">BASE</span><span class="v">12</span></div>
+          <div><span class="bp">≥1600</span><span class="v">13</span></div>
+          <div><span class="bp">≥2000</span><span class="v">14</span></div>
+          <div><span class="bp">≥2400</span><span class="v">15</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M7</b> blast radius — 416 css declarations + 34 inline props + how many sit inside
+    @media blocks (those override) · <b>M5</b> wrap/overflow baseline at 1024 / 900 / 720 <b>before</b> the scale ships.
+    Open question M7 settles: Tailwind v4 spacing is rem-based across ~518 utility usages, so moving the root
+    rescales padding and gaps too.</p>
+</section>
+
+<!-- ══ C3 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C3</span><span class="cname">Color carries meaning, not decoration</span></div>
+  <p class="crule">One bright element per row — its title. Borders and color are reserved for state and interaction.
+    Only <em>stage</em> is colored, because stage is what a reader scans for. This refines the HO 465–469 chip family
+    rather than replacing it: chips stay for filters and interactive affordances, and become plain dim text
+    everywhere they were labels.</p>
+
+  <div class="pair">
+    <div class="spec bad">
+      <div class="slab">DEFECT · 5 competing objects per row<span class="note">~120 down one column</span></div>
+      <div class="sbody">
+        <div class="row">
+          <span class="boxnum">01</span><span class="ttl">Continuing Appropriations Act, 2026</span>
+          <span class="spon r">Cole</span><span class="chip">APPROPS</span><span class="chip">GOV-OPS</span>
+        </div>
+        <div class="row">
+          <span class="boxnum">02</span><span class="ttl">Protecting America's Wilderness Act</span>
+          <span class="spon d">Dingell</span><span class="chip">ENVIRON</span><span class="chip">PUB-LANDS</span>
+        </div>
+        <div class="row">
+          <span class="boxnum">03</span><span class="ttl">Semiconductor Supply Chain Security Act</span>
+          <span class="spon r">Moran</span><span class="chip">TRADE</span><span class="chip">TECH</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · 1 bright + 1 stage-colored<span class="note">chips survive only as filters</span></div>
+      <div class="sbody">
+        <div class="row">
+          <span class="ttl">Continuing Appropriations Act, 2026</span>
+          <span class="stg fl">FLOOR</span><span class="plain">COLE R-OK</span><span class="plain">APPROPS</span>
+        </div>
+        <div class="row">
+          <span class="ttl">Protecting America's Wilderness Act</span>
+          <span class="stg cm">CMTE</span><span class="plain">DINGELL D-MI</span><span class="plain">ENVIRON</span>
+        </div>
+        <div class="row">
+          <span class="ttl">Semiconductor Supply Chain Security Act</span>
+          <span class="stg en">ENACTED</span><span class="plain">MORAN R-TX</span><span class="plain">TRADE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M3</b> — descendants whose <b>own</b> computed color / border / background differs
+    from their parent's, counted own-vs-parent so a pass-through wrapper and its child don't both score.
+    Mean per row; 4+ puts the route on the P3/P4 list.</p>
+</section>
+
+<!-- ══ C4 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C4</span><span class="cname">Empty states collapse</span></div>
+  <p class="crule">A panel with nothing in it renders nothing, or one dim line — never a reserved box.
+    The failure mode that makes this urgent: the hearings grid gets <em>worse</em> in recess, not better.</p>
+
+  <div class="pair stack">
+    <div class="spec bad">
+      <div class="slab">DEFECT · 475px for five equal columns, three of them empty</div>
+      <div class="sbody">
+        <div class="wkgrid">
+          <div class="wkcol"><div class="wkday">MON <b>3</b></div>
+            <div class="wkitem">Approps · Defense subcmte markup</div>
+            <div class="wkitem">Judiciary · oversight hearing</div>
+            <div class="wkitem">Rules · H.R. 8800 </div></div>
+          <div class="wkcol"><div class="wkday">TUE <b>2</b></div>
+            <div class="wkitem">Finance · nomination hearing</div>
+            <div class="wkitem">HSGAC · business meeting</div></div>
+          <div class="wkcol"><div class="wkday">WED</div><div class="wkempty">NO MEETINGS</div></div>
+          <div class="wkcol"><div class="wkday">THU</div><div class="wkempty">NO MEETINGS</div></div>
+          <div class="wkcol"><div class="wkday">FRI</div><div class="wkempty">NO MEETINGS</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · days that have meetings get columns; the rest get a clause</div>
+      <div class="sbody">
+        <div class="wkgrid" style="grid-template-columns:repeat(2,1fr)">
+          <div class="wkcol" style="min-height:0"><div class="wkday">MON <b>3</b></div>
+            <div class="wkitem">Approps · Defense subcmte markup</div>
+            <div class="wkitem">Judiciary · oversight hearing</div>
+            <div class="wkitem">Rules · H.R. 8800</div></div>
+          <div class="wkcol" style="min-height:0"><div class="wkday">TUE <b>2</b></div>
+            <div class="wkitem">Finance · nomination hearing</div>
+            <div class="wkitem">HSGAC · business meeting</div></div>
+        </div>
+        <div class="wkline"><span class="off">Nothing scheduled Wed–Fri.</span></div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M4</b> — visible panel-like elements over 40px tall whose text is empty or a
+    no-content string. Seeded with NO MEETINGS / — / NO DATA / NONE, but it also emits every ≥40px element with
+    ≤12 characters of text as a <b>candidate</b>, so the vocabulary closes on measurement instead of a guess.</p>
+</section>
+
+<!-- ══ C5 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C5</span><span class="cname">No number appears twice on one screen</span></div>
+  <p class="crule">The masthead read five numbers and the stage funnel 240px below redrew the same five as bars.
+    One owner per number: the claim asserts, the evidence counts — the HO 509 / 537 double-print rule applied to layout.</p>
+
+  <div class="pair stack">
+    <div class="spec bad">
+      <div class="slab">DEFECT · the same five numbers, 240px apart</div>
+      <div class="sbody">
+        <div class="mastline">
+          <b class="n1">16,861</b> tracked · <b>15,325</b> in committee · <b>772</b> on the floor ·
+          <b>539</b> other chamber · <b class="n2">97</b> enacted
+        </div>
+        <div class="funnel">
+          <div class="frow"><span class="flab">COMMITTEE</span><span class="fbar" style="width:62%"></span><span class="fval">15,325</span></div>
+          <div class="frow"><span class="flab">FLOOR</span><span class="fbar f" style="width:9%"></span><span class="fval">772</span></div>
+          <div class="frow"><span class="flab">OTHER CHAMBER</span><span class="fbar o" style="width:6%"></span><span class="fval">539</span></div>
+          <div class="frow"><span class="flab">ENACTED</span><span class="fbar e" style="width:2%"></span><span class="fval">97</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · masthead states the corpus, the funnel owns the split</div>
+      <div class="sbody">
+        <div class="mastline">
+          <b class="n1">16,861</b> bills tracked in the 119th · <span class="num">last sync 04:03 ET</span>
+        </div>
+        <div class="funnel">
+          <div class="frow"><span class="flab">COMMITTEE</span><span class="fbar" style="width:62%"></span><span class="fval">15,325</span><span class="fval mute">91%</span></div>
+          <div class="frow"><span class="flab">FLOOR</span><span class="fbar f" style="width:9%"></span><span class="fval">772</span><span class="fval mute">5%</span></div>
+          <div class="frow"><span class="flab">OTHER CHAMBER</span><span class="fbar o" style="width:6%"></span><span class="fval">539</span><span class="fval mute">3%</span></div>
+          <div class="frow"><span class="flab">ENACTED</span><span class="fbar e" style="width:2%"></span><span class="fval">97</span><span class="fval mute">&lt;1%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>nothing automatically</b> — stated so it isn't mistaken for instrumented.
+    C5 is caught by the per-route eyeball pass, which is why the audit's job is to make that list short and specific.</p>
+</section>
+
+<!-- ══ C6 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C6</span><span class="cname">Density floor — not a density target</span></div>
+  <p class="crule">12px base, rows ≥22px, full-width hover targets. Past this, further tightening costs legibility
+    rather than saving space. Written as a floor because the rework's direction is more content per screen, and
+    a floor is what stops that from becoming its own defect.</p>
+
+  <div class="pair">
+    <div class="spec bad">
+      <div class="slab">DEFECT · 34px rows<span class="note">7 rows where 11 fit</span></div>
+      <div class="sbody">
+        <div class="drow loose"><span class="ttl">Wilson <span class="num">FL-24</span></span><span class="num">29.0%</span></div>
+        <div class="drow loose"><span class="ttl">Hunt <span class="num">TX-38</span></span><span class="num">24.6%</span></div>
+        <div class="drow loose"><span class="ttl">Kean <span class="num">NJ-07</span></span><span class="num">22.8%</span></div>
+        <div class="ruler">row box 34px</div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · 22px floor, hover spans the row<span class="note">stops here, doesn't keep going</span></div>
+      <div class="sbody">
+        <div class="drow floor"><span class="ttl">Wilson <span class="num">FL-24</span></span><span class="num">29.0%</span></div>
+        <div class="drow floor"><span class="ttl">Hunt <span class="num">TX-38</span></span><span class="num">24.6%</span></div>
+        <div class="drow floor"><span class="ttl">Kean <span class="num">NJ-07</span></span><span class="num">22.8%</span></div>
+        <div class="drow floor"><span class="ttl">Ramirez <span class="num">IL-03</span></span><span class="num">21.4%</span></div>
+        <div class="drow floor"><span class="ttl">Norcross <span class="num">NJ-01</span></span><span class="num">19.7%</span></div>
+        <div class="ruler">row box 22px · floor, not target</div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>nothing</b> — C6 is a bound on the other seven, enforced in review.
+    If a P3–P5 fix lands rows under 22px or kills a full-width hover target, that's the rule it broke.</p>
+</section>
+
+<!-- ══ C7 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C7</span><span class="cname">Panels size to content</span></div>
+  <p class="crule">No stretching a column to match its sibling's height. <em>align-items: start.</em>
+    The funnel panel ran ~90px past its last bar purely to line up bottoms with the feed beside it.</p>
+
+  <div class="pair stack">
+    <div class="spec bad">
+      <div class="slab">DEFECT · align-items: stretch (the default)</div>
+      <div class="twin">
+        <div class="mini"><div class="mhead">STAGE DISTRIBUTION</div>
+          <div class="mbody">
+            <div class="frow"><span class="flab">COMMITTEE</span><span class="fbar" style="width:55%"></span></div>
+            <div class="frow"><span class="flab">FLOOR</span><span class="fbar f" style="width:9%"></span></div>
+            <div class="frow"><span class="flab">ENACTED</span><span class="fbar e" style="width:2%"></span></div>
+          </div>
+          <div class="stretchmark"><i>~90px of nothing, to line up with the panel beside it</i></div>
+          <div style="height:34px"></div>
+        </div>
+        <div class="mini"><div class="mhead">ACTIVITY</div>
+          <div class="mbody">
+            <div class="wkitem">119-hr-8800 → floor</div><div class="wkitem">119-s-2 → other chamber</div>
+            <div class="wkitem">119-hr-5371 → enacted</div><div class="wkitem">119-hjres-88 → committee</div>
+            <div class="wkitem">119-s-1421 → floor</div><div class="wkitem">119-hr-3034 → introduced</div>
+            <div class="wkitem">119-sconres-33 → agreed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · align-items: start — the shorter panel caps flush</div>
+      <div class="twin start">
+        <div class="mini"><div class="mhead">STAGE DISTRIBUTION</div>
+          <div class="mbody">
+            <div class="frow"><span class="flab">COMMITTEE</span><span class="fbar" style="width:55%"></span></div>
+            <div class="frow"><span class="flab">FLOOR</span><span class="fbar f" style="width:9%"></span></div>
+            <div class="frow"><span class="flab">ENACTED</span><span class="fbar e" style="width:2%"></span></div>
+          </div>
+        </div>
+        <div class="mini"><div class="mhead">ACTIVITY</div>
+          <div class="mbody">
+            <div class="wkitem">119-hr-8800 → floor</div><div class="wkitem">119-s-2 → other chamber</div>
+            <div class="wkitem">119-hr-5371 → enacted</div><div class="wkitem">119-hjres-88 → committee</div>
+            <div class="wkitem">119-s-1421 → floor</div><div class="wkitem">119-hr-3034 → introduced</div>
+            <div class="wkitem">119-sconres-33 → agreed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M2</b>, with the predicate narrowed — only elements that <b>read as a panel</b>
+    (non-zero border or a background differing from the parent), measured as panel bottom minus last visible child
+    bottom. The arc doc's version fired on every grid child, because stretch is the default, and scrollHeight
+    can't detect a stretched panel anyway.</p>
+</section>
+
+<!-- ══ C8 ══════════════════════════════════════════════════════════════ -->
+<section class="cx">
+  <div class="chead"><span class="ckey">C8</span><span class="cname">Wide screens buy columns, not wider rows</span></div>
+  <p class="crule">Past roughly 900px a row of text gains nothing from more width — it just pushes its right-hand
+    element further away, which is C1 again. A max-width cap throws the monitor away. Add panes instead.</p>
+
+  <div class="pair stack">
+    <div class="spec bad">
+      <div class="slab">DEFECT · one column, rows stretched to fill 2560</div>
+      <div class="sbody">
+        <div class="row"><span class="bid">119-samdt-3963</span><span class="ttl">Motion to table agreed to, 54–46</span>
+          <span class="gapmark"><i>—</i></span><span class="stg cm">KILLED</span></div>
+        <div class="row"><span class="bid">119-samdt-4421</span><span class="ttl">Cloture motion withdrawn by unanimous consent</span>
+          <span class="gapmark"><i>—</i></span><span class="stg cm">PENDING</span></div>
+      </div>
+    </div>
+
+    <div class="spec good">
+      <div class="slab">FIXED · a second pane opens above 900px; rows stay ~900 wide</div>
+      <div class="sbody" style="padding:0">
+        <div class="panes two">
+          <div>
+            <div class="paneh">SENATE AMENDMENTS</div>
+            <div class="row"><span class="bid">119-samdt-3963</span><span class="ttl">Motion to table agreed to, 54–46</span><span class="stg cm">KILLED</span></div>
+            <div class="row"><span class="bid">119-samdt-4421</span><span class="ttl">Cloture motion withdrawn</span><span class="stg cm">PENDING</span></div>
+          </div>
+          <div>
+            <div class="paneh">HOUSE AMENDMENTS</div>
+            <div class="row"><span class="bid">119-hamdt-40</span><span class="ttl">On agreeing to the amendment, 182–226</span><span class="stg cm">FAILED</span></div>
+            <div class="row"><span class="bid">119-hamdt-175</span><span class="ttl">On agreeing to the amendment, as modified</span><span class="stg en">AGREED</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cinstr">AUDIT READS <b>M1</b> again — C8 has no separate instrument because a too-wide row
+    <b>presents as a C1 gap</b>. That's the argument for treating them as one convention set rather than eight
+    independent fixes: the second pane is how you make M1 go to zero without a max-width cap.</p>
+</section>
+
+<!-- ══ key ═════════════════════════════════════════════════════════════ -->
+<div class="key">
+  <div class="keyh">CONVENTION → INSTRUMENT</div>
+  <div class="krow"><span class="kc">C1</span><span class="km">M1a · M1b</span><span class="kt">interior gap per repeated row and per wide singleton; trailing gap reported and not counted</span></div>
+  <div class="krow"><span class="kc">C2</span><span class="km">M7 · M5</span><span class="kt">blast radius (416 css + 34 inline + @media share + Tailwind rem coupling); narrow-width baseline before the scale ships</span></div>
+  <div class="krow"><span class="kc">C3</span><span class="km">M3</span><span class="kt">own-vs-parent color / border / background count per repeated row</span></div>
+  <div class="krow"><span class="kc">C4</span><span class="km">M4</span><span class="kt">reserved pixels + the observed no-content vocabulary, emitted rather than guessed</span></div>
+  <div class="krow"><span class="kc">C5</span><span class="km">—</span><span class="kt">eyeball only; no instrument, stated so it isn't assumed</span></div>
+  <div class="krow"><span class="kc">C6</span><span class="km">—</span><span class="kt">a bound on the other seven; enforced in review, not measured</span></div>
+  <div class="krow"><span class="kc">C7</span><span class="km">M2</span><span class="kt">panel bottom minus last visible child bottom, panel-predicated</span></div>
+  <div class="krow"><span class="kc">C8</span><span class="km">M1</span><span class="kt">no separate instrument — a too-wide row presents as a C1 gap</span></div>
+</div>
+
+<p class="foot">
+  Three of eight have no instrument. That's deliberate and it's the honest read: C5 and C6 are review rules, and
+  C8 is C1 seen from the other end. The audit table therefore prices four conventions, not eight — so P3–P5 are
+  "done" on M1/M2/M3/M4 reaching zero, and C5/C6 ride the per-route eyeball pass that the table exists to keep short.
+</p>
+
+<script>
+  // The same rule M1 applies: measure the horizontal dead space between the
+  // content that packs left and whatever is pinned right. Live, so the page
+  // demonstrates C1 and C2 by behaving differently at 1440 than at 2560.
+  function measure(){
+    document.querySelectorAll('.gapmark').forEach(function(g){
+      var w = Math.round(g.getBoundingClientRect().width);
+      var i = g.querySelector('i');
+      if (!i) return;
+      i.textContent = g.classList.contains('ok')
+        ? (w < 8 ? '' : w + 'px trailing · invisible')
+        : w + 'px dead';
+      i.style.display = (w < 42) ? 'none' : '';
+    });
+    document.getElementById('vw').textContent = window.innerWidth + 'px';
+    document.getElementById('fsv').textContent =
+      getComputedStyle(document.documentElement).getPropertyValue('--fs').trim();
+  }
+  measure();
+  window.addEventListener('resize', measure, {passive:true});
+</script>
+
+</body>
+</html>

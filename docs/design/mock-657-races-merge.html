@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mock-657 — races panel merge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── tokens copied from app/globals.css @ 04926bf ─────────────────────── */
+:root{
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+  --stage-enacted:#10b981;
+  --fs-9:9px; --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+  --space-sm:8px; --space-md:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#07090d;color:var(--text-primary);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:var(--fs-13);line-height:1.45}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+/* ── mock chrome (not product) ───────────────────────────────────────── */
+.wrap{max-width:640px;margin:0 auto;padding:28px 20px 60px}
+.mock-head{margin-bottom:18px}
+.mock-title{font-size:var(--fs-12);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.mock-sub{font-size:var(--fs-11);color:var(--text-dim);margin-top:4px}
+.variants{display:flex;gap:8px;margin:14px 0 6px;flex-wrap:wrap}
+.variants button{background:transparent;border:1px solid var(--border-strong);border-radius:2px;
+  padding:6px 10px;font:inherit;font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase;
+  color:var(--text-muted);cursor:pointer}
+.variants button:hover{color:var(--text-secondary)}
+.variants button.on{color:var(--text-primary);border-color:var(--accent-amber);background:var(--bg-row-hover)}
+.variant-note{font-size:var(--fs-11);color:var(--text-dim);min-height:30px;margin-bottom:10px}
+.variant-note b{color:var(--text-muted);font-weight:500}
+
+/* ── RacesBoxTabs context (dim, non-functional; shows the nesting) ───── */
+.box-tabs{display:flex;gap:24px;border-bottom:1px solid var(--border-strong);margin-bottom:var(--space-sm)}
+.box-tabs span{padding:6px 0;font-size:var(--fs-12);letter-spacing:.5px;text-transform:uppercase;
+  color:var(--text-dim);border-bottom:2px solid transparent}
+.box-tabs span.on{color:var(--text-primary);border-bottom-color:var(--accent-amber)}
+.box-tabs .count{color:var(--text-dim);margin-left:4px}
+
+/* ── panel (real chrome) ─────────────────────────────────────────────── */
+.dashboard-pane{display:flex;flex-direction:column;border:.5px solid var(--border-soft);
+  background:var(--bg-panel);padding:var(--space-md)}
+.races-panel-body{min-height:240px}
+
+/* sub-tab strip (.breaking-stalls-tabs, verbatim treatment) */
+.sub-tabs{display:flex;gap:24px;border-bottom:1px solid var(--border-strong);margin-bottom:var(--space-sm)}
+.sub-tabs button{background:transparent;border:none;border-bottom:2px solid transparent;padding:6px 0;
+  font:inherit;font-size:var(--fs-12);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted);cursor:pointer}
+.sub-tabs button:hover{color:var(--text-secondary)}
+.sub-tabs button.on{color:var(--text-primary);border-bottom-color:var(--accent-amber)}
+.sub-tabs .count{color:var(--text-dim);margin-left:4px}
+
+/* battlefield (simplified stand-in for the HO 254 marker strip) */
+.bf{position:relative;height:34px;margin:2px 0 12px}
+.bf-axis{position:absolute;left:0;right:0;top:16px;height:1px;background:var(--border-strong)}
+.bf-cent{position:absolute;left:50%;top:11px;height:11px;width:1px;background:var(--text-dim)}
+.bf-end{position:absolute;top:22px;font-size:var(--fs-9);letter-spacing:.4px;color:var(--text-dim)}
+.bf-dot{position:absolute;top:13px;width:7px;height:7px;border-radius:50%;background:var(--text-dim);opacity:.55}
+.bf-dot.feat{opacity:1;box-shadow:0 0 0 2px var(--bg-panel),0 0 0 3px var(--accent-amber)}
+.bf-dot.d{background:var(--party-democrat)} .bf-dot.r{background:var(--party-republican)}
+
+/* NEXT PRIMARIES line (the merged panel's primaries residue) */
+.prim-line{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:5px 0 7px;border-bottom:1px solid var(--border-soft);margin-bottom:12px;
+  font-size:var(--fs-11)}
+.prim-line .k{color:var(--text-dim);letter-spacing:.5px;font-size:var(--fs-10)}
+.prim-date{background:none;border:none;padding:0;font:inherit;cursor:pointer;
+  color:var(--text-muted);font-size:var(--fs-11)}
+.prim-date .d{font-family:"IBM Plex Mono",monospace;color:var(--text-secondary)}
+.prim-date.soon .d{color:var(--accent-amber-bright)}
+.prim-date:hover .d{text-decoration:underline}
+.prim-date .n{color:var(--text-dim)}
+.prim-line .all{margin-left:auto;color:var(--text-dim);font-size:var(--fs-10);letter-spacing:.4px;text-decoration:none}
+.prim-line .all:hover{color:var(--text-muted)}
+/* click-open detail row (his decision B2: cards behind a click) */
+.prim-open{display:none;border:.5px solid var(--border-soft);border-radius:2px;background:var(--bg-base);
+  padding:var(--space-sm) var(--space-md);margin:-6px 0 12px;font-size:var(--fs-11)}
+.prim-open.show{display:block}
+.prim-open .hd{display:flex;justify-content:space-between;align-items:baseline}
+.prim-open .hd .d{font-family:"IBM Plex Mono",monospace;color:var(--accent-amber-bright);font-size:var(--fs-12)}
+.prim-open .hd button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:var(--fs-12);padding:0}
+.prim-open .row{color:var(--text-muted);margin-top:3px}
+.prim-open .row b{color:var(--text-secondary);font-weight:500}
+
+/* race grid + rich card (rc-* grammar, simplified but faithful) */
+.race-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.race-card{border:1px solid var(--border-strong);border-radius:3px;padding:12px 14px;background:var(--bg-base);
+  display:flex;flex-direction:column;gap:8px;text-decoration:none;color:var(--text-primary);position:relative}
+.race-card:hover{background:var(--bg-row-hover)}
+.rc-top{display:flex;justify-content:space-between;align-items:baseline}
+.rc-seat{font-size:var(--fs-12);letter-spacing:.6px;color:var(--text-secondary)}
+.rc-margin{font-family:"IBM Plex Mono",monospace;font-size:var(--fs-10);color:var(--text-dim)}
+.rc-flags{position:absolute;top:10px;right:12px;display:flex;gap:6px}
+.rc-flag{font-size:var(--fs-9);letter-spacing:.5px;color:var(--accent-amber-bright)}
+.rc-line{display:flex;align-items:baseline;gap:7px;font-size:var(--fs-12)}
+.rc-dot8{width:8px;height:8px;border-radius:50%;flex:none;position:relative;top:1px}
+.rc-dot8.hollow{background:transparent;border:1px solid var(--text-dim)}
+.rc-nm{color:var(--text-primary)}
+.rc-nm.empty{color:var(--text-dim);font-style:italic}
+.rc-line--edge .rc-nm{text-shadow:0 0 10px rgba(251,191,36,.25)}
+.rc-line-meta{margin-left:auto;font-size:var(--fs-10);color:var(--text-dim);white-space:nowrap}
+.rc-cash-k{letter-spacing:.4px;font-size:var(--fs-9);color:var(--text-dim);margin-right:3px}
+.rc-cash-v{font-family:"IBM Plex Mono",monospace;color:var(--text-muted)}
+.rc-open-tag{font-size:var(--fs-9);letter-spacing:.6px;color:var(--text-dim);border:.5px solid var(--border-strong);
+  border-radius:2px;padding:0 4px}
+/* primary chip: the per-race primary metadata (variant C's whole answer) */
+.rc-prim{font-size:var(--fs-9);letter-spacing:.4px;color:var(--text-dim)}
+.rc-prim .mono{color:var(--text-muted)}
+.rc-prim.pending .mono{color:var(--accent-amber-bright)}
+/* rating band (sb-* stand-in) */
+.sb{position:relative;height:8px;margin-top:2px}
+.sb-track{position:absolute;inset:3px 0;height:2px;background:var(--border-strong)}
+.sb-cent{position:absolute;left:50%;top:0;height:8px;width:1px;background:var(--text-dim)}
+.sb-band{position:absolute;top:2px;height:4px;border-radius:2px;opacity:.85}
+.sb-mkt{position:absolute;top:-3px;font-size:8px;font-family:"IBM Plex Mono",monospace;color:var(--text-dim)}
+.rc-raters{font-size:var(--fs-9);letter-spacing:.3px;color:var(--text-dim)}
+.race-grid-foot{margin-top:8px;font-size:var(--fs-9);color:var(--text-dim);letter-spacing:.3px}
+
+/* PRIMARIES tab body (current state, kept faithful for variant A) */
+.dash-prim-strip{position:relative;height:52px;margin-bottom:10px}
+.dp-axis{position:absolute;left:0;right:0;bottom:14px;height:1px;background:var(--border-strong)}
+.dp-now{position:absolute;left:0;bottom:14px;height:26px;width:1px;background:var(--accent-amber)}
+.dp-today{position:absolute;left:0;bottom:0;font-size:var(--fs-9);letter-spacing:.5px;color:var(--accent-amber)}
+.dp-month{position:absolute;bottom:0;font-size:var(--fs-9);letter-spacing:.4px;color:var(--text-dim)}
+.dp-tick{position:absolute;bottom:15px;width:3px;border-radius:1px 1px 0 0;background:var(--text-dim)}
+.dp-tick.soon{background:var(--accent-amber-bright)}
+.dash-prim-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);align-items:start}
+.dash-prim-card{display:flex;flex-direction:column;gap:4px;min-height:64px;padding:var(--space-sm) var(--space-md);
+  border:.5px solid var(--border-soft);border-radius:2px;background:var(--bg-base)}
+.dp-card-date{font-family:"IBM Plex Mono",monospace;font-size:var(--fs-12);color:var(--accent-amber-bright)}
+.dp-card-states{font-size:var(--fs-11);color:var(--text-secondary)}
+.dp-card-meta{font-size:var(--fs-10);color:var(--text-dim)}
+
+/* annotations */
+.notes{margin-top:26px;border-top:1px solid var(--border-soft);padding-top:14px;
+  font-size:var(--fs-11);color:var(--text-muted)}
+.notes h2{font-size:var(--fs-10);letter-spacing:.6px;text-transform:uppercase;color:var(--text-dim);margin:14px 0 6px}
+.notes p{margin:5px 0}
+.notes .dec{color:var(--text-secondary)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mock-head">
+    <div class="mock-title">mock-657 — dashboard races panel · COMPETITIVE|PRIMARIES merge</div>
+    <div class="mock-sub">Tokens and class grammar copied from globals.css @ <span class="mono">04926bf</span>. Card data illustrative; shapes real (rc-* / dash-prim-* / breaking-stalls-tabs).</div>
+    <div class="variants">
+      <button id="vA" class="on">A · current (sub-tabs)</button>
+      <button id="vB">B · merged + dates line</button>
+      <button id="vC">C · merged, bare</button>
+    </div>
+    <div class="variant-note" id="vnote"></div>
+  </div>
+
+  <!-- RacesBoxTabs context -->
+  <div class="box-tabs"><span>Hearings <span class="count">(11)</span></span><span class="on">Races <span class="count">(4)</span></span></div>
+
+  <section class="dashboard-pane">
+    <!-- A: the sub-tab strip -->
+    <nav class="sub-tabs" id="subtabs">
+      <button id="stComp" class="on">Competitive <span class="count">(4)</span></button>
+      <button id="stPrim">Primaries <span class="count">(94)</span></button>
+    </nav>
+
+    <div class="races-panel-body">
+
+      <!-- NEXT PRIMARIES line: variant B only -->
+      <div class="prim-line hide" id="primline">
+        <span class="k">NEXT PRIMARIES</span>
+        <button class="prim-date soon" data-d="aug18"><span class="d">AUG 18</span> AK·FL·WY <span class="n">34</span></button>
+        <button class="prim-date soon" data-d="sep1"><span class="d">SEP 1</span> MA <span class="n">9</span></button>
+        <button class="prim-date soon" data-d="sep8"><span class="d">SEP 8</span> DE·NH·RI <span class="n">21</span></button>
+        <button class="prim-date" data-d="nov3"><span class="d">NOV 3</span> LA <span class="n">12</span></button>
+        <a class="all" href="#">ALL →</a>
+      </div>
+      <div class="prim-open" id="primopen">
+        <div class="hd"><span class="d" id="poD">AUG 18</span><button id="poX">×</button></div>
+        <div class="row" id="poBody"></div>
+      </div>
+
+      <!-- COMPETITIVE body: battlefield + rich cards (A-competitive, B, C) -->
+      <div id="compBody">
+        <div class="bf">
+          <span class="bf-axis"></span><span class="bf-cent"></span>
+          <span class="bf-end" style="left:0">SOLID D</span><span class="bf-end" style="right:0">SOLID R</span>
+          <span class="bf-dot d" style="left:14%"></span>
+          <span class="bf-dot d feat" style="left:38%" title="NE-02"></span>
+          <span class="bf-dot feat" style="left:47%;background:var(--text-muted)" title="NC SEN"></span>
+          <span class="bf-dot d feat" style="left:52%" title="GA SEN"></span>
+          <span class="bf-dot r feat" style="left:61%" title="ME SEN"></span>
+          <span class="bf-dot r" style="left:72%"></span>
+          <span class="bf-dot r" style="left:84%"></span>
+        </div>
+
+        <div class="race-grid">
+          <!-- ME SEN -->
+          <a class="race-card" href="#">
+            <span class="rc-flags"><span class="rc-flag">NEWS</span></span>
+            <div class="rc-top"><span class="rc-seat">ME SENATE</span><span class="rc-margin">D+6.9 '24</span></div>
+            <div>
+              <div class="rc-line rc-line--edge"><span class="rc-dot8" style="background:var(--party-republican)"></span>
+                <span class="rc-nm">Collins</span>
+                <span class="rc-line-meta"><span class="rc-cash-k">CASH</span><span class="rc-cash-v">$8.4M</span></span></div>
+              <div class="rc-line"><span class="rc-dot8" style="background:var(--party-democrat)"></span>
+                <span class="rc-nm">Jackson</span>
+                <span class="rc-line-meta">nominee · conv 7/25</span></div>
+            </div>
+            <div class="rc-prim"><span class="mono">PRIMARY JUN 9 ✓</span> · nominee by convention</div>
+            <div class="sb"><span class="sb-track"></span><span class="sb-cent"></span>
+              <span class="sb-band" style="left:52%;width:16%;background:var(--party-republican)"></span>
+              <span class="sb-mkt" style="left:60%">K61</span><span class="sb-mkt" style="left:66%">P58</span></div>
+            <div class="rc-raters">COOK LEAN R · SABATO LEAN R · DDHQ TILT R</div>
+          </a>
+          <!-- GA SEN -->
+          <a class="race-card" href="#">
+            <span class="rc-flags"><span class="rc-flag">MOVED</span></span>
+            <div class="rc-top"><span class="rc-seat">GA SENATE</span><span class="rc-margin">R+2.2 '24</span></div>
+            <div>
+              <div class="rc-line"><span class="rc-dot8" style="background:var(--party-democrat)"></span>
+                <span class="rc-nm">Ossoff</span>
+                <span class="rc-line-meta"><span class="rc-cash-k">CASH</span><span class="rc-cash-v">$21.1M</span></span></div>
+              <div class="rc-line rc-line--edge"><span class="rc-dot8" style="background:var(--party-republican)"></span>
+                <span class="rc-nm">M. Collins</span>
+                <span class="rc-line-meta">won primary 5/19</span></div>
+            </div>
+            <div class="rc-prim"><span class="mono">PRIMARY MAY 19 ✓</span></div>
+            <div class="sb"><span class="sb-track"></span><span class="sb-cent"></span>
+              <span class="sb-band" style="left:46%;width:12%;background:var(--text-muted)"></span>
+              <span class="sb-mkt" style="left:50%">K52</span><span class="sb-mkt" style="left:56%">P54</span></div>
+            <div class="rc-raters">COOK TOSS UP · SABATO TOSS UP · DDHQ TOSS UP</div>
+          </a>
+          <!-- NC SEN -->
+          <a class="race-card" href="#">
+            <div class="rc-top"><span class="rc-seat">NC SENATE</span><span class="rc-margin">R+3.2 '24</span></div>
+            <div>
+              <div class="rc-line"><span class="rc-dot8 hollow"></span>
+                <span class="rc-nm">Open seat</span>
+                <span class="rc-line-meta"><span class="rc-open-tag">OPEN</span></span></div>
+              <div class="rc-line"><span class="rc-dot8" style="background:var(--party-democrat)"></span>
+                <span class="rc-nm">Cooper</span>
+                <span class="rc-line-meta">won primary 3/3</span></div>
+            </div>
+            <div class="rc-prim"><span class="mono">PRIMARY MAR 3 ✓</span></div>
+            <div class="sb"><span class="sb-track"></span><span class="sb-cent"></span>
+              <span class="sb-band" style="left:44%;width:12%;background:var(--text-muted)"></span>
+              <span class="sb-mkt" style="left:47%">K49</span><span class="sb-mkt" style="left:53%">P51</span></div>
+            <div class="rc-raters">COOK TOSS UP · SABATO LEAN D · DDHQ TOSS UP</div>
+          </a>
+          <!-- NE-02 -->
+          <a class="race-card" href="#">
+            <div class="rc-top"><span class="rc-seat">NE-02</span><span class="rc-margin">D+4.6 '24</span></div>
+            <div>
+              <div class="rc-line"><span class="rc-dot8 hollow"></span>
+                <span class="rc-nm">Open seat</span>
+                <span class="rc-line-meta"><span class="rc-open-tag">OPEN</span></span></div>
+              <div class="rc-line"><span class="rc-dot8 hollow"></span>
+                <span class="rc-nm empty">no challenger filed</span>
+                <span class="rc-line-meta">—</span></div>
+            </div>
+            <div class="rc-prim pending"><span class="mono">PRIMARY AUG 18</span> · in 6d</div>
+            <div class="sb"><span class="sb-track"></span><span class="sb-cent"></span>
+              <span class="sb-band" style="left:40%;width:10%;background:var(--party-democrat)"></span>
+              <span class="sb-mkt" style="left:42%">K57</span></div>
+            <div class="rc-raters">COOK TILT D · SABATO LEAN D</div>
+          </a>
+        </div>
+        <p class="race-grid-foot" id="gridfoot">roster slots fill from the HO 656 harvest run; “no challenger filed” is the null-safe placeholder, not a claim</p>
+      </div>
+
+      <!-- PRIMARIES tab body (variant A only) -->
+      <div id="primBody" class="hide">
+        <div class="dash-prim-strip">
+          <span class="dp-axis"></span><span class="dp-now"></span><span class="dp-today">TODAY</span>
+          <span class="dp-month" style="left:10%">SEP</span><span class="dp-month" style="left:27%">OCT</span>
+          <span class="dp-month" style="left:44%">NOV</span><span class="dp-month" style="left:61%">DEC</span>
+          <span class="dp-month" style="left:78%">JAN</span><span class="dp-month" style="left:95%">FEB</span>
+          <span class="dp-tick soon" style="left:3%;height:26px"></span>
+          <span class="dp-tick soon" style="left:11%;height:12px"></span>
+          <span class="dp-tick soon" style="left:15%;height:19px"></span>
+          <span class="dp-tick" style="left:46%;height:14px"></span>
+          <span class="dp-tick" style="left:64%;height:9px"></span>
+        </div>
+        <div class="dash-prim-grid">
+          <div class="dash-prim-card"><span class="dp-card-date">AUG 18</span><span class="dp-card-states">AK · FL · WY</span><span class="dp-card-meta">34 contests · NE-02 open · AK-AL</span></div>
+          <div class="dash-prim-card"><span class="dp-card-date">SEP 1</span><span class="dp-card-states">MA</span><span class="dp-card-meta">9 contests · MA-06</span></div>
+          <div class="dash-prim-card"><span class="dp-card-date">SEP 8</span><span class="dp-card-states">DE · NH · RI</span><span class="dp-card-meta">21 contests · NH-01 open</span></div>
+          <div class="dash-prim-card"><span class="dp-card-date">NOV 3</span><span class="dp-card-states">LA</span><span class="dp-card-meta">12 contests · closed partisan (new)</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="notes">
+    <h2>What each variant claims</h2>
+    <p><b class="dec">A — current.</b> Two bodies behind sub-tabs. The PRIMARIES body (6-month tick timeline + 2×2 date cards) is a pre-results surface; its value decays to zero as the calendar empties. Sub-tab state is useState only, so no deep links break on removal.</p>
+    <p><b class="dec">B — merged + dates line.</b> Battlefield and cards become the only body. Primaries residue = one line (4 soonest dates, soonest amber, count per date, ALL → the standalone electoral surface). <b>Click a date</b> to see decision B2: the per-date card content survives behind a click instead of owning a grid. The line renders nothing once no dates remain in window, so the panel needs no second restructure after primary season.</p>
+    <p><b class="dec">C — merged, bare.</b> No line. Per-race primary status rides only the card chip (the <span class="mono">PRIMARY AUG 18 · in 6d</span> row, amber while pending). Cheapest, but the panel loses the one time-sensitive glance the tab uniquely carried: NE-02's primary is visible, AK/FL/WY's 33 other contests are not.</p>
+    <h2>The two decisions (yours)</h2>
+    <p>1 · Does the dates line survive (B) or do card chips carry it alone (C)?</p>
+    <p>2 · If B: per-date detail behind a click (as mocked), or nothing beyond the line?</p>
+    <h2>Not decisions</h2>
+    <p>The tab row dies in both B and C. The tick timeline and the 2×2 date grid die in both (depth lives on the standalone electoral pages). The competitive body is untouched. Panel min-height 240px holds in all three.</p>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const detail={
+  aug18:{d:"AUG 18",b:"<b>AK · FL · WY</b> — 34 contests · marquee: NE-02 open (D+4.6), AK-AL, FL-27 · rosters live"},
+  sep1:{d:"SEP 1",b:"<b>MA</b> — 9 contests · marquee: MA-06"},
+  sep8:{d:"SEP 8",b:"<b>DE · NH · RI</b> — 21 contests · marquee: NH-01 open, NH SEN (D)"},
+  nov3:{d:"NOV 3",b:"<b>LA</b> — 12 contests · first cycle under closed partisan primaries"}
+};
+let variant="A", subtab="comp";
+function render(){
+  $("vA").classList.toggle("on",variant==="A");
+  $("vB").classList.toggle("on",variant==="B");
+  $("vC").classList.toggle("on",variant==="C");
+  $("subtabs").classList.toggle("hide",variant!=="A");
+  $("primline").classList.toggle("hide",variant!=="B");
+  if(variant!=="B") $("primopen").classList.remove("show");
+  const showPrimBody = variant==="A" && subtab==="prim";
+  $("primBody").classList.toggle("hide",!showPrimBody);
+  $("compBody").classList.toggle("hide",showPrimBody);
+  $("stComp").classList.toggle("on",subtab==="comp");
+  $("stPrim").classList.toggle("on",subtab==="prim");
+  $("vnote").innerHTML = variant==="A"
+    ? "<b>Current.</b> Flip the sub-tabs; note the primaries body is a whole second surface for four dates."
+    : variant==="B"
+    ? "<b>Merged, my lean.</b> One body. The line is the primaries residue — click <b>AUG 18</b> to preview decision B2."
+    : "<b>Merged, bare.</b> Primary awareness is card chips only. Watch what NE-02 keeps and what the panel loses.";
+}
+$("vA").onclick=()=>{variant="A";render()};
+$("vB").onclick=()=>{variant="B";render()};
+$("vC").onclick=()=>{variant="C";render()};
+$("stComp").onclick=()=>{subtab="comp";render()};
+$("stPrim").onclick=()=>{subtab="prim";render()};
+document.querySelectorAll(".prim-date").forEach(b=>b.onclick=()=>{
+  const k=b.dataset.d;$("poD").textContent=detail[k].d;$("poBody").innerHTML=detail[k].b;
+  $("primopen").classList.add("show");
+});
+$("poX").onclick=()=>$("primopen").classList.remove("show");
+render();
+</script>
+</body>
+</html>

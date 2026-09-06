@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MOCK v2 · /members/[bioguideId] — compacted, single screen</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* tokens: verbatim from app/globals.css @ 0108409 */
+:root {
+  --bg-base: #0a0e14;
+  --bg-panel: #050709;
+  --bg-row-hover: #0f1620;
+  --border-strong: #1f2937;
+  --border-soft: #111820;
+  --text-primary: #e5e7eb;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #6b7280;
+  --accent-amber: #d97706;
+  --accent-amber-bright: #fbbf24;
+  --party-republican: #ef4444;
+  --party-democrat: #3b82f6;
+  --party-independent: #a78bfa;
+  --stage-committee: #06b6d4;
+  --vote-yea: #10b981;
+  --vote-nay: #f87171;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg-base); color: var(--text-primary); font-family: var(--font-mono); font-size: 13px; }
+a { color: inherit; }
+
+/* chrome (illustrative — HeaderBar untouched) */
+.mast { padding: 10px 16px 0; }
+.mast-path { font-size: 15px; letter-spacing: 0.3px; }
+.mast-path .c1 { color: var(--accent-amber-bright); }
+.mast-path .sl { color: var(--accent-amber); }
+.mast-path .cur { color: var(--text-primary); }
+.mast-sub { margin-top: 5px; font-size: 10.5px; color: var(--text-dim); letter-spacing: 0.5px; }
+.topnav { display: flex; flex-wrap: wrap; gap: 26px; font-size: 12.5px; letter-spacing: 0.5px; margin-top: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--border-strong); }
+.topnav a { text-decoration: none; color: var(--text-muted); }
+.topnav a .sl { color: var(--text-dim); }
+.topnav a.active { color: var(--accent-amber-bright); }
+
+main { padding: 14px 16px 24px; max-width: 1280px; }
+.back { display: inline-block; margin-bottom: 12px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); text-decoration: none; }
+.back:hover { color: var(--text-secondary); }
+
+/* ═══════════ HERO — three bands, ~215px total ═══════════ */
+.hero { background: var(--bg-row-hover); border: 1px solid var(--border-strong); }
+
+/* band 1: identity + the stat run pulled inline (kills the standalone stat block) */
+.hb1 { display: flex; align-items: center; gap: 15px; padding: 13px 18px; }
+.mh-photo { width: 54px; height: 54px; flex: none; object-fit: cover; border: 0.5px solid var(--border-strong); background: var(--bg-base); display: flex; align-items: center; justify-content: center; font-size: 17px; letter-spacing: 1px; color: var(--text-secondary); }
+.mh-idcol { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.mh-name { font-size: 16px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-primary); margin: 0; }
+.mh-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); }
+.chip { border: 1px solid currentColor; border-radius: 2px; padding: 1px 7px; font-size: 11.5px; letter-spacing: 0.5px; text-decoration: none; white-space: nowrap; }
+.chip-amber { color: var(--accent-amber); }
+.chip-d { color: var(--party-democrat); }
+.hb1-stats { display: flex; gap: 22px; flex: none; }
+.stat { text-align: right; }
+.stat-l { display: block; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.stat-v { display: block; margin-top: 2px; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.stat-v small { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+
+/* band 2: THE SPINE — ideology axis, promoted out of Voting record */
+.hb2 { display: grid; grid-template-columns: 1fr 250px; align-items: center; gap: 22px; padding: 4px 18px 10px; border-top: 0.5px solid var(--border-soft); }
+.spine-lab { font-size: 9.5px; letter-spacing: 0.09em; color: var(--text-dim); text-transform: uppercase; }
+.ideology-axis { margin-top: 4px; }
+.ideology-axis-track { position: relative; display: block; height: 26px; overflow: visible; }
+.ideology-axis-rail { position: absolute; left: 0; right: 0; top: 13px; height: 1px; background-color: var(--border-strong); }
+.ideology-axis-zero { position: absolute; top: 3px; height: 10px; left: 50%; width: 1px; background-color: var(--border-strong); opacity: 0.6; }
+.ideology-axis-median { position: absolute; top: 1px; height: 12px; width: 3px; transform: translateX(-1.5px); z-index: 3; }
+.ideology-axis-median-core { position: absolute; top: 0; bottom: 0; left: 1px; width: 1px; background-color: var(--text-secondary); }
+.ideology-axis-bar { position: absolute; top: 1px; height: 12px; width: 3px; transform: translateX(-1.5px); z-index: 2; }
+.ideology-axis-caret { position: absolute; top: 14px; width: 0; height: 0; transform: translateX(-4px); border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid; z-index: 4; }
+.ideology-axis-ends { display: flex; justify-content: space-between; margin-top: 2px; font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); }
+.spine-read { text-align: right; font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); font-variant-numeric: tabular-nums; line-height: 1.65; }
+.spine-read b { color: var(--text-secondary); font-weight: 500; font-size: 13.5px; }
+
+/* band 3: the metabox unrolled into a horizontal 3-up (was a tall right column) */
+.hb3 { display: grid; grid-template-columns: 1fr 1fr 1.15fr; border-top: 0.5px solid var(--border-soft); }
+.hb3 > div { padding: 10px 18px 12px; }
+.hb3 > div + div { border-left: 0.5px solid var(--border-soft); }
+.mlabel { font-size: 9.5px; letter-spacing: 0.08em; color: var(--text-dim); text-transform: uppercase; }
+.mval { font-family: var(--sans); font-size: 12.5px; color: var(--text-secondary); margin-top: 4px; line-height: 1.45; }
+.mval.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.msub { font-size: 11px; color: var(--text-dim); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.mlink { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.5px; color: var(--accent-amber); text-decoration: none; text-transform: uppercase; }
+.mlink:hover { color: var(--accent-amber-bright); }
+.mix-bar { display: flex; height: 6px; width: 100%; max-width: 300px; overflow: hidden; border-radius: 2px; margin-top: 7px; }
+.mix-bar span:first-child { background: var(--accent-amber-bright); border-right: 1px solid var(--bg-row-hover); }
+.mix-bar span:last-child { background: var(--accent-amber); }
+
+/* ═══════════ THE RECORD BOX — one tabbed shell, five sections collapsed ═══════════ */
+.rec { margin-top: 14px; border: 1px solid var(--border-strong); background: var(--bg-panel); }
+.rec-hdr { display: flex; align-items: stretch; gap: 22px; padding: 0 16px; border-bottom: 1px solid var(--border-strong); }
+.rec-tab { appearance: none; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 0; font-family: inherit; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); cursor: pointer; transition: color 120ms ease, border-color 120ms ease; white-space: nowrap; }
+.rec-tab:hover { color: var(--text-secondary); }
+.rec-tab[aria-current="page"] { color: var(--text-primary); border-bottom-color: var(--accent-amber); }
+.rec-tab[data-empty="true"] { opacity: 0.5; }
+.rec-tab .count { color: var(--text-dim); margin-left: 4px; }
+.rec-out { margin-left: auto; align-self: center; font-size: 11.5px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--accent-amber); text-decoration: none; white-space: nowrap; }
+.rec-out:hover { color: var(--accent-amber-bright); }
+/* fixed body height so the tab swap never jumps (the HO 244 .distributions-panel-body rule) */
+.rec-body { height: 430px; overflow-y: auto; }
+.rec-panel[hidden] { display: none; }
+.rec-sub { display: flex; flex-wrap: wrap; gap: 14px; padding: 7px 16px; border-bottom: 0.5px solid var(--border-soft); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); position: sticky; top: 0; background: var(--bg-panel); z-index: 2; }
+.rec-empty { padding: 60px 16px; text-align: center; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+
+/* rows — ALL UNCHANGED components; drawn here for fidelity */
+.brow { display: grid; grid-template-columns: 54px 1fr 20px; gap: 12px; padding: 9px 16px; border-bottom: 0.5px solid var(--border-soft); }
+.brow-id { font-size: 10px; line-height: 1.2; color: var(--text-muted); border-left: 2px solid var(--stage-committee); padding-left: 7px; }
+.brow-id b { display: block; font-size: 13px; color: var(--text-primary); font-weight: 500; }
+.brow-t { font-family: var(--sans); font-size: 13.5px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brow-m { margin-top: 5px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
+.pill { border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; color: var(--text-dim); }
+.pill-cm { color: var(--stage-committee); border-color: var(--stage-committee); }
+.brow-sp { font-size: 10.5px; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text-muted); margin-top: 5px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.brow-sp .pt { color: var(--party-democrat); }
+.tt { font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em; border: 1px solid currentColor; border-radius: 2px; padding: 1px 5px; }
+.brow-star { color: var(--text-dim); text-align: right; }
+
+.crow { padding: 10px 16px; border-bottom: 0.5px solid var(--border-soft); }
+.crow a { font-size: 13.5px; color: var(--text-primary); text-decoration: none; }
+.crow a:hover { color: var(--accent-amber-bright); }
+.crow-tag { margin-left: 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+.crow-sub { color: var(--text-dim); margin-right: 5px; }
+
+.vhdr, .vrow { display: grid; grid-template-columns: 62px 74px 88px 1fr 52px; gap: 10px; align-items: baseline; padding: 6px 16px; }
+.vhdr { font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); border-bottom: 0.5px solid var(--border-soft); position: sticky; top: 0; background: var(--bg-panel); z-index: 2; }
+.vrow { border-bottom: 0.5px solid var(--border-soft); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.vpos { font-size: 11.5px; }
+.vbill { color: var(--accent-amber); }
+.vq { color: var(--text-secondary); font-family: var(--sans); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vroll { text-align: right; color: var(--text-dim); }
+
+.nrow { display: block; padding: 9px 16px; border-bottom: 0.5px solid var(--border-soft); text-decoration: none; }
+.nrow-t { font-family: var(--sans); font-size: 13px; color: var(--text-secondary); }
+.nrow:hover .nrow-t { color: var(--accent-amber-bright); }
+.nrow-m { font-size: 10px; color: var(--text-dim); margin-top: 2px; letter-spacing: 0.4px; text-transform: uppercase; }
+
+/* footer — one row */
+.foot { margin-top: 14px; display: flex; align-items: center; gap: 8px; }
+.foot-btn { display: inline-block; border: 1px solid var(--border-strong); color: var(--text-dim); padding: 5px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; text-decoration: none; }
+.foot-btn:hover { border-color: var(--text-secondary); color: var(--text-secondary); }
+.attrib { margin-left: auto; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+
+/* mock-only */
+.note { margin-top: 16px; border: 1px dashed #7a5a22; padding: 9px 13px; font-size: 11px; line-height: 1.65; color: #b98a3a; letter-spacing: 0.3px; }
+.note b { color: var(--accent-amber-bright); font-weight: 500; }
+.fold { position: relative; border-top: 1px dashed #7a5a22; margin: 0; height: 0; }
+.fold span { position: absolute; right: 0; top: -9px; background: var(--bg-base); padding: 0 6px; font-size: 9px; letter-spacing: 0.5px; color: #7a5a22; }
+
+@media (max-width: 900px) {
+  .hb1 { flex-wrap: wrap; }
+  .hb1-stats { width: 100%; justify-content: flex-start; }
+  .stat { text-align: left; }
+  .hb2 { grid-template-columns: 1fr; }
+  .spine-read { text-align: left; }
+  .hb3 { grid-template-columns: 1fr; }
+  .hb3 > div + div { border-left: none; border-top: 0.5px solid var(--border-soft); }
+  .rec-hdr { flex-wrap: wrap; gap: 16px; }
+  .rec-out { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="mast">
+  <div class="mast-path"><span class="c1">Congressional Terminal</span><span class="sl">:\</span><span class="c1">119TH</span><span class="sl">\</span><span class="c1">Members</span><span class="sl">\</span><span class="cur">Williams</span><span class="sl">&gt;</span></div>
+  <div class="mast-sub">· LAST SYNC 12:19 PM CT</div>
+  <div class="topnav">
+    <a href="#"><span class="sl">\</span>DASHBOARD</a>
+    <a href="#"><span class="sl">\</span>LEGISLATION</a>
+    <a href="#"><span class="sl">\</span>HEARINGS</a>
+    <a href="#" class="active">[ <span class="sl">\</span>MEMBERS ]</a>
+    <a href="#"><span class="sl">\</span>ELECTORAL</a>
+    <a href="#"><span class="sl">\</span>PATTERNS</a>
+    <a href="#"><span class="sl">\</span>LOBBYING</a>
+    <a href="#"><span class="sl">\</span>NOMINATIONS</a>
+    <a href="#"><span class="sl">\</span>AMENDMENTS</a>
+    <a href="#"><span class="sl">\</span>REPORTS</a>
+    <a href="#"><span class="sl">\</span>WATCHLIST</a>
+  </div>
+</div>
+
+<main>
+  <a class="back" href="#">← Back to members</a>
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <div class="hero">
+
+    <div class="hb1">
+      <div class="mh-photo">NW</div>
+      <div class="mh-idcol">
+        <h1 class="mh-name">Nikema Williams</h1>
+        <div class="mh-meta">
+          <span style="color:var(--party-democrat)" aria-hidden>●</span>
+          <span>D-GA-5 · Born 1978</span>
+          <a class="chip chip-amber" href="#">Next election 2026 <span style="color:var(--text-dim)">·</span> <span style="color:var(--party-democrat)">Solid D</span></a>
+          <span class="chip chip-d">PROG</span>
+          <span class="chip chip-d">NEW DEM</span>
+        </div>
+      </div>
+      <div class="hb1-stats">
+        <span class="stat"><span class="stat-l">Sponsored</span><span class="stat-v">53</span></span>
+        <span class="stat"><span class="stat-l">Enacted</span><span class="stat-v">0<small>0.0%</small></span></span>
+        <span class="stat"><span class="stat-l">Avg cosponsors</span><span class="stat-v">21.9</span></span>
+        <span class="stat"><span class="stat-l">Votes cast</span><span class="stat-v">618<small>of 641</small></span></span>
+        <span class="stat"><span class="stat-l">Missed</span><span class="stat-v">4<small>%</small></span></span>
+      </div>
+    </div>
+
+    <div class="hb2">
+      <div>
+        <div class="spine-lab">Ideology · DW-NOMINATE · 119th House</div>
+        <div class="ideology-axis">
+          <div class="ideology-axis-track">
+            <span class="ideology-axis-rail"></span>
+            <span class="ideology-axis-zero"></span>
+            <span class="ideology-axis-median" style="left:31.6%;background-color:var(--party-democrat)" title="Democratic median −0.383"><span class="ideology-axis-median-core"></span></span>
+            <span class="ideology-axis-median" style="left:75.8%;background-color:var(--party-republican)" title="Republican median +0.537"><span class="ideology-axis-median-core"></span></span>
+            <span class="ideology-axis-bar" style="left:28.6%;background-color:var(--party-democrat)"></span>
+            <span class="ideology-axis-caret" style="left:28.6%;border-bottom-color:var(--party-democrat)" title="This member −0.445"></span>
+          </div>
+          <div class="ideology-axis-ends"><span>Liberal −1</span><span>+1 Conservative</span></div>
+        </div>
+      </div>
+      <div class="spine-read">
+        <div>Left/right · <b>−0.445</b> · dim 2 −0.394</div>
+        <div>0.06 left of the D median</div>
+      </div>
+    </div>
+
+    <div class="hb3">
+      <div>
+        <div class="mlabel">Seat</div>
+        <div class="mval">House · Georgia 5th · sworn 2021</div>
+        <div class="msub">119th Congress · 3 committee assignments</div>
+      </div>
+      <div>
+        <div class="mlabel">Next election</div>
+        <div class="mval mono">2026 · <span style="color:var(--party-democrat)">Solid D</span></div>
+        <div class="msub" style="color:var(--accent-amber)">Primary (D) 05-19-26 · 299d out</div>
+      </div>
+      <div>
+        <div class="mlabel">Fundraising · 2026 cycle</div>
+        <div class="mval mono">$478K raised · $48K cash on hand</div>
+        <div class="mix-bar" role="img" aria-label="19% small-dollar, 81% large-dollar">
+          <span style="width:19%"></span><span style="width:81%"></span>
+        </div>
+        <div class="msub">19% small (&lt;$200) · 81% large ($200+) · as of 2026-04-29 · <a class="mlink" href="#">FEC ↗</a> · <a class="mlink" href="#">Bioguide ↗</a></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════ THE RECORD BOX ═══════════ -->
+  <div class="rec">
+    <div class="rec-hdr" role="tablist" aria-label="Member record">
+      <button class="rec-tab" role="tab" aria-current="page" data-tab="bills">Bills <span class="count">(53)</span></button>
+      <button class="rec-tab" role="tab" data-tab="votes">Votes <span class="count">(641)</span></button>
+      <button class="rec-tab" role="tab" data-tab="cmte">Committees <span class="count">(3)</span></button>
+      <button class="rec-tab" role="tab" data-tab="amdt" data-empty="true">Amendments <span class="count">(0)</span></button>
+      <button class="rec-tab" role="tab" data-tab="press" data-empty="true">Press <span class="count">(0)</span></button>
+      <button class="rec-tab" role="tab" data-tab="trades" data-empty="true">Trades <span class="count">(0)</span></button>
+      <a class="rec-out" href="#" id="recout">View all 53 bills →</a>
+    </div>
+
+    <div class="rec-body">
+
+      <!-- BILLS -->
+      <div class="rec-panel" data-panel="bills">
+        <div class="rec-sub">
+          <span>▸ INTRO</span><span style="color:var(--stage-committee)">▸ COMMITTEE</span><span>▸▸ FLOOR</span><span>▸▸▸ OTHER CHAMBER</span><span>▸▸▸▸ PRESIDENT</span><span>✓ ENACTED</span>
+          <span style="margin-left:auto"><span style="color:var(--party-republican)">■</span> R <span style="color:var(--party-democrat)">■</span> D <span style="color:var(--party-independent)">■</span> I</span>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>9946</b></div>
+          <div>
+            <div class="brow-t">To require the coverage of testing for certain sexually transmitted infections without the imposition of cost sharing, and for other purposes.</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 1D</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE · 7H</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#e05c8e">HLTH</span><span class="tt" style="color:#3eda45">CONS</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HRES<b>1420</b></div>
+          <div>
+            <div class="brow-t">Honoring the 31st International President and CEO of Alpha Kappa Alpha Sorority, Inc., Danette Anthony Reed.</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 2W</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE · 2W</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#e05c7d">GOV</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>9493</b></div>
+          <div>
+            <div class="brow-t">Home Internet Accessibility Act</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 4W</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE · 2W</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#6bda3e">HSG</span><span class="tt" style="color:#e05c62">TECH</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>9380</b></div>
+          <div>
+            <div class="brow-t">Expanding Access to Credit through Consumer-Permissioned Data Act</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 5W</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE · 4W</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#3e92da">FIN</span><span class="tt" style="color:#6bda3e">HSG</span><span class="tt" style="color:#3eda45">CONS</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>9309</b></div>
+          <div>
+            <div class="brow-t">PRIDE Act of 2026</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 6W</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#3e92da">FIN</span><span class="tt" style="color:#3eda65">CIV</span><span class="tt" style="color:#e05c7d">GOV</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>8950</b></div>
+          <div>
+            <div class="brow-t">REPORTS Act</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 2MO</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE · 2MO</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#e05c7d">GOV</span><span class="tt" style="color:#3eda65">CIV</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>8717</b></div>
+          <div>
+            <div class="brow-t">To amend the National Highway System Designation Act of 1995 to permit the construction of certain noise barriers with funds from the Highway Trust Fund…</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 2MO</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#5c5ce0">TRNS</span><span class="tt" style="color:#5ce0c5">ENRG</span><span class="tt" style="color:#e05c62">TECH</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HR<b>8716</b></div>
+          <div>
+            <div class="brow-t">Blood Pressure MATTERS Act</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 2MO</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#e05c8e">HLTH</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow">
+          <div class="brow-id">HJRES<b>171</b></div>
+          <div>
+            <div class="brow-t">Providing for congressional disapproval under chapter 8 of title 5, United States Code, of the rule submitted by the Bureau of Consumer Financial Protection…</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 2MO</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#3e92da">FIN</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+        <div class="brow" style="border-bottom:none">
+          <div class="brow-id">HR<b>8459</b></div>
+          <div>
+            <div class="brow-t">WISE Act</div>
+            <div class="brow-m"><span class="pill">INTRODUCED · 3MO</span><span style="color:var(--text-dim)">→</span><span class="pill pill-cm">COMMITTEE</span></div>
+            <div class="brow-sp">WILLIAMS <span class="pt">[D-GA]</span><span class="tt" style="color:#da3ecd">ENV</span><span class="tt" style="color:#5ce0c5">ENRG</span><span class="tt" style="color:#5c5ce0">TRNS</span></div>
+          </div>
+          <div class="brow-star">☆</div>
+        </div>
+      </div>
+
+      <!-- VOTES -->
+      <div class="rec-panel" data-panel="votes" hidden>
+        <div class="vhdr"><span>Pos.</span><span>Date</span><span>Bill</span><span>Question · Result</span><span class="vroll">Roll</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-23-26</span><span class="vbill">HR 8884</span><span class="vq">On Passage · Passed</span><span class="vroll">#283</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-yea)">[YEA]</span><span>07-23-26</span><span class="vbill">HCONRES 89</span><span class="vq">On Agreeing to the Resolution · Passed</span><span class="vroll">#282</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HCONRES 113</span><span class="vq">On Agreeing to the Resolution · Passed</span><span class="vroll">#281</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 7008</span><span class="vq">On Passage · Passed</span><span class="vroll">#280</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-yea)">[YEA]</span><span>07-22-26</span><span class="vbill">HR 7008</span><span class="vq">On Motion to Recommit · Failed</span><span class="vroll">#279</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Passage · Passed</span><span class="vroll">#278</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-yea)">[YEA]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Motion to Recommit · Failed</span><span class="vroll">#277</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Failed</span><span class="vroll">#276</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Agreed to</span><span class="vroll">#275</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Failed</span><span class="vroll">#274</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-22-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Agreed to</span><span class="vroll">#273</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 9770</span><span class="vq">On Passage · Passed</span><span class="vroll">#272</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-yea)">[YEA]</span><span>07-21-26</span><span class="vbill">HR 6955</span><span class="vq">On Passage · Passed</span><span class="vroll">#271</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-yea)">[YEA]</span><span>07-21-26</span><span class="vbill">HR 6955</span><span class="vq">On Motion to Recommit · Failed</span><span class="vroll">#270</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Agreed to</span><span class="vroll">#268</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Agreed to</span><span class="vroll">#267</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Failed</span><span class="vroll">#266</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Agreed to</span><span class="vroll">#265</span></div>
+        <div class="vrow"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Failed</span><span class="vroll">#264</span></div>
+        <div class="vrow" style="border-bottom:none"><span class="vpos" style="color:var(--vote-nay)">[NAY]</span><span>07-21-26</span><span class="vbill">HR 8800</span><span class="vq">On Agreeing to the Amendment · Failed</span><span class="vroll">#263</span></div>
+      </div>
+
+      <!-- COMMITTEES -->
+      <div class="rec-panel" data-panel="cmte" hidden>
+        <div class="crow">
+          <a href="#">Financial Services Committee</a><span class="crow-tag">HOUSE · STANDING</span>
+        </div>
+        <div class="crow">
+          <span class="crow-sub">↳</span><a href="#">Housing and Insurance Subcommittee</a><span class="crow-tag">HOUSE · SUBCOMMITTEE · FINANCIAL SERVICES COMMITTEE</span>
+        </div>
+        <div class="crow" style="border-bottom:none">
+          <span class="crow-sub">↳</span><a href="#">Oversight and Investigations Subcommittee</a><span class="crow-tag">HOUSE · SUBCOMMITTEE · FINANCIAL SERVICES COMMITTEE</span>
+        </div>
+      </div>
+
+      <!-- AMENDMENTS (empty for this member) -->
+      <div class="rec-panel" data-panel="amdt" hidden>
+        <div class="rec-empty">No amendments sponsored</div>
+      </div>
+
+      <!-- PRESS (empty for this member) -->
+      <div class="rec-panel" data-panel="press" hidden>
+        <div class="rec-empty">No recent news linked to this member</div>
+      </div>
+
+      <!-- TRADES (empty for this member) -->
+      <div class="rec-panel" data-panel="trades" hidden>
+        <div class="rec-empty">No disclosed trades on file</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="foot">
+    <a class="foot-btn" href="#">← Back to members</a>
+    <a class="foot-btn" href="#">Open in feed →</a>
+    <span class="attrib">Member data via Congress.gov · Ideology via Voteview · Fundraising via FEC</span>
+  </div>
+
+  <div class="fold"><span>↑ EVERYTHING ABOVE FITS A 1080P VIEWPORT · TODAY'S PAGE IS ~3,400PX</span></div>
+
+  <div class="note">
+    <b>WHAT CHANGED vs v1.</b>
+    <b>1 — the stat block is gone.</b> Sponsored / enacted / avg cosponsors move inline right of the name, joined by votes-cast and missed-% pulled out of <code>MemberVoteStats</code>. One band instead of two.
+    <b>2 — the metabox unrolls sideways.</b> A tall right column became a 3-up strip across the hero's full width (seat · election · fundraising), so the hero uses the 1,280px it has instead of stacking. AFFILIATIONS is deleted outright — the header meta line already carries the badges.
+    <b>3 — five stacked sections became one tabbed box.</b> Bills · Votes · Committees · Amendments · Press · Trades, counts on the tabs, zero-count tabs at 50% opacity (the <code>.search-tabs [data-empty]</code> idiom). The out-link on the right swaps with the tab. Body is a fixed 430px with internal scroll, so a tab swap never resizes the box (the HO 244 <code>.distributions-panel-body</code> rule).
+    <br><b>Precedent, not invention:</b> <code>ActivityTabs</code> (HO 132/249) is a <code>"use client"</code> island that takes pre-rendered <code>ReactNode</code>s as props — the server page keeps every fetch, the island holds only <code>useState</code>. Same shape here. Chrome is <code>.search-tabs</code> + <code>.breaking-stalls-tabs</code>, already shipped.
+    <br><b>The tradeoff to say yes or no to:</b> a tab means Ctrl-F only searches the open panel, and you can't see bills and votes at once. If that bothers you, the middle option is Bills stays always-visible below the hero and only the four short lists get tabbed — costs about 400px.
+  </div>
+
+</main>
+
+<script>
+  const tabs = [...document.querySelectorAll(".rec-tab")];
+  const panels = [...document.querySelectorAll(".rec-panel")];
+  const out = document.getElementById("recout");
+  const OUT = {
+    bills: ["View all 53 bills →", true],
+    votes: ["Full voting record →", true],
+    cmte:  ["", false],
+    amdt:  ["", false],
+    press: ["All coverage →", true],
+    trades:["", false],
+  };
+  tabs.forEach((t) => t.addEventListener("click", () => {
+    const key = t.dataset.tab;
+    tabs.forEach((x) => x.removeAttribute("aria-current"));
+    t.setAttribute("aria-current", "page");
+    panels.forEach((p) => { p.hidden = p.dataset.panel !== key; });
+    const [label, show] = OUT[key];
+    out.textContent = label;
+    out.style.visibility = show ? "visible" : "hidden";
+    document.querySelector(".rec-body").scrollTop = 0;
+  }));
+</script>
+</body>
+</html>
