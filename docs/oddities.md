@@ -3856,3 +3856,37 @@ something; either is a flag, not a rounding."* Ten against six was a flag. Had
 the instrument been built after the files landed, both extras would have been
 absorbed into the allowlist as though they had always been known, and the
 boundary that hid them would never have been visible.
+
+## The mono token named four families and loaded none, so three hosts rendered three faces (HO 697, 2026-09-06)
+
+`app/globals.css` set `--font-mono: ui-monospace, "JetBrains Mono", "SF Mono",
+SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`, and
+`app/layout.tsx` imported **`IBM_Plex_Sans` and nothing else**. A font stack is a
+list of *preferences among faces the machine already has*; it loads nothing. So
+CBT — an app whose entire chrome is monospace — rendered in **Consolas** on the
+Windows box, **SF Mono** on the MacBook, and **DejaVu or Liberation Mono** on the
+Ubuntu CI runner, for its whole life.
+
+**This is the mechanism behind half of the HO 694 entry above** (*a layout defect
+can be host-dependent, so one machine's green is not a reading*). That entry
+established the symptom — `/lobbying` over by 7px in CI twenty minutes after
+Windows read the same SHA clean — and named font metrics as the cause. This is
+*why* the metrics differed: not a subtle hinting difference between renderings of
+one face, but **three different typefaces**. HO 633 had already closed the sans
+half by self-hosting Plex Sans; nobody looked at the mono token, because it
+*named* a face and reading it does not reveal that the name is inert.
+
+**The tell, and it generalises past fonts.** A declaration that names a resource
+is not a declaration that *fetches* one. `--font-mono` looked maintained: it had
+a curated ordering, a vendor-neutral first entry, a generic last resort. Every
+property of a well-written stack was present except the one that mattered, and
+nothing in the file could show its absence — **the evidence was in a different
+file** (`layout.tsx`), which had no reason to mention mono at all. The backlog
+entry that eventually caught it described it as *"JetBrains → IBM Plex Mono"*, a
+swap between two served faces, and that framing survived nineteen days because it
+is what the token looks like.
+
+**What to check, once, when a token names an external resource:** find the thing
+that loads it. If nothing does, the token is documentation of an intention. The
+grep is cheap and the failure is invisible — a page in the wrong face looks like
+a page.
