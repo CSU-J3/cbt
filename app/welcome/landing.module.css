@@ -30,12 +30,13 @@
 .prompt{color:var(--accent-amber);font-weight:400}
 .spacer{flex:1}
 /* Bracket form: no border box — the brackets ARE the frame. */
-.beta{font-size:var(--fs-13);font-weight:600;letter-spacing:.2em;text-transform:uppercase;
-      color:var(--accent-amber-bright);white-space:nowrap;padding:5px 0;line-height:1;
-      animation:betafade 2.4s ease-in-out infinite}
-.beta::before{content:"[ "}
-.beta::after{content:" ]"}
-@keyframes betafade{0%,100%{opacity:1}50%{opacity:.32}}
+/* HO 697 — the tag's LOOK moved to globals.css as `.beta-tag` (every masthead
+   uses it now); its SIZE stays here, because it belongs to this rail and not to
+   the shared class. Dropping `font-size` outright took the rail's tag from 13px
+   to the rail's inherited 12px and lost its padding — a ruled surface (HO 670)
+   restyled as a side effect of sharing a class, which is the thing not to do.
+   So `.beta-tag` remains size-agnostic and the rail re-states its own rung. */
+.rail :global(.beta-tag){font-size:var(--fs-13);padding:5px 0}
 .clock{font-size:var(--fs-11);letter-spacing:.08em;color:var(--text-dim);white-space:nowrap}
 .clockTime{color:var(--text-muted)}
 .clockZone{color:var(--accent-amber)}
@@ -267,7 +268,7 @@
   .cyc1{opacity:1}
 }
 @media (prefers-reduced-motion:reduce){
-  .beta,.cursor,.tapetrack,.ptrack,.cyc1,.cyc2,.cyc3,.flavorLine{animation:none}
+  .cursor,.tapetrack,.ptrack,.cyc1,.cyc2,.cyc3,.flavorLine{animation:none}
   .cyc2,.cyc3{display:none}
   .cyc1{opacity:1}
   .cursor{opacity:.55}

@@ -20,6 +20,12 @@ import { useEffect, useState } from "react";
 // MT matches what the page's server-rendered AS OF / LAST SYNC stamps use, so
 // every time on the page is in one zone.
 //
+// HO 697 — THREE RENDER SITES now: the /welcome rail, and both mastheads
+// (`DashboardV2Header`, `HeaderBar`), where it follows LAST SYNC. Mounted, not
+// re-implemented. The MT pinning above is a ruling, not an oversight — do not
+// "harmonise" it with the CyclingTimestamp beside it on those rows: that stamp
+// is a FIXED moment whose projection rotates, this one is a running clock.
+//
 // HYDRATION: the digits render NOTHING on the server and mount on the client
 // (`now === null` until the first effect). A ticking clock cannot be
 // server-rendered without a guaranteed SSR/hydrate mismatch — the HO 489/490
@@ -99,15 +105,29 @@ export function WelcomeClock({
     return () => window.clearInterval(id);
   }, []);
 
-  if (now === null) {
-    // Reserve the rail slot so the top rule doesn't jump on mount.
-    return <span className={className} suppressHydrationWarning />;
-  }
-  const { date, time } = stamp(now);
+  // HO 697 — ONE SHAPE, BOTH RENDERS, and it is an INSTRUMENT CHANGE rather than
+  // a fix for a mismatch. Say what it does and not more: the pre-mount branch was
+  // a bare `<span className={className} />`, so the effect added two child spans
+  // after mount, and the smoke crawl's #418 dump — taken AFTER `nav()` settles
+  // (`e2e/smoke.spec.ts:381-384`), not at fire time — therefore listed
+  // `span.masthead-clock-time` and `span.masthead-clock-zone` in `addedInDom` on
+  // EVERY fire whatever the cause. With the three spans always present the clock
+  // drops out of that diff and each dump reads at the announcer floor, which is
+  // the reading the backlog:50 hunt needs.
+  //
+  // IT DOES NOT FIX A HYDRATION MISMATCH AND MUST NOT BE DESCRIBED AS ONE. React
+  // detects #418 during the hydration render, against the client's FIRST render —
+  // which had `now === null` and emitted the same empty span the server did. The
+  // children arrive from useEffect -> setNow, after commit; an effect-driven
+  // update is an ordinary update. suppressHydrationWarning is not involved either
+  // way.
+  const s = now === null ? null : stamp(now);
   return (
     <span className={className} suppressHydrationWarning>
-      {date} ·<span className={timeClassName}> {time}</span>{" "}
-      <span className={zoneClassName}>{ZONE_LABEL}</span>
+      {s ? `${s.date} ·` : ""}
+      <span className={timeClassName}>{s ? ` ${s.time}` : ""}</span>
+      {s ? " " : ""}
+      <span className={zoneClassName}>{s ? ZONE_LABEL : ""}</span>
     </span>
   );
 }
