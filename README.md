@@ -114,6 +114,9 @@ Vercel Hobby caps cron at once per day, so the topology is split:
   block per handoff.
 - `docs/backlog.md` — the open-loops ledger: open, queued, banked, watched, done.
 - `docs/oddities.md` — field notes on what broke and why.
+- `docs/design/` — mocks and ruling records, tracked by default; its own
+  `README.md` states the rule, the one ignored `scratch/`, and what
+  `npm run check:design-citations` enforces.
 - `docs/method.md` — how this project is worked: roles, session start, handoff
   and relay discipline, scope, environment.
 - `.claude/skills/cbt/` — `SKILL.md` with project context for Claude Code.
