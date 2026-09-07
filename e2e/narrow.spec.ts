@@ -60,6 +60,31 @@ const NARROW = { width: 430, height: 932 };
 const TOLERANCE = 1;
 
 /** Every element whose right edge passes clientWidth, deepest offender first. */
+// HO 698 — the diagnostic that reads the /welcome @430 red on Ubuntu.
+// Three things the HO 697 version could not say, each of which cost a wrong read:
+//   CLIPPED — an element whose rect is past the edge but which sits inside an
+//     overflow-x-clipping ancestor cannot move the document scroller. The
+//     /welcome marquee spans (right ~4030 at a 430 viewport) filled the whole
+//     list and hid whatever the real 15px was.
+//   FONT    — the family and size actually resolved on that element, because the
+//     suspicion is that the hosts differ only in the window BEFORE the
+//     self-hosted face applies.
+//   ORDER   — unclipped first, so the list opens on what can actually push the
+//     document.
+type FontState = {
+  status: string;
+  mono: boolean;
+  sans: boolean;
+  bodyFamily: string;
+};
+
+const FONT_STATE = `(() => ({
+  status: document.fonts.status,
+  mono: document.fonts.check('12px "IBM Plex Mono"'),
+  sans: document.fonts.check('12px "IBM Plex Sans"'),
+  bodyFamily: getComputedStyle(document.body).fontFamily.split(',')[0].replace(/["']/g, ''),
+}))()`;
+
 const OVER_EDGE = `(() => {
   const cw = document.documentElement.clientWidth;
   const rows = [];
@@ -72,8 +97,18 @@ const OVER_EDGE = `(() => {
       if (ch.getBoundingClientRect().right > cw + 1) { childOver = true; break; }
     }
     if (childOver) continue;
+    let clip = '';
+    for (let a = el.parentElement; a; a = a.parentElement) {
+      const ax = getComputedStyle(a).overflowX;
+      if (ax && ax !== 'visible') {
+        const acls = typeof a.className === 'string' && a.className
+          ? '.' + a.className.trim().split(/\s+/)[0] : '';
+        clip = a.tagName.toLowerCase() + acls + '(' + ax + ')';
+        break;
+      }
+    }
     const cls = typeof el.className === 'string' && el.className
-      ? '.' + el.className.trim().split(/\\s+/).slice(0, 3).join('.')
+      ? '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.')
       : '';
     const cs = getComputedStyle(el);
     rows.push({
@@ -82,17 +117,21 @@ const OVER_EDGE = `(() => {
       w: Math.round(r.width),
       ws: cs.whiteSpace,
       minw: cs.minWidth,
+      font: (cs.fontFamily || '').split(',')[0].replace(/["']/g, '').trim() + '/' + cs.fontSize,
+      clip: clip,
     });
   }
-  rows.sort((a, b) => b.right - a.right);
+  rows.sort((a, b) => (a.clip === b.clip ? b.right - a.right : (a.clip ? 1 : -1)));
   const seen = new Set();
   const out = [];
   for (const o of rows) {
     const key = o.k + '|' + o.right;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(o.k + ' right=' + o.right + ' w=' + o.w + ' ws=' + o.ws + ' minw=' + o.minw);
-    if (out.length >= 8) break;
+    out.push(o.k + ' right=' + o.right + ' w=' + o.w + ' ws=' + o.ws
+      + ' minw=' + o.minw + ' font=' + o.font
+      + (o.clip ? ' CLIPPED-BY=' + o.clip : ' UNCLIPPED'));
+    if (out.length >= 10) break;
   }
   return out;
 })()`;
@@ -126,12 +165,30 @@ test.describe("narrow doc-scroll @430", () => {
       }));
       const over = doc.s - doc.c;
 
+      // HO 698 — read the font state AT the width, not after, and take a second
+      // width once the face has definitely applied. A 445 that becomes 430 at
+      // `fonts.ready` is a load-window reading, not a layout defect.
+      const fonts = (await page.evaluate(FONT_STATE)) as FontState;
       const culprits =
         over > TOLERANCE ? ((await page.evaluate(OVER_EDGE)) as string[]) : [];
+      let after = doc.s;
+      let fontsAfter = fonts;
+      if (over > TOLERANCE) {
+        await page.evaluate(() => document.fonts.ready);
+        await page.waitForTimeout(500);
+        after = await page.evaluate(() => document.documentElement.scrollWidth);
+        fontsAfter = (await page.evaluate(FONT_STATE)) as FontState;
+      }
 
       // eslint-disable-next-line no-console
       console.log(
         `[narrow ${route.slug}] landed=${doc.url} scroll=${doc.s}/${doc.c} over=${over}` +
+          ` fonts=${fonts.status}/mono:${fonts.mono}/sans:${fonts.sans}/body:${fonts.bodyFamily}` +
+          (over > TOLERANCE
+            ? `
+    after fonts.ready: scroll=${after}/${doc.c} over=${after - doc.c}` +
+              ` fonts=${fontsAfter.status}/mono:${fontsAfter.mono}`
+            : "") +
           (culprits.length
             ? `\n    over-edge: ${culprits.join("\n               ")}`
             : ""),
