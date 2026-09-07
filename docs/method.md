@@ -421,7 +421,15 @@ either set.**
   a by-hand prod run read 430/430). Prefer rules whose outcome does not depend on
   metrics (`flex-basis: 100%` over a tuned cap; `break-word` over a fixed width),
   and treat the CI reading as the reading for any width gate — a green local run
-  is a prediction of it, not a substitute.
+  is a prediction of it, not a substitute. **And say which reading is available
+  when, because before an FF there is none** (HO 698): the one deploy-blocking
+  width gate lives in `e2e-prod.yml` behind `deployment_status`, which fires on
+  Production only, so a review ref yields a Preview, the run is skipped, and the
+  first CI reading of a change arrives strictly after `main` has moved. An FF go
+  that asks for the CI reading is asking for something that cannot exist yet;
+  the honest ask is the local prediction, named as one, with the CI reading owed
+  after the push. Two remedies are filed rather than assumed (`docs/backlog.md`
+  OPEN LOOPS).
 - **Every command references a secret by env name (`$CRON_SECRET`), never by
   value** (ruled HO 678). A literal pasted into a command travels through the API
   inside the tool call and lands in the local transcripts — so the value is
