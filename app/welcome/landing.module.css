@@ -77,10 +77,43 @@
    describes, and the flourish hangs in column 1 pointing across at ENTER TERMINAL. */
 .ctagrid{display:grid;grid-template-columns:auto auto auto;column-gap:14px;row-gap:0;
          align-items:center;justify-content:start}
+/* THE STRIP IS TILED, WHICH IS A DIFFERENT PROPERTY FROM "IT LOOKS RIGHT AT 390".
+
+   It was drawn as one row -- dividers as `border-right` on each cell, the last
+   one zeroed -- and then given permission to wrap by a `flex-wrap` sitting in
+   the 900 block, without being told how to look once it did. At 390 the third
+   cell drops to its own row and the arrangement comes apart in two ways at
+   once: the second cell, now last on its row, keeps a divider that ends at
+   nothing, and neither row fills the container, whose `width:max-content` is
+   clamped to `max-width:100%`. The outer border then encloses an area no cell
+   covers, which reads as an empty bordered cell. Measured before the fix
+   (`scripts/diagnostic/stats-tiling-699.ts`): at 390 the two rows covered
+   266.9 and 106.6 of a 352.0 inner width -- short by 85.1px and 245.4px -- and
+   at 360, 266.9 and 106.6 of 322.0, short by 55.1 and 215.4.
+
+   THE FIX IS NOT A BREAKPOINT, AND THAT IS THE RULE RATHER THAN THE TASTE.
+   Picking the width where the wrap happens would re-create exactly the
+   dependence HO 698 was spent removing: where this strip wraps is a function of
+   the face's advance widths on the host doing the measuring, so a rule tuned to
+   the wrap we can see here is a rule that holds only for the fonts we happen to
+   ship. The strip is made correct under EVERY wrap outcome instead. Dividers
+   become a 1px `gap` showing the container's own background through, so they
+   are right for any row structure -- three cells, 2+1, 1+1+1 -- and no cell has
+   to know whether it is last. `flex:1 1 auto` lets a partial last row stretch
+   to fill rather than leaving an area, and `min-width:0` means a cell too wide
+   for the line shrinks instead of hanging past the border. Nothing depends on
+   how many fit.
+
+   `flex-wrap` moves here from the 900 block so there is one home for it; the
+   strip is `max-content`, so it never wraps where it fits and the media query
+   was not what permitted the wrap, only where it was written down. The outer
+   border stays -- it frames the tiling, it is not part of it. Verified with a
+   proportional serif at +2px tracking forced onto the subtree, which moves the
+   wrap point somewhere nobody chose and leaves both equalities holding. */
 .stats{grid-row:1;grid-column:2/4;justify-self:start;margin-bottom:22px;
-       display:flex;border:1px solid var(--border-strong);width:max-content;max-width:100%}
-.stat{padding:12px 20px;border-right:1px solid var(--border-strong)}
-.stat:last-child{border-right:0}
+       display:flex;flex-wrap:wrap;gap:1px;background:var(--border-strong);
+       border:1px solid var(--border-strong);width:max-content;max-width:100%}
+.stat{padding:12px 20px;background:var(--bg-base);flex:1 1 auto;min-width:0}
 .v{font-size:24px;color:var(--text-primary);letter-spacing:-.01em;line-height:1}
 .l{margin-top:4px;font-size:var(--fs-9);letter-spacing:.14em;color:var(--text-dim);
    text-transform:uppercase;white-space:nowrap}
@@ -258,7 +291,6 @@
   .rail,.breaking,.banner,.bottom{padding-left:18px;padding-right:18px}
   .h1{font-size:40px;max-width:none}
   .lead{font-size:15px}
-  .stats{flex-wrap:wrap}
   .taperow{padding-left:14px;padding-right:14px}
   .asof{display:none}
   .pcol:not(:first-child){display:none}
