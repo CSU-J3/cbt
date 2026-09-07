@@ -267,6 +267,44 @@
   .cyc2,.cyc3{display:none}
   .cyc1{opacity:1}
 }
+/* 560: THE CTA STACKS, AND THE REASON IS A RULE RATHER THAN A TASTE.
+
+   The two-column CTA came from the 1460 collapse above and was never collapsed
+   again, so from 1459px down to 430px two `white-space: nowrap` ENGLISH
+   SENTENCES sized the two `auto` tracks. A nowrap sentence in an `auto` track
+   is a pure function of the face's advance widths with no slack anywhere, which
+   is precisely what docs/method.md forbids a narrow layout to depend on: at 430
+   the row measured 421.4 of 430 on the Windows box and 445 on the Ubuntu CI
+   runner from the SAME served bytes, and the 8.6px that made one host green was
+   margin nobody had chosen. The micro lines drove it, not the buttons — the
+   tracks measured 217.8 and 171.6, which are exactly `micro1` at 33 characters
+   and `micro2` at 26, both at 6.6px per character.
+
+   So the fix is not a narrower string or a smaller size, either of which would
+   buy new margin and leave the dependence in place. One column, and the three
+   things that could still consume it are removed: the tracks are `minmax(0,1fr)`
+   so no content can size them, `min-width:0` so an item cannot refuse to shrink
+   to its track, and `white-space:normal` so text that outgrows the track WRAPS
+   instead of painting past it. Verified by measuring the page with a face far
+   fatter than any host resolves — proportional serif at +2px letter-spacing
+   forced onto the whole subtree — which moves the row's right edge by ZERO
+   (412 at 430, 372 at 390, same as the fix without it). That control is the
+   point: a reading that only holds for the fonts we happen to ship is the bug
+   this is fixing, not the fix.
+
+   Also closes an overflow the gate could not see. At 390 the old layout scrolls
+   to 421 on the box as well; the narrow gate reads 430 only, so a phone
+   narrower than the one width anybody measured was broken on every host. */
+@media (max-width:560px){
+  .ctagrid{grid-template-columns:minmax(0,1fr)}
+  .flourish{grid-column:1}
+  .stats{grid-column:1}
+  .btnPrimary{grid-row:3;grid-column:1}
+  .micro1{grid-row:4;grid-column:1}
+  .btnSecondary{grid-row:5;grid-column:1;margin-top:14px}
+  .micro2{grid-row:6;grid-column:1}
+  .btn,.micro1,.micro2{white-space:normal;min-width:0;justify-self:start}
+}
 @media (prefers-reduced-motion:reduce){
   .cursor,.tapetrack,.ptrack,.cyc1,.cyc2,.cyc3,.flavorLine{animation:none}
   .cyc2,.cyc3{display:none}
