@@ -1479,3 +1479,69 @@ The face was **already applied at the failing width**, and waiting changed nothi
 **THE MECHANISM.** Hydration begins while the RSC flight tail is still being parsed → `InnerLayoutRouter`'s `use(rsc)` suspends on a pending thenable → React **replays** the suspended unit → **at the root there is no Suspense boundary to reset the hydration cursor**, so the replayed host fiber claims against a cursor the first attempt already advanced, and the structural `#418` throws at `:7622` on the `<header>` ↔ `header-titlebar` seam. Hit-2 dominance, `/welcome` never firing, and the hourly rate all fall out of the same arithmetic. **The fix is HO 704**, candidate (a) — an explicit `<Suspense>` around `{children}` in the root layout — **gated by the pair this HO produced**: control → t2 → t2t1′ on the fixed build in one continuous window against an unfixed control, `t2` reading 0 where it read 10 of 36, then the daily prod crawl's rate over the following week. Read the React 19.2 and Next 15.5 changelogs before writing candidate (b); a fix already shipped is a version bump, not an upstream report.
 
 **Gates:** `typecheck` 0 · `build` 0 · `check:odds-sites` OK · `check:design-citations` OK · the crawl parsing verified by `--list` (42 tests) because **`typecheck` cannot see `e2e/**`** — a gap this HO tripped twice and filed rather than rode. Evidence: `docs/handoffs/702-artifacts/fires/` (three dumps with SSR/DOM pairs) and `docs/handoffs/702-artifacts/windows/` (both windows and the three natural crawls), repo-ignored. **Docs (HO 702):** this block · **SKILL, alone behind the self-mod guard** · **`backlog:50` annotated, NOT struck** — a named node, a named site and a named mechanism, confirmed by intervention; the close is cause plus green and the fix is HO 704 · **one new OPEN LOOP**, the `e2e/**` typecheck gap · oddities — one entry, the fourth instrument this HO produced that could not fail · **four commits, kinds pure** — test, chore, SKILL, docs · teardown verified: the patched `node_modules` counted at removal and gone with its worktree, three surviving React copies reading marker 0, ports freed by PID, the foreign `:3001` untouched throughout. **Notes now run through HO 702.**
+
+**Also (HO 704), the `:51` remedy was CONFIRMED BY INTERVENTION and DECLINED ON COST — and the decline is the durable half, because localhost reports the fix as free.** Docs kind after a measured build; three commits — the two instruments (`chore`), SKILL alone behind the self-mod guard, then this. **Nothing render-touching lands.** HO 702 named the cause and left the green to this HO. Candidate (a) — `<Suspense fallback={null}>` around `{children}` at `app/layout.tsx:128` — does exactly what 702 predicted, and costs the whole page's time-to-content.
+
+**Owner verdict, verbatim: "B and then C"** — Corey, CBT maintenance chat, 2026-09-08, against the HALT paste. **Interpretation, stated beside it so a later reader can check the reading rather than inherit it:** **B** = candidate (a) declined, nothing from `0c25018` reaches `main`, and candidate **(b)** — the upstream repro and report — opens as its own HO; **C** = a reshaped boundary (the masthead into the layout with the boundary around the body, or a designed skeleton as the root boundary's fallback), queued as a design item. **"then" is sequencing:** (b) first; (C) is not this HO's.
+
+**STEP 0 row 1 — the served-HTML marker reading, and it fired the flag the row was written for.** The **unfixed** build already emits **two** `<!--$--><!--/$-->` pairs on `/`, `/president` and `/members`, and **both are EMPTY** — one inside a `<div hidden>` immediately after `<body>`, one after the app content: Next's metadata and route-announcer placeholders, wrapping nothing. That is the handoff's central premise measured off the served bytes rather than argued from a grep: **nothing sat between the root and the page segment.** The **fixed** build reads `pairs=3 (empty=2 content=1) · pending=1 · template#B=1 · $RC=1` on all three routes — **DEFERRED, not inline-complete.** The row called that "a flag, not a HALT: rows 2 and 4 read what that costs," and they did.
+
+**STEP 2 — one continuous interleaved window, 17:15:48Z → 17:33:13Z 2026-09-08, 36 routes per leg, local production builds, `TIMEOUTS=0` throughout.** Build identity was verified from the **served bytes** before each half (the non-empty-boundary discriminator with `class="antialiased"` as a control token), never from the file layout:
+
+| leg | mode | build | fires | TIMEOUTS | HYD-BEFORE-TAIL |
+|---|---|---|---|---|---|
+| 1 | `control` | unfixed | **0** | 0 | — |
+| 2 | `t2` | unfixed | **6** | 0 | 35 / 36 |
+| 3 | `control` | fixed | **0** | 0 | 35 / 36 |
+| 4 | `t2` | **fixed** | **0** | 0 | **36 / 36** |
+| 5 | `t2t1` | fixed | **0** | 0 | 0 / 36 |
+
+```
+MODE=control  hits=36  FIRES=0  TIMEOUTS=0      (leg 1, unfixed)
+MODE=t2       hits=36  FIRES=6  TIMEOUTS=0      (leg 2, unfixed)
+MODE=control  hits=36  FIRES=0  TIMEOUTS=0      (leg 3, fixed)
+MODE=t2       hits=36  FIRES=0  TIMEOUTS=0      (leg 4, fixed)
+MODE=t2t1     hits=36  FIRES=0  TIMEOUTS=0      (leg 5, fixed)
+```
+
+**All six fires are leg 2; the three fixed legs produced none.** Per-hit lines, verbatim:
+
+```
+home-stage-committee     fired=1 fire-t=+22ms hyd-start=-530ms last-flight=0ms/135 first-post=+22ms dcl=660ms   HYD-BEFORE-TAIL
+home-stage-floor         fired=1 fire-t=+23ms hyd-start=-511ms last-flight=0ms/136 first-post=+24ms dcl=978ms   HYD-BEFORE-TAIL
+home-stage-other_chamber fired=1 fire-t=+20ms hyd-start=-445ms last-flight=0ms/126 first-post=+21ms dcl=1300ms  HYD-BEFORE-TAIL
+home-stage-enacted       fired=1 fire-t=+27ms hyd-start=-443ms last-flight=0ms/127 first-post=+28ms dcl=1435ms  HYD-BEFORE-TAIL
+bills                    fired=1 fire-t=+24ms hyd-start=-118ms last-flight=0ms/36  first-post=+24ms dcl=188ms   HYD-BEFORE-TAIL
+dashboard-v2             fired=1 fire-t=+22ms hyd-start=-506ms last-flight=0ms/142 first-post=+22ms dcl=741ms   HYD-BEFORE-TAIL
+```
+
+Every one carries `hyd-start` before `last-flight`. **`t2(fixed)` reads 0 with `HYD-BEFORE-TAIL` at 36 of 36** — the race fired on *every* hit and the error did not fire at all, which is the pre-stated pass shape and specifically **not** the measured-the-wrong-thing shape (which would read `HYD-BEFORE-TAIL` near 0). The dry gate at STEP 0 row 3 read `control` 0 · `t2` **9** · `t2t1` 0 on the same unfixed tree, so the lever's rate is variable — 6, 9, and HO 702's 10 — and always far off the floor.
+
+**The cost, measured against the ENCODED document, five loads per cell, medians.** JS cached by one unthrottled warm load so only the document is starved — the seam script's own `t2` profile:
+
+| profile | route | build | FP | **FCP** | DCL | blank (FCP−FP) | wire bytes | transfer floor |
+|---|---|---|---|---|---|---|---|---|
+| 1500 kbit/s · 20 ms | `/` | unfixed | 272 | **272** | 1113 | **0** | 103,957 | 541 |
+| | `/` | fixed | 64 | **656** | 597 | **592** | 105,826 | 551 |
+| | `/members` | unfixed | 300 | **300** | 2666 | **0** | 458,815 | 2390 |
+| | `/members` | fixed | 320 | **2880** | 2685 | **2560** | 459,559 | 2394 |
+| 10 Mbit/s · 100 ms | `/` | unfixed | 184 | **184** | 206 | **0** | 103,958 | 81 |
+| | `/` | fixed | 148 | **500** | 209 | **352** | 105,829 | 83 |
+| | `/members` | unfixed | 316 | **316** | 653 | **0** | 458,815 | 358 |
+| | `/members` | fixed | 280 | **784** | 656 | **504** | 459,559 | 359 |
+
+**A server-suspending boundary makes what it encloses atomic.** React flushes the shell at once and streams the segment into `<div hidden id="S:0">`, patched in by a `$RC` call after its closing tag, so the segment paints at **last byte** rather than progressively. Unfixed FP and FCP are **identical on all four cells** with a **0 ms** blank window, and unfixed FCP is nearly flat across document size and throughput (272 / 300 / 184 / 316) because paint tracks arrival; fixed FCP tracks the **completed transfer** (floor 551 → 656, floor 2394 → **2880**). Worst cell: **2.56 s of painted-but-empty `/members`** at 1500 kbit/s where the unfixed build had content at 300 ms. **The cost scales with document size and inversely with bandwidth, so the reader who pays most is the one no local run represents.**
+
+**The architect's row 2 expectation — *within noise; size +~40 bytes* — is falsified on both figures, and the reason is the finding.** Size moved +1.3 KB to +3.8 KB decoded, not 40 bytes. Timing moved a lot, and **localhost measured the FLOOR of the cost rather than the cost**: unthrottled the same pair reads +256 ms on `/` and +388 ms on `/members`, which is parse-and-swap with transfer removed from the equation. The mechanism is transfer-dependent, so the machine the fix is written on is the one machine that cannot see it. **The architect's predicted magnitudes (~2.7 s on `/`, ~13 s on `/members`) ran ~5× high for reading decoded bytes as wire bytes — the identical error the first throttled table made and discarded** (`next start` compresses the document ~4.9× / ~5.2×). Shape right, absolutes inherited from an unlabelled figure this session supplied. Both tables were re-run against `request().sizes().responseBodySize`.
+
+**Ground truth corrected at STEP 0, because the handoff's anchors are as-of its base SHA (`docs/method.md` § Executing a handoff).** Four were stale at `bd6621a`: `resetHydrationState` is `react-dom/cjs/react-dom-client.production.js:2875`, **not `:2879`** (which lands inside `upgradeHydrationErrorsToRecoverable`); `retryDehydratedSuspenseBoundary` is **`:11872`, not `:11749`**; the seam is `HeaderBar.tsx:161` / `:171`, **not `:163` / `:173`**. Versions pinned in the shipped comment — **react-dom 19.2.5 / next 15.5.15** — because a `node_modules` line number without its version is unverifiable. And **`backlog:50` → `:51`** in SKILL's `#418` bullet: HO 702's typecheck-gap entry landed above it and the pointer had silently gone stale.
+
+**(a′) skipped, on the architect's instruction, and the reason generalises:** `app/loading.tsx` is the *same* boundary with the *same* atomic swap, plus a fallback keyed per segment that remounts on every client transition — strictly worse, so no window was spent on it.
+
+**The masthead-boundary variant is dead on paper, and the discriminator that could revive it is named rather than assumed.** A boundary resets the hydration cursor only for what it **encloses**; the suspending unit is `InnerLayoutRouter`'s `use(rsc)` at `layout-router.js:276`, which sits **above** the page, and the masthead seam is merely **where** a stale cursor is first noticed, because `<header>` is the segment's first host node. Wrapping the masthead would therefore enclose the symptom and not the suspension. **The one reading that could overturn that is the suspended thenable's OWNER in the HO 702 dumps**, and it is filed as a STEP 0 row of (b): a window is spent on the variant only if that owner sits inside the page.
+
+**Gates:** `typecheck` 0 · `build` 0 · `check:odds-sites` 0 · `check:design-citations` **OK**, all re-run immediately before the paste. **Smoke, narrow, `fit-finish` and the capture set are NOT owed and were not run** — STEP 3 was decided by the mid-flight ruling rather than measured, and nothing render-touching lands. What *was* taken before the ruling arrived stays in the record as readings that now gate nothing: geometry identical on `/`, `/bills`, `/members`, `/welcome` at **1440 and 430** (`doc`, `bodyH`, and the `header`/`main` rects all unchanged; only React's boundary bookkeeping nodes move the element counts), and six client-transition frames with `main` present and non-empty on every one — worst `bodyChildren` **37** against the unfixed build's 20, i.e. *more* nodes rather than fewer, so the fallback is never seen on a client transition. It is seen on **initial load**, which that gate's wording did not reach, and which is the whole decline.
+
+**Docs (HO 704):** this block · **SKILL, alone behind the self-mod guard** — the `#418` bullet gains the outcome and the standing rule, one touch, `/welcome` and masthead entries untouched · **`docs/backlog.md`: `:51` ANNOTATED, NEVER STRUCK** (the close is still cause plus green; the green now belongs to (b) or (C); the 42-fire history stays as written), **`:141` gains one line** (it was `:139` at `bd6621a`; (b) and (C) now sit above it) — the class is live on `main`, so the held clock's amplifier readings stand as taken and re-measure only when a remedy lands — plus **one new OPEN LOOP** ((b), upstream, owner Code) and **one new QUEUED** ((C), reshaped boundary, owner Corey/design, behind (b)) · **oddities — two entries**, the three instrument failures and the boundary that removes an error and pays for it in paint · **three commits, kinds pure** — `chore` (the two instruments), `docs(skill)` alone, then docs. **OPEN LOOPS reconciled at open and close: 250 live / 239 struck at open; 252 / 239 after** — two additions, no strike, which is the point. **Numstat deletions:** backlog **2**, both proven to be the pre-append versions of `:51` and `:139` (each removed line is a prefix of an added one); SKILL **1**, the single long bullet-tail line rewritten in place; oddities **0**; roadmap **0**. No struck text was removed anywhere.
+
+**The declined tree is preserved at tag `ho704-root-suspense` (`0c25018`) and is not an ancestor of anything that ships** — the `ho697-clock` convention, and the paste carries `git merge-base --is-ancestor 0c25018 HEAD` returning **1** on the branch that goes up. **Notes now run through HO 704.** HO 703 rebases behind this FF.
