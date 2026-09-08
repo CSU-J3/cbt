@@ -93,6 +93,271 @@ function writeOverflowRow(
 // set it context-wide so the home renders the terminal, not the landing.
 const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 
+// ── HO 702 Arm A: the mutation log ───────────────────────────────────────────
+//
+// HO 700 measured both obvious narrowings of the HO 687 superset dead and left
+// one fact standing: on the tapeless tagged-tree routes the recovery render
+// produced the SERVER's structure, so the node React refused to match existed
+// only in the first client render and never touched the DOM. No snapshot at any
+// offset can show it. What nobody had looked at is the records BEFORE the fire —
+// a DOM changed *under* hydration.
+//
+// WHY THIS IS FILTERED AND NOT CAPPED, which is the whole design (HO 702 STEP 0
+// row 4, and the architect's own estimate was wrong here). An observer on
+// `document` installed before any page script records the HTML PARSER building
+// the server's bytes: measured 3,675 / 11,072 / 22,823 records on / /changes
+// /members, of which 99.4-99.98% are parser output, and the parsing-phase
+// element counts match the served opening-tag counts almost exactly (/changes
+// 6,498 vs ~6,490; /members 12,659 vs ~12,649). That is the proof of what they
+// are. A cap cannot help: single observer callbacks delivered up to 8,542
+// records, so a cap truncates mid-batch, and DCL (280-758ms) overlaps `fire-t`
+// (190-1215ms), so "records before the fire" would mean "the parser".
+//
+// THE RULE. While `document.readyState === "loading"` the parser only ever
+// APPENDS to the currently-open element and never removes. So a childList
+// record with `nextSibling !== null` OR `removedNodes.length > 0` is not the
+// parser and is KEPT; a pure trailing append is DROPPED AND COUNTED.
+// `characterData` during loading is KEPT and counted as its own kind (the
+// parser extends a text node straddling a chunk boundary — rare, and rare is a
+// number, not a word: measured 0 on all five routes). After DOMContentLoaded
+// NOTHING is filtered; post-DCL volume is 4-94 records.
+//
+// AN INSTRUMENT THAT DISCARDS MUST SAY HOW MUCH. Every reading carries
+// `parser-dropped`; a reading without it is not a reading. The buffer is capped
+// with a separate overflow counter and never silently truncated.
+//
+// MEASURED BEFORE IT WAS BUILT (HO 702). Filtered `pre` on quiet hits of
+// / /changes /members /trends /races: 0, 0, 0, 0, 0 against raw 6,543 / 11,054
+// / 22,801 / 891 / 822. A filter that keeps nothing is indistinguishable from a
+// filter that eats everything, so the planted-move control ran in the tagged
+// worktree: an inline body script that, while `readyState === "loading"`,
+// inserts a text node and an element BEFORE an existing sibling and removes the
+// text node. Filtered `pre` then read exactly those three records, correct
+// kinds and targets, on every route, with all 898 / 827 / 22,806 parser records
+// in `parser-dropped`. The zero is a real zero.
+const MUT_CAP = 2_000;
+const MUT_INIT = `
+(() => {
+  const w = window;
+  const path = (n) => {
+    if (!n) return "(null)";
+    if (n.nodeType === 3) return "#text";
+    if (n.nodeType === 8) return "#comment";
+    const t = (n.tagName || "?").toLowerCase();
+    const i = n.id ? "#" + n.id : "";
+    const c = n.classList && n.classList.length ? "." + n.classList[0] : "";
+    return t + i + c;
+  };
+  const snip = (n) => {
+    try {
+      if (n.nodeType === 1) return String(n.outerHTML || "").slice(0, 80);
+      return String(n.data || "").slice(0, 80);
+    } catch (e) { return "(unreadable)"; }
+  };
+  w.__mut = {
+    recs: [], dropped: 0, cdLoading: 0, post: 0, overflow: 0,
+    fireT: null, boundaryT: null, firstPostT: null, batch: 0, install: performance.now(),
+    landmarks: {}, lastFlightT: null, flightCount: 0, hydStartT: null,
+  };
+  // HO 702 — HYDRATION START, the comparator that decided this HO. The question
+  // is whether the app chunk began executing while the parser was still writing
+  // the flight tail; first-post-t is a COMMIT, not a start, and cannot answer
+  // it. self.webpackChunk_N_E is assigned by the first app chunk to evaluate,
+  // so trapping its setter stamps the start exactly once. Measured 2026-09-08:
+  // 10 of 10 fires had hyd-start BEFORE last-flight, and 47 hits with the
+  // reverse order across two modes produced zero fires.
+  try {
+    let _wp;
+    Object.defineProperty(w, "webpackChunk_N_E", {
+      configurable: true,
+      get() { return _wp; },
+      set(v) { if (w.__mut.hydStartT === null) w.__mut.hydStartT = performance.now(); _wp = v; },
+    });
+  } catch (e) {}
+  // HO 702 T3 — the parser insertion/extension time of the LAST
+  // self.__next_f.push flight-data script. The §1 hypothesis is that
+  // InnerLayoutRouter's use(rsc) (layout-router.js:276) suspends because the
+  // segment's RSC is still a pending thenable while these chunks are in the
+  // parser's tail. So the discriminating quantity is whether the tail was still
+  // arriving when hydration ran: on a fire, last-flight should be AFTER
+  // fire-t; on a quiet hit, BEFORE first-post-t.
+  const flight = (nd, t) => {
+    try {
+      if (nd.nodeType === 1 && nd.tagName === "SCRIPT" && String(nd.textContent || "").indexOf("self.__next_f.push") === 0) {
+        w.__mut.lastFlightT = t; w.__mut.flightCount++;
+      } else if (nd.nodeType === 3 && String(nd.data || "").indexOf("self.__next_f.push") === 0) {
+        w.__mut.lastFlightT = t; w.__mut.flightCount++;
+      }
+    } catch (e) {}
+  };
+  // HO 702 — LANDMARK TIMELINE. The filter drops parser appends by design, so
+  // their timestamps are gone with them; but "was the header subtree still
+  // being parsed when hydration reached it?" is answerable only from those
+  // timestamps. So before dropping, stamp the FIRST insertion time of a short
+  // list of named nodes. Cheap (a tag/class test per added element), and it
+  // makes the drop lossy in count only, never in the one dimension being asked.
+  const LANDMARKS = ["header", ".header-titlebar", ".header-sync-sub", ".header-nav-row", ".masthead-clock", "div.flex"];
+  const landmark = (nd, t) => {
+    if (!nd || nd.nodeType !== 1) return;
+    for (const k of LANDMARKS) {
+      if (k in w.__mut.landmarks) continue;
+      const hit = k[0] === "." ? (nd.classList && nd.classList.contains(k.slice(1)))
+        : k.indexOf(".") > 0 ? (nd.tagName.toLowerCase() === k.split(".")[0] && nd.classList.contains(k.split(".")[1]))
+        : nd.tagName.toLowerCase() === k;
+      if (hit) w.__mut.landmarks[k] = t;
+    }
+  };
+  // HO 700's fire-time stamp, kept: the partition is meaningless without it.
+  addEventListener("error", (e) => {
+    const m = (e && e.message) || "";
+    if (w.__mut.fireT === null && /418/.test(m)) w.__mut.fireT = performance.now();
+  }, true);
+  document.addEventListener("DOMContentLoaded", () => {
+    w.__mut.boundaryT = performance.now();
+  });
+  const push = (r) => {
+    if (w.__mut.recs.length >= ${MUT_CAP}) { w.__mut.overflow++; return; }
+    w.__mut.recs.push(r);
+  };
+  const o = new MutationObserver((recs) => {
+    const t = performance.now();
+    const b = ++w.__mut.batch;
+    for (const r of recs) {
+      const loading = document.readyState === "loading";
+      // HO 702 mid-flight — the first React-attributable mutation after DCL.
+      // Paired with fire-t it gives two distributions that can be put beside
+      // each other: (fire-t - dcl) on fires against (first-post-t - dcl) on
+      // quiet hits of the same route. Timing only; no hypothesis is written
+      // down until the numbers are.
+      if (!loading && w.__mut.firstPostT === null) w.__mut.firstPostT = t;
+      if (r.type === "characterData") {
+        flight(r.target, t);
+        if (loading) w.__mut.cdLoading++; else w.__mut.post++;
+        push({ t, b, loading, kind: "text", target: path(r.target), snip: snip(r.target) });
+        continue;
+      }
+      const parserAppend = loading && r.nextSibling === null && r.removedNodes.length === 0;
+      if (parserAppend) {
+        for (const nd of r.addedNodes) { landmark(nd, t); flight(nd, t); }
+        w.__mut.dropped += r.addedNodes.length;
+        continue;
+      }
+      const n = r.addedNodes.length + r.removedNodes.length;
+      for (const nd of r.addedNodes) { landmark(nd, t); flight(nd, t); }
+      if (!loading) w.__mut.post += n;
+      push({
+        t, b, loading,
+        kind: r.removedNodes.length ? (r.addedNodes.length ? "replace" : "remove") : "insert",
+        target: path(r.target),
+        next: path(r.nextSibling),
+        add: [...r.addedNodes].map((x) => ({ nt: x.nodeType, p: path(x), s: snip(x) })).slice(0, 6),
+        rem: [...r.removedNodes].map((x) => ({ nt: x.nodeType, p: path(x), s: snip(x) })).slice(0, 6),
+      });
+    }
+  });
+  o.observe(document, { childList: true, subtree: true, characterData: true });
+})();
+`;
+
+type MutRec = {
+  t: number; b: number; loading: boolean; kind: string; target: string;
+  next?: string; snip?: string;
+  add?: Array<{ nt: number; p: string; s: string }>;
+  rem?: Array<{ nt: number; p: string; s: string }>;
+};
+type MutBuf = {
+  recs: MutRec[]; dropped: number; cdLoading: number; post: number;
+  overflow: number; fireT: number | null; boundaryT: number | null;
+  firstPostT: number | null; batch: number; install: number;
+  landmarks: Record<string, number>; lastFlightT: number | null; flightCount: number;
+  hydStartT: number | null;
+};
+type MutRead = {
+  pre: MutRec[]; recovery: MutRec[]; post: MutRec[];
+  dropped: number; cdLoading: number; overflow: number;
+  fireT: number | null; boundaryT: number | null; firstPostT: number | null;
+  postCount: number; landmarks: Record<string, number>;
+  lastFlightT: number | null; flightCount: number; hydStartT: number | null;
+  line: string;
+};
+
+// Partition the buffer by `fire-t`. `recovery` is the FIRST OBSERVER BATCH at or
+// after the fire — one task, not a time offset. HO 700 measured that a fixed
+// offset samples the wrong side of the recovery commit depending on the route
+// (one frame landed after it on committee-detail and before it on dashboard-v2),
+// which is why the boundary here is the batch index and never a number of ms.
+function partitionMut(m: MutBuf | null): MutRead | null {
+  if (!m) return null;
+  const kinds = (rs: MutRec[]) => {
+    const k: Record<string, number> = {};
+    for (const r of rs) k[r.kind] = (k[r.kind] ?? 0) + 1;
+    const s = Object.entries(k).map(([a, b]) => `${a}:${b}`).join(",");
+    return s || "-";
+  };
+  const base = {
+    dropped: m.dropped, cdLoading: m.cdLoading, overflow: m.overflow,
+    fireT: m.fireT, boundaryT: m.boundaryT, firstPostT: m.firstPostT,
+    postCount: m.post, landmarks: m.landmarks,
+    lastFlightT: m.lastFlightT, flightCount: m.flightCount, hydStartT: m.hydStartT,
+  };
+  const dcl = m.boundaryT;
+  const rel = (x: number | null) =>
+    x === null ? "n/a" : dcl === null ? `${Math.round(x)}ms` : `${x - dcl >= 0 ? "+" : ""}${Math.round(x - dcl)}ms`;
+  // The landmark timeline, printed like every other timing so "was the header
+  // subtree still parsing when hydration reached it?" is a comparison a reader
+  // makes on one line instead of by opening a dump.
+  // NECESSARY, NOT SUFFICIENT: every fire measured carried HYD-BEFORE-TAIL, and
+  // no hit with the reverse order has ever fired — but many quiet hits carry it
+  // too. It marks the window open, it does not predict the fire.
+  const hydOrder =
+    m.hydStartT === null || m.lastFlightT === null
+      ? "hyd=n/a"
+      : m.hydStartT < m.lastFlightT
+        ? "HYD-BEFORE-TAIL"
+        : "hyd-after-tail";
+  const lmLine = Object.entries(m.landmarks)
+    .sort((x, y) => x[1] - y[1])
+    .map(([k, v]) => `${k}=${Math.round(v)}(${rel(v)})`)
+    .join(" ") || "-";
+  if (m.fireT === null) {
+    // No fire: the partition has no boundary and says so rather than pretending
+    // everything is `pre`. The channel is still proven live by `post`.
+    return {
+      ...base, pre: [], recovery: [], post: m.recs,
+      line: `mut kept=${m.recs.length}(${kinds(m.recs)}) loading=${m.recs.filter((r) => r.loading).length} parser-dropped=${m.dropped}` +
+            `${m.cdLoading ? ` cd-loading=${m.cdLoading}` : ""} post=${m.post}` +
+            ` lm[${lmLine}]` +
+            ` hyd-start=${rel(m.hydStartT)} last-flight=${rel(m.lastFlightT)}/${m.flightCount} ${hydOrder}` +
+            `${m.overflow ? ` OVERFLOW=${m.overflow}` : ""}`,
+    };
+  }
+  const pre = m.recs.filter((r) => r.t < m.fireT!);
+  const after = m.recs.filter((r) => r.t >= m.fireT!);
+  const recB = after.length ? after[0]!.b : -1;
+  const recovery = after.filter((r) => r.b === recB);
+  const post = after.filter((r) => r.b !== recB);
+  const a = recovery.reduce((n, r) => n + (r.add?.length ?? 0), 0);
+  const d = recovery.reduce((n, r) => n + (r.rem?.length ?? 0), 0);
+  return {
+    ...base, pre, recovery, post,
+    line: `mut pre=${pre.length}(${kinds(pre)}) loading=${m.recs.filter((r) => r.loading).length} parser-dropped=${m.dropped}` +
+          `${m.cdLoading ? ` cd-loading=${m.cdLoading}` : ""}` +
+          ` rec=+${a}/-${d} post=${post.length} fire-t=${Math.round(m.fireT!)}ms(${rel(m.fireT)})` +
+          ` first-post-t=${rel(m.firstPostT)}` +
+          ` dcl=${m.boundaryT === null ? "n/a" : Math.round(m.boundaryT) + "ms"}` +
+          ` lm[${lmLine}]` +
+          ` hyd-start=${rel(m.hydStartT)} last-flight=${rel(m.lastFlightT)}/${m.flightCount} ${hydOrder}` +
+          `${m.overflow ? ` OVERFLOW=${m.overflow}` : ""}`,
+  };
+}
+
+async function readMut(page: Page): Promise<MutRead | null> {
+  const m = await page
+    .evaluate(() => (window as unknown as { __mut?: MutBuf }).__mut ?? null)
+    .catch(() => null);
+  return partitionMut(m);
+}
+
 // ── HO 687: the #418 attribution capture ─────────────────────────────────────
 //
 // The `:50` arc ruled out six hypotheses and established that the prod message
@@ -312,6 +577,10 @@ async function dumpPageErrFire(
   }
 
   const dom = await page.content().catch(() => "");
+  // HO 702 Arm A — read the mutation log for THIS hit, partitioned at `fire-t`.
+  // Read here, beside the DOM, for the same reason the DOM is: hit 2 destroys
+  // hit 1's buffer along with its document.
+  const mut = await readMut(page);
   const base = `${PAGEERR_DIR}/pageerr-${slug}-hit${hit}-att${attempt}`;
   fs.mkdirSync(PAGEERR_DIR, { recursive: true });
   // gzipped: the largest firing-set page is /members at 2.41 MB served (STEP 0),
@@ -332,6 +601,23 @@ async function dumpPageErrFire(
         ssrBytes: ssr.length,
         domBytes: dom.length,
         align,
+        // HO 702 Arm A. `pre` is the one nobody had looked at; `parserDropped`
+        // is what makes `pre` readable at all, and a `pre` reported without it
+        // is not a reading.
+        mut: mut
+          ? {
+              line: mut.line,
+              parserDropped: mut.dropped,
+              cdLoading: mut.cdLoading,
+              overflow: mut.overflow,
+              fireT: mut.fireT,
+              boundaryT: mut.boundaryT,
+              pre: mut.pre,
+              recovery: mut.recovery,
+              post: mut.post.slice(0, 200),
+              postTotal: mut.post.length,
+            }
+          : null,
       },
       null,
       2,
@@ -361,6 +647,9 @@ test.describe("route crawl", () => {
 
   for (const route of ROUTES) {
     test(`${route.slug} (${route.path})`, async ({ page, context }, testInfo) => {
+      // HO 702 Arm A — installed BEFORE the cookie so the observer is running
+      // from the first script tick of every navigation in this context.
+      await context.addInitScript(MUT_INIT);
       await context.addCookies([GATE_COOKIE]);
       // The collectors accumulate across BOTH navigations. To attribute a failure
       // to the right hit, mark each array's length after hit 1 and assert the
@@ -394,6 +683,11 @@ test.describe("route crawl", () => {
       const dump1 = await dumpPageErrFire(
         page, c, route.slug, route.path, 1, 0, testInfo.retry,
       );
+      // HO 702 Arm A — read hit 1's buffer HERE for the same reason the dump is
+      // taken here: the next nav() replaces the document and the buffer with it.
+      // Read on EVERY hit, quiet ones included: a `mut` field that only appears
+      // on fires cannot distinguish "no mutations" from "channel not installed".
+      const mut1 = await readMut(page);
       const mark = {
         failed: c.failed.length,
         bad: c.bad.length,
@@ -438,6 +732,7 @@ test.describe("route crawl", () => {
         }
       }
 
+      const mut2 = await readMut(page);
       const failed1 = c.failed.slice(0, mark.failed);
       const failed2 = c.failed.slice(mark.failed);
       const bad1 = realBad(c.bad.slice(0, mark.bad));
@@ -452,7 +747,9 @@ test.describe("route crawl", () => {
       // eslint-disable-next-line no-console
       console.log(
         `[${route.slug}] hit1=${status1} failed=${failed1.length} bad=${bad1.length} console=${console1.length} pageErr=${pageErr1.length}` +
-          ` | hit2=${status2} failed=${failed2.length} bad=${bad2.length} console=${console2.length} pageErr=${pageErr2.length}`,
+          ` ${mut1?.line ?? "mut=UNINSTALLED"}` +
+          ` | hit2=${status2} failed=${failed2.length} bad=${bad2.length} console=${console2.length} pageErr=${pageErr2.length}` +
+          ` ${mut2?.line ?? "mut=UNINSTALLED"}`,
       );
 
       // HO 574: when anything is non-empty, print the actual MESSAGES (whitespace-
@@ -558,6 +855,7 @@ test.describe("gate / deep-link param drop", () => {
 test.describe("targeted interactions", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   test.beforeEach(async ({ context }) => {
+    await context.addInitScript(MUT_INIT);
     await context.addCookies([GATE_COOKIE]);
   });
 

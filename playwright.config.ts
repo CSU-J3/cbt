@@ -9,6 +9,10 @@ const BASE_URL =
 export default defineConfig({
   testDir: "./e2e",
   outputDir: "./test-results",
+  // HO 702 §3 — archive the PREVIOUS crawl's fire dumps before Playwright wipes
+  // outputDir. Back-to-back crawls otherwise keep only the last one's evidence;
+  // HO 702 lost a real /races fire this way. Prints its count, zero included.
+  globalSetup: "./e2e/preserve-dumps.ts",
   // Live target — keep the run gentle so we don't look like an attack and so the
   // shared Turso/Vercel cold-start latency doesn't trip artificial timeouts.
   fullyParallel: true,
