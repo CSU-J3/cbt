@@ -17,6 +17,15 @@ on:
         description: 'Force a synthetic overflow finding (proves the alarm reaches a human)'
         type: boolean
         default: false
+      # HO 703 — measure a candidate narrow width on prod BEFORE it becomes a
+      # gate. THE DEFAULT IS NOT HERE AND MUST NOT BE: it lives in exactly one
+      # place, `e2e/narrow.spec.ts` (`430,390`), and this input is EMPTY so that
+      # leaving it alone reads whatever that spec reads. A literal here would be
+      # a second home for one default, and the second home silently wins.
+      narrow_widths:
+        description: "empty = the spec's own default; set a comma list to measure a candidate width before promoting it"
+        type: string
+        default: ''
 
 # HO 683 — needed by the overflow-alarm issue step. Declaring ANY permissions
 # block drops every other scope to none, so `contents: read` is spelled out
@@ -63,8 +72,36 @@ permissions:
 # inside a shared deploy group — same mechanism, narrower victim.
 #
 # schedule and workflow_dispatch carry no deployment_status object, so both
-# resolve to constant singleton groups: e2e-prod-schedule-na-na and
-# e2e-prod-workflow_dispatch-na-na.
+# resolve to constant singleton groups: e2e-prod-schedule-na-na-na and
+# e2e-prod-workflow_dispatch-na-na-na.
+#
+# HO 703 — A FOURTH COMPONENT, AND IT IS HO 685'S OWN FAILURE MODE ARRIVING ON
+# THE CLASS THAT USED TO BE HARMLESS. Until now every Preview-success deploy
+# grouped as `e2e-prod-deployment_status-Preview-success` — one group string for
+# EVERY Preview, regardless of commit. That was harmless only while the class was
+# fully SKIPPED: with `narrow-preview` it does real work, so two Preview deploys
+# of DIFFERENT bytes would land in one group and cancel each other. A cancelled
+# run files nothing and reads exactly like a quiet one — the precise shape HO 685
+# exists to prevent, arriving on the one class that had been immune to it.
+#
+# A JOB-LEVEL GROUP CANNOT FIX THIS, which is why the discriminator goes here and
+# not on the job: `concurrency` is WORKFLOW-level and governs the whole run, so a
+# job-level key cannot protect the Preview job from a run-level cancel at all.
+#
+#   ${{ github.event.deployment_status.environment == 'Preview'
+#       && github.event.deployment.sha || 'na' }}
+#
+# Production bursts still collapse ('na' — the original purpose, preserved);
+# schedule and dispatch are untouched ('na'); Preview runs are per-SHA and never
+# collapse. `cancel-in-progress: true` therefore stays and can now only ever
+# cancel a run of IDENTICAL BYTES. `deployment.sha` is the identifier a reviewer
+# already holds from `git ls-remote`, so nothing looks up a branch name — just as
+# well, since Vercel sets `deployment.ref` to the full SHA too and never to a
+# branch (8 of 8 deployments, `payload` empty).
+#
+# VERIFIED BEHAVIOURALLY, not just by reading: two overlapping Preview deploys of
+# different SHAs both ran to completion (run ids in the HO 703 block). Under the
+# three-component key one of them would have been cancelled.
 #
 # Transition residual, bounded and harmless: a deployment_status run checks out
 # the DEPLOYMENT's own ref, so deploys of commits predating this change execute
@@ -72,7 +109,7 @@ permissions:
 # so those runs can only cancel each other and can never reach a new-key group.
 # Ends as live branches rebase past this commit.
 concurrency:
-  group: e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}
+  group: e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}-${{ github.event.deployment_status.environment == 'Preview' && github.event.deployment.sha || 'na' }}
   cancel-in-progress: true
 
 jobs:
@@ -86,7 +123,19 @@ jobs:
        github.event.deployment_status.environment == 'Production')
     runs-on: ubuntu-latest
     # Unattended run against a live target: cap it so a hung crawl can't burn the
-    # GitHub default of 360 min before anyone notices. A full crawl is ~1-2 min.
+    # GitHub default of 360 min before anyone notices.
+    #
+    # BUDGET, MEASURED (HO 703), because the second narrow width doubles the
+    # narrow cells 36 -> 72 and the note this replaces ("a full crawl is ~1-2
+    # min") was already stale by better than 2x before that. `Run prod smoke
+    # crawl`, the one step that does the work, against prod on the Ubuntu
+    # runner:
+    #   ONE  width  3m59s  34265260233 (deployment_status)  |  4m12s  34262609281 (schedule)
+    #   BOTH widths 5m06s  34267948870 (the dispatch that measured 390 before it became a gate)
+    # So the second width costs about a minute; whole job 5m54s against this
+    # 20-minute cap, better than 3x headroom. Narrow-only for comparison, on the
+    # `narrow-preview` job below: 72 cells in 2m11s at --retries=0. Re-measure
+    # here before adding a third width or caching the install.
     timeout-minutes: 20
     steps:
       # HO 685 — prints the group this run actually resolved to.
@@ -104,7 +153,7 @@ jobs:
       # behaviorally instead, by the collision test (a dispatch that SURVIVES a
       # mid-crawl Preview event is proof the two are in different groups).
       - name: Show resolved concurrency group
-        run: echo "concurrency group = e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}"
+        run: echo "concurrency group = e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}-${{ github.event.deployment_status.environment == 'Preview' && github.event.deployment.sha || 'na' }}"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -150,6 +199,17 @@ jobs:
         env:
           SMOKE_OVERFLOW_GATE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '1' || '' }}
           SMOKE_OVERFLOW_FORCE: ${{ inputs.force_overflow_red && '1' || '' }}
+          # HO 703 — PASSED THROUGH BARE, and the bareness is the point. On
+          # `deployment_status` and `schedule` there is no `inputs` object at
+          # all, so this resolves to the EMPTY STRING; on a dispatch that leaves
+          # the field alone it is empty too. Either way `e2e/narrow.spec.ts`
+          # falls back to its own `430,390`, so this job, the daily and the
+          # `narrow-preview` job below cannot read different widths. A literal
+          # fallback here (`|| '430'`) is what the first cut had, and it made
+          # this the SECOND home of a default the spec already owned — the
+          # deploy-blocking Production run would have measured one width while
+          # SKILL, the roadmap block and `backlog:86` all said two.
+          NARROW_WIDTHS: ${{ inputs.narrow_widths }}
         #
         # HO 693 — the OFF pass joins the crawl. It sets `cbt:pref:odds=off`
         # before navigation and asserts NO visible `[data-market]` element, which
@@ -259,3 +319,121 @@ jobs:
           else
             gh issue create --title "$TITLE" --body-file /tmp/overflow-body.md
           fi
+
+  # HO 703 — THE WIDTH GATE REACHES A REF BEFORE IT SHIPS.
+  #
+  # THE GAP THIS CLOSES (backlog:85, opened HO 698). The `smoke` job above is
+  # gated to Production, and a review-ref push produces a PREVIEW deployment, so
+  # every pre-FF run of the narrow gate was `skipped` and the first CI reading of
+  # a change arrived strictly after `main` had moved. Recorded instance, from
+  # HO 704's own FF on 2026-09-08: runs 34262001083 and 34263058255 both
+  # `deployment_status`/`skipped` on `704-review`, and the first Production
+  # reading 34265260233 at 18:48:47Z — after the fast-forward.
+  #
+  # WHY THIS SHAPE AND NOT A LOCAL BUILD. The Preview deployment is the same
+  # bytes Vercel will serve after FF, on Vercel's host, and its URL arrives in
+  # the very event this workflow already receives. So: no `next start` in CI, no
+  # Turso credentials in a workflow any branch push can trigger, and the Ubuntu
+  # host — the entire point, since font metrics differ per host and the CI
+  # reading is THE reading for a width gate (docs/method.md § Environment).
+  #
+  # NO BYPASS SECRET IS NEEDED, MEASURED NOT ASSUMED (HO 703 STEP 0 row 1):
+  # preview deployment protection is OFF on this project — the two Preview URLs
+  # from HO 704's review pushes both returned 200 to a session-less request. If
+  # protection is ever turned on, this job starts failing with a 401 or an SSO
+  # redirect, and the fix is a Vercel Protection Bypass for Automation header
+  # from a secret, not a local build.
+  #
+  # CONCURRENCY LIVES IN THE WORKFLOW-LEVEL KEY, WHICH GAINED A FOURTH COMPONENT
+  # FOR THIS JOB — see the block above `concurrency:`. No job-level group: that
+  # key is workflow-level and governs the whole run, so a job-level one could not
+  # protect this job from a run-level cancel. Preview runs are now per-SHA and
+  # never collapse into each other.
+  #
+  # WHAT ITS ZERO MEANS: at every configured width, on Vercel's host, the served
+  # bytes of THIS ref do not scroll the document sideways. WHAT IT DOES NOT
+  # COVER: the smoke crawl and the odds-off pass stay Production-only — a Preview
+  # serves no BotID-withheld tape and those specs' assumptions are written for
+  # prod — and a green here is not a substitute for the Production run after FF.
+  narrow-preview:
+    if: >-
+      github.event_name == 'deployment_status' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'Preview'
+    runs-on: ubuntu-latest
+    # Narrow-only against one host: ~2-3 min. Capped well under the smoke job's
+    # 20 because there is far less to do and a hung run here blocks a human.
+    timeout-minutes: 15
+    steps:
+      # Named first so the log says WHICH bytes were read before anything runs.
+      # `deployment.ref` is printed beside the sha precisely because it is a sha:
+      # anyone reading this log should see that and not expect a branch name.
+      - name: Name what this run read
+        run: |
+          echo "preview url = ${{ github.event.deployment_status.environment_url }}"
+          echo "deployment  = sha ${{ github.event.deployment.sha }} / ref ${{ github.event.deployment.ref }}"
+          echo "concurrency group = e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}-${{ github.event.deployment_status.environment == 'Preview' && github.event.deployment.sha || 'na' }}"
+
+      # THE REF'S OWN SPEC, not main's. A gate that read main's spec against a
+      # ref's bytes would silently ignore a spec change in the ref under review.
+      - name: Checkout the deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Match ci.yml and the smoke job — node 20, npm cache.
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (chromium only)
+        run: npx playwright install --with-deps chromium
+
+      # THE TARGET IS PROVEN TO BE THE DEPLOYMENT UNDER REVIEW, BEFORE ANY
+      # ASSERTION IS TRUSTED (HO 703 row 1 ruling). `/api/version` is DB-free and
+      # `no-store`, so it can neither cold-start-500 nor serve a stale SHA.
+      #
+      # WHAT ITS ZERO MEANS, and why the job would otherwise be green on nothing:
+      # an SSO wall, a 401, or a stale alias each hand the spec a page that has
+      # no horizontal overflow, and `over=0` ON THE WRONG PAGE is a pass that
+      # measured nothing. `curl -fsS` fails on any non-2xx, and the SHA equality
+      # is what separates "the right host answered" from "a host answered".
+      - name: Prove the Preview URL serves THIS deployment
+        env:
+          BASE_URL: ${{ github.event.deployment_status.environment_url }}
+          WANT: ${{ github.event.deployment.sha }}
+        run: |
+          set -euo pipefail
+          BODY=$(curl -fsS "${BASE_URL}/api/version")
+          echo "served: ${BODY}"
+          GOT=$(printf '%s' "${BODY}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(String(JSON.parse(s).sha??""))})')
+          echo "served sha = ${GOT}"
+          echo "want   sha = ${WANT}"
+          if [ "${GOT}" != "${WANT}" ]; then
+            echo "::error::Preview URL does not serve this deployment (served ${GOT}, want ${WANT}). Refusing to assert on the wrong page."
+            exit 1
+          fi
+
+      # --retries=0, DELIBERATELY, and against this repo's own default of 2. A
+      # Preview reading is for a human about to fast-forward; a flake absorbed
+      # into green is the exact failure mode documented three times over in
+      # backlog:51 and SKILL's smoke-crawler section, and here it would hand
+      # somebody a green that means nothing. NARROW_WIDTHS is unset, so the spec
+      # reads its own default and the Preview gate and the daily cannot drift.
+      - name: Narrow gate against the Preview deployment
+        env:
+          BASE_URL: ${{ github.event.deployment_status.environment_url }}
+        run: npx playwright test e2e/narrow.spec.ts --retries=0
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: narrow-preview-report
+          path: playwright-report
+          retention-days: 14
