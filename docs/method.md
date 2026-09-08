@@ -428,8 +428,19 @@ either set.**
   first CI reading of a change arrives strictly after `main` has moved. An FF go
   that asks for the CI reading is asking for something that cannot exist yet;
   the honest ask is the local prediction, named as one, with the CI reading owed
-  after the push. Two remedies are filed rather than assumed (`docs/backlog.md`
-  OPEN LOOPS).
+  after the push. **AMENDED HO 703 — FOR WIDTH GATES THIS IS NO LONGER TRUE, and
+  the amendment is narrow on purpose.** `e2e-prod.yml` now carries a second job,
+  `narrow-preview`, gated to a successful **Preview** `deployment_status`, which
+  runs `e2e/narrow.spec.ts` against that deployment's own `environment_url` on
+  the Ubuntu runner — so a review ref gets a real CI width reading **before** the
+  FF, and an FF go may ask for it. What does **not** change: the Production run
+  after the push remains the reading of the **shipped** bytes, and the smoke and
+  odds-off passes stay Production-only, so for everything except the width gate
+  the clause above still holds exactly as written. (The two remedies this
+  supersedes were filed at HO 698 as `docs/backlog.md` OPEN LOOPS; the Preview
+  job is the first of them, and the local-production-build alternative was not
+  needed — a Preview needs no Turso credentials in a workflow any branch push can
+  trigger.)
 - **Every command references a secret by env name (`$CRON_SECRET`), never by
   value** (ruled HO 678). A literal pasted into a command travels through the API
   inside the tool call and lands in the local transcripts — so the value is
