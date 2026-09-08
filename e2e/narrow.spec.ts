@@ -1,5 +1,5 @@
-// HO 694 — THE NARROW GATE: the doc-scroll invariant at 430, for every crawl
-// route.
+// HO 694 — THE NARROW GATE: the doc-scroll invariant at every configured narrow
+// width, for every crawl route. HO 703 added the second width.
 //
 // WHY IT DID NOT EXIST, which is the whole reason three filed defects sat
 // unrepaired. Every standing width gate in this repo is WIDE-VIEWPORT-ONLY:
@@ -11,13 +11,27 @@
 // ~36 the crawl walks, and takes the list from `routes.ts` so it cannot silently
 // cover fewer than the crawl does.
 //
-// WHAT ITS ZERO MEANS (method.md § Gates). A green run means: at a 430 viewport,
-// after load plus a fixed settle, no route's document scroller is wider than its
-// client width by more than 1px. It does NOT mean the page is legible, that
-// nothing is clipped by an `overflow:hidden` ancestor, or that anything is true
-// at any other narrow width — a defect that overflows a CHILD with its own
-// scroller is invisible here by construction, exactly as it is to the 1440/2560
-// invariant this joins.
+// WHAT ITS ZERO MEANS (method.md § Gates). A green run means: at EACH width in
+// `NARROW_WIDTHS`, after load plus a fixed settle, no route's document scroller
+// is wider than its client width by more than 1px. It does NOT mean the page is
+// legible, that nothing is clipped by an `overflow:hidden` ancestor, or that
+// anything is true at a width NOT in the list — a defect that overflows a CHILD
+// with its own scroller is invisible here by construction, exactly as it is to
+// the 1440/2560 invariant this joins.
+//
+// THE TWO WIDTHS AND WHY THERE ARE TWO (HO 703). 430 is the iPhone 15 Pro Max
+// CSS width. 390 is the iPhone 12/13/14/15 and SE-class width, and it is here
+// because HO 698 measured the OLD `/welcome` CTA scrolling to 421 at 390 while
+// reading a clean 430 — broken on every host, at a width no gate looked at. A
+// route clean at 430 and over at 390 is therefore a REAL class, not a
+// hypothetical: it is the case that got filed as backlog:86.
+//
+// 390 WAS MEASURED BEFORE IT BECAME A GATE, which is the order that matters: a
+// gate that reds on day one for pre-existing reasons teaches everyone to ignore
+// it. Dispatch 34267948870 (2026-09-08, Ubuntu runner, against prod) ran both
+// widths over all 36 routes and read 0 routes over at 390 — `/welcome` included,
+// at 390/390 over=0, HO 698 and HO 699 having fixed it. The second width was
+// added to the default only after that reading.
 //
 // THE CONTROL IS THE HISTORY, NOT A PLANT. Run against prod at `409e074`, before
 // any fix, this spec was RED on seven routes (`/members`, `/members/pass-rate`,
@@ -38,6 +52,15 @@
 // `getBoundingClientRect()` at scroll 0 instead. Same question, one fewer moving
 // part.
 //
+// TWO CONTROLS BESIDE THE WIDTH (HO 703), because a width reading is only worth
+// as much as the page it was taken on: per route, the response status must be
+// 2xx and the browser must come to rest on that route's own path or its
+// documented redirect target. Both exist because an error page, an SSO wall and
+// a wrong redirect all have no horizontal overflow — `over=0` on the wrong page
+// is green on nothing. The job that runs this against a Preview adds the third
+// control at the other end, proving `/api/version` serves the deployment's own
+// SHA before this spec is trusted at all.
+//
 // NO SCREENSHOTS AND NO COLLECTORS. The crawl already owns console/pageerror/
 // failed-request attribution on these routes; this spec asserts one number and
 // spends one navigation per route.
@@ -53,7 +76,53 @@ const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 // 430 is the iPhone 15 Pro Max CSS width and the narrow viewport the HO 670
 // capture set and `odds-off.spec.ts` already use — one narrow number across the
 // repo rather than a second one to keep in step.
-const NARROW = { width: 430, height: 932 };
+//
+// HO 703 — PARAMETRISED, AND `WIDTHS` BELOW IS THE ONLY HOME OF THE DEFAULT.
+// Since the row 4 reading it is `430,390`, and every trigger reads BOTH: the
+// daily, `deployment_status`, the `narrow-preview` job, and a dispatch that
+// leaves `narrow_widths` empty. Only a dispatch that actually sets the input
+// reads anything else. NOTHING ELSE MAY CARRY A LITERAL WIDTH — a second home
+// for this default silently overrides this one, and the run then reports the
+// gate it did not run. A candidate width is measured through that dispatch
+// input against prod first and promoted here only after it reads clean, because
+// a gate that reds on day one for pre-existing reasons teaches everyone to
+// ignore it.
+//
+// EMPTY READS AS UNSET, DELIBERATELY — which is why the fallback below is `||`
+// and not `??`. `e2e-prod.yml` passes `${{ inputs.narrow_widths }}` straight
+// through, and on every non-dispatch trigger that is the EMPTY STRING, not
+// undefined; under `??` an empty string is not nullish, so the gate would throw
+// on every scheduled and deploy-blocking run rather than fall back here.
+//
+// A MALFORMED VALUE STILL THROWS RATHER THAN SILENTLY DROPPING A WIDTH.
+// "430,39O" with a letter O would otherwise measure one width while the run
+// reported two — the same-as-success shape this file's own header is about.
+// Only a WHOLLY empty value falls back; anything non-empty that yields no
+// number, a lone comma included, exits 1.
+//
+// HO 703 — THE DOCUMENTED REDIRECTS, so "landed somewhere else" can be an
+// assertion rather than a log line. A route absent from this map must come to
+// rest on its own path; a route present must land on exactly its named target.
+// Keep it in step with `e2e/routes.ts` — a redirect that changes destination
+// should fail here loudly rather than be absorbed.
+const REDIRECTS: Record<string, string> = {
+  "/committees": "/members",
+  "/races": "/electoral",
+  "/primaries": "/electoral",
+  "/dashboard-v2": "/",
+  "/members/pass-rate": "/members",
+};
+
+const HEIGHT = 932;
+const WIDTHS: number[] = (() => {
+  const raw = process.env.NARROW_WIDTHS || "430,390";
+  const parts = raw.split(",").map((w) => w.trim()).filter((w) => w.length > 0);
+  const parsed = parts.map((w) => Number(w));
+  if (!parsed.length || parsed.some((w) => !Number.isFinite(w) || w <= 0)) {
+    throw new Error(`NARROW_WIDTHS is malformed: ${JSON.stringify(raw)}`);
+  }
+  return parsed;
+})();
 
 // The same 1px subpixel tolerance the layout audit's M0 and the HO 683 overflow
 // alarm use, for the same reason and deliberately not tighter.
@@ -136,70 +205,101 @@ const OVER_EDGE = `(() => {
   return out;
 })()`;
 
-test.describe("narrow doc-scroll @430", () => {
-  test.use({ storageState: { cookies: [], origins: [] } });
+for (const width of WIDTHS) {
+  test.describe(`narrow doc-scroll @${width}`, () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
 
-  for (const route of ROUTES) {
-    test(`${route.slug} (${route.path})`, async ({ page, context }) => {
-      await context.addCookies([GATE_COOKIE]);
-      await page.setViewportSize(NARROW);
+    for (const route of ROUTES) {
+      test(`${route.slug} (${route.path}) @${width}`, async ({ page, context }) => {
+        await context.addCookies([GATE_COOKIE]);
+        await page.setViewportSize({ width, height: HEIGHT });
 
-      await page.goto(route.path, {
-        waitUntil: "domcontentloaded",
-        timeout: 45_000,
+        const response = await page.goto(route.path, {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        // The crawl's settle, verbatim: the markets tape polls, so `networkidle`
+        // never fires and a fixed wait is the pragmatic choice.
+        await page.waitForLoadState("load").catch(() => {});
+        await page.waitForTimeout(2_500);
+
+        // A redirect route (`/races`, `/primaries`, `/committees`, `/dashboard-v2`,
+        // `/members/pass-rate`) asserts on the page it ARRIVES at, which is the
+        // honest reading — that is the document a reader actually gets — and the
+        // landed URL is logged so a redirect that changes destination is visible
+        // here rather than only in the crawl.
+        const doc = await page.evaluate(() => ({
+          s: document.documentElement.scrollWidth,
+          c: document.documentElement.clientWidth,
+          url: location.pathname + location.search,
+        }));
+        const over = doc.s - doc.c;
+
+        // HO 703 — THE PAGE HAS TO BE THE PAGE BEFORE ITS WIDTH MEANS ANYTHING.
+        // A 500, a 404, an SSO wall or a redirect to somewhere else all render a
+        // document that does not scroll sideways, so `over=0` would be a pass
+        // that measured nothing. This matters MORE on a Preview than on prod: the
+        // Preview job runs this spec with no smoke crawl beside it to catch a
+        // route that broke, and the auth vars are Production-scoped, so a route
+        // that 500s on a Preview would sail through the overflow assertion alone.
+        //
+        // WHAT ITS ZERO MEANS: every crawled route answered 2xx and the browser
+        // came to rest on that route's own path, or on the one redirect target
+        // routes.ts documents for it. It does NOT check the page is correct,
+        // populated, or free of client errors — the smoke crawl owns that, and it
+        // is Production-only.
+        const status = response?.status() ?? 0;
+        expect(
+          status,
+          `${route.path} did not answer 2xx (status ${status}) — an error page ` +
+            `has no horizontal overflow, so the width reading below would be ` +
+            `green on nothing`,
+        ).toBeLessThan(400);
+
+        const landedPath = doc.url.split("?")[0];
+        const expectedPath = (REDIRECTS[route.path] ?? route.path).split("?")[0];
+        expect(
+          landedPath,
+          `${route.path} landed on ${doc.url}, not ${expectedPath} — the width ` +
+            `below was measured on a different page than the one named`,
+        ).toBe(expectedPath);
+
+        // HO 698 — read the font state AT the width, not after, and take a second
+        // width once the face has definitely applied. A 445 that becomes 430 at
+        // `fonts.ready` is a load-window reading, not a layout defect.
+        const fonts = (await page.evaluate(FONT_STATE)) as FontState;
+        const culprits =
+          over > TOLERANCE ? ((await page.evaluate(OVER_EDGE)) as string[]) : [];
+        let after = doc.s;
+        let fontsAfter = fonts;
+        if (over > TOLERANCE) {
+          await page.evaluate(() => document.fonts.ready);
+          await page.waitForTimeout(500);
+          after = await page.evaluate(() => document.documentElement.scrollWidth);
+          fontsAfter = (await page.evaluate(FONT_STATE)) as FontState;
+        }
+
+        // eslint-disable-next-line no-console
+        console.log(
+          `[narrow ${width} ${route.slug}] landed=${doc.url} scroll=${doc.s}/${doc.c} over=${over}` +
+            ` fonts=${fonts.status}/mono:${fonts.mono}/sans:${fonts.sans}/body:${fonts.bodyFamily}` +
+            (over > TOLERANCE
+              ? `
+      after fonts.ready: scroll=${after}/${doc.c} over=${after - doc.c}` +
+                ` fonts=${fontsAfter.status}/mono:${fontsAfter.mono}`
+              : "") +
+            (culprits.length
+              ? `\n    over-edge: ${culprits.join("\n               ")}`
+              : ""),
+        );
+
+        expect(
+          doc.s,
+          `${route.path} scrolls horizontally at ${width} ` +
+            `(scrollWidth ${doc.s} vs clientWidth ${doc.c}, over ${over}px) — ` +
+            `over-edge: ${culprits.join(" | ") || "none captured"}`,
+        ).toBeLessThanOrEqual(doc.c + TOLERANCE);
       });
-      // The crawl's settle, verbatim: the markets tape polls, so `networkidle`
-      // never fires and a fixed wait is the pragmatic choice.
-      await page.waitForLoadState("load").catch(() => {});
-      await page.waitForTimeout(2_500);
-
-      // A redirect route (`/races`, `/primaries`, `/committees`, `/dashboard-v2`,
-      // `/members/pass-rate`) asserts on the page it ARRIVES at, which is the
-      // honest reading — that is the document a reader actually gets — and the
-      // landed URL is logged so a redirect that changes destination is visible
-      // here rather than only in the crawl.
-      const doc = await page.evaluate(() => ({
-        s: document.documentElement.scrollWidth,
-        c: document.documentElement.clientWidth,
-        url: location.pathname + location.search,
-      }));
-      const over = doc.s - doc.c;
-
-      // HO 698 — read the font state AT the width, not after, and take a second
-      // width once the face has definitely applied. A 445 that becomes 430 at
-      // `fonts.ready` is a load-window reading, not a layout defect.
-      const fonts = (await page.evaluate(FONT_STATE)) as FontState;
-      const culprits =
-        over > TOLERANCE ? ((await page.evaluate(OVER_EDGE)) as string[]) : [];
-      let after = doc.s;
-      let fontsAfter = fonts;
-      if (over > TOLERANCE) {
-        await page.evaluate(() => document.fonts.ready);
-        await page.waitForTimeout(500);
-        after = await page.evaluate(() => document.documentElement.scrollWidth);
-        fontsAfter = (await page.evaluate(FONT_STATE)) as FontState;
-      }
-
-      // eslint-disable-next-line no-console
-      console.log(
-        `[narrow ${route.slug}] landed=${doc.url} scroll=${doc.s}/${doc.c} over=${over}` +
-          ` fonts=${fonts.status}/mono:${fonts.mono}/sans:${fonts.sans}/body:${fonts.bodyFamily}` +
-          (over > TOLERANCE
-            ? `
-    after fonts.ready: scroll=${after}/${doc.c} over=${after - doc.c}` +
-              ` fonts=${fontsAfter.status}/mono:${fontsAfter.mono}`
-            : "") +
-          (culprits.length
-            ? `\n    over-edge: ${culprits.join("\n               ")}`
-            : ""),
-      );
-
-      expect(
-        doc.s,
-        `${route.path} scrolls horizontally at ${NARROW.width} ` +
-          `(scrollWidth ${doc.s} vs clientWidth ${doc.c}, over ${over}px) — ` +
-          `over-edge: ${culprits.join(" | ") || "none captured"}`,
-      ).toBeLessThanOrEqual(doc.c + TOLERANCE);
-    });
-  }
-});
+    }
+  });
+}
