@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Suspense } from "react";
 import { prefBootScript } from "@/lib/prefs";
 import "./globals.css";
 
@@ -125,7 +126,36 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: prefBootScript() }}
         />
       </head>
-      <body className="antialiased">{children}</body>
+      {/* HO 704 (2026-09-08) — THE HYDRATION-REPLAY CURSOR RESET. This boundary
+          exists to give a hydration replay a point to reset its cursor at, and
+          for NO OTHER REASON — do not "clean it up" as an unused Suspense with
+          a null fallback. Mechanism (named and confirmed by intervention,
+          HO 702): hydration can begin while the RSC flight tail is still being
+          parsed, so `InnerLayoutRouter`'s `use(rsc)`
+          (node_modules/next/dist/client/components/layout-router.js:276)
+          suspends on a pending thenable; React replays the suspended unit; with
+          no boundary above it the replayed host fiber claims against a
+          hydration cursor the first attempt already advanced, and throws a
+          structural #418 on the `<header>` (HeaderBar.tsx:161) <->
+          `div.header-titlebar` (:171) seam. React resets hydration state at a
+          Suspense boundary (`resetHydrationState`,
+          react-dom/cjs/react-dom-client.production.js:2875) and retries a
+          boundary that suspended during hydration from its own start marker
+          (`retryDehydratedSuspenseBoundary`, :11872) — line numbers are as of
+          react-dom 19.2.5 / next 15.5.15. Next's own `LoadingBoundary`
+          (layout-router.js:332) renders such a boundary ONLY when a `loading`
+          module exists, and this app has no app/loading.tsx, no template.tsx
+          and no other <Suspense> anywhere in app/ or components/ — so before
+          this line there was nothing between the page segment and the root.
+          LAYOUT-LEVEL, NOT app/loading.tsx: a `loading` boundary is keyed per
+          segment and remounts on navigation, so its fallback shows on every
+          client transition, whereas a layout-level boundary persists across
+          navigations and one already showing content keeps showing it when a
+          transition suspends. The fallback is therefore never seen, which is
+          the gate STEP 3 measures. */}
+      <body className="antialiased">
+        <Suspense fallback={null}>{children}</Suspense>
+      </body>
     </html>
   );
 }
