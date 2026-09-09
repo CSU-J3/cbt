@@ -63,10 +63,16 @@ const LIST = PICK.length ? ROUTES.filter((r: { slug: string }) => PICK.includes(
 
 // Same observer contract as Arm A, trimmed to what the interventions read:
 // fire-t, dcl, and T3's last-flight.
+// HO 706 falsification hook: HYD_TURBO_GLOBAL=WRONGNAME makes the Turbopack trap
+// miss on purpose, which must drive every hit to hyd-start=n/a. A port that cannot
+// be made to fail this way has not been shown to be reading anything.
+const TURBO_GLOBAL = process.env.HYD_TURBO_GLOBAL ?? "TURBOPACK";
+
 const INIT = `
+  const HYD_TURBO_GLOBAL = ${JSON.stringify(TURBO_GLOBAL)};
 (() => {
   const w = window;
-  w.__t = { fireT: null, dclT: null, lastFlightT: null, flight: 0, firstPostT: null, hydStartT: null };
+  w.__t = { fireT: null, dclT: null, lastFlightT: null, flight: 0, firstPostT: null, hydStartT: null, hydSrc: null };
   // HO 702 §1 CORRECTED COMPARATOR. The original T3 asked "last-flight > fire-t",
   // but §1 predicts the fire IS the replay, which happens after the thenable
   // resolves, which happens after the last flight script runs — so
@@ -74,19 +80,39 @@ const INIT = `
   // have read true under the mechanism it was meant to test. The comparator §1
   // actually needs is HYDRATION START against last-flight: did the app chunk
   // begin executing before the parser finished the tail? first-post-t is a
-  // COMMIT, not a start. self.webpackChunk_N_E is assigned by the first app
-  // chunk to evaluate, so trapping its definition stamps the start once.
+  // COMMIT, not a start. The first app chunk to evaluate assigns a bundler
+  // registry global, so trapping its definition stamps the start once.
+  // HO 706 - THE TRAP IS BUNDLER-SPECIFIC, WHICH IS WHY THERE ARE TWO.
+  // webpack (next 15, and next 16 built with --webpack) assigns
+  // self.webpackChunk_N_E. Turbopack (next 16 default) NEVER defines it; it
+  // assigns globalThis.TURBOPACK, via
+  //   (globalThis.TURBOPACK || (globalThis.TURBOPACK = [])).push([...])
+  // so the first chunk's push is also the first assignment and the setter
+  // fires once, exactly as the webpack hook does. Both hooks are installed
+  // and hyd-src on the per-hit line names the one that fired.
+  // WHAT AN UNHOOKED BUNDLER READS: hyd-start stays null, the comparator
+  // reads n/a on every hit, and FIRES=0 then means UNREAD rather than clean
+  // - a gate that cannot fail. HO 705 window 1 read n/a x36 on a Turbopack
+  // build for exactly this reason and was voided. Never quote a t2 zero
+  // whose HYD-BEFORE-TAIL is not high.
   // NO BACKTICKS IN HERE: this comment lives inside a template literal and
   // a backtick terminates it. tsconfig excludes scripts/diagnostic/scratch,
   // so tsc cannot catch it either — the runtime is the only gate.
-  try {
-    let _v;
-    Object.defineProperty(w, "webpackChunk_N_E", {
-      configurable: true,
-      get() { return _v; },
-      set(v) { if (w.__t.hydStartT === null) w.__t.hydStartT = performance.now(); _v = v; },
-    });
-  } catch (e) {}
+  const hook = (obj, name, src) => {
+    try {
+      let _v;
+      Object.defineProperty(obj, name, {
+        configurable: true,
+        get() { return _v; },
+        set(v) {
+          if (w.__t.hydStartT === null) { w.__t.hydStartT = performance.now(); w.__t.hydSrc = src; }
+          _v = v;
+        },
+      });
+    } catch (e) {}
+  };
+  hook(w, "webpackChunk_N_E", "webpack");
+  hook(globalThis, HYD_TURBO_GLOBAL, "turbopack");
   addEventListener("error", (e) => {
     const m = (e && e.message) || "";
     if (w.__t.fireT === null && /418/.test(m)) w.__t.fireT = performance.now();
@@ -175,7 +201,7 @@ async function main() {
     hits++;
     if (timedOut) timeouts++;
     const t = (await page.evaluate(() => (window as never as { __t: Record<string, number | null> }).__t).catch(() => null)) as
-      | { fireT: number | null; dclT: number | null; lastFlightT: number | null; flight: number; firstPostT: number | null; hydStartT: number | null }
+      | { fireT: number | null; dclT: number | null; lastFlightT: number | null; flight: number; firstPostT: number | null; hydStartT: number | null; hydSrc: string | null }
       | null;
     const fired = msgs.length - before;
     fires += fired;
@@ -187,7 +213,7 @@ async function main() {
         ? (t.hydStartT < t.lastFlightT ? "HYD-BEFORE-TAIL" : "hyd-after-tail")
         : "n/a";
       rows.push(
-        `  ${r.slug.padEnd(26)} ${timedOut ? "TIMEOUT" : `fired=${fired}`} fire-t=${rel(t.fireT)} hyd-start=${rel(t.hydStartT)} last-flight=${rel(t.lastFlightT)}/${t.flight} first-post=${rel(t.firstPostT)} dcl=${t.dclT === null ? "n/a" : Math.round(t.dclT)}ms  ${order}`,
+        `  ${r.slug.padEnd(26)} ${timedOut ? "TIMEOUT" : `fired=${fired}`} fire-t=${rel(t.fireT)} hyd-start=${rel(t.hydStartT)} hyd-src=${t.hydSrc ?? "none"} last-flight=${rel(t.lastFlightT)}/${t.flight} first-post=${rel(t.firstPostT)} dcl=${t.dclT === null ? "n/a" : Math.round(t.dclT)}ms  ${order}`,
       );
     }
     if (fired) for (const m of msgs.slice(before)) rows.push(`      ${m}`);
