@@ -414,6 +414,8 @@ either set.**
   never WSL, Docker, or any VM-dependent path. Killing dev servers: SKILL,
   "Process cleanup" (port-scoped only; other Next apps share the box).
 - **The MacBook.** Plain Unix; none of those constraints apply.
+- **The bundler is Turbopack** (Next 16 default, HO 706). `next build --webpack` still exists and is the fallback — reach for it when an instrument, not the app, needs webpack: the seam trap's `hyd-start` global is bundler-specific, and HO 705 lost a whole window to a Turbopack build reading `n/a` where it looked like a clean zero. **An instrument's preconditions do not survive a toolchain change for free; check them before trusting its green.**
+- **Two throwaway worktrees survive HO 706's FF and are deliberate:** `cbt-705-n15` (next 15.5.15, webpack) is the live-lever control any future `#418` reading needs — the class cannot be raised on a fixed build — and `cbt-705-n16`. Both detached, neither an ancestor of anything that ships. **They go once `backlog:51` closes on its week of dailies**, not before.
 - **CI runs on Ubuntu; the Windows box and the MacBook do not.** Font metrics
   differ per host, so anything that depends on where text breaks — a flex line, a
   `nowrap` label, a wrapping breadcrumb — can read clean locally and fail in CI on
