@@ -77,3 +77,9 @@ docs/design/scratch/*
 # line restores build-input parity and makes a fresh clone behave like this
 # machine without needing the global ignore.
 docs/handoffs/
+
+# HO 706 — the bundler capture baselines. The SPEC is tracked (probes default to
+# tracked); the 108 PNGs are not: they are a local, per-machine, per-build
+# artifact of whichever server CAPTURE_FROM pointed at, and they go stale the
+# moment the data behind the crawl moves.
+e2e/bundler-captures-706.spec.ts-snapshots/
