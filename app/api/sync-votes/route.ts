@@ -7,12 +7,12 @@
 //
 // Auth mirrors /api/sync exactly: Bearer CRON_SECRET. Failures are caught
 // per chamber so a House outage doesn't strand the Senate sync (and vice
-// versa). revalidateTag("votes") flushes all five vote-related query
+// versa). expireTag("votes") flushes all five vote-related query
 // helpers in lib/queries.ts on success.
 //
 // HO 139: migrated to wrapCronRoute. Catch path now returns explicit
 // 500 JSON (was `throw err` for Next default 500).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { refreshMemberParticipation } from "@/lib/participation-refresh";
@@ -71,7 +71,7 @@ async function handle(request: Request) {
     // Flush all vote-tagged query caches (getRecentVotes, getMemberVotes,
     // getMemberVoteStats, etc.) so the member hub picks up new positions
     // without waiting on the 1h backstop revalidate.
-    if (house || senate) revalidateTag("votes");
+    if (house || senate) expireTag("votes");
 
     return { payload: { house, senate, participation } };
   });

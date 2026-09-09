@@ -1,4 +1,4 @@
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +47,6 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  revalidateTag(tag);
+  expireTag(tag);
   return NextResponse.json({ ok: true, tag });
 }

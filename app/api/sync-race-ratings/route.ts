@@ -4,11 +4,11 @@
 // and the work is unrelated to the bill pipeline.
 //
 // Auth mirrors /api/sync and /api/sync-votes exactly: Bearer CRON_SECRET.
-// revalidateTag("race-ratings") flushes the cached race query helpers so
+// expireTag("race-ratings") flushes the cached race query helpers so
 // the /races page picks up rating moves without waiting on the backstop.
 //
 // HO 139: migrated to wrapCronRoute.
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { runRaceRatingsSync } from "@/lib/race-ratings-sync";
@@ -39,7 +39,7 @@ async function handle(request: Request) {
     const stats = await runRaceRatingsSync();
     // race-ratings tag is separate from races/bills — the rating seed and
     // now this scrape refresh on their own cadence.
-    revalidateTag("race-ratings");
+    expireTag("race-ratings");
     return { payload: { stats } };
   });
 

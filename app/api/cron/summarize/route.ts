@@ -11,14 +11,14 @@
 // route was once written to dodge have moved too — /api/sync is 0 */6,
 // sync-votes 0 10, race-ratings 0 11 Wed, primaries 0 0,12 — so it no longer
 // has a reserved slot and does not need one (the HO 432 lock handles overlap).
-// revalidateTag("bills") flushes the cached bill queries so the dashboard sees
+// expireTag("bills") flushes the cached bill queries so the dashboard sees
 // fresh summaries — GUARDED as of HO 671: it fires only when the tick actually
 // wrote one.
 //
 // HO 139: migrated to wrapCronRoute. Chronic >=3-attempt summarize
 // failures flow through `chronicErr` so they still land in the
 // cron_runs.error_message column on success rows.
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { claimCronLock, releaseCronLock } from "@/lib/cron-lock";
 import { type CronHandlerResult, wrapCronRoute } from "@/lib/cron-log";
@@ -118,7 +118,7 @@ async function handle(request: Request) {
       // loop's try/catch, so a throw after the row commits is caught and leaves
       // `upserted` at 0 with the write landed — invisible in the return value,
       // so its 4 flushes/day stay unconditional as cheap insurance.
-      if (stats.ok > 0) revalidateTag("bills");
+      if (stats.ok > 0) expireTag("bills");
 
       const payload = {
         summarized: stats.ok,

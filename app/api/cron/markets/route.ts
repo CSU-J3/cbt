@@ -12,7 +12,7 @@
 // Per-symbol fetch errors are non-fatal: one bad upstream shouldn't drop
 // the other rows. They land in the response payload and, if any happen,
 // surface to cron_runs.error_message via the HO 139 chronicErr pattern.
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
@@ -135,7 +135,7 @@ async function handle(request: Request) {
     // Flush the dashboard ticker cache so the next render picks up the
     // fresh prices. Tag matches the unstable_cache key in
     // getLatestMarketTicks().
-    revalidateTag("markets");
+    expireTag("markets");
 
     const failSummary = failed
       .map((f) => `${f.internal}=${f.error}`)

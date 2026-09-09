@@ -1,4 +1,4 @@
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { runReportCatchup } from "@/lib/report-generation";
@@ -80,7 +80,7 @@ async function handle(request: Request) {
       const catchup = await runReportCatchup();
       reportCatchupGenerated = catchup.generated;
       if (catchup.generated) {
-        revalidateTag("reports");
+        expireTag("reports");
         console.log(
           `[sync] report catch-up: generated ${catchup.generated} ` +
             `(${catchup.missing}/${catchup.checked} weeks missing)`,
@@ -106,7 +106,7 @@ async function handle(request: Request) {
     );
     // Invalidate after sync writes new bill rows so the dashboard sees them
     // before any later step in this tick fails.
-    revalidateTag("bills");
+    expireTag("bills");
 
     // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
     // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
@@ -126,7 +126,7 @@ async function handle(request: Request) {
         for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
         tradesPlanCap[r.chamber] = r.planCappedAtPage;
       }
-      revalidateTag("member-trades");
+      expireTag("member-trades");
     } catch (err) {
       console.warn("[sync] trades ingestion failed; skipping", err);
     }

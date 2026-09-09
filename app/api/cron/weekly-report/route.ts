@@ -16,10 +16,10 @@
 // all close out by Sunday 23:59 UTC; nothing from Monday's 09:00 sync is
 // required. Auth: Bearer CRON_SECRET, identical to the other cron routes.
 //
-// revalidateTag("reports") flushes both getReports and getReportCount so
+// expireTag("reports") flushes both getReports and getReportCount so
 // the /reports index picks up the new row on the next request.
 import { GoogleGenAI } from "@google/genai";
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
@@ -103,7 +103,7 @@ async function handle(request: Request) {
       movesCount: report.movesCount,
       summaryText,
     });
-    revalidateTag("reports");
+    expireTag("reports");
     return {
       payload: {
         report: {

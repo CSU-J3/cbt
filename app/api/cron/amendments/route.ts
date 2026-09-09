@@ -12,12 +12,12 @@
 // SYNC ONLY — no rollup/precompute step. The LDA cron precomputes its /lobbying
 // blob because request-time aggregation is non-viable at 10⁵; amendments are
 // bills-scale (~6,800), so whether the surface needs precompute is a cold-latency
-// question for the surface handoff, not assumed here. One revalidateTag on the
+// question for the surface handoff, not assumed here. One expireTag on the
 // tag the future surface will read.
 //
 // Schedule: 07:00 UTC daily — clear of the 06:00 sync and the 08:00 lda cron.
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncAmendments } from "@/lib/amendments-sync";
@@ -63,7 +63,7 @@ async function handle(request: Request) {
           `frontier=${r.frontier} apiTotal=${r.apiTotal}`,
       );
 
-      revalidateTag("amendments");
+      expireTag("amendments");
 
       // HO 537: materialize the Senate amendment→vote links BEFORE the House walk.
       // Cheap, deterministic, DB-only (no API) — runs first so a starved / deadline-
@@ -81,7 +81,7 @@ async function handle(request: Request) {
         // Flush `votes` (read by HO 535 participation queries) only when the link
         // set actually moved — the recompute rewrites every row, so linksWritten is
         // always > 0 and would make this an always-true no-op guard.
-        if (senateMat.changed > 0) revalidateTag("votes");
+        if (senateMat.changed > 0) expireTag("votes");
       } catch (e) {
         senateErr = `senate amendment-vote materialize failed: ${(e as Error).message}`;
         console.error(`[amendment-votes:senate] ${senateErr}`);
@@ -102,9 +102,9 @@ async function handle(request: Request) {
             `hamdtWithVote=${walk.hamdtWithVote} fetchErrors=${walk.fetchErrors} ` +
             `remaining=${walk.remaining} deadlineHit=${walk.deadlineHit}`,
         );
-        // Flush getBillAmendmentVotes when new House links landed (revalidateTag
+        // Flush getBillAmendmentVotes when new House links landed (expireTag
         // "amendments" above also covers it; this is the explicit votes-tag path).
-        if (walk.linksInserted > 0) revalidateTag("votes");
+        if (walk.linksInserted > 0) expireTag("votes");
       } catch (e) {
         walkErr = `amendment-vote walk failed: ${(e as Error).message}`;
         console.error(`[amendment-votes] ${walkErr}`);

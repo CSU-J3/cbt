@@ -2,7 +2,7 @@
 //
 // This does NO LDA API access. It reads the `lda_*` tables the sync writes and
 // recomputes the dashboard_state blobs (issue rollup, per-bill drill, top firms,
-// topic crosswalk), then revalidateTag("lda") so the surface reflects the new
+// topic crosswalk), then expireTag("lda") so the surface reflects the new
 // blob. It used to run in the tail of the sync route, gated on ROLLUP_RESERVE_MS
 // — but the sync spends its whole budget on ~1s/call network round-trips, so on
 // any day with new filings the rollup never started and the blob went stale
@@ -16,12 +16,12 @@
 // — never a half-written rollup.
 //
 // scripts/rollup-lda.ts stays the manual/backfill entry point; it runs the same
-// computeLda* path but can't revalidateTag from a CLI (Next-runtime only), which
+// computeLda* path but can't expireTag from a CLI (Next-runtime only), which
 // is exactly the gap this route closes.
 //
 // Schedule: 0 22 * * * — clear of every daily cron and the 08:00 LDA sync it
 // reads from. Auth mirrors the other cron routes (Bearer CRON_SECRET).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import {
@@ -79,7 +79,7 @@ async function handle(request: Request) {
       const topicBlob = computeTopicCrosswalk(tables, generatedAt);
       await writeLdaTopicCrosswalk(client, topicBlob);
       client.close();
-      revalidateTag("lda");
+      expireTag("lda");
 
       const ms = Date.now() - t0;
       const billDrills = Object.keys(billBlob.drill).length;

@@ -6,7 +6,7 @@
 // (Bearer CRON_SECRET). The full-feed scan (~37 pages, throttled) runs ~20-30s,
 // comfortably under wrapCronRoute's 55s soft timeout; a slow tick finalizes as
 // status='timeout' and the prior odds persist (the batch upsert is at the end).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
@@ -121,7 +121,7 @@ async function handle(request: Request) {
       console.warn("[cron/kalshi] polymarket fetch failed (non-fatal):", err);
     }
 
-    revalidateTag("races");
+    expireTag("races");
     return {
       payload: {
         seats: odds.length,

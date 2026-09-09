@@ -43,7 +43,7 @@ export async function POST(request: Request) {
   } else {
     await removeFromWatchlist(userId, billId);
   }
-  // No revalidateTag: the read helpers (getWatchlistBills / getWatchedBillIds)
+  // No expireTag: the read helpers (getWatchlistBills / getWatchedBillIds)
   // are uncached now (HO 356), so there's no cached tag to flush. The client's
   // router.refresh() re-runs the now-uncached server reads after a write.
   return NextResponse.json({ ok: true, billId, action });

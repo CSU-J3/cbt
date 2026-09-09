@@ -13,12 +13,12 @@
 // also runs *after* summarize so the matcher's getCandidateBills(30) pool
 // sees the freshest summaries when the matcher ever leans on them.
 //
-// revalidateTag("news-breaking") flushes both /news (getBreakingNews) and
+// expireTag("news-breaking") flushes both /news (getBreakingNews) and
 // the home block (getBreakingNewsForHome) — both share that tag per HO 114.
 //
 // HO 139: migrated to wrapCronRoute. Per-article LLM timeouts flow through
 // `chronicErr` to land in cron_runs.error_message on success rows.
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { ingestNews } from "@/lib/news-ingest";
@@ -82,14 +82,14 @@ async function handle(request: Request) {
     }
 
     // Flush both /news and the HO 114 home block — same shared tag.
-    revalidateTag("news-breaking");
+    expireTag("news-breaking");
     // HO 398: flush the race-detail news section (getRaceNews) — new obs from
     // this tick may mention a race incumbent. Tag must also be allowlisted on
     // /api/revalidate or its first manual flush 400s (oddities, HO 390).
-    revalidateTag("race-news");
+    expireTag("race-news");
     // HO 414: same tick, member-hub news section (getMemberNews) keyed on the
     // member's bioguide. Also allowlisted on /api/revalidate (same 400 gotcha).
-    revalidateTag("member-news");
+    expireTag("member-news");
 
     const payload = {
       timings,

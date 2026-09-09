@@ -12,12 +12,12 @@
 //
 // Pure DB-to-DB (no Ballotpedia fetch), idempotent under its sentinel — which
 // is why HO 656 could price it as its own slot rather than as work chained onto
-// the primaries cursor's budget. revalidateTag("races") fires UNCONDITIONALLY:
+// the primaries cursor's budget. expireTag("races") fires UNCONDITIONALLY:
 // every run clears and re-derives, so every run is a write, and gating the
 // flush on `inserted > 0` would serve a stale roster after a run that legitimately
 // re-derived the same rows.
 import { NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
 import { harvestChallengers } from "@/lib/harvest-challengers";
@@ -46,7 +46,7 @@ async function handle(request: Request) {
 
   const result = await wrapCronRoute("/api/cron/race-challengers", async () => {
     const summary = await harvestChallengers(getDb());
-    revalidateTag("races");
+    expireTag("races");
     console.log(
       `[race-challengers] cleared=${summary.cleared} inserted=${summary.inserted} ` +
         `rows=${summary.rows} races=${summary.races} of ${summary.ratedIndex} rated ` +

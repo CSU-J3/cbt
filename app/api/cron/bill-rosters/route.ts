@@ -15,7 +15,7 @@
 // behind them are in lib/bill-rosters-refresh.ts.
 //
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { refreshBillRosters } from "@/lib/bill-rosters-refresh";
 import { wrapCronRoute } from "@/lib/cron-log";
@@ -87,7 +87,7 @@ async function handle(request: Request) {
       // flushed having written nothing. `changedBills` is incremented inside the
       // same branch that performs the write, and that branch is selected by the
       // diff being non-empty, so it cannot be truthy while nothing was written.
-      if (r.changedBills > 0) revalidateTag("bill-rosters");
+      if (r.changedBills > 0) expireTag("bill-rosters");
       // NOTE (HO 677): `countsWritten` deliberately does NOT flush `bills`.
       // The corrected column reaches the panel through the feed row payload,
       // which is `bills`-tagged, so a correction surfaces on the next `bills`

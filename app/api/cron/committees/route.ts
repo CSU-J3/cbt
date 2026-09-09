@@ -16,7 +16,7 @@
 //
 // Schedule: 11:30 UTC daily (gap between sync-race-ratings at 11:00 Wed
 // and primaries at 12:00). Doesn't collide with any existing cron.
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import {
   syncCommitteeBills,
@@ -113,8 +113,8 @@ async function handle(request: Request) {
       `[committees] bills: processed=${bills.billsProcessed} rows=${bills.rowsUpserted} cursor=${bills.cursorStart} → ${bills.cursorEnd} deadlineHit=${bills.deadlineHit} errors=${bills.fetchErrors}`,
     );
 
-    revalidateTag("committees");
-    revalidateTag("meetings"); // HO 263
+    expireTag("committees");
+    expireTag("meetings"); // HO 263
 
     const payload = {
       timings,

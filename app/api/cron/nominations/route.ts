@@ -10,7 +10,7 @@
 // frontier and continues — no gap, no cursor (upserts are idempotent).
 //
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
-import { revalidateTag } from "next/cache";
+import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { hydrateNominations, syncNominations } from "@/lib/nominations-sync";
@@ -64,7 +64,7 @@ async function handle(request: Request) {
           `fetches=${h.fetches} deadlineHit=${h.deadlineHit} remaining=${h.remaining}`,
       );
 
-      revalidateTag("nominations");
+      expireTag("nominations");
 
       // Chronic-err pattern (HO 139): non-fatal conditions surface in
       // cron_runs.error_message on success rows.
