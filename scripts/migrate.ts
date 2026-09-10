@@ -1600,6 +1600,28 @@ async function main() {
   // NOT open — only an explicit 0 lights the tag. `incumbent_bioguide_id IS
   // NULL` is a different concept (vacancy/unmapped), can't express retirement.
   await ensureColumn(db, "races", "incumbent_running", "INTEGER");
+  // HO 710: the softer half of the seat-outlook vocabulary, for the cycle after
+  // the one `race_ratings` covers. Three columns, one signal.
+  //   OPEN   stays on `incumbent_running = 0` above — the incumbent has SAID
+  //          they will not seek the seat. Unchanged, and this HO adds no writer.
+  //   LIKELY is `open_signal = 'indicated'` — a public signal SHORT of an
+  //          announcement, and the only value the column takes. `open_signal_date`
+  //          is the ISO date of the STATEMENT (not of the article reporting it)
+  //          and `open_signal_url` its source; `seed:races` requires both and
+  //          skips the entry otherwise, so a tag can never render undated or
+  //          unsourced. Seeding `'clear'` NULLs all three (the retraction path).
+  //   TBD    is DERIVED and never stored: the member's `next_election_year`
+  //          differs from the cycle, so an earlier contest decides who holds the
+  //          seat. It has no column because the fact is already in `members`, and
+  //          a stored copy would need clearing by hand after that contest.
+  // Precedence at render is TBD > OPEN > LIKELY > none (HO 710 ruling §4): OPEN
+  // and LIKELY are facts about the CURRENT holder, TBD is a fact about the SEAT,
+  // and a holder-level fact is subordinate to a seat whose holder is undecided.
+  // NULL everywhere = no statement on file, which renders no tag at all — the
+  // `incumbent_running` absence-is-the-signal rule carried forward.
+  await ensureColumn(db, "races", "open_signal", "TEXT");
+  await ensureColumn(db, "races", "open_signal_date", "TEXT");
+  await ensureColumn(db, "races", "open_signal_url", "TEXT");
   // HO 239: two-tick downgrade confirmation for the stage-monotonicity guard.
   // A proposed BACKWARD stage move (other than the impossible *→introduced,
   // which is hard-rejected outright) records the proposal here instead of

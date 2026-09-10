@@ -73,6 +73,12 @@
     { "id": "TX-21-2026", "incumbent_running": 0 },
     { "id": "TX-22-2026", "incumbent_running": 0 },
     { "id": "WA-04-2026", "incumbent_running": 0 },
-    { "id": "WI-07-2026", "incumbent_running": 0 }
+    { "id": "WI-07-2026", "incumbent_running": 0 },
+    {
+      "id": "S-WI-2028",
+      "open_signal": "indicated",
+      "open_signal_date": "2025-05-28",
+      "open_signal_url": "https://www.wmtv15news.com/2025/05/29/sen-ron-johnson-suggests-he-might-not-run-reelection-is-not-ruling-it-out/"
+    }
   ]
 }

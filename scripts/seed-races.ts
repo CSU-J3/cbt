@@ -42,8 +42,22 @@ interface RaceSeed {
   // of the Class-II appointee-caretaker open seat). Additive: sets ONLY this
   // column (+ last_verified) when present, never clobbers other row data.
   incumbent_bioguide_id?: string | null;
+  // HO 710: the LIKELY tier of the seat-outlook vocabulary. `"indicated"` is a
+  // public signal SHORT of an announcement and requires BOTH a date and a URL;
+  // `"clear"` retracts, NULLing all three columns. Omit to leave unchanged.
+  // The date is the STATEMENT's, not the reporting article's.
+  //
+  // Deliberately NOT reusing `source_url`: that field gates the rating UPDATE
+  // below (`hasRatingData`), which writes `rating = ?` from the entry — so a
+  // signal-only entry carrying `source_url` would null the row's rating. The
+  // signal gets its own provenance field for that reason alone.
+  open_signal?: "indicated" | "clear" | null;
+  open_signal_date?: string | null;
+  open_signal_url?: string | null;
   candidates?: CandidateSeed[];
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 async function main() {
   const db = getDb();
@@ -63,6 +77,9 @@ async function main() {
   let invalidRatings = 0;
   let flagged = 0;
   let incumbentSet = 0;
+  let signalSet = 0;
+  let signalCleared = 0;
+  let invalidSignals = 0;
 
   for (const race of (seed.races as RaceSeed[]) ?? []) {
     if (!knownIds.has(race.id)) {
@@ -122,6 +139,56 @@ async function main() {
       incumbentSet++;
     }
 
+    // HO 710: open_signal — additive, sets ONLY the three signal columns (+
+    // last_verified), so it never clobbers rating/source/roster/incumbent on the
+    // row. `"clear"` retracts. `"indicated"` REQUIRES a YYYY-MM-DD date and an
+    // https:// URL: the render is dated copy with a source link, so an entry
+    // that can't supply both is skipped rather than half-written. Warn-and-skip
+    // matches the unknown-id and invalid-rating paths above — one bad entry
+    // doesn't take down the pass.
+    if (race.open_signal != null) {
+      if (race.open_signal === "clear") {
+        await db.execute({
+          sql: `UPDATE races
+                SET open_signal = NULL, open_signal_date = NULL,
+                    open_signal_url = NULL, last_verified = ?
+                WHERE id = ?`,
+          args: [today, race.id],
+        });
+        signalCleared++;
+      } else if (race.open_signal !== "indicated") {
+        console.warn(
+          `  ${race.id}: invalid open_signal '${race.open_signal}' — skip`,
+        );
+        invalidSignals++;
+      } else if (!race.open_signal_date || !ISO_DATE.test(race.open_signal_date)) {
+        console.warn(
+          `  ${race.id}: open_signal 'indicated' needs a YYYY-MM-DD open_signal_date (got '${race.open_signal_date ?? ""}') — skip`,
+        );
+        invalidSignals++;
+      } else if (!race.open_signal_url?.startsWith("https://")) {
+        console.warn(
+          `  ${race.id}: open_signal 'indicated' needs an https:// open_signal_url (got '${race.open_signal_url ?? ""}') — skip`,
+        );
+        invalidSignals++;
+      } else {
+        await db.execute({
+          sql: `UPDATE races
+                SET open_signal = ?, open_signal_date = ?, open_signal_url = ?,
+                    last_verified = ?
+                WHERE id = ?`,
+          args: [
+            race.open_signal,
+            race.open_signal_date,
+            race.open_signal_url,
+            today,
+            race.id,
+          ],
+        });
+        signalSet++;
+      }
+    }
+
     for (const c of race.candidates ?? []) {
       await db.execute({
         sql: `INSERT INTO race_candidates
@@ -148,7 +215,7 @@ async function main() {
   }
 
   console.log(
-    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} incumbent_bioguide_set=${incumbentSet} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
+    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} incumbent_bioguide_set=${incumbentSet} open_signal_set=${signalSet} open_signal_cleared=${signalCleared} invalid_signals=${invalidSignals} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
   );
 }
 
