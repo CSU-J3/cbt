@@ -140,6 +140,27 @@ export function nextElectionForClass(
   return y;
 }
 
+// HO 710: the inverse of CLASS_RESIDUE — which Senate class is up in a given
+// regular election year. Senate terms are six years and the three classes are
+// staggered two years apart, so the class is fully determined by `year % 6`;
+// a year that is not a federal election year (odd, or an even year whose
+// residue belongs to no class) has no class and returns null.
+//
+//   2026 % 6 = 4 -> class 2      2030 % 6 = 2 -> class 1
+//   2028 % 6 = 0 -> class 3      2027 % 6 = 5 -> null
+//
+// This answers "who is up in cycle N" for the seat-outlook list, where
+// nextElectionForClass answers the opposite question for one member. Special
+// elections legitimately break the pairing for individual seats (OH/FL 2026)
+// and are handled on the members side; this function is about the class, which
+// a special election does not move.
+export function senateClassForCycle(year: number): 1 | 2 | 3 | null {
+  for (const [cls, residue] of Object.entries(CLASS_RESIDUE)) {
+    if (year % 6 === residue) return Number(cls) as 1 | 2 | 3;
+  }
+  return null;
+}
+
 // Full regular-seat year-pair from class: election year + the term end the
 // following January (ney = ctey − 1). Special elections (OH/FL 2026) legitimately
 // break this invariant and are handled by data/senate-special-elections.json

@@ -34,6 +34,7 @@ import {
   type TopicCrosswalkBlob,
   type TopicCrosswalkRow,
 } from "./lda-rollup";
+import { senateClassForCycle } from "./derive-term";
 import { median } from "./median";
 import {
   type ContestRow,
@@ -340,6 +341,25 @@ export function sanitizeIncludeCeremonial(
   raw: string | null | undefined,
 ): boolean {
   return raw === "1";
+}
+
+// HO 710: the /electoral cycle switch. The toggle's segments and the sanitizer
+// read this one constant, so those two cannot drift apart. That is ALL the
+// constant buys: a third cycle is NOT a one-line change, because the surface
+// branches on `cycle === 2028` in app/electoral/page.tsx and that branch's
+// description hard-codes 34, Class 3, the 120th Congress and the 2026 deciding
+// contest.
+// 2026 is the DEFAULT and the default is the ABSENCE of the param (HO 690) —
+// bare /electoral is 2026, so anything unrecognized falls back to it rather
+// than erroring or rendering an empty cycle.
+export const ELECTORAL_CYCLES = [2026, 2028] as const;
+export type ElectoralCycle = (typeof ELECTORAL_CYCLES)[number];
+
+export function sanitizeCycle(raw: string | null | undefined): ElectoralCycle {
+  const n = Number(raw);
+  return (ELECTORAL_CYCLES as readonly number[]).includes(n)
+    ? (n as ElectoralCycle)
+    : 2026;
 }
 
 // HO 350: /stale INCLUDE PROCEDURAL toggle. '1' → show the filtered
@@ -2782,6 +2802,169 @@ export const getBattlefieldSeats = unstable_cache(
   },
   ["getBattlefieldSeats"],
   { revalidate: 3600, tags: ["race-ratings", "races"] },
+);
+
+// HO 710: the seat outlook for a cycle that has no ratings yet — every seat up
+// in `cycle`, with the OPEN / LIKELY / TBD vocabulary. Deliberately NOT a
+// variant of getRacesIndex or getBattlefieldSeats: both INNER JOIN race_ratings
+// (:2556, :2750) and `data/` carries rating files for 2026 only, so either
+// would return zero rows for 2028 by construction.
+export type SeatOutlookRow = {
+  bioguideId: string;
+  name: string;
+  party: string | null;
+  state: string;
+  district: number | null;
+  chamber: "senate" | "house";
+  nextElectionYear: number | null;
+  // The derived race id for THIS cycle, null when the seat can't have one (an
+  // at-large House seat — see the district note in the query below).
+  raceId: string | null;
+  incumbentRunning: number | null;
+  openSignal: string | null;
+  openSignalDate: string | null;
+  openSignalUrl: string | null;
+  // For a TBD seat, the contest that decides who holds it, when that row
+  // exists; null means the tag renders as plain text with no link.
+  decidingRaceId: string | null;
+  status: "open" | "likely" | "tbd" | "none";
+};
+
+// MEMBERS-FIRST, and the reason is a measurement rather than a preference. The
+// Class 3 seat set is a fact of law (34 seats, read 2026-09-10); `races` at a
+// given cycle is whatever `backfill:races` has minted and NEVER RETRACTED. At
+// cycle 2028 that is 38 rows, six of which no sitting Class 3 member holds:
+// S-FL and S-OH still carry Rubio and Vance, who left for the executive branch,
+// and S-MN / S-MS / S-NE / S-NJ belong to other classes entirely. A races-first
+// list would render six phantom seats. (The retraction gap is its own backlog
+// line; nothing here waits on it, because the six cannot appear when the member
+// roster drives the list.)
+//
+// The `r` join therefore supplies SIGNAL COLUMNS ONLY — never the incumbent,
+// who comes from `m`. That is what makes a stale row harmless: S-FL-2028 exists
+// and is joined, but only its (NULL) open_signal / incumbent_running are read,
+// and Rubio never reaches the render.
+export const getSeatOutlook = unstable_cache(
+  async (cycle: number): Promise<SeatOutlookRow[]> => {
+    const db = getDb();
+    const senateClass = senateClassForCycle(cycle);
+    // The cycle is bound TWICE over, as a number for the integer comparisons and
+    // as a STRING for the two id expressions. A JS number arrives as SQLite REAL,
+    // and `||` renders a REAL as "2028.0" — so binding the number here builds
+    // 'S-FL-2028.0', an id that matches no row. The LEFT JOIN then finds nothing
+    // and every seat reads "no signal on file", which is exactly what a correct
+    // pre-seed run also looks like. `backfill-races.ts` does not hit this because
+    // it concatenates the INTEGER column `m.next_election_year` directly.
+    const cycleText = String(cycle);
+
+    // The derived-id expression is the THIRD copy of raceIdFromMember's format
+    // (lib/race-id.ts:17, scripts/backfill-races.ts:34-37) — all three carry
+    // the same keep-in-sync note. At-large House seats (district IS NULL) get
+    // NULL, matching raceIdFromMember, which returns null for exactly that case.
+    const derivedId = `CASE
+        WHEN m.chamber = 'senate' THEN 'S-' || m.state || '-' || ?
+        WHEN m.district IS NOT NULL THEN m.state || '-' || printf('%02d', m.district) || '-' || ?
+        ELSE NULL
+      END`;
+
+    const rs = await db.execute({
+      sql: `SELECT m.bioguide_id, m.name, m.party, m.state, m.district, m.chamber,
+                   m.next_election_year,
+                   ${derivedId} AS race_id,
+                   r.incumbent_running, r.open_signal, r.open_signal_date,
+                   r.open_signal_url,
+                   d.id AS deciding_race_id
+              FROM members m
+              LEFT JOIN races r
+                ON r.cycle = ? AND r.id = ${derivedId}
+              LEFT JOIN races d
+                ON m.chamber = 'senate' AND m.next_election_year <> ?
+               AND d.id = 'S-' || m.state || '-' || m.next_election_year
+             WHERE m.is_current = 1
+               AND (
+                     (m.chamber = 'senate' AND m.senate_class = ?)
+                     -- HO 710 ruling section 2: the territorial carve is the
+                     -- ONLY House filter. A district IS NOT NULL clause would
+                     -- silently drop the six at-large voting seats (AK, DE, ND,
+                     -- SD, VT, WY), which store district NULL — a list of a
+                     -- cycle's seats that omits six states is not a seat list.
+                  OR (m.chamber = 'house' AND m.next_election_year = ?
+                      AND m.state NOT IN ('DC','AS','GU','MP','PR','VI'))
+                   )`,
+      args: [
+        cycleText,
+        cycleText, // the SELECTed derived id — STRING, see cycleText above
+        cycle, // r.cycle
+        cycleText,
+        cycleText, // the derived id repeated inside the r join — STRING
+        cycle, // the <> guard on the deciding join
+        senateClass, // senate arm
+        cycle, // house arm
+      ],
+    });
+
+    const rows: SeatOutlookRow[] = rs.rows.map((row) => {
+      const chamber = row.chamber === "senate" ? "senate" : "house";
+      const nextElectionYear =
+        row.next_election_year == null ? null : Number(row.next_election_year);
+      const openSignal = (row.open_signal as string | null) ?? null;
+      const incumbentRunning =
+        row.incumbent_running == null ? null : Number(row.incumbent_running);
+
+      // Precedence, ruled at the HO 710 STEP 0 ruling section 4: TBD > OPEN >
+      // LIKELY > none. OPEN and LIKELY are facts about the CURRENT holder; TBD
+      // is a fact about the SEAT — that an earlier contest decides who holds it
+      // this cycle — so a holder-level fact is subordinate to a seat whose
+      // holder is undecided. Zero live collisions today; the order is written
+      // down so the first one resolves the way it was ruled.
+      //
+      // `incumbentRunning !== null` guards Number(null) === 0, which would flag
+      // every uncurated seat as OPEN (the HO 221 rule).
+      let status: SeatOutlookRow["status"] = "none";
+      if (nextElectionYear !== null && nextElectionYear !== cycle) {
+        status = "tbd";
+      } else if (incumbentRunning !== null && incumbentRunning === 0) {
+        status = "open";
+      } else if (openSignal === "indicated") {
+        status = "likely";
+      }
+
+      return {
+        bioguideId: row.bioguide_id as string,
+        name: row.name as string,
+        party: (row.party as string | null) ?? null,
+        state: row.state as string,
+        district: row.district == null ? null : Number(row.district),
+        chamber,
+        nextElectionYear,
+        raceId: (row.race_id as string | null) ?? null,
+        incumbentRunning,
+        openSignal,
+        openSignalDate: (row.open_signal_date as string | null) ?? null,
+        openSignalUrl: (row.open_signal_url as string | null) ?? null,
+        decidingRaceId: (row.deciding_race_id as string | null) ?? null,
+        status,
+      };
+    });
+
+    // Sorted in TypeScript rather than SQL: the precedence above is not a
+    // column. No new index — both tables are small (34 senate + 0 house rows at
+    // 2028; 433 current House members is the ceiling once the 120th roster
+    // lands, measured 2026-09-10).
+    const rank = { tbd: 0, open: 1, likely: 2, none: 3 } as const;
+    rows.sort(
+      (a, b) =>
+        rank[a.status] - rank[b.status] ||
+        (a.chamber === b.chamber ? 0 : a.chamber === "senate" ? -1 : 1) ||
+        a.state.localeCompare(b.state) ||
+        (a.district ?? 0) - (b.district ?? 0),
+    );
+    return rows;
+  },
+  ["getSeatOutlook"],
+  // No new cache wiring: "races" is already flushed by the Kalshi cron and by a
+  // manual POST /api/revalidate?tag=races after a seed. The TTL is the backstop.
+  { revalidate: 3600, tags: ["races"] },
 );
 
 // HO 219: Kalshi chamber-control (House/Senate balance of power) for the /races

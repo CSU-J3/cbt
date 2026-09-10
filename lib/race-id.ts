@@ -4,8 +4,9 @@
 // Senate: S-<STATE>-<YYYY>.
 //
 // This function is the authoritative format; the backfill SQL in
-// scripts/backfill-races.ts is a translation. If the format ever changes
-// (mid-decade redistricting, new chamber, etc.), update both.
+// scripts/backfill-races.ts is a translation, and so is the derived-id
+// expression in getSeatOutlook (lib/queries.ts). If the format ever changes
+// (mid-decade redistricting, new chamber, etc.), update all three.
 
 export interface MemberLite {
   chamber: "house" | "senate" | null;
