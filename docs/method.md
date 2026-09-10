@@ -117,14 +117,16 @@ version of this was narrower — *look at render output* (HO 670) — and it was
 widened at the HO 671 close because the same principle had by then produced three
 more failures in two sessions, none of them about looking at a page.
 
-**Eleven instances. Five are about reading an instrument wrongly rather than
+**Twelve instances. Five are about reading an instrument wrongly rather than
 about the thing under test; one is a tool reporting an action it did not
 perform; one is an export whose output is indistinguishable from a working one;
 one is a set of gates that could not see the artifact at all; one is an
 instrument that was silently rewritten in transit and went on answering a
 different question; one is an evidence path the runner itself deletes, so the
-check could not have fired at all; and one is an instrument that does not
-exist:**
+check could not have fired at all; one is an instrument that does not
+exist; and one is an instrument whose label asserts a condition its
+configuration never set, so every one of its passes was the first config's
+pass under a second name:**
 
 - **HO 670 — a visual check with no capture is not a check.** Every gate green
   while the layout was wrong three times: a ~300px dead zone under each panel, an
@@ -227,6 +229,22 @@ exist:**
   in which a working run survives a mid-crawl skipped one. **When the only
   instrument available shares an expression with its subject, say which half it
   buys and name what carries the other half.**
+
+- **HO 708 — a capture named `-reduced` whose context never set
+  `prefers-reduced-motion` is a 1440 capture with a longer filename.** HO 706's capture
+  gate ran three viewport configs and its third set `reducedMotion` in `test.use()`.
+  That key is `BrowserContextOptions`, not `TestOptions`; Playwright's runner registers
+  an unknown `use()` key as a fixture nothing consumes and loads the spec without a
+  word, so 36 captures per role carried the tag and emulated nothing, and the
+  comparison they passed was the 1440 comparison run twice. Measured at HO 708: the
+  shipped form reads `matchMedia('(prefers-reduced-motion: reduce)').matches` **false**
+  in the page, the documented form (`contextOptions.reducedMotion`) reads **true**, and
+  `tsc` names the key as `TS2353` in under a second — from a file `npm run typecheck`
+  had never read (`backlog:14`), which is why the fastest instrument in the repo was
+  the one not pointed at it. Two rules: **an emulation is proven by reading the media
+  query back inside the page, never by the option meant to set it**; and **a file
+  outside the type checker's program carries instruments whose green is unverified,
+  however many times they have run.**
 
 **What the gate requires**
 
