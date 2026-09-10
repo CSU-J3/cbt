@@ -156,12 +156,14 @@ jobs:
         run: echo "concurrency group = e2e-prod-${{ github.event_name }}-${{ github.event.deployment_status.environment || 'na' }}-${{ github.event.deployment_status.state || 'na' }}-${{ github.event.deployment_status.environment == 'Preview' && github.event.deployment.sha || 'na' }}"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          # Match ci.yml — node 20, npm cache. v5 action bump is its own loop.
+          # Match ci.yml — node 20, npm cache. The ACTION pin and the NODE pin are
+          # different things (HO 707): the actions moved to v5 for the node20-runtime
+          # deprecation, the runner Node stays 20 so a red stays attributable.
           node-version: '20'
           cache: npm
 
@@ -245,7 +247,7 @@ jobs:
 
       - name: Upload report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: playwright-report
           # HO 683 — the overflow rows ride the artifact too. If issue creation
@@ -275,7 +277,7 @@ jobs:
       # the rest. Valid YAML, working workflow, meaningless label.
       - name: "Upload #418 attribution dumps"
         if: always() && hashFiles('test-results/pageerr-*.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pageerr-dumps
           path: test-results/pageerr-*
@@ -377,12 +379,12 @@ jobs:
       # THE REF'S OWN SPEC, not main's. A gate that read main's spec against a
       # ref's bytes would silently ignore a spec change in the ref under review.
       - name: Checkout the deployed commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.deployment.sha }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           # Match ci.yml and the smoke job — node 20, npm cache.
           node-version: '20'
@@ -432,7 +434,7 @@ jobs:
 
       - name: Upload report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: narrow-preview-report
           path: playwright-report
