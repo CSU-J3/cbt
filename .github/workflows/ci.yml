@@ -9,8 +9,12 @@ on:
   # paths-ignore (a blocklist), NOT paths (an allowlist): a blocklist fails
   # safe. An allowlist would silently skip CI the first time someone adds a
   # path that isn't on it. scripts/** and e2e/** are deliberately NOT ignored
-  # (they're TypeScript, covered by typecheck — scripts/ is exactly what broke
-  # at 3ed533c); .github/** stays unignored so workflow edits still run CI.
+  # (both are TypeScript and both are covered by `npm run typecheck`: scripts/**
+  # by tsconfig.json, which is exactly what broke at 3ed533c, and e2e/** plus
+  # playwright.config.ts by tsconfig.e2e.json, chained into the same script since
+  # HO 709 — before that the harness was in no program at all, which is how a
+  # `reducedMotion` in the wrong options bag sat unread for two HOs, HO 708);
+  # .github/** stays unignored so workflow edits still run CI.
   #
   # paths-ignore + required status checks do not mix: if branch protection
   # is ever enabled, PRs touching only ignored paths never report this
