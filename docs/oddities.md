@@ -4049,3 +4049,36 @@ So the first HO 705 window read `FIRES=0` on both Next 16 legs — and `HYD-BEFO
 **Proven in the browser rather than argued from the types**, because the question was what the page saw, not what the compiler thought: the shipped form reads `matchMedia('(prefers-reduced-motion: reduce)').matches` **`false`**; the documented `contextOptions: { reducedMotion: "reduce" }` form reads **`true`** on the same runner in the same run. The second reading is the control — without it, `false` is equally consistent with a probe that cannot detect emulation at all.
 
 **Two rules.** **An emulation is proven by reading the media query back inside the page, never by the presence of the option meant to set it** — the option is the thing under test, not the evidence. And **a file outside the type checker's program carries instruments whose green is unverified however many times they have run**; frequency of passing is not evidence when nothing has ever checked that the pass means what its name says.
+
+## A daily that has not appeared at 16Z is not missing (HO 709, 2026-09-10, from the HO 708 FF paste)
+
+**`e2e-prod.yml:13` reads `cron: '0 15 * * *'`, and GitHub has not once delivered it at 15:00Z.** The seven scheduled runs standing at the HO 709 close, read from `gh run list --workflow=e2e-prod.yml --event=schedule --json databaseId,createdAt`:
+
+| date | delivered (UTC) | run id |
+|---|---|---|
+| 2026-09-04 | 18:10:17Z | 33904447230 |
+| 2026-09-05 | 17:11:34Z | 33980182345 |
+| 2026-09-06 | 17:31:07Z | 34048848081 |
+| 2026-09-07 | 19:01:11Z | 34153942328 |
+| 2026-09-08 | 18:22:04Z | 34262609281 |
+| 2026-09-09 | 18:20:45Z | 34388422868 |
+| 2026-09-10 | 18:10:48Z | 34512726049 |
+
+**Every one is late, the spread is 17:11Z to 19:01Z, and the median lag is over three hours.** Scheduled workflows are queued on a best-effort basis and GitHub drops or defers them under load; the cron string is a request, not a contract.
+
+**The operational consequence is a counting rule, and it is the reason this is a field note rather than a shrug.** `backlog:51`'s close is *a week of dailies with the `pageErr` channel at zero* — a count. **Count against delivery, not against the cron string.** A session that checks at 16Z, finds nothing, and records a missing day will under-count the week and hold the entry open past its own criterion; a session that treats 19:01Z as anomalous will chase a GitHub queue instead of the bug. Neither reading is available from the workflow file: the only authority for whether a daily happened is the run list.
+
+## A back-to-back re-run tests the compare side only (HO 709, 2026-09-10)
+
+**Extends the HO 706 entry two above, and it is the half that entry's remedy does not reach.** `bundler-captures-706.spec.ts` compares a live baseline against a live build, and its stated triage for a failure is to re-run back-to-back: a pass means drift, a second failure means the build. **That test is one-sided.** The baseline is a frozen PNG. Re-running the comparison re-reads the *compare* server and never re-reads the baseline server, so **any staleness on the baseline side is structurally immune to it** and presents exactly as a real regression — a failure that survives a re-run seconds later, which is the signature the triage was built to trust.
+
+**Measured, in the HO 709 re-take of the `1440-reduced` third.** The compare pass read 32/36. Two failures (`home-stage-committee`, `home-stage-floor`) passed on the back-to-back re-run and were disposed of correctly. **Two (`home`, `home-stage-introduced`) failed twice**, ~78,000 differing pixels each, ratio 0.04 against a 0.002 threshold — a route-consistent, re-run-surviving failure, and by the spec's own rule, a bundler render difference to be filed. **It was neither.** Both had *two* baseline-side causes, in one capture:
+
+1. **The markets tape at a different cache generation.** The n15 baseline froze `AS OF 12:00 PM MT · STALE`; the n16 compare served `AS OF 2:30 PM MT · CLOSED`. This is HO 706's finding exactly, but arriving after a flush that had already been done — n15's tape cache had revalidated on its own between the flush and the capture, because a tape TTL is short by design.
+2. **Member portraits absent from the baseline and present in the compare.** Same names, same order, same markup; the images simply had not loaded within the spec's `load` + 1,200 ms on the first cold pass over 36 routes.
+
+**The HTML verdict was right and its conclusion would have been wrong.** Diffing the served pages at triage time returned **visible text IDENTICAL** on both servers — 1,232 lines for `/`, 913 for `/?stage=introduced` — which under the header's rule licenses "same content, different render, file it as a bundler difference." The trap is that the HTML diff reads the servers *now* and the failing baseline was written *then*: by triage time both servers agreed, and the disagreement being triaged no longer existed to be found. A second instrument (a per-band pixel bounding box, then cropping the two PNGs and looking at them) is what actually named it — the differing region was x 36–767, y 158–1188, and the crops showed a tape and a row of missing photographs.
+
+**What settled it: re-flush both servers, then re-take the BASELINE, then compare immediately.** Both routes passed, and a clean full re-take of all 36 then read **36/36, exit 0**, with `RM=true expected=true` 36/36 on both roles. No bundler render difference exists under reduced motion; nothing was filed as a regression because there was nothing to file.
+
+**The rule.** **When a live-baseline comparison fails twice, re-take the baseline before concluding anything about the build** — and prefer to take baseline and compare back-to-back inside one flush window, because every minute between them is a minute the baseline can go stale in a way no compare-side instrument can see. The general form is already in `docs/method.md` § Gates: a check that cannot distinguish the condition under test from a second state that produces the same output is not the check it looks like. Here the two states are *the build differs* and *the baseline is old*, and the re-run separates neither.
