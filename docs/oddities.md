@@ -4082,3 +4082,35 @@ So the first HO 705 window read `FIRES=0` on both Next 16 legs — and `HYD-BEFO
 **What settled it: re-flush both servers, then re-take the BASELINE, then compare immediately.** Both routes passed, and a clean full re-take of all 36 then read **36/36, exit 0**, with `RM=true expected=true` 36/36 on both roles. No bundler render difference exists under reduced motion; nothing was filed as a regression because there was nothing to file.
 
 **The rule.** **When a live-baseline comparison fails twice, re-take the baseline before concluding anything about the build** — and prefer to take baseline and compare back-to-back inside one flush window, because every minute between them is a minute the baseline can go stale in a way no compare-side instrument can see. The general form is already in `docs/method.md` § Gates: a check that cannot distinguish the condition under test from a second state that produces the same output is not the check it looks like. Here the two states are *the build differs* and *the baseline is old*, and the re-run separates neither.
+
+## A number bound to a SQL parameter is a REAL, and `||` renders it `2028.0` (HO 710, 2026-09-10)
+
+**A join that matched nothing looked exactly like a corpus with nothing to say.** `getSeatOutlook` builds its race id in SQL — `'S-' || m.state || '-' || ?` — and bound the cycle as a JavaScript number. libsql passes that as SQLite **REAL**, and `||` stringifies a REAL with its decimal: the expression produced **`'S-FL-2028.0'`**, an id no row carries. The `LEFT JOIN races r` therefore matched **nothing at all**, every seat read `open_signal IS NULL`, and the page rendered 34 rows with no tags.
+
+**Which is precisely what a correct pre-seed run also renders.** Before the seed there genuinely were no signals, so the broken join and the working one agreed on every visible pixel. The defect was caught only because the probe printed the derived id itself and the `.0` was sitting in it — an incidental field in a debug line, not a check anyone designed.
+
+**The control is what proved the fix, and it could not have been the 2028 reading.** Re-running the same query at **cycle 2026**, where 35 rows carry a seeded `incumbent_running = 0`, moved the status histogram from `{"none":460}` to `{"open":35,"none":425}` on that one change — and **35** is exactly the count STEP 0 read off the table. The 2028 side has one seeded row and would have shifted by one; the cycle with a populated column is the only place the join's failure is loud.
+
+**Why the sibling code never hit it.** `scripts/backfill-races.ts` builds the same id from `m.next_election_year`, an INTEGER **column**, which concatenates as `2028`. Only a *parameter* carries the REAL affinity, so the bug is specific to the third copy of the format — the one this HO added.
+
+**The rule.** **Bind a value that will be string-concatenated in SQL as a string.** `getSeatOutlook` now binds the cycle twice over: as a number for `r.cycle = ?` and the integer comparisons, and as `cycleText` for the two id expressions. And the general form, which is this file's recurring subject: **when a join's failure renders identically to an empty result, the check has to run where the result is not empty.**
+
+---
+
+## Members-first because the backfill never retracts — and the handoff said the opposite (HO 710, 2026-09-10)
+
+**The conclusion survived STEP 0; the reason was inverted.** The handoff argued the 2028 seat list had to be driven from `members` because `races` rows exist only where `next_election_year` already equals the cycle, so a races-first list *"would silently drop FL and OH, the two rows the TBD tier exists to name."*
+
+**Read at STEP 0: `races` at cycle 2028 holds 38 rows, and FL and OH are both among them.** What a races-first list would do is not drop rows but **render six phantoms** — `S-FL-2028` and `S-OH-2028` still carrying Rubio and Vance, who left the Senate for the executive branch, and `S-MN` / `S-MS` / `S-NE` / `S-NJ` belonging to other classes entirely. The mechanism is that `backfill:races` mints a row at whatever year a member carried on the day and never retracts it (its own backlog line; the same audit at cycle 2030 reads 3 of 36).
+
+**Worth recording because the handoff was RIGHT and the argument for it was FALSE**, which is the harder case to catch: a STEP 0 that only checked whether the recommendation was sound would have passed it. What forced the correction was reading the row the ground truth described rather than the claim it made about the row. The estimate beside it (`~32`) was marked as an estimate and STEP 0 replaced it as designed; **the reason was not marked, and that is where the error lived.**
+
+**A second instance in the same handoff, from the ruling rather than the build.** The ruling's option text offered *CO-if-Bennet-wins* as a live TBD instance. Bennet had lost the Colorado gubernatorial primary on **2026-06-30**, ten weeks before the ruling was written, so he stays in the Senate and the instance did not exist. The seeded form of TBD was left with zero live cases — a branch nothing on this corpus could falsify — and was dropped in favour of deriving TBD. **Read the calendar before naming an instance.**
+
+---
+
+## A backtick inside a SQL comment ends the template literal (HO 710, 2026-09-10)
+
+Small, loud, and worth one line so the next person recognises it instantly. A SQL string built as a JS template literal carried an explanatory comment — ``-- ONLY House filter. `district IS NOT NULL` would silently drop …`` — and the backticks around the column expression **terminated the literal**, leaving `district` as a bare identifier. esbuild reported `Expected "}" but found "district"` at a column in the middle of a comment.
+
+**It is in this file as a contrast, not a warning:** the compiler caught it in under a second and nothing could have shipped. Every other entry here is about an instrument that stayed quiet. Markdown habits do not survive into SQL inside a template literal — use plain words there.
