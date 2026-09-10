@@ -142,7 +142,7 @@ export function SeatOutlookList({
       <div className="so-head">
         <span>SEAT</span>
         <span>INCUMBENT</span>
-        <span className="so-head-status">STATUS</span>
+        <span>STATUS</span>
       </div>
 
       <ul className="so-list">

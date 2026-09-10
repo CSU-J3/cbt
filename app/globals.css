@@ -11008,10 +11008,18 @@ a.hearing-watch:hover {
   text-transform: uppercase;
   border-bottom: 0.5px solid var(--border-soft);
 }
+/* SKILL C1 — no far-right anchors in a row. The tracks are FINITE and the grid
+   packs left (`justify-content: start`), so no element is pinned to the right
+   edge with the row's content packing away from it. The handoff specified
+   `72px minmax(0, 1fr) auto`, which stretches the name track and pushes the
+   status ~1150px from the incumbent at 1440 — a fresh instance of the highest-
+   yield convention in the C-set, and C8 seen from the other end. The `li` stays
+   full width so the hover target does too (C6). */
 .so-head,
 .so-row {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) auto;
+  grid-template-columns: 72px minmax(0, 20rem) auto;
+  justify-content: start;
   align-items: baseline;
   gap: var(--space-md);
   min-width: 0;
@@ -11111,8 +11119,9 @@ a.so-tag--tbd:hover {
   .so-head,
   .so-row {
     grid-template-columns: 72px minmax(0, 1fr);
+    justify-content: stretch;
   }
-  .so-head-status {
+  .so-head > span:last-child {
     display: none;
   }
   .so-status {
