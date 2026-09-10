@@ -10986,3 +10986,139 @@ a.hearing-watch:hover {
    per line, so there is nothing left to reflow. The panel's own narrow case is
    handled by the island's clamp (it pins to PAD once the rack is narrower than
    330 + 2*PAD), not by a breakpoint. */
+
+/* ── HO 710 · seat outlook (/electoral?cycle=2028) ─────────────────────────
+   Additive only. Every rule here is namespaced `.so-*` and reaches no other
+   route; the 2026 side of /electoral gains exactly one node (the toggle) and
+   no styling.
+
+   NO `nowrap` ANYWHERE — the HO 682 signature. Widths are governed by
+   `min-width: 0` on the row and the name cell plus `overflow-wrap: anywhere`
+   on the name, so where text breaks is never load-bearing. That matters here
+   because CI runs on Ubuntu and the dev boxes do not: a rule tuned to a font
+   metric reads clean locally and fails in CI on the same SHA (HO 694). */
+.so-wrap {
+  border-top: 0.5px solid var(--border-strong);
+}
+.so-strip {
+  padding: 6px 0;
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.so-head,
+.so-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.so-head {
+  padding: 5px 0;
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  border-bottom: 0.5px solid var(--border-soft);
+}
+.so-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.so-row {
+  padding: 5px 0;
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: var(--fs-12);
+}
+.so-seat {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+.so-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+.so-name a {
+  color: inherit;
+}
+.so-name a:hover {
+  color: var(--accent-amber-bright);
+}
+.so-party {
+  font-size: var(--fs-11);
+}
+.so-status,
+.so-seat-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+/* Tag tokens. OPEN reuses the `.racecard-open-tag` recipe verbatim (amber text,
+   amber SOLID 1px border) — the same signal wearing the same clothes on a
+   second surface. LIKELY is the same amber with a DASHED border, a second cue
+   beyond colour for a claim that is provisional rather than announced. TBD is
+   the `MicroTag` qualifier recipe (--text-dim, --border-strong solid), because
+   it qualifies the seat rather than asserting anything about the holder. */
+.so-tag {
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  border-radius: 3px;
+  padding: 0 4px;
+  white-space: normal;
+}
+.so-tag--open {
+  color: var(--accent-amber);
+  border: 1px solid var(--accent-amber);
+}
+.so-tag--likely {
+  color: var(--accent-amber);
+  border: 1px dashed var(--accent-amber);
+}
+.so-tag--tbd {
+  color: var(--text-dim);
+  border: 1px solid var(--border-strong);
+}
+a.so-tag--tbd:hover {
+  color: var(--text-secondary);
+  border-color: var(--text-secondary);
+}
+.so-src {
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+.so-src:hover {
+  color: var(--accent-amber-bright);
+}
+.so-foot {
+  margin: 8px 0 0;
+  font-size: var(--fs-9);
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* Below 700 the status cell drops to its own line under the name rather than
+   competing with it for a narrow track. The seat column keeps its 72px so the
+   labels stay in a column; the name spans the rest. */
+@media (max-width: 699px) {
+  .so-head,
+  .so-row {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .so-head-status {
+    display: none;
+  }
+  .so-status {
+    grid-column: 2;
+  }
+  .so-status:empty {
+    display: none;
+  }
+}
