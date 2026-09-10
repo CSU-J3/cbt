@@ -56,7 +56,8 @@
     "sync:rematch": "tsx scripts/sync-primaries.ts --rematch",
     "report": "tsx scripts/generate-report.ts",
     "verify:deploy": "tsx scripts/verify-deploy.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck:e2e",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "test:e2e": "playwright test",
     "check:odds-sites": "tsx scripts/check-odds-sites.ts",
     "check:design-citations": "tsx scripts/check-design-citations.ts"

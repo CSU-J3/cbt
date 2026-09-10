@@ -9,6 +9,14 @@
 // @nonci — it needs two local production servers and is never part of the
 // unattended run.
 //
+// HO 709 (2026-09-10) — the `1440-reduced` config emulated NOTHING from HO 706
+// until this commit. `reducedMotion` is a BrowserContextOptions key, not a
+// TestOptions one, so `test.use({ reducedMotion })` registered a fixture nothing
+// consumes and the spec loaded without a word — 36 captures per role carried the
+// tag and were the 1440 comparison run twice (measured HO 708). It travels under
+// `contextOptions`, and every capture now reads the media query back inside the
+// page and asserts the emulation it claims.
+//
 //   CAPTURE_FROM     the build the baselines come from   (default :3000)
 //   CAPTURE_AGAINST  the build being judged              (default :3007)
 //   CAPTURE_ROLE     baseline | compare                  (default compare)
@@ -64,7 +72,7 @@ test.describe("@nonci bundler captures", () => {
     test.describe(`@${v.tag}`, () => {
       test.use({
         viewport: { width: v.w, height: v.h },
-        reducedMotion: v.reduced ? "reduce" : "no-preference",
+        contextOptions: { reducedMotion: v.reduced ? "reduce" : "no-preference" },
       });
 
       for (const r of ROUTES as { slug: string; path: string }[]) {
@@ -72,6 +80,11 @@ test.describe("@nonci bundler captures", () => {
           await page.context().addCookies([{ name: "ct_seen", value: "1", url: BASE }]);
           await page.goto(BASE + r.path, { waitUntil: "domcontentloaded", timeout: 60_000 });
           await page.waitForLoadState("load").catch(() => {});
+          // HO 709 — an emulation is proven by reading the media query back inside the
+          // page, never by the option meant to set it (method § Gates, HO 708 instance).
+          const rm = await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches);
+          console.log(`RM=${rm} expected=${v.reduced} ${r.slug} @${v.tag}`);
+          expect(rm, `reduced-motion emulation @${v.tag}`).toBe(v.reduced);
           // let the tape/marquee settle; animations are frozen by the comparator
           await page.waitForTimeout(1_200);
           await expect(page).toHaveScreenshot(`${r.slug}-${v.tag}.png`, {
