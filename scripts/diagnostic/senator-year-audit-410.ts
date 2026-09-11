@@ -18,6 +18,7 @@ import yaml from "js-yaml";
 import specialElectionsData from "../../data/senate-special-elections.json";
 import { getDb } from "../../lib/db";
 import { isPastElectionDay, senateYearsFromClass } from "../../lib/derive-term";
+import { auditRaceRows, formatRaceRowAudit } from "../../lib/race-row-audit";
 
 const RAW =
   "https://raw.githubusercontent.com/unitedstates/congress-legislators/main";
@@ -328,6 +329,21 @@ async function main() {
   const mullin = memById.get("M001190");
   console.log(
     `  sanity — Mullin M001190: is_current=${mullin?.is_current ?? "?"}, in yaml=${yamlAll.has("M001190")} (expect is_current=0, not in yaml → correct, not an error)`,
+  );
+
+  // ================= SECTION 5 (race-row integrity, HO 711) =================
+  // Sections 1-4 guard the MEMBERS side of the derivation. Nothing guarded the
+  // RACES side, which is where the drift comes to rest: §1-4 were all green at
+  // HO 711 STEP 0 while thirteen phantom race rows sat in the table. Same
+  // implementation the backfill prints, so the two readings cannot disagree.
+  console.log("");
+  console.log("======== SECTION 5 · RACE-ROW INTEGRITY ========");
+  console.log(`  ${formatRaceRowAudit(await auditRaceRows(getDb()))}`);
+  console.log(
+    "  Success = phantoms 0, at-large mismatches 0. departed-incumbent is a READING, not a failure:",
+  );
+  console.log(
+    "    heals on the next backfill if a sitting member maps to the id · NULL if the seat is vacant · delete only if also a phantom.",
   );
 }
 

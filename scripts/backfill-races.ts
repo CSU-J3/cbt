@@ -28,6 +28,7 @@
 // member (0 ambiguity, verified) — otherwise the SET would be nondeterministic.
 import "dotenv/config";
 import { getDb } from "../lib/db";
+import { auditRaceRows, formatRaceRowAudit } from "../lib/race-row-audit";
 import { TERRITORIAL_STATES, sqlStateList } from "../lib/states";
 
 async function main() {
@@ -85,12 +86,19 @@ async function main() {
   const after = await db.execute("SELECT COUNT(*) AS n FROM races");
   console.log(`Races after: ${after.rows[0]?.n ?? 0}`);
 
+  // HO 711: the audit is the run's LAST line, on every run. A routine script
+  // that DELETES rows is a hazard, so retraction stays a considered one-shot —
+  // but a routine script that mints and stays silent about what it left behind
+  // is how nine phantom rows survived from HO 411 to HO 711 unnoticed. This
+  // does not act; it says.
   const byChamber = await db.execute(
     "SELECT chamber, COUNT(*) AS n FROM races GROUP BY chamber",
   );
   for (const row of byChamber.rows) {
     console.log(`  ${row.chamber}: ${row.n}`);
   }
+
+  console.log(formatRaceRowAudit(await auditRaceRows(db)));
 }
 
 main().catch((err) => {
