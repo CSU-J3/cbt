@@ -688,6 +688,27 @@ test.describe("route crawl", () => {
       // Read on EVERY hit, quiet ones included: a `mut` field that only appears
       // on fires cannot distinguish "no mutations" from "channel not installed".
       const mut1 = await readMut(page);
+      // ── HO 714 — `/` IS NEVER SILENT. Read on hit 1 and only on `home`,
+      // because the next nav() replaces this DOM and because `/` is the only
+      // route the Absence Watch band renders on. `.abw-card` is the rack,
+      // `.abw--empty` the good-news line; one or the other is always present on
+      // a healthy dashboard, and `.abw--failed` is reachable ONLY from the HO
+      // 598 guard's `window: null`, which no successful read can produce.
+      //
+      // WHAT THIS READS IF THE WORK WAS NEVER DONE: before HO 714 an empty band
+      // rendered `null`, so `.abw-card` would be 0, `.abw--empty` would not
+      // exist as a class, and the first assertion would go red — which is the
+      // point. It is not a check that passes on absence. The stage-filtered
+      // `home-stage-*` variants render the same band (the band takes no
+      // filters), but the assertion is scoped to `home` so there is one place
+      // this is stated and one test that fails when it breaks.
+      const band =
+        route.slug === "home"
+          ? {
+              present: await page.locator(".abw-card, .abw--empty").count(),
+              failed: await page.locator(".abw--failed").count(),
+            }
+          : null;
       const mark = {
         failed: c.failed.length,
         bad: c.bad.length,
@@ -748,6 +769,7 @@ test.describe("route crawl", () => {
       console.log(
         `[${route.slug}] hit1=${status1} failed=${failed1.length} bad=${bad1.length} console=${console1.length} pageErr=${pageErr1.length}` +
           ` ${mut1?.line ?? "mut=UNINSTALLED"}` +
+          (band ? ` band=${band.present}/failed=${band.failed}` : "") +
           ` | hit2=${status2} failed=${failed2.length} bad=${bad2.length} console=${console2.length} pageErr=${pageErr2.length}` +
           ` ${mut2?.line ?? "mut=UNINSTALLED"}`,
       );
@@ -783,6 +805,27 @@ test.describe("route crawl", () => {
       expect.soft(bad1, `${route.path} hit-1 4xx/5xx subrequests`).toEqual([]);
       expect.soft(console1, `${route.path} hit-1 console errors`).toEqual([]);
       expect.soft(pageErr1, `${route.path} hit-1 uncaught page errors`).toEqual([]);
+
+      // HO 714 — HARD, not soft, and on hit 1. A failed Absence Watch read on
+      // production `/` is an incident, not a flake to tolerate: the guard hides
+      // it from the request (correctly — the rest of the dashboard should still
+      // serve) and this is the only thing that says it happened.
+      if (band) {
+        // `.abw--failed` FIRST, deliberately: a failed read makes both of these
+        // red (a failed band renders no card and no empty line), and the first
+        // to fire is the one whose message the reader sees. "The read failed" is
+        // the diagnosis; "rendered nothing" is the symptom.
+        expect(
+          band.failed,
+          `${route.path} hit-1 Absence Watch read FAILED ` +
+            `(.abw--failed served) — see the [absence-watch] read failed log line`,
+        ).toBe(0);
+        expect(
+          band.present,
+          `${route.path} hit-1 Absence Watch rendered nothing ` +
+            `(no .abw-card and no .abw--empty)`,
+        ).toBeGreaterThanOrEqual(1);
+      }
 
       // HIT 2 — the assertion this commit exists for: the cache-hit path must also
       // be 200 (hard), with the same soft posture on the hit-2 slice.
