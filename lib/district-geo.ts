@@ -26,7 +26,7 @@ type DistrictProps = { STATEFP: string; CD119FP: string };
 
 export type DistrictShape = {
   cd: string; // CD119FP, zero-padded 2-digit ("01"); "00" = at-large
-  seatId: string | null; // {ST}-{DD}-{cycle}; null for at-large/render-only
+  seatId: string | null; // {ST}-{DD}-{cycle}, or {ST}-AL-{cycle} at-large (HO 711)
   d: string; // SVG path
   cx: number; // projected centroid x (label anchor)
   cy: number; // projected centroid y
@@ -96,13 +96,17 @@ for (const f of fc.features) {
   else byState.set(abbr, [f]);
 }
 
-// district → seat-ID. At-large ("00") returns null (render-only, no race row).
+// district → seat-ID. At-large ("00") returns the AL-token id (HO 711; before
+// that it returned null because at-large seats had no race row to point at).
 export function districtSeatId(
   abbr: string,
   cd119fp: string,
   cycle = 2026,
 ): string | null {
-  if (cd119fp === "00") return null;
+  // HO 711: "00" is the Census at-large code and now maps to the AL token
+  // rather than to null. This is the fourth translation of raceIdFromMember;
+  // see the header of lib/race-id.ts.
+  if (cd119fp === "00") return `${abbr}-AL-${cycle}`;
   return `${abbr}-${cd119fp}-${cycle}`;
 }
 
@@ -111,8 +115,13 @@ export function districtSeatId(
 export function seatIdToDistrict(
   seatId: string,
 ): { abbr: string; cd: string } | null {
-  const m = /^([A-Z]{2})-(\d{2})-\d{4}$/.exec(seatId);
-  return m ? { abbr: m[1]!, cd: m[2]! } : null;
+  // HO 711: accepts the at-large token as well as a numbered district, and maps
+  // AL back to the Census "00". ANCHORED deliberately — a bare `-AL-` substring
+  // also matches `S-AL-2026`, the Alabama Senate seat, and the `[A-Z]{2}` +
+  // trailing-year anchors are what keep Alabama out.
+  const m = /^([A-Z]{2})-(\d{2}|AL)-\d{4}$/.exec(seatId);
+  if (!m) return null;
+  return { abbr: m[1]!, cd: m[2] === "AL" ? "00" : m[2]! };
 }
 
 export function listDistrictStates(): string[] {

@@ -3,6 +3,31 @@
 // Congress.gov data into `members.state`) and by race-page rendering
 // (abbr → name when composing "Colorado 8th Congressional District").
 
+// HO 711: the territorial carve, as a name rather than an inline literal. The
+// six non-voting House delegations — five territories plus the District. A
+// delegate holds no seat that is contested in a general election, so they are
+// excluded from race rows entirely (raceIdFromMember returns null for them).
+//
+// NOT yet folded into the four inline copies in lib/queries.ts (:2892, :5121,
+// :5322, :6823) or the nine diagnostic scripts that carry the same literal;
+// those routes are not this HO's and a byte-identical literal is not a defect.
+// Filed in the backlog to fold on the next touch of each.
+export const TERRITORIAL_STATES = [
+  "DC", "AS", "GU", "MP", "PR", "VI",
+] as const;
+
+export type TerritorialState = (typeof TERRITORIAL_STATES)[number];
+
+export function isTerritorialState(abbr: string | null | undefined): boolean {
+  return !!abbr && (TERRITORIAL_STATES as readonly string[]).includes(abbr);
+}
+
+// Quoted, comma-joined form for interpolation into a SQL IN (…) list. The
+// members are compile-time constants, so this cannot carry user input.
+export function sqlStateList(states: readonly string[]): string {
+  return states.map((s) => `'${s}'`).join(",");
+}
+
 export const STATE_NAME_TO_ABBR: Record<string, string> = {
   Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR",
   California: "CA", Colorado: "CO", Connecticut: "CT", Delaware: "DE",

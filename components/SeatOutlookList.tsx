@@ -125,11 +125,13 @@ export function SeatOutlookList({
   const tbd = rows.filter((r) => r.status === "tbd").length;
 
   const senateClass = senateClassForCycle(cycle);
-  // At-large rows can carry no tag EVER, which is a different fact from "no
-  // statement on file" — disclosed in the footnote, and only when such rows are
-  // actually present so the 2026 side is untouched.
-  const hasAtLarge = rows.some(
-    (r) => r.chamber === "house" && r.district == null,
+  // HO 711: the gate is `raceId == null`, not `district == null`. At-large seats
+  // now HAVE a race row, so a district-NULL House row is no longer a row that
+  // cannot carry a tag. What the footnote discloses is the absence of a race
+  // record, so it must key on the absence of a race id — and after HO 711 that
+  // is expected never to fire on a voting seat.
+  const hasNoRaceRecord = rows.some(
+    (r) => r.chamber === "house" && r.raceId == null,
   );
 
   return (
@@ -170,11 +172,11 @@ export function SeatOutlookList({
         the 120th Congress is seated and the roster resyncs. Tags come from
         curated public statements with a source link; no tag means no statement
         on file.
-        {hasAtLarge ? (
+        {hasNoRaceRecord ? (
           <>
             {" "}
-            At-large seats (AK, DE, ND, SD, VT, WY) have no race record yet, so a
-            tag cannot attach to them until the id gap closes.
+            Some seats here have no race record, so a tag cannot attach to them
+            however the statement record stands.
           </>
         ) : null}
       </p>

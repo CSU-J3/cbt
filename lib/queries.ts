@@ -2861,10 +2861,14 @@ export const getSeatOutlook = unstable_cache(
     // (lib/race-id.ts:17, scripts/backfill-races.ts:34-37) — all three carry
     // the same keep-in-sync note. At-large House seats (district IS NULL) get
     // NULL, matching raceIdFromMember, which returns null for exactly that case.
+    // HO 711: the at-large arm. Before it, a district-NULL House member got a
+    // NULL id here and rendered with no race link at all. The delegate carve is
+    // already applied in the WHERE below, so a NULL district reaching this CASE
+    // is an at-large seat by construction.
     const derivedId = `CASE
         WHEN m.chamber = 'senate' THEN 'S-' || m.state || '-' || ?
-        WHEN m.district IS NOT NULL THEN m.state || '-' || printf('%02d', m.district) || '-' || ?
-        ELSE NULL
+        WHEN m.district IS NULL THEN m.state || '-AL-' || ?
+        ELSE m.state || '-' || printf('%02d', m.district) || '-' || ?
       END`;
 
     const rs = await db.execute({
@@ -2892,11 +2896,16 @@ export const getSeatOutlook = unstable_cache(
                       AND m.state NOT IN ('DC','AS','GU','MP','PR','VI'))
                    )`,
       args: [
+        // The derived-id CASE carries THREE placeholders (senate / at-large /
+        // numbered) and is interpolated twice, so six cycleText binds precede
+        // the first integer one. All six are the STRING form — see cycleText.
         cycleText,
-        cycleText, // the SELECTed derived id — STRING, see cycleText above
+        cycleText,
+        cycleText, // the SELECTed derived id
         cycle, // r.cycle
         cycleText,
-        cycleText, // the derived id repeated inside the r join — STRING
+        cycleText,
+        cycleText, // the derived id repeated inside the r join
         cycle, // the <> guard on the deciding join
         senateClass, // senate arm
         cycle, // house arm

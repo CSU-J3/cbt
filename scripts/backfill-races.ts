@@ -2,9 +2,19 @@
 //
 // One row per (state, district, cycle) for the House and one per
 // (state, cycle) for the Senate. The id expression is a SQL translation of
-// `raceIdFromMember` in lib/race-id.ts — keep them in sync. House rows with
-// NULL district are filtered to avoid a NULL-id collision; Senate ignores
-// district by design.
+// `raceIdFromMember` in lib/race-id.ts — keep all four sites in sync (the other
+// two are getSeatOutlook's CASE in lib/queries.ts and districtSeatId in
+// lib/district-geo.ts). Senate ignores district by design.
+//
+// HO 711: House rows with a NULL district used to be filtered out wholesale,
+// which swept the six AT-LARGE states (AK, DE, ND, SD, VT, WY) out along with
+// the six territorial delegations. Only the delegations belong out — a delegate
+// holds no contested seat. At-large seats now mint `{ST}-AL-{YYYY}` and store
+// `district = 0`. THE 0 IS DERIVED HERE, not in `members`: Congress.gov gives
+// at-large members no district and `members.district` stays NULL; `races.district`
+// uses 0 so RaceHeader's `district === 0` branch, harvest-challengers' numeric
+// join against `primary_candidates.district` (also 0) and raceLabelCompact all
+// work with no change.
 //
 // HO 412: self-healing on `incumbent_bioguide_id` ONLY. Was `INSERT OR IGNORE`
 // (conflicts left the stored incumbent stale — that's how S-CO-2026 kept Bennet
@@ -18,6 +28,7 @@
 // member (0 ambiguity, verified) — otherwise the SET would be nondeterministic.
 import "dotenv/config";
 import { getDb } from "../lib/db";
+import { TERRITORIAL_STATES, sqlStateList } from "../lib/states";
 
 async function main() {
   const db = getDb();
@@ -33,12 +44,17 @@ async function main() {
       SELECT
         CASE
           WHEN m.chamber = 'senate' THEN 'S-' || m.state || '-' || m.next_election_year
+          WHEN m.district IS NULL THEN m.state || '-AL-' || m.next_election_year
           ELSE m.state || '-' || printf('%02d', m.district) || '-' || m.next_election_year
         END AS id,
         m.next_election_year,
         m.chamber,
         m.state,
-        CASE WHEN m.chamber = 'senate' THEN NULL ELSE m.district END,
+        CASE
+          WHEN m.chamber = 'senate' THEN NULL
+          WHEN m.district IS NULL THEN 0
+          ELSE m.district
+        END,
         m.bioguide_id,
         ?
       FROM members m
@@ -51,7 +67,14 @@ async function main() {
         -- same S-<state>-2026 id and recreate the two-at-2026 ambiguity that
         -- HO 410 caught on the CO card. The audit §3 population matches this.
         AND m.is_current = 1
-        AND (m.chamber = 'senate' OR m.district IS NOT NULL)
+        -- HO 711: the carve is TERRITORIAL, not district-IS-NULL. A delegate has
+        -- no contested seat; an at-large member does. The list is INTERPOLATED
+        -- from TERRITORIAL_STATES (lib/states.ts) through sqlStateList, so the
+        -- constant is read here rather than transcribed; the emitted SQL text is
+        -- byte-identical to the literal it replaces. Compile-time constants only,
+        -- so no user input reaches this string.
+        AND NOT (m.chamber = 'house' AND m.district IS NULL
+                 AND m.state IN (${sqlStateList(TERRITORIAL_STATES)}))
       ON CONFLICT(id) DO UPDATE SET
         incumbent_bioguide_id = excluded.incumbent_bioguide_id
     `,
