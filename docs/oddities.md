@@ -4162,3 +4162,77 @@ A dependents sweep asked seven tables per row whether anything referenced it, wr
 This file's whole subject is instruments that produce a false zero, and the instances so far have been about the *thing being measured* — a join that matched nothing, a filter that denied what another displayed, a path the runner deletes. This is the case where the **instrument itself** produced it, from a language construct whose entire purpose is to make failure quiet.
 
 **The rule: run the control FIRST and require its known non-zero before believing any zero from the same instrument.** Not alongside, not afterwards — first, as a gate. The shipped version (`scripts/oneshot/711-retract-phantom-races.ts`) prints its control before touching anything and aborts if it reads zero, so a pass that deletes nineteen rows cannot begin on an instrument that has not proven it can see.
+
+---
+
+## Two Grahams — a committed record carried a bare surname, and the review read it as the sitting senator (HO 711, Sep 2026)
+
+Carried from HO 711, filed here because that HO's ref had already been read when it surfaced.
+
+The retraction one-shot's HALT table justified deleting `S-SC-2030` with the line `S-SC-2030 — Graham, is_current = 0`. The review stopped on it: served `/members` reads **100 SENATE** at `is_current = 1`, which leaves no room for a sitting senator marked departed, so either the incumbent was not Graham's `G000359` or the comment was wrong about the flag.
+
+It was neither. Both facts were exactly right, and South Carolina has **two** Grahams: `G000359` Lindsey Graham, `is_current = 0`, a genuinely departed row that the sync marks non-current along with fifteen others — and `G000608` **Darline** Graham, `is_current = 1`, class 2, who holds the seat. SKILL had already recorded her as `S-SC-2026`'s incumbent a month earlier. The deletion was justified twice over (SC runs classes 2 and 3, so no SC senator stands at 2030 on any predicate), and the comment was accurate; it just could not be read.
+
+**A committed record carries the identifier, never the bare surname.** The bioguide is unambiguous by construction and the surname is unambiguous only until it isn't. Same shape as the `-AL-` substring entry above: a token that discriminates perfectly on today's data and silently stops when the data widens.
+
+---
+
+## The RSC flight payload doubles a class-name count, so a raw grep over served HTML reads twice the truth (HO 711, Sep 2026)
+
+Also carried from HO 711.
+
+Verifying the seat-outlook render on production, a bare `so-tag--open|likely|tbd` sweep over the served HTML read **0 / 2 / 4** where the page renders three tags. Next serializes the RSC flight data into `<script>self.__next_f.push(...)` inside the same document, so every `className` appears twice: once in the markup and once, escaped, in the payload.
+
+The give-away was in the numbers. Element counts halved cleanly (0/0, 1/1, 2/2) and the page's own strip read `OPEN 0 · LIKELY 1 · TBD 2`, so the two populations separated the moment the grep was anchored on `class="so-tag so-tag--x"` — the HTML attribute form, which the escaped payload copy does not match. Row counts were never affected because that grep used `class="so-row`, which was already anchored.
+
+**Anchor a served-HTML grep on the attribute syntax, not the bare class name** — and treat a count that is an exact multiple of the expected one as a transport artifact before treating it as data.
+
+---
+
+## A destructive one-shot that reads as housekeeping, is unwired, and deletes in the run that prints its targets (HO 712, Sep 2026)
+
+`scripts/delete-non-119.ts` ran `DELETE FROM watchlist WHERE bill_id IN (SELECT id FROM bills WHERE congress != 119)` and then `DELETE FROM bills WHERE congress != 119`. It was absent from `package.json`, had no `--write` gate, and printed its target list in the same run that deleted them — so the printout was a receipt, not a confirmation.
+
+Today it is a no-op: `bills` is 100% congress 119, so it deletes nothing and reports nothing. Run once after 2027-01-03 it erases the entire 120th corpus and every watchlist row pointing into it. Nothing about the name, the absence of a flag, or the dry-run-shaped printout would have suggested that at the moment someone reached for it.
+
+It surfaced from a sweep looking for *congress derivation* seams, and it is not one — no amount of deriving the number would have made it safe, because the hazard is the missing gate, not the constant. **The class is "a destructive script whose safety depends entirely on a fact about today's data."** Removed rather than gated, on the reasoning that the commit which introduced it is the record and a future trimmed-corpus tool would be written differently anyway: `--write`, a derived congress, and a target list that has to be confirmed before anything is deleted.
+
+---
+
+## A retain ratio copied from a precedent whose quantity moves differently, and the fixture caught it passing (HO 712, Sep 2026)
+
+`sync:members` gained a floor so a partial Congress.gov roster on rollover morning cannot mark the chamber departed. The shape was lifted from `lib/participation-refresh.ts:129-137` — a zero-row skip plus a `MIN_RETAIN_RATIO = 0.5` — and the ratio came with it.
+
+The fixture was written to the guard's stated purpose: empty full roster, empty current roster, **half-size full roster**, half-size current roster all abort; full size passes. Four of five behaved. **The half-size full roster PASSED**, and the arithmetic is the whole lesson: the full roster (555) runs *above* the baseline the floor measures against (539 serving), so half of it reads **0.51x** and clears a 0.5 floor by eight members. A guard whose one-sentence description is "a half-size answer aborts" did not do that for the larger of the two rosters it guards.
+
+The quantities are not alike. A participation aggregate can legitimately move; a chamber roster is a near-constant ~540 whose entire full-vs-current gap is sixteen members, 3%. The floor moved to **0.75**, where a real answer never lands and a truncated one always does — the abort line is 404 of 539, while the 119th's own numbers read 1.03x and 1.00x.
+
+**A constant borrowed from a precedent is a borrowed assumption about how its quantity moves.** The shape was right to copy; the number was not, and only a fixture written to the guard's *stated purpose* rather than to its *implementation* could have shown that — a test asserting "0.5 means 0.5" would have passed.
+
+---
+
+## A regex lost its backslash crossing a template literal, still compiled, and hid a real shipped bug (HO 712, Sep 2026)
+
+HO 678's class, a different transport, and this time the broken instrument was the one check that could have caught a genuine defect.
+
+The DOM comparator injects its normalising function into the page as a **template literal**, so the source read `/\\d{3}(th|st|nd|rd)/i` — correct in the file, `\d` after the template literal, matching a three-digit ordinal. Except the string written to disk carried a single backslash, so the template literal consumed it and the page compiled `/d{3}(th|st|nd|rd)/i` — a **valid** expression looking for three literal `d`s. It matched nothing, and the report printed `congress-bearing title/aria attrs identical: true (0)` on every route.
+
+**Zero of zero is `true`.** The check read green on all four routes for two consecutive rounds while the branch was serving `title="Missed rate = share of the member's ${congressLabel} roll calls..."` — a tooltip rendering its own placeholder, because that one attribute had been edited as a plain string instead of a JSX template expression. The element-count diff could not see it either: a string changing inside a single attribute adds and removes no elements. Both instruments were green on a rendered bug.
+
+It was found by reading the served HTML directly, one `curl | grep` outside the harness, which showed the base page carrying four congress-bearing attributes and the branch carrying three. Rebuilding the regex with a character class — `[0-9]{3}`, no backslash to lose — made the comparator fire on the real difference before the fix, and go quiet after it.
+
+Two rules, and the second is the one that generalises past regexes: **never let a regex backslash cross a transport** (a character class needs none), and **a count of zero is not a pass — a check that finds nothing has not distinguished "no differences" from "no subjects".** The comparator now prints the population size beside the verdict for exactly that reason; `true (0)` and `true (4)` look nothing alike.
+
+---
+
+## Two independently-cached production servers are not an A/B, and restarting the process does not fix it (HO 712, Sep 2026)
+
+The same comparator read `/members` at **−5 elements** — `span.mc-bar-fill x1 | span.mc-bar-seg x4`, a member's topic-mix bar — between the branch and a baseline worktree built at the previous tip. The change under test touched neither.
+
+The obvious discriminator was run first and gave the **wrong answer**: the delta was *stable* across two back-to-back rounds, and a delta caused by live-data drift was supposed to wander. Stopping the baseline server by PID and restarting it changed nothing either, which looked like more confirmation. Three reads agreeing, and all three wrong.
+
+`unstable_cache` persists to `.next/cache` **on disk**, so each server holds its own pinned snapshot of every cached query, taken whenever that server first served the route. Two snapshots taken hours apart differ by whatever the syncs did in between — and they differ *identically on every subsequent request*, which is precisely what makes a cache artifact indistinguishable from a code change by repetition. Restarting the process clears memory and reloads the same directory.
+
+Deleting `.next/cache` on both sides and restarting both converged them exactly: 4,254 segments and 1,070 fills on each, and the full comparator then read **+0 / −0** on all four routes.
+
+**Before diffing two builds, cold both caches.** And more generally: *repeating a measurement only tests the sources of variance that repetition can move.* A pinned artifact survives repetition as cleanly as a fact does, so "I ran it twice and got the same answer" is evidence about the instrument's determinism and nothing at all about its correctness.
