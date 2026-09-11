@@ -87,11 +87,37 @@ export function senateTermEnd(termStart: number): number {
   return termStart + 6;
 }
 
-// House terms are exactly 2 years = 1 Congress, so the latest entry's
-// startYear is the current term start directly. These helpers exist so
-// sync-members.ts has one place for all term math.
+// House term math. These helpers exist so sync-members.ts has one place for it.
+//
+// HO 711 — THE OLD COMMENT HERE WAS FALSE FOR SPECIAL ELECTIONS and the code
+// implemented the false version. It read: "House terms are exactly 2 years = 1
+// Congress, so the latest entry's startYear is the current term start directly",
+// and `houseTermEnd` was `start + 2`. That is right only when the term begins at
+// the START of a Congress, in an ODD year. A member seated by special election
+// begins mid-Congress, in an EVEN year, and finishes the Congress already
+// running — they do not serve two more years.
+//
+// A House term ends on the January 3 of the first ODD year strictly after it
+// begins. So termEnd is ALWAYS ODD, and `houseNextElection = termEnd - 1` is
+// therefore ALWAYS EVEN — which is the property that matters, because House
+// elections only ever fall in even Novembers.
+//
+//   start 2025 (Congress start) -> end 2027 -> next 2026   (unchanged)
+//   start 2026 (special)        -> end 2027 -> next 2026   (was 2028 -> 2027)
+//   start 2024 (special)        -> end 2025 -> next 2024   (was 2026 -> 2025)
+//   start 2023 (Congress start) -> end 2025 -> next 2024   (unchanged)
+//
+// This is the HO 410/411 defect one chamber over: term math drifted for senators
+// through appointments and was replaced by class derivation; it drifted for
+// representatives through specials and is fixed here. That fix was one chamber
+// wide, and this is the other half of it.
+//
+// Measured at HO 711 STEP 0: four sitting members carried `next_election_year =
+// 2027`, a year in which no House election occurs, and the four race rows minted
+// from them were phantoms. The corrected formula moves exactly those four and
+// leaves the other 433 sitting members untouched.
 export function houseTermEnd(latestStartYear: number): number {
-  return latestStartYear + 2;
+  return latestStartYear % 2 === 1 ? latestStartYear + 2 : latestStartYear + 1;
 }
 
 export function houseNextElection(termEnd: number): number {
