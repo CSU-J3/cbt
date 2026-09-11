@@ -45,10 +45,18 @@ const BILL_TYPES = new Set([
   "sconres",
 ]);
 
-// Vote start of the 119th Congress (Jan 3, 2025). Used when the votes
-// table has nothing for chamber='house' yet so the first run picks up
-// everything from the beginning.
-const CONGRESS_119_START = "2025-01-03T00:00:00Z";
+// First-run floor: the convening date of the Congress being synced, used only
+// when the votes table has nothing for chamber='house' yet.
+//
+// HO 712: was `CONGRESS_119_START = "2025-01-03T00:00:00Z"`, a dated literal
+// sitting beside an already-derived congress (`opts.congress ?? getCurrentCongress()`
+// below). Dead on every live run — the watermark is MAX(vote_date) and the table
+// holds 1,547 House rows — but on a true first run in any later Congress it
+// would have floored the pull at 2025 and walked years of nothing. Same shape as
+// amendments-sync.ts, nominations-sync.ts and lda-sync.ts.
+function congressStartFloor(congress: number): string {
+  return `${2025 + (congress - 119) * 2}-01-03T00:00:00Z`;
+}
 
 type ListVote = {
   congress: number;
@@ -251,12 +259,13 @@ async function getExistingVoteIds(
 
 async function getWatermark(
   db: ReturnType<typeof getDb>,
+  congress: number,
 ): Promise<string> {
   const r = await db.execute(
     "SELECT MAX(vote_date) AS m FROM votes WHERE chamber = 'house'",
   );
   const m = r.rows[0]?.m as string | null | undefined;
-  return m ?? CONGRESS_119_START;
+  return m ?? congressStartFloor(congress);
 }
 
 const UPSERT_VOTE_SQL = `
@@ -420,7 +429,7 @@ export async function runVotesSync(
   const db = getDb();
   const congress = opts.congress ?? getCurrentCongress();
   const sessions = opts.sessions ?? [1, 2];
-  const fromDate = opts.fromDate ?? (await getWatermark(db));
+  const fromDate = opts.fromDate ?? (await getWatermark(db, congress));
   const existing = await getExistingVoteIds(db, congress);
 
   console.log(

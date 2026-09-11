@@ -1,7 +1,7 @@
 // HO 419 — Voteview DW-NOMINATE source loader (shared by sync-ideology.ts and
 // the ideology-coverage-419 diagnostic).
 //
-// Both consumers need the live 119th member file: the sync to write scores, the
+// Both consumers need the live member file for the current Congress: the sync to write scores, the
 // diagnostic to compute the off-roster skip count and the party_code-vs-members
 // disagreements (neither of which is stored in member_ideology). Extracting the
 // fetch + parse here keeps them byte-for-byte identical.
@@ -19,12 +19,17 @@
 // vendored from scripts/sync-palestine.ts (a working sync — not refactored to
 // dedup ~15 lines); no npm CSV package is added.
 
-// Both chambers, 119th only (~535 rows) — not the ~50k-row HSall history. File
+// Both chambers, one Congress (~535 rows) — not the ~50k-row HSall history. File
 // scheme confirmed by UCLA: HSnnn_members.csv for both chambers of congress nnn.
+import { getCurrentCongress } from "@/lib/congress";
 import { fetchError } from "@/lib/redact";
 
-export const VOTEVIEW_119_URL =
-  "https://voteview.com/static/data/out/members/HS119_members.csv";
+// HO 712: the congress is DERIVED, not baked into the URL. Left hardcoded, this
+// kept pulling the 119th file forever: after 2027-01-03 every 120th member would
+// have had no ideology row while the sync reported success.
+export function voteviewMembersUrl(congress = getCurrentCongress()): string {
+  return `https://voteview.com/static/data/out/members/HS${congress}_members.csv`;
+}
 
 // The full HSall history (~50k member-rows, ~6MB), every Congress both chambers —
 // same file scheme, same schema, same bioname-comma trap. HO 427 aggregates it to
@@ -69,7 +74,7 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-// One 119th Voteview member row, columns picked by header name. Numeric fields
+// One Voteview member row for a single Congress, columns picked by header name. Numeric fields
 // with no estimate yet (a member with zero votes) come through as null.
 export type VoteviewMember = {
   congress: number;
@@ -98,7 +103,7 @@ function numOrNull(v: string | undefined): number | null {
 // GET a Voteview member CSV and return its parsed rows plus a header-name -> index
 // resolver. Parsing by NAME (not position) is the whole defense against the
 // bioname-comma shift. Throws on non-200 or an empty/headerless body; `label` names
-// the file in the error text. Shared by fetchVoteview119 + fetchVoteviewHSall.
+// the file in the error text. Shared by fetchVoteviewMembers + fetchVoteviewHSall.
 async function fetchVoteviewCsv(
   url: string,
   label: string,
@@ -124,13 +129,31 @@ async function fetchVoteviewCsv(
   return { rows, require };
 }
 
-// Fetch + parse HS119_members.csv into header-indexed rows. Throws on non-200 or
-// an empty/headerless body. Does not gate on membership — callers apply that.
-export async function fetchVoteview119(): Promise<VoteviewMember[]> {
-  const { rows, require } = await fetchVoteviewCsv(
-    VOTEVIEW_119_URL,
-    "HS119_members.csv",
-  );
+// Fetch + parse HS{congress}_members.csv into header-indexed rows. Does not gate
+// on membership — callers apply that.
+//
+// HO 712 — RETURNS null ON 404, and that is the rollover behaviour, not a
+// swallowed error. Voteview publishes a Congress's member file weeks after it
+// convenes, so between 2027-01-03 and that publication the current file simply
+// does not exist. A throw there turns a known-and-expected upstream lag into a
+// red run; a FALLBACK to the previous Congress's file would be far worse — it
+// would write the 119th's scores under the 120th's label. So: one logged line,
+// no rows, no writes, and the rows already in the table stay exactly as they
+// are. Every other failure (500, empty body, missing column) still throws.
+export async function fetchVoteviewMembers(
+  congress = getCurrentCongress(),
+): Promise<VoteviewMember[] | null> {
+  const url = voteviewMembersUrl(congress);
+  const label = `HS${congress}_members.csv`;
+  const probe = await fetch(url, { method: "HEAD" });
+  if (probe.status === 404) {
+    console.log(
+      `[voteview] ${label} is not published yet (404) — skipping, ` +
+        "no rows written",
+    );
+    return null;
+  }
+  const { rows, require } = await fetchVoteviewCsv(url, label);
 
   const iCongress = require("congress");
   const iChamber = require("chamber");
@@ -180,7 +203,7 @@ export type VoteviewHistoryRow = {
 };
 
 // Fetch + parse the full HSall_members.csv (~50k rows) into the four history
-// fields. Same tokenizer + header-name indexing as the 119th path (the
+// fields. Same tokenizer + header-name indexing as the members path (the
 // bioname-comma trap is identical across the file scheme). Throws on non-200 or an
 // empty/headerless body. No membership gate — the sync filters by party_code.
 export async function fetchVoteviewHSall(): Promise<VoteviewHistoryRow[]> {

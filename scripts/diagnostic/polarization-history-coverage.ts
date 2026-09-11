@@ -21,7 +21,7 @@
 //   npx tsx scripts/diagnostic/polarization-history-coverage.ts
 import "dotenv/config";
 import { getDb } from "../../lib/db";
-import { fetchVoteview119 } from "../voteview-source";
+import { fetchVoteviewMembers } from "../voteview-source";
 import { median } from "../../lib/median";
 
 type Db = ReturnType<typeof getDb>;
@@ -152,7 +152,13 @@ async function main() {
     memName.set(r.bioguide_id as string, (r.name as string | null) ?? "");
   }
 
-  const rows119 = await fetchVoteview119();
+  // HO 712: the source is congress-derived now; a diagnostic that reads null
+  // has nothing to measure and says so rather than throwing on `.length`.
+  const rows119 = await fetchVoteviewMembers();
+  if (rows119 === null) {
+    console.log("Voteview has not published the current Congress's member file — nothing to measure");
+    return;
+  }
   const independents: string[] = [];
   const departed: string[] = [];
   const flips: string[] = [];

@@ -1,11 +1,11 @@
 // HO 263 committee-meetings (hearings) sync — Phase 1 data layer, no UI.
-// Mirrors lib/committees-sync.ts in shape (Congress.gov, CONGRESS=119, an 8s
+// Mirrors lib/committees-sync.ts in shape (Congress.gov, a derived CONGRESS, an 8s
 // AbortSignal per call, a dashboard_state-style cursor, db.batch upserts,
 // deadline-budgeted). Separate file from committees-sync (committees stayed
 // separate from bills). The /api/cron/committees route folds the meetings step
 // in after the committee sync, deadline-guarded + non-fatal (HO 263 Cron).
 //
-// The wrinkle (HO 261 probe): the list endpoint (committee-meeting/119/{chamber})
+// The wrinkle (HO 261 probe): the list endpoint (committee-meeting/{N}/{chamber})
 // is sorted updateDate-DESC with NO server-side date filter, and the meeting DATE
 // lives only on the detail record. So the cursor is a per-chamber update_date
 // watermark: each run COLLECTS the thin list newest→oldest until it hits an event
@@ -13,10 +13,17 @@
 // oldest-first (fetching detail per event), and advances the watermark per
 // COMPLETED event — so a deadline-interrupted tick keeps its progress and the
 // next tick resumes forward (the HO 116/143 forward-drain, adapted).
+import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
-const CONGRESS = 119;
+// HO 712: derived. Safe with no guard — an empty list for a Congress that has
+// not met yet leaves each chamber's watermark exactly where it is and writes
+// nothing, and the only DELETE here is scoped to an event being re-upserted.
+// Carries the same tail tradeoff as committees-sync: once this rolls, a 119th
+// meeting whose detail changes afterwards is no longer walked (SKILL, Congress
+// rollover tradeoff).
+const CONGRESS = getCurrentCongress();
 const CHAMBERS = ["house", "senate"] as const;
 type Chamber = (typeof CHAMBERS)[number];
 

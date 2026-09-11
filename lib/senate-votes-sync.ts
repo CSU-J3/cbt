@@ -1,7 +1,8 @@
 // Senate roll-call vote sync (handoff 80). Senate has no Congress.gov API
 // coverage for votes, so we scrape the senate.gov LIS XML feeds:
-//   - menu (per session):   /legislative/LIS/roll_call_lists/vote_menu_119_{S}.xml
-//   - detail (per vote):    /legislative/LIS/roll_call_votes/vote119{S}/vote_119_{S}_{NNNNN}.xml
+//   - menu (per session):   /legislative/LIS/roll_call_lists/vote_menu_{C}_{S}.xml
+//   - detail (per vote):    /legislative/LIS/roll_call_votes/vote{C}{S}/vote_{C}_{S}_{NNNNN}.xml
+//     ({C} is the congress, already derived here — `opts.congress ?? getCurrentCongress()`)
 //
 // Senate XML keys members by `lis_member_id` (e.g. "S428"). Our schema keys
 // member_votes on bioguide_id, so we resolve via (last_name, state) from the

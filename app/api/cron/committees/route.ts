@@ -1,7 +1,7 @@
 // Committees sync cron (handoff 143). Three operations per tick:
 //
-// 1. Committees list — full refresh from `/committee/119`. One paginated
-//    pass, sub-second. Always runs.
+// 1. Committees list — full refresh from `/committee/{N}`, N derived (HO 712).
+//    One paginated pass, sub-second. Always runs.
 // 2. Committee members — full refresh from unitedstates/congress-
 //    legislators YAML. One HTTP fetch + parse + upsert per committee.
 //    Always runs.

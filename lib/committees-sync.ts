@@ -1,6 +1,6 @@
 // HO 143 committees sync. Three operations, three sources:
 //
-// 1. **Committees list** from Congress.gov `/committee/119` — full refresh
+// 1. **Committees list** from Congress.gov `/committee/{N}` — full refresh
 //    each tick. ~237 committees + subs, one paginated pass, sub-second.
 // 2. **Committee bills** via the bill→committees direction
 //    (`/bill/{congress}/{type}/{number}/committees`) — incremental. Walks
@@ -21,10 +21,24 @@
 // client so a slow upstream doesn't strand the tick past the 55s soft
 // timeout.
 import yaml from "js-yaml";
+import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
-const CONGRESS = 119;
+// HO 712: derived, and this is the ONLY rollover seam on a cron — /api/cron/committees
+// runs "0 */12", so it moves on 2027-01-03 with no human present. Both uses are
+// safe on an empty answer, but they are safe for different reasons:
+//
+//   :`/committee/${CONGRESS}` (the list) is a pure upsert — zero rows means the
+//     batch is never shipped. Nothing is deleted, nothing is marked stale.
+//   :selectBillsSince filters `bills WHERE congress = ?`. The cursor beside it
+//     (BILLS_CURSOR_KEY) is a bare update_date watermark carrying no congress,
+//     so the walk resumes correctly on the new Congress's bills — at the cost of
+//     the previous Congress's TAIL: a 119th bill re-updated after rollover
+//     (a delayed enactment signature, a lame-duck action) stops being walked.
+//     That is the tradeoff SKILL already documents for lib/sync.ts's bill list,
+//     reaching a second site; it is accepted here for the same reason.
+const CONGRESS = getCurrentCongress();
 const COMMITTEES_LIST_LIMIT = 250;
 const PER_BILL_HTTP_TIMEOUT_MS = 8_000;
 const MEMBERSHIP_YAML_URL =

@@ -10,7 +10,7 @@
 // Run after `sync:ideology`:  npx tsx scripts/diagnostic/ideology-coverage-419.ts
 import "dotenv/config";
 import { getDb } from "../../lib/db";
-import { fetchVoteview119 } from "../voteview-source";
+import { fetchVoteviewMembers } from "../voteview-source";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -70,7 +70,13 @@ async function main() {
 
   // Re-fetch Voteview: off-roster skips (raw rows, matching the sync counter) and
   // party_code disagreements (against the gated-in, votes-deduped pick).
-  const rows = await fetchVoteview119();
+  // HO 712: the source is congress-derived now; a diagnostic that reads null
+  // has nothing to measure and says so rather than throwing on `.length`.
+  const rows = await fetchVoteviewMembers();
+  if (rows === null) {
+    console.log("Voteview has not published the current Congress's member file — nothing to measure");
+    return;
+  }
   let offRoster = 0;
   const best = new Map<string, (typeof rows)[number]>();
   for (const m of rows) {

@@ -24,7 +24,7 @@
 // fields + updated_at each run. NOT on the daily Vercel cron.
 import "dotenv/config";
 import { getDb } from "../lib/db";
-import { fetchVoteview119, type VoteviewMember } from "./voteview-source";
+import { fetchVoteviewMembers, type VoteviewMember } from "./voteview-source";
 
 // -1 sentinel so a row with a null vote count loses the dedup to any row that has
 // one; two nulls tie and the first-seen wins (deterministic over the file order).
@@ -35,9 +35,17 @@ function voteRank(m: VoteviewMember): number {
 async function main() {
   const db = getDb();
 
-  // 1. Fetch + parse the 119th member file.
-  const rows = await fetchVoteview119();
-  console.log(`Fetched ${rows.length} Voteview 119th rows`);
+  // 1. Fetch + parse the current Congress's member file.
+  // HO 712: null means Voteview has not published the current Congress's file
+  // yet (404). Stop — do NOT fall back to the previous Congress's file, which
+  // would write its scores under the current label. The rows already in the
+  // table stay untouched; re-run when the file lands.
+  const rows = await fetchVoteviewMembers();
+  if (rows === null) {
+    console.log("member_ideology unchanged — nothing fetched, nothing written");
+    return;
+  }
+  console.log(`Fetched ${rows.length} Voteview rows`);
 
   // 2. The gate: known bioguides from `members`.
   const memRes = await db.execute("SELECT bioguide_id FROM members");
@@ -98,7 +106,7 @@ async function main() {
   }
 
   console.log("\n=== Ideology sync — HO 419 ===");
-  console.log(`fetched (119th rows):          ${rows.length}`);
+  console.log(`fetched (Voteview rows):       ${rows.length}`);
   console.log(`gated-in (upserted):           ${upserted}`);
   console.log(`skipped_off_roster:            ${skippedOffRoster}`);
   if (skipped.length > 0) console.log(`  ${skipped.join(", ")}`);

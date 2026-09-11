@@ -19,6 +19,7 @@
 //   exclude = code 0      (not seated — rare; non-seated members usually have NO
 //                          row rather than a 0-row, so this is a guard, not the path)
 import "dotenv/config";
+import { getCurrentCongress } from "../lib/congress";
 import { getDb } from "../lib/db";
 import { VOTEVIEW_HSALL_URL } from "./voteview-source";
 import { fetchError } from "@/lib/redact";
@@ -29,7 +30,11 @@ const VOTES_BASE = "https://voteview.com/static/data/out/votes";
 const votesUrl = (chamber: "H" | "S", congress: number) =>
   `${VOTES_BASE}/${chamber}${String(congress).padStart(3, "0")}_votes.csv`;
 
-const LATEST_CONGRESS = 119;
+// HO 712: derived. Voteview publishes a Congress's votes file only once it has
+// votes, so on 2027-01-03 the derived number 404s — accumulateVotesFile returns
+// null for that file and the loop carries on with every earlier Congress, which
+// is the whole reason this is safe to derive without a guard.
+const LATEST_CONGRESS = getCurrentCongress();
 
 // Per-member lifetime accumulator. `congresses` holds every Congress in which the
 // member cast OR missed at least one vote (code 1–9); its min → first_congress and
@@ -139,6 +144,16 @@ async function main() {
     });
   }
 
+  // HO 712: the DELETE and the INSERTs ship in one batch, so an empty `inserts`
+  // would TRUNCATE the table and report success. Unreachable while the loop
+  // starts below the current Congress — but deriving the upper bound is exactly
+  // the change that makes an all-404 run thinkable, so the guard lands with it.
+  if (inserts.length === 0) {
+    throw new Error(
+      "career-votes accumulated 0 rows — refusing to truncate " +
+        "member_career_votes; nothing written",
+    );
+  }
   await db.batch(
     [{ sql: "DELETE FROM member_career_votes", args: [] }, ...inserts],
     "write",
