@@ -4255,3 +4255,30 @@ The repo already knew. `GATE_COOKIE` is carried by `e2e/smoke.spec.ts`, `e2e/nar
 
 The cost was a whole handoff written against a cause that did not exist — caught at its STEP 0, which is what STEP 0 is for, and cheaply: the first two readings of the bisection (the function returns 12, the local server renders 12) already contradicted the premise.
 
+---
+
+## A class-token grep over a served App Router document counts every class about twice (HO 714, Sep 2026)
+
+HO 713 recorded production `/` as carrying **246 `abw-` occurrences**, and HO 714 read the same 246 off the local build at STEP 0 and again at the close. The figure is sound as a *comparison* — 246 against 246, like for like, is what both handoffs used it for — and it is wrong as a *quantity*. Measured on the served bytes, splitting the document at the first `self.__next_f.push`:
+
+```
+served-HTML total `abw-`:                    246
+  before the first Flight push (SSR DOM):    142
+  inside the Flight payload:                 104
+```
+
+**The RSC Flight payload re-states every `className` the SSR'd DOM already carries**, so a `grep -o 'abw-' | wc -l` over `curl` output is reading the markup and its serialization and adding them together. The split is not a clean 2× — the payload stores `"className":"abw-card abw-card--mia"` as one JSON string while the DOM emits the same tokens inside an attribute, and the two tokenize differently — so no correction factor recovers an element count from the total. On the forced-red fixture the single failed-state `<section>` grepped as **two** `abw--failed` hits for exactly this reason.
+
+**What to do instead:** count in the page, not in the bytes — `page.locator(".abw-card").count()`, which is what the HO 714 gate asserts on. Where only bytes are available, slice the document at the first `__next_f.push` and say which half the number came from. Where the number is only ever compared against another number taken the same way, the doubling is harmless and should still be labelled, because the next reader will treat "246 elements" as an element count.
+
+This is the differential-vs-absolute distinction from the HO 713 entry directly above, arriving one layer down: 246 = 246 was a true and useful reading, and it says nothing whatever about what 246 counts.
+
+---
+
+## A fixture route under `app/_name/` is not a route, and the 404 looks like a build problem (HO 714, Sep 2026)
+
+HO 714's four-state capture fixture was written to `app/_fixture-714/page.tsx` — underscored to mark it as not-a-product-surface — built without a word of complaint (`✓ Compiled successfully`, no warning, the path absent from the route table), and served **404 with a 9,457-byte body**. Next's App Router treats a **leading-underscore folder as a private folder**: it is opted out of routing entirely, and the opt-out is silent on both sides, because a folder containing no routable segment is not an error.
+
+The recognition symptom is the pair: **a clean build plus a 404 on the exact path you just built.** Everything that usually explains that — a stale `.next`, the wrong port, a bad server — was checked first and was fine. `npm run build`'s own route listing is the cheap discriminator and it is worth reading rather than grepping for errors: after `mv app/_fixture-714 app/fixture-714` the line `├ ƒ /fixture-714` appears in it, and it was never there before.
+
+Filed because the underscore is the natural thing to reach for when a fixture must not read as a product route, and SKILL's own rule sends work in that direction (*a falsification anchor lives in a fixture rather than on a product route*). The convention that works is an ordinary segment with an obvious name, created and **deleted in the same session** — which is the discipline the underscore was standing in for anyway.
