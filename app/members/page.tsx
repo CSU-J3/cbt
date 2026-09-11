@@ -467,7 +467,7 @@ export default async function MembersPage({
         {/* HO 425 — polarization dotplot: the population shape + party gap before
             you scroll into the browser. Above the filter bar; only the chamber
             toggle rescopes it. */}
-        <IdeologyStrip dots={stripDots} />
+        <IdeologyStrip dots={stripDots} congressLabel={ideologyLabel} />
 
         {/* HO 527 — participation dotplot: the population twin of the ideology
             strip, on the current Congress's missed-vote rate. Ships open below it (the chamber

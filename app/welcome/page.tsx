@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { BreakingTicker } from "@/components/BreakingTicker";
 import { LandingCTAs } from "@/components/LandingCTAs";
 import { WelcomeClock } from "@/components/WelcomeClock";
+import { currentCongressLabel } from "@/lib/congress";
 import { isMarketOpen } from "@/lib/market-hours";
 import { MARKET_SYMBOLS } from "@/lib/markets";
 import {
@@ -415,7 +416,7 @@ export default async function WelcomePage() {
 
       <div className={styles.bottom}>
         <span className={styles.foot}>
-          119th Congress <span className={styles.sep}>·</span> congress.gov{" "}
+          {currentCongressLabel()} <span className={styles.sep}>·</span> congress.gov{" "}
           <span className={styles.sep}>·</span> FRED{" "}
           <span className={styles.sep}>·</span> Kalshi{" "}
           <span className={styles.sep}>·</span> Polymarket{" "}

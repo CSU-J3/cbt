@@ -63,7 +63,19 @@ const AXIS_TICKS: { v: number; label: string }[] = [
   { v: 1, label: "+1" },
 ];
 
-export function IdeologyStrip({ dots }: { dots: IdeologyDot[] }) {
+export function IdeologyStrip({
+  dots,
+  congressLabel,
+}: {
+  dots: IdeologyDot[];
+  /** HO 712: resolved on the server and handed down — a client island must not
+   *  read a clock (HO 490). It is `member_ideology.congress`, the Congress
+   *  Voteview actually analysed, NOT today's: Voteview publishes a Congress's
+   *  member file weeks after it convenes, so from every Jan 3 until it lands the
+   *  stored rows are the previous Congress's and a clock label would name the
+   *  wrong one for the whole window. NULL → the ordinal is omitted. */
+  congressLabel: string | null;
+}) {
   const router = useRouter();
   const [hover, setHover] = useState<Placed | null>(null);
 
@@ -139,7 +151,7 @@ export function IdeologyStrip({ dots }: { dots: IdeologyDot[] }) {
         <span className="ideo-strip-desc">every scored member on dim1 · party medians ticked</span>
         <span
           className="ideo-strip-how"
-          title="DW-NOMINATE dim1 — the economic left–right axis from Voteview's roll-call vote analysis of the 119th Congress. Lower = liberal, higher = conservative."
+          title={`DW-NOMINATE dim1 — the economic left–right axis from Voteview's roll-call vote analysis of ${congressLabel ? `the ${congressLabel} Congress` : "Congress"}. Lower = liberal, higher = conservative.`}
         >
           how it&apos;s scored →
         </span>
