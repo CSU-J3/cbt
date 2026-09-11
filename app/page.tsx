@@ -159,7 +159,7 @@ export default async function DashboardPage({
               above hearings. Conditional by construction — with nobody on a
               30-roll streak this renders null and the stack closes over it (C4),
               which is the good-news state, not a missing panel. */}
-          <AbsenceWatchBand members={absent} nowMs={nowMs} />
+          <AbsenceWatchBand members={absent.members} nowMs={nowMs} />
 
           {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
               re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}

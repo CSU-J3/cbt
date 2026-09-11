@@ -5280,6 +5280,33 @@ export type AbsenceCardPayload = {
   committees: { name: string }[];
 };
 
+// HO 714 — WHAT THE BAND RETURNS, AND WHY IT IS NOT A BARE ARRAY.
+// Until here the function returned `AbsentMember[]` and the guard below returned
+// `[]` on a throw — which is byte-identical to the GOOD-NEWS state, the one this
+// surface exists to be able to report. Two different facts ("nobody is absent"
+// and "we could not find out") reached `/` as the same value and rendered as the
+// same nothing, so no gate, no log line and no reader could tell them apart. The
+// incident that raised it (HO 713) was false; the property was not — the tree
+// said so in its own words, in the guard comment below.
+//
+// `window` carries the Phase-A window's oldest roll-call date per chamber, which
+// is what makes the good-news line a CLAIM rather than a reassurance: "no member
+// has missed the last 8 roll calls" is only meaningful beside the dates those
+// eight rolls span. It is not a new read — the per-chamber roll query below
+// already fetches these dates and was throwing them away.
+//
+// THE TWO NULLS MEAN DIFFERENT THINGS AND MUST NOT BE COLLAPSED:
+//   - `window === null`       — the read FAILED (the guard's return). The band
+//                               renders the failed line.
+//   - `window.house === null` — that chamber has no roll calls in the table at
+//     (or `.senate`)            all, which is a real state at a Congress
+//                               rollover. The band renders the good-news line
+//                               minus that chamber's "through" clause.
+export type AbsenceWatch = {
+  members: AbsentMember[];
+  window: { house: string | null; senate: string | null } | null;
+};
+
 export type AbsentMember = {
   bioguideId: string;
   name: string;
@@ -5336,7 +5363,7 @@ export type AbsentMember = {
   palestineScore: string | null;
 };
 
-async function queryAbsenceWatch(): Promise<AbsentMember[]> {
+async function queryAbsenceWatch(): Promise<AbsenceWatch> {
   const db = getDb();
 
   // The strip's population, with the delegate carve applied in SQL (this surface
@@ -5375,6 +5402,15 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
   }
 
   const out: AbsentMember[] = [];
+  // HO 714 — the Phase-A window's oldest roll-call date per chamber, filled from
+  // the roll query below. Declared here rather than derived after the loop
+  // because the dates are only in hand INSIDE it.
+  // Named `windowOldest` rather than `window` so it cannot shadow the DOM global
+  // in a module that is imported by both server and client trees.
+  const windowOldest: { house: string | null; senate: string | null } = {
+    house: null,
+    senate: null,
+  };
 
   for (const chamber of ABSENCE_CHAMBERS) {
     // One roll-call read per chamber serves both phases: Phase A takes the first
@@ -5390,6 +5426,15 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
     });
     const rollIds = rollsRes.rows.map((r) => String(r.id ?? ""));
     const rollDates = rollsRes.rows.map((r) => String(r.vote_date ?? "").slice(0, 10));
+    // HO 714 — the oldest roll in the PHASE-A SLICE, not in the query's result:
+    // the LIMIT above binds ABSENCE_WALK_BOUND (120, Phase B's ceiling) and
+    // Phase A takes the first ABSENCE_WINDOW of it a few lines down. Indexed off
+    // whichever is smaller so a chamber holding fewer than W rolls reports the
+    // oldest it actually has, and a chamber holding none reports null — both
+    // real states at a Congress rollover, and neither is a failed read. Set
+    // BEFORE the zero guard below so the assignment is unconditional.
+    windowOldest[chamber] =
+      rollDates[Math.min(ABSENCE_WINDOW, rollDates.length) - 1] ?? null;
     if (rollIds.length === 0) continue;
 
     // ── Phase A — candidates ────────────────────────────────────────────────
@@ -5566,7 +5611,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
     );
   }
 
-  return out;
+  return { members: out, window: windowOldest };
 }
 
 const absenceWatchCached = unstable_cache(queryAbsenceWatch, ["getAbsenceWatch"], {
@@ -5575,17 +5620,26 @@ const absenceWatchCached = unstable_cache(queryAbsenceWatch, ["getAbsenceWatch"]
 });
 
 // The degradation guard sits OUTSIDE the cache boundary, deliberately (HO 598):
-// a try/catch that returns [] from INSIDE unstable_cache would persist the empty
-// result for the full hour, and on this surface an empty array is not a neutral
-// failure — it is the GOOD-NEWS state, which renders nothing at all (C4). Caching
-// a failure as "nobody is absent" would be a silent wrong answer with no tell.
-// Outside the boundary, a throw is simply not cached and the next request retries.
-export async function getAbsenceWatch(): Promise<AbsentMember[]> {
+// a try/catch returning the empty value from INSIDE unstable_cache would persist
+// it for the full hour, where outside the boundary a throw is simply not cached
+// and the next request retries.
+//
+// HO 714 — AND THE EMPTY VALUE IT RETURNS IS NO LONGER THE GOOD-NEWS VALUE.
+// This comment used to end by explaining that `[]` on this surface IS the
+// good-news state, "which renders nothing at all (C4)", and that caching a
+// failure as "nobody is absent" would be a silent wrong answer with no tell.
+// Every word of that was true, and it described the UNCACHED path just as
+// accurately as the cached one: moving the catch outside the boundary stopped
+// the wrong answer from lasting an hour, not from being given. `window: null` is
+// the tell — it is unreachable from a successful read, since `queryAbsenceWatch`
+// always returns an object literal, so the band can render a third thing here
+// and a gate can assert it never reaches production.
+export async function getAbsenceWatch(): Promise<AbsenceWatch> {
   try {
     return await absenceWatchCached();
   } catch (err) {
     console.error("[absence-watch] read failed:", err);
-    return [];
+    return { members: [], window: null };
   }
 }
 
