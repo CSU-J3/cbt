@@ -1,19 +1,31 @@
-// Refreshes the `members` table from the Congress.gov 119th-Congress roster.
+// Refreshes the `members` table from the Congress.gov roster for the CURRENT
+// Congress.
 //
 // HO 94: this used to seed from `SELECT DISTINCT sponsor_bioguide_id FROM
 // bills`, which structurally missed any current member who hadn't sponsored a
 // bill yet (notably special-election winners). It now enumerates the roster
-// endpoint directly, so the table reflects the actual 119th membership, and
+// endpoint directly, so the table reflects the actual membership, and
 // carries an `is_current` flag so members who served part of the Congress but
 // no longer do (deaths, resignations) are kept as rows rather than deleted.
 //
-// Endpoints (verified HO 94 — do NOT use `/member?congress=119`, which does
+// HO 712: the Congress is DERIVED (`getCurrentCongress()`), not hardcoded.
+// `--congress N` pins it — for a re-run against a Congress that is not the
+// current one, and for the no-op proof run. On 2027-01-03 the derived value
+// flips to 120 and one run of this script IS the rollover: new members added,
+// defeated and retired members marked non-current, and every House
+// `next_election_year` rolling to 2028, which is what mints the 2028 House
+// race rows through `backfill:races`. Run it AFTER the noon-ET swearing-in,
+// never in the twelve hours between UTC midnight and it — `getCurrentCongress`
+// returns 120 from 00:00Z and the roster is not populated until the members
+// are seated. The floor below refuses the empty answer either way.
+//
+// Endpoints (verified HO 94 — do NOT use `/member?congress={N}`, which does
 // not filter by Congress and returns ~2,700 historical members):
-//   GET /member/congress/119                    — full 119th roster (551)
-//   GET /member/congress/119?currentMember=true  — currently serving (536)
+//   GET /member/congress/{N}                    — full roster (555 at the 119th)
+//   GET /member/congress/{N}?currentMember=true  — currently serving (539)
 //   GET /member/{bioguideId}                     — per-member detail
 //
-// The 551 vs 536 gap is the inactivity signal. Detail is fetched per member
+// The full-vs-current gap is the inactivity signal. Detail is fetched per member
 // so every existing column (birth year, depiction, derived term years) stays
 // populated — the roster list endpoint is too sparse for that on its own.
 //
@@ -22,6 +34,7 @@
 import "dotenv/config";
 import yaml from "js-yaml";
 import specialElectionsData from "../data/senate-special-elections.json";
+import { getCurrentCongress, ordinal } from "../lib/congress";
 import { getDb } from "../lib/db";
 import {
   houseNextElection,
@@ -32,9 +45,24 @@ import {
   senateTermStart,
   senateYearsFromClass,
 } from "../lib/derive-term";
+import { assertRosterFloors } from "../lib/roster-floor";
 import { stateAbbr } from "../lib/states";
 
-const CONGRESS = 119;
+// HO 712: derived, with `--congress N` to pin. A bad value is rejected here
+// rather than becoming a 404 four hundred calls in.
+function resolveCongress(argv: string[]): number {
+  const i = argv.indexOf("--congress");
+  if (i === -1) return getCurrentCongress();
+  const raw = argv[i + 1];
+  const n = Number(raw);
+  if (!raw || !Number.isInteger(n) || n < 1 || n > 200) {
+    throw new Error(`--congress expects an integer 1-200, got "${raw ?? ""}"`);
+  }
+  return n;
+}
+
+const CONGRESS = resolveCongress(process.argv);
+const CONGRESS_PINNED = process.argv.includes("--congress");
 const PAGE_LIMIT = 250;
 const DELAY_MS = 150;
 
@@ -292,17 +320,39 @@ async function main() {
     beforeRes.rows.map((r) => r.bioguide_id as string),
   );
   console.log(`Members table before: ${beforeIds.size} rows`);
+  console.log(
+    `Congress: ${CONGRESS} (${ordinal(CONGRESS)}) — ` +
+      (CONGRESS_PINNED ? "pinned with --congress" : "derived from today's date"),
+  );
 
   const rosterIds = await fetchRosterIds(apiKey, "");
   await sleep(DELAY_MS);
   const currentIds = await fetchRosterIds(apiKey, "currentMember=true");
   console.log(
-    `Roster: ${rosterIds.size} in the 119th Congress, ` +
+    `Roster: ${rosterIds.size} in the ${ordinal(CONGRESS)} Congress, ` +
       `${currentIds.size} currently serving`,
   );
-  if (rosterIds.size === 0) {
-    throw new Error("roster endpoint returned 0 members — aborting");
-  }
+
+  // HO 712: the floor, BOTH rosters, before any write. The old check was
+  // `rosterIds.size === 0` alone, which left the two shapes that actually
+  // corrupt the table: an empty or partial `currentMember=true` answer marks
+  // every member departed through the per-member upsert below, and a partial
+  // full roster inactivates everyone outside it in the NOT IN update further
+  // down. Both rosters are floored against the number the table believes are
+  // SERVING — see lib/roster-floor.ts for why that baseline and not COUNT(*).
+  const servingRes = await db.execute(
+    "SELECT COUNT(*) AS n FROM members WHERE is_current = 1",
+  );
+  const serving = Number(servingRes.rows[0]?.n ?? 0);
+  console.log(`Floor baseline: ${serving} serving in the table`);
+  assertRosterFloors([
+    { label: "full roster", size: rosterIds.size, baseline: serving },
+    {
+      label: "currently-serving roster",
+      size: currentIds.size,
+      baseline: serving,
+    },
+  ]);
 
   let fetched = 0;
   let failed = 0;
@@ -399,7 +449,7 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
-  // Any pre-existing row whose bioguide is not in the 119th roster at all
+  // Any pre-existing row whose bioguide is not in the fetched roster at all
   // (stale carryover from the old bill-sponsor seeding) is also non-current.
   const rosterList = [...rosterIds];
   const placeholders = rosterList.map(() => "?").join(", ");
@@ -419,14 +469,15 @@ async function main() {
   for (const m of newlyAdded) console.log(`     ${m}`);
   if (newlyAdded.length === 0) console.log("     none");
   console.log(
-    `3. 119th members marked is_current = false (${markedInactive.length}) ` +
+    `3. ${ordinal(CONGRESS)} members marked is_current = false ` +
+      `(${markedInactive.length}) ` +
       "— deaths / resignations / expulsions:",
   );
   for (const m of markedInactive) console.log(`     ${m}`);
   if (markedInactive.length === 0) console.log("     none");
   if (leftoverInactivated > 0) {
     console.log(
-      `   (plus ${leftoverInactivated} pre-existing non-119th rows ` +
+      `   (plus ${leftoverInactivated} pre-existing non-${ordinal(CONGRESS)} rows ` +
         "set is_current = 0)",
     );
   }
