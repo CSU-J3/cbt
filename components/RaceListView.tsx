@@ -34,10 +34,13 @@ import {
   type RosterEntry,
 } from "@/lib/race-colors";
 import type { PacIeRow, RaceIndexRow } from "@/lib/queries";
+import { districtToken } from "@/lib/race-id";
 
 function seatLabel(r: RaceIndexRow): string {
   if (r.chamber === "senate") return `${r.state} SEN`;
-  return `${r.state}-${String(r.district ?? 0).padStart(2, "0")}`;
+  // HO 711: districtToken. The old `?? 0` then pad produced "AK-00" for an
+  // at-large seat — and before this HO no at-large row existed to expose it.
+  return `${r.state}-${districtToken(r.district)}`;
 }
 
 // Severity rail: amber-bright toss-up, amber lean, dim likely/solid — lets the

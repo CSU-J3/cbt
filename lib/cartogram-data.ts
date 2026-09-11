@@ -18,6 +18,7 @@ import type {
   RaceCandidate,
   RaceIndexRow,
 } from "@/lib/queries";
+import { districtToken } from "./race-id";
 
 
 export type CartogramChallenger = {
@@ -66,7 +67,9 @@ export type CartogramData = {
 
 function seatLabel(chamber: "house" | "senate", state: string, district: number | null): string {
   if (chamber === "senate") return `${state} SEN`;
-  return `${state}-${String(district ?? 0).padStart(2, "0")}`;
+  // HO 711: districtToken, so an at-large cell reads "AK-AL" rather than "AK-00".
+  // Display only — the raceId comes off the row itself (`r.raceId`).
+  return `${state}-${districtToken(district)}`;
 }
 
 // ─── RACES ──────────────────────────────────────────────────────────────────

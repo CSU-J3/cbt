@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Member, Race } from "@/lib/queries";
+import { districtToken } from "@/lib/race-id";
 
 function partyColor(party: Member["party"]): string {
   if (party === "R") return "var(--party-republican)";
@@ -24,7 +25,9 @@ function locator(member: Member, race: Race): string {
   const district = race.district ?? member.district;
   if (district === null || district === undefined)
     return `${party}-${race.state}`;
-  return `${party}-${race.state}-${String(district).padStart(2, "0")}`;
+  // HO 711: districtToken, not a local pad — an at-large seat stores district 0
+  // and padding it reads "R-AK-00" where the seat is AK-AL.
+  return `${party}-${race.state}-${districtToken(district)}`;
 }
 
 export function RaceIncumbentCard({

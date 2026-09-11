@@ -9,6 +9,7 @@ import Link from "next/link";
 import { senateClassForCycle } from "@/lib/derive-term";
 import type { SeatOutlookRow } from "@/lib/queries";
 import { partyColor } from "@/lib/race-colors";
+import { districtToken } from "@/lib/race-id";
 
 // Dated copy, never present tense: "LIKELY · MAY 2025" says WHEN the signal was
 // given, so a stale signal reads as stale rather than as current. The date is
@@ -36,12 +37,11 @@ function hostOf(url: string | null): string | null {
   }
 }
 
-// WI SEN · AL-01 · AK-AL. At-large House seats store district NULL and get the
-// conventional AL designation (Cook / Ballotpedia notation) rather than a blank.
+// WI SEN · AL-01 · AK-AL. HO 711: the token is districtToken's, which treats
+// NULL (members' shape) and 0 (races' shape) as the same at-large seat.
 function seatLabel(row: SeatOutlookRow): string {
   if (row.chamber === "senate") return `${row.state} SEN`;
-  if (row.district == null) return `${row.state}-AL`;
-  return `${row.state}-${String(row.district).padStart(2, "0")}`;
+  return `${row.state}-${districtToken(row.district)}`;
 }
 
 function StatusCell({ row }: { row: SeatOutlookRow }) {
