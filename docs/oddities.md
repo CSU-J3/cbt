@@ -4114,3 +4114,51 @@ So the first HO 705 window read `FIRES=0` on both Next 16 legs — and `HYD-BEFO
 Small, loud, and worth one line so the next person recognises it instantly. A SQL string built as a JS template literal carried an explanatory comment — ``-- ONLY House filter. `district IS NOT NULL` would silently drop …`` — and the backticks around the column expression **terminated the literal**, leaving `district` as a bare identifier. esbuild reported `Expected "}" but found "district"` at a column in the middle of a comment.
 
 **It is in this file as a contrast, not a warning:** the compiler caught it in under a second and nothing could have shipped. Every other entry here is about an instrument that stayed quiet. Markdown habits do not survive into SQL inside a template literal — use plain words there.
+
+## A predicate can return the right NUMBER of rows and the wrong rows (HO 711, 2026-09-11)
+
+**Both predicates returned nine. They were not the same nine, and one of them deleted live data.** The handoff's test for a stale Senate race row was *no sitting member of `senateClassForCycle(cycle)` in that state* — the class residue, read against the roster. The corrected test is *no sitting senator of that state stands at that cycle* — the members-side derivation read back against the races side.
+
+Run together at STEP 0 they agreed on a count and disagreed on the contents by two rows in each direction. The handoff's version flagged **`S-FL-2026` and `S-OH-2026`**, which carry three ratings, a candidate, a Kalshi row, a Polymarket row and three rating-history rows apiece — and which HO 710's seat outlook links to as its TBD deciding contests. It missed `S-FL-2028` and `S-OH-2028`, which are the rows that actually needed to go.
+
+**The reason is one sentence and it is the whole entry:** *the class is fully determined by the cycle* is true of **seats** and false of **special elections**. Moody and Husted are Class 3 senators standing on a Class 2 ballot in 2026, because `data/senate-special-elections.json` legitimately puts them there. A predicate built on the residue cannot see that; a predicate built on the year the member actually stands in can.
+
+**What caught it was the rule, not the reading.** STEP 0's requirement is a closure table — every candidate row with id, incumbent, disposition and dependents — before a single DELETE. Had the pass been written from the predicate rather than from the table, nine `rowsAffected=1` lines would have printed, all nine would have been correct-looking, and two rated rows would have been gone. **A count that matches the expectation is not a check that the set matches it.**
+
+---
+
+## House term math drifts through special elections, exactly as Senate term math drifted through appointments (HO 711, 2026-09-11)
+
+`houseTermEnd` was `latestStartYear + 2`, and the comment above it explained why: *"House terms are exactly 2 years = 1 Congress, so the latest entry's startYear is the current term start directly."* Both were wrong in the same place. That holds only when a term begins at the **start** of a Congress, in an odd year. A member seated by **special election** begins mid-Congress, in an even year, and finishes the Congress already running — they do not serve two more years.
+
+So `+2` overshot by one for every special, and `houseNextElection` (`termEnd − 1`) returned an **odd** year. No House election has ever been held in an odd year.
+
+**What it produced, measured:** four sitting members carrying `next_election_year = 2027`; four race rows minted at a cycle with no election; and — the part that took a second look to see — their **real** 2026 rows stuck on departed predecessors that **no backfill run could ever heal**, because the self-healing `ON CONFLICT` only fires when a current member derives that id, and these members derived a different one. The heal was run and changed nothing: 553 → 553, departed-incumbent 22 → 22. A self-healing mechanism that silently has nothing to heal looks exactly like one that has finished its work.
+
+**The rule:** a House term ends on the January 3 of the first **odd** year strictly after it begins, so `houseTermEnd(s) = s % 2 === 1 ? s + 2 : s + 1`. termEnd is then always odd and next-election is **always even** — proven exhaustively over starts 1900–2100, 0 odd results, against a control where the old formula fails on 101 of the same 201 starts. Exactly four members moved and 433 did not.
+
+**This is HO 410/411 one chamber over.** Senator term math drifted through appointments and partial-term fills, and was replaced by class derivation. That fix was correct and it was **one chamber wide** — the same class of defect was sitting in the House helper four lines below it the entire time. When a derivation is corrected for one branch of a union type, look at the other branch.
+
+---
+
+## Widening a domain activates every default that was never exercised in it (HO 711, 2026-09-11)
+
+Adding at-large race rows made four dormant code paths live in one commit. `RaceIncumbentCard`, `RaceListView`, `SeatOutlookList` and `cartogram-data` each built a seat label with its own local `String(district).padStart(2, "0")`, and every one turns `0` into `"00"` — so `/race/AK-AL-2026` rendered a correct title, a correct breadcrumb, a correct incumbent, and the line `R-AK-00` underneath.
+
+**None of the four was wrong before the change.** No at-large race row had ever existed, so the `0` branch was unreachable in all of them. The defect was not introduced by the four helpers; it was *revealed* by populating a domain they had always nominally accepted. One of the four was `SeatOutlookList`, written one handoff earlier by the same hand, for the express purpose of displaying at-large seats.
+
+Every gate was green over it: build, typecheck, the row audit's 0/0/0, the served `<h1>`, and a dependents sweep with a live control. **It was found by looking at the capture** — HO 670's rule arriving in a new costume, since what was wrong was one line of text inside a correct-looking page.
+
+The general form is worth more than the fix: **when you widen a domain, enumerate the sites that already branch on it.** A grep for the *new* token finds nothing, because the sites that need changing are the ones still written in terms of the *old* default.
+
+---
+
+## A bare `catch {}` around a reading turns an exception into the success value (HO 711, 2026-09-11)
+
+A dependents sweep asked seven tables per row whether anything referenced it, wrapped each query in `try { … } catch {}`, and printed only the non-zero counts. Six rows read `none (total 0)`, which was the answer being hoped for.
+
+**The control read empty too.** The sweep included one row — `S-FL-2026` — known to carry nine dependents across five tables, precisely so a zero could be distinguished from a silence. It printed nothing. The queries were throwing (the control's call had been written without its `args` binding), the `catch {}` was swallowing every throw, and the absence of output was rendering identically to the absence of dependents.
+
+This file's whole subject is instruments that produce a false zero, and the instances so far have been about the *thing being measured* — a join that matched nothing, a filter that denied what another displayed, a path the runner deletes. This is the case where the **instrument itself** produced it, from a language construct whose entire purpose is to make failure quiet.
+
+**The rule: run the control FIRST and require its known non-zero before believing any zero from the same instrument.** Not alongside, not afterwards — first, as a gate. The shipped version (`scripts/oneshot/711-retract-phantom-races.ts`) prints its control before touching anything and aborts if it reads zero, so a pass that deletes nineteen rows cannot begin on an instrument that has not proven it can see.
