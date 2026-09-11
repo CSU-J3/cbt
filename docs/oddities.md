@@ -4236,3 +4236,22 @@ The obvious discriminator was run first and gave the **wrong answer**: the delta
 Deleting `.next/cache` on both sides and restarting both converged them exactly: 4,254 segments and 1,070 fills on each, and the full comparator then read **+0 / −0** on all four routes.
 
 **Before diffing two builds, cold both caches.** And more generally: *repeating a measurement only tests the sources of variance that repetition can move.* A pinned artifact survives repetition as cleanly as a fact does, so "I ran it twice and got the same answer" is evidence about the instrument's determinism and nothing at all about its correctness.
+
+---
+
+## A probe that never reached the page reads exactly like a page with nothing on it (HO 713, Sep 2026)
+
+HO 712's FF paste reported that the dashboard's Absence Watch band was rendering nothing on production while twelve members qualified for it — a live home surface silently dark. HO 713 was written to bisect the function and find the cause. There was no cause. The band was rendering the whole time, and the probe was reading a different page.
+
+`/` is gated. `app/page.tsx:74` is HO 361's first-touch landing: `if (!cookieStore.get("ct_seen") && !session) redirect("/welcome")`. A hand-rolled `curl` carries no cookie and no session, so production answers **307 → /welcome**, and a grep for `abw-` over the result finds nothing because it is looking at the landing page. The status line says 307 only if you ask for it; the URL you typed is still `/`.
+
+**The two environments disagree about what `/` is, which is what let it pass unnoticed.** `AUTH_SECRET` is absent from the local `.env` — the server log carries ten `MissingSecret` lines — so `auth()` never yields a falsy session locally and the gate never fires. The identical cookieless request renders the dashboard on `localhost` and the landing page on production. Every check that mattered had been run locally.
+
+The repo already knew. `GATE_COOKIE` is carried by `e2e/smoke.spec.ts`, `e2e/narrow.spec.ts`, `e2e/odds-off.spec.ts`, `e2e/fit-finish.spec.ts`, `e2e/bundler-captures-706.spec.ts` and nine diagnostics under `scripts/diagnostic/`. The HO 712 FF probe was written outside that convention, by hand, in the FF paste — the one instrument in the fleet that lacked it.
+
+**The second half is the part worth carrying, because the disproof was already on disk and had been read by the person who wrote the wrong conclusion.** The same HO 712 session had run a DOM comparator over `/` on two local servers and reported **+0 / −0, 1984 elements on both sides**. Those captures were written to `docs/handoffs/712-artifacts/dom-home-base.html` and `dom-home-branch.html`, and both contain **246 `abw-` occurrences**. The band is in them. What the comparator established was that the two sides *agreed*; what got recorded was that both were *empty* — an inference from the production curl, laundered through an unrelated measurement and then stated in a handoff's ground truth as a local reading.
+
+**Two instruments agreeing is a reading of their agreement, not of the thing they agree about.** A differential test is silent on the value both sides share, and that is precisely the value a differential test invites you to stop checking. When a diff reads zero, the absolute reading still has to be taken once.
+
+The cost was a whole handoff written against a cause that did not exist — caught at its STEP 0, which is what STEP 0 is for, and cheaply: the first two readings of the bisection (the function returns 12, the local server renders 12) already contradicted the premise.
+
