@@ -40,6 +40,7 @@
 // payload.reportCatchup precedent). A failure also logs the greppable prefix
 // `[participation] refresh-failed:`.
 import { createClient } from "@libsql/client";
+import { getCurrentCongress } from "./congress";
 
 const REFRESH_TIMEOUT_MS = 30_000;
 
@@ -78,7 +79,10 @@ function refreshClient() {
 export type RefreshSimulation = "empty" | "shrink" | "throw";
 
 export async function refreshMemberParticipation(
-  opts: { simulate?: RefreshSimulation } = {},
+  // HO 712: `congress` overrides the derived value. FIXTURE ONLY, beside
+  // `simulate` and for the same reason — the rollover sequence has to be
+  // provable in January's order without waiting for January.
+  opts: { simulate?: RefreshSimulation; congress?: number } = {},
 ): Promise<ParticipationRefresh> {
   const started = Date.now();
   const out: ParticipationRefresh = {
@@ -102,17 +106,45 @@ export async function refreshMemberParticipation(
     const prev = await db.execute("SELECT COUNT(*) AS n FROM member_participation");
     out.previousRows = Number((prev.rows[0] as Record<string, unknown>)?.n ?? 0);
 
-    // The aggregate. INDEXED BY is mandatory here for the same reason it is on the
-    // read path (HO 594): the statless Turso planner otherwise picks the older
-    // non-covering idx_member_votes_bioguide and row-fetches all 366k rows. On the
-    // refresh path that is the difference between ~800ms and ~15s (HO 595 M3).
-    const agg = await db.execute(
-      `SELECT mv.bioguide_id AS bioguideId,
+    // HO 712 — SCOPED TO THE CURRENT CONGRESS, and the label that renders it is
+    // derived from the same number. Unscoped, this silently became a 119+120
+    // CUMULATIVE rate the moment votes-sync rolled over, while six surfaces went
+    // on printing "119th" over it. No code change, no error, no gate fires: a
+    // true number under a false label is the hardest kind of wrong to see.
+    //
+    // THE SHAPE WAS MEASURED, NOT CHOSEN. `member_votes` carries no congress
+    // column (vote_id, bioguide_id, position), so any scope has to reach `votes`,
+    // and HO 594/595 tuned this aggregate twice. Four candidates on prod, warm of
+    // three runs, every one returning identical rows today (556 / 372,579):
+    //     unscoped covering scan (the old query)      61-63ms
+    //     IN (SELECT id FROM votes WHERE congress=?)  233-236ms   <- this
+    //     vote_id LIKE 'house-119-%' OR 'senate-...'  362-425ms
+    //     JOIN votes ON v.id = mv.vote_id             600-625ms
+    // The IN form drives from `votes` (1,547 rows) and seeks member_votes by its
+    // PRIMARY KEY with a bloom filter, so the INDEXED BY hint that HO 594 needed
+    // for the covering scan is neither available nor wanted here. 3.7x on a
+    // once-a-day job with a 30s client, whose failure mode is "kept previous
+    // values" and which retries tomorrow.
+    //
+    // NO THIRD INDEX. A covering (bioguide_id, position, vote_id) would buy the
+    // 3.7x back, but member_votes is DELETE-AND-REBUILD per roll call (HO
+    // 566/567) and HO 594 deliberately priced the write cost of the SECOND
+    // index. A third is not worth 170ms on a daily job.
+    //
+    // And the expensive case is the one that expires: today every one of the
+    // 372,579 rows is in scope, so the filter costs and saves nothing. After
+    // rollover the current Congress is a handful of roll calls and the scoped
+    // aggregate reads a fraction of the table.
+    const congress = opts.congress ?? getCurrentCongress();
+    const agg = await db.execute({
+      sql: `SELECT mv.bioguide_id AS bioguideId,
               COUNT(*) AS total,
               SUM(CASE WHEN mv.position = 'not_voting' THEN 1 ELSE 0 END) AS nv
-         FROM member_votes mv INDEXED BY idx_member_votes_participation
+         FROM member_votes mv
+        WHERE mv.vote_id IN (SELECT id FROM votes WHERE congress = ?)
         GROUP BY mv.bioguide_id`,
-    );
+      args: [congress],
+    });
 
     let rows = agg.rows.map((r) => ({
       bioguideId: String(r.bioguideId ?? ""),
@@ -146,9 +178,14 @@ export async function refreshMemberParticipation(
     for (const r of rows) {
       if (!r.bioguideId) continue;
       stmts.push({
-        sql: `INSERT INTO member_participation (bioguide_id, total, not_voting, refreshed_at)
-              VALUES (?, ?, ?, ?)`,
-        args: [r.bioguideId, r.total, r.nv, refreshedAt],
+        // HO 712: `congress` is written on every row — it is the Congress THIS
+        // aggregate covered, and the label rendered over the number reads it
+        // back rather than asking the clock. The table is rebuilt atomically, so
+        // every row carries the same value and a reader can take any one of them.
+        sql: `INSERT INTO member_participation
+                (bioguide_id, total, not_voting, refreshed_at, congress)
+              VALUES (?, ?, ?, ?, ?)`,
+        args: [r.bioguideId, r.total, r.nv, refreshedAt, congress],
       });
     }
     await db.batch(stmts, "write");

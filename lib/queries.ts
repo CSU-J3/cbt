@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { CAUCUS_CONFIG, type CaucusOrg } from "./caucus-config";
 import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
+import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { formatBillId } from "./format";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
@@ -5059,23 +5060,33 @@ export type IdeologyDot = {
   dim1: number;
 };
 
+// HO 712: the Congress Voteview actually analysed comes back beside the dots,
+// off `member_ideology.congress` (NOT NULL on every row), so the tooltip names
+// the data's Congress rather than today's. These diverge for weeks at every
+// rollover — Voteview publishes a Congress's member file long after it convenes,
+// and until it does `sync:ideology` skips and the stored rows stay put.
+// MAX() rather than the first row, because unlike member_participation this
+// table is upserted per member, so a member who has left keeps an older row.
 export const getIdeologyStrip = unstable_cache(
-  async (): Promise<IdeologyDot[]> => {
+  async (): Promise<{ congress: number | null; dots: IdeologyDot[] }> => {
     const db = getDb();
     const res = await db.execute(
       `SELECT mi.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
-              m.chamber AS chamber, mi.nominate_dim1 AS dim1
+              m.chamber AS chamber, mi.nominate_dim1 AS dim1,
+              (SELECT MAX(congress) FROM member_ideology) AS congress
          FROM member_ideology mi
          JOIN members m ON m.bioguide_id = mi.bioguide_id
         WHERE mi.nominate_dim1 IS NOT NULL`,
     );
-    return res.rows.map((r) => ({
+    const dots = res.rows.map((r) => ({
       bioguideId: r.bioguideId as string,
       name: r.name as string,
       party: (r.party as string | null) ?? null,
       chamber: r.chamber as string,
       dim1: r.dim1 as number,
     }));
+    const raw = res.rows[0]?.congress;
+    return { congress: raw == null ? null : Number(raw), dots };
   },
   ["getIdeologyStrip"],
   { revalidate: 86400, tags: ["member-ideology"] },
@@ -5120,12 +5131,17 @@ export type ParticipationDot = {
   isDelegate: boolean; // house + territorial state (structurally non-voting)
 };
 
+// HO 712: the strip's Congress LABEL comes back beside its dots, read from
+// `member_participation.congress` — the row that produced the number — and not
+// from the clock. The table is rebuilt atomically so every row carries the same
+// value, so the first row's is every row's. NULL (a pre-migration row set)
+// means the label is omitted rather than guessed.
 export const getParticipationStrip = unstable_cache(
-  async (): Promise<ParticipationDot[]> => {
+  async (): Promise<{ congress: number | null; dots: ParticipationDot[] }> => {
     const db = getDb();
     const res = await db.execute({
       sql: `SELECT p.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
-                   m.chamber AS chamber,
+                   m.chamber AS chamber, p.congress AS congress,
                    CASE WHEN m.chamber = 'house'
                          AND m.state IN ('DC','AS','GU','MP','PR','VI')
                         THEN 1 ELSE 0 END AS isDelegate,
@@ -5137,7 +5153,7 @@ export const getParticipationStrip = unstable_cache(
                AND p.total >= ?`,
       args: [PARTICIPATION_FLOOR],
     });
-    return res.rows.map((r) => {
+    const dots = res.rows.map((r) => {
       const total = Number(r.total ?? 0);
       const nv = Number(r.nv ?? 0);
       return {
@@ -5149,6 +5165,8 @@ export const getParticipationStrip = unstable_cache(
         isDelegate: Number(r.isDelegate ?? 0) === 1,
       };
     });
+    const raw = res.rows[0]?.congress;
+    return { congress: raw == null ? null : Number(raw), dots };
   },
   ["getParticipationStrip"],
   { revalidate: 3600, tags: ["votes"] },
@@ -5293,6 +5311,11 @@ export type AbsentMember = {
   // percentage-alone render in the first place.
   missedVotes: number; // = member_participation.not_voting
   totalVotes: number; // = member_participation.total (>= PARTICIPATION_FLOOR)
+  // HO 712: the Congress those two counts cover, straight off the row that
+  // produced them. The card's MISSED label reads this, not the clock — the two
+  // disagree for a window at every rollover, and the clock is the wrong one.
+  // NULL on a pre-migration row set; the card then omits the ordinal.
+  congress: number | null;
   // ── HO 630: the expand-in-place card, prefetched ───────────────────────────
   // The band expands the member's card inline instead of navigating (the HO 627
   // ruling: the drill moves one level in, not away). /members' own expand is URL
@@ -5322,7 +5345,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
   const popRes = await db.execute({
     sql: `SELECT p.bioguide_id AS bioguideId, m.name AS name, m.party AS party,
                  m.state AS state, m.chamber AS chamber,
-                 p.total AS total, p.not_voting AS nv
+                 p.total AS total, p.not_voting AS nv, p.congress AS congress
             FROM member_participation p
             JOIN members m ON m.bioguide_id = p.bioguide_id
            WHERE m.is_current = 1
@@ -5332,7 +5355,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
     args: [PARTICIPATION_FLOOR],
   });
 
-  type Pop = { name: string; party: string | null; state: string; chamber: string; missedPct: number; missedVotes: number; totalVotes: number };
+  type Pop = { name: string; party: string | null; state: string; chamber: string; missedPct: number; missedVotes: number; totalVotes: number; congress: number | null };
   const pop = new Map<string, Pop>();
   for (const r of popRes.rows) {
     const total = Number(r.total ?? 0);
@@ -5345,6 +5368,9 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
       missedPct: (Number(r.nv ?? 0) / total) * 100,
       missedVotes: Number(r.nv ?? 0),
       totalVotes: total,
+      // HO 712: the Congress this member's rate covers, carried per row so the
+      // card's label derives from the number it prints rather than the clock.
+      congress: r.congress == null ? null : Number(r.congress),
     });
   }
 
@@ -5443,6 +5469,7 @@ async function queryAbsenceWatch(): Promise<AbsentMember[]> {
         missedPct: meta.missedPct,
         missedVotes: meta.missedVotes,
         totalVotes: meta.totalVotes,
+        congress: meta.congress,
         card: null, // filled below, per member, so one failure can't empty the band
         palestineGrade: null,
         palestineRank: null,
@@ -8449,6 +8476,9 @@ export type MemberVoteStats = {
   nay: number;
   present: number;
   notVoting: number;
+  /** HO 712: the Congress these counts cover, so the hub's "Missed · {N}" label
+   *  derives from the number rather than from the clock. NULL when total is 0. */
+  congress: number | null;
 };
 
 // Selects vote row + bill_title via LEFT JOIN so amendment / procedural votes
@@ -8598,9 +8628,18 @@ export const getMemberVotes = unstable_cache(
   { revalidate: 3600, tags: ["votes"] },
 );
 
+// HO 712 — SCOPED, and the Congress comes back with the numbers. This is the
+// member hub's own "Missed · {congress}" figure, and it was the ONE surface in
+// that family reading `member_votes` DIRECTLY rather than the materialized
+// aggregate, so C3's scoping missed it: the rate was cumulative across every
+// Congress in the table while the label named one. A forced consequence of the
+// label rule, not a widening — the hub prints a Congress over this number, so
+// the number has to belong to that Congress. Cost is nil: a bioguide point
+// lookup, not the 372k-row aggregate, and `votes` is 1,547 rows.
 export const getMemberVoteStats = unstable_cache(
   async (bioguideId: string): Promise<MemberVoteStats> => {
     const db = getDb();
+    const congress = getCurrentCongress();
     const rs = await db.execute({
       sql: `SELECT
               COUNT(*) AS total,
@@ -8609,16 +8648,22 @@ export const getMemberVoteStats = unstable_cache(
               SUM(CASE WHEN position = 'present' THEN 1 ELSE 0 END) AS present_,
               SUM(CASE WHEN position = 'not_voting' THEN 1 ELSE 0 END) AS not_voting
             FROM member_votes
-            WHERE bioguide_id = ?`,
-      args: [bioguideId],
+            WHERE bioguide_id = ?
+              AND vote_id IN (SELECT id FROM votes WHERE congress = ?)`,
+      args: [bioguideId, congress],
     });
     const r = rs.rows[0];
+    const total = Number(r?.total ?? 0);
     return {
-      total: Number(r?.total ?? 0),
+      total,
       yea: Number(r?.yea ?? 0),
       nay: Number(r?.nay ?? 0),
       present: Number(r?.present_ ?? 0),
       notVoting: Number(r?.not_voting ?? 0),
+      // The Congress these counts cover. NULL when there are none yet — the
+      // first weeks of a new Congress, where labelling a 0-of-0 rate with any
+      // Congress would be a claim the data does not make.
+      congress: total > 0 ? congress : null,
     };
   },
   ["getMemberVoteStats"],

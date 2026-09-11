@@ -424,6 +424,7 @@ const statements = [
   // NO FLOOR APPLIED HERE. PARTICIPATION_FLOOR stays a query-time constant so the
   // shipped HAVING semantics are byte-identical; a member below the floor is
   // absent from the CTE (LEFT JOIN -> NULL) exactly as before.
+  // NOTE: `congress` (HO 712) is added by ensureColumn in main(), not here.
   `CREATE TABLE IF NOT EXISTS member_participation (
     bioguide_id TEXT PRIMARY KEY,
     total INTEGER NOT NULL,
@@ -1238,6 +1239,15 @@ async function main() {
   // (correctly un-walked) and PRESERVES the walk's stamp on CONFLICT. Do not add it
   // to the sync's SET.
   await ensureColumn(db, "amendments", "amendment_vote_walked_at", "TEXT");
+  // HO 712: the Congress the aggregate covers, written by the refresh on every
+  // row it inserts. WHY A COLUMN AND NOT THE CLOCK: the surfaces that render this
+  // rate label it with a Congress, and a clock-derived label is FALSE for a window
+  // at every rollover — on 2027-01-03 it flips to 120th at 00:00Z while the table
+  // still holds 119th values, because the 120th has no roll calls yet and the
+  // refresh keeps the previous values rather than writing zeros. The label now
+  // comes off the row that produced the number. Nullable: rows written before this
+  // migration have no answer, and an omitted ordinal is the honest degradation.
+  await ensureColumn(db, "member_participation", "congress", "INTEGER");
   await ensureColumn(db, "bills", "sponsor_bioguide_id", "TEXT");
   await db.execute(
     "CREATE INDEX IF NOT EXISTS idx_bills_sponsor_bioguide ON bills(sponsor_bioguide_id)",

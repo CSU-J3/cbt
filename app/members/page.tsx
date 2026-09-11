@@ -16,6 +16,7 @@ import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { isTerritorialState } from "@/lib/states";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { StateFilter } from "@/components/StateFilter";
+import { ordinal } from "@/lib/congress";
 import { cleanMeetingTitle, etDayLabel, etTimeLabel } from "@/lib/hearings";
 import {
   buildTopicSegments,
@@ -119,8 +120,8 @@ export default async function MembersPage({
     railCommittees,
     upcoming,
     topicMixRows,
-    ideologyDots,
-    participationDots,
+    ideology,
+    participation,
     polarizationHistory,
     polarizationBand,
   ] = await Promise.all([
@@ -138,16 +139,25 @@ export default async function MembersPage({
   // state / sort / search can't touch it — a party filter would collapse the
   // two-hump comparison the strip exists to show).
   const stripDots = chamber
-    ? ideologyDots.filter((d) => d.chamber === chamber)
-    : ideologyDots;
+    ? ideology.dots.filter((d) => d.chamber === chamber)
+    : ideology.dots;
 
   // HO 527 participation strip: same chamber-toggle-only scoping as stripDots
   // (built off the full floored population, separate from the filtered browser
   // query, so party / state / sort / search can't touch it). In single-chamber
   // mode only that chamber's members are present, so only its median tick shows.
+  // HO 712: each strip is a client island, so its label is resolved here and
+  // handed down (HO 490's rule) — and it comes off the Congress STORED WITH THE
+  // DATA, not off the clock. The two disagree for a window at every rollover: on
+  // 2027-01-03 the clock says 120th from 00:00Z while the participation table
+  // still holds 119th values (no 120th roll calls yet, so the refresh keeps the
+  // previous ones) and member_ideology stays 119th until Voteview publishes. A
+  // null congress means the ordinal is omitted rather than guessed.
+  const partLabel = participation.congress == null ? null : ordinal(participation.congress);
+  const ideologyLabel = ideology.congress == null ? null : ordinal(ideology.congress);
   const partDots = chamber
-    ? participationDots.filter((d) => d.chamber === chamber)
-    : participationDots;
+    ? participation.dots.filter((d) => d.chamber === chamber)
+    : participation.dots;
 
   // Group the flat topic-mix rows into per-member counts → bar segments.
   const mixByMember = new Map<string, { topic: string; count: number }[]>();
@@ -460,9 +470,9 @@ export default async function MembersPage({
         <IdeologyStrip dots={stripDots} />
 
         {/* HO 527 — participation dotplot: the population twin of the ideology
-            strip, on the 119th missed-vote rate. Ships open below it (the chamber
+            strip, on the current Congress's missed-vote rate. Ships open below it (the chamber
             toggle rescopes both); non-voting delegates carved out + disclosed. */}
-        <ParticipationStrip dots={partDots} />
+        <ParticipationStrip dots={partDots} congressLabel={partLabel} />
 
         {/* ---- Filter bar (full-width strip; connects to the pane) ---- */}
         <div className="mc-fbar">

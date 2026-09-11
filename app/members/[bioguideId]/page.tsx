@@ -11,7 +11,7 @@ import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
-import { currentCongressLabel, ordinal } from "@/lib/congress";
+import { currentCongressLabel, getCurrentCongress, ordinal } from "@/lib/congress";
 import { daysUntil, formatDateShort } from "@/lib/format";
 import {
   getMember,
@@ -179,7 +179,7 @@ export default async function MemberPage({
     getMemberTrades(bioguideId, TRADE_LIMIT),
     getMemberTradeCount(bioguideId),
     getMemberVoteStats(bioguideId),
-    // HO 523: 119th chamber missed-vote distribution (median) for the hero
+    // HO 523: current-Congress chamber missed-vote distribution (median) for the hero
     // "Missed X%" context — one cached all-member aggregate, args-free.
     getChamberParticipationContext(),
     // HO 525 (B2): lifetime missed-vote rate from member_career_votes; null when
@@ -266,7 +266,7 @@ export default async function MemberPage({
                 ? Math.round((voteStats.notVoting / voteStats.total) * 100)
                 : 0;
 
-            // HO 523: chamber context for "Missed X%" — the 119th chamber median
+            // HO 523: chamber context for "Missed X%" — the current-Congress chamber median
             // beside the member's own rate. Median only in the hero: a bare
             // attendance rank misreads the ~6 non-voting delegates (structural
             // ineligibility, not absenteeism), and the median is robust to them.
@@ -684,7 +684,11 @@ export default async function MemberPage({
                             </span>
                           </span>
                           <span className="mhp-stat">
-                            <span className="mhp-stat-l">Missed · 119th</span>
+                            <span className="mhp-stat-l">
+                              {voteStats.congress == null
+                                ? "Missed"
+                                : `Missed · ${ordinal(voteStats.congress)}`}
+                            </span>
                             <span className="mhp-stat-v">
                               {missedPct}
                               <small>%</small>

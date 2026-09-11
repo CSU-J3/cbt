@@ -1,7 +1,7 @@
 "use client";
 
 // HO 527: /members participation dotplot — the population twin of IdeologyStrip,
-// on the 119th missed-vote rate. A compact ~180px Wilkinson dotplot of every
+// on the current Congress's missed-vote rate. A compact ~180px Wilkinson dotplot of every
 // floored current member: the concentration + the identifiable high-miss tail,
 // before you scroll into the browser. Hand-rolled SVG (the IdeologyStrip family),
 // NOT the shared components/svg/ scaffold — the coordinate space is rate × stack
@@ -72,7 +72,19 @@ function axisLabel(v: number): string {
 
 const TICK_COLOR = "var(--accent-amber)"; // neutral — deliberately NOT a party color
 
-export function ParticipationStrip({ dots }: { dots: ParticipationDot[] }) {
+export function ParticipationStrip({
+  dots,
+  congressLabel,
+}: {
+  dots: ParticipationDot[];
+  /** HO 712: resolved on the server and handed down — a client island must not
+   *  read a clock (HO 490's class). It is the Congress STORED WITH THE DATA
+   *  (`member_participation.congress`), not today's: the two disagree for a window
+   *  at every rollover, and the number on screen belongs to the stored one. NULL
+   *  on a pre-migration row set, in which case the ordinal is omitted rather than
+   *  guessed — every string below degrades to a Congress-less phrasing. */
+  congressLabel: string | null;
+}) {
   const router = useRouter();
   const [hover, setHover] = useState<Placed | null>(null);
 
@@ -177,16 +189,16 @@ export function ParticipationStrip({ dots }: { dots: ParticipationDot[] }) {
   return (
     <section
       className="part-strip"
-      aria-label="Every current member's 119th missed-vote rate"
+      aria-label={`Every current member's ${congressLabel ? congressLabel + " " : ""}missed-vote rate`}
     >
       <div className="part-strip-head">
         <span className="part-strip-title">PARTICIPATION</span>
         <span className="part-strip-desc">
-          every current member&apos;s 119th missed-vote rate · chamber medians ticked
+          every current member&apos;s {congressLabel ? `${congressLabel} ` : ""}missed-vote rate · chamber medians ticked
         </span>
         <span
           className="part-strip-how"
-          title="Missed rate = share of the member's 119th roll calls recorded not-voting. Non-voting delegates are excluded — they're structurally ineligible on final-passage votes, so their not-voting isn't absenteeism."
+          title={`Missed rate = share of the member's ${congressLabel ? congressLabel + " " : ""}roll calls recorded not-voting. Non-voting delegates are excluded — they're structurally ineligible on final-passage votes, so their not-voting isn't absenteeism.`}
         >
           how it&apos;s scored →
         </span>
@@ -197,7 +209,7 @@ export function ParticipationStrip({ dots }: { dots: ParticipationDot[] }) {
         viewBox={`0 0 ${W} ${H}`}
         preserveAspectRatio="xMidYMid meet"
         role="img"
-        aria-label={`Distribution of ${plotted.length} members by 119th missed-vote rate, 0 to ${CAP} percent`}
+        aria-label={`Distribution of ${plotted.length} members by ${congressLabel ? congressLabel + " " : ""}missed-vote rate, 0 to ${CAP} percent`}
       >
         {/* end labels */}
         <text x={L} y={T + 6} fontSize={8} fill="var(--text-dim)" letterSpacing="0.5">

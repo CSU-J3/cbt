@@ -50,6 +50,7 @@
 // token.
 import { AbsenceCardBack } from "@/components/AbsenceCardBack";
 import { AbsenceWatchCards } from "@/components/AbsenceWatchCards";
+import { ordinal } from "@/lib/congress";
 import {
   ABSENCE_STREAK_MIN,
   ABSENCE_WARN_MIN,
@@ -92,6 +93,14 @@ export function AbsenceWatchBand({
   members: AbsentMember[];
   nowMs: number;
 }) {
+  // HO 712: the Congress label is NOT a clock reading here. It comes off each
+  // member's own `member_participation.congress` — the row that produced the
+  // missed-vote counts the card prints — so the label and the number can never
+  // name different Congresses. A clock label is false for a window at every
+  // rollover: on 2027-01-03 it says 120th from 00:00Z while the aggregate still
+  // holds 119th values, because the 120th has no roll calls yet and the refresh
+  // keeps the previous ones rather than writing zeros. NULL → the card omits the
+  // ordinal, which is honest rather than guessed.
   // C4 — the conditional, and after HO 645 it is a PER-SEGMENT one. Both counts
   // zero renders null for the whole band (no wrapper, no header for nothing —
   // empty is the good-news state on this surface); either count zero drops that
@@ -162,7 +171,15 @@ export function AbsenceWatchBand({
             // read `m.card`, which self-omit. So the affordance is now honorable
             // on a failed prefetch and the condition that produced the degrade
             // no longer holds.
-            back: <AbsenceCardBack member={m} sinceLabel={sinceLabel} />,
+            back: (
+              <AbsenceCardBack
+                member={m}
+                sinceLabel={sinceLabel}
+                congressLabel={
+                  m.congress == null ? null : ordinal(m.congress).toUpperCase()
+                }
+              />
+            ),
           };
         })}
       />

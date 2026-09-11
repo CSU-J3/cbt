@@ -63,10 +63,16 @@ function compactCommittee(name: string): string {
 export function AbsenceCardBack({
   member,
   sinceLabel,
+  congressLabel,
 }: {
   member: AbsentMember;
   /** Server-formatted by the band; the island holds no clock (HO 574/589). */
   sinceLabel: string;
+  /** HO 712: the Congress of the counts below it, off this member's own
+   *  `member_participation.congress` row — NOT the clock, which names a
+   *  different Congress from the data for a window at every rollover. NULL → the
+   *  heading reads MISSED with no ordinal, which is honest degradation. */
+  congressLabel: string | null;
 }) {
   const team = `${(member.party ?? "?").toUpperCase()}-${member.state}`;
   const cmtes = member.card?.committees ?? [];
@@ -112,7 +118,7 @@ export function AbsenceCardBack({
           </dd>
         </div>
         <div>
-          <dt>119TH MISSED</dt>
+          <dt>{congressLabel ? `${congressLabel} MISSED` : "MISSED"}</dt>
           <dd>
             {/* HO 656 — the denominator now rides AbsentMember (missedVotes /
                 totalVotes, the two counts member_participation was already
