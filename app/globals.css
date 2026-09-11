@@ -10987,6 +10987,29 @@ a.hearing-watch:hover {
    handled by the island's clamp (it pins to PAD once the rack is narrower than
    330 + 2*PAD), not by a breakpoint. */
 
+/* ── HO 714 — the band's other two states ───────────────────────────────────
+   ADDITIVE. Nothing above this comment changes; the rack path is byte-identical.
+
+   `.abw--empty` (the read succeeded and named nobody) and `.abw--failed`
+   (`window === null`, which only the HO 598 guard produces) are the two renders
+   that replace the `return null` the band used to do on an empty result. They
+   need no shell rules of their own — `.abw` already draws the bordered panel —
+   so the only new declaration is the line inside them, and the two states are
+   told apart by their CLASS and their SENTENCE rather than by their colour. That
+   is deliberate: a red failed line would read as an alarm about a member, which
+   is exactly the confusion the two tiers' colours already have to survive.
+
+   Padding and type reuse .abw-head's numbers rather than introducing a second
+   pair, so a one-line band sits at the same density as a headed one. */
+.abw--empty .abw-note,
+.abw--failed .abw-note {
+  color: var(--text-dim);
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+  padding: 4px var(--space-md);
+  margin: 0;
+}
+
 /* ── HO 710 · seat outlook (/electoral?cycle=2028) ─────────────────────────
    Additive only. Every rule here is namespaced `.so-*` and reaches no other
    route; the 2026 side of /electoral gains exactly one node (the toggle) and

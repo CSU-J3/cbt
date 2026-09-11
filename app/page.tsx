@@ -156,10 +156,16 @@ export default async function DashboardPage({
           <ActiveFilterStrip filters={filters} chamber={chamber} />
 
           {/* HO 622 — Absence Watch, the mock's slot: directly after the nav,
-              above hearings. Conditional by construction — with nobody on a
-              30-roll streak this renders null and the stack closes over it (C4),
-              which is the good-news state, not a missing panel. */}
-          <AbsenceWatchBand members={absent.members} nowMs={nowMs} />
+              above hearings. HO 714: it no longer collapses to nothing. Three
+              states, three renders — the card rack, the good-news line, or the
+              failed line — because "nobody is absent" and "the read failed" were
+              the same `[]` and therefore the same silence on this page.
+              `rollWindow` is what separates them (lib/queries, AbsenceWatch). */}
+          <AbsenceWatchBand
+            members={absent.members}
+            rollWindow={absent.window}
+            nowMs={nowMs}
+          />
 
           {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
               re-houses the battlefield + cards + COMPETITIVE|PRIMARIES sub-tabs. */}

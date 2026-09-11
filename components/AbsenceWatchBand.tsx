@@ -39,10 +39,15 @@
 // reason the band splits its header into two counted segments is that a single
 // heading over five cards claims five people are missing when two are.
 //
-// Conventions: C1 packed left, trailing gap right, no far-right anchor. C4 the
-// whole band is conditional — zero qualifying members renders `null`, no wrapper
-// and no header for nothing, because on this surface empty is the GOOD-NEWS state
-// — and each header segment is independently conditional for the same reason.
+// Conventions: C1 packed left, trailing gap right, no far-right anchor. C4 —
+// REWRITTEN AT HO 714. Each HEADER SEGMENT is still independently conditional
+// (either tier at zero drops its segment and the separator, so no box is
+// reserved to report an absence of news). The BAND is not: zero qualifying
+// members used to render `null`, and that made the good-news state and the HO
+// 598 guard's failed read into the same nothing. It now renders one of two dim
+// one-line states — `.abw--empty` or `.abw--failed` — which is C4 held at the
+// segment level and deliberately released at the band level, because on this
+// surface "nothing to report" is itself the report.
 // C3 one bright element per card (the surname; dimmed a step on the amber tier);
 // the party bracket carries party and nothing else (the HO 610 token rule), and
 // neither tier colour is a party token precisely BECAUSE a red frame that meant
@@ -54,6 +59,7 @@ import { ordinal } from "@/lib/congress";
 import {
   ABSENCE_STREAK_MIN,
   ABSENCE_WARN_MIN,
+  type AbsenceWatch,
   type AbsentMember,
 } from "@/lib/queries";
 
@@ -88,9 +94,14 @@ function formatSince(key: string, nowMs: number): string {
 
 export function AbsenceWatchBand({
   members,
+  rollWindow,
   nowMs,
 }: {
   members: AbsentMember[];
+  // HO 714 — `AbsenceWatch["window"]`, named `rollWindow` here so it cannot
+  // shadow the DOM global. `null` means the read FAILED; a null CHAMBER inside
+  // it means that chamber has no roll calls. The two are different renders.
+  rollWindow: AbsenceWatch["window"];
   nowMs: number;
 }) {
   // HO 712: the Congress label is NOT a clock reading here. It comes off each
@@ -106,9 +117,59 @@ export function AbsenceWatchBand({
   // empty is the good-news state on this surface); either count zero drops that
   // segment and, with it, the separator. A band reading "AT RISK (0)" reserves a
   // box to report an absence of news.
+  // C4, REWRITTEN AT HO 714 — THE BAND NO LONGER RENDERS NOTHING.
+  // It used to `return null` here, and the note above said so: empty is the
+  // good-news state on this surface, so a band reporting it was a box reserved
+  // to announce an absence of news. That reasoning was sound and it had a
+  // consequence nobody had said out loud — the HO 598 guard returns an empty
+  // result on a FAILED read too, so a degraded `/` and a healthy `/` were the
+  // same bytes. Nothing downstream could classify a reading of nothing.
+  //
+  // So there are three renders and three class hooks, and no two of them are
+  // byte-identical: the rack below; `.abw--empty` when the read succeeded and
+  // named nobody; `.abw--failed` when `window === null`, which only the guard
+  // can produce. `e2e/smoke.spec.ts` asserts on `home` that one of the first two
+  // is present and the third never is.
+  if (members.length === 0) {
+    if (rollWindow === null) {
+      return (
+        <section className="abw abw--failed" aria-label="MIA: absence watch">
+          <p className="abw-note">
+            Absence Watch could not be read on this request — it retries on the
+            next
+          </p>
+        </section>
+      );
+    }
+    // The dates are the WINDOW's, never the clock's — the sentence is a claim
+    // about eight specific roll calls and has to name them. `nowMs` reaches this
+    // only inside `formatSince`, and only to decide whether the year is
+    // redundant. A chamber with no roll calls at all drops its own clause rather
+    // than printing a date it did not observe: both clauses absent is the real
+    // state on the first day of a new Congress, and the sentence still stands
+    // without them.
+    const through = [
+      rollWindow.house === null
+        ? null
+        : `House through ${formatSince(rollWindow.house, nowMs)}`,
+      rollWindow.senate === null
+        ? null
+        : `Senate through ${formatSince(rollWindow.senate, nowMs)}`,
+    ].filter((c): c is string => c !== null);
+    return (
+      <section className="abw abw--empty" aria-label="MIA: absence watch">
+        <p className="abw-note">
+          No member has missed the last {ABSENCE_WARN_MIN} roll calls of their
+          chamber
+          {through.length > 0 ? ` · ${through.join(" · ")}` : null}
+        </p>
+      </section>
+    );
+  }
+
   const mia = members.filter((m) => m.tier === "mia");
   const warn = members.filter((m) => m.tier === "warn");
-  if (members.length === 0) return null;
+
 
   // HO 632 — display copy only. The FEATURE is still "Absence Watch" in the
   // roadmap, the backlog and this file's name; MIA is what the band calls itself
