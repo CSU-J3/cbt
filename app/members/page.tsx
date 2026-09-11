@@ -13,6 +13,7 @@ import { PolarizationOverTime } from "@/components/PolarizationOverTime";
 import { RosterShowAll } from "@/components/RosterShowAll";
 import { SearchBox } from "@/components/SearchBox";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
+import { isTerritorialState } from "@/lib/states";
 import { SponsorExpandedPanel } from "@/components/SponsorExpandedPanel";
 import { StateFilter } from "@/components/StateFilter";
 import { cleanMeetingTitle, etDayLabel, etTimeLabel } from "@/lib/hearings";
@@ -192,11 +193,23 @@ export default async function MembersPage({
   // committee scope, and always describes exactly what the member list renders.
   // (The old `getMembersRankedCount` total ignored committee scope, so it can't
   // serve this — it's now orphaned; see docs/backlog.md.)
+  //
+  // HO 711 (backlog :35, ruled *apply*): the HOUSE bucket counts VOTING seats.
+  // It used to bucket the six non-voting delegations — five territories plus the
+  // District — under `chamber='house'`, so it over-read against the 435 voting
+  // seats and drifted with roster churn (HO 404 measured 437). They are not
+  // dropped from the readout, because the readout's contract is that it
+  // describes exactly what the list renders and the delegates ARE in the list;
+  // they get their own bucket, which renders only when the filtered set contains
+  // any (an empty bucket collapses rather than reading "0").
   let houseCount = 0;
+  let delegateCount = 0;
   let senateCount = 0;
   for (const r of rows) {
-    if (r.chamber === "house") houseCount++;
-    else if (r.chamber === "senate") senateCount++;
+    if (r.chamber === "house") {
+      if (isTerritorialState(r.state)) delegateCount++;
+      else houseCount++;
+    } else if (r.chamber === "senate") senateCount++;
   }
 
   // Expanded member + its panel data (must be in the rendered set).
@@ -460,6 +473,17 @@ export default async function MembersPage({
               <>
                 <span className="mc-fbar-n">{houseCount.toLocaleString()}</span>{" "}
                 HOUSE
+              </>
+            ) : null}
+            {chamber !== "senate" && delegateCount > 0 ? (
+              <>
+                <span aria-hidden> · </span>
+                <span className="mc-fbar-n">
+                  {delegateCount.toLocaleString()}
+                </span>{" "}
+                <span title="Delegates and the Resident Commissioner — non-voting, not among the 435 House seats">
+                  NON-VOTING
+                </span>
               </>
             ) : null}
             {!chamber ? <span aria-hidden> · </span> : null}
