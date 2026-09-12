@@ -4306,3 +4306,27 @@ The remedy is not to weaken the gate. It is to stop the content being the variab
 The remedy that produced a real reading is cheap and worth naming: **`POST /api/revalidate?tag=bills` against the deployment you are about to measure, then re-read the served markup to confirm the conditional element exists, and only then run the gate.** Done here on the Preview and on the local server both — the local one had the identical problem and would have laddered zero chips. After the flush the Preview served `● 4 enacted ▲3 · HR 5366 HR 1276 HR 2069 +1`, the CI job was re-run against it, and the eight routes read `over=0` on Ubuntu metrics with the content present — which is the first reading in this sequence that says anything about the fix.
 
 **So the shape to carry is a three-legged check, because any two of them pass while the third is absent:** the right code is deployed, the triggering content is present, and the gate is green. HO 716's first Preview run had legs one and three.
+
+---
+
+## A missing PDF answers HTTP 200 with an HTML "Not Found" page, and a status check reads it as the file (HO 715, Sep 2026)
+
+HO 715 fetched 45 committee vote PDFs from the URLs Congress.gov's committee-meeting detail gives (`www.congress.gov/119/meeting/house/{eventId}/documents/{file}`). **Two came back `200` carrying HTML.** The Ways & Means `CRPT-119-WM00-Vote001-20260701.pdf` was a cached copy of the House Committee Repository's own *Not Found* page, stamped `7/8/2026 9:26:21 AM` — the mirror had snapshotted the repository at a moment the file was absent and kept serving the snapshot as the PDF. The repository itself (`docs.house.gov/meetings/WM/WM00/20260701/119438/…`) served the real 1.14 MB file. The Appropriations `HMKP-119-AP23-20260417-SD001.pdf` was worse: **both hosts** answered `200` with a *Not Found* body, the repository's stamped with the minute it was fetched, so the listed document is missing everywhere while every status line says it was delivered.
+
+It surfaced only because the next step was `pdftotext`, which failed with *May not be a PDF file*. A fetcher that stores what it gets and counts `200`s would have recorded two vote files that do not exist. **A fetch that "succeeds" must check the body's type — the `%PDF-` magic for a PDF — not the status**, and a file that fails the check on the mirror should be retried against the repository before it is called missing. SKILL, External data sources, *Committee markup votes*, carries the rule for the next fetcher.
+
+---
+
+## The document type is not the index: Appropriations files its roll calls as `Support Document` (HO 715, Sep 2026)
+
+Congress.gov's committee-meeting detail types every document, and one type, `Committee Recorded Vote`, is plainly the vote record — 465 files across 43 of HO 715's 60 sampled House markups. The handoff took that type to be the index. **It is not.** All four sampled Appropriations markups carried **no** `Committee Recorded Vote` document and each carried a `Support Document` named *"… – Roll Call Votes"* or *"… – Subcommittee Roll Call Votes"*; the full-committee Labor-HHS one held **25 roll calls**, every printed tally equal to its listed names. Read by type alone, the committee with the most markups in the 119th (39) has taken no recorded votes.
+
+The zero was plausible, which is what made it dangerous: subcommittee appropriations markups often do go by voice, so *Appropriations: 0 votes/markup* would have passed a sanity read. It was caught by scanning document **names** across every type for `roll call votes | vote summary`, which moved coverage from 72% to 80% and turned a zero into the fifth-largest yield term. The general form: **a typed field is the publisher's classification, and a committee that classifies differently is invisible to a reader that trusts it** — match the content's own name before concluding a class is empty. The opposite error sits in the same data: several `Committee Recorded Vote` documents are voice-vote summaries with no roll call in them, so the type over-counts too.
+
+---
+
+## Two PDF text-layer traps: `pdftotext` drops ✓ marks, and a text layer can be letter-shifted (HO 715, Sep 2026)
+
+**`pdftotext` silently omits `✓`.** Ways & Means prints its committee votes as a grid of `✓` glyphs (LucidaGrande). `pdftotext -layout` dropped every mark without a warning (its documented default output encoding is Latin-1, which has no `✓` — the likely mechanism, not verified here): the page read as forty names and no votes. PyMuPDF (`page.get_text("words")`) read **40 `✓` on page 1** with coordinates. A vote page with no marks and a vote page whose marks the extractor cannot encode are the same text file, so marks were read with PyMuPDF for the rest of the probe.
+
+**A text layer can extract as a substitution cipher.** Education & Workforce's `CRPT-119-ED00-Vote001-20260715.pdf` has a clean-looking text layer that extracts as `0U :$/%(5* 0, &KDLUPDQ` — which is `Mr. WALBERG (MI), Chairman` with every glyph shifted, a font whose ToUnicode map is off by a constant. Nothing marks it as broken: the page is not an image, the character count is normal, and a parser finds a header row. It fails only at the name join, where it reads as two unresolvable names. The printed tally (16–18) still read correctly, because the digits in that font happened to map. **"Has a text layer" is not "has readable text"** — a feasibility count of text versus image PDFs over-counts the parseable class by every file like this one.

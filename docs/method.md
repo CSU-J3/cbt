@@ -404,6 +404,7 @@ and it survives the widening.
   name, the one ignored `scratch/`, citations on one line, and what
   `check:design-citations` reads and cannot. A mock a tracked file cites ships
   with the repo, or it is a citation waiting to dangle (HO 672 → 696).
+- **`docs/probes/`** holds the findings of diagnostic-only handoffs in full; SKILL's External data sources entry summarises and points at the file (HO 715).
 - **`docs/method.md`** — this file.
 - **Cross-reference rather than restate.** Two copies of a rule drift, and nothing
   in the toolchain reports it when they do.
