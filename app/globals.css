@@ -3371,8 +3371,33 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .weekly-band-sep {
   color: var(--text-dim);
 }
+/* HO 716 — NORMAL, NOT NOWRAP, AND THE UNBREAKABLE UNIT MOVED DOWN TO .wb-metric.
+   This rule read `white-space: nowrap` from HO 365 until the Production run
+   34660122285 (and its re-run, byte-identical) went red at 390 on `home`, the six
+   `home-stage-*` variants and `dashboard-v2`: `scroll=393/390 over=3`, offender
+   `a.weekly-band-id weekly-band-id--more right=393 w=15 ws=nowrap minw=auto`.
+
+   THE MECHANISM IS THE ANCESTOR'S, NOT THE ELEMENT'S, which is why the HO 682
+   remedy was already in place and could not help. `.weekly-band-ids` below is an
+   `inline-flex` with `flex-wrap: wrap`, and it is NOT a flex item (its parent is
+   this block box), so `min-width` already computed to 0 and there was nothing
+   left to relax. An inline-flex inside a `white-space: nowrap` inline never gets
+   a constrained available width, so its wrap can never fire: measured at 390, the
+   ids box ran [139..390] inside a segment that ends at 366, overflowing its own
+   parent by 24px and the document by 3.
+
+   WHAT MADE IT START FAILING WAS CONTENT, NOT CODE. At 23:06Z the week held
+   ZERO enacted bills, `enactedShown.length > 0` was false, and the ids box did
+   not exist — so the same gate on the same CSS read `over=0`. By 00:03Z four had
+   landed and the segment was handed `· HR 5366 HR 1276 HR 2069 +1`. The green was
+   the element's absence, not this layout's soundness (oddities).
+
+   NOT MEDIA-QUERIED, deliberately: one more chip than today overflows 430 by 33
+   as well, so a `<= 430` rule would fix the reading rather than the defect.
+   Measured unchanged where it already fits — band height 65px at 1440 before and
+   after, all chip counts. */
 .weekly-band-seg {
-  white-space: nowrap;
+  white-space: normal;
 }
 .weekly-band-num {
   color: var(--text-primary);
@@ -3475,6 +3500,13 @@ html[data-week-summary="collapsed"] .week-sentences-text {
    is set per element. */
 .wb-metric {
   cursor: help;
+  /* HO 716 — THE UNBREAKABLE UNIT. `.weekly-band-seg` gave up its `nowrap` so the
+     enacted segment's id chips can wrap; this is where that nowrap belongs, on
+     the metric phrase itself ("● 4 enacted ▲3"), which must never break across
+     lines. One render site (WeeklyBandMetricCard.tsx) and one rule, so this is
+     band-scoped despite the short selector. Measured: the metric box stays 14px
+     tall — one line — at 390, 430 and 1440, at 0, 1 and 2 extra chips. */
+  white-space: nowrap;
 }
 .wb-card {
   position: fixed;
