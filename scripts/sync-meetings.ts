@@ -22,6 +22,10 @@ async function main() {
   console.log(
     `  meetings upserted: ${r.meetingsUpserted}  meeting_bills rows: ${r.billRowsUpserted}  fetchErrors: ${r.fetchErrors}`,
   );
+  // HO 717: the documents stored as filed, and how many match the recorded-vote predicate.
+  console.log(
+    `  documents_stored=${r.documentsStored} recorded_vote_docs=${r.recordedVoteDocs}`,
+  );
   for (const chamber of ["house", "senate"] as const) {
     const c = r.perChamber[chamber];
     console.log(

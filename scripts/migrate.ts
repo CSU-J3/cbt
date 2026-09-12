@@ -740,6 +740,25 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_meeting_bills_bill ON meeting_bills(bill_id)`,
 
+  // HO 717: every meetingDocuments[] entry of a meeting, stored AS FILED — no
+  // parsing, no type normalisation. Written per event as delete-then-insert beside
+  // meeting_bills. The recorded-vote reading is a query-time predicate
+  // (RECORDED_VOTE_DOC_SQL, lib/meeting-documents.ts), never a stored flag.
+  // WHY THE KEY IS POSITIONAL (`ord` = the entry's index in the array) and name/url
+  // are nullable: measured at HO 717 STEP 0 over 82 events / 2,185 documents, 18
+  // entries carry no name, 15 carry no url, and one event files the same url twice
+  // under two types. UNIQUE(event_id, url) or NOT NULL would drop or reject those,
+  // and the row count would stop equalling what upstream files. The UNIQUE's
+  // (event_id, ord) index serves the per-event read, as meeting_bills' does.
+  `CREATE TABLE IF NOT EXISTS committee_meeting_documents (
+    event_id TEXT NOT NULL,
+    ord INTEGER NOT NULL,
+    name TEXT,
+    document_type TEXT,
+    url TEXT,
+    UNIQUE(event_id, ord)
+  )`,
+
   // Per-chamber sync watermark (HO 116/143 cursor pattern). One row per chamber;
   // update_date = the newest event update_date fully synced. The list endpoint is
   // updateDate-DESC with no server-side date filter, so the sync collects events

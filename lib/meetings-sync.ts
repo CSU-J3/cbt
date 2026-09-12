@@ -15,6 +15,7 @@
 // next tick resumes forward (the HO 116/143 forward-drain, adapted).
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
+import { RECORDED_VOTE_DOC_SQL } from "./meeting-documents";
 
 const API_BASE = "https://api.congress.gov/v3";
 // HO 712: derived. Safe with no guard — an empty list for a Congress that has
@@ -127,7 +128,7 @@ async function collectNewEvents(
 
 // --- detail -------------------------------------------------------------
 
-type ApiMeeting = {
+export type ApiMeeting = {
   eventId?: string;
   chamber?: string;
   congress?: number;
@@ -142,9 +143,12 @@ type ApiMeeting = {
   relatedItems?: {
     bills?: Array<{ congress?: number; type?: string; number?: string | number }>;
   };
+  // HO 717: stored as filed in committee_meeting_documents. Any key may be absent
+  // upstream (STEP 0: 18 of 2,185 entries had no name, 15 no url).
+  meetingDocuments?: Array<{ documentType?: string; format?: string; name?: string; url?: string }>;
 };
 
-async function fetchMeetingDetail(
+export async function fetchMeetingDetail(
   chamber: Chamber,
   eventId: string,
 ): Promise<ApiMeeting | null> {
@@ -171,7 +175,8 @@ function extractVideoUrl(videos: ApiMeeting["videos"]): string | null {
 }
 
 // relatedItems.bills[] → bill ids in our `{congress}-{type}-{number}` form. The
-// messier meetingDocuments PDF-name path is deliberately NOT parsed in v1.
+// messier meetingDocuments PDF-name path is deliberately NOT parsed in v1 (HO 717
+// stores those documents as filed — documentStatements — but still parses nothing).
 function extractBillIds(m: ApiMeeting): string[] {
   const ids: string[] = [];
   for (const b of m.relatedItems?.bills ?? []) {
@@ -181,9 +186,61 @@ function extractBillIds(m: ApiMeeting): string[] {
   return [...new Set(ids)];
 }
 
+// HO 717: an event's documents as a delete-then-insert (so a document the upstream
+// withdraws clears), every entry kept as filed and keyed by its array position,
+// then ONE trailing SELECT that counts the recorded-vote documents under the shared
+// predicate — the count comes out of the same batch, not a second round trip, and
+// not a JS copy of the rule.
+function documentStatements(
+  eventId: string,
+  docs: ApiMeeting["meetingDocuments"],
+): { sql: string; args: (string | number | null)[] }[] {
+  const stmts: { sql: string; args: (string | number | null)[] }[] = [
+    { sql: "DELETE FROM committee_meeting_documents WHERE event_id = ?", args: [eventId] },
+  ];
+  (docs ?? []).forEach((d, ord) => {
+    stmts.push({
+      sql: `INSERT INTO committee_meeting_documents (event_id, ord, name, document_type, url)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [eventId, ord, d.name ?? null, d.documentType ?? null, d.url ?? null],
+    });
+  });
+  stmts.push({
+    sql: `SELECT COUNT(*) AS n FROM committee_meeting_documents
+          WHERE event_id = ? AND ${RECORDED_VOTE_DOC_SQL}`,
+    args: [eventId],
+  });
+  return stmts;
+}
+
+export type DocumentWrite = { documents: number; recordedVoteDocs: number };
+
+function readDocumentCount(
+  results: { rows: unknown[] }[],
+  documents: number,
+): DocumentWrite {
+  const last = results[results.length - 1];
+  const row = last?.rows[0] as { n?: unknown } | undefined;
+  return { documents, recordedVoteDocs: Number(row?.n ?? 0) };
+}
+
+// The backfill's write: documents only, for events synced before HO 717 stored any.
+// It does not touch committee_meetings or meeting_bills, so it moves no cursor and
+// rewrites no column the walk owns.
+export async function writeMeetingDocuments(m: ApiMeeting): Promise<DocumentWrite> {
+  const eventId = m.eventId!;
+  const docs = m.meetingDocuments ?? [];
+  const results = await getDb().batch(documentStatements(eventId, docs), "write");
+  return readDocumentCount(results, docs.length);
+}
+
 // One event → committee_meetings upsert + a delete-then-insert of its meeting_bills
-// (so a meeting that loses a bill association clears), all in one batch.
-async function upsertMeeting(chamber: Chamber, m: ApiMeeting): Promise<number> {
+// (so a meeting that loses a bill association clears) + its documents (HO 717), all
+// in one batch.
+async function upsertMeeting(
+  chamber: Chamber,
+  m: ApiMeeting,
+): Promise<{ billRows: number } & DocumentWrite> {
   const db = getDb();
   const eventId = m.eventId!;
   const billIds = extractBillIds(m);
@@ -226,8 +283,10 @@ async function upsertMeeting(chamber: Chamber, m: ApiMeeting): Promise<number> {
       args: [eventId, billId],
     });
   }
-  await db.batch(stmts, "write");
-  return billIds.length;
+  const docs = m.meetingDocuments ?? [];
+  stmts.push(...documentStatements(eventId, docs));
+  const results = await db.batch(stmts, "write");
+  return { billRows: billIds.length, ...readDocumentCount(results, docs.length) };
 }
 
 // --- driver -------------------------------------------------------------
@@ -235,6 +294,8 @@ async function upsertMeeting(chamber: Chamber, m: ApiMeeting): Promise<number> {
 export type MeetingsSyncResult = {
   meetingsUpserted: number;
   billRowsUpserted: number;
+  documentsStored: number; // HO 717: committee_meeting_documents rows written this run
+  recordedVoteDocs: number; // HO 717: of those, rows matching RECORDED_VOTE_DOC_SQL
   fetchErrors: number;
   deadlineHit: boolean;
   perChamber: Record<Chamber, { collected: number; processed: number; cursorEnd: string }>;
@@ -253,6 +314,8 @@ export async function syncMeetings(
 
   let meetingsUpserted = 0;
   let billRowsUpserted = 0;
+  let documentsStored = 0;
+  let recordedVoteDocs = 0;
   let fetchErrors = 0;
   let deadlineHit = false;
   const perChamber = {
@@ -281,7 +344,10 @@ export async function syncMeetings(
       try {
         const detail = await fetchMeetingDetail(chamber, item.eventId);
         if (detail) {
-          billRowsUpserted += await upsertMeeting(chamber, detail);
+          const w = await upsertMeeting(chamber, detail);
+          billRowsUpserted += w.billRows;
+          documentsStored += w.documents;
+          recordedVoteDocs += w.recordedVoteDocs;
           meetingsUpserted++;
         }
       } catch (err) {
@@ -309,5 +375,13 @@ export async function syncMeetings(
     }
   }
 
-  return { meetingsUpserted, billRowsUpserted, fetchErrors, deadlineHit, perChamber };
+  return {
+    meetingsUpserted,
+    billRowsUpserted,
+    documentsStored,
+    recordedVoteDocs,
+    fetchErrors,
+    deadlineHit,
+    perChamber,
+  };
 }

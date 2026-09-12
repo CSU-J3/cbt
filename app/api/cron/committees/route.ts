@@ -94,7 +94,7 @@ async function handle(request: Request) {
     timings.meetings = Date.now() - t4;
     if (meetings) {
       console.log(
-        `[meetings] upserted=${meetings.meetingsUpserted} billRows=${meetings.billRowsUpserted} errors=${meetings.fetchErrors} deadlineHit=${meetings.deadlineHit}`,
+        `[meetings] upserted=${meetings.meetingsUpserted} billRows=${meetings.billRowsUpserted} documents_stored=${meetings.documentsStored} recorded_vote_docs=${meetings.recordedVoteDocs} errors=${meetings.fetchErrors} deadlineHit=${meetings.deadlineHit}`,
       );
     }
 
