@@ -9258,6 +9258,62 @@ a.hearing-watch:hover {
   text-decoration: underline;
 }
 
+/* HO 717 — the recorded-vote pointer, a SIBLING of .hearing-watch in the row's
+   right track (HearingRow VotesCell). Same link shape and tokens as WATCH. A row
+   carrying it spans the button over two grid rows so WATCH (row 1) and the votes
+   link (row 2) stack in the one auto column instead of adding a third track; a row
+   without it matches none of these selectors and renders exactly as before. */
+.hearing-votes {
+  display: flex;
+  align-items: flex-start; /* sits directly under WATCH, however tall the row */
+  justify-content: flex-end;
+  grid-column: 2;
+  grid-row: 2;
+  padding: 0 12px 8px;
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-decoration: none;
+  color: var(--accent-amber-bright);
+}
+a.hearing-votes:hover {
+  text-decoration: underline;
+}
+.hearing-votes-mini {
+  display: none;
+}
+.hearing-row:has(> .hearing-votes) > .hearing-row-btn {
+  grid-row: 1 / span 2;
+}
+.hearing-row:has(> .hearing-votes) > .hearing-watch {
+  grid-column: 2;
+  grid-row: 1;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+/* No WATCH on the row: the votes link takes the whole right cell. */
+.hearing-row:not(:has(> .hearing-watch)) > .hearing-votes {
+  grid-row: 1 / span 2;
+  align-items: center;
+  padding: 8px 12px;
+}
+/* ≤ 720px (the hearings CSS's own breakpoint): the full label would squeeze the
+   title to nothing at 390, so the collapsed row keeps only a bare `↗ n`, and only
+   stacked under an existing WATCH link — never creating the track itself. The
+   expanded panel's Recorded votes section is the pointer's home at this width. */
+@media (max-width: 720px) {
+  .hearing-votes-full {
+    display: none;
+  }
+  .hearing-votes-mini {
+    display: inline;
+  }
+  .hearing-row:not(:has(> .hearing-watch)) > .hearing-votes {
+    display: none;
+  }
+}
+
 /* expanded panel */
 .hearing-panel {
   grid-column: 1 / -1;

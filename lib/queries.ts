@@ -37,6 +37,7 @@ import {
 } from "./lda-rollup";
 import { senateClassForCycle } from "./derive-term";
 import { median } from "./median";
+import { RECORDED_VOTE_DOC_SQL } from "./meeting-documents";
 import {
   type ContestRow,
   type RosterRow,
@@ -9156,7 +9157,13 @@ export type CommitteeMeeting = {
   videoUrl: string | null;
   committeeSystemCode: string | null;
   bills: FeedBill[]; // from meeting_bills join; may be empty (sparse by nature)
+  // HO 717: committee_meeting_documents rows matching RECORDED_VOTE_DOC_SQL —
+  // DOCUMENTS, not roll calls. 0 when none (or none stored). Every chamber is
+  // counted; the rows render the affordance for House meetings only.
+  recordedVoteDocs: number;
 };
+
+type MeetingBase = Omit<CommitteeMeeting, "bills" | "recordedVoteDocs">;
 
 const MEETING_COL_LIST = [
   "event_id",
@@ -9173,9 +9180,7 @@ const MEETING_COL_LIST = [
 const MEETING_COLS = MEETING_COL_LIST.join(", ");
 const MEETING_COLS_M = MEETING_COL_LIST.map((c) => `m.${c}`).join(", ");
 
-function rowToMeetingBase(
-  r: Record<string, unknown>,
-): Omit<CommitteeMeeting, "bills"> {
+function rowToMeetingBase(r: Record<string, unknown>): MeetingBase {
   return {
     eventId: r.event_id as string,
     chamber: (r.chamber as string) === "senate" ? "senate" : "house",
@@ -9194,14 +9199,22 @@ function rowToMeetingBase(
 // SQL; only the group-into-arrays step is JS — not an N+1 per meeting). A
 // meeting_bills row pointing at a not-yet-synced bill drops out of the INNER
 // JOIN (no chip), which is the honest degrade.
-async function attachMeetingBills(
-  bases: Omit<CommitteeMeeting, "bills">[],
-): Promise<CommitteeMeeting[]> {
+// HO 717: and its recorded-vote document count, with one more grouped query under
+// the shared predicate. Every meeting reader goes through here, so this is the
+// one place the count joins.
+async function attachMeetingBills(bases: MeetingBase[]): Promise<CommitteeMeeting[]> {
   if (bases.length === 0) return [];
   const db = getDb();
   const ids = bases.map((b) => b.eventId);
   const placeholders = ids.map(() => "?").join(",");
-  const rs = await db.execute({
+  // Concurrent, not sequential: the two reads are independent and `/` renders this.
+  const votesQ = db.execute({
+    sql: `SELECT event_id, COUNT(*) AS n FROM committee_meeting_documents
+          WHERE event_id IN (${placeholders}) AND ${RECORDED_VOTE_DOC_SQL}
+          GROUP BY event_id`,
+    args: ids,
+  });
+  const billsQ = db.execute({
     sql: `SELECT mb.event_id,
                  bills.id, bills.congress, bills.bill_type, bills.bill_number,
                  bills.title, bills.sponsor_name, bills.sponsor_party,
@@ -9217,6 +9230,9 @@ async function attachMeetingBills(
           ORDER BY bills.latest_action_date DESC`,
     args: ids,
   });
+  const [votesRs, rs] = await Promise.all([votesQ, billsQ]);
+  const votesByEvent = new Map<string, number>();
+  for (const r of votesRs.rows) votesByEvent.set(r.event_id as string, Number(r.n));
   const byEvent = new Map<string, FeedBill[]>();
   for (const r of rs.rows) {
     const ev = r.event_id as string;
@@ -9224,7 +9240,11 @@ async function attachMeetingBills(
     arr.push(rowToFeedBill(r as Record<string, unknown>));
     byEvent.set(ev, arr);
   }
-  return bases.map((b) => ({ ...b, bills: byEvent.get(b.eventId) ?? [] }));
+  return bases.map((b) => ({
+    ...b,
+    bills: byEvent.get(b.eventId) ?? [],
+    recordedVoteDocs: votesByEvent.get(b.eventId) ?? 0,
+  }));
 }
 
 // Calendar spine: meetings dated from now forward (this/next week — the source

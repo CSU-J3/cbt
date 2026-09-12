@@ -22,6 +22,7 @@ import {
   type WatchState,
 } from "@/lib/hearings";
 import { formatBillId } from "@/lib/format";
+import { recordedVotesTitle, repositoryEventUrl } from "@/lib/meeting-documents";
 import type { CommitteeMeeting } from "@/lib/queries";
 
 const BILL_CHIP_CAP = 3;
@@ -63,6 +64,42 @@ function WatchCell({ m, nowMs }: { m: CommitteeMeeting; nowMs: number }) {
   );
 }
 
+// HO 717: the recorded-vote pointer. House meetings only, rendered only when the
+// meeting carries at least one recorded-vote document — absence is the signal. It
+// is a SIBLING of WatchCell rather than a wrapper around it, so a row with no votes
+// renders byte-identically to before and WATCH's markup never moves; the stacking
+// under WATCH is CSS (`.hearing-row:has(> .hearing-votes)`, globals.css).
+// Two labels, one link: the full `RECORDED VOTES · n ↗` above 720px, and at ≤ 720px
+// a bare `↗ n` that shows only when it can stack under a WATCH link already in the
+// slot (so it adds no width to the row's auto track); with no WATCH at that width it
+// is hidden and the expanded panel carries the pointer.
+function hasRecordedVotes(m: CommitteeMeeting): boolean {
+  return m.chamber === "house" && m.recordedVoteDocs > 0;
+}
+
+function VotesCell({ m }: { m: CommitteeMeeting }) {
+  if (!hasRecordedVotes(m)) return null;
+  const n = m.recordedVoteDocs;
+  return (
+    <a
+      href={repositoryEventUrl(m.eventId)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="hearing-votes"
+      title={recordedVotesTitle(n)}
+      aria-label={`Recorded votes: ${n} document${n === 1 ? "" : "s"} in the House Committee Repository`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="hearing-votes-full" aria-hidden>
+        RECORDED VOTES · {n} ↗
+      </span>
+      <span className="hearing-votes-mini" aria-hidden>
+        ↗ {n}
+      </span>
+    </a>
+  );
+}
+
 function ExpandedPanel({
   m,
   committeeName,
@@ -94,6 +131,23 @@ function ExpandedPanel({
                   ? "— scheduled livestream"
                   : "— recording"}
             </span>
+          </a>
+        </div>
+      ) : null}
+
+      {/* RECORDED VOTES — HO 717; the ≤ 720px home of the pointer */}
+      {hasRecordedVotes(m) ? (
+        <div className="hearing-panel-sec">
+          <span className="hearing-panel-cap">Recorded votes</span>
+          <a
+            href={repositoryEventUrl(m.eventId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hearing-panel-link"
+            title={recordedVotesTitle(m.recordedVoteDocs)}
+          >
+            {m.recordedVoteDocs} document{m.recordedVoteDocs === 1 ? "" : "s"} · House Committee
+            Repository ↗
           </a>
         </div>
       ) : null}
@@ -248,6 +302,7 @@ export function HearingRow({
       </div>
 
       <WatchCell m={m} nowMs={nowMs} />
+      <VotesCell m={m} />
 
       {isOpen ? (
         <ExpandedPanel m={m} committeeName={committeeName} nowMs={nowMs} />

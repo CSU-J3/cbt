@@ -19,6 +19,7 @@ import {
   etTimeLabel,
   LIVE_WINDOW_MS,
 } from "@/lib/hearings";
+import { recordedVotesTitle, repositoryEventUrl } from "@/lib/meeting-documents";
 import type { CommitteeMeeting } from "@/lib/queries";
 
 export type LiveStatus = "scheduled" | "live" | "concluded";
@@ -121,6 +122,23 @@ export function HearingDetailCard({
           <span className="hcal-card-watch is-none">{watchText}</span>
         )}
       </div>
+
+      {/* HO 717: the recorded-vote pointer, House only, absent when n = 0. */}
+      {m.chamber === "house" && m.recordedVoteDocs > 0 ? (
+        <div className="hcal-card-sec">
+          <span className="hcal-card-cap">Recorded votes</span>
+          <a
+            href={repositoryEventUrl(m.eventId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hcal-card-link hcal-card-votes"
+            title={recordedVotesTitle(m.recordedVoteDocs)}
+          >
+            {m.recordedVoteDocs} document{m.recordedVoteDocs === 1 ? "" : "s"} · House Committee
+            Repository ↗
+          </a>
+        </div>
+      ) : null}
 
       {m.committeeSystemCode ? (
         <div className="hcal-card-sec">
