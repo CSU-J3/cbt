@@ -241,7 +241,9 @@ function RosterSection({
               </span>{" "}
               · {members.length}
             </div>
-            <div className="so-group-names">
+            {/* HO 719 — data-col-flow: the gap M1 reads here is the column gutter (C8's remedy), so the
+                container counts on M1c, never M1; the rows inside stay scored. Registry (9), docs/backlog.md. */}
+            <div className="so-group-names" data-col-flow>
               {[...members].sort(byQualifiedThenSeat).map((row) => (
                 <NameRow row={row} key={row.bioguideId} />
               ))}
