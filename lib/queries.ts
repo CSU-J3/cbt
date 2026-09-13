@@ -2303,38 +2303,73 @@ export type RaceNewsItem = {
   observedAt: string;
 };
 
+// HO 718 — the observation-news read, folded. getRaceNews, getMemberNews and
+// the seat outlook's getSeatNews are the same projection over different person
+// sets, so the SQL lives once here and each export is a cached wrapper. The
+// HO 414 debt note ("fold on the 3rd obs-consumer") is discharged by this
+// fold, 2026-09-12. `entity_value IN (…)` takes one placeholder per id, so a
+// single id plans exactly as the old `= ?` did (the drive stays
+// idx_obs_entities_type_value; re-EXPLAINed at HO 718 over the 34 Class 3
+// ids).
+export type ObservationNewsItem = RaceNewsItem & { bioguides: string[] };
+
+async function readObservationNews(
+  bioguides: string[],
+  limit: number,
+): Promise<ObservationNewsItem[]> {
+  if (bioguides.length === 0) return [];
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT o.obs_id,
+                 o.title AS title,
+                 json_extract(o.source, '$.publisher') AS publisher,
+                 json_extract(o.source, '$.url') AS url,
+                 o.observed_at AS observed_at,
+                 GROUP_CONCAT(DISTINCT oe.entity_value) AS entity_values
+          FROM observation_entities oe
+          JOIN observations o ON o.obs_id = oe.obs_id
+          WHERE oe.entity_type = 'person'
+            AND oe.entity_value IN (${bioguides.map(() => "?").join(",")})
+          GROUP BY o.obs_id
+          ORDER BY o.observed_at DESC
+          LIMIT ?`,
+    args: [...bioguides, limit],
+  });
+  return rs.rows
+    .map((r) => ({
+      obsId: r.obs_id as string,
+      title: r.title as string,
+      publisher: (r.publisher as string | null) ?? "",
+      url: (r.url as string | null) ?? "",
+      observedAt: r.observed_at as string,
+      bioguides: String(r.entity_values ?? "")
+        .split(",")
+        .filter((b) => b.length > 0),
+    }))
+    // A well-formed news observation always carries a url; guard anyway so a
+    // malformed source blob can't render a dead headline link.
+    .filter((n) => n.url.length > 0);
+}
+
+// The wrappers keep their names, signatures, return type, cache keys and tags,
+// so no caller moves; the `bioguides` field is dropped to keep RaceNewsItem's
+// shape exactly.
+function toRaceNewsItem(n: ObservationNewsItem): RaceNewsItem {
+  return {
+    obsId: n.obsId,
+    title: n.title,
+    publisher: n.publisher,
+    url: n.url,
+    observedAt: n.observedAt,
+  };
+}
+
 export const getRaceNews = unstable_cache(
   async (
     incumbentBioguideId: string,
     limit = 8,
-  ): Promise<RaceNewsItem[]> => {
-    const db = getDb();
-    const rs = await db.execute({
-      sql: `SELECT o.obs_id,
-                   o.title AS title,
-                   json_extract(o.source, '$.publisher') AS publisher,
-                   json_extract(o.source, '$.url') AS url,
-                   o.observed_at AS observed_at
-            FROM observation_entities oe
-            JOIN observations o ON o.obs_id = oe.obs_id
-            WHERE oe.entity_type = 'person' AND oe.entity_value = ?
-            GROUP BY o.obs_id
-            ORDER BY o.observed_at DESC
-            LIMIT ?`,
-      args: [incumbentBioguideId, limit],
-    });
-    return rs.rows
-      .map((r) => ({
-        obsId: r.obs_id as string,
-        title: r.title as string,
-        publisher: (r.publisher as string | null) ?? "",
-        url: (r.url as string | null) ?? "",
-        observedAt: r.observed_at as string,
-      }))
-      // A well-formed news observation always carries a url; guard anyway so a
-      // malformed source blob can't render a dead headline link.
-      .filter((n) => n.url.length > 0);
-  },
+  ): Promise<RaceNewsItem[]> =>
+    (await readObservationNews([incumbentBioguideId], limit)).map(toRaceNewsItem),
   ["getRaceNews"],
   { revalidate: 3600, tags: ["race-news"] },
 );
@@ -2343,41 +2378,9 @@ export const getRaceNews = unstable_cache(
 // bioguide (the member hub is the second consumer of the observation join).
 // Cold-EXPLAINed clean: same idx_obs_entities_type_value drive + PK join +
 // two small temp b-trees, GROUP BY doesn't replan the drive order.
-//
-// DEBT (generalize on the 3rd obs-consumer, not the 2nd): this reuses
-// RaceNewsItem as the return shape and duplicates getRaceNews's SQL verbatim.
-// Both reads are the same observation-news projection; when a third consumer
-// lands, fold them into one getObservationNews(bioguide, limit) + a neutral
-// item type. Two callers isn't enough to earn the abstraction yet.
 export const getMemberNews = unstable_cache(
-  async (bioguideId: string, limit = 8): Promise<RaceNewsItem[]> => {
-    const db = getDb();
-    const rs = await db.execute({
-      sql: `SELECT o.obs_id,
-                   o.title AS title,
-                   json_extract(o.source, '$.publisher') AS publisher,
-                   json_extract(o.source, '$.url') AS url,
-                   o.observed_at AS observed_at
-            FROM observation_entities oe
-            JOIN observations o ON o.obs_id = oe.obs_id
-            WHERE oe.entity_type = 'person' AND oe.entity_value = ?
-            GROUP BY o.obs_id
-            ORDER BY o.observed_at DESC
-            LIMIT ?`,
-      args: [bioguideId, limit],
-    });
-    return rs.rows
-      .map((r) => ({
-        obsId: r.obs_id as string,
-        title: r.title as string,
-        publisher: (r.publisher as string | null) ?? "",
-        url: (r.url as string | null) ?? "",
-        observedAt: r.observed_at as string,
-      }))
-      // A well-formed news observation always carries a url; guard anyway so a
-      // malformed source blob can't render a dead headline link.
-      .filter((n) => n.url.length > 0);
-  },
+  async (bioguideId: string, limit = 8): Promise<RaceNewsItem[]> =>
+    (await readObservationNews([bioguideId], limit)).map(toRaceNewsItem),
   ["getMemberNews"],
   { revalidate: 3600, tags: ["member-news"] },
 );
