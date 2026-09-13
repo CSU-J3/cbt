@@ -45,6 +45,9 @@ type Route = { slug: string; path: string; gate: boolean; expand?: boolean };
 const ROUTES: Route[] = [
   { slug: "home", path: "/", gate: true },
   { slug: "electoral", path: "/electoral", gate: true },
+  // HO 718: the 2028 report's ODDS coverage line is a gated site that renders
+  // no odds (`data-market="coverage"`); its ON control is the test below.
+  { slug: "electoral-2028", path: "/electoral?cycle=2028", gate: true },
   // The bill panel's ODDS block is only in the DOM once a row is expanded.
   { slug: "bills", path: "/bills", gate: true, expand: true },
   { slug: "race", path: `/race/${RACE}`, gate: true },
@@ -194,6 +197,32 @@ test.describe("odds OFF pass", () => {
     console.log(`[odds-off ON-control] visibleMarkers=${n} kpMarkers=${kp}`);
     expect(n, "markers must be visible in the ON state").toBeGreaterThan(0);
     expect(kp, ".rc-kpline must carry markers (BotID-safe anchor)").toBeGreaterThan(0);
+    await context.close();
+  });
+
+  // HO 718: the 2028 route's own control. The `/` control above cannot vouch
+  // for this route — its marker is a different site — so without this the OFF
+  // pass on /electoral?cycle=2028 would be green even if the coverage line
+  // never carried `data-market` at all.
+  test("ON control — the 2028 coverage line is emitted", async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1200 } });
+    await context.addCookies([GATE_COOKIE]);
+    const page = await context.newPage();
+    await page.goto(`${BASE_URL}/electoral?cycle=2028`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
+    await page.waitForLoadState("load").catch(() => {});
+    await page.waitForTimeout(2_500);
+
+    expect(
+      await page.evaluate(() => document.documentElement.dataset.odds ?? null),
+      "no preference set means the attribute is ABSENT (the default is its absence)",
+    ).toBeNull();
+
+    const coverage = await page.locator('[data-market="coverage"]:visible').count();
+    console.log(`[odds-off ON-control 2028] coverageVisible=${coverage}`);
+    expect(coverage, "the 2028 coverage line must be visible in the ON state").toBe(1);
     await context.close();
   });
 });
