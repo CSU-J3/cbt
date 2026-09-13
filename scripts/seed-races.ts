@@ -35,6 +35,8 @@ interface RaceSeed {
   source_url?: string | null;
   // HO 221: 0 = incumbent not running (OPEN seat), 1 = running, omit = leave
   // unchanged. A retirement-only entry carries just `id` + `incumbent_running`.
+  // HO 718: with `incumbent_running: 0`, `open_signal_date` / `open_signal_url`
+  // (no `open_signal`) date the announcement for the 2028 NOT RUNNING qualifier.
   incumbent_running?: number | null;
   // HO 408: override the derived incumbent. backfill-races sets
   // incumbent_bioguide_id from members.next_election_year, so a wrong-class
@@ -126,6 +128,37 @@ async function main() {
         args: [race.incumbent_running, today, race.id],
       });
       flagged++;
+
+      // HO 718: a retirement entry that carries the announcement's date and URL
+      // writes them too, so the seat outlook renders `NOT RUNNING · <MON YYYY> ↗`
+      // rather than a bare `NOT RUNNING`. Same validation as the `indicated` arm
+      // below, and the same skip: an entry that can't supply both is not
+      // half-written (the flag above still lands; a bare tag is the visible
+      // curation defect). Only when either field is present, so the 2026
+      // retirement-only entries are untouched.
+      if (
+        race.incumbent_running === 0 &&
+        (race.open_signal_date != null || race.open_signal_url != null)
+      ) {
+        if (!race.open_signal_date || !ISO_DATE.test(race.open_signal_date)) {
+          console.warn(
+            `  ${race.id}: incumbent_running 0 with a signal date needs YYYY-MM-DD (got '${race.open_signal_date ?? ""}') — date/url skipped`,
+          );
+          invalidSignals++;
+        } else if (!race.open_signal_url?.startsWith("https://")) {
+          console.warn(
+            `  ${race.id}: incumbent_running 0 with a signal url needs https:// (got '${race.open_signal_url ?? ""}') — date/url skipped`,
+          );
+          invalidSignals++;
+        } else {
+          await db.execute({
+            sql: `UPDATE races
+                  SET open_signal_date = ?, open_signal_url = ?, last_verified = ?
+                  WHERE id = ?`,
+            args: [race.open_signal_date, race.open_signal_url, today, race.id],
+          });
+        }
+      }
     }
 
     // HO 408: incumbent override — additive, sets ONLY incumbent_bioguide_id (+

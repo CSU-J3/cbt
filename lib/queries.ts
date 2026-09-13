@@ -2316,9 +2316,15 @@ export type ObservationNewsItem = RaceNewsItem & { bioguides: string[] };
 async function readObservationNews(
   bioguides: string[],
   limit: number,
+  titleTerms: readonly string[] = [],
 ): Promise<ObservationNewsItem[]> {
   if (bioguides.length === 0) return [];
   const db = getDb();
+  // HO 718: `titleTerms`, when given, ANDs one `title LIKE '%term%'` OR-group.
+  const termSql =
+    titleTerms.length > 0
+      ? `AND (${titleTerms.map(() => "o.title LIKE ?").join(" OR ")})`
+      : "";
   const rs = await db.execute({
     sql: `SELECT o.obs_id,
                  o.title AS title,
@@ -2330,10 +2336,11 @@ async function readObservationNews(
           JOIN observations o ON o.obs_id = oe.obs_id
           WHERE oe.entity_type = 'person'
             AND oe.entity_value IN (${bioguides.map(() => "?").join(",")})
+            ${termSql}
           GROUP BY o.obs_id
           ORDER BY o.observed_at DESC
           LIMIT ?`,
-    args: [...bioguides, limit],
+    args: [...bioguides, ...titleTerms.map((t) => `%${t}%`), limit],
   });
   return rs.rows
     .map((r) => ({
@@ -2383,6 +2390,74 @@ export const getMemberNews = unstable_cache(
     (await readObservationNews([bioguideId], limit)).map(toRaceNewsItem),
   ["getMemberNews"],
   { revalidate: 3600, tags: ["member-news"] },
+);
+
+// HO 718 — the seat outlook's NEWS panel: person-resolved observations about
+// the cycle's incumbents, filtered to electoral titles (ruling B, 2026-09-12).
+// Each term is matched as `title LIKE '%term%'` (ASCII case-insensitive).
+//
+// THE MISS IS INVISIBLE: a LIKE on titles has no recall figure. An electoral
+// story whose headline uses none of these words never renders, and nothing on
+// the page says so. The durable fix is an `electoral` tag in the observation
+// extraction (backlog OPEN LOOPS), at which point this constant is deleted.
+//
+// Measured against the corpus at HO 718 STEP 0 over the 34 Class 3 ids: the
+// handoff's first list returned 7 items, 2 electoral. `announce` matched any
+// announcement (a Rotunda tribute) and `appoint` matched "disappoint", so
+// `announce` is gone and `appoint` is ` appointed` with its leading space
+// (bare `appointed` still matches "disappointed"; the cost is a title that
+// OPENS with "Appointed", which misses). `won_t run` uses LIKE's `_` wildcard
+// because the corpus carries both apostrophes (won't ×29, won’t ×8 across all
+// titles); the curly `won’t run` form has no instance yet, and `will not run`
+// reads 0 — both are untested, not proven. This list returned exactly the 2
+// electoral items.
+export const SEAT_NEWS_TERMS = [
+  "retir",
+  "re-election",
+  "reelection",
+  "won_t run",
+  "will not run",
+  "not seek",
+  "candidacy",
+  "special election",
+  " appointed",
+  "2028",
+] as const;
+
+export const getSeatNews = unstable_cache(
+  async (bioguideIds: string[], limit = 5): Promise<ObservationNewsItem[]> =>
+    readObservationNews(bioguideIds, limit, SEAT_NEWS_TERMS),
+  ["getSeatNews"],
+  { revalidate: 3600, tags: ["member-news"] },
+);
+
+// HO 718 — the 2028 ODDS line's three counts. Scalar subqueries on the cycle
+// column of each table; 0 · 0 · 0 at 2028 against 469 · 34 · 407 at 2026,
+// read 2026-09-12. A non-zero flips the line from its `none` form to counts.
+export type CycleMarketCoverage = {
+  kalshi: number;
+  polymarket: number;
+  ratings: number;
+};
+
+export const getCycleMarketCoverage = unstable_cache(
+  async (cycle: number): Promise<CycleMarketCoverage> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT (SELECT COUNT(*) FROM kalshi_odds WHERE cycle = ?) AS kalshi,
+                   (SELECT COUNT(*) FROM polymarket_odds WHERE cycle = ?) AS polymarket,
+                   (SELECT COUNT(*) FROM race_ratings WHERE cycle = ?) AS ratings`,
+      args: [cycle, cycle, cycle],
+    });
+    const r = rs.rows[0];
+    return {
+      kalshi: Number(r?.kalshi ?? 0),
+      polymarket: Number(r?.polymarket ?? 0),
+      ratings: Number(r?.ratings ?? 0),
+    };
+  },
+  ["getCycleMarketCoverage"],
+  { revalidate: 3600, tags: ["races", "race-ratings"] },
 );
 
 export const getMostCompetitiveRaces = unstable_cache(
@@ -2810,7 +2885,7 @@ export const getBattlefieldSeats = unstable_cache(
 );
 
 // HO 710: the seat outlook for a cycle that has no ratings yet — every seat up
-// in `cycle`, with the OPEN / LIKELY / TBD vocabulary. Deliberately NOT a
+// in `cycle`, with the facts-on-the-name axes (HO 718). Deliberately NOT a
 // variant of getRacesIndex or getBattlefieldSeats: both INNER JOIN race_ratings
 // (:2556, :2750) and `data/` carries rating files for 2026 only, so either
 // would return zero rows for 2028 by construction.
@@ -2829,9 +2904,17 @@ export type SeatOutlookRow = {
   openSignal: string | null;
   openSignalDate: string | null;
   openSignalUrl: string | null;
-  // For a TBD seat, the contest that decides who holds it, when that row
-  // exists; null means the tag renders as plain text with no link.
+  // HO 718: the row's `races.last_verified` — the seed stamp, so the dateline's
+  // "retirement statements last checked" derives from the rows that carry one.
+  lastVerified: string | null;
+  // For an appointee, the contest that decides who holds the seat first, when
+  // that row exists; null means the qualifier renders as plain text, no link.
   decidingRaceId: string | null;
+  // HO 718: the APPOINTEE axis — `nextElectionYear` when it is not this cycle
+  // (an appointee whose special comes first), else null.
+  awaitingSpecial: number | null;
+  // The STATEMENT axis: "open" = incumbent_running 0 (NOT RUNNING), "likely" =
+  // open_signal 'indicated' (MAY NOT RUN), "none" = no statement.
   status: "open" | "likely" | "tbd" | "none";
 };
 
@@ -2881,7 +2964,7 @@ export const getSeatOutlook = unstable_cache(
                    m.next_election_year,
                    ${derivedId} AS race_id,
                    r.incumbent_running, r.open_signal, r.open_signal_date,
-                   r.open_signal_url,
+                   r.open_signal_url, r.last_verified,
                    d.id AS deciding_race_id
               FROM members m
               LEFT JOIN races r
@@ -2925,23 +3008,26 @@ export const getSeatOutlook = unstable_cache(
       const incumbentRunning =
         row.incumbent_running == null ? null : Number(row.incumbent_running);
 
-      // Precedence, ruled at the HO 710 STEP 0 ruling section 4: TBD > OPEN >
-      // LIKELY > none. OPEN and LIKELY are facts about the CURRENT holder; TBD
-      // is a fact about the SEAT — that an earlier contest decides who holds it
-      // this cycle — so a holder-level fact is subordinate to a seat whose
-      // holder is undecided. Zero live collisions today; the order is written
-      // down so the first one resolves the way it was ruled.
+      // HO 718: TWO INDEPENDENT AXES, NO PRECEDENCE. The HO 710 rule (TBD >
+      // OPEN > LIKELY) ordered tiers of ONE status column; the tiers are gone
+      // and each fact now rides on the incumbent's name, so there is no column
+      // for one fact to outrank another in. A row can carry both.
+      //   statement: incumbent_running 0 → "open" (NOT RUNNING); else
+      //              open_signal 'indicated' → "likely" (MAY NOT RUN); else none.
+      //   appointee: next_election_year ≠ cycle → awaitingSpecial = that year.
       //
       // `incumbentRunning !== null` guards Number(null) === 0, which would flag
-      // every uncurated seat as OPEN (the HO 221 rule).
+      // every uncurated seat as NOT RUNNING (the HO 221 rule).
       let status: SeatOutlookRow["status"] = "none";
-      if (nextElectionYear !== null && nextElectionYear !== cycle) {
-        status = "tbd";
-      } else if (incumbentRunning !== null && incumbentRunning === 0) {
+      if (incumbentRunning !== null && incumbentRunning === 0) {
         status = "open";
       } else if (openSignal === "indicated") {
         status = "likely";
       }
+      const awaitingSpecial =
+        nextElectionYear !== null && nextElectionYear !== cycle
+          ? nextElectionYear
+          : null;
 
       return {
         bioguideId: row.bioguide_id as string,
@@ -2956,19 +3042,20 @@ export const getSeatOutlook = unstable_cache(
         openSignal,
         openSignalDate: (row.open_signal_date as string | null) ?? null,
         openSignalUrl: (row.open_signal_url as string | null) ?? null,
+        lastVerified: (row.last_verified as string | null) ?? null,
         decidingRaceId: (row.deciding_race_id as string | null) ?? null,
+        awaitingSpecial,
         status,
       };
     });
 
-    // Sorted in TypeScript rather than SQL: the precedence above is not a
-    // column. No new index — both tables are small (34 senate + 0 house rows at
-    // 2028; 433 current House members is the ceiling once the 120th roster
-    // lands, measured 2026-09-10).
-    const rank = { tbd: 0, open: 1, likely: 2, none: 3 } as const;
+    // The query's default order: chamber, then state, then district. Grouping
+    // by party and qualified-first ordering are the component's (HO 718). No
+    // new index — both tables are small (34 senate + 0 house rows at 2028; 433
+    // current House members is the ceiling once the 120th roster lands,
+    // measured 2026-09-10).
     rows.sort(
       (a, b) =>
-        rank[a.status] - rank[b.status] ||
         (a.chamber === b.chamber ? 0 : a.chamber === "senate" ? -1 : 1) ||
         a.state.localeCompare(b.state) ||
         (a.district ?? 0) - (b.district ?? 0),
