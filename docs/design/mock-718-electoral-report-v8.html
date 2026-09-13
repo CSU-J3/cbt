@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CBT — /electoral?cycle=2028 as a report page, v8 (news + odds, scope as a dateline)</title>
+<style>
+  :root{
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-soft:#111820; --border-strong:#1f2937;
+    --party-democrat:#3b82f6; --party-republican:#ef4444; --party-independent:#a78bfa;
+    --text-dim:#6b7280; --text-muted:#94a3b8; --text-primary:#e5e7eb; --text-secondary:#cbd5e1;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#05070a;color:var(--text-primary);font-family:var(--mono)}
+
+  /* ---------- mock chrome ---------- */
+  .mockbar{position:sticky;top:0;z-index:50;background:#0d1117;border-bottom:1px solid var(--border-strong);
+    padding:8px 14px;display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center;font-size:11px}
+  .mockbar .grp{display:flex;align-items:center;gap:4px}
+  .mockbar .lab{color:var(--text-dim);letter-spacing:.5px;margin-right:2px}
+  .mockbar button{font-family:var(--mono);font-size:11px;padding:3px 8px;background:transparent;
+    color:var(--text-muted);border:1px solid var(--border-strong);border-radius:2px;cursor:pointer}
+  .mockbar button:hover{color:var(--text-primary);border-color:#374151}
+  .mockbar button[aria-pressed="true"]{color:var(--accent-amber-bright);border-color:var(--accent-amber);background:#1a1206}
+  .mockbar .read{margin-left:auto;color:var(--text-dim);font-size:10.5px;text-align:right;line-height:1.6}
+  .mockbar .read b{color:var(--accent-amber-bright);font-weight:400}
+
+  /* ---------- app frame ---------- */
+  .stage{padding:18px;display:flex;justify-content:center}
+  .frame{width:1440px;max-width:100%;background:var(--bg-base);border:1px solid var(--border-soft)}
+  .frame.narrow{width:430px}
+
+  .masthead{padding:14px 16px 6px}
+  .masthead h1{font-size:23px;font-weight:700;margin:0;letter-spacing:-.5px}
+  .masthead h1 .amb{color:var(--accent-amber)}
+  .masthead .beta{font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-left:10px}
+  .masthead .beta b{color:var(--accent-amber);font-weight:400}
+  .masthead .sync{font-size:10px;color:var(--text-dim);margin-top:6px;letter-spacing:.4px}
+  nav.tabs{display:flex;border-bottom:1px solid var(--border-strong);padding:0 12px;overflow:hidden}
+  nav.tabs span{font-size:11px;color:var(--text-muted);padding:9px 11px;letter-spacing:.4px;white-space:nowrap}
+  nav.tabs span.on{color:var(--text-primary);border-bottom:2px solid var(--accent-amber)}
+
+  .sec{padding:16px 16px 22px}
+  .titlerow{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:14px}
+  .titlerow h2{margin:0;font-size:14px;letter-spacing:.6px;color:var(--accent-amber);font-weight:500}
+  .seg{display:flex;border:1px solid var(--border-strong);border-radius:2px;overflow:hidden}
+  .seg i{font-style:normal;font-size:11px;padding:3px 9px;color:var(--text-dim)}
+  .seg i.on{color:var(--accent-amber-bright);background:#15181e}
+  .scopeline{font-size:10px;letter-spacing:.5px;color:var(--text-dim);margin:-6px 0 16px}
+  .dateline{margin-left:auto;font-size:10px;letter-spacing:.5px;color:var(--text-dim)}
+  .dateline b{color:var(--text-muted);font-weight:400}
+  .frame.narrow .dateline{margin-left:0;flex-basis:100%}
+
+  /* ---------- panel idiom (670 recipe, quiet border) ---------- */
+  .grid{display:grid;gap:12px}
+  .panel{border:1px solid var(--border-strong);border-radius:3px;background:var(--bg-panel);min-width:0}
+  .ph{display:flex;align-items:baseline;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border-strong);
+    font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-dim)}
+  .ph .cnt{color:var(--text-secondary);font-size:10px;letter-spacing:.04em}
+  .ph .r{color:var(--party-republican)} .ph .d{color:var(--party-democrat)}
+  .pb{padding:10px 12px 12px}
+
+  /* ruled-section variant: no boxes */
+  .ruled .panel{border:0;border-radius:0;background:transparent}
+  .ruled .ph{border-bottom:1px solid var(--border-strong);padding:6px 0}
+  .ruled .ph::after{content:"";flex:1;height:1px;background:var(--border-soft);align-self:center;margin-left:6px}
+  .ruled .pb{padding:12px 0 6px}
+  .ruled .grid{gap:22px 40px}
+
+  /* lede */
+  .lede{font-size:12px;line-height:1.75;color:var(--text-secondary);margin:0}
+  .lede .dim{color:var(--text-dim)}
+  .lede a{color:var(--text-primary);text-decoration:none;border-bottom:1px solid #39424f}
+
+  /* count block — metabox rows */
+  .count{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}
+  .rail .count,.frame.narrow .count{grid-template-columns:1fr}
+  .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;border-bottom:1px solid var(--border-soft)}
+  .count:not(.rail .count) .mrow:nth-last-child(-n+2){border-bottom:0}
+  .rail .mrow:last-child,.frame.narrow .mrow:last-child{border-bottom:0}
+  /* lede sits centred in its panel so the height it shares with count reads as chosen */
+  .panel.lp .pb{display:flex;align-items:center;min-height:calc(100% - 31px)}
+  .mlabel{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim)}
+  .mval{font-size:12px;color:var(--text-secondary);text-align:right}
+  .mval .why{color:var(--text-dim);font-size:10.5px;margin-left:8px}
+  .R{color:var(--party-republican)} .D{color:var(--party-democrat)}
+
+  /* tags */
+  .tag{font-size:9px;letter-spacing:.5px;border-radius:3px;padding:0 4px;display:inline-block;line-height:15px;white-space:nowrap}
+  .tag.open{color:var(--accent-amber);border:1px solid var(--accent-amber)}
+  .tag.likely{color:var(--accent-amber);border:1px dashed var(--accent-amber)}
+  .tag.tbd{color:var(--text-dim);border:1px solid var(--border-strong)}
+  .mark{color:var(--text-dim);font-size:10px;margin-left:4px}
+
+  /* signals table */
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-dim);font-weight:400;text-align:left;
+    padding:0 0 6px;border-bottom:1px solid var(--border-strong)}
+  tbody td{font-size:12px;padding:7px 0;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:0}
+  td.seat,th.seat{width:72px;color:var(--text-dim);font-size:11px;letter-spacing:.4px}
+  td.who a{color:var(--text-primary);text-decoration:none}
+  td.who .br{font-size:11px;margin-left:6px}
+  td.dated{color:var(--text-muted);font-size:11px;letter-spacing:.3px}
+  td.src{color:var(--text-dim);font-size:11px}
+  td.src a{color:var(--text-muted);text-decoration:none}
+  .compact td.who .br{display:none}
+
+  /* roster */
+  .roster{display:grid;gap:0 26px}
+  .roster.split{grid-template-columns:1fr 1fr}
+  .roster.alpha{grid-template-columns:repeat(4,1fr)}
+  .rail .roster.split{grid-template-columns:1fr 1fr}
+  .frame.narrow .roster.split,.frame.narrow .roster.alpha{grid-template-columns:1fr}
+  .pgrp .pghdr{font-size:9px;letter-spacing:.09em;text-transform:uppercase;padding:0 0 6px;margin-bottom:4px;
+    border-bottom:1px solid var(--border-soft)}
+  .pgrp .pghdr .gn{color:var(--text-dim)}
+  .cols2{columns:2;column-gap:22px}
+  .rail .cols2,.frame.narrow .cols2{columns:1}
+  .rr{break-inside:avoid;font-size:11.5px;padding:3px 0;color:var(--text-secondary)}
+  .rr em{font-style:normal;color:var(--text-dim);font-size:10.5px;margin-right:7px;letter-spacing:.4px}
+  .rr .br{font-size:10.5px;margin-left:5px}
+
+  td.said{font-size:11.5px;color:var(--text-secondary);line-height:1.45}
+  td.said .dim2,td.said .dim2 a,td.src .dim2{color:var(--text-dim);font-size:10.5px}
+  td.said .dim2 a{border-bottom:1px solid #39424f}
+  .mrow:empty,.mrow .mlabel:empty+.mval:empty{visibility:hidden}
+  .qual{font-size:9px;letter-spacing:.5px;color:var(--text-dim);border:1px solid var(--border-strong);border-radius:3px;padding:0 4px;line-height:14px;margin-left:6px;vertical-align:1px;white-space:normal}
+  .qual.likely{color:var(--accent-amber);border:1px dashed var(--accent-amber)}
+  .qual.open{color:var(--accent-amber);border:1px solid var(--accent-amber)}
+  .rr .mark{color:var(--text-dim);text-decoration:none;font-size:10px;margin-left:3px}
+  .news{display:grid;gap:6px}
+  .ni{display:grid;grid-template-columns:86px auto minmax(0,1fr) auto;gap:0 12px;align-items:baseline;font-size:12px;color:var(--text-secondary);line-height:1.5}
+  .frame.narrow .ni{grid-template-columns:86px auto minmax(0,1fr);}
+  .frame.narrow .ni .nsrc{grid-column:3;justify-self:start}
+  .nd{font-size:10.5px;letter-spacing:.4px;color:var(--text-dim)}
+  .ns i{font-style:normal;font-size:9.5px;letter-spacing:.5px;color:var(--text-muted);border:1px solid var(--border-strong);border-radius:3px;padding:0 4px;margin-right:4px;line-height:14px}
+  .nt a{color:var(--text-primary);text-decoration:none;border-bottom:1px solid #39424f}
+  .nsrc{font-size:10.5px;color:var(--text-dim)} .nsrc a{color:var(--text-muted);text-decoration:none}
+  .odds{font-size:12px;color:var(--text-dim);line-height:1.6} .odds .on{color:var(--text-secondary)}
+  .leftcol2{display:grid;gap:12px;align-content:start}
+  .ruled .leftcol2{gap:22px}
+  .mt12{margin-top:12px} .mt22{margin-top:22px}
+  .tiers{grid-template-columns:repeat(auto-fit,minmax(380px,1fr));align-items:start}
+  .tiers.two{grid-template-columns:1fr 1fr}
+  .tiers th:nth-child(2){width:200px}
+  .tiers td.who{padding-right:14px}
+  .tiers th.when{width:15ch}
+  td.said a{color:var(--text-primary);text-decoration:none;border-bottom:1px solid #39424f}
+  .tiers.stack,.frame.narrow .tiers{grid-template-columns:1fr}
+  .ph .tag{letter-spacing:.5px;text-transform:none}
+  /* layouts */
+  .L1 .top{grid-template-columns:1.45fr 1fr}
+  .L2 .body{grid-template-columns:400px 1fr;align-items:start}
+  .L2 .leftcol{display:grid;gap:12px}
+  .frame.narrow .L1 .top,.frame.narrow .L2 .body{grid-template-columns:1fr}
+
+  .note{font-size:10.5px;color:var(--text-dim);padding:0 18px 22px;max-width:1100px;margin:0 auto;line-height:1.7}
+  .note b{color:var(--text-muted);font-weight:400}
+  .note code{color:var(--text-muted)}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <div class="grp"><span class="lab">LAYOUT</span>
+    <button data-k="layout" data-v="1">1 two-up</button>
+    <button data-k="layout" data-v="2">2 rail</button>
+    <button data-k="layout" data-v="3" aria-pressed="true">3 ruled</button>
+  </div>
+  <div class="grp"><span class="lab">TOP</span>
+    <button data-k="top" data-v="scope">scope panel (v7)</button>
+    <button data-k="top" data-v="news" aria-pressed="true">news + odds</button>
+  </div>
+  <div class="grp"><span class="lab">ODDS</span>
+    <button data-k="odds" data-v="on" aria-pressed="true">on</button>
+    <button data-k="odds" data-v="off">off</button>
+  </div>
+  <div class="grp"><span class="lab">TBD</span>
+    <button data-k="tbd" data-v="tier">tier (v5)</button>
+    <button data-k="tbd" data-v="qual" aria-pressed="true">qualifier on the name</button>
+    <button data-k="tbd" data-v="drop">drop</button>
+  </div>
+  <div class="grp"><span class="lab">LEANING</span>
+    <button data-k="lean" data-v="panel">panel (v6)</button>
+    <button data-k="lean" data-v="name" aria-pressed="true">on the name</button>
+  </div>
+  <div class="grp"><span class="lab">ROSTER</span>
+    <button data-k="roster" data-v="split" aria-pressed="true">by party</button>
+    <button data-k="roster" data-v="alpha">alpha 4-col</button>
+  </div>
+  <div class="grp"><span class="lab">W</span>
+    <button data-k="width" data-v="1440" aria-pressed="true">1440</button>
+    <button data-k="width" data-v="430">430</button>
+  </div>
+  <div class="read" id="readout"></div>
+</div>
+
+<div class="stage">
+<div class="frame" id="frame">
+  <div class="masthead">
+    <h1>Congressional Terminal<span class="amb">:\119TH\Electoral&gt;</span>
+      <span class="beta">· [ <b>IN BETA</b> ] · SIGN IN · ODDS <b id="oddsword">ON</b></span></h1>
+    <div class="sync">· LAST SYNC 12:27 PM ET</div>
+  </div>
+  <nav class="tabs">
+    <span>\DASHBOARD</span><span>\WATCHLIST</span><span>\LEGISLATION</span><span>\HEARINGS</span>
+    <span>\MEMBERS</span><span class="on">\ELECTORAL</span><span>\PATTERNS</span><span>\LOBBYING</span>
+    <span>\NOMINATIONS</span><span>\AMENDMENTS</span><span>\REPORTS</span>
+  </nav>
+  <div class="sec" id="sec"></div>
+</div>
+</div>
+
+<div class="note" id="prosenote"></div>
+
+<script>
+const ROWS = [
+  ["FL","Ashley Moody","R","tbd"],["OH","Jon Husted","R","tbd"],["WI","Ron Johnson","R","likely"],
+  ["AK","Lisa Murkowski","R",""],["AL","Katie Boyd Britt","R",""],["AR","John Boozman","R",""],
+  ["AZ","Mark Kelly","D",""],["CA","Alex Padilla","D",""],["CO","Michael F. Bennet","D",""],
+  ["CT","Richard Blumenthal","D",""],["GA","Raphael G. Warnock","D",""],["HI","Brian Schatz","D",""],
+  ["IA","Chuck Grassley","R",""],["ID","Mike Crapo","R",""],["IL","Tammy Duckworth","D",""],
+  ["IN","Todd Young","R",""],["KS","Jerry Moran","R",""],["KY","Rand Paul","R",""],
+  ["LA","John Kennedy","R",""],["MD","Chris Van Hollen","D",""],["MO","Eric Schmitt","R",""],
+  ["NC","Ted Budd","R",""],["ND","John Hoeven","R",""],["NH","Margaret Wood Hassan","D",""],
+  ["NV","Catherine Cortez Masto","D",""],["NY","Charles E. Schumer","D",""],["OK","James Lankford","R",""],
+  ["OR","Ron Wyden","D",""],["PA","John Fetterman","D",""],["SC","Tim Scott","R",""],
+  ["SD","John Thune","R",""],["UT","Mike Lee","R",""],["VT","Peter Welch","D",""],["WA","Patty Murray","D",""],
+];
+const S = {layout:"3", lede:"three", roster:"split", width:"1440", vocab:"concrete", tbd:"qual", lean:"name", top:"news", odds:"on"};
+let tagged, rest;
+function split(){
+  const isTag = r => r[3] && !(r[3]==="tbd" && S.tbd!=="tier") && !(S.lean==="name" && r[3]!=="tbd");
+  const rank = r => (S.lean==="name" && r[3]==="open") ? 0 : (S.lean==="name" && r[3]==="likely") ? 1 : (r[3]==="tbd" && S.tbd==="qual") ? 2 : 3;
+  tagged = ROWS.filter(isTag);
+  rest = ROWS.filter(r=>!isTag(r)).slice().sort((a,b)=> rank(a)-rank(b) || (a[0]<b[0]?-1:1));
+}
+split();
+const nR = ROWS.filter(r=>r[2]==="R").length, nD = ROWS.filter(r=>r[2]==="D").length;
+let uR, uD; function counts(){ uR = rest.filter(r=>r[2]==="R").length; uD = rest.filter(r=>r[2]==="D").length; } counts();
+
+const TITLE = {open:"Incumbent has said they won't seek the seat",
+  likely:"A public signal short of an announcement, dated and sourced",
+  tbd:"The 2028 holder is decided by a 2026 contest"};
+
+const Vf = () => ({
+  v3:{ scope:`Every seat up on November 7, 2028. Senate Class 3, all 34 — the House joins once the 120th Congress is seated. <span class="dim">No ratings or markets exist for this cycle yet.</span>`,
+       three:`Thirty-four Class 3 Senate seats are up on November 7, 2028; House seats join once the 120th Congress is seated. Three carry a tag: <a href="#">Johnson</a> (WI) signalled in May 2025 that he may not seek a fourth term, and Florida and Ohio are decided by 2026 contests. <span class="dim">No ratings or markets exist for this cycle yet.</span>`,
+       house:"120th not seated", tagged:"tagged", tagwhy:"LIKELY 1 · TBD 2", none:"no statement on file",
+       open:"not seeking the seat", likely:"may not seek the seat", tbd:"2028 holder decided in 2026",
+       date:"roster <b>12:27 PM ET</b> · tags verified <b>10 SEP 2026</b>" },
+  concrete:{ scope:`All 34 Class 3 Senate seats are up on November 7, 2028. House seats are added after the 120th Congress begins on January 3, 2027. <span class="dim">No forecaster ratings or prediction markets cover 2028 yet.</span>`,
+       three:`All 34 Class 3 Senate seats are up on November 7, 2028; House seats are added after the 120th Congress begins on January 3, 2027. No senator has announced retirement. <a href="#">Ron Johnson</a> (WI) said in May 2025 he doesn't want to run again but hasn't ruled it out; <a href="#">Moody</a> (FL) and <a href="#">Husted</a> (OH) are appointees who face a special election first, on November 3, 2026; whoever wins is the incumbent here in 2028. <span class="dim">No forecaster ratings or prediction markets cover 2028 yet.</span>`,
+       house:"added after Jan 3, 2027", none:"no retirement announced",
+       open:"not running for re-election", likely:"leaning against running", tbd:"appointed · special election first",
+       date:"roster synced <b>12:27 PM ET</b> · retirement statements last checked <b>10 SEP 2026</b>" }
+});
+const vv = () => Vf()[S.vocab];
+const TIER = {
+  open:  {tag:"open",   cols:{v3:["dated","source"],            concrete:["announced","source"]}},
+  likely:{tag:"likely", cols:{v3:["dated","source"],            concrete:["what they said","when","source"]}},
+  tbd:   {tag:"tbd",    cols:{v3:["deciding race"],             concrete:["appointed","special election"]}},
+};
+const VACATED = {FL:["Rubio","Sec. of State"], OH:["Vance","Vice President"]};
+function tierRow(r, t){
+  let cells = `<td class="seat">${r[0]} SEN</td><td class="who"><a href="#">${r[1]}</a><span class="br ${r[2]}">[${r[2]}-${r[0]}]</span></td>`;
+  if(S.vocab==="v3"){
+    if(t==="tbd") cells += `<td class="src"><a href="#">S-${r[0]}-2026</a><span class="mark">→</span></td>`;
+    else cells += `<td class="dated">28 MAY 2025</td><td class="src"><a href="#">nbc15.com</a><span class="mark">↗</span></td>`;
+  } else {
+    if(t==="tbd"){ const v=VACATED[r[0]]; cells += `<td class="said">Jan 2025 <span class="dim2">replacing <a href="#">${v[0]}</a> → ${v[1]}</span></td><td class="src"><a href="#">Nov 3, 2026</a><span class="mark">→</span> <span class="dim2">winner is the 2028 incumbent</span></td>`; }
+    else cells += `<td class="said">“Doesn't want to” run again, hasn't ruled it out <span class="dim2">— Milwaukee Press Club</span></td><td class="dated">28 MAY 2025</td><td class="src"><a href="#">nbc15.com</a><span class="mark">↗</span></td>`;
+  }
+  return `<tr>${cells}</tr>`;
+}
+function tierPanels(){
+  return ["open","likely","tbd"].map(t=>{
+    const rows = tagged.filter(r=>r[3]===t); if(!rows.length) return "";
+    const d = TIER[t];
+    const head = `<tr><th class="seat">seat</th><th>incumbent</th>${d.cols[S.vocab].map(c=>`<th class="${c==="when"?"when":""}">${c}</th>`).join("")}</tr>`;
+    const label = `${vv()[t]} <span class="tag ${d.tag}" style="margin-left:6px;vertical-align:1px">${d.tag.toUpperCase()}</span>`;
+    return panel(label, String(rows.length), `<table><thead>${head}</thead><tbody>${rows.map(r=>tierRow(r,t)).join("")}</tbody></table>`);
+  }).join("");
+}
+function panel(label, cnt, body, extra=""){
+  return `<div class="panel ${extra}"><div class="ph"><span>${label}</span>${cnt?`<span class="cnt">${cnt}</span>`:""}</div><div class="pb">${body}</div></div>`;
+}
+
+function ledeBody(){
+  return `<p class="lede">${S.lede==="scope" ? vv().scope : vv().three}</p>`;
+}
+
+const NEWS = [
+  ["18 MAR 2026", ["SC"], `<a href="#">Scott</a> reverses his retirement pledge, says he'll run in 2028`, "postandcourier.com"],
+  ["28 MAY 2025", ["WI"], `<a href="#">Johnson</a> tells the Milwaukee Press Club he “doesn't want to” run again, hasn't ruled it out`, "nbc15.com"],
+  ["JAN 2025",    ["FL","OH"], `<a href="#">Moody</a> and <a href="#">Husted</a> appointed to the Rubio and Vance seats; specials Nov 3, 2026`, ""],
+];
+function newsBody(){
+  return `<div class="news">${NEWS.map(n=>`<div class="ni"><span class="nd">${n[0]}</span><span class="ns">${n[1].map(x=>`<i>${x}</i>`).join("")}</span><span class="nt">${n[2]}</span><span class="nsrc">${n[3]?`<a href="#">${n[3]}</a><span class="mark">↗</span>`:""}</span></div>`).join("")}</div>`;
+}
+function oddsBody(){
+  return `<div class="odds" data-market="none"><span class="on">none</span> · no 2028 race in the Kalshi or Polymarket feed · no ratings on file</div>`;
+}
+function countBody(){
+  if(S.vocab==="v3") return `<div class="count">
+    <div class="mrow"><span class="mlabel">seats up</span><span class="mval">34</span></div>
+    <div class="mrow"><span class="mlabel">by party</span><span class="mval"><span class="R">${nR} R</span> · <span class="D">${nD} D</span></span></div>
+    <div class="mrow"><span class="mlabel">senate</span><span class="mval">34<span class="why">Class 3</span></span></div>
+    <div class="mrow"><span class="mlabel">tagged</span><span class="mval">3<span class="why">LIKELY 1 · TBD 2</span></span></div>
+    <div class="mrow"><span class="mlabel">house</span><span class="mval">0<span class="why">120th not seated</span></span></div>
+    <div class="mrow"><span class="mlabel">no statement</span><span class="mval">31</span></div></div>`;
+  return `<div class="count">
+    <div class="mrow"><span class="mlabel">seats up</span><span class="mval">34<span class="why"><span class="R">${nR} R</span> · <span class="D">${nD} D</span></span></span></div>
+    <div class="mrow"><span class="mlabel">not running for re-election</span><span class="mval">0</span></div>
+    <div class="mrow"><span class="mlabel">senate</span><span class="mval">34<span class="why">Class 3</span></span></div>
+    <div class="mrow"><span class="mlabel">may not run</span><span class="mval">1</span></div>
+    <div class="mrow"><span class="mlabel">house</span><span class="mval">0<span class="why">added after Jan 3, 2027</span></span></div>
+    ${S.tbd!=="drop" ? `<div class="mrow"><span class="mlabel">appointed · special first</span><span class="mval">2</span></div>` : ``}
+    ${S.lean==="name" ? `` : `<div class="mrow"><span class="mlabel"></span><span class="mval"></span></div><div class="mrow"><span class="mlabel">no retirement announced</span><span class="mval">${rest.length}</span></div>`}</div>`;
+}
+
+function tagOf(st){
+  if(st==="likely") return `<span class="tag likely" title="${TITLE.likely}">LIKELY</span>`;
+  if(st==="tbd") return `<span class="tag tbd" title="${TITLE.tbd}">TBD</span>`;
+  return `<span class="tag open" title="${TITLE.open}">OPEN</span>`;
+}
+function sigRowCols(r){
+  const lk = r[3]==="likely";
+  return `<tr><td class="seat">${r[0]} SEN</td>
+    <td class="who"><a href="#">${r[1]}</a><span class="br ${r[2]}">[${r[2]}-${r[0]}]</span></td>
+    <td>${tagOf(r[3])}</td>
+    <td class="dated">${lk?"28 MAY 2025":"—"}</td>
+    <td class="src">${lk?'<a href="#">nbc15.com</a><span class="mark">↗</span>':`decided by <a href="#">S-${r[0]}-2026</a><span class="mark">→</span>`}</td></tr>`;
+}
+function sigRowTag(r){
+  const lk = r[3]==="likely";
+  return `<tr><td class="seat">${r[0]} SEN</td>
+    <td class="who"><a href="#">${r[1]}</a><span class="br ${r[2]}">[${r[2]}-${r[0]}]</span></td>
+    <td>${lk?`<span class="tag likely" title="${TITLE.likely}">LIKELY · MAY 2025</span><span class="mark">↗</span>`
+            :`<span class="tag tbd" title="${TITLE.tbd}">TBD · 2026</span><span class="mark">→</span>`}</td></tr>`;
+}
+function signalsBody(compact){
+  if(S.sig==="cols" && !compact && S.width!=="430") return `<table><thead><tr><th class="seat">seat</th><th>incumbent</th><th>signal</th><th>dated</th><th>source</th></tr></thead>
+    <tbody>${tagged.map(sigRowCols).join("")}</tbody></table>`;
+  return `<table class="${compact?"compact":""}"><thead><tr><th class="seat">seat</th><th>incumbent</th><th>status</th></tr></thead>
+    <tbody>${tagged.map(sigRowTag).join("")}</tbody></table>`;
+}
+
+function rr(r, withBr){
+  let q = "";
+  if(r[3]==="tbd" && S.tbd==="qual") q = ` <span class="qual" title="Appointed Jan 2025; the Nov 3, 2026 special fills the rest of the term">APPOINTED · SPECIAL NOV 2026</span>`;
+  if(S.lean==="name" && r[3]==="likely") q = ` <span class="qual likely" title="“Doesn't want to” run again, hasn't ruled it out — Milwaukee Press Club, 28 May 2025">MAY NOT RUN · MAY 2025</span><a class="mark" href="#" title="nbc15.com">↗</a>`;
+  if(S.lean==="name" && r[3]==="open") q = ` <span class="qual open">NOT RUNNING · ${r[4]||""}</span><a class="mark" href="#">↗</a>`;
+  return `<div class="rr"><em>${r[0]}</em>${r[1]}${withBr?` <span class="br ${r[2]}">[${r[2]}]</span>`:""}${q}</div>`; }
+function rosterBody(){
+  if(S.roster==="alpha") return `<div class="roster alpha">${rest.map(r=>rr(r,true)).join("")}</div>`;
+  const R = rest.filter(r=>r[2]==="R"), D = rest.filter(r=>r[2]==="D");
+  return `<div class="roster split">
+    <div class="pgrp"><div class="pghdr"><span class="R">Republican</span> <span class="gn">· ${uR}</span></div><div class="cols2">${R.map(r=>rr(r,false)).join("")}</div></div>
+    <div class="pgrp"><div class="pghdr"><span class="D">Democrat</span> <span class="gn">· ${uD}</span></div><div class="cols2">${D.map(r=>rr(r,false)).join("")}</div></div>
+  </div>`;
+}
+
+const SCOPELINE = `<div class="scopeline">CLASS 3 · 34 SENATE SEATS · NOV 7, 2028 · HOUSE SEATS JOIN JAN 3, 2027 WHEN THE 120TH IS SWORN IN</div>`;
+const TITLEROW = () => `<div class="titlerow"><h2 id="h2">2028 ELECTORAL</h2><div class="seg"><i>2026</i><i class="on">2028</i></div><span class="dateline">${vv().date}</span></div>${S.top==="news"?SCOPELINE:""}`;
+
+function sigBlock(compact, cls=""){
+  const html = tierPanels(); const n = (html.match(/class="panel /g)||[]).length;
+  if(!n) return "";
+  return `<div class="grid tiers ${cls} ${n===2?"two":""}">${html}</div>`;
+}
+function sectionHTML(){
+  const rosterLabel = (S.lean==="name") ? "senate · class 3" : vv().none;
+  const oddsP = S.odds==="on" ? panel("odds","",oddsBody()) : "";
+  const topLeft = S.top==="news" ? `<div class="leftcol2">${panel("news","",newsBody())}${oddsP}</div>` : panel("scope","",ledeBody(),"lp");
+  if(S.layout==="1") return TITLEROW() + `<div class="L1">
+    <div class="grid top">${topLeft}${panel("count","",countBody())}</div>
+    ${sigBlock(false,"mt12")}
+    <div class="grid" style="margin-top:12px">${panel(rosterLabel,String(rest.length),rosterBody())}</div></div>`;
+  if(S.layout==="2") return TITLEROW() + `<div class="L2 rail"><div class="grid body">
+    <div class="leftcol">${S.top==="news"?panel("news","",newsBody())+oddsP:panel("scope","",ledeBody(),"lp")}${panel("count","",countBody())}${sigBlock(true,"stack")}</div>
+    ${panel(rosterLabel,String(rest.length),rosterBody())}</div></div>`;
+  return TITLEROW() + `<div class="L3 ruled">
+    <div class="grid top" style="grid-template-columns:1.45fr 1fr">${topLeft}${panel("count","",countBody())}</div>
+    ${sigBlock(false,"mt22")}
+    <div class="grid" style="margin-top:22px">${panel(rosterLabel,String(rest.length),rosterBody())}</div></div>`;
+}
+
+const NOTES = {
+  "1":"<b>1 two-up.</b> Scope beside count, then signals full width, then the roster. Each block is a bordered panel with a labelled header and its own count, the 670 panel recipe on a quiet border.",
+  "2":"<b>2 rail.</b> Scope, count and a compact signals table stacked in a 400px rail; the roster takes the rest. The whole report sits in one screen at 1440. Signals lose their DATED and SOURCE columns in the rail (the tag carries the date, the mark carries the link).",
+  "3":"<b>3 ruled.</b> Same blocks, no boxes: each section is a labelled rule across the width, with more air between sections. Reads as a printed brief rather than a dashboard."
+};
+const LEDE = {
+  scope:"Lede is the D scope line as selected.",
+  three:"Lede is a three-sentence summary templated from the rows (the HO 689 <i>week in three sentences</i> idiom): count and class from the roster query, one clause per tier from the tagged rows, the closing clause fixed. Names are links. Regenerates on every sync, so it can never go stale against the table under it."
+};
+const HEAD = {
+  v3:"<b>Wording: v3.</b> The abstractions: <i>seat</i>, <i>holder</i>, <i>statement on file</i>, <i>tagged</i>, <i>signal</i>. Each one names a category CBT invented instead of the electoral fact the reader already has a word for.",
+  concrete:"<b>Wording: concrete.</b> Every label names the fact in tracker vocabulary. Panels: <i>not running for re-election</i> (OPEN), <i>leaning against running</i> (LIKELY), <i>special election in 2026</i> (TBD), <i>no retirement announced</i> (the 31). The count block reads the same words, so the 0 under <i>not running for re-election</i> is the cycle's headline reading, not a legend entry for a tier nobody is in. Rows carry the evidence: the LIKELY panel shows what was said and where; the appointee panel shows when they were appointed and whom they replaced, then the special that fills the rest of the term. The heading names the 2028 fact (an appointed incumbent whose seat is decided before this cycle), not the 2026 event; v4's <i>special election in 2026</i> read as a 2026 item filed in the wrong year. <i>No retirement announced</i> is true of all 31, including the four who have said they are running (Budd, Wyden, Murray, Scott); a RUNNING tier stays out of scope as ruled in 710."
+};
+const TBDN = {
+  tier:"<b>TBD: tier (v5).</b> Two rows get their own panel, heading and count row. Both clear on Nov 3, 2026, seven weeks out, when the specials seat someone and the sync rolls FL and OH to 2028.",
+  qual:"<b>TBD: qualifier.</b> No tier, no panel, no count. The fact rides on the two names as a tier-3 MicroTag, <i>APPOINTED · SPECIAL NOV 2026</i>, and vanishes on the same derivation when the special seats someone. The list stops saying Moody and Husted are settled incumbents without asking the reader to learn a category.",
+  drop:"<b>TBD: drop.</b> FL and OH are two of the 34 Class 3 seats and render like the other 31. The 2026 board, one toggle away, already carries both specials as rated races. Costs nothing in data: TBD was derived, never seeded."
+};
+const TOPN = {
+  scope:"<b>Top: scope panel (v7).</b> Three prose sentences. Read aloud they have the even, complete-sentence cadence of generated copy: a passive (<i>are added</i>), a tidy negative with <i>yet</i>.",
+  news:"<b>Top: news + odds.</b> Scope stops being prose and becomes a dateline under the title, set like the masthead's LAST SYNC line, so there is no voice to sound like anything. NEWS is a dated feed of statements about these 34 seats: date, seat, one line, source host. Items shown are the three the record already holds (Scott's reversal, Post &amp; Courier 2026-03-18; Johnson's press-club remark, 2025-05-28; the two appointments). A RUNNING announcement can sit here as a dated item without becoming a tier. ODDS sits under it and reads from the market feed and ratings table: <i>none</i> today, the odds board when a 2028 market appears. The ODDS panel renders only when the masthead ODDS toggle is ON and carries <code>data-market</code>, so the OFF-state Playwright pass and the ungated-site grep both reach it; flip ODDS in the bar to see it vanish."
+};
+const LEANN = {
+  panel:"<b>Leaning: panel (v6).</b> One row in its own panel, with WHAT THEY SAID, WHEN and SOURCE columns.",
+  name:"<b>Leaning: on the name.</b> No panel. The fact rides on Johnson as an amber dashed qualifier, <i>MAY NOT RUN · MAY 2025 ↗</i>; the paraphrase and venue sit in its <code>title</code>, the mark opens the source. The same recipe carries OPEN when a retirement lands: <i>NOT RUNNING · &lt;month year&gt; ↗</i>, amber solid. Qualified names float to the top of their party group, then alphabetical, so the scan for open seats is the first line of each column. The page is now scope, count and one roster per chamber; a HOUSE · 435 roster appears under it after January 3, 2027 with the same qualifiers."
+};
+const SIG = {
+  cols:"Signals get real columns: SIGNAL, DATED (<code>open_signal_date</code>), SOURCE (host from <code>open_signal_url</code>, or the deciding race id for TBD). The tag stops carrying three facts in one chip.",
+  tag:"Signals as shipped: one STATUS chip with the date folded in and a trailing mark."
+};
+const ROS = {
+  split:"Roster split by party with counts (the 670 party-group header). 16 R · 15 D untagged, two columns each.",
+  alpha:"Roster alphabetical in four columns, party bracket on each name, as selected in v1."
+};
+
+function render(){
+  split(); counts();
+  document.getElementById("sec").innerHTML = sectionHTML();
+  document.getElementById("frame").classList.toggle("narrow", S.width==="430");
+  document.getElementById("oddsword").textContent = S.odds==="on"?"ON":"OFF";
+  document.getElementById("prosenote").innerHTML = NOTES[S.layout]+"<br><br>"+HEAD[S.vocab]+"<br><br>"+TOPN[S.top]+"<br><br>"+TBDN[S.tbd]+"<br><br>"+LEANN[S.lean]+"<br><br>"+ROS[S.roster]
+    +"<br><br>Data NEWS needs that the tree does not have: a curated items file per cycle (date, seat or member, one line, URL), the same discipline as <code>races-seed.json</code>. The two LIKELY fields (<code>open_signal_date</code>, <code>open_signal_url</code>) fold into it as the first item. The appointee qualifier needs <i>appointed</i> and <i>replacing</i> on the two entries in <code>senate-special-elections.json</code>. Everything else renders from rows that exist. Dateline labels derive from the rows under them (the 712 rule): roster from the members sync, statements from <code>MAX(last_verified)</code> over the tagged rows. The OPEN · LIKELY · TBD chips stay as cross-references to the 2026 card, where OPEN is shared CSS; renaming them is its own ruling. No footnote.";
+  measure();
+}
+function measure(){
+  const h2 = document.getElementById("h2").getBoundingClientRect().top;
+  const firstEl = document.querySelector("tbody tr") || document.querySelector(".rr");
+  const first = firstEl.getBoundingClientRect().top;
+  const page = Math.round(document.getElementById("frame").getBoundingClientRect().height);
+  const panels = document.querySelectorAll(".panel").length;
+  document.getElementById("readout").innerHTML =
+    `chrome above first seat <b>${Math.round(first-h2)}px</b> · section height <b>${page}px</b><br>panels <b>${panels}</b> · untagged ${uR} R · ${uD} D`;
+}
+document.querySelectorAll(".mockbar button").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    S[b.dataset.k]=b.dataset.v;
+    document.querySelectorAll(`.mockbar button[data-k="${b.dataset.k}"]`).forEach(x=>x.setAttribute("aria-pressed", x===b));
+    render();
+  });
+});
+render();
+window.addEventListener("resize", measure);
+</script>
+</body>
+</html>

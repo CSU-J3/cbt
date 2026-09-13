@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CBT — /electoral?cycle=2028 info layout, options</title>
+<style>
+  :root{
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-soft:#111820; --border-strong:#1f2937;
+    --party-democrat:#3b82f6; --party-republican:#ef4444; --party-independent:#a78bfa;
+    --text-dim:#6b7280; --text-muted:#94a3b8; --text-primary:#e5e7eb; --text-secondary:#cbd5e1;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#05070a;color:var(--text-primary);font-family:var(--mono)}
+
+  /* ---------- mock chrome (not part of the app) ---------- */
+  .mockbar{position:sticky;top:0;z-index:50;background:#0d1117;border-bottom:1px solid var(--border-strong);
+    padding:8px 14px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:11px}
+  .mockbar .grp{display:flex;align-items:center;gap:4px}
+  .mockbar .lab{color:var(--text-dim);letter-spacing:.5px;margin-right:2px}
+  .mockbar button{font-family:var(--mono);font-size:11px;padding:3px 8px;background:transparent;
+    color:var(--text-muted);border:1px solid var(--border-strong);border-radius:2px;cursor:pointer}
+  .mockbar button:hover{color:var(--text-primary);border-color:#374151}
+  .mockbar button[aria-pressed="true"]{color:var(--accent-amber-bright);border-color:var(--accent-amber);background:#1a1206}
+  .mockbar .read{margin-left:auto;color:var(--text-dim);font-size:10.5px;text-align:right;line-height:1.6}
+  .mockbar .read b{color:var(--accent-amber-bright);font-weight:400}
+  .mockbar .read .bad{color:#ef4444}
+
+  /* ---------- app frame ---------- */
+  .stage{padding:18px;display:flex;justify-content:center}
+  .frame{width:1440px;max-width:100%;background:var(--bg-base);border:1px solid var(--border-soft)}
+  .frame.narrow{width:430px}
+
+  .masthead{padding:14px 16px 6px}
+  .masthead h1{font-family:var(--mono);font-size:23px;font-weight:700;margin:0;letter-spacing:-.5px;color:var(--text-primary)}
+  .masthead h1 .amb{color:var(--accent-amber)}
+  .masthead .beta{font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-left:10px}
+  .masthead .beta b{color:var(--accent-amber);font-weight:400}
+  .masthead .sync{font-size:10px;color:var(--text-dim);margin-top:6px;letter-spacing:.4px}
+  nav.tabs{display:flex;gap:0;border-bottom:1px solid var(--border-strong);padding:0 12px;overflow:hidden}
+  nav.tabs span{font-size:11px;color:var(--text-muted);padding:9px 11px;letter-spacing:.4px;white-space:nowrap}
+  nav.tabs span.on{color:var(--text-primary);border-bottom:2px solid var(--accent-amber)}
+
+  .sec{padding:16px 16px 0}
+  .titlerow{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:10px}
+  .titlerow h2{margin:0;font-size:14px;letter-spacing:.6px;color:var(--accent-amber);font-weight:500}
+  .seg{display:flex;border:1px solid var(--border-strong);border-radius:2px;overflow:hidden}
+  .seg i{font-style:normal;font-size:11px;padding:3px 9px;color:var(--text-dim)}
+  .seg i.on{color:var(--accent-amber-bright);background:#15181e}
+
+  /* head blocks */
+  .desc{font-size:11.5px;line-height:1.75;color:var(--text-muted);max-width:none;margin:0 0 12px}
+  .desc .dupe{color:#f87171;text-decoration:underline dotted #7f1d1d}
+  .scope{font-size:11.5px;line-height:1.7;color:var(--text-muted);margin:0 0 10px}
+  .strip{display:flex;flex-wrap:wrap;gap:0 18px;align-items:center;font-size:11px;color:var(--text-muted);
+    border-top:1px solid var(--border-strong);border-bottom:1px solid var(--border-strong);padding:7px 0;margin-bottom:2px}
+  .strip .n{color:var(--text-primary)}
+  .strip .zero{color:#4b5563}
+  .strip .gloss{color:var(--text-dim)}
+  .strip .none-key{color:var(--text-dim)}
+
+  /* tags */
+  .tag{font-size:9px;letter-spacing:.5px;border-radius:3px;padding:0 4px;display:inline-block;line-height:15px;white-space:nowrap}
+  .tag.open{color:var(--accent-amber);border:1px solid var(--accent-amber)}
+  .tag.likely{color:var(--accent-amber);border:1px dashed var(--accent-amber)}
+  .tag.tbd{color:var(--text-dim);border:1px solid var(--border-strong)}
+  .srcmark{color:var(--text-dim);font-size:10px;margin-left:5px}
+
+  /* table */
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:9.5px;letter-spacing:.7px;color:var(--text-dim);font-weight:400;text-align:left;
+    padding:8px 0 6px;border-bottom:1px solid var(--border-strong)}
+  th.c-seat{width:82px} th.c-status{width:40%}
+  tbody td{font-size:12px;padding:7px 0;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+  td.seat{color:var(--text-dim);font-size:11px;letter-spacing:.4px}
+  td.who a{color:var(--text-primary);text-decoration:none}
+  td.who .br{font-size:11px;margin-left:6px}
+  .R{color:var(--party-republican)} .D{color:var(--party-democrat)}
+  tr.datarow:hover{background:var(--bg-row-hover)}
+
+  /* key row (option C) */
+  tr.keyrow td{border-bottom:1px solid var(--border-strong);padding:6px 0 7px;font-size:10px;color:var(--text-dim)}
+  tr.keyrow .kv{display:inline-flex;align-items:center;gap:5px;margin-right:16px;white-space:nowrap}
+
+  /* seam (blanks option 2) */
+  tr.seam td{padding:14px 0 6px;border-bottom:1px solid var(--border-strong)}
+  .seamline{display:flex;align-items:center;gap:10px;font-size:9.5px;letter-spacing:.7px;color:var(--text-dim)}
+  .seamline::after{content:"";flex:1;height:1px;background:var(--border-soft)}
+
+  /* roster (blanks option 3) */
+  .roster{columns:4;column-gap:26px;padding:12px 0 4px;border-bottom:1px solid var(--border-soft)}
+  .frame.narrow .roster{columns:1}
+  .roster .rr{break-inside:avoid;font-size:11.5px;padding:3px 0;color:var(--text-secondary)}
+  .roster .rr em{font-style:normal;color:var(--text-dim);font-size:10.5px;margin-right:7px;letter-spacing:.4px}
+  .rosterhead{font-size:9.5px;letter-spacing:.7px;color:var(--text-dim);padding:14px 0 0}
+
+  .foot{font-size:10px;line-height:1.7;color:var(--text-dim);padding:10px 0 20px}
+  .foot .dupe{color:#f87171;text-decoration:underline dotted #7f1d1d}
+  .note{font-size:10.5px;color:var(--text-dim);padding:0 18px 22px;max-width:1100px;margin:0 auto;line-height:1.7}
+  .note b{color:var(--text-muted);font-weight:400}
+</style>
+</head>
+<body>
+
+<div class="mockbar">
+  <div class="grp"><span class="lab">HEAD</span>
+    <button data-k="head" data-v="A" aria-pressed="true">A prose (today)</button>
+    <button data-k="head" data-v="B">B legend = counts</button>
+    <button data-k="head" data-v="C">C key row</button>
+    <button data-k="head" data-v="D">D bare</button>
+  </div>
+  <div class="grp"><span class="lab">UNTAGGED&nbsp;31</span>
+    <button data-k="blanks" data-v="1" aria-pressed="true">1 flat (today)</button>
+    <button data-k="blanks" data-v="2">2 seam</button>
+    <button data-k="blanks" data-v="3">3 roster</button>
+  </div>
+  <div class="grp"><span class="lab">FOOT</span>
+    <button data-k="foot" data-v="full" aria-pressed="true">full (today)</button>
+    <button data-k="foot" data-v="prov">provenance</button>
+    <button data-k="foot" data-v="off">off</button>
+  </div>
+  <div class="grp"><span class="lab">W</span>
+    <button data-k="width" data-v="1440" aria-pressed="true">1440</button>
+    <button data-k="width" data-v="430">430</button>
+  </div>
+  <div class="grp">
+    <button data-k="dupes" data-v="on" aria-pressed="true">mark repeats</button>
+  </div>
+  <div class="read" id="readout"></div>
+</div>
+
+<div class="stage">
+<div class="frame" id="frame">
+  <div class="masthead">
+    <h1>Congressional Terminal<span class="amb">:\119TH\Electoral&gt;</span>
+      <span class="beta">· [ <b>IN BETA</b> ] · SIGN IN · ODDS <b>ON</b></span></h1>
+    <div class="sync">· LAST SYNC 12:27 PM ET</div>
+  </div>
+  <nav class="tabs">
+    <span>\DASHBOARD</span><span>\WATCHLIST</span><span>\LEGISLATION</span><span>\HEARINGS</span>
+    <span>\MEMBERS</span><span class="on">\ELECTORAL</span><span>\PATTERNS</span><span>\LOBBYING</span>
+    <span>\NOMINATIONS</span><span>\AMENDMENTS</span><span>\REPORTS</span>
+  </nav>
+  <div class="sec">
+    <div class="titlerow">
+      <h2 id="h2">2028 ELECTORAL</h2>
+      <div class="seg"><i>2026</i><i class="on">2028</i></div>
+    </div>
+    <div id="head"></div>
+    <div id="tablewrap"></div>
+    <div class="foot" id="foot"></div>
+  </div>
+</div>
+</div>
+
+<div class="note" id="prosenote"></div>
+
+<script>
+const ROWS = [
+  ["FL","Ashley Moody","R","tbd"],["OH","Jon Husted","R","tbd"],["WI","Ron Johnson","R","likely"],
+  ["AK","Lisa Murkowski","R",""],["AL","Katie Boyd Britt","R",""],["AR","John Boozman","R",""],
+  ["AZ","Mark Kelly","D",""],["CA","Alex Padilla","D",""],["CO","Michael F. Bennet","D",""],
+  ["CT","Richard Blumenthal","D",""],["GA","Raphael G. Warnock","D",""],["HI","Brian Schatz","D",""],
+  ["IA","Chuck Grassley","R",""],["ID","Mike Crapo","R",""],["IL","Tammy Duckworth","D",""],
+  ["IN","Todd Young","R",""],["KS","Jerry Moran","R",""],["KY","Rand Paul","R",""],
+  ["LA","John Kennedy","R",""],["MD","Chris Van Hollen","D",""],["MO","Eric Schmitt","R",""],
+  ["NC","Ted Budd","R",""],["ND","John Hoeven","R",""],["NH","Margaret Wood Hassan","D",""],
+  ["NV","Catherine Cortez Masto","D",""],["NY","Charles E. Schumer","D",""],["OK","James Lankford","R",""],
+  ["OR","Ron Wyden","D",""],["PA","John Fetterman","D",""],["SC","Tim Scott","R",""],
+  ["SD","John Thune","R",""],["UT","Mike Lee","R",""],["VT","Peter Welch","D",""],["WA","Patty Murray","D",""],
+];
+const S = {head:"A", blanks:"1", foot:"full", width:"1440", dupes:"on"};
+const d = (t) => S.dupes==="on" ? '<span class="dupe">'+t+'</span>' : t;
+
+function headHTML(){
+  if(S.head==="A") return `
+    <p class="desc">Every seat up on November 7, 2028: the ${d("34 Class 3 Senate seats")} now;
+    ${d("all House seats once the 120th Congress is seated")}. OPEN — the incumbent has said they won't seek the
+    seat. LIKELY — a public signal short of an announcement, dated and sourced. TBD — the 2028 holder is decided by
+    a 2026 contest. No ratings or markets exist for this cycle yet.</p>
+    <div class="strip"><span>34 <span class="n">SEATS</span></span><span>SENATE <span class="n">34</span></span>
+    <span>HOUSE <span class="n">0</span></span><span class="zero">OPEN 0</span><span>LIKELY <span class="n">1</span></span>
+    <span>TBD <span class="n">2</span></span></div>`;
+
+  if(S.head==="B") return `
+    <p class="scope">Every seat up on November 7, 2028. Senate ${d("Class 3")}, all 34 — the House joins
+    ${d("once the 120th Congress is seated")}. No ratings or markets exist for this cycle yet.</p>
+    <div class="strip">
+      <span>SENATE <span class="n">34</span></span><span>HOUSE <span class="n">0</span></span>
+      <span><span class="tag likely">LIKELY</span> <span class="n">1</span>
+        <span class="gloss">public signal, dated and sourced</span></span>
+      <span><span class="tag tbd">TBD</span> <span class="n">2</span>
+        <span class="gloss">a 2026 contest decides the seat</span></span>
+      <span><span class="none-key">no tag</span> <span class="n">31</span>
+        <span class="gloss">no statement on file</span></span>
+    </div>`;
+
+  if(S.head==="C") return `
+    <p class="scope">Every seat up on November 7, 2028. Senate ${d("Class 3")}, all 34 — the House joins
+    ${d("once the 120th Congress is seated")}. No ratings or markets exist for this cycle yet.</p>
+    <div class="strip"><span>SENATE <span class="n">34</span></span><span>HOUSE <span class="n">0</span></span>
+    <span>TAGGED <span class="n">3</span></span><span>UNTAGGED <span class="n">31</span></span></div>`;
+
+  return `
+    <p class="scope">Every seat up on November 7, 2028. Senate ${d("Class 3")}, all 34 — the House joins
+    ${d("once the 120th Congress is seated")}. No ratings or markets exist for this cycle yet.</p>
+    <div class="strip"><span>SENATE <span class="n">34</span></span><span>HOUSE <span class="n">0</span></span>
+    <span>LIKELY <span class="n">1</span></span><span>TBD <span class="n">2</span></span></div>`;
+}
+
+function tagCell(st){
+  if(st==="likely") return '<span class="tag likely" title="Milwaukee Press Club, 28 May 2025">LIKELY · MAY 2025</span><span class="srcmark">↗</span>';
+  if(st==="tbd")    return '<span class="tag tbd">TBD · 2026</span><span class="srcmark">→</span>';
+  if(st==="open")   return '<span class="tag open">OPEN</span>';
+  return "";
+}
+function rowHTML(r){
+  return `<tr class="datarow"><td class="seat">${r[0]} SEN</td>
+    <td class="who"><a href="#">${r[1]}</a><span class="br ${r[2]}">[${r[2]}-${r[0]}]</span></td>
+    <td>${tagCell(r[3])}</td></tr>`;
+}
+
+function tableHTML(){
+  const tagged = ROWS.filter(r=>r[3]), rest = ROWS.filter(r=>!r[3]);
+  let key = "";
+  if(S.head==="C") key = `<tr class="keyrow"><td></td><td></td><td>
+    <span class="kv"><span class="tag open">OPEN</span> won't seek it</span>
+    <span class="kv"><span class="tag likely">LIKELY</span> signalled, dated</span>
+    <span class="kv"><span class="tag tbd">TBD</span> a 2026 contest decides</span>
+    <span class="kv">blank — no statement on file</span></td></tr>`;
+
+  let body = tagged.map(rowHTML).join("");
+  if(S.blanks==="1"){ body += rest.map(rowHTML).join(""); }
+  if(S.blanks==="2"){
+    body += `<tr class="seam"><td colspan="3"><div class="seamline">NO STATEMENT ON FILE · 31</div></td></tr>`;
+    body += rest.map(rowHTML).join("");
+  }
+  const table = `<table><thead><tr><th class="c-seat">SEAT</th><th>INCUMBENT</th>
+    <th class="c-status">STATUS</th></tr></thead><tbody>${key}${body}</tbody></table>`;
+
+  if(S.blanks==="3"){
+    const roster = rest.map(r=>`<div class="rr"><em>${r[0]}</em>${r[1]} <span class="${r[2]}">[${r[2]}]</span></div>`).join("");
+    return table + `<div class="rosterhead">NO STATEMENT ON FILE · 31</div><div class="roster">${roster}</div>`;
+  }
+  return table;
+}
+
+function footHTML(){
+  if(S.foot==="full") return `Senate seats are ${d("Class 3")}. ${d("House seats appear once the 120th Congress is seated")}
+    and the roster resyncs. Tags come from curated public statements with a source link; no tag means no statement on file.`;
+  if(S.foot==="prov") return `Tags come from curated public statements with a source link.`;
+  return "";
+}
+
+const NOTES = {
+  A:"<b>A — today.</b> The paragraph carries scope and all three definitions, including OPEN, which has zero rows. The reader must hold four sentences before the first seat means anything.",
+  B:"<b>B — the legend is the count strip.</b> Each tier renders its own token beside its own count and a short gloss, so the thing being defined is the thing on the row. Zero-count tiers don't render: OPEN appears the day a row earns it, the same falsifiability rule the TBD tier was seeded under. <i>no tag · 31 · no statement on file</i> is the footnote's load-bearing clause moved to the top.",
+  C:"<b>C — key row.</b> Counts stay numeric; the vocabulary sits directly under the STATUS header, where the eye lands when the column confuses. Costs one row of height and wraps to three lines at 430.",
+  D:"<b>D — bare.</b> One scope line, numeric strip, definitions only in the tag <code>title</code>. Cheapest vertically, highest assumed prior knowledge. The 31 blanks explain themselves only in the footnote."
+};
+const BNOTES = {
+  "1":"Untagged rows flat, as shipped — 31 full-width rows whose only content is a name.",
+  "2":"A labelled seam between the 3 tagged and the 31 untagged. Same rows, same component; the count and the reason land where the blanks start.",
+  "3":"Untagged 31 as a dense roster block. Cuts about 700px of page. Forks the race-row component from HO 711, and the SEAT column stops aligning — a real fork, not a style."
+};
+
+function render(){
+  document.getElementById("head").innerHTML = headHTML();
+  document.getElementById("tablewrap").innerHTML = tableHTML();
+  document.getElementById("foot").innerHTML = footHTML();
+  document.getElementById("frame").classList.toggle("narrow", S.width==="430");
+  document.getElementById("prosenote").innerHTML = NOTES[S.head] + "<br><br>" + BNOTES[S.blanks];
+  measure();
+}
+
+function measure(){
+  const h2 = document.getElementById("h2").getBoundingClientRect().top;
+  const first = document.querySelector("tbody tr.datarow").getBoundingClientRect().top;
+  const chrome = Math.round(first - h2);
+  const txt = document.querySelector(".sec").innerText;
+  const c3 = (txt.match(/Class 3/g)||[]).length;
+  const c120 = (txt.match(/120th Congress/g)||[]).length;
+  const repeats = Math.max(0,c3-1) + Math.max(0,c120-1);
+  const zeros = (document.querySelector(".strip").innerText.match(/\b(OPEN|HOUSE) 0\b/g)||[]).length;
+  const page = Math.round(document.getElementById("frame").getBoundingClientRect().height);
+  document.getElementById("readout").innerHTML =
+    `chrome above first seat <b>${chrome}px</b> · section height <b>${page}px</b><br>`+
+    `facts stated twice <span class="${repeats?'bad':''}">${repeats}</span> · zero-count entries shown <span class="${zeros?'bad':''}">${zeros}</span>`;
+}
+
+document.querySelectorAll(".mockbar button").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    const k=b.dataset.k, v=b.dataset.v;
+    if(k==="dupes"){ S.dupes = S.dupes==="on"?"off":"on"; b.setAttribute("aria-pressed", S.dupes==="on"); render(); return; }
+    S[k]=v;
+    document.querySelectorAll(`.mockbar button[data-k="${k}"]`).forEach(x=>x.setAttribute("aria-pressed", x===b));
+    render();
+  });
+});
+render();
+window.addEventListener("resize", measure);
+</script>
+</body>
+</html>
