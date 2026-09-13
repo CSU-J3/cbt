@@ -2915,7 +2915,7 @@ export type SeatOutlookRow = {
   awaitingSpecial: number | null;
   // The STATEMENT axis: "open" = incumbent_running 0 (NOT RUNNING), "likely" =
   // open_signal 'indicated' (MAY NOT RUN), "none" = no statement.
-  status: "open" | "likely" | "tbd" | "none";
+  status: "open" | "likely" | "none";
 };
 
 // MEMBERS-FIRST, and the reason is a measurement rather than a preference. The

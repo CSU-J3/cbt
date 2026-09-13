@@ -11098,65 +11098,195 @@ a.hearing-votes:hover {
   margin: 0;
 }
 
-/* ── HO 710 · seat outlook (/electoral?cycle=2028) ─────────────────────────
+/* ── HO 710 → 718 · seat outlook report (/electoral?cycle=2028) ─────────────
    Additive only. Every rule here is namespaced `.so-*` and reaches no other
    route; the 2026 side of /electoral gains exactly one node (the toggle) and
-   no styling.
+   no styling. Ruled layout: docs/design/mock-718-electoral-report-v8.html.
 
    NO `nowrap` ANYWHERE — the HO 682 signature. Widths are governed by
-   `min-width: 0` on the row and the name cell plus `overflow-wrap: anywhere`
-   on the name, so where text breaks is never load-bearing. That matters here
-   because CI runs on Ubuntu and the dev boxes do not: a rule tuned to a font
-   metric reads clean locally and fails in CI on the same SHA (HO 694). */
-.so-wrap {
-  border-top: 0.5px solid var(--border-strong);
-}
-.so-strip {
-  padding: 6px 0;
-  font-size: var(--fs-11);
-  letter-spacing: 0.5px;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  border-bottom: 0.5px solid var(--border-soft);
-}
-/* SKILL C1 — no far-right anchors in a row. The tracks are FINITE and the grid
-   packs left (`justify-content: start`), so no element is pinned to the right
-   edge with the row's content packing away from it. The handoff specified
-   `72px minmax(0, 1fr) auto`, which stretches the name track and pushes the
-   status ~1150px from the incumbent at 1440 — a fresh instance of the highest-
-   yield convention in the C-set, and C8 seen from the other end. The `li` stays
-   full width so the hover target does too (C6). */
-.so-head,
-.so-row {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 20rem) auto;
-  justify-content: start;
-  align-items: baseline;
-  gap: var(--space-md);
-  min-width: 0;
-}
-.so-head {
-  padding: 5px 0;
-  font-size: var(--fs-9);
+   `min-width: 0` plus `overflow-wrap: anywhere` on the name and news title, so
+   where text breaks is never load-bearing. That matters here because CI runs
+   on Ubuntu and the dev boxes do not: a rule tuned to a font metric reads clean
+   locally and fails in CI on the same SHA (HO 694).
+
+   SKILL C1 — nothing is pinned right in any row. The v8 mock right-aligned the
+   dateline (`margin-left:auto`) and the COUNT values; the build packs every
+   block left: the dateline under the title, `label value` adjacent, news items
+   as inline flow. No fixed pixel widths on text tracks, no right alignment.
+
+   HO 718 keep/remove, so the next reader does not re-derive it. KEPT: `.so-seat`,
+   `.so-name` (+ `a`, `a:hover`: the name's `min-width: 0` + `overflow-wrap`),
+   `.so-tag`, `.so-tag--open`, `.so-tag--likely`, `.so-src` (+ `:hover`).
+   REMOVED: `.so-wrap` (its one rule was a top border; the ruled sections carry
+   their own hairlines), `.so-strip`, `.so-head`, `.so-list` (with the `<ul>`),
+   `.so-row`, `.so-party` (with the `[R-WI]` bracket — the party group carries
+   the party), `.so-status`, `.so-seat-status`, `.so-tag--tbd` and its hover,
+   `.so-foot`, and the `max-width: 699px` block. */
+.so-dateline {
+  margin: 0;
+  font-size: var(--fs-10);
   letter-spacing: 0.5px;
   color: var(--text-dim);
-  border-bottom: 0.5px solid var(--border-soft);
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
-.so-list {
+.so-dateline + .so-dateline {
+  margin-top: 2px;
+}
+/* SKILL C7 — `align-items: start`, so the shorter column does not stretch to
+   the taller one. One column at and below 900 (the app's grid breakpoint). */
+.so-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: var(--space-xl) 40px;
+  align-items: start;
+  margin-top: var(--space-lg);
+}
+@media (max-width: 900px) {
+  .so-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.so-col {
+  min-width: 0;
+}
+.so-col > .so-sec + .so-sec {
+  margin-top: var(--space-xl);
+}
+/* A ruled section: a small uppercase label and a hairline, no box. The rule is
+   a pseudo-element after the label text, so the label's text stays packed left
+   and the line fills what is left of the row. */
+.so-sec {
+  min-width: 0;
+}
+.so-sec-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0;
+  font-size: var(--fs-9);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.so-sec-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-strong);
+}
+.so-sec-count {
+  color: var(--text-secondary);
+}
+.so-dim {
+  color: var(--text-dim);
+}
+.so-empty {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+.so-news {
   list-style: none;
-  margin: 0;
+  margin: var(--space-xs) 0 0;
   padding: 0;
 }
-.so-row {
-  padding: 5px 0;
-  border-bottom: 0.5px solid var(--border-soft);
+.so-news-item {
+  padding: 3px 0;
   font-size: var(--fs-12);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.so-news-item .so-dim {
+  font-size: var(--fs-11);
+}
+.so-news-title {
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.so-news-title:hover {
+  color: var(--accent-amber-bright);
+}
+.so-odds-line {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--fs-12);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.so-odds-none {
+  color: var(--text-secondary);
+}
+/* COUNT: each row is `label value`, adjacent, packed left. A per-row grid of
+   two content-sized tracks, so a short label never opens a gap to a value
+   aligned under a long one. */
+.so-count {
+  margin-top: var(--space-xs);
+}
+.so-count-row {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content;
+  justify-content: start;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 3px 0;
+}
+.so-count-label {
+  min-width: 0;
+  font-size: var(--fs-9);
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.so-count-value {
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+}
+.so-count-value .so-dim {
+  font-size: var(--fs-11);
+}
+/* Roster: one section per chamber, party groups side by side where they fit,
+   names in CSS columns inside each group, so a wide screen buys columns rather
+   than air (SKILL C8). `min(20rem, 100%)` keeps the group track from exceeding
+   a narrow container. */
+.so-report > .so-sec {
+  margin-top: var(--space-xl);
+}
+.so-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(20rem, 100%), 1fr));
+  gap: var(--space-lg) 26px;
+  margin-top: var(--space-xs);
+}
+.so-group {
+  min-width: 0;
+}
+.so-group-label {
+  padding: 0 0 6px;
+  margin-bottom: var(--space-xs);
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: var(--fs-9);
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+}
+.so-group-names {
+  column-width: 17rem;
+  column-gap: var(--space-lg);
+}
+.so-name-row {
+  break-inside: avoid;
+  min-width: 0;
+  padding: 3px 0;
+  font-size: var(--fs-12);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 .so-seat {
   font-family: var(--font-mono);
   font-size: var(--fs-11);
   letter-spacing: 0.5px;
-  color: var(--text-secondary);
+  color: var(--text-dim);
 }
 .so-name {
   min-width: 0;
@@ -11169,22 +11299,13 @@ a.hearing-votes:hover {
 .so-name a:hover {
   color: var(--accent-amber-bright);
 }
-.so-party {
-  font-size: var(--fs-11);
-}
-.so-status,
-.so-seat-status {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-}
 
-/* Tag tokens. OPEN reuses the `.racecard-open-tag` recipe verbatim (amber text,
-   amber SOLID 1px border) — the same signal wearing the same clothes on a
-   second surface. LIKELY is the same amber with a DASHED border, a second cue
-   beyond colour for a claim that is provisional rather than announced. TBD is
-   the `MicroTag` qualifier recipe (--text-dim, --border-strong solid), because
-   it qualifies the seat rather than asserting anything about the holder. */
+/* Qualifier tokens. NOT RUNNING reuses the `.racecard-open-tag` recipe verbatim
+   (amber text, amber SOLID 1px border) — the same fact wearing the same clothes
+   on a second surface, where the 2026 card's word is OPEN (a seat card) and this
+   page's is NOT RUNNING (name-led): a recorded pair, not a drift. MAY NOT RUN is
+   the same amber with a DASHED border, a second cue beyond colour for a claim
+   short of an announcement. APPOINTED is the `MicroTag` primitive as it stands. */
 .so-tag {
   font-size: var(--fs-9);
   letter-spacing: 0.5px;
@@ -11200,45 +11321,23 @@ a.hearing-votes:hover {
   color: var(--accent-amber);
   border: 1px dashed var(--accent-amber);
 }
-.so-tag--tbd {
-  color: var(--text-dim);
-  border: 1px solid var(--border-strong);
-}
-a.so-tag--tbd:hover {
-  color: var(--text-secondary);
-  border-color: var(--text-secondary);
+/* A qualifier — its tag AND its mark (↗ / →) — breaks to the next line WHOLE,
+   rather than splitting inside the tag's border or orphaning the mark. Two
+   readings found it: the fixture's two-qualifier row read "APPOINTED ·" /
+   "SPECIAL NOV 2026" across a line break at 1440, and at 1920 (three name
+   columns) OH's → sat alone on the line under its tag. `inline-block` makes
+   the pair atomic without `nowrap`: text inside still wraps when a qualifier
+   alone is wider than the row (`max-width: 100%`), so no width here is
+   metric-dependent. */
+.so-qual {
+  display: inline-block;
+  max-width: 100%;
 }
 .so-src {
   font-size: var(--fs-11);
   color: var(--text-dim);
+  margin-left: 3px;
 }
 .so-src:hover {
   color: var(--accent-amber-bright);
-}
-.so-foot {
-  margin: 8px 0 0;
-  font-size: var(--fs-9);
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  line-height: 1.5;
-}
-
-/* Below 700 the status cell drops to its own line under the name rather than
-   competing with it for a narrow track. The seat column keeps its 72px so the
-   labels stay in a column; the name spans the rest. */
-@media (max-width: 699px) {
-  .so-head,
-  .so-row {
-    grid-template-columns: 72px minmax(0, 1fr);
-    justify-content: stretch;
-  }
-  .so-head > span:last-child {
-    display: none;
-  }
-  .so-status {
-    grid-column: 2;
-  }
-  .so-status:empty {
-    display: none;
-  }
 }

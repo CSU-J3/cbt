@@ -46,5 +46,9 @@
   "app/welcome/panels.tsx": {
     "reason": "not-a-render-site",
     "note": "A local sourceTag() that labels a NEWS source (politico / the_hill / roll_call). A false positive on the word; nothing to do with prediction markets."
+  },
+  "components/SeatOutlookList.tsx": {
+    "reason": "gated",
+    "note": "HO 718. The 2028 ODDS coverage line: one odds-only section carrying data-market=coverage, display:none on OFF (not a grid child)."
   }
 }

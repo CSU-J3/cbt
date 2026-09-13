@@ -6,7 +6,7 @@
 // its HO 225 state-click district drill. The Races · Primaries sub-nav (HO 173)
 // is retired — one surface, no GroupTabs. /races + /primaries 308-redirect here.
 //
-// HO 710: ?cycle=2028 switches to the seat-outlook list. The DEFAULT IS THE
+// HO 710: ?cycle=2028 switches to the seat outlook (a report since HO 718). The DEFAULT IS THE
 // ABSENCE OF THE PARAM (HO 690) — bare /electoral is 2026 and is byte-identical
 // to its pre-710 self apart from the toggle node. The 2028 branch deliberately
 // mounts NO hero band, board, calendar or list view: nothing is rated or
@@ -25,7 +25,9 @@ import {
   getPacIeSpending,
   getPrimaryCalendar,
   getRaceCandidatesForCycle,
+  getCycleMarketCoverage,
   getRacesIndex,
+  getSeatNews,
   getSeatOutlook,
   sanitizeCycle,
 } from "@/lib/queries";
@@ -35,8 +37,11 @@ export const dynamic = "force-dynamic";
 // The toggle segments read ELECTORAL_CYCLES, the same constant sanitizeCycle
 // validates against, so the toggle and the sanitizer cannot drift apart. A
 // third cycle costs more than that constant: the page branches on
-// `cycle === 2028` below, and the 2028 description hard-codes 34, Class 3, the
-// 120th Congress and the 2026 deciding contest.
+// `cycle === 2028` below. Since HO 718 the report derives its class, election
+// day, Congress and appointee specials from the cycle and the rows, so what the
+// branch still hard-codes is that one comparison and the dateline's
+// House-joins-when-the-next-Congress-begins clause, which assumes the cycle's
+// House seats arrive with the Congress seated the January before it.
 const CYCLE_SEGMENTS = ELECTORAL_CYCLES.map((c) => ({
   value: String(c),
   label: String(c),
@@ -129,10 +134,15 @@ export default async function ElectoralPage({
   );
 }
 
-// The 2028 branch. Title row, a dated description, the list. No band, board,
-// calendar or list view — see the note at the top of the file.
+// The 2028 branch. Title row, then the report (dateline, NEWS, ODDS, COUNT,
+// roster). No band, board, calendar or list view — see the note at the top of
+// the file.
 async function SeatOutlookPage({ cycle }: { cycle: number }) {
   const rows = await getSeatOutlook(cycle);
+  const [news, coverage] = await Promise.all([
+    getSeatNews(rows.map((r) => r.bioguideId)),
+    getCycleMarketCoverage(cycle),
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -148,19 +158,12 @@ async function SeatOutlookPage({ cycle }: { cycle: number }) {
           <CycleToggle cycle={cycle} />
         </div>
 
-        <p
-          className="mb-4 text-[length:var(--fs-12)] leading-snug"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Every seat up on November 7, {cycle}: the 34 Class 3 Senate seats now;
-          all House seats once the 120th Congress is seated. OPEN — the
-          incumbent has said they won&rsquo;t seek the seat. LIKELY — a public
-          signal short of an announcement, dated and sourced. TBD — the {cycle}{" "}
-          holder is decided by a 2026 contest. No ratings or markets exist for
-          this cycle yet.
-        </p>
-
-        <SeatOutlookList rows={rows} cycle={cycle} />
+        <SeatOutlookList
+          rows={rows}
+          news={news}
+          coverage={coverage}
+          cycle={cycle}
+        />
       </main>
     </div>
   );
