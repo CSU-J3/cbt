@@ -17,6 +17,12 @@
 - **A non-fork architectural call is made without asking.** Escalate the forks:
   where two defensible directions lead to materially different products, that is
   Corey's, not the architect's.
+- **A setting Corey selected in a ruled mock resolves every fork inside it.** The
+  architect confirms readings. Corey's word is asked only for a fork his
+  selections do not already answer; a HALT that waits on anything else is
+  ceremony. Ruled HO 718, verbatim: *"what ever the setting i gave you is what i
+  want. stop waiting on my word"* — retiring the HO 710 *"Corey confirms rows …"*
+  HALT form.
 - The `docs/backlog.md` owner tags (**Corey** / **Code** / **cron**) are a
   different taxonomy — who *acts* on an item, not who decides it.
 
