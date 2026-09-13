@@ -10,6 +10,12 @@
 //        Reports largest INTERIOR gap and, separately, the TRAILING gap. The
 //        trailing gap is measured and is NOT a defect — it is the target state.
 //        Reporting both means "M1 = 0" cannot be reached by deleting rows.
+//   M1c — (HO 719) CSS multi-column CONTAINERS marked [data-col-flow] that also
+//        compute multi-column. Their "gap" is the column gutter (C8's remedy), so
+//        they leave M1 and are counted here; the rows inside stay scored. Two leak
+//        lines print every run: unmarked col-flow (a multi-column candidate over
+//        threshold with no marking, still in M1) and marked-not-col-flow (a marking
+//        that computes no columns and buys nothing).
 //   M2 — C7, stretched panels. Grid/flex children that READ AS A PANEL (non-zero
 //        border, or a background differing from the parent), measured as
 //        panelRect.bottom - max(child rect.bottom). An invisible stretched wrapper
@@ -438,6 +444,23 @@ function measureInPage(t: Thresholds) {
   const rows: Row[] = [];
   const allGaps: number[] = [];
   let vizExempt = 0;
+  // HO 719 — M1c. Per exempt container, the record the curve is read off.
+  type ColFlowRecord = {
+    selectorPath: string;
+    key: string;
+    columns: number;
+    columnGapPx: number | string;
+    widthPx: number;
+    worstInteriorGapPx: number;
+    childRows: number;
+    childCandidates: number;
+  };
+  const markKey = (m: Element) =>
+    `${m.tagName.toLowerCase()}.${(m.className || "").toString().trim().split(/\s+/)[0] ?? ""}`;
+  const colFlowRecords: { el: Element; rec: ColFlowRecord }[] = [];
+  const colFlowUnmarkedKeys: string[] = [];
+  const colFlowDormantKeys: string[] = [];
+  const scoredEls = new Set<Element>();
   const m1aGroups: Element[][] = [];
   const seenGroupKey = new Set<string>();
 
@@ -474,6 +497,20 @@ function measureInPage(t: Thresholds) {
       vizExempt++;
       continue;
     }
+
+    // HO 719 COLUMN-FLOW EXEMPTION, COUNTED — a CSS multi-column container's
+    // interior gap is the COLUMN GUTTER: a column of short names ends its ink
+    // before the next column starts, which is C8's remedy read as a C1 gap. The
+    // exemption needs BOTH the authored marking and the computed style; either
+    // alone buys nothing and is printed on a leak line. It is tested with
+    // el.matches(), never el.closest(): data-viz-row licenses a subtree because
+    // chart rows ARE the encoding, but here the licence is the gutter, and a row
+    // inside the container is an ordinary text row whose own far-right anchor is
+    // still a C1 defect. The one place the two markings differ in mechanism.
+    // Classified here; applied below, once the gap it would have scored is known.
+    const colFlowMarked = el.matches("[data-col-flow]");
+    const colCs = getComputedStyle(el);
+    const colFlowComputed = colCs.columnWidth !== "auto" || colCs.columnCount !== "auto";
 
     // Items = element children AND text nodes (a bare `·` between two spans
     // manufactures a false gap otherwise).
@@ -612,6 +649,36 @@ function measureInPage(t: Thresholds) {
     const qualifies = isM1a ? true : wideEnough && maxBandItems >= 2;
     if (!qualifies) continue;
 
+    // HO 719 — the column-flow exemption, applied. Counted per CONTAINER, with the
+    // gap it would have scored recorded beside it, so the curve is read off the
+    // same object the exemption fires on. Rendered columns = distinct visible-child
+    // left edges (±2px).
+    if (colFlowMarked && colFlowComputed) {
+      const lefts: number[] = [];
+      for (const c of kids) {
+        const l = c.getBoundingClientRect().left;
+        if (!lefts.some((x) => Math.abs(x - l) <= 2)) lefts.push(l);
+      }
+      const gapPx = parseFloat(colCs.columnGap);
+      colFlowRecords.push({
+        el,
+        rec: {
+          selectorPath: pathOf(el),
+          key: markKey(el),
+          columns: lefts.length,
+          columnGapPx: Number.isFinite(gapPx) ? Math.round(gapPx) : colCs.columnGap,
+          widthPx: Math.round(rect.width),
+          worstInteriorGapPx: Math.round(interior),
+          childRows: kids.length,
+          childCandidates: 0, // filled after the loop: children are visited after their container
+        },
+      });
+      continue;
+    }
+    if (colFlowMarked) colFlowDormantKeys.push(markKey(el));
+    else if (colFlowComputed && interior > t.gapThreshold) colFlowUnmarkedKeys.push(markKey(el));
+    scoredEls.add(el);
+
     const cs = getComputedStyle(el);
     const innerRight =
       rect.right - (parseFloat(cs.borderRightWidth) || 0) - (parseFloat(cs.paddingRight) || 0);
@@ -641,6 +708,9 @@ function measureInPage(t: Thresholds) {
         }
       }
     }
+  }
+  for (const { el, rec } of colFlowRecords) {
+    rec.childCandidates = Array.from(el.children).filter((c) => scoredEls.has(c)).length;
   }
 
   // --- M2 -------------------------------------------------------------------
@@ -1029,6 +1099,18 @@ function measureInPage(t: Thresholds) {
       vizMarkedKeys: Array.from(document.querySelectorAll("[data-viz-row]"))
         .map((m) => `${m.tagName.toLowerCase()}.${(m.className || "").toString().trim().split(/\s+/)[0] ?? ""}`)
         .sort(),
+      // HO 719 — M1c. colFlowExempt counts CONTAINERS (candidates that left M1);
+      // the two leak lines are the other two corners of marking × computed style;
+      // colFlowMarked* is the width-invariant structural half, the vizMarked* form.
+      colFlowExempt: colFlowRecords.length,
+      colFlowExemptKeys: colFlowRecords.map((c) => c.rec.key).sort(),
+      colFlowRecords: colFlowRecords.map((c) => c.rec),
+      colFlowUnmarked: colFlowUnmarkedKeys.length,
+      colFlowUnmarkedKeys: colFlowUnmarkedKeys.slice().sort(),
+      colFlowDormant: colFlowDormantKeys.length,
+      colFlowDormantKeys: colFlowDormantKeys.slice().sort(),
+      colFlowMarkedCount: document.querySelectorAll("[data-col-flow]").length,
+      colFlowMarkedKeys: Array.from(document.querySelectorAll("[data-col-flow]")).map(markKey).sort(),
       gaps: allGaps.map((g) => Math.round(g)),
     },
     m2: { panels, count: panels.length },
@@ -1266,6 +1348,52 @@ function assertLegC(d: Measured): { cases: LegCase[]; ok: boolean } {
     "mean > 0 · >= 4 groups",
   );
 
+  // --- HO 719: M1c, column flow — three cases and the property-3 reading ------
+  // Containers are matched on the LAST path segment: pathOf walks four levels, so
+  // an inner row's path also contains its container's class.
+  const lastSegIs = (cls: string) => (r: { selectorPath: string }) =>
+    new RegExp(`\\.${cls}(?![a-z-])`).test(r.selectorPath.split(" > ").pop() ?? "");
+  const describe = (rs: { mode: string; interiorGapPx: number }[]) =>
+    rs.length ? rs.map((r) => `${r.mode} ${r.interiorGapPx}px`).join(", ") : "none";
+
+  const cfPos = d.m1.rows.filter(lastSegIs("legc-colflow-pos"));
+  push(
+    "M1c-POS marked multi-column container leaves M1",
+    d.m1.colFlowExempt === 1 && cfPos.length === 0,
+    `M1c ${d.m1.colFlowExempt} · scored as M1 ${cfPos.length} (${describe(cfPos)})`,
+    "M1c 1 · scored 0",
+  );
+
+  const cfUnmarked = d.m1.rows.filter(lastSegIs("legc-colflow-unmarked"));
+  const cfUnmarkedOver = cfUnmarked.filter((r) => r.mode === "M1b" && r.interiorGapPx > GAP_THRESHOLD_PX);
+  push(
+    "M1c-LEAK unmarked multi-column stays M1b, on the leak line",
+    cfUnmarkedOver.length === 1 && d.m1.colFlowUnmarked === 1,
+    `M1b ${cfUnmarkedOver.length} (${describe(cfUnmarked)}) · unmarked col-flow ${d.m1.colFlowUnmarked}`,
+    "M1b 1 · unmarked col-flow 1",
+  );
+
+  const cfDormant = d.m1.rows.filter(lastSegIs("legc-colflow-dormant"));
+  const cfDormantOver = cfDormant.filter((r) => r.interiorGapPx > GAP_THRESHOLD_PX);
+  push(
+    "M1c-DORMANT a marking with no columns buys nothing",
+    cfDormantOver.length === 1 && d.m1.colFlowDormant === 1,
+    `M1 ${cfDormantOver.length} (${describe(cfDormant)}) · marked, not col-flow ${d.m1.colFlowDormant}`,
+    "M1 1 · marked, not col-flow 1",
+  );
+
+  // Property 3, TESTED rather than asserted: on the live page the inner rows sit
+  // at 9px, so matches() and closest() read identically there. Here they are over
+  // threshold inside the exempt container, and a closest() exemption reads M1a 0.
+  const cfInner = d.m1.rows.filter(lastSegIs("legc-colflow-innerrow"));
+  const cfInnerOver = cfInner.filter((r) => r.mode === "M1a" && r.interiorGapPx > GAP_THRESHOLD_PX);
+  push(
+    "M1c-INNER rows inside the exempt container stay scored",
+    cfInnerOver.length === 3 && d.m1.colFlowExempt === 1 && cfPos.length === 0,
+    `inner M1a ${cfInnerOver.length} (${describe(cfInner)}) · container M1c ${d.m1.colFlowExempt}, scored ${cfPos.length}`,
+    "inner M1a 3 · container M1c 1, scored 0",
+  );
+
   return { cases, ok: cases.every((c) => c.ok) };
 }
 
@@ -1491,6 +1619,39 @@ async function main() {
   }
   await home.close();
 
+  // HO 719 — the M1c live half, in the HO 629 form: assert what [data-col-flow]
+  // REACHES, not a candidate count. Self-consistent against the served page (one
+  // marked container per .so-group), so the 120th Congress's HOUSE groups joining
+  // the roster do not break it. The container is matched on its LAST path segment:
+  // the qualified name rows inside it are M1a candidates by design and their
+  // paths carry the container's class. M1c is printed beside it, not gated.
+  const e28 = await openMeasured("/electoral?cycle=2028", 2);
+  const e28Groups = await e28.page.evaluate(() => document.querySelectorAll(".so-group").length);
+  const e28Keys = e28.data.m1.colFlowMarkedKeys;
+  const e28ContainerScored = e28.data.m1.rows.filter((r) =>
+    /\.so-group-names(?![a-z-])/.test(r.selectorPath.split(" > ").pop() ?? ""),
+  ).length;
+  const e28InnerCandidates = e28.data.m1.rows.filter((r) => /\.so-group-names > /.test(r.selectorPath));
+  const e28Ok =
+    e28Keys.length === e28Groups &&
+    e28Keys.every((k) => k === "div.so-group-names") &&
+    e28ContainerScored === 0;
+  console.log(
+    `  live /electoral?cycle=2028 [data-col-flow] reaches : ${e28Keys.length ? e28Keys.join(", ") : "(nothing)"}  ` +
+      `(must be div.so-group-names × .so-group count ${e28Groups}; containers scored as M1: ${e28ContainerScored}, must be 0)`,
+  );
+  console.log(
+    `  live /electoral?cycle=2028 M1c (observed, not a gate): ${e28.data.m1.colFlowExempt}  ` +
+      `— rows inside stay scored: ${e28InnerCandidates.length} candidate(s), worst ${
+        e28InnerCandidates.length ? Math.max(...e28InnerCandidates.map((r) => r.interiorGapPx)) : 0
+      }px`,
+  );
+  if (!e28Ok) {
+    console.log("      ** the seat-outlook roster's column-flow marking moved, spread, or leaked into M1. **");
+    falsificationOk = false;
+  }
+  await e28.close();
+
   // ── LEG C — the fixture. Both directions. ----------------------------------
   console.log("");
   console.log("LEG C — the fixture (scripts/diagnostic/fixtures/layout-legc.html, loaded over file://).");
@@ -1549,7 +1710,7 @@ async function main() {
           `M2 ${String(d.m2.count).padStart(3)}  M3 ${String(d.m3.meanPerRow).padStart(5)}  ` +
           `M4 ${String(d.m4.trueCount).padStart(3)}/${String(d.m4.truePx).padStart(5)}px  ` +
           `M4f ${String(d.m4.furnitureCount).padStart(3)}  M4w ${String(d.m4w.count).padStart(2)}  ` +
-          `M1x ${String(d.m1.vizExempt).padStart(3)}`,
+          `M1x ${String(d.m1.vizExempt).padStart(3)}  M1c ${String(d.m1.colFlowExempt).padStart(2)}`,
       );
       await r.close();
     } catch (e) {
@@ -1708,15 +1869,17 @@ async function main() {
       m4f: r.data.m4.furnitureCount,
       m4w: r.data.m4w.count,
       m1x: r.data.m1.vizExempt,
+      m1c: r.data.m1.colFlowExempt,
     }))
     .sort((a, b) => b.m1 - a.m1);
-  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)} ${"M4f".padStart(5)} ${"M4w".padStart(4)} ${"M1x".padStart(5)}`);
+  console.log(`  ${"route".padEnd(22)} ${"M1a".padStart(5)} ${"M1b".padStart(5)} ${"M1".padStart(5)} ${"M2".padStart(5)} ${"M3mean".padStart(7)} ${"M4n".padStart(5)} ${"M4px".padStart(7)} ${"M4f".padStart(5)} ${"M4w".padStart(4)} ${"M1x".padStart(5)} ${"M1c".padStart(4)}`);
   for (const t of table) {
     console.log(
-      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)} ${String(t.m4f).padStart(5)} ${String(t.m4w).padStart(4)} ${String(t.m1x).padStart(5)}`,
+      `  ${t.slug.padEnd(22)} ${String(t.m1a).padStart(5)} ${String(t.m1b).padStart(5)} ${String(t.m1).padStart(5)} ${String(t.m2).padStart(5)} ${String(t.m3).padStart(7)} ${String(t.m4n).padStart(5)} ${String(t.m4px).padStart(7)} ${String(t.m4f).padStart(5)} ${String(t.m4w).padStart(4)} ${String(t.m1x).padStart(5)} ${String(t.m1c).padStart(4)}`,
     );
   }
   console.log("  M1x = rows under [data-viz-row], EXEMPTED from M1 and counted here.");
+  console.log("  M1c = marked CSS multi-column containers, EXEMPTED from M1 and counted here; rows inside stay scored.");
   console.log("  M4n/M4px = M4-TRUE (reserved emptiness). M4f = furniture, EXCLUDED from M4-true and");
   console.log("  counted here. M4w = width-reserved empty slots, invisible to height-keyed M4.");
   console.log("  v4 (HO 620): M3 and M4 are a DIFFERENT RULER from v3 — see the era wall.");
@@ -1741,6 +1904,12 @@ async function main() {
   console.log(`  M1 candidate rows examined : ${totCandidates}`);
   console.log(`  M1 rows over ${GAP_THRESHOLD_PX}px          : ${totM1a + totM1b}   (M1a ${totM1a} · M1b ${totM1b})`);
   console.log(`  M1x viz-exempted rows      : ${totVizExempt}   (chart rows under [data-viz-row]; excluded from M1 above)`);
+  const totColFlow = results.reduce((a, r) => a + r.data.m1.colFlowExempt, 0);
+  const leakUnmarked = results.flatMap((r) => r.data.m1.colFlowUnmarkedKeys.map((k) => `${r.slug} ${k}`));
+  const leakDormant = results.flatMap((r) => r.data.m1.colFlowDormantKeys.map((k) => `${r.slug} ${k}`));
+  console.log(`  M1c col-flow containers    : ${totColFlow}   (marked CSS multi-column containers; excluded from M1 above, rows inside stay scored)`);
+  console.log(`  M1c leak: unmarked col-flow: ${leakUnmarked.length}${leakUnmarked.length ? `   (${leakUnmarked.join(" · ")})` : ""}   (multi-column, over threshold, no marking — still in M1)`);
+  console.log(`  M1c leak: marked, not col-flow: ${leakDormant.length}${leakDormant.length ? `   (${leakDormant.join(" · ")})` : ""}   (a marking that computes no columns — still in M1)`);
   console.log(`  M2 stretched panels        : ${totM2}`);
   console.log(`  M4-true reserved-empty     : ${totM4}  totalling ${totM4px}px of vertical space  (seed-vocabulary hits ${totSeeded})`);
   console.log(`  M4f furniture (excluded)   : ${totM4f}  totalling ${totM4fpx}px  (short labels in repeated rows — not reserved space)`);

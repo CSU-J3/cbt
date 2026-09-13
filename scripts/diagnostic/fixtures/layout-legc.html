@@ -346,6 +346,56 @@
     font-size: var(--fs-10);
     padding: 0 4px;
   }
+
+  /* ======================= HO 719 — M1c, COLUMN FLOW ======================
+     A CSS multi-column name list is the C8 remedy: a wide screen buys columns.
+     Its rag is the column gutter — a column of short names always ends its ink
+     before the next column starts — so M1b reads the gutter as a C1 gap. M1c
+     counts such a container on its own line instead, but ONLY when it carries
+     [data-col-flow] AND computes multi-column. Three cases, one per way that
+     can be wrong, plus a fourth reading inside the positive:
+
+       pos        marked + multi-column   -> M1c 1, scored as M1 0
+       unmarked   identical CSS, no mark  -> stays M1b 1, reads unmarked col-flow 1
+       dormant    marked, no columns      -> stays M1 1, reads marked-not-col-flow 1
+       innerrow   three over-threshold rows INSIDE the exempt container -> M1a 3.
+                  The licence is the gutter, not the subtree: the audit tests
+                  el.matches("[data-col-flow]"), never closest(). A closest()
+                  exemption reads M1a 0 here and fails.
+
+     The container geometry is the live page's, copied: 1251px wide,
+     column-width 272px (17rem), column-gap 16px, rows break-inside: avoid —
+     four columns at a 317px pitch. The name rows keep TWO children so no row
+     is an M1a candidate and each 300px row sits under the M1b floor; the
+     container is the unit under test. */
+  .legc-colflow-pos,
+  .legc-colflow-unmarked {
+    width: 1251px;
+    column-width: 272px;
+    column-gap: 16px;
+  }
+  .legc-colflow-row {
+    break-inside: avoid;
+    padding: 3px 0;
+    color: var(--text-muted);
+  }
+  .legc-colflow-row .seat { color: var(--text-dim); }
+  .legc-colflow-innerrow {
+    break-inside: avoid;
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    color: var(--text-muted);
+  }
+  /* A plain wide row, marked, with no column properties: the marking alone must
+     buy nothing. */
+  .legc-colflow-dormant {
+    display: flex;
+    align-items: baseline;
+    width: 1000px;
+    padding: 4px 0;
+  }
+  .legc-colflow-dormant .val { margin-left: 300px; color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -512,6 +562,49 @@
       <span class="t">Ensuring Federal Purchasing Efficiency Act</span>
       <span class="sub"><span class="chip">GOV</span><span class="chip">TRD</span><span class="chip">BDGT</span></span>
     </div>
+  </div>
+</section>
+
+<section>
+  <h2>HO 719 M1c positive — marked CSS multi-column container (M1c 1, scored as M1 0); its three inner rows stay scored (M1a 3)</h2>
+  <div class="legc-colflow-pos" data-col-flow>
+    <div class="legc-colflow-innerrow"><span>W</span><span>J</span><span>Q</span></div>
+    <div class="legc-colflow-innerrow"><span>F</span><span>M</span><span>Q</span></div>
+    <div class="legc-colflow-innerrow"><span>O</span><span>H</span><span>Q</span></div>
+    <div class="legc-colflow-row"><span class="seat">AK</span> <span>Lisa Murkowski</span></div>
+    <div class="legc-colflow-row"><span class="seat">AL</span> <span>Katie Britt</span></div>
+    <div class="legc-colflow-row"><span class="seat">AR</span> <span>John Boozman</span></div>
+    <div class="legc-colflow-row"><span class="seat">IA</span> <span>Chuck Grassley</span></div>
+    <div class="legc-colflow-row"><span class="seat">ID</span> <span>Mike Crapo</span></div>
+    <div class="legc-colflow-row"><span class="seat">IN</span> <span>Todd Young</span></div>
+    <div class="legc-colflow-row"><span class="seat">KS</span> <span>Jerry Moran</span></div>
+    <div class="legc-colflow-row"><span class="seat">KY</span> <span>Rand Paul</span></div>
+    <div class="legc-colflow-row"><span class="seat">LA</span> <span>John Kennedy</span></div>
+    <div class="legc-colflow-row"><span class="seat">MO</span> <span>Eric Schmitt</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>HO 719 M1c leak control — identical multi-column CSS, NO marking (stays M1b 1, reads unmarked col-flow 1)</h2>
+  <div class="legc-colflow-unmarked">
+    <div class="legc-colflow-row"><span class="seat">AK</span> <span>Lisa Murkowski</span></div>
+    <div class="legc-colflow-row"><span class="seat">AL</span> <span>Katie Britt</span></div>
+    <div class="legc-colflow-row"><span class="seat">AR</span> <span>John Boozman</span></div>
+    <div class="legc-colflow-row"><span class="seat">IA</span> <span>Chuck Grassley</span></div>
+    <div class="legc-colflow-row"><span class="seat">ID</span> <span>Mike Crapo</span></div>
+    <div class="legc-colflow-row"><span class="seat">IN</span> <span>Todd Young</span></div>
+    <div class="legc-colflow-row"><span class="seat">KS</span> <span>Jerry Moran</span></div>
+    <div class="legc-colflow-row"><span class="seat">KY</span> <span>Rand Paul</span></div>
+    <div class="legc-colflow-row"><span class="seat">LA</span> <span>John Kennedy</span></div>
+    <div class="legc-colflow-row"><span class="seat">MO</span> <span>Eric Schmitt</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>HO 719 M1c dormant control — marked, but a plain wide row with no column properties (stays M1 1, reads marked-not-col-flow 1)</h2>
+  <div class="legc-colflow-dormant" data-col-flow>
+    <span class="lbl">a marked row that computes no columns</span>
+    <span class="val">300px</span>
   </div>
 </section>
 
