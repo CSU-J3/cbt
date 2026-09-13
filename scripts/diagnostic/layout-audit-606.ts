@@ -169,7 +169,10 @@ type Route = { slug: string; path: string };
 // alias: /dashboard-v2 and /committees (excluded since 606), plus /races,
 // /primaries and /members/pass-rate (HO 608 — same reason, dropped after the 606
 // run measured them as duplicate pages). 37-5-5 = 27, less /dashboard-classic,
-// removed as a route at HO 608 = 26. The printed count below is the record.
+// removed as a route at HO 608 = 26. HO 718 adds /electoral?cycle=2028 (a
+// different page, not an alias) = 27 — a site-wide total taken before HO 718 is
+// one route short of one taken after; compare per route. The printed count
+// below is the record.
 const ROUTES: Route[] = [
   { slug: "home", path: "/" },
   { slug: "home-stage-committee", path: "/?stage=committee" },
@@ -177,6 +180,7 @@ const ROUTES: Route[] = [
   { slug: "bills", path: "/bills" },
   { slug: "members", path: "/members" },
   { slug: "electoral", path: "/electoral" },
+  { slug: "electoral-2028", path: "/electoral?cycle=2028" },
   { slug: "reports", path: "/reports" },
   { slug: "hearings", path: "/hearings" },
   { slug: "news", path: "/news" },
