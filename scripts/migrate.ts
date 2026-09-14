@@ -1674,9 +1674,12 @@ async function main() {
   // the row is already 1:1 with the week, shares its lifecycle and its cache
   // tag, and `getDashboardReportSnapshot` already SELECTs this table on the
   // dashboard's render path — so the dashboard reads the summary for ZERO new
-  // queries. NULL means "no summary for this week", which is a real and
-  // expected state (generation refused by the grounding gate or the
-  // three-sentence cap; see lib/week-summary.ts), never "not yet backfilled".
+  // queries. NULL means no generation has stored a summary for this week:
+  // every attempt was refused (the grounding gate or the three-sentence cap;
+  // see lib/week-summary.ts), or none was made yet (a /api/sync catch-up row
+  // until `backfill:week-summaries` runs). Since HO 724 `writeReport` keeps a
+  // stored summary when a later write carries none, and refused-versus-never is
+  // read off cron_runs (ticks from 2026-09-07 on), not off this column.
   await ensureColumn(db, "reports", "summary_text", "TEXT");
   // HO 411: Senate class (1|2|3) ingested from legislators-current.yaml by
   // sync:members. The year-pair (next_election_year / current_term_end_year)

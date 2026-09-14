@@ -206,8 +206,9 @@ export type WeekSummaryResult =
  * REJECT, NEVER TRUNCATE. Cutting sentence three mid-thought is worse than
  * absence, because a truncated summary still reads as a finished one. One
  * corrective retry (the HO 112.2 regenerate-on-violation precedent used by the
- * report prose), then give up and store nothing — a failed generation degrades
- * to the previous week's row, which renders under its OWN week label.
+ * report prose), then give up and store nothing — a failed generation on a week
+ * with no stored summary degrades to the previous week's row, which renders
+ * under its OWN week label; a week that already has one keeps it (HO 724).
  */
 export async function generateWeekSummary(
   client: GoogleGenAI,

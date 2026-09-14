@@ -1747,8 +1747,9 @@ export async function runReportCatchup(
 }
 
 // Upserts the report keyed by slug (the ISO week-start date). Re-running the
-// CLI for the same week overwrites rather than erroring. created_at is
-// JS-side ISO, matching the rest of the codebase.
+// CLI for the same week overwrites rather than erroring, except `summary_text`,
+// which is kept when the caller carries none (HO 724). created_at is JS-side
+// ISO, matching the rest of the codebase.
 export async function writeReport(report: {
   slug: string;
   weekStart: string;
@@ -1760,10 +1761,21 @@ export async function writeReport(report: {
   lawsCount?: number;
   introCount?: number;
   movesCount?: number;
-  // HO 689 — the three-sentence week summary. Optional and NULL-preserving for
-  // the same reason as the counts above: a caller without one must degrade to
-  // NULL rather than fail. NULL here is a real state (the grounding gate or the
-  // sentence cap refused the generation), not "not yet populated".
+  // HO 689 — the three-sentence week summary. Optional for the same reason as
+  // the counts above: a caller without one (the CLI, the /api/sync catch-up)
+  // degrades rather than failing.
+  // HO 724 — NULL in the column means no generation has stored a summary for
+  // this week. A stored summary SURVIVES a later write that carries none (a
+  // summary-less caller, or a cron re-run whose generation refused), because the
+  // upsert below is COALESCE(excluded.summary_text, reports.summary_text): a
+  // fresh non-NULL summary still replaces it, and no code path clears one
+  // (clearing is manual SQL). Refused versus never attempted is not this
+  // column's to say. For ticks from 2026-09-07 on, cron_runs says it
+  // (payload.report.summary = {chars} when stored, a chronicErr beginning
+  // "week-summary" when not); a NULL on an older row is readable as neither.
+  // scripts/diagnostic/write-report-preserve-724.ts measured it: a summary-less
+  // write over the captured 2026-08-31 row read NULL before this clause and 124
+  // after.
   summaryText?: string | null;
 }): Promise<void> {
   const db = getDb();
@@ -1779,7 +1791,7 @@ export async function writeReport(report: {
             laws_count = excluded.laws_count,
             intro_count = excluded.intro_count,
             moves_count = excluded.moves_count,
-            summary_text = excluded.summary_text`,
+            summary_text = COALESCE(excluded.summary_text, reports.summary_text)`,
     args: [
       report.slug,
       report.weekStart,

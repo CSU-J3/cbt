@@ -70,9 +70,11 @@ async function handle(request: Request) {
     //
     // A REFUSAL STORES NOTHING AND IS NOT RETRIED HERE. generateWeekSummary
     // already spends its one corrective retry internally; looping past that
-    // would burn the cron's budget arguing with the model. The week simply has
-    // no summary, and the dashboard falls back to the last week that does —
-    // under that week's own label, which is what keeps a stale line honest.
+    // would burn the cron's budget arguing with the model. A week that never had
+    // a summary simply has none, and the dashboard falls back to the last week
+    // that does — under that week's own label, which is what keeps a stale line
+    // honest. On a re-run over a week that already has one, the NULL written
+    // below keeps it (writeReport's COALESCE, HO 724).
     let summaryText: string | null = null;
     let summaryNote: string | null = null;
     try {
