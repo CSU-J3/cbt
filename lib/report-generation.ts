@@ -1772,7 +1772,9 @@ export async function writeReport(report: {
   // (clearing is manual SQL). Refused versus never attempted is not this
   // column's to say. For ticks from 2026-09-07 on, cron_runs says it
   // (payload.report.summary = {chars} when stored, a chronicErr beginning
-  // "week-summary" when not); a NULL on an older row is readable as neither.
+  // "week-summary" when not); in the cron_runs row the handler payload is
+  // nested, so the path is $.payload.report.summary, and chronicErr lands in
+  // error_message. A NULL on an older row is readable as neither.
   // scripts/diagnostic/write-report-preserve-724.ts measured it: a summary-less
   // write over the captured 2026-08-31 row read NULL before this clause and 124
   // after.
