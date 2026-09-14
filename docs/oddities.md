@@ -4382,3 +4382,23 @@ So the two shapes of the defect are caught by different assertions. `closest()` 
 ## A Tailwind arbitrary-value class cannot be addressed by its escaped selector through a tsx `page.evaluate` (HO 721, Sep 2026)
 
 HO 721's STEP 0 had to count `/vote`'s position lists, whose class is Tailwind's arbitrary `columns-[240px]`, and the handoff's selector `document.querySelectorAll("section > ul.columns-\\[240px\\]")`, written in a `.ts` file run by `npx tsx` and passed to Playwright's `page.evaluate`, threw `SyntaxError: Failed to execute 'querySelectorAll' on 'Document': 'section > ul.columns-[240px]' is not a valid selector` — the error quotes the selector with its backslashes gone, and which layer dropped them was not isolated. The attribute form `section > ul[class~="columns-[240px]"]` needs no escaping, and it read 3, the same set as every `[class*="columns-["]` element on the page. **`[class~="…"]` is the layout audit's selector for bracketed Tailwind classes from here** (HO 721's leg B anchor is the first use), because the same failure waits on every arbitrary-value class the audit ever has to address.
+
+---
+
+## A route-slug character class written from memory, not from the list: two readers could not see `home-stage-other_chamber` (HO 723, Sep 2026)
+
+The HO 723 handoff's parser matched route slugs with `\[([a-z0-9-]+)\]`, the same class as the two `gh`-log readers before it (`scripts/diagnostic/members-500-correlation-593.ts:85` and `:92`). One of the 37 routes is `home-stage-other_chamber` (`e2e/routes.ts:36`, the real stage value, so the underscore is correct). STEP 0's by-hand read of the 09-14 daily found **37 route lines but 36 distinct slugs**. As written, the instrument would have read every complete run as 36 / 37, **PARTIAL**, and turned the whole week into five gaps.
+
+It also changed a figure already on the record. The 2026-09-03 daily `33790157186` was recorded with 8 fire-lines. Under the old class its log reads exactly **8**; under `[a-z0-9_-]+` it reads **9**, and the ninth is a `#418` on `home-stage-other_chamber`, hit 2. Any count read through `members-500-correlation-593.ts` also excluded that route. Which prose claims rest on that script was not re-derived here.
+
+**The fix is an assertion, not a better guess at the class:** the ledger's self-test checks that every `ROUTES` slug matches the slug pattern in full before it parses anything, then parses a verbatim `[home-stage-other_chamber] hit1=` line. Swapping the old class back in turns both assertions red (exit 2). **A pattern that selects items from a list must be tested against the list.** The failure looks like a shorter list, not an error.
+
+---
+
+## The daily crawl's delivery lag was three times the figure the handoff cited, and the close read's date rests on it (HO 723, Sep 2026)
+
+The HO 723 handoff took `backlog:59`'s "roughly 85 minutes late" as ground truth for when the `0 15 * * *` `e2e-prod.yml` schedule delivers, and predicted five post-FF dailies "as of a read on 2026-09-14 after ~16:30Z". The ledger read the actual `createdAt` of each: **18:10Z · 18:12Z · 17:41Z · 17:57Z · 19:44Z** for 2026-09-10 through 09-14, a lag of **2h41m–4h44m**, and **3h20m** on 09-09. The 09-14 daily did not exist at 16:30Z. Per the HO 723 STEP 0 ruling, the 85-minute figure was two July samples, and `:59` is struck history, so it is not touched.
+
+What rests on it: the seventh daily (2026-09-16) may deliver near 20:00Z, so the close read is dated **on or after 2026-09-17**, not the evening of the 16th. A run's `date` in the ledger is its `createdAt` UTC date. If the lag ever reaches 9h, a daily would land on the next UTC date, and the per-date gap logic would name a gap that did not happen. That is 4h beyond the worst lag measured, so it is filed here, not built.
+
+A smaller mirror of `backlog:61`'s method note turned up in the same harvest. Production run `34660122285` (2026-09-12, `489c414`) **concluded `failure` with every `pageErr` reading at 0**. It failed on `narrow.spec.ts` doc-scroll @390 on the `/` family, not on the crawl. Conclusions under-report fires (retries pass them) and over-report them (another spec reds the run): conclusions are not a reading in either direction.

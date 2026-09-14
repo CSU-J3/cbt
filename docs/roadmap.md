@@ -2016,3 +2016,72 @@ It is monotonic, and neither bar wraps or overflows at any width. The handoff es
 **HO 721's post-FF readings, carried here because its block is history.** `verify:deploy` confirmed `1813c9e` live on five consecutive reads (first match at 21s). The Production `e2e-prod.yml` run `34792884501` (`deployment_status`, a sample, not counted toward the `backlog:51` week) **succeeded, 130 passed**. `vote` smoke read `hit1=200 … pageErr=0 | hit2=200 … pageErr=0`, and across the run all 75 `pageErr=` readings (37 routes × 2 hits plus `[stage-click]`) are 0. `vote` narrow read `430/430 over=0` and `390/390 over=0`. **The `vote` OFF-pass lines the FF go asked for do not exist:** `e2e/odds-off.spec.ts` crawls only home, electoral, electoral-2028, bills, race and welcome, all 12 OFF lines at `markers=0 … err=0 hydration=0`, with ON controls `visibleMarkers=37 kpMarkers=12` and `coverageVisible=1`. The route carries no market element to gate: HO 721's branch DOM capture of `/vote/senate-119-2-207` (2560, local production build, odds in their default ON state) holds **0** `data-market` attributes, the marker the OFF pass counts, and neither `app/vote/` nor `VotePositionList.tsx` references one.
 
 **Docs (HO 722):** this block · **backlog 3+/1−**. The single deletion is the rewritten `:558`, struck on line (x) with row 6 as the pre-state and its three readings resolved: (1) decided, (2) not reached, (3) confirmed. The additions are that line, register line **(x)** after (ix), and **(iv‴)** directly after (iv″). · No oddities entry. · No SKILL. The instrument and its log are in `docs/handoffs/722-artifacts/` (repo-ignored). **OPEN LOOPS reconciled: 262 live / 258 struck at open, 261 / 259 at close** — one strike. **Also notes now run through HO 722.**
+
+**Also (HO 723), the `pageErr` week is harvested into a committed ledger: five of seven dailies read ZERO, and the close read is dated 2026-09-17.** Two commits, kinds pure: `chore` (the instrument, `607f322`) and `docs`. No product code, no CSS, no DB, no prod request; the instrument reads GitHub's Actions API through `gh`, plus `git show`. SKILL untouched. The pointer is 723 by plain arithmetic: pointer 722, highest HO in commit subjects 722, `main` the only remote head at `a18fffc`.
+
+**What it executes.** `backlog:61` (the `#418` intermittent, `:60` at the base SHA) and `:97` (*Adopt Next 16.3.4*, `:96`) both close on a week of dailies, and nothing in the tree counted one. This HO cannot close either, because the seventh daily is 2026-09-16's. It turns the week from a hand tally into a reading, lands the mid-week reading on both lines, and writes down the close read. The STEP 0 ruling (`docs/handoffs/723-step0-ruling.md`) accepted all eight rows and all seven corrections, and added one of its own.
+
+**Corrections at STEP 0, and the ruling's own:**
+- The handoff's "commit time" for `29026da` was the author date (21:14:15Z); the committer date is 22:05:09Z, and the Preview at 22:05:48Z was the review-ref push.
+- The slug class `[a-z0-9-]+` cannot match `home-stage-other_chamber`, so every complete run would have read PARTIAL; it is now `[a-z0-9_-]+`, asserted against `ROUTES` (oddities).
+- The detail capture stopped at the first `]`, inside React's `args[]=`; it now runs to the `  |  ` separator (`smoke.spec.ts:799`) and splits on ` ¦ `.
+- A line count can hide two hits; three counts now print.
+- `:97`'s *mutation channel at zero* cannot be read literally (a quiet hit prints `mut kept=7(…)`); it resolves to *no `fire-t=`*.
+- Logs are 79–111 KB, not 1–3 MB.
+- The handoff file was misfiled in `docs/design/`; it was moved with `mv` to `docs/handoffs/`.
+- **The ruling's own:** `ROUTES` went 36 → 37 inside the window (`6471b02`, HO 710), so a HEAD floor of 37 would have read the 09-10 daily and the first seven Production runs as PARTIAL. The floor is read per run.
+
+**The six conventions, one sentence each.**
+- (1) Counts come from per-route lines, never conclusions, because `--retries=2` (`e2e-prod.yml:246`) lets a firing run conclude `success`. The headline is fire-hits, beside fire-lines (HO 687's unit) and fire-messages.
+- (2) A missing reading is an absence: `gh` is called serially, and a `gh` error is recorded as `log unavailable`, never skipped (`members-500-correlation-593.ts:9-13`, `pageerr-hydration-589.ts:123`).
+- (3) `#418` (`PAGEERR_MARK`, `smoke.spec.ts:395`) is classified per message, and every other `pageErr` is its own finding. Each hit's message count must equal its `pageErr=N`, or the run prints `COUNT-MISMATCH`.
+- (4) The dumps artifact must agree with the fire count (`e2e-prod.yml:278-284`, `ARTIFACT-MISMATCH`). So must the `mut` line's `fire-t=` (`:213`, `:343-345`, `MUT-MISMATCH`), wherever that line exists.
+- (5) Only `schedule` runs count; Production `deployment_status` runs are samples, and Preview runs skip `smoke` (`e2e-prod.yml:120-123`).
+- (6) A gap does not reset and a fire does (HO 707): the count is complete ZERO dailies since the last FIRE.
+
+The completeness floor is `ROUTES.length` from `git show <headSha>:e2e/routes.ts`, and an unreadable file reads `NO-FLOOR`.
+
+**The FF instant is `34417992312`**, the Production run on `29026da`, created 2026-09-09T23:40:51Z. `--since` takes it exactly, so that run is the first sample.
+
+**The controls, read before any zero.** The self-test parses eleven assertions off verbatim log lines: the daily `34888719223`, Production `34176026988` (a post-702 fire with `fire-t=`), control `33794231177`, and Production `30855057273` (a "Server Components render" and a `#418` on one detail line). It also shows that `COUNT-MISMATCH`, `MUT-MISMATCH` and `ARTIFACT-MISMATCH` can each fire; GREEN.
+
+| control | event · created | sha | routes / floor | fire hits · lines · msgs | artifacts | verdict |
+|---|---|---|---|---|---|---|
+| `33794231177` | dispatch · 2026-09-03 19:04Z | `1fee081` | 36 / NO-FLOOR | **2** · 2 · 2 | `pageerr-dumps` | **FIRE** |
+| `33790157186` | schedule · 2026-09-03 18:22Z | `a504c10` | 36 / NO-FLOOR | **10** · 9 · 10 | `playwright-report` | **FIRE** ARTIFACT-MISMATCH |
+
+Both floors are NO-FLOOR because `e2e/routes.ts` was created at HO 694 (`d189ad4`), after both SHAs. A FIRE outranks NO-FLOOR and PARTIAL, because a fire in an incomplete crawl is still a fire. The second control's mismatch holds by construction: `a504c10` predates the dump upload (`1fee081`). Its 9 fire-lines are one more than the record's 8, and the ninth is on `home-stage-other_chamber`.
+
+**The ledger since the FF: 54 runs.** No findings; harvest exit 0. `--from-dir` re-parses the saved logs with no API call and reproduces `ledger.md` byte for byte, apart from its timestamp line.
+
+| daily | run | sha | routes / floor | readings | stage | fire hits · lines · msgs | fire-t (hits compared) | verdict |
+|---|---|---|---|---|---|---|---|---|
+| 2026-09-10 18:10Z | `34512726049` | `918b52b` | 36 / 36 | 73 / 73 | 1 | 0 · 0 · 0 | 0 (72) | **ZERO** |
+| 2026-09-11 18:12Z | `34631970088` | `e714a53` | 37 / 37 | 75 / 75 | 1 | 0 · 0 · 0 | 0 (74) | **ZERO** |
+| 2026-09-12 17:41Z | `34708981246` | `57b71b8` | 37 / 37 | 75 / 75 | 1 | 0 · 0 · 0 | 0 (74) | **ZERO** |
+| 2026-09-13 17:57Z | `34773118028` | `ed2dd54` | 37 / 37 | 75 / 75 | 1 | 0 · 0 · 0 | 0 (74) | **ZERO** |
+| 2026-09-14 19:44Z | `34888719223` | `a18fffc` | 37 / 37 | 75 / 75 | 1 | 0 · 0 · 0 | 0 (74) | **ZERO** |
+
+**Samples, not counted.** 20 Production `deployment_status` runs, all ZERO: `34417992312` · `34423752966` · `34424485986` · `34499096485` · `34531592707` (these five at 36 / 73, before `6471b02`) · `34553810293` · `34643671900` · `34654383642` · `34656788523` · `34660122285` · `34662685661` · `34715504769` · `34718394663` · `34719139521` · `34735924598` · `34779052930` · `34782602188` · `34790647413` · `34792884501` · `34793867023`. 29 Preview runs read SKIPPED. `34792884501` reproduces the HO 722 block's 75 readings at 0. `34660122285` concluded `failure` with every reading at 0; it failed on narrow doc-scroll @390, not on the crawl (oddities). Every readings column equals `2 × floor + 1`, so no smoke crawl in the window retried.
+
+**The spot checks the gates asked for.** The 09-10 daily's `918b52b` does not contain `6471b02` (`merge-base --is-ancestor` exit 1), and its row reads 36 / 36, 73, ZERO. STEP 0 row 7's by-hand read of `34888719223` (37 lines, 37 distinct once the class is fixed, 1 stage click, 0 nonzero, 75 readings) is the instrument's row for that run.
+
+**The tally: 5 of 7 complete ZERO dailies since the FF, no gaps, no FIRE; the seventh is due 2026-09-16.**
+
+**The lag reading.** Post-FF dailies delivered 2h41m–4h44m after the 15:00Z slot, and 3h20m on 09-09, against `backlog:59`'s ~85 min (oddities). So the 09-16 daily may arrive near 20:00Z.
+
+**The close read, dated.** One re-run of `npx tsx scripts/diagnostic/pageerr-ledger-723.ts --since 2026-09-09T23:40:51Z --control 33794231177 --control 33790157186 --out docs/handoffs/723-artifacts`, on or after **2026-09-17**. Its three outcomes:
+- Seven complete ZERO dailies strike `:61` and `:97`, and the same HO removes `cbt-705-n15` and `cbt-705-n16`.
+- A FIRE resets the count and reopens HO 705's report path with the per-hit line.
+- A gap is named and does not reset.
+
+The primary control's artifact expires 2026-09-17T19:07:32Z, so at that read its log carries it. The obligation is its own OPEN LOOPS line (`backlog:14`).
+
+**Departures named.**
+- The self-test lines are copied from run logs, not from `:61`'s prose and the HO 722 block. The record's prose carries no verbatim non-`#418` detail line, so one was found in run `30855057273`.
+- Beyond the handoff's four assertions, the self-test proves each mismatch flag can fire.
+- A run whose route lines carry no `mut` field (before HO 702) is not compared, which is why the pre-702 control reads `0 (0)` and not `MUT-MISMATCH`.
+- An OTHER-ERR daily with the `#418` channel at zero counts toward the week, per convention 3. A nonzero unattributed `[stage-click]` counts as a gap, because it cannot prove the channel zero.
+- A date with no `schedule` run at all is named as a gap.
+
+**Docs (HO 723):** this block · **backlog 3+/2−**. The two deletions are the rewritten `:61` and `:97`, each annotated, not struck, under a dated header; the third addition is the new OPEN LOOPS line at `:14`. · **oddities 2 entries** (the slug class; the delivery lag, with the failure-concluded ZERO sample). · No SKILL: nothing there goes false, and no widening was volunteered. The harvested logs, metadata and ledger are in `docs/handoffs/723-artifacts/` (repo-ignored). **OPEN LOOPS reconciled: 261 live / 259 struck at open, 262 / 259 at close**, one line added and none struck. **Also notes now run through HO 723.**
