@@ -90,7 +90,9 @@ export function VotePositionList({ positions }: { positions: VoteMemberPosition[
                 near-empty final column. So no cap gets this list to zero, 240
                 takes the improvement where it is real, and the residual is
                 filed as decomposed rather than chased. 0 names wrap at 240. */}
-            <ul className="columns-[240px] gap-x-4 px-[14px] py-2">
+            {/* HO 721 — data-col-flow: that gap is the column gutter and the last column's rag (C8's remedy), so the container counts on M1c,
+                never M1; the li rows (2 children, 263px at 2560) are not candidates and would stay scored if they were. Registry (10), docs/backlog.md. */}
+            <ul className="columns-[240px] gap-x-4 px-[14px] py-2" data-col-flow>
               {list.map((p) => (
                 <MemberItem key={p.bioguideId} p={p} />
               ))}

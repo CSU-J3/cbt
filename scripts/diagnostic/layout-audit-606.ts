@@ -1652,6 +1652,45 @@ async function main() {
   }
   await e28.close();
 
+  // HO 721 — the second M1c live anchor, same form: /vote's position lists. The
+  // count is self-consistent against the served page (one marked ul per rendered
+  // position group — 3 on senate-119-2-207, Yea · Nay · Not Voting), so a vote
+  // with two or four positions does not break it. The lists are read with
+  // [class~="columns-[240px]"], never the escaped class selector: the backslashes
+  // in `ul.columns-\[240px\]` did not survive a tsx page.evaluate (HO 721 STEP 0;
+  // oddities). Its li rows are two-child at 263px (2560, STEP 0), so "rows inside stay scored"
+  // reads 0 here — printed beside the electoral half's non-zero as the contrast.
+  const vote = await openMeasured(`/vote/${VOTE}`, 2);
+  const voteLists = await vote.page.evaluate(
+    () => document.querySelectorAll('section > ul[class~="columns-[240px]"]').length,
+  );
+  const voteKeys = vote.data.m1.colFlowMarkedKeys;
+  const voteContainerScored = vote.data.m1.rows.filter((r) =>
+    /^ul\.columns-\[240px\]/.test(r.selectorPath.split(" > ").pop() ?? ""),
+  ).length;
+  const voteInnerCandidates = vote.data.m1.rows.filter((r) => /ul\.columns-\[240px\][^ ]* > /.test(r.selectorPath));
+  const voteOk =
+    voteLists > 0 &&
+    voteKeys.length === voteLists &&
+    voteKeys.every((k) => k === "ul.columns-[240px]") &&
+    voteContainerScored === 0;
+  console.log(
+    `  live /vote/${VOTE} [data-col-flow] reaches : ${voteKeys.length ? voteKeys.join(", ") : "(nothing)"}  ` +
+      `(must be ul.columns-[240px] × position-list count ${voteLists}; containers scored as M1: ${voteContainerScored}, must be 0)`,
+  );
+  console.log(
+    `  live /vote/${VOTE} M1c (observed, not a gate): ${vote.data.m1.colFlowExempt}  ` +
+      `— rows inside stay scored: ${voteInnerCandidates.length} candidate(s)` +
+      ` (electoral half above: ${e28InnerCandidates.length} candidate(s), worst ${
+        e28InnerCandidates.length ? Math.max(...e28InnerCandidates.map((r) => r.interiorGapPx)) : 0
+      }px)`,
+  );
+  if (!voteOk) {
+    console.log("      ** the vote position lists' column-flow marking moved, spread, or leaked into M1. **");
+    falsificationOk = false;
+  }
+  await vote.close();
+
   // ── LEG C — the fixture. Both directions. ----------------------------------
   console.log("");
   console.log("LEG C — the fixture (scripts/diagnostic/fixtures/layout-legc.html, loaded over file://).");
