@@ -2085,3 +2085,58 @@ The primary control's artifact expires 2026-09-17T19:07:32Z, so at that read its
 - A date with no `schedule` run at all is named as a gap.
 
 **Docs (HO 723):** this block · **backlog 3+/2−**. The two deletions are the rewritten `:61` and `:97`, each annotated, not struck, under a dated header; the third addition is the new OPEN LOOPS line at `:14`. · **oddities 2 entries** (the slug class; the delivery lag, with the failure-concluded ZERO sample). · No SKILL: nothing there goes false, and no widening was volunteered. The harvested logs, metadata and ledger are in `docs/handoffs/723-artifacts/` (repo-ignored). **OPEN LOOPS reconciled: 261 live / 259 struck at open, 262 / 259 at close**, one line added and none struck. **Also notes now run through HO 723.**
+
+**Also (HO 724), `writeReport` keeps a stored week summary when the incoming one is NULL: `COALESCE` in the upsert, proven on a captured row through a local libSQL file, and the NULL semantics reconciled in the five places that stated them.** Five commits, kinds pure: `chore` (the probe, landed and run blind, `2ea1b2f`) · `fix` (`cbfac31`) · `fix` (`7b991f8`, the FF go's correction: the param comment now names the `cron_runs` **row** path `$.payload.report.summary`, since the handler payload is nested in the envelope, and says `chronicErr` lands in `error_message`; a `json_extract` on `$.report.summary` reads NULL on every row and passes for *never attempted*) · `docs(skill)` alone behind the self-mod guard (`07408bd`, replayed from the approved `e1e32bd` with `git diff e1e32bd HEAD -- SKILL.md` empty) · `docs`. No render change, no prod write, and `/api/sync` and `npm run report` were never run against prod. The pointer is 724 by plain arithmetic: pointer 723, highest HO in commit subjects 723, `main` the only remote head at `5dcdf9e`.
+
+**What it executes.** `backlog:17` (filed as `:16` at the HO 718 close-out): `writeReport`'s upsert set `summary_text = excluded.summary_text`, so a CLI re-run of a summarized week nulled it. Two of the three callers carry no summary: `scripts/generate-report.ts` and the `/api/sync` catch-up. The third, the cron, binds NULL on a refusal. The defect's only visible shape is a stale line, because `getDashboardReportSnapshot` looks the newest summary up separately (SKILL `:1690`). That is why nothing flagged it.
+
+**The shape was ruled, not asked.** The line offered two remedies:
+- *Every caller carrying a summary* would put a Gemini call inside `/api/sync`'s tick and a key dependency into the CLI. It would still leave the cron's own refusal path writing NULL over a re-triggered week.
+- `COALESCE(excluded.summary_text, reports.summary_text)` closes all three callers with one clause. A fresh summary still wins, and a row that never had one stays NULL.
+
+**What NULL meant, and what the five places now say.** Before: *refused*. After: **no generation has stored a summary for this week**, and a stored summary survives a later summary-less or refused write.
+- The `writeReport` param comment said "a real state (the grounding gate or the sentence cap refused the generation), not 'not yet populated'". Now it states the new meaning, the clause, that clearing is manual SQL, and leg A's two readings.
+- The `writeReport` header gains *except `summary_text`, which is kept when the caller carries none*.
+- `scripts/migrate.ts`'s column note said "never 'not yet backfilled'". That was already false for a catch-up row, and is now dropped.
+- `app/api/cron/weekly-report/route.ts`'s refusal paragraph (added by the STEP 0 ruling): a week that *never had* a summary has none, and a re-run keeps an existing one.
+- `lib/week-summary.ts`'s degrade clause (found by the ruling's enumeration grep): "a failed generation degrades to the previous week's row" becomes true only for a week with no stored summary, and now says so.
+
+The backfill header's "that week keeps a NULL summary" stays true, since it writes only on `gen.ok`; so does SKILL `:1690`. **Every other `refus` / `summary_text` hit in the five files was read and stays true:** the cron's `week-summary refused after …` note and its payload comment, the backfill's counters and SQL, `generateWeekSummary`'s "return a storable summary or refuse", and `report-generation.ts`'s incomplete-week refusal. The case-insensitive grep matched `refus` 17 times; the `NULL` hits in `migrate.ts` are DDL and other columns.
+
+**The discriminator is `cron_runs`, and only from 2026-09-07.** STEP 0 row 6, read-only:
+- `2026-09-14T09:30:04Z` success 19,432ms `{"chars":200}`
+- `2026-09-07T09:30:04Z` success 15,043ms `{"chars":124}`
+- `2026-08-31T09:30:20Z` success 10,595ms, `summary=null`, `error_message=null`
+
+The 08-31 tick predates HO 689 (`4d4f478`, 2026-09-03), so it carries neither a `summary` nor a `chronicErr`; `chronicErr` lands in `cron_runs.error_message` (`lib/cron-log.ts:76`). Rows before 09-07 were written by `backfill:week-summaries`, whose refusals reach only its console, and whose default `--weeks 3` means a row may never have been attempted. So a pre-09-07 NULL reads as neither refused nor never attempted. **The example the old clause endangered:** `2026-08-24` holds a 171-char summary with the 08-31 tick's `created_at` (the backfill's signature, since its `UPDATE` never touches `created_at`), and any CLI re-run of that week would have nulled it.
+
+**The probe, `scripts/diagnostic/write-report-preserve-724.ts --capture 2026-08-31`, one sentence per step.**
+1. `.env` is loaded into locals for a prod client that only accepts SELECT; `TURSO_DATABASE_URL` is then overwritten with `file:scripts/diagnostic/scratch/write-report-724.db` and the token deleted before `lib/db` is imported.
+2. A fresh ten-column `reports` table is created through `getDb()` itself and counts 0, which proves the lib's client is the file.
+3. The prod row is captured verbatim: local n 124 = prod n 124, `content_md` 5,711 chars.
+4. Leg A writes with no `summaryText`.
+5. Leg B writes a fresh summary, which must win.
+6. Leg C writes `2099-01-05` with the summary omitted, then with explicit null; both must read NULL.
+7. Leg D re-reads prod after the capture and after every leg.
+8. The exit code comes from A's row having updated plus B, C and D, and is decided before cleanup; `PRESERVES=` prints last.
+
+**The two readings.**
+- **At `2ea1b2f`:** leg A summary **NULL**, `content_md` = the leg's string, `created_at` moved, `changes()` 1. B, C and D ok, prod 124 ×4, exit 0: **`PRESERVES=no`**.
+- **At `cbfac31`:** leg A summary **124**, kept byte for byte, with the same row update. B, C and D ok, prod 124 ×4, exit 0: **`PRESERVES=yes`**.
+
+The prod row-5 `SELECT` (`2026-09-07` 200 · `2026-08-31` 124 · `2026-08-24` 171 · `2026-08-17` 116 · `2026-08-10` 238 · `2026-08-03` NULL) read identically at STEP 0 and after the fix. `git grep excluded.summary_text` went from the one clause at `:1782` to the `COALESCE` clause at `:1796` (`:1794` at `cbfac31`, moved by `7b991f8`'s two comment lines), plus two comments that quote it (the new param comment and the probe's header).
+
+**Departures named.**
+- Five comment sites, not three. `route.ts` was ruled in at STEP 0; `lib/week-summary.ts` came from the enumeration grep and rides the `fix` commit as a comment made false by the same change, in a different file.
+- The ruling's grep was run case-insensitive. The bare case-sensitive `refus` misses `route.ts:71`'s `A REFUSAL STORES NOTHING`, the very sentence it was meant to find.
+- The probe prints `SELECT changes()` where the handoff asked for `rowsAffected`, because `writeReport` returns `void`.
+- Leg A's row-updated check counts toward the exit code, because a leg A that silently updated nothing would print a fake `PRESERVES=yes`.
+- Cleanup prints before `PRESERVES=`, so the verdict stays the last line (the ruling's § 2 and the handoff's step 8 both hold).
+- STEP 0 row 7 ran from a scratch file, not `tsx -e` (oddities).
+- The STEP 0 paste was swallowed in relay and re-delivered as `docs/handoffs/724-step0-paste.md`.
+
+**Two machine findings (oddities).** An `npx tsx -e` script that begins on a new line runs nothing and exits 0. An `@libsql/client` 0.14 `file:` database stays `EPERM`-locked after `close()`: 154–289ms on a one-statement database, and **7,014 / 7,806 / 7,662ms** in the probe. That leaves the 10s cap ~2.2s of headroom.
+
+**HO 723's post-FF reading, carried here because its block is history.** `verify:deploy` confirmed `5dcdf9e` live on five consecutive reads (first match at 31s). Production `e2e-prod.yml` run `34896943834` on `5dcdf9e` (`deployment_status`, a sample for the 09-17 ledger re-run, not a daily) concluded **`success`**, with 37 route lines and all 75 `pageErr=` readings 0. Preview `34896934850` skipped `smoke`. The HO 723 week count stands at 5 of 7, with the close read still dated 2026-09-17 (`backlog:14`).
+
+**Docs (HO 724):** this block · **backlog 1+/1−**: the single deletion is `:17` rewritten as struck with its close note. · **oddities 1 entry** (the `tsx -e` and file-lock findings, as the ruling asked). · **SKILL 2+/2−** in its own commit: the `/api/cron/weekly-report` entry gains the `COALESCE` sentence and its before/after reading, and the manual-recovery line gains *a re-run keeps the week's stored summary*. `:1690` is unchanged. **OPEN LOOPS reconciled: 262 live / 259 struck at open, 261 / 260 at close**, one strike. No WATCH is filed for the Monday 2026-09-21 tick, because the probe is the proof. **Also notes now run through HO 724.**

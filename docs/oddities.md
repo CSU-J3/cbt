@@ -4402,3 +4402,23 @@ The HO 723 handoff took `backlog:59`'s "roughly 85 minutes late" as ground truth
 What rests on it: the seventh daily (2026-09-16) may deliver near 20:00Z, so the close read is dated **on or after 2026-09-17**, not the evening of the 16th. A run's `date` in the ledger is its `createdAt` UTC date. If the lag ever reaches 9h, a daily would land on the next UTC date, and the per-date gap logic would name a gap that did not happen. That is 4h beyond the worst lag measured, so it is filed here, not built.
 
 A smaller mirror of `backlog:61`'s method note turned up in the same harvest. Production run `34660122285` (2026-09-12, `489c414`) **concluded `failure` with every `pageErr` reading at 0**. It failed on `narrow.spec.ts` doc-scroll @390 on the `/` family, not on the crawl. Conclusions under-report fires (retries pass them) and over-report them (another spec reds the run): conclusions are not a reading in either direction.
+
+---
+
+## Two things a probe on the Windows box cannot assume: an inline `tsx -e` script that runs, and a `file:` database it can delete (HO 724, Sep 2026)
+
+**`npx tsx -e` with a script that begins on a new line executes nothing and exits 0.** HO 724's STEP 0 row 7 was written as `npx tsx -e` with a multi-line script that sets `TURSO_DATABASE_URL` to a `file:` URL, imports `lib/db`, and prints a count first. In Git Bash on the box it printed **nothing** and exited 0. Bisected:
+- `npx tsx -e 'console.log("sync-line")'` prints.
+- A one-line async IIFE prints.
+- A one-line `import("./lib/db").then(…)` prints `db function`.
+- The same code with the script starting on a new line prints nothing: not a leading `console.log("start")`, and a `process.on("exit")` handler inside it never fires.
+
+The script is never run. The likely mechanism is `npx` resolving through `npx.cmd`/`cmd.exe`, which ends an argument at its first newline, but it is **unconfirmed**. The row had anticipated a silent run ("the first line is the number, never a `tail`"), and that is what caught it: an exit-0 with no number is not a reading. **Rule: a multi-line probe goes in a file** (`scripts/diagnostic/scratch/` is repo-ignored), never `-e`.
+
+**An `@libsql/client` 0.14 `file:` database is still locked after `db.close()` returns.**
+- `rmSync` while the client is open is `EPERM`; right after `close()` (`client.closed === true`) it is still `EPERM`, and so is 200ms later.
+- A 25ms polling loop released after **154 / 161 / 289ms** over three runs, on a database that had seen one `CREATE TABLE`.
+- A fresh process deletes a leftover file without trouble.
+- The HO 724 probe, which opens a remote client beside the local one and runs about twenty statements, released after **7,014 / 7,806 / 7,662ms**: an order of magnitude longer, for reasons not isolated here.
+
+So the probe's teardown is a bounded retry (100ms polls, capped at 10s) that prints `cleanup: removed after <n> ms` or `cleanup: file left behind after 10 s (EPERM)`. The exit code is computed before cleanup runs, so a lock cannot change a verdict. **The 10s cap has ~2.2s of headroom at the worst measured release.** A leftover is harmless (step 2 of the next run removes it), which is why the cap was not raised.
