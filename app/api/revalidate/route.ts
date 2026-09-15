@@ -35,6 +35,17 @@ const ALLOWED_TAGS = new Set([
   // HO 437: the /lobbying surface (getLobbyingRollup + getRecentFilings). Flushed
   // by the LDA cron after it recomputes the rollup blob, and by a manual backfill.
   "lda",
+  // HO 713 → 726: the vote surfaces (getAbsenceWatch, the member vote stats, the
+  // participation strip, getRecentVotes; 17 readers). Flushed by /api/sync-votes when
+  // a chamber inserted and by the amendments cron on changed Senate materialisation or
+  // inserted House links; this entry is the manual path after `npm run sync:votes` or
+  // `npm run sync:career-votes`.
+  "votes",
+  // HO 717 → 726: the committee-meetings readers (getUpcomingMeetings, getRecentMeetings,
+  // getMeetingsByCommittee, getMeetingsForBill, the weekly band's hearings; 7 readers).
+  // Flushed by /api/cron/committees every 12 h; this entry is the manual path after a
+  // reader change or `npm run sync:meetings`.
+  "meetings",
 ]);
 
 export async function POST(request: Request) {
