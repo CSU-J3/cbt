@@ -2140,3 +2140,46 @@ The prod row-5 `SELECT` (`2026-09-07` 200 · `2026-08-31` 124 · `2026-08-24` 17
 **HO 723's post-FF reading, carried here because its block is history.** `verify:deploy` confirmed `5dcdf9e` live on five consecutive reads (first match at 31s). Production `e2e-prod.yml` run `34896943834` on `5dcdf9e` (`deployment_status`, a sample for the 09-17 ledger re-run, not a daily) concluded **`success`**, with 37 route lines and all 75 `pageErr=` readings 0. Preview `34896934850` skipped `smoke`. The HO 723 week count stands at 5 of 7, with the close read still dated 2026-09-17 (`backlog:14`).
 
 **Docs (HO 724):** this block · **backlog 1+/1−**: the single deletion is `:17` rewritten as struck with its close note. · **oddities 1 entry** (the `tsx -e` and file-lock findings, as the ruling asked). · **SKILL 2+/2−** in its own commit: the `/api/cron/weekly-report` entry gains the `COALESCE` sentence and its before/after reading, and the manual-recovery line gains *a re-run keeps the week's stored summary*. `:1690` is unchanged. **OPEN LOOPS reconciled: 262 live / 259 struck at open, 261 / 260 at close**, one strike. No WATCH is filed for the Monday 2026-09-21 tick, because the probe is the proof. **Also notes now run through HO 724.**
+
+**Also (HO 725), the layout audit's burn ledger counts every server load it makes: a `--route` run reads `12 = legs 10 (A 4 · B 6) + crawl 2 + narrow 0` where it read 4, and the RSC prefetches its settle windows fire are filed as their own line.** Three commits, kinds pure: `chore` (`5834bc2`, the instrument) · `chore` (`575e769`, the FF go's correction: the `FALSIFICATION: FAIL` message computes the loads it saves) · `docs`. No product code, no CSS, no SKILL. The only DB access was the pages' own reads of prod Turso through a local production build. The pointer is 725 by plain arithmetic: pointer 724, highest HO in commit subjects 724, `main` the only remote head at `1a08921`.
+
+**What changed.** `openMeasured` and the narrow ladder increment a phased counter (`loads`: `legA` · `legB` · `crawl` · `narrow`) **before** each `page.goto`, so a goto that times out still counts as the request it made. The crawl's `pageLoads += 2`, its throw branch's guessed `+= 1`, and the ladder's `+= 1` are gone. So is the ledger's constant `+ 2`, which was the one 2-hit falsification leg HO 606 had; HO 615, 719 and 721 grew the legs to five 2-hit calls. The ledger prints the sum and its parts, then `legs N (counted) / M (defined)`. The defined count is `(LEG_A.length + LEG_B_ANCHORS) × LEG_HITS`, from the leg definitions rather than the gotos, and a disagreement prints `LEG-COUNT-MISMATCH`. The planned line gains the legs term first. Leg C's fixture loads over `file://`, touches no server, and stays uncounted, with a comment saying so. The ledger's line says it counts document loads only.
+
+**STEP 0, five rows.** (1) `main` alone at `1a08921`, clean, 724 / 724 → 725, the Windows box. (2) Every anchor matched by content at its stated line. `LEG_A` 2 · `ROUTES` 27 · `SUBSET_SLUGS` 6 · `NARROW_WIDTHS` 3. Three `page.goto` sites (`openMeasured`, `openFixture`, the ladder), so no fourth counting site. (3) Build 0 · typecheck 0. (4) The pre-state `--route vote`: `FALSIFICATION: PASS`, leg C 22 of 22, `page loads (actual): 4   (incl. the 2-hit falsification leg)`. (5) An independent count: a logging proxy on `:3001` in front of `next start -p 3000`, with the unmodified script pointed at it through `AUDIT_BASE_URL`. It logged **12** document requests (`sec-fetch-dest: document`) and **475** `?_rsc=` prefetches:
+
+| document load | prefetches after it |
+|---|---|
+| `/trades` #1 | 0 |
+| `/trades` #2 | 24 |
+| `/lobbying` #1 | 0 |
+| `/lobbying` #2 | 51 |
+| `/` #1 | 35 |
+| `/` #2 | 47 |
+| `/electoral?cycle=2028` #1 | 0 |
+| `/electoral?cycle=2028` #2 | 62 |
+| `/vote/senate-119-2-207` #1 (leg B) | 0 |
+| `/vote/senate-119-2-207` #2 (leg B) | 128 |
+| `/vote/senate-119-2-207` #1 (crawl) | 0 |
+| `/vote/senate-119-2-207` #2 (crawl) | 128 |
+
+All 12 read 200 and the `file://` load never reached the server. **The first hit of a pair fires almost none, because the second goto interrupts it.** `/`'s first hit is the exception at 35, since it took 435ms before the second goto. The 475 cover 163 unique paths, 261 of them `/members/*`.
+
+**The ruling** (`725-step0-ruling.md`) took two corrections. First, SKILL reads **1** for `page loads`, not 0: `:2678`, an unrelated sentence, so still no SKILL. Second, leg B's anchors are inline calls, so their defined count is the named literal `LEG_B_ANCHORS = 3`, with a comment saying that a fourth anchor added without touching it trips the mismatch, and that this is the guard working. It ruled the prefetches out of this HO's count: the ledger's unit is the document load, and the prefetches' cost is unmeasured. They became their own OPEN LOOPS line, with a first reading taken for free in STEP 1.
+
+**STEP 1 readings** (`5834bc2`, local production build, server PID 6712 on `:3000`, proxy PID 41376 on `:3001`, both stopped by PID after):
+- **`--route vote`:** `FALSIFICATION: PASS`, leg C 22 of 22. `page loads planned: 10 (falsification legs) + 2 (wide, 2 hits each) + 0 (narrow subset) = 12`. **`page loads (actual): 12 = legs 10 (A 4 · B 6) + crawl 2 + narrow 0`**. `legs cross-check: legs 10 (counted) / 10 (defined)`. The proxy counted **12** documents.
+- **The prefetch reading, first evidence and named as such:** 417 `?_rsc=` requests, all 200. Wire bytes **159–649, median 646**; duration **4.5–28.5 ms, median 11.1**. By path, `/members/*` n=265 median 647 B, and nothing over 649 B anywhere. The same run's documents read 10–111 KB and 15–1,464 ms. That is the shape of a static shell, not of a rendered segment, and neither reading proves or disproves a Turso read. Bytes are as delivered, with compression not separated.
+- **Mismatch control** (a scratch copy with the `/vote` leg-B anchor at 1 hit, run once and deleted): `page loads (actual): 11 = legs 9 (A 4 · B 5) + crawl 2 + narrow 0`, **`legs 9 (counted) / 10 (defined)   ** LEG-COUNT-MISMATCH **`**, proxy 11. Legs still passed.
+- **`--route home` bridge:** `FALSIFICATION: PASS`. **M1a 0 · M1b 1 · M1x 0 · M1c 0 · M2 0 · M3 3.89**, identical to the HO 721/722 reading at `1813c9e` (`audit-1813c9e-2560-home.json`). The ledger reads `12 = legs 10 (A 4 · B 6) + crawl 2 + narrow 0`, cross-check 10 / 10; the proxy logged 12 documents and 333 prefetches.
+- **The full crawl was not run.** Its planned total by the constants is 10 + 54 + 18 = 82, and its ledger is unread until the next terminal crawl.
+
+**Departures named.**
+- The counter carries `legA` and `legB`, not one `legs` integer, because the printed `(A 4 · B 6)` needs the split.
+- `LEG_HITS = 2` is a new constant used at the five leg calls and in the defined count, so the definition and the calls share one source. The crawl keeps its literal `2`.
+- `LEG_B_ANCHORS` sits at module scope beside `LEG_A`, not beside the inline anchors in `main()`. The planned line prints before the legs run, so a `const` declared at leg B would be in its temporal dead zone. The comment names the three anchors.
+- The cross-check prints on its own ledger line (`legs cross-check`), under the actual line.
+- The header's HO 725 note is a new block after HO 608's, in the header's HO-N form, not inside the `:7-12` measurement list, which describes M1.
+- **The handoff's first mismatch control could not fire.** Filtering `LEG_A` to one entry moves the defined count with it, since it derives from `LEG_A.length`, so it would read 8 / 8. The second option (one leg-B anchor at 1 hit) was used.
+- **Computed, and left as history:** the `FALSIFICATION: FAIL` message printed a literal *"80 page loads"* the tree can no longer produce (the crawl after the legs is 54 + 18 = 72, and 2 under `--route`). At `575e769` it prints `ACTIVE_ROUTES.length * 2 + narrowLoads`, the planned line's expression, and it was not re-run, because that branch is not taken on a green falsification. The header's *"80 page loads of Turso reads against a broken instrument"* and HO 608's *"~4 page loads instead of ~80"* describe why the design falsifies first and read as history; they stay, and the HO 725 header block corrects the second in place. The ledger still prints only on a run that reaches the crawl: `--falsify` and a failed falsification return before it, unchanged.
+
+**Docs (HO 725):** this block · **backlog 2+/1−**. The single deletion is the old `:16`, rewritten as struck with its close note (pre-state 4, reading 12, the proxy's 12, the mismatch line, the crawl unread). The second addition is the new OPEN LOOPS line for the settle-window prefetches: the three counts, the size/duration distribution, the ledger's document-only unit, the two candidate closes, the dashboard-only Turso read (HO 672), and `e2e/smoke.spec.ts` named as the sibling carrier against prod. · No oddities. · No SKILL. **OPEN LOOPS reconciled: 261 live / 260 struck at open, 261 / 261 at close**: one strike, one filed. **Also notes now run through HO 725.**
