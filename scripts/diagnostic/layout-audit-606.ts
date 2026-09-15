@@ -108,6 +108,24 @@
 //       scored before/after for ~4 page loads instead of ~80. Under a filter the
 //       M5 narrow ladder is SKIPPED and says so — a slice score is a wide-viewport
 //       delta, and a silently-dropped ladder would read like a clean narrow result.
+//
+// HO 725 — THE BURN LEDGER COUNTS ITS OWN GOTOS.
+//   (1) What is counted: every server document load, at the goto that makes it.
+//       `openMeasured` and the narrow ladder increment `loads` BEFORE `page.goto`,
+//       so a goto that times out still counts as the request it made. Legs A and B
+//       are counted by the phase the caller sets; the crawl and the ladder beside
+//       them. A `--route` run reads 12 = legs 10 (A 4 · B 6) + crawl 2 + narrow 0,
+//       which a logging proxy in front of `next start` counted independently as 12
+//       document requests at HO 725 STEP 0 — not the ~4 (2) above.
+//   (2) What is not: leg C's fixture loads over file:// and touches no server, and
+//       the RSC prefetches <Link> fires in the settle window are a different class
+//       (475 on one `--route vote` run, HO 725) whose DB cost is unmeasured — see
+//       docs/backlog.md.
+//   (3) Why the constant was wrong: the ledger added `2` for the one 2-hit
+//       falsification leg HO 606 had. HO 615, 719 and 721 grew the legs to five
+//       2-hit calls and the constant never moved, so it read 4 for 12. The legs'
+//       figure is now printed beside its DEFINED count (LEG_A.length and
+//       LEG_B_ANCHORS × LEG_HITS), and a disagreement prints LEG-COUNT-MISMATCH.
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -266,6 +284,17 @@ const LEG_A: {
   // real assertion here and the magnitude bound just has to not get worse.
   { path: "/lobbying", v2Count: 64, minCountDrop: 8, v2Worst: 1051, maxWorst: 1100 },
 ];
+
+// HO 725 — every falsification leg loads its route this many times and measures
+// the last hit; the burn ledger's DEFINED legs count derives from it.
+const LEG_HITS = 2;
+
+// HO 725 — leg B's live anchors are inline calls in main() (`/`,
+// `/electoral?cycle=2028`, `/vote/${VOTE}`), code rather than data, so their count
+// is this literal. A fourth anchor added without touching it trips
+// LEG-COUNT-MISMATCH in the burn ledger: that is the guard doing its job, not a
+// false alarm. It is the price of anchors that are code.
+const LEG_B_ANCHORS = 3;
 
 // The live DISTRIBUTION panel's marking and its curve.
 //
@@ -1442,8 +1471,9 @@ async function main() {
   console.log(
     `routes            : ${ACTIVE_ROUTES.length}${ROUTE_FILTER ? ` (--route ${ROUTE_FILTER}; full list is ${ROUTES.length})` : ""}`,
   );
+  const legLoadsDefined = (LEG_A.length + LEG_B_ANCHORS) * LEG_HITS;
   console.log(
-    `page loads planned: ${ACTIVE_ROUTES.length * 2} (wide, 2 hits each) + ${narrowLoads} (narrow subset) = ${ACTIVE_ROUTES.length * 2 + narrowLoads}` +
+    `page loads planned: ${legLoadsDefined} (falsification legs) + ${ACTIVE_ROUTES.length * 2} (wide, 2 hits each) + ${narrowLoads} (narrow subset) = ${legLoadsDefined + ACTIVE_ROUTES.length * 2 + narrowLoads}` +
       (ROUTE_FILTER ? "   [M5 narrow ladder SKIPPED under --route — a slice score is a wide-viewport delta]" : ""),
   );
   console.log(`wide viewport     : ${WIDE_W}x${WIDE_H}   narrow ladder: ${NARROW_WIDTHS.join(" · ")}`);
@@ -1472,6 +1502,11 @@ async function main() {
 
   const cantMeasure: { slug: string; reason: string }[] = [];
 
+  // HO 725 — the burn ledger's counter. A server document load counts at its goto,
+  // before the request, so a timed-out goto still counts. `phase` is set by the
+  // caller of openMeasured; the narrow ladder counts at its own goto.
+  const loads = { phase: "legA" as "legA" | "legB" | "crawl", legA: 0, legB: 0, crawl: 0, narrow: 0 };
+
   const openMeasured = async (
     path: string,
     hits: number,
@@ -1479,6 +1514,7 @@ async function main() {
     const page = await ctx.newPage();
     let status = 0;
     for (let i = 0; i < hits; i++) {
+      loads[loads.phase] += 1;
       const resp = await page.goto(`${BASE_URL}${path}`, {
         waitUntil: "domcontentloaded",
         timeout: ROUTE_TIMEOUT_MS,
@@ -1503,6 +1539,9 @@ async function main() {
   // v2 also ran an M2 fallback probe across product routes to prove the panel
   // detector fired. The fixture's POS-2 / NEG-4 pair proves it directly and
   // cannot expire, so that probe is retired with its three page loads.
+  //
+  // HO 725: the fixture loads over file:// and touches no server, so the burn
+  // ledger does not count it.
   // =========================================================================
   const openFixture = async (): Promise<Measured> => {
     const page = await ctx.newPage();
@@ -1532,8 +1571,9 @@ async function main() {
   // seeing them entirely would pass the first half and fail here.
   console.log("");
   console.log("LEG A — known-good clears (the wrap artifact goes; the real under-threshold gaps stay).");
+  loads.phase = "legA";
   for (const leg of LEG_A) {
-    const r = await openMeasured(leg.path, 2);
+    const r = await openMeasured(leg.path, LEG_HITS);
     const over = r.data.m1.overThreshold;
     const drop = leg.v2Count - over;
     const sorted = r.data.m1.rows.slice().sort((a, b) => b.interiorGapPx - a.interiorGapPx);
@@ -1594,7 +1634,8 @@ async function main() {
   console.log("");
   console.log("LEG B — exemptions stable (the fixture's calibration block AND the live funnel).");
   const fixtureForB = await openFixture();
-  const home = await openMeasured("/", 2);
+  loads.phase = "legB";
+  const home = await openMeasured("/", LEG_HITS);
   const homeFunnelScored = home.data.m1.rows.filter((r) => /funnel/i.test(r.selectorPath)).length;
   const homeMarked = home.data.m1.vizMarkedKeys ?? [];
   const markedOk =
@@ -1625,7 +1666,7 @@ async function main() {
   // the roster do not break it. The container is matched on its LAST path segment:
   // the qualified name rows inside it are M1a candidates by design and their
   // paths carry the container's class. M1c is printed beside it, not gated.
-  const e28 = await openMeasured("/electoral?cycle=2028", 2);
+  const e28 = await openMeasured("/electoral?cycle=2028", LEG_HITS);
   const e28Groups = await e28.page.evaluate(() => document.querySelectorAll(".so-group").length);
   const e28Keys = e28.data.m1.colFlowMarkedKeys;
   const e28ContainerScored = e28.data.m1.rows.filter((r) =>
@@ -1660,7 +1701,7 @@ async function main() {
   // in `ul.columns-\[240px\]` did not survive a tsx page.evaluate (HO 721 STEP 0;
   // oddities). Its li rows are two-child at 263px (2560, STEP 0), so "rows inside stay scored"
   // reads 0 here — printed beside the electoral half's non-zero as the contrast.
-  const vote = await openMeasured(`/vote/${VOTE}`, 2);
+  const vote = await openMeasured(`/vote/${VOTE}`, LEG_HITS);
   const voteLists = await vote.page.evaluate(
     () => document.querySelectorAll('section > ul[class~="columns-[240px]"]').length,
   );
@@ -1735,12 +1776,11 @@ async function main() {
 
   type RouteResult = { slug: string; path: string; status: number; data: Measured };
   const results: RouteResult[] = [];
-  let pageLoads = 0;
 
+  loads.phase = "crawl";
   for (const route of ACTIVE_ROUTES) {
     try {
       const r = await openMeasured(route.path, 2);
-      pageLoads += 2;
       results.push({ slug: route.slug, path: route.path, status: r.status, data: r.data });
       const d = r.data;
       console.log(
@@ -1753,7 +1793,6 @@ async function main() {
       );
       await r.close();
     } catch (e) {
-      pageLoads += 1;
       const reason = String(e).split("\n")[0]?.slice(0, 120) ?? "unknown";
       cantMeasure.push({ slug: route.slug, reason });
       console.log(`  ${route.slug.padEnd(22)} ** CANNOT MEASURE — ${reason}`);
@@ -1842,11 +1881,11 @@ async function main() {
       const page = await ctx.newPage();
       try {
         await page.setViewportSize({ width: w, height: 1000 });
+        loads.narrow += 1;
         await page.goto(`${BASE_URL}${route.path}`, {
           waitUntil: "domcontentloaded",
           timeout: ROUTE_TIMEOUT_MS,
         });
-        pageLoads += 1;
         await page.waitForTimeout(SETTLE_MS);
         const d = (await page.evaluate(measureInPage, THRESHOLDS)) as Measured;
         let extraWrap = 0;
@@ -1990,12 +2029,35 @@ async function main() {
   console.log("                                 smoke-crawl entry and comment sweep, and it was gone.");
   console.log("  Completeness is answered by:  git grep -n \"dashboard-classic\" -- app/ components/ lib/");
 
+  // =========================================================================
+  // BURN LEDGER
+  //
+  // HO 725: the total is the sum of its named parts, each counted at the goto that
+  // made it (see `loads`). It replaced `pageLoads + 2`, whose constant was the one
+  // 2-hit falsification leg HO 606 had; the legs grew to five 2-hit calls at HO
+  // 615/719/721 and the line read 4 for 12. The legs' counted figure is printed
+  // beside its DEFINED count, (LEG_A.length + LEG_B_ANCHORS) × LEG_HITS. The two
+  // derive from different things — runtime gotos, static definitions — so a
+  // disagreement is a leg that loaded more or fewer pages than its definition
+  // says; what it does not catch is a goto site that bypasses `loads` altogether.
+  // Uncounted, and said so on the line: leg C's file:// fixture (no server) and
+  // the RSC prefetches fired in the settle windows (see docs/backlog.md).
+  // =========================================================================
+  const legLoads = loads.legA + loads.legB;
+  const totalLoads = legLoads + loads.crawl + loads.narrow;
   console.log("");
   console.log("=".repeat(100));
   console.log("BURN LEDGER");
   console.log("=".repeat(100));
   console.log(`  routes crawled     : ${results.length} of ${ACTIVE_ROUTES.length}${ROUTE_FILTER ? ` (--route ${ROUTE_FILTER})` : ""}`);
-  console.log(`  page loads (actual): ${pageLoads + 2}   (incl. the 2-hit falsification leg)`);
+  console.log(
+    `  page loads (actual): ${totalLoads} = legs ${legLoads} (A ${loads.legA} · B ${loads.legB}) + crawl ${loads.crawl} + narrow ${loads.narrow}` +
+      "   (document loads only; the settle window also fires RSC prefetches (475 measured on a --route vote run at HO 725), uncounted, see backlog)",
+  );
+  console.log(
+    `  legs cross-check   : legs ${legLoads} (counted) / ${legLoadsDefined} (defined)` +
+      (legLoads === legLoadsDefined ? "" : "   ** LEG-COUNT-MISMATCH **"),
+  );
   console.log(`  wall time          : ${elapsedS}s`);
   console.log(`  retries            : 0 — a failing route is recorded and skipped, never retry-looped`);
 
