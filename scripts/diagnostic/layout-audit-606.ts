@@ -1750,7 +1750,7 @@ async function main() {
 
   console.log("");
   if (!falsificationOk) {
-    console.log("FALSIFICATION: FAIL — halting before the crawl. 80 page loads against a broken");
+    console.log(`FALSIFICATION: FAIL — halting before the crawl. ${ACTIVE_ROUTES.length * 2 + narrowLoads} page loads against a broken`);
     console.log("instrument is spend with no information.");
     await browser.close();
     process.exitCode = 1;
