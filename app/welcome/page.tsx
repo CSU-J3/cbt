@@ -303,15 +303,6 @@ export default async function WelcomePage() {
               </div>
             </div>
 
-            {/* Mathematical Bold Script (U+1D4D0 block) + U+0361 combining marks:
-                neither Plex face covers them, so the fallback stack is DECLARED
-                rather than left to whatever the browser picks. Decorative — the
-                microcopy under the button carries the meaning — hence aria-hidden
-                rather than a screen reader spelling it out codepoint by codepoint. */}
-            <span className={styles.flourish} aria-hidden="true">
-              (☞ ͡° ͜ʖ ͡°)☞ 𝓖𝓸 𝓯𝓲𝓷𝓭 &apos;𝓮𝓶! ♥♥
-            </span>
-
             <LandingCTAs
               primaryClassName={`${styles.btn} ${styles.btnPrimary}`}
               secondaryClassName={`${styles.btn} ${styles.btnSecondary}`}

@@ -8,9 +8,9 @@
    whatever those tokens become — which is the actual fix for "the welcome page
    doesn't match the app". (The HO 361 module was already on-token for FAMILY;
    what drifted was SIZE: 23px / 11.5px / 10.5px / clamp(28px,3.5vw,46px) literals.
-   Those are gone.) The four literals that remain are deliberate one-offs the
+   Those are gone.) The three literals that remain are deliberate one-offs the
    ladder does not cover and the spec names: the 68px headline, the 24px stat
-   numerals, the 16px lead, and the flourish's 15px.
+   numerals, and the 16px lead.
 
    MOTION. Five animations live here — both marquees, the panel scroll, the panel
    crossfade, the IN BETA pulse and the cursor blink — and EVERY one is killed by
@@ -73,9 +73,10 @@
       max-width:46ch;text-wrap:pretty;margin:0}
 
 /* One grid so the stats, the buttons and the microcopy share column edges: the
-   stats align to the primary button, each microcopy line sits under the button it
-   describes, and the flourish hangs in column 1 pointing across at ENTER TERMINAL. */
-.ctagrid{display:grid;grid-template-columns:auto auto auto;column-gap:14px;row-gap:0;
+   stats align to the primary button and each microcopy line sits under the button it
+   describes. Two columns, one per button: HO 727 removed a third that held only the
+   decorative line beside ENTER TERMINAL. */
+.ctagrid{display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:0;
          align-items:center;justify-content:start}
 /* THE STRIP IS TILED, WHICH IS A DIFFERENT PROPERTY FROM "IT LOOKS RIGHT AT 390".
 
@@ -110,7 +111,7 @@
    border stays -- it frames the tiling, it is not part of it. Verified with a
    proportional serif at +2px tracking forced onto the subtree, which moves the
    wrap point somewhere nobody chose and leaves both equalities holding. */
-.stats{grid-row:1;grid-column:2/4;justify-self:start;margin-bottom:22px;
+.stats{grid-row:1;grid-column:1/3;justify-self:start;margin-bottom:22px;
        display:flex;flex-wrap:wrap;gap:1px;background:var(--border-strong);
        border:1px solid var(--border-strong);width:max-content;max-width:100%}
 .stat{padding:12px 20px;background:var(--bg-base);flex:1 1 auto;min-width:0}
@@ -119,27 +120,20 @@
    text-transform:uppercase;white-space:nowrap}
 .l em{font-style:normal;color:var(--accent-amber)}
 
-/* Declared fallback stack: the Lenny face's U+0361 combining marks and the
-   U+1D4D0 Mathematical Bold Script run are covered by NEITHER Plex face, so the
-   substitution is chosen here rather than left to the browser's last resort. */
-.flourish{grid-row:2;grid-column:1;justify-self:end;
-          font-family:'Segoe UI Symbol','Apple Symbols','Noto Sans Symbols 2',serif;
-          font-size:15px;color:var(--accent-amber-bright);white-space:nowrap;line-height:1}
-
 .btn{font-family:var(--font-mono);font-size:var(--fs-12);letter-spacing:.14em;text-transform:uppercase;
      padding:14px 20px;border:1px solid var(--border-strong);background:transparent;
      color:var(--text-muted);cursor:pointer;white-space:nowrap;
      display:inline-flex;align-items:center;gap:9px}
 .btn:hover{color:var(--text-primary);border-color:#374151}
-.btnPrimary{grid-row:2;grid-column:2;border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+.btnPrimary{grid-row:2;grid-column:1;border-color:var(--accent-amber);color:var(--accent-amber-bright)}
 .btnPrimary:hover{background:color-mix(in srgb,var(--accent-amber) 8%,transparent);
                   border-color:var(--accent-amber-bright);color:var(--accent-amber-bright)}
-.btnSecondary{grid-row:2;grid-column:3}
+.btnSecondary{grid-row:2;grid-column:2}
 .arr{font-weight:400}
 
 .micro1,.micro2{font-size:var(--fs-11);color:var(--text-dim);align-self:start;margin-top:11px;white-space:nowrap}
-.micro1{grid-row:3;grid-column:2}
-.micro2{grid-row:3;grid-column:3}
+.micro1{grid-row:3;grid-column:1}
+.micro2{grid-row:3;grid-column:2}
 .micro1 b{font-weight:400;color:var(--text-secondary)}
 .arrow{color:var(--accent-amber-bright)}
 
@@ -262,17 +256,6 @@
 .sep{color:var(--border-strong)}
 
 /* ── responsive ───────────────────────────────────────────────────────────── */
-/* 1460: the three CTA columns stop fitting beside a 68px headline — collapse to
-   two and drop the flourish to its own row above the stats. */
-@media (max-width:1460px){
-  .ctagrid{grid-template-columns:auto auto}
-  .flourish{grid-row:1;grid-column:1/3;justify-self:start;margin-bottom:10px}
-  .stats{grid-row:2;grid-column:1/3}
-  .btnPrimary{grid-row:3;grid-column:1}
-  .btnSecondary{grid-row:3;grid-column:2}
-  .micro1{grid-row:4;grid-column:1}
-  .micro2{grid-row:4;grid-column:2}
-}
 /* 1180: the banner is one column and the panels stack. */
 @media (max-width:1180px){
   .banner{grid-template-columns:1fr;grid-template-areas:"head" "lead" "right";row-gap:0}
@@ -301,7 +284,8 @@
 }
 /* 560: THE CTA STACKS, AND THE REASON IS A RULE RATHER THAN A TASTE.
 
-   The two-column CTA came from the 1460 collapse above and was never collapsed
+   The two-column CTA came from the 1460 collapse (the base layout since HO 727,
+   when that block was deleted as a no-op) and was never collapsed
    again, so from 1459px down to 430px two `white-space: nowrap` ENGLISH
    SENTENCES sized the two `auto` tracks. A nowrap sentence in an `auto` track
    is a pure function of the face's advance widths with no slack anywhere, which
@@ -329,12 +313,11 @@
    narrower than the one width anybody measured was broken on every host. */
 @media (max-width:560px){
   .ctagrid{grid-template-columns:minmax(0,1fr)}
-  .flourish{grid-column:1}
   .stats{grid-column:1}
-  .btnPrimary{grid-row:3;grid-column:1}
-  .micro1{grid-row:4;grid-column:1}
-  .btnSecondary{grid-row:5;grid-column:1;margin-top:14px}
-  .micro2{grid-row:6;grid-column:1}
+  .btnPrimary{grid-row:2;grid-column:1}
+  .micro1{grid-row:3;grid-column:1}
+  .btnSecondary{grid-row:4;grid-column:1;margin-top:14px}
+  .micro2{grid-row:5;grid-column:1}
   .btn,.micro1,.micro2{white-space:normal;min-width:0;justify-self:start}
 }
 @media (prefers-reduced-motion:reduce){
