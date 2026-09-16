@@ -73,6 +73,27 @@
   handoff asks to land verbatim: STEP 0 reads it against the tree before it
   lands** — HO 695 and HO 696 each proposed a SKILL sentence naming a repo state
   the repo contradicted.
+- **A citation proves the line was read, not that the conclusion drawn from it
+  holds.** The rule above catches a mechanism *recalled*; it does not catch one
+  *read incompletely*, and four corrections across HO 727 and HO 728 were exactly
+  that — HO 727's font-stack provenance and HO 728's three — caught at four
+  different stages (a SKILL-approval addendum, a STEP 0, an FF paste, a roadmap
+  block), not only at STEP 0. The first draft of this bullet miscounted them as
+  four handoffs and put them all at STEP 0, which is the fifth instance. Each
+  quoted a real `file:line` and inferred past it. **Trace a quantity to its
+  consumers before a gate leans on it:** `trailingGapPx` is written at
+  `scripts/diagnostic/layout-audit-606.ts:722` and read by no code, which HO 728
+  learned only after proposing a close on it. **Grep every name a value travels
+  under, not just its identifier:** the same file's threshold enters browser scope
+  as `t.gapThreshold` (`:353`, and `:363` says why), so a grep for
+  `GAP_THRESHOLD_PX` finds seven of the eleven sites that apply it and misses the
+  four at `:708` and `:1116-1118` — among them `:1117-1118`, the two counts the
+  "M1 rows over 120px" total is summed from (`:1970-1971`). That is a different
+  failure from § Executing a handoff's bare-substring rule, which governs a
+  grep's *form* rather than whether the right thing was grepped. **And a
+  correction is ground truth too:** HO 728's block does not call the CTA void
+  "mostly HO 670's", because `b5a9455` was never measured — the architect's own
+  correction was an unmeasured claim, and Code declined to land it.
 - **`docs/handoffs/` is repo-ignored** and must stay so (SKILL, "Pre-flight
   verification" — build-input parity). Handoff files are therefore untracked and
   absent from `git status`; dropping one is `rm`, not `git rm`.
