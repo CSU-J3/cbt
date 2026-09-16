@@ -75,9 +75,13 @@
 /* One grid so the stats, the buttons and the microcopy share column edges: the
    stats align to the primary button and each microcopy line sits under the button it
    describes. Two columns, one per button: HO 727 removed a third that held only the
-   decorative line beside ENTER TERMINAL. */
+   decorative line beside ENTER TERMINAL. The tracks pack to the END (HO 728), so
+   LOGIN's right edge sits on .right's, which is the banner's 28px padding and so the
+   same line the rail's clock and the bottom bar's LAST SYNC hold (.rail and .bottom,
+   both `padding:14px 28px`). The 1180 block packs back to start once the banner is
+   one column. */
 .ctagrid{display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:0;
-         align-items:center;justify-content:start}
+         align-items:center;justify-content:end}
 /* THE STRIP IS TILED, WHICH IS A DIFFERENT PROPERTY FROM "IT LOOKS RIGHT AT 390".
 
    It was drawn as one row -- dividers as `border-right` on each cell, the last
@@ -260,6 +264,7 @@
 @media (max-width:1180px){
   .banner{grid-template-columns:1fr;grid-template-areas:"head" "lead" "right";row-gap:0}
   .right{align-self:start;margin-top:26px;padding-bottom:0}
+  .ctagrid{justify-content:start}
   .h1{font-size:52px;max-width:20ch}
   .board{grid-template-columns:1fr}
   .pcol{border-right:0;border-bottom:1px solid var(--border-strong)}
