@@ -351,9 +351,39 @@ function findings(r: Rec): string[] {
 
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400e3).toISOString().slice(0, 10);
 
+// The samples line, extracted at HO 732 so the empty-window branch and the
+// counting branch emit the SAME line rather than two copies that can drift.
+// "Preview" here is the SKIPPED set renamed, not an environment read — see
+// docs/oddities.md, "a ledger's Preview column is its own verdict".
+function pushSamples(out: string[], recs: Rec[]): void {
+  const prod = recs.filter((r) => r.event === "deployment_status" && r.verdict !== "SKIPPED");
+  const prev = recs.filter((r) => r.event === "deployment_status" && r.verdict === "SKIPPED");
+  const disp = recs.filter((r) => r.event !== "schedule" && r.event !== "deployment_status");
+  const hist = (rs: Rec[]) => {
+    const h: Record<string, number> = {};
+    for (const r of rs) { const k = r.verdict + (r.flags.length ? "+" + r.flags.join("+") : ""); h[k] = (h[k] ?? 0) + 1; }
+    return Object.entries(h).map(([k, v]) => `${v} ${k}`).join(" · ") || "none";
+  };
+  out.push(`- samples, not counted: ${prod.length} Production \`deployment_status\` runs: ${hist(prod)}; ${prev.length} Preview (SKIPPED); ${disp.length} other-event runs: ${hist(disp)}`);
+}
+
 function tally(recs: Rec[], since: string): string[] {
   const daily = recs.filter((r) => r.event === "schedule");
   const out: string[] = ["## Week tally (`schedule` runs only)", ""];
+  // HO 732 — an empty window is an ABSENCE, and it must not render as a count.
+  // With no `schedule` rows the loop below never runs, so every line in this
+  // block except `samples` used to be computed over nothing: it printed
+  // `0 of 7 … none` (indistinguishable from a window whose dailies all fired)
+  // beside a `seventh due` date derived from `addDays(first − 1, 7)`, which is
+  // arithmetic on a window with no dailies in it. HO 731's post-FF read printed
+  // exactly that and the paste had to explain it in prose. The samples line is
+  // the only line here that IS a reading of such a window, so it stays and the
+  // rest is replaced by the statement that there is nothing to count.
+  if (daily.length === 0) {
+    out.push("- **no `schedule` runs in this window**: the week tally is not a reading of it; see the HO 723 close read for the seven that count");
+    pushSamples(out, recs);
+    return out;
+  }
   // The first expected daily: the since date if the 15:00Z slot is still ahead of it, else the next day.
   const first = since.slice(11, 13) < "15" ? since.slice(0, 10) : addDays(since.slice(0, 10), 1);
   let count = 0;
@@ -379,15 +409,7 @@ function tally(recs: Rec[], since: string): string[] {
   out.push(`- FIRE resets: ${resets.length ? resets.join(" · ") : "none"}`);
   if (count >= 7) out.push(`- **SEVEN REACHED** on ${counted[6]!.slice(0, 10)}`);
   else out.push(`- seventh due on the current trajectory (no further gaps): **${addDays(last ?? addDays(first, -1), 7 - count)}**`);
-  const prod = recs.filter((r) => r.event === "deployment_status" && r.verdict !== "SKIPPED");
-  const prev = recs.filter((r) => r.event === "deployment_status" && r.verdict === "SKIPPED");
-  const disp = recs.filter((r) => r.event !== "schedule" && r.event !== "deployment_status");
-  const hist = (rs: Rec[]) => {
-    const h: Record<string, number> = {};
-    for (const r of rs) { const k = r.verdict + (r.flags.length ? "+" + r.flags.join("+") : ""); h[k] = (h[k] ?? 0) + 1; }
-    return Object.entries(h).map(([k, v]) => `${v} ${k}`).join(" · ") || "none";
-  };
-  out.push(`- samples, not counted: ${prod.length} Production \`deployment_status\` runs: ${hist(prod)}; ${prev.length} Preview (SKIPPED); ${disp.length} other-event runs: ${hist(disp)}`);
+  pushSamples(out, recs);
   return out;
 }
 
@@ -455,6 +477,23 @@ async function selftest(): Promise<boolean> {
     [FX.mutFireRoute, FX.mutFireDetail].join("\n"),
   );
   check("ARTIFACT-MISMATCH fires: a FIRE whose run lists no pageerr-dumps", [noArt.verdict, noArt.flags], ["FIRE", ["ARTIFACT-MISMATCH"]]);
+  // HO 732 — tally()'s two branches. The first check FAILS on the pre-732 file
+  // (which printed `0 of 7` and a `seventh due` date over an empty window), so
+  // it is a control and not decoration; the second pins the counting branch so
+  // the empty-window guard cannot swallow a real window.
+  const emptyTally = tally([], "2026-09-17T21:26:00Z");
+  check("empty window says no runs, and prints no count and no due date",
+    [emptyTally.some((l) => l.includes("no `schedule` runs in this window")), emptyTally.some((l) => /of 7/.test(l)), emptyTally.some((l) => /seventh due/.test(l)), emptyTally.some((l) => l.startsWith("- samples, not counted:"))],
+    [true, false, false, true]);
+  const oneDaily: Rec = {
+    id: 1, event: "schedule", createdAt: "2026-09-17T18:50:39Z", sha: head.slice(0, 7),
+    conclusion: "success", smoke: "success", log: "ok", floor: 1, p: parseLog(FX.clean),
+    artifacts: "[]", hasDumps: false, verdict: "ZERO", flags: [], url: "",
+  };
+  const oneTally = tally([oneDaily], "2026-09-17T12:00:00Z");
+  check("one ZERO schedule record still counts: the guard does not swallow a real window",
+    [oneTally.some((l) => l.includes("**1 of 7**")), oneTally.some((l) => l.includes("no `schedule` runs in this window"))],
+    [true, false]);
   console.log(`SELF-TEST ${ok ? "GREEN" : "RED"}\n`);
   return ok;
 }
