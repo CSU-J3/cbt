@@ -136,6 +136,14 @@ export function HearingPanel({
             <span className="k">When</span> {etDayLabel(m.meetingDate)}{" "}
             {etTimeLabel(m.meetingDate)} ET
           </span>
+          {/* HO 730: the one field the floating card showed that no /hearings
+              agenda row carries. It renders on the committee and bill embeds too,
+              where the collapsed row already shows chamber — accepted redundancy
+              over a per-surface flag on a shared component. */}
+          <span>
+            <span className="k">Chamber</span>{" "}
+            {m.chamber === "house" ? "House" : "Senate"}
+          </span>
         </div>
       </div>
     </div>

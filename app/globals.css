@@ -9323,6 +9323,16 @@ a.hearing-votes:hover {
   padding: 4px 12px 16px 38px;
   border-top: 0.5px solid var(--border-soft);
 }
+/* HO 730: the /hearings agenda's indent (HearingPanel variant="agenda"). The 38px
+   above is tuned to .hearing-row-btn's caret+time tracks; the agenda entry is a
+   flex row, so its own indent lands the panel under the entry's kind column.
+   75px is MEASURED, not summed: on a local production build (Windows, IBM Plex
+   Mono) the open entry's .hcal-entry-kind sits 74.66px right of the entry's edge
+   at both 1440 and 430. The handoff's arithmetic estimate (51px) predated the
+   caret and landed the sections under the time column. */
+.hearing-panel--agenda {
+  padding: 2px 8px 12px 75px;
+}
 .hearing-panel-sec {
   display: flex;
   flex-direction: column;
@@ -9989,6 +9999,10 @@ a.hearing-votes:hover {
   cursor: pointer;
 }
 .hcal-entry:hover {
+  background-color: var(--bg-row-hover);
+}
+/* HO 730: the open entry holds the hover wash, the .hearing-row.is-open idiom. */
+.hcal-entry.is-open {
   background-color: var(--bg-row-hover);
 }
 .hcal-entry:focus-visible {

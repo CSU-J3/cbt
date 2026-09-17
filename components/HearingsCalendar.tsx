@@ -9,23 +9,27 @@
 // `embedded` single-week, per-day-capped mode pinned to the RACES footprint) and
 // deleted the `embedded`/`cap` props in the same commit that orphaned them. HO
 // 611 re-ran the grep and confirms it: NOTHING passes `embedded`, and there was
-// nothing left to strip. The dashboard now renders HearingsDaySchedule; what the
-// two surfaces still share is the per-meeting detail card (HearingDetailCard),
-// which is the part that would actually drift. The row SHAPE is deliberately not
-// shared — this one wraps its title because a browse list has nothing to protect,
-// while the dashboard's ellipsizes to hold a pinned box.
+// nothing left to strip. The dashboard now renders HearingsDaySchedule. The row
+// SHAPE is deliberately not shared — this one wraps its title because a browse
+// list has nothing to protect, while the dashboard's ellipsizes to hold a pinned box.
+//
+// HO 730 — detail expands IN FLOW. Until HO 730 an entry opened the floating
+// HearingDetailCard beside it; HO 611 had made the entry a full-width row, so no
+// side was left and the card clamped onto the rows it annotated (measured at
+// 8712236: left=8 at 390, 430, 1440 and 2560). An entry now toggles HearingPanel
+// under itself — the panel /committee and /bill already expand — single-open,
+// keyed on eventId, client state. The card stays the dashboard's alone; what the
+// two surfaces still share is `liveStatus`.
 //
 // Presentation + one computed field (live status). Data is what the live page
 // already reads (getUpcomingMeetings + getRecentMeetings, widened to 14d so the
 // week stat's prior-week delta is honest). Filter is client-state (instant, no
-// navigation); all detail lives in a floating card portaled to <body>, so
-// opening one never reflows the agenda.
-import { useCallback, useEffect, useRef, useState } from "react";
+// navigation), and so is the open entry: a filter that hides it renders nothing,
+// and clearing the filter restores it, so no effect resets it.
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  HearingDetailCard,
-  liveStatus,
-} from "@/components/HearingDetailCard";
+import { liveStatus } from "@/components/HearingDetailCard";
+import { HearingPanel } from "@/components/HearingPanel";
 import {
   addDaysToKey,
   cleanMeetingTitle,
@@ -105,56 +109,65 @@ function WeekStat({
 // ── a single collapsed entry ──
 function Entry({
   m,
+  committeeName,
   nowMs,
-  onOpen,
-  onLeave,
+  isOpen,
+  onToggle,
 }: {
   m: CommitteeMeeting;
+  committeeName: string | null;
   nowMs: number;
-  onOpen: (m: CommitteeMeeting, rect: DOMRect) => void;
-  onLeave: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
   const badge = hearingBadge(m.meetingType);
   const status = liveStatus(m, nowMs);
   const title = cleanMeetingTitle(m.title);
   const n = m.bills.length;
-  const ref = useRef<HTMLDivElement>(null);
-  const open = useCallback(() => {
-    const el = ref.current;
-    if (el) onOpen(m, el.getBoundingClientRect());
-  }, [m, onOpen]);
   // HO 611: ONE line — time · kind · title · badges, packed left. It was two
   // lines (a meta row over a clamped title) because it lived in a 1/5-width
   // column; in the full-width agenda that shape put `.hcal-entry-badges` on a
   // `margin-left: auto` across ~2,400px, which is the C1 defect this phase
   // removes, and the clamp had nothing left to clamp. Same element, same
   // handlers, same detail card — only the internal layout changed.
+  // HO 730: click/keyboard toggle only (the hover/focus open and the card are
+  // gone), a leading caret as the affordance, and the panel as a SIBLING — the
+  // day section is a plain block, so no wrapper.
   return (
-    <div
-      ref={ref}
-      className={`hcal-entry${n > 0 ? " has-bills" : ""}${badge === "MARKUP" ? " is-markup" : ""}${status === "concluded" ? " is-past" : ""}`}
-      role="button"
-      tabIndex={0}
-      onMouseEnter={open}
-      onMouseLeave={onLeave}
-      onClick={open}
-      onFocus={open}
-      onBlur={onLeave}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          open();
-        }
-      }}
-    >
-      <span className="hcal-entry-time">{etTimeLabel(m.meetingDate)}</span>
-      <span className="hcal-entry-kind">{badge}</span>
-      <span className="hcal-entry-title">{title || "(untitled meeting)"}</span>
-      {status === "live" ? (
-        <span className="hcal-badge-live">● LIVE</span>
+    <>
+      <div
+        className={`hcal-entry${n > 0 ? " has-bills" : ""}${badge === "MARKUP" ? " is-markup" : ""}${status === "concluded" ? " is-past" : ""}${isOpen ? " is-open" : ""}`}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onToggle();
+          }
+        }}
+      >
+        <span className={`hearing-caret${isOpen ? " is-open" : ""}`} aria-hidden>
+          ▸
+        </span>
+        <span className="hcal-entry-time">{etTimeLabel(m.meetingDate)}</span>
+        <span className="hcal-entry-kind">{badge}</span>
+        <span className="hcal-entry-title">{title || "(untitled meeting)"}</span>
+        {status === "live" ? (
+          <span className="hcal-badge-live">● LIVE</span>
+        ) : null}
+        {n > 0 ? <span className="hcal-badge-bills">+{n} bills</span> : null}
+      </div>
+      {isOpen ? (
+        <HearingPanel
+          m={m}
+          committeeName={committeeName}
+          nowMs={nowMs}
+          variant="agenda"
+        />
       ) : null}
-      {n > 0 ? <span className="hcal-badge-bills">+{n} bills</span> : null}
-    </div>
+    </>
   );
 }
 
@@ -175,48 +188,13 @@ export function HearingsCalendar({
 }) {
   const [type, setType] = useState<TypeFilter>("");
   const [chamber, setChamber] = useState<ChamberFilter>("");
-  const [open, setOpen] = useState<{ m: CommitteeMeeting; rect: DOMRect } | null>(
-    null,
-  );
+  const [openId, setOpenId] = useState<string | null>(null);
   const [statOpen, setStatOpen] = useState<{
     rect: DOMRect;
     count: number;
     priorCount: number;
     priorMon: string;
   } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearClose = useCallback(() => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }, []);
-  const scheduleClose = useCallback(() => {
-    clearClose();
-    closeTimer.current = setTimeout(() => setOpen(null), 140);
-  }, [clearClose]);
-  const onOpen = useCallback(
-    (m: CommitteeMeeting, rect: DOMRect) => {
-      clearClose();
-      setOpen({ m, rect });
-    },
-    [clearClose],
-  );
-
-  // Tap-elsewhere closes (touch): any pointerdown outside the card + entries.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && t.closest(".hcal-card")) return;
-      if (t && t.closest(".hcal-entry")) return;
-      setOpen(null);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [open]);
-
   const filtered = meetings.filter(
     (m) =>
       (chamber === "" || m.chamber === chamber) &&
@@ -422,9 +400,16 @@ export function HearingsCalendar({
                       <Entry
                         key={m.eventId}
                         m={m}
+                        committeeName={
+                          m.committeeSystemCode
+                            ? (committeeNames[m.committeeSystemCode] ?? null)
+                            : null
+                        }
                         nowMs={nowMs}
-                        onOpen={onOpen}
-                        onLeave={scheduleClose}
+                        isOpen={openId === m.eventId}
+                        onToggle={() =>
+                          setOpenId((id) => (id === m.eventId ? null : m.eventId))
+                        }
                       />
                     ))}
                   </section>
@@ -434,21 +419,6 @@ export function HearingsCalendar({
           </section>
         );
       })}
-
-      {open ? (
-        <HearingDetailCard
-          m={open.m}
-          committeeName={
-            open.m.committeeSystemCode
-              ? (committeeNames[open.m.committeeSystemCode] ?? null)
-              : null
-          }
-          nowMs={nowMs}
-          anchor={open.rect}
-          onPointerEnter={clearClose}
-          onPointerLeave={scheduleClose}
-        />
-      ) : null}
 
       {statOpen && typeof document !== "undefined"
         ? createPortal(
