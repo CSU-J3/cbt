@@ -4505,3 +4505,20 @@ The diagnostic value is low and the misdirection is high — the first error nam
 **Put scratch TypeScript inside the repo, in a repo-ignored path.** `docs/handoffs/` is globally gitignored (`docs/handoffs/<NNN>-scratch/` is the shape this HO used), so a script there resolves every import exactly as a committed one does and still never reaches `git status`.
 
 **Sibling already on record, same family:** `npx tsx -e '\n…'` runs nothing and exits 0 on this box (HO 724). Both say the same thing — the cheap inline path has sharp edges here, and a real file in the tree is the reliable one.
+
+## Four paragraphs wear `.home-header-meta`, and the sync line is the second (HO 733, Sep 2026)
+
+HO 733 had to measure whether the masthead sync line could absorb a clock, so it read `getComputedStyle` and `scrollWidth` off `document.querySelector(".home-header-meta")` at 430 and 390. The reading came back clean and meaningless:
+
+```
+430  /  .home-header-meta  white-space=normal display=block 111/111 over=0 box=111x17
+        text="· IN BETA"
+```
+
+`DashboardV2Header` renders **four** paragraphs with that class — `:123` the IN BETA tag, `:132` the sync line, `:145` and `:156` — and `querySelector` returns the first. The box measured was the beta tag's, 111px wide, and every property reported (`white-space: normal`, `over=0`) happened to be **true of the sync line as well**, so nothing in the output looked wrong. The tell was the `text` field, which was printed only because the script echoed what it measured.
+
+**What it would have cost.** The measurement decides whether the mount needs a wrap allowance. The beta tag is a short static string that will never approach the viewport; the sync line grew **92px → 331px** when the clock landed. A gate built on the first element would have been measuring a box that cannot fail, on behalf of one that could — the "a check you cannot fail" shape, arrived at by selector rather than by logic.
+
+**The rule, and it is not "use a better selector".** Print what you measured. The fix here was to enumerate every match and label it (`4 match(es)`, with the sync line flagged by content), and afterwards every reading in the HO selected that line **by content** — `.home-header-meta:has(.masthead-clock)` for the captures, the timestamp's parent for the audit — never by the bare class. An ambiguous selector is not a bug until something distinguishes the siblings, and by then the number has been quoted.
+
+**Sibling already on record, same family:** in a CSS-module page, `[class*="__lead"]` matches `__leadwrap` first (HO 727). That one is a substring matching too much; this one is a class matching too many. Both produce a plausible number from the wrong element, and in both cases the output looked exactly like a correct reading.
