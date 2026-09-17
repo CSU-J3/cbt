@@ -78,6 +78,20 @@ export function cleanMeetingTitle(raw: string | null | undefined): string {
 // Watch state for the row's right cell + Piece 3's LIVE NOW callout.
 export type WatchState = "live" | "watch" | "stream" | "none";
 
+// HO 730: moved from HearingRow, whose row cell and expanded panel both read it
+// (the panel now lives in HearingPanel). The labels sit beside the state they name.
+export const WATCH_LABEL: Record<Exclude<WatchState, "none">, string> = {
+  live: "● LIVE",
+  watch: "▶ WATCH",
+  stream: "STREAM ↗",
+};
+
+// HO 730: one copy. It was byte-identical in HearingRow and HearingDetailCard.
+export function locationText(m: Pick<CommitteeMeeting, "building" | "room">): string | null {
+  const parts = [m.building, m.room].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
 // A hearing reads as "live" from its start through this window (committee
 // meetings run ~1-3h and the source carries no end time). Phase 1 decision:
 // time-window only, no URL spot-check (YouTube/ISVP live-state isn't cheaply

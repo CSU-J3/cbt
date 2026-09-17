@@ -18,8 +18,13 @@ import {
   etDayKey,
   etTimeLabel,
   LIVE_WINDOW_MS,
+  locationText,
 } from "@/lib/hearings";
-import { recordedVotesTitle, repositoryEventUrl } from "@/lib/meeting-documents";
+import {
+  hasRecordedVotes,
+  recordedVotesTitle,
+  repositoryEventUrl,
+} from "@/lib/meeting-documents";
 import type { CommitteeMeeting } from "@/lib/queries";
 
 export type LiveStatus = "scheduled" | "live" | "concluded";
@@ -36,10 +41,6 @@ export function liveStatus(m: CommitteeMeeting, nowMs: number): LiveStatus {
 
 function chamberLabel(c: "house" | "senate"): string {
   return c === "house" ? "HOUSE" : "SENATE";
-}
-function locationText(m: CommitteeMeeting): string | null {
-  const parts = [m.building, m.room].filter(Boolean);
-  return parts.length ? parts.join(" ") : null;
 }
 
 export function HearingDetailCard({
@@ -124,7 +125,7 @@ export function HearingDetailCard({
       </div>
 
       {/* HO 717: the recorded-vote pointer, House only, absent when n = 0. */}
-      {m.chamber === "house" && m.recordedVoteDocs > 0 ? (
+      {hasRecordedVotes(m) ? (
         <div className="hcal-card-sec">
           <span className="hcal-card-cap">Recorded votes</span>
           <a
