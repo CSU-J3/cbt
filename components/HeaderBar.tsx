@@ -9,6 +9,7 @@ import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
 import { SearchBox } from "@/components/SearchBox";
+import { WelcomeClock } from "@/components/WelcomeClock";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
 import { type FeedFilters, getCorpusStats } from "@/lib/queries";
 
@@ -204,7 +205,14 @@ export async function HeaderBar({
       <p className="header-sync-sub">
         ·{" "}
         <span className="show-desktop">LAST SYNC </span>
-        <CyclingTimestamp iso={corpus.lastSync} />
+        <CyclingTimestamp iso={corpus.lastSync} />{" "}
+        {/* HO 697: WelcomeClock MOUNTED, not re-implemented — zone pinned MT by
+            the HO 670 review ruling; see its header. Third render site. */}
+        <WelcomeClock
+          className="masthead-clock"
+          timeClassName="masthead-clock-time"
+          zoneClassName="masthead-clock-zone"
+        />
       </p>
 
       {/* Nav on its own full-width row, matching the dashboard: PrimaryNav

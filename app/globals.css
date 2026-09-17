@@ -292,6 +292,23 @@ body {
   }
 }
 
+/* HO 697 — the live clock on both mastheads. The component is `WelcomeClock`
+   MOUNTED, not re-implemented (its zone stays pinned to MT by the HO 670 review
+   ruling — see its header). Colours match landing.module.css's `.clock` family;
+   the size is inherited from the sync line rather than pinned to --fs-11, for the
+   same reason `.beta-tag` sets none. */
+.masthead-clock {
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.masthead-clock-time {
+  color: var(--text-muted);
+}
+.masthead-clock-zone {
+  color: var(--accent-amber);
+}
+
 /* HO 612: the auth control follows the path. `.header-titlebar` sets column-gap
    0 (HO 189, so a deep path + nav never wraps on a razor-thin bar), so the
    spacing is explicit here rather than inherited. */

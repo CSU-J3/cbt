@@ -6,6 +6,7 @@ import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
+import { WelcomeClock } from "@/components/WelcomeClock";
 import type { Stage } from "@/lib/enums";
 import type { CorpusStats } from "@/lib/queries";
 
@@ -132,7 +133,12 @@ export async function DashboardV2Header({
             <p className="home-header-meta">
               ·{" "}
               <span className="show-desktop">LAST SYNC </span>
-              <CyclingTimestamp iso={corpus.lastSync} />
+              <CyclingTimestamp iso={corpus.lastSync} />{" "}
+              <WelcomeClock
+                className="masthead-clock"
+                timeClassName="masthead-clock-time"
+                zoneClassName="masthead-clock-zone"
+              />
             </p>
 
             {/* HO 355: the auth affordance. HO 610 (C1) moved it INTO the prompt

@@ -20,11 +20,22 @@ import { useEffect, useState } from "react";
 // MT matches what the page's server-rendered AS OF / LAST SYNC stamps use, so
 // every time on the page is in one zone.
 //
-// HO 697 — THE MASTHEAD MOUNT WAS BUILT, MEASURED AND HELD. This component has
-// ONE render site, the /welcome rail. Mounting it on both mastheads raised the
-// local #418 rate — 11 fires across 9 clock-bearing crawls against 0 across 6
-// without — mechanism unknown, so it did not ship. The built mount is preserved
-// at the tags `ho697-clock` and `ho697-prefix-clock`; see docs/backlog.md:50.
+// HO 697 → 733 — THREE RENDER SITES: the /welcome rail, and both mastheads
+// (`HeaderBar`, `DashboardV2Header`), where it follows LAST SYNC. Mounted, not
+// re-implemented. The MT pinning above is a ruling, not an oversight — do not
+// "harmonise" it with the CyclingTimestamp beside it on those rows: that stamp
+// is a FIXED moment whose projection rotates, this one is a running clock.
+//
+// THE HOLD, AND WHY IT ENDED. HO 697 built the masthead mount and held it. The
+// surviving evidence was ONE same-window pair — `main` 0 · 0 against the pre-fix
+// mount 3 · 3 within ten minutes, the only such pair in 27 crawls — mechanism
+// unknown. The fire-count comparison HO 697 also produced is RETRACTED and is
+// not the basis for anything; the backlog line opening "The live clock on
+// `HeaderBar`, every route" retracts it in its own text. Because the hypothesis
+// was a TIMING one, it could only ever be raised on a tree carrying the #418
+// class: HO 706 removed that class upstream, HO 731 read the week clean, and
+// HO 732 discharged the hold. Shipped HO 733 on Corey's standing word. The built
+// mount stays at the tags `ho697-clock` and `ho697-prefix-clock` as the record.
 //
 // HYDRATION: the digits render NOTHING on the server and mount on the client
 // (`now === null` until the first effect). A ticking clock cannot be
