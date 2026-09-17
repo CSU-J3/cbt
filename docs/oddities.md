@@ -4468,3 +4468,40 @@ So the probe's teardown is a bounded retry (100ms polls, capped at 10s) that pri
 **How it misled.** HO 728's handoff reasoned that `.ctagrid`'s trailing gap (535.5 at 2560) might put `/welcome` "one or two pixels from a new register term" behind the `M1B_MAX_CHILD_H = 60` container cut, and wrote a close that "forecloses" it. STEP 0 read the consumers and found neither half holds: trailing is never scored, and `.ctagrid`'s only interior gap is its 14px `column-gap`. The handoff quoted the definition at `:716` correctly and never grepped for who reads it. **A handoff that leans on a quantity owes a grep for its consumers:** reading where a value is defined is not reading how it is used. HO 727 had the same shape one HO earlier, a mechanism inferred rather than traced.
 
 **The consequence, once.** A row can be visually wide open on its right and correct by the instrument, so **the audit's silence about a region is never evidence the region is tight.** `/welcome`'s banner carried a 535px void beside LOGIN through every crawl that read it, and the fix (HO 728) was ruled off the rendered page, which is the only reading that could see it. The converse also holds: pinning `.ctagrid` right drives its trailing gap to 0, which moves it away from C1's stated target, and the audit neither rewards nor penalises that. The pin is a ruling, not a score.
+
+## A ledger's "Preview" column is its own verdict wearing an environment's name (HO 731, Sep 2026)
+
+`pageerr-ledger-723.ts` closes its week tally with a samples line: *"28 Production `deployment_status` runs: 28 ZERO; 44 Preview (SKIPPED)"*. It reads as two facts about where those runs happened. It is one fact about what the ledger decided:
+
+```
+const prod = recs.filter((r) => r.event === "deployment_status" && r.verdict !== "SKIPPED");
+const prev = recs.filter((r) => r.event === "deployment_status" && r.verdict === "SKIPPED");
+```
+
+`prev` **is** the SKIPPED set, renamed. The ledger never reads an environment, so the line cannot be evidence that those 44 runs were Previews — it can only restate that their `smoke` job did not run.
+
+**Why that is not pedantry here.** `e2e-prod.yml` gates the smoke job on `github.event_name != 'deployment_status' || (state == 'success' && environment == 'Production')`, so a run skips when it is **not (Production and success)** — which includes a *failed Production deploy*. A Production deploy that errored and therefore never crawled would land in the "Preview" bucket and be reported as an environment class it does not belong to. The one shape that would matter — prod deployed, crawl never ran, nobody counted it — is exactly the one the label hides.
+
+**What separated them.** `gh api repos/{owner}/{repo}/actions/runs/<id> --jq '.head_branch'` for all 44: every one a review branch (`730-review`, `727-review`, … `707-close`), **none on `main`**. Preview confirmed, from a field the ledger does not read. The reading was clean, which is the point — the check was worth running precisely because its failure would have been invisible in the column that claimed to answer it.
+
+**The general form**, already in `docs/method.md` § Gates as *a check built from the same expression as the thing it checks*: this is that clause applied to a **label** rather than to a check. A derived name is an assertion, and it inherits exactly the authority of the expression it was derived from — here, none about environments. Name a bucket after the predicate that built it (`smoke-skipped`), or read the fact it claims.
+
+---
+
+## A scratch `.ts` outside the repo cannot resolve `@/lib/db`, and the failure arrives as a missing `dotenv` (HO 731, Sep 2026)
+
+The session scratchpad lives outside the project, and running a throwaway script from there fails before it reaches anything interesting:
+
+```
+Error: Cannot find module 'dotenv/config'
+Require stack:
+- C:\Users\meh\AppData\Local\...\scratchpad\read-ak-row.ts
+```
+
+`dotenv` is installed — in the project's `node_modules`, which Node resolves by walking up from **the script's** directory, not from `process.cwd()`. A file under `%TEMP%` walks up into Temp and out. The `@/…` aliases fail for the same reason a step later: `tsx` reads `tsconfig.json` paths relative to the file it is loading.
+
+The diagnostic value is low and the misdirection is high — the first error names `dotenv`, so it reads as a dependency problem in a repo where `dotenv` is plainly a dependency.
+
+**Put scratch TypeScript inside the repo, in a repo-ignored path.** `docs/handoffs/` is globally gitignored (`docs/handoffs/<NNN>-scratch/` is the shape this HO used), so a script there resolves every import exactly as a committed one does and still never reaches `git status`.
+
+**Sibling already on record, same family:** `npx tsx -e '\n…'` runs nothing and exits 0 on this box (HO 724). Both say the same thing — the cheap inline path has sharp edges here, and a real file in the tree is the reliable one.
