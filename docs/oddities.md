@@ -4569,3 +4569,63 @@ Splitting on `/\r?\n/` and rejoining with an explicit terminator is the same fix
 **Why this is filed rather than shrugged off.** The numstat deletion column is this project's authority on *nothing was removed* (HO 639, HO 672), and a markdown file full of 5,000-character lines is exactly the place where a whole-file diff reads as ordinary noise. It is not noise. **A whole-file numstat on a small edit is a line-ending finding, not markdown churn** — and the temptation to push past it is strongest precisely when the edit is known-small, because the author already knows what they changed.
 
 **Sibling already on record, same family:** `git show "$rev:.claude/…"` fails to MSYS path mangling on this box and a piped counter then prints a plausible `CR=0` off empty stdin (HO 700). Both are the Windows box's line-ending and path layer producing a number that looks like an answer.
+
+## "Measured, not summed" was the right correction to the wrong problem, and the ladder made the measurement a one-width truth (HO 734, Sep 2026)
+
+HO 730 set the `/hearings` panel's indent and wrote the reasoning into the stylesheet:
+
+> `75px` is MEASURED, not summed: on a local production build (Windows, IBM Plex Mono) the open entry's `.hcal-entry-kind` sits **74.66px** right of the entry's edge at both **1440 and 430**. The handoff's arithmetic estimate (51px) predated the caret and landed the sections under the time column.
+
+Every clause of that is true, and the conclusion was still wrong. The estimate it replaced *was* wrong, and measuring *was* the right answer to an estimate that forgot a term. What measuring cannot fix is a length that is not constant — and this one is not:
+
+```
+--fs-11:  11px (:89)  ·  12px (:150)  ·  13px (:161)  ·  14px (:172)
+.hcal-entry-time { flex: 0 0 3.6em; font-size: var(--fs-11) }
+```
+
+The column the panel aligns to is an **em track on a type ladder**. HO 730 measured at 1440 and 430 — and those two widths sit on the **same rung** (`--fs-11` is 11px at both), so the reading was taken twice and was one reading. At 2560 the rung is 14px, the track moves, and the padding does not:
+
+| width | `--fs-11` | `.hcal-entry-kind` left | caption left | drift |
+|---|---|---|---|---|
+| 1440 | 11px | 90.66 | 91.00 | **+0.34px** |
+| 2560 | 14px | 103.09 | 91.00 | **−12.09px** |
+
+**The repair is neither a constant nor a second measurement.** It is a sum of the tracks the stylesheet already declares — `border-left` + `padding-left` + caret + `gap` + the time track's `flex-basis` + `gap` — which is exact at every rung and on every host's font metrics, and which a re-measure at 2560 would not have been (it would have produced a second constant, correct at two rungs and wrong at the other two).
+
+**The ~2px nobody could account for was a declaration all along.** The estimate-versus-measurement gap (74.66 measured against 72.66 summed at 1440) was `.hcal-entry`'s `border-left: 2px solid transparent`. A border is not padding and it is easy to leave out of a hand sum — and the lesson is not "sum more carefully" but that **a residual is a signal to find the declaration, not a number to fold in**. Every term in the shipped `calc()` names the rule it comes from, in a comment beside it.
+
+**Two terms had to be *made* declarations first, and the second one was only found because the gate ran at two widths.**
+
+1. **The caret was a glyph, not a track.** `▸` renders at ~0.55em by font metric — a font fact, not a stylesheet fact, and one that changes with the host. `width: 0.6em; text-align: center` makes it citable (6.06px → 6.60px at 1440, 7.70px → 8.40px at 2560).
+2. **A declared width is not a track on its own.** The caret is a flex item at the default `flex-shrink: 1`, so a row whose title overflows takes part of the declared width back. Measured at 2560 on `/`, where the schedule sits in one half of a `1fr 1fr` grid: computed width **7.70px against the declared 8.39px**, while the same rule on the wider `/hearings` entry kept all 8.39px. The indent then missed by exactly that 0.69px — a failure visible **only** on the narrower of the two containers, and only at the wider of the two rungs. `flex-shrink: 0` is what makes the declaration govern.
+
+**The gate that catches this class is two rungs, and it has to say which of two things it is reading.** `|drift@2560 − drift@1440| ≤ 0.1px` is the ladder property and every variant must pass it, including ones a commit does not touch. `|drift| ≤ 1px` is exactness and only a rewritten variant claims it. Collapsing them into one verdict would have misread the base `row` variant, whose px grid tracks give it drift **2.00px at both rungs** — a constant offset, filed on its own backlog line, and not this class at all.
+
+**Sibling already on record, same family:** a check run at one width, or against one element, that cannot fail — HO 670's green gates over three wrong layouts, and HO 733's `querySelector` measuring the beta tag's box instead of the sync line's. This one is subtler than both: the instrument was right, the reading was right, and the *sample* was one rung of a four-rung ladder.
+
+## Nineteen rules, two undercounts, and both greps were anchored (HO 734, Sep 2026)
+
+HO 734 deletes `HearingDetailCard` and its stylesheet block. The handoff's census said **seventeen** `.hcal-card*` rules. STEP 0 re-derived it and said **eighteen**. Both were wrong, and wrong the same way.
+
+```
+$ grep -n '^\.hcal-card' app/globals.css | wc -l
+18
+```
+
+The nineteenth is indented, because it is inside a media query:
+
+```css
+@media (max-width: 720px) {
+  .hcal-card {
+    width: min(340px, calc(100vw - 24px));
+  }
+}
+```
+
+An anchored pattern cannot see a nested rule, and a nested rule is exactly where a responsive override lives — so the anchor excludes, by construction, the one kind of rule most likely to be forgotten. Deleting on either count would have left a dangling rule whose selector matched nothing, and nothing in the build or the typecheck would have said so.
+
+**What caught it was not a better grep.** It was deleting the block and then asking the unanchored question — `grep -c 'hcal-card' app/globals.css` — and expecting **0**. A count of what should remain is a different instrument from a count of what to remove, and only the first one can fail after the work is done.
+
+**The block was card-only, which is why the whole media query went.** That was checked rather than assumed: the deletion script asserted the block contained exactly one selector and that it was the card's, and the assertion earned its keep — the first run matched a *different* `@media (max-width: 720px)` block (there are several) and refused, naming the three selectors it found instead.
+
+**Sibling already on record, same family:** `grep -c '^-[^-]'` misses a deleted markdown bullet because striking a line beginning `- **` makes the removed side read `-- **` (HO 639, caught red-handed at HO 672). Same shape — an anchor that silently excludes the case that matters — and the same remedy: count the thing that should be zero afterwards, with an instrument that can produce a non-zero.
