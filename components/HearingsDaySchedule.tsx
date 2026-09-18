@@ -32,10 +32,7 @@
 // two surfaces cannot drift.
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  HearingDetailCard,
-  liveStatus,
-} from "@/components/HearingDetailCard";
+import { HearingDetailCard } from "@/components/HearingDetailCard";
 import {
   addDaysToKey,
   cleanMeetingTitle,
@@ -44,6 +41,7 @@ import {
   etTimeLabel,
   etTodayKey,
   hearingBadge,
+  liveStatus,
   mondayOfKey,
 } from "@/lib/hearings";
 import type { CommitteeMeeting } from "@/lib/queries";

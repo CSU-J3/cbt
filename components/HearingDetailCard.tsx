@@ -4,7 +4,8 @@
 // schedule (HearingsDaySchedule, the mock's three-part hearings interior) and the
 // /hearings week grid share ONE detail card rather than growing two. Nothing in
 // the card's markup, positioning or copy changed in the move; the only edit is
-// that `liveStatus` is now exported (HearingsCalendar's Entry still calls it).
+// that `liveStatus` was exported here. HO 734 moved `liveStatus` and its type to
+// `lib/hearings.ts`; this file imports them like any other consumer.
 //
 // Positioning: fixed + portaled to <body>, measured in a useLayoutEffect and
 // flipped/clamped against the viewport, so no ancestor overflow can clip it.
@@ -17,7 +18,7 @@ import {
   dayKeyParts,
   etDayKey,
   etTimeLabel,
-  LIVE_WINDOW_MS,
+  liveStatus,
   locationText,
 } from "@/lib/hearings";
 import {
@@ -26,18 +27,6 @@ import {
   repositoryEventUrl,
 } from "@/lib/meeting-documents";
 import type { CommitteeMeeting } from "@/lib/queries";
-
-export type LiveStatus = "scheduled" | "live" | "concluded";
-
-const SUPPRESS_STATUS = new Set(["Canceled", "Postponed"]);
-
-export function liveStatus(m: CommitteeMeeting, nowMs: number): LiveStatus {
-  const start = Date.parse(m.meetingDate);
-  if (Number.isNaN(start) || nowMs < start) return "scheduled";
-  if (!SUPPRESS_STATUS.has(m.meetingStatus) && nowMs <= start + LIVE_WINDOW_MS)
-    return "live";
-  return "concluded";
-}
 
 function chamberLabel(c: "house" | "senate"): string {
   return c === "house" ? "HOUSE" : "SENATE";

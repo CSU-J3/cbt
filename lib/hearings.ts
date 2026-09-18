@@ -118,6 +118,21 @@ export function watchState(
   return "watch";
 }
 
+// HO 734: `liveStatus` moved here VERBATIM from HearingDetailCard, which HO 734
+// deletes. It is playback-state for a meeting the surfaces label (SCHEDULED /
+// LIVE / CONCLUDED) and reads the same two facts `watchState` does, so it reads
+// THIS file's SUPPRESS_STATUS rather than the second byte-identical copy the
+// card carried (backlog `:17`).
+export type LiveStatus = "scheduled" | "live" | "concluded";
+
+export function liveStatus(m: CommitteeMeeting, nowMs: number): LiveStatus {
+  const start = Date.parse(m.meetingDate);
+  if (Number.isNaN(start) || nowMs < start) return "scheduled";
+  if (!SUPPRESS_STATUS.has(m.meetingStatus) && nowMs <= start + LIVE_WINDOW_MS)
+    return "live";
+  return "concluded";
+}
+
 // ---- ET (DC time) formatting -------------------------------------------
 // Hearings are DC events; the spec's "9:30a" is the ET reading of a 13:30Z
 // meeting_date. All grouping + display is in America/New_York so day boundaries

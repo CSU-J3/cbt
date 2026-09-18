@@ -19,7 +19,8 @@
 // 8712236: left=8 at 390, 430, 1440 and 2560). An entry now toggles HearingPanel
 // under itself — the panel /committee and /bill already expand — single-open,
 // keyed on eventId, client state. The card stays the dashboard's alone; what the
-// two surfaces still share is `liveStatus`.
+// two surfaces still share is `liveStatus`, which HO 734 moved to
+// `lib/hearings.ts` beside `watchState` and the one SUPPRESS_STATUS set.
 //
 // Presentation + one computed field (live status). Data is what the live page
 // already reads (getUpcomingMeetings + getRecentMeetings, widened to 14d so the
@@ -28,7 +29,6 @@
 // and clearing the filter restores it, so no effect resets it.
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { liveStatus } from "@/components/HearingDetailCard";
 import { HearingPanel } from "@/components/HearingPanel";
 import {
   addDaysToKey,
@@ -38,6 +38,7 @@ import {
   etTimeLabel,
   etTodayKey,
   hearingBadge,
+  liveStatus,
   mondayOfKey,
   type HearingBadge,
 } from "@/lib/hearings";
