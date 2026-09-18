@@ -27,12 +27,18 @@
 // no query changed; the next-day-with-meetings lookahead reads the upcoming set
 // the accessor already returns (~2 weeks ahead, HO 261).
 //
+// HO 734 — detail expands IN FLOW here too, the /hearings shape (HO 730). A
+// click, Enter or Space on a row toggles HearingPanel (variant="sched") as a
+// SIBLING under it, single-open across both >=1700px columns, no hover open.
+// The floating HearingDetailCard is DELETED: this was its only consumer, and
+// at 2560 it covered twelve rows of the schedule’s own second column.
+//
 // The per-meeting detail (watch link, committee, related bills) is the SHARED
-// HearingDetailCard, extracted from HearingsCalendar in this same commit so the
-// two surfaces cannot drift.
+// HearingPanel — the same component /hearings, /committee/[systemCode] and
+// /bill/[id] render, so the four surfaces cannot drift.
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { HearingDetailCard } from "@/components/HearingDetailCard";
+import { useState } from "react";
+import { HearingPanel } from "@/components/HearingPanel";
 import {
   addDaysToKey,
   cleanMeetingTitle,
@@ -53,44 +59,38 @@ const SPLIT_MIN_ROWS = 6;
 function SchedRow({
   m,
   nowMs,
-  onOpen,
-  onLeave,
+  isOpen,
+  onToggle,
 }: {
   m: CommitteeMeeting;
   nowMs: number;
-  onOpen: (m: CommitteeMeeting, rect: DOMRect) => void;
-  onLeave: () => void;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
   const badge = hearingBadge(m.meetingType);
   const status = liveStatus(m, nowMs);
   const title = cleanMeetingTitle(m.title);
   const n = m.bills.length;
-  const open = useCallback(() => {
-    const el = ref.current;
-    if (el) onOpen(m, el.getBoundingClientRect());
-  }, [m, onOpen]);
 
   return (
     <div
-      ref={ref}
       className={`hsch-row${status === "concluded" ? " is-past" : ""}${
         badge === "MARKUP" ? " is-markup" : ""
-      }`}
+      }${isOpen ? " is-open" : ""}`}
       role="button"
       tabIndex={0}
-      onMouseEnter={open}
-      onMouseLeave={onLeave}
-      onClick={open}
-      onFocus={open}
-      onBlur={onLeave}
+      aria-expanded={isOpen}
+      onClick={onToggle}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          open();
+          onToggle();
         }
       }}
     >
+      <span className={`hearing-caret${isOpen ? " is-open" : ""}`} aria-hidden>
+        ▸
+      </span>
       <span className="hsch-time">{etTimeLabel(m.meetingDate)}</span>
       <span className="hsch-kind">{badge}</span>
       <span className="hsch-title">{title || "(untitled meeting)"}</span>
@@ -109,41 +109,10 @@ export function HearingsDaySchedule({
   committeeNames: Record<string, string>;
   nowMs: number;
 }) {
-  const [open, setOpen] = useState<{ m: CommitteeMeeting; rect: DOMRect } | null>(
-    null,
-  );
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearClose = useCallback(() => {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }, []);
-  const scheduleClose = useCallback(() => {
-    clearClose();
-    closeTimer.current = setTimeout(() => setOpen(null), 140);
-  }, [clearClose]);
-  const onOpen = useCallback(
-    (m: CommitteeMeeting, rect: DOMRect) => {
-      clearClose();
-      setOpen({ m, rect });
-    },
-    [clearClose],
-  );
-
-  // Tap-elsewhere closes (touch parity with the calendar's entries).
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t?.closest(".hcal-card")) return;
-      if (t?.closest(".hsch-row")) return;
-      setOpen(null);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [open]);
+  // Single-open across BOTH columns: the state sits above renderRows, so a
+  // click in column B closes an open row in column A. No hover, no focus-open,
+  // no close timer and no tap-elsewhere listener — HO 730’s /hearings shape.
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const byDay = new Map<string, CommitteeMeeting[]>();
   for (const m of meetings) {
@@ -199,6 +168,11 @@ export function HearingsDaySchedule({
 
   const parts = shownKey ? dayKeyParts(shownKey) : null;
 
+  // The panel is a SIBLING of the row inside the row's own keyed wrapper, below
+  // any now-marker, so the marker keeps the row it separates and the panel grows
+  // its own column. Single-open is across BOTH columns because `openId` lives
+  // above this. A filter or day change that removes the open row renders nothing
+  // and needs no effect, exactly as on /hearings.
   const renderRows = (list: CommitteeMeeting[], offset: number) =>
     list.map((m, i) => (
       <div key={m.eventId}>
@@ -208,7 +182,26 @@ export function HearingsDaySchedule({
             <span className="hsch-now-line" />
           </div>
         ) : null}
-        <SchedRow m={m} nowMs={nowMs} onOpen={onOpen} onLeave={scheduleClose} />
+        <SchedRow
+          m={m}
+          nowMs={nowMs}
+          isOpen={openId === m.eventId}
+          onToggle={() =>
+            setOpenId((id) => (id === m.eventId ? null : m.eventId))
+          }
+        />
+        {openId === m.eventId ? (
+          <HearingPanel
+            m={m}
+            committeeName={
+              m.committeeSystemCode
+                ? (committeeNames[m.committeeSystemCode] ?? null)
+                : null
+            }
+            nowMs={nowMs}
+            variant="sched"
+          />
+        ) : null}
       </div>
     ));
 
@@ -287,21 +280,6 @@ export function HearingsDaySchedule({
           {colB.length > 0 ? <div>{renderRows(colB, splitAt)}</div> : null}
         </div>
       )}
-
-      {open ? (
-        <HearingDetailCard
-          m={open.m}
-          committeeName={
-            open.m.committeeSystemCode
-              ? (committeeNames[open.m.committeeSystemCode] ?? null)
-              : null
-          }
-          nowMs={nowMs}
-          anchor={open.rect}
-          onPointerEnter={clearClose}
-          onPointerLeave={scheduleClose}
-        />
-      ) : null}
     </div>
   );
 }

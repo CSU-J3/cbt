@@ -8,7 +8,8 @@
 // per empty day (the C4 defect, and every M2 hit on `/`); the ribbon gives an
 // empty day one dash. /hearings keeps the full calendar, one click away via the
 // panel's → ALL link, and the two surfaces still share the per-meeting detail
-// card (HearingDetailCard) so they cannot drift on what a meeting looks like.
+// panel (HearingPanel, HO 734) so they cannot drift on what a meeting looks
+// like. The floating card that sentence used to name was deleted in HO 734.
 // The tab's TYPE/CHAMBER filter bar goes with the grid: this is a glance
 // surface, and /hearings carries the filters.
 import { HearingsDaySchedule } from "@/components/HearingsDaySchedule";

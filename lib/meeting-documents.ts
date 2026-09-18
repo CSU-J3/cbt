@@ -2,14 +2,15 @@
 //
 // Import-safe on purpose (no next/cache, no db): the sync (lib/meetings-sync.ts,
 // run by tsx scripts), the readers (lib/queries.ts) and the client rows
-// (HearingRow, HearingPanel, HearingDetailCard) all read this one file, so the predicate has
+// (HearingRow, HearingPanel) all read this one file, so the predicate has
 // exactly one copy. A third rule is a SKILL edit here, not a second copy anywhere.
 import type { CommitteeMeeting } from "./queries";
 
 /**
  * Whether a meeting carries the recorded-vote pointer: House only, and only when
  * at least one recorded-vote document is stored — absence is the signal. HO 730
- * moved it here from HearingRow; HearingDetailCard carried an inline second copy.
+ * moved it here from HearingRow; HearingDetailCard carried an inline second copy
+ * until HO 734 deleted that component.
  */
 export function hasRecordedVotes(
   m: Pick<CommitteeMeeting, "chamber" | "recordedVoteDocs">,

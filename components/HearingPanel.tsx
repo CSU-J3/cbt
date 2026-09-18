@@ -33,12 +33,16 @@ export function HearingPanel({
   m: CommitteeMeeting;
   committeeName: string | null;
   nowMs: number;
-  variant?: "row" | "agenda";
+  variant?: "row" | "agenda" | "sched";
 }) {
   const state = watchState(m, nowMs);
   const loc = locationText(m);
   return (
-    <div className={variant === "agenda" ? "hearing-panel hearing-panel--agenda" : "hearing-panel"}>
+    <div
+      className={
+        variant === "row" ? "hearing-panel" : `hearing-panel hearing-panel--${variant}`
+      }
+    >
       {/* WATCH — full link + state copy */}
       {m.videoUrl && state !== "none" ? (
         <div className="hearing-panel-sec">

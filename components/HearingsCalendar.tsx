@@ -18,8 +18,9 @@
 // side was left and the card clamped onto the rows it annotated (measured at
 // 8712236: left=8 at 390, 430, 1440 and 2560). An entry now toggles HearingPanel
 // under itself — the panel /committee and /bill already expand — single-open,
-// keyed on eventId, client state. The card stays the dashboard's alone; what the
-// two surfaces still share is `liveStatus`, which HO 734 moved to
+// keyed on eventId, client state. HO 734 converted the dashboard schedule the
+// same way and DELETED the card; what the two surfaces share is `liveStatus`,
+// which HO 734 moved to
 // `lib/hearings.ts` beside `watchState` and the one SUPPRESS_STATUS set.
 //
 // Presentation + one computed field (live status). Data is what the live page
