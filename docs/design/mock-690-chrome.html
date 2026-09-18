@@ -181,6 +181,23 @@
     ladder is pinned at the 1440 values. <span class="warn">Ruling record: section 01 ruled <b>D</b> (Corey, 2026-09-03, verbatim <i>"D"</i>); section 02 ruled <b>N2 at 6px</b> (Corey, 2026-09-03: <i>"2. 6px"</i>, read as the N2 variant at a
     6px side pad; section 03 <i>"3. yes"</i>; section 04 <i>"4. yes to the new one"</i>). Committed as the ruling record (HO 673 / 689 precedent).</span></p>
 
+  <p class="note"><span class="warn">2026-09-18 (HO 735) — section 02's caption stands at <i>"2. 6px"</i>; the SHIPPED
+    mechanism no longer matches this mock's.</span> The hairline is now drawn by a 1px <b>column-gap</b> on
+    <b>.primary-nav</b> plus an outset <b>box-shadow: -1px 0 0 var(--border-soft)</b> on <b>.pnav-item + .pnav-item</b>,
+    not by the <b>.nav.n2 a + a { border-left }</b> drawn above. A border takes 1px of LAYOUT on every adjacent sibling,
+    including a wrapped row's first tab, and a <b>column-gap</b> is the only spacing primitive that applies between items
+    on the same line and never at the start of a wrapped line — so the gap carries the space and a shadow, which takes no
+    layout, carries the ink. Ruled by Corey, 2026-09-18, verbatim <i>"looks good"</i>. Every ruled TOTAL holds, measured
+    by <b>scripts/diagnostic/nav-geometry-690.ts</b> on a production build at 1440 and 2560: 6px side pad, 13px
+    label-to-label uniform, 21px across the divider, first label flush with the masthead, 8 items on row 1 at 1440.
+    FOUR things changed and are accepted on the same ruling — (1) the paint mechanism differs from this mock, (2) the
+    divider's margins read <b>3px</b> either side at an unchanged 21px total (6 + 1 + 3 + 1 + 3 + 1 + 6), (3) every
+    hairline runs 2px taller, because an outset shadow does not miter into the tab's transparent 2px bottom border the
+    way a left border does, and (4) the stray hairline at a wrapped row's start — present in every escape, since it is
+    the sibling relationship and not the paint method — relocates 1px left, into the strip's negative margin, which is
+    what brings that row's label back into line. Captures both ways in
+    <b>docs/handoffs/735-artifacts/</b> (local-only).</p>
+
   <!-- ══ 01 ═══════════════════════════════════════════════════════════════ -->
   <h2 class="sec"><span class="n">01</span>Sponsor portrait — four sizes in the live metabox</h2>
   <p class="sub">The shipped block is <b>80×94</b> (<b>.bxp-sponsor-photo</b>, globals.css:4779) beside a three-line stack. Every
