@@ -744,7 +744,10 @@ body {
    `--border-soft` hairline between adjacent tabs, and the active state carried by
    a `--bg-row-hover` FILL + the existing 2px amber underline. Label-to-label is
    then 2*pad + the rule = 13px, and 21px across the group boundary
-   (6 + 4 + 1 + 4 + 6). `margin-inline: calc(-1 * var(--pnav-pad))` pulls the row
+   (6 + 1 + 3 + 1 + 3 + 1 + 6 since HO 735 — the rule stopped taking layout, a 1px
+   `column-gap` took its place, and the divider's own margins went 4px → 3px to
+   keep the total at 21; while the rule took layout it was (6 + 4 + 1 + 4 + 6)).
+   `margin-inline: calc(-1 * var(--pnav-pad))` pulls the row
    back so the FIRST LABEL'S TEXT — not its tab's padding box — sits flush with
    the masthead text edge; before this, the first label was indented by exactly
    one reserved bracket on both header mounts. Type is untouched
@@ -765,7 +768,7 @@ body {
   /* Beats `.home-header-nav`'s `gap: var(--space-xs) 30px` above on source order
      (both are (0,1,0)) — the pad is the only spacing knob now. row-gap 0 so
      wrapped rows abut. */
-  column-gap: 0;
+  column-gap: 1px;
   row-gap: 0;
   margin-inline: calc(-1 * var(--pnav-pad));
   border-bottom: 1px solid var(--border-soft);
@@ -809,19 +812,53 @@ body {
    `.pnav-divider + .pnav-item` reset below states, kept because a future markup
    change could put a wrapper between them.
 
-   MEASURED RESIDUE, DO NOT "FIX" IT WITHOUT RE-RULING THE VARIANT: a WRAPPED
-   row's first tab is still an adjacent sibling in DOM order, so it draws this
-   rule with nothing to its left and its label sits 1px right of the row above
-   (25px vs 24px, `/` at 1440 — nav-geometry-690.ts). CSS cannot see a wrap
-   boundary. The two escapes both move the same pixel somewhere else rather than
-   removing it: a transparent 1px left border on EVERY item aligns the rows but
-   pushes the group-divider gap 21px → 22px, and moving the rule to a
-   `border-right` leaves a dangling rule at the end of each wrapped row, which is
-   more visible than 1px. This is the ruled N2 mechanism drawn verbatim
-   (docs/design/mock-690-chrome.html `.nav.n2 a + a`), so the residue is reported
-   rather than designed around. */
+   HO 735 — THE RESIDUE IS GONE. This is the record of how, so nobody re-derives
+   the escape or "fixes" what it deliberately leaves behind. HO 690 shipped the
+   rule as `border-left: 1px`, which takes 1px of LAYOUT on every adjacent
+   sibling; a WRAPPED row's first tab is still an adjacent sibling in DOM order,
+   so it drew the rule with nothing to its left and its label sat 1px right of the
+   row above (25px vs 24px, `/` at 1440). CSS cannot see a wrap boundary — but a
+   `column-gap` is the one spacing primitive that applies BETWEEN items on the
+   same line only and never at the start of a wrapped line. So the gap is the
+   wrap-aware half, and an OUTSET shadow, which takes no layout space at all,
+   paints the hairline into it. Ruled by Corey, 2026-09-18, verbatim "looks good"
+   on the HO 735 STEP 0 table.
+
+   Measured on a production build, `/` and `/bills` at 1440 and 2560
+   (nav-geometry-690.ts — HO 690's numbers taken the same way): label-to-label
+   holds at 13px uniform, row-2 first label 1px → 0px, the divider 21px, masthead
+   0px, active-vs-inactive 0px, and the wrap point UNCHANGED at 8 items on row 1.
+   Every tab is 1px narrower now that the rule takes no layout and the gap hands
+   that pixel straight back, so row 1 ends at the same 738.00px it did before —
+   which is why the wrap point cannot move. The THIRD escape
+   (`box-shadow: inset`) is not this one: it removed the pixel by narrowing
+   label-to-label to 12px and moving the wrap to 9 items, so it needed a re-ruling
+   of the ruled figure. This one keeps the figure, which is why it did not.
+
+   THE DIVIDER IS COMPENSATED, not left alone: a column-gap applies on both sides
+   of `.pnav-divider` too, so its margins go 4px → 3px and the 21px total is
+   (6 + 1 + 3 + 1 + 3 + 1 + 6). The reset below becomes `box-shadow: none` for
+   exactly the reason it was `border-left: none`.
+
+   TWO MARKS SURVIVE, BOTH ACCEPTED ON THE SAME RULING — do not "fix" them back.
+   (1) The stray hairline at the start of a wrapped row is the SIBLING
+   RELATIONSHIP, not the paint method, so it is present in every escape. It now
+   paints at x=17 on `/` at 1440 — one pixel left of the tab AND of the strip,
+   out in the negative margin — instead of at x=18 inside the tab, where it was
+   what pushed that label to 25px. (2) Every hairline now runs the FULL
+   border-box height down to the strip's bottom rule: an outset shadow does not
+   miter into `border-bottom: 2px solid transparent` the way a left border does,
+   so each rule is 2px taller than HO 690's. That is the entire non-wrapping
+   difference between the two builds — 18 pixels on `/bills` at 1440, nine
+   hairlines by two rows, read off the captures in docs/handoffs/735-artifacts/.
+
+   So this is NO LONGER the mock's mechanism drawn verbatim
+   (docs/design/mock-690-chrome.html `.nav.n2 a + a` is a `border-left`). What it
+   keeps are the ruled TOTALS, and the mock's § 02 caption ("2. 6px") is unchanged
+   by it. */
 .primary-nav .pnav-item + .pnav-item {
-  border-left: 1px solid var(--border-soft);
+  border-left: none;
+  box-shadow: -1px 0 0 var(--border-soft);
 }
 .primary-nav .pnav-item:hover {
   color: var(--text-primary);
@@ -858,10 +895,10 @@ body {
   width: 1px;
   background: var(--border-strong);
   align-self: stretch;
-  margin: 0 4px;
+  margin: 0 3px;
 }
 .primary-nav .pnav-divider + .pnav-item {
-  border-left: none;
+  box-shadow: none;
 }
 /* HO 281 — B1 + B3 header type scale, DESKTOP ONLY. The base rules above hold
    the HO 244 sizes (title 20 / readout + nav 14 / sync 11), which mobile keeps
