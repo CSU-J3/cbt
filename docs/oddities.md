@@ -4522,3 +4522,50 @@ HO 733 had to measure whether the masthead sync line could absorb a clock, so it
 **The rule, and it is not "use a better selector".** Print what you measured. The fix here was to enumerate every match and label it (`4 match(es)`, with the sync line flagged by content), and afterwards every reading in the HO selected that line **by content** — `.home-header-meta:has(.masthead-clock)` for the captures, the timestamp's parent for the audit — never by the bare class. An ambiguous selector is not a bug until something distinguishes the siblings, and by then the number has been quoted.
 
 **Sibling already on record, same family:** in a CSS-module page, `[class*="__lead"]` matches `__leadwrap` first (HO 727). That one is a substring matching too much; this one is a class matching too many. Both produce a plausible number from the wrong element, and in both cases the output looked exactly like a correct reading.
+
+## A one-line strike that diffed 772 lines, and the lone `\r` that did it (HO 733, Sep 2026)
+
+HO 733's close was a single backlog strike — wrap one entry in `~~…~~`, append a close note, change nothing else. `git diff --numstat` came back:
+
+```
+772	772	docs/backlog.md
+```
+
+The whole file, on a one-line edit. `docs/backlog.md` is 772 lines.
+
+**The mechanism.** This clone is `core.autocrlf=true`: the file is **LF in the index, CRLF in the worktree**, and `git status` is clean because git normalizes the worktree side on the way in. A Node edit read it with `fs.readFileSync(p,'utf8').split('\n')`, which leaves a trailing `\r` on **every** element. Appending to one of those elements —
+
+```js
+lines[i] = '- ~~' + orig.slice(2) + '~~' + note;   // orig still ends with \r
+```
+
+— puts that `\r` in the **middle** of the line and leaves the line with no trailing CR. One lone CR, one lone LF. `git`'s `convert_is_binary` flags exactly that, the file flips to `-text`, CRLF normalization is skipped **for the worktree side only**, and every line now differs from its LF twin in the index. The commit would have rewritten the file's line endings while claiming to strike one entry.
+
+**The three-probe bisect, which separates size from `\r`-handling.** The first suspicion was the note's length, and it was wrong:
+
+| probe | what it wrote | `git ls-files --eol` | numstat |
+|---|---|---|---|
+| no-op | read the file and write it back unchanged | `w/crlf` | *(clean)* |
+| `\r`-clobbering, +4 chars | `'- ~~' + orig.slice(2) + '~~'` | `w/-text` | 772/772 |
+| `\r`-clobbering, +2400 chars | same, with a long pad | `w/-text` | 772/772 |
+| `\r`-preserving, +1 char | strip `\r`, append, re-add `\r` | `w/crlf` | 1/1 |
+
+Four characters flip it and 2,400 characters do not make it worse, so it is not size. The no-op row is the control that proves the reader/writer pair is faithful when it does not touch the terminator.
+
+**The authoritative instrument is `git ls-files --eol <path>`.** `w/crlf` is a healthy CRLF worktree file; `w/-text` means git has stopped treating it as text and no normalization will happen. It reads the state directly, where the numstat only reports the consequence.
+
+**The guard belongs in the writer, not in the review.** The fixed script captures the terminator and restores it, then asserts:
+
+```js
+const cr = raw.endsWith('\r') ? '\r' : '';
+const orig = cr ? raw.slice(0, -1) : raw;
+lines[i] = '- ~~' + orig.slice(2) + '~~' + note + cr;
+// then, on the joined output:
+console.log('loneCR=', (out.match(/\r(?!\n)/g) || []).length);   // must be 0
+```
+
+Splitting on `/\r?\n/` and rejoining with an explicit terminator is the same fix by another route.
+
+**Why this is filed rather than shrugged off.** The numstat deletion column is this project's authority on *nothing was removed* (HO 639, HO 672), and a markdown file full of 5,000-character lines is exactly the place where a whole-file diff reads as ordinary noise. It is not noise. **A whole-file numstat on a small edit is a line-ending finding, not markdown churn** — and the temptation to push past it is strongest precisely when the edit is known-small, because the author already knows what they changed.
+
+**Sibling already on record, same family:** `git show "$rev:.claude/…"` fails to MSYS path mangling on this box and a piped counter then prints a plausible `CR=0` off empty stdin (HO 700). Both are the Windows box's line-ending and path layer producing a number that looks like an answer.
