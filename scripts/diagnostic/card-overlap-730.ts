@@ -14,17 +14,35 @@
 //
 // THE FRESHNESS DISCRIMINATOR rides every line: `.hcal-card` and `.hearing-panel`
 // counts with the entry open. Before HO 730 /hearings reads 1 / 0; after, 0 / 1.
-// `/` reads `.hcal-card=1` on both sides — the control: a zero there is a stale
-// build or a broken dashboard, and a /hearings zero proves nothing beside it.
+//
+// THE CONTROL FLIPPED AT HO 734, and the old one is stated so a stale reading is
+// recognisable rather than merely wrong. Until HO 734 `/` read `.hcal-card=1` on
+// both sides — the card was the dashboard's alone, so a zero there meant a stale
+// build or a broken dashboard. HO 734 converted that schedule and DELETED the
+// card, so from HO 734 BOTH routes read `.hcal-card=0 .hearing-panel=1` with an
+// entry opened by click, and the control is the PANEL's presence: a `.hcal-card=1`
+// anywhere is now a stale build, and `0 / 0` is a broken toggle. The card's class
+// is kept in the output on purpose — it is the one reading that can still catch a
+// pre-734 bundle being served.
 //
 // `doc=` is the doc-scroll reading (scrollWidth/clientWidth, over past 1px) with
 // the entry OPEN, which the narrow gate cannot take: it measures collapsed pages.
+//
+// THE CHOSEN ROW IS SCROLLED INTO VIEW BEFORE THE CLICK (HO 734). It used to take
+// the first row already inside the viewport, which made `/` unreadable at 430 and
+// 390 — the schedule sits ~1016px down a 932px viewport, so the narrow run printed
+// `NO ROW IN VIEWPORT` and no reading at all. That message now means what it says:
+// a row that is genuinely absent, never one below the fold. HO 730's narrow usage
+// line was `ROUTES=/hearings` for exactly this reason, so `/`'s open-state narrow
+// reading had never been taken before HO 734.
 //
 //   BASE_URL=http://localhost:3000 npx tsx scripts/diagnostic/card-overlap-730.ts
 //   MSYS_NO_PATHCONV=1 WIDTHS=430,390 ROUTES=/hearings npx tsx scripts/diagnostic/card-overlap-730.ts
 //
 // Measured at 8712236 (HO 730 STEP 0): /hearings card L8 at 1440 and 2560 over
 // 6 and 7 rows; / card beside its row at both, 0 rows at 1440, 12 at 2560.
+// Measured at HO 734: / reads 0 / 1 at 1440, 2560, 430 and 390, rows-under 0,
+// over=0, against 1 / 0 with the card at L712 covering 12 rows at 2560 before it.
 import { chromium } from "@playwright/test";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
@@ -72,18 +90,17 @@ const fmt = (x: R) =>
       await page.waitForTimeout(800);
       const rows = page.locator(c.row);
       const count = await rows.count();
-      // the first row whose box sits inside the viewport
+      // HO 734: the first row that EXISTS, scrolled into view. Picking "the first
+      // row already inside the viewport" made `/` unreadable at 430/390.
       let idx = -1;
-      for (let i = 0; i < count; i++) {
-        const b = await rows.nth(i).boundingBox();
-        if (b && b.y > 0 && b.y + b.height < h - 40) {
-          idx = i;
-          break;
-        }
+      if (count > 0) {
+        idx = 0;
+        await rows.nth(0).scrollIntoViewIfNeeded();
+        await page.waitForTimeout(200);
       }
       const head = `${c.route} @${w}: status=${resp?.status()} rows=${count}`;
       if (idx < 0) {
-        console.log(`${head} NO ROW IN VIEWPORT`);
+        console.log(`${head} NO ROW ON THE PAGE`);
         await ctx.close();
         continue;
       }
