@@ -9168,16 +9168,48 @@ a.rdc-chal-name:hover {
 .hearing-row-btn--nobills {
   grid-template-columns: 14px 50px 90px minmax(0, 1fr);
 }
+/* HO 734: the caret is a TRACK, not a glyph. `▸` renders at ~0.55em by font
+   metric, which is a font fact and not a stylesheet fact — so an indent summed
+   from the declared tracks had one term nobody could cite. Declaring the width
+   makes every term of `.hearing-panel--agenda`'s and `--sched`'s padding a CSS
+   length, which is what makes those sums exact at every width and on every
+   host's metrics. Measured cost of the declaration: 6.06px -> 6.6px at 1440,
+   7.70px -> 8.4px at 2560.
+
+   A DECLARED WIDTH IS NOT A TRACK ON ITS OWN: the caret is a flex item at the
+   default `flex-shrink: 1`, so a row whose title overflows takes part of it
+   back. Measured at 2560 on `/`, where the schedule sits in one half of a
+   `1fr 1fr` grid: computed width 7.70px against the declared 8.39px, while the
+   same rule on the wider `/hearings` entry kept all 8.39px, and the indent
+   then missed by exactly that 0.69px. `flex-shrink: 0` is what makes the
+   declaration govern. */
 .hearing-caret {
   color: var(--text-dim);
   font-size: var(--fs-11);
   line-height: 1;
   display: inline-block;
+  width: 0.6em;
+  text-align: center;
+  flex-shrink: 0;
   transition: transform 120ms ease, color 120ms ease;
 }
 .hearing-caret.is-open {
   transform: rotate(90deg);
   color: var(--accent-amber);
+}
+/* HO 734: the caret’s 120ms transform transition is MOTION, and this repo has no
+   blanket reduced-motion rule — every instance is targeted (`.beta-tag` :289,
+   `.v2f-bping` :4635, `.markets-tape-track` :7679), and all three disable
+   `animation`, so nothing disabled a TRANSITION. Read, not assumed: the HO 734
+   capture pass took a separate reduced-motion pass with
+   `matchMedia("(prefers-reduced-motion: reduce)")` read true INSIDE the page,
+   and the caret still computed `transition-duration: 0.12s`. The rule shipped
+   with the caret in HO 730; HO 734 puts that caret on a second surface, which
+   is why it is repaired here. */
+@media (prefers-reduced-motion: reduce) {
+  .hearing-caret {
+    transition: none;
+  }
 }
 .hearing-time {
   font-size: var(--fs-12);
@@ -9340,15 +9372,32 @@ a.hearing-votes:hover {
   padding: 4px 12px 16px 38px;
   border-top: 0.5px solid var(--border-soft);
 }
-/* HO 730: the /hearings agenda's indent (HearingPanel variant="agenda"). The 38px
-   above is tuned to .hearing-row-btn's caret+time tracks; the agenda entry is a
-   flex row, so its own indent lands the panel under the entry's kind column.
-   75px is MEASURED, not summed: on a local production build (Windows, IBM Plex
-   Mono) the open entry's .hcal-entry-kind sits 74.66px right of the entry's edge
-   at both 1440 and 430. The handoff's arithmetic estimate (51px) predated the
-   caret and landed the sections under the time column. */
+/* HO 730 -> HO 734. The 38px above is tuned to .hearing-row-btn's caret+time
+   tracks, which are PX (`grid-template-columns: 14px 50px 90px ...`), so it does
+   not move with the type ladder; measured at 1440 and 2560 in HO 734 and left
+   alone.
+
+   The agenda indent DID move, and HO 734 replaces HO 730's measured 75px with a
+   sum of the entry's declared tracks. HO 730 wrote "75px is MEASURED, not
+   summed" against an arithmetic estimate that had been wrong (51px, which
+   predated the caret) — the right correction to the wrong problem. It measured
+   at 1440 and 430, and those two widths share one rung of the type ladder, so a
+   single reading looked like a stable one. `.hcal-entry-time` is `3.6em` on
+   `--fs-11`, which goes 11px -> 14px at 2560 (`:89`, `:150`, `:161`, `:172`), so
+   the column the panel aligns to sat at 90.66px at 1440 and 103.09px at 2560
+   while the padding stayed at 75px: measured drift +0.34px at 1440 and -12.09px
+   at 2560.
+
+   Every term below is a declaration on `.hcal-entry` or its first two children,
+   so this is exact at every rung and on every host's font metrics — which
+   neither a px constant nor a re-measure at a second width can be. */
 .hearing-panel--agenda {
-  padding: 2px 8px 12px 75px;
+  padding: 2px 8px 12px
+    calc(
+      2px /* .hcal-entry border-left */ + 7px /* .hcal-entry padding-left */ +
+        (0.6 * var(--fs-11)) /* .hearing-caret width */ + 10px /* gap */ +
+        (3.6 * var(--fs-11)) /* .hcal-entry-time flex-basis */ + 10px /* gap */
+    );
 }
 .hearing-panel-sec {
   display: flex;
