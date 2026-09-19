@@ -50,12 +50,12 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 16 watched route keys, against 17 distinct route strings across 18
+// The 17 watched route keys, against 17 distinct route strings across 18
 // vercel.json crons — the two /api/cron/markets entries collapse to one route
-// string, and /api/cron/lda-rollup is NOT watched (a pre-existing gap, found
-// while adding the roster route at HO 676; filed rather than fixed here).
+// string, and /api/cron/lda-rollup is watched since HO 737, which closes the
+// gap HO 676 found while adding the roster route and filed rather than fixed.
 // The count read 14 while listing 15 before HO 676; corrected with the addition
-// rather than left to drift further.
+// rather than left to drift further, and again here with lda-rollup's.
 export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/summarize", schedule: "*/10 * * * *", maxStaleMs: 30 * MIN }, // every 10m
   { path: "/api/cron/news", schedule: "*/30 * * * *", maxStaleMs: 70 * MIN }, // every 30m
@@ -67,10 +67,16 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/sync", schedule: "0 */6 * * *", maxStaleMs: 13 * HOUR }, // every 6h
   { path: "/api/cron/committees", schedule: "0 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
   { path: "/api/sync-votes", schedule: "0 10 * * *", maxStaleMs: 26 * HOUR }, // daily
-  { path: "/api/cron/primaries", schedule: "0 12 * * *", maxStaleMs: 26 * HOUR }, // daily
+  { path: "/api/cron/primaries", schedule: "0 0,12 * * *", maxStaleMs: 26 * HOUR }, // twice daily (HO 560 C3)
   { path: "/api/cron/rating-history", schedule: "0 15 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/race-challengers", schedule: "30 12 * * *", maxStaleMs: 26 * HOUR }, // daily (HO 660)
   { path: "/api/cron/lda", schedule: "0 8 * * *", maxStaleMs: 26 * HOUR }, // daily
+  // HO 737 — the gap HO 676 filed. This route writes the four /lobbying
+  // dashboard_state blobs, so an unwatched silent stop is invisible: no
+  // invocation means no function error for Vercel to alert on either. Watched
+  // on cron_runs like every other daily (50 rows since 2026-07-31, 30/30
+  // success in the 30 days before it landed), 26h = 2x cadence + 2h grace.
+  { path: "/api/cron/lda-rollup", schedule: "0 22 * * *", maxStaleMs: 26 * HOUR, signal: "cron_runs" }, // daily (HO 580)
   { path: "/api/cron/amendments", schedule: "0 7 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/nominations", schedule: "0 9 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/weekly-report", schedule: "30 9 * * 1", maxStaleMs: 9 * DAY, windowOnly: true }, // weekly
