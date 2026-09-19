@@ -19,6 +19,11 @@ function statusLabel(status: string | null): string {
     // labelled "Won primary" — a convention nominee never ran in one.
     case "nominee":
       return "Nominee";
+    // HO 736: a top-four / top-two advancer. Same reasoning one step over — an
+    // advancer never won a party primary either, and four of them advance from
+    // one contest. The `default:` above would have shipped it lowercase.
+    case "advanced":
+      return "Advanced";
     case "running":
       return "Running";
     case "declared":

@@ -47,7 +47,13 @@ const WITHDRAWN = new Set([
 // here used to cost sort position; it now also costs a seat its general-election
 // reading, sending a decided race back to `leader` and re-lighting the
 // "primary unresolved" footnote under it.
-const NOMINATED = new Set(["won_primary", "nominee"]);
+// HO 736 adds 'advanced': a top-four / top-two advancer is on the November
+// ballot, so it means the same WHAT here as the other two. This set is exactly
+// where omitting it would have cost the most — by the note above, a missing
+// status sends a decided seat back to `leader`, re-daggers its challenger and
+// re-lights the "primary unresolved" footnote, which is the failure the status
+// was introduced to avoid rather than to cause.
+const NOMINATED = new Set(["won_primary", "nominee", "advanced"]);
 
 export type RosterMember = {
   name: string;

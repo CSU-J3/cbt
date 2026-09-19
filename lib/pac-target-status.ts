@@ -84,8 +84,12 @@ export type RosterRow = { name: string; status: string | null };
 // Mirrors lib/race-matchup.ts's NOMINATED. Kept as its own constant rather than
 // imported because that module pulls the whole matchup/market surface in; the
 // two sets must move together if a status is ever added (the same standing
-// obligation the getRaceCandidates ORDER BY ladder carries).
-const ROSTER_NOMINATED = new Set(["won_primary", "nominee"]);
+// obligation the getRaceCandidates ORDER BY ladder carries). THREE copies now,
+// not two: this one, race-matchup.ts:NOMINATED, and the two SQL ladders in
+// lib/queries.ts — HO 736 added 'advanced' to all of them in one commit.
+// 'advanced' belongs here for the reason the other two do: an advancer is on
+// the November ballot, so a PAC target who advanced is still in the race.
+const ROSTER_NOMINATED = new Set(["won_primary", "nominee", "advanced"]);
 const ROSTER_WITHDRAWN = new Set(["withdrew", "withdrawn"]);
 
 // FEC `candidate_name` is "LAST, FIRST …"; roster and primary names are

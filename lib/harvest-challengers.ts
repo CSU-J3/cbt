@@ -74,12 +74,48 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   });
 
   // 2. Insert non-incumbent winners for index races with no curated roster.
-  //    status='won_primary' surfaces them first in the card's roster ordering.
+  //    status='won_primary' / 'advanced' surfaces them first in the card's
+  //    roster ordering — both rungs tie at 0 (lib/queries.ts).
+  //
+  //    HO 736 — WHY A STATUS AND NOT A LABEL. A top-four or top-two advancer
+  //    did not win a party primary; four of them advance from one contest, and
+  //    `won_primary` renders as "Won primary" / "primary winner" / "the party's
+  //    general-election nominee", which is a nomination nobody received. HO 638
+  //    set the precedent with `nominee`: a convention nominee never ran in a
+  //    primary either, and got its own status rather than a relabelled
+  //    `won_primary`, because the false claim would sit in a status column that
+  //    nothing downstream re-reads. Same reasoning, same shape.
+  //
+  //    THE DATA PATH IS THIS FUNCTION'S OWN RE-DERIVE. No one-off UPDATE was
+  //    written: the DELETE above clears every sentinel row and this INSERT
+  //    rebuilds them, so changing what it writes re-flows on the next scheduled
+  //    run (/api/cron/race-challengers, 30 12 * * *) with zero manual writes.
+  //
+  //    THE EXCLUSIONS ARE ABOUT MEANING, NOT ABOUT ROWS — neither type reaches
+  //    this SELECT today (measured HO 736: open 211, NULL 19, top_two 13,
+  //    top_four 2, ranked_choice 0, jungle 0), so no reading can falsify them:
+  //      · `ranked_choice` — Maine's six are ORDINARY party primaries that
+  //        happen to be counted by RCV. One nominee each, so `won_primary` is
+  //        true of them and `advanced` would be the false claim.
+  //      · `jungle` — Louisiana's all-party contest is the GENERAL with a
+  //        runoff, a different shape entirely (HO 577/584); it is out of scope
+  //        here rather than assigned a roster status by this CASE.
+  //
+  //    THE CASE IS SINGLE-VALUED PER ROW, AND THAT IS LOAD-BEARING.
+  //    `race_candidates` is PRIMARY KEY (race_id, name) and this is
+  //    INSERT OR IGNORE, so if one (race, candidate) reached the SELECT under
+  //    two different `primary_type` values the CASE would emit two rows and
+  //    whichever arrived first would silently win. Measured at HO 736: 0 of 245
+  //    (race, candidate) pairs reach it under more than one type, max 1 type
+  //    per pair. What would break it is a state whose primaries rows for ONE
+  //    seat disagree on `primary_type` — re-measure that before trusting this.
   const ins = await db.execute({
     sql: `INSERT OR IGNORE INTO race_candidates
             (race_id, name, party, bioguide_id, status, source_url, updated_at)
           SELECT DISTINCT r.id, pc.name, pc.party, pc.bioguide_id,
-                 'won_primary', '${HARVEST_SOURCE}', ?
+                 CASE WHEN p.primary_type IN ('top_four', 'top_two')
+                      THEN 'advanced' ELSE 'won_primary' END,
+                 '${HARVEST_SOURCE}', ?
           ${HARVEST_FROM_WHERE}`,
     args: [runStamp],
   });
