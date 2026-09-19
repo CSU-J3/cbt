@@ -182,7 +182,11 @@ pass under a second name:**
   and the mismatch was unmissable; per-run filenames would have produced three
   inflated, internally consistent, entirely clean-looking series. **Prefer the
   output arrangement in which contamination is visible over the one that is
-  merely neater.**
+  merely neater.** **And the same rule applied to removal (HO 737): a deletion
+  is verified from a process other than the one that performed it** — a STEP 5
+  read-back taken inside the PowerShell invocation that issued the delete
+  reported all three directories still present while they were mid-removal, and
+  a separate invocation read all three gone.
 - **HO 672 — `git show --word-diff=color > file.txt` writes a diff containing no
   change information.** The markers exist only as ANSI escapes, which are gone
   the moment the file is read as text; what survives is the document's prose with
@@ -463,6 +467,11 @@ either set.**
   scripted edit of a tracked text file must preserve each line's `\r` (or split
   on `/\r?\n/`) and assert no lone CR before writing; the symptom of getting it
   wrong is a whole-file numstat on a small edit (HO 733; oddities).
+  **Worktree cleanup goes through `git worktree remove`, and a recursive
+  `Remove-Item -Force` is never handed a tree that may contain a junction** —
+  it follows one out of the directory it was told to delete (HO 737; oddities).
+  **And after any repair to the toolchain a gate ran on, the gate is re-run
+  from the repaired tree**, not reported from before it.
 - **The MacBook.** Plain Unix; none of those constraints apply.
 - **The bundler is Turbopack** (Next 16 default, HO 706). `next build --webpack` still exists and is the fallback — reach for it when an instrument, not the app, needs webpack: the seam trap's `hyd-start` global is bundler-specific, and HO 705 lost a whole window to a Turbopack build reading `n/a` where it looked like a clean zero. **An instrument's preconditions do not survive a toolchain change for free; check them before trusting its green.**
 - **The two HO 705 throwaway worktrees are GONE (HO 731), and what replaces them is the recipe, because the SHA was never the thing worth keeping.** `cbt-705-n15` and `cbt-705-n16` were removed once `backlog:51` closed on its week of dailies, which is exactly the gate the previous text set. That text is corrected here rather than quietly dropped, because all three of its factual clauses read false when they were finally checked: both worktrees sat at **`97223d0`**, so *"neither an ancestor of anything that ships"* was wrong (it is an ordinary HO 703 docs commit on `main`) and *"the two SHAs"* were one SHA; and neither had `node_modules`, so the lever described as standing by was not runnable. **To re-make the live lever if the `#418` class ever returns:** `git worktree add --detach <path> 97223d0`, whose own `package.json` already declares `next: ^15.5.15`; then `npm install`; then build with `--webpack`. That is the whole of it — the pre-fix hydration client is in the dependency tree, not in the commit, and every 15.5 release ships it byte-identical. What the removal's `--force` discarded was `cbt-705-n16`'s uncommitted `typescript: { ignoreBuildErrors: true }` in `next.config.ts`, self-labelled *"HO 705 THROWAWAY ONLY — never merged"*; nothing unshipped was lost, since the 16.3.4 bump is on `main`.

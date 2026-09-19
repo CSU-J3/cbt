@@ -4645,3 +4645,36 @@ The HO 736 read-back had to confirm that fifteen roster rows now render **Advanc
 **The exposure is site-wide, and the reason it bites is that CBT uses *both* forms and the rendered page cannot tell you which.** `app/globals.css` carries **131** `text-transform: uppercase` declarations, and Tailwind's `uppercase` utility sits on the badge itself (`components/RaceCandidates.tsx:91`) — so `Candidates ({candidates.length})` is written mixed-case at `RaceHubBody.tsx:181` and read back as `CANDIDATES (2)`, while `LAST SYNC` two panels up **is** literally uppercase in the JSX (`DashboardV2Header.tsx:135`). Same screen, same casing, opposite sources. An `innerText` assertion written by reading the JSX is therefore right about one of them and wrong about the other, with nothing in either file marking the difference.
 
 Three remedies, in order of preference: match **case-insensitively** (`/i`), which is what the harness does now; read **`textContent`** when you want the DOM's own bytes; or, when the distinction is the point, record **both** — `scripts/diagnostic/advancer-shots-736.ts` emits a `badges` array pairing each label's `textContent` with its computed `text-transform`, so a future reader cannot conflate the styled form with the stored one. **And the general rule this is another instance of: when a check's pass and its total absence produce the same output, add the population count** — the same correction HO 712 made for `true (0)` versus `true (4)`.
+
+---
+
+## A recursive `Remove-Item -Force` followed a junction out of the worktree it was told to delete, and emptied the main tree's `node_modules/.bin` (HO 737, Sep 2026)
+
+HO 737's row 9 needed a second tree — a build of the HO 677 commit, to take the *before* reading for an overflow that no longer reproduced. A fresh `git worktree add` has no `node_modules`, and the first attempt at giving it one was a junction to the main tree's:
+
+```
+mklink /J C:\Users\meh\Desktop\cbt-677-probe\node_modules C:\Users\meh\Desktop\CBT\node_modules
+```
+
+**Turbopack refused it outright** — `Symlink [project]/node_modules is invalid, it points out of the filesystem root` — which was the useful failure, loud and immediate. The junction was removed and the worktree got its own `npm ci` (28s from cache). That part went fine.
+
+**The damage came from the cleanup.** With the probe finished, the three leftover directories were cleared with `Remove-Item -Recurse -Force`. On Windows that **traverses a junction rather than unlinking it**, so a delete aimed at a throwaway worktree reached into the main tree and emptied `node_modules/.bin`: 189 package directories still present, **0 binaries**.
+
+**Nothing announced it.** `git status` was clean but for the two docs files under edit, `node_modules` is gitignored so no tracked file was ever at risk, and the package directories were all still there — a listing of `node_modules` looks normal. It surfaced two steps later as a gate failing for a reason that names nothing to do with deletion:
+
+```
+> check:design-citations
+'tsx' is not recognized as an internal or external command
+```
+
+**And the repair was blocked by this HO's own instrument.** `npm ci` died with `EPERM: operation not permitted, unlink 'node_modules\@esbuild\win32-x64\esbuild.exe'` — the esbuild **service process still resident from the STEP 2 comment-inertness gate**, which had run `transformSync` an hour earlier. Killed by PID (it was this session's, from this tree's `node_modules`), after which `npm ci` restored 236 packages and 48 bin entries in 28s.
+
+**Three things worth carrying, in the order they bite.**
+
+**Never hand a recursive Windows delete a tree that may contain a junction.** `git worktree remove` is the cleanup, and it is the cleanup precisely because it knows what it created. The manual `Remove-Item` was reached for only because `git worktree remove` had already refused one of the three (`contains modified or untracked files, use --force`), and reaching past a tool's refusal for a blunter instrument is how the blunter instrument's semantics become yours.
+
+**A gate's toolchain is part of the gate.** `check:design-citations`, build and typecheck had all passed earlier in the session — *before* the delete. Reporting those greens would have been reporting a state that no longer existed. Every gate was re-run from the repaired tree. The general form is already in this file in other clothes (HO 706's *an instrument's preconditions do not survive a toolchain change for free*); this is the destructive version, where the change is to the instrument rather than to the thing measured.
+
+**A long-lived helper process outlives the gate that spawned it.** esbuild keeps a service binary running after `transformSync` returns; nothing in the gate's output says so, and it surfaced only as a file lock during an unrelated repair. Sibling on record: HO 672's `TaskStop` reporting success while leaving three detached samplers running against prod — **the thing you think finished is still there**, and the tell arrives somewhere else entirely.
+
+**Sibling entry, same family:** the HO 733 CRLF trap, where a Windows-side mechanism turned on its operator and the symptom (a 772-line diff on a one-line strike) named nothing about the cause.
