@@ -680,7 +680,10 @@ const statements = [
 
   // HO 232: append-only stage-transition log (the rating_history precedent —
   // HO 220). One row per ACTUAL stage move, written from the summarize step's
-  // existing `transitioned` branch right beside previous_stage/stage_changed_at.
+  // existing `transitioned` branch right beside previous_stage/stage_observed_at
+  // (named stage_changed_at when this comment was written; renamed at HO 635 —
+  // the migration that did it is the block further down in this file, which
+  // keeps the old name correctly because it IS the rename).
   // `bill_id` references bills.id (the '119-hr-1234' shape) but is NOT FK'd, same
   // as committee_bills — the summarize UPDATE always has the row, and a hard FK
   // would be redundant. `from_stage` is nullable: a bill first observed already

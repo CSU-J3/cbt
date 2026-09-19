@@ -7,8 +7,13 @@ import { formatRelativeAgeLong } from "@/lib/format";
 //
 //   1. stage='introduced' + no transition recorded  →  one pill "INTRODUCED · Xmo"
 //   2. stage_observed_at present                     →  "INTRODUCED · Xmo → STAGE · Yd"
-//   3. stage != 'introduced' but stage_observed_at NULL (the 14k legacy
-//      committee bills)                             →  "INTRODUCED · Xmo → STAGE" (no time on pill 2)
+//   3. stage != 'introduced' but stage_observed_at NULL (the legacy committee
+//      bills: 15,540 of 18,213, 2,540 stamped, measured 2026-09-19 — the date
+//      is part of the number, because a bare figure in a comment is read as
+//      current. It shrinks as the stamp column fills: 15,631 of 17,520 with
+//      1,758 stamped at HO 635 on 2026-08-10, so the cohort fell 91 while the
+//      corpus grew 693 and the stamped set grew 782.)
+//                                                   →  "INTRODUCED · Xmo → STAGE" (no time on pill 2)
 //
 // Pill 1 anchors to introduced_date because that column is 100% populated.
 // HO 123 tooltips ride along — each pill's title comes from STAGE_LABELS.
@@ -45,8 +50,9 @@ function stageDisplay(stage: string): string {
 
 // Expanded form per the home-dashboard-cleanup tooltip audit: "2 weeks
 // in Introduced" rather than the descriptive STAGE_LABELS prose. Falls
-// back to a stage-only sentence when `age` isn't available (the 14k
-// legacy committee bills without a recorded stage_observed_at).
+// back to a stage-only sentence when `age` isn't available (the legacy
+// committee bills without a recorded stage_observed_at — 15,540 of 18,213
+// on 2026-09-19; the cohort and its date are stated at the head of this file).
 function stageTitle(stage: string, age: string | null): string {
   const name = stageDisplay(stage);
   return age ? `${age} in ${name}` : `In ${name}`;

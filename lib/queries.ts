@@ -3434,16 +3434,35 @@ const getRecentFilingsCached = unstable_cache(
     const billLinked = opts.billLinked ?? false;
     const SEARCH_COUNT_CAP = opts.countCap ?? DEFAULT_SEARCH_COUNT_CAP;
 
-    // HO 547 — registrant/client substring search. STEP 0 (546/547) measured names
-    // avg 25 chars → a full `%term%` substring scan of 112k rows is ≤~700ms on the
-    // RECENT path (a plain SCAN under the forced dt_posted index, no MULTI-INDEX-OR).
-    // But adding the LIKE to VOLUME's agg-driven join defeats the LIMIT short-circuit
-    // and spikes to ~7.8s cold (a TEMP B-TREE over the whole materialized agg) — so
-    // **SEARCH FORCES RECENT** (the UI disables the VOLUME segment while a term is
-    // active). % / _ are escaped so a literal wildcard can't match everything. The
-    // fallback if `%term%` cost ever climbs is a distinct-name lookup table (5,201
-    // registrants / 21,549 clients), NOT FTS — FTS was probed + REJECTED (HO 546:
-    // 22× over-index + a trigger on the FLUSH_AT=100-tuned sync write path).
+    // HO 547 — registrant/client substring search, AS THIS BLOCK LEFT IT. What
+    // it describes is history: the cost figures below were measured on 112k rows
+    // in 2026-07 and the shape it calls current was replaced at HO 598. The
+    // shipped read is the routed one documented ~25 lines down; read that one.
+    //
+    // WHY THIS PARAGRAPH IS KEPT RATHER THAN DELETED. Two of its claims still
+    // govern the code immediately under it: **SEARCH FORCES RECENT** (adding the
+    // LIKE to VOLUME's agg-driven join defeats the LIMIT short-circuit and spiked
+    // to ~7.8s cold over a TEMP B-TREE of the whole materialized agg, so the UI
+    // disables the VOLUME segment while a term is active), and the % / _ escape
+    // on `likeArg`, without which a literal wildcard matches everything.
+    //
+    // WHAT WAS FALSE AND IS CORRECTED (HO 737, backlog line opened HO 599). This
+    // paragraph used to end by naming a distinct-name lookup table (5,201
+    // registrants / 21,549 clients) as the hypothetical fallback should `%term%`
+    // cost ever climb, and by ruling out full-text search in the same breath.
+    // That fallback is not hypothetical — **it is the path that shipped**, as
+    // `lda_names` (4fd9b48 / e7fdf30 / 85a173f, routed at e4f09ba), so the file
+    // contradicted itself and the stale half read first. A code comment outranks
+    // a doc for anyone working in the file, and the same claim in SKILL.md is
+    // what sent HO 598 hunting for a fallback that already existed (HO 599 fixed
+    // the SKILL copy and filed this one).
+    //
+    // FTS remains rejected, but on HO 598's ROUTING reason rather than the
+    // expired cost one: the routed read already meets the bound, so the 22×
+    // over-index and a trigger on the FLUSH_AT=100-tuned sync write path (probed
+    // and rejected at HO 546) buy nothing. The 5,201 / 21,549 distinct-name
+    // figures are HO 547-era (2026-07) and are kept as the sizing that produced
+    // the decision, not as a current census.
     const term = opts.q?.trim();
     const hasQ = term != null && term.length > 0;
     const likeArg = hasQ ? `%${term.replace(/[\\%_]/g, "\\$&")}%` : "";
@@ -10034,10 +10053,26 @@ export const getLatestMarketTicks = unstable_cache(
         delta1w,
       });
     }
-    // Preserve the in-code MARKET_SYMBOLS order so each tape renders in tape
-    // order (HO 178: equities SPX,NDQ,DOW,ITA,XLK,XLV,XLF,XLE,XLI then
-    // commodities WTI,GOLD,SILVER,NATGAS,DXY,TNX,VIX,BTC) regardless of DB row
-    // order. MarketsTape partitions this list by `group` into the two tapes.
+    // Preserve the in-code MARKET_SYMBOLS order so the tape renders in tape
+    // order regardless of DB row order. The sort itself has never been in
+    // question; the sentence explaining who consumes it was wrong twice over,
+    // and both are corrected here (HO 737, backlog line opened HO 669).
+    //
+    // ONE TAPE, NOT TWO. This used to say MarketsTape partitions the list by
+    // `group` into two tapes. That went false at HO 234, when the dual
+    // counter-scrolling pair collapsed to a single tape: the `group` prop had
+    // zero callers from that day on, and HO 669 merely deleted a prop the
+    // sentence had already been lying about for months. `group` survives on the
+    // row (it is set a few lines up) as metadata, not as a layout axis.
+    //
+    // THE ROSTER IS NOT THE HO 178 ONE. It named 17 symbols — equities SPX,
+    // NDQ, DOW, ITA, XLK, XLV, XLF, XLE, XLI then commodities WTI, GOLD,
+    // SILVER, NATGAS, DXY, TNX, VIX, BTC — and 13 of those were retired at
+    // HO 251, which the sibling comment a few lines above already records.
+    // MARKET_SYMBOLS carries 14 today (measured 2026-09-19): SPX, NDQ, NVDA,
+    // AAPL, MSFT, GOOGL, LMT, TNX, CPI, UNEMP, SHUTDOWN, FEDCUT, RECESSION,
+    // WTI. Read the constant, not this list — it is dated for the same reason
+    // every number in a comment is.
     const order = new Map(MARKET_SYMBOLS.map((s, i) => [s.internal, i]));
     out.sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
     return out;
