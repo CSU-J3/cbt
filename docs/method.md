@@ -429,6 +429,14 @@ and it survives the widening.
 - **`docs/backlog.md`** — the open-loops ledger; its header states its own
   conventions, including that a logged line's mechanism or premise is **a claim,
   not a fact** — probe it before building on it.
+- **Backlog and roadmap cross-references anchor by the target's opening words
+  and HO number; a `:N` is an as-of marker, not an address.** OPEN LOOPS is
+  newest-first, so every inserted line shifts every line below it and ages every
+  pointer in the file at once — measured 2026-09-19 at `2c745ed`: of 155
+  distinct `:N` self-references in `docs/backlog.md`, **73 pointed past the end
+  of a 778-line file** and 15 of the 82 in range landed on a non-bullet. A `:N`
+  may ride as a parenthetical carrying the SHA it was read at; it may not be the
+  only thing identifying the target.
 - **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
 - **`docs/design/`** — mocks and ruling records, tracked by default.
   `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`
