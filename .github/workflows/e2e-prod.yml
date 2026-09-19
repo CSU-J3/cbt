@@ -339,12 +339,32 @@ jobs:
   # host — the entire point, since font metrics differ per host and the CI
   # reading is THE reading for a width gate (docs/method.md § Environment).
   #
-  # NO BYPASS SECRET IS NEEDED, MEASURED NOT ASSUMED (HO 703 STEP 0 row 1):
-  # preview deployment protection is OFF on this project — the two Preview URLs
-  # from HO 704's review pushes both returned 200 to a session-less request. If
+  # A BYPASS SECRET IS NOW NEEDED, AND THE COMMENT THIS REPLACES PREDICTED IT.
+  # HO 703 measured preview protection OFF (two Preview URLs from HO 704's
+  # review pushes both returned 200 to a session-less request) and wrote: "if
   # protection is ever turned on, this job starts failing with a 401 or an SSO
   # redirect, and the fix is a Vercel Protection Bypass for Automation header
-  # from a secret, not a local build.
+  # from a secret, not a local build." That happened on 2026-09-19, when
+  # Vercel Authentication (Standard Protection) was enabled to close the
+  # backlog's burned-CRON_SECRET exposure on pre-rotation deployments.
+  #
+  # IT IS AN SSO REDIRECT, NOT A 401, AND THE DIFFERENCE BIT. The wall answers
+  # `302` to `vercel.com/sso-api`. `curl -f` fails on 4xx/5xx and NOT on 3xx, so
+  # the first run after the toggle (35470381427) did not fail at the fetch — it
+  # fed `Redirecting...` to `JSON.parse` and died with
+  # `SyntaxError: Unexpected token 'R'`, which names nothing about protection.
+  # The `/api/version` step below now reads the status itself and says which of
+  # the two it is, because a gate whose failure message points at the wrong
+  # subsystem costs the next reader the whole diagnosis.
+  #
+  # THE HEADER GOES EVERYWHERE THE PREVIEW IS FETCHED, and there are exactly two
+  # sites: the `curl` in the proof step below, and Playwright — via
+  # `playwright.config.ts`'s `use.extraHTTPHeaders`, which covers every
+  # `page.goto` in every spec from one place. Adding it per-spec would mean the
+  # next spec that forgets goes green against Vercel's login page.
+  #
+  # The production DOMAIN is not protected, so the `smoke` job above is
+  # untouched and is deliberately NOT given the secret.
   #
   # CONCURRENCY LIVES IN THE WORKFLOW-LEVEL KEY, WHICH GAINED A FOURTH COMPONENT
   # FOR THIS JOB — see the block above `concurrency:`. No job-level group: that
@@ -409,10 +429,35 @@ jobs:
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
           WANT: ${{ github.event.deployment.sha }}
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           set -euo pipefail
-          BODY=$(curl -fsS "${BASE_URL}/api/version")
+          # Say up front which world we are in, so a red below is attributable
+          # on the first line of the log rather than after a stack trace.
+          if [ -z "${BYPASS}" ]; then
+            echo "::warning::VERCEL_AUTOMATION_BYPASS_SECRET is EMPTY. If Deployment Protection is on, every request below hits the SSO wall."
+          else
+            echo "bypass secret present (${#BYPASS} chars) — sending x-vercel-protection-bypass"
+          fi
+          # STATUS FIRST, BODY SECOND. `curl -f` does not fail on a 3xx, and the
+          # protection wall is a 302 — so the old `-fsS` handed the redirect body
+          # straight to JSON.parse and the job died naming a syntax error
+          # (run 35470381427). Read the code, then decide what to say.
+          CODE=$(curl -sS -o /tmp/ver.json -w '%{http_code}' \
+                   ${BYPASS:+-H "x-vercel-protection-bypass: ${BYPASS}"} \
+                   "${BASE_URL}/api/version")
+          BODY=$(cat /tmp/ver.json)
+          echo "status: ${CODE}"
           echo "served: ${BODY}"
+          case "${CODE}" in
+            200) ;;
+            302|401|403)
+              echo "::error::Preview URL answered ${CODE} — Vercel Deployment Protection is ON and this request did not carry a working bypass. This is a MISSING/INVALID HEADER, not a width regression. Add VERCEL_AUTOMATION_BYPASS_SECRET (Vercel → Project → Settings → Deployment Protection → Protection Bypass for Automation) as a GitHub Actions secret."
+              exit 1 ;;
+            *)
+              echo "::error::Preview URL answered ${CODE} — neither a 200 nor the protection wall. Refusing to assert on it."
+              exit 1 ;;
+          esac
           GOT=$(printf '%s' "${BODY}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{process.stdout.write(String(JSON.parse(s).sha??""))})')
           echo "served sha = ${GOT}"
           echo "want   sha = ${WANT}"
@@ -427,9 +472,16 @@ jobs:
       # backlog:51 and SKILL's smoke-crawler section, and here it would hand
       # somebody a green that means nothing. NARROW_WIDTHS is unset, so the spec
       # reads its own default and the Preview gate and the daily cannot drift.
+      # HO 739 — the secret rides here too. playwright.config.ts turns it into
+      # `use.extraHTTPHeaders` when set and into `{}` when not, so this env is
+      # the only wiring needed and an unset secret changes nothing about the
+      # command. Playwright FOLLOWS the 302, so without the header the spec
+      # would assert against Vercel's login page — the step above is what stops
+      # that reaching here.
       - name: Narrow gate against the Preview deployment
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npx playwright test e2e/narrow.spec.ts --retries=0
 
       - name: Upload report on failure
