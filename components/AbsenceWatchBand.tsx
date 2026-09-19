@@ -132,7 +132,14 @@ export function AbsenceWatchBand({
                 palestineRank={m.palestineRank}
                 palestineScore={m.palestineScore}
                 includeCeremonial={false}
-                committeeCap={Number.POSITIVE_INFINITY}
+                // HO 631 — the compact density. This REPLACES HO 630's
+                // committeeCap={Infinity}: uncapping made sense when the card
+                // expanded the band and the reader could scroll the page to reach
+                // the tail, but the card is an overlay now, and an uncapped roster
+                // is exactly what makes it tall enough to need one. Compact caps
+                // both columns at 10 and closes each with a drill to the member
+                // page, so the tail is one click away rather than 14 rows down.
+                density="compact"
               />
             </>
           ) : null,
