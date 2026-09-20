@@ -482,6 +482,13 @@ jobs:
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          # HO 740 — the Preview scope carries `CBT_FIXTURES`, so the two
+          # FIXTURE_ROUTES are expected PRESENT here, and expected ABSENT on
+          # every `smoke`-job run, which is deliberately given nothing. Both
+          # directions are hard assertions: a Production run that renders a
+          # fixture is a LEAK and the spec reds on it. This job is the only
+          # place in the repo that sets this variable.
+          NARROW_FIXTURES: '1'
         run: npx playwright test e2e/narrow.spec.ts --retries=0
 
       - name: Upload report on failure
