@@ -4680,3 +4680,25 @@ mklink /J C:\Users\meh\Desktop\cbt-677-probe\node_modules C:\Users\meh\Desktop\C
 **A long-lived helper process outlives the gate that spawned it.** esbuild keeps a service binary running after `transformSync` returns; nothing in the gate's output says so, and it surfaced only as a file lock during an unrelated repair. Sibling on record: HO 672's `TaskStop` reporting success while leaving three detached samplers running against prod — **the thing you think finished is still there**, and the tell arrives somewhere else entirely.
 
 **Sibling entry, same family:** the HO 733 CRLF trap, where a Windows-side mechanism turned on its operator and the symptom (a 772-line diff on a one-line strike) named nothing about the cause.
+
+## A strike wrapped in bold counts as live, and five of them inflated every reconcile for eighty handoffs (HO 740, Sep 2026)
+
+`docs/backlog.md` is reconciled at every session open and close, and the pair it reports — *N live / M struck* — is produced by two greps. The instrument that reproduces every figure in the roadmap is `grep -cE '^- \*\*'` for live and `grep -cE '^- ~~'` for struck, which at `b745f03` read **250 / 285** against a total of **535**: exactly what HO 739 closed on, so the reconcile looked sound.
+
+**It was five high, and had been since HO 660.** Five bullets were struck in the form `- **~~X~~ — Y**` rather than the file's `- ~~**X**~~ — **Y**` — the bold OUTSIDE the strike instead of inside it. Markdown renders both the same. The grep does not: a line starting `- **~~` matches `^- \*\*` and is counted **live** while being visibly closed. The five are the HO 660 challenger-harvest wiring, the HO 659 `updated_at` migration, the HO 620 `M5s` column, the HO 251 VIX tombstone and the HO 658 races-strip deletion.
+
+**The disagreement was found by re-deriving the instrument, not by any instrument.** The naive reading — bullets whose line contains `~~` anywhere — gives **245 / 290** on the same file, and the totals agree (535 either way), so the two instruments differ only in classification and exactly five lines separate them. Neither number is checkable against the other without asking which grep produced the published one, which is the whole failure: **the pair was carried forward across eighty handoffs as a measurement, and it was a measurement of a slightly different question each time a line was struck in the wrong form.**
+
+**The remedy is a control, not a bigger grep.** `grep -cE '^- \*\*~~'` must read **0**; a nonzero is a mis-struck line and not a count. It is now a line in the backlog header beside the two counting greps and the sum check, so the next session that reads 5 there knows the ledger is telling it about formatting rather than about work. Measured before and after the normalisation: `250 · 285 · 535 · 5` → `245 · 290 · 535 · 0`, with the five lines rewritten in place and nothing removed.
+
+**Why it belongs in this file.** § Gates is about instruments that cannot fail, and this is the ledger's own: the reconcile's job is to catch a line that quietly went missing, and its counting rule silently disagreed with its own strike convention. The line it would have missed is the line whose author reached for `**~~` instead of `~~**`.
+
+## `npm run typecheck` names two programs and a green has been reported for one (HO 740, Sep 2026)
+
+`package.json` defines `typecheck` as `tsc --noEmit && npm run typecheck:e2e` — two programs, one name. At `b745f03` the second one **exits 2**, on a single pre-existing error: `playwright.config.ts(51,5) error TS2769`, where `use.extraHTTPHeaders` is handed a union whose second member has every property `undefined`, so it is not assignable to `{ [key: string]: string }`. The file is HO 739's, from the protection-bypass change, and the HO 739 roadmap block reports *"Typecheck **exit 0**"*.
+
+**Both statements can be true at once, which is the point.** `tsc --noEmit` alone — the app program — is exit 0 with zero output, and that is almost certainly the command whose green was read. The composite script is red, and has been since the bypass landed.
+
+**What made it provable rather than argued.** `tsconfig.e2e.json` includes exactly `e2e/**/*.ts` and `playwright.config.ts`, so no file outside those two globs can reach that program: a change under `app/`, `components/` or `lib/` cannot cause this error and cannot clear it. That include list is the instrument that separates *"my change broke it"* from *"it was already broken"* without a stash, a worktree or a second checkout.
+
+**Carry:** when a gate's name covers more than one program, report the exit of the **named script**, not of the half that was convenient to run — and when a composite gate is red for a reason outside the change, say which half was read and why the other cannot be about you. The narrower honest reading this HO could take was *zero errors outside `playwright.config.ts`*, which is a real statement about the spec it added and makes no claim about the repo.
