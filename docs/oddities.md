@@ -4702,3 +4702,41 @@ mklink /J C:\Users\meh\Desktop\cbt-677-probe\node_modules C:\Users\meh\Desktop\C
 **What made it provable rather than argued.** `tsconfig.e2e.json` includes exactly `e2e/**/*.ts` and `playwright.config.ts`, so no file outside those two globs can reach that program: a change under `app/`, `components/` or `lib/` cannot cause this error and cannot clear it. That include list is the instrument that separates *"my change broke it"* from *"it was already broken"* without a stash, a worktree or a second checkout.
 
 **Carry:** when a gate's name covers more than one program, report the exit of the **named script**, not of the half that was convenient to run — and when a composite gate is red for a reason outside the change, say which half was read and why the other cannot be about you. The narrower honest reading this HO could take was *zero errors outside `playwright.config.ts`*, which is a real statement about the spec it added and makes no claim about the repo.
+
+## "Measured at the seeds rather than inferred" measured the ingest's blind spot (HO 741, Sep 2026)
+
+HO 736 filed a line saying `AK-AL-2026` carries no roster because the seat is unrated, and it did the careful thing: it checked. *"Measured at the seeds rather than inferred: `data/race-ratings-{cook,inside-elections,sabato}-2026.json` each carry `S-AK-2026` at Lean R and the three HOUSE files carry 0 AK rows between them; the table agrees with the seeds exactly, so this is not an ingest defect — no rater rates Alaska's at-large seat."*
+
+Every clause of that is true. The conclusion is false. **All three raters rate `AK-AL` at Likely R** — Cook 2025-09-26, Inside Elections 2025-10-01, Sabato 2025-10-02 — a competitive tier the scraper's own `NORMALIZE` maps through rather than a Solid/Safe skip.
+
+**The seed files and the table are both DERIVED STORES, filled by the same pipeline, so agreeing with each other proves only that the pipeline is consistent with itself.** What the reading actually measured was the ingest, and the ingest has two holes. `lib/race-ratings-scrape.ts:112-119` returns `null` for every at-large district, on a comment reading *"no race row exists for at-large states — backfill:races skips NULL-district members"* — a premise **HO 711 retired** when it minted `{ST}-AL-{YYYY}` ids for those six states. And since some point between 2026-09-02 and 2026-09-09 the scraper has returned zero rows for *every* district, because Ballotpedia restructured the table the anchor lands on.
+
+**The note that makes this worth keeping:** the two stores agreed *because* of the defect, not despite it. A hole in the ingest produces perfect agreement downstream — the seed file and the database are both missing the same rows — so "the table agrees with the seeds exactly" is the reading a broken pipeline is *most* likely to produce, not least. The check that would have separated them is a read of the world: one fetch of a rater's list, which is what HO 741's row 9 finally did.
+
+`docs/backlog.md`'s header carried the trigger already: *"Two lines in three HOs were wrong on inspection … A third would make it a convention problem, not coincidence."* This is the third, and the convention it names is in that header now: **a premise measured at a derived store is a measurement of the pipeline that fills it, and the line says which store and what that pipeline cannot see.**
+
+## A faithful ingest of the wrong box: a primary's marked set published as a November ballot (HO 741, Sep 2026)
+
+`lib/harvest-challengers.ts` derives a **general-election** roster from `primary_candidates.status = 'winner'` — a **primary** result. Read once, that is obviously right: the people who won the primary are the people on the ballot. It is wrong exactly as often as somebody leaves the ballot afterwards, and nothing in the pipeline can see that happen.
+
+Measured on `AK-AL-2026`, both boxes off the same Ballotpedia page, through the shipped scraper:
+
+```
+primary box   ✔ Begich 44.6 · ✔ Hill 32.5 · ✔ Hafner 3.8 · ✔ Williams 2.7
+                Schultz 8.1 "(Unofficially withdrew)" — NOT marked
+                McDermott 1.2 — not marked
+general box     Begich · Hafner · McDermott · Hill
+                Withdrawn or disqualified: John Brendan Williams
+```
+
+`primary_candidates` matches the primary box **name for name**. So every component of the pipeline is faithful — the scraper to the page, the store to the scraper, the harvest to the store — and the page the harvest would publish is still **wrong in both directions**: Williams `advanced` when he is off the ballot, and no McDermott when he is on it. Alaska replaces a withdrawn advancer with the next finisher; the primary box records who advanced, and only the general box records who is running.
+
+**Three things worth carrying.**
+
+**A chain of faithful steps does not make a faithful answer when the first step reads the wrong source.** There is no bug here to find in any one file. The defect is a premise — *a primary winner is a general-election candidate* — that lives in no code and is true of most states most of the time.
+
+**The recovery that suggests itself is the one that cannot work.** `backfill:primary-results` and `reingest:primary-slate` are the obvious repair for a roster that disagrees with Ballotpedia, and both re-derive the same faithful four. When a store is correct and its *consumer's premise* is wrong, re-ingesting is a no-op that reads like diligence.
+
+**The evidence was already on the page, in the other direction.** `/race/AK-AL-2026` rendered *"Incumbent running for re-election. No competitive rating yet."* four lines above its own news module reading *"Independent Bill Hill advances in race for Alaska's GOP-held House seat."* The surface that had the right answer was the one nobody was treating as data.
+
+Bounded, and small: only advancement-semantics states can diverge this way — CA `top_two` (11 rated races today, 52 under a widened harvest) and AK `top_four` (1 today, 2 widened). Carried as a `docs/backlog.md` line whose close is a general-box reader.
