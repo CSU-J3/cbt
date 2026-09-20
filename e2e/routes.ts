@@ -41,6 +41,21 @@ export const STAGES = [
 export const ROUTES: Route[] = [
   { slug: "home", path: "/" },
   ...STAGES.map((s) => ({ slug: `home-stage-${s}`, path: `/?stage=${s}` })),
+  // HO 740 — the ActiveFilterStrip at its widest, as a REAL PRODUCT URL.
+  // `other_chamber` is the longest stage token above and `government_operations`
+  // the longest of ALLOWED_TOPICS (lib/enums.ts), and the strip renders both
+  // with underscores as spaces. The band is URL-reachable, so it needs no
+  // fixture seam at all — it needs a route, and it belongs in the SHARED list
+  // because it is an ordinary page a reader can land on. +2 smoke documents a
+  // day, named against the standing 74/run WATCH.
+  { slug: "home-filtered-max", path: "/?stage=other_chamber&topics=government_operations" },
+  // HO 740 — a POPULATED search, for the same reason: `/search` with no `q`
+  // renders only `.search-empty-hint`, so every result row was unmeasured at
+  // both gate widths. Measured on prod before it became a gate (the HO 694
+  // rule): 200 twice, TTFB 1.27s cold / 0.25s warm, 50 rows, over=0 at 430 and
+  // 390 — so the HO 335 `LIKE`-scan 500 does not reproduce on the bills_fts
+  // path. `appropriations` is a term every Congress answers.
+  { slug: "search-populated", path: "/search?q=appropriations" },
   { slug: "welcome", path: "/welcome" },
   { slug: "bills", path: "/bills" },
   { slug: "members", path: "/members" },
@@ -78,4 +93,24 @@ export const ROUTES: Route[] = [
   // HO 548 — the newest route (HO 540), not previously in ROUTES; inherits the
   // double-hit + lands in the daily prod crawl.
   { slug: "vote", path: `/vote/${VOTE}` },
+];
+
+// HO 740 — THE FIXTURE ROUTES, AND WHY THEY ARE NOT IN `ROUTES`.
+//
+// These two carry `?fixture=max`, which renders the conditional bands at max
+// content — but ONLY on a server whose env carries `CBT_FIXTURES=1`, which is
+// the Preview scope and never Production. They are kept OUT of `ROUTES` on
+// purpose: `smoke.spec.ts` crawls that list twice a day against the production
+// domain, where these two are by construction identical to their plain
+// counterparts, so crawling them there buys nothing and costs two documents a
+// run.
+//
+// `e2e/narrow.spec.ts` is the only consumer. It walks `[...ROUTES,
+// ...FIXTURE_ROUTES]` and asserts in BOTH directions: the marker must be absent
+// everywhere else, always; present here when the run says fixtures are expected;
+// and absent here when it does not — which is every Production run, and is the
+// leak control on shipped bytes.
+export const FIXTURE_ROUTES: Route[] = [
+  { slug: "fixture-home-max", path: "/?fixture=max" },
+  { slug: "fixture-committee-max", path: `/committee/${COMMITTEE}?fixture=max` },
 ];

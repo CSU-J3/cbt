@@ -65,7 +65,7 @@
 // failed-request attribution on these routes; this spec asserts one number and
 // spends one navigation per route.
 import { expect, test } from "@playwright/test";
-import { ROUTES } from "./routes";
+import { FIXTURE_ROUTES, ROUTES } from "./routes";
 
 const BASE_URL =
   process.env.BASE_URL ?? "https://congressional-terminal-chi-silk.vercel.app";
@@ -123,6 +123,31 @@ const WIDTHS: number[] = (() => {
   }
   return parsed;
 })();
+
+// HO 740 — WHICH FIXTURE STATE THIS RUN IS MEASURING, declared rather than
+// guessed. `NARROW_FIXTURES=1` says the server under test carries
+// `CBT_FIXTURES`, so `FIXTURE_ROUTES` must render their bands at max content;
+// unset says it does not, so they must render nothing at all. Both directions
+// are HARD assertions and there is no skip-on-empty anywhere — a guard that
+// skips when the fixture is missing inverts the failure mode and makes the
+// absent case indistinguishable from the passing one (SKILL, "Playwright smoke
+// crawler"; the HO 503/504 shape).
+//
+// THE `WIDTHS` IDIOM ABOVE, COPIED EXACTLY, and for the same reason: `||` not
+// `??`, because the workflow passes the env through bare and on every trigger
+// that sets nothing it arrives as the EMPTY STRING rather than undefined. Empty
+// reads as unset; `"1"` reads as present; anything else THROWS, so a mistyped
+// `"l"` cannot quietly become `absent` and report a leak control that never ran.
+const NARROW_FIXTURES: "present" | "absent" = (() => {
+  const raw = process.env.NARROW_FIXTURES || "";
+  if (raw === "") return "absent";
+  if (raw === "1") return "present";
+  throw new Error(
+    `NARROW_FIXTURES is malformed: ${JSON.stringify(raw)} — it is "1" or unset, and nothing else`,
+  );
+})();
+
+const FIXTURE_SLUGS = new Set(FIXTURE_ROUTES.map((r) => r.slug));
 
 // The same 1px subpixel tolerance the layout audit's M0 and the HO 683 overflow
 // alarm use, for the same reason and deliberately not tighter.
@@ -209,7 +234,7 @@ for (const width of WIDTHS) {
   test.describe(`narrow doc-scroll @${width}`, () => {
     test.use({ storageState: { cookies: [], origins: [] } });
 
-    for (const route of ROUTES) {
+    for (const route of [...ROUTES, ...FIXTURE_ROUTES]) {
       test(`${route.slug} (${route.path}) @${width}`, async ({ page, context }) => {
         await context.addCookies([GATE_COOKIE]);
         await page.setViewportSize({ width, height: HEIGHT });
@@ -234,6 +259,37 @@ for (const width of WIDTHS) {
           url: location.pathname + location.search,
         }));
         const over = doc.s - doc.c;
+
+        // HO 740 — the band readout. Cheap `querySelectorAll` lengths, taken on
+        // every route at every width so the fixture lines and the plain lines
+        // sit next to each other in one log and the pair can be read as the
+        // close's evidence.
+        //
+        // `votesVisible` is a RECT, not a count: at <= 720px the recorded-vote
+        // pointer on a row with no WATCH is `display: none` (globals.css
+        // :9398-9400), so `votes` can read 2 while nothing is drawn — which is
+        // exactly what prod read at the HO 740 STEP 0, and exactly the
+        // same-as-success shape this gate exists to remove.
+        const bands = await page.evaluate(() => {
+          const q = (sel: string) => document.querySelectorAll(sel).length;
+          return {
+            marker: q("[data-fixture]"),
+            ids: q(".weekly-band-ids .bill-id-chip"),
+            more: q(".weekly-band-id--more"),
+            cards: q(".abw-card"),
+            mia: q(".abw-title:not(.abw-title--warn)"),
+            warn: q(".abw-title--warn"),
+            empty: q(".abw--empty"),
+            failed: q(".abw--failed"),
+            votes: q("a.hearing-votes"),
+            votesVisible: [...document.querySelectorAll("a.hearing-votes")].filter(
+              (e) => e.getBoundingClientRect().width > 0,
+            ).length,
+            stacked: q(".hearing-row:has(> .hearing-votes) > .hearing-watch"),
+            strip: q(".active-filter-strip"),
+          };
+        });
+        const isFixtureRoute = FIXTURE_SLUGS.has(route.slug);
 
         // HO 703 — THE PAGE HAS TO BE THE PAGE BEFORE ITS WIDTH MEANS ANYTHING.
         // A 500, a 404, an SSO wall or a redirect to somewhere else all render a
@@ -282,6 +338,11 @@ for (const width of WIDTHS) {
         // eslint-disable-next-line no-console
         console.log(
           `[narrow ${width} ${route.slug}] landed=${doc.url} scroll=${doc.s}/${doc.c} over=${over}` +
+            ` bands=marker:${bands.marker},ids:${bands.ids},more:${bands.more}` +
+            `,cards:${bands.cards},mia:${bands.mia},warn:${bands.warn}` +
+            `,empty:${bands.empty},failed:${bands.failed}` +
+            `,votes:${bands.votes},votesVisible:${bands.votesVisible}` +
+            `,stacked:${bands.stacked},strip:${bands.strip}` +
             ` fonts=${fonts.status}/mono:${fonts.mono}/sans:${fonts.sans}/body:${fonts.bodyFamily}` +
             (over > TOLERANCE
               ? `
@@ -292,6 +353,101 @@ for (const width of WIDTHS) {
               ? `\n    over-edge: ${culprits.join("\n               ")}`
               : ""),
         );
+
+        // HO 740 — WHICH STATE WAS MEASURED, asserted before the width is, so a
+        // red names the missing band rather than reporting a clean width on the
+        // wrong page. Four assertions, no skip anywhere.
+        //
+        // (a) THE LEAK CONTROL, and it runs on every route in every context:
+        // nothing outside FIXTURE_ROUTES may carry the marker, whatever
+        // NARROW_FIXTURES says. A fixture that renders on a product URL is the
+        // failure this seam has to be unable to hide.
+        if (!isFixtureRoute) {
+          expect(
+            bands.marker,
+            `${route.path} carries data-fixture — the seam LEAKED onto a ` +
+              `non-fixture route, which is the one thing ?fixture=max must ` +
+              `never do`,
+          ).toBe(0);
+        }
+
+        // (d) `home-filtered-max` is URL-driven, so its strip is a CODE fact and
+        // not a data fact: it renders on every run, in every context, or the
+        // route has stopped being the route it was added as.
+        if (route.slug === "home-filtered-max") {
+          expect(
+            bands.strip,
+            `${route.path} rendered no .active-filter-strip — this route exists ` +
+              `to measure that band at its widest, and it is reachable by URL ` +
+              `alone, so an absence here is a code change, not a quiet day`,
+          ).toBe(1);
+        }
+
+        if (isFixtureRoute && NARROW_FIXTURES === "absent") {
+          // (b) EVERY PRODUCTION RUN. `CBT_FIXTURES` is Preview-scoped, so the
+          // shipped bytes must render nothing at all here.
+          expect(
+            bands.marker,
+            `${route.path} RENDERED A FIXTURE on a run that declared none ` +
+              `expected — the server under test carries CBT_FIXTURES where it ` +
+              `must not (it is Preview scope only, never Production)`,
+          ).toBe(0);
+        }
+
+        if (isFixtureRoute && NARROW_FIXTURES === "present") {
+          // (c) EXISTS BEFORE READS. The marker is asserted FIRST, because its
+          // absence has exactly one cause and it is not a layout one: the env
+          // did not reach the build. HO 716's fix verified itself green on a
+          // Preview whose Data Cache served zero enacted bills, so the element
+          // under test did not exist and the gate measured nothing.
+          expect(
+            bands.marker,
+            `${route.path} requested a fixture and rendered none — the ` +
+              `Preview's CBT_FIXTURES is missing, or the env landed AFTER the ` +
+              `build that is being measured. This is not a width regression`,
+          ).toBeGreaterThanOrEqual(1);
+
+          if (route.slug === "fixture-home-max") {
+            // Equality on the marker: the band and the rack are two, and a
+            // third marked band should move this number and say so rather than
+            // slip past a `>=`.
+            expect(bands.marker, `${route.path} marker count`).toBe(2);
+            expect(
+              bands.ids,
+              `${route.path} rendered ${bands.ids} enacted chips, not the ` +
+                `ENACTED_ID_CAP of 3 the fixture is built to fill`,
+            ).toBe(3);
+            expect(
+              bands.more,
+              `${route.path} rendered no +N overflow link — the fixture ` +
+                `carries CAP + 12 entries precisely so it does`,
+            ).toBe(1);
+            expect(
+              bands.cards,
+              `${route.path} rendered ${bands.cards} absence cards, fewer ` +
+                `than the fixture's 4`,
+            ).toBeGreaterThanOrEqual(4);
+            expect(bands.mia, `${route.path} MIA tier header`).toBeGreaterThanOrEqual(1);
+            expect(bands.warn, `${route.path} AT RISK tier header`).toBeGreaterThanOrEqual(1);
+          }
+
+          if (route.slug === "fixture-committee-max") {
+            expect(bands.marker, `${route.path} marker count`).toBe(1);
+            expect(
+              bands.stacked,
+              `${route.path} has no row carrying BOTH a WATCH link and a ` +
+                `recorded-vote pointer — at this width the pointer renders ` +
+                `only stacked under WATCH, so without such a row the band is ` +
+                `in the DOM and drawn nowhere`,
+            ).toBeGreaterThanOrEqual(1);
+            expect(
+              bands.votesVisible,
+              `${route.path} has ${bands.votes} recorded-vote pointers in the ` +
+                `DOM and ${bands.votesVisible} with a non-zero rect — this is ` +
+                `the prod state the fixture exists to replace`,
+            ).toBeGreaterThanOrEqual(1);
+          }
+        }
 
         expect(
           doc.s,
