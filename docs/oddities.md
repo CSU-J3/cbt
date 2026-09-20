@@ -4740,3 +4740,28 @@ general box     Begich · Hafner · McDermott · Hill
 **The evidence was already on the page, in the other direction.** `/race/AK-AL-2026` rendered *"Incumbent running for re-election. No competitive rating yet."* four lines above its own news module reading *"Independent Bill Hill advances in race for Alaska's GOP-held House seat."* The surface that had the right answer was the one nobody was treating as data.
 
 Bounded, and small: only advancement-semantics states can diverge this way — CA `top_two` (11 rated races today, 52 under a widened harvest) and AK `top_four` (1 today, 2 widened). Carried as a `docs/backlog.md` line whose close is a general-box reader.
+
+## A row-count guard that passes while every row is skipped (HO 742, Sep 2026)
+
+`lib/race-ratings-scrape.ts` carried a guard with its purpose written above it: *"A row-count sanity check throws if the table shape changes (435 House districts expected) so a silent Ballotpedia restructure fails loud."* It was the right instinct, written by someone who had thought about exactly this failure, and it watched the failure happen twice without a sound.
+
+```
+if (rowMatches.length < EXPECTED_HOUSE_ROWS - 5) throw …   // 435 rows: passes
+…
+if (cells.length < 4) continue;                            // 3 columns: skips
+if (!raceId) continue;                                     // skips
+```
+
+Between 2026-09-02 and 09-09 Ballotpedia moved the ratings comparison off the wiki page into a deferred client-side widget, leaving an empty `<div data-url="…race-ratings-full-table…">` where the table had been. The scraper anchored on the intro sentence and took the **first `<table>` after it** — which, with the ratings table gone, is the **Cook PVI table** three thousand characters further down, under its own `<h3>`.
+
+**And that table has 435 rows.** One row per congressional district, because it is also a per-district table. The guard compared the single number the change had preserved. Every row then failed the column test into a `continue`, `scrapeHouseRatings()` returned `[]`, and `runRaceRatingsSync` wrote `scraped 0 upserted 0` — a clean `success` in `cron_runs`, `healthy: true` on `/api/health`, 437ms and 335ms on two consecutive Wednesdays where the working run had taken 3,668ms.
+
+**Three things worth carrying.**
+
+**A guard is only as good as its choice of quantity, and the intuitive quantity is usually the one the accident preserves.** Row count is the natural thing to check about a table and the natural thing to stay the same when you are accidentally reading a *different table about the same 435 things*. The column count moved; the district-cell shape moved; the header moved. The guard watched the row count.
+
+**`continue` is the operator that converts a structural mismatch into a clean zero.** Each `continue` was locally defensible — skip a malformed row, skip an unparseable district. Together they turned "this is not the table" into "this table has nothing in it", and nothing downstream can tell those apart. The fix makes each one a throw carrying its census, because the difference between *no competitive ratings exist* and *we are reading the wrong document* has to survive to `cron_runs`.
+
+**The watchdog could not have caught it and it was not the watchdog's fault.** `lib/cron-health.ts` keys on `lastRunAt` and `lastStatus`; the route ran on time and reported success. A zero-row success is invisible to every freshness-based monitor by construction — the only place it can be caught is inside the route, by the route refusing to succeed. That is why the repair is four throws rather than a new alarm: a throw inside `wrapCronRoute` is already `status = 'error'` with the message in `error_message` (`lib/cron-log.ts:175-183`), so the existing watchdog reds for free.
+
+**Sibling, and the reason this entry is short on novelty and long on the number:** the HO 741 entry *"measured at the seeds rather than inferred"*, where two derived stores agreed **because** of a defect. Here one number agreed because of a defect. Both are § Gates' subject — *say what the check reads if the work was never done* — arriving from the direction nobody watches, which is the check that has been green for months.
