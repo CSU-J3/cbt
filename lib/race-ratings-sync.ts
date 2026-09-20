@@ -80,9 +80,13 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
       stats.changed++;
     }
 
-    // rating_score is NOT NULL — computed in the scraper. rating_date is
-    // the scrape date (Ballotpedia shows a page-level "as of" only);
-    // source_url points at the Ballotpedia page we read.
+    // rating_score is NOT NULL — computed in the scraper. HO 742: rating_date
+    // is now the widget caption's own "as of" date when it parses, falling back
+    // to the scrape date (which is what this always stored). Safe to change
+    // because rating-history's change-detect predicate is score + label and
+    // deliberately NOT rating_date (lib/rating-history.ts:8-12, :57-58) — it
+    // only carries the value through onto its own row. source_url points at the
+    // Ballotpedia page we read.
     await db.execute({
       sql: `INSERT INTO race_ratings
               (id, race_id, source, rating, rating_score, rating_date,
@@ -100,7 +104,7 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
         r.source,
         r.rating,
         r.ratingScore,
-        now.slice(0, 10),
+        r.asOfDate ?? now.slice(0, 10),
         BALLOTPEDIA_HOUSE_URL,
         now,
       ],
