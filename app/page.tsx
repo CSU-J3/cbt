@@ -18,6 +18,10 @@ import { TopicDistributionList } from "@/components/TopicDistributionList";
 import { TopStalls } from "@/components/TopStalls";
 import { WeeklyBand } from "@/components/WeeklyBand";
 import {
+  absenceWatchMax,
+  fixtureRequested,
+} from "@/lib/fixtures/max-content";
+import {
   type DashboardFilters,
   getAbsenceWatch,
   getBreakingNewsForHomeCount,
@@ -63,7 +67,15 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ stage?: string; topics?: string; chamber?: string }>;
+  searchParams: Promise<{
+    stage?: string;
+    topics?: string;
+    chamber?: string;
+    // HO 740 — the fixture seam. Dead unless the server carries
+    // `CBT_FIXTURES=1` (Preview scope only); `lib/fixtures/max-content.ts` holds
+    // both halves of that gate in one function.
+    fixture?: string;
+  }>;
 }) {
   // HO 361 — first-touch landing gate (no middleware; A1 deliberately added none).
   // An anonymous visitor with no `ct_seen` cookie is bounced to /welcome; the
@@ -91,6 +103,10 @@ export default async function DashboardPage({
   // counts or the races panel. It narrows MOVERS / TOP STALLS / NEW THIS WEEK and
   // nothing else.
   const chamber = sanitizeChamber(sp.chamber);
+  // HO 740 — `"max"` only when the search param asks AND the server env allows;
+  // `null` on every Production render, so the two bands below are byte-identical
+  // to what they were.
+  const fixture = fixtureRequested(sp);
   // Built here (not in the client tab island) so the toggle is real navigation and
   // the state is shareable. Copied from app/bills/page.tsx's chamberHref: preserve
   // the other params, delete the key on the empty option.
@@ -128,6 +144,11 @@ export default async function DashboardPage({
     getAbsenceWatch(),
   ]);
 
+  // HO 740 — substituted AFTER the real read, at the prop boundary: the query
+  // above ran either way, so a fixture render costs what a normal one costs and
+  // the component under it is the shipped one.
+  const absentFinal = fixture ? absenceWatchMax(nowMs) : absent;
+
   const topicData: TopicDatum[] = topicRows.map((t) => ({
     id: t.topic,
     label: topicLabel(t.topic),
@@ -162,9 +183,10 @@ export default async function DashboardPage({
               the same `[]` and therefore the same silence on this page.
               `rollWindow` is what separates them (lib/queries, AbsenceWatch). */}
           <AbsenceWatchBand
-            members={absent.members}
-            rollWindow={absent.window}
+            members={absentFinal.members}
+            rollWindow={absentFinal.window}
             nowMs={nowMs}
+            fixture={fixture}
           />
 
           {/* HEARINGS | RACES tabbed box (HO 270/271), hearings default. RACES
@@ -181,7 +203,7 @@ export default async function DashboardPage({
               on an owner ruling that ideology belongs to /members only. So `/` no
               longer reads getPolarizationBand at all — the query itself stays, and
               /members still reads it for its own three ideology surfaces. */}
-          <WeeklyBand />
+          <WeeklyBand fixture={fixture} />
 
           {/* The mock's .twoup — breaking BESIDE the distributions (they were
               stacked in the old left column), align-items:start. */}

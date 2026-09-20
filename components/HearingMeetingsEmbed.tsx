@@ -21,16 +21,22 @@ export function HearingMeetingsEmbed({
   committeeNames,
   nowMs,
   hideBills = false,
+  fixture = null,
 }: {
   groups: HearingEmbedGroup[];
   committeeNames: Record<string, string>;
   nowMs: number;
   hideBills?: boolean;
+  // HO 740 — the fixture MARKER only; no fixture code runs in this island. The
+  // rows themselves are substituted by the server page before they get here, so
+  // this is a plain string prop, and the band's root says which state the
+  // narrow gate is measuring.
+  fixture?: "max" | null;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <div className="hearings-embed">
+    <div className="hearings-embed" data-fixture={fixture ?? undefined}>
       {groups.map((g) =>
         g.meetings.length === 0 ? null : (
           <div key={g.key} className="hearings-embed-group">

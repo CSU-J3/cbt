@@ -96,6 +96,7 @@ export function AbsenceWatchBand({
   members,
   rollWindow,
   nowMs,
+  fixture = null,
 }: {
   members: AbsentMember[];
   // HO 714 — `AbsenceWatch["window"]`, named `rollWindow` here so it cannot
@@ -103,6 +104,11 @@ export function AbsenceWatchBand({
   // it means that chamber has no roll calls. The two are different renders.
   rollWindow: AbsenceWatch["window"];
   nowMs: number;
+  // HO 740 — the fixture MARKER only. The members substitution happens at the
+  // page (app/page.tsx), where the read lives; this band just says which of its
+  // three roots the narrow gate is looking at. `undefined` drops the attribute
+  // rather than writing `data-fixture=""`, which would count as a marker.
+  fixture?: "max" | null;
 }) {
   // HO 712: the Congress label is NOT a clock reading here. It comes off each
   // member's own `member_participation.congress` — the row that produced the
@@ -133,7 +139,11 @@ export function AbsenceWatchBand({
   if (members.length === 0) {
     if (rollWindow === null) {
       return (
-        <section className="abw abw--failed" aria-label="MIA: absence watch">
+        <section
+          className="abw abw--failed"
+          aria-label="MIA: absence watch"
+          data-fixture={fixture ?? undefined}
+        >
           <p className="abw-note">
             Absence Watch could not be read on this request — it retries on the
             next
@@ -157,7 +167,11 @@ export function AbsenceWatchBand({
         : `Senate through ${formatSince(rollWindow.senate, nowMs)}`,
     ].filter((c): c is string => c !== null);
     return (
-      <section className="abw abw--empty" aria-label="MIA: absence watch">
+      <section
+        className="abw abw--empty"
+        aria-label="MIA: absence watch"
+        data-fixture={fixture ?? undefined}
+      >
         <p className="abw-note">
           No member has missed the last {ABSENCE_WARN_MIN} roll calls of their
           chamber
@@ -179,7 +193,11 @@ export function AbsenceWatchBand({
   // band's position and neighbours. "MIA" alone would announce an initialism with
   // none of that, which is a downgrade for the reader who can least afford one.
   return (
-    <section className="abw" aria-label="MIA: absence watch">
+    <section
+      className="abw"
+      aria-label="MIA: absence watch"
+      data-fixture={fixture ?? undefined}
+    >
       <div className="abw-head">
         {/* The `·` is a SEPARATOR, not the at-risk segment's own marker: it
             renders only between two present segments, so an at-risk-only band

@@ -24,6 +24,7 @@ import {
   WeeklyBandMetricCard,
 } from "@/components/WeeklyBandMetricCard";
 import { WeekSentences } from "@/components/WeekSentences";
+import { enactedMax } from "@/lib/fixtures/max-content";
 import {
   getDashboardReportSnapshot,
   getEnactedThisWeek,
@@ -95,7 +96,15 @@ function weekStartISO(weeksAgo = 0): string {
   return monday.toISOString().slice(0, 10);
 }
 
-export async function WeeklyBand() {
+// HO 740 — `fixture` is the ONLY prop this band has ever taken, and it exists so
+// the narrow gate can render the enacted id box at max content on demand instead
+// of measuring whatever the week's data happens to be. `null` on every
+// Production render; `lib/fixtures/max-content.ts` owns both halves of the gate.
+export async function WeeklyBand({
+  fixture = null,
+}: {
+  fixture?: "max" | null;
+} = {}) {
   const [
     enacted,
     transitions,
@@ -124,8 +133,14 @@ export async function WeeklyBand() {
     getMostRecentEnacted(),
   ]);
 
-  const enactedShown = enacted.slice(0, ENACTED_ID_CAP);
-  const enactedMore = enacted.length - enactedShown.length;
+  // HO 740 — substituted AFTER the real read. Every downstream reader of the
+  // enacted slice reads `enactedFinal` and nothing reads `enacted` again: the
+  // chips, the overflow count, the headline count, the WeekDelta, the spark's
+  // live final point and the popover breakdown. Seven sites, enumerated at the
+  // HO 740 STEP 0 so none was left pointing at the unsubstituted array.
+  const enactedFinal = fixture ? enactedMax() : enacted;
+  const enactedShown = enactedFinal.slice(0, ENACTED_ID_CAP);
+  const enactedMore = enactedFinal.length - enactedShown.length;
 
   // HO 365: each metric's card delta/subline uses the SAME prior trailing-7d
   // value as the strip's inline WeekDelta (so card delta == strip delta); the
@@ -144,7 +159,7 @@ export async function WeeklyBand() {
   // HO 365: 8-point spark per metric = the ≤7 finalized history weeks
   // (oldest→newest) + the running-week live headline as the lit final bar (so
   // the lit bar == the header value).
-  const enactedSpark = [...history.map((h) => h.enacted), enacted.length];
+  const enactedSpark = [...history.map((h) => h.enacted), enactedFinal.length];
   const newBillsSpark = [...history.map((h) => h.newBills), newBills];
   const transitionsSpark = [
     ...history.map((h) => h.transitions),
@@ -154,7 +169,7 @@ export async function WeeklyBand() {
 
   const enactedBreakdown: WeeklyBandBreakdown = {
     kind: "enacted",
-    bills: enacted,
+    bills: enactedFinal,
     lastEnacted,
   };
   const newBillsBreakdown: WeeklyBandBreakdown = {
@@ -226,7 +241,14 @@ export async function WeeklyBand() {
           report={summaryReport}
         />
       ) : null}
-    <section className="weekly-band" aria-label="This week">
+      {/* HO 740 — the marker is ABSENT, not empty, when there is no fixture:
+          `undefined` drops the attribute; `""` would be a marker the spec
+          counts, and the leak control asserts 0 on every non-fixture route. */}
+      <section
+        className="weekly-band"
+        aria-label="This week"
+        data-fixture={fixture ?? undefined}
+      >
       <span className="weekly-band-weekof">
         Week of <span className="tabular-nums">{monDd(weekStartISO())}</span>
       </span>
@@ -241,7 +263,7 @@ export async function WeeklyBand() {
       <span className="weekly-band-seg weekly-band-enacted">
         <WeeklyBandMetricCard
           label="ENACTED"
-          value={enacted.length}
+          value={enactedFinal.length}
           prior={prior.enacted}
           priorDate={priorDateISO}
           spark={enactedSpark}
@@ -251,9 +273,9 @@ export async function WeeklyBand() {
             ●
           </span>{" "}
           <span className="weekly-band-num">
-            {enacted.length.toLocaleString()}
+            {enactedFinal.length.toLocaleString()}
           </span>{" "}
-          enacted <WeekDelta now={enacted.length} prior={prior.enacted} />
+          enacted <WeekDelta now={enactedFinal.length} prior={prior.enacted} />
         </WeeklyBandMetricCard>
         {enactedShown.length > 0 ? (
           <span className="weekly-band-ids">

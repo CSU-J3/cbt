@@ -13,6 +13,10 @@ import {
   type HearingEmbedGroup,
 } from "@/components/HearingMeetingsEmbed";
 import { NominationRow } from "@/components/NominationRow";
+import {
+  fixtureRequested,
+  meetingsWithVotesMax,
+} from "@/lib/fixtures/max-content";
 import { daysSince } from "@/lib/format";
 import {
   type CommitteeMember,
@@ -139,10 +143,18 @@ function ActivityCaption({
 
 export default async function CommitteeDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ systemCode: string }>;
+  // HO 740 — the fixture seam. Adding `searchParams` does NOT change this
+  // route's rendering class: the build's route table already reads it as
+  // dynamic, because `getWatchedBillIds` reads `auth()`
+  // (lib/queries.ts:7977-7980). Read off the table at the HO 740 STEP 0 rather
+  // than assumed, and the STEP 2 build is diffed against that reading.
+  searchParams: Promise<{ fixture?: string }>;
 }) {
   const { systemCode } = await params;
+  const fixture = fixtureRequested(await searchParams);
   const code = systemCode.toLowerCase();
 
   const committee = await getCommitteeBySystemCode(code);
@@ -186,11 +198,17 @@ export default async function CommitteeDetailPage({
   // helper returns newest-first; re-sort the upcoming slice ascending so the
   // nearest meeting reads at the top of its band.
   const nowMs = Date.now();
+  // HO 740 — substituted BEFORE the upcoming/recent split, so both bands see
+  // the same rows, and against the SAME `nowMs` the split uses: the builder
+  // decides which row is past, and a second clock could disagree with this one.
+  const meetingsFinal = fixture
+    ? meetingsWithVotesMax(meetings, nowMs)
+    : meetings;
   const meetingNames = { [committee.systemCode]: committee.name };
-  const upcomingMeetings = meetings
+  const upcomingMeetings = meetingsFinal
     .filter((m) => Date.parse(m.meetingDate) >= nowMs)
     .sort((a, b) => Date.parse(a.meetingDate) - Date.parse(b.meetingDate));
-  const recentMeetingsAll = meetings.filter(
+  const recentMeetingsAll = meetingsFinal.filter(
     (m) => Date.parse(m.meetingDate) < nowMs,
   );
   const recentMeetings = recentMeetingsAll.slice(0, RECENT_MEETINGS_CAP);
@@ -493,6 +511,7 @@ export default async function CommitteeDetailPage({
               groups={meetingGroups}
               committeeNames={meetingNames}
               nowMs={nowMs}
+              fixture={fixture}
             />
             {recentOverflow > 0 ? (
               <div className="hearings-embed-foot">
