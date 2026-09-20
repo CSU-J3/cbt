@@ -49,7 +49,7 @@ async function handle(request: Request) {
     expireTag("races");
     console.log(
       `[race-challengers] cleared=${summary.cleared} inserted=${summary.inserted} ` +
-        `rows=${summary.rows} races=${summary.races} of ${summary.ratedIndex} rated ` +
+        `rows=${summary.rows} races=${summary.races} of ${summary.seats} seats · ${summary.ratedIndex} rated ` +
         `stamp=${summary.runStamp}`,
     );
     return { payload: summary };

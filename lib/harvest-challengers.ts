@@ -1,8 +1,35 @@
 // HO 213 Part A: harvest non-incumbent primary winners from `primary_candidates`
-// into `race_candidates` as the general-election challenger(s) for the
-// getRacesIndex (rated, 2026) seats. Pure DB-to-DB — no scraping, no external
+// into `race_candidates` as the general-election challenger(s) for EVERY 2026
+// `races` row whose primary has voted. Pure DB-to-DB — no scraping, no external
 // dependency. The primary winner of the OTHER party (or any non-incumbent
 // advancer) is the challenger; a winner who IS the seat's incumbent is excluded.
+//
+// HO 741 — THE RATING GATE IS GONE, AND THE SENTENCE ABOVE IS WHAT IT CHANGED.
+// This read "for the getRacesIndex (rated, 2026) seats" from HO 213, and that
+// was right when it was written: the rated index's cards were the roster's only
+// consumer, so harvesting a seat nobody rated filled a table nothing read.
+// `/race/[id]` has been a consumer for EVERY seat since the stubs were minted
+// (`raceIdFromMember` in lib/race-id.ts; the member hub links to it), and on an
+// unrated seat it rendered the incumbent card plus "Incumbent running for
+// re-election. No competitive rating yet." and NO roster — a true sentence beside
+// an omission, while the same database held the seat's settled primary.
+//
+// MEASURED BEFORE IT WAS REMOVED (2026-09-20), by running this SELECT with and
+// without the clause and writing nothing:
+//   today (gate on)   246 rows / 177 races
+//   widened (gate off) 528 rows / 411 races      delta +282 / +234
+// All 282 are HOUSE. By type: `open` 218 -> won_primary, `top_two` 47 ->
+// advanced, NULL 14 -> won_primary, `top_four` 3 -> advanced. EVERY ONE of the
+// 234 delta races carried ZERO `race_candidates` beforehand, so the widening
+// adds rosters and changes none; the incumbent-leak count was 0.
+//
+// WHAT DID NOT CHANGE, deliberately: `getRacesIndex` is still rated-only for its
+// own stated reason (the 432 House stubs would be 90% noise on the page), so
+// `/electoral` and its cartogram list exactly what they listed before — the
+// builder keys roster rows to the INDEX rows, so rows for non-index races are
+// fetched and never matched. What changed is what a race page says when someone
+// arrives at it. The INSERT, the sentinel, the NOT EXISTS guard, the incumbent
+// exclusion and the CASE are all untouched.
 //
 // Idempotent + seed-safe via a sentinel source_url:
 //   - Harvested rows carry source_url = HARVEST_SOURCE.
@@ -32,10 +59,14 @@ export type HarvestResult = {
   inserted: number;
   rows: number;
   races: number;
+  // HO 741: every 2026 `races` row — the denominator this harvest now works
+  // against. `ratedIndex` stays beside it as the INDEX's own census, so the
+  // payload can print both and neither stands in for the other.
+  seats: number;
   ratedIndex: number;
 };
 
-// races (rated index) ↔ primaries by state + chamber + district. races.district
+// races (ALL 2026 rows since HO 741) ↔ primaries by state + chamber + district. races.district
 // is INTEGER; primaries.district is zero-padded TEXT → CAST. Winner exclusion:
 // drop the seat's own incumbent (bioguide match); a winner with a NULL bioguide
 // is never the incumbent (HO 213 probe: zero incumbent winners lack a bioguide).
@@ -49,7 +80,6 @@ const HARVEST_FROM_WHERE = `
    AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
   JOIN primary_candidates pc ON pc.primary_id = p.id AND pc.status = 'winner'
   WHERE r.cycle = ${CYCLE}
-    AND EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = ${CYCLE})
     AND ( pc.bioguide_id IS NULL OR pc.bioguide_id <> r.incumbent_bioguide_id )
     AND NOT EXISTS (
       SELECT 1 FROM race_candidates rc
@@ -109,6 +139,22 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   //    (race, candidate) pairs reach it under more than one type, max 1 type
   //    per pair. What would break it is a state whose primaries rows for ONE
   //    seat disagree on `primary_type` — re-measure that before trusting this.
+  //
+  //    HO 741 — THAT MEASUREMENT WAS TAKEN WITH A NULL-BLIND INSTRUMENT, AND
+  //    THE CORRECTED ONE IS NAMED HERE. `COUNT(DISTINCT p.primary_type)`
+  //    ignores NULL, so a pair reachable under (NULL, 'top_two') counts ONE
+  //    distinct type and passes — while the CASE emits `won_primary` for the
+  //    NULL row and `advanced` for the other, which is precisely the hazard
+  //    this note exists for. The quantity that matters is distinct CASE
+  //    RESULTS per pair:
+  //      SELECT COUNT(*) FROM (
+  //        SELECT r.id, pc.name, COUNT(DISTINCT CASE WHEN p.primary_type IN
+  //               ('top_four','top_two') THEN 'advanced' ELSE 'won_primary' END) n
+  //        <HARVEST_FROM_WHERE> GROUP BY r.id, pc.name HAVING n > 1 )
+  //    Re-measured 2026-09-20 against the SELECT with the rating gate removed
+  //    (the widest set this CASE could ever see): 0 of 528 pairs, max 1 status,
+  //    and 0 pairs reachable under both a NULL and a non-NULL type. The blind
+  //    instrument could not see 33 NULL-type pairs; the invariant holds anyway.
   const ins = await db.execute({
     sql: `INSERT OR IGNORE INTO race_candidates
             (race_id, name, party, bioguide_id, status, source_url, updated_at)
@@ -131,6 +177,12 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
      WHERE r.cycle = ${CYCLE}
        AND EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = ${CYCLE})`,
   );
+  // HO 741: the widened denominator. Kept SEPARATE from `idx` rather than
+  // replacing it — the index census is still the right number for the index, and
+  // a payload that printed only one of the two would hide which scope moved.
+  const seats = await db.execute(
+    `SELECT COUNT(*) AS n FROM races WHERE cycle = ${CYCLE}`,
+  );
 
   return {
     runStamp,
@@ -138,6 +190,7 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     inserted: ins.rowsAffected,
     rows: Number(filled.rows[0]?.rows ?? 0),
     races: Number(filled.rows[0]?.races ?? 0),
+    seats: Number(seats.rows[0]?.n ?? 0),
     ratedIndex: Number(idx.rows[0]?.n ?? 0),
   };
 }

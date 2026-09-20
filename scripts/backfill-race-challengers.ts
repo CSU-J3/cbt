@@ -31,7 +31,8 @@ async function main() {
   console.log(`cleared ${result.cleared} prior harvested rows`);
   console.log(`inserted ${result.inserted} harvested challenger rows`);
   console.log(
-    `\nharvested: ${result.rows} rows across ${result.races} races (of ${result.ratedIndex} rated index races)`,
+    `\nharvested: ${result.rows} rows across ${result.races} races ` +
+      `(of ${result.seats} 2026 seats; the rated index is ${result.ratedIndex})`,
   );
 
   // Sample for eyeballing — wrapper-only; the cron logs figures, not rows.
