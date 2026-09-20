@@ -39,6 +39,17 @@
         { "name": "Janelle Stelson", "party": "D", "bioguide_id": null, "status": "won_primary" }
       ]
     },
+    {
+      "id": "AK-AL-2026",
+      "rating_source": "Ballotpedia",
+      "source_url": "https://ballotpedia.org/Alaska%27s_At-large_Congressional_District_election,_2026",
+      "candidates": [
+        { "name": "Bill Hill", "party": "I", "bioguide_id": null, "status": "advanced" },
+        { "name": "Eric Hafner", "party": "D", "bioguide_id": null, "status": "advanced" },
+        { "name": "Jim McDermott", "party": "L", "bioguide_id": null, "status": "advanced" },
+        { "name": "John Brendan Williams", "party": "D", "bioguide_id": null, "status": "withdrew" }
+      ]
+    },
     { "id": "S-AL-2026", "incumbent_running": 0 },
     { "id": "S-IA-2026", "incumbent_running": 0 },
     { "id": "S-IL-2026", "incumbent_running": 0 },
