@@ -1950,10 +1950,16 @@ export const getRaceCandidates = unstable_cache(
 // HO 210 Pass 2: all candidates for a cycle in one query so the pinned map card
 // can show challenger rosters without an N+1 of getRaceCandidates. Returns a
 // FLAT array (not a Map) because unstable_cache JSON-serializes its result and a
-// Map would round-trip to {} — the builder groups by race_id. Today only ~4 of
-// the 137 rated races carry rows (the hand-seeded strip races); the rest fall
-// back to a null-safe placeholder in the card. Same precedence + party
-// normalization as getRaceCandidates.
+// Map would round-trip to {} — the builder groups by race_id. Same precedence
+// + party normalization as getRaceCandidates.
+//
+// COVERAGE, RE-MEASURED 2026-09-20 (HO 741). This said "only ~4 of the 137
+// rated races carry rows (the hand-seeded strip races)", which was true when
+// the harvest was new and has not been since HO 660 wired it to a daily cron.
+// Today: 257 rows over 181 races — 246 harvested over 177, plus 11 curated over
+// 4 — against a rated index of 190 and 470 race rows for the cycle. The rest
+// still fall back to the card's null-safe placeholder. Figures are a reading,
+// not a standing claim: re-derive them rather than trusting this line.
 export const getRaceCandidatesForCycle = unstable_cache(
   async (cycle: number): Promise<RaceCandidate[]> => {
     const db = getDb();
