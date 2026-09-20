@@ -27,7 +27,18 @@ const BASE_URL =
 // `/api/version` step is what catches that before any assertion runs; keep it
 // ahead of this in the job, and keep it failing loudly.
 const BYPASS = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
-const bypassHeaders = BYPASS
+// HO 740 — THE ANNOTATION IS LOAD-BEARING AND THE TYPE IS WHY.
+// Unannotated, this reads as a UNION of the two branches, and TS normalizes
+// the empty one by adding both keys as `?: undefined`. `extraHTTPHeaders` is
+// `{ [key: string]: string }`, `undefined` is not a `string` under that index
+// signature, and the whole `use` object then matches no `defineConfig`
+// overload — `TS2769` at the `extraHTTPHeaders` line, pointing at a site two
+// dozen lines from the cause. `Record<string, string>` makes the empty branch
+// an ordinary empty record and the conditional keeps its runtime meaning
+// exactly: unset -> `{}` (no header, which the prod-domain crawl requires),
+// set -> the two headers. Both ways re-checked at HO 740 because the type
+// changed under a behaviour HO 739 had already proven.
+const bypassHeaders: Record<string, string> = BYPASS
   ? { "x-vercel-protection-bypass": BYPASS, "x-vercel-set-bypass-cookie": "true" }
   : {};
 
