@@ -251,7 +251,11 @@ export function meetingsWithVotesMax(
       ...m,
       recordedVoteDocs: FIXTURE_RECORDED_VOTE_DOCS,
       videoUrl: takeStack ? FIXTURE_VIDEO_URL : m.videoUrl,
-      // Untouched unless it is one of the two statuses that suppress WATCH.
+      // Forced to "Scheduled" on the stacked row, unconditionally. The two
+      // statuses that suppress WATCH are `Canceled` and `Postponed`
+      // (lib/hearings.ts:106), and overwriting a row that carries neither is a
+      // no-op for `watchState`; writing it always is one branch instead of two
+      // and the confirmation below reads the result either way.
       meetingStatus: takeStack ? "Scheduled" : m.meetingStatus,
     };
     if (takeStack && watchState(next, nowMs) !== "none" && hasRecordedVotes(next)) {
