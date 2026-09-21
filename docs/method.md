@@ -437,6 +437,12 @@ and it survives the widening.
   of a 778-line file** and 15 of the 82 in range landed on a non-bullet. A `:N`
   may ride as a parenthetical carrying the SHA it was read at; it may not be the
   only thing identifying the target.
+- **An HO number is assigned by the tree at STEP 0, so ledger text names future
+  work by its subject and never by a number nobody has given it** — the same
+  failure as a `:N`, one register up. HO 741 wrote the general-box reader as
+  "HO 743" on four lines in two files; 743 went to different work, and four of
+  those seven occurrences sit inside a landed roadmap block, where append-only
+  forbids the correction.
 - **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
 - **`docs/design/`** — mocks and ruling records, tracked by default.
   `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`
