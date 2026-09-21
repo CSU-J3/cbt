@@ -10,9 +10,12 @@
 // `source` is the rater whose verdict it is; only the transport is
 // Ballotpedia.
 //
-// Scope: House only. Ballotpedia's 2026 Senate page has the intro
-// sentence for a ratings table but no table — Senate ratings stay on the
-// handoff-71 manual JSON seed until Ballotpedia publishes one.
+// Scope: House AND Senate (HO 744). One parser, parameterized by chamber —
+// see CHAMBER, below, for what the parameter picks and what it deliberately
+// does not. The pre-HO-744 comment here said Ballotpedia's 2026 Senate page
+// "has the intro sentence for a ratings table but no table"; that was true of
+// the wiki page and stopped being the whole story when the table moved into a
+// widget, which is discovered per `office_type` and exists for both chambers.
 //
 // Parsing: regex over the single, uniform, server-rendered table rather than
 // adding an HTML-parser dependency for one table.
@@ -69,8 +72,54 @@
 import { stateAbbr } from "./states";
 import { fetchError } from "./redact";
 
+// ── HO 744: THE CHAMBER IS A PARAMETER, BECAUSE A BARE STATE NAME IS NOT ────
+//
+// The Senate widget is the same widget: same host, same `race-ratings-full-
+// table` path, same five columns, same caption form, same eleven labels. Two
+// things differ, and only one of them is visible.
+//
+// The visible one is the id column's header — `State` where the House says
+// `District`. That is a token.
+//
+// The invisible one is the trap. A Senate `State` cell reads "Alabama" —
+// BARE — and `toHouseRaceId` turns a bare state name into `{ST}-AL-2026`,
+// the at-large House id HO 711 minted. Nothing about the cell's text
+// distinguishes the two chambers; "Alaska" is a valid House at-large cell and
+// a valid Senate cell, and the House branch happily mints `AK-AL-2026` from
+// the Senate row. Measured at HO 744 STEP 0 against the 2026-09-15 widget:
+// all 35 Senate rows mint `{ST}-AL-2026`, FOUR of which name live House races
+// (AK, DE, SD, WY — not six; ND and VT have no 2026 Senate race, so the widget
+// never renders them). The live consequence today is an UPSERT, not a delete:
+// `AK-AL-2026` holds three competitive House rows (Likely R ×3) and Alaska's
+// Senate cells are Toss-up/Tilt R/Toss-up, so pointing the House parser at the
+// Senate widget would silently rewrite Alaska's House ratings with Alaska's
+// Senate ratings. DE/SD/WY are Solid/Safe on the Senate side and hold no House
+// rating rows, so HO 743's departure rule finds nothing and deletes nothing —
+// it is guarded on "a row exists", and that guard is the only thing standing
+// between this and four deleted House races. One seeded at-large rating would
+// remove it.
+//
+// So: the parser is TOLD its chamber. It is never inferred from the cell.
+export type Chamber = "house" | "senate";
+
 const HOUSE_URL =
   "https://ballotpedia.org/United_States_House_of_Representatives_elections,_2026";
+const SENATE_URL = "https://ballotpedia.org/United_States_Senate_elections,_2026";
+
+// The page a chamber's ratings are discovered from, and the `source_url` its
+// rows cite. Writing the House page onto a Senate row would put the wrong
+// provenance on the rows whose entire defect was their provenance.
+const BALLOTPEDIA_URL: Record<Chamber, string> = {
+  house: HOUSE_URL,
+  senate: SENATE_URL,
+};
+
+// The widget's `office_type` query value, which is also what `discoverWidgetUrl`
+// matches on. Capitalized exactly as Ballotpedia writes it.
+const OFFICE_TYPE: Record<Chamber, string> = {
+  house: "House",
+  senate: "Senate",
+};
 
 // Browser-ish UA — Ballotpedia 202s a bare/automation UA.
 const USER_AGENT =
@@ -88,7 +137,13 @@ const SOURCE_MATCH: { needle: string; source: RatingSource }[] = [
   { needle: "inside elections", source: "inside_elections" },
   { needle: "sabato", source: "sabato" },
 ];
-const DISTRICT_HEADER = "district";
+// HO 744: the id column's header token, per chamber. The House widget's first
+// column is `District`, the Senate's is `State`; everything to the right of it
+// is identical and is still located by SOURCE_MATCH.
+const ID_HEADER: Record<Chamber, string> = {
+  house: "district",
+  senate: "state",
+};
 
 // Ballotpedia preserves each rater's own vocabulary per column. Mapping to
 // the normalized labels already used in race_ratings (handoff 71's
@@ -152,7 +207,21 @@ const LOCKED_LABEL: Record<string, string> = {
   "Safe Democratic": "Safe D",
 };
 
-const EXPECTED_HOUSE_ROWS = 435;
+// HO 744 — THE PARSED-ROW FLOOR IS PER CHAMBER, AND SO IS ITS TOLERANCE.
+//
+// This is the one of the four throws that could NOT be left alone. It read
+// `parsedRows < EXPECTED_HOUSE_ROWS - 5` — a hard 430 — so a 35-row Senate
+// table fails it unconditionally, forever, on every run. The header throw
+// fires first today, which is exactly why the floor stays invisible until the
+// header token is fixed and then becomes a permanent error.
+//
+// The tolerance is absolute and per chamber, NOT proportional: `-5` on 435 is
+// a stray spacer row, and the same 5 on 35 would swallow six missing states
+// without a sound. Senate is `0` — the widget renders every seat in the cycle
+// or the shape changed, and there is no spacer row to forgive. Measured at
+// HO 744 STEP 0: 435 House rows, 35 Senate rows, 0 unparsed in either.
+const EXPECTED_ROWS: Record<Chamber, number> = { house: 435, senate: 35 };
+const ROW_FLOOR_TOLERANCE: Record<Chamber, number> = { house: 5, senate: 0 };
 
 export type ScrapedRating = {
   raceId: string; // e.g. "CA-22-2026"
@@ -247,7 +316,12 @@ function stripTags(s: string): string {
 // Cook PVI table, not this one, and teaching the parser a form the source does
 // not use would hide the next shape change inside a successful parse — a form
 // this does not know surfaces as a floor breach, which is the signal wanted.
-function toRaceId(districtCell: string): string | null {
+// HO 744: RENAMED, BEHAVIOUR UNCHANGED. Every line below is what `toRaceId`
+// did before, byte for byte; the name now says which chamber's ids it mints,
+// because the bare-state branch is the ambiguity documented at CHAMBER above —
+// this function will happily turn a SENATE widget's "Alaska" into
+// `AK-AL-2026`, a live House race. It is only ever called with House cells.
+function toHouseRaceId(districtCell: string): string | null {
   const text = stripTags(districtCell);
   const m = text.match(/^(.+?) District (\d{1,2})$/);
   if (m?.[1] && m[2]) {
@@ -259,6 +333,31 @@ function toRaceId(districtCell: string): string | null {
   const abbr = stateAbbr(bare);
   return abbr ? `${abbr}-AL-2026` : null;
 }
+
+// HO 744 — the Senate id form, `S-{ST}-2026` (lib/race-id.ts; the seed files
+// and `races` agree).
+//
+// ONE FORM, AND NOTHING ELSE. Measured at STEP 0 against the 2026-09-15
+// widget: all 35 `State` cells are bare state names — no "Florida (Special)",
+// no parenthetical of any kind — and FL and OH appear exactly once each, so
+// the special-election collapse the cook seed's `note` warns about
+// (`races` keys Senate seats by next_election_year alone, so a regular AND a
+// special row for one state would both mint `S-{ST}-2026` and the second
+// would silently overwrite the first) IS NOT LIVE. It is one Ballotpedia
+// re-render away from being live, so a cell this does not recognize returns
+// null and is counted as an unparsed row — which trips the Senate floor's
+// zero tolerance and throws — rather than being guessed at. A shape this does
+// not know must surface as a failure, never inside a successful parse.
+function toSenateRaceId(stateCell: string): string | null {
+  const text = stripTags(stateCell);
+  const abbr = stateAbbr(text);
+  return abbr ? `S-${abbr}-2026` : null;
+}
+
+const TO_RACE_ID: Record<Chamber, (cell: string) => string | null> = {
+  house: toHouseRaceId,
+  senate: toSenateRaceId,
+};
 
 // Parse one rating cell into a normalized ScrapedRating, or null when the
 // cell is Solid/Safe (skipped) or an unrecognized vocabulary (warned).
@@ -287,26 +386,29 @@ function parseRatingCell(
   };
 }
 
-// Scrapes all three rater columns from the Ballotpedia House ratings
-// table. Returns a flat array — one entry per (race, source) pair where
-// the rating is competitive (non-Solid/Safe).
 /**
- * Find the ratings widget the page defers to.
+ * Find the ratings widget the page defers to, for one chamber.
  *
  * Matched on two substrings of the `data-url` — `race-ratings-full-table` and
- * `office_type=House` — and never on the div's id, which is a generated hash
- * (`bpw-94f2ef45`) that will not survive a re-render. Exactly one must match.
+ * `office_type=<Chamber>` — and never on the div's id, which is a generated
+ * hash (`bpw-94f2ef45`) that will not survive a re-render. Exactly one must
+ * match. HO 744: the office-type half is a parameter; both chamber pages carry
+ * exactly one such div, measured at STEP 0. (The gubernatorial page carries an
+ * `office_type=Governor` one too — out of scope, since `races` has no governor
+ * rows for a rating to land on.)
  */
-export function discoverWidgetUrl(pageHtml: string): string {
+export function discoverWidgetUrl(pageHtml: string, chamber: Chamber): string {
+  const officeType = OFFICE_TYPE[chamber];
   const urls = [...pageHtml.matchAll(/data-url="([^"]+)"/g)].map((m) =>
     decodeEntities(m[1] ?? ""),
   );
   const hits = urls.filter(
-    (u) => u.includes("race-ratings-full-table") && u.includes("office_type=House"),
+    (u) => u.includes("race-ratings-full-table") && u.includes(`office_type=${officeType}`),
   );
   if (hits.length !== 1) {
     throw new Error(
-      `Ballotpedia House page: expected exactly 1 race-ratings widget data-url, found ${hits.length}. ` +
+      `Ballotpedia ${officeType} page: expected exactly 1 race-ratings widget data-url ` +
+        `(office_type=${officeType}), found ${hits.length}. ` +
         `data-urls on the page: ${urls.length ? urls.join(" | ") : "(none)"}`,
     );
   }
@@ -340,7 +442,9 @@ export function captionAsOfDate(widgetHtml: string): string | null {
  * fixtures — a parser only ever exercised through the network is a parser whose
  * failure modes are only ever seen in production.
  */
-export function parseRatingsTable(widgetHtml: string): RatingsScrape {
+export function parseRatingsTable(widgetHtml: string, chamber: Chamber): RatingsScrape {
+  const idHeader = ID_HEADER[chamber];
+  const toRaceId = TO_RACE_ID[chamber];
   const tables = [...widgetHtml.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   const headerOf = (t: string): string[] => {
     const thead = t.match(/<thead>([\s\S]*?)<\/thead>/);
@@ -359,7 +463,7 @@ export function parseRatingsTable(widgetHtml: string): RatingsScrape {
     });
   if (matched.length !== 1) {
     throw new Error(
-      `race-ratings widget: expected exactly 1 table whose header names Cook, Inside Elections and Sabato, ` +
+      `race-ratings widget (${chamber}): expected exactly 1 table whose header names Cook, Inside Elections and Sabato, ` +
         `found ${matched.length} of ${tables.length} tables. Headers seen: ` +
         (tables.length
           ? tables.map((t, i) => `[${i}] ${headerOf(t).join(" / ") || "(no header)"}`).join(" ;; ")
@@ -369,18 +473,19 @@ export function parseRatingsTable(widgetHtml: string): RatingsScrape {
   const { t: table, header } = matched[0]!;
 
   // (2) THE COLUMN INDICES COME FROM THAT HEADER. No fallback to literals.
-  const districtCol = header.findIndex((h) => h.toLowerCase().includes(DISTRICT_HEADER));
+  // HO 744: the id column's token is the chamber's — `district` or `state`.
+  const districtCol = header.findIndex((h) => h.toLowerCase().includes(idHeader));
   const sourceCols = SOURCE_MATCH.map(({ needle, source }) => ({
     source,
     index: header.findIndex((h) => h.toLowerCase().includes(needle)),
   }));
   const missing = [
-    ...(districtCol === -1 ? ["District"] : []),
+    ...(districtCol === -1 ? [idHeader] : []),
     ...sourceCols.filter((c) => c.index === -1).map((c) => c.source),
   ];
   if (missing.length) {
     throw new Error(
-      `race-ratings widget: header matched the table but not its columns — missing ${missing.join(", ")}. ` +
+      `race-ratings widget (${chamber}): header matched the table but not its columns — missing ${missing.join(", ")}. ` +
         `Header: ${header.join(" / ")}`,
     );
   }
@@ -432,13 +537,16 @@ export function parseRatingsTable(widgetHtml: string): RatingsScrape {
   }
 
   // (3) THE PARSED-ROW FLOOR. Counted where `toRaceId` is called, so a cell-shape
-  // change reads as a shape change rather than as 435 silent skips. `- 5`
+  // change reads as a shape change rather than as 435 silent skips. House's `- 5`
   // tolerates a stray spacer row; it does NOT tolerate the six at-large seats
   // being dropped again, which is the regression this number is sized against.
-  if (parsedRows < EXPECTED_HOUSE_ROWS - 5) {
+  // Senate's tolerance is 0 — see EXPECTED_ROWS for why the House number could
+  // not simply be reused.
+  const floor = EXPECTED_ROWS[chamber] - ROW_FLOOR_TOLERANCE[chamber];
+  if (parsedRows < floor) {
     throw new Error(
-      `race-ratings widget: only ${parsedRows} of ${rowMatches.length} rows yielded a race id ` +
-        `(expected ~${EXPECTED_HOUSE_ROWS}) — the district-cell shape changed. ` +
+      `race-ratings widget (${chamber}): only ${parsedRows} of ${rowMatches.length} rows yielded a race id ` +
+        `(expected ${EXPECTED_ROWS[chamber]}, floor ${floor}) — the ${idHeader}-cell shape changed. ` +
         `First cells: ${rowMatches
           .slice(0, 3)
           .map((r) => JSON.stringify(stripTags((r.match(/<t[hd][^>]*>[\s\S]*?<\/t[hd]>/g) ?? [])[districtCol] ?? "")))
@@ -451,7 +559,7 @@ export function parseRatingsTable(widgetHtml: string): RatingsScrape {
   if (out.length === 0) {
     const vocab = [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", ");
     throw new Error(
-      `race-ratings widget: parsed ${parsedRows} rows and scraped ZERO competitive ratings — ` +
+      `race-ratings widget (${chamber}): parsed ${parsedRows} rows and scraped ZERO competitive ratings — ` +
         `the table parsed but no cell matched the known vocabulary. ` +
         `Unrecognized labels seen: ${vocab || "(none — every cell was Solid/Safe or empty)"}`,
     );
@@ -466,15 +574,32 @@ export function parseRatingsTable(widgetHtml: string): RatingsScrape {
 }
 
 /**
- * Scrape all three rater columns. Two fetches: the wiki page (to discover the
- * widget) and the widget itself (~208 KB).
+ * Scrape all three rater columns for one chamber. Two fetches: the wiki page
+ * (to discover the widget) and the widget itself (~208 KB House, ~16 KB
+ * Senate).
+ *
+ * HO 744: the two named callers below are thin — the chamber is the only thing
+ * that differs, and it is passed, never inferred.
  */
-export async function scrapeHouseRatings(): Promise<RatingsScrape> {
-  const pageHtml = await fetchHtml(HOUSE_URL);
-  const widgetUrl = discoverWidgetUrl(pageHtml);
-  console.log(`  ratings widget: ${widgetUrl}`);
+export async function scrapeRatings(chamber: Chamber): Promise<RatingsScrape> {
+  const pageHtml = await fetchHtml(BALLOTPEDIA_URL[chamber]);
+  const widgetUrl = discoverWidgetUrl(pageHtml, chamber);
+  console.log(`  ratings widget (${chamber}): ${widgetUrl}`);
   const widgetHtml = await fetchHtml(widgetUrl);
-  return parseRatingsTable(widgetHtml);
+  return parseRatingsTable(widgetHtml, chamber);
+}
+
+export async function scrapeHouseRatings(): Promise<RatingsScrape> {
+  return scrapeRatings("house");
+}
+
+export async function scrapeSenateRatings(): Promise<RatingsScrape> {
+  return scrapeRatings("senate");
 }
 
 export const BALLOTPEDIA_HOUSE_URL = HOUSE_URL;
+export const BALLOTPEDIA_SENATE_URL = SENATE_URL;
+/** The page a chamber's rows cite as `source_url`. */
+export function ballotpediaUrlFor(chamber: Chamber): string {
+  return BALLOTPEDIA_URL[chamber];
+}

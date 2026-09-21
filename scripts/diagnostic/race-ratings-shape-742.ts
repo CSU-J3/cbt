@@ -79,7 +79,7 @@ console.log(`fixture: ${widgetPath} (${widget.length} bytes)\n`);
 // ── GREEN: the real thing ───────────────────────────────────────────────────
 console.log("GREEN — the saved widget response");
 try {
-  const { ratings: out, locked, sourcesPresent } = parseRatingsTable(widget);
+  const { ratings: out, locked, sourcesPresent } = parseRatingsTable(widget, "house");
   if (out.length > 0) ok("parses to > 0 ratings", `${out.length} competitive ratings`);
   else bad("parses to > 0 ratings", "0");
   const bySource = new Map<string, number>();
@@ -139,7 +139,7 @@ if (selftest) {
     .replace(/Inside Elections/g, "Column B")
     .replace(/Sabato's Crystal Ball/g, "Column C")
     .replace(/Sabato&#39;s Crystal Ball/g, "Column C");
-  mustThrow("(a) header renamed", "expected exactly 1 table whose header names", () => parseRatingsTable(noHeader));
+  mustThrow("(a) header renamed", "expected exactly 1 table whose header names", () => parseRatingsTable(noHeader, "house"));
 
   // (b) district cells: rewrite the FIRST cell of every body row to a shape the
   // parser cannot know.
@@ -155,14 +155,14 @@ if (selftest) {
   const allCells = widget.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, (row) =>
     row.replace(/<t([hd])([^>]*)>([\s\S]*?)<\/t[hd]>/, (_m, tag, attrs) => `<t${tag}${attrs}>ZZ-not-a-district-ZZ</t${tag}>`),
   );
-  mustThrow("(b) district cells mangled", "rows yielded a race id", () => parseRatingsTable(allCells));
+  mustThrow("(b) district cells mangled", "rows yielded a race id", () => parseRatingsTable(allCells, "house"));
 
   // (c) every rating Solid Republican -> nothing competitive survives NORMALIZE.
   const allSolid = widget.replace(
     />(Likely|Lean|Tilt|Toss-up|Solid|Safe)[^<]*</g,
     ">Solid Republican<",
   );
-  mustThrow("(c) every rating Solid", "scraped ZERO competitive ratings", () => parseRatingsTable(allSolid));
+  mustThrow("(c) every rating Solid", "scraped ZERO competitive ratings", () => parseRatingsTable(allSolid, "house"));
 }
 
 // ── Discovery, when a page fixture is given ─────────────────────────────────
@@ -170,14 +170,14 @@ if (pagePath) {
   console.log(`\nDISCOVERY — ${pagePath}`);
   const page = readFileSync(pagePath, "utf8");
   try {
-    const url = discoverWidgetUrl(page);
+    const url = discoverWidgetUrl(page, "house");
     ok("exactly one widget data-url", url);
   } catch (e) {
     bad("exactly one widget data-url", (e as Error).message.slice(0, 200));
   }
   if (selftest) {
     const stripped = page.replace(/race-ratings-full-table/g, "some-other-widget");
-    mustThrow("(d) widget div removed", "expected exactly 1 race-ratings widget", () => discoverWidgetUrl(stripped));
+    mustThrow("(d) widget div removed", "expected exactly 1 race-ratings widget", () => discoverWidgetUrl(stripped, "house"));
   }
 }
 

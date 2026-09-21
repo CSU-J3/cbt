@@ -1,6 +1,6 @@
 // Automated race-ratings sync orchestration (handoff 88, +89 all-three-
-// sources). Scrapes 2026 House Cook / Inside Elections / Sabato ratings
-// via Ballotpedia and upserts the competitive ones into race_ratings.
+// sources). Scrapes 2026 Cook / Inside Elections / Sabato ratings for BOTH
+// CHAMBERS via Ballotpedia and upserts the competitive ones into race_ratings.
 // Same logic-in-lib / thin-wrapper split as lib/votes-sync.ts:
 // `scripts/sync-race-ratings.ts` (CLI) and
 // `app/api/sync-race-ratings/route.ts` (cron) both call runRaceRatingsSync.
@@ -9,12 +9,30 @@
 // a race without incumbent data (handoff 88 acceptance #6). Rating changes
 // log a CHANGED: line; that console line is the audit trail.
 //
-// Senate is out of scope HERE: the widget this reads is `office_type=House`,
-// so no House locked cell can ever name an `S-{ST}-{YYYY}` id and the Senate
-// rows are unreachable by construction. (A Senate widget of the same shape does
-// exist — measured HO 743, and the reason it is not read yet is on the ledger,
-// not that it is absent. The pre-HO-743 comment here said Ballotpedia had no
-// Senate ratings table at all, which was false.)
+// ── HO 744: SENATE IS IN SCOPE, AND THE TWO LEGS ARE INDEPENDENT ────────────
+//
+// Until HO 744 the Senate was excused by a construction argument: the widget
+// read `office_type=House`, so no locked cell could name an `S-{ST}-{YYYY}` id
+// and Senate rows were unreachable. That was true and it was the wrong kind of
+// safety — the Senate store was a January Wikipedia snapshot with no sync,
+// 72 of its 105 rows Solid/Safe, while the House half said what the raters
+// said this week. The widget is now discovered PER CHAMBER and the parser is
+// told which one it is reading (see lib/race-ratings-scrape.ts, CHAMBER, for
+// the bare-state collision that makes telling it mandatory).
+//
+// THE LEGS SHARE NO STATE AND NEITHER CAN DISCARD THE OTHER'S WRITES. Each
+// chamber scrapes, upserts and applies departures inside its own try/catch,
+// against disjoint id spaces, and commits as it goes. If a leg throws, the
+// other still runs to completion and its writes stand; only AFTER both have
+// run does this function throw, naming the failed chamber(s) and carrying the
+// successful one's counts. That shape is not decoration: HO 742 spent a
+// session ending a state where a Ballotpedia restructure froze the ratings
+// silently, and a single sequential path would reintroduce exactly that — a
+// Senate-side change re-freezing the House — in a new place.
+//
+// Loudness is unchanged. Either leg failing is still a throw, so
+// `wrapCronRoute` records `status = 'error'` with the message, and
+// `/api/health` reds on `lastStatus`.
 //
 // HO 743 — THE SYNC NOW DELETES, ON EVIDENCE AND NEVER ON ABSENCE. The widget
 // renders a cell per (district, rater), so a Solid/Safe cell is the rater
@@ -23,10 +41,11 @@
 import type { Client, InStatement } from "@libsql/client";
 import { getDb } from "./db";
 import {
-  BALLOTPEDIA_HOUSE_URL,
+  ballotpediaUrlFor,
+  type Chamber,
   type RatingSource,
   type RatingsScrape,
-  scrapeHouseRatings,
+  scrapeRatings,
 } from "./race-ratings-scrape";
 
 export type RaceRatingsSyncStats = {
@@ -44,15 +63,70 @@ export type RaceRatingsSyncStats = {
   deletedBySource: Record<RatingSource, number>;
 };
 
-export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
+/**
+ * HO 744 — one leg's outcome. A leg either produced stats or threw; the
+ * message is kept so the payload records WHY a chamber is missing rather than
+ * leaving a hole the reader has to interpret.
+ */
+export type ChamberLegResult = { ok: true; stats: RaceRatingsSyncStats } | { ok: false; error: string };
+
+export type RaceRatingsSyncResult = Record<Chamber, ChamberLegResult>;
+
+const CHAMBERS: Chamber[] = ["house", "senate"];
+
+/**
+ * Run both chambers. See the header for why the legs are independent.
+ *
+ * Throws AFTER both legs have run if either failed — so the successful leg's
+ * writes are already committed and only the reporting is affected.
+ */
+export async function runRaceRatingsSync(): Promise<RaceRatingsSyncResult> {
   const db = getDb();
-  const scrape = await scrapeHouseRatings();
+  const result = {} as RaceRatingsSyncResult;
+
+  for (const chamber of CHAMBERS) {
+    try {
+      result[chamber] = { ok: true, stats: await runChamberLeg(db, chamber) };
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      console.error(`  ${chamber} leg FAILED: ${error}`);
+      result[chamber] = { ok: false, error };
+    }
+  }
+
+  const failed = CHAMBERS.filter((c) => !result[c].ok);
+  if (failed.length > 0) {
+    const survived = CHAMBERS.filter((c) => result[c].ok)
+      .map((c) => {
+        const leg = result[c] as { ok: true; stats: RaceRatingsSyncStats };
+        return `${c} OK (upserted=${leg.stats.upserted} deleted=${leg.stats.deleted}, committed)`;
+      })
+      .join("; ");
+    const detail = failed
+      .map((c) => `${c}: ${(result[c] as { ok: false; error: string }).error}`)
+      .join(" ;; ");
+    throw new Error(
+      `race-ratings sync: ${failed.length} of ${CHAMBERS.length} chamber leg(s) failed — ${detail}. ` +
+        (survived ? `Writes that DID land: ${survived}.` : "No chamber completed."),
+    );
+  }
+  return result;
+}
+
+/**
+ * One chamber, end to end: scrape, upsert, apply departures. Everything below
+ * this line is what `runRaceRatingsSync` did before HO 744, with the chamber
+ * threaded through the scrape call and the `source_url`.
+ */
+async function runChamberLeg(db: Client, chamber: Chamber): Promise<RaceRatingsSyncStats> {
+  const scrape = await scrapeRatings(chamber);
   const ratings = scrape.ratings;
   console.log(
-    `scraped ${ratings.length} competitive House ratings (all sources) ` +
+    `scraped ${ratings.length} competitive ${chamber} ratings (all sources) ` +
       `· ${scrape.locked.length} locked cells · sources ${scrape.sourcesPresent.join("/")}`,
   );
 
+  const sourceUrl = ballotpediaUrlFor(chamber);
   const stats: RaceRatingsSyncStats = {
     scraped: ratings.length,
     upserted: 0,
@@ -108,7 +182,10 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
     // because rating-history's change-detect predicate is score + label and
     // deliberately NOT rating_date (lib/rating-history.ts:8-12, :57-58) — it
     // only carries the value through onto its own row. source_url points at the
-    // Ballotpedia page we read.
+    // Ballotpedia page we read — HO 744: THE CHAMBER'S page. This was a hard-
+    // wired BALLOTPEDIA_HOUSE_URL, which would have cited the House page as the
+    // provenance of every Senate row, on rows whose entire defect was their
+    // provenance.
     await db.execute({
       sql: `INSERT INTO race_ratings
               (id, race_id, source, rating, rating_score, rating_date,
@@ -127,7 +204,7 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
         r.rating,
         r.ratingScore,
         r.asOfDate ?? now.slice(0, 10),
-        BALLOTPEDIA_HOUSE_URL,
+        sourceUrl,
         now,
       ],
     });
@@ -142,7 +219,7 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
   await applyDepartures(db, scrape, stats);
 
   console.log(
-    `done — scraped=${stats.scraped} upserted=${stats.upserted} ` +
+    `${chamber} done — scraped=${stats.scraped} upserted=${stats.upserted} ` +
       `(cook=${stats.bySource.cook} ie=${stats.bySource.inside_elections} ` +
       `sabato=${stats.bySource.sabato}) changed=${stats.changed} ` +
       `unchanged=${stats.unchanged} skipped_no_race_row=${stats.skippedNoRaceRow} ` +
@@ -166,11 +243,21 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncStats> {
  * Solid cells; and a widget that rated every seat Solid trips the non-empty
  * throw in the scraper before this function is ever reached.
  *
- * Senate rows cannot be touched: the widget is `office_type=House`, so every
- * `raceId` here is `{ST}-{DD|AL}-{YYYY}` and never `S-{ST}-{YYYY}`.
+ * HO 744 — THIS PREDICATE IS SHARED BY BOTH CHAMBERS, BYTE FOR BYTE. It is
+ * called once per leg and is not copied, so a Senate departure is decided by
+ * exactly the code that decides a House one, at ±3 like the House.
  *
- * Exported because the HO 743 gate runs it directly against a local `file:`
- * copy with saved widget HTML — the shipped function, not a copy of it.
+ * What used to make cross-chamber damage impossible was the widget: it was
+ * `office_type=House`, so every `raceId` reaching here was `{ST}-{DD|AL}` and
+ * never `S-{ST}`. That is no longer true, and NOTHING HERE ENFORCES IT — the
+ * `pairs` read is over all of `race_ratings`, both chambers, so this function
+ * will delete whatever id the scrape hands it. The separation now lives
+ * entirely in the id minting (scrape.ts, TO_RACE_ID), which is why that is
+ * where the bare-state collision is documented and why the shape diagnostic
+ * asserts no Senate id appears among House cells and vice versa.
+ *
+ * Exported because the HO 743/744 gates run it directly against a local
+ * `file:` copy with saved widget HTML — the shipped function, not a copy.
  */
 export async function applyDepartures(
   db: Client,

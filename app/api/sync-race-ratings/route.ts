@@ -1,7 +1,8 @@
-// Race-ratings sync cron entry (handoff 88). Scrapes 2026 House Sabato
-// ratings from Ballotpedia weekly. Separate route + cron because the
-// cadence is weekly (Sabato updates mid-week) while /api/sync is daily,
-// and the work is unrelated to the bill pipeline.
+// Race-ratings sync cron entry (handoff 88). Scrapes 2026 House AND Senate
+// Cook / Inside Elections / Sabato ratings from Ballotpedia weekly (HO 744;
+// House-only before that). Separate route + cron because the cadence is
+// weekly (Sabato updates mid-week) while /api/sync is daily, and the work is
+// unrelated to the bill pipeline.
 //
 // Auth mirrors /api/sync and /api/sync-votes exactly: Bearer CRON_SECRET.
 // expireTag("race-ratings") flushes the cached race query helpers so
@@ -36,11 +37,15 @@ async function handle(request: Request) {
   if (denied) return denied;
 
   const result = await wrapCronRoute("/api/sync-race-ratings", async () => {
-    const stats = await runRaceRatingsSync();
+    // HO 744: both chambers, each leg's outcome carried into the payload. The
+    // sync throws if either leg failed — after both have run — so a recorded
+    // `error` here still means the surviving chamber's writes landed, and the
+    // message names which chamber failed and what the other one did.
+    const chambers = await runRaceRatingsSync();
     // race-ratings tag is separate from races/bills — the rating seed and
-    // now this scrape refresh on their own cadence.
+    // now this scrape refresh on their own cadence. One tag, both chambers.
     expireTag("race-ratings");
-    return { payload: { stats } };
+    return { payload: { chambers } };
   });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
