@@ -96,6 +96,12 @@ const DISTRICT_HEADER = "district";
 // "Solid" and Sabato "Safe" — map to null: Solid/Safe House seats are not
 // seeded (SKILL.md: 360+ partisan-locked rows of zero analytical value).
 // Inside Elections' "Tilt" tier maps through verbatim.
+//
+// HO 743 — A LOCKED CELL IS NOW EVIDENCE, NOT AN ABSENCE. `null` here still
+// means "do not seed this", and it now ALSO means "this rater says the seat is
+// out of play today", which is the one thing that can retire a row this sync
+// wrote months ago. The four are lifted out into LOCKED_LABEL below and
+// returned alongside the competitive ratings; nothing about the mapping moves.
 const NORMALIZE: Record<string, string | null> = {
   "Solid Republican": null,
   "Solid Democratic": null,
@@ -122,6 +128,28 @@ const RATING_SCORE: Record<string, number> = {
   "Tilt R": 1,
   "Lean R": 1,
   "Likely R": 2,
+  // HO 743: the partisan-locked ends of the same scale. These are never
+  // produced by `parseRatingCell` (NORMALIZE sends the four labels to null);
+  // they are here so the DEPARTURE row a locked cell writes is scored by the
+  // same map as every other row, and they carry the values the seeder already
+  // assigns (scripts/seed-race-ratings.ts — "Solid D"/"Safe D" -3, "Solid R"/
+  // "Safe R" 3). NOT 0: 0 is Toss Up's, so a seat going safe would otherwise
+  // be logged at dead-centre of the very axis the history exists to plot.
+  "Solid D": -3,
+  "Safe D": -3,
+  "Solid R": 3,
+  "Safe R": 3,
+};
+
+// HO 743: the rater's own word for a locked seat, kept verbatim so the
+// departure row says "Solid R" where Cook/IE said it and "Safe D" where Sabato
+// did. Keys are exactly the NORMALIZE entries that map to null — a label in one
+// and not the other is a bug, which `race-ratings-shape-742.ts` asserts.
+const LOCKED_LABEL: Record<string, string> = {
+  "Solid Republican": "Solid R",
+  "Solid Democratic": "Solid D",
+  "Safe Republican": "Safe R",
+  "Safe Democratic": "Safe D",
 };
 
 const EXPECTED_HOUSE_ROWS = 435;
@@ -139,6 +167,46 @@ export type ScrapedRating = {
   // when the caption does not parse — the sync falls back to the scrape date,
   // which is exactly today's behaviour, so the fallback degrades nothing.
   asOfDate: string | null; // YYYY-MM-DD
+};
+
+/**
+ * HO 743 — a cell in which a rater says the seat is NOT in play.
+ *
+ * The widget renders a cell for every one of the 435 districts × 3 raters, so a
+ * Solid/Safe cell is the rater saying so today, in the same response that
+ * carries the competitive ratings and at no extra fetch. That is what makes a
+ * DELETE safe: the sync retires a row on an explicit statement, never on an
+ * absence. An empty cell, a missing row and a source whose column vanished for
+ * a week are all absences and none of them appears here.
+ */
+export type LockedCell = {
+  raceId: string;
+  source: RatingSource;
+  label: string; // the rater's own word, normalized: "Solid R" | "Safe D" | ...
+  ratingScore: number; // ±3 — the locked ends of the same scale (RATING_SCORE)
+  rawRating: string; // exactly as Ballotpedia rendered it
+  asOfDate: string | null; // the caption's date, as on ScrapedRating
+};
+
+/**
+ * What one parse of the widget yields. `ratings` is what it has always been
+ * and is byte-identical in shape; the other two are HO 743.
+ *
+ * `sourcesPresent` is the list of raters whose header cell MATCHED, and the
+ * sync refuses to delete for a source outside it. Say plainly what it is worth
+ * today: past the missing-columns throw above, all three columns matched by
+ * construction, so this is always the full set and the per-source guard the
+ * backlog line asked for is ALREADY HELD BY THAT THROW — a rater's column
+ * dropping out of the widget errors the tick instead of deleting that rater's
+ * every row. It is returned and checked anyway because the delete must not
+ * inherit its safety from a throw two hundred lines away that a later edit
+ * could narrow; if that throw ever becomes per-source, this is where the
+ * deletion stops.
+ */
+export type RatingsScrape = {
+  ratings: ScrapedRating[];
+  locked: LockedCell[];
+  sourcesPresent: RatingSource[];
 };
 
 async function fetchHtml(url: string): Promise<string> {
@@ -272,7 +340,7 @@ export function captionAsOfDate(widgetHtml: string): string | null {
  * fixtures — a parser only ever exercised through the network is a parser whose
  * failure modes are only ever seen in production.
  */
-export function parseRatingsTable(widgetHtml: string): ScrapedRating[] {
+export function parseRatingsTable(widgetHtml: string): RatingsScrape {
   const tables = [...widgetHtml.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
   const headerOf = (t: string): string[] => {
     const thead = t.match(/<thead>([\s\S]*?)<\/thead>/);
@@ -329,6 +397,7 @@ export function parseRatingsTable(widgetHtml: string): ScrapedRating[] {
   const asOfDate = captionAsOfDate(widgetHtml);
 
   const out: ScrapedRating[] = [];
+  const locked: LockedCell[] = [];
   const unknown = new Map<string, number>();
   let parsedRows = 0;
   for (const row of rowMatches) {
@@ -342,6 +411,21 @@ export function parseRatingsTable(widgetHtml: string): ScrapedRating[] {
       if (cell === undefined) continue;
       const raw = stripTags(cell);
       if (raw && NORMALIZE[raw] === undefined) unknown.set(raw, (unknown.get(raw) ?? 0) + 1);
+      // HO 743: a locked cell, collected rather than skipped. This reads the
+      // RAW label, not a null return — `parseRatingCell` returns null for an
+      // empty cell and an unknown one too, and those are absences.
+      const lockedLabel = LOCKED_LABEL[raw];
+      if (lockedLabel) {
+        locked.push({
+          raceId,
+          source,
+          label: lockedLabel,
+          ratingScore: RATING_SCORE[lockedLabel] ?? 0,
+          rawRating: raw,
+          asOfDate,
+        });
+        continue;
+      }
       const parsed = parseRatingCell(raceId, source, cell);
       if (parsed) out.push({ ...parsed, asOfDate });
     }
@@ -378,14 +462,14 @@ export function parseRatingsTable(widgetHtml: string): ScrapedRating[] {
         [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", "),
     );
   }
-  return out;
+  return { ratings: out, locked, sourcesPresent: sourceCols.map((c) => c.source) };
 }
 
 /**
  * Scrape all three rater columns. Two fetches: the wiki page (to discover the
  * widget) and the widget itself (~208 KB).
  */
-export async function scrapeHouseRatings(): Promise<ScrapedRating[]> {
+export async function scrapeHouseRatings(): Promise<RatingsScrape> {
   const pageHtml = await fetchHtml(HOUSE_URL);
   const widgetUrl = discoverWidgetUrl(pageHtml);
   console.log(`  ratings widget: ${widgetUrl}`);
