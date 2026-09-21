@@ -4765,3 +4765,26 @@ Between 2026-09-02 and 09-09 Ballotpedia moved the ratings comparison off the wi
 **The watchdog could not have caught it and it was not the watchdog's fault.** `lib/cron-health.ts` keys on `lastRunAt` and `lastStatus`; the route ran on time and reported success. A zero-row success is invisible to every freshness-based monitor by construction — the only place it can be caught is inside the route, by the route refusing to succeed. That is why the repair is four throws rather than a new alarm: a throw inside `wrapCronRoute` is already `status = 'error'` with the message in `error_message` (`lib/cron-log.ts:175-183`), so the existing watchdog reds for free.
 
 **Sibling, and the reason this entry is short on novelty and long on the number:** the HO 741 entry *"measured at the seeds rather than inferred"*, where two derived stores agreed **because** of a defect. Here one number agreed because of a defect. Both are § Gates' subject — *say what the check reads if the work was never done* — arriving from the direction nobody watches, which is the check that has been green for months.
+
+## A mangle that named the wrong column: sibling table cells are byte-identical, so a string replace plants the plant somewhere else (HO 743, Sep 2026)
+
+HO 743's gate has a leg that blanks three widget cells to prove an ABSENCE deletes nothing. It located each cell by walking the row's cells and then wrote the blank with `row.replace(cellHtml, blanked)` — a string replace, which takes the FIRST match.
+
+**Sibling cells in one row are frequently byte-identical.** Arkansas 2 reads `Solid Republican` in the Cook column and `Solid Republican` in the Inside Elections column, same markup, same whitespace. So the leg that reported *blanked AR-02 inside_elections* had in fact blanked **AR-02 cook** — a cell on a seat that was never a departure candidate, where blanking it proves nothing.
+
+**The leg would have passed.** Three cells vanish from the locked set either way; the delete count comes out one short either way; nothing in the assertion as first written could tell the two apart. What caught it was the **cell census** added to the shape instrument in the same HO — `218 + 1085 = 1303, expected 1305` against an expected 1084 — i.e. an instrument written for a different purpose, noticing that the mangle had removed two cells and not three.
+
+**The fix is positional splicing**: take the match's `index`, rebuild the row as `slice(0, index) + blanked + slice(index + length)`. And the leg now asserts the three pairs it blanked are the three it named, so a mis-aimed mangle fails on its own line instead of on a downstream count.
+
+**The general shape, which is the reason this is filed:** a plant identified by CONTENT lands wherever that content first appears; a plant identified by POSITION lands where it was aimed. Every falsification leg that mangles a document by find-and-replace shares this, and its failure mode is the worst kind — the leg still goes green, on a mutation that tests something else. Siblings of this entry: the HO 742 instrument's own leg (b), which first rewrote the rating cells along with the district cells and then hit the Cook column because the district cell is a `<th>`; and every `continue`-into-a-clean-zero on the entry above.
+
+
+## `bySource` counts writes, not ratings — and a handoff's discriminator was built on reading it as ratings (HO 743, Sep 2026)
+
+HO 743's STEP 0 row 5 asked for each source's competitive count in the parse, compared against *“the last successful `cron_runs` payload's `bySource`”*, expecting *“within a few of `{2, 40, 27}`”*. It cannot fire as written, and the reason is one line of the sync: `stats.bySource[r.source]++` sits **after** the `unchanged` continue, on the write path. It tallies **upserts**.
+
+So the two quantities are not near each other and never were. The parse holds **cook 70 · inside_elections 70 · sabato 78 = 218** competitive cells; the payload's `{cook 2, ie 40, sabato 27}` sums to **69**, the number of rows that run happened to write. On a tick where nothing moved they would be `{0, 0, 0}` against an unchanged 218 — and indeed HO 743's own departure run reported exactly that.
+
+**The comparison that does hold is one field over:** the widget's competitive total against the payload's `scraped`, 218 against 218. `scraped` is `ratings.length`, which is the quantity row 5 actually wanted.
+
+**The class, one level up from the arithmetic:** a field name that reads like a census of the SOURCE (`bySource`) when it is a census of OUR WRITES. Nothing is wrong with the field; what is wrong is building a discriminator on a name without reading the line that increments it. § Gates' rule — *say what the instrument reads if the work was never done* — has a prior clause this is an instance of: **say what the instrument reads at all.** Same family as the HO 728 corrections, where each citation was real and the inference past it was not.
