@@ -26,11 +26,20 @@
 //   GREEN/RED  discovery finds exactly one widget data-url, and a page with the
 //              div removed throws rather than falling through to the PVI table
 //              (which is precisely what happened in production).
+//
+// HO 743 EXTENDS THE GREEN LEG AND LEAVES THE FOUR REDS ALONE. The parse now
+// returns the Solid/Safe cells as evidence rather than dropping them, and a
+// row can be DELETED on one, so the green leg asserts the cell census
+// (competitive + locked == 435 × 3, i.e. nothing classified as neither), the
+// three sources present, the ±3 label/score contract the departure row is
+// written from, and that no locked cell carries a Senate id. The file keeps its
+// -742 name: this is the ingest's one instrument, not a per-HO artifact.
 import { readFileSync } from "node:fs";
 import {
   discoverWidgetUrl,
   parseRatingsTable,
   captionAsOfDate,
+  type RatingsScrape,
 } from "@/lib/race-ratings-scrape";
 
 const args = process.argv.slice(2);
@@ -52,7 +61,11 @@ function bad(label: string, detail: string) {
 function mustThrow(label: string, needle: string, fn: () => unknown) {
   try {
     const out = fn();
-    bad(label, `did NOT throw — returned ${Array.isArray(out) ? out.length + " ratings" : typeof out}`);
+    const scrape = out as Partial<RatingsScrape> | undefined;
+    const shape = scrape?.ratings
+      ? `${scrape.ratings.length} ratings + ${scrape.locked?.length ?? "?"} locked`
+      : typeof out;
+    bad(label, `did NOT throw — returned ${shape}`);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (msg.includes(needle)) ok(label, msg.slice(0, 120) + (msg.length > 120 ? "…" : ""));
@@ -66,7 +79,7 @@ console.log(`fixture: ${widgetPath} (${widget.length} bytes)\n`);
 // ── GREEN: the real thing ───────────────────────────────────────────────────
 console.log("GREEN — the saved widget response");
 try {
-  const out = parseRatingsTable(widget);
+  const { ratings: out, locked, sourcesPresent } = parseRatingsTable(widget);
   if (out.length > 0) ok("parses to > 0 ratings", `${out.length} competitive ratings`);
   else bad("parses to > 0 ratings", "0");
   const bySource = new Map<string, number>();
@@ -78,6 +91,40 @@ try {
   const asOf = captionAsOfDate(widget);
   if (asOf) ok("caption as-of date", asOf);
   else bad("caption as-of date", "did not parse");
+
+  // ── HO 743: the locked cells are now part of the return, and the cell census
+  // is the assertion — every (district, rater) cell is competitive, locked, or
+  // empty, and the widget renders no empty ones today. Printing all three is
+  // what makes a future drift legible: if `locked + ratings` stops reconciling
+  // to 435 × 3, the difference is cells the parser saw and classified as
+  // neither, which is precisely the silent skip HO 742 exists to prevent.
+  const CELLS = 435 * 3;
+  const seen = out.length + locked.length;
+  if (seen === CELLS) ok("cell census reconciles", `${out.length} competitive + ${locked.length} locked = ${CELLS} (0 empty/unknown)`);
+  else bad("cell census reconciles", `${out.length} + ${locked.length} = ${seen}, expected ${CELLS} — ${CELLS - seen} cell(s) classified as neither`);
+
+  if (sourcesPresent.length === 3) ok("sourcesPresent", sourcesPresent.join(" "));
+  else bad("sourcesPresent", `expected 3, got ${sourcesPresent.length}: ${sourcesPresent.join(" ") || "(none)"}`);
+
+  const lockedBySource = new Map<string, number>();
+  for (const c of locked) lockedBySource.set(c.source, (lockedBySource.get(c.source) ?? 0) + 1);
+  ok("locked per source", [...lockedBySource.entries()].map(([k, v]) => `${k}=${v}`).join(" "));
+
+  // The label/score contract the departure row is written from. A locked cell
+  // with score 0 would file a seat going safe at dead-centre of the scale (0 is
+  // Toss Up's), and a NULL would violate rating_history.rating_score NOT NULL.
+  const labels = new Map<string, number>();
+  for (const c of locked) labels.set(`${c.label}@${c.ratingScore}`, (labels.get(`${c.label}@${c.ratingScore}`) ?? 0) + 1);
+  const badScore = locked.filter((c) => c.ratingScore !== 3 && c.ratingScore !== -3);
+  if (badScore.length === 0) ok("locked label/score", [...labels.entries()].map(([k, v]) => `${k}×${v}`).join(" "));
+  else bad("locked label/score", `${badScore.length} locked cell(s) not at ±3, e.g. ${badScore[0]!.label}@${badScore[0]!.ratingScore}`);
+
+  // Every locked cell names a House race id. The Senate rows are out of reach
+  // by construction and this is the line that would notice if they stopped
+  // being — an `S-`-prefixed id here means the delete could touch the seed.
+  const senate = locked.filter((c) => c.raceId.startsWith("S-"));
+  if (senate.length === 0) ok("no Senate ids among locked cells", `${locked.length} checked`);
+  else bad("no Senate ids among locked cells", `${senate.length}, e.g. ${senate[0]!.raceId}`);
 } catch (e) {
   bad("parses to > 0 ratings", `threw: ${(e as Error).message.slice(0, 200)}`);
 }
