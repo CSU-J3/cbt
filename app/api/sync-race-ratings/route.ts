@@ -8,6 +8,18 @@
 // expireTag("race-ratings") flushes the cached race query helpers so
 // the /races page picks up rating moves without waiting on the backstop.
 //
+// HO 744 — ORDERING UNDER THE 60s CLOCK. The two legs run sequentially, House
+// first (`CHAMBERS` in lib/race-ratings-sync.ts). The asymmetry is real and
+// dormant: runs of this route have been ~5-7s against the 60s ceiling below
+// (House-only runs — read off `cron_runs.elapsed_ms` for this route), so
+// neither leg is near starving. The order is deliberate, not incidental —
+// House is the larger chamber and the deploy-visible index, so if one leg ever
+// has to starve under a slow widget host, the 35-row Senate leg is the one to
+// lose. TRIGGER: if `cron_runs.elapsed_ms` for this route ever exceeds 30,000,
+// the remedy is `Promise.allSettled` over the two SCRAPES — the network is the
+// clock risk, parse and writes are milliseconds — with the writes kept
+// House-then-Senate. Not built now.
+//
 // HO 139: migrated to wrapCronRoute.
 import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
