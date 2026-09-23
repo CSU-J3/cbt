@@ -278,13 +278,44 @@ export type RatingsScrape = {
   sourcesPresent: RatingSource[];
 };
 
+// HO 744 — EVERY FETCH IS BOUNDED, page and widget, both chambers. None was, at
+// any SHA, so a host that accepted and never answered held the run until
+// wrapCronRoute's 55s soft timeout, which records `timeout` — and /api/health
+// counts `timeout` as alive. With the two scrapes now behind one
+// Promise.allSettled (lib/race-ratings-sync.ts) that would be a green run with
+// NEITHER chamber written. Bounded, the hung fetch rejects, only its leg fails,
+// and the run records `error` inside the budget.
+//
+// 8s is the number the primaries scrape uses against ballotpedia.org
+// (lib/primary-candidates-scrape.ts, HO 120), where it bounds time-to-headers
+// only; here one budget covers headers AND body, and bpwidget.net too. Against
+// it: 187-437 ms for whole pdx1 runs that fetched the House page and wrote
+// nothing (#325, #16049, #17773). The ~208 KB House widget has no solo timing
+// from pdx1; whole widget-path runs, ~330 DB round trips included, are
+// 4.3-5.0 s. The arithmetic that picks 8s is in the route header. The signal
+// errors `res.text()` too, so a stalled body is bounded (measured HO 744 on
+// Node 25; the deployed runtime is 24.x).
+const FETCH_TIMEOUT_MS = 8_000;
+
 async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    redirect: "follow",
-  });
-  if (!res.ok) throw fetchError(url, res.status);
-  return res.text();
+  const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+      redirect: "follow",
+      signal,
+    });
+    if (!res.ok) throw fetchError(url, res.status);
+    return await res.text();
+  } catch (e) {
+    // Our budget running out, not the host's answer. Through `fetchError` like
+    // every URL-bearing throw (HO 679); status 0 marks our own timeout, as the
+    // primaries scrape's `httpStatus: 0` does.
+    if (signal.aborted) {
+      throw fetchError(url, 0, `no answer within the ${FETCH_TIMEOUT_MS}ms per-fetch budget`);
+    }
+    throw e;
+  }
 }
 
 // Decode the handful of HTML entities Ballotpedia emits inside cells.
@@ -420,17 +451,21 @@ const MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december",
 ];
-export function captionAsOfDate(widgetHtml: string): string | null {
+// HO 744: `chamber` only tags the warnings. The two scrapes now overlap, so a
+// line's position in the log no longer says which widget it came from; the tag
+// goes on the END so the quoted form every doc greps for is unchanged.
+export function captionAsOfDate(widgetHtml: string, chamber?: Chamber): string | null {
+  const tag = chamber ? ` (${chamber})` : "";
   const cap = widgetHtml.match(/<caption[^>]*>([\s\S]*?)<\/caption>/);
   const text = cap ? stripTags(cap[1] ?? "") : "";
   const m = text.match(/as of ([A-Za-z]+) (\d{1,2}),\s*(\d{4})/i);
   if (!m) {
-    if (text) console.warn(`  caption did not parse an as-of date: "${text}"`);
+    if (text) console.warn(`  caption did not parse an as-of date: "${text}"${tag}`);
     return null;
   }
   const mo = MONTHS.indexOf(m[1]!.toLowerCase());
   if (mo === -1) {
-    console.warn(`  caption month not recognized: "${text}"`);
+    console.warn(`  caption month not recognized: "${text}"${tag}`);
     return null;
   }
   return `${m[3]}-${String(mo + 1).padStart(2, "0")}-${m[2]!.padStart(2, "0")}`;
@@ -493,13 +528,13 @@ export function parseRatingsTable(widgetHtml: string, chamber: Chamber): Ratings
   // Hill arrives here; it is received and ignored until somebody decides.
   const taken = new Set([districtCol, ...sourceCols.map((c) => c.index)]);
   header.forEach((h, i) => {
-    if (!taken.has(i) && h) console.log(`  column present, not ingested: "${h}"`);
+    if (!taken.has(i) && h) console.log(`  column present, not ingested: "${h}" (${chamber})`);
   });
 
   const tbody = table.match(/<tbody>([\s\S]*?)<\/tbody>/);
   const body = tbody ? tbody[1]! : table;
   const rowMatches = [...body.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
-  const asOfDate = captionAsOfDate(widgetHtml);
+  const asOfDate = captionAsOfDate(widgetHtml, chamber);
 
   const out: ScrapedRating[] = [];
   const locked: LockedCell[] = [];
@@ -567,7 +602,8 @@ export function parseRatingsTable(widgetHtml: string, chamber: Chamber): Ratings
   if (unknown.size) {
     console.warn(
       `  ${unknown.size} unrecognized rating label(s): ` +
-        [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", "),
+        [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", ") +
+        ` (${chamber})`,
     );
   }
   return { ratings: out, locked, sourcesPresent: sourceCols.map((c) => c.source) };

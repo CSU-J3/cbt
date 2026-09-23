@@ -20,15 +20,26 @@
 // told which one it is reading (see lib/race-ratings-scrape.ts, CHAMBER, for
 // the bare-state collision that makes telling it mandatory).
 //
-// THE LEGS SHARE NO STATE AND NEITHER CAN DISCARD THE OTHER'S WRITES. Each
-// chamber scrapes, upserts and applies departures inside its own try/catch,
-// against disjoint id spaces, and commits as it goes. If a leg throws, the
-// other still runs to completion and its writes stand; only AFTER both have
-// run does this function throw, naming the failed chamber(s) and carrying the
-// successful one's counts. That shape is not decoration: HO 742 spent a
-// session ending a state where a Ballotpedia restructure froze the ratings
-// silently, and a single sequential path would reintroduce exactly that — a
-// Senate-side change re-freezing the House — in a new place.
+// THE LEGS SHARE NO STATE AND NEITHER CAN DISCARD THE OTHER'S WRITES. The two
+// scrapes run together under one Promise.allSettled; each chamber then upserts
+// and applies departures inside its own try/catch, House then Senate, against
+// disjoint id spaces, committing as it goes, and a rejected scrape is rethrown
+// inside its own leg only. If a leg throws, the other still runs to completion
+// and its writes stand; only AFTER both have run does this function throw,
+// naming the failed chamber(s) and carrying the successful one's counts. That
+// shape is not decoration: HO 742 spent a session ending a state where a
+// Ballotpedia restructure froze the ratings silently, and a single sequential
+// path would reintroduce exactly that — a Senate-side change re-freezing the
+// House — in a new place.
+//
+// HO 744 — THE allSettled IS A BARRIER, AND IT IS SAFE ONLY BECAUSE EVERY FETCH
+// IS BOUNDED. Neither leg writes until both scrapes have settled, so one
+// unbounded hung fetch would hold BOTH chambers' writes past wrapCronRoute's 55s
+// soft timeout: a `timeout` row, which /api/health counts as alive, and nothing
+// written. `fetchHtml`'s per-fetch cap (lib/race-ratings-scrape.ts) turns the
+// hang into a rejected scrape, so the other chamber writes and the run records
+// `error`. The two ship together or not at all; the budget is in the route
+// header.
 //
 // Loudness is unchanged. Either leg failing is still a throw, so
 // `wrapCronRoute` records `status = 'error'` with the message, and
@@ -84,9 +95,16 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncResult> {
   const db = getDb();
   const result = {} as RaceRatingsSyncResult;
 
-  for (const chamber of CHAMBERS) {
+  // Both scrapes in flight at once, the writes after them, House then Senate.
+  // allSettled, never all: one chamber's rejected scrape must not cost the other
+  // chamber its writes.
+  const scrapes = await Promise.allSettled(CHAMBERS.map((c) => scrapeRatings(c)));
+
+  for (const [i, chamber] of CHAMBERS.entries()) {
     try {
-      result[chamber] = { ok: true, stats: await runChamberLeg(db, chamber) };
+      const scraped = scrapes[i]!;
+      if (scraped.status === "rejected") throw scraped.reason;
+      result[chamber] = { ok: true, stats: await runChamberLeg(db, chamber, scraped.value) };
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       console.error(`  ${chamber} leg FAILED: ${error}`);
@@ -114,12 +132,15 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncResult> {
 }
 
 /**
- * One chamber, end to end: scrape, upsert, apply departures. Everything below
- * this line is what `runRaceRatingsSync` did before HO 744, with the chamber
- * threaded through the scrape call and the `source_url`.
+ * One chamber's writes on a scrape already taken: upsert, apply departures.
+ * Everything below this line is what `runRaceRatingsSync` did before HO 744
+ * after its scrape, with the chamber threaded through the `source_url`.
  */
-async function runChamberLeg(db: Client, chamber: Chamber): Promise<RaceRatingsSyncStats> {
-  const scrape = await scrapeRatings(chamber);
+async function runChamberLeg(
+  db: Client,
+  chamber: Chamber,
+  scrape: RatingsScrape,
+): Promise<RaceRatingsSyncStats> {
   const ratings = scrape.ratings;
   console.log(
     `scraped ${ratings.length} competitive ${chamber} ratings (all sources) ` +

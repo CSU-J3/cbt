@@ -8,17 +8,51 @@
 // expireTag("race-ratings") flushes the cached race query helpers so
 // the /races page picks up rating moves without waiting on the backstop.
 //
-// HO 744 — ORDERING UNDER THE 60s CLOCK. The two legs run sequentially, House
-// first (`CHAMBERS` in lib/race-ratings-sync.ts). The asymmetry is real and
-// dormant: runs of this route have been ~5-7s against the 60s ceiling below
-// (House-only runs — read off `cron_runs.elapsed_ms` for this route), so
-// neither leg is near starving. The order is deliberate, not incidental —
-// House is the larger chamber and the deploy-visible index, so if one leg ever
-// has to starve under a slow widget host, the 35-row Senate leg is the one to
-// lose. TRIGGER: if `cron_runs.elapsed_ms` for this route ever exceeds 30,000,
-// the remedy is `Promise.allSettled` over the two SCRAPES — the network is the
-// clock risk, parse and writes are milliseconds — with the writes kept
-// House-then-Senate. Not built now.
+// HO 744 — TWO LEGS UNDER THE CLOCK, AND A HUNG HOST LANDS AS `error`. The two
+// scrapes run together under Promise.allSettled and the writes stay
+// House-then-Senate (lib/race-ratings-sync.ts); every fetch, page and widget,
+// both chambers, is capped at 8s (FETCH_TIMEOUT_MS, lib/race-ratings-scrape.ts).
+// BUILT, not parked behind the 30,000 ms trigger this header used to carry,
+// because the barrier and the cap are one change: allSettled alone lets one
+// hung fetch hold BOTH chambers' writes to the soft timeout below, which
+// records `timeout`, and /api/health counts `timeout` as alive — a green run
+// with nothing written. With the cap the hang rejects its own scrape, the other
+// chamber writes, and the run records `error`.
+//
+// THE BUDGET IS 55s, NOT THE 60 BELOW: wrapCronRoute races the handler against
+// DEFAULT_SOFT_TIMEOUT_MS (lib/cron-log.ts). The FETCH term is structural: at
+// most 2 × 8s per leg (a page answering just inside the cap, then a widget that
+// never does), legs overlapped = 16s. The WRITE term is measured, not bounded:
+// sequential Turso round trips, ~330 House (#19499) + ~75 on the Senate leg's
+// first run = ~405, or ~627 in a week where every rating moved, plus the cron
+// row's INSERT (inside the window; the reaper before it and the finish after it
+// count against the 60 only). At ~13 ms a round trip, today's rate: 16 + 5.3 =
+// 21s, and ~24s for an every-rating week. At ~74 ms, the worst rate measured
+// on this region (#7557, 2026-08-05): this week's mix is 16 + 30 = 46s, 9s
+// under 55, and an every-rating week is ~62s, which is the residual below and
+// not a fetch. A 20s cap puts this week's mix at 70s on that rate; 10s at 50s.
+//
+// MEASURED, by path — `cron_runs.elapsed_ms`, House-only runs; the TWO-LEG
+// total is UNMEASURED until the first run after the FF:
+//   widget path, every run since 09-20: #18881 4,967 · #18897 4,301 ·
+//     #19499 4,263 ms.
+//   page path on pdx1, 06-24 → 09-02: 2,707-11,579 ms, and #7557 at 27,629.
+//   page path on iad1, before the 06-11 region pin (5c549a1): #45 23,293 ·
+//     #103 26,302 · #193 28,814 ms.
+// The slow ones were DB round trips, not the fetch. The per-row loop is the
+// same at every SHA; three runs whose loop did nothing put the fetch and parse
+// at 187-437 ms (#325, #16049, #17773); and the step-downs sit at the region
+// pin and after the 08-04/05 DB degradation (#7218 "Server database capacity
+// temporarily exceeded"), not at any change to this code. So the overlap saves
+// at most the shorter scrape; what the pair buys is the bound. (This header
+// and fc72316 said "~5-7s" and "the network is the clock risk, parse and
+// writes are milliseconds"; both are wrong on these numbers.)
+//
+// RESIDUAL, named: a run that crosses 55s for a NON-fetch reason — the writes
+// under a degraded DB (an every-rating week at #7557's rate), or a stalled
+// Turso request (lib/db.ts caps each at 10s and retries once) — still records
+// `timeout`, and /api/health still counts that as alive. That is a cron-health
+// question, not this route's; it is an OPEN LOOP in docs/backlog.md.
 //
 // HO 139: migrated to wrapCronRoute.
 import { expireTag } from "@/lib/cache/expire-tag";
