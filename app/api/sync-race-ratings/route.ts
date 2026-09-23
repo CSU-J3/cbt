@@ -24,13 +24,16 @@
 // most 2 × 8s per leg (a page answering just inside the cap, then a widget that
 // never does), legs overlapped = 16s. The WRITE term is measured, not bounded:
 // sequential Turso round trips, ~330 House (#19499) + ~75 on the Senate leg's
-// first run = ~405, or ~627 in a week where every rating moved, plus the cron
-// row's INSERT (inside the window; the reaper before it and the finish after it
-// count against the 60 only). At ~13 ms a round trip, today's rate: 16 + 5.3 =
-// 21s, and ~24s for an every-rating week. At ~74 ms, the worst rate measured
-// on this region (#7557, 2026-08-05): this week's mix is 16 + 30 = 46s, 9s
-// under 55, and an every-rating week is ~62s, which is the residual below and
-// not a fetch. A 20s cap puts this week's mix at 70s on that rate; 10s at 50s.
+// first run = ~405, or ~627 in a week where every rating moved. The wrapper's
+// own three writes (reaper, the row's INSERT, its finish) sit OUTSIDE the 55s
+// race — the timer starts after the INSERT returns — and count against the 60
+// only: handler <= 55 to record `error`, all of it <= 60 to avoid a kill that
+// leaves `running`, reaped to `orphaned`. At ~13 ms a round trip, today's
+// rate: 16 + 5.3 = 21s, and ~24s for an every-rating week. At ~74 ms, the
+// worst rate measured on this region (#7557, 2026-08-05): this week's mix is
+// 16 + 30 = 46s, 9s under 55, and an every-rating week is ~62s, which is the
+// residual below and not a fetch. A 20s cap puts this week's mix at 70s on
+// that rate; 10s at 50s.
 //
 // MEASURED, by path — `cron_runs.elapsed_ms`, House-only runs; the TWO-LEG
 // total is UNMEASURED until the first run after the FF:
