@@ -443,6 +443,13 @@ and it survives the widening.
   "HO 743" on four lines in two files; 743 went to different work, and four of
   those seven occurrences sit inside a landed roadmap block, where append-only
   forbids the correction.
+- **A scheduled run is named by its cron expression and a date computed from
+  it (`date -u -d <date> +%A`), never by a date or weekday written from
+  memory.** The same failure again, now for a date. HO 741's ruling named the
+  close of a `0 11 * * 3` route "the 2026-09-24 tick", a Thursday. It went into
+  the backlog, three roadmap occurrences, four handoffs and a hold
+  recommendation before HO 744 checked it against the expression; the tick was
+  09-23 (oddities, "A cron date written from memory", HO 744).
 - **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
 - **`docs/design/`** — mocks and ruling records, tracked by default.
   `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`

@@ -4788,3 +4788,25 @@ So the two quantities are not near each other and never were. The parse holds **
 **The comparison that does hold is one field over:** the widget's competitive total against the payload's `scraped`, 218 against 218. `scraped` is `ratings.length`, which is the quantity row 5 actually wanted.
 
 **The class, one level up from the arithmetic:** a field name that reads like a census of the SOURCE (`bySource`) when it is a census of OUR WRITES. Nothing is wrong with the field; what is wrong is building a discriminator on a name without reading the line that increments it. § Gates' rule — *say what the instrument reads if the work was never done* — has a prior clause this is an instance of: **say what the instrument reads at all.** Same family as the HO 728 corrections, where each citation was real and the inference past it was not.
+
+## A cron date written from memory: "the 2026-09-24 tick" of a Wednesday cron, and 2026-09-24 is a Thursday (HO 744, Sep 2026)
+
+The ingest line (HO 741, fixed at HO 742; *`/api/sync-race-ratings` (`0 11 * * 3`) has reported `success`…*) was to close on "the 2026-09-24 11:00 UTC tick" of `/api/sync-race-ratings`, whose schedule is `0 11 * * 3`, Wednesdays. 2026-09-24 is a Thursday. The tick fired at 2026-09-23T11:00:40.498Z (#19499). Four facts make it an entry rather than a correction.
+
+**It was minted chat-side, in the HO 741 step-0 ruling.** `docs/handoffs/741-step0-ruling.md` (gitignored, 2026-09-20) carries it four times, including "the **2026-09-24 11:00 UTC tick read through `/api/health`**". That is the draft the backlog line was filed from.
+
+**It is a whole-day shift, not a typo.** The HO 742 handoff reads "The next tick is **Wednesday 2026-09-24 11:00 UTC** … **Deadline: FF by Tuesday 2026-09-23**". Both dates carry the weekday before their true one, and they agree with each other. A slipped digit does not relabel the weekday beside it; a calendar held one day off does.
+
+**It was copied, then repeated as a recommendation.** It went into `docs/backlog.md` (both occurrences on the ingest line, as they stood at `252411f`, then corrected in place at the HO 744 close), `docs/roadmap.md` (three occurrences in the HO 742 block, which stand under append-only and are corrected in the HO 744 block), `742-step0-ruling.md`, and the HO 744 handoff. The handoff's Sequencing section made it a hold: "hold the FF until after the 09-24 tick reads". So the date set the end of a real hold, and had it not been caught it would have held the FF a day past the tick it was waiting for.
+
+**Nobody computed it from `0 11 * * 3`.** Most carriers print the expression near the date: the backlog line, and the 741, 742 and 744 handoffs. The HO 742 roadmap block and `742-step0-ruling.md` carry the date with no expression at all. The check is one command, `date -u -d 2026-09-24 +%A` → `Thursday`. It was not run until Corey said the day in chat on 2026-09-23 ("today is 9/23"), after the chat had already repeated the wrong date in its hold recommendation. Only then did the chat-side relay compute the date against the expression, and Code confirmed it with `date`. The catch was incidental, which is the argument for the rule.
+
+**Rule, now in method.md § Doc authority and conventions:** a scheduled run is named by its cron expression and a date computed from it. It is the same family as the tree-assigned HO number (HO 741): a value that looks checked because it sits beside its source, and was never derived from it.
+
+## Two TCP connections for one hung fetch when a signal is attached — unexplained (HO 744, Sep 2026)
+
+In the HO 744 hang legs (`scripts/diagnostic/ratings-hang-legs-744.ts`), the local host that accepts and never answers counted **2** accepted connections per hung widget fetch on every run where `fetchHtml` attached `AbortSignal.timeout(8_000)`: legs a and b on the real builds under Node 25.5.0, and leg a under Node 24.21.0. On the control build, where the signal was not passed, it counted **1**. The preload shim logged exactly one fetch call either way.
+
+No outcome depends on it. The abort landed at 8.2-8.5s in every run, and the host answered neither connection, by construction, since it never writes.
+
+One standalone probe was tried: a plain `fetch` to a silent `net` server, with and without the signal. It fell over on its own teardown before it read anything, so it isolated nothing. **Ruled unexplained and not worth chasing** (HO 744 ff-go). If it ever matters, the first question is whose connection it is, undici's or Next's patched fetch: repeat the count in plain Node, outside `next start`, with and without the signal.
