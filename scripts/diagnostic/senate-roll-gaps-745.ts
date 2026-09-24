@@ -10,6 +10,15 @@
 // written, MAX passes it and nothing fetches it again. The HO 567 heal pass
 // cannot see it, because it selects existing `votes` rows.
 //
+// NOTE, HO 746 (2026-09-24): the paragraph above describes the pre-HO-746 rule.
+// Since `1faaac2` the sync skips a menu roll only if that exact roll is stored
+// (`getStoredRolls`), so it fetches every menu roll with no row on every run,
+// below MIN included. That makes the "below MIN … skipped by the same
+// watermark" caveat this probe prints a statement about the old rule. So a
+// **stranded** reading after HO 746 means the remedy failed, or that a roll
+// fails on every run (see the backlog's stuck-roll line). It does not mean the
+// watermark stranded it. The categories and the reading itself are unchanged.
+//
 //   npx tsx scripts/diagnostic/senate-roll-gaps-745.ts
 //       the prod reading. TURSO_DATABASE_URL from .env; SELECTs only.
 //   npx tsx scripts/diagnostic/senate-roll-gaps-745.ts --db file:<path>
