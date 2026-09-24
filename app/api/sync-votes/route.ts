@@ -2,8 +2,9 @@
 // vote pipelines (House Congress.gov + Senate senate.gov XML) can run into
 // minutes on busy weeks — well past the 60s function ceiling that
 // /api/sync already pushes against. Even at 60s here, the vote sync is
-// incremental (watermark-based per session) so a single tick can resume
-// from where the last one ended — eventually catches up.
+// incremental (House: a chamber-wide MAX(vote_date) watermark; Senate: each
+// session's stored roll set, HO 746) so a single tick can resume from where
+// the last one ended — eventually catches up.
 //
 // Auth mirrors /api/sync exactly: Bearer CRON_SECRET. Failures are caught
 // per chamber so a House outage doesn't strand the Senate sync (and vice

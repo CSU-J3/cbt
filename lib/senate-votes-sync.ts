@@ -12,15 +12,21 @@
 // follows the same shape: `senate-{congress}-{session}-{rollCall}`. positions
 // are normalized to the same set ('yea'|'nay'|'present'|'not_voting').
 //
-// Skip rule (HO 746): a menu roll is skipped only if that exact roll is stored.
-// Each session reads its stored `roll_call` set once, and any menu roll not in
-// it is fetched, every run, so reruns stay cheap (one detail GET per missing
-// roll). This replaced a MAX(roll_call) watermark, which skipped every roll at
-// or below the session's highest stored roll: a roll that failed before its
-// `votes` row was written was stranded as soon as a later one landed (HO 744's
-// line; HO 745 measured none stranded before the change). A failed roll is now
-// retried the next run, and a gap anywhere is filled; `votesFilled` counts
-// those below the stored max. menu XML returns newest-first; we reverse to ascend.
+// Skip rule (HO 746): a menu roll is skipped only if that exact roll is stored
+// (a non-positive vote_number is dropped before the test). Each session reads
+// its stored `roll_call` set once, and any menu roll not in it is fetched,
+// every run. Reruns stay cheap because nothing is fetched for a stored roll.
+// A missing roll's cost depends on how it fails: a 404 or 500 is one GET, but
+// `fetchXml` retries a 502/503 or network error, so those cost up to four GETs
+// and ~9s of backoff per run. This replaced a MAX(roll_call) watermark, which
+// skipped every roll at or below the session's highest stored roll: a roll
+// that failed before its `votes` row was written was stranded as soon as a
+// later one landed (HO 744's line; HO 745 measured none stranded before the
+// change). Such a roll is now retried on the next run, and a gap anywhere in
+// the sessions this syncs (the current congress's two) is filled;
+// `votesFilled` counts those below the stored max. A failure AFTER the row is
+// written (the member_votes batch) leaves a stored, empty-roster row, and that
+// is the HO 567 heal pass's. menu XML returns newest-first; we reverse to ascend.
 import { XMLParser } from "fast-xml-parser";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
@@ -103,8 +109,11 @@ export type SenateVotesSyncStats = {
   votesSkipped: number;
   votesFailed: number;
   // HO 746 — menu rolls BELOW the session's stored max that had no row and were
-  // written this run: a gap filled. 0 on every normal tick, so a nonzero value
-  // in `cron_runs` says a roll had been missing without reading the logs.
+  // written this run, roster included: a gap filled. 0 on every normal tick, so
+  // a nonzero value in `cron_runs` says a roll had been missing without reading
+  // the logs. It reaches `cron_runs` only on a tick that finishes (a timeout row
+  // stores no sync stats). A gap roll whose roster batch fails after its row
+  // lands is counted failed and then healed, not filled.
   votesFilled: number;
   memberRowsInserted: number;
   memberVotesHealed: string[]; // HO 567 — zero-roster rolls filled by the heal pass this run
