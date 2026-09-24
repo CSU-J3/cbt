@@ -12,9 +12,15 @@
 // follows the same shape: `senate-{congress}-{session}-{rollCall}`. positions
 // are normalized to the same set ('yea'|'nay'|'present'|'not_voting').
 //
-// Watermark: MAX(roll_call) WHERE chamber='senate' AND session=? — we only
-// re-fetch detail XML for vote numbers strictly greater than what we have,
-// so reruns are cheap. menu XML returns newest-first; we reverse to ascend.
+// Skip rule (HO 746): a menu roll is skipped only if that exact roll is stored.
+// Each session reads its stored `roll_call` set once, and any menu roll not in
+// it is fetched, every run, so reruns stay cheap (one detail GET per missing
+// roll). This replaced a MAX(roll_call) watermark, which skipped every roll at
+// or below the session's highest stored roll: a roll that failed before its
+// `votes` row was written was stranded as soon as a later one landed (HO 744's
+// line; HO 745 measured none stranded before the change). A failed roll is now
+// retried the next run, and a gap anywhere is filled; `votesFilled` counts
+// those below the stored max. menu XML returns newest-first; we reverse to ascend.
 import { XMLParser } from "fast-xml-parser";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
@@ -27,8 +33,9 @@ const REQUEST_INTERVAL_MS = 300;
 
 // HO 567 — self-heal pass (mirror of lib/votes-sync.ts). A roll first-synced in
 // the gap between the tally and the member positions publishing writes the tally
-// + an empty roster; the MAX(roll_call) watermark then freezes it (WINDOWED).
-// This pass re-fetches any zero-roster senate vote after the watermark loop.
+// + an empty roster; the menu loop then never revisits it, because its row
+// exists and the loop skips any stored roll (WINDOWED). This pass re-fetches
+// any zero-roster senate vote after the menu loop.
 // Senate heals with ONE GET — the detail XML carries tally + members together.
 const HEAL_CAP = 10;
 
@@ -95,6 +102,10 @@ export type SenateVotesSyncStats = {
   votesInserted: number;
   votesSkipped: number;
   votesFailed: number;
+  // HO 746 — menu rolls BELOW the session's stored max that had no row and were
+  // written this run: a gap filled. 0 on every normal tick, so a nonzero value
+  // in `cron_runs` says a roll had been missing without reading the logs.
+  votesFilled: number;
   memberRowsInserted: number;
   memberVotesHealed: string[]; // HO 567 — zero-roster rolls filled by the heal pass this run
   memberVotesHealPending: string[]; // HO 567 — attempted but still empty upstream (retry next run)
@@ -201,18 +212,22 @@ function toInt(v: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function getMaxRollCall(
+// HO 746 — the session's stored roll set, which is the skip rule, plus its max,
+// which is kept for the log line and for telling a filled gap from a new roll.
+async function getStoredRolls(
   db: Db,
   congress: number,
   session: number,
-): Promise<number> {
+): Promise<{ rolls: Set<number>; max: number }> {
   const r = await db.execute({
-    sql: `SELECT MAX(roll_call) AS m FROM votes
+    sql: `SELECT roll_call FROM votes
           WHERE chamber = 'senate' AND congress = ? AND session = ?`,
     args: [congress, session],
   });
-  const m = r.rows[0]?.m as number | null | undefined;
-  return typeof m === "number" ? m : 0;
+  const rolls = new Set(r.rows.map((row) => Number(row.roll_call)));
+  let max = 0;
+  for (const n of rolls) if (n > max) max = n;
+  return { rolls, max };
 }
 
 const UPSERT_VOTE_SQL = `
@@ -391,6 +406,7 @@ export async function runSenateVotesSync(
     votesInserted: 0,
     votesSkipped: 0,
     votesFailed: 0,
+    votesFilled: 0,
     memberRowsInserted: 0,
     memberVotesHealed: [],
     memberVotesHealPending: [],
@@ -417,9 +433,14 @@ export async function runSenateVotesSync(
       continue;
     }
 
-    const lastNum = await getMaxRollCall(db, congress, session);
+    const stored = await getStoredRolls(db, congress, session);
+    // What this run will attempt: every positive menu roll with no stored row.
+    const missing = menuVotes.filter((v) => {
+      const n = toInt(v.vote_number);
+      return n > 0 && !stored.rolls.has(n);
+    }).length;
     console.log(
-      `session ${session}: ${menuVotes.length} votes in menu, watermark roll_call=${lastNum}`,
+      `session ${session}: ${menuVotes.length} votes in menu, stored=${stored.rolls.size} max=${stored.max} missing=${missing}`,
     );
 
     // menu is newest-first; reverse so we fill forward in roll-call order.
@@ -429,7 +450,7 @@ export async function runSenateVotesSync(
       stats.votesSeen++;
       const rollInt = toInt(mv.vote_number);
       if (rollInt <= 0) continue;
-      if (rollInt <= lastNum) {
+      if (stored.rolls.has(rollInt)) {
         stats.votesSkipped++;
         continue;
       }
@@ -454,6 +475,7 @@ export async function runSenateVotesSync(
           resolver,
         );
         stats.votesInserted++;
+        if (rollInt < stored.max) stats.votesFilled++;
         stats.memberRowsInserted += inserted;
         if (stats.votesInserted % 25 === 0) {
           console.log(
@@ -467,11 +489,12 @@ export async function runSenateVotesSync(
     }
 
     console.log(
-      `session ${session} done: seen=${stats.votesSeen} inserted=${stats.votesInserted} skipped=${stats.votesSkipped} failed=${stats.votesFailed}`,
+      `session ${session} done: seen=${stats.votesSeen} inserted=${stats.votesInserted} filled=${stats.votesFilled} skipped=${stats.votesSkipped} failed=${stats.votesFailed}`,
     );
   }
 
-  // HO 567 — self-heal pass after the watermark loop (WINDOWED loop can't revisit).
+  // HO 567 — self-heal pass after the menu loop (it skips any stored roll, so it
+  // can't revisit a stored-but-empty one; WINDOWED).
   const heal = await healZeroRosterSenateVotes(db, resolver, HEAL_CAP);
   stats.memberVotesHealed = heal.healed;
   stats.memberVotesHealPending = heal.pending;
@@ -480,7 +503,7 @@ export async function runSenateVotesSync(
   );
 
   console.log(
-    `\nsenate vote sync complete: inserted=${stats.votesInserted} skipped=${stats.votesSkipped} failed=${stats.votesFailed} member_rows=${stats.memberRowsInserted}`,
+    `\nsenate vote sync complete: inserted=${stats.votesInserted} filled=${stats.votesFilled} skipped=${stats.votesSkipped} failed=${stats.votesFailed} member_rows=${stats.memberRowsInserted}`,
   );
   return stats;
 }
