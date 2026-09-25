@@ -22,7 +22,9 @@
 // `primary_candidates` matches the primary box name for name, so the ingest is
 // FAITHFUL and re-running it changes nothing — `backfill:primary-results` and
 // `reingest:primary-slate` re-derive the same four. What is missing is a reader
-// for the second box. HO 743 is that reader, and it starts from this file.
+// for the second box: the general-box reader, named by its subject until a
+// handoff numbers it. Its probe is HO 747's census,
+// `scripts/diagnostic/general-box-census-747.ts`, which starts from this file.
 //
 // THE PAGE CARRIES SEVEN VOTEBOXES, four of them historical (2024 / 2022) with
 // identical markup — the same trap `lib/primary-candidates-scrape.ts`'s header
