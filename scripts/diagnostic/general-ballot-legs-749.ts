@@ -780,6 +780,23 @@ async function leg4(seed: Seed) {
       `http ${out.httpStatus} · cron_runs #${row?.id} ${row?.status} · stop ${pl.payload?.stop} · attempted ${pl.payload?.attempted} · error_message ${JSON.stringify(row?.error_message)}`);
   }
 
+  // A timer that wakes early. HO 749's Preview POST (cron_runs #20320) measured
+  // minGapMs 5999 on Vercel: a setTimeout can fire a millisecond before the
+  // clock reads its target. The pacer must re-check the clock rather than
+  // trust one sleep. This IO's sleep undershoots every wait by 1ms.
+  {
+    const early = shimIO({ latencyMs: 700, startAt: "2026-09-27T00:20:00.000Z" });
+    const sleepExact = early.sleep;
+    // 1ms short on any wait over 1ms; a 1ms wait still advances 1ms, as a
+    // real timer does, so the pacer's re-check can finish.
+    early.sleep = (ms) => sleepExact(ms > 1 ? ms - 1 : ms);
+    const ec = copyClient(cronUrl, "leg 4 early timer");
+    const rE = await runGeneralBallot(ec, { write: false, cap: 4, io: early });
+    ec.close();
+    check("an early-waking timer (1ms short) still leaves every start-to-start gap at least 6s",
+      (rE.minGapMs ?? 0) >= MIN_START_GAP_MS, `minGapMs ${rE.minGapMs} over ${rE.requests} requests`);
+  }
+
   // The 6s spacing on the real clock: liveIO() itself, globalThis.fetch shimmed.
   const byUrl = new Map(manifest().map((m) => [m.url, m.file!]));
   const realFetch = globalThis.fetch;

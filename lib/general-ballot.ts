@@ -461,8 +461,15 @@ export function pacedIO(inner: IO, gapMs: number): Paced {
       record: inner.record,
       get: async (url) => {
         if (lastStart !== null) {
-          const wait = lastStart + gapMs - inner.now();
-          if (wait > 0) await inner.sleep(wait);
+          // Re-read the clock after every sleep: a timer can wake a
+          // millisecond before its target (HO 749's Preview POST, cron_runs
+          // #20320, measured minGapMs 5999 on Vercel), and one sleep trusted
+          // blindly would start the request inside the gap.
+          let wait = lastStart + gapMs - inner.now();
+          while (wait > 0) {
+            await inner.sleep(wait);
+            wait = lastStart + gapMs - inner.now();
+          }
         }
         const start = inner.now();
         if (lastStart !== null) minGap = minGap === null ? start - lastStart : Math.min(minGap, start - lastStart);
