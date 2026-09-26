@@ -205,6 +205,9 @@ async function main(): Promise<number> {
   // "derivable" means exactly "the shipped script would insert a row here", not a
   // looser paraphrase. The NOT EXISTS hand-curated guard is dropped because we are
   // scoping to seats with ZERO rows, where it is vacuously true.
+  // HO 748 made the incumbent clause below null-safe to match the harvest. It did
+  // not copy the harvest's `p.primary_type IS NOT 'jungle'`, so M2 is no longer
+  // verbatim: it would count a Louisiana jungle winner the harvest skips.
   // ══════════════════════════════════════════════════════════════════════════
   console.log("#".repeat(100));
   console.log("# M2 — of the 0-row seats, which would the shipped harvest fill?");
@@ -218,7 +221,7 @@ async function main(): Promise<number> {
        JOIN primary_candidates pc ON pc.primary_id = p.id AND pc.status = 'winner'
       WHERE r.cycle = ?
         AND EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = ?)
-        AND ( pc.bioguide_id IS NULL OR pc.bioguide_id <> r.incumbent_bioguide_id )`,
+        AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )`,
     [CYCLE, CYCLE],
   );
   const harvestable = new Map<string, string[]>();
