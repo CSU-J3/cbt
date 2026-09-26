@@ -25,9 +25,12 @@
 //
 // Prod is read through a reader that refuses anything but SELECT. The copies'
 // URLs are built as `file:${abs}` from paths that must end in -748-control.db,
-// and every write in this file goes through `copyWrite` or through
+// and every database write in this file goes through `copyWrite` or through
 // `harvestChallengers` on a client built by `copyClient`, both of which refuse a
-// URL that is not `file:` and print the scheme they ran against.
+// URL that is not `file:` and print the scheme they ran against. The three
+// filesystem writes stay inside docs/handoffs/748-artifacts/: the directory is
+// made, a stale copy is removed only after its -748-control.db suffix check, and
+// BASE's module is written there to be imported.
 import { config } from "dotenv";
 import { createClient, type Client, type InArgs, type ResultSet } from "@libsql/client";
 import { execFileSync } from "node:child_process";
