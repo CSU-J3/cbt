@@ -68,8 +68,12 @@ export type HarvestResult = {
 
 // races (ALL 2026 rows since HO 741) ↔ primaries by state + chamber + district. races.district
 // is INTEGER; primaries.district is zero-padded TEXT → CAST. Winner exclusion:
-// drop the seat's own incumbent (bioguide match); a winner with a NULL bioguide
-// is never the incumbent (HO 213 probe: zero incumbent winners lack a bioguide).
+// drop the seat's own incumbent (bioguide match). A winner with a NULL bioguide
+// passes as a challenger. The HO 213 probe found no incumbent winner without a
+// bioguide, but HO 747 measured two, CA-14 Aisha Wahab and S-SC Darline Graham,
+// each published as a challenger in her own race. That defect belongs to the
+// backlog line "The harvest's incumbent exclusion trusts a bioguide the ingest
+// assigns by surname…" (HO 747); HO 748 leaves it as it is.
 // The NOT EXISTS guard skips any race that already carries a hand-curated row
 // (real Ballotpedia source_url ≠ the sentinel), preserving the HO 171/174/182
 // strip rosters.
@@ -80,7 +84,10 @@ const HARVEST_FROM_WHERE = `
    AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
   JOIN primary_candidates pc ON pc.primary_id = p.id AND pc.status = 'winner'
   WHERE r.cycle = ${CYCLE}
-    AND ( pc.bioguide_id IS NULL OR pc.bioguide_id <> r.incumbent_bioguide_id )
+    -- HO 748: IS NOT, not <>. With no stored incumbent, <> reads NULL and dropped every winner carrying a bioguide (FL-20).
+    AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )
+    -- HO 748: jungle is held out (see the note above the INSERT). IS NOT keeps a NULL type in.
+    AND p.primary_type IS NOT 'jungle'
     AND NOT EXISTS (
       SELECT 1 FROM race_candidates rc
       WHERE rc.race_id = r.id
@@ -121,15 +128,22 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   //    rebuilds them, so changing what it writes re-flows on the next scheduled
   //    run (/api/cron/race-challengers, 30 12 * * *) with zero manual writes.
   //
-  //    THE EXCLUSIONS ARE ABOUT MEANING, NOT ABOUT ROWS — neither type reaches
-  //    this SELECT today (measured HO 736: open 211, NULL 19, top_two 13,
-  //    top_four 2, ranked_choice 0, jungle 0), so no reading can falsify them:
+  //    THE `ranked_choice` EXCLUSION IS ABOUT MEANING, NOT ABOUT ROWS. Neither
+  //    type reaches this SELECT today (measured HO 736: open 211, NULL 19,
+  //    top_two 13, top_four 2, ranked_choice 0, jungle 0; HO 748 re-read both
+  //    at 0 winners), so no reading can falsify the `ranked_choice` one.
+  //    `jungle` is a row filter since HO 748, and HO 748's leg 2 read it:
   //      · `ranked_choice` — Maine's six are ORDINARY party primaries that
   //        happen to be counted by RCV. One nominee each, so `won_primary` is
   //        true of them and `advanced` would be the false claim.
   //      · `jungle` — Louisiana's all-party contest is the GENERAL with a
-  //        runoff, a different shape entirely (HO 577/584); it is out of scope
-  //        here rather than assigned a roster status by this CASE.
+  //        runoff, a different shape entirely (HO 577/584). HO 748: the
+  //        exclusion is now ENFORCED in HARVEST_FROM_WHERE
+  //        (`p.primary_type IS NOT 'jungle'`) rather than asserted here,
+  //        because the six rows are dated 2026-11-03 and their winners get
+  //        marked once the polls close. It holds until "What a race page shows
+  //        once its race is decided is unruled…" (HO 747) is ruled: an outright
+  //        jungle winner is elected, and no roster status says so.
   //
   //    THE CASE IS SINGLE-VALUED PER ROW, AND THAT IS LOAD-BEARING.
   //    `race_candidates` is PRIMARY KEY (race_id, name) and this is
