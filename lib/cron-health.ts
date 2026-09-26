@@ -50,16 +50,21 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 17 watched route keys, against 17 distinct route strings across 18
+// The 18 watched route keys, against 18 distinct route strings across 19
 // vercel.json crons — the two /api/cron/markets entries collapse to one route
 // string, and /api/cron/lda-rollup is watched since HO 737, which closes the
 // gap HO 676 found while adding the roster route and filed rather than fixed.
 // The count read 14 while listing 15 before HO 676; corrected with the addition
-// rather than left to drift further, and again here with lda-rollup's.
+// rather than left to drift further, again with lda-rollup's (HO 737), and
+// again with general-ballot's (HO 749).
 export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/summarize", schedule: "*/10 * * * *", maxStaleMs: 30 * MIN }, // every 10m
   { path: "/api/cron/news", schedule: "*/30 * * * *", maxStaleMs: 70 * MIN }, // every 30m
   { path: "/api/cron/kalshi", schedule: "15 */2 * * *", maxStaleMs: 5 * HOUR }, // every 2h
+  // Every 2h (HO 749). 2x cadence + 1h grace. A tick that meets the wall ends
+  // on its first UNREAD and still finalizes a `success` row, so staleness here
+  // means the route did not fire; the wall itself shows up as chronicErr.
+  { path: "/api/cron/general-ballot", schedule: "20 */2 * * *", maxStaleMs: 5 * HOUR }, // every 2h
   // Every 3h (HO 676). 2x cadence + 1h grace: a tick that hits its 240s deadline
   // still finalizes a cron_runs row, so a missing row means it did not fire.
   { path: "/api/cron/bill-rosters", schedule: "40 */3 * * *", maxStaleMs: 7 * HOUR }, // every 3h

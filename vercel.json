@@ -49,6 +49,9 @@
     "app/api/cron/bill-rosters/route.ts": {
       "maxDuration": 300
     },
+    "app/api/cron/general-ballot/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/cron/nominations/route.ts": {
       "maxDuration": 60
     }
@@ -125,6 +128,10 @@
     {
       "path": "/api/cron/bill-rosters",
       "schedule": "40 */3 * * *"
+    },
+    {
+      "path": "/api/cron/general-ballot",
+      "schedule": "20 */2 * * *"
     }
   ]
 }

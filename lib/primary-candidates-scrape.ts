@@ -39,7 +39,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const USER_AGENT =
+export const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
 // Which primary row a candidate belongs to: the D or R partisan primary, or
@@ -87,7 +87,7 @@ export type CandidateScrapeResult = {
   pageIsSpecial?: boolean;
 };
 
-function decodeEntities(s: string): string {
+export function decodeEntities(s: string): string {
   return s
     .replace(/&#0?39;/g, "'")
     .replace(/&#x27;/gi, "'")
@@ -99,7 +99,7 @@ function decodeEntities(s: string): string {
     .trim();
 }
 
-function stripTags(s: string): string {
+export function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
 }
 
@@ -133,7 +133,7 @@ export function houseDistrictUrl(slug: string, district: number): string {
 // Ballotpedia party token -> the one-letter code stored on candidates.
 // Accepts both the full word (thumbnail-wrapper class, "Republican") and the
 // single-letter abbreviation (Louisiana name suffix, "(R)").
-function partyLetter(word: string): string {
+export function partyLetter(word: string): string {
   const w = word.trim().toLowerCase();
   if (w === "r" || w.startsWith("republican")) return "R";
   if (w === "d" || w.startsWith("democrat")) return "D";
@@ -148,7 +148,7 @@ function partyLetter(word: string): string {
 // Louisiana's nonpartisan-primary rows leave the wrapper bare and put a
 // "(R)" / "(D)" abbreviation just after the candidate link. Try the wrapper,
 // fall back to the abbreviation, default to independent.
-function openContestParty(row: string): string {
+export function openContestParty(row: string): string {
   const wrap = row.match(/image-candidate-thumbnail-wrapper\s+([A-Za-z]+)/);
   if (wrap?.[1]) return partyLetter(wrap[1]);
   const abbr = row.match(/<\/a>\s*\(([A-Za-z]{1,12})\)/);
@@ -225,7 +225,7 @@ function parseVotebox(
 // their own AbortController with this deadline; on abort, the scrape
 // returns `status: "no_page"` with `httpStatus: 0` so the caller can
 // distinguish a timeout from a real 404 in `cron_runs.payload.fetchFailures`.
-const FETCH_TIMEOUT_MS = 8_000;
+export const FETCH_TIMEOUT_MS = 8_000;
 
 async function fetchPage(
   url: string,
@@ -246,7 +246,7 @@ async function fetchPage(
 // Marker for a real Ballotpedia race page — every 2026 district/state election
 // page carries this section. Its absence on a 200 response means Ballotpedia
 // served a challenge / partial page, not the article (worth a retry).
-const CANDIDATES_ANCHOR = 'id="Candidates_and_election_results"';
+export const CANDIDATES_ANCHOR = 'id="Candidates_and_election_results"';
 
 // Dev-time HTML cache (handoff 92 note): a re-run reads disk instead of
 // re-hitting Ballotpedia. Only "good" pages — ones carrying CANDIDATES_ANCHOR

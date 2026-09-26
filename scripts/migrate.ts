@@ -1210,6 +1210,79 @@ const statements = [
   // cosponsor_count NULL and 109 of them have a roster anyway, so a "count > 0"
   // trigger structurally cannot see them.
   `CREATE INDEX IF NOT EXISTS idx_bill_roster_state_checked ON bill_roster_state(checked_at)`,
+
+  // HO 749 — the November ballot as Ballotpedia's general-election box prints
+  // it, written by lib/general-ballot.ts (the /api/cron/general-ballot cron and
+  // `npm run sync:general-ballot -- --write`). NOTHING READS IT YET: the challenger
+  // harvest still publishes primary winners (HO 741's line), and making it yield
+  // to these rows is the next HO. HO 747's census measured why it must: 40
+  // published names off the ballot and 483 ballot rows unpublished.
+  //
+  // One row per person in a race's 2026 general box. The KEY IS IDENTITY, not
+  // a name: `person_key` is the person link's page title (lib/general-ballot.ts
+  // hrefKey), because a name join cannot tell S-AK-2026's two Dan Sullivans
+  // apart and the href can. A race's rows are replaced whole on every READ, in
+  // one transaction with its `general_ballot_reads` stamp.
+  `CREATE TABLE IF NOT EXISTS general_ballot (
+    race_id TEXT NOT NULL,
+    person_key TEXT NOT NULL,
+    -- As the ballot prints it (the link text), entities decoded.
+    name TEXT NOT NULL,
+    -- As printed after the name, fusion lines whole ("R / Conservative Party").
+    -- For a person listed only as withdrawn, their list token. NULL when
+    -- nothing is printed.
+    printed_party TEXT,
+    -- One letter: the printed party's first, else the ingest's precedence
+    -- (openContestParty: the thumbnail wrapper, then an "(X)" suffix, then I).
+    -- NULL only for a withdrawn-only person whose list prints no token.
+    party TEXT,
+    -- Ballotpedia underlines the incumbent (<u>). The box's mark, not ours. Read
+    -- on ballot rows and on withdrawn entries alike (NC-11's Chuck Edwards and
+    -- ME-02's Jared Golden, withdrawn incumbents, read 1 at HO 747's pages).
+    incumbent_marked INTEGER NOT NULL DEFAULT 0,
+    write_in INTEGER NOT NULL DEFAULT 0,
+    -- A row of the box's results table: printed on the November ballot.
+    on_ballot INTEGER NOT NULL DEFAULT 0,
+    -- Listed in the box's "Withdrawn or disqualified candidates" block,
+    -- INDEPENDENT of on_ballot (the architect's ruling, HO 749). A person can be
+    -- both: 5 measured at HO 749 withdrew from one fusion line and stay printed
+    -- on another, and read on_ballot = 1, withdrawn = 1.
+    withdrawn INTEGER NOT NULL DEFAULT 0,
+    -- The same person_key marked winner in a kept primary box on the same page.
+    primary_marked INTEGER NOT NULL DEFAULT 0,
+    -- BY IDENTITY ONLY: person_key equal to a member's
+    -- titleKey(member_ids.ballotpedia_title), else NULL. Never by name, so a
+    -- namesake stays NULL and so does an incumbent whose stored title is stale.
+    bioguide_id TEXT,
+    -- The box's <h5> before " for " ("General election", "Special general
+    -- election"), so a special general is distinguishable from a regular one.
+    box_prefix TEXT NOT NULL,
+    read_at TEXT NOT NULL,
+    PRIMARY KEY (race_id, person_key)
+  )`,
+  // One row per race: the queue and the verdict. The LAST READ is kept apart
+  // from the LAST ATTEMPT, so an UNREAD (the 202 challenge, a timeout) can never
+  // pass for a read: an UNREAD or NO_PAGE touches only the two attempt columns,
+  // and the rows plus status/read_at stay as the last READ left them. Stamped
+  // LAST, in the same batch as the rows it describes. The run orders its queue
+  // on last_attempt_at (never-attempted first); 470 rows need no index for it.
+  `CREATE TABLE IF NOT EXISTS general_ballot_reads (
+    race_id TEXT PRIMARY KEY,
+    -- From the last READ: 'box' (exactly one 2026 general box in the section),
+    -- 'no_box', or 'ambiguous' (two or more; nothing stored, never a pick).
+    -- NULL until the race has been READ once.
+    status TEXT,
+    read_at TEXT,
+    rows INTEGER,
+    -- Rows carrying Ballotpedia's winner mark. 0 until 2026-11-03; the marks
+    -- themselves are not stored, because what a decided race shows is unruled.
+    marked INTEGER,
+    -- The URL actually read (a Senate race may have fallen back to the special).
+    source_url TEXT,
+    last_attempt_at TEXT NOT NULL,
+    -- 'READ', 'UNREAD' or 'NO_PAGE'.
+    last_attempt TEXT NOT NULL
+  )`,
 ];
 
 async function ensureColumn(
