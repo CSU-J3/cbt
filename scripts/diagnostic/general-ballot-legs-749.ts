@@ -257,7 +257,8 @@ async function seedCopy(name: string, seed: Seed): Promise<string> {
     url,
     [
       { sql: `CREATE TABLE races (id TEXT PRIMARY KEY, cycle INTEGER NOT NULL, chamber TEXT NOT NULL, state TEXT NOT NULL, district INTEGER, incumbent_bioguide_id TEXT)`, args: [] },
-      { sql: `CREATE TABLE member_ids (bioguide_id TEXT PRIMARY KEY, ballotpedia_title TEXT)`, args: [] },
+      // HO 751: loadIdentity reads COALESCE(ballotpedia_title_resolved, ballotpedia_title), so the copy carries the column (NULL here: this leg pins HO 749's map).
+      { sql: `CREATE TABLE member_ids (bioguide_id TEXT PRIMARY KEY, ballotpedia_title TEXT, ballotpedia_title_resolved TEXT)`, args: [] },
       { sql: ddlFromMigrate("general_ballot"), args: [] },
       { sql: ddlFromMigrate("general_ballot_reads"), args: [] },
       { sql: ddlFromMigrate("cron_runs"), args: [] },

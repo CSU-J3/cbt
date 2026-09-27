@@ -112,7 +112,8 @@ const TABLES: { table: string; ddl: string; cols: string[] }[] = [
   { table: "race_candidates", ddl: `CREATE TABLE race_candidates (race_id TEXT NOT NULL, name TEXT NOT NULL, party TEXT, bioguide_id TEXT, status TEXT, source_url TEXT, updated_at TEXT, PRIMARY KEY (race_id, name))`, cols: ["race_id", "name", "party", "bioguide_id", "status", "source_url", "updated_at"] },
   { table: "race_ratings", ddl: `CREATE TABLE race_ratings (id TEXT PRIMARY KEY, race_id TEXT NOT NULL, source TEXT, rating TEXT, cycle INTEGER NOT NULL)`, cols: ["id", "race_id", "source", "rating", "cycle"] },
   { table: "members", ddl: `CREATE TABLE members (bioguide_id TEXT PRIMARY KEY, name TEXT, first_name TEXT, last_name TEXT, party TEXT)`, cols: ["bioguide_id", "name", "first_name", "last_name", "party"] },
-  { table: "member_ids", ddl: `CREATE TABLE member_ids (bioguide_id TEXT PRIMARY KEY, ballotpedia_title TEXT)`, cols: ["bioguide_id", "ballotpedia_title"] },
+  // HO 751: loadIdentity reads COALESCE(ballotpedia_title_resolved, ballotpedia_title); the column is carried, NULL (these legs pin HO 750's map).
+  { table: "member_ids", ddl: `CREATE TABLE member_ids (bioguide_id TEXT PRIMARY KEY, ballotpedia_title TEXT, ballotpedia_title_resolved TEXT)`, cols: ["bioguide_id", "ballotpedia_title"] },
   { table: "general_ballot", ddl: "", cols: ["race_id", "person_key", "name", "printed_party", "party", "incumbent_marked", "write_in", "on_ballot", "withdrawn", "primary_marked", "bioguide_id", "box_prefix", "read_at"] },
   { table: "general_ballot_reads", ddl: "", cols: ["race_id", "status", "read_at", "rows", "marked", "source_url", "last_attempt_at", "last_attempt"] },
 ];
@@ -808,7 +809,8 @@ async function leg6(seed: Seed) {
     const calls: string[] = [];
     const out = await wrapCronRoute("/api/cron/general-ballot", () => generalBallotTick(getDb(), shim(walled), (tag) => calls.push(tag)), { softTimeoutMs: 290_000 });
     const pl = (out.body as { payload?: { verdicts?: Record<string, number>; stop?: string } }).payload;
-    check(`${label} expires general-ballot ${wantCalls === 1 ? "once" : "never"}, and never races`, calls.length === wantCalls && !calls.includes("races") && calls.every((c) => c === "general-ballot"), `http ${out.httpStatus} · READ ${pl?.verdicts?.READ} · stop ${pl?.stop} · expired ${JSON.stringify(calls)}`);
+    // HO 751: the tick must also have run to success with the READs it names (a throwing tick expires on its catch path, so the flush count alone passed a tick that never read).
+    check(`${label} expires general-ballot ${wantCalls === 1 ? "once" : "never"}, and never races`, out.httpStatus === 200 && (walled ? (pl?.verdicts?.READ ?? -1) === 0 : (pl?.verdicts?.READ ?? 0) > 0) && calls.length === wantCalls && !calls.includes("races") && calls.every((c) => c === "general-ballot"), `http ${out.httpStatus} · READ ${pl?.verdicts?.READ} · stop ${pl?.stop} · expired ${JSON.stringify(calls)}`);
   }
   const lastRun = async () => (await getDb().execute(`SELECT id, status, error_message FROM cron_runs ORDER BY id DESC LIMIT 1`)).rows[0];
 
