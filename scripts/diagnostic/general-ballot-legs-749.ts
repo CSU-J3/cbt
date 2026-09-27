@@ -753,11 +753,16 @@ async function leg4(seed: Seed) {
   check("getDb() points at the copy (it sees the copy's own marker table)", onCopy, `leg749_marker seen through getDb(): ${where.rows[0]?.n}`);
   // A hard stop, not a count: nothing below may run unless getDb() is the copy.
   if (!onCopy) throw new Error("refused: getDb() does not point at the leg 4 copy; not running wrapCronRoute");
+  // HO 750: a tick that wrote a READ now expires the `general-ballot` tag, and
+  // the default flush (revalidateTag) throws outside a Next request, which would
+  // turn every tick below into an `error` row. The flush is HO 750's leg 6's to
+  // read; here it is a no-op.
+  const noFlush = (_tag: string) => {};
   for (const [label, latencyMs, want] of [["cap", 700, "cap"], ["budget", 7_000, "budget"]] as const) {
     const io = shimIO({ latencyMs });
     const t0 = io.clock.t;
     const real0 = Date.now();
-    const out = await wrapCronRoute("/api/cron/general-ballot", () => generalBallotTick(getDb(), io), { softTimeoutMs: 290_000 });
+    const out = await wrapCronRoute("/api/cron/general-ballot", () => generalBallotTick(getDb(), io, noFlush), { softTimeoutMs: 290_000 });
     const fakeMs = io.clock.t - t0;
     const row = (await getDb().execute(`SELECT id, status, payload FROM cron_runs ORDER BY id DESC LIMIT 1`)).rows[0];
     const pl = JSON.parse(String(row?.payload ?? "{}")) as { payload?: { stop: string; attempted: number; minGapMs: number; requests: number } };
@@ -771,7 +776,7 @@ async function leg4(seed: Seed) {
   // named in the row's error_message (chronicErr).
   {
     const io = shimIO({ latencyMs: 700, failAt: 3, startAt: "2026-09-26T22:20:00.000Z" });
-    const out = await wrapCronRoute("/api/cron/general-ballot", () => generalBallotTick(getDb(), io), { softTimeoutMs: 290_000 });
+    const out = await wrapCronRoute("/api/cron/general-ballot", () => generalBallotTick(getDb(), io, noFlush), { softTimeoutMs: 290_000 });
     const row = (await getDb().execute(`SELECT id, status, payload, error_message FROM cron_runs ORDER BY id DESC LIMIT 1`)).rows[0];
     const pl = JSON.parse(String(row?.payload ?? "{}")) as { payload?: { stop: string; attempted: number; unread: { race: string; cause: string }[] } };
     const u = pl.payload?.unread?.[0];
