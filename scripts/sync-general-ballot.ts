@@ -20,6 +20,12 @@
 // pause the pass for 15 minutes, once, and the next UNREAD stops it (a READ in
 // between resets the count). Without --all, the cron's rule holds: the first
 // UNREAD ends the run.
+//
+// HO 750: the race page reads these tables through the `general-ballot` cache
+// tag, which the cron flushes on a tick that wrote a READ and this CLI cannot
+// (revalidateTag needs a Next request). After a --write, flush it:
+//   POST /api/revalidate?tag=general-ballot  (Bearer $CRON_SECRET)
+// The roster is the challenger harvest's, so it moves at the next harvest.
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { TICK_BUDGET_MS, TICK_CAP, runGeneralBallot } from "../lib/general-ballot";

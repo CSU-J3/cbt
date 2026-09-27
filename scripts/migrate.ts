@@ -1213,10 +1213,12 @@ const statements = [
 
   // HO 749 — the November ballot as Ballotpedia's general-election box prints
   // it, written by lib/general-ballot.ts (the /api/cron/general-ballot cron and
-  // `npm run sync:general-ballot -- --write`). NOTHING READS IT YET: the challenger
-  // harvest still publishes primary winners (HO 741's line), and making it yield
-  // to these rows is the next HO. HO 747's census measured why it must: 40
-  // published names off the ballot and 483 ballot rows unpublished.
+  // `npm run sync:general-ballot -- --write`). READ SINCE HO 750: the challenger
+  // harvest publishes every race with a 'box' read and no curated roster from
+  // these rows (lib/harvest-challengers.ts), and the race page's stub asks them
+  // whether the stored incumbent is printed (lib/incumbent-on-ballot.ts). HO 747's
+  // census measured why the harvest had to yield: 40 published names off the
+  // ballot and 483 ballot rows unpublished.
   //
   // One row per person in a race's 2026 general box. The KEY IS IDENTITY, not
   // a name: `person_key` is the person link's page title (lib/general-ballot.ts

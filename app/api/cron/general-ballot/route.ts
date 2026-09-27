@@ -5,9 +5,10 @@
 // a default.
 //
 // WHAT IT WRITES: `general_ballot` and `general_ballot_reads` (scripts/
-// migrate.ts), and nothing else. NOTHING READS THEM YET: the challenger harvest
-// and every page are unchanged, so no cache tag is expired. Making the harvest
-// yield to these rows is the next HO, once a full pass is behind them.
+// migrate.ts), and nothing else. WHO READS THEM (HO 750): the challenger
+// harvest publishes rosters from them on its own cron, and the race page's stub
+// reads them through the `general-ballot` cache tag, which generalBallotTick
+// expires once per tick that wrote a READ. It does not expire `races`.
 //
 // WHY ITS OWN ROUTE AND THIS CADENCE: every request goes to Ballotpedia, whose
 // wall HO 747 measured (a 202 challenge at request #43 at one request a second;

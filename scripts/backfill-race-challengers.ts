@@ -5,16 +5,19 @@
 // scheduled fire has no use for. Wiring a clock did not retire the hand-run.
 //
 // What the shared harvest does, in one line each (full rationale in the lib):
-// non-incumbent primary winners → race_candidates for the rated 2026 seats,
-// idempotent under the `harvest:primary_winner` sentinel, hand-curated rosters
-// (HO 171/174/182) untouched, coverage partial by design.
+// non-incumbent primary winners → race_candidates for every 2026 seat whose
+// primary has voted (the rated-index gate went at HO 741), idempotent under the
+// `harvest:primary_winner` sentinel, hand-curated rosters (HO 171/174/182)
+// untouched, coverage partial by design. HO 750: every race with a `box` read
+// and no curated roster now takes the November ballot instead, under
+// `harvest:general_ballot`; the primary-sourced rows cover the races with no box.
 //
 // Run: `npm run backfill:race-challengers`. Then flush the cache:
 //   POST /api/revalidate?tag=races  (seed scripts don't auto-flush, per SKILL).
 //   The CRON path flushes itself; only this one leaves it to you.
 import "dotenv/config";
 import { getDb } from "../lib/db";
-import { HARVEST_SOURCE, harvestChallengers } from "../lib/harvest-challengers";
+import { BALLOT_SOURCE, HARVEST_SOURCE, harvestChallengers } from "../lib/harvest-challengers";
 
 async function main() {
   const db = getDb();
@@ -34,13 +37,23 @@ async function main() {
     `\nharvested: ${result.rows} rows across ${result.races} races ` +
       `(of ${result.seats} 2026 seats; the rated index is ${result.ratedIndex})`,
   );
+  // HO 750: two sentinels, the ballot-sourced roster and the primary-sourced one.
+  console.log(`by sentinel: ${JSON.stringify(result.bySource)}`);
+  console.log(
+    `ballot-sourced races ${result.ballotRaces} · rows planned ${result.ballotPlanned} · ` +
+      `ignored on a (race, name) collision ${result.ballotIgnored}`,
+  );
+  console.log(`incumbent rule routes: ${JSON.stringify(result.incumbentRoutes)}`);
+  console.log(
+    `curated races diverging from the ballot: ${result.curatedDivergence.length ? result.curatedDivergence.join(" · ") : "none"}`,
+  );
 
   // Sample for eyeballing — wrapper-only; the cron logs figures, not rows.
   const sample = await db.execute({
     sql: `SELECT rc.race_id, rc.name, rc.party
-          FROM race_candidates rc WHERE rc.source_url = ?
+          FROM race_candidates rc WHERE rc.source_url IN (?, ?)
           ORDER BY rc.race_id, rc.name LIMIT 16`,
-    args: [HARVEST_SOURCE],
+    args: [HARVEST_SOURCE, BALLOT_SOURCE],
   });
   console.log("\nsample harvested challengers:");
   for (const r of sample.rows)

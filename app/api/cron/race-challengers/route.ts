@@ -1,6 +1,9 @@
 // HO 660: the challenger harvest gets a clock. Daily Vercel cron at
 // `30 12 * * *` — thirty minutes after the 12:00 UTC `/api/cron/primaries`
-// tick, whose writes are this harvest's ENTIRE input. US primary results post in
+// tick, whose writes are this harvest's primary-sourced input (HO 750: its
+// ballot-sourced input is `general_ballot`, which /api/cron/general-ballot writes
+// at :20 on even hours, one race per batch; the harvest decides which races have
+// a box once, in its plan's read snapshot). US primary results post in
 // the 00:00–06:00 UTC band, so the 12:00 tick is the one that reads them
 // settled and 12:30 harvests what it just wrote. A winner marked by the 00:00
 // tick waits at most 12.5h; that is the stated price of keeping this at ONE
@@ -10,7 +13,8 @@
 // deadline-bounded at 50s inside a 60s ceiling so it is done by ~12:01, and
 // nothing else writes `race_candidates` on a schedule (the seed is manual).
 //
-// Pure DB-to-DB (no Ballotpedia fetch), idempotent under its sentinel — which
+// Pure DB-to-DB (no Ballotpedia fetch), idempotent under its two sentinels
+// (`harvest:primary_winner`, and `harvest:general_ballot` since HO 750) — which
 // is why HO 656 could price it as its own slot rather than as work chained onto
 // the primaries cursor's budget. expireTag("races") fires UNCONDITIONALLY:
 // every run clears and re-derives, so every run is a write, and gating the
@@ -50,7 +54,9 @@ async function handle(request: Request) {
     console.log(
       `[race-challengers] cleared=${summary.cleared} inserted=${summary.inserted} ` +
         `rows=${summary.rows} races=${summary.races} of ${summary.seats} seats · ${summary.ratedIndex} rated ` +
-        `stamp=${summary.runStamp}`,
+        `bySource=${JSON.stringify(summary.bySource)} ballotRaces=${summary.ballotRaces} ` +
+        `ignored=${summary.ballotIgnored} routes=${JSON.stringify(summary.incumbentRoutes)} ` +
+        `curatedDivergence=${summary.curatedDivergence.length} stamp=${summary.runStamp}`,
     );
     return { payload: summary };
   });

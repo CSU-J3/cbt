@@ -9,9 +9,12 @@
 // round runoff advancers, 32 of whom lost a runoff) and 483 ballot rows
 // unpublished, about 60 of them major-party candidates. The close is a
 // reader whose rows the harvest yields to. This file is that reader's first
-// half. NOTHING READS THESE TABLES YET: the harvest, the race page and every
-// render are unchanged, so a bad reading costs nothing while the reader's
-// egress, pacing and write semantics are read in prod. The yield is the next HO.
+// half. At HO 749 nothing read these tables, so a bad reading cost nothing
+// while the reader's egress, pacing and write semantics were read in prod; its
+// first full pass read clean (the WATCH, 2026-09-27). HO 750 is the second
+// half: the challenger harvest publishes from them (lib/harvest-challengers.ts
+// planBallotRoster), and the race page's stub asks them whether the incumbent
+// is on the ballot (lib/queries.ts getIncumbentOnBallot).
 //
 // THE PARSER IS THE CENSUS'S, PROMOTED AS IT RAN. `readPageModel` and its
 // helpers are scripts/diagnostic/general-box-census-747.ts's (:85-345), and
@@ -50,6 +53,7 @@ import {
   stripTags,
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
+import { expireTag } from "./cache/expire-tag";
 
 export const CYCLE = 2026;
 
@@ -864,18 +868,39 @@ export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promi
 // ── the cron tick, shared by the route and the legs ─────────────────────────
 // The route wraps this in wrapCronRoute; HO 749's leg 4 wraps the same function
 // around a `file:` copy and a fetch shim, so the tick the legs read is the tick
-// that ships. No cache tag is expired: nothing reads these tables yet.
+// that ships.
+// HO 750: the race page reads these tables (lib/queries.ts
+// getIncumbentOnBallot, under the `general-ballot` tag), so a tick that WROTE a
+// READ expires that tag, once, and so does a tick that throws part-way (it may
+// have committed some). A tick that wrote nothing (every attempt UNREAD or
+// NO_PAGE, which touch only the attempt columns the page never reads) expires
+// nothing. It does not expire `races`: the roster reaches the page
+// through the challenger harvest, whose own cron expires `races`. `expire` is
+// injectable because the default, revalidateTag, throws outside a Next request
+// ("static generation store missing"): every caller outside the route passes
+// its own, HO 750's leg 6 to count the calls and HO 749's leg 4 a no-op, so
+// the legs still run the tick that ships in every other respect.
 export async function generalBallotTick(
   db: Client,
   io: IO = liveIO(),
+  expire: (tag: string) => void = expireTag,
 ): Promise<{ payload: RunResult; chronicErr?: string }> {
-  const r = await runGeneralBallot(db, {
-    write: true,
-    cap: TICK_CAP,
-    deadlineMs: io.now() + TICK_BUDGET_MS,
-    stopRule: "first-unread",
-    io,
-  });
+  let r: RunResult;
+  try {
+    r = await runGeneralBallot(db, {
+      write: true,
+      cap: TICK_CAP,
+      deadlineMs: io.now() + TICK_BUDGET_MS,
+      stopRule: "first-unread",
+      io,
+    });
+  } catch (e) {
+    // Each race commits in its own batch, so a tick that throws part-way may
+    // already have written READs the page reads. Expire before the error
+    // propagates: an extra flush on a failed tick costs one re-read.
+    expire("general-ballot");
+    throw e;
+  }
   console.log(
     `[general-ballot] attempted=${r.attempted} READ=${r.verdicts.READ} UNREAD=${r.verdicts.UNREAD} ` +
       `NO_PAGE=${r.verdicts.NO_PAGE} box=${r.statuses.box} no_box=${r.statuses.no_box} ` +
@@ -887,5 +912,6 @@ export async function generalBallotTick(
   const chronic: string[] = [];
   if (r.unread.length) chronic.push(`general-ballot UNREAD ${r.unread.map((u) => `${u.race} (${u.cause})`).join(", ")}`);
   if (r.statuses.ambiguous) chronic.push(`general-ballot ambiguous ${r.ambiguous.join(", ")}`);
+  if (r.verdicts.READ > 0) expire("general-ballot");
   return { payload: r, chronicErr: chronic.length ? chronic.join(" | ") : undefined };
 }

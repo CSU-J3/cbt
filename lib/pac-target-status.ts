@@ -62,6 +62,17 @@
 // only when the target has no contest rows at all — where it is genuinely
 // additive, because a CURATED `nominee` (the convention route, HO 638) can never
 // come from the harvest.
+//
+// HO 750 — THE PREMISE ABOVE IS NOW TRUE ONLY OF `harvest:primary_winner`. Every
+// race with a `box` read and no curated roster publishes the November ballot
+// instead, under `harvest:general_ballot`, which is not a copy of the primary: a
+// runoff loser the contest still marks `winner` is absent from it. For those
+// rows the order
+// here is backwards. And the ballot harvest DOES write `nominee` (a convention
+// or replacement nominee printed on the ballot), which the roster rung below
+// reads as nominated, rightly. The order is unchanged by HO 750, because which
+// source wins is the backlog line "lib/pac-target-status.ts consults primary
+// contest evidence before a roster that is now ballot-sourced…" (HO 750).
 import { pacSurname } from "@/lib/pac-ie";
 import { nameKey } from "@/lib/race-colors";
 

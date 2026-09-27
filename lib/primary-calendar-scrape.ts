@@ -39,8 +39,12 @@ export type StatePrimaryDate = {
 // the rest isn't on the page, so non-special states default to "open". Maine
 // runs ranked-choice tabulation. (DC has no congressional primary on the
 // calendar but is kept here for completeness.)
-const TOP_TWO_STATES = new Set(["CA", "WA"]);
-const TOP_FOUR_STATES = new Set(["AK"]);
+// HO 750: exported, because the challenger harvest decides a ballot-sourced
+// roster's scope and status by these states rather than by
+// `primaries.primary_type`, which is NULL on all ten of Washington's rows
+// (backlog, "`primaries.primary_type` is NULL on 91 of 876 rows…").
+export const TOP_TWO_STATES: ReadonlySet<string> = new Set(["CA", "WA"]);
+export const TOP_FOUR_STATES: ReadonlySet<string> = new Set(["AK"]);
 const RANKED_CHOICE_STATES = new Set(["ME", "DC"]);
 
 const EXPECTED_STATE_PRIMARIES = 50;
