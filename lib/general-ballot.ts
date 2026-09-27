@@ -100,9 +100,10 @@ function partyRoute(row: string): { route: PartyRoute; token: string | null; let
 // ── identity ───────────────────────────────────────────────────────────────
 // A person link's title, as a comparable key: HTML entities decoded (reading the
 // attribute), the origin dropped, percent-decoded, spaces as underscores. The
-// stored side is `https://ballotpedia.org/` + member_ids.ballotpedia_title
-// through the same function, so both sides are percent-decoded before they are
-// compared. This key is `general_ballot.person_key`.
+// stored side is `https://ballotpedia.org/` + the member's title (HO 751:
+// COALESCE(ballotpedia_title_resolved, ballotpedia_title)) through the same
+// function, so both sides are percent-decoded before they are compared. This key
+// is `general_ballot.person_key`.
 const BP = "https://ballotpedia.org/";
 export function hrefKey(href: string | null | undefined): string | null {
   if (!href) return null;
@@ -513,21 +514,27 @@ export type PageResult =
 // carries withdrawn = 1), `repeated` second listings, `noKey` without a link.
 export type Folded = { merged: number; repeated: number; noKey: number };
 
-// member_ids.ballotpedia_title keyed the way a ballot row's href is. IDENTITY
+// Each member's Ballotpedia title keyed the way a ballot row's href is. IDENTITY
 // ONLY, never a name: S-AK-2026's ballot carries the senator and a second Dan
 // Sullivan under two hrefs, and only the one whose href is the senator's title
 // gets his bioguide. Two members sharing one key would make the key ambiguous,
 // and an ambiguous key yields NULL rather than a pick (measured at HO 749:
 // 524 titles, 524 distinct).
+// HO 751: the title is COALESCE(ballotpedia_title_resolved, ballotpedia_title).
+// A resolved title (repair:ballotpedia-titles, confirmed by the stale title's
+// redirect, by the disambiguation page at the stale title linking it, or by the
+// name check) wins; a member never resolved is keyed exactly as before. The crosswalk overwrites ballotpedia_title on every run and never
+// writes the resolved column, so a repair outlives the next sync:crosswalk.
 export type Identity = Map<string, string | null>;
 export async function loadIdentity(db: Client): Promise<Identity> {
   const rs = await db.execute(
-    `SELECT bioguide_id, ballotpedia_title FROM member_ids
-      WHERE ballotpedia_title IS NOT NULL AND TRIM(ballotpedia_title) <> ''`,
+    `SELECT bioguide_id, COALESCE(NULLIF(TRIM(ballotpedia_title_resolved), ''), ballotpedia_title) AS title
+       FROM member_ids
+      WHERE COALESCE(NULLIF(TRIM(ballotpedia_title_resolved), ''), NULLIF(TRIM(ballotpedia_title), '')) IS NOT NULL`,
   );
   const out: Identity = new Map();
   for (const r of rs.rows) {
-    const k = titleKey(String(r.ballotpedia_title).trim());
+    const k = titleKey(String(r.title).trim());
     if (!k) continue;
     const b = String(r.bioguide_id);
     out.set(k, out.has(k) && out.get(k) !== b ? null : b);

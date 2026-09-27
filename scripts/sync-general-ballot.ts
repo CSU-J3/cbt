@@ -13,6 +13,7 @@
 //   npm run sync:general-ballot                           # dry: one cron tick's worth (40 races, 240s)
 //   npm run sync:general-ballot -- --race FL-20-2026      # dry, one race
 //   npm run sync:general-ballot -- --race FL-20-2026 --write
+//   npm run sync:general-ballot -- --race TX-37-2026,UT-02-2026 --write   # a list, one paced process
 //   npm run sync:general-ballot -- --all --write          # the whole queue, no budget
 //
 // --all runs the whole queue without the cron's cap or budget, at the same 6s
@@ -70,7 +71,10 @@ async function main() {
   await census("BEFORE");
   const r = await runGeneralBallot(getDb(), {
     write: WRITE,
-    raceIds: RACE ? [RACE] : undefined,
+    // HO 751: --race takes a comma list, read in ONE paced process (6s start to
+    // start, the first UNREAD ends it), so a repair's re-read is not a chain of
+    // processes whose first requests each skip the gap.
+    raceIds: RACE ? RACE.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
     cap: ALL || RACE ? undefined : TICK_CAP,
     deadlineMs: ALL || RACE ? undefined : Date.now() + TICK_BUDGET_MS,
     stopRule: ALL ? "streak" : "first-unread",

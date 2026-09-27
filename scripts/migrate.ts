@@ -1930,6 +1930,25 @@ async function main() {
     console.log(`bill_roster_state already seeded (${Number(seeded.rows[0]?.n ?? 0)} rows) — not re-stamping`);
   }
 
+  // HO 751 — a member's CURRENT Ballotpedia page title, resolved once from the
+  // ballot's own link and confirmed (by the stale title's redirect, by the
+  // disambiguation page at the stale title linking it, or by the name's tokens),
+  // by `npm run repair:ballotpedia-titles -- --write --plan <file>`. These
+  // three columns exist because `ballotpedia_title` is the crosswalk's: its
+  // upsert overwrites that column from congress-legislators on every run, and
+  // upstream carries the same stale titles (HO 751 STEP 0: 33 of 45 unchanged
+  // upstream). The crosswalk never writes these three; the reader's identity map
+  // (lib/general-ballot.ts loadIdentity) keys COALESCE(resolved, ballotpedia_title),
+  // so a resolved title wins and an unresolved member is unchanged.
+  //   resolved_from: 'redirect' (the stale title's page redirected to the
+  //   learned key), 'disambiguation' (the stale title is a disambiguation page
+  //   that links it), 'ballot' or 'ballot-prefix' (the name check: the learned
+  //   title carries the member's surname and a first-name token, whole or as a
+  //   prefix of three letters or more).
+  await ensureColumn(db, "member_ids", "ballotpedia_title_resolved", "TEXT");
+  await ensureColumn(db, "member_ids", "ballotpedia_title_resolved_at", "TEXT");
+  await ensureColumn(db, "member_ids", "ballotpedia_title_resolved_from", "TEXT");
+
   console.log("migration complete");
 }
 
