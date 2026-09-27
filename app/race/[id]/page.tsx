@@ -6,6 +6,7 @@ import {
   getMember,
   getPacIeSpending,
   getRace,
+  getIncumbentOnBallot,
   getRaceCandidates,
   getRaceNews,
   getRaceRatings,
@@ -59,7 +60,7 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs, pacByRace, news] =
+  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot] =
     await Promise.all([
       getRaceCandidates(race.id),
       race.incumbent_bioguide_id
@@ -73,6 +74,11 @@ export default async function RacePage({
       race.incumbent_bioguide_id
         ? getRaceNews(race.incumbent_bioguide_id, 8)
         : Promise.resolve([]),
+      // HO 750: whether the stored incumbent is printed on this race's ballot,
+      // which decides the stub's "Incumbent running for re-election."
+      race.incumbent_bioguide_id
+        ? getIncumbentOnBallot(race.id)
+        : Promise.resolve({ onBallot: null, route: null }),
     ]);
 
   return (
@@ -93,6 +99,7 @@ export default async function RacePage({
           nowMs={nowMs}
           candidates={candidates}
           incumbent={incumbent}
+          incumbentOnBallot={onBallot.onBallot}
           ratings={ratings}
           runoffs={runoffs}
           pac={pacByRace[race.id]}

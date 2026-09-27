@@ -4,6 +4,7 @@ import type { CronRunStatus } from "./cron-log";
 import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
+import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
 import { formatBillId } from "./format";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import {
@@ -1945,6 +1946,29 @@ export const getRaceCandidates = unstable_cache(
   },
   ["getRaceCandidates"],
   { revalidate: 86400, tags: ["races"] },
+);
+
+// HO 750 — is the seat's stored incumbent printed on the race's November
+// ballot? The race page's stub said "Incumbent running for re-election." for
+// every unrated seat with an incumbent and no roster, and nothing checked it.
+// Now it says so only when this is true.
+//   true   the rule in lib/ballot-incumbent.ts finds the incumbent on a row
+//          (identity, or the underline-and-surname fallback);
+//   false  the race has a `box` read and the incumbent is on no row;
+//   null   no `box` read (Louisiana's jungle seats, FL-10's canceled general, a
+//          race not read yet), or no stored incumbent.
+// It says nothing about WHY an incumbent is off the ballot: what a card says
+// for a moved, retiring or Senate-running incumbent is the backlog line "A race
+// card names a stored incumbent who is not on that seat's 2026 ballot…"
+// (HO 747), Corey's. Tagged `general-ballot`, which generalBallotTick expires
+// once per tick that wrote a READ, and `races`, because it also reads the
+// race's stored incumbent and their `members.last_name`, which the races
+// backfill and seed re-derive and then flush under `races`.
+export type { IncumbentOnBallotReading };
+export const getIncumbentOnBallot = unstable_cache(
+  async (raceId: string): Promise<IncumbentOnBallotReading> => readIncumbentOnBallot(getDb(), raceId),
+  ["getIncumbentOnBallot"],
+  { revalidate: 86400, tags: ["general-ballot", "races"] },
 );
 
 // HO 210 Pass 2: all candidates for a cycle in one query so the pinned map card

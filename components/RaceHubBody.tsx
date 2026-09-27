@@ -5,6 +5,7 @@ import { RaceIncumbentCard } from "@/components/RaceIncumbentCard";
 import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { RaceRunoffs } from "@/components/RaceRunoffs";
 import { formatDateLong } from "@/lib/format";
+import { stubSentence } from "@/lib/race-stub";
 import type {
   Member,
   PacIeRow,
@@ -54,6 +55,7 @@ export function RaceHubBody({
   race,
   candidates,
   incumbent,
+  incumbentOnBallot = null,
   ratings,
   runoffs,
   pac,
@@ -63,6 +65,11 @@ export function RaceHubBody({
   race: Race;
   candidates: RaceCandidate[];
   incumbent: Member | null;
+  // HO 750: whether the stored incumbent is printed on this race's November
+  // ballot (lib/queries.ts getIncumbentOnBallot): true, false when the ballot
+  // was read and they are on no row, null when there is no ballot reading.
+  // Only true lets the stub say "Incumbent running for re-election."
+  incumbentOnBallot?: boolean | null;
   ratings: RaceRating[];
   runoffs: PrimaryWithCandidates[];
   // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line). This
@@ -158,9 +165,9 @@ export function RaceHubBody({
           className="mt-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
           style={{ color: "var(--text-muted)" }}
         >
-          {incumbent
-            ? "Incumbent running for re-election. No competitive rating yet."
-            : "Open seat. Candidate filings forthcoming."}
+          {/* HO 750: "running for re-election" only when the ballot shows it
+              (lib/race-stub.ts). */}
+          {stubSentence(!!incumbent, incumbentOnBallot)}
         </p>
       ) : (
         <section
