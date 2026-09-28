@@ -3044,3 +3044,187 @@ It also confirmed the withdrawn-entry regex gap (a token behind `</u></b>` or ov
 - **SKILL**, its own commit, approval requested: `member_ids` gains the three columns and the rule that the crosswalk never writes them; the general-ballot identity sentence names the `COALESCE`; the `npm run repair:ballotpedia-titles` line; the harvest entry names `incumbentRoutes["underline-surname"]` as the standing alarm; and, beyond the list, one clause on `npm run sync:crosswalk` (re-running it cannot undo a repair).
 - **OPEN LOOPS reconciled: 261 live / 305 struck at open, 260 / 306 at close** (566 total both), with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 751.**
+
+**Also (HO 752), the committees cursor probe: the bills cursor and both meetings watermarks read against Congress.gov, and the bills cursor has lost 103 bills that should have rows.** Two commits, kinds unmixed: `diag` (`scripts/diagnostic/committees-cursor-752.ts`) · `docs`. It builds nothing. Every prod command was a `SELECT`. The instrument's go through a reader that refuses anything else. Five side scripts in the artifacts folder (`step0`, `sizes`, `notlisted`, `over20`, `hr3857`) send literal `SELECT`s through the plain client. Every other request was a paced GET to `api.congress.gov`, or a read of the runtime logs. The GETs used the sync's own URL shapes, except the page-2 read of `119-hr-9821`'s committees (`?offset=20&limit=250`, once in each reading from 01:05Z on), which is departure (1). The controls wrote only to a `file:` copy. There was no POST, and no call to `syncCommitteeBills` or `syncMeetings`. The pointer is 752 by plain arithmetic: pointer 751, highest HO in commit subjects 751, `main` at `d25e6c8`.
+
+**HO 751's post-FF reading, carried here as its item 9 asked.** Taken 2026-09-27/28 in the ruled order.
+- **Migrate and FF.** `npm run migrate` ran on prod first (23:59Z) and added `member_ids.ballotpedia_title_resolved`, `…_resolved_at` and `…_resolved_from`. Then `main` fast-forwarded `d2a9929` → **`d25e6c8`** with no force, and `751-review` was deleted. verify:deploy read `d25e6c8` 5 consecutive times, first match at 21s. The Production `e2e-prod` run 36360542917 (smoke, odds-off, narrow) **passed**.
+- **The live dry run** (00:01–00:04Z): 33 requests at `minGapMs` 6,000 confirmed **45 of 45**: redirect 19, disambiguation 12, ballot 13, ballot-prefix 1. It equals the recorded run row for row, so the write was pre-cleared as ruled.
+- **The write** (`--write --plan`, 00:04:45Z) wrote **45**, CA-14's Wahab (`W000832`) in the minimal row the repair creates.
+- **The one-process re-read** read **45 of 45** (UNREAD 0) and wrote 163 rows, smallest gap **6,001 ms**. `general_ballot` rows carrying a bioguide moved **343 → 388**.
+- **The one authorized POST** of `/api/cron/race-challengers` wrote `cron_runs` **#20631** (00:09:53Z, `success`, 657 ms): 549 rows over 450 races, all `harvest:general_ballot`. **`incumbentRoutes` identity 362, underline-surname 0, none 94** (41 → 0). The curated divergence is S-GA's Dooley alone.
+- **The reading.** Tied by identity:
+  - TX-37's Casar `C001131`;
+  - UT-02's Moore `M001213`;
+  - UT-04's Kennedy `K000403`;
+  - S-ME's Collins `C001035`;
+  - S-AK's senator `S001198`.
+  **No underlined printed row on prod is left without a bioguide.** `/race/TX-37-2026`, `/race/UT-02-2026` and `/race/UT-04-2026` link Casar, Moore and Kennedy to their member pages (1440, reduced motion, stylesheets 200, 0 page errors).
+- **Reconcile on `main`:** 260 / 306 / 566, control 0.
+- **The standing alarm now reads 0.** A nonzero `underline-surname` in any later harvest payload is the next stale title.
+- Evidence (repo-ignored): `docs/handoffs/751-artifacts/`.
+
+**STEP 0**, read-only, saved under `docs/handoffs/752-artifacts/` (repo-ignored). Every cited anchor held at `d25e6c8`. The newest committees `success` was **#20630** (2026-09-28T00:00:49Z): bills `cursorStart` 2026-09-24T15:45:34Z, `cursorEnd` 2026-09-25T17:23:25Z, 200 processed, `deadlineHit` true, 0 fetch errors. **One drift, the handoff's error (ruled 2026-09-28; no line):** the meetings stats sit at `$.payload.meetings.*` as the handoff says, but `perChamber` carries only `collected`, `processed` and `cursorEnd`. `fetchErrors` and `deadlineHit` are meetings-level, not per chamber. Local egress to `api.congress.gov` returned 200.
+
+**The rows the reading follows**, read before and after it (2026-09-28, 01:46:00Z and 01:47:45Z, between ticks), unmoved:
+- `committee_bills_sync_cursor` 2026-09-25T17:23:25Z;
+- `meeting_sync_state` house 2026-09-25T18:34:00Z, senate 2026-09-26T02:08:23Z;
+- the newest `/api/cron/committees` row #20630 and `/api/sync` row #20627, both `success`.
+
+The instrument's sha256, `50c26f27e998`, is printed in both the controls header and the reading header.
+
+**The reading.** It is a reading of the payloads, not a proof of mechanism.
+
+**Bills.**
+- 17,773 in the walked set at or below the cursor; 203 pending above it.
+- **103 with no `committee_bills` row, and every one is `lost`:** its endpoint lists a committee with a `systemCode`. 0 `empty`, 0 `error`, no sample needed.
+- **Each of the 76 with a holding tick was listed when that tick ran.** Its first committee activity predates the tick's start, so "walked while empty, never re-walked" would need upstream publication lag. The 27 unattributed have no holding tick to read against.
+- **Lost bills by path:**
+
+  | Path | Bills | Ticks and notes |
+  |---|---|---|
+  | truncation | 14 | `#15440`, `#15943`, `#18771`, `#19897`. Each tick stopped on `deadlineHit`, and each bill's U is that tick's `cursorEnd`. |
+  | failure | 17 (candidates) | `#1432`, `#2643`, `#2759`, `#4389`, `#8868`, `#9353`. Their `fetchErrors` sum to 10, so at most 10 of the 17 are the failed fetch. |
+  | race | 45 | 15 strictly inside a clean tick, the handoff's race: `#4263`, `#4503`, `#5551`, `#7941`, `#8401`, `#9842`. 30 strictly inside a deadline-stopped tick with no fetch errors: `#2985`, `#3223`, `#4627`, `#4982`, `#5791`, `#7812`, `#8986`, `#18170`. The four paths don't name that shape. The loop breaks only before starting a bill and counted no error, so this is consistent with no select holding them. 0 at a clean tick's `cursorEnd`. |
+  | unattributed | 27 | 19 at or below the first success tick's `cursorStart` (#51, 2026-05-27T09:08:28Z). 8 in the gap between #737 and #1432, which the cursor crossed with no `success` row. The rows there are `timeout` ticks #772, #877, #992 and #1098 and error #1319, and the 2026-07-09T00:00 slot has no row. |
+
+- **The failure ticks' logs are outside the runtime-log window.** The logs API refuses queries for 2026-08-13, 08-14 and 08-20 (#9353, #9596, #11138) with `ExceedsBillingLimitError`, which is a refusal, not a zero. So the 17 stay candidates, and the window's edge lies between 08-20 and 09-23.
+- **The three fetch-error ticks after 2026-08-20 each name their failed bill,** and each window's control (the tick's own `[committees] bills:` line) came back. None of the three is a candidate:
+  - `119-hr-10385` (#19393): one row, last written 2026-09-18. It lacks nothing today.
+  - `119-hr-3857` (#19897): its five rows are still stamped 2026-05-27. It lacks two `sseg00` activities, "Reported By" 2026-09-17 and "Markup By" 2026-06-10, both at or before its stored `update_date` 2026-09-23T04:53:20Z. The cursor is past it. **This confirms the line's undercount.**
+  - `119-hr-9174` (#20384): one row from 2026-06-09. It lacks nothing today.
+- **Failed fetches the candidate count cannot see.** Over every `success` tick there were 36 failed fetches in 22 ticks. The candidates can account for at most 11 without the logs, and 10 once the three log reads are counted. So at least 25 (26) fell outside the candidates their own tick holds, **if** no failed bill's `update_date` has since moved into another tick's range at or below the cursor; U history isn't kept, so that isn't read. The rest fell on a bill with rows already, one walked again since, or one moved above the cursor. The floor with no condition is the three the logs name, all bills with rows, so a repair keyed to no-row bills misses at least those. 15 fetch-error ticks hold no candidate at all.
+
+**The stale class** (a seeded 200 walked bills with rows):
+- 3 bills stale, 3 activities missing;
+- 0 of them at or before the stored `update_date`;
+- **3 after it**: `119-hr-5439`, `119-s-3617` and `119-sres-768`.
+Each bill's own detail puts its upstream date ahead of the stored one and below `/api/sync`'s watermark (2026-09-27T11:03:26Z): 2026-09-22, 2026-07-30 and 2026-08-10 against 06-24, 03-24 and 06-13. That is the older-tail drop's shape: `/api/sync`'s frontier, not this cursor's. The sample expects about 0.41 of the failed-fetch bills, so its at-or-before 0 does not bound the failure path; the log-named bills read that side directly.
+
+**Meetings**, classified from the saved lists, every page:
+
+| | House | Senate |
+|---|---|---|
+| Listed | 1,611 of an upstream count of 1,611 | 1,128 of 1,128 |
+| `current` | 1,611 | 1,124 |
+| `older` | 0 | **4** |
+| `newer` | 0 | 0 |
+| `missing` | 0 | 0 |
+| Pending above the watermark | 0 | 0 |
+
+- Ties at page boundaries were re-read in centred windows (House 1250; Senate 500, 750, 1000). That recovered Senate **337725**, which offset paging had skipped while it repeated 337641 at 1-based 500 and 503. The Senate's main pages alone carried 1,127 unique ids.
+- **The 4 Senate `older` events** are 338704, 338668, 338667 and 338681. Each is a later update passed over, inside the line's meetings mechanism. Three sit in ties of three: 338704 at 2026-08-04T22:08:26Z, and 338667 and 338681 at 2026-07-21T23:23:22Z. The fourth, 338668, is alone at 23:23:23Z, one second later.
+- **List-versus-detail `updateDate`:** 104 of 104 agree (50 `current` sampled per chamber, plus the 4 `older`).
+- **The 19 stored rows the lists don't carry** (House 2, Senate 17) each return HTTP 404 on their detail: Congress.gov deleted them.
+
+**The census, over the walked set.**
+- **Same-`update_date` groups:** 1,750 (6,265 bills, largest 134); 1,724 at or below the cursor (6,119, 134) and 26 above (146, 40). A group is one timestamp, so the parts sum.
+- **Last 30 days:** 43 `success` and 17 `error`. Of the 43, 29 had `deadlineHit`, 0 stopped at the 500 limit, and 3 had `fetchErrors`.
+- **All time:** 171 `success`, 30 `error`, 8 `timeout`.
+  - The 30 `error` ticks: 29 read "The operation was aborted due to timeout", and one (#6279) was a Turso read block.
+  - The 8 `timeout` ticks (#772 to #3094) read "cron soft timeout".
+  - Each of the four gaps between consecutive success ranges (all in July) holds `timeout` ticks; the first also holds error #1319 and the 07-09T00:00 slot with no row. Every other `error` tick sits between contiguous success ranges, so it moved no cursor.
+- **Slots with no row:** since #772, the first 00:00 run, two 12-hour slots have no committees row at all: 2026-07-09T00:00 and 2026-07-25T00:00.
+- All non-success rows are named in `ticks.csv`, with their error messages.
+
+**The controls, on a `file:` copy seeded with only the rows the probe reads, each read unperturbed then perturbed, all green** (sha256 `50c26f27e998`, 12 GETs, smallest gap 201 ms). The perturb step refuses any scheme other than `file:` and printed `file:` each time.
+- (1) A planted lost bill (`119-s-485`'s rows deleted): candidates 103 → 104, and that bill `lost`.
+- (2) The pending boundary (`119-hr-4211` moved one second above the cursor): candidates 104 → 103, pending 203 → 204, walked 17,773 → 17,772.
+- (3) A planted stale activity: `119-hr-6963`, at 1-based position 13 of the stale sample drawn before (1). Missing 0 → 1, naming `ssva00` "Referred To" 2026-07-16T16:00:35Z.
+- (4) A deleted and an aged House meeting row, read from the saved list with no refetch:
+  - `missing` 0 → 1, then `lost` on its detail;
+  - `older` 0 → 1.
+- (5) Attribution on synthetic ticks. Clean ticks give `race`. Built as they were, they give `truncation`, `failure`, `race` and `unattributed`. The race and unattributed splits each read right. A hole with success ticks on both sides names both neighbours and exactly the unread ticks between. The failure bound and the fetch tally read as built.
+- (6) Beyond the five, network-free:
+  - `lost`, `empty` and `error` for a bill, and a 21st committee kept beyond page 1;
+  - `lost`, `null-detail` and `error` for a meeting;
+  - a list that repeats one event and skips another reads INCOMPLETE until its recovery window;
+  - the reader refuses `WITH … DELETE`.
+
+Control (1)'s verdict was picked, not planted: its bill's endpoint had already read `lost`. Control (4) chose an event from `current`, whose stored row shows the detail existed. Check 6 is what can catch a classifier that over-reports `lost`.
+
+**Flagged outside the line's mechanism, then ruled (2026-09-28).** Apart from the drift, each is filed at the head of OPEN LOOPS as its own line.
+- **The page-1 cut**, its own line, Code, medium. A bill's committees endpoint pages at 20, and the sync reads page 1 only (`lib/committees-sync.ts:188-193`). 14 119th bills list 21 committees; the 13 with rows store 20, and candidate `119-hr-9821` lists `hsif00` on the next page. Neither a keyset cursor nor a retry set reaches it. Its close is the walk following the next page, with a leg against a two-page bill, **and a repair leg (second ruling):** the 14 bills that list 21 re-walked to their full lists, and the count of bills below the cursor stored short of their endpoint's total then reading 0 (14 today).
+- **`/api/sync`'s frontier**, filed as its own line, Code, low, **because no live line owns the older-tail drop.** The `/api/health` line names the drop in its route split but closes on `/api/health`, and WATCH *`/api/sync` heavy-cron soft-timeouts* is about timeouts. The line carries the three sampled bills, each with its upstream date ahead of the stored one and below the watermark. **Its close gains a measurement and a repair sized to it (second ruling):** after the fix, the bills stored behind Congress.gov are counted and re-synced, and the count reads 0. The line records that a full count is within reach from the bill list (about 74 pages), and that a paced sample of 200 is the reading only if the fix HO finds it can only sample.
+- **19 stored meeting rows the upstream list no longer carries**, its own line, Code, low. 18 are past and 1 is future (338786, 2026-09-30), all stored `Scheduled`. Every detail returns HTTP 404, and nothing in the code deletes a `committee_meetings` row. The class dates from HO 717: 14 of the 19 are its `gone_upstream` 14, by id (detail 404 on 2026-09-12, `717-artifacts/ff-backfill-run2.out.txt:17`), and 5 are new since (338752, 338753, 338759, 338764, 338786). Its close is a decision, then the build.
+- **Offset paging at a tie**, its own line, Code, medium. The Senate list repeated 337641 and skipped 337725 at the offset-500 boundary. Its remedy rides the meetings half of the committees-cursor line's remedy.
+- **The STEP 0 payload drift** is the handoff's error, named above; no line.
+
+**The architect's second ruling (2026-09-28): a close repairs what's already damaged.** Neither of the first two closes as first ruled repaired the damage the defect had already done: the 13 bills at 20 of 21, and the bills already stored behind. The rule, stated in both lines' close notes and here so it outlives this HO: **a fix's close either repairs the damage the defect already did or files the residual as its own line in the same docs commit; it never leaves a silent leftover.** The rest stands as landed: the 3-bill unconditional floor, the log window's edge read at 08-20, and 76 of 103 as the checkable count.
+
+**Departures and extras, each named.**
+- (1) **Page 2 of a bill's committees** is read where the endpoint pages, and reported apart. Page 1, the sync's view, decides every verdict.
+- (2) **Tie recovery on the meetings lists**: one centred window per boundary inside a tie, 4 GETs. "Complete" means the unique ids equal the upstream's own `pagination.count`.
+- (3) **`race` is reported in three parts.** The handoff's four paths don't name the early-inside shape.
+- (4) **Extras in the reading:**
+  - the unattributed split;
+  - the per-tick failure bound;
+  - the failed-fetch tally over every success tick, with and without the log reads;
+  - each lost bill's first committee activity against its holding tick's start;
+  - the stale sample's reach;
+  - the stored-not-listed counts;
+  - both sides of the census;
+  - the slots with no row;
+  - `error_message` in `ticks.csv`.
+- (5) **Check 6** runs beyond the five controls, and control (5) gained the two-sided hole, the bound and the tally.
+- (6) **`--log-failed`:** the instrument takes the bills the runtime logs name (`bill@tick`) and reads each against its rows and its endpoint. Every logs-API read, six windows, is saved verbatim in `runtime-logs-752.txt`.
+- (7) **Detail reads:** each stale bill's own detail (3 GETs, the sync's detail shape), and each stored-not-listed meeting's detail (19 GETs).
+- (8) **Four earlier prod readings, all superseded, sent only `SELECT`s:**
+  - 00:31Z, before the review, under a reader that also admitted `WITH`;
+  - 01:05Z, after round one;
+  - 01:24Z, after round two;
+  - an hr-3857 one-off: two `SELECT`s and one GET.
+  The cursor, the watermarks and the newest rows read the same at 00:31Z, 01:05Z, 01:24Z and 01:46Z. Each run overwrote the reading, so only the last one's before and after lines are on file; the earlier ones stand in the session.
+
+**The GET budget:**
+- the reading, 449 of 1,000 at a 200 ms minimum gap, none cut, no 429;
+- the controls, 12;
+- STEP 0's one egress GET;
+- the superseded runs, 11 + 419, 12 + 424, 12 + 427 and 1.
+
+A grep for the key parameter over the data artifacts (logs, CSVs, saved lists, readings, the copy) reads 0, beside a control (the same log plus one planted line) that reads 1. Three helpers carry the string: two scripts' `${key}` template, and the one-off that re-encoded the reviewers' quotes of it in `review2-752.json` and `review3-752.json` (as a JSON escape; the parsed content is unchanged).
+
+**What the review caught before the diff was shown.** Three adversarial read-only rounds.
+- **Round one:** four dimensions, each finding checked by a skeptic. 18 confirmed, 5 refuted. What it caught:
+  - `race` took in 30 early-stopped bills with text that said "no early stop";
+  - the committees GET read page 1 only;
+  - the Senate list was labelled complete one event short;
+  - the census label left out the cursor bound;
+  - failures on bills with rows were invisible;
+  - the reader admitted `WITH`;
+  - the verdicts of controls (1) and (4) were pre-selected;
+  - control (3)'s sample shifted after control (1)'s delete;
+  - the artifacts on file came from an earlier script.
+- **Round two** checked the fixes against the final artifacts. What it caught:
+  - two more fetch-error ticks inside the log window (#19393, #20384), now read;
+  - the log-informed tally (10 and 26, beside 11 and 25);
+  - "no select held them", which a walked-while-empty bill would also fit (now read by first activity against tick start);
+  - a false "the parts need not sum" label;
+  - the 07-09 slot with no row inside the hole;
+  - the hr-3857 facts sitting in no artifact;
+  - a 0-based position;
+  - control (4)'s wording;
+  - stale counts that compared raw against distinct;
+  - the Senate's unique ids credited to its main pages.
+  All are fixed above.
+- **Round three** checked the docs diff and the final instrument changes. 15 confirmed, 1 refuted. What it caught:
+  - item 4's close could pass without the fix (now it starts the tie with no rows);
+  - item 3's never-done instrument didn't read `meeting_status` (now a `SELECT` of the 19);
+  - item 2 blamed `/api/sync` without the bills' upstream dates (now read: all three ahead and below the watermark);
+  - the tally's 25 was a floor only under a condition (now stated, with the unconditional 3);
+  - "each of the 103" covered 76;
+  - the log window's edge was assumed (now read: 08-14 and 08-20 refused too);
+  - `:364` for the write (now `:408`);
+  - the 19 rows were read without their details (now: 19 of 19 404, the HO 717 class);
+  - the residual each close leaves (named in the lines, and put to the architect);
+  - STEP 0's GET left out of the budget;
+  - two why-strings that overstated (fixed in the bytes);
+  - a "below" that meant "above".
+  Both modes were re-run on the final script.
+
+**Docs (HO 752):**
+- This block, with HO 751's post-FF reading.
+- **backlog 5+/1−.** Four lines are filed at the head of OPEN LOOPS by the ruling: the page-1 cut, `/api/sync`'s frontier, the 19 meeting rows, and offset paging at a tie. *The committees cron's bills cursor moves past a bill whose fetch or write failed…* (HO 744) is annotated in place with the reading, the rows it follows, the controls, the four Senate events passed over, and the 36 failed fetches: at least 25 invisible to the candidate count if no failed bill's `update_date` has since moved, and 3 with no condition. Its one deletion is the line's prior text, kept whole. It stays open.
+- **No SKILL change.**
+- **OPEN LOOPS reconciled: 260 live / 306 struck at open (566 total), 264 / 306 at close (570)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 752.**
