@@ -3516,3 +3516,83 @@ The first `HEAD` run, on the driver before the review (`af15980475`, and `a9db35
   - flagged, four claims gone false: `:91`'s rollover seam and the committees entry's, the health registry's count, the `meetings` flush path.
 - **OPEN LOOPS reconciled: 264 live / 306 struck at open (570 total), 261 / 310 at close (571)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 754.**
+
+**Also (HO 755), two comment-only closes: the kalshi chamber-control comment says what the code does, and every cron header names the trigger `vercel.json` actually has.** Two commits, kinds unmixed: `chore` · `docs`. There is no `docs(skill)` commit (STEP 0 item 4, below). No behaviour changes. The pointer is 755 by plain arithmetic: pointer 754, highest HO in commit subjects 754, `main` at `6302325`.
+
+**HO 754's post-FF reading** (its FF go; `docs/handoffs/754-artifacts/`, repo-ignored).
+- **Item 1:** `6302325` docs(HO 754) on the ref: oddities +12/0 and method.md § Environment +1/0 (*Preview reads prod's database…*).
+- **Item 2:** `npm run migrate` on prod, 20:50:05Z to 20:50:21Z, exit 0. It printed `ok: CREATE TABLE IF NOT EXISTS committee_meeting_walk_state (` and `added column committee_meetings.absent_upstream_at`, and a read-back found both.
+- **Item 3:** the Preview e2e on the head (#36482022962, started after the migrate), `narrow-preview` 82 of 82. The run before the migrate (#36477765544, at `ae971cf`) read 38 of 82 failed, every one a 500 on `no such column: absent_upstream_at`.
+- **Item 4:** `main` was at `0263059` and the head descended from it. `0263059..6302325` was pushed with no force, `754-review` deleted, and local `main` forwarded to `6302325a19e4e5d8dda6df5fc08481ff915910cb`.
+- **Item 5:** `verify:deploy` read five consecutive reads of `6302325`, the first match at 41s. Production `e2e-prod` #36482540511 succeeded, smoke 140 passed.
+- **Item 6:** one authorized POST, 21:02:07Z, HTTP 200. Cron run #20863, `success`, 16.2s, `stopReason complete`:
+  - pages: House 8, Senate 5; lists complete at 1,611 and 1,128;
+  - refreshed 7, unchanged 2,732, remaining 0, failed 0, `gaveUp` 0;
+  - absent stamped 19 (exactly HO 752's ids), cleared 0, refused 0.
+  The 7 refreshed are the Senate 4 (338704, 338668, 338667, 338681), the House 2 (118152, 119549), and 338795, which Congress.gov updated at 20:08:19Z, after STEP 0.
+- **Item 7:** the 752 instrument, `--only meetings --meetings table`:
+  - House 1,611 current, Senate 1,128 current; older 0, newer 0, missing 0; the null-detail set is 0;
+  - the 19 marked (House 2, Senate 17), each detail still a 404, and listed-yet-marked 0;
+  - list and detail agree 50 of 50 in each chamber, and the walk state is empty;
+  - 135 GETs; the rows it follows did not move.
+  Its own offset read of the Senate list met HO 752's tie again (337641 repeated, 337725 recovered by its tie window), so the old paging's loss still reproduces on today's list.
+- **Item 8:** `/hearings` on Production (200) carries neither 338786 nor any of the other 18, and the next three upcoming events render. The band on `/` (read with the `ct_seen` cookie; an anonymous `/` redirects to `/welcome`) shows HEARINGS 16. At the same instant the window reads 18 without the absent filter, which is the previous reader. The prior week reads 56, 58 without the filter.
+- **Item 10:** reconcile on `main` 261 / 310 / 571, control 0. `/api/health` read 200 and healthy on all 19 routes.
+
+**Not in yet: the four scheduled ticks.** They are committees at 00:00Z and 12:00Z and committee-meetings at 00:50Z and 12:50Z, all on 2026-09-29. HO 753's two tick readings are the same two committees ticks. Session check-ins read them SELECT-only into `docs/handoffs/753-artifacts/tick1-753.txt` and `tick2-753.txt`, and into `docs/handoffs/754-artifacts/meetings-tick1-754.txt` and `meetings-tick2-754.txt` (scripts: `ticks-read-753.ts`, `run-read-754.ts <sinceISO>`). The reading is carried in this HO's FF-go paste, or in the next roadmap block if it lands later.
+
+**STEP 0** (prod `SELECT`s only; `docs/handoffs/755-artifacts/`, repo-ignored).
+- **The line's two greps, red at `6302325`.**
+  - The first reads 6 lines over 5 files: committees `:20`, kalshi `:4` and `:5`, markets `:7`, news `:10` and `lib/kalshi.ts:8`.
+  - The second lists 1 of 5 files (committees).
+- **Two premises of the handoff were wrong, flagged.**
+  - `app/api/cron/news/route.ts` still matched ("Schedule: 14:00"): HO 754 never touched the file.
+  - The committees header matched on its own history note, which quotes the retired "11:30 UTC daily", so the close grep could not read 0 without rewording it. That header was rewritten at HO 753, not HO 754.
+- **SKILL, the same phrases: 4 hits (`:1220`, `:1284`, `:1286`, `:1961`), none stale.** Each names the retired workflows as retired: "HO 475-migrated from the old `kalshi-tick.yml`", the HO 475 migration note, and the HO 313 lesson about `markets-tick`. Following the handoff's rule, "no SKILL change unless SKILL carries the same stale phrases", there is no `docs(skill)` commit.
+- **The kalshi measurement, never run before: 0 of 1,161 `success` rows wrote a JSON null on either chamber** (2026-06-07 to 2026-09-28).
+  - 1,158 rows carry both chamber keys. The other 3 are the first ticks on 2026-06-07, before HO 219 added chamber control.
+  - The route has no `timeout` rows, and its 2 `error` rows (2026-07-31) were Turso's plan block, not the chamber write.
+  - The current blob prices both chambers (updated 20:15:35Z).
+
+**The change, comments only** (`chore`, 9 files).
+- **Each of the five files names `vercel.json` and states its schedule from it:**
+  - kalshi: `15 */2 * * *`, a native Vercel cron since HO 475;
+  - markets: the bare `0 */4` (a Vercel cron since HO 314, `30 21` daily until HO 475, every symbol six times a day) and `?source=fmp` on `0,30 13-21 * * 1-5` (added at HO 475, the seven FMP symbols: two indices, five stocks);
+  - news: `*/30`, with the entries that share its :00 and :30 named where the old text claimed a clean slot;
+  - `lib/kalshi.ts`: `15 */2`;
+  - committees: its history note reworded so it no longer quotes the retired phrase.
+  The workflow names, "Hobby", "once daily" and "not Vercel cron" are gone.
+- **The line's other named sites:**
+  - markets `:112-114` now says what the two entries do (`:109-111` stays as history);
+  - `scripts/migrate.ts:290` and `:515-516`;
+  - `app/api/cron/lda/route.ts:18-19`: the minute it shares with summarize, news and the bare markets;
+  - `app/api/cron/weekly-report/route.ts:14-16`: named by the line, left out of the handoff's list, and included here.
+- **The kalshi comment (`app/api/cron/kalshi/route.ts`, over the chamber-control upsert) says what the code does** and why it was ruled that way.
+
+**Departures, each named.**
+- (1) **`app/api/cron/committees/route.ts:20-21` reworded.** Its history note quoted the retired phrase, so the close grep required it.
+- (2) **`app/api/cron/weekly-report/route.ts` included:** the line names it, the handoff's list omits it.
+- (3) **`app/api/cron/rating-history/route.ts:1-5`, found by the sweep.** It named news at 14:00 and a GitHub Actions path, and this change would otherwise leave it contradicting the news header.
+- (4) **The review found a wider class, which is filed, not fixed.** Comments call `/api/sync`, summarize, committees and primaries daily, and one ties the weekly report's UTC math to a 09:00 tick: 20 lines over 10 files at `6302325`. I had corrected one of them (`lib/queries.ts:437`) and reverted it rather than fix one of five sites in that file. The class is filed as a new OPEN LOOPS line, so the close reconciles at 260 / 312 / 572, not the handoff's 259 / 312 / 571.
+- (5) **History left standing.** The past-tense Hobby function-ceiling and log-window rationale stays: `app/api/cron/primaries/route.ts:4`, `lib/cron-log.ts:1`, `lib/primaries-sync.ts:18` and `scripts/migrate.ts:494`. So does HO 172's history at markets `:109-111`.
+
+**The close, read at the ref.**
+- The first grep reads **0 lines**, and the second lists **all five files**.
+- The control: a stale phrase planted in scratch copies of the five files reads 1, against 0 unplanted (`git grep --no-index`, a git-ignored scratch folder).
+- The kalshi comment is checked by reading, and the paste-back quotes it whole.
+
+**The review before the diff was shown.** A read-only fact check of every new comment against `vercel.json`, the code and git: two checkers, each with a skeptic.
+- **Confirmed in the new text, and fixed:**
+  - the bare markets entry dated to HO 475 instead of HO 314;
+  - `?source=fmp` called "the index symbols" in two places (it fetches two indices and five stocks);
+  - the kalshi comment crediting the unpriced read's null to the per-chamber catch. It is `readControl`'s own null.
+- **Plausible and fixed:** the news header's `:00` list left out sync-race-ratings and `?source=fmp`.
+- **Refuted:** the ruling's attribution (the ruling entered at HO 747's docs commit, `5dbfe0a`, on 2026-09-25).
+- **The coverage pass:** it confirmed the two greps and the red at `6302325`, and it found the wider class filed above and the rating-history header.
+
+**Docs (HO 755):**
+- This block.
+- **backlog 3+/2−.** Both lines are struck, each keeping its whole prior text: *The kalshi cron's comment says…* on (1), checked by reading, with the measurement; and *The kalshi and committees cron route headers…* on its close. One line is filed at the head of OPEN LOOPS: *Comments across `app`, `lib` and `scripts` still call sub-daily crons daily…*.
+- **No SKILL change.**
+- **OPEN LOOPS reconciled: 261 live / 310 struck at open (571 total), 260 / 312 at close (572)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 755.**
