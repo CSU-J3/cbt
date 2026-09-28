@@ -1,8 +1,13 @@
 // HO 752: has the committees cursor lost anything? A READ-ONLY probe of the
 // bills cursor and the two meetings watermarks, with Congress.gov as the authority.
 //
-//   npx tsx scripts/diagnostic/committees-cursor-752.ts --controls   # the five controls, on a file: copy
+//   npx tsx scripts/diagnostic/committees-cursor-752.ts --controls --out <dir>   # the controls, on a file: copy
 //   npx tsx scripts/diagnostic/committees-cursor-752.ts --prod       # the prod reading
+//     [--key cursor|changed_at]          HO 753: `cursor` (default) keys the candidates on the
+//                                        committee_bills_sync_cursor; `changed_at` keys them on the
+//                                        per-bill walk (committees_walked_at IS NULL OR < changed_at)
+//     [--db <file:…|libsql:…>]           read this database instead of TURSO_DATABASE_URL (a legs copy)
+//     --out <dir> [--only bills]         artifacts to <dir> (required; never 752-artifacts); bills and census only
 //     [--log-failed=<bill>@<tick>,...]   the bills the runtime logs name as a tick's
 //                                        failed fetch, read inside the logs window
 //
@@ -61,6 +66,8 @@ const STALE_SAMPLE = 200;
 const AGREE_SAMPLE = 50;
 const SEED = 752;
 const S = (v: unknown) => (v == null ? null : String(v));
+// HO 753: walked and not owed since (the complement of lib/committees-sync.ts's OWED).
+const WALK_CURRENT = "b.committees_walked_at IS NOT NULL AND (b.changed_at IS NULL OR b.committees_walked_at >= b.changed_at)";
 const NOT_FETCHED = "not fetched";
 // Binds every output to the bytes that produced it.
 const SCRIPT_SHA = createHash("sha256").update(readFileSync(process.argv[1]!)).digest("hex").slice(0, 12);
@@ -151,8 +158,22 @@ const billKeyOf = (r: ResultSet["rows"][number]): BillKey => ({ id: String(r.id)
 export async function readCursor(read: Read) {
   return String((await read(`SELECT value FROM dashboard_state WHERE key = 'committee_bills_sync_cursor'`)).rows[0]?.value ?? "1970-01-01T00:00:00Z");
 }
-export async function billsSets(read: Read) {
+export type Key = "cursor" | "changed_at";
+export async function billsSets(read: Read, key: Key = "cursor") {
   const cursor = await readCursor(read);
+  if (key === "changed_at") {
+    // HO 753: the walk's own selection (lib/committees-sync.ts selectBillsToWalk), every bill owed a
+    // walk, the given-up ones included and counted apart. The walk predicate runs before json_extract.
+    const all = (await read(`SELECT COUNT(*) AS n FROM bills WHERE congress = ? AND json_extract(raw_json, '$.committees.count') > 0`, [CONGRESS])).rows[0]!;
+    const owed = (await read(
+      `SELECT b.id, b.update_date, b.bill_type, b.bill_number, COALESCE(b.committee_walk_failures, 0) AS f FROM bills b
+        WHERE b.congress = ? AND (b.committees_walked_at IS NULL OR b.committees_walked_at < b.changed_at)
+          AND json_extract(b.raw_json, '$.committees.count') > 0
+        ORDER BY (b.changed_at IS NULL), b.changed_at, b.id`,
+      [CONGRESS],
+    )).rows;
+    return { cursor, walked: Number(all.n ?? 0), pending: 0, candidates: owed.map(billKeyOf), gaveUp: owed.filter((r) => Number(r.f) >= 5).length };
+  }
   const counts = (await read(
     `SELECT SUM(CASE WHEN update_date <= ? THEN 1 ELSE 0 END) AS walked, SUM(CASE WHEN update_date > ? THEN 1 ELSE 0 END) AS pending
        FROM bills WHERE congress = ? AND json_extract(raw_json, '$.committees.count') > 0`,
@@ -166,7 +187,7 @@ export async function billsSets(read: Read) {
       ORDER BY b.update_date, b.id`,
     [CONGRESS, cursor],
   )).rows.map(billKeyOf);
-  return { cursor, walked: Number(counts.walked ?? 0), pending: Number(counts.pending ?? 0), candidates };
+  return { cursor, walked: Number(counts.walked ?? 0), pending: Number(counts.pending ?? 0), candidates, gaveUp: 0 };
 }
 export const billPath = (b: BillKey) => `/bill/${CONGRESS}/${b.type}/${b.number}/committees`; // lib/committees-sync.ts:189
 type Committee = { systemCode?: string; name?: string; activities?: { name?: string; date?: string }[] };
@@ -199,7 +220,9 @@ export async function resolveBill(g: Getter, b: BillKey): Promise<Resolved> {
 }
 
 // ── 3. attribution, pure ───────────────────────────────────────────────────
-export type Tick = { id: number; status: string; started_at: string; error?: string | null; bills: { cursorStart: string; cursorEnd: string; billsProcessed: number; deadlineHit: boolean; fetchErrors: number } | null };
+export type Tick = { id: number; status: string; started_at: string; error?: string | null; bills: { cursorStart: string; cursorEnd: string; billsProcessed: number; deadlineHit: boolean; fetchErrors: number } | null;
+  // HO 753: a per-bill walk tick has no cursor range; its stats are read apart, so attribution stays cursor-era only.
+  walk?: { billsProcessed: number; billsWalked: number; deadlineHit: boolean; capHit: boolean; rateLimited: boolean; fetchErrors: number; failed: number; gaveUp: number; remaining: number } | null };
 export type Path = "truncation" | "failure" | "race" | "unattributed";
 // race's parts: the handoff's race is U strictly inside a CLEAN tick's range
 // (clean-inside). Two shapes it does not name also land there, each kept apart:
@@ -257,27 +280,32 @@ export async function readTicks(read: Read): Promise<Tick[]> {
   const rs = await read(`SELECT id, status, started_at, payload, error_message FROM cron_runs WHERE route = '/api/cron/committees' ORDER BY id`);
   return rs.rows.map((r) => {
     let bills: Tick["bills"] = null;
+    let walk: Tick["walk"] = null;
     if (r.status === "success" && r.payload) {
       try {
         // lib/cron-log.ts:166 wraps the route's payload: {ok, elapsedMs, payload}
-        const b = (JSON.parse(String(r.payload)) as { payload?: { bills?: Tick["bills"] } }).payload?.bills;
+        const b = (JSON.parse(String(r.payload)) as { payload?: { bills?: Record<string, unknown> } }).payload?.bills;
         if (b && b.cursorStart != null && b.cursorEnd != null) bills = { cursorStart: String(b.cursorStart), cursorEnd: String(b.cursorEnd), billsProcessed: Number(b.billsProcessed ?? 0), deadlineHit: !!b.deadlineHit, fetchErrors: Number(b.fetchErrors ?? 0) };
+        else if (b && b.billsWalked != null) walk = { billsProcessed: Number(b.billsProcessed ?? 0), billsWalked: Number(b.billsWalked), deadlineHit: !!b.deadlineHit, capHit: !!b.capHit, rateLimited: !!b.rateLimited, fetchErrors: Number(b.fetchErrors ?? 0), failed: Number((b.failed as { count?: number } | undefined)?.count ?? 0), gaveUp: Number((b.gaveUp as { count?: number } | undefined)?.count ?? 0), remaining: Number(b.remaining ?? 0) };
       } catch { /* a malformed payload stays null and cannot attribute */ }
     }
-    return { id: Number(r.id), status: String(r.status), started_at: String(r.started_at), error: r.error_message == null ? null : redactSecrets(String(r.error_message)).slice(0, 200), bills };
+    return { id: Number(r.id), status: String(r.status), started_at: String(r.started_at), error: r.error_message == null ? null : redactSecrets(String(r.error_message)).slice(0, 200), bills, walk };
   });
 }
 
 // ── 4. the stale class ─────────────────────────────────────────────────────
-export async function staleSampleOf(read: Read, cursor: string): Promise<BillKey[]> {
+export async function staleSampleOf(read: Read, cursor: string, key: Key = "cursor"): Promise<{ sample: BillKey[]; population: number }> {
+  // HO 753: under the changed_at key the frozen cursor bounds nothing; the sample is the walk-current
+  // bills, since an owed bill's unwalked activities would read as at-or-before stale.
+  const bound = key === "cursor" ? "AND b.update_date <= ?" : `AND ${WALK_CURRENT}`;
   const withRows = (await read(
     `SELECT b.id, b.update_date, b.bill_type, b.bill_number FROM bills b
-      WHERE b.congress = ? AND b.update_date <= ? AND json_extract(b.raw_json, '$.committees.count') > 0
+      WHERE b.congress = ? ${bound} AND json_extract(b.raw_json, '$.committees.count') > 0
         AND EXISTS (SELECT 1 FROM committee_bills cb WHERE cb.bill_id = b.id)
       ORDER BY b.id`,
-    [CONGRESS, cursor],
+    key === "cursor" ? [CONGRESS, cursor] : [CONGRESS],
   )).rows.map(billKeyOf);
-  return sample(withRows, STALE_SAMPLE, SEED);
+  return { sample: sample(withRows, STALE_SAMPLE, SEED), population: withRows.length };
 }
 export async function storedRowsFor(read: Read, ids: string[]) {
   const out = new Map<string, Set<string>>();
@@ -398,7 +426,7 @@ export async function meetingDetail(g: Getter, chamber: string, eventId: string)
 }
 
 // ── 6. the census ──────────────────────────────────────────────────────────
-async function census(read: Read, cursor: string, ticks: Tick[], nowIso: string) {
+async function census(read: Read, cursor: string, ticks: Tick[], nowIso: string, key: Key = "cursor") {
   const groupsOf = async (extra: string, args: InValue[]) => {
     const r = (await read(
       `SELECT COUNT(*) AS groups, SUM(n) AS bills, MAX(n) AS largest FROM (
@@ -417,18 +445,30 @@ async function census(read: Read, cursor: string, ticks: Tick[], nowIso: string)
     sameDateGroups: { walked: await groupsOf("", []), atOrBelow: await groupsOf("AND update_date <= ?", [cursor]), above: await groupsOf("AND update_date > ?", [cursor]) },
     // Zero GETs: walked bills with rows whose stored committees fall short of the
     // bill's own committees.count, which is where page 1's 20-committee cut shows.
+    // HO 753: under the changed_at key there is no cursor to bound it; the whole walked set.
     shortOfCount: (await read(
-      `SELECT b.id, b.update_date, json_extract(b.raw_json, '$.committees.count') AS cc, COUNT(DISTINCT cb.committee_system_code) AS n
+      `SELECT b.id, b.update_date, json_extract(b.raw_json, '$.committees.count') AS cc, COUNT(DISTINCT cb.committee_system_code) AS n${key === "changed_at" ? `, CASE WHEN ${WALK_CURRENT} THEN 0 ELSE 1 END AS owed` : ", 0 AS owed"}
          FROM bills b JOIN committee_bills cb ON cb.bill_id = b.id
-        WHERE b.congress = ? AND b.update_date <= ? AND json_extract(b.raw_json, '$.committees.count') > 0
+        WHERE b.congress = ? ${key === "cursor" ? "AND b.update_date <= ?" : ""} AND json_extract(b.raw_json, '$.committees.count') > 0
         GROUP BY b.id HAVING n < cc ORDER BY b.id`,
-      [CONGRESS, cursor],
-    )).rows.map((r) => ({ id: String(r.id), cc: Number(r.cc), n: Number(r.n) })),
+      key === "cursor" ? [CONGRESS, cursor] : [CONGRESS],
+    )).rows.map((r) => ({ id: String(r.id), cc: Number(r.cc), n: Number(r.n), owed: Number(r.owed) === 1 })),
+    // HO 753, changed_at key only: walked and current (not owed), yet no rows. The endpoint listed no
+    // committee with a systemCode when it was walked; a fault only if its count says otherwise.
+    stampedNoRows: key === "changed_at" ? (await read(
+      `SELECT b.id, b.update_date, b.bill_type, b.bill_number FROM bills b
+        WHERE b.congress = ? AND json_extract(b.raw_json, '$.committees.count') > 0
+          AND ${WALK_CURRENT}
+          AND NOT EXISTS (SELECT 1 FROM committee_bills cb WHERE cb.bill_id = b.id)
+        ORDER BY b.id`,
+      [CONGRESS],
+    )).rows.map(billKeyOf) : null,
     last30: {
       since,
       byStatus: tally(recent),
       success: ok.length,
-      noStats: ok.filter((t) => !t.bills).length,
+      noStats: ok.filter((t) => !t.bills && !t.walk).length,
+      walk: (() => { const w = ok.filter((t) => t.walk); const last = w[w.length - 1]?.walk; return { ticks: w.length, deadlineHit: w.filter((t) => t.walk!.deadlineHit).length, capHit: w.filter((t) => t.walk!.capHit).length, rateLimited: w.filter((t) => t.walk!.rateLimited).length, fetchErrors: w.filter((t) => t.walk!.fetchErrors > 0).length, latestRemaining: last?.remaining ?? null, latestGaveUp: last?.gaveUp ?? null }; })(),
       deadlineHit: ok.filter((t) => t.bills?.deadlineHit).length,
       atLimit: ok.filter((t) => (t.bills?.billsProcessed ?? 0) >= PER_TICK_LIMIT).length,
       fetchErrors: ok.filter((t) => (t.bills?.fetchErrors ?? 0) > 0).length,
@@ -451,11 +491,14 @@ async function census(read: Read, cursor: string, ticks: Tick[], nowIso: string)
 }
 
 // ── the rows a reading follows (read before and after) ─────────────────────
-async function stamp(read: Read) {
-  const cursor = await readCursor(read);
+async function stamp(read: Read, key: Key = "cursor") {
+  const cursor = await readCursor(read); // frozen since HO 753: the walk no longer writes it
   const watermarks = (await read(`SELECT chamber, update_date FROM meeting_sync_state ORDER BY chamber`)).rows.map((r) => `${r.chamber}=${r.update_date}`);
   const newest = (await read(`SELECT route, id, started_at, status FROM cron_runs WHERE id IN (SELECT MAX(id) FROM cron_runs WHERE route IN ('/api/cron/committees', '/api/sync') GROUP BY route) ORDER BY route`)).rows.map((r) => `${r.route}#${r.id} ${r.started_at} ${r.status}`);
-  return JSON.stringify({ cursor, watermarks, newest });
+  // HO 753: the repair writes no cron_runs row, so follow what it and the walk write.
+  const cb = (await read(`SELECT COUNT(*) AS n, MAX(updated_at) AS u FROM committee_bills`)).rows[0]!;
+  const walk = key === "changed_at" ? (await read(`SELECT MAX(committees_walked_at) AS w, COALESCE(SUM(committee_walk_failures), 0) AS f FROM bills WHERE congress = ?`, [CONGRESS])).rows[0]! : null;
+  return JSON.stringify({ cursor, watermarks, newest, committeeBills: [cb.n, cb.u], ...(walk ? { lastWalk: walk.w, failures: walk.f } : {}) });
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
@@ -463,34 +506,46 @@ const csv = (rows: (string | number | null)[][]) => redactSecrets(rows.map((r) =
 
 // ── the prod reading ───────────────────────────────────────────────────────
 async function prod() {
-  mkdirSync(ART, { recursive: true });
-  const url = process.env.TURSO_DATABASE_URL ?? "";
-  if (!url.startsWith("libsql://")) throw new Error("the prod reading expects the prod libsql:// URL");
-  const db = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
+  const argv = (flag: string) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
+  const KEY = (argv("--key") ?? "cursor") as Key;
+  if (KEY !== "cursor" && KEY !== "changed_at") throw new Error(`--key must be cursor|changed_at, got ${KEY}`);
+  const ONLY_BILLS = argv("--only") === "bills";
+  const OUT = argv("--out");
+  const norm = (p: string) => { const r = path.resolve(p); return process.platform === "win32" ? r.toLowerCase() : r; };
+  if (!OUT || norm(OUT) === norm(ART)) throw new Error("the reading needs --out <dir> other than docs/handoffs/752-artifacts, so HO 752's artifacts are not overwritten");
+  mkdirSync(OUT, { recursive: true });
+  const url = argv("--db") ?? process.env.TURSO_DATABASE_URL ?? "";
+  const scheme = url.split(":")[0];
+  if (scheme !== "libsql" && scheme !== "file") throw new Error(`the reading takes a libsql:// or file: URL (got ${scheme}:)`);
+  const db = createClient(scheme === "file" ? { url } : { url, authToken: process.env.TURSO_AUTH_TOKEN });
   const read = readerOf(db);
-  const log = path.join(ART, "requests.log");
+  const log = path.join(OUT, "requests.log");
   appendFileSync(log, `\n=== prod reading ${new Date().toISOString()} ===\n`);
   const g = makeGetter(log);
   const out: string[] = [];
   const say = (s: string) => { const r = redactSecrets(s); console.log(r); out.push(r); };
   const logFailed = (process.argv.find((a) => a.startsWith("--log-failed="))?.slice("--log-failed=".length) ?? "").split(",").filter(Boolean).map((x) => { const [bill, tick] = x.split("@"); return { bill: bill!, tick: Number(tick) }; });
-  const before = await stamp(read);
-  say(`=== HO 752 prod reading · ${new Date().toISOString()} · script sha256 ${SCRIPT_SHA} ===\nbefore: ${before}`);
+  const before = await stamp(read, KEY);
+  say(`=== HO 752 prod reading · ${new Date().toISOString()} · script sha256 ${SCRIPT_SHA} · ${scheme}: · key ${KEY}${ONLY_BILLS ? " · bills only" : ""} ===\nbefore: ${before}`);
 
   // 1-2. bills
-  const bs = await billsSets(read);
+  const bs = await billsSets(read, KEY);
   const cands = bs.candidates.length > CANDIDATE_SAMPLE ? sample(bs.candidates, CANDIDATE_SAMPLE, SEED) : bs.candidates;
   const resolved: Resolved[] = [];
   for (const b of cands) resolved.push(await resolveBill(g, b));
   const n = (v: Resolved["verdict"]) => resolved.filter((r) => r.verdict === v).length;
   // 3. attribution
   const ticks = await readTicks(read);
-  writeFileSync(path.join(ART, "ticks.csv"), csv([["id", "started_at", "status", "cursorStart", "cursorEnd", "billsProcessed", "deadlineHit", "fetchErrors", "error_message"], ...ticks.map((t) => [t.id, t.started_at, t.status, t.bills?.cursorStart ?? null, t.bills?.cursorEnd ?? null, t.bills?.billsProcessed ?? null, t.bills == null ? null : String(t.bills.deadlineHit), t.bills?.fetchErrors ?? null, t.error ?? null])]));
+  writeFileSync(path.join(OUT, "ticks.csv"), csv([["id", "started_at", "status", "cursorStart", "cursorEnd", "billsProcessed", "deadlineHit", "fetchErrors", "error_message"], ...ticks.map((t) => [t.id, t.started_at, t.status, t.bills?.cursorStart ?? null, t.bills?.cursorEnd ?? null, t.bills?.billsProcessed ?? null, t.bills == null ? null : String(t.bills.deadlineHit), t.bills?.fetchErrors ?? null, t.error ?? null])]));
   const attributed = new Map(resolved.filter((r) => r.verdict === "lost").map((r) => [r.id, attribute(r.update_date, ticks)]));
   const byPath: Record<Path, number> = { truncation: 0, failure: 0, race: 0, unattributed: 0 };
   for (const a of attributed.values()) byPath[a.path]++;
-  say(`\nbills: cursor ${bs.cursor} · walked set at or below ${bs.walked} · pending above ${bs.pending} · candidates ${bs.candidates.length}${cands.length < bs.candidates.length ? ` (sampled ${cands.length}, seed ${SEED})` : " (all resolved, no sample)"} · lost ${n("lost")} · empty ${n("empty")} · error ${n("error")}${cut(resolved.map((r) => r.error)) ? ` (cap/stop cut ${cut(resolved.map((r) => r.error))})` : ""} · candidates listing committees beyond page 1 ${resolved.filter((r) => r.beyond.length).length}`);
+  const setHead = KEY === "changed_at"
+    ? `key changed_at (no cursor bound; the frozen cursor ${bs.cursor} shown for reference) · walked set ${bs.walked} · owed ${bs.candidates.length} (given up ${bs.gaveUp})`
+    : `cursor ${bs.cursor} · walked set at or below ${bs.walked} · pending above ${bs.pending}`;
+  say(`\nbills: ${setHead} · candidates ${bs.candidates.length}${cands.length < bs.candidates.length ? ` (sampled ${cands.length}, seed ${SEED})` : " (all resolved, no sample)"} · lost ${n("lost")} · empty ${n("empty")} · error ${n("error")}${cut(resolved.map((r) => r.error)) ? ` (cap/stop cut ${cut(resolved.map((r) => r.error))})` : ""} · candidates listing committees beyond page 1 ${resolved.filter((r) => r.beyond.length).length}`);
   say(`lost by path: ${JSON.stringify(byPath)} (a reading of the payloads, not a proof of mechanism)`);
+  if (KEY === "changed_at") say("  key changed_at: the path lines read the cursor ticks' payloads and do not describe this key's set");
   const subN = (s: RaceSub) => [...attributed.values()].filter((a) => a.sub === s).length;
   say(`  race: strictly inside a clean tick (the handoff's race) ${subN("clean-inside")} · strictly inside an early-stopped tick with no fetch errors (not in the handoff's four; named) ${subN("early-inside")} · at a clean tick's cursorEnd ${subN("clean-at-end")}`);
   const pre = [...attributed.values()].filter((a) => a.path === "unattributed" && a.why.startsWith("U predates")).length;
@@ -514,7 +569,7 @@ async function prod() {
   say(`  failed fetches over all success ticks: ${ft.total} in ${ft.ticks} ticks · candidates (any path) can account for at most ${ft.blind} (log-blind), ${ft.informed} once the log reads are counted · so at least ${ft.total - ft.blind} (log-informed ${ft.total - ft.informed}) fell outside the candidates their own tick holds, IF no failed bill's update_date has since moved into another tick's range at or below the cursor (U history isn't kept) · the rest fell on bills with rows already, walked again since, or moved above the cursor · the floor with no condition is the log-named bills that are not candidates: ${namedWithRows} · fetch-error ticks holding no candidate: ${ft.noCandidate.join(", ") || "none"}`);
   for (const r of resolved.filter((x) => x.verdict === "lost")) { const a = attributed.get(r.id)!; say(`  ${r.id} U=${r.update_date} [${r.codes.join(" ")}${r.beyond.length ? ` + beyond page 1: ${r.beyond.join(" ")}` : ""}] → ${a.path}${a.sub ? `/${a.sub}` : ""}${a.tick ? ` #${a.tick}` : ""}: ${a.why}`); }
   for (const r of resolved.filter((x) => x.verdict === "error")) say(`  error ${r.id}: ${r.error}`);
-  writeFileSync(path.join(ART, "bills-candidates.csv"), csv([["bill_id", "update_date", "verdict", "committees_page1", "committees_beyond_page1", "first_activity", "path", "race_sub", "tick", "tick_started_at", "listed_then", "why", "error"], ...resolved.map((r) => { const a = attributed.get(r.id); const t = a ? ticks.find((x) => x.id === a.tick) : undefined; const lt = a ? listedThen(r) : null; return [r.id, r.update_date, r.verdict, r.codes.join(" "), r.beyond.join(" "), r.firstActivity, a?.path ?? null, a?.sub ?? null, a?.tick ?? null, t?.started_at ?? null, lt == null ? null : String(lt), a?.why ?? null, r.error]; })]));
+  writeFileSync(path.join(OUT, "bills-candidates.csv"), csv([["bill_id", "update_date", "verdict", "committees_page1", "committees_beyond_page1", "first_activity", "path", "race_sub", "tick", "tick_started_at", "listed_then", "why", "error"], ...resolved.map((r) => { const a = attributed.get(r.id); const t = a ? ticks.find((x) => x.id === a.tick) : undefined; const lt = a ? listedThen(r) : null; return [r.id, r.update_date, r.verdict, r.codes.join(" "), r.beyond.join(" "), r.firstActivity, a?.path ?? null, a?.sub ?? null, a?.tick ?? null, t?.started_at ?? null, lt == null ? null : String(lt), a?.why ?? null, r.error]; })]));
 
   // 3b. The bills the runtime logs name as failed fetches (read by the operator
   // inside the logs window and passed as --log-failed=bill@tick,...): each read
@@ -537,10 +592,11 @@ async function prod() {
     say(`  ${x.bill} (#${x.tick}): candidate ${cand} · U ${b.update_date} ${where}${b.update_date > bs.cursor ? " · above the cursor (pending)" : ""} · rows ${info.n}, last written ${info.last ?? "never"} · endpoint ${ep}${fc.beyond.length ? ` · committees beyond page 1 ${codesOf(fc.beyond).join(" ")}` : ""}`);
     for (const m of miss.length ? miss : [null]) lfRows.push([x.bill, x.tick, String(cand), b.update_date, String(inRange), Number(info.n), S(info.last), m?.code ?? null, m?.name ?? null, m?.date ?? null, m?.side ?? null]);
   }
-  if (logFailed.length) writeFileSync(path.join(ART, "log-failed.csv"), csv([["bill_id", "tick", "candidate", "update_date", "u_in_tick_range", "rows", "rows_last_written", "missing_code", "missing_activity", "missing_date", "side"], ...lfRows]));
+  if (logFailed.length) writeFileSync(path.join(OUT, "log-failed.csv"), csv([["bill_id", "tick", "candidate", "update_date", "u_in_tick_range", "rows", "rows_last_written", "missing_code", "missing_activity", "missing_date", "side"], ...lfRows]));
 
-  // 4. stale
-  const staleSample = await staleSampleOf(read, bs.cursor);
+  // 4. stale (skipped with --only bills)
+  if (!ONLY_BILLS) {
+  const { sample: staleSample, population: withRowsN } = await staleSampleOf(read, bs.cursor, KEY);
   const stored = await storedRowsFor(read, staleSample.map((b) => b.id));
   type StaleRow = { b: BillKey; fetched: boolean; error: string | null; expected: number; stored: number; missing: ReturnType<typeof staleOf>; beyond: Activity[] };
   const stale: StaleRow[] = [];
@@ -552,7 +608,7 @@ async function prod() {
     stale.push({ b, fetched, error: f.error, expected: new Set(exp.map((e) => `${e.code}|${e.name ?? ""}|${e.date ?? ""}`)).size, stored: stored.get(b.id)!.size, missing: fetched ? staleOf(b, exp, stored.get(b.id)!) : [], beyond: expectedActivities(f.beyond) });
   }
   const acts = stale.flatMap((s) => s.missing);
-  writeFileSync(path.join(ART, "stale-sample.csv"), csv([["bill_id", "update_date", "fetched", "expected_page1_distinct", "stored", "missing_code", "missing_activity", "missing_date", "side", "beyond_page1_activities", "error"], ...stale.flatMap((s) => (s.missing.length ? s.missing.map((m) => [s.b.id, s.b.update_date, String(s.fetched), s.expected, s.stored, m.code, m.name, m.date, m.side, s.beyond.length, s.error]) : [[s.b.id, s.b.update_date, String(s.fetched), s.expected, s.stored, null, null, null, null, s.beyond.length, s.error]]))]));
+  writeFileSync(path.join(OUT, "stale-sample.csv"), csv([["bill_id", "update_date", "fetched", "expected_page1_distinct", "stored", "missing_code", "missing_activity", "missing_date", "side", "beyond_page1_activities", "error"], ...stale.flatMap((s) => (s.missing.length ? s.missing.map((m) => [s.b.id, s.b.update_date, String(s.fetched), s.expected, s.stored, m.code, m.name, m.date, m.side, s.beyond.length, s.error]) : [[s.b.id, s.b.update_date, String(s.fetched), s.expected, s.stored, null, null, null, null, s.beyond.length, s.error]]))]));
   const side = (x: Side) => acts.filter((a) => a.side === x).length;
   const staleBills = stale.filter((s) => s.missing.length);
   say(`\nstale sample (seed ${SEED}): bills ${stale.length} · fetched ${stale.filter((s) => s.fetched).length}${cut(stale.map((s) => s.error)) ? ` (cap/stop cut ${cut(stale.map((s) => s.error))})` : ""} · bills stale ${staleBills.length} · activities missing ${acts.length}: at or before the stored update_date ${side("at-or-before")} · after it ${side("after")} · no date ${side("no-date")} · sampled bills with committees beyond page 1 ${stale.filter((s) => s.beyond.length).length} (activities ${stale.reduce((x, s) => x + s.beyond.length, 0)}, never read by the sync)`);
@@ -569,12 +625,15 @@ async function prod() {
     say(`  ${sb.b.id}: stored ${sb.b.update_date} · ${verdict}`);
   }
   // What 200 can see: a failure on a bill with rows lands in the sample about 200/N of the time.
-  const withRowsN = bs.walked - bs.candidates.length;
-  say(`  the sample's reach: 200 of ${withRowsN} walked bills with rows expects about ${((ft.total * STALE_SAMPLE) / withRowsN).toFixed(2)} of up to ${ft.total} bills a failed fetch touched, so its at-or-before count does not bound the failure path (the log-named bills above read that side directly)`);
+  if (withRowsN === 0) say("  the sample's reach: n/a (no walk-current bills with rows)");
+  if (withRowsN > 0) say(`  the sample's reach: 200 of ${withRowsN} walked bills with rows expects about ${((ft.total * STALE_SAMPLE) / withRowsN).toFixed(2)} of up to ${ft.total} bills a failed fetch touched, so its at-or-before count does not bound the failure path (the log-named bills above read that side directly)`);
 
-  // 5. meetings, from the saved lists
+  }
+
+  // 5. meetings, from the saved lists (skipped with --only bills)
+  if (!ONLY_BILLS) {
   for (const chamber of ["house", "senate"]) {
-    const file = path.join(ART, `meetings-list-${chamber}.json`);
+    const file = path.join(OUT, `meetings-list-${chamber}.json`);
     const fetched = await fetchAndSaveList(g, chamber, file);
     const list = loadList(file);
     const { watermark, events, otherChamber, notListed } = await classifyEvents(read, chamber, list.items, list.tieDates);
@@ -593,7 +652,7 @@ async function prod() {
       if (d.updateDate === e.updateDate) agree++;
       else disagree.push(`${e.eventId} (${e.cls}) list ${e.updateDate} · detail ${d.updateDate} · stored ${e.stored}`);
     }
-    writeFileSync(path.join(ART, `meetings-${chamber}.csv`), csv([["event_id", "list_update_date", "stored_update_date", "class", "detail"], ...events.map((e) => [e.eventId, e.updateDate, e.stored, e.cls, details.get(e.eventId)?.verdict ?? null])]));
+    writeFileSync(path.join(OUT, `meetings-${chamber}.csv`), csv([["event_id", "list_update_date", "stored_update_date", "class", "detail"], ...events.map((e) => [e.eventId, e.updateDate, e.stored, e.cls, details.get(e.eventId)?.verdict ?? null])]));
     const dv = (v: string) => [...details.values()].filter((d) => d.verdict === v).length;
     say(`\nmeetings ${chamber}: upstream count ${list.count} · unique ${list.unique} (${list.mainUnique} from ${list.rawRows} main-page rows over ${fetched.pages} pages + ${list.recovered.length} from ${fetched.recoveryPages} recovery window(s)) · ${list.complete ? "complete" : `INCOMPLETE (shortfall ${list.count == null ? "?" : list.count - list.unique}${fetched.error ? `; ${fetched.error}` : ""})`} · boundaries inside a tie ${fetched.tied.length ? fetched.tied.join(", ") : "none"}, re-read by ${fetched.recoveryPages} centred window(s), recovering ${list.recovered.length}${list.recovered.length ? ` [${list.recovered.join("; ")}]` : ""} · repeated ids ${list.repeats.length}${list.repeats.length ? ` [${list.repeats.join("; ")}]` : ""} · filed under the other chamber ${otherChamber} · stored ${CONGRESS}th rows the list does not report ${notListed.length} (at a tied boundary's timestamp ${notListed.filter((e) => e.atTie).length}) · watermark ${watermark} · at or below ${events.length - cnt("pending")}: current ${cnt("current")} · older ${cnt("older")} · newer ${cnt("newer")} · missing ${cnt("missing")} (lost ${dv("lost")} · null-detail ${dv("null-detail")} · error ${dv("error")}) · pending above ${cnt("pending")}`);
     for (const e of events.filter((x) => x.cls === "missing")) say(`  missing ${e.eventId} list ${e.updateDate} → ${details.get(e.eventId)?.verdict}${details.get(e.eventId)?.error ? ` (${details.get(e.eventId)?.error})` : ""}`);
@@ -610,25 +669,40 @@ async function prod() {
     }
   }
 
+  }
+
   // 6. census
-  const c = await census(read, bs.cursor, ticks, new Date().toISOString());
+  const c = await census(read, bs.cursor, ticks, new Date().toISOString(), KEY);
   const gs = (x: { groups: number; bills: number; largest: number }) => `${x.groups} (bills in them ${x.bills}, largest ${x.largest})`;
   say(`\ncensus: same-update_date groups over the walked set ${gs(c.sameDateGroups.walked)}: at or below the cursor ${gs(c.sameDateGroups.atOrBelow)} · pending above ${gs(c.sameDateGroups.above)} (a group is one timestamp, so the parts sum: ${c.sameDateGroups.walked.groups === c.sameDateGroups.atOrBelow.groups + c.sameDateGroups.above.groups && c.sameDateGroups.walked.bills === c.sameDateGroups.atOrBelow.bills + c.sameDateGroups.above.bills ? "they do" : "MISMATCH"})`);
-  say(`  walked bills with rows whose stored committees fall short of committees.count (no GETs): ${c.shortOfCount.length}${c.shortOfCount.length ? ` [${c.shortOfCount.map((x) => `${x.id} ${x.n}/${x.cc}`).join(", ")}]` : ""}`);
+  const shortFault = c.shortOfCount.filter((x) => !x.owed), shortOwed = c.shortOfCount.filter((x) => x.owed);
+  say(`  walked bills with rows whose stored committees fall short of committees.count (no GETs): ${shortFault.length}${shortFault.length ? ` [${shortFault.map((x) => `${x.id} ${x.n}/${x.cc}`).join(", ")}]` : ""} · ${KEY === "changed_at" ? "over the whole walked set, walk-current bills only" : `at or below the cursor (${bs.pending} walked-set bills above it not read)`}`);
+  if (shortOwed.length) say(`  short but owed a walk (pending, not a fault): ${shortOwed.length} [${shortOwed.slice(0, 20).map((x) => `${x.id} ${x.n}/${x.cc}`).join(", ")}]`);
   say(`  last 30 days (since ${c.last30.since}): ticks ${JSON.stringify(c.last30.byStatus)} · success ${c.last30.success}, of which deadlineHit ${c.last30.deadlineHit}, billsProcessed at the ${PER_TICK_LIMIT} limit ${c.last30.atLimit}, fetchErrors > 0 ${c.last30.fetchErrors}, no bills stats ${c.last30.noStats}`);
+  if (c.stampedNoRows) {
+    // A walk stamps a bill with no rows only when its fetched pages listed no committee with a systemCode.
+    // Resolved now, sampled like the candidates: a `lost` here is a bill the walk will not revisit until it changes.
+    const snr = c.stampedNoRows.length > CANDIDATE_SAMPLE ? sample(c.stampedNoRows, CANDIDATE_SAMPLE, SEED) : c.stampedNoRows;
+    const snrRes: Resolved[] = [];
+    for (const b of snr) snrRes.push(await resolveBill(g, b));
+    const v = (x: Resolved["verdict"]) => snrRes.filter((r) => r.verdict === x).length;
+    say(`  walked and current, yet no rows: ${c.stampedNoRows.length}${snr.length < c.stampedNoRows.length ? ` (sampled ${snr.length}, seed ${SEED})` : ""} · resolved now: lost ${v("lost")} · empty ${v("empty")} · error ${v("error")}${cut(snrRes.map((r) => r.error)) ? ` (cap/stop cut ${cut(snrRes.map((r) => r.error))})` : ""}`);
+    for (const r of snrRes.filter((x) => x.verdict === "lost")) say(`    ${r.id} U=${r.update_date} [${r.codes.join(" ")}]: walked and stamped with no rows, now listing committees; not revisited until it changes`);
+  }
+  say(`  per-bill walk ticks (HO 753) in the last 30 days: ${c.last30.walk.ticks}, of which deadlineHit ${c.last30.walk.deadlineHit}, capHit ${c.last30.walk.capHit}, rateLimited ${c.last30.walk.rateLimited}, fetchErrors > 0 ${c.last30.walk.fetchErrors} · the latest reads remaining ${c.last30.walk.latestRemaining ?? "n/a"}, set aside ${c.last30.walk.latestGaveUp ?? "n/a"}`);
   say(`  all time by status: ${JSON.stringify(c.allTime)} · the unread ticks (non-success rows): ${c.unread.join(", ") || "none"}`);
   say(`  12-hour slots with no committees row since #${c.missingSlots.from}, the first 00:00 run: ${c.missingSlots.slots.length}${c.missingSlots.slots.length ? ` [${c.missingSlots.slots.join(", ")}]` : ""}`);
 
-  const after = await stamp(read);
+  const after = await stamp(read, KEY);
   say(`\nafter: ${after}\n${before === after ? "the rows it follows did not move" : "MOVED between before and after: re-read and report both"}`);
   say(`GETs used ${g.requests()} of ${CAP} · smallest start-to-start gap ${g.minGapMs()}ms${g.stopped() ? ` · STOPPED: ${g.stopped()}` : ""}`);
-  writeFileSync(path.join(ART, "reading.txt"), redactSecrets(out.join("\n") + "\n"));
+  writeFileSync(path.join(OUT, "reading.txt"), redactSecrets(out.join("\n") + "\n"));
   db.close();
 }
 
 // ── the controls, on a file: copy ──────────────────────────────────────────
-function copyUrl(name: string) {
-  const abs = path.resolve(ART, name);
+function copyUrl(name: string, dir: string) {
+  const abs = path.resolve(dir, name);
   if (!abs.endsWith("-752-control.db")) throw new Error(`refused: a copy must be a *-752-control.db file (got ${abs})`);
   return { abs, url: `file:${abs}` };
 }
@@ -644,19 +718,23 @@ async function perturb(url: string, stmts: InStatement[], what: string, quiet = 
   }
 }
 async function controls() {
-  mkdirSync(ART, { recursive: true });
+  // HO 753: the controls write to a required --out too, so HO 752's saved control artifacts stand.
+  const i = process.argv.indexOf("--out");
+  const OUT = i === -1 ? undefined : process.argv[i + 1];
+  if (!OUT || path.resolve(OUT).toLowerCase() === path.resolve(ART).toLowerCase()) throw new Error("--controls needs --out <dir> other than docs/handoffs/752-artifacts");
+  mkdirSync(OUT, { recursive: true });
   const prodUrl = process.env.TURSO_DATABASE_URL ?? "";
   if (!prodUrl.startsWith("libsql://")) throw new Error("the seed reads prod; expects the prod libsql:// URL");
   const prodDb = createClient({ url: prodUrl, authToken: process.env.TURSO_AUTH_TOKEN });
   const pr = readerOf(prodDb);
-  const log = path.join(ART, "requests.log");
+  const log = path.join(OUT, "requests.log");
   appendFileSync(log, `\n=== controls ${new Date().toISOString()} ===\n`);
   const g = makeGetter(log);
   let fails = 0;
   const check = (label: string, ok: boolean, detail: string) => { const line = redactSecrets(`  ${ok ? "PASS" : "FAIL"}  ${label}: ${detail}`); console.log(line); if (!ok) fails++; };
 
   // Seed ONLY the rows the probe reads, from prod by SELECT.
-  const { abs, url } = copyUrl("probe-752-control.db");
+  const { abs, url } = copyUrl("probe-752-control.db", OUT);
   if (existsSync(abs)) rmSync(abs);
   const seed = {
     bills: (await pr(`SELECT id, congress, update_date, bill_type, bill_number, json_extract(raw_json, '$.committees.count') AS cc FROM bills WHERE congress = ?`, [CONGRESS])).rows,
@@ -690,7 +768,7 @@ async function controls() {
   // 1. The candidates and their resolution together.
   console.log("\n── Control 1 · a lost bill, planted");
   const u1 = await billsSets(cr);
-  const withRows = await staleSampleOf(cr, u1.cursor);
+  const withRows = (await staleSampleOf(cr, u1.cursor)).sample;
   let chosen: Resolved | null = null;
   for (const b of withRows.slice(0, 5)) { const r = await resolveBill(g, b); if (r.verdict === "lost") { chosen = r; break; } }
   if (!chosen) throw new Error("control 1: none of five sampled bills lists a committee");
@@ -734,7 +812,7 @@ async function controls() {
 
   // 4. Meetings, from the saved list with no refetch.
   console.log("\n── Control 4 · meetings: a missing event and an older one, planted");
-  const lf = path.join(ART, "control-meetings-list-house.json");
+  const lf = path.join(OUT, "control-meetings-list-house.json");
   await fetchAndSaveList(g, "house", lf);
   const reqs = g.requests();
   const l4 = loadList(lf);
@@ -827,7 +905,7 @@ async function controls() {
     { offset: 0, pagination: { count: 4, next: "n" }, committeeMeetings: [ev("a", "2026-01-03T00:00:00Z"), ev("b", "2026-01-02T00:00:00Z")] },
     { offset: 2, pagination: { count: 4 }, committeeMeetings: [ev("b", "2026-01-02T00:00:00Z"), ev("d", "2026-01-01T00:00:00Z")] },
   ];
-  const lfNo = path.join(ART, "control-loadlist-norecovery.json"), lfYes = path.join(ART, "control-loadlist-recovery.json");
+  const lfNo = path.join(OUT, "control-loadlist-norecovery.json"), lfYes = path.join(OUT, "control-loadlist-recovery.json");
   writeFileSync(lfNo, JSON.stringify({ pagingEnded: true, tiedBoundaries: [], pages: pagesMain }));
   writeFileSync(lfYes, JSON.stringify({ pagingEnded: true, tiedBoundaries: [], pages: [...pagesMain, { offset: 1, recovery: true, pagination: { count: 4 }, committeeMeetings: [ev("b", "2026-01-02T00:00:00Z"), ev("c", "2026-01-02T00:00:00Z")] }] }));
   const ln = loadList(lfNo), ly = loadList(lfYes);
@@ -838,6 +916,44 @@ async function controls() {
   try { await cr(`WITH x AS (SELECT 1) DELETE FROM committee_bills WHERE 0`); } catch { refused = true; }
   const allowed = Number((await cr(`SELECT COUNT(*) AS n FROM committee_bills`)).rows[0]?.n) > 0;
   check("the reader refuses a WITH-prefixed write and reads a SELECT", refused && allowed, `WITH … DELETE refused ${refused} · SELECT read ${allowed}`);
+
+  // 7. Beyond the five (HO 753, named): the changed_at key, network-free. The copy gains the three
+  // walk columns through perturb (file: only); then it is read with every stamp NULL, with every bill
+  // walked after its change, and with four bills planted, one per case the key must tell apart.
+  console.log("\n── Check 7 · the changed_at key, network-free (HO 753, beyond the five)");
+  await perturb(url, ["changed_at TEXT", "committees_walked_at TEXT", "committee_walk_failures INTEGER"].map((c) => ({ sql: `ALTER TABLE bills ADD COLUMN ${c}`, args: [] })), "check 7: the three walk columns");
+  const k0 = await billsSets(cr, "changed_at");
+  check("every stamp NULL: every walked-set bill is owed, none set aside", k0.candidates.length === k0.walked && k0.walked > 0 && k0.gaveUp === 0, `owed ${k0.candidates.length} of ${k0.walked} · set aside ${k0.gaveUp}`);
+  await perturb(url, [{ sql: "UPDATE bills SET changed_at = '2026-01-01T00:00:00.000Z', committees_walked_at = '2026-01-02T00:00:00.000Z', committee_walk_failures = 0", args: [] }], "check 7: every bill walked after its change");
+  const k1 = await billsSets(cr, "changed_at");
+  check("every bill walked after its change: none owed", k1.candidates.length === 0 && k1.gaveUp === 0, `owed ${k1.candidates.length} · set aside ${k1.gaveUp}`);
+  const four = k0.candidates.slice(0, 4).map((b) => b.id);
+  const [A, B, C, D] = four as [string, string, string, string];
+  await perturb(url, [
+    { sql: "UPDATE bills SET committees_walked_at = NULL WHERE id = ?", args: [A] },
+    { sql: "UPDATE bills SET committees_walked_at = '2025-12-31T00:00:00.000Z' WHERE id = ?", args: [B] },
+    { sql: "UPDATE bills SET committees_walked_at = '2025-12-31T00:00:00.000Z', committee_walk_failures = 5 WHERE id = ?", args: [C] },
+    { sql: "UPDATE bills SET committees_walked_at = '2026-01-01T00:00:00.000Z' WHERE id = ?", args: [D] },
+  ], "check 7: A never walked, B changed since its walk, C set aside, D walked at the instant of its change");
+  const k2 = await billsSets(cr, "changed_at");
+  const owed = new Set(k2.candidates.map((b) => b.id));
+  check("owed A, B and C (C set aside), not D", owed.size === 3 && owed.has(A) && owed.has(B) && owed.has(C) && !owed.has(D) && k2.gaveUp === 1, `owed ${[...owed].join(", ")} · set aside ${k2.gaveUp} · D ${D} ${owed.has(D) ? "OWED" : "not owed"}`);
+  // The census: a bill short of its count ABOVE the frozen cursor counts under changed_at, not under the cursor.
+  const E = k0.candidates.find((b) => !four.includes(b.id) && b.update_date <= p2.cursor)!;
+  const eRows = (await storedRowsFor(cr, [E.id])).get(E.id)!.size;
+  const aboveE = new Date(Date.parse(p2.cursor) + 86400_000).toISOString().replace(".000Z", "Z");
+  await perturb(url, [{ sql: "UPDATE bills SET update_date = ?, raw_json = json_set(raw_json, '$.committees.count', 99) WHERE id = ?", args: [aboveE, E.id] }], "check 7: one bill above the cursor, short of its count");
+  const cCur = await census(cr, p2.cursor, [], new Date().toISOString(), "cursor");
+  const cKey = await census(cr, p2.cursor, [], new Date().toISOString(), "changed_at");
+  check("stored-short under changed_at sees a bill above the cursor, the cursor's does not", eRows > 0 && cKey.shortOfCount.some((x) => x.id === E.id) && !cCur.shortOfCount.some((x) => x.id === E.id), `${E.id} (rows ${eRows}, count 99, update_date ${aboveE}) · changed_at ${cKey.shortOfCount.length} short · cursor ${cCur.shortOfCount.length} short`);
+  // An owed bill (changed since its walk) whose count rose is pending, not a fault: the gate number leaves it out.
+  const withRowsIds = new Set((await cr(`SELECT DISTINCT bill_id FROM committee_bills`)).rows.map((r) => String(r.bill_id)));
+  const Fb = k0.candidates.find((b) => !four.includes(b.id) && b.id !== E.id && withRowsIds.has(b.id))!;
+  await perturb(url, [{ sql: "UPDATE bills SET committees_walked_at = '2025-12-31T00:00:00.000Z', raw_json = json_set(raw_json, '$.committees.count', 99) WHERE id = ?", args: [Fb.id] }], "check 7: one owed bill with rows, its count raised");
+  const cKey2 = await census(cr, p2.cursor, [], new Date().toISOString(), "changed_at");
+  const fRow = cKey2.shortOfCount.find((x) => x.id === Fb.id);
+  const eRow = cKey2.shortOfCount.find((x) => x.id === E.id);
+  check("an owed short bill reads pending, not a fault; a walk-current one reads a fault", !!fRow && fRow.owed === true && !!eRow && eRow.owed === false, `${Fb.id} owed ${String(fRow?.owed)} · ${E.id} owed ${String(eRow?.owed)}`);
   copy.close();
   console.log(`\nGETs used ${g.requests()} · smallest start-to-start gap ${g.minGapMs()}ms · CONTROLS: ${fails === 0 ? "ALL GREEN" : `${fails} FAILED`}`);
   process.exitCode = fails === 0 ? 0 : 1;
