@@ -15,9 +15,9 @@
 // burst in a couple ticks and otherwise sits idle at the frontier. The historical
 // backfill keeps the frontier current, so the cron only ever sees the delta.
 //
-// Schedule: 08:00 UTC daily — clear of every existing slot (weekly-report 09:30
-// Mon, sync 00/06/12/18, the daily 10/11/12/13/14/15 crons, markets 21:30). Auth
-// mirrors the other cron routes (Bearer CRON_SECRET).
+// Schedule: 08:00 UTC daily (`0 8 * * *`, vercel.json). The minute is shared:
+// summarize (`*/10`), news (`*/30`) and the bare markets (`0 */4`) also fire
+// at 08:00. Auth mirrors the other cron routes (Bearer CRON_SECRET).
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { syncLda } from "@/lib/lda-sync";

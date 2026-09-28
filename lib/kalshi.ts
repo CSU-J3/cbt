@@ -5,7 +5,8 @@
 // congressional markets in ~37 pages of 200), filter to 2026 House/Senate
 // GENERAL seat markets, parse each ticker to our raceId, and keep the favored
 // outcome per seat. Fed to getRacesIndex via the kalshi_odds table; refreshed
-// by the GitHub Actions cron (Hobby caps cron at daily, and odds move intraday).
+// every two hours by /api/cron/kalshi (`15 */2 * * *`, vercel.json), because
+// odds move intraday.
 //
 // This module is import-safe for client bundles via `import type` — it pulls in
 // no next/cache, only the global fetch.

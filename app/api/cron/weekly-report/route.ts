@@ -11,10 +11,12 @@
 // timeout. If a slow-Gemini day recurs the wrapper finalizes the row as
 // `status='timeout'` cleanly — that durability behavior is the right floor.
 //
-// Schedule: Monday 09:30 UTC — 30 min after /api/sync. Data inputs for
-// the prior calendar week (stage transitions, enactments, news mentions)
-// all close out by Sunday 23:59 UTC; nothing from Monday's 09:00 sync is
-// required. Auth: Bearer CRON_SECRET, identical to the other cron routes.
+// Schedule: Monday 09:30 UTC (`30 9 * * 1`, vercel.json), a minute shared with
+// summarize (`*/10`) and news (`*/30`). Data inputs for the prior calendar
+// week (stage transitions, enactments, news mentions) all close out by Sunday
+// 23:59 UTC, so no Monday sync is required (sync runs `0 */6`; there has been
+// no 09:00 sync since 2026-07-06). Auth: Bearer CRON_SECRET, identical to the
+// other cron routes.
 //
 // expireTag("reports") flushes both getReports and getReportCount so
 // the /reports index picks up the new row on the next request.

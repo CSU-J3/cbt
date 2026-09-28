@@ -287,7 +287,7 @@ const statements = [
   // raceId form, e.g. "PA-07-2026" / "S-ME-2026"). Loose link to races.id (no
   // FK) — the fetcher writes every 2026 House/Senate general seat Kalshi runs,
   // including ones we don't rate; getRacesIndex's LEFT JOIN picks the 137.
-  // Refreshed by the GitHub Actions cron (/api/cron/kalshi); odds move intraday.
+  // Refreshed by /api/cron/kalshi (`15 */2 * * *`, vercel.json); odds move intraday.
   // favorite_is_party=1 when the outcome label is a bare party string (~65% of
   // markets) vs a candidate name; favorite_party is set only for party labels
   // (name labels resolve to a party at render via the card roster).
@@ -512,8 +512,9 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status)`,
   // handoff 142: markets ticker data layer. Append-only history of policy-
   // effect indicators (SPX/TNX/WTI/DXY in v1; VIX deferred — Stooq doesn't
-  // carry it). Refreshed every 30 min during US market hours by a GitHub
-  // Actions cron (Vercel Hobby caps cron at once daily). `symbol` is the
+  // carry it). Refreshed by /api/cron/markets from two vercel.json crons: every
+  // 30 min in US market hours on weekdays (`?source=fmp`, the FMP symbols)
+  // and every four hours (`0 */4`, every symbol). `symbol` is the
   // internal stable identifier; the upstream source/remote-symbol mapping
   // lives in `lib/markets.ts` and is decoupled from the DB. `change_pct` is
   // nullable: NULL on the first-ever tick for a symbol (no prior reference)

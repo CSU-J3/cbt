@@ -17,8 +17,8 @@
 // The committee-meetings step HO 263 folded in after the bills step moved to
 // its own route, /api/cron/committee-meetings (HO 754).
 //
-// Schedule: every 12h (`0 */12`, vercel.json). The "11:30 UTC daily" this
-// header used to give was stale (HO 753).
+// Schedule: every 12h (`0 */12`, vercel.json). The daily 11:30 UTC slot this
+// header used to name was stale (HO 753).
 import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import {

@@ -3,11 +3,12 @@
 // percent change vs the most recent prior `market_date` row of the same
 // symbol, and appends one row per symbol to `market_ticks`.
 //
-// Triggered every 30 min during US market hours by a GitHub Actions cron
-// (.github/workflows/markets-tick.yml). Vercel Hobby caps cron at once
-// daily, so the schedule lives outside Vercel and hits this route as a
-// regular HTTP POST. Auth mirrors the Vercel cron routes (Bearer
-// CRON_SECRET) so the same secret value works for both.
+// Triggered by two vercel.json crons on this one route. `0 */4 * * *` with no
+// param fetches every symbol, the FRED end-of-day ones included, six times a
+// day; it has been a Vercel cron since HO 314 (`30 21` daily until HO 475).
+// `0,30 13-21 * * 1-5` with `?source=fmp`, added at HO 475, fetches the seven
+// FMP symbols (two indices, five stocks) every 30 min from 13:00 to 21:30 UTC
+// on weekdays. Auth mirrors the other cron routes (Bearer CRON_SECRET).
 //
 // Per-symbol fetch errors are non-fatal: one bad upstream shouldn't drop
 // the other rows. They land in the response payload and, if any happen,
@@ -109,9 +110,10 @@ async function handle(request: Request) {
   // `?source=<src>` fetches only that source's symbols; no param = all. HO 172
   // used this so the intraday GitHub Actions run polls only the intraday source
   // (FRED is end-of-day — polling it intraday just re-writes the same value). HO
-  // 227: Stooq died; the intraday source is now FMP (the indices), so the
-  // intraday workflow hits `?source=fmp`; the daily after-close run uses no param
-  // and gets everything incl. the FRED EOD symbols. Filter is generic by source.
+  // 227: Stooq died; the intraday source is now FMP (the indices). Since HO 475
+  // the `?source=fmp` vercel.json entry polls the FMP symbols every 30 min in
+  // market hours, and the bare `0 */4` entry fetches everything, the FRED EOD
+  // symbols included, six times a day. Filter is generic by source.
   const source = new URL(request.url).searchParams.get("source");
   const symbols = source
     ? MARKET_SYMBOLS.filter((s) => s.source === source)

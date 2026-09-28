@@ -1,9 +1,8 @@
 // HO 218 per-seat Kalshi odds cron. Scans the Kalshi open-events feed for 2026
 // House/Senate general markets, parses each ticker to our raceId, keeps the
-// favored outcome, and upserts kalshi_odds. Like /api/cron/markets it's driven
-// by GitHub Actions (.github/workflows/kalshi-tick.yml), not Vercel cron —
-// odds move intraday and Hobby caps cron at daily. Auth mirrors the cron routes
-// (Bearer CRON_SECRET). The full-feed scan (~37 pages, throttled) runs ~20-30s,
+// favored outcome, and upserts kalshi_odds. Triggered by its vercel.json cron,
+// `15 */2 * * *` (every two hours at :15, a native Vercel cron since HO 475),
+// because odds move intraday. Auth mirrors the cron routes (Bearer CRON_SECRET). The full-feed scan (~37 pages, throttled) runs ~20-30s,
 // comfortably under wrapCronRoute's 55s soft timeout; a slow tick finalizes as
 // status='timeout' and the prior odds persist (the batch upsert is at the end).
 import { expireTag } from "@/lib/cache/expire-tag";
@@ -71,7 +70,14 @@ async function handle(request: Request) {
 
     // HO 219: chamber-control (House/Senate balance of power) — two fixed event
     // reads, stored as one dashboard_state JSON blob (both exact pcts per
-    // chamber). Non-fatal: a failed read just leaves the prior blob in place.
+    // chamber). The write is unconditional. A chamber whose read fails, or prices
+    // fewer than two outcomes, is written as null (readControl's own null for an
+    // unpriced read, fetchChamberControl's per-chamber catch for a failed one;
+    // lib/kalshi.ts), the row's updated_at advances, and the other chamber
+    // updates on its own; /electoral's hero band shows a dash for the null
+    // chamber until a later tick prices it. Keeping the prior value instead was
+    // ruled against on 2026-09-25 (HO 747, branch (1)): the band carries no
+    // timestamp, so a kept value would read as live.
     const control = await fetchChamberControl();
     await db.execute({
       sql: `INSERT INTO dashboard_state (key, value, updated_at)

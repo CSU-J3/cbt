@@ -7,11 +7,14 @@
 // function stays inside 60s even if the very last article hangs on a
 // Gemini call.
 //
-// Auth mirrors the other cron routes (Bearer CRON_SECRET). Schedule: 14:00
-// UTC daily (clean of /api/sync 09, /api/sync-votes 10, /api/sync-race-
-// ratings 11 Wed, /api/cron/primaries 12, /api/cron/summarize 13). 14:00
-// also runs *after* summarize so the matcher's getCandidateBills(30) pool
-// sees the freshest summaries when the matcher ever leans on them.
+// Auth mirrors the other cron routes (Bearer CRON_SECRET). Schedule: every
+// half hour, `*/30 * * * *` (vercel.json). It has no minute of its own:
+// summarize (`*/10`) fires at every :00 and :30 with it, every on-the-hour
+// entry shares its :00 (sync, committees, primaries and the bare markets at
+// their hours, the daily crons at theirs, sync-race-ratings on Wednesdays at
+// 11:00, and markets `?source=fmp` in weekday market hours), and at :30 it
+// meets weekly-report (Mon 09:30), race-challengers (12:30) and markets
+// `?source=fmp` again.
 //
 // expireTag("news-breaking") flushes both /news (getBreakingNews) and
 // the home block (getBreakingNewsForHome) — both share that tag per HO 114.
