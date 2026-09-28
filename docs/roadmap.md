@@ -3374,3 +3374,145 @@ The bills half of the committees line and the page-1 line strike on that reading
   - flagged, `:91`'s rollover note, a claim gone false.
 - **OPEN LOOPS reconciled: 264 live / 306 struck at open, 264 / 306 at close** (570 total both), with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 753.**
+
+**Also (HO 754), the meetings half: each chamber's whole list is read every run and compared per event, so no watermark can pass an event over, no page boundary can drop one inside a tie, and an event Congress.gov deletes is marked and hidden instead of staying `Scheduled`.** Four commits, kinds unmixed: `feat` · `diag` · `docs(skill)` alone · `docs`. The FF is held for the SKILL approval and review. The pointer is 754 by plain arithmetic: pointer 753, highest HO in commit subjects 753, `main` at `0263059`.
+
+**HO 753's post-FF reading** (its FF go, items 4 to 6; `docs/handoffs/753-artifacts/`, repo-ignored).
+- **The repair,** `npm run repair:committee-bills`, run clear of the ticks after `/api/sync` #20824 (18:00:10Z) finished.
+  - The dry run: owed 17,977 (never stamped 17,906, new and never walked 71, changed since their walk 0), set aside 0. The rate probe read `X-RateLimit-Limit` 20000 and `Remaining` 19867, giving a pace of one request per 240 ms. The first dry run exited 1 when its probe timed out; the retry answered 200.
+  - `--write`: **18:01:39Z to 19:44:07Z (6,143 s)**, 36 rounds. **17,998 requests**, the smallest gap 240 ms, the header never below 9,252 remaining at a round's end. **17,977 bills walked, 27,654 rows.** 7 fetches failed (`119-hr-2284`, `-2604`, `-68`, `-7854`, `-813`, `119-s-2200`, `-403`), and each was walked in a later round. Still owed 0, set aside 0, **exit 0**. It made about 2.9 requests a second, not the 4 the pace allowed: the pace is a floor between starts, and each fetch and write took the rest.
+- **The 752 instrument on prod, both keys,** each with its own `--out`, 340 GETs each, and the rows each follows unmoved across the reading. The instrument blob was `774c081567`, this HO's; its bills sections are unchanged from HO 753's.
+  - `--key cursor`: candidates 0, lost 0, stored-short 0 at or below the cursor.
+  - `--key changed_at`: walked set 17,977, owed 0, candidates 0, lost 0, stored-short 0 over the whole walked set, and walked-but-rowless 0.
+  - `--log-failed=119-hr-3857@19897`: 7 rows and no endpoint activity missing. It carries its two `sseg00` activities.
+  - `committee_bills` rose from 26,692 rows at the FF to 27,112.
+- **The page-1 line's 14 bills read 21 of 21,** `119-hr-9821` included (`754-artifacts/over20-754.txt`).
+- **The first two scheduled ticks' payloads are not in yet.** They are the committees ticks at 2026-09-29 00:00Z and 12:00Z. Session check-ins read them into `753-artifacts/tick1-753.txt` and `tick2-753.txt` with `ticks-read-753.ts`, and the reading is carried in this HO's FF go.
+- The bills half of the committees line and the page-1 line strike on this reading, in this HO's `docs` commit.
+
+**STEP 0** (prod `SELECT`s and 36 paced GETs; `docs/handoffs/754-artifacts/`, repo-ignored).
+- **Anchors:** every cited one held at `0263059`: `collectNewEvents :97-127`, the catch `:344-362`, the null detail `:160`, `getJson :31-32,:52-66`, the watermark `:70-87`, the only writer `:249` and `:275`, the route `:41,:86-89`, the schema `:715,:770`, and cron-health `:73`.
+- **One premise was incomplete, and is flagged.** The handoff named five meeting readers. `committee_meetings` has five more that render or count: the weekly band's breakdown and history (`lib/queries.ts:7766,:7814`), `getStaleBills`' `heard` flag through `meeting_bills` (`:6851`), the weekly report's committee activity (`lib/report-generation.ts:929`) and the week summary's hearings count (`lib/week-summary.ts:101`). All ten are filtered (build item 6).
+- **Rows:** House 1,613, Senate 1,145, all 119th.
+- **Older, re-derived:**
+  - Senate 4, HO 752's four by id (338704, 338668, 338667, 338681), all below the watermark;
+  - House 2 (118152, 119549), both updated that day and above the House watermark, so owed to the old walk too.
+- **Absent, re-derived:** the same 19 by id (House 2, Senate 17), still unlisted. Every detail is a 404.
+- **Missing 0, so the null-detail set is 0.** HO 752 also read 0.
+- **Pages:** House 8 and Senate 5 at 250 with the overlap of 25 (7 and 5 without it). Both reads were complete: House 1,611 of 1,611, Senate 1,128 of 1,128.
+- **The Senate read turned the overlap's reason into a measurement.** 19 overlap places came back in a different tie order from the page before, at 225–232 and 450–469, and all were absorbed. The largest ties were 8 (House) and 19 (Senate), inside the 25.
+- **A reading outside the handoff, filed.** The committees route errored on 17 ticks in 30 days, 14 of them at 12:00Z, each at about 8s with `The operation was aborted due to timeout`, before any bills or meetings step. The meetings step ran on none of those 17.
+
+**The build.**
+- (1) **`/api/cron/committee-meetings`:** `50 */12 * * *`, `maxDuration 60`, a 50s budget, Bearer `CRON_SECRET`, `wrapCronRoute`. It is registered in `vercel.json` and `lib/cron-health.ts`, whose count comment now reads 19 keys, 19 strings, 20 crons. The committees route drops its meetings step and keeps its 45s bills budget. `npm run sync:meetings` calls the same function.
+- (2) **The walk, per chamber:**
+  - it reads the whole list in pages of 250 overlapping by 25, and deduplicates by `eventId`, keeping the newest `updateDate`;
+  - a list event with no row, or with a stored `update_date` older than the list's, is refreshed, oldest list `updateDate` first across both chambers;
+  - no new detail, page or retry starts past the deadline.
+- (3) **`committee_meetings.absent_upstream_at`:**
+  - stamped once, and only from a complete read: every page read, paging ended, every page reporting the same count, and the unique ids equal to it;
+  - cleared when the event reappears or is refreshed;
+  - scoped to the current Congress's rows of that chamber;
+  - nothing is deleted.
+- (4) **`committee_meeting_walk_state(event_id, failures, last_attempt_at, last_error, gave_up_at_update)`:** a failed or null detail increments it; a refresh resets it in the upsert's own batch. At 5 the event is set aside, named in `gaveUp`, at the list `updateDate` of the fifth failure. When the list's `updateDate` moves past that, the event starts again at 1.
+- (5) **`meeting_sync_state` is no longer read or written.** It stays in place, is retired in SKILL, and the migrate comment says so.
+- (6) **The absent filter** is on the five named readers, the band's count and so its breakdown and history, and the other three listed in STEP 0. No component or style changes.
+- (7) **The payload:** `stopReason`; `pages`, `listSize`, `listCount` and `listComplete` per chamber; `listErrors`; `refreshed`, `unchanged` and `remaining`; `failed` and `gaveUp`, each a count with up to 20 ids; `absent` (`stamped`, `cleared`, `refused`, `skipped`); and the HO 717 document counts.
+
+**Departures and extras, each named.**
+- (1) **A mass-absent guard.** More than 50 unlisted rows from one chamber in one run are not stamped. They go to `absent.refused` and `chronicErr`, so a list that reads complete but short can't empty `/hearings`.
+- (2) **The deadline's cap.** An attempt in flight at the deadline is aborted 3s after it, so a 50s run ends inside the 55s soft timeout.
+- (3) **A 429 ends the walk, uncharged,** as in HO 753.
+- (4) **From the review:**
+  - the count must be steady across pages before a read counts as complete (leg 1b);
+  - a detail gets **two tries**, not eight, and tries that fail on their own clock charge it, even when the deadline stops the next. With eight, one detail that never answers held the head of the queue for the whole budget every run, uncharged and never set aside (leg 6b);
+  - a run that reads no list page records `error`, even when the deadline ended the reads (leg 6c);
+  - `chronicErr` names a deadline stop that leaves owed events.
+- (5) **Comments this change made false are corrected, comment-only:**
+  - the `meetings` flush path in `app/api/revalidate/route.ts`;
+  - the `CommitteeMeeting` tag comment in `lib/queries.ts`;
+  - a JSX comment in `components/WeeklyBand.tsx`, which is the only component touched and gets no render change;
+  - the watermark sentence in `scripts/backfill-meeting-documents.ts`'s header;
+  - the 752 instrument's line pointers into `lib/meetings-sync.ts`, re-pointed by content.
+- (6) **The 752 instrument:**
+  - `--only meetings`;
+  - `--meetings table`, which classifies every listed event against the table with no watermark, names each unlisted row as marked or not, names the walk state and any listed row a stamp still hides, and splits older/missing at the last committee-meetings run;
+  - a row-hash fingerprint.
+  Its 21 controls are green on the changed blob (`774c081567`).
+- (7) **SKILL ride-alongs, claims gone false, flagged in the SKILL commit:**
+  - `:91`'s "`/api/cron/committees` is the only rollover seam", now one of two, and the committees entry's own "the only rollover seam on a cron";
+  - the health registry's "18";
+  - the `meetings` tag's flush path.
+
+**The review before the diff was shown.** One adversarial read-only round of five reviewers, each finding checked by a skeptic: 18 findings, 3 confirmed, 10 plausible, 5 refuted.
+- **Confirmed:**
+  - the head-of-line stall (the detail's tries and charge);
+  - a list that only times out recording `success`;
+  - leg 1's gate check passing even with the gate removed. It now reads the two House rows no list carries.
+- **Plausible and fixed:** the steady count; the deadline's `chronicErr`; the instrument's listed-yet-marked rows, its post-walk split and its fingerprint; the stale comments; no leg for the in-flight cut (6a now runs at 9s a detail, so the cap binds); the driver header's safety sentence. Children now get `TURSO_AUTH_TOKEN=""`, because dotenv and Next's loader refill a deleted key, and the instrument gets the copy as `TURSO_DATABASE_URL`.
+- **Plausible, not a code change:** leg 4 runs the seven `lib/queries` readers, and the three other filtered sites are read in code (the header now says so); leg 6a's red on `HEAD` is a payload and charging red, and its behavioural red is timing-dependent (below).
+- **Refuted:**
+  - deploying before `migrate`: a real blast radius, already covered by the order;
+  - `/api/health` 503 until the first run: the FF go's POST closes it;
+  - the shim forcing the list and detail dates to agree;
+  - leg 8 passing only on the new offsets. The offsets are the overlap: at `LIST_OVERLAP = 0` it reds as `HEAD` does;
+  - the instrument's set-aside label and a missing walk-state table: the FF go's reading cannot reach five failures, and a table missing goes with the absent column, which is flagged.
+
+**The legs** (`scripts/diagnostic/committee-meetings-legs-754.ts`):
+- a local production build (`next start`) on a `file:` copy made by the real `scripts/migrate.ts` and seeded from one prod snapshot (2,758 meetings, 2,733 `meeting_bills`);
+- api.congress.gov answered by `committee-meetings-shim-754.cjs`, with recorded orderings sliced at any offset, details built from the stored rows (the 4 older from their recorded details), and failures, nulls, delays and moves on command, honouring the abort;
+- the meeting readers called for real through `committee-meetings-queries-754.ts`, under a `next/cache` stub;
+- every run proves the server reads the copy (a sentinel on `/api/health`) and reads prod's fingerprint unchanged before and after.
+Each leg ran through the committees route's meetings step on `HEAD` and through the new route on the build.
+
+**The runs, and the blobs that bind them.**
+- **`HEAD`, all ten legs:** 9 pass, 29 fail (driver `14c47c9dfa`, shim `b9e8c8a62a`, all six walk files at `HEAD`, no new route).
+- **The build before the review's fixes, legs 1, 1b and 6:** 10 pass, 5 fail, on the same driver and shim.
+- **The final build, all ten:** 38 pass, 0 fail, on the same driver and shim.
+The first `HEAD` run, on the driver before the review (`af15980475`, and `a9db35b6cc` for leg 4 once its child spawns were made async), read the same reds for legs 2, 3, 4, 5, 7 and 8.
+
+| Leg | `HEAD` | Final build |
+|---|---|---|
+| 1 whole list: an event above the boundary deleted between two reads | The event at the boundary is never fetched; no row after two ticks | Refreshed once, on the first tick; the incomplete read stamps nothing, not even the two unlisted House rows, and the next complete read stamps them and the deleted one |
+| 1b (review) a read event deleted and an unread one moved to the head | Red only on the missing column: the deleted event is never stamped | The unique ids equal the final count, but the count moved: the live event is not stamped; the next read refreshes it |
+| 2 detail failure | Never fetched again; the row stays older | Charged 1, refreshed the next tick, reset to 0 |
+| 3 HO 752's four older Senate events | None fetched (below the watermark) | All four refreshed on the first run from their recorded details |
+| 4 absent | No column; the readers still return both; the band doesn't move; the instrument reads 0 marked | Stamped once and kept; gone from the seven readers; the band 16 → 15, the breakdown 16 → 15, the history 17 → 16; cleared on return; the instrument reads 2 + 19 marked |
+| 5 give-up | Fetched on tick 1, then only on tick 7 when its list date moves; no `gaveUp` | Fetched ticks 1–5, named from the fifth, skipped on the sixth, set aside at its list date, back and charged 1 when the list date moves |
+| 6a 9s per detail | `success` at 54.7s, or `timeout` at 55s in another run: timing-dependent. No stop reason, no cap. The rows written were complete | `success` at 53.0s, `stopReason deadline`, `chronicErr` names 35 owed events; the attempt in flight cut at 53.0s; 5 refreshed complete; the 35 untouched; nothing charged |
+| 6b (review) a detail that never answers, ahead of a newer one | `timeout`; the newer one never reached | `success` at 31.3s; the stuck one charged after two tries, named in `chronicErr`; the newer one refreshed |
+| 6c (review) the lists hang | `timeout` | `error` at 50.0s, naming the last timeout |
+| 7 the split | The committees route asks for 2 meeting list pages and 2 details; the new route 404s; health and `vercel.json` lack it | The committees route asks for none; the new route reads 8 + 5 pages and nothing else; both watched; `50 */12`, 60s |
+| 8 HO 752's recorded tie | `337641` fetched twice, `337725` never, no row | All six stored, each fetched once |
+| 8b the tie on a new-paging boundary, order flipping per request (green only, named) | Passes: the old boundaries sit elsewhere | Passes |
+
+**Owed in the FF go, in order.**
+1. **`npm run migrate` on prod before the deploy.** Every meeting reader filters `absent_upstream_at`, and `getStaleBills` now joins `committee_meetings`. Without the column, `/`, `/stale`, `/welcome`, `/hearings`, `/bill/[id]`, `/committee/[systemCode]` and `/members` would fail. The run should print "added column committee_meetings.absent_upstream_at".
+2. The FF, `verify:deploy` and the Production `e2e-prod`.
+3. **One authorized POST of `/api/cron/committee-meetings`,** right after the deploy. Until its first row, `/api/health` reads the route stale.
+4. The 752 instrument, `--prod --only meetings --meetings table` to a new `--out`. Expected:
+   - older 0 and missing 0 before the run, with the null-detail set named;
+   - the 19 marked;
+   - listed-yet-marked 0.
+5. `/hearings` on Production without `338786`, and the weekly band's count beside its previous value. At STEP 0 it read 18 this week and 59 prior; 2 absent rows sit in each window.
+6. The first two scheduled ticks' payloads, 00:50Z and 12:50Z.
+7. HO 753's two tick readings, if they have not landed before.
+
+**Docs (HO 754):**
+- This block.
+- **backlog 5+/4−.** One line is filed at the head of OPEN LOOPS: *The committees cron errors on about one tick in four…* (STEP 0's reading). Four lines are struck, each keeping its whole prior text:
+  - the page-1 line, on HO 753's prod reading;
+  - the 19-rows line, on the decision (marked and hidden, never deleted) and leg 4;
+  - the offset-paging line, on leg 8, its close;
+  - the committees line: bills on HO 753's prod reading, meetings on this HO's legs, with the prod reading owed in the FF go.
+- **SKILL 28+/11−**, its own commit, approval requested:
+  - the new cron entry;
+  - the committees entry loses its meetings step;
+  - the `committee_meetings` schema block gains `absent_upstream_at`;
+  - `meeting_sync_state` is retired;
+  - `committee_meeting_walk_state` is described;
+  - `npm run sync:meetings` is rewritten;
+  - the meeting readers' absent filter;
+  - flagged, four claims gone false: `:91`'s rollover seam and the committees entry's, the health registry's count, the `meetings` flush path.
+- **OPEN LOOPS reconciled: 264 live / 306 struck at open (570 total), 261 / 310 at close (571)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 754.**
