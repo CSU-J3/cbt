@@ -7,14 +7,20 @@
 //                                        committee_bills_sync_cursor; `changed_at` keys them on the
 //                                        per-bill walk (committees_walked_at IS NULL OR < changed_at)
 //     [--db <file:…|libsql:…>]           read this database instead of TURSO_DATABASE_URL (a legs copy)
-//     --out <dir> [--only bills]         artifacts to <dir> (required; never 752-artifacts); bills and census only
+//     --out <dir> [--only bills|meetings] artifacts to <dir> (required; never 752-artifacts); bills and census
+//                                        only, or (HO 754) the meetings section only
+//     [--meetings watermark|table]       HO 754: `watermark` (default) classifies the events at or below
+//                                        meeting_sync_state as HO 752 did; `table` classifies every listed
+//                                        event against committee_meetings with no watermark (the walk HO 754
+//                                        built), names each stored row the list does not report as marked
+//                                        absent or not, and names the events the walk has set aside
 //     [--log-failed=<bill>@<tick>,...]   the bills the runtime logs name as a tick's
 //                                        failed fetch, read inside the logs window
 //
 // It builds nothing and writes nothing to prod: SELECTs through a reader that
 // refuses anything else, and GETs to api.congress.gov in the sync's own URL
 // shapes (lib/committees-sync.ts:189 for a bill's committees, not exported, so
-// copied; lib/meetings-sync.ts:106 and :155 for the meetings list and detail,
+// copied; lib/meetings-sync.ts's readWholeList and fetchMeetingDetail for the meetings list and detail,
 // copied so every GET goes through one paced, logged getter). GETs start at
 // least 200ms apart and are capped at 1,000 a run; a 429 stops the run with
 // what was read, and every section says how many GETs the cap or a stop cut.
@@ -58,8 +64,8 @@ const ART = "docs/handoffs/752-artifacts";
 const GAP_MS = 200;
 const CAP = 1000;
 const BILL_TIMEOUT_MS = 8_000; // lib/committees-sync.ts:43
-const MEETING_TIMEOUT_MS = 15_000; // lib/meetings-sync.ts:31
-const LIST_LIMIT = 250; // lib/meetings-sync.ts:33
+const MEETING_TIMEOUT_MS = 15_000; // lib/meetings-sync.ts HTTP_TIMEOUT_MS
+const LIST_LIMIT = 250; // lib/meetings-sync.ts LIST_LIMIT
 const PER_TICK_LIMIT = 500; // the bills default, lib/committees-sync.ts:230 (the route passes none, route.ts:74-76)
 const CANDIDATE_SAMPLE = 500;
 const STALE_SAMPLE = 200;
@@ -338,7 +344,8 @@ export function staleOf(b: BillKey, expected: Activity[], stored: Set<string>) {
 
 // ── 5. meetings ────────────────────────────────────────────────────────────
 type ListItem = { eventId: string; updateDate: string };
-// Fetch every page (lib/meetings-sync.ts:106's shape) and save it raw, redacted.
+// Fetch every page (the list URL lib/meetings-sync.ts reads, in steps of 250 with no overlap:
+// the instrument's own complete read, with tie windows below) and save it raw, redacted.
 type SavedPage = { offset: number; recovery?: boolean; pagination: { count?: number; next?: string } | null; committeeMeetings: { eventId?: string | number; updateDate?: string }[] };
 export async function fetchAndSaveList(g: Getter, chamber: string, file: string) {
   const pages: SavedPage[] = [];
@@ -397,32 +404,41 @@ export function loadList(file: string) {
   return { items: [...byId.values()], repeats, recovered, tieDates, count, unique, mainUnique, rawRows: pos, complete: !!saved.pagingEnded && count != null && unique === count };
 }
 export type EventClass = "current" | "older" | "newer" | "missing" | "pending";
-export async function classifyEvents(read: Read, chamber: string, list: ListItem[], tieDates: Set<string> = new Set()) {
-  const watermark = String((await read(`SELECT update_date FROM meeting_sync_state WHERE chamber = ?`, [chamber])).rows[0]?.update_date ?? "1970-01-01T00:00:00Z");
+export type MeetingsMode = "watermark" | "table";
+const hasColumn = async (read: Read, table: string, col: string) => Number((await read(`SELECT COUNT(*) AS n FROM pragma_table_info(?) WHERE name = ?`, [table, col])).rows[0]?.n) === 1;
+const hasTable = async (read: Read, table: string) => Number((await read(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = ?`, [table])).rows[0]?.n) === 1;
+export async function classifyEvents(read: Read, chamber: string, list: ListItem[], tieDates: Set<string> = new Set(), mode: MeetingsMode = "watermark") {
+  // HO 754: the table mode reads no watermark; every listed event is compared.
+  const watermark = mode === "table" ? null : String((await read(`SELECT update_date FROM meeting_sync_state WHERE chamber = ?`, [chamber])).rows[0]?.update_date ?? "1970-01-01T00:00:00Z");
+  const absentCol = await hasColumn(read, "committee_meetings", "absent_upstream_at");
   // Every stored row, whatever its chamber or congress: a row filed under the
   // other chamber is not missing, it is counted apart.
-  const stored = new Map((await read(`SELECT event_id, congress, chamber, update_date FROM committee_meetings`)).rows.map((r) => [String(r.event_id), { congress: Number(r.congress), chamber: String(r.chamber), update_date: String(r.update_date) }]));
+  const stored = new Map((await read(`SELECT event_id, congress, chamber, update_date${absentCol ? ", absent_upstream_at" : ", NULL AS absent_upstream_at"} FROM committee_meetings`)).rows.map((r) => [String(r.event_id), { congress: Number(r.congress), chamber: String(r.chamber), update_date: String(r.update_date), absent: r.absent_upstream_at == null ? null : String(r.absent_upstream_at) }]));
   // The reverse direction, for completeness of the list: rows the list does not report.
   const listed = new Set(list.map((e) => e.eventId));
   // A row at a tied boundary's timestamp may be a pagination skip; any other is an
   // event the upstream list no longer reports (nothing deletes committee_meetings rows).
-  const notListed = [...stored].filter(([id, s]) => s.congress === CONGRESS && s.chamber === chamber && !listed.has(id)).map(([id, s]) => ({ eventId: id, stored: s.update_date, atTie: tieDates.has(s.update_date) }));
+  const notListed = [...stored].filter(([id, s]) => s.congress === CONGRESS && s.chamber === chamber && !listed.has(id)).map(([id, s]) => ({ eventId: id, stored: s.update_date, atTie: tieDates.has(s.update_date), absent: s.absent }));
   let otherChamber = 0;
   const events = list.map((e) => {
     const s = stored.get(e.eventId);
     if (s && s.chamber !== chamber) otherChamber++;
     let cls: EventClass;
-    if (e.updateDate > watermark) cls = "pending";
+    if (watermark != null && e.updateDate > watermark) cls = "pending";
     else cls = s == null ? "missing" : s.update_date === e.updateDate ? "current" : s.update_date < e.updateDate ? "older" : "newer";
-    return { ...e, stored: s?.update_date ?? null, cls };
+    return { ...e, stored: s?.update_date ?? null, cls, absent: s?.absent ?? null };
   });
-  return { watermark, events, otherChamber, notListed };
+  // HO 754: the events the walk has set aside, and any with a failure on record.
+  const walkState = mode === "table" && (await hasTable(read, "committee_meeting_walk_state"))
+    ? (await read(`SELECT event_id, failures, gave_up_at_update, last_error FROM committee_meeting_walk_state WHERE failures > 0 ORDER BY event_id`)).rows.filter((r) => listed.has(String(r.event_id)) || stored.get(String(r.event_id))?.chamber === chamber).map((r) => ({ eventId: String(r.event_id), failures: Number(r.failures), gaveUpAt: S(r.gave_up_at_update), error: S(r.last_error) }))
+    : [];
+  return { watermark: watermark ?? "none (table, HO 754)", events, otherChamber, notListed, absentCol, walkState };
 }
 export async function meetingDetail(g: Getter, chamber: string, eventId: string): Promise<{ verdict: "lost" | "null-detail" | "error"; updateDate: string | null; error: string | null }> {
-  const r = await g.get(`meeting ${chamber}/${eventId}`, `/committee-meeting/${CONGRESS}/${chamber}/${eventId}`, MEETING_TIMEOUT_MS); // lib/meetings-sync.ts:155
+  const r = await g.get(`meeting ${chamber}/${eventId}`, `/committee-meeting/${CONGRESS}/${chamber}/${eventId}`, MEETING_TIMEOUT_MS); // lib/meetings-sync.ts fetchMeetingDetail's URL
   if (!r.json) return { verdict: "error", updateDate: null, error: r.error };
   const m = r.json.committeeMeeting as { updateDate?: string } | undefined;
-  return m ? { verdict: "lost", updateDate: m.updateDate ?? null, error: null } : { verdict: "null-detail", updateDate: null, error: null }; // lib/meetings-sync.ts:161
+  return m ? { verdict: "lost", updateDate: m.updateDate ?? null, error: null } : { verdict: "null-detail", updateDate: null, error: null }; // fetchMeetingDetail's `?? null`
 }
 
 // ── 6. the census ──────────────────────────────────────────────────────────
@@ -494,11 +510,18 @@ async function census(read: Read, cursor: string, ticks: Tick[], nowIso: string,
 async function stamp(read: Read, key: Key = "cursor") {
   const cursor = await readCursor(read); // frozen since HO 753: the walk no longer writes it
   const watermarks = (await read(`SELECT chamber, update_date FROM meeting_sync_state ORDER BY chamber`)).rows.map((r) => `${r.chamber}=${r.update_date}`);
-  const newest = (await read(`SELECT route, id, started_at, status FROM cron_runs WHERE id IN (SELECT MAX(id) FROM cron_runs WHERE route IN ('/api/cron/committees', '/api/sync') GROUP BY route) ORDER BY route`)).rows.map((r) => `${r.route}#${r.id} ${r.started_at} ${r.status}`);
+  const newest = (await read(`SELECT route, id, started_at, status FROM cron_runs WHERE id IN (SELECT MAX(id) FROM cron_runs WHERE route IN ('/api/cron/committees', '/api/cron/committee-meetings', '/api/sync') GROUP BY route) ORDER BY route`)).rows.map((r) => `${r.route}#${r.id} ${r.started_at} ${r.status}`);
+  // HO 754: the meetings walk writes committee_meetings and its absent stamp; follow both.
+  const mt = (await read(`SELECT COUNT(*) AS n, MAX(update_date) AS u${(await hasColumn(read, "committee_meetings", "absent_upstream_at")) ? ", SUM(absent_upstream_at IS NOT NULL) AS a" : ", NULL AS a"} FROM committee_meetings`)).rows[0]!;
+  // Review: COUNT and MAX miss a refresh below the newest row (npm run sync:meetings writes no
+  // cron_runs row), so the rows themselves are hashed, and the walk state followed.
+  const absentSel = (await hasColumn(read, "committee_meetings", "absent_upstream_at")) ? "absent_upstream_at" : "NULL";
+  const rowsHash = createHash("sha256").update((await read(`SELECT event_id, update_date, ${absentSel} AS a FROM committee_meetings ORDER BY event_id`)).rows.map((r) => `${r.event_id}|${r.update_date}|${r.a ?? ""}`).join("\n")).digest("hex").slice(0, 12);
+  const ws = (await hasTable(read, "committee_meeting_walk_state")) ? (await read(`SELECT COUNT(*) AS n, MAX(last_attempt_at) AS l, COALESCE(SUM(failures), 0) AS f FROM committee_meeting_walk_state`)).rows[0]! : null;
   // HO 753: the repair writes no cron_runs row, so follow what it and the walk write.
   const cb = (await read(`SELECT COUNT(*) AS n, MAX(updated_at) AS u FROM committee_bills`)).rows[0]!;
   const walk = key === "changed_at" ? (await read(`SELECT MAX(committees_walked_at) AS w, COALESCE(SUM(committee_walk_failures), 0) AS f FROM bills WHERE congress = ?`, [CONGRESS])).rows[0]! : null;
-  return JSON.stringify({ cursor, watermarks, newest, committeeBills: [cb.n, cb.u], ...(walk ? { lastWalk: walk.w, failures: walk.f } : {}) });
+  return JSON.stringify({ cursor, watermarks, newest, committeeBills: [cb.n, cb.u], meetings: [mt.n, mt.u, mt.a, rowsHash], ...(ws ? { meetingWalkState: [ws.n, ws.l, ws.f] } : {}), ...(walk ? { lastWalk: walk.w, failures: walk.f } : {}) });
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
@@ -510,6 +533,9 @@ async function prod() {
   const KEY = (argv("--key") ?? "cursor") as Key;
   if (KEY !== "cursor" && KEY !== "changed_at") throw new Error(`--key must be cursor|changed_at, got ${KEY}`);
   const ONLY_BILLS = argv("--only") === "bills";
+  const ONLY_MEETINGS = argv("--only") === "meetings"; // HO 754
+  const MMODE = (argv("--meetings") ?? "watermark") as MeetingsMode;
+  if (MMODE !== "watermark" && MMODE !== "table") throw new Error(`--meetings must be watermark|table, got ${MMODE}`);
   const OUT = argv("--out");
   const norm = (p: string) => { const r = path.resolve(p); return process.platform === "win32" ? r.toLowerCase() : r; };
   if (!OUT || norm(OUT) === norm(ART)) throw new Error("the reading needs --out <dir> other than docs/handoffs/752-artifacts, so HO 752's artifacts are not overwritten");
@@ -526,7 +552,16 @@ async function prod() {
   const say = (s: string) => { const r = redactSecrets(s); console.log(r); out.push(r); };
   const logFailed = (process.argv.find((a) => a.startsWith("--log-failed="))?.slice("--log-failed=".length) ?? "").split(",").filter(Boolean).map((x) => { const [bill, tick] = x.split("@"); return { bill: bill!, tick: Number(tick) }; });
   const before = await stamp(read, KEY);
-  say(`=== HO 752 prod reading · ${new Date().toISOString()} · script sha256 ${SCRIPT_SHA} · ${scheme}: · key ${KEY}${ONLY_BILLS ? " · bills only" : ""} ===\nbefore: ${before}`);
+  say(`=== HO 752 prod reading · ${new Date().toISOString()} · script sha256 ${SCRIPT_SHA} · ${scheme}: · key ${KEY}${ONLY_BILLS ? " · bills only" : ""}${ONLY_MEETINGS ? " · meetings only" : ""} · meetings ${MMODE} ===\nbefore: ${before}`);
+  if (ONLY_MEETINGS) {
+    await meetingsSection(g, read, say, OUT, MMODE);
+    const after = await stamp(read, KEY);
+    say(`\nafter: ${after}\n${before === after ? "the rows it follows did not move" : "MOVED between before and after: re-read and report both"}`);
+    say(`GETs used ${g.requests()} of ${CAP} · smallest start-to-start gap ${g.minGapMs()}ms${g.stopped() ? ` · STOPPED: ${g.stopped()}` : ""}`);
+    writeFileSync(path.join(OUT, "reading.txt"), redactSecrets(out.join("\n") + "\n"));
+    db.close();
+    return;
+  }
 
   // 1-2. bills
   const bs = await billsSets(read, KEY);
@@ -631,45 +666,7 @@ async function prod() {
   }
 
   // 5. meetings, from the saved lists (skipped with --only bills)
-  if (!ONLY_BILLS) {
-  for (const chamber of ["house", "senate"]) {
-    const file = path.join(OUT, `meetings-list-${chamber}.json`);
-    const fetched = await fetchAndSaveList(g, chamber, file);
-    const list = loadList(file);
-    const { watermark, events, otherChamber, notListed } = await classifyEvents(read, chamber, list.items, list.tieDates);
-    const cnt = (c: EventClass) => events.filter((e) => e.cls === c).length;
-    const details = new Map<string, Awaited<ReturnType<typeof meetingDetail>>>();
-    for (const e of events.filter((x) => x.cls === "missing")) details.set(e.eventId, await meetingDetail(g, chamber, e.eventId));
-    const agreeSet = [...sample(events.filter((e) => e.cls === "current"), AGREE_SAMPLE, SEED), ...events.filter((e) => e.cls === "older" || e.cls === "newer")];
-    let agree = 0, compared = 0;
-    const agreeErrors: (string | null)[] = [];
-    const disagree: string[] = [];
-    for (const e of agreeSet) {
-      const d = await meetingDetail(g, chamber, e.eventId);
-      agreeErrors.push(d.error);
-      if (d.verdict !== "lost" || !d.updateDate) continue;
-      compared++;
-      if (d.updateDate === e.updateDate) agree++;
-      else disagree.push(`${e.eventId} (${e.cls}) list ${e.updateDate} · detail ${d.updateDate} · stored ${e.stored}`);
-    }
-    writeFileSync(path.join(OUT, `meetings-${chamber}.csv`), csv([["event_id", "list_update_date", "stored_update_date", "class", "detail"], ...events.map((e) => [e.eventId, e.updateDate, e.stored, e.cls, details.get(e.eventId)?.verdict ?? null])]));
-    const dv = (v: string) => [...details.values()].filter((d) => d.verdict === v).length;
-    say(`\nmeetings ${chamber}: upstream count ${list.count} · unique ${list.unique} (${list.mainUnique} from ${list.rawRows} main-page rows over ${fetched.pages} pages + ${list.recovered.length} from ${fetched.recoveryPages} recovery window(s)) · ${list.complete ? "complete" : `INCOMPLETE (shortfall ${list.count == null ? "?" : list.count - list.unique}${fetched.error ? `; ${fetched.error}` : ""})`} · boundaries inside a tie ${fetched.tied.length ? fetched.tied.join(", ") : "none"}, re-read by ${fetched.recoveryPages} centred window(s), recovering ${list.recovered.length}${list.recovered.length ? ` [${list.recovered.join("; ")}]` : ""} · repeated ids ${list.repeats.length}${list.repeats.length ? ` [${list.repeats.join("; ")}]` : ""} · filed under the other chamber ${otherChamber} · stored ${CONGRESS}th rows the list does not report ${notListed.length} (at a tied boundary's timestamp ${notListed.filter((e) => e.atTie).length}) · watermark ${watermark} · at or below ${events.length - cnt("pending")}: current ${cnt("current")} · older ${cnt("older")} · newer ${cnt("newer")} · missing ${cnt("missing")} (lost ${dv("lost")} · null-detail ${dv("null-detail")} · error ${dv("error")}) · pending above ${cnt("pending")}`);
-    for (const e of events.filter((x) => x.cls === "missing")) say(`  missing ${e.eventId} list ${e.updateDate} → ${details.get(e.eventId)?.verdict}${details.get(e.eventId)?.error ? ` (${details.get(e.eventId)?.error})` : ""}`);
-    for (const e of events.filter((x) => x.cls === "older" || x.cls === "newer")) say(`  ${e.cls} ${e.eventId} list ${e.updateDate} · stored ${e.stored}`);
-    say(`  list-vs-detail updateDate: ${agree} of ${compared} agree (${Math.min(AGREE_SAMPLE, cnt("current"))} current sampled + ${cnt("older") + cnt("newer")} older/newer; details not read ${agreeSet.length - compared}${cut(agreeErrors) ? `, cap/stop cut ${cut(agreeErrors)}` : ""})`);
-    for (const d of disagree) say(`  disagree ${d}`);
-    if (notListed.some((e) => e.atTie)) say(`  stored, not listed, at a tied boundary's timestamp (a pagination skip the window did not recover, or dropped upstream): ${notListed.filter((e) => e.atTie).map((e) => `${e.eventId} (${e.stored})`).join(", ")}`);
-    if (notListed.some((e) => !e.atTie)) say(`  stored, not listed, not the upstream count's (events the list no longer reports; outside the line's mechanism, nothing deletes committee_meetings rows): ${notListed.filter((e) => !e.atTie).map((e) => `${e.eventId} (${e.stored})`).join(", ")}`);
-    if (notListed.length) {
-      const nd: string[] = [];
-      for (const e of notListed) { const d = await meetingDetail(g, chamber, e.eventId); nd.push(d.verdict === "error" ? (d.error ?? "error") : d.verdict); }
-      const tallyNd = nd.reduce<Record<string, number>>((m, v) => ((m[v] = (m[v] ?? 0) + 1), m), {});
-      say(`  their details: ${JSON.stringify(tallyNd)} (an HTTP 404 is an event Congress.gov deleted, HO 717's gone_upstream)`);
-    }
-  }
-
-  }
+  if (!ONLY_BILLS) await meetingsSection(g, read, say, OUT, MMODE);
 
   // 6. census
   const c = await census(read, bs.cursor, ticks, new Date().toISOString(), KEY);
@@ -698,6 +695,63 @@ async function prod() {
   say(`GETs used ${g.requests()} of ${CAP} · smallest start-to-start gap ${g.minGapMs()}ms${g.stopped() ? ` · STOPPED: ${g.stopped()}` : ""}`);
   writeFileSync(path.join(OUT, "reading.txt"), redactSecrets(out.join("\n") + "\n"));
   db.close();
+}
+
+// ── 5. meetings, the reading (HO 754: a function, shared by the whole reading and --only meetings) ──
+async function meetingsSection(g: Getter, read: Read, say: (s: string) => void, OUT: string, mode: MeetingsMode) {
+  for (const chamber of ["house", "senate"]) {
+    const file = path.join(OUT, `meetings-list-${chamber}.json`);
+    const fetched = await fetchAndSaveList(g, chamber, file);
+    const list = loadList(file);
+    const { watermark, events, otherChamber, notListed, absentCol, walkState } = await classifyEvents(read, chamber, list.items, list.tieDates, mode);
+    const cnt = (c: EventClass) => events.filter((e) => e.cls === c).length;
+    const details = new Map<string, Awaited<ReturnType<typeof meetingDetail>>>();
+    for (const e of events.filter((x) => x.cls === "missing")) details.set(e.eventId, await meetingDetail(g, chamber, e.eventId));
+    const agreeSet = [...sample(events.filter((e) => e.cls === "current"), AGREE_SAMPLE, SEED), ...events.filter((e) => e.cls === "older" || e.cls === "newer")];
+    let agree = 0, compared = 0;
+    const agreeErrors: (string | null)[] = [];
+    const disagree: string[] = [];
+    for (const e of agreeSet) {
+      const d = await meetingDetail(g, chamber, e.eventId);
+      agreeErrors.push(d.error);
+      if (d.verdict !== "lost" || !d.updateDate) continue;
+      compared++;
+      if (d.updateDate === e.updateDate) agree++;
+      else disagree.push(`${e.eventId} (${e.cls}) list ${e.updateDate} · detail ${d.updateDate} · stored ${e.stored}`);
+    }
+    writeFileSync(path.join(OUT, `meetings-${chamber}.csv`), csv([["event_id", "list_update_date", "stored_update_date", "class", "detail"], ...events.map((e) => [e.eventId, e.updateDate, e.stored, e.cls, details.get(e.eventId)?.verdict ?? null])]));
+    const dv = (v: string) => [...details.values()].filter((d) => d.verdict === v).length;
+    say(`\nmeetings ${chamber}: upstream count ${list.count} · unique ${list.unique} (${list.mainUnique} from ${list.rawRows} main-page rows over ${fetched.pages} pages + ${list.recovered.length} from ${fetched.recoveryPages} recovery window(s)) · ${list.complete ? "complete" : `INCOMPLETE (shortfall ${list.count == null ? "?" : list.count - list.unique}${fetched.error ? `; ${fetched.error}` : ""})`} · boundaries inside a tie ${fetched.tied.length ? fetched.tied.join(", ") : "none"}, re-read by ${fetched.recoveryPages} centred window(s), recovering ${list.recovered.length}${list.recovered.length ? ` [${list.recovered.join("; ")}]` : ""} · repeated ids ${list.repeats.length}${list.repeats.length ? ` [${list.repeats.join("; ")}]` : ""} · filed under the other chamber ${otherChamber} · stored ${CONGRESS}th rows the list does not report ${notListed.length} (at a tied boundary's timestamp ${notListed.filter((e) => e.atTie).length}) · ${mode === "table" ? `against the table, no watermark (HO 754): every listed event ${events.length}` : `watermark ${watermark} · at or below ${events.length - cnt("pending")}`}: current ${cnt("current")} · older ${cnt("older")} · newer ${cnt("newer")} · missing ${cnt("missing")} (lost ${dv("lost")} · null-detail ${dv("null-detail")} · error ${dv("error")})${mode === "table" ? "" : ` · pending above ${cnt("pending")}`}`);
+    if (mode === "table") {
+      const marked = notListed.filter((e) => e.absent != null);
+      // Review: a row the list carries but a stamp still hides is a fault the marked count
+      // cannot show; and an event changed upstream after the last walk's run started is owed,
+      // not a fault, so older/missing are split at that run's started_at.
+      const listedMarked = events.filter((e) => e.absent != null);
+      const lastWalk = String((await read(`SELECT MAX(started_at) AS s FROM cron_runs WHERE route = '/api/cron/committee-meetings'`)).rows[0]?.s ?? "");
+      const since = (c: EventClass) => events.filter((e) => e.cls === c && lastWalk !== "" && e.updateDate > lastWalk);
+      say(`  HO 754, listed yet marked absent (hidden while Congress.gov lists it): ${listedMarked.length}${listedMarked.length ? ` [${listedMarked.map((e) => `${e.eventId} at ${e.absent}`).join(", ")}]` : ""}`);
+      say(`  HO 754, split at the last committee-meetings run (${lastWalk || "none"}): older ${cnt("older")} (changed upstream after it ${since("older").length}) · missing ${cnt("missing")} (added after it ${since("missing").length}); only those before it are the walk's to have done`);
+      say(`  HO 754, the table's reading: stored ${CONGRESS}th rows the list does not report ${notListed.length} · marked absent ${marked.length}${absentCol ? "" : " (no absent_upstream_at column)"} · unmarked ${notListed.length - marked.length}${notListed.length - marked.length ? ` [${notListed.filter((e) => e.absent == null).map((e) => e.eventId).join(", ")}]` : ""}`);
+      for (const e of marked) say(`    marked ${e.eventId} at ${e.absent} (stored ${e.stored})`);
+      const aside = walkState.filter((w) => w.failures >= 5);
+      say(`  walk state: events with a failure on record ${walkState.length} · set aside (5 or more) ${aside.length}${aside.length ? ` [${aside.map((w) => `${w.eventId} at ${w.gaveUpAt}`).join(", ")}]` : ""}`);
+      for (const w of walkState) say(`    ${w.eventId}: failures ${w.failures}${w.gaveUpAt ? ` · set aside at ${w.gaveUpAt}` : ""} · last error ${w.error ?? "none"}`);
+    }
+    for (const e of events.filter((x) => x.cls === "missing")) say(`  missing ${e.eventId} list ${e.updateDate} → ${details.get(e.eventId)?.verdict}${details.get(e.eventId)?.error ? ` (${details.get(e.eventId)?.error})` : ""}`);
+    for (const e of events.filter((x) => x.cls === "older" || x.cls === "newer")) say(`  ${e.cls} ${e.eventId} list ${e.updateDate} · stored ${e.stored}`);
+    say(`  list-vs-detail updateDate: ${agree} of ${compared} agree (${Math.min(AGREE_SAMPLE, cnt("current"))} current sampled + ${cnt("older") + cnt("newer")} older/newer; details not read ${agreeSet.length - compared}${cut(agreeErrors) ? `, cap/stop cut ${cut(agreeErrors)}` : ""})`);
+    for (const d of disagree) say(`  disagree ${d}`);
+    if (notListed.some((e) => e.atTie)) say(`  stored, not listed, at a tied boundary's timestamp (a pagination skip the window did not recover, or dropped upstream): ${notListed.filter((e) => e.atTie).map((e) => `${e.eventId} (${e.stored})`).join(", ")}`);
+    if (notListed.some((e) => !e.atTie)) say(`  stored, not listed, not the upstream count's (events the list no longer reports; outside the line's mechanism, nothing deletes committee_meetings rows): ${notListed.filter((e) => !e.atTie).map((e) => `${e.eventId} (${e.stored})`).join(", ")}`);
+    if (notListed.length) {
+      const nd: string[] = [];
+      for (const e of notListed) { const d = await meetingDetail(g, chamber, e.eventId); nd.push(d.verdict === "error" ? (d.error ?? "error") : d.verdict); }
+      const tallyNd = nd.reduce<Record<string, number>>((m, v) => ((m[v] = (m[v] ?? 0) + 1), m), {});
+      say(`  their details: ${JSON.stringify(tallyNd)} (an HTTP 404 is an event Congress.gov deleted, HO 717's gone_upstream)`);
+    }
+  }
+
 }
 
 // ── the controls, on a file: copy ──────────────────────────────────────────
