@@ -50,13 +50,13 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 18 watched route keys, against 18 distinct route strings across 19
+// The 19 watched route keys, against 19 distinct route strings across 20
 // vercel.json crons — the two /api/cron/markets entries collapse to one route
 // string, and /api/cron/lda-rollup is watched since HO 737, which closes the
 // gap HO 676 found while adding the roster route and filed rather than fixed.
 // The count read 14 while listing 15 before HO 676; corrected with the addition
-// rather than left to drift further, again with lda-rollup's (HO 737), and
-// again with general-ballot's (HO 749).
+// rather than left to drift further, again with lda-rollup's (HO 737), again
+// with general-ballot's (HO 749), and again with committee-meetings' (HO 754).
 export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/summarize", schedule: "*/10 * * * *", maxStaleMs: 30 * MIN }, // every 10m
   { path: "/api/cron/news", schedule: "*/30 * * * *", maxStaleMs: 70 * MIN }, // every 30m
@@ -71,6 +71,8 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/markets", schedule: "0 */4 * * *", maxStaleMs: 9 * HOUR, signal: "market_ticks" }, // bare every 4h
   { path: "/api/sync", schedule: "0 */6 * * *", maxStaleMs: 13 * HOUR }, // every 6h
   { path: "/api/cron/committees", schedule: "0 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
+  // HO 754: the meetings step's own route, split from committees. 2x cadence + 1h grace.
+  { path: "/api/cron/committee-meetings", schedule: "50 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
   { path: "/api/sync-votes", schedule: "0 10 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/primaries", schedule: "0 0,12 * * *", maxStaleMs: 26 * HOUR }, // twice daily (HO 560 C3)
   { path: "/api/cron/rating-history", schedule: "0 15 * * *", maxStaleMs: 26 * HOUR }, // daily

@@ -14,6 +14,9 @@
 //    starting new bills at 45s wall-clock, leaving 10s for finalize. The fill
 //    of every never-walked bill is `npm run repair:committee-bills`.
 //
+// The committee-meetings step HO 263 folded in after the bills step moved to
+// its own route, /api/cron/committee-meetings (HO 754).
+//
 // Schedule: every 12h (`0 */12`, vercel.json). The "11:30 UTC daily" this
 // header used to give was stale (HO 753).
 import { expireTag } from "@/lib/cache/expire-tag";
@@ -25,7 +28,6 @@ import {
   syncCommitteesList,
 } from "@/lib/committees-sync";
 import { wrapCronRoute } from "@/lib/cron-log";
-import { syncMeetings } from "@/lib/meetings-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -34,11 +36,6 @@ export const maxDuration = 60;
 // route start. 55s wrapper soft timeout - 10s buffer for finalize = 45s
 // deadline for the bills loop.
 const BILLS_BUDGET_MS = 45_000;
-// HO 263: the meetings step rides this cron AFTER the committee sync. Its own
-// deadline (50s of the function's lifetime) so it can't push the route toward
-// the 60s ceiling; the heavy ~2,400-call backfill is manual (npm run
-// sync:meetings), so the daily delta here is a handful of events.
-const MEETINGS_BUDGET_MS = 50_000;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -77,28 +74,6 @@ async function handle(request: Request) {
     });
     timings.bills = Date.now() - t3;
 
-    // HO 263: committee meetings (hearings) daily delta. Non-fatal — a meetings
-    // error is logged and never fails the committees run. Deadline-guarded and
-    // capped so it can't blow the budget (the backfill is manual, not here).
-    const t4 = Date.now();
-    let meetings: Awaited<ReturnType<typeof syncMeetings>> | null = null;
-    let meetingsErr: string | undefined;
-    try {
-      meetings = await syncMeetings({
-        deadlineMs: routeStart + MEETINGS_BUDGET_MS,
-        perTickLimit: 300,
-      });
-    } catch (err) {
-      meetingsErr = err instanceof Error ? err.message : String(err);
-      console.warn("[committees] meetings step failed (non-fatal):", meetingsErr);
-    }
-    timings.meetings = Date.now() - t4;
-    if (meetings) {
-      console.log(
-        `[meetings] upserted=${meetings.meetingsUpserted} billRows=${meetings.billRowsUpserted} documents_stored=${meetings.documentsStored} recorded_vote_docs=${meetings.recordedVoteDocs} errors=${meetings.fetchErrors} deadlineHit=${meetings.deadlineHit}`,
-      );
-    }
-
     console.log(
       `[committees] list: pages=${list.pages} upserted=${list.upserted}`,
     );
@@ -115,7 +90,6 @@ async function handle(request: Request) {
     );
 
     expireTag("committees");
-    expireTag("meetings"); // HO 263
 
     const payload = {
       timings,
@@ -127,7 +101,6 @@ async function handle(request: Request) {
         rosterDeletesRefused: members.rosterDeletesRefused, // HO 568 — surface into cron_runs.payload
       },
       bills,
-      meetings,
     };
 
     // Chronic-err pattern (HO 139): non-fatal conditions surface in
@@ -147,11 +120,6 @@ async function handle(request: Request) {
     }
     if (bills.rateLimited) {
       parts.push("bill committee walk ended on a 429");
-    }
-    if (meetingsErr) {
-      parts.push(`meetings step error: ${meetingsErr}`);
-    } else if (meetings && meetings.fetchErrors > 0) {
-      parts.push(`meeting detail fetch errors: ${meetings.fetchErrors}`);
     }
     const chronicErr = parts.length > 0 ? parts.join("; ") : undefined;
 

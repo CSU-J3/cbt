@@ -922,13 +922,15 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   // Indexed range on the raw ISO timestamp (idx_committee_meetings_date) rather
   // than date(meeting_date) BETWEEN, which wraps the column and forces a scan.
   // meeting_date is ISO-UTC ("2026-05-11T14:30:00Z"), so a lexical range over
-  // [start T00:00, end T23:59:59] covers the same Mon–Sun week.
+  // [start T00:00, end T23:59:59] covers the same Mon–Sun week. HO 754: a meeting
+  // Congress.gov no longer lists (absent_upstream_at) is not counted.
   const meetingsRs = await db.execute({
     sql: `SELECT m.event_id, m.committee_system_code, c.name AS committee_name,
                  m.meeting_date, m.meeting_type, m.video_url
           FROM committee_meetings m
           LEFT JOIN committees c ON c.system_code = m.committee_system_code
-          WHERE m.meeting_date >= ? AND m.meeting_date <= ?`,
+          WHERE m.meeting_date >= ? AND m.meeting_date <= ?
+            AND m.absent_upstream_at IS NULL`,
     args: [`${week.start}T00:00:00Z`, `${week.end}T23:59:59Z`],
   });
   let hearings = 0;

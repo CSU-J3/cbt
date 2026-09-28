@@ -28,6 +28,9 @@
     "app/api/cron/committees/route.ts": {
       "maxDuration": 60
     },
+    "app/api/cron/committee-meetings/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/cron/kalshi/route.ts": {
       "maxDuration": 60
     },
@@ -76,6 +79,10 @@
     {
       "path": "/api/cron/committees",
       "schedule": "0 */12 * * *"
+    },
+    {
+      "path": "/api/cron/committee-meetings",
+      "schedule": "50 */12 * * *"
     },
     {
       "path": "/api/cron/primaries",

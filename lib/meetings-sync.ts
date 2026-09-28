@@ -1,40 +1,74 @@
-// HO 263 committee-meetings (hearings) sync — Phase 1 data layer, no UI.
-// Mirrors lib/committees-sync.ts in shape (Congress.gov, a derived CONGRESS, an 8s
-// AbortSignal per call, a dashboard_state-style cursor, db.batch upserts,
-// deadline-budgeted). Separate file from committees-sync (committees stayed
-// separate from bills). The /api/cron/committees route folds the meetings step
-// in after the committee sync, deadline-guarded + non-fatal (HO 263 Cron).
+// HO 263 committee-meetings (hearings) sync. HO 754: the table is the state, not a
+// watermark.
 //
-// The wrinkle (HO 261 probe): the list endpoint (committee-meeting/{N}/{chamber})
-// is sorted updateDate-DESC with NO server-side date filter, and the meeting DATE
-// lives only on the detail record. So the cursor is a per-chamber update_date
-// watermark: each run COLLECTS the thin list newest→oldest until it hits an event
-// at/older than the watermark (the synced tail), PROCESSES the collected set
-// oldest-first (fetching detail per event), and advances the watermark per
-// COMPLETED event — so a deadline-interrupted tick keeps its progress and the
-// next tick resumes forward (the HO 116/143 forward-drain, adapted).
+// The list endpoint (committee-meeting/{N}/{chamber}) is sorted updateDate-DESC with NO
+// server-side date filter, and the meeting DATE lives only on the detail record (HO 261
+// probe). Until HO 754 the sync kept a per-chamber `meeting_sync_state` watermark and
+// collected only events newer than it. HO 752 measured what that loses: a failed or null
+// detail was passed over, an update landing exactly on the watermark was never collected,
+// and a tie at an offset page boundary repeated one event and skipped another.
+//
+// Each run now reads each chamber's WHOLE list in pages of 250 that overlap by 25 (so a
+// boundary that shifts by up to 25 places between two reads is re-read), deduplicated by
+// eventId with the newest updateDate kept. Every listed event is compared with its stored
+// row. No row, or a stored update_date older than the list's, is owed a refresh (the detail
+// fetched and upserted); anything else is unchanged. upsertMeeting stores the DETAIL's
+// updateDate, which agreed with the list's 104 of 104 at HO 752. Owed events are refreshed
+// oldest list updateDate first across both chambers. No new event, and no retry, starts
+// past the deadline; an event not reached stays owed, so the next run picks it up.
+//
+// A failed detail, or a 200 with no committeeMeeting, leaves the row as it was and is
+// counted in committee_meeting_walk_state; a success resets it. Five running set the event
+// aside, named in `gaveUp`, until its list updateDate moves past the one recorded at the
+// fifth (it then gets five more). A stored row of this Congress that the chamber's list no
+// longer carries is stamped `absent_upstream_at`, once, and only from a complete list read
+// (every page read, paging ended, and the unique ids equal the list's own count); a row
+// that reappears is cleared. Nothing is deleted, and the meeting queries hide absent rows.
+// `meeting_sync_state` is no longer read or written (retired, HO 754).
+//
+// /api/cron/committee-meetings (HO 754, its own route) and `npm run sync:meetings` call
+// the same function.
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { RECORDED_VOTE_DOC_SQL } from "./meeting-documents";
+import { redactSecrets } from "./redact";
 
 const API_BASE = "https://api.congress.gov/v3";
-// HO 712: derived. Safe with no guard — an empty list for a Congress that has
-// not met yet leaves each chamber's watermark exactly where it is and writes
-// nothing, and the only DELETE here is scoped to an event being re-upserted.
-// Carries the same tail tradeoff as committees-sync: once this rolls, a 119th
-// meeting whose detail changes afterwards is no longer walked (SKILL, Congress
-// rollover tradeoff).
+// HO 712: derived. Safe with no guard: an empty list for a Congress that has not met
+// yet refreshes nothing, and the absent stamp is scoped to the current Congress's rows,
+// so the previous Congress's rows are left as they are. The only DELETE here is scoped
+// to an event being re-upserted. Carries the same tail tradeoff as committees-sync: once
+// this rolls, a 119th meeting whose detail changes afterwards is no longer walked (SKILL,
+// Congress rollover tradeoff).
 const CONGRESS = getCurrentCongress();
 const CHAMBERS = ["house", "senate"] as const;
 type Chamber = (typeof CHAMBERS)[number];
 
 const HTTP_TIMEOUT_MS = 15_000; // per-call abort (the list page is ~250 items)
-const HTTP_TRIES = 8; // transient timeouts are common across ~2,400 calls
+const HTTP_TRIES = 8; // a list page: transient timeouts are common across a long walk
+// HO 754 (review): one event's detail gets two tries, and both failing charges it. With
+// eight, a detail that never answers held the head of the queue for the whole 50s every
+// tick, uncharged, so it was never set aside and every newer meeting waited behind it.
+const DETAIL_TRIES = 2;
 const LIST_LIMIT = 250;
-const CURSOR_COMMIT_EVERY = 50; // persist progress mid-backfill (HO 120 per-unit-commit)
-const LIST_MAX_PAGES = 40; // runaway backstop (1,439 House / 250 ≈ 6 pages)
-const DETAIL_SLEEP_MS = 80; // pace detail calls — they share the CONGRESS_API_KEY budget
-const DEFAULT_PER_TICK_LIMIT = 3_000; // ~the full corpus; the CLI backfill drains it
+// HO 754: each page after the first starts 25 places before the previous one ended, so
+// an event pushed across a boundary between two reads (an event above it deleted, or a
+// tie reordered) is still read. The tie HO 752 caught at a boundary was six rows.
+const LIST_OVERLAP = 25;
+const LIST_MAX_PAGES = 40; // runaway backstop (1,611 House events at 225 a page is 8 pages)
+const DETAIL_SLEEP_MS = 80; // pace detail calls; they share the CONGRESS_API_KEY budget
+const DEFAULT_PER_TICK_LIMIT = 3_000; // detail attempts per run; about the whole corpus
+// HO 754: five failed or null details running set an event aside until its list
+// updateDate moves past the one recorded at the fifth.
+export const GIVE_UP_AT = 5;
+// HO 754: an attempt in flight at the deadline is aborted by the deadline plus this, so a
+// run given a 50s deadline finishes inside the cron wrapper's 55s soft timeout.
+const DEADLINE_GRACE_MS = 3_000;
+// HO 754: more absent rows than this from one chamber's list in one run are not stamped.
+// A list that reads complete but short (an upstream fault) would otherwise hide real
+// meetings until the next run. HO 752 read 19 across both chambers, accumulated since June.
+export const ABSENT_MAX_PER_RUN = 50;
+const FAILED_IDS_MAX = 20;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -46,84 +80,129 @@ function apiKey(): string {
   return k.trim();
 }
 
-// Congress.gov occasionally times out under the 2,400-call backfill; retry the
-// per-call abort a couple times with a short backoff before giving up. Non-200
-// (a real error answer) is NOT retried.
-async function getJson<T>(url: string, label: string): Promise<T> {
+// HO 754: the deadline refused a new attempt, or cut one in flight. `ownFailures` counts the
+// attempts before it that failed on their own clock (a full-length timeout, or a network
+// error), not by the deadline's cap. With none, nothing is charged and the event stays owed;
+// with some, the event had its tries and the walk charges it (review).
+export class MeetingsDeadlineError extends Error {
+  constructor(
+    label: string,
+    public ownFailures = 0,
+    lastError: string | null = null,
+  ) {
+    super(`${label}: stopped at the deadline${lastError ? ` after ${ownFailures} failed attempt(s), the last: ${lastError}` : ""}`);
+    this.name = "MeetingsDeadlineError";
+  }
+}
+
+// HO 754: a 429 ends the walk (the key's hourly budget is shared with every other
+// Congress.gov caller); nothing is charged.
+export class MeetingsRateLimitedError extends Error {
+  constructor(label: string) {
+    super(`${label}: HTTP 429`);
+    this.name = "MeetingsRateLimitedError";
+  }
+}
+
+// Congress.gov occasionally times out; retry the per-call abort with a short backoff
+// before giving up. Non-200 (a real error answer) is NOT retried. HO 754: no attempt
+// starts at or past `deadline`, and an attempt's abort is capped at the deadline plus
+// DEADLINE_GRACE_MS, so the retries cannot carry a run past its budget.
+async function getJson<T>(
+  url: string,
+  label: string,
+  deadline = Number.POSITIVE_INFINITY,
+  tries = HTTP_TRIES,
+): Promise<T> {
   let lastErr: unknown;
-  for (let attempt = 0; attempt < HTTP_TRIES; attempt++) {
+  let ownFailures = 0;
+  const lastMessage = () => (lastErr == null ? null : redactSecrets(lastErr instanceof Error ? lastErr.message : String(lastErr)));
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const now = Date.now();
+    if (now >= deadline) throw new MeetingsDeadlineError(label, ownFailures, lastMessage());
+    const timeoutMs = Math.min(HTTP_TIMEOUT_MS, deadline + DEADLINE_GRACE_MS - now);
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) });
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      if (res.status === 429) throw new MeetingsRateLimitedError(label);
       if (!res.ok) throw new Error(`${label} HTTP ${res.status}`);
       return (await res.json()) as T;
     } catch (err) {
-      lastErr = err;
+      if (err instanceof MeetingsRateLimitedError) throw err;
       if (err instanceof Error && /HTTP \d/.test(err.message)) throw err; // real error answer
-      await sleep(1000 * (attempt + 1)); // spaced backoff to outlast a flaky burst
+      // A timeout under the deadline's cap is the deadline's doing, not the attempt's own.
+      const capped = timeoutMs < HTTP_TIMEOUT_MS && err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+      if (!capped) {
+        ownFailures++;
+        lastErr = err;
+      }
+      if (Date.now() >= deadline) throw new MeetingsDeadlineError(label, ownFailures, lastMessage()); // cut by the deadline
+      // Spaced backoff to outlast a flaky burst, never sleeping past the deadline.
+      if (attempt + 1 < tries) await sleep(Math.min(1000 * (attempt + 1), Math.max(0, deadline - Date.now())));
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error(`${label} failed`);
+  throw new Error(`${label} failed after ${ownFailures} attempt(s): ${lastMessage() ?? "no answer"}`);
 }
 
-// --- cursor (per-chamber high-watermark) --------------------------------
+// --- list (thin, whole) ---------------------------------------------------
 
-async function readCursor(chamber: Chamber): Promise<string> {
-  const db = getDb();
-  const rs = await db.execute({
-    sql: "SELECT update_date FROM meeting_sync_state WHERE chamber = ?",
-    args: [chamber],
-  });
-  return (rs.rows[0]?.update_date as string | undefined) ?? "1970-01-01T00:00:00Z";
-}
+type ListRead = {
+  items: Map<string, string>; // eventId → the newest updateDate read for it
+  pages: number;
+  count: number | null; // the list's own pagination.count, from the last page read
+  countMoved: boolean; // a page reported a count different from the first page's
+  complete: boolean;
+  error: string | null;
+  stop: "deadline" | "rate-limited" | null;
+};
 
-async function writeCursor(chamber: Chamber, value: string): Promise<void> {
-  const db = getDb();
-  await db.execute({
-    sql: `INSERT INTO meeting_sync_state (chamber, update_date)
-          VALUES (?, ?)
-          ON CONFLICT(chamber) DO UPDATE SET update_date = excluded.update_date`,
-    args: [chamber, value],
-  });
-}
-
-// --- list (thin) --------------------------------------------------------
-
-type ListItem = { eventId: string; updateDate: string };
-
-// Page the list newest→oldest, collecting events strictly newer than the
-// watermark; stop as soon as a page yields an event at/older than it (the synced
-// tail) or the list ends. Cheap (no detail fetch). On the first backfill the
-// watermark is epoch, so this pages the whole list (~6/4 pages) — still thin.
-async function collectNewEvents(
-  chamber: Chamber,
-  watermark: string,
-): Promise<ListItem[]> {
+// HO 754: the whole list, newest→oldest, in pages of LIST_LIMIT that overlap by
+// LIST_OVERLAP, deduplicated by eventId. Complete means every page came back, paging
+// ended (no `next`, or a short page), every page reported the same count, and the unique
+// ids equal it. Only a complete read may stamp a row absent. The steady count matters
+// (review): an event already read being deleted while one not yet read moves to the head
+// leaves the unique ids equal to the final count with the moved one never read.
+// A page that fails keeps what was read before it.
+async function readWholeList(chamber: Chamber, deadline: number): Promise<ListRead> {
   const key = apiKey();
-  const out: ListItem[] = [];
+  const items = new Map<string, string>();
   let offset = 0;
   let pages = 0;
-  while (pages < LIST_MAX_PAGES) {
-    const url = `${API_BASE}/committee-meeting/${CONGRESS}/${chamber}?api_key=${key}&format=json&limit=${LIST_LIMIT}&offset=${offset}`;
-    const j = await getJson<{
-      committeeMeetings?: Array<{ eventId?: string; updateDate?: string }>;
-      pagination?: { next?: string };
-    }>(url, `meetings list ${chamber} @${offset}`);
-    const rows = j.committeeMeetings ?? [];
-    pages++;
-    let hitTail = false;
-    for (const r of rows) {
-      if (!r.eventId || !r.updateDate) continue;
-      if (r.updateDate > watermark) {
-        out.push({ eventId: r.eventId, updateDate: r.updateDate });
-      } else {
-        hitTail = true; // newest-first → everything past here is already synced
+  let count: number | null = null;
+  let countMoved = false;
+  let ended = false;
+  try {
+    while (pages < LIST_MAX_PAGES) {
+      const url = `${API_BASE}/committee-meeting/${CONGRESS}/${chamber}?api_key=${key}&format=json&limit=${LIST_LIMIT}&offset=${offset}`;
+      const j = await getJson<{
+        committeeMeetings?: Array<{ eventId?: string | number; updateDate?: string }>;
+        pagination?: { next?: string; count?: number };
+      }>(url, `meetings list ${chamber} @${offset}`, deadline);
+      pages++;
+      const rows = j.committeeMeetings ?? [];
+      if (j.pagination?.count != null) {
+        const c = Number(j.pagination.count);
+        if (count != null && c !== count) countMoved = true;
+        count = c;
+      }
+      for (const r of rows) {
+        if (r.eventId == null || !r.updateDate) continue;
+        const id = String(r.eventId);
+        const prev = items.get(id);
+        if (prev === undefined || r.updateDate > prev) items.set(id, r.updateDate);
+      }
+      if (!j.pagination?.next || rows.length < LIST_LIMIT) {
+        ended = true;
         break;
       }
+      offset += LIST_LIMIT - LIST_OVERLAP;
     }
-    if (hitTail || !j.pagination?.next || rows.length < LIST_LIMIT) break;
-    offset += LIST_LIMIT;
+  } catch (err) {
+    const stop =
+      err instanceof MeetingsDeadlineError ? "deadline" : err instanceof MeetingsRateLimitedError ? "rate-limited" : null;
+    const error = redactSecrets(err instanceof Error ? err.message : String(err));
+    return { items, pages, count, countMoved, complete: false, error, stop };
   }
-  return out;
+  return { items, pages, count, countMoved, complete: ended && !countMoved && count != null && items.size === count, error: null, stop: null };
 }
 
 // --- detail -------------------------------------------------------------
@@ -151,11 +230,14 @@ export type ApiMeeting = {
 export async function fetchMeetingDetail(
   chamber: Chamber,
   eventId: string,
+  deadline = Number.POSITIVE_INFINITY,
 ): Promise<ApiMeeting | null> {
   const url = `${API_BASE}/committee-meeting/${CONGRESS}/${chamber}/${eventId}?api_key=${apiKey()}&format=json`;
   const j = await getJson<{ committeeMeeting?: ApiMeeting }>(
     url,
     `meeting detail ${chamber}/${eventId}`,
+    deadline,
+    DETAIL_TRIES,
   );
   return j.committeeMeeting ?? null;
 }
@@ -225,8 +307,8 @@ function readDocumentCount(
 }
 
 // The backfill's write: documents only, for events synced before HO 717 stored any.
-// It does not touch committee_meetings or meeting_bills, so it moves no cursor and
-// rewrites no column the walk owns.
+// It does not touch committee_meetings or meeting_bills, so it rewrites no column the
+// walk owns.
 export async function writeMeetingDocuments(m: ApiMeeting): Promise<DocumentWrite> {
   const eventId = m.eventId!;
   const docs = m.meetingDocuments ?? [];
@@ -236,7 +318,9 @@ export async function writeMeetingDocuments(m: ApiMeeting): Promise<DocumentWrit
 
 // One event → committee_meetings upsert + a delete-then-insert of its meeting_bills
 // (so a meeting that loses a bill association clears) + its documents (HO 717), all
-// in one batch.
+// in one batch. HO 754: the same batch clears the row's absent stamp (the event was
+// just read upstream) and resets its walk state, so a refresh that lands is never
+// half-recorded.
 async function upsertMeeting(
   chamber: Chamber,
   m: ApiMeeting,
@@ -259,7 +343,8 @@ async function upsertMeeting(
               location_room = excluded.location_room,
               video_url = excluded.video_url,
               committee_system_code = excluded.committee_system_code,
-              update_date = excluded.update_date`,
+              update_date = excluded.update_date,
+              absent_upstream_at = NULL`,
       args: [
         eventId,
         m.congress ?? CONGRESS,
@@ -283,105 +368,259 @@ async function upsertMeeting(
       args: [eventId, billId],
     });
   }
+  stmts.push({
+    sql: `UPDATE committee_meeting_walk_state
+             SET failures = 0, gave_up_at_update = NULL, last_error = NULL, last_attempt_at = ?
+           WHERE event_id = ?`,
+    args: [new Date().toISOString(), eventId],
+  });
   const docs = m.meetingDocuments ?? [];
-  stmts.push(...documentStatements(eventId, docs));
+  stmts.push(...documentStatements(eventId, docs)); // last: readDocumentCount reads its SELECT
   const results = await db.batch(stmts, "write");
   return { billRows: billIds.length, ...readDocumentCount(results, docs.length) };
 }
 
 // --- driver -------------------------------------------------------------
 
+type Owed = { chamber: Chamber; eventId: string; updateDate: string; returned: boolean };
+
+// HO 754: a failed or null detail. Returns whether this failure set the event aside.
+// An event back from a give-up (its list updateDate moved past the recorded one)
+// starts again at 1.
+async function recordFailure(item: Owed, error: string): Promise<boolean> {
+  const rs = await getDb().execute({
+    sql: `INSERT INTO committee_meeting_walk_state
+            (event_id, failures, last_attempt_at, last_error, gave_up_at_update)
+          VALUES (:id, 1, :at, :err, CASE WHEN 1 >= :cap THEN :upd END)
+          ON CONFLICT(event_id) DO UPDATE SET
+            failures = CASE WHEN :ret THEN 1 ELSE failures + 1 END,
+            last_attempt_at = excluded.last_attempt_at,
+            last_error = excluded.last_error,
+            gave_up_at_update = CASE WHEN (CASE WHEN :ret THEN 1 ELSE failures + 1 END) >= :cap THEN :upd END
+          RETURNING failures`,
+    args: {
+      id: item.eventId,
+      at: new Date().toISOString(),
+      err: error.slice(0, 500),
+      cap: GIVE_UP_AT,
+      upd: item.updateDate,
+      ret: item.returned ? 1 : 0,
+    },
+  });
+  return Number(rs.rows[0]?.failures ?? 0) >= GIVE_UP_AT;
+}
+
+export type MeetingsStopReason = "complete" | "deadline" | "cap" | "rate-limited";
+
 export type MeetingsSyncResult = {
-  meetingsUpserted: number;
+  stopReason: MeetingsStopReason;
+  pages: Record<Chamber, number>; // list pages read
+  listSize: Record<Chamber, number>; // unique events read
+  listCount: Record<Chamber, number | null>; // the list's own count
+  listComplete: Record<Chamber, boolean>;
+  listErrors: string[];
+  refreshed: number; // details fetched and upserted
+  unchanged: number; // listed events whose stored row is current
+  remaining: number; // owed events the run did not reach (deadline, cap or stop)
+  failed: { count: number; ids: string[] }; // failed or null details this run (ids capped at 20)
+  gaveUp: { count: number; ids: string[] }; // owed events set aside after GIVE_UP_AT (ids capped at 20)
+  absent: { stamped: number; cleared: number; refused: string[]; skipped: string[] };
   billRowsUpserted: number;
   documentsStored: number; // HO 717: committee_meeting_documents rows written this run
   recordedVoteDocs: number; // HO 717: of those, rows matching RECORDED_VOTE_DOC_SQL
-  fetchErrors: number;
-  deadlineHit: boolean;
-  perChamber: Record<Chamber, { collected: number; processed: number; cursorEnd: string }>;
 };
 
 export type SyncMeetingsOptions = {
-  deadlineMs?: number; // absolute Date.now() deadline; stops starting new detail fetches past this
-  perTickLimit?: number; // hard cap on events per run (default ~corpus)
+  deadlineMs?: number; // absolute Date.now() deadline; no new detail, page or retry starts past it
+  perTickLimit?: number; // hard cap on detail attempts per run (default ~corpus)
 };
 
 export async function syncMeetings(
   opts: SyncMeetingsOptions = {},
 ): Promise<MeetingsSyncResult> {
   const deadline = opts.deadlineMs ?? Number.POSITIVE_INFINITY;
-  let budget = opts.perTickLimit ?? DEFAULT_PER_TICK_LIMIT;
+  const limit = opts.perTickLimit ?? DEFAULT_PER_TICK_LIMIT;
+  const db = getDb();
+  const r: MeetingsSyncResult = {
+    stopReason: "complete",
+    pages: { house: 0, senate: 0 },
+    listSize: { house: 0, senate: 0 },
+    listCount: { house: null, senate: null },
+    listComplete: { house: false, senate: false },
+    listErrors: [],
+    refreshed: 0,
+    unchanged: 0,
+    remaining: 0,
+    failed: { count: 0, ids: [] },
+    gaveUp: { count: 0, ids: [] },
+    absent: { stamped: 0, cleared: 0, refused: [], skipped: [] },
+    billRowsUpserted: 0,
+    documentsStored: 0,
+    recordedVoteDocs: 0,
+  };
+  let stop: Exclude<MeetingsStopReason, "complete"> | null = null;
 
-  let meetingsUpserted = 0;
-  let billRowsUpserted = 0;
-  let documentsStored = 0;
-  let recordedVoteDocs = 0;
-  let fetchErrors = 0;
-  let deadlineHit = false;
-  const perChamber = {
-    house: { collected: 0, processed: 0, cursorEnd: "" },
-    senate: { collected: 0, processed: 0, cursorEnd: "" },
-  } as MeetingsSyncResult["perChamber"];
+  // Every stored row and every walk state, once (2,758 rows and none at HO 754).
+  const stored = new Map(
+    (await db.execute(
+      "SELECT event_id, congress, chamber, update_date, absent_upstream_at FROM committee_meetings",
+    )).rows.map((x) => [
+      String(x.event_id),
+      {
+        congress: Number(x.congress),
+        chamber: String(x.chamber),
+        updateDate: String(x.update_date),
+        absent: x.absent_upstream_at == null ? null : String(x.absent_upstream_at),
+      },
+    ]),
+  );
+  const walk = new Map(
+    (await db.execute(
+      "SELECT event_id, failures, gave_up_at_update FROM committee_meeting_walk_state",
+    )).rows.map((x) => [
+      String(x.event_id),
+      {
+        failures: Number(x.failures ?? 0),
+        gaveUpAt: x.gave_up_at_update == null ? null : String(x.gave_up_at_update),
+      },
+    ]),
+  );
 
+  const owed: Owed[] = [];
+  const gaveUp: string[] = [];
+  const listErrors: string[] = [];
+  let listsRead = 0;
   for (const chamber of CHAMBERS) {
-    const cursorStart = await readCursor(chamber);
-    perChamber[chamber].cursorEnd = cursorStart;
-    if (deadlineHit || budget <= 0) continue;
-
-    // Collect newest→oldest, then process oldest-first so the watermark advances
-    // forward and a partial tick resumes cleanly.
-    const collected = await collectNewEvents(chamber, cursorStart);
-    collected.sort((a, b) => a.updateDate.localeCompare(b.updateDate));
-    perChamber[chamber].collected = collected.length;
-
-    let cursorEnd = cursorStart;
-    for (const item of collected) {
-      if (Date.now() >= deadline) {
-        deadlineHit = true;
-        break;
-      }
-      if (budget <= 0) break;
-      try {
-        const detail = await fetchMeetingDetail(chamber, item.eventId);
-        if (detail) {
-          const w = await upsertMeeting(chamber, detail);
-          billRowsUpserted += w.billRows;
-          documentsStored += w.documents;
-          recordedVoteDocs += w.recordedVoteDocs;
-          meetingsUpserted++;
-        }
-      } catch (err) {
-        fetchErrors++;
-        console.warn(
-          `[meetings] ${chamber}/${item.eventId} failed:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
-      perChamber[chamber].processed++;
-      budget--;
-      cursorEnd = item.updateDate; // advance per attempted-and-completed event
-      // Persist progress periodically so a crash mid-backfill resumes forward
-      // (the list is processed oldest-first, so the watermark only moves up).
-      if (perChamber[chamber].processed % CURSOR_COMMIT_EVERY === 0) {
-        await writeCursor(chamber, cursorEnd);
-        perChamber[chamber].cursorEnd = cursorEnd;
-      }
-      await sleep(DETAIL_SLEEP_MS);
+    if (stop) {
+      r.absent.skipped.push(`${chamber}: list not read (${stop})`);
+      continue;
     }
+    const list = await readWholeList(chamber, deadline);
+    r.pages[chamber] = list.pages;
+    r.listSize[chamber] = list.items.size;
+    r.listCount[chamber] = list.count;
+    r.listComplete[chamber] = list.complete;
+    if (list.error) listErrors.push(`${chamber}: ${list.error}`);
+    if (list.stop) stop = list.stop;
+    if (list.items.size > 0 || list.complete) listsRead++;
 
-    if (cursorEnd !== cursorStart) {
-      await writeCursor(chamber, cursorEnd);
-      perChamber[chamber].cursorEnd = cursorEnd;
+    // Absent. A listed row that carries a stamp is cleared from any read; a stored row
+    // of this Congress and chamber that the list does not carry is stamped from a
+    // complete read only, and not at all past ABSENT_MAX_PER_RUN.
+    const now = new Date().toISOString();
+    const clear = [...list.items.keys()].filter((id) => stored.get(id)?.absent != null);
+    let stampIds: string[] = [];
+    if (!list.complete) {
+      r.absent.skipped.push(`${chamber}: list incomplete (${list.items.size} unique of ${list.count ?? "?"}${list.countMoved ? ", the count moved during the read" : ""})`);
+    } else {
+      stampIds = [...stored]
+        .filter(([id, s]) => s.congress === CONGRESS && s.chamber === chamber && s.absent == null && !list.items.has(id))
+        .map(([id]) => id);
+      if (stampIds.length > ABSENT_MAX_PER_RUN) {
+        r.absent.refused.push(`${chamber}: ${stampIds.length} rows not listed, more than ${ABSENT_MAX_PER_RUN}`);
+        stampIds = [];
+      }
+    }
+    const absentStmts: { sql: string; args: string[] }[] = [];
+    for (let i = 0; i < clear.length; i += 200) {
+      const part = clear.slice(i, i + 200);
+      absentStmts.push({
+        sql: `UPDATE committee_meetings SET absent_upstream_at = NULL
+               WHERE event_id IN (${part.map(() => "?").join(",")})`,
+        args: part,
+      });
+    }
+    for (let i = 0; i < stampIds.length; i += 200) {
+      const part = stampIds.slice(i, i + 200);
+      absentStmts.push({
+        sql: `UPDATE committee_meetings SET absent_upstream_at = ?
+               WHERE absent_upstream_at IS NULL AND event_id IN (${part.map(() => "?").join(",")})`,
+        args: [now, ...part],
+      });
+    }
+    if (absentStmts.length) await db.batch(absentStmts, "write");
+    r.absent.cleared += clear.length;
+    r.absent.stamped += stampIds.length;
+
+    // Compare every listed event with its stored row.
+    for (const [id, updateDate] of list.items) {
+      const s = stored.get(id);
+      if (s && s.updateDate >= updateDate) {
+        r.unchanged++;
+        continue;
+      }
+      const w = walk.get(id);
+      if (w && w.failures >= GIVE_UP_AT && w.gaveUpAt != null && updateDate <= w.gaveUpAt) {
+        gaveUp.push(id);
+        continue;
+      }
+      owed.push({ chamber, eventId: id, updateDate, returned: w?.gaveUpAt != null && updateDate > w.gaveUpAt });
     }
   }
+  // Nothing read from either chamber is an outage, not a quiet run, and records `error`,
+  // even when the deadline is what ended the reads (review: a list that only times out
+  // spends the whole budget on retries). A 429 stays a success row, named in chronicErr.
+  if (listsRead === 0 && stop !== "rate-limited") {
+    throw new Error(`meetings lists unread: ${listErrors.join("; ") || "no pages"}`);
+  }
 
-  return {
-    meetingsUpserted,
-    billRowsUpserted,
-    documentsStored,
-    recordedVoteDocs,
-    fetchErrors,
-    deadlineHit,
-    perChamber,
-  };
+  // Refresh, oldest list updateDate first across both chambers.
+  owed.sort((a, b) => a.updateDate.localeCompare(b.updateDate) || a.eventId.localeCompare(b.eventId));
+  const failedIds: string[] = [];
+  let attempts = 0;
+  let i = 0;
+  let chargedAtStop = 0; // the event the deadline stopped on, charged because it had its tries
+  for (; i < owed.length && !stop; i++) {
+    const item = owed[i]!;
+    if (Date.now() >= deadline) {
+      stop = "deadline";
+      break;
+    }
+    if (attempts >= limit) {
+      stop = "cap";
+      break;
+    }
+    attempts++;
+    try {
+      const detail = await fetchMeetingDetail(item.chamber, item.eventId, deadline);
+      if (!detail) throw new Error(`meeting detail ${item.chamber}/${item.eventId}: 200 with no committeeMeeting`);
+      const w = await upsertMeeting(item.chamber, detail);
+      r.refreshed++;
+      r.billRowsUpserted += w.billRows;
+      r.documentsStored += w.documents;
+      r.recordedVoteDocs += w.recordedVoteDocs;
+    } catch (err) {
+      if (err instanceof MeetingsDeadlineError) {
+        // Its tries failed on their own clock before the deadline stopped the next one:
+        // charged, like any failure, so a detail that never answers is set aside at five
+        // rather than holding the head of the queue every run (review). Cut by the
+        // deadline's cap alone, or refused before its first try: not charged.
+        if (err.ownFailures > 0) {
+          const msg = redactSecrets(err.message);
+          console.warn(`[meetings] ${item.chamber}/${item.eventId} failed:`, msg);
+          failedIds.push(item.eventId);
+          if (await recordFailure(item, msg)) gaveUp.push(item.eventId);
+          chargedAtStop = 1;
+        }
+        stop = "deadline";
+        break;
+      }
+      if (err instanceof MeetingsRateLimitedError) {
+        stop = "rate-limited";
+        break;
+      }
+      const msg = redactSecrets(err instanceof Error ? err.message : String(err));
+      console.warn(`[meetings] ${item.chamber}/${item.eventId} failed:`, msg);
+      failedIds.push(item.eventId);
+      if (await recordFailure(item, msg)) gaveUp.push(item.eventId);
+    }
+    await sleep(DETAIL_SLEEP_MS);
+  }
+
+  r.stopReason = stop ?? "complete";
+  r.remaining = owed.length - i - chargedAtStop; // owed events the run did not reach
+  r.listErrors = listErrors;
+  r.failed = { count: failedIds.length, ids: failedIds.slice(0, FAILED_IDS_MAX) };
+  r.gaveUp = { count: gaveUp.length, ids: gaveUp.slice(0, FAILED_IDS_MAX) };
+  return r;
 }

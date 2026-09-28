@@ -6848,7 +6848,8 @@ export const getStaleBills = unstable_cache(
       sponsor_name, sponsor_party, sponsor_state, introduced_date,
       latest_action_date, latest_action_text, update_date,
       summary, topics, stage, stage_observed_at,
-      EXISTS (SELECT 1 FROM meeting_bills mb WHERE mb.bill_id = bills.id) AS heard,
+      EXISTS (SELECT 1 FROM meeting_bills mb JOIN committee_meetings cm ON cm.event_id = mb.event_id
+              WHERE mb.bill_id = bills.id AND cm.absent_upstream_at IS NULL) AS heard,
       ${SPONSOR_ENRICH_SELECT},
       ${MENTION_SELECT}
       FROM bills INDEXED BY ${fromHint}
@@ -7626,9 +7627,11 @@ export const getWeeklyBandPriorWeek = unstable_cache(
 // prior is the immediately preceding [now-14d, now-7d). meeting_date is ISO-UTC,
 // so bound with JS ISO strings exactly like getRecentMeetings — a like-for-like
 // lexical compare (NOT datetime('now'), whose space-separated form mis-sorts
-// against the stored 'T'/'Z' timestamps). Tag "meetings" (the committees cron
-// flushes it), NOT "bills". Prior-week data is retained back to 2025-01, so the
-// delta is real, never a fabricated ±0.
+// against the stored 'T'/'Z' timestamps). Tag "meetings" (the committee-meetings
+// cron flushes it, HO 754), NOT "bills". Prior-week data is retained back to
+// 2025-01, so the delta is real, never a fabricated ±0. HO 754: a row Congress.gov
+// no longer lists (absent_upstream_at) is not counted, here or in the breakdown and
+// history below.
 export const getWeeklyBandHearings = unstable_cache(
   async (): Promise<{ thisWeek: number; priorWeek: number }> => {
     const db = getDb();
@@ -7639,7 +7642,8 @@ export const getWeeklyBandHearings = unstable_cache(
       db.execute({
         sql: `SELECT COUNT(*) AS n FROM committee_meetings
               WHERE meeting_date IS NOT NULL
-                AND meeting_date < ? AND meeting_date >= ?`,
+                AND meeting_date < ? AND meeting_date >= ?
+                AND absent_upstream_at IS NULL`,
         args: [hi, lo],
       });
     const [thisRs, priorRs] = await Promise.all([
@@ -7765,6 +7769,7 @@ export const getWeeklyBandHearingBreakdown = unstable_cache(
     const rs = await db.execute({
       sql: `SELECT meeting_type, chamber, COUNT(*) AS n FROM committee_meetings
             WHERE meeting_date IS NOT NULL AND meeting_date < ? AND meeting_date >= ?
+              AND absent_upstream_at IS NULL
             GROUP BY meeting_type, chamber`,
       args: [now, d7],
     });
@@ -7813,6 +7818,7 @@ export const getWeeklyBandHistory = unstable_cache(
       sql: `SELECT substr(meeting_date, 1, 10) AS d, COUNT(*) AS n
             FROM committee_meetings
             WHERE meeting_date >= ? AND meeting_date < ?
+              AND absent_upstream_at IS NULL
             GROUP BY d`,
       args: [minStart, endExcl.toISOString().slice(0, 10)],
     });
@@ -9288,7 +9294,7 @@ export const getCommitteeBills = unstable_cache(
 
 // HO 263: committee meetings (hearings) read layer. Each meeting carries its
 // associated bills (from meeting_bills → bills) for chips. Cached, tag `meetings`
-// (the 12th tag; /api/cron/committees revalidates it after the meetings step).
+// (the 12th tag; /api/cron/committee-meetings revalidates it every run, HO 754).
 export type CommitteeMeeting = {
   eventId: string;
   chamber: "house" | "senate";
@@ -9392,7 +9398,9 @@ async function attachMeetingBills(bases: MeetingBase[]): Promise<CommitteeMeetin
 }
 
 // Calendar spine: meetings dated from now forward (this/next week — the source
-// only runs ~2 weeks ahead, HO 261), nearest first.
+// only runs ~2 weeks ahead, HO 261), nearest first. HO 754: all four readers below
+// skip a row Congress.gov no longer lists (absent_upstream_at, stamped by the
+// committee-meetings walk); the row is kept, never deleted.
 export const getUpcomingMeetings = unstable_cache(
   async (opts?: {
     days?: number;
@@ -9400,7 +9408,7 @@ export const getUpcomingMeetings = unstable_cache(
     type?: string;
   }): Promise<CommitteeMeeting[]> => {
     const db = getDb();
-    const where = ["meeting_date IS NOT NULL", "meeting_date >= ?"];
+    const where = ["meeting_date IS NOT NULL", "meeting_date >= ?", "absent_upstream_at IS NULL"];
     const args: (string | number)[] = [new Date().toISOString()];
     if (opts?.days) {
       where.push("meeting_date <= ?");
@@ -9435,6 +9443,7 @@ export const getRecentMeetings = unstable_cache(
             WHERE meeting_date IS NOT NULL
               AND meeting_date < ?
               AND meeting_date >= ?
+              AND absent_upstream_at IS NULL
             ORDER BY meeting_date DESC`,
       args: [
         new Date().toISOString(),
@@ -9456,7 +9465,7 @@ export const getMeetingsByCommittee = unstable_cache(
     opts?: { upcomingOnly?: boolean },
   ): Promise<CommitteeMeeting[]> => {
     const db = getDb();
-    const where = ["committee_system_code = ?", "meeting_date IS NOT NULL"];
+    const where = ["committee_system_code = ?", "meeting_date IS NOT NULL", "absent_upstream_at IS NULL"];
     const args: string[] = [systemCode];
     if (opts?.upcomingOnly) {
       where.push("meeting_date >= ?");
@@ -9483,7 +9492,7 @@ export const getMeetingsForBill = unstable_cache(
       sql: `SELECT ${MEETING_COLS_M}
             FROM committee_meetings m
             JOIN meeting_bills mb ON mb.event_id = m.event_id
-            WHERE mb.bill_id = ?
+            WHERE mb.bill_id = ? AND m.absent_upstream_at IS NULL
             ORDER BY m.meeting_date DESC NULLS LAST`,
       args: [billId],
     });

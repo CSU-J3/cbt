@@ -711,7 +711,9 @@ const statements = [
   // 500) — extracted columns only. `video_url` is the EXTRACTED watch link (the
   // videos[] entry whose host is NOT api.congress.gov: YouTube for House,
   // senate.gov/isvp for Senate), null when absent. `committee_system_code` is the
-  // first/primary committee from committees[]. `update_date` is the sync cursor.
+  // first/primary committee from committees[]. `update_date` is the detail's
+  // updateDate, which the walk compares with the list's (HO 754; it was the sync
+  // cursor until then). `absent_upstream_at` is added below (HO 754).
   `CREATE TABLE IF NOT EXISTS committee_meetings (
     event_id TEXT PRIMARY KEY,
     congress INTEGER NOT NULL,
@@ -763,13 +765,26 @@ const statements = [
   )`,
 
   // Per-chamber sync watermark (HO 116/143 cursor pattern). One row per chamber;
-  // update_date = the newest event update_date fully synced. The list endpoint is
-  // updateDate-DESC with no server-side date filter, so the sync collects events
-  // newer than this watermark, processes them oldest-first, and advances per
-  // completed event so a deadline-interrupted tick keeps its progress.
+  // update_date = the newest event update_date fully synced. RETIRED HO 754: the
+  // meetings walk compares the whole list with committee_meetings and no longer
+  // reads or writes this table. It stays in place, frozen at its last value.
   `CREATE TABLE IF NOT EXISTS meeting_sync_state (
     chamber TEXT PRIMARY KEY,
     update_date TEXT NOT NULL
+  )`,
+
+  // HO 754: the meetings walk's per-event failure state. A failed detail fetch, or
+  // a 200 with no committeeMeeting, increments `failures`; a refresh that lands
+  // resets it (in the upsert's own batch). At 5 the event is set aside, recorded
+  // at the list updateDate of that fifth failure (`gave_up_at_update`), until the
+  // list's updateDate for it moves past that. `last_error` is redacted. Rows
+  // exist only for events that have failed at least once.
+  `CREATE TABLE IF NOT EXISTS committee_meeting_walk_state (
+    event_id TEXT PRIMARY KEY,
+    failures INTEGER NOT NULL DEFAULT 0,
+    last_attempt_at TEXT,
+    last_error TEXT,
+    gave_up_at_update TEXT
   )`,
 
   // HO 355: identity table for the multi-user arc (A1). NextAuth v5 / GitHub
@@ -1767,6 +1782,11 @@ async function main() {
   await ensureColumn(db, "bills", "changed_at", "TEXT");
   await ensureColumn(db, "bills", "committees_walked_at", "TEXT");
   await ensureColumn(db, "bills", "committee_walk_failures", "INTEGER");
+  // HO 754: set when a complete read of the chamber's committee-meeting list no
+  // longer carries the event (Congress.gov deleted it; HO 752 read 19 such rows,
+  // every detail a 404), cleared when the event reappears or is refreshed. The row
+  // is kept, never deleted; every meeting query filters `absent_upstream_at IS NULL`.
+  await ensureColumn(db, "committee_meetings", "absent_upstream_at", "TEXT");
   // HO 242: per-week counts persisted on the report so the /reports index
   // strip (LAWS · INTRO · MOVES) is queryable without prose-parsing
   // content_md. All three are computed LLM-free at generation; existing rows

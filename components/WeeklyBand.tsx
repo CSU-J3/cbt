@@ -362,7 +362,8 @@ export async function WeeklyBand({
       {/* HO 286: HEARINGS — fourth metric, committee-meeting count over the
           trailing-7-day window (held meetings only), same shape as the others.
           Sourced from getWeeklyBandHearings (committee_meetings); tag "meetings",
-          so the committees cron flushes it independent of the bills tag. */}
+          so the committee-meetings cron (HO 754) flushes it independent of the
+          bills tag. */}
       <span className="weekly-band-seg">
         <WeeklyBandMetricCard
           label="HEARINGS"

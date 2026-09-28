@@ -99,7 +99,8 @@ export async function buildWeekSummaryPayload(
 
   const hearings = await db.execute({
     sql: `SELECT COUNT(*) AS n FROM committee_meetings
-           WHERE meeting_date >= ? AND meeting_date < ?`,
+           WHERE meeting_date >= ? AND meeting_date < ?
+             AND absent_upstream_at IS NULL`, // HO 754: not a row Congress.gov no longer lists
     args: [weekStart, endEx],
   });
 

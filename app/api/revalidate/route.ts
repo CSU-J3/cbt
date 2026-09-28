@@ -43,8 +43,9 @@ const ALLOWED_TAGS = new Set([
   "votes",
   // HO 717 → 726: the committee-meetings readers (getUpcomingMeetings, getRecentMeetings,
   // getMeetingsByCommittee, getMeetingsForBill, the weekly band's hearings; 7 readers).
-  // Flushed by /api/cron/committees every 12 h; this entry is the manual path after a
-  // reader change or `npm run sync:meetings`.
+  // Flushed by /api/cron/committee-meetings every 12 h (HO 754; /api/cron/committees
+  // until then); this entry is the manual path after a reader change or
+  // `npm run sync:meetings`.
   "meetings",
   // HO 750: the race page's stub lookup (getIncumbentOnBallot), flushed by
   // /api/cron/general-ballot on a tick that wrote a READ; this entry is the

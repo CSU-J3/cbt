@@ -1,9 +1,9 @@
 // HO 717: one pass over every synced 119th committee meeting, detail re-fetched,
 // its meetingDocuments[] written to committee_meeting_documents as filed.
 //
-// Why it exists: the sync only re-reads an event when its updateDate passes the
-// watermark, so every event synced before HO 717 was fetched while documents were
-// still being discarded. Documents only — writeMeetingDocuments touches neither
+// Why it exists: the sync re-reads an event only when its updateDate moves (past the
+// per-chamber watermark until HO 754; past the stored row's since), so every event
+// synced before HO 717 was fetched while documents were still being discarded. Documents only — writeMeetingDocuments touches neither
 // committee_meetings nor meeting_bills, so no cursor moves and no column the walk
 // owns is rewritten. Idempotent: the per-event write is delete-then-insert, so a
 // second run rewrites the same rows.
