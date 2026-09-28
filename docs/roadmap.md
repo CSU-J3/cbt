@@ -3228,3 +3228,149 @@ A grep for the key parameter over the data artifacts (logs, CSVs, saved lists, r
 - **No SKILL change.**
 - **OPEN LOOPS reconciled: 260 live / 306 struck at open (566 total), 264 / 306 at close (570)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 752.**
+
+**Also (HO 753), the committee-bills walk keyed per bill: a failed fetch, a cut group, a page cut at the deadline and a late `/api/sync` write each leave the bill owed, because nothing is shared between bills to pass one over; stamped changes go ahead of the never-stamped backlog, and a walk stamp no longer rewrites the search index.** Four commits, kinds unmixed: `feat` · `diag` · `docs(skill)` alone · `docs`. The FF is held for the SKILL approval and review. The pointer is 753 by plain arithmetic: pointer 752, highest HO in commit subjects 752, `main` at `d173d19`.
+
+**STEP 0** (prod `SELECT`s and one GET; `docs/handoffs/753-artifacts/`, repo-ignored).
+- **Anchors:** every cited one held at `d173d19`, with small drifts. `upsertCommitteeBills` ends at `:218`, not `:224`, and the route's `BILLS_BUDGET_MS` sits at `:33`, not `:35`.
+- **Walked set:** 17,773 at or below the cursor and 203 above. The 103 no-row candidates and the 14 bills listing more than 20 committees re-derive to HO 752's ids. `committee_bills` holds 26,602 rows over 17,779 bills.
+- **The GET:** `X-RateLimit-Limit 20000`, `X-RateLimit-Remaining 19999`. `pagination.next` carries offset, limit and format, and **no key**.
+- **Two premises, qualified and flagged:**
+  - `lib/sync.ts` is the only writer of `update_date` and `raw_json`, not of `bills`: seven other paths update derived columns, none that the walk keys on.
+  - `bill_roster_state` already has a `changed_at` column. Every join qualifies its columns today, so nothing breaks; the migration comment tells a future join to qualify it.
+
+**The price of the selection, measured before choosing** (prod `SELECT`s). A predicate on a late column over the 119th bills costs about 60 ms. The same shape with `json_extract` after it costs about 65 ms. Today's `json_extract` over the walked set costs 106 to 930 ms. So the walk predicate comes first, and there is no index.
+
+**The build.**
+- (1) **Three columns** on `bills` (`ensureColumn`): `changed_at`, `committees_walked_at` and `committee_walk_failures`.
+- (2) **`UPSERT_SQL` stamps `changed_at`** on insert and when `update_date` moves, the summary reset's trigger. An unchanged rewrite leaves it alone. The same change resets `committee_walk_failures`.
+- (3) **`selectBillsToWalk`:**
+  - bills owed a walk (`committees_walked_at IS NULL OR committees_walked_at < changed_at`), under 5 failures, with `committees.count > 0`;
+  - ordered `(changed_at IS NULL), changed_at, id`, with the same cap. That puts stamped changes ahead of the never-stamped backlog (the architect's ruling), so a bill that changed is walked before the repair's set even if the repair is late.
+  No cursor is read or written.
+- (4) **The walk stamp** is written in the same batch as the rows, only after they are written. Its value is the time the walk started, so an `/api/sync` write that lands mid-fetch leaves the bill owed. A failed fetch or write stamps nothing and adds a failure.
+- (5) **At 5 failures** the bill is set aside, named in `gaveUp` (count and up to 20 ids), until its next `update_date` change.
+- (6) **Pagination:** `fetchBillCommittees` follows `pagination.next`, re-attaching the key, and only on api.congress.gov. At most 10 pages.
+- (7) **The payload** gains `billsWalked`, `remaining`, `failed` (count and up to 20 ids), `gaveUp`, `capHit` and `rateLimited`.
+- (8) **`npm run repair:committee-bills`** is dry by default. `--write` runs the cron's own walk round after round, paced from `X-RateLimit-Limit` at 75% of the hourly limit (1 request per 1.2s without the header). It slows when `X-RateLimit-Remaining` runs low, and stops on a 429 (exit 3).
+- (9) **The 752 instrument** gains `--key changed_at`.
+- (10) **The FTS update trigger is narrowed** (the architect's ruling). `bills_fts_au` fires only `AFTER UPDATE OF title, summary, sponsor_name`, the three columns `bills_fts` indexes. So a walk stamp, a failure count, and today's stage and cosponsor writes leave the index alone, while the sync upsert and the summarize UPDATE still re-index. `migrate.ts` replaces an existing unconditional trigger in one batch (drop, then create), only when the stored definition is not the narrowed one.
+
+**Departures and extras, each named.**
+- (1) **A 429 ends the walk and counts no failure**, in the cron as in the repair.
+- (2) **From the review:**
+  - no page starts after the tick's deadline, and a bill cut between pages stays owed and uncharged;
+  - the repair counts no failure toward the give-up cap, since its rounds are minutes apart, not 12 hours;
+  - the repair's exit codes:
+
+    | Exit | When |
+    |---|---|
+    | 4 | A round in which nothing lands: an outage or a bad key. A rerun resumes. |
+    | 5 | Only bills that already failed in the run are left. They are named, and a rerun won't clear them. |
+    | 2 | The dry run's probe does not answer 200. |
+- (3) **`chronicErr`** names the set-aside bills and a 429.
+- (4) **The dry run makes one GET** to read the rate headers.
+- (5) **The route header** gave a stale "11:30 UTC daily"; it now reads `0 */12`. A ride-along in the header being rewritten.
+- (6) **The 752 instrument, beyond `--key changed_at`:**
+  - `--db` and `--only bills`;
+  - `--out`, now required for every reading and for `--controls`, so HO 752's artifacts are never overwritten.
+
+  Under `changed_at`:
+  - the census, the stale sample and the before/after rows no longer take the frozen cursor as a bound;
+  - stored-short counts walk-current bills only, and prints owed bills that read short as pending, apart;
+  - stamped bills with no rows are counted and resolved;
+  - the new ticks' stats are read;
+  - the bills line states its key.
+
+  A network-free Check 7 covers the new key. The controls are 21 of 21 green on the instrument's final sha (`e8af0082b5f5`).
+- (7) **SKILL `:91`'s rollover note** named a cursor the committee walk no longer has. That is a claim gone false, so it rides the SKILL commit, flagged.
+- (8) **The handoff's "about 17,800 requests"** is about 18,000 measured: 17,976 owed bills and 14 second pages at STEP 0.
+
+**The architect's ruling on the two flags (2026-09-28), built before the push.**
+- **The FTS trigger** was an unconditional `AFTER UPDATE ON bills`, so each walk stamp would have rewritten the bill's search-index row, about 18,000 times in the repair. It is narrowed: build item (10) and leg 9.
+- **The backlog ordering** put never-stamped bills first, so a fresh change would have waited behind the repair's set. Stamped changes now go first: build item (3) and leg 2b.
+- **The deploy order stands:** `npm run migrate` reaches prod before the fast-forward, as at HO 751.
+
+The order touches legs 2, 3 and 7, the only legs that seed or stamp a non-null `changed_at`. Those three were re-run, with every other leg, on the final code.
+
+**The legs** (`scripts/diagnostic/committees-walk-legs-753.ts`):
+- a local production build (`next start`) whose database is a `file:` copy made by the real `scripts/migrate.ts`, and whose api.congress.gov answers come from 178 recorded endpoint bodies (192 paced GETs, no key in any file);
+- the shim fails, delays, rate-limits or refuses a keyless request on command;
+- `/api/sync`'s writes go through the real `scripts/sync.ts`;
+- every run proves the server reads the copy (a sentinel row on `/api/health`) and reads prod's fingerprint unchanged before and after.
+
+**The runs, and the blobs that bind them:**
+- The nine legs red on `HEAD`: driver `7365b521d2`. The header reads the four walk files as all at `HEAD`, by hash.
+- The architect's two legs (2b, 9) red on the build before the two changes: 3 pass, 3 fail, driver `abad2f81ff`.
+- The final green, all eleven legs: driver `abad2f81ff`, which adds only legs 2b and 9 to `7365b521d2`. The header reads all four walk files differing.
+
+The shim blob (`d3e28da82c`) is the same across all three runs.
+
+| Leg | Old code: 12 pass, 24 fail (nine legs) | Final code: 44 pass, 0 fail (eleven legs) |
+|---|---|---|
+| 1 failure | The failed bill is never fetched again | Fetched on the next tick, and its rows land |
+| 2 truncation, 600 bills at one `changed_at` | 500 → 500 | 500 → 600 |
+| 2b stamped changes first (the architect's order) | Red on the build before the change: with 600 never-stamped bills filling the cap of 500, the stamped change is not walked in the first tick | Walked in the first tick |
+| 3 race | A walked bill moved below the old cursor and a new bill written below it (both below every other bill, read from the copy): neither walked | The moved bill's `changed_at` is newer than its walk and it is re-walked; the new bill is walked and its rows land |
+| 4 deadline (40 bills at one `update_date`, read from the copy; fetches delayed 2.5s) | 0 of 22 unwalked still selectable; no stamps, no `remaining` | 18 stamped for 18 walked; 22 of 22 still selected; `success`, `remaining 22` |
+| 4b the deadline between pages (beyond the eight, named) | The first page, landing at 46s, is written (20 rows) and the cursor passes the bill | No second page; not stamped, not charged, no rows; `success` with `deadlineHit`, nothing processed; still selected |
+| 5 page two | 20 committees; only `@0` requested | 21; `@0` and `@20` both 200 with the key |
+| 6 give-up | Tried once, `gaveUp` null | Tried each of ticks 1–5, named in `gaveUp`, skipped on tick 6. A forward `/api/sync` change takes it from `changed_at` NULL and 5 failures to a stamp and 0, and tick 7 walks it |
+| 7 idempotence | Red only on the missing `changed_at` column. The old walk never re-walks below its cursor, so its behavioural check passes there too; leg 3's re-walk is the contrast | A same-date rewrite leaves `changed_at` alone, and the bill is not walked again |
+| 9 the FTS trigger (the architect's) | Red on the build before the change: a stamp-only update rewrites the FTS shadow tables (hash `4c9a…` → `0836…`); today's migrate leaves `HEAD`'s trigger as it is | A stamp-only update (walk columns, cosponsor count) leaves the shadow hash unchanged. The control (a title change) rewrites it and is found by MATCH. On a copy of `HEAD`'s schema, the real migrate narrows the trigger ("narrowed"), and a second run reads "already narrowed" |
+| 8 the repair on a copy of 158 bills | No CLI. The reading before it: 103 lost, 13 stored short, `119-hr-3857` without its two activities. Its extras stop on the old schema's missing column | Dry run: content hash unchanged. Write: 172 requests, 0 still selected. The instrument reads candidates 0, lost 0, stored-short 0 on both keys. `119-hr-3857` carries its two activities |
+
+Leg 8's extras, each named, all counting no failure:
+- a 429 stops the repair (exit 3) with 7 still selected;
+- an outage stops it after one round (exit 4) with 10 of 10 still selected;
+- a bill failing every try ends the run with exit 5, named, after the other 9 walk;
+- the dry run exits 2 when its probe does not answer 200.
+
+**The review before the diff was shown.** Two adversarial read-only rounds, each finding checked by a skeptic.
+- **Round one:** 14 confirmed, 12 refuted. What it caught:
+  - the repair counting failures, with no breaker;
+  - the deadline between pages;
+  - no leg exercising the re-walk branch;
+  - leg 4 unable to go red;
+  - leg 6's stale red;
+  - the shim accepting keyless requests;
+  - the instrument's cursor-bound census and stale sample;
+  - `--out` unguarded;
+  - no control for the new key;
+  - a drift check blind to the repair;
+  - post-753 ticks dropped from the census.
+- **Round two**, over the fixes: 12 confirmed, 3 refuted. What it caught:
+  - the walk-current predicate missing under `changed_at`;
+  - stamped-no-rows unresolved;
+  - the bills line's cursor labels;
+  - no leg for the deadline between pages (now leg 4b);
+  - the exit-4 message calling a stuck tail an outage (now exit 5);
+  - the dry run passing a non-200 probe (now exit 2);
+  - PASS labels asserting seed facts they didn't read (now read);
+  - the reds of legs 7 and 8 overstated (the table now says what they are);
+  - a status-based DIRTY count (now a per-file hash against `HEAD`);
+  - the 17,800 figure.
+
+All are fixed above. The instrument's controls and both colours of the nine legs were re-run on the final code.
+
+**Owed in the FF go, in order.**
+1. `npm run migrate` on prod **before** the deploy. `UPSERT_SQL` names `changed_at`, so `/api/sync` fails without the column. The same run narrows `bills_fts_au`, printing "narrowed".
+2. The FF, `verify:deploy`, and the Production `e2e-prod`.
+3. The repair: the dry run, pasted; then `--write`, paced from the headers, with its duration and request count.
+4. The 752 instrument on prod under both keys, each with its own `--out`: candidates 0, lost 0, stored-short 0.
+5. The first two scheduled ticks' payloads: `remaining` draining, and `failed` and `gaveUp` named.
+
+The bills half of the committees line and the page-1 line strike on that reading, in the next docs commit.
+
+**Docs (HO 753):**
+- This block.
+- **backlog 2+/2−.** The committees line (HO 744) is annotated in place: the bills half built and its legs, the meetings half owed to the next HO. The page-1 line (HO 752) is annotated in place: the pagination built, its 14-bill repair owed to the FF go. Each deletion is that line's prior text, kept whole. No strike and no new line.
+- **SKILL 9+/4−**, its own commit, approved after the architect reads the ref:
+  - the committees cron entry describes the per-bill key, the stamps, the cap, the deadline between pages and the payload, retires the cursor and names the repair;
+  - the `bills` schema block gains the three columns and the FTS trigger's sentence;
+  - the cron entry gains the order;
+  - the scripts list gains `repair:committee-bills`, with its exits and its measured size;
+  - the deleted backfill's note stops naming the cursor as the steady state;
+  - flagged, `:91`'s rollover note, a claim gone false.
+- **OPEN LOOPS reconciled: 264 live / 306 struck at open, 264 / 306 at close** (570 total both), with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 753.**
