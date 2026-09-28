@@ -180,8 +180,8 @@ INSERT INTO bills (
   id, congress, bill_type, bill_number, title,
   introduced_date, latest_action_date, latest_action_text,
   sponsor_name, sponsor_party, sponsor_state, sponsor_bioguide_id,
-  update_date, raw_json, cluster_id
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  update_date, raw_json, cluster_id, changed_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   title = excluded.title,
   introduced_date = excluded.introduced_date,
@@ -194,6 +194,12 @@ ON CONFLICT(id) DO UPDATE SET
   raw_json = excluded.raw_json,
   update_date = excluded.update_date,
   cluster_id = excluded.cluster_id,
+  -- HO 753: the committee-bills walk keys on changed_at. Stamped on insert and
+  -- when update_date moves, the same trigger as the summary reset below; an
+  -- unchanged rewrite leaves it alone. The same change resets the walk's failure
+  -- count, so a bill set aside after five failed walks comes back when it changes.
+  changed_at = CASE WHEN excluded.update_date != bills.update_date THEN excluded.changed_at ELSE bills.changed_at END,
+  committee_walk_failures = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.committee_walk_failures END,
   summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
@@ -271,6 +277,8 @@ async function upsertBill(
       update,
       JSON.stringify(detail),
       clusterId,
+      // HO 753 changed_at: written on insert, or when update_date moved (UPSERT_SQL).
+      new Date().toISOString(),
       // HO 383 stage trio (previous_stage gate, stage_observed_at, stage).
       newStageArg,
       stageObservedAt,

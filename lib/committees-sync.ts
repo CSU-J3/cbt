@@ -3,11 +3,17 @@
 // 1. **Committees list** from Congress.gov `/committee/{N}` — full refresh
 //    each tick. ~237 committees + subs, one paginated pass, sub-second.
 // 2. **Committee bills** via the bill→committees direction
-//    (`/bill/{congress}/{type}/{number}/committees`) — incremental. Walks
-//    bills whose update_date is newer than the cursor in dashboard_state;
-//    stops *starting* new bills at the deadline so each tick stays inside
-//    its budget. Steady state: 50-500 bills/day. Initial backfill (~16K
-//    bills) happens via scripts/backfill-committee-bills.ts, not the cron.
+//    (`/bill/{congress}/{type}/{number}/committees`, every page), keyed PER
+//    BILL since HO 753. A bill is walked when it was never walked or its
+//    `changed_at` (stamped by lib/sync.ts's UPSERT_SQL when its update_date
+//    moves) is newer than its `committees_walked_at`. A walk stamps the bill
+//    only after its rows are written, in the same batch, so a failed fetch,
+//    the deadline or the per-tick cap leaves it selected, and a late /api/sync
+//    write selects it again: there is no shared cursor to move past anything.
+//    A bill whose walk fails five times running is set aside (`gaveUp`) until
+//    its next update_date change. Stops *starting* new bills at the deadline.
+//    The one-off walk of every never-walked bill is `npm run
+//    repair:committee-bills`, not the cron.
 // 3. **Committee members** from
 //    `unitedstates/congress-legislators/committee-membership-current.yaml`
 //    — full refresh each tick. One HTTP fetch + YAML parse + upsert.
@@ -31,11 +37,11 @@ const API_BASE = "https://api.congress.gov/v3";
 //
 //   :`/committee/${CONGRESS}` (the list) is a pure upsert — zero rows means the
 //     batch is never shipped. Nothing is deleted, nothing is marked stale.
-//   :selectBillsSince filters `bills WHERE congress = ?`. The cursor beside it
-//     (BILLS_CURSOR_KEY) is a bare update_date watermark carrying no congress,
-//     so the walk resumes correctly on the new Congress's bills — at the cost of
-//     the previous Congress's TAIL: a 119th bill re-updated after rollover
-//     (a delayed enactment signature, a lame-duck action) stops being walked.
+//   :selectBillsToWalk filters `bills WHERE congress = ?`, and since HO 753 the
+//     walk carries no cursor (the per-bill stamps name no congress), so it starts
+//     on the new Congress's bills with nothing to reset — at the cost of the
+//     previous Congress's TAIL: a 119th bill re-updated after rollover (a
+//     delayed enactment signature, a lame-duck action) stops being walked.
 //     That is the tradeoff SKILL already documents for lib/sync.ts's bill list,
 //     reaching a second site; it is accepted here for the same reason.
 const CONGRESS = getCurrentCongress();
@@ -44,7 +50,13 @@ const PER_BILL_HTTP_TIMEOUT_MS = 8_000;
 const MEMBERSHIP_YAML_URL =
   "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/committee-membership-current.yaml";
 
-const BILLS_CURSOR_KEY = "committee_bills_sync_cursor";
+// HO 753: the per-bill walk. MAX_COMMITTEE_PAGES bounds the pagination follow
+// (the endpoint pages at 20; the most any 119th bill lists is 21). GIVE_UP_AT is
+// the run of failed walks at which a bill is set aside until it changes again.
+// The old `committee_bills_sync_cursor` row in dashboard_state is no longer read
+// or written; it is left in place.
+const MAX_COMMITTEE_PAGES = 10;
+export const GIVE_UP_AT = 5;
 
 function apiKey(): string {
   const k = process.env.CONGRESS_API_KEY;
@@ -131,50 +143,65 @@ type ApiBillCommittees = {
     systemCode: string;
     activities?: Array<{ date?: string; name?: string }>;
   }>;
+  pagination?: { next?: string };
 };
 
 export type CommitteeBillsResult = {
-  billsProcessed: number;
+  billsProcessed: number; // attempted this tick
+  billsWalked: number; // fetched and written, so stamped
   rowsUpserted: number;
   deadlineHit: boolean;
-  cursorStart: string;
-  cursorEnd: string;
-  fetchErrors: number;
+  capHit: boolean; // the selection filled the per-tick cap
+  rateLimited: boolean; // a 429 ended the walk (HO 753)
+  fetchErrors: number; // a write failure counts here too
+  failed: { count: number; ids: string[] }; // this tick's failed walks, up to 20 ids
+  remaining: number; // bills still selected after the tick
+  gaveUp: { count: number; ids: string[] }; // owed a walk but set aside at GIVE_UP_AT, up to 20 ids
 };
 
-async function readBillsCursor(): Promise<string> {
-  const db = getDb();
-  const rs = await db.execute({
-    sql: "SELECT value FROM dashboard_state WHERE key = ?",
-    args: [BILLS_CURSOR_KEY],
-  });
-  return (rs.rows[0]?.value as string | undefined) ?? "1970-01-01T00:00:00Z";
+// A 429 is the key's limit, not the bill's fault: it ends the walk and counts no failure.
+export class RateLimitedError extends Error {
+  constructor(billId: string) {
+    super(`bill committees HTTP 429 for ${billId}`);
+    this.name = "RateLimitedError";
+  }
 }
 
-async function writeBillsCursor(value: string): Promise<void> {
-  const db = getDb();
-  await db.execute({
-    sql: `INSERT INTO dashboard_state (key, value, updated_at)
-          VALUES (?, ?, ?)
-          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-    args: [BILLS_CURSOR_KEY, value, new Date().toISOString()],
-  });
+// The deadline passed between two pages of one bill: the walk stops there, the
+// bill is neither stamped nor charged, and it stays owed.
+class WalkDeadlineError extends Error {
+  constructor(billId: string) {
+    super(`deadline reached between pages for ${billId}`);
+    this.name = "WalkDeadlineError";
+  }
 }
 
-async function selectBillsSince(cursor: string, limit: number): Promise<BillKey[]> {
+// HO 753, THE WALK KEY. A bill is owed a walk when it was never walked or its
+// last local change (`changed_at`, stamped by lib/sync.ts's UPSERT_SQL only when
+// its update_date moves) is newer than its last walk. Nothing is shared between
+// bills, so nothing one bill does can pass another over: a failed fetch, a cut
+// group and a late /api/sync write all leave the bill owed. The walk predicate
+// comes first so it filters on two late columns (about 60 ms over the 119th
+// bills, priced at HO 753) before json_extract parses raw_json for what is left.
+const OWED = "(committees_walked_at IS NULL OR committees_walked_at < changed_at)";
+
+async function selectBillsToWalk(limit: number): Promise<BillKey[]> {
   const db = getDb();
-  // Only fetch bills that have at least one committee referenced in raw_json.
-  // Skips ~3% of rows (committees.count IS NULL) and any with count=0 — the
-  // bill→committees endpoint returns empty for those anyway.
+  // Only bills that have at least one committee referenced in raw_json. Skips
+  // ~3% of rows (committees.count IS NULL) and any with count=0 — the
+  // bill→committees endpoint returns empty for those anyway. Stamped changes
+  // sort ahead of the never-stamped backlog (NULL changed_at), so a bill that
+  // changed is walked before the repair's set even if the repair is late.
   const rs = await db.execute({
     sql: `SELECT id, update_date, congress, bill_type, bill_number
           FROM bills
           WHERE congress = ?
-            AND update_date > ?
+            AND ${OWED}
+            AND COALESCE(committee_walk_failures, 0) < ?
             AND json_extract(raw_json, '$.committees.count') > 0
-          ORDER BY update_date ASC, id ASC
+          ORDER BY (changed_at IS NULL), changed_at ASC, id ASC
           LIMIT ?`,
-    args: [CONGRESS, cursor, limit],
+    args: [CONGRESS, GIVE_UP_AT, limit],
   });
   return rs.rows.map((r) => ({
     id: r.id as string,
@@ -185,16 +212,76 @@ async function selectBillsSince(cursor: string, limit: number): Promise<BillKey[
   }));
 }
 
-async function fetchBillCommittees(bill: BillKey): Promise<ApiBillCommittees> {
-  const url = `${API_BASE}/bill/${bill.congress}/${bill.type}/${bill.number}/committees?api_key=${apiKey()}&format=json`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(PER_BILL_HTTP_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`bill committees HTTP ${res.status} for ${bill.id}`);
-  return (await res.json()) as ApiBillCommittees;
+// What is still owed after a walk: the bills the next tick will select, and the
+// ones set aside after GIVE_UP_AT failed walks (they come back on their next change).
+export async function readCommitteeWalkBacklog(): Promise<{ remaining: number; gaveUp: { count: number; ids: string[] } }> {
+  const db = getDb();
+  const rs = await db.execute({
+    sql: `SELECT SUM(CASE WHEN COALESCE(committee_walk_failures, 0) < ? THEN 1 ELSE 0 END) AS remaining,
+                 SUM(CASE WHEN COALESCE(committee_walk_failures, 0) >= ? THEN 1 ELSE 0 END) AS gave_up
+          FROM bills
+          WHERE congress = ? AND ${OWED} AND json_extract(raw_json, '$.committees.count') > 0`,
+    args: [GIVE_UP_AT, GIVE_UP_AT, CONGRESS],
+  });
+  const remaining = Number(rs.rows[0]?.remaining ?? 0);
+  const count = Number(rs.rows[0]?.gave_up ?? 0);
+  const ids = count
+    ? (await db.execute({
+        sql: `SELECT id FROM bills
+              WHERE congress = ? AND ${OWED} AND COALESCE(committee_walk_failures, 0) >= ?
+                AND json_extract(raw_json, '$.committees.count') > 0
+              ORDER BY id LIMIT 20`,
+        args: [CONGRESS, GIVE_UP_AT],
+      })).rows.map((r) => r.id as string)
+    : [];
+  return { remaining, gaveUp: { count, ids } };
 }
 
+// The repair paces itself through these; the cron passes none.
+export type WalkHooks = {
+  beforeFetch?: () => Promise<void>;
+  afterFetch?: (res: Response) => void;
+};
+
+async function fetchBillCommittees(
+  bill: BillKey,
+  hooks: WalkHooks = {},
+  deadline = Number.POSITIVE_INFINITY,
+): Promise<ApiBillCommittees> {
+  const key = apiKey();
+  let url = `${API_BASE}/bill/${bill.congress}/${bill.type}/${bill.number}/committees?api_key=${key}&format=json`;
+  const committees: NonNullable<ApiBillCommittees["committees"]> = [];
+  for (let page = 0; page < MAX_COMMITTEE_PAGES; page++) {
+    // No page starts after the deadline: the budget assumed one fetch per bill.
+    if (page > 0 && Date.now() >= deadline) throw new WalkDeadlineError(bill.id);
+    await hooks.beforeFetch?.();
+    const res = await fetch(url, { signal: AbortSignal.timeout(PER_BILL_HTTP_TIMEOUT_MS) });
+    hooks.afterFetch?.(res);
+    if (res.status === 429) throw new RateLimitedError(bill.id);
+    if (!res.ok) throw new Error(`bill committees HTTP ${res.status} for ${bill.id}`);
+    const j = (await res.json()) as ApiBillCommittees;
+    committees.push(...(j.committees ?? []));
+    // HO 753: the endpoint pages at 20, and the rows are the union of every page.
+    // `next` carries no key, so the key is re-attached, and only for api.congress.gov.
+    const next = j.pagination?.next;
+    if (!next) return { committees };
+    const u = new URL(next);
+    if (u.hostname !== "api.congress.gov") {
+      throw new Error(`bill committees for ${bill.id}: next page is off-host (${u.hostname})`);
+    }
+    u.searchParams.set("api_key", key);
+    u.searchParams.set("format", "json");
+    url = u.href;
+  }
+  throw new Error(`bill committees for ${bill.id}: more than ${MAX_COMMITTEE_PAGES} pages`);
+}
+
+// The rows, and the bill's walk stamp in the SAME batch: a bill is marked walked
+// only if its rows landed. The stamp also clears its failure count.
 async function upsertCommitteeBills(
   bill: BillKey,
   data: ApiBillCommittees,
+  walkedAt: string,
 ): Promise<number> {
   const db = getDb();
   const now = new Date().toISOString();
@@ -213,47 +300,95 @@ async function upsertCommitteeBills(
       });
     }
   }
-  if (stmts.length > 0) await db.batch(stmts, "write");
-  return stmts.length;
+  const rows = stmts.length;
+  stmts.push({
+    sql: "UPDATE bills SET committees_walked_at = ?, committee_walk_failures = 0 WHERE id = ?",
+    args: [walkedAt, bill.id],
+  });
+  await db.batch(stmts, "write");
+  return rows;
+}
+
+async function recordWalkFailure(billId: string): Promise<void> {
+  await getDb().execute({
+    sql: "UPDATE bills SET committee_walk_failures = COALESCE(committee_walk_failures, 0) + 1 WHERE id = ?",
+    args: [billId],
+  });
 }
 
 export type SyncCommitteeBillsOptions = {
   deadlineMs?: number;        // absolute Date.now() deadline; stops starting new bills past this
   perTickLimit?: number;      // hard cap on bills per tick (default 500)
-  skipCursorAdvance?: boolean;
+  hooks?: WalkHooks;          // HO 753: the repair's pacing; the cron passes none
+  // HO 753: count a failed walk toward GIVE_UP_AT (default true, the cron). The repair
+  // passes false: its rounds are minutes apart, not 12 hours, so an outage during a
+  // run would set bills aside in minutes with nothing to bring them back.
+  countFailures?: boolean;
 };
 
 export async function syncCommitteeBills(
   opts: SyncCommitteeBillsOptions = {},
 ): Promise<CommitteeBillsResult> {
-  const cursorStart = await readBillsCursor();
   const perTickLimit = opts.perTickLimit ?? 500;
   const deadline = opts.deadlineMs ?? Number.POSITIVE_INFINITY;
-  const bills = await selectBillsSince(cursorStart, perTickLimit);
+  const bills = await selectBillsToWalk(perTickLimit);
   let billsProcessed = 0;
+  let billsWalked = 0;
   let rowsUpserted = 0;
   let fetchErrors = 0;
-  let cursorEnd = cursorStart;
   let deadlineHit = false;
+  let rateLimited = false;
+  const failedIds: string[] = [];
   for (const bill of bills) {
     if (Date.now() >= deadline) {
       deadlineHit = true;
       break;
     }
-    try {
-      const data = await fetchBillCommittees(bill);
-      rowsUpserted += await upsertCommitteeBills(bill, data);
-    } catch (err) {
-      fetchErrors++;
-      console.warn(`[committees] bill ${bill.id} fetch failed:`, err instanceof Error ? err.message : err);
-    }
+    // The stamp is the time the walk STARTED: a /api/sync write that lands while
+    // this fetch is in flight stamps a later changed_at, so the bill stays owed.
+    const walkedAt = new Date().toISOString();
     billsProcessed++;
-    cursorEnd = bill.updateDate; // advance only on attempted-and-completed bills
+    try {
+      const data = await fetchBillCommittees(bill, opts.hooks, deadline);
+      rowsUpserted += await upsertCommitteeBills(bill, data, walkedAt);
+      billsWalked++;
+    } catch (err) {
+      if (err instanceof WalkDeadlineError) {
+        deadlineHit = true;
+        billsProcessed--;
+        console.warn(`[committees] ${err.message}; it stays owed`);
+        break;
+      }
+      if (err instanceof RateLimitedError) {
+        rateLimited = true;
+        console.warn(`[committees] ${err.message}; the walk stops, and no failure is counted`);
+        break;
+      }
+      fetchErrors++;
+      if (failedIds.length < 20) failedIds.push(bill.id);
+      console.warn(`[committees] bill ${bill.id} fetch failed:`, err instanceof Error ? err.message : err);
+      if (opts.countFailures !== false) {
+        try {
+          await recordWalkFailure(bill.id);
+        } catch (e) {
+          console.warn(`[committees] could not count the failure for ${bill.id}:`, e instanceof Error ? e.message : e);
+        }
+      }
+    }
   }
-  if (!opts.skipCursorAdvance && cursorEnd !== cursorStart) {
-    await writeBillsCursor(cursorEnd);
-  }
-  return { billsProcessed, rowsUpserted, deadlineHit, cursorStart, cursorEnd, fetchErrors };
+  const backlog = await readCommitteeWalkBacklog();
+  return {
+    billsProcessed,
+    billsWalked,
+    rowsUpserted,
+    deadlineHit,
+    capHit: bills.length >= perTickLimit,
+    rateLimited,
+    fetchErrors,
+    failed: { count: fetchErrors, ids: failedIds },
+    remaining: backlog.remaining,
+    gaveUp: backlog.gaveUp,
+  };
 }
 
 // --- 3. Committee members (unitedstates YAML) ---------------------------

@@ -5,20 +5,21 @@
 // 2. Committee members — full refresh from unitedstates/congress-
 //    legislators YAML. One HTTP fetch + parse + upsert per committee.
 //    Always runs.
-// 3. Committee bills — incremental against an update_date cursor in
-//    `dashboard_state`. Walks 119th bills whose `bills.update_date` is
-//    newer than the cursor and that carry committees.count > 0 in
-//    raw_json; fetches `/bill/{congress}/{type}/{number}/committees` for
-//    each and upserts. Time-budgeted: stops starting new bills at 45s
-//    wall-clock, leaving 10s for finalize. Initial backfill of ~16K bills
-//    happens via scripts/backfill-committee-bills.ts before the route is
-//    expected to keep up incrementally.
+// 3. Committee bills — keyed per bill (HO 753): walks the 119th bills that
+//    carry committees.count > 0 and were never walked or changed since their
+//    last walk (`committees_walked_at` against `changed_at`), fetching every
+//    page of `/bill/{congress}/{type}/{number}/committees`. A bill is stamped
+//    only when its rows land; a failed fetch leaves it selected, and five
+//    running set it aside, named in the payload's `gaveUp`. Time-budgeted: stops
+//    starting new bills at 45s wall-clock, leaving 10s for finalize. The fill
+//    of every never-walked bill is `npm run repair:committee-bills`.
 //
-// Schedule: 11:30 UTC daily (gap between sync-race-ratings at 11:00 Wed
-// and primaries at 12:00). Doesn't collide with any existing cron.
+// Schedule: every 12h (`0 */12`, vercel.json). The "11:30 UTC daily" this
+// header used to give was stale (HO 753).
 import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import {
+  GIVE_UP_AT,
   syncCommitteeBills,
   syncCommitteeMembers,
   syncCommitteesList,
@@ -110,7 +111,7 @@ async function handle(request: Request) {
       );
     }
     console.log(
-      `[committees] bills: processed=${bills.billsProcessed} rows=${bills.rowsUpserted} cursor=${bills.cursorStart} → ${bills.cursorEnd} deadlineHit=${bills.deadlineHit} errors=${bills.fetchErrors}`,
+      `[committees] bills: processed=${bills.billsProcessed} walked=${bills.billsWalked} rows=${bills.rowsUpserted} remaining=${bills.remaining} failed=${bills.failed.count}${bills.failed.ids.length ? ` (${bills.failed.ids.join(",")})` : ""} gaveUp=${bills.gaveUp.count} deadlineHit=${bills.deadlineHit} capHit=${bills.capHit} rateLimited=${bills.rateLimited}`,
     );
 
     expireTag("committees");
@@ -139,6 +140,13 @@ async function handle(request: Request) {
     }
     if (bills.fetchErrors > 0) {
       parts.push(`bill committee fetch errors: ${bills.fetchErrors}`);
+    }
+    // HO 753: a bill set aside after GIVE_UP_AT failed walks is visible here, not silent.
+    if (bills.gaveUp.count > 0) {
+      parts.push(`bills set aside after ${GIVE_UP_AT} failed walks: ${bills.gaveUp.count} (e.g. ${bills.gaveUp.ids.slice(0, 3).join(", ")})`);
+    }
+    if (bills.rateLimited) {
+      parts.push("bill committee walk ended on a 429");
     }
     if (meetingsErr) {
       parts.push(`meetings step error: ${meetingsErr}`);

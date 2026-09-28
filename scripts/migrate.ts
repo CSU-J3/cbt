@@ -1597,12 +1597,26 @@ async function main() {
     INSERT INTO bills_fts(bills_fts, rowid, title, summary, sponsor_name)
     VALUES ('delete', old.rowid, old.title, old.summary, old.sponsor_name);
   END`);
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS bills_fts_au AFTER UPDATE ON bills BEGIN
+  // HO 753: the update trigger fires only when an indexed column is written. bills_fts
+  // indexes title, summary and sponsor_name and nothing else, so an UPDATE that names
+  // none of them (the committee walk's stamps, stage, cosponsor_count) leaves the
+  // index alone. The sync upsert and the summarize UPDATE both name them, so they
+  // still re-index. An existing database carries the old unconditional trigger, and
+  // CREATE ... IF NOT EXISTS would keep it: it is replaced below, in one batch.
+  const BILLS_FTS_AU = `CREATE TRIGGER IF NOT EXISTS bills_fts_au AFTER UPDATE OF title, summary, sponsor_name ON bills BEGIN
     INSERT INTO bills_fts(bills_fts, rowid, title, summary, sponsor_name)
     VALUES ('delete', old.rowid, old.title, old.summary, old.sponsor_name);
     INSERT INTO bills_fts(rowid, title, summary, sponsor_name)
     VALUES (new.rowid, new.title, new.summary, new.sponsor_name);
-  END`);
+  END`;
+  const au = String((await db.execute("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'bills_fts_au'")).rows[0]?.sql ?? "");
+  if (au && !/AFTER UPDATE OF title, summary, sponsor_name ON bills/i.test(au)) {
+    await db.batch(["DROP TRIGGER IF EXISTS bills_fts_au", BILLS_FTS_AU], "write");
+    console.log("ok: bills_fts_au narrowed to UPDATE OF title, summary, sponsor_name (HO 753)");
+  } else {
+    await db.execute(BILLS_FTS_AU);
+    console.log(au ? "ok: bills_fts_au already narrowed" : "ok: bills_fts_au created, narrowed");
+  }
   // Populate once from the existing corpus, guarded on empty. NOT a single
   // `INSERT INTO bills_fts(bills_fts) VALUES('rebuild')`: that reindexes all 16k
   // docs in one statement and exceeds the 10s boundedFetch (lib/db.ts, HO 238) —
@@ -1739,6 +1753,20 @@ async function main() {
   // pending proposal, the state for every bill pre-239.
   await ensureColumn(db, "bills", "pending_stage", "TEXT");
   await ensureColumn(db, "bills", "pending_stage_at", "TEXT");
+  // HO 753: the committee-bills walk keys per bill, not on a shared update_date
+  // cursor. `changed_at` is the time of the last local write that changed the
+  // bill: lib/sync.ts's UPSERT_SQL stamps it on insert and when update_date moves
+  // (the same trigger that resets the summary); an unchanged rewrite leaves it.
+  // `committees_walked_at` is when its committees were last walked, stamped in the
+  // same batch as the rows. `committee_walk_failures` counts consecutive failed
+  // walks; a walk or an update_date change resets it, and at 5 the walk sets the
+  // bill aside. A bill is walked while committees_walked_at is NULL or older than
+  // changed_at. Every row that predates this has NULL changed_at and is walked
+  // once by `npm run repair:committee-bills`. (bill_roster_state has its own
+  // `changed_at`: qualify the column in any join of the two tables.)
+  await ensureColumn(db, "bills", "changed_at", "TEXT");
+  await ensureColumn(db, "bills", "committees_walked_at", "TEXT");
+  await ensureColumn(db, "bills", "committee_walk_failures", "INTEGER");
   // HO 242: per-week counts persisted on the report so the /reports index
   // strip (LAWS · INTRO · MOVES) is queryable without prose-parsing
   // content_md. All three are computed LLM-free at generation; existing rows

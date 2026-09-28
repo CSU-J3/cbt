@@ -31,6 +31,7 @@
     "refresh:bill-rosters": "tsx scripts/refresh-bill-rosters.ts",
     "sync:general-ballot": "tsx scripts/sync-general-ballot.ts",
     "repair:ballotpedia-titles": "tsx scripts/repair-ballotpedia-titles.ts",
+    "repair:committee-bills": "tsx scripts/repair-committee-bills.ts",
     "sync:amendment-votes": "tsx scripts/sync-amendment-votes.ts",
     "sync:nominations": "tsx scripts/sync-nominations.ts",
     "lda:rollup": "tsx scripts/rollup-lda.ts",
