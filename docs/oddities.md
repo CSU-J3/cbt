@@ -4812,3 +4812,15 @@ In the HO 744 hang legs (`scripts/diagnostic/ratings-hang-legs-744.ts`), the loc
 No outcome depends on it. The abort landed at 8.2-8.5s in every run, and the host answered neither connection, by construction, since it never writes.
 
 One standalone probe was tried: a plain `fetch` to a silent `net` server, with and without the signal. It fell over on its own teardown before it read anything, so it isolated nothing. **Ruled unexplained and not worth chasing** (HO 744 ff-go). If it ever matters, the first question is whose connection it is, undici's or Next's patched fetch: repeat the count in plain Node, outside `next start`, with and without the signal.
+
+## A review ref whose pages read a new column is red on Preview until prod is migrated, because Preview reads prod's database (HO 754, Sep 2026)
+
+HO 754 filtered every meeting reader on a new column, `committee_meetings.absent_upstream_at`. Its FF go ordered `npm run migrate` on prod before the fast-forward, as HO 751 and HO 753 did. That order protects Production. It does not protect the review ref.
+
+The push of `754-review` (`ae971cf`) built a Preview, and `e2e-prod.yml`'s `narrow-preview` job (the HO 703 job, run #36477765544) read that Preview at its own URL. **38 of 82 tests failed, every one a 500.** The failures were exactly the pages that read the filtered queries: `/` and its stage views, `/welcome`, `/members`, `/members/pass-rate`, `/hearings` and `/stale`. The 44 that don't read them passed.
+
+The Preview's runtime logs (deployment `dpl_2k1egKRKjYZrg2Yy8pDLEY3B8vkq`, branch `754-review`) named the cause on every failing request: `SQLite input error: no such column: absent_upstream_at`, and `cm.absent_upstream_at` from `getStaleBills`' `heard` join. The Preview environment points at prod's Turso database, and prod had not been migrated.
+
+HO 753 never saw this, though its migration also came before its FF. Its new columns were read only by crons (`UPSERT_SQL`, the committee-bills walk), and a Preview runs no cron, so no page touched them. What moves the migration earlier is not a schema change as such. It is a *page* that reads the new column.
+
+The migration is additive, a nullable column and a new table, so the old code on Production ignores it, and running it before the review push costs nothing. **Rule, now in method.md § Environment:** when a page reads a new column, migrate before the review push, so the Preview e2e reads the code and not the missing column. Otherwise the Preview red is the migration's, not the code's (the architect's ruling at HO 754's FF go), and the ref can read green only after the FF go's migrate has run.

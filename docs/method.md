@@ -523,6 +523,7 @@ either set.**
   job is the first of them, and the local-production-build alternative was not
   needed — a Preview needs no Turso credentials in a workflow any branch push can
   trigger.)
+- **Preview reads prod's database, so a review ref whose page readers need a new column reads red on the Preview e2e until prod is migrated; when a page reads the column, migrate before the review push** (HO 754; oddities).
 - **Every command references a secret by env name (`$CRON_SECRET`), never by
   value** (ruled HO 678). A literal pasted into a command travels through the API
   inside the tool call and lands in the local transcripts — so the value is
