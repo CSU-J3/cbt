@@ -70,7 +70,8 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/bill-rosters", schedule: "40 */3 * * *", maxStaleMs: 7 * HOUR }, // every 3h
   { path: "/api/cron/markets", schedule: "0 */4 * * *", maxStaleMs: 9 * HOUR, signal: "market_ticks" }, // bare every 4h
   { path: "/api/sync", schedule: "0 */6 * * *", maxStaleMs: 13 * HOUR }, // every 6h
-  { path: "/api/cron/committees", schedule: "0 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
+  // HO 756: every 6h at :05, off the shared :00 minute. 2x cadence + 1h grace.
+  { path: "/api/cron/committees", schedule: "5 */6 * * *", maxStaleMs: 13 * HOUR }, // every 6h at :05
   // HO 754: the meetings step's own route, split from committees. 2x cadence + 1h grace.
   { path: "/api/cron/committee-meetings", schedule: "50 */12 * * *", maxStaleMs: 25 * HOUR }, // every 12h
   { path: "/api/sync-votes", schedule: "0 10 * * *", maxStaleMs: 26 * HOUR }, // daily

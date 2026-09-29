@@ -14,7 +14,8 @@
 // no list page at all records `error`. `npm run sync:meetings` runs the same function with
 // no deadline.
 //
-// Schedule: `50 */12 * * *` (vercel.json), fifty minutes after the committees route.
+// Schedule: `50 */12 * * *` (vercel.json), 45 minutes after the committees route's
+// 00:05 and 12:05 runs (it runs every 6h at :05 since HO 756).
 import { expireTag } from "@/lib/cache/expire-tag";
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";

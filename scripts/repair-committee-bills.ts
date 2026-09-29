@@ -17,12 +17,13 @@
 // run uses at most MARGIN of the hourly limit, and a low X-RateLimit-Remaining slows it
 // further. Without the headers it walks at 1 request per 1.2s. A 429 stops the run
 // (exit 3), with nothing counted against the bill. The repair counts no failure toward
-// the cron's give-up cap (its rounds are minutes apart, not 12 hours). A round in
+// the cron's give-up cap (its rounds are minutes apart, not six hours). A round in
 // which nothing lands stops the run: exit 4, an outage or a bad key, and a rerun
 // resumes. When earlier rounds walked and only bills that already failed in this run
 // are left, it ends with exit 5 and names them: they fail on every walk, a rerun will
 // not clear them, and the cron counts their failures and sets them aside. Run it outside the committees
-// cron's minutes (00:00 and 12:00 UTC): the two walks would share the key's hour.
+// cron's ticks (00:05, 06:05, 12:05 and 18:05 UTC since HO 756, each up to about five
+// minutes): the two walks would pick the same bills and share the key's hour.
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { readCommitteeWalkBacklog, syncCommitteeBills, GIVE_UP_AT, type WalkHooks } from "../lib/committees-sync";
@@ -113,7 +114,7 @@ async function main() {
   const url = process.env.TURSO_DATABASE_URL ?? "";
   const h = new Date().getUTCHours(), m = new Date().getUTCMinutes();
   say(`=== repair:committee-bills · ${write ? "WRITE" : "dry run, writes nothing"} · ${new Date().toISOString()} · database ${url.split(":")[0]}: ===`);
-  if ((h === 0 || h === 12) && m < 10) say("warning: inside the committees cron's minutes (00:00/12:00 UTC); the two walks would share the key's hour");
+  if (h % 6 === 0 && m >= 5 && m < 11) say("warning: inside a committees cron tick (every 6h at :05 UTC, up to about five minutes); the two walks would pick the same bills and share the key's hour");
   const before = await owedByClass();
   const bl = await readCommitteeWalkBacklog();
   say(`owed: ${bl.remaining} selected (never stamped ${before.neverStamped} · new, never walked ${before.newNeverWalked} · changed since their walk ${before.changedSinceWalk}) · set aside after ${GIVE_UP_AT} failed walks ${bl.gaveUp.count}${bl.gaveUp.ids.length ? ` (${bl.gaveUp.ids.join(", ")})` : ""}`);

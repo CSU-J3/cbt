@@ -24,15 +24,16 @@
 //
 // The /api/cron/committees route is responsible for time-budgeting; the
 // helpers here accept a deadlineMs and an AbortController-driven http
-// client so a slow upstream doesn't strand the tick past the 55s soft
-// timeout.
+// client so a slow upstream doesn't strand the tick past its soft timeout
+// (290s since HO 756).
 import yaml from "js-yaml";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 
 const API_BASE = "https://api.congress.gov/v3";
-// HO 712: derived, and this is the ONLY rollover seam on a cron — /api/cron/committees
-// runs "0 */12", so it moves on 2027-01-03 with no human present. Both uses are
+// HO 712: derived, and a rollover seam on a cron — /api/cron/committees runs
+// "5 */6" (HO 756; "0 */12" until then), so it moves on 2027-01-03 with no human
+// present. Since HO 754 it is one of two: /api/cron/committee-meetings rolls the same way. Both uses are
 // safe on an empty answer, but they are safe for different reasons:
 //
 //   :`/committee/${CONGRESS}` (the list) is a pure upsert — zero rows means the
@@ -47,6 +48,9 @@ const API_BASE = "https://api.congress.gov/v3";
 const CONGRESS = getCurrentCongress();
 const COMMITTEES_LIST_LIMIT = 250;
 const PER_BILL_HTTP_TIMEOUT_MS = 8_000;
+// HO 756: a bill fetch in flight at the walk's deadline is cut this long after it
+// (the HO 754 meetings pattern), so the bills step ends within 3s of its budget.
+const DEADLINE_GRACE_MS = 3_000;
 const MEMBERSHIP_YAML_URL =
   "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/committee-membership-current.yaml";
 
@@ -153,11 +157,26 @@ export type CommitteeBillsResult = {
   deadlineHit: boolean;
   capHit: boolean; // the selection filled the per-tick cap
   rateLimited: boolean; // a 429 ended the walk (HO 753)
+  authFailed: boolean; // HO 756: a 401/403 or a missing key ended the walk; nothing charged
+  outage: boolean; // HO 756: OUTAGE_MIN_FAILURES or more failed and none walked; nothing charged
   fetchErrors: number; // a write failure counts here too
   failed: { count: number; ids: string[] }; // this tick's failed walks, up to 20 ids
   remaining: number; // bills still selected after the tick
   gaveUp: { count: number; ids: string[] }; // owed a walk but set aside at GIVE_UP_AT, up to 20 ids
 };
+
+// HO 756: a rejected key (401/403) or a missing one is not the bill's fault either: it
+// ends the walk and counts no failure.
+export class WalkAuthError extends Error {
+  constructor(billId: string, why: string) {
+    super(`bill committees for ${billId}: ${why}`);
+    this.name = "WalkAuthError";
+  }
+}
+
+// HO 756: a tick in which at least this many bills failed and none walked is an outage, not
+// a run of bad bills, and charges nothing (the route records it as `error`).
+const OUTAGE_MIN_FAILURES = 3;
 
 // A 429 is the key's limit, not the bill's fault: it ends the walk and counts no failure.
 export class RateLimitedError extends Error {
@@ -170,8 +189,8 @@ export class RateLimitedError extends Error {
 // The deadline passed between two pages of one bill: the walk stops there, the
 // bill is neither stamped nor charged, and it stays owed.
 class WalkDeadlineError extends Error {
-  constructor(billId: string) {
-    super(`deadline reached between pages for ${billId}`);
+  constructor(billId: string, why = "between pages") {
+    super(`deadline reached ${why} for ${billId}`);
     this.name = "WalkDeadlineError";
   }
 }
@@ -248,18 +267,37 @@ async function fetchBillCommittees(
   hooks: WalkHooks = {},
   deadline = Number.POSITIVE_INFINITY,
 ): Promise<ApiBillCommittees> {
-  const key = apiKey();
+  let key: string;
+  try {
+    key = apiKey();
+  } catch (e) {
+    throw new WalkAuthError(bill.id, e instanceof Error ? e.message : String(e));
+  }
   let url = `${API_BASE}/bill/${bill.congress}/${bill.type}/${bill.number}/committees?api_key=${key}&format=json`;
   const committees: NonNullable<ApiBillCommittees["committees"]> = [];
   for (let page = 0; page < MAX_COMMITTEE_PAGES; page++) {
     // No page starts after the deadline: the budget assumed one fetch per bill.
     if (page > 0 && Date.now() >= deadline) throw new WalkDeadlineError(bill.id);
     await hooks.beforeFetch?.();
-    const res = await fetch(url, { signal: AbortSignal.timeout(PER_BILL_HTTP_TIMEOUT_MS) });
-    hooks.afterFetch?.(res);
-    if (res.status === 429) throw new RateLimitedError(bill.id);
-    if (!res.ok) throw new Error(`bill committees HTTP ${res.status} for ${bill.id}`);
-    const j = (await res.json()) as ApiBillCommittees;
+    // HO 756: the abort is capped at the deadline plus DEADLINE_GRACE_MS. A fetch cut
+    // by the cap is the deadline's doing, so it throws WalkDeadlineError (the bill
+    // stays owed, uncharged); one that times out on its own 8s clock is a failure.
+    const left = deadline + DEADLINE_GRACE_MS - Date.now();
+    const capped = left < PER_BILL_HTTP_TIMEOUT_MS;
+    let j: ApiBillCommittees;
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(Math.max(1, Math.min(PER_BILL_HTTP_TIMEOUT_MS, left))) });
+      hooks.afterFetch?.(res);
+      if (res.status === 429) throw new RateLimitedError(bill.id);
+      if (res.status === 401 || res.status === 403) throw new WalkAuthError(bill.id, `HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`bill committees HTTP ${res.status} for ${bill.id}`);
+      j = (await res.json()) as ApiBillCommittees;
+    } catch (err) {
+      if (capped && err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        throw new WalkDeadlineError(bill.id, "with a fetch in flight");
+      }
+      throw err;
+    }
     committees.push(...(j.committees ?? []));
     // HO 753: the endpoint pages at 20, and the rows are the union of every page.
     // `next` carries no key, so the key is re-attached, and only for api.congress.gov.
@@ -321,8 +359,9 @@ export type SyncCommitteeBillsOptions = {
   perTickLimit?: number;      // hard cap on bills per tick (default 500)
   hooks?: WalkHooks;          // HO 753: the repair's pacing; the cron passes none
   // HO 753: count a failed walk toward GIVE_UP_AT (default true, the cron). The repair
-  // passes false: its rounds are minutes apart, not 12 hours, so an outage during a
-  // run would set bills aside in minutes with nothing to bring them back.
+  // passes false: its rounds are minutes apart, not six hours (the cron's cadence since
+  // HO 756, when GIVE_UP_AT's five failures came to mean about 30h, not 60h), so an
+  // outage during a run would set bills aside in minutes with nothing to bring them back.
   countFailures?: boolean;
 };
 
@@ -338,7 +377,10 @@ export async function syncCommitteeBills(
   let fetchErrors = 0;
   let deadlineHit = false;
   let rateLimited = false;
+  let authFailed = false;
   const failedIds: string[] = [];
+  // HO 756: failures are charged after the loop, and only if the tick was not an outage.
+  const toCharge: string[] = [];
   for (const bill of bills) {
     if (Date.now() >= deadline) {
       deadlineHit = true;
@@ -364,15 +406,27 @@ export async function syncCommitteeBills(
         console.warn(`[committees] ${err.message}; the walk stops, and no failure is counted`);
         break;
       }
+      if (err instanceof WalkAuthError) {
+        authFailed = true;
+        billsProcessed--;
+        console.warn(`[committees] ${err.message}; the walk stops, and no failure is counted`);
+        break;
+      }
       fetchErrors++;
       if (failedIds.length < 20) failedIds.push(bill.id);
       console.warn(`[committees] bill ${bill.id} fetch failed:`, err instanceof Error ? err.message : err);
-      if (opts.countFailures !== false) {
-        try {
-          await recordWalkFailure(bill.id);
-        } catch (e) {
-          console.warn(`[committees] could not count the failure for ${bill.id}:`, e instanceof Error ? e.message : e);
-        }
+      if (opts.countFailures !== false) toCharge.push(bill.id);
+    }
+  }
+  const outage = billsWalked === 0 && fetchErrors >= OUTAGE_MIN_FAILURES;
+  if (outage) {
+    console.warn(`[committees] ${fetchErrors} bill fetches failed and none walked: an outage, and no failure is counted`);
+  } else {
+    for (const id of toCharge) {
+      try {
+        await recordWalkFailure(id);
+      } catch (e) {
+        console.warn(`[committees] could not count the failure for ${id}:`, e instanceof Error ? e.message : e);
       }
     }
   }
@@ -384,6 +438,8 @@ export async function syncCommitteeBills(
     deadlineHit,
     capHit: bills.length >= perTickLimit,
     rateLimited,
+    authFailed,
+    outage,
     fetchErrors,
     failed: { count: fetchErrors, ids: failedIds },
     remaining: backlog.remaining,
@@ -454,8 +510,8 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
   // Wipe-and-rewrite per committee so roster departures (members leaving the
   // committee) clear correctly. Memberships are ~5K rows total — collect all
   // DELETE + INSERT statements and ship one batch so the daily refresh
-  // stays inside the wrapper's 55s soft timeout (one-statement-per-round-
-  // trip blew it at 280s during HO 143 verification).
+  // stays inside the wrapper's soft timeout (55s until HO 756, 290s since;
+  // one-statement-per-round-trip took 280s during HO 143 verification).
   const stmts: { sql: string; args: (string | number | null)[] }[] = [];
   for (const [thomas, members] of Object.entries(parsed)) {
     if (!Array.isArray(members)) continue;
