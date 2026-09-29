@@ -7,9 +7,9 @@ import {
   getPacIeSpending,
   getRace,
   getIncumbentOnBallot,
-  getRaceCandidates,
   getRaceNews,
   getRaceRatings,
+  getRaceRoster,
   getRunoffsForRace,
 } from "@/lib/queries";
 
@@ -62,7 +62,8 @@ export default async function RacePage({
 
   const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot] =
     await Promise.all([
-      getRaceCandidates(race.id),
+      // HO 757: the roster's own read, the one that carries `on_ballot` rows.
+      getRaceRoster(race.id),
       race.incumbent_bioguide_id
         ? getMember(race.incumbent_bioguide_id)
         : Promise.resolve(null),

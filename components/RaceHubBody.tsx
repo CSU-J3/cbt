@@ -11,7 +11,7 @@ import type {
   PacIeRow,
   PrimaryWithCandidates,
   Race,
-  RaceCandidate,
+  RosterCandidate,
   RaceNewsItem,
   RaceRating,
 } from "@/lib/queries";
@@ -63,7 +63,8 @@ export function RaceHubBody({
   nowMs,
 }: {
   race: Race;
-  candidates: RaceCandidate[];
+  // HO 757: getRaceRoster's rows, the others on the ballot included.
+  candidates: RosterCandidate[];
   incumbent: Member | null;
   // HO 750: whether the stored incumbent is printed on this race's November
   // ballot (lib/queries.ts getIncumbentOnBallot): true, false when the ballot
