@@ -3596,3 +3596,114 @@ The first `HEAD` run, on the driver before the review (`af15980475`, and `a9db35
 - **No SKILL change.**
 - **OPEN LOOPS reconciled: 261 live / 310 struck at open (571 total), 260 / 312 at close (572)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 755.**
+
+**Also (HO 756), the committees cron off the shared :00 minute, on a 240s budget, with steps that fail alone.** Four commits, kinds unmixed: `fix` · `diag` · `docs(skill)` alone · `docs`. The FF is held for the SKILL approval and review. Nothing served changes, so no captures. The pointer is 756 by plain arithmetic: pointer 755, highest HO in commit subjects 755, `main` at `4ebb191`.
+
+**The four tick readings of 2026-09-29, carried from HO 754's FF go** (SELECT only; `docs/handoffs/753-artifacts/tick1-753.txt`, `tick2-753.txt`, `754-artifacts/meetings-tick1-754.txt`, `meetings-tick2-754.txt`). The check-ins for 00:00Z and 00:50Z fired on time; the two for 12:00Z and 12:50Z fired late, together, at 17:37Z.
+- **`/api/cron/committees` #20896, 00:00Z:** `success` in 54.2s. Walked 31 (54 rows), `remaining` 5, `failed` 0, `gaveUp` empty, `deadlineHit` true, no cap hit, no 429. The bills step took 53.1s against a 45s budget, 0.8s inside the soft timeout. `chronicErr` named four unknown committee codes from the members step. There is no `meetings` key, so the HO 754 split holds from this side.
+- **`/api/cron/committees` #21020, 12:00Z: `error` at 8.0s,** `The operation was aborted due to timeout`, before any step's payload. Owed went from 5 to 118 by 17:37Z, and to 188 by HO 756's STEP 0 (18:04Z).
+- **`/api/cron/committee-meetings` #20906, 00:50Z:** `success` in 12.1s, complete, 8 + 5 pages, both lists complete (1,611 and 1,128), refreshed 5, absent 0 stamped and 0 cleared, `failed` 0, `gaveUp` empty.
+- **`/api/cron/committee-meetings` #21031, 12:50Z:** `success` in 10.3s, complete, 8 + 5 pages, both lists complete, refreshed 1, absent 0 and 0, `failed` 0, `gaveUp` empty. The 19 stay stamped, and the walk state is empty. The meetings route ran cleanly after the committees route had failed, which is the point of HO 754's split.
+- **`/api/health`, read 2026-09-29 17:58Z: HTTP 503,** `unhealthy ["/api/cron/committees"]`, last status `error`, fresh at 00:00:49Z. `/api/cron/committee-meetings` was healthy.
+
+**STEP 0** (prod `SELECT`s, and one public GET each of the two upstream YAML files; `docs/handoffs/756-artifacts/`, repo-ignored).
+- **Anchors:** every cited one held at `4ebb191`. One small correction: the route's three steps sat in no `try` of their own, so any throw reached `wrapCronRoute` and failed the tick.
+- **The route's 60 rows in the 30 days to 2026-09-29, by started minute:**
+
+  | Minute (UTC) | success | error |
+  |---|---|---|
+  | 00:00 | 22 | 3 |
+  | 00:01 | 4 | 0 |
+  | 00:02 | 1 | 0 |
+  | 12:00 | 15 | 12 |
+  | 12:01 | 0 | 2 |
+  | 12:03 | 0 | 1 |
+
+  Every error is an 8.03–8.81s `The operation was aborted due to timeout`. The rows don't name the step; the elapsed puts nearly all of them in the first fetch, the committees list.
+- **The penalty of the :00 minute, as a number:** 38 of the 42 success rows carry a bills count. Over those 38 a bill took a median 0.63s (min 0.09s, max 4.23s), and 31 of them hit the 45s deadline; the last week ran from 0.19s to 1.71s a bill. The HO 753 repair walked the same endpoint off-peak at 0.342s a bill. **Both minutes had the same neighbours, yet 15 of the 18 errors fell at 12:00Z against 3 at 00:00Z,** so the time of day (Congress.gov's own load at 08:00 ET) mattered as much as the shared minute.
+- **The inflow:** `changed_at` stamps numbered 70 on 2026-09-28 (from the 17:49Z migrate) and 219 on 2026-09-29 to 18:04Z. As a longer proxy, committee-bearing bills by their upstream `update_date` ran 142, 165, 164, 213, 78, (none), 101 and 177 a day over 2026-09-22 to 09-29. Owed was 188 at 18:04Z, with 0 set aside.
+- **Three premises of the handoff were wrong, flagged.**
+  - The unknown committee codes are not a case-folding mismatch. The `committees` table's 236 codes are all lower-case, and `thomasToSystemCode` already lowercases. `HSZS` and `HSQJ` are the China and January 6 select bodies, which Congress.gov keys `hlzs00` and `hlqj00`, and `committee_members` holds 0 rows for either. `SSCM39` and `SSJU27` are Senate subcommittees with empty rosters that Congress.gov doesn't list. Filed with that reading.
+  - "At 1.7s a bill in that minute" was one tick (00:00Z on 09-29); the median at :00 was 0.63s.
+  - The neighbour-minute text HO 755 wrote, which named committees among the routes sharing :00, is a code comment (`app/api/cron/news/route.ts`), not SKILL, so it is corrected in the `fix` commit.
+
+**The build.**
+- (1) **`vercel.json`:** the route at `5 */6 * * *`, `maxDuration` 300. **`lib/cron-health.ts`:** the new schedule, `maxStaleMs` 13h; the count comment (19 keys, 19 strings, 20 crons) stays true, since no cron was added.
+- (2) **The route:** `maxDuration = 300`, `BILLS_BUDGET_MS = 240_000` and `softTimeoutMs: 290_000`.
+  - The list and members steps each run in their own `try`, and a failure is named in `chronicErr` (`committees list step failed: …`, `committee members step failed: …`).
+  - The walk's own failure still throws, so the tick records `success` whenever the walk ran.
+  - The payload's `steps` says which of the three ran.
+- (3) **The walk, `lib/committees-sync.ts`:** a bill fetch's abort is capped at the deadline plus 3s (the HO 754 pattern). A fetch cut by the cap throws `WalkDeadlineError`: the bill stays owed and uncharged, like a page the deadline refused. A fetch that times out on its own 8s is a failure, as before. The repair, with no deadline, is untouched by the cap.
+- (4) **The outage breaker, added from the review (a departure from "nothing else in the walk changes").** Once the list step fails alone, an outage or a bad key no longer stops the tick before the walk. Without the breaker, the walk would charge every owed bill a failure on a `success` row, and at four ticks a day set them all aside in about a day, with nothing to bring them back (leg 5's red on the build before it: 12 of 12 charged, `success`). Now:
+  - a 401/403 or a missing key ends the walk uncharged (`bills.authFailed`), like a 429;
+  - failures are charged only after the loop, and not at all when 3 or more failed and none walked (`bills.outage`);
+  - either case throws, so the tick records `error` and `/api/health` sees it, as HEAD's did when the list failed first.
+
+**Departures and extras, each named.**
+- (1) **Two more headers, corrected in the `fix` commit because they named the old slot:**
+  - `app/api/cron/committee-meetings/route.ts` said "fifty minutes after the committees route";
+  - `app/api/cron/news/route.ts`'s `:00` list named committees.
+- (2) **`lib/committees-sync.ts`'s rollover comment** said `0 */12` and "the ONLY rollover seam on a cron". The second has been false since HO 754, which corrected only SKILL's copy. Both are corrected here.
+- (3) **The mechanism is inferred, not named:** the error rows don't say which step aborted.
+- (4) **15 of the 18 errors fell on the 12:00Z tick.** That points at Congress.gov's own load at 08:00 ET as much as at the shared minute, and the new `5 */6` still fires at 12:05Z and 18:05Z. The move alone does not stop those aborts; the step isolation stops them failing the tick. So the WATCH tallies `committees list step failed` by the tick's hour, not only `error` rows (a review finding).
+- (5) **`scripts/repair-committee-bills.ts`:** its overlap warning keyed on 00:00/12:00 and missed half the new ticks; it now warns inside 00:05, 06:05, 12:05 and 18:05 (a review finding).
+- (6) **GIVE_UP_AT's window halves:** five failures set a bill aside after about 30h at the new cadence, not 60h. Recorded in SKILL.
+- (7) **The members step's batching comment** (`lib/committees-sync.ts`) named the 55s soft timeout; it now reads 55s until HO 756 and 290s since. Found by the last sweep, not the review.
+
+**The legs** (`scripts/diagnostic/committees-cron-legs-756.ts`, with `committees-cron-shim-756.cjs`):
+- a local production build (`next start`) on a `file:` copy made by the real migrate and seeded with synthetic owed bills;
+- the shim answers every api.congress.gov request, with delays that honour the caller's abort;
+- the transport is proved by a sentinel on `/api/health`, and prod's fingerprint reads the same before and after every run (committees run #21020, `committee_bills` 27,112 rows, last walk 00:01:33Z).
+
+The committed driver `7f8e8e30df` and shim `d3553fce91` are the same blobs in all four runs:
+- **red, on `HEAD`** (`legs-red2.txt`; route `ca32ce8148`, walk `fbe7773946`, budget 45,000 ms, build `bll8NvQ…`): 6 pass, 8 fail;
+- **green, on the build as committed** (`legs-final2.txt`; route `bad7e038f8`, walk `d3dda2ca51`, budget 240,000 ms, build `l81Ks00…`): 14 pass, 0 fail;
+- **green, on the build before the last comment edit** (`legs-final.txt`; walk `44c04c1a38`, which differs from the committed walk by the members comment alone; build `NQCrMls…`): 14 pass, 0 fail; its readings differ only by timing (leg 3 walked 460 against 462, leg 1 aborted at 5,120 ms against 5,179);
+- **leg 5 alone, on the build before the breaker** (`legs-prefix.txt`; route `3c6b08c3ea`, walk `d1352fa6af`, build `K4Fk9Qk…`): 1 pass, 4 fail. This is the breaker's red. On `HEAD`, leg 5(a) passes only because the list step's 403 failed the tick before the walk.
+
+An earlier pair on driver `132158c0f7` and shim `d8520588bf` (legs 1 to 4, before the breaker and leg 5, with leg 1's floor at 0) read 4/6 on `HEAD` and 10/0 on the build (`legs-red.txt`, `legs-green.txt`). The runs above supersede it.
+
+| Leg | `HEAD` (45s) | The build (240s) |
+|---|---|---|
+| 1 deadline cap: each bill 0.6s; a fetch starting in the last 2.5s before the budget is held 30s | The held fetch runs its own 8s (aborted at 8,008 ms), and the step ends 5.95s past the budget; the bill is charged (`committee_walk_failures` 1); `success` at 51.0s | Cut 3.01s past the budget (aborted at 5,179 ms; the check's band is 2.5–3.6s); the bill stays owed, failures 0; `success` at 243.0s, walked 382 |
+| 2 steps alone: the committees list fetch hangs | `error` at 8.0s, `The operation was aborted due to timeout`; 0 of 5 bills walked; no `steps` | `success` at 8.1s; `chronicErr` *committees list step failed: The operation was aborted due to timeout*; 5 of 5 walked; `steps {"list":"failed","members":"ran","bills":"ran"}` |
+| 3 capacity: each bill 0.5s | 87 walked in 45.2s | 462 walked in 240.5s (floor 400), `remaining` 138 |
+| 4 the registry | `0 */12 * * *` and 25h | `5 */6 * * *` and 13h, matching `vercel.json` |
+| 5(a) every request 403 | charged 0 of 12, `error` (the list's 403 failed the tick first; 0 bill requests) | charged 0 of 12, `error`: *committees walk stopped, nothing charged: the key was rejected or missing* (1 bill request) |
+| 5(b) the list answers, every bill 503 | charged 12 of 12, `success` (*bill committee fetch errors: 12*) | charged 0 of 12, `error`: *… 12 bill fetches failed and none walked (an outage)* |
+
+The count comment matches in both runs (19 / 19 / 20). It was true before; this is a no-change check. The build before the breaker read 12 of 12 charged and `success` on both 5(a) and 5(b).
+
+**The review** (the `ho756-review` Workflow, run on the diff before the breaker: two reviewers, one on the code and one on the legs and docs, each followed by an adversarial verifier told to default to REFUTED). Ten findings deduplicate to eight.
+
+Four were confirmed:
+- the outage and bad-key regression, found by both reviewers (the breaker, leg 5);
+- the repair script's overlap warning;
+- SKILL's "five routes", now six;
+- the numbers: "up to 1.71s" was the last week, and over 30 days the max is 4.23s over 38 ticks.
+
+Three were plausible:
+- comments still naming the 55s soft timeout and the 12-hour cadence, including GIVE_UP_AT's rationale;
+- the 12:00Z clustering, which the text had not named, and the WATCH counting only `error` rows;
+- leg 1's floor at 0, which a cut AT the deadline would also have passed.
+
+One was refuted: the codes line, which the working tree had already filed with STEP 0's reading.
+
+All seven were fixed. A last sweep before the commit found one more comment the review had not named. The members step's batching note in `lib/committees-sync.ts` still said the 55s soft timeout, so it is corrected in the `fix` commit; its "daily" is left to HO 755's filed line. That edit moved the walk's blob, so the green was run again on the committed blobs.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. One authorized POST right after the deploy. It drains the backlog (188 at STEP 0) and clears `/api/health`'s 503 sooner.
+3. The first two scheduled `:05` ticks' payloads: walked, `remaining`, elapsed and per-bill time.
+4. The WATCH then runs its seven days.
+
+**Docs (HO 756):**
+- This block.
+- **backlog 3+/1−.** The committees-errors line (HO 754) is annotated in place with the mechanism and the remedy, and left open for the WATCH; its deletion is that line's prior text. Two lines are filed at the head of OPEN LOOPS: *WATCH (HO 756) · the committees cron at `5 */6`…* and *The members step names four committee codes unknown on every tick…*.
+- **SKILL 4+/4−**, its own commit, approval requested:
+  - `:1226`, the committees entry: its schedule, `maxDuration`, the 240s budget, the 3s cap, the step independence and the outage breaker, with the readings that moved them and GIVE_UP_AT's window at about 30h;
+  - `:1220`, the 300s routes, five to six;
+  - `:91`, the rollover note, now `5 */6` and within 6h;
+  - `:1321`, the repair's note, "not six hours".
+- **OPEN LOOPS reconciled: 260 live / 312 struck at open (572 total), 262 / 312 at close (574)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 756.**
