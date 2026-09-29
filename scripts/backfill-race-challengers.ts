@@ -47,6 +47,8 @@ async function main() {
   console.log(
     `curated races diverging from the ballot: ${result.curatedDivergence.length ? result.curatedDivergence.join(" · ") : "none"}`,
   );
+  // HO 757: the others on party-primary ballots, the fusion prints kept, and the O others' parties.
+  console.log(`on_ballot (others, ruled C): ${JSON.stringify(result.onBallot)} · fusion prints ${result.fusionPrints} · O parties printed ${result.oPrints}`);
 
   // Sample for eyeballing — wrapper-only; the cron logs figures, not rows.
   const sample = await db.execute({

@@ -1870,6 +1870,23 @@ export type RaceCandidate = {
   source_url: string | null;
 };
 
+// HO 757: the race page roster's row. Its party keeps L (Libertarian), G
+// (Green) and O (any other party), which normalizePartyVariant folds into I
+// for every other reader: the others' letters, and any stored row's (AK-AL's
+// curated Jim McDermott, L, showed I before). It carries the ballot's print:
+// a fusion print whole, or an O row's single-line party.
+export type RosterPartyKey = PartyKey | "L" | "G" | "O";
+export type RosterCandidate = Omit<RaceCandidate, "party"> & {
+  party: RosterPartyKey | null;
+  printed_party: string | null;
+};
+function normalizeRosterParty(party: string | null): RosterPartyKey | null {
+  if (!party) return null;
+  const upper = party.trim().toUpperCase();
+  if (upper === "L" || upper === "G" || upper === "O") return upper;
+  return normalizePartyVariant(party);
+}
+
 // Tagged "races" — separate from "bills" because the seed script
 // refreshes independently from the daily sync. The /api/revalidate route
 // accepts ?tag=races so future cron or webhook integrations can flush.
@@ -1912,9 +1929,14 @@ export const getRaceCandidates = unstable_cache(
   async (raceId: string): Promise<RaceCandidate[]> => {
     const db = getDb();
     const rs = await db.execute({
+      // HO 757: `on_ballot` rows (the others on a party-primary ballot, ruled
+      // C) are the race page roster's alone (getRaceRoster). This read feeds
+      // the competitive block's matchup, where an un-nominated active row would
+      // cost a decided seat its general shape (lib/race-matchup.ts), so it
+      // keeps the field it read before HO 757. IS NOT, so a NULL status stays.
       sql: `SELECT race_id, name, party, bioguide_id, status, source_url
             FROM race_candidates
-            WHERE race_id = ?
+            WHERE race_id = ? AND status IS NOT 'on_ballot'
             ORDER BY
               CASE
                 -- HO 638: 'nominee' (convention / ballot-vacancy replacement)
@@ -1925,7 +1947,11 @@ export const getRaceCandidates = unstable_cache(
                 -- sorts BELOW withdrawn candidates. Mirrored in
                 -- lib/race-matchup.ts's NOMINATED set, in
                 -- lib/pac-target-status.ts's ROSTER_NOMINATED, and in
-                -- getRaceCandidatesForCycle below.
+                -- getRaceCandidatesForCycle below, and (HO 757) in
+                -- getRaceRoster, the race page's own ladder: a rung-0 status
+                -- goes into all three. 'on_ballot' is left out of rung 0 and
+                -- never reaches this ladder (the WHERE excludes it);
+                -- getRaceRoster ranks it at 3.
                 WHEN status IN ('won_primary', 'nominee', 'advanced') THEN 0
                 WHEN status = 'running' THEN 1
                 WHEN status = 'declared' THEN 2
@@ -1945,6 +1971,48 @@ export const getRaceCandidates = unstable_cache(
     }));
   },
   ["getRaceCandidates"],
+  { revalidate: 86400, tags: ["races"] },
+);
+
+// HO 757 — THE RACE PAGE'S ROSTER, the one reader of `on_ballot` rows (ruled
+// C: majors as today, then "Also on the ballot"). getRaceCandidates' ladder,
+// with `on_ballot` ranked after the majors and before `withdrew`: it is on the
+// ballot and not nominated. The page splits on `on_ballot` and keeps
+// `withdrew` with the majors ("majors as today", the ruled mock), so rungs 3
+// and 4 order the flat list, not the page. Its party keeps L, G and O (normalizeRosterParty),
+// and it reads the ballot's print (a fusion print, or an O row's party). The page's stub test and header count read
+// this roster too, so a race whose only published rows are others is not a
+// stub (four at HO 757's STEP 0: AZ-03, MA-01, NJ-08, S-SD).
+export const getRaceRoster = unstable_cache(
+  async (raceId: string): Promise<RosterCandidate[]> => {
+    const db = getDb();
+    const rs = await db.execute({
+      sql: `SELECT race_id, name, party, bioguide_id, status, source_url, printed_party
+            FROM race_candidates
+            WHERE race_id = ?
+            ORDER BY
+              CASE
+                WHEN status IN ('won_primary', 'nominee', 'advanced') THEN 0
+                WHEN status = 'running' THEN 1
+                WHEN status = 'declared' THEN 2
+                WHEN status = 'on_ballot' THEN 3
+                WHEN status = 'withdrew' THEN 4
+                ELSE 5
+              END,
+              name ASC`,
+      args: [raceId],
+    });
+    return rs.rows.map((r) => ({
+      race_id: r.race_id as string,
+      name: r.name as string,
+      party: normalizeRosterParty(r.party as string | null),
+      bioguide_id: (r.bioguide_id as string | null) ?? null,
+      status: (r.status as string | null) ?? null,
+      source_url: (r.source_url as string | null) ?? null,
+      printed_party: (r.printed_party as string | null) ?? null,
+    }));
+  },
+  ["getRaceRoster"],
   { revalidate: 86400, tags: ["races"] },
 );
 
@@ -1988,11 +2056,13 @@ export const getRaceCandidatesForCycle = unstable_cache(
   async (cycle: number): Promise<RaceCandidate[]> => {
     const db = getDb();
     const rs = await db.execute({
+      // HO 757: `on_ballot` rows excluded, as in getRaceCandidates: the index,
+      // the cartogram and the strip keep the field they read before HO 757.
       sql: `SELECT rc.race_id, rc.name, rc.party, rc.bioguide_id, rc.status,
                    rc.source_url
             FROM race_candidates rc
             JOIN races r ON r.id = rc.race_id
-            WHERE r.cycle = ?
+            WHERE r.cycle = ? AND rc.status IS NOT 'on_ballot'
             ORDER BY
               CASE
                 -- HO 638 / HO 736: see getRaceCandidates above — 'nominee'
@@ -2263,8 +2333,13 @@ export const getPacIeSpending = unstable_cache(
       args: seatIds,
     });
     const rosterRs = await db.execute({
+      // HO 757: `on_ballot` rows excluded, as defence in depth. classifyTarget's
+      // roster rungs are allow-lists (ROSTER_NOMINATED, ROSTER_WITHDRAWN) and
+      // already skip the status, so leg 2 reads the rungs the same with or
+      // without this; it keeps the roster this read hands on the one it handed
+      // on before HO 757.
       sql: `SELECT race_id, name, status FROM race_candidates
-            WHERE race_id IN (${marks})`,
+            WHERE race_id IN (${marks}) AND status IS NOT 'on_ballot'`,
       args: seatIds,
     });
 

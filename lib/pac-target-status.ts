@@ -96,10 +96,14 @@ export type RosterRow = { name: string; status: string | null };
 // imported because that module pulls the whole matchup/market surface in; the
 // two sets must move together if a status is ever added (the same standing
 // obligation the getRaceCandidates ORDER BY ladder carries). THREE copies now,
-// not two: this one, race-matchup.ts:NOMINATED, and the two SQL ladders in
-// lib/queries.ts — HO 736 added 'advanced' to all of them in one commit.
+// not two: this one, race-matchup.ts:NOMINATED, and the SQL ladders in
+// lib/queries.ts — HO 736 added 'advanced' to all of them in one commit. (HO
+// 757: three SQL ladders since getRaceRoster; its rung 0 is the same set.)
 // 'advanced' belongs here for the reason the other two do: an advancer is on
 // the November ballot, so a PAC target who advanced is still in the race.
+// HO 757: `on_ballot` is deliberately NOT here (on the ballot, not nominated),
+// and the roster read that feeds this file excludes it in SQL
+// (getPacIeSpending's race_candidates read).
 const ROSTER_NOMINATED = new Set(["won_primary", "nominee", "advanced"]);
 const ROSTER_WITHDRAWN = new Set(["withdrew", "withdrawn"]);
 

@@ -232,7 +232,11 @@ async function main() {
                 bioguide_id = excluded.bioguide_id,
                 status = excluded.status,
                 source_url = excluded.source_url,
-                updated_at = excluded.updated_at`,
+                updated_at = excluded.updated_at,
+                -- HO 757: a curated row carries no ballot print. Without this, a
+                -- curated seed over a harvested fusion row would keep a print the
+                -- harvest never refreshes (it skips curated races).
+                printed_party = NULL`,
         args: [
           race.id,
           c.name,

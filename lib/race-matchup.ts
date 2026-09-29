@@ -53,6 +53,10 @@ const WITHDRAWN = new Set([
 // status sends a decided seat back to `leader`, re-daggers its challenger and
 // re-lights the "primary unresolved" footnote, which is the failure the status
 // was introduced to avoid rather than to cause.
+// HO 757: `on_ballot` (an other on a party-primary ballot) is deliberately NOT
+// here: on the ballot, not nominated. It also never reaches this file, since
+// getRaceCandidates and getRaceCandidatesForCycle exclude it in SQL; an
+// un-nominated active row here would cost a decided seat its `general` shape.
 const NOMINATED = new Set(["won_primary", "nominee", "advanced"]);
 
 export type RosterMember = {

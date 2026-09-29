@@ -56,7 +56,8 @@ async function handle(request: Request) {
         `rows=${summary.rows} races=${summary.races} of ${summary.seats} seats · ${summary.ratedIndex} rated ` +
         `bySource=${JSON.stringify(summary.bySource)} ballotRaces=${summary.ballotRaces} ` +
         `ignored=${summary.ballotIgnored} routes=${JSON.stringify(summary.incumbentRoutes)} ` +
-        `curatedDivergence=${summary.curatedDivergence.length} stamp=${summary.runStamp}`,
+        `curatedDivergence=${summary.curatedDivergence.length} ` +
+        `onBallot=${JSON.stringify(summary.onBallot)} fusionPrints=${summary.fusionPrints} oPrints=${summary.oPrints} stamp=${summary.runStamp}`,
     );
     return { payload: summary };
   });

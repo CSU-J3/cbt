@@ -96,6 +96,12 @@ export type HarvestResult = {
   ballotIgnored: number;
   incumbentRoutes: Record<IncumbentRoute, number>;
   curatedDivergence: string[];
+  // HO 757: the `on_ballot` rows planned (the others on party-primary ballots),
+  // their races, and their roster letters; the planned rows carrying a fusion
+  // print; and the O others carrying their single-line party.
+  onBallot: { rows: number; races: number; byParty: Record<string, number> };
+  fusionPrints: number;
+  oPrints: number;
 };
 
 // races (ALL 2026 rows since HO 741) ↔ primaries by state + chamber + district. races.district
@@ -139,9 +145,9 @@ const HARVEST_FROM_WHERE = `
 // roster is the ballot's (lib/general-ballot.ts, HO 749), not the primary's:
 //   · candidates: on_ballot = 1 and write_in = 0, less the incumbent's row (the
 //     rule in lib/ballot-incumbent.ts). In a top-two or top-four state every
-//     one of them; otherwise those whose party is D or R. Whether race pages
-//     list third parties and independents is Corey's call, filed; this
-//     publishes what the harvest published before, corrected by the ballot.
+//     one of them; otherwise those whose party is D or R. (HO 757: whether
+//     race pages list third parties and independents was ruled C; the plan
+//     now also publishes every other printed row as `on_ballot`, below.)
 //   · status: `advanced` in a top-two or top-four state; otherwise `won_primary`
 //     when the same person was marked winner in a kept primary box on the page
 //     (primary_marked = 1), and `nominee` when not (a convention, a
@@ -156,7 +162,29 @@ const HARVEST_FROM_WHERE = `
 //     never the ingest's surname match.
 // Results are out of scope (the election-night line): nothing here reads the
 // winner marks.
-export type PlannedRow = { race_id: string; name: string; party: string | null; bioguide_id: string | null; status: string };
+//
+// HO 757 — THIRD PARTIES AND INDEPENDENTS, RULED C (Corey, 2026-09-29, on
+// mock-third-parties.html: "C"). In a party-primary race the plan also
+// publishes every other candidate printed on the November ballot: on_ballot = 1
+// and write_in = 0, party not D or R, less the incumbent's row, under the same
+// sentinel, with status `on_ballot` ("On ballot"). `on_ballot` is NOT a
+// nomination: race-matchup.ts's NOMINATED, pac-target-status.ts's
+// ROSTER_NOMINATED and the ranking CASEs leave it out, and every non-roster
+// read of race_candidates (getRaceCandidates, getRaceCandidatesForCycle, the
+// PAC-IE roster read) excludes the status in SQL, so each sees the field it saw
+// before HO 757. Only the race page's roster (getRaceRoster) reads these rows.
+// Their `party` is a roster letter from the printed party (rosterPartyLetter).
+// Top-two and top-four states are unchanged: they already publish every
+// candidate as `advanced`. Curated races are untouched, and their divergence is
+// still named against the D and R set, as HO 750 measured it.
+//   · printed_party: the ballot's print, kept whole when it carries more than
+//     one line (a fusion print, "R / Conservative Party"), on every row printed
+//     on the ballot, majors included; and (the architect's amendment) on an
+//     other lettered O, whose single-line party ("Our Future Party") the page
+//     shows after the name, so an unusual party isn't a bare letter. NULL
+//     otherwise and on `withdrew` rows, whose token is a withdrawal list's, not
+//     a ballot's.
+export type PlannedRow = { race_id: string; name: string; party: string | null; bioguide_id: string | null; status: string; printed_party: string | null };
 export type BallotPlan = {
   rows: PlannedRow[];
   ballotRaces: string[];
@@ -175,7 +203,35 @@ const firstLast = (name: string) => {
   const t = normName(name).split(" ").filter((x) => x && !["jr", "sr", "ii", "iii", "iv"].includes(x));
   return `${t[0] ?? ""} ${t[t.length - 1] ?? ""}`;
 };
-type GbRow = BallotPerson & { race_id: string; party: string | null; write_in: number; withdrawn: number; primary_marked: number };
+type GbRow = BallotPerson & { race_id: string; party: string | null; printed_party: string | null; write_in: number; withdrawn: number; primary_marked: number };
+
+// HO 757: the status of a non-major candidate printed on a party-primary
+// state's November ballot. Not nominated (see the note above PlannedRow).
+export const ON_BALLOT = "on_ballot";
+
+// HO 757: a fusion print carries more than one line, joined by " / ".
+export function fusionPrint(printed: string | null): string | null {
+  return printed != null && printed.includes("/") ? printed : null;
+}
+
+// HO 757: the roster letter of a non-major candidate, from the printed party's
+// first line: Libertarian L, Green G, an independent or no-party label I,
+// anything else O. The ballot prints Libertarians and Greens as bare "L" and
+// "G" (89 and 32 of the 331 in scope at HO 757's STEP 0), Oregon's Pacific
+// Green Party in full. The no-party labels are the ruling's "Independent, No
+// party or Unaffiliated" as the ballots print them; a party whose NAME carries
+// "Independent" ("Independent Party of Florida", "American Independent Party")
+// is a party, so O. With nothing printed, the ingest's letter decides (L, G,
+// else I).
+const NO_PARTY_LABELS = new Set(["independent", "no party affiliation", "no political party", "no party", "unaffiliated", "unenrolled", "nonpartisan"]);
+export function rosterPartyLetter(printed: string | null, ingestLetter: string | null): "L" | "G" | "I" | "O" {
+  const first = (printed ?? "").split("/")[0]!.trim();
+  if (!first) return ingestLetter === "L" || ingestLetter === "G" ? ingestLetter : "I";
+  if (first === "L" || /^libertarian\b/i.test(first)) return "L";
+  if (first === "G" || /\bgreen\b/i.test(first)) return "G";
+  if (NO_PARTY_LABELS.has(first.toLowerCase())) return "I";
+  return "O";
+}
 
 export async function planBallotRoster(db: Client): Promise<BallotPlan> {
   // One read transaction, so the reads and the rows are one snapshot.
@@ -193,7 +249,7 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
         args: [HARVEST_SOURCE, BALLOT_SOURCE],
       },
       {
-        sql: `SELECT g.race_id, g.person_key, g.name, g.party, g.bioguide_id, g.incumbent_marked,
+        sql: `SELECT g.race_id, g.person_key, g.name, g.printed_party, g.party, g.bioguide_id, g.incumbent_marked,
                      g.write_in, g.on_ballot, g.withdrawn, g.primary_marked
                 FROM general_ballot g
                 JOIN general_ballot_reads rd ON rd.race_id = g.race_id AND rd.status = 'box'
@@ -227,6 +283,7 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
       race_id: String(r.race_id),
       person_key: String(r.person_key),
       name: String(r.name),
+      printed_party: r.printed_party == null ? null : String(r.printed_party),
       party: r.party == null ? null : String(r.party),
       bioguide_id: r.bioguide_id == null ? null : String(r.bioguide_id),
       incumbent_marked: Number(r.incumbent_marked),
@@ -271,7 +328,25 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
         party: r.party,
         bioguide_id: r.bioguide_id,
         status: tx ? "advanced" : r.primary_marked === 1 ? "won_primary" : "nominee",
+        printed_party: fusionPrint(r.printed_party),
       });
+    }
+    // HO 757: the others on a party-primary state's ballot (ruled C). Top-two
+    // and top-four states already published everyone above.
+    if (!tx) {
+      for (const r of rows) {
+        if (r.on_ballot === 1 && r.write_in === 0 && r !== inc?.row && r.party !== "D" && r.party !== "R") {
+          const letter = rosterPartyLetter(r.printed_party, r.party);
+          plan.rows.push({
+            race_id: id,
+            name: r.name,
+            party: letter,
+            bioguide_id: r.bioguide_id,
+            status: ON_BALLOT,
+            printed_party: fusionPrint(r.printed_party) ?? (letter === "O" ? r.printed_party : null),
+          });
+        }
+      }
     }
     // The incumbent's row anywhere on the page, by the rule's two routes, so an
     // incumbent under a stale title who withdrew is not published as their own
@@ -281,7 +356,7 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
     const incAnywhere = findIncumbentRow(rows, stored);
     for (const r of rows) {
       if (r.on_ballot === 0 && r.withdrawn === 1 && r.primary_marked === 1 && r !== incAnywhere) {
-        plan.rows.push({ race_id: id, name: r.name, party: r.party, bioguide_id: r.bioguide_id, status: "withdrew" });
+        plan.rows.push({ race_id: id, name: r.name, party: r.party, bioguide_id: r.bioguide_id, status: "withdrew", printed_party: null });
       }
     }
   }
@@ -310,9 +385,9 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     const part = plan.rows.slice(i, i + 100);
     stmts.push({
       sql: `INSERT OR IGNORE INTO race_candidates
-              (race_id, name, party, bioguide_id, status, source_url, updated_at)
-            VALUES ${part.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
-      args: part.flatMap((r) => [r.race_id, r.name, r.party, r.bioguide_id, r.status, BALLOT_SOURCE, runStamp]),
+              (race_id, name, party, bioguide_id, status, source_url, updated_at, printed_party)
+            VALUES ${part.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ")}`,
+      args: part.flatMap((r) => [r.race_id, r.name, r.party, r.bioguide_id, r.status, BALLOT_SOURCE, runStamp, r.printed_party]),
     });
   }
 
@@ -438,5 +513,16 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     ballotIgnored: plan.rows.length - ballotInserted,
     incumbentRoutes: plan.incumbentRoutes,
     curatedDivergence: plan.curatedDivergence,
+    onBallot: onBallotCensus(plan.rows),
+    fusionPrints: plan.rows.filter((r) => fusionPrint(r.printed_party) != null).length,
+    oPrints: plan.rows.filter((r) => r.status === ON_BALLOT && r.party === "O" && r.printed_party != null && fusionPrint(r.printed_party) == null).length,
   };
+}
+
+// HO 757: the payload's census of the planned `on_ballot` rows.
+export function onBallotCensus(rows: PlannedRow[]): { rows: number; races: number; byParty: Record<string, number> } {
+  const on = rows.filter((r) => r.status === ON_BALLOT);
+  const byParty: Record<string, number> = {};
+  for (const r of on) byParty[r.party ?? "null"] = (byParty[r.party ?? "null"] ?? 0) + 1;
+  return { rows: on.length, races: new Set(on.map((r) => r.race_id)).size, byParty };
 }

@@ -1920,6 +1920,14 @@ async function main() {
   // ensureColumn, not the CREATE array — the `activity_count` (HO 597) rule at
   // the top of this file governs: the array only runs for a fresh DB.
   await ensureColumn(db, "race_candidates", "updated_at", "TEXT");
+  // HO 757: a ballot-sourced row's printed party, kept when the ballot prints
+  // more than one line for the person (a fusion print, "D / Working Families
+  // Party"), for majors and others alike, and on an other lettered O (a
+  // single-line party the letter can't name); NULL otherwise, and NULL on every
+  // curated and primary-sourced row. The race page's roster renders it
+  // after the name. `party` stays one letter. Nullable, so no backfill: the
+  // harvest's DELETE-and-rebuild fills it on its next run.
+  await ensureColumn(db, "race_candidates", "printed_party", "TEXT");
 
   // ── HO 676 — seed bill_roster_state once ─────────────────────────────────
   // WHAT THIS ASSERTS: every bill the HO 674 backfill considered was checked,
