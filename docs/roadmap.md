@@ -4245,3 +4245,49 @@ The d runs are on the committed blobs (scrape `2f631e83a1`, sync `0f17c37792`, r
 - **SKILL 8+/7−**, its own commit, for approval: runoff rounds as contests (the parser, the id, the box's date), the seeds maintained by the page, `repair:runoffs`, `RaceRunoffs`' *Lost*, the qualifier's runoff reading, the cron entry's payload, the votebox rule's runoff clause, and one ride-along, flagged: the PAC ladder's *3 runoff rows total, none for Texas*, which HO 761 turns false.
 - **OPEN LOOPS reconciled: 263 live / 317 struck at open (580 total), 267 / 319 (586) at close**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 761.**
+
+**Also (HO 762), a runoff box the page no longer marks special is routed by its date: SC's Aug 25 runoff lands on its special's row, not the June primary's.** Ruled 2026-09-30 by the architect, in chat, verbatim: *"option A. Build the date-routed fix (a runoff box the page no longer marks special goes to whichever of the seat's first rounds, regular or seeded special, carries a `runoff_date` equal to the box's printed date; no match means the box is skipped and named in the payload), with a leg from the saved live SC page, red on today's code. Land it as its own small HO with the two flags filed and the SKILL sentence corrected, on a review ref, before the primaries cursor reaches SC. Hold the `--write` until it's on main; then run it and read the four pages."* Four commits, kinds unmixed: `fix` · `diag` · `docs(skill)` alone · `docs`. No migration, no render change, so no captures. The pointer is 762 by plain arithmetic: pointer 761, highest HO in commit subjects 761, `main` at `84f5079`.
+
+**HO 761's FF go, as far as it ran** (`docs/handoffs/761-artifacts/verify-deploy-761.txt`, `e2e-prod-36783839877.log`, `repair-dry-prod-761.txt`, `sc-live-761.txt`, `cursor-761.txt`).
+- **The FF:** `main` at `84f5079`, fast-forwarded from `ead1020` with no force; `761-review` deleted, and `ls-remote` lists `main` alone. `verify:deploy` read 5 of 5, first match at 11s. Production e2e #36783839877 passed smoke 140 in 5.7m; the review ref's Preview, #36783648231, passed `narrow-preview`.
+- **The repair's dry run on prod, 2026-09-30 22:09Z:** 104 pages READ, 0 NO_PAGE, `minGapMs` 6000, 33 runoff boxes, all dated from the box. It planned 30 inserts and 3 reopens (GA R, LA D, LA R), one winner each. The date check flagged 4: SC's three House boxes (the page's June 23 against a stored 08-25, filed at HO 761) and **SC's Senate box, which the router sent to the June primary's `senate-SC-2026-R-runoff`** (box 2026-08-25, first round's `runoff_date` 2026-06-23). The other 32 match HO 761's legs.
+- **The cause, read on the live page once (22:20Z):** Ballotpedia rewrote S-SC after HO 747's copy of 2026-09-25. The Aug 11 primary and its Aug 25 runoff no longer say "Special", so the box parsed as the regular contest's. HO 761's legs read the saved page, where it still did.
+- **The `--write` was held,** and so were the four pages (items 3 and 4). The cron's writer is not settle-guarded for a new row, so it too would write the misrouted row when its cursor reached S-SC: the cursor read 372 of 471 at 22:21Z. By the cursor's arithmetic (House 12 a tick at `0 0,12`, the slice stopping at the list's end, then the calendar, then Senate units 1 to 20 and 21 to 35), S-SC (unit 27) is reached at the 2026-10-06 12:00Z tick, a Tuesday (`date -u -d 2026-10-06 +%A`), assuming no tick stops early on its budget.
+- **Reconcile on `main` `84f5079`:** 267 live / 319 struck (586), control 0.
+
+**STEP 0.**
+- **HO number:** `main` at `84f5079`, pointer 761, highest HO in commit subjects 761; so 762.
+- **The anchors:** the id resolution in `writeRunoffRounds` and its three callers (`syncSenateCandidates`, `syncHouseDistricts`, `createRunoffWriter`) at `84f5079`; `routeSenateContestId` reads specialness only.
+- **The saved live page** (`docs/handoffs/761-artifacts/S-SC-2026.live-761.html.gz`): one R runoff box, unmarked, dated 2026-08-25 (its results line), Graham marked over Norman. The stored first rounds: `senate-SC-2026-R` `runoff_date` 2026-06-23, `senate-SC-2026-special-R` 2026-08-25.
+
+**The build.**
+- (1) **`fix`:** `lib/primaries-sync.ts`: the writer takes a box's candidate first rounds. A box marked special keeps the router's one id; an unmarked Senate box in a state whose registry seeds a special for its contest has two, the regular and the special, and goes to the one whose stored `runoff_date` equals its printed date; no match, two matches or no printed date, and it is skipped and named in a new `unrouted` bucket, which the cron payload and the repair's print carry. Everything else has one candidate and is written as before. `scripts/repair-runoffs.ts` prints the bucket, and `lib/primary-candidates-scrape.ts`'s `ScrapedRunoff` comment points at the writer for the id. The comments the review found are in the same commit (below).
+- **The reading, named:** date routing applies only where there are two candidates. With one, the box goes where it went, so SC's three House boxes, whose stored `runoff_date` is wrong, still land on their only first round rather than being skipped.
+
+**The legs** (`scripts/diagnostic/runoff-route-legs-762.ts` and its child; `docs/handoffs/762-artifacts/legs-c.txt`; runs a and b kept beside it). One seed read whole from prod (13 tables, the schema by the real migrate), copied per leg; the saved live S-SC page, and HO 747's saved pages for the rest; HEAD's writer and parser loaded with `git cat-file`; prod's fingerprint equal before and after. Run c, on the committed blobs (sync `7ae6c4ed1f`, scrape `1c0e5b4068`, driver `ca7abdb51a`, child `81887a2eaf`): 17 pass, 0 fail, the seventeenth a check that HEAD's parser and the tree's read both S-SC pages identically (the tree changed a comment). Run a's one fail was the instrument: the undated control's regex missed the page's run of spaces, so the box kept its date; b and c strike the date and assert it went.
+
+| Leg | Red (HEAD, `84f5079`) | Green (the tree) |
+|---|---|---|
+| 1 the live page | the unmarked box goes to `senate-SC-2026-R-runoff`, the date check flagging it | it goes to `senate-SC-2026-special-R-runoff` (2026-08-25) and is written there; nothing on the June primary |
+| 2 the saved page | the marked box goes to the special | the same |
+| 3 no single match | — | the special's date moved off (no match), the regular's moved onto it (two), the box's date struck (none printed): each skipped, named in `unrouted` with both first rounds' dates, and no runoff row written |
+| 4 the cron's path | `syncSenateCandidates(["SC"])` through the shim, the live page served, writes `senate-SC-2026-R-runoff` | writes `senate-SC-2026-special-R-runoff`; the first rounds identical to HEAD's run and to the seed |
+| 5 nothing else moves | HEAD's writer over all 104 pages (the live S-SC among them) differs from the tree's in S-SC's runoff alone | the tree's repair over the saved pages and over the live S-SC: 33 rounds each (30 inserted, 3 reopened, `unrouted` 0), row for row the same; SC's three House boxes on their only first round |
+
+**HO 761's legs on this writer** (`docs/handoffs/762-artifacts/legs761-f.txt`, the committed blobs): 43 pass, 0 fail.
+
+**The review** (the `ho762-diff-review` Workflow on the working tree: two reviewers, on the routing and on regression, each finding put to two skeptics told to default to REFUTED; 14 agents). It found 6 issues, all low.
+- **Kept, and fixed before the commits:** five comments. The HO 762 note gave the wrong reason SC's House boxes keep one first round (the House path never has two); the repair writer's note said every unmarked box is date-routed (only one whose state seeds a special for its contest); two HO 761 notes said a runoff's first round is derived as the first round's own write derives it; and `isSettled`'s router-first note, which the live SC page falsifies (the router reads the Aug 11 field as the regular contest's, and this guard is what refuses it now), is annotated rather than rewritten.
+- **Refuted:** the parser folds two unmarked runoff boxes of one contest into one round (both instances): it needs a seeded state with a regular runoff beside the special one, and SC's June R primary was won outright, so its page carries one runoff box. "Never guessed" was cut from the note all the same.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`; before the primaries cursor reaches S-SC (the 2026-10-06 12:00Z tick by its arithmetic).
+2. `npm run repair:runoffs`, pasted: 30 inserts with SC's on `senate-SC-2026-special-R-runoff`, 3 reopens, `unrouted` 0, and only SC's three House boxes in `dateDisagrees`. Then `-- --write`.
+3. After the next `races` flush: `/race/S-GA-2026`'s runoff block, and `/race/TX-09-2026`, `/race/TX-32-2026` and `/race/S-TX-2026` reading LOST PRIMARY (HO 761's items 3 and 4).
+
+**Docs (HO 762):**
+- This block.
+- **backlog 2+/0−:** HO 761's FF-go flags. The SKILL sentence's is filed and struck in one line (corrected here); the S-SC page's lost "Special" on the first rounds is filed, dormant while both SC R rows stay settled.
+- **SKILL 1+/1−**, its own commit, for approval: the Runoff tracking sentence that said SC's special runoff lands on the special's row now says how (the date route) and what happens otherwise (`unrouted`).
+- **OPEN LOOPS reconciled: 267 live / 319 struck at open (586 total), 268 / 320 (588) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 762.**
