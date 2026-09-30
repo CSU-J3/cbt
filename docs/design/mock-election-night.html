@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>mock · a decided race</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg-base:#0a0e14;--bg-panel:#050709;--border-strong:#1f2937;--border-soft:#111820;
+--text-primary:#e5e7eb;--text-secondary:#cbd5e1;--text-muted:#94a3b8;--text-dim:#6b7280;
+--accent-amber:#d97706;--accent-amber-bright:#fbbf24;--ok:#22c55e;
+--party-republican:#ef4444;--party-democrat:#3b82f6;--party-independent:#a78bfa;
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{margin:0;background:var(--bg-base);color:var(--text-primary);font-family:var(--sans);padding:26px 22px 90px;max-width:1240px}
+.note{font-family:var(--mono);font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 2px 18px}
+.note b{color:var(--text-muted);font-weight:600}
+.pick{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text-muted);margin:0 0 22px;padding:12px 14px;border:1px solid var(--border-strong);background:var(--bg-panel)}
+.pick label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.pick input{accent-color:var(--accent-amber)}
+.pick .readout{margin-left:auto;color:var(--accent-amber-bright);letter-spacing:.06em}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+.card{background:var(--bg-panel);border:1px solid var(--border-strong);padding:14px 16px}
+.card h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-amber-bright);margin:0 0 2px;font-weight:600}
+.card .sub{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin:0 0 12px}
+.hdr{font-size:18px;font-weight:600;margin:6px 0 2px}
+.cd{font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px}
+.cd .st{color:var(--accent-amber-bright)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.chip{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border:1px solid var(--border-strong);color:var(--text-secondary)}
+.chip.dim{color:var(--text-dim);border-color:var(--border-soft)}
+.chip.win{color:var(--ok);border-color:#14532d}
+.inc{border:1px solid var(--border-soft);padding:8px 10px;margin:8px 0 12px;font-size:13px}
+.inc .q{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-dim);margin-left:8px}
+.inc .q.win{color:var(--ok)}.inc .q.lose{color:var(--party-republican)}
+h4{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin:12px 0 4px;font-weight:600}
+ul{list-style:none;margin:0;padding:0}
+li{display:flex;align-items:center;gap:12px;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border-soft)}
+li .p{width:24px;font-family:var(--mono);font-size:12px;text-transform:uppercase}
+li .n{flex:1}
+li .s{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)}
+li .s.win{color:var(--ok)}
+.R{color:var(--party-republican)}.D{color:var(--party-democrat)}.I{color:var(--party-independent)}
+.prov{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:10px}
+.odds{font-family:var(--mono);font-size:11px;color:var(--text-muted);margin:6px 0}
+.band{margin:22px 0 0;padding:10px 14px;border:1px solid var(--border-strong);background:var(--bg-panel);font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--text-muted)}
+.band b{color:var(--accent-amber-bright)}
+.hidden{display:none}
+</style></head><body>
+<p class="note"><b>A decided race.</b> The morning of Nov 4, Ballotpedia's general box marks the winner (the reader parses the mark and stores only a count today, pending this ruling). Pick one at the top; the three race pages below re-render, and the dashboard's battlefield band at the bottom follows. Names are illustrative. <b>Your pick is the ruling; quote the readout.</b></p>
+
+<div class="pick">
+  <label><input type="radio" name="opt" value="A" checked> A · nothing new (today: "Election concluded", roster as before)</label>
+  <label><input type="radio" name="opt" value="B"> B · "Decided", no name (the mark's count only)</label>
+  <label><input type="radio" name="opt" value="C"> C · the result: winner marked, source and time shown, calls kept as history</label>
+  <span class="readout" id="readout"></span>
+</div>
+
+<div class="grid">
+  <div class="card"><h3>Incumbent re-elected</h3><p class="sub">rated Lean D, incumbent D on the ballot</p><div data-race="reelect"></div></div>
+  <div class="card"><h3>Open seat, new member-elect</h3><p class="sub">rated Toss-up, incumbent retired</p><div data-race="open"></div></div>
+  <div class="card"><h3>Not called yet / runoff</h3><p class="sub">Louisiana shape: Nov-3 jungle, Dec 12 runoff</p><div data-race="pending"></div></div>
+</div>
+
+<div class="band" id="band"></div>
+
+<script>
+const races={
+ reelect:{name:"MA-02 · U.S. House",rating:"Lean D · Cook",odds:"Kalshi D 84¢ (settled)",inc:{n:"Jane Incumbent",p:"D",out:"reelected"},
+  roster:[["R","Sam Challenger","Won primary",false],["I","Pat Other","On ballot",false]],win:"inc"},
+ open:{name:"TX-09 · U.S. House",rating:"Toss-up · Inside Elections",odds:"Kalshi R 51¢ (settled)",inc:{n:"Al Retiring",p:"D",out:"retired"},
+  roster:[["R","Ronald Winner","Won primary",true],["D","Dana Nominee","Won primary",false],["L","Lee Other","On ballot",false]],win:"row"},
+ pending:{name:"LA-01 · U.S. House",rating:"Solid R · Sabato",odds:"—",inc:{n:"Steve Incumbent",p:"R",out:"pending"},
+  roster:[["R","Steve Incumbent","On ballot",false],["D","Dee Nominee","On ballot",false],["R","Rob Other","On ballot",false]],win:"none",runoff:"Runoff Dec 12"}
+};
+const cls=p=>p==="D"||p==="R"?p:"I";
+function page(k,opt){
+  const r=races[k]; let h=`<div class="hdr">${r.name}</div>`;
+  const decided = r.win!=="none";
+  if(opt==="A") h+=`<div class="cd"><span class="st">Election concluded</span></div>`;
+  if(opt==="B") h+=`<div class="cd"><span class="st">${decided?"Decided":"Not yet called"}</span> · Election concluded</div>`;
+  if(opt==="C") h+=`<div class="cd"><span class="st">${decided?"Decided":(r.runoff||"Not yet called")}</span> · Nov 3, 2026</div>`;
+  h+=`<div class="chips"><span class="chip ${opt==="C"?"dim":""}">${opt==="C"?"final call · ":""}${r.rating}</span>${opt==="C"?"":`<span class="chip">${r.odds}</span>`}</div>`;
+  let q="";
+  if(opt==="C"){ if(r.inc.out==="reelected") q=`<span class="q win">re-elected</span>`; if(r.inc.out==="retired") q=`<span class="q">not on the ballot</span>`; if(r.inc.out==="pending") q=`<span class="q">runoff Dec 12</span>`;}
+  h+=`<div class="inc"><span class="p ${cls(r.inc.p)}">${r.inc.p}</span> Incumbent ${r.inc.n}${q}</div>`;
+  h+=`<h4>Candidates (${r.roster.length})</h4><ul>`;
+  for(const [p,n,s,w] of r.roster){
+    const won = opt==="C" && w;
+    h+=`<li><span class="p ${cls(p)}">${p}</span><span class="n">${n}</span><span class="s ${won?"win":""}">${won?"Elected":(opt==="C"&&decided&&r.win==="row"?"":s)}</span></li>`;
+  }
+  h+=`</ul>`;
+  if(opt==="C") h+=`<div class="prov">${decided?"Called by Ballotpedia · read Wed Nov 4, 12:20pm MT":"No call on Ballotpedia · read Wed Nov 4, 12:20pm MT"}</div>`;
+  return h;
+}
+function render(){
+  const opt=document.querySelector('input[name=opt]:checked').value;
+  for(const k of Object.keys(races)) document.querySelector(`div[data-race=${k}]`).innerHTML=page(k,opt);
+  const band={A:"<b>ELECTION DAY</b> · NOV 3 · 0 DAYS · ~94 competitive seats  (today's band, forever)",
+              B:"<b>ELECTION CONCLUDED</b> · NOV 3 · 61 of 94 competitive seats decided",
+              C:"<b>RESULTS</b> · NOV 3 · 61 of 94 competitive seats called · House R 219 · D 214 · 2 open · Ballotpedia, read 12:20pm"}[opt];
+  document.getElementById('band').innerHTML=band;
+  document.getElementById('readout').textContent=`RULING: ${opt}`;
+}
+document.querySelectorAll('input[name=opt]').forEach(e=>e.addEventListener('change',render)); render();
+</script>
+</body></html>

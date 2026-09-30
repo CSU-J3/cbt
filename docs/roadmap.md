@@ -3883,3 +3883,167 @@ Plausible and filed or named: a partial Louisiana call freezing under `isSettled
 - **SKILL 13+/4−**, its own commit, for approval: `general_ballot.marked`, Louisiana's jungle rule, the race page's decided state and provenance, the clock seam, the band's results line, `--result-elected`.
 - **OPEN LOOPS reconciled: 262 live / 313 struck at open (575 total), 263 / 314 at close (577)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 758.**
+
+**Also (HO 759), the incumbent who isn't on this seat's ballot, ruled C: a tag by kind, and the reason where the data has one; the roster heading with no majors block; the two ruling mocks committed.** Five commits, kinds unmixed: `feat` · `fix` · `diag` · `docs(skill)` alone · `docs`. There is no migrate: nothing in the schema changes. The FF is held for the SKILL approval, the captures and the review. The pointer is 759 by plain arithmetic: pointer 758, highest HO in commit subjects 758, `main` at `d8f1a0a`. **The rulings' records:** `docs/design/mock-election-night.html` is the record of HO 758's ruling (*"C"*, the result), and `docs/design/mock-moved-incumbent.html` of HO 759's (*"C"*, by kind with the reason); both are committed unchanged.
+
+**HO 758's readings, carried from its FF go (items 3 to 5)** (`docs/handoffs/758-artifacts/post-758.txt`, `prod-compare.txt`, `prod-captures/`; `docs/handoffs/756-artifacts/tick2-756.txt`).
+- **The FF:** `main` at `d8f1a0a`, fast-forwarded from `f021528` with no force; `758-review` deleted, and `git ls-remote --heads origin` lists `main` alone; `verify:deploy` 5 of 5, first match at 21s; Production e2e #36651832059, smoke 140 passed in 5.9m; the review ref's Preview #36651389261 `narrow-preview` passed.
+- **The authorized POST, run #21174 at 2026-09-30 00:52:06Z:** `success` in 867 ms.
+  - `jungle` read {races 6, rows 35, decided 0, runoff 0}, as the FF go said.
+  - `onBallot` read 329 rows over 194 races (L 89, O 67, G 35, I 138). That is two I rows and one race fewer than HO 757's 331/195. The same run's before-count read 331/195, so the two rows left with the ballot between the two harvests, not with HO 758.
+  - `fusionPrints` 29 and `oPrints` 67.
+  - It inserted 913 rows over 460 of 470 races: `harvest:primary_winner` 35 rows over 6 races (Louisiana), `harvest:general_ballot` 878 over 454.
+  - `incumbentRoutes` identity 362, none 94.
+- **Production, before and after:**
+  - TX-23-2026, an open seat, is byte-identical from `f021528` through the deploy and the POST: `<main>` 6,739 bytes, sha `4c10330320320b56`.
+  - LA-01-2026 went from no Candidates section to *Candidates (3)*: Lauren Jewett D, Liddy Glass I and Randall Arrington R, each *On ballot*, under *Also on the ballot* (HO 759 heads that block *On the ballot*).
+  - Louisiana's pages show their majors under that block with nothing above, by the jungle rule.
+- **HO 756's second scheduled `:05` tick, #21224 at 2026-09-30 06:05:43Z** (`docs/handoffs/756-artifacts/tick2-756.txt`): `success` in 12,346 ms, all three steps ran (list 6,406 ms, members 792 ms, bills 5,070 ms). It walked 37 of 37 owed bills (50 rows), 0.137s a bill, with `remaining` 0, failed 0, gaveUp 0, `fetchErrors` 0, and no deadline, cap, 429, auth failure or outage. `chronicErr` named only the four unknown committee codes (SSCM39, SSJU27, HSZS, HSQJ), as at tick 1. Owed now 0. `/api/health` read 200, healthy, 19 routes, the committees route fresh at 06:05:43Z. The list step ran 6,406 ms against tick 1's 2,846 ms, a reading and well inside the 240s budget. Both first ticks are in; the seven-day WATCH runs to 2026-10-06 18:05Z.
+- **Reconcile on `main` `d8f1a0a`:** 263 live / 314 struck (577), control 0.
+
+**STEP 0** (prod `SELECT`s; `docs/handoffs/759-artifacts/step0-759.txt`, `probe-759.txt`, `qual-prod-759.txt`, `rated-759.txt`, `moore-759.txt`, repo-ignored).
+- **HO number:** `main` at `d8f1a0a`, pointer 758, highest HO in commit subjects 758; so 759.
+- **Anchors:** re-read by content at `d8f1a0a` (two sweeps and a critic, read-only). The incumbent rule (claim 1) and the roster heading's condition (claim 9, `others.length > 0`, headed the same with or without majors) hold. Claims 2 to 8 hold in part; each part that doesn't is under *Premises corrected*.
+- **The table, the 94 of the 461 box races with a stored incumbent:**
+  - by kind, 11 moved: CA-03 to CA-06, CA-06 to CA-03, CA-38 to CA-41, CA-41 to CA-40, FL-22 to FL-23, FL-23 to FL-25, FL-25 to FL-20, TX-35 to TX-37, UT-01 to UT-02, UT-02 to UT-03, UT-03 to UT-04;
+  - by kind, 6 running for the Senate: GA-10, IA-02, KY-06, NH-01, OK-01, WY-AL;
+  - 77 on neither, by reason in the build's order: 31 retiring; 1 withdrew (NC-11); 9 lost a primary (CO-01, CT-01, FL-07, KY-04, MI-13, NY-10, NY-13, S-LA, TX-02); 36 absent.
+  - Every reason the data offers, taken whole: retiring 35, withdrew 2, lost primary 9.
+  - Plain full-name equality would read 6 lost primaries; CT-01 (*John Larson*), NY-10 (*Daniel Goldman*) and TX-02 (*Daniel Crenshaw*) need the name check.
+- **In two classes:** 5.
+  - IA-02, KY-06, NH-01 and OK-01 are each Senate by kind and retiring by curation, and read Senate.
+  - ME-02 is retiring and withdrew, and reads retiring.
+  - None is in two kinds.
+- **The mock's cases:**
+  - TX-35 moved, to TX-37;
+  - IA-02 Senate, S-IA;
+  - TN-09 retiring;
+  - NC-11 withdrew;
+  - TX-09 absent (the mock's LOST PRIMARY; see below);
+  - the absent case is AZ-05, Andy Biggs.
+- **The curated zeros:** all 35 are in the set; none is printed on its own box, and none lacks a box read. The seven stored incumbents with no box read (Louisiana's six, FL-10) are each curated NULL.
+- **On their own ballot with a reason on file:** NY-26 (a withdrawn row, one fusion line), whose card is unchanged.
+- **The surfaces (item 4), eight:**
+  - the race page's incumbent card;
+  - `/`'s `RaceCard`;
+  - `/welcome`'s race rows;
+  - on `/electoral`: the list, the map's hover (`PeekCard`), the pinned card (`RaceMapCard`), the district card (`RaceDistrictCard`) and its markdown report.
+  - `SeatOutlookList` is 2028's and out of scope.
+  - Every compact surface is rated-only, so 27 of the 94 reach one.
+
+**Premises corrected, flagged.**
+- **"Rendered today as the NOT RUNNING tag": false for 2026.** NOT RUNNING renders only on the 2028 outlook (`SeatOutlookList`). The 2026 cards show a curated zero as an `OPEN` pill plus a *retiring* cue. The race page's card shows nothing, since `getRace` doesn't select `incumbent_running`. The tag takes the retiring cue's place, beside the name, and `OPEN` stays.
+- **TX-09 as LOST PRIMARY:** Al Green is marked `winner` in TX-18's D first round, because a round that goes to a runoff marks its advancers. The table holds no House runoff round. He reads NOT ON THE BALLOT. Leg 1's LOST PRIMARY case is CO-01 (Diana DeGette), and TX-09 is read too, as absent. TX-32 and S-TX are the same shape. Filed.
+- **"HO 751 resolved every 2026 incumbent printed anywhere":** not AL-01's Barry Moore, printed on S-AL under a key his stale title doesn't match. Filed.
+- **"Matched by bioguide AND normalized full name":**
+  - `primary_candidates.bioguide_id` comes from a member match that lets namesakes through. TX-22's *Trever Nehls*, IL-04's *Patty Garcia*, FL-11's *Royal Webster* and CA-38's *Monica Sanchez* each carry the incumbent's bioguide.
+  - 124 of the 366 rows carrying a bioguide differ from `members.name` under HO 747's normalization, by a middle initial or a short form.
+  - So the name is read by HO 751's name check (Departure 2).
+- **HO 757's stub line, "the four pages' cards now carry the tag":** the four incumbents are on their own ballots, so no tag. What changes on those four pages is the heading (Departure 7).
+- **HO 758's *not on the ballot*** fires after election day for every incumbent off the ballot, whether the race is decided or not. So the precedence gates on the decided state, not on a qualifier being present.
+- **`withdrawn = 1`** marks the box's *Withdrawn or disqualified* list, so WITHDREW covers a disqualification too.
+- **"The `/electoral` strip":** `/electoral` has no strip. Read as its list.
+
+**The build.**
+- (1) **`feat`:**
+  - `lib/incumbent-qualifier.ts`: the pure rule (`readQualifier`), the cycle's readings in one batch (`readIncumbentQualifierReadings`), and race id → qualifier (`readIncumbentQualifiers`).
+  - `lib/incumbent-tag.ts`: the words, and the compact surfaces' merge (`withIncumbentTags`).
+  - `lib/queries.ts`: `getIncumbentQualifiers(cycle)`, tagged `general-ballot` and `races`, and `RaceIndexRow.incumbentTag`.
+  - `tokenCheck` moves, unchanged, to `lib/ballot-incumbent.ts`; `lib/ballotpedia-title-repair.ts` re-exports it.
+- (2) **`fix`:**
+  - `components/IncumbentTag.tsx`.
+  - The race page: `page.tsx` reads the cycle's qualifiers; `RaceHubBody` applies the precedence; `RaceIncumbentCard` shows the tag in the qualifier's slot.
+  - `RaceCandidates` heads the others' block *On the ballot* with no majors block.
+  - The compact surfaces: `RaceCard`, `RaceListView`, `RaceMapCard`, `RaceDistrictCard`, `RaceDistrictModal`'s report, `lib/cartogram-data.ts`'s hover meta, `/welcome`'s rows; and the merges in `app/electoral/page.tsx` and `CompetitiveRacesBlock`.
+
+**Departures and side effects, each named.**
+- (1) **One cached read per cycle** (`getIncumbentQualifiers`), not a per-race `incumbentQualifier(raceId)`. The compact surfaces print every rated seat at once, and a per-race cache would hold an entry per row. The race page picks its own row.
+- (2) **"Normalized full name" is HO 751's ruled name check (`tokenCheck`):** every surname token, and a first-name token whole or as a prefix of three letters or more either way.
+  - It stops the four namesakes and admits CT-01, NY-10 and TX-02. It misses TN-05's *Andy Ogles* against the stored *Andrew* (filed).
+  - It moves to `lib/ballot-incumbent.ts` because importing it from the title repair failed the build: `lib/queries.ts` reaches client components, and the repair imports `lib/general-ballot.ts`, which imports `next/cache`'s `revalidateTag`.
+  - HEAD's and the moved `tokenCheck` agree on 2,183,220 name pairs (`tokencheck-equiv-759.txt`).
+- (3) **The tag's slot on 2026 surfaces is the retiring cue** (`· retiring` / `· inc.`, `(retiring)`, the expanded row's *retiring* / *incumbent*), and `OPEN` is unchanged. There was no NOT RUNNING slot to take.
+- (4) **The compact surfaces keep the tag after election day.** HO 758 gave them no result state, so the precedence applies where HO 758's qualifier renders, on the race page.
+- (5) **`RaceCard` and `/welcome` show the tag unlinked:** `RaceCard` is one `<Link>` (an anchor inside an anchor is invalid markup), and `/welcome`'s marquee rows link nothing.
+- (6) **`/welcome` and the map's hover had no cue slot.** The tag leads `/welcome`'s meta line, and in the hover it follows the rating (the review).
+- (7) **The heading rule reaches HO 757's four stub pages** (AZ-03, MA-01, NJ-08, S-SD). Their rosters carry only others, so they read *On the ballot*. The rule is about the majors block, not about Louisiana (leg 0).
+- (8) **The tag keeps its family's size on the race page,** `--fs-9` under the `--fs-14` name, rather than a new rule.
+- (9) **The district card's open-case explainer** reads *— Ashley Hinson [RUNNING FOR SENATE].* where *— Ashley Hinson is not running.* stood.
+- (10) **HO 758's driver** asserts *Also on the ballot* on Louisiana's pages (leg 1). If it is re-run after HO 759, it reads red there. It is historical and unchanged.
+- (11) **The build instrument:** the first tree build failed on the import chain above. The next two panicked in Turbopack (*AssetContent::file was canceled*, on the same task both times), on the persistent cache the failed build left. Clearing `.next/cache/turbopack` fixed it, and the build, then `npm run typecheck`, passed.
+
+**The legs** (`scripts/diagnostic/incumbent-tag-legs-759.ts`; `docs/handoffs/759-artifacts/legs-a2-seed.txt`, `legs-a2-inprocess.txt`, `legs-a2-before.txt`, `legs-a2-after.txt`, `captures/`; the first run, a1, is kept beside them):
+- **The copies:** one seed, read whole from prod (13 tables, the schema by the real migrate), copied four ways, with no harvest run, since HO 759 writes nothing:
+  - `head` and `new`: no plants;
+  - `plant` and `hplant`: leg 3's two primary rows, and leg 4's mark on TX-35.
+- **The plants:**
+  - a namesake *Andrea Biggs* carrying Andy Biggs's bioguide, unmarked in AZ-05's decided R primary;
+  - *Dusty Johnson* with his own bioguide, unmarked in SD's decided House primary;
+  - TX-35's printed D row (Johnny Garcia) marked.
+- **The servers:** local production builds, HEAD's and the tree's. HEAD's 16 changed product files were written from `git cat-file` into the tree, and its 3 new files and the driver moved out, since `scripts/**` is in the build's typecheck. The tree's files were then copied back from a sha256-manifested backup (no stash, no checkout), each verified. The build must be newer than every product file (`buildState`). Each server is proved by its copy's own sentinel, with `.next/cache/fetch-cache` cleared, on the real clock or `CBT_CLOCK_NOW` = 2026-11-04 15:00Z.
+- **Prod:** its fingerprint (race_candidates, general_ballot, the reads, primary_candidates, races, the schema, three crons' last runs) read the same before and after the seed and each phase.
+
+The a2 runs are on the committed blobs (driver `9f31cf5c3c`, qualifier `88972980a5`, tag `c0d5d03a09`, queries `b287d65c25`, card `4b94f046aa`):
+- the seed, with prod untouched, 19 pass and 0 fail;
+- the in-process legs again on the final driver, 18 pass and 0 fail;
+- the before phase on HEAD's build, 5 pass and 19 fail. The five passes are the controls (MI-04, CO-08, TX-35 decided, no console error, prod).
+- the after phase on the tree's build, 30 pass and 0 fail.
+
+The first run, a1, is kept. Its after phase read 26 pass and 1 fail. The one fail was leg 0's expected set, which named Louisiana's six and not the heading rule's other four pages. The normalized comparison beside it read 470 of 470 equal, so the heading was the only difference on those four. The expectation became the ten pages with no majors block.
+
+Two instrument events in a2:
+- The first HEAD swap threw `ENOBUFS` on HEAD's backlog, which is past `execFileSync`'s 1 MB buffer, with the tree half-swapped. That half-swapped build was discarded. The tree was restored from the manifested backup (22 files, each verified), and the swap now takes product files only.
+- The first before phase read the hover as `null`. It had hovered the map's label, a `<text>` sibling with only an `onClick`. The leg now focuses Texas's state path, whose `onFocus` opens the peek as its hover does, and the before phase was re-run.
+
+| Leg | Red (HEAD) | Green (the tree) |
+|---|---|---|
+| 0 unchanged | (the baseline) | clock today: 104 of 470 race pages differ, exactly the 94 tagged and the ten with no majors block; with the tag taken out and the heading put back, 470 of 470 `<main>` equal HEAD's byte for byte; `/electoral`'s list, 99 rows, only the 27 tagged differ, and every row keeps HEAD's `/members` link or its absence (80 link a member); the dashboard, 6 cards, only S-IA (RETIRING) and IA-02 (RUNNING FOR SENATE) differ; no anchor inside a card |
+| 1 the kinds | no tag on any page | TX-35 *RUNNING IN TX-37* linking `/race/TX-37-2026`; IA-02 *RUNNING FOR SENATE* linking `/race/S-IA-2026`; TN-09 *RETIRING*, NC-11 *WITHDREW* and CO-01 *LOST PRIMARY*, each `.so-tag--open`; AZ-05 and TX-09 *NOT ON THE BALLOT*, `.micro-tag`; MI-04 none. In process: the copy's table equals STEP 0's (11 · 6 · 31 · 1 · 9 · 36) |
+| 2 precedence | none | IA-02, KY-06, NH-01 and OK-01, each carrying the curated zero among its reasons, read *RUNNING FOR SENATE* |
+| 3 namesake | none | AZ-05 with the planted namesake reads *NOT ON THE BALLOT*, where a bioguide-only match reads lost primary (1 such row); SD-AL reads *LOST PRIMARY* (the control); prod's FL-11 *Royal Webster* adds no lost primary |
+| 4 post-election | Nov 4: IA-02 (undecided) *not on the ballot*, no tag | Nov 4: TX-35 (marked, decided) HO 758's *not on the ballot* and no tag; IA-02 (unmarked) *RUNNING FOR SENATE* and no HO 758 qualifier |
+| 5 Louisiana | LA-01 *Also on the ballot* | LA-01 *On the ballot*; CO-08 still *Also on the ballot* |
+| 6 the surfaces | no tag; the hover reads *Greg Casar · Lean R* | `/electoral`'s list shows all six tags; Enter on TX-35's tag link in its list row goes to `/race/TX-37-2026`; the hover for Texas reads *Greg Casar · Lean R · RUNNING IN TX-37*; the district card (Texas's modal, TX-35) *RUNNING IN TX-37*; no console error on any page read |
+
+**Leg 6, the captures** (`captures/`, 108 shots, HEAD's before beside the tree's after):
+- the race pages of TX-35, IA-02, TN-09, NC-11, CO-01, AZ-05, TX-09, MI-04 and LA-01, each at 1440, 2560 and 1440 with reduced motion;
+- `/electoral`'s list rows, one per tag (TX-35, IA-02, NV-02, NC-11, FL-07, TX-09), at the same three;
+- the pinned card (search *TX-35*) at the same three;
+- the district card (Texas, TX-35) and the map's hover for Texas, at 1440;
+- the dashboard's Races cards at the same three;
+- Nov 4's TX-35 and IA-02.
+
+**The review** (the `ho759-review` Workflow on the working tree: four reviewers, on the rule, the surfaces, the cache and bundle graph, and the legs, then a skeptic told to default to REFUTED; 12 findings, 7 kept, 5 refuted). Fixed:
+- **Enter on the tag's link inside a clickable row toggled the row and did not follow the link** (the `/electoral` list row and the pinned card's head): their key handlers call `preventDefault`. The link now stops keydown too (confirmed; leg 6 reads Enter going to `/race/TX-37-2026`).
+- **The `/electoral` list dropped the `/members` link on a tagged incumbent whose seat isn't open**, nine rated rows (TX-09, TX-35, NC-11, FL-07, TX SEN, MN SEN, CA-06, FL-22, FL-25). The name keeps its link and the tag follows it (confirmed; leg 0 now compares every row's link with HEAD's).
+- **The map's hover put the tag between the name and the rating** in the peek's 224px ellipsized cell, so a tagged seat lost its rating. The tag now follows the rating, as in the mock's compact line (confirmed; leg 6). At 1440 the peek then cuts the tag, as it cuts long untagged rows at HEAD.
+- **The recorded in-process legs ran an older qualifier and driver**: they were re-run on the final blobs (a2, above).
+- **`buildState` checked four product files**: it now covers all 16 changed and the 3 new.
+
+Refuted, with what they left:
+- **Lost primaries the rule can't see:** spec-conformant (bioguide AND the name), but the skeptic added GA-13's Everton Blair Jr., a no-bioguide row in his own House primary. He is in the filed line, now seven incumbents plus TN-05.
+- **Leg 1's attribution:** the check's label now names `qual-prod-759.txt` and the plain-equality reading (6 · 39) beside it.
+- **A leaked sentinel passing as a prod cron:** unreachable, since copies are `file:` only and prod is SELECT-only.
+- **Leg 0 counting tags without checking which row:** the recorded tags match the table seat for seat.
+- **Surfaces without a leg:** `/welcome` and the report are read by eye in code; the hover now has a leg.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. The prod reading: `/race/TX-35-2026`, `/race/IA-02-2026`, `/race/TN-09-2026`, `/race/NC-11-2026`, `/race/TX-09-2026` and `/race/LA-01-2026` on Production, and one dashboard card carrying a tag. TX-09 reads *NOT ON THE BALLOT*, not the mock's LOST PRIMARY, and the dashboard's IA-02 card carries *RUNNING FOR SENATE*. `getIncumbentQualifiers` is a new cache key, so the pages read it fresh after the deploy.
+
+**Docs (HO 759):**
+- This block.
+- **backlog 5+/2−.**
+  - The class line is struck with the ruling verbatim, keeping its whole prior text.
+  - HO 757's stub line is annotated and stays open: the four cards carry no tag, and the heading changed on their pages.
+  - Three lines are filed at the head of OPEN LOOPS: the runoff the table lacks (TX-09, TX-32, S-TX); the Senate primary rows without a bioguide, with TN-05's first name; and AL-01's untied S-AL row.
+  - The two deletions are the struck line and the annotated one, each rewritten whole.
+- **SKILL 30+/7−**, its own commit, for approval:
+  - the qualifier's kinds, reasons and order;
+  - the surfaces;
+  - the post-election precedence;
+  - the roster heading rule;
+  - the claims HO 759 turns false: NULL renders normal, and the stub says nothing about why.
+- **The two mocks,** committed unchanged under `docs/design/`.
+- **OPEN LOOPS reconciled: 263 live / 314 struck at open (577 total), 265 / 315 at close (580)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 759.**

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>mock · an incumbent who isn't on this ballot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg-base:#0a0e14;--bg-panel:#050709;--border-strong:#1f2937;--border-soft:#111820;
+--text-primary:#e5e7eb;--text-secondary:#cbd5e1;--text-muted:#94a3b8;--text-dim:#6b7280;
+--accent-amber:#d97706;--accent-amber-bright:#fbbf24;
+--party-republican:#ef4444;--party-democrat:#3b82f6;
+--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{margin:0;background:var(--bg-base);color:var(--text-primary);font-family:var(--sans);padding:26px 22px 90px;max-width:1240px}
+.note{font-family:var(--mono);font-size:10px;color:var(--text-dim);line-height:1.6;margin:0 2px 18px}
+.note b{color:var(--text-muted);font-weight:600}
+.pick{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-family:var(--mono);font-size:11px;color:var(--text-muted);margin:0 0 22px;padding:12px 14px;border:1px solid var(--border-strong);background:var(--bg-panel)}
+.pick label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.pick input{accent-color:var(--accent-amber)}
+.pick .readout{margin-left:auto;color:var(--accent-amber-bright);letter-spacing:.06em}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.card{background:var(--bg-panel);border:1px solid var(--border-strong);padding:14px 16px}
+.card h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-amber-bright);margin:0 0 2px;font-weight:600}
+.card .sub{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin:0 0 12px}
+.inc{border:1px solid var(--border-soft);padding:9px 11px;margin:6px 0;font-size:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.inc .p{font-family:var(--mono);font-size:12px;width:16px}
+.inc .who{flex:1}
+.q{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;padding:1px 6px;border:1px solid var(--border-strong);color:var(--text-muted)}
+.q a{color:var(--accent-amber-bright);text-decoration:none}
+.q.warn{color:var(--accent-amber-bright);border-color:#78350f}
+.compact{margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--text-secondary);padding:8px 10px;border:1px dashed var(--border-soft)}
+.compact .lbl{color:var(--text-dim);font-size:9px;letter-spacing:.08em;text-transform:uppercase;display:block;margin-bottom:4px}
+.R{color:var(--party-republican)}.D{color:var(--party-democrat)}
+</style></head><body>
+<p class="note"><b>An incumbent who isn't on this seat's ballot.</b> 94 of 461 race pages name one (HO 758's STEP 0). Today only a hand-curated retirement shows a tag, NOT RUNNING. The ballot now says which kind each is: printed in another House district, printed in a Senate race, or on no 2026 ballot (retiring by curation, withdrawn from a ballot, unmarked in a primary, or simply absent). Pick one at the top; both the race page's incumbent card and the compact dashboard card re-render. <b>Your pick is the ruling; quote the readout.</b></p>
+
+<div class="pick">
+  <label><input type="radio" name="opt" value="A" checked> A · one tag for all: NOT ON THE BALLOT</label>
+  <label><input type="radio" name="opt" value="B"> B · by kind: RUNNING IN &lt;seat&gt; / RUNNING FOR SENATE / NOT ON THE BALLOT</label>
+  <label><input type="radio" name="opt" value="C"> C · B, and the reason where the data has one: RETIRING / WITHDREW / LOST PRIMARY</label>
+  <span class="readout" id="readout"></span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+const cases=[
+ {h:"Moved district",sub:"TX-35 · Casar is printed in TX-37",p:"D",who:"Greg Casar · Incumbent",kind:"moved",seat:"TX-37",reason:null,compact:"TX-35 · open · Lean D"},
+ {h:"Senate run",sub:"IA-02 · Hinson is printed in S-IA",p:"R",who:"Ashley Hinson · Incumbent",kind:"senate",seat:"S-IA",reason:null,compact:"IA-02 · Turek v Hinson? · nominees"},
+ {h:"Retiring (curated)",sub:"TN-09 · incumbent_running = 0 with an open signal",p:"D",who:"Steve Cohen · Incumbent",kind:"none",reason:"RETIRING",compact:"TN-09 · open · Likely R"},
+ {h:"Withdrew",sub:"NC-11 · Edwards won the primary and withdrew; Balkcom replaced him",p:"R",who:"Chuck Edwards · Incumbent",kind:"none",reason:"WITHDREW",compact:"NC-11 · Balkcom · nominee"},
+ {h:"Lost a primary",sub:"TX-09 · Al Green ran in TX-18 and lost the runoff",p:"D",who:"Al Green · Incumbent",kind:"none",reason:"LOST PRIMARY",compact:"TX-09 · Whitfield · Likely R"},
+ {h:"Absent, no reason read",sub:"a seat whose incumbent appears on no page",p:"R",who:"Some Member · Incumbent",kind:"none",reason:null,compact:"XX-00 · open · Solid R"},
+];
+function tag(c,opt){
+  if(opt==="A") return `<span class="q">not on the ballot</span>`;
+  if(c.kind==="moved") return `<span class="q">running in <a href="#">${c.seat}</a></span>`;
+  if(c.kind==="senate") return `<span class="q">running for <a href="#">Senate</a></span>`;
+  if(opt==="C" && c.reason) return `<span class="q warn">${c.reason.toLowerCase()}</span>`;
+  return `<span class="q">not on the ballot</span>`;
+}
+function render(){
+  const opt=document.querySelector('input[name=opt]:checked').value;
+  document.getElementById('grid').innerHTML=cases.map(c=>`<div class="card"><h3>${c.h}</h3><p class="sub">${c.sub}</p>
+    <div class="inc"><span class="p ${c.p}">${c.p}</span><span class="who">${c.who}</span>${tag(c,opt)}</div>
+    <div class="compact"><span class="lbl">dashboard card</span>${c.compact} · <span style="color:var(--text-dim)">${tag(c,opt).replace(/<[^>]+>/g,'').toUpperCase()}</span></div></div>`).join("");
+  document.getElementById('readout').textContent=`RULING: ${opt}`;
+}
+document.querySelectorAll('input[name=opt]').forEach(e=>e.addEventListener('change',render)); render();
+</script>
+</body></html>
