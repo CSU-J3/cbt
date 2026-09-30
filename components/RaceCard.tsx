@@ -6,6 +6,7 @@ import {
   RaceNewIndicator,
   type RaceNewsHead,
 } from "@/components/RaceNewIndicator";
+import { IncumbentTag } from "@/components/IncumbentTag";
 import { SourceTag } from "@/components/SourceTag";
 import { formatDollarsCompact } from "@/lib/format";
 import type {
@@ -436,7 +437,15 @@ export function RaceCard({
           <span className="rc-nm">{row.incumbentName ?? "Open seat"}</span>
           <span className="rc-line-meta">
             {partyLetter(row.incumbentParty)}
-            {open
+            {/* HO 759: an incumbent this seat's ballot doesn't carry reads its
+                tag here, in the slot " · retiring" held; no link, the card is
+                one. */}
+            {row.incumbentTag && row.incumbentName ? (
+              <>
+                {" · "}
+                <IncumbentTag q={row.incumbentTag} link={false} />
+              </>
+            ) : open
               ? " · retiring"
               : row.incumbentFirstElected
                 ? ` · inc. ${row.incumbentFirstElected}`

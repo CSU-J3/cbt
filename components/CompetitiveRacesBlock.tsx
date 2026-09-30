@@ -11,9 +11,11 @@ import {
   getRace,
   getRaceCandidates,
   getRaceNews,
+  getIncumbentQualifiers,
   getRacesIndex,
   getRecentRaceMoves,
 } from "@/lib/queries";
+import { withIncumbentTags } from "@/lib/incumbent-tag";
 
 // HO 163: a race is Senate if its joined chamber says so, or — for rating
 // rows whose `races` row is missing (loose link, chamber null) — if the
@@ -72,7 +74,9 @@ export async function CompetitiveRacesBlock({
   // cash + margin + 3 ratings + Kalshi + Polymarket). The competitive seats
   // are a subset of the 137 rated, so every lookup resolves.
   const richRows = await (async () => {
-    const index = await getRacesIndex(cycle);
+    // HO 759: the incumbent's tag rides on the rich row (RaceCard reads it).
+    const [raw, tags] = await Promise.all([getRacesIndex(cycle), getIncumbentQualifiers(cycle)]);
+    const index = withIncumbentTags(raw, tags);
     const byId = new Map(index.map((r) => [r.raceId, r]));
     return races.map((r) => byId.get(r.raceId) ?? null);
   })();

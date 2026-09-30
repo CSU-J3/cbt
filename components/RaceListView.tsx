@@ -24,6 +24,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { IncumbentTag } from "@/components/IncumbentTag";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine, MarginBar, SpreadBar, formatCash } from "@/components/race-cells";
 import {
@@ -118,9 +119,28 @@ function RaceListRow({
   );
   const cashShown = !isOpen && race.incumbentCashOnHand != null;
 
+  // HO 759: an incumbent this seat's ballot doesn't carry reads its tag in
+  // the slot "(retiring)" held, after the name as HEAD renders it: dim on an
+  // open seat, else the /members link (or plain text without a bioguide).
+  const tag = race.incumbentTag ?? null;
   const incumbentEl =
     race.incumbentName == null ? (
       <span style={{ color: "var(--text-dim)" }}>OPEN SEAT</span>
+    ) : tag ? (
+      <span style={{ color: isOpen ? "var(--text-dim)" : "var(--text-primary)" }}>
+        {!isOpen && race.incumbentBioguideId ? (
+          <Link
+            href={`/members/${race.incumbentBioguideId}`}
+            className="race-list-inc-link"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {race.incumbentName}
+          </Link>
+        ) : (
+          race.incumbentName
+        )}{" "}
+        <IncumbentTag q={tag} />
+      </span>
     ) : isOpen ? (
       <span style={{ color: "var(--text-dim)" }}>
         {race.incumbentName}{" "}

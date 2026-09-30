@@ -11,6 +11,8 @@
 
 import { formatDateShort } from "@/lib/format";
 import type { KalshiOdds } from "@/lib/kalshi";
+import type { IncumbentQualifier } from "@/lib/incumbent-qualifier";
+import { incumbentTagText } from "@/lib/incumbent-tag";
 import type {
   PacIeRow,
   PartyKey,
@@ -47,6 +49,7 @@ export type CartogramContest = {
   margin2024?: number | null; // HO 214: signed 2024 House margin (R+ / D−); null = none/RCV/Senate
   kalshiOdds?: KalshiOdds | null; // HO 218: per-seat market odds; null = no Kalshi general market
   isOpen?: boolean; // HO 221: incumbent not running (retirement flag) → OPEN seat
+  incumbentTag?: IncumbentQualifier | null; // HO 759: the incumbent isn't on this seat's ballot (RUNNING IN <seat> … NOT ON THE BALLOT)
   challengers?: CartogramChallenger[]; // race_candidates (mostly empty today)
   pacIe?: PacIeRow[]; // HO 393: UDP IE direction rows for this seat (the PAC SPENDING line); undefined/empty on seats with no tracked spend
   // ── PRIMARIES card (Pass 2) — undefined on races contests ──
@@ -104,7 +107,11 @@ export function buildRacesCartogram(
     if (r.chamber === "senate") senate++;
     else house++;
     const label = seatLabel(r.chamber, r.state, r.district);
-    const meta = `${r.incumbentName ?? "OPEN SEAT"} · ${r.consensusRating ?? "—"}`;
+    // HO 759: the hover's one string carries the incumbent's tag last, after
+    // the rating, so the peek's ellipsized cell cuts the tag, never the rating
+    // (HO 759's review; the mock's compact line has the same order).
+    const tag = r.incumbentTag ?? null;
+    const meta = `${r.incumbentName ?? "OPEN SEAT"} · ${r.consensusRating ?? "—"}${r.incumbentName && tag ? ` · ${incumbentTagText(tag)}` : ""}`;
     const contest: CartogramContest = {
       label,
       chamber: r.chamber,
@@ -134,6 +141,7 @@ export function buildRacesCartogram(
       margin2024: r.margin2024,
       kalshiOdds: r.kalshiOdds,
       isOpen: r.incumbentRunning === 0,
+      incumbentTag: tag,
       challengers: challengersByRace.get(r.raceId) ?? [],
       pacIe: pacByRace[r.raceId],
     };

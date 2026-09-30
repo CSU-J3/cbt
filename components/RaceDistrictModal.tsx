@@ -16,6 +16,7 @@ import { MetroLeaderLines, metroCenterX } from "@/components/MetroLeaderLines";
 import { RaceDistrictCard } from "@/components/RaceDistrictCard";
 import { formatCash } from "@/components/race-cells";
 import type { CartogramContest } from "@/lib/cartogram-data";
+import { incumbentTagText } from "@/lib/incumbent-tag";
 import type { DistrictShape, StateDistrictGeometry } from "@/lib/district-geo";
 import { ratingColor } from "@/lib/race-colors";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
@@ -47,7 +48,9 @@ function buildReport(c: CartogramContest): string {
   if (c.kalshiOdds && !oddsOff)
     L.push(`**Kalshi market:** ${c.kalshiOdds.favoriteLabel} ${c.kalshiOdds.impliedPct}%`);
   if (c.incumbent) {
-    L.push("", "## Incumbent", `- ${c.incumbent.name} [${c.party ?? "?"}]${c.isOpen ? " (retiring)" : ""}`);
+    // HO 759: the tag's words where the ballot doesn't carry the incumbent.
+    const cue = c.incumbentTag ? ` (${incumbentTagText(c.incumbentTag)})` : c.isOpen ? " (retiring)" : "";
+    L.push("", "## Incumbent", `- ${c.incumbent.name} [${c.party ?? "?"}]${cue}`);
     if (c.incumbentFirstElected) L.push(`- First elected: ${c.incumbentFirstElected}`);
     if (c.incumbentCashOnHand != null) L.push(`- Cash on hand: ${formatCash(c.incumbentCashOnHand)}`);
   }

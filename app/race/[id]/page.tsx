@@ -9,6 +9,7 @@ import {
   getPacIeSpending,
   getRace,
   getIncumbentOnBallot,
+  getIncumbentQualifiers,
   getRaceNews,
   getRaceRatings,
   getRaceResult,
@@ -63,7 +64,7 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot, resultReading] =
+  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot, resultReading, qualifiers] =
     await Promise.all([
       // HO 757: the roster's own read, the one that carries `on_ballot` rows.
       getRaceRoster(race.id),
@@ -85,6 +86,9 @@ export default async function RacePage({
         : Promise.resolve({ onBallot: null, route: null }),
       // HO 758: the race's result as Ballotpedia marks it.
       getRaceResult(race.id),
+      // HO 759: the tag for a stored incumbent this ballot doesn't carry (one
+      // read for the cycle; this race's row, when it has one).
+      getIncumbentQualifiers(race.cycle),
     ]);
   // HO 758: dormant until election day has passed, on lib/clock.ts's now.
   const result = raceResultView(resultReading, race.cycle, clockNowMs());
@@ -113,6 +117,7 @@ export default async function RacePage({
           pac={pacByRace[race.id]}
           news={news}
           result={result}
+          incumbentTag={qualifiers[race.id] ?? null}
         />
       </main>
     </div>

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { IncumbentTag } from "@/components/IncumbentTag";
 import { formatRelativeAge } from "@/lib/format";
 import {
   type ClusterStat,
@@ -10,6 +11,7 @@ import {
   getBreakingNewsForHome,
   getClusterStats,
   getFeedBills,
+  getIncumbentQualifiers,
   getLobbyingRollup,
   getMembersRanked,
   getMostCompetitiveRaces,
@@ -191,6 +193,7 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
     news,
     races,
     clusters,
+    incumbentTags,
   ] = await Promise.all([
     getStageChanges({}, 7, 12),
     getStaleBills({}, 12),
@@ -202,6 +205,8 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
     getBreakingNewsForHome({ limit: 12, hours: 72 }),
     getMostCompetitiveRaces(2026, 12),
     getClusterStats(),
+    // HO 759: the tag for a named incumbent the seat's ballot doesn't carry.
+    getIncumbentQualifiers(2026),
   ]);
 
   const billsRows: PanelRow[] = movers.map((b) => ({
@@ -345,6 +350,11 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
       title: r.incumbentName ?? "OPEN SEAT",
       meta: (
         <>
+          {r.incumbentName && incumbentTags[r.raceId] ? (
+            <>
+              <IncumbentTag q={incumbentTags[r.raceId]!} link={false} />{" "}
+            </>
+          ) : null}
           {r.incumbentParty ? partyTag(r.incumbentParty, null) : null}{" "}
           <span className={styles.who}>{ratings.join(" · ")}</span> ·{" "}
           {r.ratings.length} RATER{r.ratings.length === 1 ? "" : "S"}

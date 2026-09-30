@@ -8,6 +8,7 @@ import { formatDateLong } from "@/lib/format";
 import { stubSentence } from "@/lib/race-stub";
 import { DORMANT, type RaceResultView } from "@/lib/race-result";
 import type {
+  IncumbentQualifier,
   Member,
   PacIeRow,
   PrimaryWithCandidates,
@@ -63,6 +64,7 @@ export function RaceHubBody({
   news,
   nowMs,
   result = DORMANT,
+  incumbentTag = null,
 }: {
   race: Race;
   // HO 757: getRaceRoster's rows, the others on the ballot included.
@@ -90,6 +92,9 @@ export function RaceHubBody({
   // HO 758: the race's result view (lib/race-result.ts), dormant before
   // election day, when nothing below renders differently.
   result?: RaceResultView;
+  // HO 759: the tag for a stored incumbent this race's ballot doesn't carry
+  // (lib/incumbent-qualifier.ts), null for one it does or with no reading.
+  incumbentTag?: IncumbentQualifier | null;
 }) {
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
@@ -163,7 +168,15 @@ export function RaceHubBody({
           </h2>
         </div>
         <div className="px-4">
-          <RaceIncumbentCard member={incumbent} race={race} qualifier={result.qualifier} />
+          {/* HO 759: once election day has passed, a DECIDED race shows HO 758's
+              qualifier and not the tag; an undecided one keeps the tag, where
+              HO 758 would say "not on the ballot" of every such incumbent. */}
+          <RaceIncumbentCard
+            member={incumbent}
+            race={race}
+            qualifier={incumbentTag && !result.decided ? null : result.qualifier}
+            tag={result.decided ? null : incumbentTag}
+          />
         </div>
       </section>
 

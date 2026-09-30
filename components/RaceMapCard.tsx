@@ -10,6 +10,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { IncumbentTag } from "@/components/IncumbentTag";
+import { incumbentTagText } from "@/lib/incumbent-tag";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine, MarginBar } from "@/components/race-cells";
 import type { CartogramChallenger, CartogramContest } from "@/lib/cartogram-data";
@@ -106,6 +108,9 @@ function RaceCardRow({
   // OPEN (amber) with a ○ in place of the party chip and a "(retiring)" cue on
   // the still-shown incumbent name — no fabricated successor.
   const isOpen = contest.isOpen ?? false;
+  // HO 759: an incumbent this seat's ballot doesn't carry reads its tag where
+  // "(retiring)" and "retiring" / "incumbent" sat.
+  const tag = contest.incumbent ? contest.incumbentTag ?? null : null;
 
   return (
     <li className="racecard-row">
@@ -148,7 +153,11 @@ function RaceCardRow({
           {isOpen ? <span className="racecard-open-tag">OPEN</span> : null}
         </span>
         <span className="racecard-name">
-          {isOpen ? (
+          {tag ? (
+            <span style={isOpen ? { color: "var(--text-dim)" } : undefined}>
+              {incName} <IncumbentTag q={tag} />
+            </span>
+          ) : isOpen ? (
             <span style={{ color: "var(--text-dim)" }}>
               {incName} <span className="racecard-retiring">(retiring)</span>
             </span>
@@ -192,7 +201,7 @@ function RaceCardRow({
               className="racecard-cand-meta"
               style={{ color: partyColor(contest.party) }}
             >
-              {contest.party ?? "?"} · {isOpen ? "retiring" : "incumbent"}
+              {contest.party ?? "?"} · {tag ? incumbentTagText(tag).toLowerCase() : isOpen ? "retiring" : "incumbent"}
             </span>
             {/* HO 212: incumbent cash-on-hand (FEC, cents). null = no filing
                 on record → omit cleanly; a real filed-empty 0 renders "$0".

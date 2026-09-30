@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { Member, Race } from "@/lib/queries";
+import { IncumbentTag } from "@/components/IncumbentTag";
+import type { IncumbentQualifier, Member, Race } from "@/lib/queries";
 import { districtToken } from "@/lib/race-id";
 
 function partyColor(party: Member["party"]): string {
@@ -34,12 +35,17 @@ export function RaceIncumbentCard({
   member,
   race,
   qualifier = null,
+  tag = null,
 }: {
   member: Member | null;
   race: Race;
   // HO 758: once the race is past election day, one word on how the incumbent
   // fared: re-elected / defeated / not on the ballot / runoff Dec 12.
   qualifier?: string | null;
+  // HO 759: the incumbent isn't on this seat's ballot: RUNNING IN <seat>,
+  // RUNNING FOR SENATE, RETIRING, WITHDREW, LOST PRIMARY or NOT ON THE BALLOT.
+  // In the qualifier's slot; RaceHubBody never passes both.
+  tag?: IncumbentQualifier | null;
 }) {
   const [photoErrored, setPhotoErrored] = useState(false);
 
@@ -126,6 +132,10 @@ export function RaceIncumbentCard({
             data-incumbent-qualifier
           >
             {qualifier}
+          </span>
+        ) : tag ? (
+          <span className="text-[length:var(--fs-12)]">
+            <IncumbentTag q={tag} />
           </span>
         ) : null}
         <Link

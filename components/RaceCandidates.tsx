@@ -152,7 +152,9 @@ export function RaceCandidates({
                 majors.length > 0 ? "0.5px solid var(--border-soft)" : undefined,
             }}
           >
-            Also on the ballot
+            {/* HO 759: a roster with no majors block (Louisiana's jungle
+                seats) is the whole ballot, not an addition to one. */}
+            {majors.length > 0 ? "Also on the ballot" : "On the ballot"}
           </p>
           <ul className="flex flex-col">
             {shown.map((c) => (

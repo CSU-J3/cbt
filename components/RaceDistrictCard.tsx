@@ -7,6 +7,7 @@
 // — no VS divider, no empty second column. No news block (no race→news link).
 import Link from "next/link";
 import { useState } from "react";
+import { IncumbentTag } from "@/components/IncumbentTag";
 import { KalshiLine, MarginBar, SpreadBar, formatCash } from "@/components/race-cells";
 import type { CartogramChallenger, CartogramContest } from "@/lib/cartogram-data";
 import {
@@ -131,6 +132,8 @@ export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
   const isOpen = contest.isOpen ?? false;
   const challengers = contest.challengers ?? [];
   const incName = contest.incumbent?.name ?? null;
+  // HO 759: an incumbent this seat's ballot doesn't carry.
+  const tag = incName ? contest.incumbentTag ?? null : null;
 
   // ── Case 3 — open seat, no incumbent ──────────────────────────────────────
   if (isOpen) {
@@ -141,7 +144,20 @@ export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
           <div className="rdc-open-head">OPEN SEAT · NO INCUMBENT</div>
           <p className="rdc-open-explain">
             The {contest.rating ?? "current"} rating reflects the seat&apos;s partisan lean, not a
-            head-to-head matchup{incName ? ` — ${incName} is not running` : ""}.
+            head-to-head matchup
+            {/* HO 759: the tag says which kind of not running (IA-02's Hinson is
+                running for the Senate). */}
+            {incName && tag ? (
+              <>
+                {" — "}
+                {incName} <IncumbentTag q={tag} />
+              </>
+            ) : incName ? (
+              ` — ${incName} is not running`
+            ) : (
+              ""
+            )}
+            .
           </p>
           <div className="rdc-stats">
             <div className="rdc-stat">
@@ -179,6 +195,12 @@ export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
         <div className="rdc-inc-body">
           <div className="rdc-role" style={{ color: partyColor(contest.party) }}>
             [{contest.party ?? "?"}] · INCUMBENT
+            {tag ? (
+              <>
+                {" "}
+                <IncumbentTag q={tag} />
+              </>
+            ) : null}
           </div>
           <div className="rdc-name">{incName ?? "—"}</div>
           {meta ? <div className="rdc-meta">{meta}</div> : null}

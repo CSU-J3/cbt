@@ -18,6 +18,7 @@ import { RacesHeroBand } from "@/components/RacesHeroBand";
 import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
+import { withIncumbentTags } from "@/lib/incumbent-tag";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   ELECTORAL_CYCLES,
@@ -26,6 +27,7 @@ import {
   getPrimaryCalendar,
   getRaceCandidatesForCycle,
   getCycleMarketCoverage,
+  getIncumbentQualifiers,
   getRacesIndex,
   getSeatNews,
   getSeatOutlook,
@@ -69,14 +71,18 @@ export default async function ElectoralPage({
 
   if (cycle === 2028) return <SeatOutlookPage cycle={cycle} />;
 
-  const [races, raceCandidates, chamberControl, calendar, pacByRace] =
+  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags] =
     await Promise.all([
       getRacesIndex(2026),
       getRaceCandidatesForCycle(2026),
       getChamberControl(),
       getPrimaryCalendar(2026),
       getPacIeSpending(2026),
+      getIncumbentQualifiers(2026),
     ]);
+  // HO 759: each row carries its incumbent's tag, so the list, the map's hover,
+  // the pinned card and the district card read the same one.
+  const races = withIncumbentTags(index, incumbentTags);
   const senate = races.filter((r) => r.chamber === "senate");
   const house = races.filter((r) => r.chamber === "house");
 
