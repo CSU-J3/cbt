@@ -33,9 +33,13 @@
 //   absent        none of these.
 // A runoff round is a primary of its own (primaries.election_round), and a
 // round that went to a runoff marks its advancers 'winner'. So an incumbent who
-// advanced and then lost a runoff the table does not hold (Texas's House
-// runoffs, S-TX's) is marked, not unmarked, and reads `absent`: TX-09's Al Green
-// at HO 759's STEP 0.
+// advanced and then lost the runoff is marked in the first round and unmarked
+// in the runoff, a decided primary of the cycle, and reads `lost_primary` by
+// the clause above with no rule of its own. Until HO 761 the table held no
+// runoff round the page printed (only three seeded ones, unmarked), and TX-09's
+// Al Green, TX-32's Julie Johnson and S-TX's John Cornyn read `absent` at HO
+// 759's STEP 0; HO 761 ingests the runoff boxes (lib/primaries-sync.ts,
+// writeRunoffRounds), and its leg 3 reads the three as `lost_primary`.
 import type { Client } from "@libsql/client";
 import { findIncumbentOnBallot, tokenCheck, type BallotPerson } from "./ballot-incumbent";
 

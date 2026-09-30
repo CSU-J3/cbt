@@ -31,13 +31,17 @@ function relativeLabel(date: string): string {
   return `${ago} ${ago === 1 ? "day" : "days"} ago`;
 }
 
-// A runoff candidate is 'running' (pending) until results land post-election,
-// then 'winner' / 'loser'. vote_pct fills the reserved slot once counted.
-function resultLabel(status: string, votePct: number | null): string {
+// A runoff candidate is 'running' until results land, and the winner's row
+// becomes 'winner'; primary_candidates.status has no 'loser' (the ingest writes
+// 'winner' or 'running', lib/primaries-sync.ts). So a runoff is DECIDED when
+// one of its rows is 'winner' (HO 761), and a 'running' row in a decided
+// runoff lost it; in an undecided one it is pending. vote_pct fills the slot
+// once counted.
+function resultLabel(status: string, votePct: number | null, decided: boolean): string {
   const pct = votePct != null ? `${votePct.toFixed(1)}%` : null;
   if (status === "winner") return pct ? `${pct} · won` : "Won";
-  if (status === "loser") return pct ? `${pct} · lost` : "Lost";
-  return pct ?? "Pending"; // 'running'
+  if (decided) return pct ? `${pct} · lost` : "Lost";
+  return pct ?? "Pending";
 }
 
 export function RaceRunoffs({
@@ -84,68 +88,71 @@ export function RaceRunoffs({
       </div>
 
       <div className="px-4 pb-2">
-        {runoffs.map((r) => (
-          <div
-            key={r.id}
-            className="border-t pt-1 first:border-t-0"
-            style={{ borderColor: "var(--border-soft)" }}
-          >
-            <p
-              className="pt-3 pb-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-              style={{ color: partyColor(r.party) }}
+        {runoffs.map((r) => {
+          const decided = r.candidates.some((c) => c.status === "winner");
+          return (
+            <div
+              key={r.id}
+              className="border-t pt-1 first:border-t-0"
+              style={{ borderColor: "var(--border-soft)" }}
             >
-              {partyLabel(r.party)} runoff
-            </p>
-            <ul className="flex flex-col">
-              {r.candidates.map((c) => {
-                const color = partyColor(c.party);
-                const pending = c.status === "running";
-                return (
-                  <li
-                    key={c.name}
-                    className="flex items-center gap-3 py-2 text-[length:var(--fs-14)]"
-                    style={{
-                      color: "var(--text-primary)",
-                      borderTop: "0.5px solid var(--border-soft)",
-                    }}
-                  >
-                    <span aria-hidden style={{ color }}>
-                      ●
-                    </span>
-                    <span
-                      className="w-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
-                      style={{ color }}
-                    >
-                      {c.party}
-                    </span>
-                    <span className="flex-1">
-                      {c.bioguide_id ? (
-                        <Link
-                          href={`/members/${c.bioguide_id}`}
-                          className="transition hover:text-[var(--accent-amber)]"
-                        >
-                          {c.name}
-                        </Link>
-                      ) : (
-                        c.name
-                      )}
-                    </span>
-                    <span
-                      className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
+              <p
+                className="pt-3 pb-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+                style={{ color: partyColor(r.party) }}
+              >
+                {partyLabel(r.party)} runoff
+              </p>
+              <ul className="flex flex-col">
+                {r.candidates.map((c) => {
+                  const color = partyColor(c.party);
+                  const pending = c.status !== "winner" && !decided;
+                  return (
+                    <li
+                      key={c.name}
+                      className="flex items-center gap-3 py-2 text-[length:var(--fs-14)]"
                       style={{
-                        color: pending
-                          ? "var(--text-dim)"
-                          : "var(--text-muted)",
+                        color: "var(--text-primary)",
+                        borderTop: "0.5px solid var(--border-soft)",
                       }}
                     >
-                      {resultLabel(c.status, c.vote_pct)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                      <span aria-hidden style={{ color }}>
+                        ●
+                      </span>
+                      <span
+                        className="w-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
+                        style={{ color }}
+                      >
+                        {c.party}
+                      </span>
+                      <span className="flex-1">
+                        {c.bioguide_id ? (
+                          <Link
+                            href={`/members/${c.bioguide_id}`}
+                            className="transition hover:text-[var(--accent-amber)]"
+                          >
+                            {c.name}
+                          </Link>
+                        ) : (
+                          c.name
+                        )}
+                      </span>
+                      <span
+                        className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] tabular-nums"
+                        style={{
+                          color: pending
+                            ? "var(--text-dim)"
+                            : "var(--text-muted)",
+                        }}
+                      >
+                        {resultLabel(c.status, c.vote_pct, decided)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     </section>
   );
