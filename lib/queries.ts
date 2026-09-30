@@ -6,6 +6,7 @@ import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
 import { readRaceResult, type RaceResultReading } from "./race-result";
+import { readIncumbentQualifiers, type IncumbentQualifier } from "./incumbent-qualifier";
 import { normName } from "./ballot-incumbent";
 import { formatBillId } from "./format";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
@@ -2196,6 +2197,24 @@ export const getIncumbentOnBallot = unstable_cache(
   { revalidate: 86400, tags: ["general-ballot", "races"] },
 );
 
+// HO 759 (the class line above, ruled C): what a card says of a stored
+// incumbent the race's ballot doesn't carry, by kind (RUNNING IN <seat>,
+// RUNNING FOR SENATE) and otherwise by reason (RETIRING, WITHDREW, LOST
+// PRIMARY, else NOT ON THE BALLOT); lib/incumbent-qualifier.ts has the rule and
+// its order. One read for the whole cycle, race id → qualifier, holding only
+// the races that have one: the race page picks its own row and the compact
+// surfaces merge it onto theirs (getRacesIndex and getMostCompetitiveRaces keep
+// their own tags). Tagged `general-ballot` (the rows it reads) and `races` (the
+// stored incumbent, the curated flag, and primary_candidates, whose writer
+// flushes nothing itself: the race-challengers run after it expires `races`
+// unconditionally).
+export type { IncumbentQualifier };
+export const getIncumbentQualifiers = unstable_cache(
+  async (cycle: number): Promise<Record<string, IncumbentQualifier>> => readIncumbentQualifiers(getDb(), cycle),
+  ["getIncumbentQualifiers"],
+  { revalidate: 86400, tags: ["general-ballot", "races"] },
+);
+
 // HO 210 Pass 2: all candidates for a cycle in one query so the pinned map card
 // can show challenger rosters without an N+1 of getRaceCandidates. Returns a
 // FLAT array (not a Map) because unstable_cache JSON-serializes its result and a
@@ -2826,6 +2845,10 @@ export type RaceIndexRow = {
   // from Ballotpedia via races-seed.json; distinct from incumbent_bioguide_id
   // IS NULL (vacancy/unmapped, which can't express a retirement).
   incumbentRunning: number | null;
+  // HO 759: the tag for an incumbent this seat's ballot doesn't carry. Never
+  // set by getRacesIndex: the page merges it from getIncumbentQualifiers
+  // (lib/incumbent-tag.ts withIncumbentTags), whose cache tags differ.
+  incumbentTag?: IncumbentQualifier | null;
   // HO 210 Pass 2: incumbent photo for the pinned map card (member-photo
   // pattern; onError → initials). 137/137 rated incumbents have one.
   incumbentDepictionUrl: string | null;

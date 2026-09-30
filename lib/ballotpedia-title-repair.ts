@@ -35,12 +35,10 @@
 // is added: the reader keeps tying by identity only, and the harvest payload's
 // incumbentRoutes["underline-surname"] stays the alarm for the next stale title.
 import type { Client, InStatement } from "@libsql/client";
-import { findIncumbentOnBallot, normName, surnameMatches, type BallotPerson } from "./ballot-incumbent";
+import { findIncumbentOnBallot, surnameMatches, tokenCheck, type BallotPerson } from "./ballot-incumbent";
 import { hrefKey, titleKey, type IO } from "./general-ballot";
 
 const BP = "https://ballotpedia.org/";
-const SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv"]);
-const tokens = (s: string | null | undefined) => normName(s ?? "").split(" ").filter((t) => t && !SUFFIXES.has(t));
 
 export type TitleCase = {
   bioguide: string;
@@ -164,41 +162,11 @@ export function linkedKeys(html: string): Set<string> {
   return out;
 }
 
-// The name check: every surname token of members.last_name, and a first-name
-// token (members.first_name, or members.name less the surname), after normName,
-// either WHOLE or as a PREFIX of three or more letters (the ruling: NJ-04's
-// "Chris" confirms against "Christopher"). `form` records which. Tightened on
-// the HO 751 review, each against a wrong person it let through:
-//   · the learned title's parenthetical disambiguator is not the name
-//     ("Joe Calvert (Kentucky)" must not confirm Ken Calvert by "ken");
-//   · a first-name token has two letters or more (a middle initial "a" must not
-//     confirm Craig A. Goldman against "Sarah A. Goldman").
-//   The prefix runs EITHER way, as ruled: the ballot may carry the short form
-//   (NJ-04's "chris" of "christopher") or the member row may (S-AK's member row
-//   says "dan", his page "daniel"); the shorter token, three letters or more,
-//   must begin the longer.
-export function tokenCheck(learned: string, c: { firstName: string | null; lastName: string | null; member: string }): { ok: boolean; form: "whole" | "prefix" | null; detail: string } {
-  const t = tokens(learned.replace(/\([^)]*\)/g, " "));
-  const tset = new Set(t);
-  const sur = tokens(c.lastName);
-  const firsts = [...new Set([...tokens(c.firstName), ...tokens(c.member).filter((x) => !sur.includes(x))])].filter((x) => x.length >= 2);
-  const surOk = sur.length > 0 && sur.every((x) => tset.has(x));
-  const whole = firsts.filter((x) => tset.has(x) && !sur.includes(x));
-  const prefix: string[] = [];
-  if (!whole.length) {
-    for (const f of firsts) for (const w of t) {
-      if (sur.includes(w)) continue;
-      const [s, l] = f.length <= w.length ? [f, w] : [w, f];
-      if (s.length >= 3 && s !== l && l.startsWith(s)) prefix.push(`${w}~${f}`);
-    }
-  }
-  const form = whole.length ? "whole" : prefix.length ? "prefix" : null;
-  return {
-    ok: surOk && form !== null,
-    form: surOk ? form : null,
-    detail: `surname [${sur.join(" ")}] ${surOk ? "present" : "ABSENT"} · first-name [${firsts.join(" ")}] ${whole.length ? `whole [${whole.join(" ")}]` : prefix.length ? `prefix [${prefix.join(" ")}]` : "no match"}`,
-  };
-}
+// The name check (tokenCheck) lives in lib/ballot-incumbent.ts since HO 759,
+// unchanged, so lib/incumbent-qualifier.ts can use it without this module's
+// import of lib/general-ballot.ts (and its next/cache revalidateTag); it is
+// re-exported here for this module's callers.
+export { tokenCheck };
 
 export type Signal = "redirect" | "disambiguation" | "ballot" | "ballot-prefix";
 export type Verdict = "confirmed" | "unconfirmed" | "already resolved" | "not attempted";
