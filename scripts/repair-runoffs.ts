@@ -35,6 +35,7 @@ async function main() {
     ["settled, skipped", rp.settledSkipped],
     ["no first round", rp.noFirstRound],
     ["outside the contest set", rp.outOfContestSet],
+    ["unrouted: the date picks no single first round (HO 762)", rp.unrouted],
     ["undated", rp.undated],
     ["empty roster", rp.emptyRoster],
     ["page name with no stored row", rp.noMatch],

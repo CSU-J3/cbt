@@ -71,8 +71,10 @@ export type ScrapedCandidate = {
 
 // HO 761 — a primary-runoff votebox ("Democratic primary runoff for U.S. House
 // Texas District 18"), kept as a contest of its own. The parser cannot name
-// its primaries id (that is the sync's: the first round's id, routed as the
-// first round is, plus `-runoff`), so it carries what the id is derived from.
+// its primaries id (that is the sync's: the first round's id plus `-runoff`,
+// lib/primaries-sync.ts writeRunoffRounds, which since HO 762 routes a box the
+// page no longer marks special by its date), so it carries what the id is
+// derived from.
 // `date` is the box's own, read from its results line ("… on May 26, 2026."),
 // as YYYY-MM-DD; null when the line prints none. At HO 761's STEP 0 all 33
 // runoff boxes on HO 747's saved pages printed one. 30 equalled their first

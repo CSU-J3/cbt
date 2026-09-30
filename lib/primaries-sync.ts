@@ -596,6 +596,12 @@ export function settleWindowFloor(now: string): string {
 // id entirely, so a substituting roster can never reach a settled row for this
 // predicate to observe. The router is the FIRST line; this is the SECOND.
 //
+// HO 762 — NO LONGER TRUE OF SC'S LIVE PAGE. By 2026-09-30 Ballotpedia had
+// dropped "Special" from SC's Aug 11 boxes, so the router reads that field as
+// the regular contest's and sends it to senate-SC-2026-R; this guard, the row
+// being settled, is what refuses it now (docs/backlog.md, filed at HO 762). The
+// paragraph below is the record of the router-first design it describes.
+//
 // So this guard is STRUCTURALLY UNREACHABLE for substitution, and it has NEVER
 // observed one. HO 601's falsification leg 2 recorded it "consulted and
 // REFUSED" on senate-SC-2026-R, which is true and does NOT mean it caught a
@@ -632,7 +638,7 @@ async function isSettled(
 // `primaries` row of its own beside its first round, the HO 107 shape the three
 // seeded rows already had: id `<first round id>-runoff` (the first round's id
 // as the first round's own write derives it, so a Senate box goes through the
-// router), election_round 'runoff', the first round's state / district /
+// router, save HO 762's date route below), election_round 'runoff', the first round's state / district /
 // chamber / party / primary_type, primary_date the box's printed date (the
 // first round's runoff_date when it prints none), runoff_date NULL (a runoff
 // has no further runoff) and race_id NULL. The regular first rounds carry no
@@ -640,6 +646,21 @@ async function isSettled(
 // S-SC-2026) and is not inherited, so a runoff row this code writes draws no
 // block on its race page (docs/backlog.md, filed at HO 761). The seeded runoff
 // rows keep theirs.
+//
+// HO 762 — A BOX THE PAGE NO LONGER MARKS SPECIAL IS ROUTED BY ITS DATE. The
+// router reads specialness off the <h5>, and Ballotpedia can drop it: by
+// 2026-09-30 SC's page read "Republican primary runoff" for the Aug 25 runoff
+// of its seeded Aug 11 special (saved beside HO 761's artifacts,
+// S-SC-2026.live-761.html.gz), and the router sent it to the June primary's
+// senate-SC-2026-R-runoff. So an unmarked box in a state whose special registry
+// seeds that contest has two candidate first rounds, the regular and the
+// special, and goes to the one whose stored runoff_date equals the box's
+// printed date. No match, two matches or no printed date: the box is skipped
+// and named in `unrouted`. A box marked special, every other Senate box, and
+// every House box (the House path never has two candidates) has one candidate
+// and is written as before, its date disagreement reported, not routed on: so
+// SC's three House boxes, whose stored runoff_date is wrong, still land on
+// their only first round.
 //
 // FIRST WRITE: the row and its roster, with the marks the page prints, in ONE
 // batch. So a runoff the page has marked is never stored unmarked, and
@@ -671,6 +692,9 @@ export type RunoffWriteReport = {
   settledSkipped: string[];
   noFirstRound: string[]; // no first-round row to hang the runoff on
   outOfContestSet: string[]; // "page: contest box", a box outside the seat's contest set (House)
+  // HO 762: "page: contest box dated D · id D1, id D2": an unmarked box with two
+  // candidate first rounds whose date picks neither, or both. Nothing is written.
+  unrouted: string[];
   undated: string[]; // neither the box nor the first round gives a date
   emptyRoster: string[]; // HO 564: a box with no rows is never a write
   noMatch: string[]; // "id: name" — a page row with no stored row of that name
@@ -691,6 +715,7 @@ export function emptyRunoffReport(): RunoffWriteReport {
     settledSkipped: [],
     noFirstRound: [],
     outOfContestSet: [],
+    unrouted: [],
     undated: [],
     emptyRoster: [],
     noMatch: [],
@@ -706,18 +731,42 @@ async function writeRunoffRounds(
   db: ReturnType<typeof getDb>,
   page: string, // the page's label, for the report ("TX-18", "S-GA")
   runoffs: ScrapedRunoff[],
-  // The first round's id for a box, or null when the seat has no such contest.
-  firstRoundIdFor: (r: ScrapedRunoff) => string | null,
+  // The box's candidate first rounds: none when the seat has no such contest,
+  // one as a rule, two (the regular and the seeded special) for an unmarked
+  // Senate box whose state seeds that contest (HO 762, above).
+  firstRoundIdsFor: (r: ScrapedRunoff) => string[],
   matchCandidate: (c: ScrapedCandidate) => string | null,
   at: RunoffAt,
   opts: { write: boolean; reopenExpired?: boolean },
   out: RunoffWriteReport,
 ): Promise<void> {
   for (const r of runoffs) {
-    const firstId = firstRoundIdFor(r);
-    if (!firstId) {
+    const candidates = firstRoundIdsFor(r);
+    if (candidates.length === 0) {
       out.outOfContestSet.push(`${page}: ${r.isSpecial ? "special " : ""}${r.contest} box`);
       continue;
+    }
+    let firstId = candidates[0]!;
+    if (candidates.length > 1) {
+      const dated = new Map(
+        (
+          await db.execute({
+            sql: `SELECT id, runoff_date FROM primaries
+                   WHERE election_round = 'primary' AND id IN (${candidates.map(() => "?").join(", ")})`,
+            args: candidates,
+          })
+        ).rows.map((x) => [String(x.id), x.runoff_date == null ? null : String(x.runoff_date)]),
+      );
+      const hits = r.date ? candidates.filter((c) => dated.get(c) === r.date) : [];
+      if (hits.length !== 1) {
+        out.unrouted.push(
+          `${page}: ${r.contest} box dated ${r.date ?? "(none printed)"} · ${candidates
+            .map((c) => `${c} ${dated.has(c) ? (dated.get(c) ?? "(no runoff_date)") : "(no row)"}`)
+            .join(", ")}`,
+        );
+        continue;
+      }
+      firstId = hits[0]!;
     }
     const id = `${firstId}-runoff`;
     if (r.candidates.length === 0) {
@@ -851,18 +900,31 @@ async function writeRunoffRounds(
   }
 }
 
-// For a House page: the first round's id for a runoff box, or null when the
+// For a House page: the first round's id for a runoff box, or none when the
 // box's contest is not in the seat's set (the same set the first-round write
 // uses, from NONPARTISAN_HOUSE_STATES).
-function houseFirstRoundId(state: string, dd: string): (r: ScrapedRunoff) => string | null {
+function houseFirstRoundIds(state: string, dd: string): (r: ScrapedRunoff) => string[] {
   const expectsOpen = NONPARTISAN_HOUSE_STATES.has(state);
   return (r) =>
-    (r.contest === "open") === expectsOpen ? `house-${state}-${dd}-2026-${r.contest}` : null;
+    (r.contest === "open") === expectsOpen ? [`house-${state}-${dd}-2026-${r.contest}`] : [];
+}
+
+// For a Senate page: a box marked special goes where the router sends it; an
+// unmarked box goes to the regular first round, or, when the state seeds a
+// special for its contest, to whichever of the two its date picks (HO 762).
+function senateFirstRoundIds(state: string, seeded: Set<string>): (r: ScrapedRunoff) => string[] {
+  return (r) => {
+    const routed = routeSenateContestId(state, r.contest, r.isSpecial, seeded);
+    const special = `senate-${state}-2026-special-${r.contest}`;
+    return !r.isSpecial && seeded.has(special) ? [routed, special] : [routed];
+  };
 }
 
 // HO 761 — repair:runoffs' writer (lib/runoff-repair.ts): writeRunoffRounds
 // with the sync's own first-round ids (the router over the seeded special
-// registry for a Senate page, the contest set for a House page) and member
+// registry for a Senate page, with HO 762's date routing for an unmarked box
+// whose state seeds a special for its contest; the contest set for a House
+// page) and member
 // matches, loaded once for a pass over many pages. The repair passes
 // `reopenExpired`; nothing else differs from the sync's write.
 export type RunoffPage = { chamber: "house" | "senate"; state: string; district: number | null };
@@ -885,7 +947,7 @@ export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
         db,
         `S-${page.state}`,
         runoffs,
-        (r) => routeSenateContestId(page.state, r.contest, r.isSpecial, seeded),
+        senateFirstRoundIds(page.state, seeded),
         (c) => matchSenate(c.name, page.state),
         at,
         opts,
@@ -899,7 +961,7 @@ export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
       db,
       `${page.state}-${dd}`,
       runoffs,
-      houseFirstRoundId(page.state, dd),
+      houseFirstRoundIds(page.state, dd),
       (c) => matchHouseCandidate(c.name, c.incumbent, page.state, district, incumbentByDistrict, currentHouseByState),
       at,
       opts,
@@ -1305,13 +1367,15 @@ export async function syncSenateCandidates(
     perState.push(`  ${abbr}: ${result.candidates.length} candidates`);
 
     // HO 761 — this page's runoff boxes, each beside its first round. The
-    // first round's id is the router's, as for the first round's own write, so
-    // SC's special runoff box lands on senate-SC-2026-special-R-runoff.
+    // first round's id is the router's, as for the first round's own write, and
+    // an unmarked box in a state that seeds a special for its contest goes by its
+    // date (HO 762), so SC's Aug 25 runoff lands on
+    // senate-SC-2026-special-R-runoff whether or not the page still says Special.
     await writeRunoffRounds(
       db,
       `S-${abbr}`,
       result.runoffs ?? [],
-      (r) => routeSenateContestId(abbr, r.contest, r.isSpecial, seededForState),
+      senateFirstRoundIds(abbr, seededForState),
       (c) => matchMember(c.name, abbr),
       { now, today, windowFloor },
       { write: true },
@@ -1395,6 +1459,7 @@ export function printRunoffReport(r: RunoffWriteReport): void {
     ["settled, skipped", r.settledSkipped],
     ["no first round", r.noFirstRound],
     ["outside the contest set", r.outOfContestSet],
+    ["unrouted: the date picks no single first round (HO 762)", r.unrouted],
     ["undated", r.undated],
     ["empty roster", r.emptyRoster],
     ["page name with no stored row", r.noMatch],
@@ -1788,7 +1853,7 @@ export async function syncHouseDistricts(
       db,
       districtLabel,
       result.runoffs ?? [],
-      houseFirstRoundId(d.state, dd),
+      houseFirstRoundIds(d.state, dd),
       (c) =>
         matchHouseCandidate(c.name, c.incumbent, d.state, d.district, incumbentByDistrict, currentHouseByState),
       { now, today, windowFloor },
