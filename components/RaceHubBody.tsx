@@ -6,6 +6,7 @@ import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { RaceRunoffs } from "@/components/RaceRunoffs";
 import { formatDateLong } from "@/lib/format";
 import { stubSentence } from "@/lib/race-stub";
+import { DORMANT, type RaceResultView } from "@/lib/race-result";
 import type {
   Member,
   PacIeRow,
@@ -61,6 +62,7 @@ export function RaceHubBody({
   pac,
   news,
   nowMs,
+  result = DORMANT,
 }: {
   race: Race;
   // HO 757: getRaceRoster's rows, the others on the ballot included.
@@ -85,6 +87,9 @@ export function RaceHubBody({
   // HO 490: page-computed clock for the race-news relative ages (RaceNewsRow
   // renders in RaceHubBody's server tree). See lib/format.ts.
   nowMs: number;
+  // HO 758: the race's result view (lib/race-result.ts), dormant before
+  // election day, when nothing below renders differently.
+  result?: RaceResultView;
 }) {
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
@@ -101,7 +106,7 @@ export function RaceHubBody({
 
   return (
     <>
-      <RaceHeader race={race} ratings={ratings} />
+      <RaceHeader race={race} ratings={ratings} result={result} />
 
       {rating ? (
         <div
@@ -109,7 +114,10 @@ export function RaceHubBody({
           style={{ borderColor: "var(--border-soft)" }}
         >
           <span style={{ color: "var(--text-dim)" }}>Rating</span>
-          <span>
+          <span style={result.passed ? { opacity: 0.55 } : undefined}>
+            {result.passed ? (
+              <span style={{ color: "var(--text-dim)" }}>final call · </span>
+            ) : null}
             <span
               className="inline-block border px-2 py-[1px] text-[length:var(--fs-12)]"
               style={{ color: rating.color, borderColor: rating.color }}
@@ -155,7 +163,7 @@ export function RaceHubBody({
           </h2>
         </div>
         <div className="px-4">
-          <RaceIncumbentCard member={incumbent} race={race} />
+          <RaceIncumbentCard member={incumbent} race={race} qualifier={result.qualifier} />
         </div>
       </section>
 
@@ -169,6 +177,11 @@ export function RaceHubBody({
           {/* HO 750: "running for re-election" only when the ballot shows it
               (lib/race-stub.ts). */}
           {stubSentence(!!incumbent, incumbentOnBallot)}
+          {result.provenance ? (
+            <span className="mt-2 block normal-case tracking-normal" data-result-provenance>
+              {result.provenance}
+            </span>
+          ) : null}
         </p>
       ) : (
         <section
@@ -190,7 +203,16 @@ export function RaceHubBody({
             </h2>
           </div>
           <div className="px-4 pb-2">
-            <RaceCandidates candidates={candidates} />
+            <RaceCandidates candidates={candidates} showMarks={result.passed} />
+            {result.provenance ? (
+              <p
+                className="py-2 text-[length:var(--fs-12)]"
+                style={{ color: "var(--text-dim)", borderTop: "0.5px solid var(--border-soft)" }}
+                data-result-provenance
+              >
+                {result.provenance}
+              </p>
+            ) : null}
           </div>
         </section>
       )}

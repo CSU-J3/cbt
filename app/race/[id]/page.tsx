@@ -2,6 +2,8 @@ import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
 import { raceLabelCompact } from "@/components/RaceHeader";
 import { RaceHubBody } from "@/components/RaceHubBody";
+import { clockNowMs } from "@/lib/clock";
+import { raceResultView } from "@/lib/race-result";
 import {
   getMember,
   getPacIeSpending,
@@ -9,6 +11,7 @@ import {
   getIncumbentOnBallot,
   getRaceNews,
   getRaceRatings,
+  getRaceResult,
   getRaceRoster,
   getRunoffsForRace,
 } from "@/lib/queries";
@@ -60,7 +63,7 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot] =
+  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot, resultReading] =
     await Promise.all([
       // HO 757: the roster's own read, the one that carries `on_ballot` rows.
       getRaceRoster(race.id),
@@ -80,7 +83,11 @@ export default async function RacePage({
       race.incumbent_bioguide_id
         ? getIncumbentOnBallot(race.id)
         : Promise.resolve({ onBallot: null, route: null }),
+      // HO 758: the race's result as Ballotpedia marks it.
+      getRaceResult(race.id),
     ]);
+  // HO 758: dormant until election day has passed, on lib/clock.ts's now.
+  const result = raceResultView(resultReading, race.cycle, clockNowMs());
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -105,6 +112,7 @@ export default async function RacePage({
           runoffs={runoffs}
           pac={pacByRace[race.id]}
           news={news}
+          result={result}
         />
       </main>
     </div>

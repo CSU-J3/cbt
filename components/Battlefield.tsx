@@ -1,4 +1,7 @@
-import { getBattlefieldSeats, type BattlefieldSeat } from "@/lib/queries";
+import { getBattlefieldSeats, getElectionResults, type BattlefieldSeat } from "@/lib/queries";
+import { clockNowMs } from "@/lib/clock";
+import { daysToElection as daysToElectionFor } from "@/lib/format";
+import { formatReadMt } from "@/lib/race-result";
 import { partyColor } from "@/lib/race-colors";
 
 // HO 254 — the D↔R competitive battlefield (replaces the absent competitive
@@ -16,9 +19,10 @@ import { partyColor } from "@/lib/race-colors";
 const COMPETITIVE_MAX = 1.5;
 
 // Election Day 2026 is Tuesday Nov 3. force-dynamic page → request-time fresh.
+// HO 758: "now" is lib/clock.ts's clockNowMs, the one the race page reads too.
 const ELECTION_DAY_MS = Date.UTC(2026, 10, 3);
 function daysToElection(): number {
-  return Math.max(0, Math.ceil((ELECTION_DAY_MS - Date.now()) / 86_400_000));
+  return Math.max(0, Math.ceil((ELECTION_DAY_MS - clockNowMs()) / 86_400_000));
 }
 
 // Consensus → axis x%. Piecewise-linear through the mock's tier anchors so the
@@ -74,6 +78,9 @@ export async function Battlefield({
 }) {
   const seats = await getBattlefieldSeats(cycle);
   if (seats.length === 0) return null;
+  // HO 758: once election day has passed (lib/format.ts's daysToElection, the
+  // race page's gate), the ELECTION DAY line turns to the results line.
+  const results = daysToElectionFor(cycle, clockNowMs()) < 0 ? await getElectionResults(cycle) : null;
 
   const competitive = seats.filter(
     (s) => Math.abs(s.consensus) <= COMPETITIVE_MAX,
@@ -112,17 +119,35 @@ export async function Battlefield({
 
   return (
     <section className="battlefield" aria-label="Competitive battlefield">
-      <div className="ctl-head">
+      <div className={results ? "ctl-head ctl-head--results" : "ctl-head"}>
         <div className="ctl-legend">
           TOSS-UPS <span className="ctl-sw" /> SEN{" "}
           <span className="ctl-sw ctl-sw-sq" /> HOUSE ·{" "}
           <span className="ctl-sw ctl-sw-tick" /> field by lean
         </div>
-        <div className="ctl-eday">
-          <span className="ctl-eday-t">ELECTION DAY</span> · NOV 3 ·{" "}
-          <span className="ctl-eday-cd">{daysToElection()} DAYS</span> · ~
-          {competitive.length} competitive seats
-        </div>
+        {results ? (
+          // HO 758: N of the rated index's seats with a Ballotpedia mark; the
+          // House by the marked rows' party letters (a fusion print by its
+          // first; any other letter is "other", shown when nonzero); the House
+          // seats not yet called; the newest read behind the marks, in MT.
+          <div className="ctl-eday" data-results>
+            <span className="ctl-eday-t">RESULTS</span> · NOV 3 ·{" "}
+            <span className="ctl-eday-cd">
+              {results.ratedCalled} of {results.rated}
+            </span>{" "}
+            competitive seats called · House R {results.house.R} · D{" "}
+            {results.house.D}
+            {results.house.other > 0 ? ` · other ${results.house.other}` : ""} ·{" "}
+            {results.houseSeats - results.houseCalled} open · Ballotpedia
+            {results.latestReadAt ? `, read ${formatReadMt(results.latestReadAt)}` : ""}
+          </div>
+        ) : (
+          <div className="ctl-eday">
+            <span className="ctl-eday-t">ELECTION DAY</span> · NOV 3 ·{" "}
+            <span className="ctl-eday-cd">{daysToElection()} DAYS</span> · ~
+            {competitive.length} competitive seats
+          </div>
+        )}
       </div>
 
       <div className="ctl">

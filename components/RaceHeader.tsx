@@ -2,6 +2,7 @@ import { RatingChip } from "./RatingChip";
 import { daysToElection, ordinal } from "@/lib/format";
 import { stateName } from "@/lib/states";
 import type { Race, RaceRating } from "@/lib/queries";
+import type { RaceResultView } from "@/lib/race-result";
 
 function raceName(r: Race): string {
   const state = stateName(r.state);
@@ -25,13 +26,19 @@ export function raceLabelCompact(r: Race): string {
 export function RaceHeader({
   race,
   ratings = [],
+  result,
 }: {
   race: Race;
   ratings?: RaceRating[];
+  // HO 758: once election day has passed, the result replaces the countdown
+  // and the rating chips read as the final call. Dormant (or absent) before.
+  result?: RaceResultView;
 }) {
   const days = daysToElection(race.cycle);
-  const countdown =
-    days < 0
+  const decidedState = result?.passed ? result : null;
+  const countdown = decidedState?.header
+    ? decidedState.header
+    : days < 0
       ? "Election concluded"
       : days === 0
         ? "Election today"
@@ -59,7 +66,18 @@ export function RaceHeader({
         </span>
       </div>
       {ratings.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <div
+          className="mt-2 flex flex-wrap items-center gap-2"
+          style={decidedState ? { opacity: 0.55 } : undefined}
+        >
+          {decidedState ? (
+            <span
+              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+              style={{ color: "var(--text-dim)" }}
+            >
+              final call ·
+            </span>
+          ) : null}
           {ratings.map((r, i) => (
             <span key={r.id} className="inline-flex items-center gap-2">
               {i > 0 ? (

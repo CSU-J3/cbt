@@ -46,9 +46,11 @@ function statusLabel(status: string | null): string {
 // HO 757 (ruled C): the others show three before the fold.
 const OTHERS_BEFORE_FOLD = 3;
 
-function CandidateRow({ c }: { c: RosterCandidate }) {
+function CandidateRow({ c, showMarks = false }: { c: RosterCandidate; showMarks?: boolean }) {
   const color = partyColor(c.party);
   const dimmed = c.status === "withdrew";
+  // HO 758: Ballotpedia's call, shown only past election day.
+  const elected = showMarks && c.marked;
   return (
     <li
       className="flex items-center gap-3 py-2 text-[length:var(--fs-14)]"
@@ -90,9 +92,10 @@ function CandidateRow({ c }: { c: RosterCandidate }) {
       </span>
       <span
         className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-        style={{ color: "var(--text-muted)" }}
+        style={{ color: elected ? "var(--result-elected)" : "var(--text-muted)" }}
+        data-elected={elected ? "" : undefined}
       >
-        {statusLabel(c.status)}
+        {elected ? "Elected" : statusLabel(c.status)}
       </span>
     </li>
   );
@@ -100,8 +103,12 @@ function CandidateRow({ c }: { c: RosterCandidate }) {
 
 export function RaceCandidates({
   candidates,
+  showMarks = false,
 }: {
   candidates: RosterCandidate[];
+  // HO 758: past election day, a row Ballotpedia marked reads "Elected" and
+  // leads the roster, in the majors' block even if it is an other.
+  showMarks?: boolean;
 }) {
   if (candidates.length === 0) {
     return (
@@ -117,8 +124,12 @@ export function RaceCandidates({
   // HO 757 (ruled C): the majors as before, in getRaceRoster's order (withdrew
   // last among them), then the others on the ballot by name, three before a
   // native <details> whose summary counts the rest.
-  const majors = candidates.filter((c) => c.status !== "on_ballot");
-  const others = candidates.filter((c) => c.status === "on_ballot");
+  const lifted = (c: RosterCandidate) => showMarks && c.marked;
+  const majors = [
+    ...candidates.filter(lifted),
+    ...candidates.filter((c) => !lifted(c) && c.status !== "on_ballot"),
+  ];
+  const others = candidates.filter((c) => !lifted(c) && c.status === "on_ballot");
   const shown = others.slice(0, OTHERS_BEFORE_FOLD);
   const folded = others.slice(OTHERS_BEFORE_FOLD);
 
@@ -127,7 +138,7 @@ export function RaceCandidates({
       {majors.length > 0 ? (
         <ul className="flex flex-col">
           {majors.map((c) => (
-            <CandidateRow key={c.name} c={c} />
+            <CandidateRow key={c.name} c={c} showMarks={showMarks} />
           ))}
         </ul>
       ) : null}

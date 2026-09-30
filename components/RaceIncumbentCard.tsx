@@ -33,9 +33,13 @@ function locator(member: Member, race: Race): string {
 export function RaceIncumbentCard({
   member,
   race,
+  qualifier = null,
 }: {
   member: Member | null;
   race: Race;
+  // HO 758: once the race is past election day, one word on how the incumbent
+  // fared: re-elected / defeated / not on the ballot / runoff Dec 12.
+  qualifier?: string | null;
 }) {
   const [photoErrored, setPhotoErrored] = useState(false);
 
@@ -115,6 +119,15 @@ export function RaceIncumbentCard({
         >
           {locator(member, race)}
         </span>
+        {qualifier ? (
+          <span
+            className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+            style={{ color: qualifier === "re-elected" ? "var(--result-elected)" : "var(--text-secondary)" }}
+            data-incumbent-qualifier
+          >
+            {qualifier}
+          </span>
+        ) : null}
         <Link
           href={`/members/${member.bioguideId}`}
           className="mt-1 text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--accent-amber-bright)]"

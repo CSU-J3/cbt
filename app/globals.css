@@ -34,6 +34,12 @@
   --vote-present: #fbbf24;
   --vote-not-voting: #6b7280;
 
+  /* HO 758: a race's called winner ("Elected" on the race page's roster). Its
+     own token by the HO 610 rule: the green matches --vote-yea and
+     --stage-enacted, but the meaning is a Ballotpedia call, not a vote or a
+     stage, so a palette tweak can move it alone. */
+  --result-elected: #10b981;
+
   /* Markets tape direction (HO 149). Exact hexes match --stage-enacted and
      --party-republican but the semantic is distinct — market direction
      should not cross-wire with bill stages or party. Kept as their own
@@ -3776,6 +3782,22 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   color: var(--text-dim);
   text-align: right;
   white-space: nowrap;
+}
+/* HO 758: past election day the countdown turns to the results line, which is
+   several times longer. It takes its own full-width row under the legend and
+   wraps, rather than squeezing the legend into a column and clipping itself in
+   the dashboard's narrow Races panel. Only the results state carries the class,
+   so the pre-election band is unchanged. */
+.ctl-head--results {
+  flex-wrap: wrap;
+}
+.ctl-head--results .ctl-legend {
+  flex-shrink: 0;
+}
+.ctl-head--results .ctl-eday {
+  flex-basis: 100%;
+  white-space: normal;
+  text-align: left;
 }
 .ctl-eday-t {
   color: var(--accent-amber-bright);
