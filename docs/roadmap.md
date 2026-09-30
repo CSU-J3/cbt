@@ -4152,3 +4152,96 @@ The b3 run, on the committed blobs (harvest `05bc20e6c4`, seed script `aef16fd19
   - the race page's mark merge.
 - **OPEN LOOPS reconciled: 265 live / 315 struck at open (580 total), 263 / 317 at close (580)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 760.**
+
+**Also (HO 761), the runoff rounds Ballotpedia already prints are ingested: a runoff loser reads LOST PRIMARY, a seeded runoff gets its winner, and the runoff block stops saying PENDING.** Six commits, kinds unmixed: `feat` · `fix` · `chore` · `diag` · `docs(skill)` alone · `docs`. There is no migration: a runoff round is the HO 107 row shape. The FF is held for the SKILL approval, the captures and the review. The pointer is 761 by plain arithmetic: pointer 760, highest HO in commit subjects 760, `main` at `ead1020`.
+
+**HO 760's readings, carried from its FF go (items 3 and 4)** (`docs/handoffs/760-artifacts/post-760.txt`, `prod-760.txt`, `prod-captures/`).
+- **The FF:** `main` at `ead1020`, fast-forwarded from `2bce248` with no force; `760-review` deleted. `verify:deploy` read 5 of 5, first match at 31s. Production e2e #36772014282 passed smoke 140 in 5.4m; the Preview, #36771453453, passed.
+- **The POST, `cron_runs` #21392 at 2026-09-30 20:22:38Z,** `success` in 500 ms:
+  - `curatedRetired` names the 8; `curatedHistoryKept` the 7, Williams marked *(withdrew; also the ballot's withdrew row)*; `ballotIgnored` 0; `curatedDivergence` absent.
+  - ballotRaces 463, ballotPlanned 886; incumbentRoutes identity 367, none 94; cleared 913, inserted 921; bySource `general_ballot` 886 rows / 459 races, `primary_winner` 35 / 6; onBallot 330 / 195 (O 68); oPrints 68; jungle 6 / 35 / 0 / 0.
+  - `race_candidates` 928 → 928, and the curated rows left are the 7 `withdrew` ones.
+- **Production:** S-GA reads *Candidates (2)*: Mike Collins *Won primary*, Buddy Carter *Withdrew* (dimmed). S-ME reads *Candidates (3)*: Troy Dale Jackson *Nominee*, Platner and Mills *Withdrew* (dimmed).
+- **The finding it carried, filed and struck in this HO's backlog:** S-GA's runoff block read *Republican Runoff · 2026-06-16* with Collins and Dooley PENDING, from the unmarked seed row.
+- **Reconcile on `main` `ead1020`:** 263 live / 317 struck (580), control 0.
+
+**STEP 0** (prod `SELECT`s and HO 747's saved pages, no fetch; `docs/handoffs/761-artifacts/step0-761.txt`, `census-761.txt`, `sc-runoff-date-761.txt`, repo-ignored).
+- **HO number:** `main` at `ead1020`, pointer 760, highest HO in commit subjects 760; so 761.
+- **Anchors, re-read by content at `ead1020`:** the parser's gate (`lib/primary-candidates-scrape.ts:361`), its comment (`:338-339`) and dedup (`:305`); the calendar's `runoffDate` (`lib/primary-calendar-scrape.ts:34`, `:125-126`); the sync's write of it (`lib/primaries-sync.ts:370-382`); `isSettled`; `RaceRunoffs.tsx:34-35`. All hold. One drifts by a line: the qualifier's runoff comment is `lib/incumbent-qualifier.ts:34-38`, not `:34-37`.
+- **First rounds with a `runoff_date`:** 215 across ten states (AL 16, AR 10, GA 30, LA 8, MS 10, NC 30, OK 12, SC 17, SD 4, TX 78) on **110 pages** (SC's special shares S-SC's). Six, Louisiana's House (Dec 12), are dated ahead. By winners marked in the first round: none 34, one 144, two 37.
+- **The seeded runoff rows:** GA's R and LA's D and R, every candidate `running` with no share and no bioguide, each with its `race_id`, last written 2026-06-02.
+- **HO 759's `absent` incumbents marked in a first round with a `runoff_date`:** of the 36 absent, exactly the three: S-TX's Cornyn (the R first round, 42%), TX-09's Green (TX-18's D, 44.2%) and TX-32's Johnson (TX-33's D, 33.2%).
+- **The saved-page census** (the newest of HO 747's copies of each page, read with the parser's own slicing): **33 runoff boxes, all decided.** AL 1 House + 2 Senate; GA 4 + 1; LA 2 Senate; OK 1 Senate; SC 3 House + the special; TX 17 + 1; none in AR, MS, NC or SD. Every box prints its own date, and 30 equal their first round's `runoff_date`. The other 3 are SC's House boxes: the page prints June 23, and the rows store the Senate special's 2026-08-25 (filed). Four first rounds with two advancers print no box: AL-01 R, OK-01 R, TX-23 R, TX-32 R (filed).
+  - TX-18's box: Menefee (underlined) marked, 69.3%; Green (underlined) unmarked, 30.7%.
+  - S-GA's box: Collins marked, 55.5%; Dooley unmarked, 44.5%.
+
+**Premises corrected, flagged.**
+- **"about 215 units, about 22 minutes":** 215 is rows. The repair reads pages: 110, less Louisiana's six House pages dated ahead, so **104 pages, about eleven minutes** at 6s.
+- **"an undecided seeded row (LA) still renders PENDING":** LA's June 27 runoffs are decided on the page, and the repair marks them (Letlow over Fleming, Davis over Crockett). Leg 4 reads the PENDING control on the before copy, where LA's seeds are undecided.
+- **"isSettled blocks nothing on the first write":** true of every row the write creates. The seeds are not created: they sat past-dated, unmarked and older than the HO 661 window, so `isSettled` reads them as settled and the cron leaves them. Only the repair reopens a row settled by expiry (`reopenExpired`), and never one settled by a winner.
+- **"keeps its seed URL if the page gives none":** `primaries` has no URL column. What a seed carries that the page does not is its `race_id` and its names, and the by-name update keeps both.
+- **The qualifier:** the rule already reads a runoff loser as `lost_primary`; the rows were what was missing. Its change is the comment, and leg 3 runs HEAD's rule on the after copy to show it.
+- **`RaceRunoffs`' `'loser'`:** a status `primary_candidates` never had. *Lost* is derived from the runoff having a winner.
+
+**The build.**
+- (1) **`feat`:**
+  - `lib/primary-candidates-scrape.ts`: a primary-runoff box goes to `CandidateScrapeResult.runoffs` (one `ScrapedRunoff` per box: contest, specialness, the box's printed date, its rows read as a primary's), never to `candidates`, under its own dedup set. A general runoff stays dropped.
+  - `lib/primaries-sync.ts`: `writeRunoffRounds` writes `<first round id>-runoff`, the id derived through the router or the contest set. A missing row is inserted with its marks in one batch; an existing row is updated by name; `isSettled` guards the update, and `reopenExpired` is the repair's. `syncSenateCandidates` and `syncHouseDistricts` call it per page, and their summaries, so the cron payload, carry `runoffs`. `createRunoffWriter` serves the repair. The special registry's two reads gain `election_round = 'primary'`.
+  - `lib/runoff-repair.ts`, `scripts/repair-runoffs.ts` and `package.json` (`npm run repair:runoffs`).
+  - `scripts/seed-runoffs.ts`: a decided roster is kept, and the refresh is one batch.
+- (2) **`fix`:** `components/RaceRunoffs.tsx` (*Lost* in a decided runoff, *Pending* in an undecided one); `lib/incumbent-qualifier.ts` (the comment).
+- (3) **`chore`:** the two runoff seeds' `_comment`s; `lib/pac-target-status.ts`'s rung 1b note that the corpus holds no runoff row for Texas; and `lib/general-ballot.ts`'s note that `primary-kept` is every box the ingest reads (it is every box the ingest reads as a first round).
+
+**Departures and side effects, each named.**
+- (1) **The box's date wins; the first round's `runoff_date` is the fallback.** The handoff offered either. All 33 boxes print one, and the 3 that disagree are the stored side's error.
+- (2) **Every existing runoff row is updated by name, whoever wrote it,** not only a seed; a missing one is inserted with its marks. The by-name path never deletes, so a page row with no stored row is reported (`noMatch`), not added. None was, on the legs.
+- (3) **`seed:runoffs` keeps a decided roster, in one batch** (a forced consequence: its delete-then-insert as `running` would undo the repair; the batch is the review's).
+- (4) **The special registry's `election_round` filter** (a forced consequence: `senate-SC-2026-special-R-runoff` matches the registry's id pattern).
+- (5) **A `chore` commit, a sixth kind:** comments HO 761 turns false, as HO 760's was.
+- (6) **New rows carry `race_id` NULL,** as the regular first rounds do (a seeded special's, `senate-SC-2026-special-R`'s `S-SC-2026`, is not inherited), so only the seeded races draw a runoff block (filed; ruled the same day by the architect, verbatim: *"The race_id call: ruled yes, as the next HO with captures; annotate the line so."*).
+- (7) **`lib/pac-target-status.ts` reads runoff rounds by design (rung 1b).** Measured on the legs' copies: 0 of 18 PAC targets move, because no PAC seat gains a runoff row. The rung's seat-wide test is filed.
+- (8) **The consumer census** (a Workflow of 61 read-only agents over every reader of `primaries` and `primary_candidates` and every caller of the scraper, each non-trivial verdict checked by a skeptic): every reader is either intended (the qualifier, the runoff block) or unaffected on today's data. One dormant script is unsafe to re-run (filed).
+
+**The legs** (`scripts/diagnostic/runoff-rounds-legs-761.ts`, with its child and shim; `docs/handoffs/761-artifacts/legs-d.txt`, `captures-d.txt`, `leg5-d.txt`; runs a to c kept beside them).
+- **The copies:** one seed read whole from prod (13 tables, the schema by the real migrate), copied as `before`, `head`, `new`, `after` and `cli`, with clones for the harvest, the seed and the race legs.
+- **HO 747's saved pages stand in for Ballotpedia:** in process through an IO that reads them, and in children through `runoff-pages-shim-761.cjs`, a `--require` preload answering every `ballotpedia.org` request from them.
+- **`getDb()` never runs in the driver,** whose env is prod's. The sync and the race page's reads run in a child, on a `file:` copy only, in a cwd with no `.cache/ballotpedia` (the dev cache holds a pre-results TX-18 page). The render and PAC reads run under HO 757's `next/cache` stub.
+- **Prod's fingerprint** read the same before and after every mode.
+
+The d runs are on the committed blobs (scrape `2f631e83a1`, sync `0f17c37792`, repair `3fd5b87c9b`, block `f10aa7706b`, qualifier `be53cea009`, driver `0fa8a49c40`, child `af08b41e34`, shim `7686e5101f`): the legs 43 pass and 0 fail, the captures 11 and 0, leg 5 7 and 0.
+
+| Leg | Red (HEAD, or the before copy) | Green (the tree) |
+|---|---|---|
+| 1 the parser | HEAD's result has no `runoffs`: Green, Menefee, Collins and Dooley once each, marked (the first round's advancers) | TX-18: one D round, 2026-05-26, Menefee marked 69.3, Green unmarked 30.7, both underlined; S-GA: one R round, 2026-06-16, Collins marked, Dooley not; Green in both of TX-18's rounds; all 470 saved pages' first rounds identical to HEAD's, and 33 runoff rounds; through the repair's writer, dry, `house-TX-18-2026-D-runoff` inserted and S-GA's box on the seeded `senate-GA-2026-R-runoff`, reopened (the cron's writer leaves it settled) |
+| 2 the write | HEAD's sync over S-GA, S-TX, S-LA, S-SC, TX-18 and TX-33 writes no runoff row | the tree's inserts five (TX-18 D, TX-33 D and R, S-SC special R, S-TX R), each with one winner, its shares, the first round's fields and the box's date, Green and Cornyn and Johnson carrying their bioguides; leaves the three expired seeds; the first rounds identical to HEAD's sync's. The repair then updates GA's seed in place (the same ids, `race_id` kept, Collins 55.5 won, Dooley 44.5) and LA's two, and inserts the other 25. A second repair and a second sync change nothing |
+| 2r the race | — | two writers on one copy, TX-18 at once: both pass the existence check, and the roster holds 2 rows |
+| 2s the seed | HEAD's `seed:runoffs` on the after copy resets the three decided seeds to `running`, no shares | the tree's keeps all three exactly (*roster kept* ×3), and on the before copy still refreshes an undecided seed, in one batch |
+| 3 the qualifier | before: TX-09, TX-32, S-TX `absent` | after: all three `lost_primary`, and HEAD's rule reads the same on the after copy; no other race moves (absent 36 → 33, lost_primary 9 → 12) |
+| 4 the block | HEAD's `RaceRunoffs` on the after rows: Dooley *44.5%*, no result | the tree's: Collins *55.5% · won*, Dooley *44.5% · lost*; LA's undecided seeds (before copy) *Pending* ×4, and after the repair two won, two lost. Captured from the tree's build at 1440, 2560 and 1440 with reduced motion (read back in the page), every stylesheet 200, no console error; the listener was the spawned server's PID and the port was free after each kill |
+| 5 the CLI | — | `npm run repair:runoffs` itself, through the shim: the dry run changes no table's content hash and plans 30 inserts and 3 reopens; `--write` yields the 33 rounds, each with one winner, equal row by row to the in-process repair's; 104 requests each way, `minGapMs` 6000 |
+| 6 nothing else moves | — | before → after changes `primaries`, `primary_candidates` and its `sqlite_sequence` counter only, and in them only the runoff rounds; the harvest's `race_candidates` and payload (less `runStamp`) identical; PAC: 18 targets, 0 moved |
+
+**The review** (the `ho761-diff-review` Workflow on the working tree: five reviewers, on the writer, the parser, the repair, the render and the seed, and the system around them; each finding put to two skeptics told to default to REFUTED; 41 agents). It found 18 issues, none above low once verified. The one filed at medium, the replayed insert, was put at low by both skeptics, because nothing draws a written row today.
+- **Kept, and fixed before the commits:**
+  - the first write's roster INSERTs are guarded by `(primary_id, name)`, so a replayed batch (`lib/db.ts` re-sends a request once after a 10s abort) or a writer racing the existence check adds no second copy (leg 2r);
+  - the seed's roster refresh is one batch;
+  - comments made true: the seed script's two, the two seed files' `_comment`s, `ScrapedRunoff`'s date claim (written before STEP 0 found SC's three), `general-ballot.ts`'s `primary-kept`, and the writer's `race_id` note (a seeded special's first round does carry one); the router's doc block is back on the router;
+  - the report's `outOfContestSet` entries name their page, and the repair's dry log says nothing was written.
+- **Refuted:** folding two boxes for one contest into one round (none on any saved page, and the first round folds the same way); the FIRST WRITE comment and `dateDisagrees` wording (both were still reworded); and three findings already fixed in the tree when their skeptics read it.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. `npm run repair:runoffs`, pasted; then `npm run repair:runoffs -- --write`: at STEP 0's reading, 30 runoff rounds inserted and the 3 seeds reopened, a winner in each. (The cron alone would write the 30 as its cursor passes their pages; it never reopens the seeds.)
+3. After the next `races` flush (the Kalshi cron at `15 */2`, or the race-challengers cron at `30 12`): `/race/S-GA-2026`'s runoff block (Collins *won*, Dooley *lost*), and `/race/TX-09-2026`, `/race/TX-32-2026` and `/race/S-TX-2026` reading LOST PRIMARY.
+
+**Docs (HO 761):**
+- This block.
+- **backlog 8+/2−:**
+  - HO 759's runoff line struck on leg 3;
+  - the SC runoff line annotated with what the page says: the Aug 11 field went to an Aug 25 runoff, Graham over Norman, and the sync now writes its row;
+  - HO 760's S-GA runoff-block finding filed and struck in one line;
+  - five findings filed: the sync-written rows' NULL `race_id` (ruled yes: the next HO, with captures), the four no-box first rounds, rung 1b's seat-wide test, the dormant HO 577 script, and SC's House `runoff_date`.
+  - The two deletions are the two lines rewritten whole.
+- **SKILL 8+/7−**, its own commit, for approval: runoff rounds as contests (the parser, the id, the box's date), the seeds maintained by the page, `repair:runoffs`, `RaceRunoffs`' *Lost*, the qualifier's runoff reading, the cron entry's payload, the votebox rule's runoff clause, and one ride-along, flagged: the PAC ladder's *3 runoff rows total, none for Texas*, which HO 761 turns false.
+- **OPEN LOOPS reconciled: 263 live / 317 struck at open (580 total), 267 / 319 (586) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 761.**
