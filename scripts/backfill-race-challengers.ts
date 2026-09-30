@@ -7,10 +7,11 @@
 // What the shared harvest does, in one line each (full rationale in the lib):
 // non-incumbent primary winners → race_candidates for every 2026 seat whose
 // primary has voted (the rated-index gate went at HO 741), idempotent under the
-// `harvest:primary_winner` sentinel, hand-curated rosters (HO 171/174/182)
-// untouched, coverage partial by design. HO 750: every race with a `box` read
-// and no curated roster now takes the November ballot instead, under
+// `harvest:primary_winner` sentinel, coverage partial by design. HO 750: every
+// race with a `box` read now takes the November ballot instead, under
 // `harvest:general_ballot`; the primary-sourced rows cover the races with no box.
+// HO 760: curated rosters (HO 171/174/182) publish from the ballot too, and a
+// curated row survives only as `withdrew`.
 //
 // Run: `npm run backfill:race-challengers`. Then flush the cache:
 //   POST /api/revalidate?tag=races  (seed scripts don't auto-flush, per SKILL).
@@ -45,7 +46,7 @@ async function main() {
   );
   console.log(`incumbent rule routes: ${JSON.stringify(result.incumbentRoutes)}`);
   console.log(
-    `curated races diverging from the ballot: ${result.curatedDivergence.length ? result.curatedDivergence.join(" · ") : "none"}`,
+    `HO 760 curated rows kept (withdrew) ${result.curatedHistoryKept.length}: ${result.curatedHistoryKept.join(" · ") || "none"} · retired this run ${result.curatedRetired.length}: ${result.curatedRetired.join(" · ") || "none"}`,
   );
   // HO 757: the others on party-primary ballots, the fusion prints kept, and the O others' parties.
   console.log(`on_ballot (others, ruled C): ${JSON.stringify(result.onBallot)} · fusion prints ${result.fusionPrints} · O parties printed ${result.oPrints}`);

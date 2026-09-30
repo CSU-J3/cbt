@@ -56,7 +56,7 @@ async function handle(request: Request) {
         `rows=${summary.rows} races=${summary.races} of ${summary.seats} seats · ${summary.ratedIndex} rated ` +
         `bySource=${JSON.stringify(summary.bySource)} ballotRaces=${summary.ballotRaces} ` +
         `ignored=${summary.ballotIgnored} routes=${JSON.stringify(summary.incumbentRoutes)} ` +
-        `curatedDivergence=${summary.curatedDivergence.length} ` +
+        `curatedHistoryKept=${summary.curatedHistoryKept.length} curatedRetired=${JSON.stringify(summary.curatedRetired)} ` +
         `onBallot=${JSON.stringify(summary.onBallot)} fusionPrints=${summary.fusionPrints} oPrints=${summary.oPrints} jungle=${JSON.stringify(summary.jungle)} stamp=${summary.runStamp}`,
     );
     return { payload: summary };

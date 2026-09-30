@@ -34,9 +34,10 @@
 // Idempotent + seed-safe via a sentinel source_url:
 //   - Harvested rows carry source_url = HARVEST_SOURCE.
 //   - Hand-curated rows (HO 171/174/182 strip races) carry real Ballotpedia
-//     URLs, so a race that already has any non-sentinel row is left untouched.
+//     URLs. Until HO 760 a race with any non-sentinel row was left untouched;
+//     since HO 760 only a curated `withdrew` row survives (see HO 760 below).
 //   - Re-running deletes prior harvested rows and re-derives, so newly-resolved
-//     primaries flow in without clobbering curated rosters.
+//     primaries flow in.
 //
 // Coverage is partial by design — only seats whose primaries have voted AND
 // were rostered yield a winner. The rest keep RaceMapCard's null-safe
@@ -58,9 +59,25 @@
 // them harvested runoff losers) and about 60 major-party candidates on it and
 // unpublished. The seat's incumbent is told apart by identity, with the
 // underline-and-surname fallback, in lib/ballot-incumbent.ts, not by a
-// bioguide the ingest assigns by surname. Curated rosters are untouched.
+// bioguide the ingest assigns by surname. Curated rosters were untouched until
+// HO 760 (below).
+//
+// HO 760 — THE SEED KEEPS HISTORY, THE BALLOT DECIDES THE FIELD (the S-GA line,
+// ruled C by Corey, 2026-09-30: "C"). A curated race is no longer skipped: every
+// race with a `box` read publishes from the ballot, curated or not, and the
+// DELETE clears, besides both sentinels' rows, every curated row whose status is
+// not `withdrew`. A curated `withdrew` row stays as it is, source URL and all:
+// the primary-stage withdrawals no box lists (S-ME's Mills and Platner, NJ-07's
+// Roth, Shah and Varela) are history only the seed carries. Where the ballot
+// would publish the same person as `withdrew` under the same (race_id, name)
+// as a kept row (AK-AL's John Brendan Williams, in the box's withdrawn block),
+// the plan leaves its row out and the kept entry in `curatedHistoryKept` says
+// so, so `ballotIgnored`, the collision alarm, reads 0 in steady state (the
+// architect, on HO 760's flags). Any other collision with a kept row still
+// reaches INSERT OR IGNORE and is counted there. `seed:races` writes only
+// `withdrew` entries now (scripts/seed-races.ts).
 import type { Client, InStatement } from "@libsql/client";
-import { findIncumbentOnBallot, findIncumbentRow, normName, type BallotPerson, type IncumbentRoute } from "./ballot-incumbent";
+import { findIncumbentOnBallot, findIncumbentRow, type BallotPerson, type IncumbentRoute } from "./ballot-incumbent";
 import { TOP_FOUR_STATES, TOP_TWO_STATES } from "./primary-calendar-scrape";
 
 export const CYCLE = 2026;
@@ -69,7 +86,7 @@ export const CYCLE = 2026;
 // general_ballot_reads (Louisiana's jungle seats, FL-10's canceled general, any
 // race the ballot reader has not read). `harvest:general_ballot` is the
 // ballot-sourced roster (planBallotRoster). Both are harvested rows: the DELETE
-// clears both, and the curated guard treats neither as curated.
+// clears both (and, since HO 760, every curated row that is not `withdrew`).
 export const HARVEST_SOURCE = "harvest:primary_winner";
 export const BALLOT_SOURCE = "harvest:general_ballot";
 export const HARVEST_SOURCES = [HARVEST_SOURCE, BALLOT_SOURCE] as const;
@@ -88,14 +105,20 @@ export type HarvestResult = {
   // HO 750: rows and races by sentinel, the incumbent rule's routes over the
   // ballot-sourced races, the ballot rows planned against those inserted (a
   // (race_id, name) collision is ignored by INSERT OR IGNORE and counted here,
-  // never silent), and the curated races whose active roster differs from the
-  // ballot's in-scope set, named.
+  // never silent).
   bySource: Record<string, { rows: number; races: number }>;
   ballotRaces: number;
   ballotPlanned: number;
   ballotIgnored: number;
   incumbentRoutes: Record<IncumbentRoute, number>;
-  curatedDivergence: string[];
+  // HO 760 (replacing HO 750's curatedDivergence): the curated rows kept, the
+  // seed's `withdrew` history, and the curated rows this run retired (every
+  // other status: named on the first run after HO 760, empty after), each
+  // "race_id: name (status)", read in the plan's snapshot. A kept row the ballot
+  // also lists as withdrawn reads "(withdrew; also the ballot's withdrew row)":
+  // that row is counted here, not in ballotIgnored.
+  curatedHistoryKept: string[];
+  curatedRetired: string[];
   // HO 757: the `on_ballot` rows planned (the others on party-primary ballots),
   // their races, and their roster letters; the planned rows carrying a fusion
   // print; and the O others carrying their single-line party.
@@ -115,12 +138,12 @@ export type HarvestResult = {
 // each published as a challenger in her own race. That defect belongs to the
 // backlog line "The harvest's incumbent exclusion trusts a bioguide the ingest
 // assigns by surname…" (HO 747); HO 748 leaves it as it is.
-// The NOT EXISTS guard skips any race that already carries a hand-curated row
-// (real Ballotpedia source_url ≠ the sentinel), preserving the HO 171/174/182
-// strip rosters.
+// Until HO 760 a NOT EXISTS guard skipped any race that carried a hand-curated
+// row (a real Ballotpedia source_url, not a sentinel), preserving the HO
+// 171/174/182 strip rosters. HO 760 removed it: the ballot decides the field.
 // HO 750: this primary-sourced WHERE now serves only the races WITHOUT a `box`
-// read; a race with one publishes from the ballot (planBallotRoster). The
-// curated guard counts both sentinels as harvested. HO 748's two clauses stand.
+// read; a race with one publishes from the ballot (planBallotRoster). HO 748's
+// two clauses stand.
 const HARVEST_FROM_WHERE = `
   FROM races r
   JOIN primaries p
@@ -137,15 +160,10 @@ const HARVEST_FROM_WHERE = `
     -- races are the PLAN's (one JSON argument), not re-read here: a ballot tick
     -- committing between the plan's read and this batch would otherwise leave a
     -- race with both sentinels' rows, or with none, until the next harvest.
-    AND r.id NOT IN (SELECT value FROM json_each(?))
-    AND NOT EXISTS (
-      SELECT 1 FROM race_candidates rc
-      WHERE rc.race_id = r.id
-        AND ( rc.source_url IS NULL OR rc.source_url NOT IN ('${HARVEST_SOURCE}', '${BALLOT_SOURCE}') )
-    )`;
+    AND r.id NOT IN (SELECT value FROM json_each(?))`;
 
 // HO 750 — THE BALLOT-SOURCED ROSTER. For every 2026 race whose
-// general_ballot_reads.status is `box` and which carries no curated row, the
+// general_ballot_reads.status is `box` (curated or not, since HO 760), the
 // roster is the ballot's (lib/general-ballot.ts, HO 749), not the primary's:
 //   · candidates: on_ballot = 1 and write_in = 0, less the incumbent's row (the
 //     rule in lib/ballot-incumbent.ts). In a top-two or top-four state every
@@ -179,8 +197,8 @@ const HARVEST_FROM_WHERE = `
 // before HO 757. Only the race page's roster (getRaceRoster) reads these rows.
 // Their `party` is a roster letter from the printed party (rosterPartyLetter).
 // Top-two and top-four states are unchanged: they already publish every
-// candidate as `advanced`. Curated races are untouched, and their divergence is
-// still named against the D and R set, as HO 750 measured it.
+// candidate as `advanced`. Since HO 760 a curated race is planned like any
+// other, so its others publish too (NJ-07's Seamus O'Toole at HO 760's STEP 0).
 //   · printed_party: the ballot's print, kept whole when it carries more than
 //     one line (a fusion print, "R / Conservative Party"), on every row printed
 //     on the ballot, majors included; and (the architect's amendment) on an
@@ -199,8 +217,9 @@ const HARVEST_FROM_WHERE = `
 //     primary_candidates (getRaceRoster), not from a status.
 //   · two marked: those two `advanced` (the Dec-12 runoff), the rest
 //     `on_ballot`.
-// No curated race and no race with a `box` read (the plan's, one JSON
-// argument) is touched, as in the primary-sourced half.
+// No race with a `box` read (the plan's, one JSON argument) is touched, as in
+// the primary-sourced half; since HO 760 a curated race is not skipped here
+// either.
 const JUNGLE_FROM_WHERE = `
   FROM races r
   JOIN primaries p
@@ -210,32 +229,20 @@ const JUNGLE_FROM_WHERE = `
   JOIN primary_candidates pc ON pc.primary_id = p.id
   WHERE r.cycle = ${CYCLE}
     AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )
-    AND r.id NOT IN (SELECT value FROM json_each(?))
-    AND NOT EXISTS (
-      SELECT 1 FROM race_candidates rc
-      WHERE rc.race_id = r.id
-        AND ( rc.source_url IS NULL OR rc.source_url NOT IN ('${HARVEST_SOURCE}', '${BALLOT_SOURCE}') )
-    )`;
+    AND r.id NOT IN (SELECT value FROM json_each(?))`;
 const JUNGLE_WINNERS = `(SELECT COUNT(*) FROM primary_candidates w WHERE w.primary_id = p.id AND w.status = 'winner')`;
 
 export type PlannedRow = { race_id: string; name: string; party: string | null; bioguide_id: string | null; status: string; printed_party: string | null };
 export type BallotPlan = {
   rows: PlannedRow[];
   ballotRaces: string[];
-  // Every race with a `box` read in the plan's snapshot, curated or not: the
-  // primary-sourced INSERT…SELECT excludes exactly these.
+  // Every race with a `box` read in the plan's snapshot: the primary-sourced
+  // INSERT…SELECT excludes exactly these.
   boxRaces: string[];
   incumbentRoutes: Record<IncumbentRoute, number>;
-  curatedDivergence: string[];
-};
-// lib/race-matchup.ts WITHDRAWN: statuses that mean the candidate is out.
-const OUT_STATUSES = new Set(["withdrew", "withdrawn", "lost", "loser", "eliminated"]);
-// Same person when the first and last name tokens agree, so a printed middle
-// name is not a divergence (S-ME's curated "Troy Jackson", the ballot's "Troy
-// Dale Jackson").
-const firstLast = (name: string) => {
-  const t = normName(name).split(" ").filter((x) => x && !["jr", "sr", "ii", "iii", "iv"].includes(x));
-  return `${t[0] ?? ""} ${t[t.length - 1] ?? ""}`;
+  // HO 760: the curated rows the run keeps (`withdrew`) and retires (the rest).
+  curatedHistoryKept: string[];
+  curatedRetired: string[];
 };
 type GbRow = BallotPerson & { race_id: string; party: string | null; printed_party: string | null; write_in: number; withdrawn: number; primary_marked: number };
 
@@ -306,11 +313,18 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
       },
     ]),
   );
-  const curated = new Map<string, { name: string; status: string | null }[]>();
+  // HO 760: the curated rows, named: `withdrew` is kept, every other status is
+  // retired by this run's DELETE, which uses the same condition (read here in
+  // the plan's snapshot; the DELETE runs in the write batch that follows).
+  const keptRows = new Set<string>(); // "race_id|name" of the kept curated rows
+  const foldedIn = new Set<string>(); // the kept rows the ballot also lists as withdrawn
+  const curatedRetired: string[] = [];
   for (const r of curatedRs!.rows) {
-    const k = String(r.race_id);
-    (curated.get(k) ?? curated.set(k, []).get(k)!).push({ name: String(r.name), status: r.status == null ? null : String(r.status) });
+    const status = r.status == null ? null : String(r.status);
+    if (status === "withdrew") keptRows.add(`${String(r.race_id)}|${String(r.name)}`);
+    else curatedRetired.push(`${String(r.race_id)}: ${String(r.name)} (${status ?? "no status"})`);
   }
+  curatedRetired.sort();
   const byRace = new Map<string, GbRow[]>();
   for (const r of gbRs!.rows) {
     const row: GbRow = {
@@ -330,7 +344,7 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
   }
   const boxRaces = new Set(boxRs!.rows.map((r) => String(r.race_id)));
 
-  const plan: BallotPlan = { rows: [], ballotRaces: [], boxRaces: [...boxRaces].sort(), incumbentRoutes: { identity: 0, "underline-surname": 0, none: 0 }, curatedDivergence: [] };
+  const plan: BallotPlan = { rows: [], ballotRaces: [], boxRaces: [...boxRaces].sort(), incumbentRoutes: { identity: 0, "underline-surname": 0, none: 0 }, curatedHistoryKept: [], curatedRetired };
   for (const id of [...boxRaces].filter((x) => races.has(x)).sort()) {
     const race = races.get(id)!;
     const rows = byRace.get(id) ?? [];
@@ -343,16 +357,8 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
     const inScope = rows.filter(
       (r) => r.on_ballot === 1 && r.write_in === 0 && r !== inc?.row && (tx || r.party === "D" || r.party === "R"),
     );
-    const cur = curated.get(id);
-    if (cur) {
-      // Curated races are untouched; their divergence from the ballot is named.
-      const cs = new Set(cur.filter((c) => !OUT_STATUSES.has((c.status ?? "").toLowerCase())).map((c) => firstLast(c.name)));
-      const bs = new Set(inScope.map((r) => firstLast(r.name)));
-      const onlyCur = cur.filter((c) => !OUT_STATUSES.has((c.status ?? "").toLowerCase()) && !bs.has(firstLast(c.name))).map((c) => c.name);
-      const onlyBal = inScope.filter((r) => !cs.has(firstLast(r.name))).map((r) => r.name);
-      if (onlyCur.length || onlyBal.length) plan.curatedDivergence.push(`${id}: curated only [${onlyCur.join(", ")}]; ballot only [${onlyBal.join(", ")}]`);
-      continue;
-    }
+    // HO 760: a curated race is planned like any other (the ballot decides the
+    // field); its kept `withdrew` rows win any (race_id, name) collision below.
     plan.ballotRaces.push(id);
     if (inc) plan.incumbentRoutes[inc.route]++;
     for (const r of inScope) {
@@ -390,10 +396,17 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
     const incAnywhere = findIncumbentRow(rows, stored);
     for (const r of rows) {
       if (r.on_ballot === 0 && r.withdrawn === 1 && r.primary_marked === 1 && r !== incAnywhere) {
+        // HO 760: the same person already kept as a curated `withdrew` row is
+        // the seed's history; the ballot agrees, so its row is folded into
+        // curatedHistoryKept rather than planned and ignored.
+        if (keptRows.has(`${id}|${r.name}`)) { foldedIn.add(`${id}|${r.name}`); continue; }
         plan.rows.push({ race_id: id, name: r.name, party: r.party, bioguide_id: r.bioguide_id, status: "withdrew", printed_party: null });
       }
     }
   }
+  plan.curatedHistoryKept = [...keptRows]
+    .map((k) => { const [race, name] = k.split("|") as [string, string]; return `${race}: ${name} (withdrew${foldedIn.has(k) ? "; also the ballot's withdrew row" : ""})`; })
+    .sort();
   return plan;
 }
 
@@ -410,9 +423,18 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   const plan = await planBallotRoster(db);
 
   // 1. Clear prior harvested rows under BOTH sentinels (idempotent refresh).
-  //    Never touches curated rows, which carry neither.
+  // 1a. HO 760: and every curated row (neither sentinel) whose status is not
+  //     `withdrew`: the seed keeps history, the ballot decides the field. The
+  //     plan named these rows, by the same condition, in its own read snapshot
+  //     (curatedRetired).
   const stmts: InStatement[] = [
     { sql: `DELETE FROM race_candidates WHERE source_url IN (?, ?)`, args: [HARVEST_SOURCE, BALLOT_SOURCE] },
+    {
+      sql: `DELETE FROM race_candidates
+            WHERE ( source_url IS NULL OR source_url NOT IN (?, ?) )
+              AND status IS NOT 'withdrew'`,
+      args: [HARVEST_SOURCE, BALLOT_SOURCE],
+    },
   ];
   // 1b. HO 750: the ballot-sourced rows, 100 to a statement.
   for (let i = 0; i < plan.rows.length; i += 100) {
@@ -425,8 +447,8 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     });
   }
 
-  // 2. Insert non-incumbent winners for the races WITHOUT a box read and with
-  //    no curated roster (HO 750: the primary-sourced half).
+  // 2. Insert non-incumbent winners for the races WITHOUT a box read (HO 750:
+  //    the primary-sourced half; curated or not since HO 760).
   //    status='won_primary' / 'advanced' surfaces them first in the card's
   //    roster ordering — both rungs tie at 0 (lib/queries.ts).
   //
@@ -513,10 +535,11 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   // harvested rows at all. Now the DELETE and every INSERT commit together or
   // not at all, and a throw after the DELETE leaves the old rows in place.
   const done = await db.batch(stmts, "write");
-  // [0] the DELETE, [1..n] the ballot INSERTs, then the primary-sourced INSERT
-  // and (HO 758) the jungle INSERT, last.
+  // [0] the sentinels' DELETE, [1] (HO 760) the curated DELETE, [2..n] the
+  // ballot INSERTs, then the primary-sourced INSERT and (HO 758) the jungle
+  // INSERT, last.
   const cleared = done[0]!.rowsAffected;
-  const ballotInserted = done.slice(1, -2).reduce((a, r) => a + r.rowsAffected, 0);
+  const ballotInserted = done.slice(2, -2).reduce((a, r) => a + r.rowsAffected, 0);
   const primaryInserted = done[done.length - 2]!.rowsAffected;
   const jungleInserted = done[done.length - 1]!.rowsAffected;
   // HO 758: the jungle census, read after the write.
@@ -569,7 +592,8 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     ballotPlanned: plan.rows.length,
     ballotIgnored: plan.rows.length - ballotInserted,
     incumbentRoutes: plan.incumbentRoutes,
-    curatedDivergence: plan.curatedDivergence,
+    curatedHistoryKept: plan.curatedHistoryKept,
+    curatedRetired: plan.curatedRetired,
     onBallot: onBallotCensus(plan.rows),
     fusionPrints: plan.rows.filter((r) => fusionPrint(r.printed_party) != null).length,
     oPrints: plan.rows.filter((r) => r.status === ON_BALLOT && r.party === "O" && r.printed_party != null && fusionPrint(r.printed_party) == null).length,

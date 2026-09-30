@@ -82,6 +82,7 @@ async function main() {
   let signalSet = 0;
   let signalCleared = 0;
   let invalidSignals = 0;
+  let retiredEntries = 0;
 
   for (const race of (seed.races as RaceSeed[]) ?? []) {
     if (!knownIds.has(race.id)) {
@@ -223,6 +224,15 @@ async function main() {
     }
 
     for (const c of race.candidates ?? []) {
+      // HO 760 (ruled C: the ballot decides the field, the seed keeps history):
+      // only a `withdrew` entry is written. Any other status stays in the seed
+      // file as the record of what was curated, and the harvest publishes that
+      // race from its November ballot (lib/harvest-challengers.ts).
+      if (c.status !== "withdrew") {
+        console.log(`  ${race.id}: ${c.name} (${c.status ?? "no status"}) retired by HO 760 — the ballot decides the field; not written`);
+        retiredEntries++;
+        continue;
+      }
       await db.execute({
         sql: `INSERT INTO race_candidates
                 (race_id, name, party, bioguide_id, status, source_url, updated_at)
@@ -234,8 +244,9 @@ async function main() {
                 source_url = excluded.source_url,
                 updated_at = excluded.updated_at,
                 -- HO 757: a curated row carries no ballot print. Without this, a
-                -- curated seed over a harvested fusion row would keep a print the
-                -- harvest never refreshes (it skips curated races).
+                -- curated seed over a harvested row would keep a print the harvest
+                -- never refreshes, since it keeps a curated withdrew row as it
+                -- is (HO 760).
                 printed_party = NULL`,
         args: [
           race.id,
@@ -252,7 +263,7 @@ async function main() {
   }
 
   console.log(
-    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} incumbent_bioguide_set=${incumbentSet} open_signal_set=${signalSet} open_signal_cleared=${signalCleared} invalid_signals=${invalidSignals} candidates=${candidates} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
+    `Done. races_updated=${updated} incumbent_running_flagged=${flagged} incumbent_bioguide_set=${incumbentSet} open_signal_set=${signalSet} open_signal_cleared=${signalCleared} invalid_signals=${invalidSignals} candidates=${candidates} retired_by_ho760=${retiredEntries} missing_races=${missingRaces} invalid_ratings=${invalidRatings}`,
   );
 }
 
