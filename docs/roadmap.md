@@ -3780,3 +3780,106 @@ Refuted: the stub loss as undeclared (filed), the PAC guard as a defect (its com
 - **SKILL 8+/6−**, its own commit, for the architect's read of the ref: the schema block (the vocabulary note, `on_ballot` in the status comment, the letters, `printed_party`); the race-challengers cron's payload and the order it forces; the harvest's scope, ruled C; the readers entry (the race page's `getRaceRoster`, the SQL guards, the third ladder, why leaving a status out of the sets is not a guard); the race page's roster.
 - **OPEN LOOPS reconciled: 262 live / 312 struck at open (574 total), 262 / 313 at close (575)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 757.**
+
+**Also (HO 758), a decided race shows its result, ruled C: the winner marked from Ballotpedia's box with source and time, the calls kept as history, and the dashboard band turned to results, all dormant until election day has passed.** Five commits, kinds unmixed: `feat` · `fix` · `diag` · `docs(skill)` alone · `docs`. `npm run migrate` reached prod before the review push, because the page reads the new column and a Preview reads prod's database (docs/method.md § Environment): at 2026-09-30 00:37Z it added `general_ballot.marked` and nothing else (the `CREATE … IF NOT EXISTS` steps and 45 existing columns were no-ops, the seeds already done, and `sqlite_master` held 220 objects before and after; `docs/handoffs/758-artifacts/migrate-758.txt`). The FF is held for the SKILL approval, the captures and the review. The pointer is 758 by plain arithmetic: pointer 757, highest HO in commit subjects 757, `main` at `f021528`.
+
+**HO 757's readings, carried from its FF go (items 3 to 5)** (`docs/handoffs/757-artifacts/post-757.txt`, `prod-cards-compare.txt`, `prod-races-*.txt`, `prod-captures/`).
+- **The FF:** `main` at `f021528`, fast-forwarded from `0ad8aea` with no force; `verify:deploy` 5 of 5, first match at 31s; Production e2e #36640468663, smoke 140 passed; the review ref's Preview #36638890812 `narrow-preview` passed against prod's migrated database.
+- **The authorized POST, run #21148 at 2026-09-29 22:45:07Z:** `success` in 881 ms. `onBallot` 331 rows over 195 races (L 89, O 67, G 35, I 140), `fusionPrints` 29, `oPrints` 67. It inserted 880 (549 + 331) with 0 ignored, over 454 of 470 races; the majors' rows by status were unchanged (advanced 73, nominee 54, withdrew 4, won_primary 418).
+- **The Production pages, before and after the POST** (the POST flushed `races`, so the after-reading is the harvest's): CO-08, *Also on the ballot* L David Wood; S-TN, three shown and *+5 more on the ballot*, 8 of 8 on opening; NY-07, both fusion prints and O Priscilla Ghaznavi · Our Future Party.
+- **The dashboard's competitive cards:** all 6 identical before and after the POST, odds included, footnote empty; S-IA still reads *Hinson·Turek R v D · nominees*. Reading them needs the `ct_seen` cookie; without it `/` sends an anonymous visitor to `/welcome` (`app/page.tsx:86`).
+- **HO 756's first scheduled `:05` tick, #21163 at 2026-09-30 00:05:43Z** (`docs/handoffs/756-artifacts/tick1-756.txt`): `success` in 12,621 ms, all three steps ran (list 2,846 ms, members 1,565 ms, bills 8,095 ms). It walked 36 of 36 owed bills (89 rows), 0.225s a bill, with `remaining` 0, failed 0, gaveUp 0, and no deadline, cap, 429, auth failure or outage. `chronicErr` named only the four unknown committee codes; `/api/health` read 200, healthy, committees at `5 */6 * * *`. **The second tick (06:05Z) had not landed when this block was written;** it is carried in HO 758's FF go, and HO 756's WATCH runs to 2026-10-06 18:05Z.
+
+**STEP 0** (prod `SELECT`s; `docs/handoffs/758-artifacts/step0-758.txt`, `pcstatus-758.txt`, repo-ignored).
+- **Anchors:** every cited `:N` held by content at `f021528` (`RaceHeader.tsx:32-38`, `lib/format.ts`'s `daysToElection`, `Battlefield.tsx:19-22` and its ELECTION DAY line). **The mock, `mock-election-night.html`, is absent from disk at STEP 0;** the build follows the handoff's description.
+- **Dormant, as the premise needs:** `general_ballot_reads.marked` sums to 0 over all 463 `box` reads and 7 `no_box` reads; `general_ballot` had no per-row mark.
+- **The rated index:** 99 seats (House 86, Senate 13). The band's pre-election *~52 competitive seats* is the `|consensus|≤1.5` band, a smaller set.
+- **Louisiana's six House races:** each a `jungle` row dated 2026-11-03, runoff 2026-12-12, `race_id` NULL, every candidate `running` (4 to 10 a seat), last written 2026-09-22 12:00Z. `primary_candidates.status` holds only `running` (1,695) and `winner` (841). LA-05's stored incumbent, Julia Letlow, is not in her box.
+- **Stored incumbents not on their own ballot:** 94 of the 461 box races with a stored incumbent (367 on), by the incumbent rule. Seven more have no box to read (the six LA seats and FL-10).
+
+**Premises corrected, flagged.**
+- **"This lands dormant" holds for every page but Louisiana's six:** the jungle rule publishes each seat's Nov-3 field as `on_ballot` at the first harvest after the FF, so those six pages gain *Also on the ballot* before any mark (leg 1).
+- **"The odds chip not rendered": the race page has no odds chip** (no Kalshi or Polymarket render on `/race/[id]`), so there is nothing to retire.
+- **"A join on (race_id, name) reaches the mark": a name can repeat within a race** (S-AK-2026 prints the senator and a second Dan Sullivan), so the roster matches a ballot row on name AND bioguide, the identity HO 750 copied into `race_candidates`.
+- **"The OK colour": the palette has none;** the green lives only under meaning-specific names (`--vote-yea`, `--stage-enacted`, `--market-up`), so *Elected* takes its own token, `--result-elected`, by the HO 610 rule.
+- **The band's *of M*:** STEP 0 names the rated index (99); the handoff's leg 7 example read 94.
+- **Leg 8's "captures from the review ref's Preview":** a Preview reads prod's database, where no row is marked, and the clock seam is honoured only against a `file:` database, so the decided state cannot render there. The captures come from local production builds on the copies; the Production reading is the Nov-4 WATCH.
+
+**The build.**
+- (1) **`feat`:**
+  - **The mark.** `scripts/migrate.ts` ensureColumns `general_ballot.marked` (INTEGER NOT NULL DEFAULT 0). `lib/general-ballot.ts` stores each ballot row's result mark (0 on a withdrawn-only entry) and writes it through `COLS`. A ranked-choice general box marks its winner by the row whose last cell reads "Won (N)", not by the class (the review, below); every other box keeps the class.
+  - **Louisiana.** `lib/harvest-challengers.ts` gains the jungle rule (`JUNGLE_FROM_WHERE`), replacing HO 748's skip, and the payload's `jungle` census.
+  - **The result.** `lib/race-result.ts` has `readRaceResult` (the box, Louisiana's jungle box, a `no_box` read, or nothing) and `raceResultView` (dormant until `daysToElection < 0`; exactly one mark is a result, two or more a runoff).
+  - **The clock.** `lib/clock.ts`'s `clockNowMs` is honoured only against a `file:` database, and `lib/format.ts`'s `daysToElection` reads it.
+  - **The queries.** `lib/queries.ts`: `getRaceRoster` carries `marked` and `read_at` (by name and bioguide, then a unique first-and-last-name match; only a race's one mark counts), `getRaceResult`, and `getElectionResults`.
+- (2) **`fix`:**
+  - `app/race/[id]/page.tsx` reads `getRaceResult` and computes the view on the clock.
+  - `RaceHeader` shows the result header and dims the chips behind *final call ·*.
+  - `RaceHubBody` dims the legacy Rating block too, adds the provenance line under the roster and under a stub's sentence, and passes the view down.
+  - `RaceIncumbentCard` shows the qualifier.
+  - `RaceCandidates` shows *Elected* in `--result-elected`, with the marked row leading.
+  - `Battlefield` shows the RESULTS line, with `.ctl-head--results` wrapping it.
+  - `app/globals.css` gains the token and the wrap.
+
+**Departures and side effects, each named.**
+- (1) **Louisiana's six pages change at the first harvest after the FF**, not on Nov 4: the jungle rule publishes their Nov-3 field before any mark (the premise above).
+- (2) **The incumbent's result is shown on the incumbent card, not as an *Elected* row:** the incumbent is never a roster row (HO 750's rule), so leg 2's "Elected on the row" is the card's *re-elected*.
+- (3) **The mark is matched by name and bioguide, then a unique first-and-last name**, not the handoff's `(race_id, name)` join (S-AK's two Dan Sullivans; S-ME's curated *Troy Jackson*).
+- (4) **Two or more marks are a runoff everywhere**, not only in Louisiana: a general that goes to a runoff (Georgia's) marks both advancers. Such a page reads *Runoff*, with no date, since a general box carries none. No row reads *Elected*, and the band does not count the seat.
+- (5) **A `no_box` race (FL-10, its general canceled) says *No general-election box on Ballotpedia · read <…>***, keeping its read time.
+- (6) **The legacy Rating block dims** with the chips, since the handoff names only the chips.
+- (7) **`--result-elected`** is a new token, because the palette has no OK colour.
+- (8) **The band's RESULTS line wraps onto its own row**, a render fix found by eye in the first captures: the long line had squeezed the legend into a column and clipped itself. Only the results state carries the class.
+- (9) **The Louisiana runoff state can lead its roster by up to a harvest:** the header reads the primaries cron's marks directly, while the two advancers turn `advanced` at the next harvest (daily at 12:30Z, or the WATCH's POST).
+- (10) **HO 749's, 750's and 751's leg drivers** seed `general_ballot` from migrate's CREATE TABLE text, which has no `marked`, so their reader-write legs would throw if re-run. They are historical and unchanged. HO 758's leg 9 runs the reader's write path with `marked` instead.
+- (11) **Two post-Nov-3 Louisiana hazards are filed, not built.** A partial call freezes under `isSettled`, named in the WATCH. Ballotpedia's Dec-12 runoff box, once posted, would take the seat to the ballot path; it has its own line.
+
+**The legs** (`scripts/diagnostic/election-night-legs-758.ts`; `docs/handoffs/758-artifacts/legs-f2-seed.txt`, `legs-f2-before.txt`, `legs-f2-after.txt`, `captures/`):
+- **The copies:** one seed, read whole from prod (13 tables, the schema by the real migrate), copied five ways:
+  - `head`: HEAD's harvest;
+  - `new`: the tree's;
+  - `marks`: the tree's, with Louisiana's winners planted before the harvest and general-ballot marks after;
+  - `hmarks`: HEAD's harvest with the same plants, so HEAD's reds read HEAD's own roster;
+  - `band`: 61 of the 99 rated seats marked (13 Senate among them), planted House totals, and one Louisiana winner.
+- **The servers:** local production builds, HEAD's (product files stashed, restored byte for byte from a backup) and the tree's. Each server is proved by its copy's own sentinel with `.next/cache/fetch-cache` cleared, and runs on the real clock or `CBT_CLOCK_NOW` = 2026-11-04 15:00Z. HEAD has no seam, so it reads today whatever the variable says.
+- **Prod:** its fingerprint (race_candidates, general_ballot, the reads, primary_candidates, the schema, three crons' last runs) reads the same before and after each run. A difference passes only when prod's own cron run in the window explains it; the first attempt ran across the primaries cron's 00:00Z tick and could not say so.
+
+Every f2 run is on driver `341edd644b` with the committed product blobs (result `eb47f09dd6`, queries `8b7009b12a`, hub `4fe98407b6`, band `a60ac21ce4`): the seed with legs 6 and 9, 11 pass and 5 fail, every fail a red row; the before phase (HEAD build `JoWY8W9…`), 2 pass and 10 fail, the red; the after phase (tree build `8yrDtf5…`), 15 pass, 0 fail. An earlier run (g1) was green before the review; its fixes are legs 9 and 10 and the stricter checks.
+
+| Leg | Red (HEAD) | Green (the tree) |
+|---|---|---|
+| 1 dormant | (the baseline) | clock today, no marks: 464 of 470 race pages' rendered `<main>` equal HEAD's; Louisiana's six each gain *Also on the ballot*; the band's markup equals HEAD's (15,223 bytes) |
+| 2 re-elected, MI-04 | *34 days to election*, no qualifier | *Decided · Nov 3, 2026*, chips at 0.55 behind *final call ·*, *re-elected*, *Called by Ballotpedia · read Sep 28, 2026, 8:22 PM MT* |
+| 3 open seat, IA-02 | no *Elected* | Joe Mitchell *Elected* and leading, *not on the ballot* on Hinson's card |
+| 4 defeated, FL-14 | no *Elected* | Mike Beltran *Elected*, *defeated* on Castor's card |
+| 5 not called, CO-08 | countdown | *Not yet called*, chips *final call ·*, *No call on Ballotpedia · read …* |
+| 6 Louisiana | HEAD's harvest publishes no LA row; no runoff, no *Elected* | the harvest: 35 rows, each seat's count equal to its box less the incumbent (3, 4, 5, 4, 9, 10); LA-01 (Scalise and Jewett marked): *Runoff Dec 12*, Jewett `advanced`, *runoff Dec 12* on Scalise's card; LA-02 (Renada Collins marked): *Decided*, Collins *Elected*, *defeated* on Carter's card; the payload's `jungle` `{races 6, rows 35, decided 1, runoff 1}` |
+| 7 the band | *ELECTION DAY · NOV 3 · 34 DAYS · ~52 competitive seats* at Nov 4 | Nov 4: *RESULTS · NOV 3 · 61 of 99 competitive seats called · House R 44 · D 44 · other 1 · 346 open · Ballotpedia, read Sep 29, 2026, 4:24 PM MT*, equal to the plant's own count; today: HEAD's line, exactly |
+| 9 the reader | HEAD's reader marks AK-AL 2024's eliminated Howe and Hafner, and nobody in ME-01's and ME-02's boxes; its write path stores Begich 0 | Begich, Golden and Pingree alone; of 2,198 boxes on HO 747's 388 saved pages, the 9 that differ from HEAD are all ranked-choice general boxes on the AK and ME pages; no 2026 general box is marked; the write path stores Begich 1 and no one else |
+| 10 the review's shapes | none of them | AR-02 with two marks: *Runoff*, *runoff* on Hill's card, no *Elected*; S-ME, the ballot's *Troy Dale Jackson* marked: the curated *Troy Jackson* *Elected*, *defeated* on Collins's card; FL-10: *No general-election box on Ballotpedia · read Sep 29, 2026, 12:22 PM MT* |
+
+**Leg 8, the captures** (`captures/`, 36 shots): legs 2, 3, 5 and 6 (MI-04, IA-02, CO-08, LA-01, LA-02) and the band, each at 1440, 2560 and 1440 with reduced motion, HEAD's before beside the tree's after.
+
+**The review** (the `ho758-review` Workflow on the working tree: five reviewers, on the mark and deploy order, Louisiana, the result view, the queries and UI, and the legs, each followed by an adversarial verifier told to default to REFUTED; 29 findings). Fixed, confirmed or plausible:
+- **ranked-choice general boxes** (Alaska, Maine) put the `winner` class on eliminated rows or on none: the mark now reads "Won (N)" in those boxes (confirmed, high; leg 9);
+- **a box with two marks** read as *Decided* with two *Elected* (Georgia-style general runoffs): two or more marks are a runoff (confirmed; leg 10);
+- **a curated name printed differently** missed the mark: the first-and-last fallback (confirmed; leg 10);
+- **Louisiana's marks** arrive only when the primaries cursor reaches the six, and the WATCH did not read them: the WATCH now runs the South House pass (confirmed);
+- **FL-10** read *No call* with no read time: the no-box line (confirmed; leg 10);
+- **a stale schema comment** said the marks are not stored (confirmed);
+- **the legs:** Leg 7's plant covered no Senate seat and no Louisiana winner, and HEAD's reds for LA read the tree's roster; the band plant now covers both, and HEAD reads its own `hmarks` copy (confirmed and plausible). Leg 1's "byte-identical" was worded past what it compares, and three check labels claimed more than they tested; both are corrected (confirmed and plausible).
+
+Plausible and filed or named: a partial Louisiana call freezing under `isSettled` (in the WATCH), Louisiana's Dec-12 runoff box (filed), the runoff header leading its roster by a harvest (named), and HO 749-751's drivers (named). Refuted: the pre-migrate 500 as a code defect (the handoff migrates first; the `COLS` comment now names the page's read), the dormancy gate's UTC day, Louisiana's pages as an unnamed change, and five leg findings.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`, with every race page and the band unchanged but Louisiana's six.
+2. One authorized POST of `/api/cron/race-challengers` after the deploy: its payload's `jungle` (6 races, 35 rows, 0 decided, 0 runoff today), and Louisiana's six pages on Production with *Also on the ballot*.
+3. HO 756's second scheduled `:05` tick (2026-09-30 06:05Z).
+4. The WATCH filed at the head of OPEN LOOPS: the first Nov-4 read.
+
+**Docs (HO 758):**
+- This block.
+- **backlog 5+/3−.** The election-night line is struck with the ruling verbatim, keeping its whole prior text. The Louisiana line (struck at HO 748) carries a re-opened-and-closed-again annotation: the jungle rule replaces the skip, proved on leg 6. The class line is annotated with the post-election qualifier and stays open, its pre-election copy still Corey's. Two lines are filed at the head of OPEN LOOPS: the WATCH for the first Nov-4 read (dated Wednesday 2026-11-04, with Louisiana's own South House pass and the partial-call caveat), and Louisiana's Dec-12 runoff box (the review).
+- **SKILL 13+/4−**, its own commit, for approval: `general_ballot.marked`, Louisiana's jungle rule, the race page's decided state and provenance, the clock seam, the band's results line, `--result-elected`.
+- **OPEN LOOPS reconciled: 262 live / 313 struck at open (575 total), 263 / 314 at close (577)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 758.**
