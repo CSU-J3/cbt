@@ -26,8 +26,9 @@
 // contest type the missing class would have. Per-candidate party in a
 // nonpartisan votebox comes from the image-candidate-thumbnail-wrapper class
 // (CA/WA/AK) or, when that is bare, the "(R)"/"(D)" suffix after the candidate
-// link (Louisiana) — see openContestParty. Runoff voteboxes are skipped (their
-// roster is a subset of the primary's). Candidate name is the <a> in the
+// link (Louisiana) — see openContestParty. A primary-runoff votebox is a round
+// of its own (HO 761): it never joins `candidates`, and is returned in
+// `runoffs`, one entry per box, its rows read exactly as a primary's. Candidate name is the <a> in the
 // votebox-results-cell--text cell; incumbents are <u>-wrapped; the winner row
 // carries a "winner" class. NY-style fusion-party voteboxes (Conservative,
 // Working Families) carry no kind class and an <h5> that names no recognized
@@ -68,6 +69,22 @@ export type ScrapedCandidate = {
   votes: number | null;
 };
 
+// HO 761 — a primary-runoff votebox ("Democratic primary runoff for U.S. House
+// Texas District 18"), kept as a contest of its own. The parser cannot name
+// its primaries id (that is the sync's: the first round's id, routed as the
+// first round is, plus `-runoff`), so it carries what the id is derived from.
+// `date` is the box's own, read from its results line ("… on May 26, 2026."),
+// as YYYY-MM-DD; null when the line prints none. At HO 761's STEP 0 all 33
+// runoff boxes on HO 747's saved pages printed one. 30 equalled their first
+// round's stored runoff_date; SC's 3 House boxes print June 23 where the rows
+// store the Senate special's 2026-08-25, which is why the sync takes the box's.
+export type ScrapedRunoff = {
+  contest: CandidateContest;
+  isSpecial: boolean;
+  date: string | null;
+  candidates: ScrapedCandidate[];
+};
+
 export type CandidateScrapeStatus =
   | "ok"
   | "no_page" // URL 404 / fetch failure
@@ -85,7 +102,21 @@ export type CandidateScrapeResult = {
   // parsed. It no longer gates anything (see the note in parseCandidatesPage);
   // it is surfaced so a failure report can say which article Ballotpedia served.
   pageIsSpecial?: boolean;
+  // HO 761 — the page's primary-runoff boxes, set by parseCandidatesPage on
+  // every page that carries the candidates section (`no_candidates` included);
+  // absent otherwise. Kept apart from `candidates` so every reader of
+  // `candidates` sees exactly the first round it saw before.
+  runoffs?: ScrapedRunoff[];
 };
+
+// "May 26, 2026" -> "2026-05-26"; null for anything else.
+const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+function isoFromLongDate(month: string, day: string, year: string): string | null {
+  const m = MONTHS.indexOf(month.toLowerCase());
+  const d = Number(day);
+  if (m < 0 || !(d >= 1 && d <= 31)) return null;
+  return `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
 
 export function decodeEntities(s: string): string {
   return s
@@ -302,9 +333,13 @@ export function parseCandidatesPage(
 
   const headers = [...section.matchAll(/<div class="race_header([^"]*)">/g)];
   const candidates: ScrapedCandidate[] = [];
-  // Dedup by (contest, name): a runoff repeats a subset of the primary
-  // roster, and some pages echo a candidate across blocks.
+  // Dedup by (contest, name): some pages echo a candidate across blocks. HO
+  // 761: the two rounds are kept apart by construction, not by this key — a
+  // runoff box's rows go to `runoffs` under their own set (`seenRunoff`), so
+  // a runoff advancer is in both rounds and neither drops the other.
   const seen = new Set<string>();
+  const runoffs: ScrapedRunoff[] = [];
+  const seenRunoff = new Set<string>();
   for (let i = 0; i < headers.length; i++) {
     const h = headers[i]!;
     const cls = h[1] ?? "";
@@ -335,9 +370,11 @@ export function parseCandidatesPage(
     if (!contest) continue;
 
     // Keep only the primary voteboxes for this page's election: the <h5>
-    // says "primary", not "runoff". This drops general-election voteboxes
-    // (also "nonpartisan"-classed) and primary-runoff voteboxes (a subset of
-    // the primary).
+    // says "primary". This drops general-election voteboxes (also
+    // "nonpartisan"-classed), a general runoff among them ("General runoff
+    // election for U.S. Senate Georgia" says "runoff" and not "primary"). A
+    // primary-runoff votebox ("primary" AND "runoff") is kept since HO 761, as a
+    // round of its own: into `runoffs`, never into `candidates`.
     //
     // HO 601 C1 — THE PAGE NO LONGER DECIDES WHETHER A BOX IS READ.
     //
@@ -358,8 +395,30 @@ export function parseCandidatesPage(
     // `onSpecialPage` survives as a diagnostic only (returned as pageIsSpecial).
     // DO NOT restore the symmetry check — it cannot express a seat that carries
     // both a regular and a special contest on one page.
-    if (!/primary/i.test(headerText) || /runoff/i.test(headerText)) continue;
+    if (!/primary/i.test(headerText)) continue;
     const boxIsSpecial = /special/i.test(headerText);
+
+    if (/runoff/i.test(headerText)) {
+      // HO 761 — the runoff round. Same rows, same marks, same specialness as a
+      // primary box; its own dedup set. Two boxes for one (specialness,
+      // contest) — none on HO 747's saved pages — fold into one round, the
+      // first box's date kept.
+      const line = stripTags(slice.match(/<p class="results_text">([\s\S]*?)<\/p>/)?.[1] ?? "");
+      const on = line.match(/\bon ([A-Z][a-z]+) (\d{1,2}), (\d{4})\b/);
+      const date = on ? isoFromLongDate(on[1]!, on[2]!, on[3]!) : null;
+      let round = runoffs.find((r) => r.contest === contest && r.isSpecial === boxIsSpecial);
+      if (!round) {
+        round = { contest, isSpecial: boxIsSpecial, date, candidates: [] };
+        runoffs.push(round);
+      }
+      for (const c of parseVotebox(slice, contest, boxIsSpecial)) {
+        const key = `${c.isSpecial ? "S" : "R"}|${c.contest}|${c.name.toLowerCase()}`;
+        if (seenRunoff.has(key)) continue;
+        seenRunoff.add(key);
+        round.candidates.push(c);
+      }
+      continue;
+    }
 
     for (const c of parseVotebox(slice, contest, boxIsSpecial)) {
       // Dedup key includes specialness ON PURPOSE. A candidate can legitimately
@@ -381,9 +440,10 @@ export function parseCandidatesPage(
       status: "no_candidates",
       candidates: [],
       pageIsSpecial: onSpecialPage,
+      runoffs,
     };
   }
-  return { state, url, status: "ok", candidates, pageIsSpecial: onSpecialPage };
+  return { state, url, status: "ok", candidates, pageIsSpecial: onSpecialPage, runoffs };
 }
 
 // True when a fetched page is a special-election page rather than a regular

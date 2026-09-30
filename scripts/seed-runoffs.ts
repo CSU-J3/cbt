@@ -5,14 +5,20 @@
 // `primary_candidates` — see the HO 107 schema decision. This script globs
 // every data/runoff-seeds/*.json file and loads each one. Hand-curated seeds
 // exist because a runoff often has no results yet and Ballotpedia may not have
-// built the page; a real Ballotpedia runoff scraper (a post-runoff handoff)
-// overwrites/retires the matching seed JSON. HO 174 switched the single
-// hardcoded import to a directory glob (mirrors seed:ratings) so a new runoff
-// is drop-a-file, no script edit.
+// built the page. HO 761 landed the scraper: the page's runoff box is written
+// onto the seeded row by name, marks included (lib/primaries-sync.ts
+// writeRunoffRounds: the primaries sync while the row is unsettled, and
+// `npm run repair:runoffs` for a row settled by expiry), and the seed JSON
+// stays as the row's origin. So once the page has decided a runoff (a row is
+// 'winner'), a re-run here keeps that roster rather than resetting it to
+// 'running'; before that it refreshes the roster as it always has. HO 174
+// switched the single hardcoded import to a directory glob (mirrors
+// seed:ratings) so a new runoff is drop-a-file, no script edit.
 //
 // Idempotent: the `primaries` row upserts on its PK; `primary_candidates` is
 // delete-then-insert per primary_id, the same pattern syncSenateCandidates
-// uses. Re-running after editing any JSON is the refresh workflow.
+// uses. Re-running after editing any JSON is the refresh workflow, for a
+// runoff the page has not decided (HO 761, above).
 import "dotenv/config";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -101,21 +107,33 @@ async function main() {
       });
       primariesUpserted++;
 
-      // Delete-then-insert the roster so a re-run after a JSON edit is clean.
-      await db.execute({
-        sql: `DELETE FROM primary_candidates WHERE primary_id = ?`,
+      // HO 761: a roster the page has decided is the page's; keep it.
+      const decided = await db.execute({
+        sql: `SELECT 1 FROM primary_candidates WHERE primary_id = ? AND status = 'winner' LIMIT 1`,
         args: [runoff.id],
       });
-      for (const c of runoff.candidates) {
-        await db.execute({
-          sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status,
-                   vote_pct, updated_at)
-                VALUES (?, ?, ?, ?, NULL, 'running', NULL, ?)`,
-          args: [runoff.id, c.name, c.party, c.incumbent ? 1 : 0, now],
-        });
-        candidatesInserted++;
+      if (decided.rows.length > 0) {
+        console.log(`  ${runoff.id}: roster kept (decided on the page; HO 761's writeRunoffRounds wrote its marks)`);
+        continue;
       }
+
+      // Delete-then-insert the roster so a re-run after a JSON edit is clean. One
+      // batch (HO 761): the keep above makes a decided roster permanent, so a
+      // roster must never be left half-written for the page to decide.
+      await db.batch(
+        [
+          { sql: `DELETE FROM primary_candidates WHERE primary_id = ?`, args: [runoff.id] },
+          ...runoff.candidates.map((c) => ({
+            sql: `INSERT INTO primary_candidates
+                    (primary_id, name, party, incumbent, bioguide_id, status,
+                     vote_pct, updated_at)
+                  VALUES (?, ?, ?, ?, NULL, 'running', NULL, ?)`,
+            args: [runoff.id, c.name, c.party, c.incumbent ? 1 : 0, now],
+          })),
+        ],
+        "write",
+      );
+      candidatesInserted += runoff.candidates.length;
       console.log(`  ${runoff.id}: ${runoff.candidates.length} candidates`);
     }
 

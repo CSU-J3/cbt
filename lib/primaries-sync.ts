@@ -27,6 +27,8 @@ import {
   scrapeSenateCandidates,
   scrapeSenateSpecialCandidates,
   type CandidateContest,
+  type ScrapedCandidate,
+  type ScrapedRunoff,
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
 
@@ -440,6 +442,8 @@ export type SenateSyncSummary = {
   // HO 564: primary ids whose per-contest delete was refused because the
   // incoming roster was empty (never erase a roster on a non-parsing scrape).
   rosterDeletesRefused: string[];
+  // HO 761: the runoff rounds this pass wrote, updated, or left (writeRunoffRounds).
+  runoffs: RunoffWriteReport;
 };
 
 // ── HO 561 — special-primary ingestion helpers ────────────────────────────
@@ -448,6 +452,27 @@ export type SenateSyncSummary = {
 // only orchestrates and writes. One copy of the fetch semantics by construction.
 
 type SenateMatcher = (candidateName: string, state: string) => string | null;
+
+// The seeded special registry, by state: the first-round `-special-` rows. HO
+// 761: `election_round = 'primary'`, because a special contest's runoff row
+// (senate-SC-2026-special-R-runoff) matches the id pattern too, and it is not a
+// seeded contest: the special pass would list it as attempted, and the router
+// needs only the first rounds.
+async function loadSeededSpecialIds(
+  db: ReturnType<typeof getDb>,
+): Promise<Map<string, Set<string>>> {
+  const rs = await db.execute(
+    "SELECT id, state FROM primaries WHERE id LIKE 'senate-%-2026-special-%' AND election_round = 'primary'",
+  );
+  const byState = new Map<string, Set<string>>();
+  for (const r of rs.rows) {
+    const st = String(r.state);
+    const set = byState.get(st) ?? new Set<string>();
+    set.add(String(r.id));
+    byState.set(st, set);
+  }
+  return byState;
+}
 
 // ── HO 601 C1 — THE ROUTER ────────────────────────────────────────────────
 //
@@ -599,6 +624,288 @@ async function isSettled(
     args: [primaryId, today, windowFloor],
   });
   return rs.rows.length > 0;
+}
+
+// ── HO 761 — THE RUNOFF ROUND ─────────────────────────────────────────────
+//
+// A primary-runoff box (parseCandidatesPage's `runoffs`) is stored as a
+// `primaries` row of its own beside its first round, the HO 107 shape the three
+// seeded rows already had: id `<first round id>-runoff` (the first round's id
+// as the first round's own write derives it, so a Senate box goes through the
+// router), election_round 'runoff', the first round's state / district /
+// chamber / party / primary_type, primary_date the box's printed date (the
+// first round's runoff_date when it prints none), runoff_date NULL (a runoff
+// has no further runoff) and race_id NULL. The regular first rounds carry no
+// race_id; a seeded special's does (senate-SC-2026-special-R carries
+// S-SC-2026) and is not inherited, so a runoff row this code writes draws no
+// block on its race page (docs/backlog.md, filed at HO 761). The seeded runoff
+// rows keep theirs.
+//
+// FIRST WRITE: the row and its roster, with the marks the page prints, in ONE
+// batch. So a runoff the page has marked is never stored unmarked, and
+// isSettled never sees one: Texas's runoffs were 2026-05-26, outside the HO 661
+// window, and a row landed unmarked would settle (freeze) the moment it existed.
+// (A box the page has not marked lands unmarked, as a first round does.) Each
+// roster INSERT is guarded by (primary_id, name), so a replayed batch (lib/db.ts
+// re-sends a request once after a 10s abort) or a second writer racing the
+// existence check adds no second copy.
+//
+// A ROW THAT EXISTS — the seeded three (HO 107/174) and every row an earlier
+// tick wrote — is updated BY NAME, the way reingest:primary-slate updates a
+// first round: status, vote_pct and incumbent from the page, and a NULL
+// bioguide_id filled; never deleted, never re-inserted. A stored name the page
+// doesn't print is left as it is; a page name with no stored row is reported
+// (noMatch), not added. So a seed's names and race_id survive the page, and a
+// write that would change nothing is not made.
+//
+// isSettled guards the update as it guards a first round. The one exception is
+// `reopenExpired`, which only repair:runoffs passes: a row settled by EXPIRY
+// alone (past-dated, no winner, older than the window — where the seeded GA
+// and LA rows sat at HO 761's STEP 0) takes the by-name update. A row settled
+// by a winner is never reopened.
+export type RunoffWriteReport = {
+  inserted: string[]; // "id (winner …)": new rows, marks in the same batch
+  updated: string[]; // existing rows whose by-name update changed something
+  reopened: string[]; // expired, undecided rows the repair updated (reopenExpired)
+  unchanged: string[]; // existing rows the page agrees with
+  settledSkipped: string[];
+  noFirstRound: string[]; // no first-round row to hang the runoff on
+  outOfContestSet: string[]; // "page: contest box", a box outside the seat's contest set (House)
+  undated: string[]; // neither the box nor the first round gives a date
+  emptyRoster: string[]; // HO 564: a box with no rows is never a write
+  noMatch: string[]; // "id: name" — a page row with no stored row of that name
+  // Where each dated box's date came from, and where the two sources differ.
+  // The box's is the one an INSERT writes; an existing row's date is never
+  // rewritten.
+  dateFromBox: number;
+  dateFromFirstRound: number;
+  dateDisagrees: string[]; // "id: box D1, first round's runoff_date D2"
+};
+
+export function emptyRunoffReport(): RunoffWriteReport {
+  return {
+    inserted: [],
+    updated: [],
+    reopened: [],
+    unchanged: [],
+    settledSkipped: [],
+    noFirstRound: [],
+    outOfContestSet: [],
+    undated: [],
+    emptyRoster: [],
+    noMatch: [],
+    dateFromBox: 0,
+    dateFromFirstRound: 0,
+    dateDisagrees: [],
+  };
+}
+
+type RunoffAt = { now: string; today: string; windowFloor: string };
+
+async function writeRunoffRounds(
+  db: ReturnType<typeof getDb>,
+  page: string, // the page's label, for the report ("TX-18", "S-GA")
+  runoffs: ScrapedRunoff[],
+  // The first round's id for a box, or null when the seat has no such contest.
+  firstRoundIdFor: (r: ScrapedRunoff) => string | null,
+  matchCandidate: (c: ScrapedCandidate) => string | null,
+  at: RunoffAt,
+  opts: { write: boolean; reopenExpired?: boolean },
+  out: RunoffWriteReport,
+): Promise<void> {
+  for (const r of runoffs) {
+    const firstId = firstRoundIdFor(r);
+    if (!firstId) {
+      out.outOfContestSet.push(`${page}: ${r.isSpecial ? "special " : ""}${r.contest} box`);
+      continue;
+    }
+    const id = `${firstId}-runoff`;
+    if (r.candidates.length === 0) {
+      out.emptyRoster.push(id);
+      continue;
+    }
+    const first = (
+      await db.execute({
+        sql: `SELECT state, district, chamber, party, runoff_date, primary_type
+                FROM primaries WHERE id = ? AND election_round = 'primary'`,
+        args: [firstId],
+      })
+    ).rows[0];
+    if (!first) {
+      out.noFirstRound.push(id);
+      continue;
+    }
+    const firstRunoffDate = (first.runoff_date as string | null) ?? null;
+    const date = r.date ?? firstRunoffDate;
+    if (!date) {
+      out.undated.push(id);
+      continue;
+    }
+    if (r.date) out.dateFromBox++;
+    else out.dateFromFirstRound++;
+    if (r.date && firstRunoffDate && r.date !== firstRunoffDate) {
+      out.dateDisagrees.push(`${id}: box ${r.date}, first round's runoff_date ${firstRunoffDate}`);
+    }
+    const won = r.candidates.filter((c) => c.isWinner).map((c) => c.name);
+    const tag = `${id} (${won.length ? `winner ${won.join(" + ")}` : "no winner marked"})`;
+
+    const exists = (
+      await db.execute({ sql: "SELECT 1 FROM primaries WHERE id = ?", args: [id] })
+    ).rows.length > 0;
+    if (!exists) {
+      const stmts = [
+        {
+          sql: `INSERT INTO primaries
+                  (id, state, district, chamber, party, primary_date, runoff_date,
+                   primary_type, election_round, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'runoff', ?)
+                ON CONFLICT(id) DO NOTHING`,
+          args: [
+            id,
+            first.state as string,
+            (first.district as string | null) ?? null,
+            first.chamber as string,
+            first.party as string,
+            date,
+            (first.primary_type as string | null) ?? null,
+            at.now,
+          ],
+        },
+        ...r.candidates.map((c) => ({
+          sql: `INSERT INTO primary_candidates
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                 WHERE NOT EXISTS (SELECT 1 FROM primary_candidates WHERE primary_id = ? AND name = ?)`,
+          args: [
+            id,
+            c.name,
+            c.party,
+            c.incumbent ? 1 : 0,
+            matchCandidate(c),
+            c.isWinner ? "winner" : "running",
+            c.votePct,
+            at.now,
+            id,
+            c.name,
+          ],
+        })),
+      ];
+      if (opts.write) await db.batch(stmts, "write");
+      out.inserted.push(tag);
+      continue;
+    }
+
+    let reopening = false;
+    if (await isSettled(db, id, at.today, at.windowFloor)) {
+      const decided = (
+        await db.execute({
+          sql: "SELECT 1 FROM primary_candidates WHERE primary_id = ? AND status = 'winner' LIMIT 1",
+          args: [id],
+        })
+      ).rows.length > 0;
+      if (!opts.reopenExpired || decided) {
+        out.settledSkipped.push(id);
+        continue;
+      }
+      reopening = true;
+    }
+    const stored = (
+      await db.execute({
+        sql: "SELECT name, status, vote_pct, incumbent, bioguide_id FROM primary_candidates WHERE primary_id = ?",
+        args: [id],
+      })
+    ).rows;
+    const byName = new Map(stored.map((s) => [s.name as string, s]));
+    const stmts: { sql: string; args: (string | number | null)[] }[] = [];
+    for (const c of r.candidates) {
+      const s = byName.get(c.name);
+      if (!s) {
+        out.noMatch.push(`${id}: ${c.name}`);
+        continue;
+      }
+      const status = c.isWinner ? "winner" : "running";
+      const incumbent = c.incumbent ? 1 : 0;
+      const bioguideId = (s.bioguide_id as string | null) ?? matchCandidate(c);
+      if (
+        s.status === status &&
+        ((s.vote_pct as number | null) ?? null) === c.votePct &&
+        Number(s.incumbent) === incumbent &&
+        ((s.bioguide_id as string | null) ?? null) === bioguideId
+      ) {
+        continue;
+      }
+      stmts.push({
+        sql: `UPDATE primary_candidates
+                 SET status = ?, vote_pct = ?, incumbent = ?, bioguide_id = ?, updated_at = ?
+               WHERE primary_id = ? AND name = ?`,
+        args: [status, c.votePct, incumbent, bioguideId, at.now, id, c.name],
+      });
+    }
+    if (stmts.length === 0) {
+      out.unchanged.push(tag);
+      continue;
+    }
+    stmts.push({ sql: "UPDATE primaries SET updated_at = ? WHERE id = ?", args: [at.now, id] });
+    if (opts.write) await db.batch(stmts, "write");
+    (reopening ? out.reopened : out.updated).push(tag);
+  }
+}
+
+// For a House page: the first round's id for a runoff box, or null when the
+// box's contest is not in the seat's set (the same set the first-round write
+// uses, from NONPARTISAN_HOUSE_STATES).
+function houseFirstRoundId(state: string, dd: string): (r: ScrapedRunoff) => string | null {
+  const expectsOpen = NONPARTISAN_HOUSE_STATES.has(state);
+  return (r) =>
+    (r.contest === "open") === expectsOpen ? `house-${state}-${dd}-2026-${r.contest}` : null;
+}
+
+// HO 761 — repair:runoffs' writer (lib/runoff-repair.ts): writeRunoffRounds
+// with the sync's own first-round ids (the router over the seeded special
+// registry for a Senate page, the contest set for a House page) and member
+// matches, loaded once for a pass over many pages. The repair passes
+// `reopenExpired`; nothing else differs from the sync's write.
+export type RunoffPage = { chamber: "house" | "senate"; state: string; district: number | null };
+export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
+  (
+    page: RunoffPage,
+    runoffs: ScrapedRunoff[],
+    at: RunoffAt,
+    opts: { write: boolean; reopenExpired?: boolean },
+    out: RunoffWriteReport,
+  ) => Promise<void>
+> {
+  const matchSenate = await buildSenateMatcher(db);
+  const { incumbentByDistrict, currentHouseByState } = await loadHouseMembers(db, null);
+  const seededSpecial = await loadSeededSpecialIds(db);
+  return async (page, runoffs, at, opts, out) => {
+    if (page.chamber === "senate") {
+      const seeded = seededSpecial.get(page.state) ?? new Set<string>();
+      await writeRunoffRounds(
+        db,
+        `S-${page.state}`,
+        runoffs,
+        (r) => routeSenateContestId(page.state, r.contest, r.isSpecial, seeded),
+        (c) => matchSenate(c.name, page.state),
+        at,
+        opts,
+        out,
+      );
+      return;
+    }
+    const district = page.district ?? 0;
+    const dd = String(district).padStart(2, "0");
+    await writeRunoffRounds(
+      db,
+      `${page.state}-${dd}`,
+      runoffs,
+      houseFirstRoundId(page.state, dd),
+      (c) => matchHouseCandidate(c.name, c.incumbent, page.state, district, incumbentByDistrict, currentHouseByState),
+      at,
+      opts,
+      out,
+    );
+  };
 }
 
 export type SenateSpecialResult = {
@@ -776,8 +1083,10 @@ export async function runSpecialPriorityPass(
   windowFloor: string,
 ): Promise<SpecialPriorityResult> {
   const windowRs = await db.execute({
+    // HO 761: first rounds only — a special contest's runoff row matches the
+    // id pattern too (see loadSeededSpecialIds).
     sql: `SELECT id, state FROM primaries
-           WHERE id LIKE 'senate-%-2026-special-%'
+           WHERE id LIKE 'senate-%-2026-special-%' AND election_round = 'primary'
              AND (
                (primary_date IS NOT NULL AND ABS(julianday(primary_date) - julianday(?)) <= 7)
                OR (runoff_date IS NOT NULL AND ABS(julianday(runoff_date) - julianday(?)) <= 7)
@@ -867,16 +1176,7 @@ export async function syncSenateCandidates(
   // page fetch after its normal pass. A state with none is never given a second
   // fetch, so its routing is untouched (FL/OH keep landing in base ids) — the
   // whole regression story is "opt-in by seed presence".
-  const specialRegRs = await db.execute(
-    "SELECT id, state FROM primaries WHERE id LIKE 'senate-%-2026-special-%'",
-  );
-  const specialIdsByState = new Map<string, Set<string>>();
-  for (const r of specialRegRs.rows) {
-    const st = String(r.state);
-    const set = specialIdsByState.get(st) ?? new Set<string>();
-    set.add(String(r.id));
-    specialIdsByState.set(st, set);
-  }
+  const specialIdsByState = await loadSeededSpecialIds(db);
 
   let okStates = 0;
   let totalCandidates = 0;
@@ -887,6 +1187,7 @@ export async function syncSenateCandidates(
   const perState: string[] = [];
   const settledSkipped: string[] = [];
   const rosterDeletesRefused: string[] = []; // HO 564: deletes declined (empty incoming roster)
+  const runoffs = emptyRunoffReport(); // HO 761
   let budgetStopped = false;
   // HO 560: today (YYYY-MM-DD) for the settled-row clobber guard below.
   // HO 661: + the re-check window floor, threaded into the same guard.
@@ -1003,6 +1304,20 @@ export async function syncSenateCandidates(
     }
     perState.push(`  ${abbr}: ${result.candidates.length} candidates`);
 
+    // HO 761 — this page's runoff boxes, each beside its first round. The
+    // first round's id is the router's, as for the first round's own write, so
+    // SC's special runoff box lands on senate-SC-2026-special-R-runoff.
+    await writeRunoffRounds(
+      db,
+      `S-${abbr}`,
+      result.runoffs ?? [],
+      (r) => routeSenateContestId(abbr, r.contest, r.isSpecial, seededForState),
+      (c) => matchMember(c.name, abbr),
+      { now, today, windowFloor },
+      { write: true },
+      runoffs,
+    );
+
     // HO 561 C1 — opt-in special-page pass for this state (seeded rows only).
     // Its writes go to the -special- ids and carry the same C2 guard + matcher;
     // an unpublished field 404s and lands in fetchFailures without failing the
@@ -1053,6 +1368,7 @@ export async function syncSenateCandidates(
       `Roster deletes refused (HO 564): ${rosterDeletesRefused.length} — ${rosterDeletesRefused.join(", ")}`,
     );
   }
+  printRunoffReport(runoffs);
 
   return {
     okStates,
@@ -1065,7 +1381,29 @@ export async function syncSenateCandidates(
     perStateMs,
     settledSkipped,
     rosterDeletesRefused,
+    runoffs,
   };
+}
+
+// HO 761: one line per non-empty bucket of a pass's runoff report.
+export function printRunoffReport(r: RunoffWriteReport): void {
+  const lists: [string, string[]][] = [
+    ["inserted", r.inserted],
+    ["updated", r.updated],
+    ["reopened", r.reopened],
+    ["unchanged", r.unchanged],
+    ["settled, skipped", r.settledSkipped],
+    ["no first round", r.noFirstRound],
+    ["outside the contest set", r.outOfContestSet],
+    ["undated", r.undated],
+    ["empty roster", r.emptyRoster],
+    ["page name with no stored row", r.noMatch],
+    ["box date differs from the first round's runoff_date", r.dateDisagrees],
+  ];
+  const shown = lists.filter(([, l]) => l.length > 0);
+  if (shown.length === 0) return;
+  console.log(`Runoff rounds (HO 761) · dates: ${r.dateFromBox} from the box, ${r.dateFromFirstRound} from the first round`);
+  for (const [label, l] of shown) console.log(`  ${label} (${l.length}): ${l.join(", ")}`);
 }
 
 export type HouseSyncSummary = {
@@ -1089,6 +1427,8 @@ export type HouseSyncSummary = {
   // rewrite was skipped by the isSettled guard. Surfaced so the guard is observable
   // (an untriggered guard reads the same as a broken one).
   settledSkipped: string[];
+  // HO 761: the runoff rounds this pass wrote, updated, or left (writeRunoffRounds).
+  runoffs: RunoffWriteReport;
 };
 
 // Step 4 — House candidate rosters (handoff 92, +96). For each district in the
@@ -1140,6 +1480,7 @@ export async function syncHouseDistricts(
       perDistrictMs: [],
       rosterDeletesRefused: [],
       settledSkipped: [],
+      runoffs: emptyRunoffReport(),
     };
   }
   const states = [...new Set(districts.map((d) => d.state))];
@@ -1221,6 +1562,7 @@ export async function syncHouseDistricts(
   const oddities: string[] = [];
   const rosterDeletesRefused: string[] = []; // HO 564: contests whose delete was declined (empty incoming roster)
   const settledSkipped: string[] = []; // HO 577 Part 2: settled house rows the guard froze (date+roster)
+  const runoffs = emptyRunoffReport(); // HO 761
 
   // Per-state parse tally — backs the per-state breakdown print, which is how
   // the CA / WA / AK sanity thresholds in handoff 96 get checked.
@@ -1438,6 +1780,21 @@ export async function syncHouseDistricts(
         });
       }
     }
+
+    // HO 761 — this page's runoff boxes, each beside its first round, with the
+    // same member match as the first round's rows. Runs whether or not the first
+    // rounds above were settled: Texas's are, and its runoffs are what is new.
+    await writeRunoffRounds(
+      db,
+      districtLabel,
+      result.runoffs ?? [],
+      houseFirstRoundId(d.state, dd),
+      (c) =>
+        matchHouseCandidate(c.name, c.incumbent, d.state, d.district, incumbentByDistrict, currentHouseByState),
+      { now, today, windowFloor },
+      { write: true },
+      runoffs,
+    );
     perDistrictMs.push(Date.now() - districtStart);
     await opts.onProgress?.(i);
   }
@@ -1513,6 +1870,7 @@ export async function syncHouseDistricts(
         `roster, existing roster left in place: ${rosterDeletesRefused.join(", ")}`,
     );
   }
+  printRunoffReport(runoffs);
 
   return {
     label,
@@ -1526,6 +1884,7 @@ export async function syncHouseDistricts(
     perDistrictMs,
     rosterDeletesRefused,
     settledSkipped,
+    runoffs,
   };
 }
 
@@ -1920,6 +2279,7 @@ export type PrimariesCronResult = {
     matchedIncumbents: number;
     rosterDeletesRefused: string[]; // HO 564
     settledSkipped: string[]; // HO 577 Part 2
+    runoffs: RunoffWriteReport; // HO 761
   };
   // HO 120 instrumentation surfaced into cron_runs.payload. budgetStopped is
   // true when the route stopped *starting* new units before the slice ended;
@@ -2085,6 +2445,7 @@ export async function runPrimariesCronTick(
       matchedIncumbents: summary.matchedIncumbents,
       rosterDeletesRefused: summary.rosterDeletesRefused,
       settledSkipped: summary.settledSkipped,
+      runoffs: summary.runoffs,
     },
     budgetStopped: summary.budgetStopped,
     fetchFailures: summary.fetchFailures,
