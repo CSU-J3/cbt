@@ -2046,9 +2046,10 @@ export const getRaceRoster = unstable_cache(
     const oneMarked = ballotRows.filter((b) => b.marked).length === 1;
     const ballot = ballotRows.map((b) => ({ ...b, marked: b.marked && oneMarked }));
     const jungle = jungleRs!.rows.map((j) => ({ name: String(j.name), marked: j.status === "winner" && Number(j.winners) === 1, readAt: j.updated_at == null ? null : String(j.updated_at) }));
-    // A curated row may print differently from the ballot (S-ME's "Troy
-    // Jackson", the ballot's "Troy Dale Jackson"): without an exact match, the
-    // one ballot row with the same first and last name (the harvest's firstLast).
+    // A curated row may print differently from the ballot (S-ME's curated "Troy
+    // Jackson", the ballot's "Troy Dale Jackson", until HO 760 retired it): without
+    // an exact match, the one ballot row with the same first and last name. Since
+    // HO 760 only a curated `withdrew` row survives, and no mark reaches one.
     const firstLast = (s: string) => {
       const t = normName(s).split(" ").filter((x) => x && !["jr", "sr", "ii", "iii", "iv"].includes(x));
       return `${t[0] ?? ""} ${t[t.length - 1] ?? ""}`;

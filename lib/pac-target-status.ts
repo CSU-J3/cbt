@@ -64,7 +64,7 @@
 // come from the harvest.
 //
 // HO 750 — THE PREMISE ABOVE IS NOW TRUE ONLY OF `harvest:primary_winner`. Every
-// race with a `box` read and no curated roster publishes the November ballot
+// race with a `box` read (curated too, since HO 760) publishes the November ballot
 // instead, under `harvest:general_ballot`, which is not a copy of the primary: a
 // runoff loser the contest still marks `winner` is absent from it. For those
 // rows the order

@@ -1,4 +1,5 @@
 {
+  "_comment": "HO 760 (ruled C by Corey, 2026-09-30: the ballot decides the field, the seed keeps history). A candidate entry whose status is not withdrew stays here as the record of what was curated: scripts/seed-races.ts no longer writes it (it prints it as retired), and the harvest publishes the race from its November ballot. A withdrew entry still writes, and the harvest keeps that row as it is, source URL and all (lib/harvest-challengers.ts).",
   "races": [
     {
       "id": "S-GA-2026",

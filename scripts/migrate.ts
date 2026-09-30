@@ -1230,7 +1230,7 @@ const statements = [
   // HO 749 — the November ballot as Ballotpedia's general-election box prints
   // it, written by lib/general-ballot.ts (the /api/cron/general-ballot cron and
   // `npm run sync:general-ballot -- --write`). READ SINCE HO 750: the challenger
-  // harvest publishes every race with a 'box' read and no curated roster from
+  // harvest publishes every race with a 'box' read (curated too, since HO 760) from
   // these rows (lib/harvest-challengers.ts), and the race page's stub asks them
   // whether the stored incumbent is printed (lib/incumbent-on-ballot.ts). HO 747's
   // census measured why the harvest had to yield: 40 published names off the
