@@ -167,8 +167,10 @@ export type PageModel = {
 
 // THE 2026 GENERAL BOX: inside the section, and its <h5> says "general election"
 // and says neither "primary" nor "runoff". The kept-primary half is
-// parseCandidatesPage's own rule, so `primary-kept` is exactly the set of boxes
-// the ingest reads.
+// parseCandidatesPage's own rule for `candidates`, so `primary-kept` is exactly
+// the set of boxes the ingest reads as a first round. A primary-runoff box is
+// `runoff` here; since HO 761 the ingest reads it too, into `runoffs`, so
+// `primary_marked` still reads the first round.
 function boxKind(h5: string, cls: string): { kind: BoxKind; contest: Contest | null } {
   if (/general election/i.test(h5) && !/primary/i.test(h5) && !/runoff/i.test(h5)) {
     return { kind: "general", contest: null };

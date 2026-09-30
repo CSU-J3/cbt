@@ -49,7 +49,9 @@
 // whose seat has a past-dated `runoff_date` and no resulted runoff row is
 // `unknown`, not `active` — we know he advanced and we do not know what
 // happened next, and the honest rendering of that is the present tense we were
-// already showing.
+// already showing. HO 761 ingests the runoff rounds Ballotpedia prints (33 on
+// HO 747's saved pages, Texas's among them), so the corpus now holds resulted
+// runoff rows; TX-23's R runoff prints no box, so TX-23 is still this case.
 //
 // ── WHY THE CONTEST BEATS THE ROSTER, AND IT IS NOT A STYLE CALL ─────────────
 //

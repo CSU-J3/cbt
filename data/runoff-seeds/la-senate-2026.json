@@ -1,5 +1,5 @@
 {
-  "_comment": "HO 107 — LA Senate 2026 runoff seed. Hand-curated because the June 27 runoff has no results yet and Ballotpedia has not built the Democratic runoff page. When a real Ballotpedia runoff scraper lands (post-June-27 handoff), it overwrites/retires this file. See SKILL.md 'Runoff tracking'.",
+  "_comment": "HO 107 — LA Senate 2026 runoff seed. Hand-curated because the June 27 runoff has no results yet and Ballotpedia has not built the Democratic runoff page. When a real Ballotpedia runoff scraper lands (post-June-27 handoff), it overwrites/retires this file. See SKILL.md 'Runoff tracking'. HO 761: the page now writes this runoff's marks onto the row by name (lib/primaries-sync.ts writeRunoffRounds; npm run repair:runoffs for a row settled by expiry), so no handoff seeds the winner and this file is not retired: it stays as the row's origin, and seed:runoffs keeps a roster the page has decided.",
   "raceId": "S-LA-2026",
   "state": "LA",
   "chamber": "senate",
