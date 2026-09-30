@@ -102,6 +102,9 @@ export type HarvestResult = {
   onBallot: { rows: number; races: number; byParty: Record<string, number> };
   fusionPrints: number;
   oPrints: number;
+  // HO 758: Louisiana's jungle seats: the races and rows published, and how
+  // many races have one winner marked (decided) or two (a runoff).
+  jungle: { races: number; rows: number; decided: number; runoff: number };
 };
 
 // races (ALL 2026 rows since HO 741) ↔ primaries by state + chamber + district. races.district
@@ -127,7 +130,8 @@ const HARVEST_FROM_WHERE = `
   WHERE r.cycle = ${CYCLE}
     -- HO 748: IS NOT, not <>. With no stored incumbent, <> reads NULL and dropped every winner carrying a bioguide (FL-20).
     AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )
-    -- HO 748: jungle is held out (see the note above the INSERT). IS NOT keeps a NULL type in.
+    -- HO 748: jungle is held out of THIS winners-only derivation (see the note above the INSERT);
+    -- since HO 758 the jungle rule below (JUNGLE_FROM_WHERE) publishes those seats. IS NOT keeps a NULL type in.
     AND p.primary_type IS NOT 'jungle'
     -- HO 750: a race with a box read publishes from the ballot instead. The box
     -- races are the PLAN's (one JSON argument), not re-read here: a ballot tick
@@ -184,6 +188,36 @@ const HARVEST_FROM_WHERE = `
 //     shows after the name, so an unusual party isn't a bare letter. NULL
 //     otherwise and on `withdrew` rows, whose token is a withdrawal list's, not
 //     a ballot's.
+// HO 758 — LOUISIANA'S JUNGLE RULE, replacing HO 748's skip (the election-night
+// line, ruled C). A seat whose Nov-3 contest is a `jungle` box (Louisiana's
+// House, HOUSE_PRIMARY_OVERRIDES in lib/primaries-sync.ts; Ballotpedia's
+// "Nonpartisan primary", read by /api/cron/primaries into primary_candidates)
+// publishes EVERY candidate in that box, less the seat's incumbent (the same
+// bioguide rule as the primary-sourced half), under HARVEST_SOURCE:
+//   · no winner marked, or one: every candidate `on_ballot`. With one marked,
+//     that row is the result; the race page reads the mark from
+//     primary_candidates (getRaceRoster), not from a status.
+//   · two marked: those two `advanced` (the Dec-12 runoff), the rest
+//     `on_ballot`.
+// No curated race and no race with a `box` read (the plan's, one JSON
+// argument) is touched, as in the primary-sourced half.
+const JUNGLE_FROM_WHERE = `
+  FROM races r
+  JOIN primaries p
+    ON p.state = r.state AND p.chamber = r.chamber
+   AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
+   AND p.primary_type = 'jungle' AND p.election_round IS NOT 'runoff'
+  JOIN primary_candidates pc ON pc.primary_id = p.id
+  WHERE r.cycle = ${CYCLE}
+    AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )
+    AND r.id NOT IN (SELECT value FROM json_each(?))
+    AND NOT EXISTS (
+      SELECT 1 FROM race_candidates rc
+      WHERE rc.race_id = r.id
+        AND ( rc.source_url IS NULL OR rc.source_url NOT IN ('${HARVEST_SOURCE}', '${BALLOT_SOURCE}') )
+    )`;
+const JUNGLE_WINNERS = `(SELECT COUNT(*) FROM primary_candidates w WHERE w.primary_id = p.id AND w.status = 'winner')`;
+
 export type PlannedRow = { race_id: string; name: string; party: string | null; bioguide_id: string | null; status: string; printed_party: string | null };
 export type BallotPlan = {
   rows: PlannedRow[];
@@ -423,9 +457,10 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   //        exclusion is now ENFORCED in HARVEST_FROM_WHERE
   //        (`p.primary_type IS NOT 'jungle'`) rather than asserted here,
   //        because the six rows are dated 2026-11-03 and their winners get
-  //        marked once the polls close. It holds until "What a race page shows
-  //        once its race is decided is unruled…" (HO 747) is ruled: an outright
-  //        jungle winner is elected, and no roster status says so.
+  //        marked once the polls close. It held until "What a race page shows
+  //        once its race is decided is unruled…" (HO 747) was ruled; since HO
+  //        758 the jungle seats publish by their own rule (JUNGLE_FROM_WHERE,
+  //        below), and this winners-only derivation still leaves them out.
   //
   //    THE CASE IS SINGLE-VALUED PER ROW, AND THAT IS LOAD-BEARING.
   //    `race_candidates` is PRIMARY KEY (race_id, name) and this is
@@ -461,15 +496,37 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
           ${HARVEST_FROM_WHERE}`,
     args: [runStamp, JSON.stringify(plan.boxRaces)],
   });
+  // 2b. HO 758: Louisiana's jungle seats, every candidate in the Nov-3 box.
+  stmts.push({
+    sql: `INSERT OR IGNORE INTO race_candidates
+            (race_id, name, party, bioguide_id, status, source_url, updated_at)
+          SELECT r.id, pc.name, pc.party, pc.bioguide_id,
+                 CASE WHEN pc.status = 'winner' AND ${JUNGLE_WINNERS} = 2
+                      THEN 'advanced' ELSE 'on_ballot' END,
+                 '${HARVEST_SOURCE}', ?
+          ${JUNGLE_FROM_WHERE}`,
+    args: [runStamp, JSON.stringify(plan.boxRaces)],
+  });
 
   // HO 750: ONE TRANSACTION. Until HO 750 the DELETE and the INSERT…SELECT were
   // two `execute` calls, so a failure between them left a race with no
   // harvested rows at all. Now the DELETE and every INSERT commit together or
   // not at all, and a throw after the DELETE leaves the old rows in place.
   const done = await db.batch(stmts, "write");
+  // [0] the DELETE, [1..n] the ballot INSERTs, then the primary-sourced INSERT
+  // and (HO 758) the jungle INSERT, last.
   const cleared = done[0]!.rowsAffected;
-  const ballotInserted = done.slice(1, -1).reduce((a, r) => a + r.rowsAffected, 0);
-  const primaryInserted = done[done.length - 1]!.rowsAffected;
+  const ballotInserted = done.slice(1, -2).reduce((a, r) => a + r.rowsAffected, 0);
+  const primaryInserted = done[done.length - 2]!.rowsAffected;
+  const jungleInserted = done[done.length - 1]!.rowsAffected;
+  // HO 758: the jungle census, read after the write.
+  const jungleRs = await db.execute({
+    sql: `SELECT COUNT(DISTINCT r.id) AS races, COUNT(*) AS rows,
+                 COUNT(DISTINCT CASE WHEN ${JUNGLE_WINNERS} = 1 THEN r.id END) AS decided,
+                 COUNT(DISTINCT CASE WHEN ${JUNGLE_WINNERS} = 2 THEN r.id END) AS runoff
+          ${JUNGLE_FROM_WHERE}`,
+    args: [JSON.stringify(plan.boxRaces)],
+  });
 
   // 3. Fill census, both sentinels together and each on its own.
   const filled = await db.execute({
@@ -502,7 +559,7 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
   return {
     runStamp,
     cleared,
-    inserted: ballotInserted + primaryInserted,
+    inserted: ballotInserted + primaryInserted + jungleInserted,
     rows: Number(filled.rows[0]?.rows ?? 0),
     races: Number(filled.rows[0]?.races ?? 0),
     seats: Number(seats.rows[0]?.n ?? 0),
@@ -516,6 +573,12 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
     onBallot: onBallotCensus(plan.rows),
     fusionPrints: plan.rows.filter((r) => fusionPrint(r.printed_party) != null).length,
     oPrints: plan.rows.filter((r) => r.status === ON_BALLOT && r.party === "O" && r.printed_party != null && fusionPrint(r.printed_party) == null).length,
+    jungle: {
+      races: Number(jungleRs.rows[0]?.races ?? 0),
+      rows: jungleInserted,
+      decided: Number(jungleRs.rows[0]?.decided ?? 0),
+      runoff: Number(jungleRs.rows[0]?.runoff ?? 0),
+    },
   };
 }
 

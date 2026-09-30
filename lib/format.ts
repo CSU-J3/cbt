@@ -1,3 +1,5 @@
+import { clockNowMs } from "./clock";
+
 const BILL_TYPE_FULL: Record<string, string> = {
   hr: "house-bill",
   s: "senate-bill",
@@ -135,10 +137,11 @@ export function electionDay(cycle: number): Date {
 
 // Days from today (UTC) to the general election. Negative once the
 // election is in the past — callers render "Election concluded" rather
-// than a negative countdown.
-export function daysToElection(cycle: number): number {
+// than a negative countdown. HO 758: "today" is lib/clock.ts's clockNowMs,
+// the one now the election-day logic reads (a leg can set it on a file: copy).
+export function daysToElection(cycle: number, nowMs: number = clockNowMs()): number {
   const election = electionDay(cycle);
-  const today = new Date();
+  const today = new Date(nowMs);
   today.setUTCHours(0, 0, 0, 0);
   const ms = election.getTime() - today.getTime();
   return Math.floor(ms / MS_PER_DAY);

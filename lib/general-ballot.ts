@@ -195,8 +195,20 @@ function readBox(slice: string, offset: number, cls: string, inSection: boolean)
   const noLinkRows: string[] = [];
   let marked = 0;
   const table = slice.match(/<table class="results_table">[\s\S]*?<\/table>/);
+  // HO 758 (from its review): a RANKED-CHOICE general box (Maine's and Alaska's:
+  // its header carries "Round eliminated") does not mark its winner with the
+  // row's `winner` class. On HO 747's saved pages Alaska's eliminated rows carry
+  // the class and the winner's does not (AK-AL 2024: Begich "Won (3)", no class),
+  // and Maine's winners carry none. There the winner is the row whose last cell
+  // reads "Won (N)". Only a general box takes this rule; every other box keeps
+  // the class, so a kept primary's primary_marked is unchanged (Maine's RCV
+  // primaries read "Advanced (N)" and carry no class, as before).
+  const rcvGeneral = kind === "general" && /Round eliminated/i.test(table?.[0] ?? "");
   for (const tr of table?.[0].match(/<tr class="results_row[^"]*">[\s\S]*?<\/tr>/g) ?? []) {
-    const winner = /class="results_row[^"]*\bwinner\b/.test(tr);
+    const cells = tr.match(/<td[^>]*>[\s\S]*?<\/td>/g) ?? [];
+    const winner = rcvGeneral
+      ? /^Won \(\d+\)$/.test(stripTags(cells[cells.length - 1] ?? ""))
+      : /class="results_row[^"]*\bwinner\b/.test(tr);
     if (winner) marked++;
     const link = tr.match(/<a [^>]*href="(https:\/\/ballotpedia\.org\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/);
     const name = link?.[2] ? stripTags(link[2]) : "";
@@ -505,6 +517,9 @@ export type BallotRow = {
   bioguide_id: string | null;
   box_prefix: string;
   read_at: string;
+  // HO 758: this row's own result mark (its results row's `winner` class); 0
+  // for a withdrawn-only entry, which is on no results row.
+  marked: number;
 };
 export type PageResult =
   | { status: "box"; box: Box; rows: BallotRow[]; folded: Folded }
@@ -594,6 +609,7 @@ export function pageResult(raceId: string, model: PageModel, identity: Identity,
       bioguide_id: identity.get(r.key) ?? null,
       box_prefix: box.prefix,
       read_at: readAt,
+      marked: r.winner ? 1 : 0,
     });
   }
   const onBallot = new Set(seen);
@@ -629,6 +645,7 @@ export function pageResult(raceId: string, model: PageModel, identity: Identity,
       bioguide_id: identity.get(w.key) ?? null,
       box_prefix: box.prefix,
       read_at: readAt,
+      marked: 0,
     });
   }
   return { status: "box", box, rows, folded };
@@ -660,6 +677,11 @@ const COLS = [
   "bioguide_id",
   "box_prefix",
   "read_at",
+  // HO 758: needs general_ballot.marked (scripts/migrate.ts ensureColumn) on the
+  // database before this code runs: every READ's INSERT writes it, and every
+  // race page reads it (getRaceRoster, getRaceResult), so an unmigrated
+  // database fails both.
+  "marked",
 ] as const;
 export function raceWriteStatements(raceId: string, w: RaceWrite, at: string): InStatement[] {
   if (w.verdict !== "READ") {

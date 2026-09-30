@@ -1292,8 +1292,9 @@ const statements = [
     status TEXT,
     read_at TEXT,
     rows INTEGER,
-    -- Rows carrying Ballotpedia's winner mark. 0 until 2026-11-03; the marks
-    -- themselves are not stored, because what a decided race shows is unruled.
+    -- Rows carrying Ballotpedia's winner mark. 0 until 2026-11-03. A per-race
+    -- count, kept; since HO 758 each row's own mark is stored as well
+    -- (general_ballot.marked), which the race page and the band read.
     marked INTEGER,
     -- The URL actually read (a Senate race may have fallen back to the special).
     source_url TEXT,
@@ -1928,6 +1929,13 @@ async function main() {
   // after the name. `party` stays one letter. Nullable, so no backfill: the
   // harvest's DELETE-and-rebuild fills it on its next run.
   await ensureColumn(db, "race_candidates", "printed_party", "TEXT");
+  // HO 758: a ballot row's own result mark, from its results row's `winner`
+  // class (Ballotpedia's call), which HO 749's reader parsed and counted per
+  // race (`general_ballot_reads.marked`, kept) but did not store per row until
+  // the election-night ruling. 0 until Ballotpedia marks the general; the race
+  // page's decided state and the band's results line read it. NOT NULL
+  // DEFAULT 0, so rows the older reader writes read unmarked.
+  await ensureColumn(db, "general_ballot", "marked", "INTEGER NOT NULL DEFAULT 0");
 
   // ── HO 676 — seed bill_roster_state once ─────────────────────────────────
   // WHAT THIS ASSERTS: every bill the HO 674 backfill considered was checked,

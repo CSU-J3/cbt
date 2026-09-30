@@ -49,6 +49,8 @@ async function main() {
   );
   // HO 757: the others on party-primary ballots, the fusion prints kept, and the O others' parties.
   console.log(`on_ballot (others, ruled C): ${JSON.stringify(result.onBallot)} · fusion prints ${result.fusionPrints} · O parties printed ${result.oPrints}`);
+  // HO 758: Louisiana's jungle seats.
+  console.log(`jungle (Louisiana's Nov-3 box): ${JSON.stringify(result.jungle)}`);
 
   // Sample for eyeballing — wrapper-only; the cron logs figures, not rows.
   const sample = await db.execute({

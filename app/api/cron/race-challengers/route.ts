@@ -57,7 +57,7 @@ async function handle(request: Request) {
         `bySource=${JSON.stringify(summary.bySource)} ballotRaces=${summary.ballotRaces} ` +
         `ignored=${summary.ballotIgnored} routes=${JSON.stringify(summary.incumbentRoutes)} ` +
         `curatedDivergence=${summary.curatedDivergence.length} ` +
-        `onBallot=${JSON.stringify(summary.onBallot)} fusionPrints=${summary.fusionPrints} oPrints=${summary.oPrints} stamp=${summary.runStamp}`,
+        `onBallot=${JSON.stringify(summary.onBallot)} fusionPrints=${summary.fusionPrints} oPrints=${summary.oPrints} jungle=${JSON.stringify(summary.jungle)} stamp=${summary.runStamp}`,
     );
     return { payload: summary };
   });

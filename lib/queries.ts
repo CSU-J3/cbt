@@ -5,6 +5,8 @@ import { CLUSTER_IDS, CLUSTER_PATTERNS } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
+import { readRaceResult, type RaceResultReading } from "./race-result";
+import { normName } from "./ballot-incumbent";
 import { formatBillId } from "./format";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import {
@@ -1879,6 +1881,12 @@ export type RosterPartyKey = PartyKey | "L" | "G" | "O";
 export type RosterCandidate = Omit<RaceCandidate, "party"> & {
   party: RosterPartyKey | null;
   printed_party: string | null;
+  // HO 758: Ballotpedia marked this row the winner (general_ballot.marked for a
+  // ballot-sourced row; for a Louisiana jungle row, the one winner marked in the
+  // Nov-3 box, never either of a runoff's two), and when the mark was read. The
+  // page shows the mark only once election day has passed.
+  marked: boolean;
+  read_at: string | null;
 };
 function normalizeRosterParty(party: string | null): RosterPartyKey | null {
   if (!party) return null;
@@ -1986,34 +1994,183 @@ export const getRaceCandidates = unstable_cache(
 export const getRaceRoster = unstable_cache(
   async (raceId: string): Promise<RosterCandidate[]> => {
     const db = getDb();
-    const rs = await db.execute({
-      sql: `SELECT race_id, name, party, bioguide_id, status, source_url, printed_party
-            FROM race_candidates
-            WHERE race_id = ?
-            ORDER BY
-              CASE
-                WHEN status IN ('won_primary', 'nominee', 'advanced') THEN 0
-                WHEN status = 'running' THEN 1
-                WHEN status = 'declared' THEN 2
-                WHEN status = 'on_ballot' THEN 3
-                WHEN status = 'withdrew' THEN 4
-                ELSE 5
-              END,
-              name ASC`,
-      args: [raceId],
+    // HO 758: the marks come from the race's ballot rows and, for a Louisiana
+    // seat, its jungle box, merged here rather than JOINed: a name can repeat
+    // within a race (S-AK-2026 prints the senator and a second Dan Sullivan), so
+    // a ballot row is matched on name AND bioguide (the identity HO 750 copied
+    // into race_candidates), and no join can multiply a roster row.
+    const [rs, gbRs, jungleRs] = await db.batch(
+      [
+        {
+          sql: `SELECT race_id, name, party, bioguide_id, status, source_url, printed_party
+                FROM race_candidates
+                WHERE race_id = ?
+                ORDER BY
+                  CASE
+                    WHEN status IN ('won_primary', 'nominee', 'advanced') THEN 0
+                    WHEN status = 'running' THEN 1
+                    WHEN status = 'declared' THEN 2
+                    WHEN status = 'on_ballot' THEN 3
+                    WHEN status = 'withdrew' THEN 4
+                    ELSE 5
+                  END,
+                  name ASC`,
+          args: [raceId],
+        },
+        {
+          sql: `SELECT g.name, g.bioguide_id, g.marked, g.read_at
+                FROM general_ballot g
+                JOIN general_ballot_reads rd ON rd.race_id = g.race_id AND rd.status = 'box'
+               WHERE g.race_id = ? AND g.on_ballot = 1`,
+          args: [raceId],
+        },
+        {
+          sql: `SELECT pc.name, pc.status, p.updated_at,
+                     (SELECT COUNT(*) FROM primary_candidates w WHERE w.primary_id = p.id AND w.status = 'winner') AS winners
+                FROM races r
+                JOIN primaries p
+                  ON p.state = r.state AND p.chamber = r.chamber
+                 AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
+                 AND p.primary_type = 'jungle' AND p.election_round IS NOT 'runoff'
+                JOIN primary_candidates pc ON pc.primary_id = p.id
+               WHERE r.id = ?`,
+          args: [raceId],
+        },
+      ],
+      "read",
+    );
+    // Exactly one marked row is a result; two or more are a runoff (HO 758's
+    // review), and no row reads Elected.
+    const ballotRows = gbRs!.rows.map((g) => ({ name: String(g.name), bioguide: g.bioguide_id == null ? null : String(g.bioguide_id), marked: Number(g.marked ?? 0) === 1, readAt: g.read_at == null ? null : String(g.read_at) }));
+    const oneMarked = ballotRows.filter((b) => b.marked).length === 1;
+    const ballot = ballotRows.map((b) => ({ ...b, marked: b.marked && oneMarked }));
+    const jungle = jungleRs!.rows.map((j) => ({ name: String(j.name), marked: j.status === "winner" && Number(j.winners) === 1, readAt: j.updated_at == null ? null : String(j.updated_at) }));
+    // A curated row may print differently from the ballot (S-ME's "Troy
+    // Jackson", the ballot's "Troy Dale Jackson"): without an exact match, the
+    // one ballot row with the same first and last name (the harvest's firstLast).
+    const firstLast = (s: string) => {
+      const t = normName(s).split(" ").filter((x) => x && !["jr", "sr", "ii", "iii", "iv"].includes(x));
+      return `${t[0] ?? ""} ${t[t.length - 1] ?? ""}`;
+    };
+    return rs!.rows.map((r) => {
+      const name = r.name as string;
+      const bioguide = (r.bioguide_id as string | null) ?? null;
+      const byName = ballot.filter((b) => firstLast(b.name) === firstLast(name));
+      const g = ballot.find((b) => b.name === name && b.bioguide === bioguide) ?? (byName.length === 1 ? byName[0]! : null);
+      const j = g ? null : (jungle.find((x) => x.name === name) ?? null);
+      return {
+        race_id: r.race_id as string,
+        name,
+        party: normalizeRosterParty(r.party as string | null),
+        bioguide_id: bioguide,
+        status: (r.status as string | null) ?? null,
+        source_url: (r.source_url as string | null) ?? null,
+        printed_party: (r.printed_party as string | null) ?? null,
+        marked: g ? g.marked : !!j?.marked,
+        read_at: g?.readAt ?? j?.readAt ?? null,
+      };
     });
-    return rs.rows.map((r) => ({
-      race_id: r.race_id as string,
-      name: r.name as string,
-      party: normalizeRosterParty(r.party as string | null),
-      bioguide_id: (r.bioguide_id as string | null) ?? null,
-      status: (r.status as string | null) ?? null,
-      source_url: (r.source_url as string | null) ?? null,
-      printed_party: (r.printed_party as string | null) ?? null,
-    }));
   },
   ["getRaceRoster"],
-  { revalidate: 86400, tags: ["races"] },
+  { revalidate: 86400, tags: ["races", "general-ballot"] },
+);
+
+// HO 758: the race's result as Ballotpedia marks it (lib/race-result.ts), for
+// the race page's decided state. The page applies raceResultView, which is
+// dormant until election day has passed.
+export const getRaceResult = unstable_cache(
+  async (raceId: string): Promise<RaceResultReading> => readRaceResult(getDb(), raceId),
+  ["getRaceResult"],
+  { revalidate: 86400, tags: ["general-ballot", "races"] },
+);
+
+// HO 758: the battlefield band's results line, once election day has passed.
+//   rated / ratedCalled  the rated index, and its seats with a marked row;
+//   house                marked House rows by party letter (a fusion print by
+//                        its first party; any other letter is "other");
+//   houseSeats / houseCalled  the cycle's House seats and those with a mark;
+//   latestReadAt         the newest Ballotpedia read behind the marks.
+// A Louisiana seat counts when exactly one winner is marked in its jungle box.
+export type ElectionResults = {
+  rated: number;
+  ratedCalled: number;
+  house: { R: number; D: number; other: number };
+  houseSeats: number;
+  houseCalled: number;
+  latestReadAt: string | null;
+};
+export const getElectionResults = unstable_cache(
+  async (cycle: number): Promise<ElectionResults> => {
+    const db = getDb();
+    const [markedRs, ratedRs, seatsRs, readRs] = await db.batch(
+      [
+        {
+          sql: `SELECT g.race_id, r.chamber, g.party,
+                       EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = r.cycle) AS rated
+                  FROM general_ballot g
+                  JOIN general_ballot_reads rd ON rd.race_id = g.race_id AND rd.status = 'box'
+                  JOIN races r ON r.id = g.race_id
+                 WHERE r.cycle = ? AND g.marked = 1 AND g.on_ballot = 1
+                   -- HO 758's review: one mark is a call; two or more are a runoff.
+                   AND (SELECT COUNT(*) FROM general_ballot g2 WHERE g2.race_id = g.race_id AND g2.marked = 1 AND g2.on_ballot = 1) = 1
+                UNION ALL
+                SELECT r.id, r.chamber, pc.party,
+                       EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = r.cycle)
+                  FROM races r
+                  JOIN primaries p
+                    ON p.state = r.state AND p.chamber = r.chamber
+                   AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
+                   AND p.primary_type = 'jungle' AND p.election_round IS NOT 'runoff'
+                  JOIN primary_candidates pc ON pc.primary_id = p.id AND pc.status = 'winner'
+                 WHERE r.cycle = ?
+                   AND (SELECT COUNT(*) FROM primary_candidates w WHERE w.primary_id = p.id AND w.status = 'winner') = 1
+                   AND r.id NOT IN (SELECT race_id FROM general_ballot_reads WHERE status = 'box')`,
+          args: [cycle, cycle],
+        },
+        {
+          sql: `SELECT COUNT(*) AS n FROM races r
+                 WHERE r.cycle = ? AND EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = r.cycle)`,
+          args: [cycle],
+        },
+        { sql: `SELECT COUNT(*) AS n FROM races WHERE cycle = ? AND chamber = 'house'`, args: [cycle] },
+        {
+          sql: `SELECT MAX(t) AS t FROM (
+                  SELECT MAX(read_at) AS t FROM general_ballot_reads WHERE status = 'box'
+                  UNION ALL
+                  SELECT MAX(updated_at) FROM primaries WHERE primary_type = 'jungle'
+                )`,
+          args: [],
+        },
+      ],
+      "read",
+    );
+    const called = new Set<string>();
+    const ratedCalled = new Set<string>();
+    const houseCalled = new Set<string>();
+    const house = { R: 0, D: 0, other: 0 };
+    for (const r of markedRs!.rows) {
+      const id = String(r.race_id);
+      called.add(id);
+      if (Number(r.rated) === 1) ratedCalled.add(id);
+      if (r.chamber === "house") {
+        houseCalled.add(id);
+        const p = String(r.party ?? "").trim().toUpperCase();
+        if (p === "R") house.R++;
+        else if (p === "D") house.D++;
+        else house.other++;
+      }
+    }
+    return {
+      rated: Number(ratedRs!.rows[0]?.n ?? 0),
+      ratedCalled: ratedCalled.size,
+      house,
+      houseSeats: Number(seatsRs!.rows[0]?.n ?? 0),
+      houseCalled: houseCalled.size,
+      latestReadAt: readRs!.rows[0]?.t == null ? null : String(readRs!.rows[0]!.t),
+    };
+  },
+  ["getElectionResults"],
+  { revalidate: 3600, tags: ["general-ballot", "races"] },
 );
 
 // HO 750 — is the seat's stored incumbent printed on the race's November
