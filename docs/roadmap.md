@@ -4047,3 +4047,108 @@ Refuted, with what they left:
 - **The two mocks,** committed unchanged under `docs/design/`.
 - **OPEN LOOPS reconciled: 263 live / 314 struck at open (577 total), 265 / 315 at close (580)**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 759.**
+
+**Also (HO 760), the seed keeps history and the ballot decides the field, ruled C: curated races publish from the ballot like every other race, and a curated row survives only as `withdrew`.** Five commits, kinds unmixed: `feat` · `chore` · `diag` · `docs(skill)` alone · `docs`. There is no migration and no render change, so there are no captures; the Production pages are the reading. The FF is held for the SKILL approval and the review. The pointer is 760 by plain arithmetic: pointer 759, highest HO in commit subjects 759, `main` at `2bce248`. **Ruled 2026-09-30 in chat, verbatim: *"C"*.** The architect ruled on the flags, the same day: a ballot `withdrew` row that collides with a kept curated `withdrew` row (AK-AL's Williams) is counted in `curatedHistoryKept`, not `ballotIgnored`, so the alarm reads 0 in steady state. Seven kept, Collins at `won_primary`, and NJ-07's O'Toole under HO 757's rule all stand.
+
+**HO 759's readings, carried from its FF go (items 1 to 3, and the 11:00Z ratings tick)** (`docs/handoffs/759-artifacts/prod-759.txt`, `prod-list-759.txt`, `ratings-tick-759.txt`, `prod-captures/`).
+- **The FF:** `main` at `2bce248`, fast-forwarded from `d8f1a0a` with no force; `759-review` deleted, and `ls-remote` lists `main` alone. `verify:deploy` read 5 of 5, first match at 42s. Production e2e #36758740048 passed smoke 140 in 5.8m; the review ref's Preview #36677412863 passed.
+- **Production, read 2026-09-30 18:29Z.** Every page agrees with the rule run on prod at the same time (94 tagged, 11 · 6 · 31 · 1 · 9 · 36):
+  - TX-35 *RUNNING IN TX-37*, linking `/race/TX-37-2026`;
+  - IA-02 *RUNNING FOR SENATE*, linking `/race/S-IA-2026`;
+  - TN-09 *RETIRING*, and NC-11 *WITHDREW* (`.so-tag--open`);
+  - TX-09 *NOT ON THE BALLOT*;
+  - LA-01 no tag, its others headed *On the ballot*.
+- **The dashboard:** IA-02 is not among its six today, because the ratings moved at 11:00Z. The six are S-IA, S-MI, S-AK, AZ-01, FL-22 and IA-01. Four carry a tag: S-IA, S-MI and AZ-01 *RETIRING*, FL-22 *RUNNING IN FL-23*. No card nests an anchor. IA-02's compact tag was read on `/electoral`'s list instead: *RUNNING FOR SENATE*, linking `/race/S-IA-2026`. It has no `/members` link because the seat is curated open, as at HEAD.
+- **The HO 744 WATCH's first scheduled two-leg run (its close, met; the line is struck).** `cron_runs` #21278 at 2026-09-30 11:00:40.563Z, `success` in 5,471 ms. House `ok`: scraped 230, upserted 18, changed 13 (cook 15, sabato 3). Senate `ok`: scraped 38, upserted 6, changed 5 (cook 3, sabato 3). 0 deleted in both. The runtime log reads `GET /api/sync-race-ratings 200` at 11:00:40 (dep `dpl_7pXr6nHWvqWoJBYh9LYwY3qUSztB`, `branch=main`), the Vercel cron. Its CHANGED lines match the payload.
+- **Reconcile on `main` `2bce248`:** 265 live / 315 struck (580), control 0.
+
+**STEP 0** (prod `SELECT`s; `docs/handoffs/760-artifacts/step0-760.txt`, repo-ignored).
+- **HO number:** `main` at `2bce248`, pointer 759, highest HO in commit subjects 759; so 760.
+- **Anchors, re-read by content at `2bce248`:**
+  - the seed's five rosters, and `seed:races`'s upsert on `(race_id, name)` with no delete, hold;
+  - HO 750's payload names S-GA only (Dooley), which holds;
+  - the `withdrew` rendering (dimmed, last among the majors) holds.
+  - The harvest's curated skip is two things, not one guard: the `NOT EXISTS` clause on the primary-sourced and jungle paths, and the plan's `continue` for the ballot path.
+- **The curated rows, whole table:** 15 over the five races. 7 are `withdrew`: S-GA's Carter; S-ME's Mills and Platner; NJ-07's Roth, Shah and Varela; AK-AL's Williams. 8 are not: AK-AL's Hill, Hafner and McDermott; NJ-07's Bennett; PA-10's Stelson; S-GA's Dooley and Collins; S-ME's Troy Jackson. All five races have a `box` read.
+- **The prediction:** HEAD's own `planBallotRoster` was run on a read-only view of prod with the curated rows hidden. The table goes −8 +8 (928 → 928):
+  - S-GA: Dooley and Collins retired; Collins arrives `won_primary`; Carter kept.
+  - S-ME: *Troy Jackson* retired; the ballot's *Troy Dale Jackson* arrives `nominee`; Mills and Platner kept; the incumbent Collins excluded.
+  - NJ-07: Bennett retired and arrives `won_primary`; Seamus O'Toole arrives `on_ballot` (O, *Stop Israel's Genocide Party*); the three kept.
+  - PA-10: Stelson retired and arrives `won_primary`.
+  - AK-AL: the three `advanced` retired and arrive `advanced`; Williams kept, and his ballot `withdrew` row is the one collision.
+  - The plan outside the five matches today's plan row for row (878 rows).
+
+**Premises corrected, flagged.**
+- **"`curatedHistoryKept` (six)":** there are seven, since the seed's list in the handoff itself names seven. Ruled to stand.
+- **"Collins from the ballot at `nominee`":** he is marked winner in a kept primary box on the page (the runoff), so the ballot publishes `won_primary`. Ruled to stand.
+- **The others' rule reaches curated races:** NJ-07 gains Seamus O'Toole (O) as `on_ballot`, under HO 757's rule. Ruled to stand.
+- **S-GA's box "carries Collins and the Democratic nominee":** the Democratic nominee is Jon Ossoff, the incumbent, so he is excluded as the incumbent.
+- **AK-AL's Williams is on the box's withdrawn list, primary-marked,** so the ballot plans him as `withdrew` under the same `(race_id, name)` as the kept row. Ruled: counted in `curatedHistoryKept`, and `ballotIgnored` stays 0.
+
+**The build.**
+- (1) **`feat`:**
+  - `lib/harvest-challengers.ts`: the plan's curated skip and both `NOT EXISTS` guards go. A second DELETE in the write batch clears every curated row (neither sentinel) whose status is not `withdrew`. The plan leaves out a ballot `withdrew` row whose `(race_id, name)` is a kept curated row and marks that kept entry *(withdrew; also the ballot's withdrew row)*. The payload's `curatedHistoryKept` and `curatedRetired` replace `curatedDivergence`. The divergence helpers, dead without the skip, are removed.
+  - `scripts/seed-races.ts` writes only `withdrew` entries, and prints the rest as *retired by HO 760* (`retired_by_ho760=N`).
+  - The cron route's log line and the manual backfill print the new fields.
+- (2) **`chore`:**
+  - `data/races-seed.json`'s top-level `_comment` names the rule (JSON has no comments; the runoff seeds' convention).
+  - `lib/pac-target-status.ts` and `scripts/migrate.ts`: "no curated roster" becomes "curated too".
+  - `lib/queries.ts`: `getRaceRoster`'s first-and-last fallback no longer cites the harvest's removed `firstLast`.
+
+**Departures and side effects, each named.**
+- (1) **The curated DELETE is unconditional,** any race, as the handoff has it. Every curated race has a `box` read today.
+- (2) **A kept curated `withdrew` row wins any other collision:** a person it names who returns to the ballot under the same name is ignored, and counted in `ballotIgnored`, which is the alarm. It reads 0 today. The seed can no longer rewrite such a row; only a hand delete can.
+- (3) **`curatedRetired` is read in the plan's snapshot, by the same condition as the DELETE,** not from the DELETE's `rowsAffected`. On the legs the two agree (8 and 8). The comments say *snapshot*, not *batch*, after the review.
+- (4) **HO 750's legs driver** (`harvest-yields-legs-750.ts`) reads `curatedDivergence`. It already aborted at `2bce248` on HO 758's duplicated clauses, and it is historical and unchanged.
+- (5) **Two annotations beyond the handoff's list,** each a claim HO 760 turns false in an open line, and flagged:
+  - the pac-target order line: *no curated roster*;
+  - HO 638's convention-nominee line: *hand-seeded, and the next one will be too*.
+
+**The legs** (`scripts/diagnostic/seed-keeps-history-legs-760.ts`; `docs/handoffs/760-artifacts/legs-b3.txt`; b1 and b2 kept beside it):
+- **The copies:** one seed read whole from prod (13 tables, the schema by the real migrate), copied four ways:
+  - `head`, run through HEAD's harvest (loaded with `git cat-file`);
+  - `new`, run through the tree's harvest;
+  - `seedhead` and `seednew`, each run through the tree's harvest, then HEAD's `seed-races.ts` or the tree's.
+- **Everything runs in process or as a child,** and no server is started.
+- **Prod's fingerprint** read the same before and after.
+
+The b3 run, on the committed blobs (harvest `05bc20e6c4`, seed script `aef16fd194`, seed file `b70fdd5179`, driver `89c61e920d`), read 20 pass and 5 fail. Every fail is one of HEAD's red rows.
+
+| Leg | Red (HEAD) | Green (the tree) |
+|---|---|---|
+| 1 S-GA | Dooley and Collins `running`, curated | Dooley gone; Collins `won_primary` from the ballot; Carter's curated `withdrew` kept |
+| 2 S-ME | *Troy Jackson* `nominee`, curated | *Troy Dale Jackson* `nominee` from the ballot; Mills and Platner curated `withdrew`; the incumbent Collins not listed |
+| 3 NJ-07, PA-10, AK-AL | every row curated | the majors from the ballot under the same names; the `withdrew` rows kept; AK-AL's four unchanged in content; NJ-07's O'Toole `on_ballot` |
+| 4 the table | HEAD's payload names S-GA's divergence and keeps 15 curated rows | exactly STEP 0's −8 +8 (928 → 928); the other 913 rows identical to HEAD's; the 7 curated rows left are the `withdrew` ones; the payload names the 8 retired and the 7 kept, Williams marked; `ballotIgnored` 0; planned 886 = HEAD's 878 + 8 |
+| 5 seed:races | HEAD's writes Dooley `running` and *Troy Jackson* `nominee` back | the tree's writes no non-`withdrew` entry and prints the 8 as retired (`retired_by_ho760=8`, `candidates=7`); the 7 `withdrew` rows re-stamped, content unchanged |
+| 6 idempotence | — | a second harvest: the table identical, nothing retired, 7 kept, `ballotIgnored` 0; a harvest after the tree's seed: the table identical |
+
+**The review** (the `ho760-review` Workflow on the working tree: three reviewers, on the harvest and the seed, the downstream readers, and the legs, then a skeptic told to default to REFUTED). It found 6 issues: 1 kept, 5 refuted.
+- **Kept:** HO 638's convention-nominee line claims a hand-seeded route HO 760 closes. It is annotated in `docs`, flagged.
+- **Refuted, with what they left:**
+  - the kept-row precedence: it is the spec, the alarm counts it, and the AK-AL half was stale after the ruling (departure 2);
+  - `curatedRetired` against the DELETE: the same predicate, so the only divergence is a contrived concurrent seed. The comments' *same batch* was corrected (departure 3).
+  - HO 750's driver: it already aborted at HEAD (departure 4);
+  - leg 4 against HEAD's harvest rather than today's table: the instrument isolates the change from the daily re-derive.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. One authorized POST of `/api/cron/race-challengers`. Its payload's `curatedRetired` (the 8 named) and `curatedHistoryKept` (the 7, Williams marked), `ballotIgnored` 0.
+3. `/race/S-GA-2026` and `/race/S-ME-2026` on Production.
+
+**Docs (HO 760):**
+- This block.
+- **backlog 4+/4−:**
+  - the S-GA line struck with the ruling verbatim;
+  - the HO 744 WATCH struck on #21278;
+  - the pac-target order line annotated;
+  - HO 638's convention-nominee line annotated.
+  - The four deletions are those four lines, each rewritten whole.
+- **SKILL 9+/4−**, its own commit, for approval:
+  - the harvest entry: curated races publish from the ballot, and a curated row survives as `withdrew`;
+  - the collision rule and the payload's two fields;
+  - the cron entry's payload list;
+  - the seed's role;
+  - the race page's mark merge.
+- **OPEN LOOPS reconciled: 265 live / 315 struck at open (580 total), 263 / 317 at close (580)**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 760.**
