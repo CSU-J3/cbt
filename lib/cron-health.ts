@@ -83,7 +83,8 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   // dashboard_state blobs, so an unwatched silent stop is invisible: no
   // invocation means no function error for Vercel to alert on either. Watched
   // on cron_runs like every other daily (50 rows since 2026-07-31, 30/30
-  // success in the 30 days before it landed), 26h = 2x cadence + 2h grace.
+  // success in the 30 days before it landed), 26h = one cadence + 2h grace
+  // (one missed fire, the daily rule above).
   { path: "/api/cron/lda-rollup", schedule: "0 22 * * *", maxStaleMs: 26 * HOUR, signal: "cron_runs" }, // daily (HO 580)
   { path: "/api/cron/amendments", schedule: "0 7 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/nominations", schedule: "0 9 * * *", maxStaleMs: 26 * HOUR }, // daily
