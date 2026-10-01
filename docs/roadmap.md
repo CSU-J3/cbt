@@ -4614,3 +4614,111 @@ One change predicted, TX-23's Herrera, `unknown` → `active`. It doesn't show: 
 - **SKILL 5+/5−**, its own commit, for approval: the ladder in order (ballot, contest, roster) with what each rung answers, the first-name match and the marks' `why`; the cache tags; the three reads; TX-23's case settled by rung 0; HO 750's deferral retired; and the live coverage's "`unknown` five", which this HO makes four (a correction the review caught).
 - **OPEN LOOPS reconciled: 266 live / 323 struck at open (589 total), 265 / 324 (589) at close**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 765.**
+
+**Also (HO 766), two low lines: the YAML's two House select bodies land under Congress.gov's `hl…` codes, and every comment that called a sub-daily cron daily says what `vercel.json` says.** The backlog's HO 756 line (*The members step names four committee codes unknown on every tick…*) and HO 755 line (*Comments across `app`, `lib` and `scripts` still call sub-daily crons daily…*), both owner Code, low. Seven commits, kinds unmixed: `fix` · `chore` · `diag` · `docs(skill)` alone · a second `fix` and a second `chore` (two small follow-ups the fact-check found, kept as their own commits rather than rewriting the first ones) · `docs`. No migration, no render change, no captures. The FF is held for the SKILL approval and the review. The pointer is 766 by plain arithmetic: pointer 765, highest HO in commit subjects 765, `main` at `5b03c9d`.
+
+**HO 765's FF go** (item 3 carried as the go asked; files in `docs/handoffs/765-artifacts/`, repo-ignored).
+- **The FF:** `main` at `5b03c9d`, fast-forwarded from `b5a6f82` with no force; `765-review` deleted, and `ls-remote --heads` lists `main` alone (`ls-remote-after-ff.txt`). `verify:deploy` read 5 of 5, first match at 41s. Production e2e #36922163085 passed smoke 140 in 5.8m; the review ref's Preview #36920763375 passed `narrow-preview`. No migration.
+- **The PAC lines on Production (item 3)** (`prod-pac-765.ts`). Each target's `why` comes from the shipped `classifyTarget` over the caller's three statements against prod's rows, SELECT only. The rendered line comes from each seat's race page.
+  - **Before the expiry** (20:32:58Z; the 20:20Z ballot tick predates the 20:31Z deploy; `prod-pac-before-expiry-765.txt`): 17 targets, 0 disagreements with STEP 0's table.
+    - Every module status equals STEP 0's ballot-first column, and every rendered tense matches its status.
+    - By rung: 8 from the ballot (Herrera among them, `active`, *printed on the November ballot*), 6 from the contest (*lost primary*), and 3 with no contest or roster row (`unknown`, rendered current).
+  - **After the first `races` or `general-ballot` expiry after the deploy:** Kalshi #21680 at 22:15:10Z (success, 39.5s), the first `races` expiry after the 20:31Z deploy; read at 22:18:09Z (`prod-pac-after-expiry-765.txt`). Production serves `5b03c9d`. The same 17 targets, 0 disagreements: every module status equals STEP 0's ballot-first column, every rendered tense matches, and every `why` names its rung (8 ballot, 6 contest, 3 neither). TX-23's Herrera is `active`, *printed on the November ballot*, rendered *opposing Herrera*.
+- **Reconcile on `main` `5b03c9d`:** 265 live / 324 struck (589), control 0.
+
+**STEP 0** (prod `SELECT`s, the live membership YAML, and greps; `docs/handoffs/766-artifacts/step0-766.txt`, `regrep-*.txt`, repo-ignored).
+- **HO number:** `main` at `5b03c9d`, pointer 765, highest HO in commit subjects 765; so 766.
+- **Anchors, re-read by content at `5b03c9d`:**
+  - `thomasToSystemCode` and the members step's `unknownCommittees` (`lib/committees-sync.ts`) hold.
+  - The `chronicErr` is the route's (`app/api/cron/committees/route.ts`), *unknown committee codes: N*.
+  - `vercel.json` gives the schedules the handoff lists; committees is `5 */6`, though the HO 755 line, written before HO 756, says `0 */12`.
+  - The daily-comment sites have drifted by content, for example `lib/queries.ts:437` → `:443` and `lib/committees-sync.ts:456` → `:512`.
+- **The four codes:**
+  - The newest committees tick (#21631, 18:05Z) and the two before it name `SSCM39→sscm39`, `SSJU27→ssju27`, `HSZS→hszs00` and `HSQJ→hsqj00`.
+  - `hlzs00` and `hlqj00` are in `committees` with 0 `committee_members` rows.
+  - In the YAML, HSZS has 24 entries and HSQJ 7, every one with a bioguide; SSCM39 and SSJU27 are empty.
+- **The rule's reach:** of the YAML's 230 codes, 125 are `HS…` (22 full, 103 sub). Retrying an absent `hs…` code as `hl…` reaches exactly 2, HSZS and HSQJ. No `HS…` code has both forms in `committees`. The other 7 `hl…` codes (`hlig00` and six subcommittees) are keyed `HL…` in the YAML already.
+- **The daily-comment census:**
+  - The line's own grep reads 19 lines over 9 files at HEAD, matching the line's *19 lines over 9 files after HO 755*.
+  - A wider grep (*daily*, *once a day*, *every day*, *each day*, *nightly*, *per day*) reads 94 lines over 35 files. HO 766's census sorted them (the `ho766-daily-census` Workflow, two independent classifiers per chunk and a judge on the one disagreement; 7 agents): 26 misstate a cadence, and 68 are correct (crons that really are daily, daily data, UI copy).
+  - The union is 29 sites over 12 files. That is the census's 26 misstatements, which already include the line's three named negatives (`scripts/migrate.ts:625` and `:673`, `scripts/sync-ideology.ts:24`), plus the three line-grep lines with no *daily* that only its grep finds (`app/api/sync/route.ts:67`, `lib/report-generation.ts:82` and `:1692`). Counted the other way, it is the line's 22 named sites plus 7 the census adds (`app/api/sync/route.ts:143`, `app/globals.css:7654`, `lib/queries.ts:7091` and `:7432`, `lib/report-generation.ts:1674`, `:1676` and `:1710`).
+
+**The build.**
+- (1) **`fix`:** `lib/committees-sync.ts` `houseSelectFallback`. A YAML `HS…` code whose system code is not in `committees` is retried as `hl` + the rest; a hit maps, and a miss stays unknown. It never touches a code known as it is, or an `hl…` code the YAML names under its own key. **The rule, not the two-entry override the handoff allows:** STEP 0 found it reaches only the two and collides with nothing, so the rule costs no risk and lands a later select body filed this way without a code change. The result gains `mappedCommittees`, which the route's payload carries. The route's `chronicErr` now says the remainder is *membership YAML codes not in committees (Congress.gov's list as last stored)*, not *unknown committee codes*; the log line counts `notInCommittees=` (a second `fix` commit). **Flagged, a departure from the handoff:** it asked for the `chronicErr` (and SKILL) to say the two are *absent upstream*. The review found that claims more than the table can show: `committees` is an upsert that never deletes, from a step that can fail on its own. So both say *not in committees (Congress.gov's list as last stored)*, which is what the code knows. `thomasToSystemCode` and `houseSelectFallback` are exported for HO 566's instrument, and the HO 568 comment's 10 source-absent bodies are 8 since this HO.
+- (2) **`chore`:** the 29 sites in `vercel.json`'s words (*every 6h (`0 */6`, vercel.json)*, the style of HO 755's headers). Comments only:
+  - `lib/report-generation.ts:82` names `30 9 * * 1`;
+  - `lib/summarize-runner.ts` says 24h is about 144 ticks at `*/10`, *a choice, not a match to the cadence*, with the value unchanged;
+  - `lib/fec.ts` says both runs are manual;
+  - the catch-up comments say every sync tick, six hours later.
+  - **Flagged:** `lib/primaries-sync.ts`'s header also drops `CRON_SLICE`, a constant that exists nowhere now. It names `CRON_HOUSE_SLICE` (12) and `CRON_SENATE_SLICE` (20), and a pass of about 40 ticks (the calendar, 2 Senate, 37 House), about 20 days at two a day. The *~25 days* it said was HO 97's 20-district figure, which HO 120 cut to 12. (The first draft called it "roughly half" of 25; the review corrected the arithmetic.)
+  - The CSS comment (`app/globals.css`) about the tape reading STALE names HO 156's weekday-only refresh, under which it read STALE over weekends. It says in words that the markets cron now runs every 4 hours: written as the cron string, the `*/` closes the CSS comment.
+  - **A second `chore` commit:** `lib/cron-health.ts`'s lda-rollup note said *26h = 2x cadence + 2h grace*. For a daily route that is one cadence plus 2h, the file's own daily rule. This was the review's unverified ninth finding.
+- (3) **`diag`:**
+  - the legs;
+  - HO 566's roster instrument (`scripts/diagnostic/delete-rebuild-erosion-566.ts`), the standing instrument SKILL names for this write path. It kept a "verbatim" copy of `thomasToSystemCode` with no select-body retry, so after this HO it would have disagreed with the cron (the review's finding). It now imports the members step's own mapping, and its cadence labels say every 6h. Run read-only against prod before the FF, it names exactly the gap: `hlzs00` src=24 db=0, `hlqj00` src=7 db=0, 2 codes not in `committees` (`erosion-566-on-tree.txt`).
+
+**The legs** (`scripts/diagnostic/select-codes-legs-766.ts`, its child and `committee-yaml-shim-766.cjs`; `docs/handoffs/766-artifacts/legs-*.txt`, `seed-*.txt`).
+- **The copies:** one template, the tree's migrate with `committees`, `committee_members` and `members` whole from prod. `head` and `tree` read the saved YAML. `guardh` and `guardt` read the saved YAML with an `HSXX` appended, beside a planted `hlag00` row.
+- **How HEAD runs:** HEAD's `committees-sync.ts` is loaded by `git cat-file` in a child, on `file:` copies only. The YAML is HO 766's STEP 0 copy (sha256 `f07d5156772ec91b`), served by the shim, so no leg fetches.
+- **Prod:** its fingerprint reads the same before and after.
+- **Result:** on the committed blobs at HEAD `802e58a` (committees-sync `3185667326`, route `5317c9e263`, driver `47817d519f`, child `d6b7f7da5f`, shim `2e49b0c0cb`), seed `e` and legs `e`: 9 pass and 0 fail (`legs-e.txt`). Leg 1 asserts the shim answered each child.
+
+| Leg | Red (HEAD, `5b03c9d`) | Green (the tree) |
+|---|---|---|
+| 1 the mapping | 0 rows under `hlzs00` and `hlqj00`; four unknowns | 24 and 7; `mappedCommittees` HSZS → `hlzs00`, HSQJ → `hlqj00`; unknowns SSCM39 and SSJU27 only; the other 226 codes' rows equal to HEAD's (228 rostered codes compared, less the two mapped; the `diag` commit's message says "the other 228", its one miscount, named here) (`committeesSeen` 226 → 228, upserted 3,864 → 3,895) |
+| 2 the guard | — | the planted HSXX (no `hlxx00`) stays unknown; HSAG's 53 rows under `hsag00` equal HEAD's, and the planted `hlag00` gets none |
+| 3 the comments | the line's own grep: 19 lines over 9 files | 0 lines; a planted control reads 1, and the plant is gone after |
+
+- **The instrument, corrected before it read clean:**
+  - STEP 0's first payload read looked for `members` at the top of the stored body; it sits under `payload`. The re-read names the four.
+  - Leg 3 first had no red; it now reads the line's grep at HEAD.
+- **A build that passed but wasn't clean:**
+  - The first `npm run build` exited 0 with the CSS comment's first rewrite, which carried `` `0 */4` ``, so its `*/` closed the comment early. The log printed *Found 1 warning while optimizing generated CSS … Invalid empty selector*, quoting the stray text, and it went unread (`build-766.txt`).
+  - The review's rewrite put a `;` into the stray region, and the build failed: *CssSyntaxError … Unknown word*.
+  - With the schedule in words the build passes. Its final log (`build-766-e.txt`, cache cleared) has 0 warnings.
+  - The cache was not the cause: a first account blamed it, and the fact-check showed the warning quotes the new text. Every build log is now read for warnings, not just its exit code.
+
+**The daily census** (the `ho766-daily-census` Workflow, 7 agents) is in STEP 0.
+
+**The review** (the `ho766-diff-review` Workflow on the working tree: two reviewers, one on the members step and one on the comments and the legs; each finding put to two skeptics told to default to REFUTED; 18 agents). The reviewers returned 9 findings; the workflow put the first four per reviewer (8) to skeptics, and the ninth went unverified. None is in the data.
+- **Kept and fixed before the commits:**
+  - **HO 566's roster instrument** (both confirmed) would disagree with the cron after the FF. It now imports the mapping; see (3).
+  - **The primaries header** (both confirmed) halved the wrong period. Corrected above.
+  - **The CSS comment** (both confirmed) claimed a daily refresh at HO 156 that never existed. Corrected above.
+  - **The source-absent count** (both confirmed): the HO 568 comment and SKILL said 10, which this HO makes 8.
+  - **The wording** (reported twice: confirmed by both skeptics on the comments-and-legs report, one confirmed and one refuted on the members-step report): *absent upstream (not in Congress.gov's committee list)* claimed more than an upsert-only table can show. It is narrowed (flagged above).
+  - **The WATCH entry** (one confirmed, one refuted): *committees cron benign ERR `unknown committee codes`* proposes the mapping fix this HO is, and watches a string the route no longer writes. It is struck.
+- **Refuted by both skeptics:** leg 1 not asserting the shim answered. It asserts it now.
+- **The unverified ninth:** `lib/cron-health.ts`'s lda-rollup note called 26h *2x cadence*. Fixed in the second `chore` commit.
+
+**The fact-check of this block** (the `ho766-block-factcheck` Workflow, 16 agents; corrections applied):
+- the false account of the build;
+- the review's count (9, not 8);
+- one report's skeptic split;
+- "228 other codes" (226);
+- the leftover `absentUpstream=` log label (the second `fix` commit);
+- the backlog close-out still quoting the old wording;
+- the unflagged departure from the handoff's *absent upstream*.
+
+Its note on the 29-site composition (refuted by both skeptics, a clarity point) is applied too.
+- **The legs re-ran on the final tree** (`802e58a`): 9 pass, 0 fail.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. The first committees tick at `:05` after the deploy:
+   - its `chronicErr` naming only SSCM39 and SSJU27, as *not in committees (Congress.gov's list as last stored)*, and its log line's `notInCommittees=2`;
+   - `mappedCommittees` in its payload;
+   - `committee_members` holding 24 rows for `hlzs00` and 7 for `hlqj00`.
+
+**Docs (HO 766):**
+- This block.
+- **backlog 3+/3−:**
+  - both lines struck on the legs, the select-body line with its prod reading owed in the FF go;
+  - the WATCH entry *committees cron benign ERR* struck, the review's find;
+  - the deletions are the three lines rewritten whole.
+- **SKILL 4+/1−**, its own commit, for approval:
+  - the schema note's system-code rule gains the `HS` → `hl` retry;
+  - the committees cron entry gains the members step's select-body rule, `mappedCommittees`, what the remaining `unknownCommittees` are (not in `committees`, Congress.gov's list as last stored) with the new `chronicErr` wording, and HO 566's instrument importing the mapping;
+  - the HO 568 note's 10 source-absent bodies, 8 since this HO.
+- **OPEN LOOPS reconciled: 265 live / 324 struck at open (589 total), 262 / 327 (589) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 766.**
