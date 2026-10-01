@@ -2065,6 +2065,13 @@ density as **3/907**. Current corpus is **4/876**. Correct it whenever
 
 ---
 
+**HO 763 (2026-10-01): the runoff read is a shape join now, and `race_id` is read by nothing on
+it.** HO 761's sync writes runoff rows with no `race_id`, so after HO 762's repair prod held 33
+runoff rounds and the race page drew 3. `getRunoffsForRace` now keys on the seat
+(`lib/runoff-seat.ts`: state, chamber, the cycle as the year of the round's date, the House
+district), the shape join this entry names as the general link, with the cycle added because
+`races` also holds the 2028 and 2030 Senate seats. The lesson stands: read what the consumer joins on.
+
 ## An instrument that reads a PROXY for the thing instead of the thing — three from one arc (HO 642/643, Aug 2026)
 
 Three separate measurement failures in one arc turned out to be the same

@@ -4291,3 +4291,76 @@ The d runs are on the committed blobs (scrape `2f631e83a1`, sync `0f17c37792`, r
 - **SKILL 1+/1−**, its own commit, for approval: the Runoff tracking sentence that said SC's special runoff lands on the special's row now says how (the date route) and what happens otherwise (`unrouted`).
 - **OPEN LOOPS reconciled: 267 live / 319 struck at open (586 total), 268 / 320 (588) at close**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 762.**
+
+**Also (HO 763), a written runoff draws its block: the race page's runoff read keys on the seat, not on a `race_id` the sync never wrote, so the 30 ingested rounds render where the 3 seeded ones already did.** Ruled 2026-09-30 by the architect (the HO 761 line): a written runoff draws its block, this HO, with captures. Four commits, kinds unmixed: `fix` · `diag` · `docs(skill)` alone · `docs`. No migration. The FF is held for the SKILL approval, the captures and the review. The pointer is 763 by plain arithmetic: pointer 762, highest HO in commit subjects 762, `main` at `99f16a1`.
+
+**HO 762's FF go** (`docs/handoffs/762-artifacts/carry-to-next-ho.md` and the files it names), items 3 and 4 carried as the go asked.
+- **The FF:** `main` at `99f16a1`, fast-forwarded from `84f5079` with no force; `762-review` deleted, and `ls-remote` lists `main` alone. `verify:deploy` read 5 of 5, first match at 21s. Production e2e #36793230518 passed smoke 140 in 5.5m; the review ref's Preview #36787087944 passed `narrow-preview`.
+- **The repair on prod (item 3):**
+  - The dry run read 104 pages, 0 NO_PAGE, `minGapMs` 6000, 33 boxes all dated from the box. It planned 30 inserts with SC's on `senate-SC-2026-special-R-runoff`, 3 reopens (GA R, LA D, LA R), `unrouted` 0, and only SC's three House boxes in the date-mismatch list.
+  - `--write`, started 2026-10-01 00:02:43Z: the same 104 pages at 6000ms; 30 inserted, 3 reopened, `unrouted` 0, `noMatch` 0.
+  - Read back on prod at 00:13Z (SELECT only): 33 runoff rows, each with exactly one winner and a roster of 2; no `senate-SC-2026-R-runoff`; SC's special runoff Graham 52.6 over Norman 47.4 (2026-08-25); GA's seed Collins `winner` 55.5, Dooley `running` 44.5, `race_id` S-GA-2026 kept; TX-18's Menefee over Green (G000553), TX-33's Allred over Johnson (J000310), S-TX's Paxton over Cornyn (C001056).
+  - The qualifier's rule re-run on prod data: TX-09, TX-32 and S-TX `lost_primary`; the table absent 33, lost_primary 12, moved 11, retiring 31, senate 6, withdrew 1 (was 36 and 9).
+- **The pages (item 4), Production at `99f16a1`, 2026-10-01 00:16Z,** after Kalshi tick #21435 (00:15:10Z, success, 39.7s; it expires `races` on every tick):
+  - `/race/S-GA-2026`: *Runoff · 2026-06-16 · Republican runoff · Mike Collins 55.5% · won · Derek Dooley 44.5% · lost*; Candidates (2): Collins *Won primary*, Carter *Withdrew*.
+  - `/race/TX-09-2026`, `/race/TX-32-2026`, `/race/S-TX-2026`: each `data-incumbent-tag="lost_primary"`, *LOST PRIMARY*; *NOT ON THE BALLOT* gone.
+- **Reconcile on `main` `99f16a1`:** 268 live / 320 struck (588), control 0.
+
+**STEP 0** (prod `SELECT`s; `docs/handoffs/763-artifacts/step0-763.txt`, repo-ignored).
+- **HO number:** `main` at `99f16a1`, pointer 762, highest HO in commit subjects 762; so 763.
+- **Anchors, re-read by content at `99f16a1`:** `getRunoffsForRace` reads `p.race_id = ?` (`lib/queries.ts:1675-1687`; the handoff's `:1676` is a line off); the sync's `race_id` note is `lib/primaries-sync.ts:642-647` after HO 762's edits (the handoff's `:644-648`); `RaceHubBody`'s stub rule (`:100-110`) and the page's fetch (`app/race/[id]/page.tsx:67`) hold.
+- **`races`:** 2024 House 5, 2026 House 435, 2026 Senate 35, 2028 Senate 32, 2030 Senate 33. No state has two Senate races in one cycle; the six at-large races carry district 0.
+- **The 33 runoff rounds, by the seat key:** all decided; none reaches no race and none reaches two; no race has two rounds of one party; no seeded round's `race_id` disagrees with its seat.
+
+| | races | blocks |
+|---|---|---|
+| drawn today (`race_id`) | 2 (S-GA 1, S-LA 2) | 3 |
+| drawn by the seat key | 28 | 33 |
+| gaining a block | 26: AL-05, GA-01, GA-07, GA-11, GA-12, S-AL (2), S-OK, S-SC, S-TX, SC-01 (2), SC-02, TX-01, TX-05, TX-07, TX-09, TX-14, TX-16, TX-17, TX-18, TX-19, TX-24, TX-30, TX-33 (2), TX-35 (2), TX-37, TX-38 | 30 |
+| two blocks after | S-AL, S-LA, SC-01, TX-33, TX-35 | |
+
+- **The stub:** 5 races print it today (no rating, no `race_ratings`, no roster), and none of them has a runoff round. So the stub check runs on a planted copy.
+- **The captures:** TX-18 (one block), TX-33 (two), S-GA (seeded).
+
+**Premises corrected, flagged.**
+- **"keys on the seat: the race's state, chamber and district":** the key also needs the cycle. `races` holds the 2028 and 2030 Senate seats, and a state-and-chamber key would draw 2026's runoffs on S-TX-2030 and five 2028 races; the round's cycle is the year of its date. Leg 1 checks the six.
+- **"the payload line":** `runoffStrays` is read once per tick inside `runPrimariesCronTick`, beside the priority pass, so all three unit branches carry it.
+
+**The build.**
+- (1) **`fix`:**
+  - `lib/runoff-seat.ts` (new): `RUNOFF_SEAT_JOIN`, the one copy of the key.
+  - `lib/queries.ts`: `getRunoffsForRace` reads `election_round = 'runoff'` rounds whose seat reaches the race (`EXISTS` against `races` by id), ordered by party then date; `race_id` is not read.
+  - `lib/primaries-sync.ts`: `findRunoffStrays` (rounds whose seat reaches no race, "id (state chamber district, date)"), and `runPrimariesCronTick` puts it in the payload as `runoffStrays`.
+- `RaceRunoffs` and the stub rule are untouched: a race with two rounds draws both in its one block, as the component already allows, and a race that went to a runoff stops being a stub.
+
+**The legs** (`scripts/diagnostic/runoff-seat-legs-763.ts` and its child; `docs/handoffs/763-artifacts/legs-b.txt`, `captures-before-a.txt`, `captures-after-b.txt`). One template read whole from prod (13 tables, the schema by the real migrate), copied as `main`; `stub` (TX-18's one roster row taken out and its rating cleared, so its runoff is all it has); and `stray` and `tick` (a round planted on `house-TX-99-2026-D-runoff`, a seat no race has). HEAD's `queries.ts` and `primaries-sync.ts` are loaded with `git cat-file` in a child, on a `file:` copy only, under HO 757's `next/cache` stub; the tick's pages come from HO 761's shim. The before captures are HEAD's build, the after captures the tree's; each server's listener was its spawned PID, and the port was free after each kill. Prod's fingerprint read the same before and after every mode. On the committed blobs (queries `ac0646499c`, seat `bae1179c67`, sync `c30ce652ee`, driver `b2441f4f75`, child `350afd5eca`): legs 1 to 3, 15 pass and 0 fail; the after captures, on the tree's build, 17 and 0. The before captures, on HEAD's build at `99f16a1`, read 8 and 0 before the fix existed and were not re-run.
+
+| Leg | Red (HEAD, `99f16a1`) | Green (the tree) |
+|---|---|---|
+| 1 the read | TX-18 draws nothing | TX-18 its D round; S-SC the special's round and no June primary's; S-GA the seeded round, as HEAD; TX-02 none; the six 2028 and 2030 Senate races of the runoff states none |
+| 2 the count | 3 blocks on 2 races (S-GA, S-LA) | exactly STEP 0's 26 races gain exactly its 30 blocks; S-GA and S-LA unchanged; 33 on 28 of 540 races read |
+| 3 strays | the tick's payload has no stray list | the planted round is named by `findRunoffStrays` (and nothing on the unplanted copy), named once in a real tick's payload (`syncHouseDistricts` slice 440 to 452 through the shim), and drawn by no race |
+| 4 captures | TX-18 and TX-33 draw no block; S-GA its seeded one; the stub copy's TX-18 prints the stub (*Incumbent running for re-election. No competitive rating yet.*) | TX-18 draws *Menefee 69.3% · won, Green 30.7% · lost*; TX-33 its D and R rounds in one block; S-GA exactly HEAD's rows; the stub copy's TX-18 draws its runoff and no stub, its empty roster reading the Candidates section's own *Candidate filings forthcoming.* At 1440, 2560 and 1440 with reduced motion (read back in the page), every stylesheet 200, no console error |
+
+- **The instrument, corrected before it read clean, and one change named across the phases:** the rendered text is uppercase by CSS, so the before run's case-sensitive checks failed on *WON* and on the stub; and the after run's stub check first matched the Candidates section's empty-roster note, whose words the open-seat stub shares, so the check now reads the stub's own sentences and reports which matched. The before captures ran with the broader check; on HEAD's stub page the Candidates section is not rendered (`RaceHubBody`'s stub branch replaces it), so its one match there was the stub's sentence, which the capture shows.
+
+**The review** (the `ho763-diff-review` Workflow on the working tree: two reviewers, on the read and its consumers, and on the stray list and the legs, each finding put to two skeptics told to default to REFUTED; 22 agents). It found 10 issues, all low.
+- **Kept, and fixed before the commits:**
+  - four comments the read makes false: HO 761's note on the write (`lib/primaries-sync.ts`), `seed-runoffs.ts`' parent-not-found warning, the HO 640/641 oddities entry (annotated), and SKILL's *both cached, tag `races`* (a ride-along);
+  - the stray list is read after the unit's writes, in each of the tick's three returns, so a stray the tick writes is named in that tick's payload;
+  - leg 3's tree tick had read the HEAD tick's disk cache, not the shim (`scrapeHouseCandidates` caches in the cwd): the cache is cleared before each tick, and each tick's 12 shim answers are asserted;
+  - the prod fingerprint reads the cron cursor row, the one prod row a tick writes;
+  - the legs re-ran on the final driver.
+- **Refuted:** one header date for every round (every race's rounds share a date at STEP 0); the empty Candidates note under a runoff (no prod race is in that state; on the planted copy it is the section's own empty-roster note, named above).
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. On Production: `/race/TX-18-2026`, `/race/S-SC-2026` and `/race/S-GA-2026` with their blocks, and the count of race pages drawing a block against STEP 0's 28.
+
+**Docs (HO 763):**
+- This block.
+- **backlog 2+/2−:** the race_id line struck on the legs, and the SC runoff line (HO 600/601) struck, its row on prod since HO 762's write and drawn on S-SC by this HO's read. The two deletions are the two lines rewritten whole.
+- **oddities 7+/0−:** an HO 763 note on *`primaries.race_id` is the RUNOFF join key* (HO 640/641), whose present tense this HO ends.
+- **SKILL 4+/4−**, its own commit, for approval: the runoff read keyed on the seat and `race_id` unread by the page; the written rows drawn and the stray list; the cron entry's `runoffStrays`. Two ride-alongs, flagged: the read's consumer list named the dashboard popover, whose prefetch HO 658 removed; and the `getRaceCandidates` entry called `getMember` and `getRunoffsForRace` *both cached, tag `races`* (`getMember` is cached under `members`; `getRunoffsForRace` is uncached).
+- **OPEN LOOPS reconciled: 268 live / 320 struck at open (588 total), 266 / 322 (588) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 763.**
