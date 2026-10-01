@@ -4475,3 +4475,142 @@ It also noted that HO 759's `incumbent-tag-legs-759.ts` FL-11 guard goes vacuous
   - One ride-along, flagged: the qualifier's `lost_primary` entry said its name check stops the member match's namesakes; the match no longer makes them, and the entry now says so, with the six seats identity reaches.
 - **OPEN LOOPS reconciled: 266 live / 322 struck at open (588 total), 266 / 323 (589) at close**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 764.**
+
+**Also (HO 765), the PAC-target rungs read the ballot first where a race has one: printed means active, withdrawn means withdrew, and the contest decides only who the ballot never names.** The backlog's HO 750 line (*`lib/pac-target-status.ts` consults primary contest evidence before a roster that is now ballot-sourced*), owner Code, medium, and one chore carried from HO 764's FF go. Five commits, kinds unmixed: `fix` · `chore` · `diag` · `docs(skill)` alone · `docs`. No migration, no render change, no captures. The FF is held for the SKILL approval and the review. The pointer is 765 by plain arithmetic: pointer 764, highest HO in commit subjects 764, `main` at `b5a6f82`.
+
+**HO 764's FF go** (items 3 and 4 carried as the go asked; files in `docs/handoffs/764-artifacts/`, repo-ignored).
+- **The FF:** `main` at `b5a6f82`, fast-forwarded from `e91339a` with no force; `764-review` deleted, and `ls-remote --heads` lists `main` alone (`ls-remote-after-ff.txt`). `verify:deploy` read 5 of 5, first match at 21s. Production e2e #36910770622 passed smoke 140 in 6.0m; the review ref's Preview #36806031183 passed `narrow-preview`. The column had been on prod since 02:08Z.
+- **The repair on prod (item 3):**
+  - **The dry run** (`repair-dry-prod-764.txt`, started 2026-10-01 18:59:01Z) wrote nothing.
+    - Rows: 2,596 on 455 races; 2,470 tied from the saved pages; 0 tied live; 126 untied.
+    - Live: 53 pages read at a 6,001ms minimum gap, 0 NO_PAGE.
+    - It planned 2,470 keys and 28 bioguide changes, identical as a set to leg 4's 28.
+  - **`--write`** (`repair-write-prod-764.txt`, started 19:04:45Z): the same 53 pages at 6,000ms, 2,470 keys set, and the same 28 lines as the dry run. The bioguide changes, old member to new:
+    - five namesakes cleared to NULL:
+      - CA-38 *Monica Sanchez* (`S001156`, Linda T. Sánchez);
+      - FL-11 *Royal Webster* (`W000806`, Daniel Webster);
+      - IL-04 *Patty Garcia* (`G000586`, Jesús G. "Chuy" García);
+      - TX-22 *Trever Nehls* (`N000026`, Troy E. Nehls);
+      - S-AK's second *Dan Sullivan* (`S001198`, Dan Sullivan).
+    - 23 NULL → the member:
+      - CA-14 Wahab `W000832`;
+      - S-GA Carter `C001103`, Collins `C001129` (first round and runoff);
+      - S-IA Hinson `H001091`;
+      - S-IL Krishnamoorthi `K000391`, Kelly `K000385`;
+      - S-KY Barr `B001282`;
+      - S-LA Letlow `L000595` (first round and runoff);
+      - S-MA Moulton `M001196`;
+      - S-MI Stevens `S001215`;
+      - S-MN Craig `C001119`;
+      - S-NH Pappas `P000614`;
+      - S-OK Hern `H001082`;
+      - S-SC Darline Graham `G000608` (special and its runoff), Norman `N000190` (special and its runoff), Fry `F000478`;
+      - S-TX Crockett `C001130`, Hunt `H001095`;
+      - S-WY Hageman `H001096`.
+- **The read back (item 4), SELECT only** (`readback-before-764.txt` at 18:59Z, `readback-after-764.txt` at 19:10Z):
+  - **The corrected SELECT:**
+    - before: *Daniel S. Sullivan* `S001198`, *Dan Sullivan* `S001198`, *Patty Garcia* `G000586`;
+    - after: *Daniel S. Sullivan* `S001198` (keyed to his title), *Dan Sullivan* NULL, *Patty Garcia* NULL.
+  - **Keyed rows:** person_key set on 2,470 of 2,596. Rows with a bioguide went from 370 to 388 (370 − 5 + 23).
+  - **The whole-table review list** (current House members linked to no `house-` row) went from 98 to 100: García, Nehls and Webster are on it, and Wahab is off it.
+  - **The six seats' tags:**
+    - cached at 19:10Z, before the expiry (`pages-before-expiry-764.txt`, after Kalshi #21633 at 18:15Z): all six `absent`. Controls: TX-09 and TX-32 `lost_primary`, GA-01 and MN-02 `retiring`, GA-13 and TN-05 `absent`.
+    - after the next `races` expiry: Kalshi #21657 at 20:15:10Z (success, 39.8s), read at 20:17:48Z (`pages-after-expiry-764.txt`): IL-02, IL-08, MA-06, MI-11, TX-30 and TX-38 all `lost_primary`. IL-02 renders *LOST PRIMARY* beside Robin Kelly's member link. The controls are unchanged: TX-09 and TX-32 `lost_primary`, GA-01 and MN-02 `retiring`, GA-13 and TN-05 `absent`. HO 759's line's six close on Production, and Blair and Ogles remain.
+- **Reconcile on `main` `b5a6f82`:** 266 live / 323 struck (589), control 0.
+- **The FF go's ruling on the repair's header** (`lib/primary-identity-repair.ts:31-33` said "person_key and bioguide_id only"; it also writes `updated_at`): done in this HO's `chore` commit, (2) below.
+
+**STEP 0** (prod `SELECT`s; `docs/handoffs/765-artifacts/step0-765.txt`, repo-ignored).
+- **HO number:** `main` at `b5a6f82`, pointer 764, highest HO in commit subjects 764; so 765.
+- **Anchors, re-read by content at `b5a6f82`:**
+  - The caller at `lib/queries.ts:2566` holds, but it is not "its one caller": HO 691's enumerator (`scripts/diagnostic/pac-target-status-691.ts:110`) and its unit checks (`matchup-shapes-691.ts`) call `classifyTarget` too, with four arguments. The enumerator is updated in (3); the unit checks are left (below).
+  - The keys at `lib/pac-target-status.ts:112-126` hold, but the handoff's description of them doesn't: an FEC `LAST, FIRST` name folds through `fecTargetKey` (`pacSurname`), not `rosterKey`. `rosterKey` folds the "First Last" roster, contest and ballot names, and the file's own comment warns that crossing them is "silently wrong".
+  - `classifyTarget` is `:135-197` (the handoff says `:135-196`). The *WHY THE CONTEST BEATS THE ROSTER* note starts at `:56` (the handoff says `:60`).
+- **The live set:** 18 `pac_ie_spending` rows, 17 targets once the card's dedup is applied (NJ-11's Malinowski carries two FEC ids), on 11 seats. Every seat has a `box` read, and no ballot surname in those races belongs to two people.
+
+| race | dir | target | today (HEAD) | ballot row | ballot-first |
+|---|---|---|---|---|---|
+| CA-14 | S | Hernandez | active, winner in house-CA-14-2026-open | printed | active, ballot |
+| CA-14 | O | Wahab | active, winner in house-CA-14-2026-open | printed | active, ballot |
+| CA-34 | S | Gomez | active, winner in house-CA-34-2026-open | printed | active, ballot |
+| IL-07 | S | Conyears-Ervin | lost, house-IL-07-2026-D (20.5%) | — | lost, contest |
+| IL-07 | O | Collins | lost, house-IL-07-2026-D (9.5%) | — | lost, contest |
+| IL-07 | O | Friedman | lost, house-IL-07-2026-D (7.3%) | — | lost, contest |
+| IN-08 | O | Hostettler | unknown, no contest or roster row | — | unknown |
+| KY-04 | S | Gallrein | active, winner in house-KY-04-2026-R | printed | active, ballot |
+| KY-04 | O | Massie | lost, house-KY-04-2026-R (45.1%) | — | lost, contest |
+| MD-05 | S | Boafo | active, winner in house-MD-05-2026-D | printed | active, ballot |
+| MO-01 | S | Bell | active, winner in house-MO-01-2026-D | printed | active, ballot |
+| MO-01 | O | Bush | lost, house-MO-01-2026-D (36.9%) | — | lost, contest |
+| NJ-11 | O | Malinowski | unknown, no contest or roster row | — | unknown |
+| NY-16 | O | Bowman | unknown, no contest or roster row | — | unknown |
+| S-MI | S | Stevens | lost, senate-MI-2026-D (47.5%) | — | lost, contest |
+| S-MI | O | El-Sayed | active, winner in senate-MI-2026-D | printed | active, ballot |
+| TX-23 | O | Herrera | **unknown**, rung 1b (a runoff on 2026-05-26 with no resulted row) | printed | **active**, ballot |
+
+One change predicted, TX-23's Herrera, `unknown` → `active`. It doesn't show: `unknown` and `active` both render as current. Seven targets keep their status but move to the ballot rung for their `why`.
+
+**The build.**
+- (1) **`fix`:**
+  - `lib/pac-target-status.ts`: `classifyTarget` takes `seatBallot` (null without a `box` read) and `electionDate`. Rung 0 runs only on a box: a matching row printed (not a write-in) reads `active`, and a row only in the withdrawn block reads `withdrew`. **A row matches on the surname key and the first name**, whole or as a three-letter prefix either way (HO 751's rule). This is beyond the handoff, from the review, flagged: a printed namesake can't speak for a target, and a mismatch only declines the rung; all 8 printed targets of the live set agree. A target the ballot never names falls through to the contest and the roster, unchanged. After election day a printed row still reads `active`, and its `why` reads the box's marks: not yet called (none), decided (one), or a runoff (two). The note is rewritten as *the ballot beats the contest, the contest beats the roster*, with HO 750's deferral retired, and the round note says rung 0 now settles TX-23.
+  - `lib/queries.ts` `getPacIeSpending`:
+    - a third read, `general_ballot_reads` LEFT JOIN `general_ballot` on the box seats; a box seat with no rows still counts as a box;
+    - `today` from `clockNowMs` (HO 758) and `electionDay`;
+    - the `general-ballot` tag beside `races`, so a ballot read that READ a page refreshes the statuses;
+    - the `PacIeRow` header comment says so.
+- (2) **`chore`:** `lib/primary-identity-repair.ts`'s header names `person_key`, `bioguide_id` and `updated_at`, as HO 764's FF go ruled.
+- (3) **`diag`:**
+  - the legs;
+  - HO 691's enumerator, `scripts/diagnostic/pac-target-status-691.ts`. Its header promises it calls exactly what `getPacIeSpending` calls, but its four-argument call skipped rung 0. It now reads the box seats' ballot and the query layer's clock, and run against prod (read-only) it reads TX-23's Herrera `ACTIVE`, as the query layer does (`enumerator-691-on-tree.txt`).
+
+**The legs** (`scripts/diagnostic/pac-ballot-legs-765.ts` and its child; `docs/handoffs/765-artifacts/legs-*.txt`, `seed-*.txt`).
+- **The copies:** one template, the tree's migrate with 9 tables whole from prod: the 7 `getPacIeSpending` reads, plus `members` and `member_ids`. (The driver's header and the `diag` commit's message say "the 9 tables `getPacIeSpending` reads"; it reads 7. That is named here and left in the commit.)
+  - `main` is untouched.
+  - `plant` holds the four cases and the review's namesake.
+  - `clock` is the plant copy with LA-02's jungle contest resulted, plus one mark on NY-16 and two on TX-23.
+- **How HEAD runs:** HEAD's `queries.ts` and `pac-target-status.ts` are loaded by `git cat-file` in a child, HEAD's queries importing HEAD's classifier, under HO 757's `next/cache` stub, on `file:` copies only.
+- **What each leg reads:**
+  - Legs 1 to 5 read `getPacIeSpending`'s statuses end to end, and each target's `why` from `classifyTarget`, fed by per-seat copies of the caller's three statements.
+  - Leg 1b's decline check runs the pure function on a synthetic seat.
+  - Leg 6 reads the header.
+- **Prod:** its fingerprint reads the same before and after.
+- **Result:** on the committed blobs (`pac-target-status` `72e6fd1429`, queries `88431f3be7`, repair `38bb33c1f1`, driver `e7e4212ce7`, child `9e3c56b5d1`), seed `d` and legs `d`: 16 pass and 0 fail (`legs-d.txt`, `seed-d.txt`).
+
+| Leg | Red (HEAD, `b5a6f82`) | Green (the tree) |
+|---|---|---|
+| 1 withdrew after winning | MD-05's Boafo, his ballot row moved to the withdrawn block: `active`, *winner in house-MD-05-2026-D* | `withdrew`, *in the ballot's withdrawn block* |
+| 1b a printed namesake (the review's case) | S-MI: an independent *Joe Stevens* printed beside the target Haley Stevens, who lost the D primary: `lost` | `lost`, the contest's `why`. The pure function reads a printed *Joe Stevens* as the contest's `lost` and a printed *Haley Stevens* as `active`, so the first-name check is what declines |
+| 2 replacement nominee | NY-16's planted Pat Replacement (printed, a `nominee` roster row, no contest row): `active`, *race_candidates status=nominee (no contest row)* | `active`, *printed on the November ballot*; with the clock at 2026-11-04 and no marks, `active` still, *…; election day has passed and the race is not yet called* |
+| 2c the caller's clock (the review's case) | the `clock` copy at 2026-11-04: HEAD's caller ignores the clock, so LA-02's Carter (his jungle contest resulted, not its winner) reads `unknown` | the tree reads him `lost`, and `unknown` at today's clock. NY-16 (one mark) reads *…; the race is decided (marked)*, TX-23 (two marks) *…; the race goes to a runoff (marked)*, both `active` |
+| 3 runoff loser | TX-18's Al Green: `lost` from the D runoff | `lost`, the same `why` |
+| 4 no box | LA-02's Troy Carter, a printed ballot row planted under a `no_box` read: `unknown` | `unknown`, the same `why`: the planted row is not consulted |
+| 5 the live set | 18 PAC rows | exactly STEP 0's one change (TX-23's Herrera `unknown` → `active`); every `why` names its rung: 8 ballot, 6 contest, 3 neither (no contest or roster row) |
+| 6 the chore | the header: "person_key and bioguide_id only" | "person_key, bioguide_id and updated_at only" |
+
+- **On the plant copy nothing else moves:** only Boafo's status differs, beside STEP 0's live change.
+- **The instrument, corrected before it read clean:**
+  - The plant-copy guard first flagged TX-23, which is STEP 0's live change and is on every copy.
+  - The closing prod fingerprint failed with `fetch failed` on the a and b runs, after the seed's identical read had worked. That is likely a pooled connection gone stale over the legs, but it is unconfirmed: the error carries no cause. It now retries once, and logs the retry (on the c and d runs it failed once and read equal on the retry). The review asked for a wider fingerprint, and it now covers `general_ballot_reads`, `races` and `primaries` too.
+
+**The review** (the `ho765-diff-review` Workflow on the working tree: two reviewers, one on the rung and its caller and one on the docs and the legs; each finding put to two skeptics told to default to REFUTED; 16 agents). It found 7 issues, none showing on the live set.
+- **Kept and fixed before the commits:**
+  - **The namesake** (one skeptic confirmed, one refuted). Rung 0 matched on the surname alone, so an independent *Joe Stevens* printed beside a target who lost the primary would read her `active`. There is no live instance; HEAD's contest rung carried the same class for namesakes who have a primary row. A first-name check was added (flagged above), with leg 1b.
+  - **HO 691's enumerator** (both confirmed) skipped rung 0 with a four-argument call. It now passes the ballot. Left as it was: HO 691's unit checks in `matchup-shapes-691.ts`. Their four-argument calls test the contest and roster rungs with no box read, which is what the optional parameters keep meaning, and the review's alternative, required parameters, would turn those calls into errors. But their check (c) still labels TX-23's rung-1b `unknown` `[LIVE: TX-23]`, and live TX-23 now reads `active` from the ballot: a label gone false, named here, not edited.
+  - **The `why`** (both confirmed) said "the race is decided" on the date alone. It now reads the box's marks.
+  - **The `PacIeRow` header** (both confirmed) still said the read adds no cache tag.
+  - **SKILL's "`unknown` five"** (both confirmed) still named Herrera.
+  - **The caller's clock** (one confirmed, one refuted) had no leg. Leg 2c now covers it, red on HEAD; `electionDate` reaches only the `why`, which the caller drops, so no status can show it.
+- **Refuted by both skeptics:** the prod fingerprint missing tables. The check is widened anyway.
+
+**Owed in the FF go.**
+1. The FF, `verify:deploy` and the Production `e2e-prod`.
+2. On Production, after the next `races` or `general-ballot` expiry: the PAC lines' statuses against STEP 0's table, with every `why` naming its rung. The `why` isn't rendered, so it's read with the shipped module against prod's rows.
+
+**Docs (HO 765):**
+- This block.
+- **backlog 3+/3−:**
+  - the HO 750 line struck on legs 1 and 5;
+  - two ride-alongs, flagged, each a claim this HO makes false, annotated rather than rewritten. HO 761's *Four first rounds with two advancers…* line said "TX-23's Herrera stays PAC `unknown` on rung 1b", and HO 691's *primary-phase PAC lines age into the general* line said TX-23 "stays `unknown` until a runoff ingestion exists or the general resolves it". The fact-check caught the first;
+  - the deletions are the three lines rewritten whole.
+- **SKILL 5+/5−**, its own commit, for approval: the ladder in order (ballot, contest, roster) with what each rung answers, the first-name match and the marks' `why`; the cache tags; the three reads; TX-23's case settled by rung 0; HO 750's deferral retired; and the live coverage's "`unknown` five", which this HO makes four (a correction the review caught).
+- **OPEN LOOPS reconciled: 266 live / 323 struck at open (589 total), 265 / 324 (589) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 765.**
