@@ -29,8 +29,8 @@
 // old and the new member named.
 //
 // Read-only unless the caller passes write: true (the CLI's --write). The write
-// is UPDATE by id, person_key and bioguide_id only: no status, no share, no
-// roster, so a settled contest's results are untouched.
+// is UPDATE by id, person_key, bioguide_id and updated_at only: no status, no
+// share, no roster, so a settled contest's results are untouched.
 import type { Client } from "@libsql/client";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
