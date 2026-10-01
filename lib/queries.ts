@@ -9,7 +9,8 @@ import { readRaceResult, type RaceResultReading } from "./race-result";
 import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
 import { readIncumbentQualifiers, type IncumbentQualifier } from "./incumbent-qualifier";
 import { normName } from "./ballot-incumbent";
-import { formatBillId } from "./format";
+import { electionDay, formatBillId } from "./format";
+import { clockNowMs } from "./clock";
 import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "./amendment-vote-key";
 import {
   SENATE_MOTION_RESIDUAL,
@@ -44,6 +45,7 @@ import { senateClassForCycle } from "./derive-term";
 import { median } from "./median";
 import { RECORDED_VOTE_DOC_SQL } from "./meeting-documents";
 import {
+  type BallotRow,
   type ContestRow,
   type RosterRow,
   type TargetStatus,
@@ -2440,7 +2442,8 @@ export const getRecentRaceMoves = unstable_cache(
 // competitive race card's PAC SPENDING line. One row per (spender, target,
 // support/oppose); grouped by race_id so a card can render every direction on a
 // seat (e.g. KY-04 backing Gallrein + opposing Massie). Rides the `races` tag
-// (the sync revalidates it), so no new cache tag. `support_oppose DESC` puts 'S'
+// (the sync revalidates it) and, since HO 765, `general-ballot`, which a ballot
+// read that READ a page expires (rung 0 reads the ballot). `support_oppose DESC` puts 'S'
 // (backing) before 'O' (opposing) — the card's intended read order.
 export type PacIeRow = {
   raceId: string;
@@ -2473,12 +2476,13 @@ export const getPacIeSpending = unstable_cache(
     if (rs.rows.length === 0) return {};
 
     // The seat set is the DISTINCT race_ids on the table — 11 today (HO 691,
-    // was 7 before that HO's refresh). Two small reads over one IN list, and
-    // both are bounded by that set rather than by the corpus: the contest read
-    // returned ~120 rows across the 11 seats. Says "two", not "one", because it
-    // is two statements — the contest shape and the roster shape don't fold
+    // was 7 before that HO's refresh). Three small reads over one IN list, and
+    // all are bounded by that set rather than by the corpus: the contest read
+    // returned ~120 rows across the 11 seats. Says "three", not "one", because it
+    // is three statements — the contest, roster and ballot shapes don't fold
     // into a single result set, and a comment that undercounts its own reads is
-    // how a cost claim goes stale (the measured-number rule).
+    // how a cost claim goes stale (the measured-number rule). HO 765 added the
+    // ballot read (rung 0, lib/pac-target-status.ts).
     const seatIds = [...new Set(rs.rows.map((r) => r.race_id as string))];
     const marks = seatIds.map(() => "?").join(",");
 
@@ -2526,6 +2530,17 @@ export const getPacIeSpending = unstable_cache(
             WHERE race_id IN (${marks}) AND status IS NOT 'on_ballot'`,
       args: seatIds,
     });
+    // HO 765 — rung 0's evidence: the November ballot of each seat whose page
+    // reads a `box` (general_ballot_reads). The LEFT JOIN keeps a box seat with no
+    // rows (name NULL), so "has a box read" and "names this target" stay two facts;
+    // a seat absent here has no box read and gets no rung 0.
+    const ballotRs = await db.execute({
+      sql: `SELECT r.race_id, g.name, g.on_ballot, g.withdrawn, g.write_in, g.marked
+            FROM general_ballot_reads r
+            LEFT JOIN general_ballot g ON g.race_id = r.race_id
+            WHERE r.race_id IN (${marks}) AND r.status = 'box'`,
+      args: seatIds,
+    });
 
     const contestsBySeat: Record<string, ContestRow[]> = {};
     for (const c of contestRs.rows)
@@ -2544,12 +2559,28 @@ export const getPacIeSpending = unstable_cache(
         name: c.name as string,
         status: (c.status as string | null) ?? null,
       });
+    const ballotBySeat: Record<string, BallotRow[]> = {};
+    for (const b of ballotRs.rows) {
+      const rows = (ballotBySeat[b.race_id as string] ??= []);
+      if (b.name == null) continue; // a box seat with no rows: [] still means "box"
+      rows.push({
+        name: b.name as string,
+        onBallot: Number(b.on_ballot) === 1,
+        withdrawn: Number(b.withdrawn) === 1,
+        writeIn: Number(b.write_in) === 1,
+        marked: Number(b.marked) === 1,
+      });
+    }
 
     // Wall clock of the render, not a request param: this read is cached under
     // the `races` tag, which sync:pac-ie and EVERY Kalshi tick (`15 */2`) flush,
     // so a primary result backfilled at noon is reflected within ~2h with no new
-    // wiring. The 3600s TTL is the backstop under that, not the refresh path.
-    const today = new Date().toISOString().slice(0, 10);
+    // wiring, and (HO 765) under `general-ballot`, which a ballot read that READ a
+    // page expires. The 3600s TTL is the backstop under that, not the refresh
+    // path. HO 765: the clock is lib/clock.ts's clockNowMs (HO 758), the one now
+    // election-day logic reads, so a leg can move it on a file: copy.
+    const today = new Date(clockNowMs()).toISOString().slice(0, 10);
+    const electionDate = electionDay(cycle).toISOString().slice(0, 10);
 
     const out: Record<string, PacIeRow[]> = {};
     for (const row of rs.rows) {
@@ -2568,13 +2599,15 @@ export const getPacIeSpending = unstable_cache(
           contestsBySeat[raceId] ?? [],
           rosterBySeat[raceId] ?? [],
           today,
+          ballotBySeat[raceId] ?? null,
+          electionDate,
         ).status,
       });
     }
     return out;
   },
   ["getPacIeSpending"],
-  { revalidate: 3600, tags: ["races"] },
+  { revalidate: 3600, tags: ["races", "general-ballot"] },
 );
 
 // HO 398 — race → news, the first surface off the observation join (HO 394/395).
