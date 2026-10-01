@@ -79,7 +79,8 @@ export function addDays(iso: string, n: number): string {
 
 // Returns the Mon-Sun calendar week immediately before the week containing
 // `date`. The cron runs on Monday, so getPriorWeek(thatMonday) yields the
-// week that just ended. All math in UTC to match the 09:00 UTC cron tick.
+// week that just ended. All math in UTC to match the cron (`30 9 * * 1`, Mondays
+// 09:30 UTC, vercel.json).
 export function getPriorWeek(date: Date = new Date()): WeekRange {
   const d = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
@@ -1671,13 +1672,14 @@ export async function generateWeeklyReport(week: WeekRange): Promise<{
   };
 }
 
-// ---- daily catch-up (HO 285) -------------------------------------------
+// ---- catch-up on every sync tick (HO 285) ------------------------------
 
-// How many most-recent completed weeks the daily catch-up inspects. The 284
+// How many most-recent completed weeks the catch-up inspects (it runs on every
+// /api/sync tick, every 6h). The 284
 // probe showed the weekly Monday cron drops a report on any transient hiccup
 // (Turso cold-stall, Gemini 503, slow-Gemini >55s) with no retry. This window
-// is the safety net: the daily route re-checks the last few weeks and fills
-// the most recent missing one, so a dropped week lands on a later day instead
+// is the safety net: each 6-hourly sync tick re-checks the last few weeks and
+// fills the most recent missing one, so a dropped week lands on a later tick instead
 // of being lost. 4 weeks tolerates a multi-week outage without unbounded
 // history scanning.
 const CATCHUP_WINDOW_WEEKS = 4;
@@ -1689,7 +1691,7 @@ export type CatchupResult = {
   missing: number;
   // The week-start slug generated this run, or null when nothing was missing
   // (or a gen was attempted but threw — the caller treats that as non-fatal
-  // and the row stays missing for the next day's run).
+  // and the row stays missing for the next sync tick's run, six hours later).
   generated: string | null;
 };
 
@@ -1707,11 +1709,12 @@ function recentCompletedWeeks(now: Date): WeekRange[] {
   return weeks;
 }
 
-// Daily catch-up: inspect the last few completed weeks, and if any report row
+// Catch-up, on every sync tick (every 6h): inspect the last few completed weeks, and if any report row
 // is missing, regenerate exactly ONE — the most recent missing week, so the
 // dashboard's READ FULL target is restored first. Idempotent: only generates
 // when the row is absent, never overwrites. One gen per run (~15-29s) keeps a
-// single daily tick bounded; a multi-week gap fills over consecutive days.
+// single sync tick bounded; a multi-week gap fills over consecutive ticks (four
+// a day).
 //
 // Reuses generateWeeklyReport / writeReport wholesale — no forked gen logic.
 // Does NOT revalidate (kept free of next/cache so the lib stays import-safe);

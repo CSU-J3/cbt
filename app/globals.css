@@ -7651,7 +7651,10 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   font-size: var(--fs-14);
 }
 /* HO 156 follow-up: hide the tape <700px. It's a dense desktop strip that
-   wraps poorly on phones, reads STALE on the daily-refresh cadence, and
+   wraps poorly on phones, read STALE over weekends on the weekday-only refresh it
+   had at HO 156 (since HO 475 the markets cron runs every 4 hours, plus FMP every 30
+   minutes in weekday market hours, so a working tape no longer reads STALE; STALE
+   marks a dead cron), and
    isn't worth the vertical space above breaking-news / stage-distribution.
    CSS-only — the HO 142 data layer stays mounted (ticks still fetched), and
    the desktop tape (incl. its marquee question, owned by the overflow pass)

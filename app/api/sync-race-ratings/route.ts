@@ -1,7 +1,7 @@
 // Race-ratings sync cron entry (handoff 88). Scrapes 2026 House AND Senate
 // Cook / Inside Elections / Sabato ratings from Ballotpedia weekly (HO 744;
 // House-only before that). Separate route + cron because the cadence is
-// weekly (Sabato updates mid-week) while /api/sync is daily, and the work is
+// weekly (Sabato updates mid-week) while /api/sync runs every 6h (`0 */6`, vercel.json), and the work is
 // unrelated to the bill pipeline.
 //
 // Auth mirrors /api/sync and /api/sync-votes exactly: Bearer CRON_SECRET.

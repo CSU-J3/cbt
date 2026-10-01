@@ -622,7 +622,7 @@ const statements = [
   // votes has no estimate yet. No secondary index: ~535 rows, the PK covers the
   // join and a full scan is sub-millisecond (same call as the /dashboard-classic
   // reads). Manual/periodic, paired with sync:members -> sync:crosswalk; NOT on
-  // the daily cron.
+  // any cron (the 6-hourly sync does not run it).
   `CREATE TABLE IF NOT EXISTS member_ideology (
     bioguide_id       TEXT PRIMARY KEY,
     icpsr             INTEGER NOT NULL,
@@ -670,7 +670,7 @@ const statements = [
   // is NOT stored — derived as |rep_median - dem_median| in the chart query, one
   // gap formula shared with the band. chamber normalized lowercase to match the
   // app convention. PK covers every read; no secondary index. Manual sync
-  // (sync:polarization-history), NOT on the daily cron.
+  // (sync:polarization-history), NOT on any cron.
   `CREATE TABLE IF NOT EXISTS polarization_history (
     congress    INTEGER NOT NULL,
     chamber     TEXT    NOT NULL,

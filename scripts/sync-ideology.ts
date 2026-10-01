@@ -21,7 +21,7 @@
 //
 // Manual, paired with sync:members -> sync:crosswalk (needs `members` populated
 // for the gate). Voteview re-estimates live, so the upsert overwrites the score
-// fields + updated_at each run. NOT on the daily Vercel cron.
+// fields + updated_at each run. NOT on any Vercel cron.
 import "dotenv/config";
 import { getDb } from "../lib/db";
 import { fetchVoteviewMembers, type VoteviewMember } from "./voteview-source";

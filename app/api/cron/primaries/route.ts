@@ -8,7 +8,7 @@
 // corpus every ~3 weeks. See lib/primaries-sync.ts.
 //
 // Auth mirrors /api/sync, /api/sync-votes, /api/sync-race-ratings exactly:
-// Bearer CRON_SECRET. The cron runs daily; the day-of-week dispatch the
+// Bearer CRON_SECRET. The cron runs twice daily (`0 0,12`, vercel.json); the day-of-week dispatch the
 // handoff sketched is unused — a 7-slot dispatch can't address the ~23 ticks
 // the 60s ceiling forces, so the cursor does the slicing instead.
 //

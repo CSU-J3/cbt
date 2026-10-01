@@ -5,7 +5,7 @@ import { runReportCatchup } from "@/lib/report-generation";
 import { runSync } from "@/lib/sync";
 import { ingestTrades } from "@/lib/trades-ingest";
 
-// Daily sync cron. HO 115 split summarize out; HO 116 bounded runSync;
+// Sync cron, every 6h (`0 */6`, vercel.json). HO 115 split summarize out; HO 116 bounded runSync;
 // HO 117 split news ingestion into /api/cron/news; HO 139 split the
 // weekly report into /api/cron/weekly-report and migrated this route to
 // the `wrapCronRoute` finalize pattern. HO 667 retired the dashboard-lead
@@ -55,7 +55,7 @@ async function handle(request: Request) {
       trades: null,
     };
 
-    // Weekly-report daily catch-up (HO 285). Runs FIRST, ahead of the
+    // Weekly-report catch-up (HO 285), on every sync tick (every 6h). Runs FIRST, ahead of the
     // resumable bill sync and the orphaned dashboard lead — a deliberate
     // deviation from the handoff's "after the normal sync work". The 284
     // budget read showed this route already runs 33-55s and soft-times-out
@@ -64,7 +64,7 @@ async function handle(request: Request) {
     // On the common no-op day this is a single indexed PK lookup (~tens of
     // ms); on a rare gap day the report gen gets full headroom and the
     // self-resuming sync simply continues next tick. Non-fatal: a transient
-    // gen failure leaves the row missing for the next day's catch-up.
+    // gen failure leaves the row missing for the next tick's catch-up, six hours later.
     const tCatchup = Date.now();
     // HO 407: capture the catch-up outcome as a machine-keyable signal. Before
     // this the failure was swallowed by console.warn and the route still
@@ -140,8 +140,8 @@ async function handle(request: Request) {
       payload: {
         timings,
         sync,
-        // HO 407: machine-keyable catch-up health. ok=false → the daily report
-        // backfill threw this tick (see error for the message).
+        // HO 407: machine-keyable catch-up health. ok=false → the weekly report's
+        // catch-up backfill threw this tick (see error for the message).
         reportCatchup: {
           ok: reportCatchupError === null,
           generated: reportCatchupGenerated,

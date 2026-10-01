@@ -29,9 +29,11 @@ const CONCURRENCY = 5;
 // if the very last bill hangs on a fetch or Gemini call.
 const PER_BILL_TIMEOUT_MS = 15_000;
 // HO 115: how long to wait after a per-bill failure before re-attempting it.
-// Matches the daily cron cadence — a failed bill cleanly retries on the next
-// tick instead of burning consecutive ticks. Reset to NULL/0 when the bill
-// re-syncs (see UPSERT_SQL) or summarizes successfully.
+// The summarize cron runs every 10 minutes (`*/10`, vercel.json), so 24h is
+// about 144 ticks: the value is a choice, not a match to the cadence (it matched
+// the daily cron of HO 115's time). A failed bill does not burn consecutive
+// ticks. Reset to NULL/0 when the bill re-syncs (see UPSERT_SQL) or summarizes
+// successfully.
 const FAILURE_DEFER_HOURS = 24;
 // HO 115: bills crossing this attempt count are surfaced into the
 // cron_runs error trail for manual inspection — not auto-disabled, just

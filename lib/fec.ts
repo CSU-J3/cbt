@@ -62,7 +62,8 @@ async function fetchJson<T>(url: string, attempt = 0): Promise<T | null> {
   }
   if (res.status === 429 && attempt < 3) {
     // FEC publishes a 1000/hr limit on api.data.gov keys; back off generously
-    // because the daily run touches all ~544 members × 2 calls.
+    // because a run (`npm run sync:fec`, manual: no cron triggers it) touches all
+    // ~544 members × 2 calls.
     const wait = 3000 * (attempt + 1);
     console.warn(`FEC 429, sleeping ${wait}ms`);
     await sleep(wait);
@@ -309,7 +310,8 @@ export async function fetchFecBySize(
 // aggregation. Seek pagination (last_index + last_expenditure_date) is FEC's
 // prescribed way to page Schedule E. Returns null on ANY page failure so the
 // caller never writes a partial pull (a missed page would corrupt the MIN
-// date / drop a target); the daily cadence makes a skipped tick cheap.
+// date / drop a target). The run is manual (`npm run sync:pac-ie`, no cron), so
+// a skipped pull costs a re-run.
 export type FecScheduleERow = {
   candidate_id?: string | null;
   candidate_name?: string | null;

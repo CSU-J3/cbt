@@ -19,8 +19,12 @@
 // Ballotpedia politeness sleep dominates — a whole region blows Vercel Hobby's
 // 60s function ceiling (West alone measured 153s). So the cron does NOT scrape
 // a region per tick. runPrimariesCronTick walks a persistent cursor (stored in
-// dashboard_state), processing CRON_SLICE units per daily tick and refreshing
-// the whole corpus every ~25 days.
+// dashboard_state), processing up to CRON_HOUSE_SLICE (12) House districts or
+// CRON_SENATE_SLICE (20) Senate states per tick (twice daily since HO 560 C3:
+// `0 0,12`, vercel.json), within the tick's time budget. A full pass is about 40
+// ticks (the calendar, 2 Senate, 37 House), about 20 days at two a day, longer
+// when the priority pass or the budget shortens a slice. (The ~25 days this said
+// came from HO 97's 20-district slice, which HO 120 cut to 12.)
 import { getDb } from "./db";
 import { loadIdentity } from "./general-ballot";
 import { scrapeStatePrimaryCalendar } from "./primary-calendar-scrape";

@@ -440,7 +440,7 @@ export type FeedStats = {
 };
 
 // Global "X bills · updated Y" counter shown in HeaderBar on every page.
-// Cached for 1h because (a) the sync cron writes once daily, and (b) the
+// Cached for 1h because (a) the sync cron writes every 6h (`0 */6`), and (b) the
 // sync route calls revalidateTag("bills") on success so post-sync hits
 // see fresh numbers immediately. Step 0 measured this query at 1.5-3s; the
 // HeaderBar runs on every page render, so caching it removes the dominant
@@ -1048,7 +1048,7 @@ const WEEK_MS = 7 * 86_400_000;
 // Cumulative enacted-law count by week of session, 118th vs 119th (HO 101) —
 // backs the LawsEnactedComparison chart on /reports. The 118th comes from
 // `historical_laws` (static backfill); the 119th from `bills` where
-// stage='enacted' (kept fresh by the daily cron). One row per session week
+// stage='enacted' (kept fresh by the sync cron, every 6h). One row per session week
 // from 0 to the last week with data, carrying the running total forward
 // across quiet weeks, so a chart can plot a continuous cumulative line. The
 // week math is done in TypeScript rather than SQL — the row counts are tiny
@@ -1906,7 +1906,7 @@ function normalizeRosterParty(party: string | null): RosterPartyKey | null {
 }
 
 // Tagged "races" — separate from "bills" because the seed script
-// refreshes independently from the daily sync. The /api/revalidate route
+// refreshes independently from the 6-hourly sync. The /api/revalidate route
 // accepts ?tag=races so future cron or webhook integrations can flush.
 export const getRace = unstable_cache(
   async (id: string): Promise<Race | null> => {
@@ -7088,9 +7088,10 @@ export const getFeedBills = unstable_cache(
     };
   },
   ["getFeedBills"],
-  // HO 279: daily revalidate (was hourly), aligned to the refresh cadence. The
-  // `bills` + `news-breaking` tags are the real freshness trigger (the daily sync
-  // + news crons revalidateTag these), so the timer is just a backstop —
+  // HO 279: daily revalidate (was hourly), aligned to the sync of its time, which
+  // was daily (every 6h since). The `bills` + `news-breaking` tags are the real
+  // freshness trigger (the 6-hourly sync + 30-minute news crons revalidateTag
+  // these), so the timer is just a backstop —
   // lengthening it keeps the cache the default rather than letting a per-hour
   // expiry land a cold COUNT+SELECT inside a user request. Mirrors /members
   // (getMembersRanked). The HO 279 index makes the cold COUNT sub-second anyway;
@@ -7429,9 +7430,10 @@ export const getMembersRanked = unstable_cache(
     }));
   },
   ["getMembersRanked"],
-  // HO 277: revalidate aligned to the refresh cadence (daily) rather than hourly.
-  // The `bills` + `members` tags are the real freshness trigger — the daily sync
-  // cron revalidateTag("bills")s, flushing this — so the timer is just a backstop.
+  // HO 277: a daily revalidate rather than hourly, aligned to the sync of its
+  // time, which was daily (every 6h since). The `bills` + `members` tags are the
+  // real freshness trigger — the 6-hourly sync cron revalidateTag("bills")s,
+  // flushing this — so the timer is just a backstop.
   // Lengthening it keeps the cache the default instead of letting a per-hour
   // expiry land a cold recompute inside a user request (the slow path that 500'd).
   // HO 535: +"votes" — the MISSED sort reads member_votes, so a votes sync must

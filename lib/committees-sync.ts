@@ -538,8 +538,8 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
 
   // Wipe-and-rewrite per committee so roster departures (members leaving the
   // committee) clear correctly. Memberships are ~5K rows total — collect all
-  // DELETE + INSERT statements and ship one batch so the daily refresh
-  // stays inside the wrapper's soft timeout (55s until HO 756, 290s since;
+  // DELETE + INSERT statements and ship one batch so the refresh (every 6h,
+  // `5 */6`, vercel.json) stays inside the wrapper's soft timeout (55s until HO 756, 290s since;
   // one-statement-per-round-trip took 280s during HO 143 verification).
   const stmts: { sql: string; args: (string | number | null)[] }[] = [];
   for (const [thomas, members] of Object.entries(parsed)) {
