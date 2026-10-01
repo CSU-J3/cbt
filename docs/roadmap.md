@@ -4364,3 +4364,114 @@ The d runs are on the committed blobs (scrape `2f631e83a1`, sync `0f17c37792`, r
 - **SKILL 4+/4−**, its own commit, for approval: the runoff read keyed on the seat and `race_id` unread by the page; the written rows drawn and the stray list; the cron entry's `runoffStrays`. Two ride-alongs, flagged: the read's consumer list named the dashboard popover, whose prefetch HO 658 removed; and the `getRaceCandidates` entry called `getMember` and `getRunoffsForRace` *both cached, tag `races`* (`getMember` is cached under `members`; `getRunoffsForRace` is uncached).
 - **OPEN LOOPS reconciled: 268 live / 320 struck at open (588 total), 266 / 322 (588) at close**, with the control `^- \*\*~~` at **0** at both.
 - **Also notes now run through HO 763.**
+
+**Also (HO 764), the primary ingest assigns a bioguide by identity, or behind the incumbent gate, never by surname alone.** The backlog's HO 750 line (*`primary_candidates.bioguide_id` is still assigned by surname…*), owner Code, medium. Four commits, kinds unmixed: `feat` · `diag` · `docs(skill)` alone · `docs`. One migration, `primary_candidates.person_key`, run on prod before the review push. The FF is held for the SKILL approval and the review. The pointer is 764 by plain arithmetic: pointer 763, highest HO in commit subjects 763, `main` at `e91339a`.
+
+**HO 763's FF go**, item 3 carried as the go asked.
+- **The FF:** `main` at `e91339a`, fast-forwarded from `99f16a1` with no force; `763-review` deleted, and `ls-remote` lists `main` alone. `verify:deploy` read 5 of 5, first match at 31s. Production e2e #36798758564 passed smoke 140 in 6.0m.
+- **The pages (item 3), Production at `e91339a`, 2026-10-01 02:17Z** (`docs/handoffs/763-artifacts/prod-763.txt`), after Kalshi tick #21455 (02:15:10Z, success, 39.0s; it expires `races` on every tick):
+  - `/race/TX-18-2026`: *Democratic runoff · Christian Menefee 69.3% · won · Al Green 30.7% · lost*.
+  - `/race/S-SC-2026`: *Republican runoff · Darline Graham 52.6% · won · Ralph Norman 47.4% · lost*.
+  - `/race/S-GA-2026`: *Republican runoff · Mike Collins 55.5% · won · Derek Dooley 44.5% · lost*, as before.
+  - Every race page, 540 read, none other than 200: **28 draw a runoff block, with 33 groups: exactly STEP 0's 28 races and 33 blocks, and the same races** (the 26 that gained, with their counts, and S-GA and S-LA). An early read at 01:05Z, before the flush, already showed the three.
+- **Reconcile on `main` `e91339a`:** 266 live / 322 struck (588), control 0.
+
+**STEP 0** (prod `SELECT`s and HO 747's saved pages; `docs/handoffs/764-artifacts/step0-764.txt`, repo-ignored).
+- **HO number:** `main` at `e91339a`, pointer 763, highest HO in commit subjects 763; so 764.
+- **Anchors, re-read by content at `e91339a`:** `parseVotebox`'s link match (`lib/primary-candidates-scrape.ts:206-207`) and `<u>` (`:244`), `matchHouseCandidate` (`lib/primaries-sync.ts:313-345`) and `buildSenateMatcher` (`:522-549`) hold. SKILL's matcher entry, cited `:2831` at `ebe8813`, is `:2906` at `e91339a`.
+- **(3) `primary_candidates` with a bioguide:** House first rounds 342 of 2,245, House runoffs 3 of 50, Senate first rounds 24 of 285, Senate runoffs 1 of 16 (370 of 2,596).
+  - 125 of the 370 carry a member whose normalised full name differs from the row's, nearly all name forms (*Robert Aderholt* for *Robert B. Aderholt*). So a name test does not find the false matches. The rule does: it takes **5** bioguides away, CA-38's *Monica Sanchez* (`S001156`, Linda Sánchez, who has her own CA-41 row), FL-11's *Royal Webster* (`W000806`), IL-04's *Patty Garcia* (`G000586`), TX-22's *Trever Nehls* (`N000026`) and S-AK's second *Dan Sullivan* (`S001198`, whose name is the member's own).
+  - The review list as a whole-table read (current House members linked to no `house-` row) names 98. The false matches keep 3 off it: Webster, García and Nehls.
+  - `member_ids` titles every one of the 364 members those 370 rows name; the identity map has 536 keys, none ambiguous. Four current members have no title (`step0-extra-764.txt`): `B001328` (GA-13's Everton Blair Jr.), `K000404` (MP), `L000603` (TX-08), `J000312` (WV's senator).
+- **(4) HO 747's saved pages, no fetch,** read with the tree's parser (leg 1, `leg1-rows-c.json`, and `step0-item4-764.txt`; `step0-764.txt`'s first approximation, 2,490 rows, 356 tied and 342 underlined, read the results tables without the parser and is superseded).
+  - 470 pages, 444 with a kept primary box. The parser's 2,485 kept rows (2,419 first-round, 66 runoff) each carry an href.
+  - 355 tie to a member by identity (349 members). 341 are underlined, and 6 of those are untied: TX-18's Al Green and TX-33's Julie Johnson, first round and runoff each; TX-23's Tony Gonzales; CT-01's John Larson.
+  - No box gives one name two hrefs.
+  - Of the 2,596 stored rows, 2,470 tie to a kept row by `(primary_id, name)`. The other 126, on 69 contests and 53 pages, are rows today's page no longer prints: 115 in Florida (uncontested primaries it cancelled), Connecticut (convention nominees), Virginia and Michigan, and 11 elsewhere (CA-10, DE-AL, KS ×3, KY-02, MN-02, TN ×2, WI ×2). The legs' line says "126 rows on 53 contests", but it counts pages.
+
+**Premises corrected, flagged.**
+- **Leg 3, "García is on [the list] before the repair and off it after, because his own row ties":** inverted. García filed in no 2026 primary; IL-04's only Democrat on the page is Patty Garcia. The false match keeps him off the list today, and the repair puts him on. The FF go's reading allows it ("García on it").
+- **Build 2, "by surname against the seat's incumbent for the House":** the seat alone loses the redraw. TX-18's Al Green and TX-33's Julie Johnson are underlined, their stored titles are disambiguation pages, and their seats are TX-09 and TX-32, so they would read NULL. The incumbent qualifier reads their rows by bioguide, so TX-09 and TX-32 would also lose LOST PRIMARY. The House route is the seat's incumbent, then the state's delegation (HO 94's pool), still behind the underline. STEP 0 measured both: the seat alone changes 32 bioguides, 4 of them those two; seat-then-state changes 28.
+- **Leg 4, "exactly STEP 0's suspected false matches plus any gated fallback now resolved by identity":** the 28 are three kinds:
+  - the 5 false matches;
+  - 22 identity ties the old rule could not reach: 20 House members' rows on Senate pages, and SC's Darline Graham twice (two Grahams among SC's senators made the old Senate rule NULL);
+  - CA-14's Wahab, a stale NULL. Her row was stored unmarked before the page underlined her, so HEAD's rule reads her today, but nothing rewrote the settled contest.
+
+  No gated fallback changes. (Leg 2's 23 differ from these 23 by one: it counts S-SC's Lindsey Graham, whom HEAD's rule reads NULL and whose stored row already carries `G000359`, and not Wahab.)
+- **Build 3, the review list:** implemented as the rule's own output over every kept row the pass reads, first and runoff rounds, settled or not. Until now the list was read off the write loop, so every incumbent of a settled contest read "not found". The count line counts in-scope seats only, because identity reaches members elsewhere.
+- **Build 4, `--rematch`:** now runs over Senate rows as well as House rows (it was House only).
+- **The prod reading, `SELECT bioguide_id … WHERE name IN ('Dan Sullivan', 'Patty Garcia')` "reading the senator's bioguide once and NULL twice":** that can't come out as written. The senator's S-AK row is named *Daniel S. Sullivan*, so the list returns two rows. Today it reads `S001198` and `G000586`; after the repair, NULL twice. The FF go's reading below adds his name: `S001198` once and NULL twice (`step0-extra-764.txt` reads all three rows today).
+- **Naming:** the parser's field is `personKey`, the column's name and `general_ballot`'s, not `href`.
+- **Readers:** the handoff's reader list, from HO 750's census, predates HO 759's incumbent qualifier (`lib/incumbent-qualifier.ts`, `689d1b5`). The qualifier reads these rows by bioguide, so six House seats go from `absent` to `lost_primary`: IL-02, IL-08, MA-06, MI-11, TX-30 and TX-38. Each member lost a 2026 Senate primary. That is what HO 759's line asked for.
+
+**The build.**
+- (1) **`feat`:**
+  - `lib/primary-candidates-scrape.ts`: `parseVotebox` keeps the link as `personKey` (`hrefKey`, moved here with `titleKey` from `lib/general-ballot.ts`, which re-exports both: the reader imports this file).
+  - `scripts/migrate.ts`: `primary_candidates.person_key TEXT`.
+  - `lib/primaries-sync.ts`:
+    - `loadMemberMatcher` is the one rule. Identity on `person_key`, any chamber and state, with the bioguide required to be a `members` row (the FK is enforced). Then, for an underlined row only, the surname: the seat's incumbent, then the state's delegation; or the state's current senators. A shared surname is broken on the first name. Otherwise NULL.
+    - It is applied at every write (House and Senate first rounds, runoff inserts and updates, the special pass), each storing `person_key`. A runoff update writes the rule's bioguide, not the stored one.
+    - The review list is read from every kept row the pass reads.
+    - `rematchPrimaryCandidates` (`--rematch`) covers House and Senate.
+  - `lib/primary-identity-repair.ts` and `scripts/repair-primary-identity.ts` (`npm run repair:primary-identity`):
+    - saved pages first, then live at 6s for a race the saved set lacks or left a row untied on;
+    - a row ties by `(primary_id, name)`, and every row is re-matched;
+    - dry by default; `--write` UPDATEs `person_key`, `bioguide_id` and `updated_at` by id. The module's own header (`lib/primary-identity-repair.ts:31-33`) says "person_key and bioguide_id only", the omission the review caught in SKILL. Named here, not fixed: the approval was for this docs commit and the push.
+  - `lib/incumbent-qualifier.ts`: its comment, which said the match lets namesakes through.
+
+**The legs** (`scripts/diagnostic/primary-identity-legs-764.ts` and its child; `docs/handoffs/764-artifacts/legs-c.txt`, `seed-c.txt`).
+- **The copies:** one template, the tree's migrate with 13 tables read whole from prod, copied six ways.
+- **How HEAD runs:** HEAD's `primary-candidates-scrape.ts` and `primaries-sync.ts` are loaded by `git cat-file` in a child, with the matcher's private functions exported by an appended line (the copy only), on `file:` copies only.
+- **Pages:** HO 747's saved pages, served to the sync and the live phase by HO 761's shim.
+- **Prod's fingerprint** read the same before and after the seed and the legs.
+- **Result:** on the committed blobs (scrape `214acbda15`, sync `13ef841fdc`, repair `6b9abcc111`, ballot `4bb5b82d56`, driver `f2337b3c39`, child `c6026df614`), seed `c` and legs `c`, 29 pass and 0 fail (`legs-c.txt`, `seed-c.txt`).
+
+| Leg | Red (HEAD, `e91339a`) | Green (the tree) |
+|---|---|---|
+| 1 the parser | S-AK's rows carry no key | S-AK's two Dan Sullivans carry two keys, the senator's equal to his title's; Patty Garcia's `Patty_Garcia` is not García's `Jesus_Garcia`; all 2,485 kept rows of the 470 pages keyed, every other field equal to HEAD's |
+| 2 the rule | the second Dan Sullivan `S001198`, Patty Garcia `G000586`, an un-underlined planted *Amy Larson* at CT-01 `L000557` | those three NULL; the senator `S001198` by identity (also with the underline taken off); TX-18's Al Green `G000553` and CT-01's Larson `L000557` by the gated surname; of 29 rows HEAD and the tree read differently, 6 cleared and 23 tied by identity, nothing else, and every underlined untied row read as HEAD read it |
+| 3 the review | the whole-table list lacks García, Webster and Nehls; HEAD's sync over GA-01 and IL-04 (both contests made unsettled, GA-01's R box given a planted *Pam Carter*) matches Pam to Earl Carter and Patty to García, so neither is listed | after the repair the whole-table list gains exactly García, Nehls and Webster and loses exactly Wahab; the tree's sync lists Carter and García |
+| 4 the repair | (the column is new) | the dry run leaves the table's hash unchanged; `--write` keys 2,470 rows and changes exactly STEP 0's 28 bioguides, each printed with old and new member; a second dry run and `--rematch` change nothing; with S-AK's and IL-04's saved pages withheld, the live phase reads them (55 pages through the shim, 18 rows tied) and ends on the same table; a planted later key on the second Dan Sullivan is kept against the saved page |
+| 5 the readers | S-GA, S-LA, S-SC runoff rows unlinked | the runoff block links Collins `C001129`, Letlow `L000595`, Graham `G000608` and Norman `N000190`; TX-18's and TX-33's rows unchanged; the qualifier differs on 10 races, 6 shown (IL-02, IL-08, MA-06, MI-11, TX-30, TX-38: `absent` → `lost_primary`) and 4 only in the unshown `reasons` (GA-01, MN-02, SC-05 RETIRING first; SC-07 on its own ballot); the harvest publishes the same 919 rows on 465 races |
+
+- **Two things the legs read that are not regressions, named:**
+  - GA-13's Everton Blair Jr. is the member himself (`B001328`, the special's winner). The page does not underline him and he has no title, so the rule reads NULL where HEAD's ungated first test gave him. His stored row is NULL and stays NULL.
+  - `--rematch` exits 1 because HO 94's Northeast spot-check expects HO 92's 66 of 76. Prod reads 52 on the unrepaired copy and on the repaired one alike (filed).
+- **The instrument, corrected before it read clean:** STEP 0's first draft chose a saved page by reverse file order and read the incumbents a namesake hides with a name check fed no first or last name. Both were fixed: the latest run's anchored page, and the rule's own clearings. Leg 2 first called every cleared row a namesake. Blair made that false, and the check now names the six.
+
+**The consumer census** (the `ho764-bioguide-consumer-census` Workflow: two readers and a completeness critic, 3 agents). It named every reader of `primary_candidates.bioguide_id` and agreed with leg 5:
+- the runoff block's four new links;
+- the qualifier's six seats, and no other seat: SC-05 stays RETIRING and SC-07 is on its own ballot;
+- nothing elsewhere. The primary-sourced harvest serves only the seven races without a box read, none of them touched, and the matchup, the cartogram's links and the race result are unchanged.
+
+It also noted that HO 759's `incumbent-tag-legs-759.ts` FL-11 guard goes vacuous once Royal Webster's row is NULL: no namesake is left on prod for the name check to stop.
+
+**The review** (the `ho764-diff-review` Workflow on the working tree: two reviewers, one on the rule and its writes and one on the repair and the legs; each finding put to two skeptics told to default to REFUTED; 18 agents). It found 8 issues, none in the data.
+- **Kept, each confirmed by both skeptics, and fixed before the commits:**
+  - `writeRunoffRounds`' header still said an existing row gets "a NULL bioguide_id filled";
+  - the Senate sync's header and its count line, *matched to a sitting senator*, which identity makes false;
+  - `scripts/migrate.ts`'s comment named a function that does not exist, and `scripts/sync-primaries.ts` called `--rematch` House-only;
+  - the repair called a row on a 404 or UNREAD page, or a name the page links two ways, "no such row on the page";
+  - the SKILL bullet for the repair had swallowed the next one, `sync:nominations` (its line break), and its "nothing else" left out `updated_at`.
+- **Refuted, two skeptics each:**
+  - the review list counting a row the sync does not store: that is the specified derivation;
+  - a stale saved page replacing a fresher stored key: no such row today, but taken anyway, so a saved page never replaces a stored key, and leg 4 checks it with a planted later key;
+  - leg 4's coverage check reading its own counters: the live-copy check catches the reviewer's example, and the check is tightened anyway to STEP 0's 2,470 and 126.
+- **The legs re-ran on the final tree:** 29 pass, 0 fail.
+
+**Owed in the FF go.**
+1. `npm run migrate` ran on prod before the review push (2026-10-01 02:08Z (`migrate-prod-764.txt`): `added column primary_candidates.person_key`, `migration complete`; read back 0 of 2,596 rows set at 02:08Z, and again at 02:26Z (`step0-extra-764.txt`)).
+2. The FF, `verify:deploy` and the Production `e2e-prod`.
+3. On prod: `repair:primary-identity`, dry, pasted, then `--write`. Then `SELECT primary_id, name, bioguide_id FROM primary_candidates WHERE name IN ('Daniel S. Sullivan', 'Dan Sullivan', 'Patty Garcia')` reading `S001198` once (the senator's row) and NULL twice (premise corrected above); the review list with García on it; the count of bioguides changed (28 on the copy). After the next `races` expiry, the six seats' tags.
+
+**Docs (HO 764):**
+- This block.
+- **backlog 3+/2−:** the HO 750 line struck on legs 2 and 3, the prod repair owed in the FF go; HO 759's *Seven incumbents…* line annotated, six of its eight closing on the repair; one line filed, `sync:rematch`'s stale Northeast baseline. The two deletions are the two lines rewritten whole.
+- **SKILL 9+/6−**, its own commit, for approval:
+  - the matcher entry rewritten: identity first, the gate as the only surname path, the redraw pool kept, the gate's cost (Blair), and the review list's derivation;
+  - the schema's `person_key`;
+  - `sync:rematch`;
+  - the new `repair:primary-identity`.
+  - One ride-along, flagged: the qualifier's `lost_primary` entry said its name check stops the member match's namesakes; the match no longer makes them, and the entry now says so, with the six seats identity reaches.
+- **OPEN LOOPS reconciled: 266 live / 322 struck at open (588 total), 266 / 323 (589) at close**, with the control `^- \*\*~~` at **0** at both.
+- **Also notes now run through HO 764.**
