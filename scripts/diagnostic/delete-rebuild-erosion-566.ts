@@ -10,8 +10,10 @@
 //   M4 — amendment_votes Senate drift (recompute vs materialized).
 //   M5 — one count: meetings with zero meeting_bills, past/future.
 //
-// thomasToSystemCode + the membership URL are reimplemented verbatim from
-// lib/committees-sync.ts (neither is exported) — the HO 563 genre convention.
+// The membership URL is reimplemented verbatim from lib/committees-sync.ts (not
+// exported) — the HO 563 genre convention. HO 766: thomasToSystemCode and the
+// House select-body retry (houseSelectFallback) are imported from it, exported
+// since, so M1b maps a code exactly as the members step does (HSZS → hlzs00).
 //
 //   npx tsx scripts/diagnostic/delete-rebuild-erosion-566.ts
 import "dotenv/config";
@@ -22,11 +24,7 @@ import { SENATE_AMDT_QUESTION_LIKE, parseSenateAmendmentNumber } from "../../lib
 // verbatim from lib/committees-sync.ts:30 (not exported)
 const MEMBERSHIP_YAML_URL =
   "https://raw.githubusercontent.com/unitedstates/congress-legislators/main/committee-membership-current.yaml";
-// verbatim from lib/committees-sync.ts:249 (not exported)
-function thomasToSystemCode(thomas: string): string {
-  const lower = thomas.toLowerCase();
-  return lower.length === 4 ? `${lower}00` : lower;
-}
+import { houseSelectFallback, thomasToSystemCode } from "../../lib/committees-sync";
 
 function s(row: Row | undefined, k: string): string { return String((row as Row)?.[k] ?? ""); }
 function num(row: Row | undefined, k: string): number { return Number((row as Row)?.[k] ?? 0); }
@@ -50,7 +48,7 @@ async function main(): Promise<number> {
   const nowMs = Date.now();
 
   // ── M1 — committee rosters ──────────────────────────────────────────────
-  console.log("\n══ M1 — committee_members (committees-sync wipe-and-rewrite, every 12h, per committee) ══");
+  console.log("\n══ M1 — committee_members (committees-sync wipe-and-rewrite, every 6h since HO 756, per committee) ══");
 
   // (a) every committee + its member count, main vs subcommittee.
   const rosterRs = await db.execute(`
@@ -90,9 +88,13 @@ async function main(): Promise<number> {
     const srcCount = new Map<string, number>();
     let srcCommittees = 0;
     if (parsed && typeof parsed === "object") {
+      // HO 766: the members step's own mapping, the select-body retry included.
+      const known = new Set(dbCount.keys());
+      const yamlCodes = new Set(Object.keys(parsed).map(thomasToSystemCode));
       for (const [thomas, members] of Object.entries(parsed)) {
         if (!Array.isArray(members)) continue;
-        const code = thomasToSystemCode(thomas);
+        const std = thomasToSystemCode(thomas);
+        const code = known.has(std) ? std : (houseSelectFallback(thomas, std, known, yamlCodes) ?? std);
         // count only insertable members (the sync skips entries without bioguide)
         const withBio = members.filter((m) => m && m.bioguide).length;
         srcCount.set(code, withBio);
@@ -117,8 +119,8 @@ async function main(): Promise<number> {
     console.log(`    source codes NOT in committees table (unknownCommittees skip): ${unknown.length}`);
   }
 
-  // (c) staleness: MAX(updated_at) per committee vs the 12h cadence.
-  console.log("\n(c) roster staleness — MAX(updated_at) per committee vs 12h cadence");
+  // (c) staleness: MAX(updated_at) per committee vs the 6h cadence (`5 */6`, HO 756).
+  console.log("\n(c) roster staleness — MAX(updated_at) per committee vs the 6h cadence");
   const stale: { code: string; name: string; hrs: number }[] = [];
   let noStamp = 0;
   const freshHrs: number[] = [];
