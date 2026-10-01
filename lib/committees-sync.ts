@@ -451,9 +451,25 @@ export async function syncCommitteeBills(
 
 // THOMAS code → Congress.gov systemCode. Parent codes are 4 chars (lowercase
 // + '00' suffix); subcommittee codes are 6 chars (just lowercase).
-function thomasToSystemCode(thomas: string): string {
+// Exported since HO 766 for the HO 566 roster instrument, which kept a copy.
+export function thomasToSystemCode(thomas: string): string {
   const lower = thomas.toLowerCase();
   return lower.length === 4 ? `${lower}00` : lower;
+}
+
+// HO 766 — House select bodies. The YAML files them under `HS…` (HSZS, the China
+// select committee; HSQJ, the January 6 select subcommittee) where Congress.gov
+// keys House select committees `hl…` (hlzs00, hlqj00). So a YAML `HS…` code whose
+// system code is not in `committees` is retried as `hl` + the rest; a hit maps,
+// a miss stays unknown. The rule never touches a code that is known as it is, and
+// never takes an `hl…` code the YAML also names under its own key. A rule rather
+// than a two-entry override: at HO 766's STEP 0 it reached exactly those two of
+// the YAML's 125 `HS…` codes and collided with none, and a select body filed this
+// way later lands without a code change.
+export function houseSelectFallback(thomas: string, systemCode: string, knownSet: Set<string>, yamlCodes: Set<string>): string | null {
+  if (!thomas.startsWith("HS") || knownSet.has(systemCode)) return null;
+  const alt = `hl${systemCode.slice(2)}`;
+  return knownSet.has(alt) && !yamlCodes.has(alt) ? alt : null;
 }
 
 type YamlMember = {
@@ -467,7 +483,15 @@ type YamlMember = {
 export type CommitteeMembersResult = {
   committeesSeen: number;
   membersUpserted: number;
+  // Codes the YAML names that `committees` does not hold even after the HO 766
+  // select-body retry. `committees` is Congress.gov's list as the list step has
+  // stored it: an upsert that never deletes, from a step that can fail on its own
+  // (HO 756). So a code here is absent from Congress.gov's list as last read; one
+  // Congress.gov added on a tick whose list read failed reads here until the next
+  // good read. At HO 766: SSCM39 and SSJU27, both with empty rosters in the YAML.
   unknownCommittees: string[];
+  // HO 766 — `HS…` codes the select-body rule mapped to `hl…` ("HSZS→hlzs00").
+  mappedCommittees: string[];
   rosterDeletesRefused: string[]; // HO 568 — codes whose delete was refused (existing roster, empty/insertless incoming)
 };
 
@@ -492,13 +516,18 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
   let committeesSeen = 0;
   let membersUpserted = 0;
   const unknownCommittees: string[] = [];
+  const mappedCommittees: string[] = [];
   const rosterDeletesRefused: string[] = [];
+  // Every system code the YAML names under its own key, so the select-body
+  // retry never maps onto a code the YAML already writes.
+  const yamlCodes = new Set(Object.keys(parsed).map(thomasToSystemCode));
 
   // HO 568 — the currently-rostered set, for the refusal fork below. A committee
   // with existing rows whose incoming roster is empty/insertless is a real
   // protection event (refuse + REPORT); an unrostered one is a silent skip
   // (nothing to protect, nothing lost). Keeps rosterDeletesRefused signal-
-  // bearing at steady state: source-absent bodies (the 10 today) never enter the
+  // bearing at steady state: source-absent bodies (10 until HO 766, 8 since: the
+  // two House select bodies were filed under HS keys, not absent) never enter the
   // loop, and a source-empty unrostered code skips silently — see HO 566 M1.
   const rosteredRs = await db.execute(
     "SELECT committee_system_code FROM committee_members GROUP BY committee_system_code",
@@ -515,10 +544,15 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
   const stmts: { sql: string; args: (string | number | null)[] }[] = [];
   for (const [thomas, members] of Object.entries(parsed)) {
     if (!Array.isArray(members)) continue;
-    const systemCode = thomasToSystemCode(thomas);
+    let systemCode = thomasToSystemCode(thomas);
     if (!knownSet.has(systemCode)) {
-      unknownCommittees.push(`${thomas}→${systemCode}`);
-      continue;
+      const alt = houseSelectFallback(thomas, systemCode, knownSet, yamlCodes);
+      if (!alt) {
+        unknownCommittees.push(`${thomas}→${systemCode}`);
+        continue;
+      }
+      mappedCommittees.push(`${thomas}→${alt}`);
+      systemCode = alt;
     }
     committeesSeen++;
     // HO 568 — build the inserts first and gate the DELETE on the INSERTABLE
@@ -572,5 +606,5 @@ export async function syncCommitteeMembers(): Promise<CommitteeMembersResult> {
     );
   }
 
-  return { committeesSeen, membersUpserted, unknownCommittees, rosterDeletesRefused };
+  return { committeesSeen, membersUpserted, unknownCommittees, mappedCommittees, rosterDeletesRefused };
 }

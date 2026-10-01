@@ -122,11 +122,11 @@ async function handle(request: Request) {
     }
     if (members) {
       console.log(
-        `[committees] members: committees=${members.committeesSeen} upserted=${members.membersUpserted} unknownCodes=${members.unknownCommittees.length}`,
+        `[committees] members: committees=${members.committeesSeen} upserted=${members.membersUpserted} mapped=${members.mappedCommittees.length} absentUpstream=${members.unknownCommittees.length}`,
       );
       if (members.unknownCommittees.length > 0) {
         console.warn(
-          `[committees] unknown committee codes from membership YAML: ${members.unknownCommittees.slice(0, 10).join(", ")}${members.unknownCommittees.length > 10 ? " ..." : ""}`,
+          `[committees] membership YAML codes not in committees (Congress.gov's list as last stored): ${members.unknownCommittees.slice(0, 10).join(", ")}${members.unknownCommittees.length > 10 ? " ..." : ""}`,
         );
       }
     }
@@ -145,6 +145,7 @@ async function handle(request: Request) {
             committeesSeen: members.committeesSeen,
             membersUpserted: members.membersUpserted,
             unknownCommittees: members.unknownCommittees,
+            mappedCommittees: members.mappedCommittees, // HO 766 — HS… select bodies mapped to hl…
             rosterDeletesRefused: members.rosterDeletesRefused, // HO 568 — surface into cron_runs.payload
           }
         : null,
@@ -156,7 +157,10 @@ async function handle(request: Request) {
     const parts: string[] = [...stepErrors];
     if (members && members.unknownCommittees.length > 0) {
       parts.push(
-        `unknown committee codes: ${members.unknownCommittees.length} (e.g. ${members.unknownCommittees.slice(0, 3).join(", ")})`,
+        // HO 766: after the HS→hl select-body retry, what is left is not in
+        // `committees`, Congress.gov's list as the list step last stored it (an
+        // upsert, never a delete; a failed list step is named first, above).
+        `membership YAML codes not in committees (Congress.gov's list as last stored): ${members.unknownCommittees.length} (${members.unknownCommittees.slice(0, 3).join(", ")}${members.unknownCommittees.length > 3 ? ", …" : ""})`,
       );
     }
     if (bills.fetchErrors > 0) {
