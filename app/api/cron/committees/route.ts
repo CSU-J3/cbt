@@ -122,7 +122,7 @@ async function handle(request: Request) {
     }
     if (members) {
       console.log(
-        `[committees] members: committees=${members.committeesSeen} upserted=${members.membersUpserted} mapped=${members.mappedCommittees.length} absentUpstream=${members.unknownCommittees.length}`,
+        `[committees] members: committees=${members.committeesSeen} upserted=${members.membersUpserted} mapped=${members.mappedCommittees.length} notInCommittees=${members.unknownCommittees.length}`,
       );
       if (members.unknownCommittees.length > 0) {
         console.warn(
