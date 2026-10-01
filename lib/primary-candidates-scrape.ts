@@ -59,6 +59,10 @@ export type ScrapedCandidate = {
   party: string; // the candidate's own party letter (D/R/L/G/I/...)
   incumbent: boolean;
   isWinner: boolean;
+  // HO 764 — the person: the row's Ballotpedia link as hrefKey reads it, the
+  // key general_ballot.person_key holds and member_ids' titles key to. Stored
+  // as primary_candidates.person_key; the member match ties on it first.
+  personKey: string | null;
   // HO 206: per-candidate result share, read from the SAME already-isolated
   // 2026-primary votebox the roster comes from (not a page-wide scan — the page
   // also carries historical 2024/2022 voteboxes with identical markup). NULL
@@ -136,6 +140,30 @@ export function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
 }
 
+// ── identity ───────────────────────────────────────────────────────────────
+// A person link's title, as a comparable key: HTML entities decoded (reading the
+// attribute), the origin dropped, percent-decoded, spaces as underscores. The
+// stored side is `https://ballotpedia.org/` + the member's title (HO 751:
+// COALESCE(ballotpedia_title_resolved, ballotpedia_title)) through the same
+// function, so both sides are percent-decoded before they are compared. This key
+// is `general_ballot.person_key` and, since HO 764, `primary_candidates.person_key`.
+// Moved here from lib/general-ballot.ts at HO 764 (which re-exports both), so
+// the primary parser can key its rows without importing the reader, which
+// imports this file.
+const BP = "https://ballotpedia.org/";
+export function hrefKey(href: string | null | undefined): string | null {
+  if (!href) return null;
+  let s = decodeEntities(href);
+  if (s.startsWith(BP)) s = s.slice(BP.length);
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    // a malformed escape stays raw rather than failing the page
+  }
+  return s.replace(/ /g, "_");
+}
+export const titleKey = (title: string) => hrefKey(BP + title.replace(/ /g, "_"));
+
 export function senatePageUrl(slug: string): string {
   return `https://ballotpedia.org/United_States_Senate_election_in_${slug},_2026`;
 }
@@ -203,10 +231,12 @@ function parseVotebox(
   if (!table) return out;
   const rows = table.match(/<tr class="results_row[^"]*">[\s\S]*?<\/tr>/g) ?? [];
   for (const row of rows) {
+    // HO 764: the link's href is kept (as hrefKey), the same first link the
+    // ballot reader keys a row on (lib/general-ballot.ts readBox).
     const link = row.match(
-      /<a [^>]*href="https:\/\/ballotpedia\.org\/[^"]*"[^>]*>([\s\S]*?)<\/a>/,
+      /<a [^>]*href="(https:\/\/ballotpedia\.org\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/,
     );
-    const name = link?.[1] ? stripTags(link[1]) : "";
+    const name = link?.[2] ? stripTags(link[2]) : "";
     if (!name) continue; // "Other/Write-in" aggregate rows carry no link
     let party: string;
     if (contest === "open") {
@@ -243,6 +273,7 @@ function parseVotebox(
       party,
       incumbent: /<u>/.test(row), // Ballotpedia underlines incumbents
       isWinner: /class="results_row[^"]*\bwinner\b/.test(row),
+      personKey: hrefKey(link?.[1]),
       votePct: pctRaw != null && Number.isFinite(pctRaw) ? pctRaw : null,
       votes: votesRaw != null && Number.isFinite(votesRaw) ? votesRaw : null,
     });

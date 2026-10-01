@@ -3,7 +3,8 @@
 // share it. Passes selected by argv:
 //   (default)          calendar (all 50 states) + Senate candidate rosters.
 //   --region=<region>  House candidate rosters for one region.
-//   --rematch          re-run the House incumbent matcher; no scraping.
+//   --rematch          re-run the member match over House and Senate rows
+//                      (HO 764); no scraping.
 // `npm run sync:primaries` runs the default pass; `npm run sync:house-primaries
 // -- --region=northeast` runs the House pass; `npm run sync:rematch` re-runs
 // the matcher.

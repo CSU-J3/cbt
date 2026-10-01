@@ -2014,6 +2014,15 @@ async function main() {
   await ensureColumn(db, "member_ids", "ballotpedia_title_resolved_at", "TEXT");
   await ensureColumn(db, "member_ids", "ballotpedia_title_resolved_from", "TEXT");
 
+  // HO 764 — the person a primary row is: its Ballotpedia link as hrefKey reads
+  // it (lib/primary-candidates-scrape.ts), the key general_ballot.person_key
+  // holds. The member match ties a row to a bioguide on it first (identity), and
+  // falls back to surname only for an underlined incumbent (lib/primaries-sync.ts
+  // loadMemberMatcher). NULL on a row no page has keyed: the cron writes it on
+  // every roster it rewrites, and `npm run repair:primary-identity` fills the
+  // rest from the pages.
+  await ensureColumn(db, "primary_candidates", "person_key", "TEXT");
+
   console.log("migration complete");
 }
 

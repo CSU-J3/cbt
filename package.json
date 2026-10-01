@@ -32,6 +32,7 @@
     "sync:general-ballot": "tsx scripts/sync-general-ballot.ts",
     "repair:ballotpedia-titles": "tsx scripts/repair-ballotpedia-titles.ts",
     "repair:committee-bills": "tsx scripts/repair-committee-bills.ts",
+    "repair:primary-identity": "tsx scripts/repair-primary-identity.ts",
     "repair:runoffs": "tsx scripts/repair-runoffs.ts",
     "sync:amendment-votes": "tsx scripts/sync-amendment-votes.ts",
     "sync:nominations": "tsx scripts/sync-nominations.ts",

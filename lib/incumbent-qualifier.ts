@@ -24,12 +24,18 @@
 //                 disqualified candidates" list, so a disqualification too);
 //   lost_primary  an unmarked row (status 'running') in a decided primary of
 //                 the cycle (one with a 'winner' row), matched by bioguide AND
-//                 by name: primary_candidates.bioguide_id is assigned by a
-//                 member match that lets namesakes through (TX-22's "Trever
-//                 Nehls" carries Troy Nehls's), so the printed name must also
+//                 by name: primary_candidates.bioguide_id was assigned by a
+//                 member match that let namesakes through (TX-22's "Trever
+//                 Nehls" carried Troy Nehls's), so the printed name must also
 //                 pass HO 751's name check (tokenCheck, lib/ballot-incumbent.ts:
 //                 every surname token, and a first-name token whole or as a
-//                 prefix of three letters or more either way);
+//                 prefix of three letters or more either way). HO 764: the
+//                 match is by identity or behind the underline now, and
+//                 repair:primary-identity cleared the five namesakes; the check
+//                 stays as the second guard. Identity also ties a House member
+//                 on a SENATE primary's row, so one who lost a Senate primary
+//                 reads lost_primary on the House seat (six at HO 764: IL-02,
+//                 IL-08, MA-06, MI-11, TX-30, TX-38, each `absent` before);
 //   absent        none of these.
 // A runoff round is a primary of its own (primaries.election_round), and a
 // round that went to a runoff marks its advancers 'winner'. So an incumbent who

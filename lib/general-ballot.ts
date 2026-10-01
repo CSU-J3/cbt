@@ -46,11 +46,13 @@ import {
   USER_AGENT,
   decodeEntities,
   houseDistrictUrl,
+  hrefKey,
   openContestParty,
   partyLetter,
   senatePageUrl,
   senateSpecialPageUrl,
   stripTags,
+  titleKey,
 } from "./primary-candidates-scrape";
 import { stateName } from "./states";
 import { expireTag } from "./cache/expire-tag";
@@ -98,25 +100,11 @@ function partyRoute(row: string): { route: PartyRoute; token: string | null; let
 }
 
 // ── identity ───────────────────────────────────────────────────────────────
-// A person link's title, as a comparable key: HTML entities decoded (reading the
-// attribute), the origin dropped, percent-decoded, spaces as underscores. The
-// stored side is `https://ballotpedia.org/` + the member's title (HO 751:
-// COALESCE(ballotpedia_title_resolved, ballotpedia_title)) through the same
-// function, so both sides are percent-decoded before they are compared. This key
-// is `general_ballot.person_key`.
-const BP = "https://ballotpedia.org/";
-export function hrefKey(href: string | null | undefined): string | null {
-  if (!href) return null;
-  let s = decodeEntities(href);
-  if (s.startsWith(BP)) s = s.slice(BP.length);
-  try {
-    s = decodeURIComponent(s);
-  } catch {
-    // a malformed escape stays raw rather than failing the page
-  }
-  return s.replace(/ /g, "_");
-}
-export const titleKey = (title: string) => hrefKey(BP + title.replace(/ /g, "_"));
+// hrefKey and titleKey (a person link's title as a comparable key; this key is
+// `general_ballot.person_key`) live in lib/primary-candidates-scrape.ts since
+// HO 764, where the primary parser keys its rows with them too; re-exported
+// here for the reader's callers.
+export { hrefKey, titleKey };
 
 // ── the page model ─────────────────────────────────────────────────────────
 export type Row = {

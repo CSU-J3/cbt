@@ -10,8 +10,9 @@
 //                      states) + Senate candidate rosters.
 //   --region=<region>  handoff 92/93/95/96 — House candidate rosters for one
 //                      region (all four regions shipped).
-//   --rematch          handoff 94 — re-run the House incumbent matcher over
-//                      existing primary_candidates rows; no scraping.
+//   --rematch          handoff 94 — re-run the member match (HO 764: House
+//                      and Senate) over existing primary_candidates rows; no
+//                      scraping.
 //
 // Cron (handoff 97, +93.5): the full corpus is ~470 scrape units (1 calendar
 // + 34 Senate states + 435 House districts). At ~1.5-2s per unit — the
@@ -21,6 +22,7 @@
 // dashboard_state), processing CRON_SLICE units per daily tick and refreshing
 // the whole corpus every ~25 days.
 import { getDb } from "./db";
+import { loadIdentity } from "./general-ballot";
 import { scrapeStatePrimaryCalendar } from "./primary-calendar-scrape";
 import {
   scrapeHouseCandidates,
@@ -301,48 +303,107 @@ async function loadHouseMembers(
   return { incumbentByDistrict, currentHouseByState };
 }
 
-// Incumbent match for one House primary candidate. Primary path: the
-// candidate's last name appears in the sitting incumbent of their own
-// district (the HO 92 behaviour). Fallback (HO 94): a candidate Ballotpedia
-// flags as an incumbent who did NOT match their district's member — the
-// mid-decade-redraw case, where primary_candidates is keyed to the 2026
-// election map and `members` to the current 119th map. Such a candidate is
-// matched by last name against the state's current House delegation, so the
-// match survives any redraw. The fallback is gated on the incumbent flag so
-// a same-surname challenger is never misattributed to a sitting member.
-function matchHouseCandidate(
-  candidateName: string,
-  candidateIsIncumbent: boolean,
-  state: string,
-  district: number,
-  incumbentByDistrict: Map<string, HouseMember>,
-  currentHouseByState: Map<string, HouseMember[]>,
-): string | null {
+// HO 764 — THE MEMBER MATCH: one rule for every primary_candidates row, House
+// and Senate, a first round, a runoff round, the special pass, `--rematch` and
+// `npm run repair:primary-identity`:
+//   1. identity. The row's person_key (its Ballotpedia link, hrefKey) equals a
+//      member's title key (member_ids, lib/general-ballot.ts loadIdentity), in
+//      any chamber and any state: a House member on a Senate page ties.
+//   2. Failing identity, and only for a row the page underlines (Ballotpedia's
+//      incumbent mark), the surname: for the House, the seat's incumbent, then
+//      the state's current delegation (HO 94: a mid-decade redraw moves a
+//      member's seat, so the 2026 map and the 119th's disagree); for the
+//      Senate, the state's current senators. A shared surname is broken on the
+//      first name, and a tie that survives it is NULL.
+//   3. Otherwise NULL.
+// Until HO 764 the House matcher's first test took ANY candidate whose last word
+// sat inside the seat incumbent's name, and the Senate's took any whose last word
+// sat inside one senator's, both ungated: at HO 764's STEP 0 five namesakes
+// carried a member's bioguide (CA-38's Monica Sanchez, FL-11's Royal Webster,
+// IL-04's Patty Garcia, TX-22's Trever Nehls, S-AK's second Dan Sullivan), and
+// three of those members (Webster, García, Nehls) were off the review list for
+// it. The surname route stays because a title can fail to tie (a stale or
+// disambiguation title, HO 751): 6 underlined rows on HO 747's saved pages at
+// STEP 0 (TX-18's Al Green and TX-33's Julie Johnson, first round and runoff,
+// both moved by the Texas redraw, so the seat-only route would miss them;
+// TX-23's Tony Gonzales; CT-01's John Larson).
+export type MemberMatchInput = { name: string; incumbent: boolean; personKey: string | null };
+export type MemberMatcher = {
+  house: (c: MemberMatchInput, state: string, district: number) => string | null;
+  senate: (c: MemberMatchInput, state: string) => string | null;
+  // The House seats in scope, "STATE-district" → the sitting member: the review
+  // list's population.
+  incumbentByDistrict: Map<string, HouseMember>;
+};
+
+// The one surname step: the pool member whose last name is the candidate's last
+// word (or ends a multi-word last name), the first name breaking a tie.
+function surnameMatch(pool: HouseMember[], candidateName: string): string | null {
   const key = foldName(lastNameKey(candidateName));
   if (!key) return null;
-
-  // Primary path — name contained in the district's incumbent.
-  const inc = incumbentByDistrict.get(`${state}-${district}`);
-  if (inc && inc.foldedName.includes(key)) return inc.bioguideId;
-
-  // Fallback path — incumbent-flagged candidates only.
-  if (!candidateIsIncumbent) return null;
-  const pool = currentHouseByState.get(state) ?? [];
-  const hits = pool.filter(
-    (m) => m.foldedLast === key || m.foldedLast.endsWith(` ${key}`),
-  );
+  const hits = pool.filter((m) => m.foldedLast === key || m.foldedLast.endsWith(` ${key}`));
   if (hits.length === 1) return hits[0]!.bioguideId;
   if (hits.length > 1) {
-    // Shared surname — disambiguate on first name.
     const fkey = foldName(firstNameKey(candidateName));
     if (fkey) {
-      const narrowed = hits.filter(
-        (m) => m.foldedFirst === fkey || m.foldedFirst.startsWith(fkey),
-      );
+      const narrowed = hits.filter((m) => m.foldedFirst === fkey || m.foldedFirst.startsWith(fkey));
       if (narrowed.length === 1) return narrowed[0]!.bioguideId;
     }
   }
   return null;
+}
+
+// `houseStates` scopes the House seats (the review list's population and the
+// redraw pool); null loads every state. Identity and the senators are loaded
+// whole. An identity key is kept only when its bioguide is a `members` row
+// (primary_candidates.bioguide_id references members, and FK enforcement is on).
+export async function loadMemberMatcher(
+  db: ReturnType<typeof getDb>,
+  houseStates: string[] | null = null,
+): Promise<MemberMatcher> {
+  const { incumbentByDistrict, currentHouseByState } = await loadHouseMembers(db, houseStates);
+  const identity = await loadIdentity(db);
+  const memberIds = new Set(
+    (await db.execute("SELECT bioguide_id FROM members")).rows.map((r) => String(r.bioguide_id)),
+  );
+  const senators = await db.execute(
+    "SELECT bioguide_id, name, first_name, last_name, state FROM members WHERE chamber = 'senate' AND is_current = 1",
+  );
+  const senatorsByState = new Map<string, HouseMember[]>();
+  for (const r of senators.rows) {
+    const st = r.state as string | null;
+    if (!st) continue;
+    const name = ((r.name as string | null) ?? "").trim();
+    const list = senatorsByState.get(st) ?? [];
+    list.push({
+      bioguideId: r.bioguide_id as string,
+      name,
+      foldedName: foldName(name),
+      foldedFirst: foldName(((r.first_name as string | null) ?? "").trim()),
+      foldedLast: foldName(((r.last_name as string | null) ?? "").trim()),
+    });
+    senatorsByState.set(st, list);
+  }
+  const byIdentity = (c: MemberMatchInput): string | null => {
+    const b = c.personKey ? identity.get(c.personKey) : null;
+    return b && memberIds.has(b) ? b : null;
+  };
+  return {
+    incumbentByDistrict,
+    house: (c, state, district) => {
+      const tied = byIdentity(c);
+      if (tied) return tied;
+      if (!c.incumbent) return null;
+      const seat = incumbentByDistrict.get(`${state}-${district}`);
+      return (seat && surnameMatch([seat], c.name)) || surnameMatch(currentHouseByState.get(state) ?? [], c.name);
+    },
+    senate: (c, state) => {
+      const tied = byIdentity(c);
+      if (tied) return tied;
+      if (!c.incumbent) return null;
+      return surnameMatch(senatorsByState.get(state) ?? [], c.name);
+    },
+  };
 }
 
 export type CalendarSyncSummary = { states: number };
@@ -452,7 +513,7 @@ export type SenateSyncSummary = {
 // the special-page fetch is scrapeSenateSpecialCandidates there, and this file
 // only orchestrates and writes. One copy of the fetch semantics by construction.
 
-type SenateMatcher = (candidateName: string, state: string) => string | null;
+type SenateMatcher = (c: MemberMatchInput, state: string) => string | null;
 
 // The seeded special registry, by state: the first-round `-special-` rows. HO
 // 761: `election_round = 'primary'`, because a special contest's runoff row
@@ -516,37 +577,16 @@ export function routeSenateContestId(
   return seededSpecialIds.has(special) ? special : base;
 }
 
-// Build the last-name → sitting-senator matcher once. Extracted (HO 561) from
-// syncSenateCandidates so the special-page pass and the C2 priority trigger
-// reuse the IDENTICAL matching logic rather than a second copy.
+// The Senate side of the member match (loadMemberMatcher, above), built once per
+// pass. Extracted (HO 561) so the special-page pass and the C2 priority trigger
+// reuse the IDENTICAL rule rather than a second copy. Until HO 764 it took the
+// one senator of the state whose name contained the candidate's last word,
+// ungated.
 async function buildSenateMatcher(
   db: ReturnType<typeof getDb>,
 ): Promise<SenateMatcher> {
-  const memberRows = await db.execute(
-    "SELECT bioguide_id, name, state FROM members WHERE chamber = 'senate'",
-  );
-  const senatorsByState = new Map<
-    string,
-    { bioguideId: string; name: string }[]
-  >();
-  for (const r of memberRows.rows) {
-    const st = r.state as string | null;
-    if (!st) continue;
-    const list = senatorsByState.get(st) ?? [];
-    list.push({
-      bioguideId: r.bioguide_id as string,
-      name: ((r.name as string | null) ?? "").toLowerCase(),
-    });
-    senatorsByState.set(st, list);
-  }
-  return (candidateName, state) => {
-    const key = lastNameKey(candidateName);
-    if (!key) return null;
-    const hits = (senatorsByState.get(state) ?? []).filter((m) =>
-      m.name.includes(key),
-    );
-    return hits.length === 1 ? hits[0]!.bioguideId : null;
-  };
+  const m = await loadMemberMatcher(db);
+  return (c, state) => m.senate(c, state);
 }
 
 // HO 661 — the bounded re-check window. A past-dated row stays REWRITE-ELIGIBLE
@@ -676,8 +716,10 @@ async function isSettled(
 //
 // A ROW THAT EXISTS — the seeded three (HO 107/174) and every row an earlier
 // tick wrote — is updated BY NAME, the way reingest:primary-slate updates a
-// first round: status, vote_pct and incumbent from the page, and a NULL
-// bioguide_id filled; never deleted, never re-inserted. A stored name the page
+// first round: status, vote_pct and incumbent from the page, and (HO 764)
+// person_key and the member match's bioguide_id, which replaces a stored one
+// (until HO 764 only a NULL bioguide_id was filled); never deleted, never
+// re-inserted. A stored name the page
 // doesn't print is left as it is; a page name with no stored row is reported
 // (noMatch), not added. So a seed's names and race_id survive the page, and a
 // write that would change nothing is not made.
@@ -825,8 +867,8 @@ async function writeRunoffRounds(
         },
         ...r.candidates.map((c) => ({
           sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
-                SELECT ?, ?, ?, ?, ?, ?, ?, ?
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at, person_key)
+                SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
                  WHERE NOT EXISTS (SELECT 1 FROM primary_candidates WHERE primary_id = ? AND name = ?)`,
           args: [
             id,
@@ -837,6 +879,7 @@ async function writeRunoffRounds(
             c.isWinner ? "winner" : "running",
             c.votePct,
             at.now,
+            c.personKey,
             id,
             c.name,
           ],
@@ -863,7 +906,7 @@ async function writeRunoffRounds(
     }
     const stored = (
       await db.execute({
-        sql: "SELECT name, status, vote_pct, incumbent, bioguide_id FROM primary_candidates WHERE primary_id = ?",
+        sql: "SELECT name, status, vote_pct, incumbent, bioguide_id, person_key FROM primary_candidates WHERE primary_id = ?",
         args: [id],
       })
     ).rows;
@@ -877,20 +920,24 @@ async function writeRunoffRounds(
       }
       const status = c.isWinner ? "winner" : "running";
       const incumbent = c.incumbent ? 1 : 0;
-      const bioguideId = (s.bioguide_id as string | null) ?? matchCandidate(c);
+      // HO 764: the member match is the rule's, not the stored value's. Until
+      // HO 764 a stored bioguide was kept and only a NULL was matched, which
+      // would keep a surname match the rule no longer makes.
+      const bioguideId = matchCandidate(c);
       if (
         s.status === status &&
         ((s.vote_pct as number | null) ?? null) === c.votePct &&
         Number(s.incumbent) === incumbent &&
-        ((s.bioguide_id as string | null) ?? null) === bioguideId
+        ((s.bioguide_id as string | null) ?? null) === bioguideId &&
+        ((s.person_key as string | null) ?? null) === c.personKey
       ) {
         continue;
       }
       stmts.push({
         sql: `UPDATE primary_candidates
-                 SET status = ?, vote_pct = ?, incumbent = ?, bioguide_id = ?, updated_at = ?
+                 SET status = ?, vote_pct = ?, incumbent = ?, bioguide_id = ?, person_key = ?, updated_at = ?
                WHERE primary_id = ? AND name = ?`,
-        args: [status, c.votePct, incumbent, bioguideId, at.now, id, c.name],
+        args: [status, c.votePct, incumbent, bioguideId, c.personKey, at.now, id, c.name],
       });
     }
     if (stmts.length === 0) {
@@ -940,8 +987,7 @@ export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
     out: RunoffWriteReport,
   ) => Promise<void>
 > {
-  const matchSenate = await buildSenateMatcher(db);
-  const { incumbentByDistrict, currentHouseByState } = await loadHouseMembers(db, null);
+  const match = await loadMemberMatcher(db);
   const seededSpecial = await loadSeededSpecialIds(db);
   return async (page, runoffs, at, opts, out) => {
     if (page.chamber === "senate") {
@@ -951,7 +997,7 @@ export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
         `S-${page.state}`,
         runoffs,
         senateFirstRoundIds(page.state, seeded),
-        (c) => matchSenate(c.name, page.state),
+        (c) => match.senate(c, page.state),
         at,
         opts,
         out,
@@ -965,7 +1011,7 @@ export async function createRunoffWriter(db: ReturnType<typeof getDb>): Promise<
       `${page.state}-${dd}`,
       runoffs,
       houseFirstRoundIds(page.state, dd),
-      (c) => matchHouseCandidate(c.name, c.incumbent, page.state, district, incumbentByDistrict, currentHouseByState),
+      (c) => match.house(c, page.state, district),
       at,
       opts,
       out,
@@ -1079,13 +1125,13 @@ async function scrapeSenateSpecialState(
       args: [primaryId],
     });
     for (const c of roster) {
-      const bioguideId = matchMember(c.name, abbr);
+      const bioguideId = matchMember(c, abbr);
       if (bioguideId) matchedCandidates++;
       totalCandidates++;
       await db.execute({
         sql: `INSERT INTO primary_candidates
-                (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at, person_key)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           primaryId,
           c.name,
@@ -1095,6 +1141,7 @@ async function scrapeSenateSpecialState(
           c.isWinner ? "winner" : "running",
           c.votePct,
           now,
+          c.personKey,
         ],
       });
     }
@@ -1213,7 +1260,9 @@ export async function runSpecialPriorityPass(
 // Ballotpedia election page, parses the D/R primary voteboxes, and upserts
 // the rosters into primary_candidates. Per-state delete-then-insert keeps
 // re-runs idempotent (the table has no natural unique key). Candidates are
-// best-effort matched to sitting senators by last name + state — challengers
+// matched to members by the member match (HO 764, loadMemberMatcher: identity
+// in any chamber, so a House member running for the Senate ties, then an
+// underlined row's surname against the state's senators) — challengers
 // aren't members of Congress, so most rows resolve to a NULL bioguide_id.
 //
 // `states` defaults to the full 2026 Senate slate; the handoff-97 cron passes
@@ -1345,13 +1394,13 @@ export async function syncSenateCandidates(
         args: [primaryId],
       });
       for (const c of roster) {
-        const bioguideId = matchMember(c.name, abbr);
+        const bioguideId = matchMember(c, abbr);
         if (bioguideId) matchedCandidates++;
         totalCandidates++;
         await db.execute({
           sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at, person_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             primaryId,
             c.name,
@@ -1363,6 +1412,7 @@ export async function syncSenateCandidates(
             // when the votebox carries no results), the real share once voted.
             c.votePct,
             now,
+            c.personKey,
           ],
         });
       }
@@ -1379,7 +1429,7 @@ export async function syncSenateCandidates(
       `S-${abbr}`,
       result.runoffs ?? [],
       senateFirstRoundIds(abbr, seededForState),
-      (c) => matchMember(c.name, abbr),
+      (c) => matchMember(c, abbr),
       { now, today, windowFloor },
       { write: true },
       runoffs,
@@ -1410,7 +1460,7 @@ export async function syncSenateCandidates(
   console.log(`\nStates scraped OK: ${okStates}/${states.length}`);
   console.log(
     `Candidates upserted: ${totalCandidates} ` +
-      `(matched to a sitting senator: ${matchedCandidates})`,
+      `(matched to a member: ${matchedCandidates})`,
   );
   if (failures.length > 0) {
     console.log(`Failed to parse (${failures.length}):`);
@@ -1558,12 +1608,16 @@ export async function syncHouseDistricts(
   // member who died or resigned mid-term is no longer a match target — and a
   // district whose member changed mid-term, e.g. TX-18 after the Turner→
   // Menefee special, resolves to the sitting member rather than colliding).
-  // matchHouseCandidate handles the per-seat match and the redraw fallback.
-  const { incumbentByDistrict, currentHouseByState } = await loadHouseMembers(
-    db,
-    states,
-  );
+  // The member match (HO 764, loadMemberMatcher): identity first, then the
+  // underlined row's surname against the seat and the redraw pool.
+  const match = await loadMemberMatcher(db, states);
+  const { incumbentByDistrict } = match;
   const totalIncumbents = incumbentByDistrict.size;
+  // HO 764 — the review list ("6. Incumbents not found") is the seats in scope
+  // whose member no row of this pass was matched to. The match is by identity
+  // (the member's own link on the page), with the underlined row's surname as
+  // the fallback for a title that does not tie, so a namesake no longer takes a
+  // member off the list: IL-04's Patty Garcia did, for Chuy García.
   const matchedIncumbents = new Set<string>();
 
   // State primary date / type. The date is a STATE-level fact (every contest that
@@ -1714,6 +1768,16 @@ export async function syncHouseDistricts(
       emptyDistricts.push(`${districtLabel} — no_candidates (uncontested — row kept, roster not deleted)`);
     }
 
+    // HO 764 — the review list's reading: every kept row of the page, its first
+    // rounds and its runoff rounds, whether or not the write below runs. A
+    // settled contest is not rewritten, but its member is still on the page:
+    // until HO 764 the list was read off the write loop, so every incumbent of a
+    // settled contest read "not found".
+    for (const c of [...result.candidates, ...(result.runoffs ?? []).flatMap((r) => r.candidates)]) {
+      const b = match.house(c, d.state, d.district);
+      if (b) matchedIncumbents.add(b);
+    }
+
     // Nonpartisan-primary states (CA/WA top-two, AK top-four) run a single
     // all-candidate ballot — parseCandidatesPage routes those into the "open"
     // contest. Everywhere else runs partisan D/R primaries. The contest set is
@@ -1813,15 +1877,7 @@ export async function syncHouseDistricts(
         args: [primaryId],
       });
       for (const c of roster) {
-        const bioguideId = matchHouseCandidate(
-          c.name,
-          c.incumbent,
-          d.state,
-          d.district,
-          incumbentByDistrict,
-          currentHouseByState,
-        );
-        if (bioguideId) matchedIncumbents.add(bioguideId);
+        const bioguideId = match.house(c, d.state, d.district);
         if (c.incumbent && !bioguideId) {
           oddities.push(
             `${districtLabel} ${contest}: "${c.name}" flagged incumbent but ` +
@@ -1832,8 +1888,8 @@ export async function syncHouseDistricts(
         stat.candidates++;
         await db.execute({
           sql: `INSERT INTO primary_candidates
-                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                  (primary_id, name, party, incumbent, bioguide_id, status, vote_pct, updated_at, person_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             primaryId,
             c.name,
@@ -1844,6 +1900,7 @@ export async function syncHouseDistricts(
             // HO 206: NULL until this district's primary has voted (see senate).
             c.votePct,
             now,
+            c.personKey,
           ],
         });
       }
@@ -1857,8 +1914,7 @@ export async function syncHouseDistricts(
       districtLabel,
       result.runoffs ?? [],
       houseFirstRoundIds(d.state, dd),
-      (c) =>
-        matchHouseCandidate(c.name, c.incumbent, d.state, d.district, incumbentByDistrict, currentHouseByState),
+      (c) => match.house(c, d.state, d.district),
       { now, today, windowFloor },
       { write: true },
       runoffs,
@@ -1867,6 +1923,8 @@ export async function syncHouseDistricts(
     await opts.onProgress?.(i);
   }
 
+  // In scope only: identity ties a member of any seat, chamber or state.
+  const matchedInScope = [...incumbentByDistrict.values()].filter((m) => matchedIncumbents.has(m.bioguideId)).length;
   const unmatchedIncumbents: string[] = [];
   for (const [key, inc] of incumbentByDistrict) {
     if (!matchedIncumbents.has(inc.bioguideId)) {
@@ -1883,7 +1941,7 @@ export async function syncHouseDistricts(
   );
   console.log(`4. Total candidates parsed: ${totalCandidates}`);
   console.log(
-    `5. Incumbent matches: ${matchedIncumbents.size}/${totalIncumbents} ` +
+    `5. Incumbent matches: ${matchedInScope}/${totalIncumbents} ` +
       `${label} House incumbents in the members table`,
   );
 
@@ -1945,7 +2003,7 @@ export async function syncHouseDistricts(
     attempted,
     parsedOk,
     totalCandidates,
-    matchedIncumbents: matchedIncumbents.size,
+    matchedIncumbents: matchedInScope,
     totalIncumbents,
     budgetStopped,
     fetchFailures,
@@ -2020,85 +2078,84 @@ const SOUTH_STATES = [
   "NC", "OK", "SC", "TN", "TX", "VA", "WV",
 ];
 
-// HO 94 — re-runs the House incumbent matcher over every existing
-// primary_candidates row without re-scraping Ballotpedia. After a members
-// refresh, the (state, district) primary path plus the new (state, last_name)
-// fallback resolve incumbents the original scrape missed (mid-decade redraw,
-// or the Turner/Menefee district collision). Updates bioguide_id in place.
-// Run with `--rematch`.
-export async function rematchHouseCandidates(): Promise<void> {
-  const db = getDb();
+// HO 764 — one stored row through the member match (loadMemberMatcher): its
+// person_key when it has one, its underline either way. `district` is the
+// primaries row's TEXT ("04", "00" at large).
+export function matchStoredRow(
+  match: MemberMatcher,
+  r: { chamber: string; state: string; district: string | number | null; name: string; incumbent: boolean; personKey: string | null },
+): string | null {
+  const c = { name: r.name, incumbent: r.incumbent, personKey: r.personKey };
+  return r.chamber === "senate" ? match.senate(c, r.state) : match.house(c, r.state, Number(r.district ?? 0));
+}
+
+// HO 94 — re-runs the member match over every existing primary_candidates row
+// without re-scraping Ballotpedia, and updates bioguide_id in place. Run with
+// `--rematch`. HO 764: the rule is the sync's (loadMemberMatcher), over House
+// AND Senate rows (until HO 764 the House's only): a row with a person_key ties
+// by identity first; a row written before HO 764 has none, so it is re-matched
+// by the underlined row's surname alone, and a namesake the old first test
+// matched reads NULL. `npm run repair:primary-identity` fills person_key from
+// the pages first.
+export async function rematchPrimaryCandidates(db: ReturnType<typeof getDb> = getDb()): Promise<void> {
   const now = new Date().toISOString();
-  const { incumbentByDistrict, currentHouseByState } = await loadHouseMembers(
-    db,
-    null,
+  const match = await loadMemberMatcher(db);
+  const names = new Map(
+    (await db.execute("SELECT bioguide_id, name FROM members")).rows.map((r) => [String(r.bioguide_id), String(r.name)]),
   );
-
   const rows = await db.execute(
-    `SELECT id, primary_id, name, incumbent, bioguide_id
-       FROM primary_candidates
-       WHERE primary_id LIKE 'house-%'`,
+    `SELECT pc.id, pc.primary_id, pc.name, pc.incumbent, pc.bioguide_id, pc.person_key, p.chamber, p.state, p.district
+       FROM primary_candidates pc JOIN primaries p ON p.id = pc.primary_id
+      ORDER BY pc.primary_id, pc.name`,
   );
 
-  let total = 0;
+  const total = { house: 0, senate: 0 };
+  let keyed = 0;
   let nowMatched = 0; // null -> matched
   let corrected = 0; // matched -> different match
   let lost = 0; // matched -> null
-  const corrections: string[] = [];
-  const lostRows: string[] = [];
+  const changes: string[] = [];
+  const who = (b: string | null) => (b ? `${b} (${names.get(b) ?? "?"})` : "null");
 
   for (const r of rows.rows) {
-    total++;
-    // primary_id shape: house-{ST}-{DD}-2026-{contest}
-    const parts = (r.primary_id as string).split("-");
-    const state = parts[1] ?? "";
-    const district = parseInt(parts[2] ?? "", 10);
-    if (!state || Number.isNaN(district)) continue;
+    const chamber = String(r.chamber);
+    total[chamber === "senate" ? "senate" : "house"]++;
+    const personKey = (r.person_key as string | null) ?? null;
+    if (personKey) keyed++;
     const name = (r.name as string | null) ?? "";
-    const isIncumbent = Number(r.incumbent ?? 0) === 1;
     const oldId = (r.bioguide_id as string | null) ?? null;
-    const newId = matchHouseCandidate(
+    const newId = matchStoredRow(match, {
+      chamber,
+      state: String(r.state),
+      district: (r.district as string | null) ?? null,
       name,
-      isIncumbent,
-      state,
-      district,
-      incumbentByDistrict,
-      currentHouseByState,
-    );
+      incumbent: Number(r.incumbent ?? 0) === 1,
+      personKey,
+    });
     if (newId === oldId) continue;
     await db.execute({
       sql: `UPDATE primary_candidates SET bioguide_id = ?, updated_at = ?
               WHERE id = ?`,
       args: [newId, now, r.id as number],
     });
-    const label = `${r.primary_id as string} "${name}"`;
-    if (oldId === null) {
-      nowMatched++;
-    } else if (newId !== null) {
-      corrected++;
-      corrections.push(`  ${label}: ${oldId} → ${newId}`);
-    } else {
-      lost++;
-      lostRows.push(`  ${label}: ${oldId} → null`);
-    }
+    if (oldId === null) nowMatched++;
+    else if (newId !== null) corrected++;
+    else lost++;
+    changes.push(`  ${r.primary_id as string} "${name}"${personKey ? "" : " (no person_key)"}: ${who(oldId)} → ${who(newId)}`);
   }
 
   const ne = await regionHouseMatchRate(db, NE_STATES);
   const south = await regionHouseMatchRate(db, SOUTH_STATES);
 
-  console.log("\n=== House incumbent re-match — HO 94 ===");
-  console.log(`House primary_candidates rows scanned: ${total}`);
+  console.log("\n=== Primary member re-match — HO 94, the HO 764 rule ===");
+  console.log(`rows scanned: ${total.house} House, ${total.senate} Senate · with a person_key ${keyed}`);
   console.log(`Linkage changed: ${nowMatched + corrected + lost}`);
   console.log(`  null → matched:      ${nowMatched}`);
   console.log(`  matched → corrected: ${corrected}`);
   console.log(`  matched → null:      ${lost}`);
-  if (corrections.length > 0) {
-    console.log("\nCorrections:");
-    for (const c of corrections) console.log(c);
-  }
-  if (lostRows.length > 0) {
-    console.log("\nLost linkages (review):");
-    for (const l of lostRows) console.log(l);
+  if (changes.length > 0) {
+    console.log("\nChanges:");
+    for (const c of changes) console.log(c);
   }
   console.log("\nMatch rates (region House incumbents linked to a primary):");
   console.log(`  Northeast: ${ne.matched}/${ne.total}  (HO 92 baseline 66/76)`);
@@ -2227,10 +2284,10 @@ function parseRegionArg(argv: string[]): HouseRegion | null {
 
 // CLI entry point — `scripts/sync-primaries.ts` is a thin wrapper around this.
 export async function runPrimariesCli(argv: string[]): Promise<void> {
-  // `--rematch` (HO 94): re-run the House incumbent matcher over existing
-  // primary_candidates rows; no scraping.
+  // `--rematch` (HO 94): re-run the member match (HO 764: House and Senate)
+  // over existing primary_candidates rows; no scraping.
   if (argv.includes("--rematch")) {
-    await rematchHouseCandidates();
+    await rematchPrimaryCandidates();
     return;
   }
   const region = parseRegionArg(argv);
