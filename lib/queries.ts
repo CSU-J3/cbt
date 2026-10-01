@@ -6,6 +6,7 @@ import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
 import { readRaceResult, type RaceResultReading } from "./race-result";
+import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
 import { readIncumbentQualifiers, type IncumbentQualifier } from "./incumbent-qualifier";
 import { normName } from "./ballot-incumbent";
 import { formatBillId } from "./format";
@@ -1669,18 +1670,24 @@ export async function getPrimaryForRace(
 // Runoff contests for a race (handoff 107). A race can have more than one —
 // Louisiana's closed-primary system runs a separate runoff per party, so
 // `S-LA-2026` returns both the Republican and Democratic runoffs. Ordered by
-// party for stable rendering. Returns [] when the race had no runoff.
-// Reuses PRIMARY_SELECT / rowToPrimary — a runoff row is a `primaries` row
-// with `election_round = 'runoff'`.
+// party, then date, for stable rendering. Returns [] when the race had no
+// runoff. Reuses PRIMARY_SELECT / rowToPrimary — a runoff row is a `primaries`
+// row with `election_round = 'runoff'`.
+//
+// HO 763: keyed on the seat (lib/runoff-seat.ts: state, chamber, cycle and the
+// House district), not on `primaries.race_id`, which the sync never writes; it
+// read `p.race_id = ?` until then, so the 30 runoff rounds HO 762's repair
+// wrote drew nowhere and only the three seeded rows did.
 export async function getRunoffsForRace(
   raceId: string,
 ): Promise<PrimaryWithCandidates[]> {
   const db = getDb();
   const rs = await db.execute({
     sql: `${PRIMARY_SELECT}
-          WHERE p.race_id = ? AND p.election_round = 'runoff'
+          WHERE p.election_round = 'runoff'
+            AND EXISTS (SELECT 1 FROM races r WHERE r.id = ? AND ${RUNOFF_SEAT_JOIN})
           GROUP BY p.id
-          ORDER BY p.party ASC`,
+          ORDER BY p.party ASC, p.primary_date ASC`,
     args: [raceId],
   });
   return rs.rows.map((r) => rowToPrimary(r));

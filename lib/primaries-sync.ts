@@ -30,6 +30,7 @@ import {
   type ScrapedCandidate,
   type ScrapedRunoff,
 } from "./primary-candidates-scrape";
+import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
 import { stateName } from "./states";
 
 // The 2026 Senate map — the 33 Class II seats up this cycle + the FL and OH
@@ -643,9 +644,11 @@ async function isSettled(
 // first round's runoff_date when it prints none), runoff_date NULL (a runoff
 // has no further runoff) and race_id NULL. The regular first rounds carry no
 // race_id; a seeded special's does (senate-SC-2026-special-R carries
-// S-SC-2026) and is not inherited, so a runoff row this code writes draws no
-// block on its race page (docs/backlog.md, filed at HO 761). The seeded runoff
-// rows keep theirs.
+// S-SC-2026) and is not inherited. Until HO 763 that meant a runoff row this
+// code writes drew no block on its race page; since HO 763 the race page keys
+// its runoff read on the seat (lib/runoff-seat.ts), reads no race_id, and a
+// round whose seat reaches no race is named in the tick's runoffStrays. The
+// seeded runoff rows keep theirs.
 //
 // HO 762 — A BOX THE PAGE NO LONGER MARKS SPECIAL IS ROUTED BY ITS DATE. The
 // router reads specialness off the <h5>, and Ballotpedia can drop it: by
@@ -2366,7 +2369,25 @@ export type PrimariesCronResult = {
   // the return. The route forwards this object verbatim, so the new fields reach
   // cron_runs.payload with no route change (the pass-through payload shape).
   priorityScraped: SpecialPriorityResult;
+  // HO 763: every runoff round whose seat key (lib/runoff-seat.ts) reaches no
+  // race, read once per tick, so a round the race page cannot draw is named
+  // rather than silently absent. Empty in steady state.
+  runoffStrays: string[];
 };
+
+// HO 763 — the runoff rounds no race page draws: those whose seat key reaches
+// no `races` row. "id (state chamber district, date)".
+export async function findRunoffStrays(db: ReturnType<typeof getDb>): Promise<string[]> {
+  const rs = await db.execute(
+    `SELECT p.id, p.state, p.chamber, p.district, p.primary_date FROM primaries p
+      WHERE p.election_round = 'runoff'
+        AND NOT EXISTS (SELECT 1 FROM races r WHERE ${RUNOFF_SEAT_JOIN})
+      ORDER BY p.id`,
+  );
+  return rs.rows.map(
+    (r) => `${r.id} (${r.state} ${r.chamber}${r.district == null ? "" : ` ${r.district}`}, ${r.primary_date ?? "undated"})`,
+  );
+}
 
 // Computes the p50/p95/max summary surfaced in cron_runs.payload (HO 120).
 // Returns undefined when no units were measured — the cron route then omits
@@ -2421,6 +2442,9 @@ export async function runPrimariesCronTick(
   const cursorStart = cursor;
   const unit = units[cursor]!;
   const base = { cursorStart, totalUnits: units.length, priorityScraped };
+  // HO 763: the stray list, read once per tick AFTER the unit's writes (each
+  // return below), so a stray this tick wrote is named in this tick's payload.
+  const strays = async () => ({ runoffStrays: await findRunoffStrays(db) });
   const deadlineMs = routeStart + DEADLINE_MS;
 
   if (unit.kind === "calendar") {
@@ -2430,6 +2454,7 @@ export async function runPrimariesCronTick(
     return {
       unit: "calendar",
       ...base,
+      ...(await strays()),
       cursorEnd: cursor,
       calendarStates: calendar.states,
       budgetStopped: false,
@@ -2462,6 +2487,7 @@ export async function runPrimariesCronTick(
     return {
       unit: "senate",
       ...base,
+      ...(await strays()),
       cursorEnd: cursor,
       senate,
       senateSlice: {
@@ -2499,6 +2525,7 @@ export async function runPrimariesCronTick(
   return {
     unit: "house",
     ...base,
+    ...(await strays()),
     cursorEnd: cursor,
     house: {
       firstDistrict: fmt(slice[0]!),

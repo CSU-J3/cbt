@@ -148,7 +148,8 @@ async function main() {
         console.warn(
           `  parent primary '${parentId}' not found — runoff_date not set ` +
             `(run the primaries sync for ${seed.state} first). The runoff ` +
-            `still surfaces via getRunoffsForRace on its own race_id.`,
+            `still surfaces on the race its seat reaches (HO 763: ` +
+            `getRunoffsForRace keys on state, chamber, cycle and district).`,
         );
       } else {
         parentsUpdated++;
