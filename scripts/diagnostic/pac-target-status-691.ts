@@ -17,15 +17,20 @@ import "dotenv/config";
 import { getDb } from "@/lib/db";
 import { PAC_IE_CYCLE, pacSurname } from "@/lib/pac-ie";
 import {
+  type BallotRow,
   type ContestRow,
   type RosterRow,
   classifyTarget,
   fecTargetKey,
 } from "@/lib/pac-target-status";
+import { clockNowMs } from "@/lib/clock";
+import { electionDay } from "@/lib/format";
 
 async function main() {
   const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
+  // HO 765: the query layer's clock and election day, so this reads what it reads.
+  const today = new Date(clockNowMs()).toISOString().slice(0, 10);
+  const electionDate = electionDay(PAC_IE_CYCLE).toISOString().slice(0, 10);
   console.log(`HO 691 — PAC target status (read-only)   today=${today}\n`);
 
   const pacRs = await db.execute({
@@ -68,6 +73,27 @@ async function main() {
           WHERE race_id IN (${marks})`,
     args: seatIds,
   });
+  // HO 765: rung 0's evidence, the ballot of each seat with a `box` read, read as
+  // getPacIeSpending reads it (a box seat with no rows is still a box).
+  const ballotRs = await db.execute({
+    sql: `SELECT r.race_id, g.name, g.on_ballot, g.withdrawn, g.write_in, g.marked
+          FROM general_ballot_reads r
+          LEFT JOIN general_ballot g ON g.race_id = r.race_id
+          WHERE r.race_id IN (${marks}) AND r.status = 'box'`,
+    args: seatIds,
+  });
+  const ballot: Record<string, BallotRow[]> = {};
+  for (const b of ballotRs.rows) {
+    const rows = (ballot[b.race_id as string] ??= []);
+    if (b.name == null) continue;
+    rows.push({
+      name: b.name as string,
+      onBallot: Number(b.on_ballot) === 1,
+      withdrawn: Number(b.withdrawn) === 1,
+      writeIn: Number(b.write_in) === 1,
+      marked: Number(b.marked) === 1,
+    });
+  }
   const contests: Record<string, ContestRow[]> = {};
   for (const c of contestRs.rows)
     (contests[c.race_id as string] ??= []).push({
@@ -107,7 +133,7 @@ async function main() {
   for (const p of pac) {
     const raceId = p.race_id as string;
     const name = p.candidate_name as string;
-    const c = classifyTarget(name, contests[raceId] ?? [], roster[raceId] ?? [], today);
+    const c = classifyTarget(name, contests[raceId] ?? [], roster[raceId] ?? [], today, ballot[raceId] ?? null, electionDate);
     tally[c.status] = (tally[c.status] ?? 0) + 1;
     (bySeat[raceId] ??= []).push({
       so: p.support_oppose as string,
