@@ -68,18 +68,42 @@ export async function readRaceResult(db: Client, raceId: string): Promise<RaceRe
   );
   const inc = raceRs!.rows[0]?.incumbent_bioguide_id;
   const stored = inc == null ? null : { bioguideId: String(inc), lastName: raceRs!.rows[0]?.last_name == null ? null : String(raceRs!.rows[0]!.last_name) };
-  const read = readRs!.rows[0];
+  // HO 767: the rows go to resultFromRows, the one function the batched
+  // /electoral reading (lib/electoral-general.ts readRaceResults) runs too. The
+  // race page's reading carries no marks, so its cached value is as before.
+  const { marks: _marks, ...reading } = resultFromRows(stored, readRs!.rows[0] ?? null, rowsRs!.rows, jungleRs!.rows);
+  return reading;
+}
+
+// HO 767: a marked row of the box, or a marked jungle winner. One is the
+// result, two or more a runoff's advancers, as `anyMarked` / `runoff` count them.
+export type MarkedRow = { personKey: string | null; name: string; party: string | null; bioguideId: string | null };
+
+type Row = Record<string, unknown>;
+
+// One race's reading from its rows: the box's (general_ballot) when the race's
+// last read is `box`, else its Louisiana jungle box's, else the read alone.
+// Unchanged from readRaceResult's body at HO 758 apart from `marks`, which the
+// list needs to put the check on a name and to say HOLD or GAIN.
+export function resultFromRows(
+  stored: { bioguideId: string; lastName: string | null } | null,
+  read: Row | null,
+  ballotRows: Row[],
+  jungleRows: Row[],
+): RaceResultReading & { marks: MarkedRow[] } {
   if (read?.status === "box") {
-    const rows = rowsRs!.rows.map((r) => ({
+    const rows = ballotRows.map((r) => ({
       person_key: String(r.person_key),
       name: String(r.name),
+      party: r.party == null ? null : String(r.party),
       bioguide_id: r.bioguide_id == null ? null : String(r.bioguide_id),
       incumbent_marked: Number(r.incumbent_marked),
       on_ballot: Number(r.on_ballot),
       marked: Number(r.marked ?? 0),
     }));
     const found = stored ? findIncumbentOnBallot(rows, stored) : null;
-    const nMarked = rows.filter((r) => r.on_ballot === 1 && r.marked === 1).length;
+    const markedRows = rows.filter((r) => r.on_ballot === 1 && r.marked === 1);
+    const nMarked = markedRows.length;
     const incMarked = found?.row?.marked === 1;
     return {
       source: "box",
@@ -88,11 +112,13 @@ export async function readRaceResult(db: Client, raceId: string): Promise<RaceRe
       runoff: nMarked >= 2,
       incumbent: { stored: !!stored, onBallot: stored ? found!.route !== "none" : null, marked: incMarked && nMarked === 1, inRunoff: incMarked && nMarked >= 2 },
       jungle: null,
+      marks: markedRows.map((r) => ({ personKey: r.person_key, name: r.name, party: r.party, bioguideId: r.bioguide_id })),
     };
   }
-  const jr = jungleRs!.rows;
+  const jr = jungleRows;
   if (jr.length > 0) {
-    const winners = jr.filter((r) => r.status === "winner").length;
+    const winnerRows = jr.filter((r) => r.status === "winner");
+    const winners = winnerRows.length;
     const incRow = stored ? jr.find((r) => r.bioguide_id != null && String(r.bioguide_id) === stored.bioguideId) : undefined;
     return {
       source: "jungle",
@@ -101,14 +127,20 @@ export async function readRaceResult(db: Client, raceId: string): Promise<RaceRe
       runoff: winners >= 2,
       incumbent: { stored: !!stored, onBallot: stored ? !!incRow : null, marked: !!incRow && incRow.status === "winner" && winners === 1, inRunoff: !!incRow && incRow.status === "winner" && winners === 2 },
       jungle: { winners, runoffDate: jr[0]!.runoff_date == null ? null : String(jr[0]!.runoff_date) },
+      marks: winnerRows.map((r) => ({
+        personKey: null,
+        name: String(r.name),
+        party: r.party == null ? null : String(r.party),
+        bioguideId: r.bioguide_id == null ? null : String(r.bioguide_id),
+      })),
     };
   }
   // A read that found no general box (FL-10's canceled general, an ambiguous
   // page): no result to read, but the read happened and its time is kept.
   if (read?.status === "no_box" || read?.status === "ambiguous") {
-    return { source: "no_box", readAt: read.read_at == null ? null : String(read.read_at), anyMarked: false, runoff: false, incumbent: { stored: !!stored, onBallot: null, marked: false, inRunoff: false }, jungle: null };
+    return { source: "no_box", readAt: read.read_at == null ? null : String(read.read_at), anyMarked: false, runoff: false, incumbent: { stored: !!stored, onBallot: null, marked: false, inRunoff: false }, jungle: null, marks: [] };
   }
-  return { source: null, readAt: null, anyMarked: false, runoff: false, incumbent: { stored: !!stored, onBallot: null, marked: false, inRunoff: false }, jungle: null };
+  return { source: null, readAt: null, anyMarked: false, runoff: false, incumbent: { stored: !!stored, onBallot: null, marked: false, inRunoff: false }, jungle: null, marks: [] };
 }
 
 export type RaceResultView = {

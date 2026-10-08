@@ -8,6 +8,18 @@ import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumben
 import { readRaceResult, type RaceResultReading } from "./race-result";
 import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
 import { readIncumbentQualifiers, type IncumbentQualifier } from "./incumbent-qualifier";
+import {
+  readBallotNews,
+  readGeneralBallots,
+  readMemberFacts,
+  readPalestinePools,
+  readRaceResults,
+  type BallotNewsItem,
+  type GeneralBallots,
+  type MemberFacts,
+  type PalestinePools,
+  type RaceResultWithMarks,
+} from "./electoral-general";
 import { normName } from "./ballot-incumbent";
 import { electionDay, formatBillId } from "./format";
 import { clockNowMs } from "./clock";
@@ -2181,6 +2193,65 @@ export const getElectionResults = unstable_cache(
     };
   },
   ["getElectionResults"],
+  { revalidate: 3600, tags: ["general-ballot", "races"] },
+);
+
+// HO 767 — /electoral's general-window reads (lib/electoral-general.ts has the
+// SQL and the rules). Each is one batch for the page; the page joins them onto
+// getRacesIndex's rows. Every return is JSON-plain (unstable_cache serializes).
+export type {
+  BallotEntry,
+  BallotNewsItem,
+  GeneralBallots,
+  GeneralRace,
+  MemberFacts,
+  PalestinePools,
+  RaceResultWithMarks,
+} from "./electoral-general";
+
+// Every rated seat's ballot as the race page prints it, the members on it, and
+// the box's special-election words. The roster, the box and the rounds are
+// the `races` / `general-ballot` reads (the race-challengers run expires both).
+export const getGeneralBallots = unstable_cache(
+  async (cycle: number): Promise<GeneralBallots> => readGeneralBallots(getDb(), cycle),
+  ["getGeneralBallots"],
+  { revalidate: 86400, tags: ["races", "general-ballot", "race-ratings"] },
+);
+
+// What the member page prints for each of those members, batched. The key is
+// the page's sorted id list, which only a roster change moves. R10: the
+// missed-votes figure is member_votes, the member page's own read.
+export const getBallotMemberFacts = unstable_cache(
+  async (bioguideIds: string[]): Promise<Record<string, MemberFacts>> =>
+    readMemberFacts(getDb(), bioguideIds, getCurrentCongress()),
+  ["getBallotMemberFacts"],
+  { revalidate: 3600, tags: ["members", "member-fundraising", "member-ideology", "votes"] },
+);
+
+// The observations about those members over the last 31 days (the page shows
+// 30 and 7), unfiltered (R2). The window is taken here, so the cache key is the
+// id list alone and an hour's entry is at most an hour behind its edge.
+export const BALLOT_NEWS_DAYS = 31;
+export const getBallotNews = unstable_cache(
+  async (bioguideIds: string[]): Promise<BallotNewsItem[]> =>
+    readBallotNews(getDb(), bioguideIds, new Date(Date.now() - BALLOT_NEWS_DAYS * 86_400_000).toISOString()),
+  ["getBallotNews"],
+  { revalidate: 3600, tags: ["member-news", "race-news"] },
+);
+
+// The tracker's pool per chamber ("#23 of 47") and its last sync, for the
+// grade's card and the three badge sites that used to type 47.
+export const getPalestinePools = unstable_cache(
+  async (): Promise<PalestinePools> => readPalestinePools(getDb()),
+  ["getPalestinePools"],
+  { revalidate: 86400, tags: ["members"] },
+);
+
+// HO 758's reading for every rated seat, with its marked rows. Read only once
+// election day has passed (the page's gate); getRaceResult's tags.
+export const getRaceResults = unstable_cache(
+  async (cycle: number): Promise<Record<string, RaceResultWithMarks>> => readRaceResults(getDb(), cycle),
+  ["getRaceResults"],
   { revalidate: 3600, tags: ["general-ballot", "races"] },
 );
 
