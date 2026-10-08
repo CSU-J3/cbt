@@ -927,7 +927,12 @@ test.describe("targeted interactions", () => {
     // drawer test shouldn't silently ride a 308 to get to the map.
     await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.waitForTimeout(1_500);
+    // HO 767: /electoral opens on the LIST in the general window; the map is one
+    // MAP toggle away, unchanged. The click that reveals it comes first, so the
+    // count below still reads the map, never an absent one.
+    await page.locator(".cart-viewtoggle-btn", { hasText: "MAP" }).click();
     const cells = page.locator(".us-map-state");
+    await cells.first().waitFor({ state: "attached", timeout: 10_000 }).catch(() => {});
     const found = await cells.count();
     // HO 504: hard assertion, not a skip. .us-map-state cells are static us-atlas
     // topojson geometry (CartogramShell), never DB rows — a zero count means the

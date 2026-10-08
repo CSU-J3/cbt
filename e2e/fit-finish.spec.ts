@@ -633,13 +633,13 @@ test.describe("electoral /electoral", () => {
     const c = attachCollectors(page);
     await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 767: /electoral opens on the LIST; the map is one MAP toggle away. The
+    // map's cells are static geometry, so after the click that reveals them a
+    // zero is a regression, not data: a hard assertion (smoke.spec's HO 504
+    // reasoning), where this used to skip.
+    await page.locator("button.cart-viewtoggle-btn", { hasText: "MAP" }).click();
     const cell = page.locator("svg.us-map path.us-map-state").first();
-    const n = await cell.count();
-    if (n === 0) {
-      test.info().annotations.push({ type: "flag", description: "no clickable us-map-state on /electoral (map default view?)" });
-      test.skip(true, "no clickable map state");
-      return;
-    }
+    await expect(cell, "the map should render its state cells once MAP is on").toBeAttached({ timeout: 10_000 });
     await cell.click({ force: true });
     const panel = page.locator(".rdm-panel");
     await expect(panel, "district modal should open").toBeVisible({ timeout: 10_000 });
@@ -664,12 +664,12 @@ test.describe("electoral /electoral", () => {
     const c = attachCollectors(page);
     await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 767: the calendar is folded to one line; its button opens it. Once
+    // open, the cycle's dates are bars, so a zero is a regression: a hard
+    // assertion after the click, where this used to skip.
+    await page.locator("button.electoral-tl-fold").click();
     const bars = page.locator(".electoral-tl-band rect[role='button']");
-    const n = await bars.count();
-    if (n === 0) {
-      test.skip(true, "no timeline bars present");
-      return;
-    }
+    await expect(bars.first(), "the opened calendar should draw its bars").toBeVisible({ timeout: 8_000 });
     await bars.first().click();
     await expect(bars.first(), "clicked bar should read aria-pressed=true").toHaveAttribute(
       "aria-pressed",
@@ -686,21 +686,20 @@ test.describe("electoral /electoral", () => {
     assertClean(c, "electoral timeline");
   });
 
-  test("MAP/LIST toggle → RaceListView accordion single-open", async ({ page }) => {
+  test("LIST by default → RaceListView accordion single-open", async ({ page }) => {
     const c = attachCollectors(page);
     await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
+    // HO 767: LIST is the default view, so the toggle is asserted, not clicked.
     const listBtn = page.locator("button.cart-viewtoggle-btn", { hasText: "LIST" });
-    if (!(await listBtn.count())) {
-      test.skip(true, "no MAP/LIST toggle");
-      return;
-    }
-    await listBtn.click();
+    await expect(listBtn, "LIST should be the selected view on load").toHaveAttribute("aria-selected", "true");
     const rows = page.locator(".race-list-row");
     await expect(rows.first(), "list rows should render").toBeVisible({ timeout: 8_000 });
-    await rows.nth(0).click();
+    // The seat cell, not the row's centre: a row's second line carries a NEWS
+    // link, and a click there opens the article instead of the row.
+    await rows.nth(0).locator(".race-list-seat").click();
     await expect(page.locator(".race-list-expand")).toHaveCount(1, { timeout: 6_000 });
-    await rows.nth(1).click();
+    await rows.nth(1).locator(".race-list-seat").click();
     await expect(page.locator(".race-list-expand"), "single-open across the list").toHaveCount(1, {
       timeout: 6_000,
     });

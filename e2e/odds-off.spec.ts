@@ -41,10 +41,12 @@ const VIEWPORTS = [
   { w: 430, h: 932, tag: "430" },
 ] as const;
 
-type Route = { slug: string; path: string; gate: boolean; expand?: boolean };
+type Route = { slug: string; path: string; gate: boolean; expand?: boolean; openRace?: boolean };
 const ROUTES: Route[] = [
   { slug: "home", path: "/", gate: true },
-  { slug: "electoral", path: "/electoral", gate: true },
+  // HO 767: a LIST row is opened, one whose open row carries a Kalshi line
+  // (openRaceWithKalshi), so that line is read OFF here and ON in the control.
+  { slug: "electoral", path: "/electoral", gate: true, openRace: true },
   // HO 718: the 2028 report's ODDS coverage line is a gated site that renders
   // no odds (`data-market="coverage"`); its ON control is the test below.
   { slug: "electoral-2028", path: "/electoral?cycle=2028", gate: true },
@@ -61,6 +63,24 @@ const HYDRATION_RE =
   /Hydration failed because the server rendered|Minified React error #418|did not match the client/i;
 
 type Collected = { all: string[]; hydration: string[] };
+
+// HO 767: open /electoral's LIST rows one at a time (by the seat cell: a row's
+// centre can be its NEWS link) until one's open row carries a Kalshi line,
+// which is in the DOM in both states (odds-only hides it by display:none).
+// Route-specific on purpose: the generic `[role="button"][aria-expanded]`
+// would take the calendar's fold first. Returns the seat it opened, or null.
+async function openRaceWithKalshi(page: Page): Promise<string | null> {
+  const items = page.locator("li.race-list-item");
+  const n = Math.min(await items.count(), 13);
+  for (let i = 0; i < n; i++) {
+    const item = items.nth(i);
+    await item.locator(".race-list-seat").click().catch(() => {});
+    await page.waitForTimeout(300);
+    if ((await item.locator(".race-list-expand .racecard-kalshi").count()) > 0)
+      return (await item.locator(".race-list-seat").innerText()).trim();
+  }
+  return null;
+}
 
 function collectPageErrors(page: Page): Collected {
   const c: Collected = { all: [], hydration: [] };
@@ -118,6 +138,11 @@ test.describe("odds OFF pass", () => {
             await row.click().catch(() => {});
             await page.waitForTimeout(1_500);
           }
+        }
+        if (route.openRace) {
+          const seat = await openRaceWithKalshi(page);
+          console.log(`[odds-off ${route.slug}@${vp.tag}] opened ${seat ?? "no row with a Kalshi line"}`);
+          expect(seat, "a LIST row whose open row carries a Kalshi line should open").not.toBeNull();
         }
 
         // `:visible` in Playwright 1.61 means "non-empty bounding box and no
@@ -197,6 +222,33 @@ test.describe("odds OFF pass", () => {
     console.log(`[odds-off ON-control] visibleMarkers=${n} kpMarkers=${kp}`);
     expect(n, "markers must be visible in the ON state").toBeGreaterThan(0);
     expect(kp, ".rc-kpline must carry markers (BotID-safe anchor)").toBeGreaterThan(0);
+    await context.close();
+  });
+
+  // HO 767: /electoral's own control. The `/` control above anchors on the
+  // dashboard's K/P line and cannot vouch for this route's sites: the ◆ cell on
+  // every LIST row (site 10, which keeps its box) and the open row's Kalshi line
+  // (site 12). Without this the OFF pass on /electoral would be green even if
+  // neither carried `data-market` at all.
+  test("ON control — /electoral's ◆ cells and an open row's Kalshi line are emitted", async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1200 } });
+    await context.addCookies([GATE_COOKIE]);
+    const page = await context.newPage();
+    await page.goto(`${BASE_URL}/electoral`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForLoadState("load").catch(() => {});
+    await page.waitForTimeout(2_500);
+
+    expect(
+      await page.evaluate(() => document.documentElement.dataset.odds ?? null),
+      "no preference set means the attribute is ABSENT (the default is its absence)",
+    ).toBeNull();
+
+    const diverge = await page.locator(".race-list-diverge[data-market]:visible").count();
+    const seat = await openRaceWithKalshi(page);
+    const kalshi = await page.locator(".race-list-expand .racecard-kalshi[data-market]:visible").count();
+    console.log(`[odds-off ON-control electoral] divergeVisible=${diverge} opened=${seat} kalshiVisible=${kalshi}`);
+    expect(diverge, ".race-list-diverge must carry visible markers in the ON state").toBeGreaterThan(0);
+    expect(kalshi, "the open row's Kalshi line must be visible in the ON state").toBe(1);
     await context.close();
   });
 
