@@ -4,9 +4,11 @@
 // state against the `members` table; unmatched rows are logged and skipped.
 import "dotenv/config";
 import { getDb } from "../lib/db";
+import { PALESTINE_TRACKER_SENATE_GID, PALESTINE_TRACKER_SHEET } from "../lib/palestine-config";
 
-const SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1VU1y_jSb2hanU2MrLsjRx8tujB-C--UAQ2EahaTXGUo/export?format=csv&gid=1260635943";
+// HO 767: the sheet's address lives once, in lib/palestine-config.ts (the grade
+// card and the member page link to it); this is its Senate tab's CSV export.
+const SHEET_URL = `${PALESTINE_TRACKER_SHEET}/export?format=csv&gid=${PALESTINE_TRACKER_SENATE_GID}`;
 
 // The 23 vote/sponsorship columns by 0-based index into the raw CSV row
 // (columns 9-31 in the sheet's 1-based numbering).
