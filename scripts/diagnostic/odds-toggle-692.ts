@@ -159,6 +159,10 @@ async function main() {
       };
     });
     await pg.goto(`${B}/electoral`, { waitUntil: "networkidle" });
+    // HO 767: /electoral opens on the LIST in the general window; the map (and
+    // the district drill this site lives in) is one MAP toggle away.
+    await pg.locator(".cart-viewtoggle-btn", { hasText: "MAP" }).click().catch(() => {});
+    await pg.waitForTimeout(400);
     // A competitive state on the map: `.us-map-state` is the ACTIVE class
     // (`--inactive` states have no contests and open nothing).
     await pg.locator("path.us-map-state").first().click({ force: true }).catch(() => {});
