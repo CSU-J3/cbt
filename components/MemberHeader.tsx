@@ -33,10 +33,14 @@ export function MemberHeader({
   member,
   affiliations = [],
   scorecard = null,
+  palestinePool = null,
 }: {
   member: Member;
   affiliations?: MemberAffiliation[];
   scorecard?: PalestineScorecard | null;
+  // HO 767: the tracker's pool for this member's chamber (getPalestinePools),
+  // for the badge's "#N of {pool}".
+  palestinePool?: number | null;
 }) {
   const [photoErrored, setPhotoErrored] = useState(false);
   const showPhoto = member.depictionUrl && !photoErrored;
@@ -105,6 +109,8 @@ export function MemberHeader({
             <PalestineBadge
               grade={scorecard.grade}
               rank={scorecard.rank}
+              pool={palestinePool}
+              chamber={member.chamber}
             />
           ) : null}
         </div>

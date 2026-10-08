@@ -30,11 +30,13 @@ import {
   getMemberVoteStats,
   getChamberParticipationContext,
   type MemberCommitteeRow,
+  getPalestinePools,
   getPalestineScorecard,
   getPrimaryForRace,
   getRaceRatings,
   getWatchedBillIds,
 } from "@/lib/queries";
+import { palestineTrackerHref } from "@/lib/palestine-config";
 import { raceIdFromMember } from "@/lib/race-id";
 import { ratingColor } from "@/lib/race-colors";
 
@@ -171,6 +173,7 @@ export default async function MemberPage({
     news,
     ideology,
     sponsoredAmendments,
+    palestinePools,
   ] = await Promise.all([
     getMember(bioguideId),
     getMemberStats(bioguideId),
@@ -200,7 +203,14 @@ export default async function MemberPage({
     // HO 450: amendments this member sponsored (keyed on sponsor_bioguide_id);
     // null when they authored none → the tab shows (0) and its empty state.
     getMemberAmendments(bioguideId),
+    // HO 767: the Palestine Tracker's pool per chamber, for "#N of {pool}".
+    getPalestinePools(),
   ]);
+  const palestinePool = member
+    ? member.chamber === "senate"
+      ? palestinePools.senate
+      : palestinePools.house
+    : null;
 
   // Pull the rating for the member's upcoming race (handoff 71). The chip
   // on /race/[id] carries source attribution; here the chip is a glance
@@ -581,14 +591,14 @@ export default async function MemberPage({
 
             // Scorecard is the one CONDITIONAL tab — genuinely inapplicable
             // (Senate Democrats only), not merely zero. No count: it's
-            // present-or-absent, not a tally.
+            // present-or-absent, not a tally. HO 767: the out-link names the
+            // tracker, not USCPR, and opens it on the member's own tab.
             if (scorecard) {
               tabs.push({
                 key: "scorecard",
                 label: "Scorecard",
-                outLabel: "via USCPR ↗",
-                outHref:
-                  "https://docs.google.com/spreadsheets/d/1VU1y_jSb2hanU2MrLsjRx8tujB-C--UAQ2EahaTXGUo",
+                outLabel: "View tracker ↗",
+                outHref: palestineTrackerHref(member.chamber),
                 content: (
                   <div className="px-4 py-3">
                     <div className="mb-3 flex items-center gap-3">
@@ -610,7 +620,8 @@ export default async function MemberPage({
                             className="text-[length:var(--fs-12)]"
                             style={{ color: "var(--text-dim)" }}
                           >
-                            Rank #{scorecard.rank} of 47
+                            Rank #{scorecard.rank}
+                            {palestinePool ? ` of ${palestinePool}` : ""}
                           </span>
                         ) : null}
                       </div>
@@ -651,6 +662,7 @@ export default async function MemberPage({
                       member={member}
                       affiliations={affiliations}
                       scorecard={scorecard}
+                      palestinePool={palestinePool}
                     />
                     <div className="mhp-stats">
                       <span className="mhp-stat">

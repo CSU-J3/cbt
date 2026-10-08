@@ -38,6 +38,7 @@ import {
   getMembersRanked,
   getMembersTopicMix,
   getMemberStates,
+  getPalestinePools,
   getUpcomingMeetings,
   type MemberRanking,
   sanitizeChamber,
@@ -124,6 +125,7 @@ export default async function MembersPage({
     participation,
     polarizationHistory,
     polarizationBand,
+    palestinePools,
   ] = await Promise.all([
     getCommitteesIndex({ chamber }),
     getUpcomingForRail(chamber),
@@ -132,7 +134,11 @@ export default async function MembersPage({
     getParticipationStrip(),
     getPolarizationHistory(),
     getPolarizationBand(),
+    // HO 767: the Palestine Tracker's pool per chamber, for "#N of {pool}".
+    getPalestinePools(),
   ]);
+  const palestinePool = (c: string | null | undefined) =>
+    c === "senate" ? palestinePools.senate : palestinePools.house;
 
   // HO 425 polarization strip: scope to the live chamber toggle ONLY (built off
   // the full population, separate from the filtered browser query, so party /
@@ -378,6 +384,8 @@ export default async function MembersPage({
                 <PalestineBadge
                   grade={m.palestineGrade}
                   rank={m.palestineRank}
+                  pool={palestinePool(m.chamber)}
+                  chamber={m.chamber}
                 />
               </span>
             ) : null}
@@ -422,6 +430,7 @@ export default async function MembersPage({
             palestineGrade={m.palestineGrade}
             palestineRank={m.palestineRank}
             palestineScore={m.palestineScore}
+            palestinePool={palestinePool(m.chamber)}
             includeCeremonial={includeCeremonial}
             committeeCap={Number.POSITIVE_INFINITY}
           />

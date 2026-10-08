@@ -5,7 +5,7 @@ import { SponsorPhoto } from "@/components/SponsorPhoto";
 import { BILL_TYPE_LABELS, STAGE_LABELS } from "@/lib/enums";
 import { formatBillId, formatDateShort } from "@/lib/format";
 import { COMPACT_BILLS_CAP, COMPACT_COMMITTEE_CAP } from "@/lib/member-card-caps";
-import { isPalestineGrade } from "@/lib/palestine-config";
+import { PALESTINE_TRACKER_NAME, isPalestineGrade } from "@/lib/palestine-config";
 import {
   type Chamber,
   type FeedBill,
@@ -76,6 +76,7 @@ export function SponsorExpandedPanel({
   palestineGrade = null,
   palestineRank = null,
   palestineScore = null,
+  palestinePool = null,
   includeCeremonial = false,
   committeeCap,
   recentBillsCap,
@@ -92,11 +93,14 @@ export function SponsorExpandedPanel({
   recentBills: FeedBill[];
   committees?: MemberCommitteeRow[];
   affiliations?: MemberAffiliation[];
-  // HO 200: USCPR scorecard grade + rank + total score, threaded from the
-  // MemberRanking row (same source the list badge uses). Skip-on-empty.
+  // HO 200: the Palestine Tracker's grade + rank + total score, threaded from
+  // the MemberRanking row (same source the list badge uses). Skip-on-empty.
+  // HO 767: the rank is out of the table's pool for the member's chamber
+  // (getPalestinePools), no longer a typed 47.
   palestineGrade?: string | null;
   palestineRank?: number | null;
   palestineScore?: string | null;
+  palestinePool?: number | null;
   includeCeremonial?: boolean;
   committeeCap?: number;
   recentBillsCap?: number;
@@ -280,17 +284,18 @@ export function SponsorExpandedPanel({
             </div>
           ) : null}
 
-          {/* USCPR scorecard — HO 200. Same source as the list badge
-              (MemberRanking.palestine*); grade chip + total score + rank, with
-              attribution mirrored (label + the badge's tooltip). ALWAYS shown:
-              scored members get their real grade; everyone else gets an explicit
-              "Not scored" (the honest gap — no fabricated/default grade), same
-              idiom as the bill panel's "No related news" empty state. */}
+          {/* The Palestine Tracker's grade — HO 200. Same source as the list
+              badge (MemberRanking.palestine*); grade chip + total score + rank,
+              with attribution mirrored (label + the badge's tooltip). ALWAYS
+              shown: scored members get their real grade; everyone else gets an
+              explicit "Not scored" (the honest gap — no fabricated/default
+              grade), same idiom as the bill panel's "No related news" empty
+              state. HO 767: the label is the tracker's own name. */}
           <div className="flex flex-col gap-1">
-            <RailLabel>USCPR Scorecard</RailLabel>
+            <RailLabel>{PALESTINE_TRACKER_NAME}</RailLabel>
             {palestineGrade && isPalestineGrade(palestineGrade) ? (
               <div className="flex items-center gap-1.5 text-[length:var(--fs-11)] uppercase tracking-[0.5px]">
-                <PalestineBadge grade={palestineGrade} rank={palestineRank} />
+                <PalestineBadge grade={palestineGrade} rank={palestineRank} pool={palestinePool} chamber={chamber} />
                 {palestineScore ? (
                   <span
                     className="tabular-nums"
@@ -301,7 +306,8 @@ export function SponsorExpandedPanel({
                 ) : null}
                 {palestineRank ? (
                   <span className="tabular-nums" style={{ color: "var(--text-dim)" }}>
-                    · #{palestineRank} of 47
+                    · #{palestineRank}
+                    {palestinePool ? ` of ${palestinePool}` : ""}
                   </span>
                 ) : null}
               </div>
@@ -309,7 +315,7 @@ export function SponsorExpandedPanel({
               <span
                 className="text-[length:var(--fs-11)] uppercase tracking-[0.5px]"
                 style={{ color: "var(--text-dim)" }}
-                title="USCPR Palestine scorecard: not scored"
+                title={`${PALESTINE_TRACKER_NAME}: not scored`}
               >
                 Not scored
               </span>

@@ -1,6 +1,8 @@
 import type { HTMLAttributes, Ref } from "react";
 import {
   PALESTINE_GRADE_CONFIG,
+  PALESTINE_TRACKER_NAME,
+  palestinePoolLabel,
   type PalestineGrade,
 } from "@/lib/palestine-config";
 
@@ -11,19 +13,26 @@ import {
 // HO 767: with `trigger` the chip is the grade card's trigger (components/
 // GradeCard.tsx GradeChip): it takes the card's handlers and ARIA, and drops
 // the native title, which would otherwise open a second tooltip over the card.
+// The title names the tracker by its own name, not USCPR ("i dont want to say
+// they take care of it if they dont", v9), and the rank is out of the pool the
+// table holds for the member's chamber (getPalestinePools), not a typed 47.
 export function PalestineBadge({
   grade,
   rank,
+  pool = null,
+  chamber = null,
   trigger,
 }: {
   grade: PalestineGrade;
   rank: number | null;
+  pool?: number | null;
+  chamber?: string | null;
   trigger?: HTMLAttributes<HTMLSpanElement> & { ref?: Ref<HTMLSpanElement> };
 }) {
   const info = PALESTINE_GRADE_CONFIG[grade];
   const tooltip = rank
-    ? `USCPR Palestine scorecard: ${grade} (rank #${rank} of 47)`
-    : `USCPR Palestine scorecard: ${grade}`;
+    ? `${PALESTINE_TRACKER_NAME}: ${grade} (#${rank}${pool ? ` of ${pool} ${palestinePoolLabel(chamber)}` : ""})`
+    : `${PALESTINE_TRACKER_NAME}: ${grade}`;
 
   return (
     <span
