@@ -3238,8 +3238,10 @@ body {
    scrambles the row: measured at HO 692 on `.race-list-diverge`, the row grew
    40->64px, the margin cell collapsed 152->14px and cash jumped x 1304->1140.
    Such a site is hidden with `visibility: hidden` (it keeps its box), or with an
-   attribute rule that RE-SHAPES the grid — which is what `.races-hero-band`
-   below does, and why `display: none` is correct on its cells. */
+   attribute rule that RE-SHAPES the grid. HO 767: `.races-hero-band`, the
+   re-shape case until now, holds only market cells, so the gate moved to the
+   band itself (a block child of <main>, not a grid item) and its re-shape rule
+   retired. */
 .odds-off-only {
   display: none;
 }
@@ -3255,14 +3257,10 @@ html[data-odds="off"] .odds-off-only {
 html[data-odds="off"] .rc-line--edge {
   border-left-color: transparent;
 }
-/* Site 9 — re-shape, so the two hidden KALSHI cells do not leave SEATS IN PLAY
-   sitting in one third of the band. DESKTOP ONLY: the <=700px block already
-   collapses this band to a single column (measured stacked at 430). */
-html[data-odds="off"] .races-hero-band {
-  grid-template-columns: 1fr;
-}
-/* Site 10 — the grid-child case above. `.race-list-row` is an 8-track grid and
-   this cell is a direct child, so it keeps its box and loses only its ink. */
+/* Site 9 — the band itself carries `odds-only` since HO 767 (RacesHeroBand), so
+   the generic rule above hides it whole; there is no re-shape rule any more. */
+/* Site 10 — the grid-child case above. `.race-list-row` is a fixed-track grid
+   and this cell is a direct child, so it keeps its box and loses only its ink. */
 html[data-odds="off"] .race-list-diverge {
   visibility: hidden;
 }
@@ -3797,6 +3795,16 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .ctl-head--results .ctl-eday {
   flex-basis: 100%;
   white-space: normal;
+  text-align: left;
+}
+/* HO 767 (C1): on /electoral's full-width band the countdown follows the
+   legend instead of sitting a page-width away at the far right (Battlefield's
+   `packed`). The dashboard's band keeps space-between. */
+.ctl-head--packed {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+.ctl-head--packed .ctl-eday {
   text-align: left;
 }
 .ctl-eday-t {
@@ -5989,35 +5997,216 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   }
 }
 
-/* ---- /races LIST view (HO 222) --------------------------------------- */
-/* Consensus-led, toss-ups-first rows (components/RaceListView). Replaced the
-   old 5-column rating matrix (.race-row/.race-header-row). Row columns:
-   seat | candidate | consensus chip | spread bar | ◆ | 2024 margin | cash |
-   chevron, with a 3px severity rail on the left edge. */
-.race-list-summary {
-  padding: 8px 14px;
-  margin-bottom: 8px;
-  font-size: var(--fs-13);
-  letter-spacing: 0.3px;
-  background-color: var(--bg-panel);
-  border: 0.5px solid var(--border-strong);
-  border-radius: 3px;
-  color: var(--text-dim);
+/* ---- /races LIST view (HO 222) → /electoral's general-window list (HO 767) ---- */
+/* components/RaceListView + RaceOpenRow + RaceNewsPanel, ruled on mock-767 v18
+   (LIST 2 · CHAMBERS tabs · BOX fit · OPEN ROW 2 · TEXT 2 · PHOTO 2 · GRADE AS
+   chip · NEWS 2 · WHERE rows+beside). Row tracks: seat | on the ballot |
+   consensus | C·S·I | ◆ | 2024 House | cash | chevron, PACKED LEFT (C1) with the
+   ballot column capped at 480px, so no cell is thrown a page-width from its
+   neighbours; a ninth track, Latest, carries the MOVED / PAC / NEWS line where
+   the main column (the `rlmain` container) is 1,560px or wider, and under it
+   below that. A 3px severity rail on the left edge. Party colours are scoped:
+   d / r / o (every other party, the independents' purple, as the race page). */
+.rl-list .d {
+  color: var(--party-democrat);
 }
-.race-list-sechead {
-  padding: 9px 14px;
-  background-color: var(--bg-panel);
-  border-bottom: 0.5px solid var(--border-strong);
-  font-size: var(--fs-12);
-  text-transform: uppercase;
+.rl-list .r {
+  color: var(--party-republican);
+}
+.rl-list .o {
+  color: var(--party-independent);
+}
+.rl-list .nb {
+  white-space: nowrap;
+}
+
+/* Line 2 of the controls: the tabs, then the tier switches (line 1, MAP/LIST
+   and search, is CartogramShell's .cart-controls). No track: the active tab's
+   underline marks it. */
+.rl-lt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 36px;
+  margin-bottom: 10px;
+}
+.rl-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 22px;
+}
+.rl-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 2px;
+  font-family: inherit;
+  font-size: var(--fs-13);
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.rl-tab:hover {
   color: var(--text-secondary);
 }
-.race-list-empty {
-  padding: 24px 14px;
-  text-align: center;
-  font-size: var(--fs-13);
+.rl-tab.is-active {
+  color: var(--accent-amber-bright);
+  border-bottom-color: var(--accent-amber);
+}
+.rl-tn {
+  margin-left: 8px;
+}
+.rl-tc,
+.rl-tnews {
+  margin-left: 8px;
+  font-size: var(--fs-11);
+  letter-spacing: 0.3px;
+  text-transform: none;
+  color: var(--text-muted);
+}
+.rl-tiers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 20px;
+  font-size: var(--fs-11);
+}
+/* A tier switch: a 9px square that fills when the tier is on. */
+.rl-f {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: none;
+  padding: 5px 0;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.rl-f::before {
+  content: "";
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  box-sizing: border-box;
+}
+.rl-f.is-on::before {
+  background: currentColor;
+}
+.rl-f:hover {
+  color: var(--text-secondary);
+}
+.rl-f--toss.is-on {
+  color: var(--accent-amber-bright);
+}
+.rl-f--lean.is-on {
+  color: var(--accent-amber);
+}
+.rl-f--likely.is-on {
+  color: var(--text-secondary);
+}
+.rl-showing {
+  color: var(--text-muted);
+}
+
+/* The body: the rows' box, and RACE NEWS beside it from 1,150px (stacked
+   above the rows below that). */
+.rl-two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.rl-main {
+  container: rlmain / inline-size;
+  min-width: 0;
+}
+.rl-aside {
+  min-width: 0;
+}
+@media (min-width: 1150px) {
+  .rl-two {
+    grid-template-columns: minmax(0, 1fr) 440px;
+  }
+}
+@media (max-width: 1149px) {
+  .rl-aside {
+    order: -1;
+  }
+}
+/* BOX fit: the list measures the box's top and sets its max-height to the
+   window's bottom less the page's bottom padding; the scroll idiom is
+   .lob-rail-scroll's (HO 492). Under 900px the box is off and the page
+   scrolls. */
+.rl-box,
+.rl-news {
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-base);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #243040 transparent;
+}
+.rl-box::-webkit-scrollbar,
+.rl-news::-webkit-scrollbar {
+  width: 7px;
+}
+.rl-box::-webkit-scrollbar-thumb,
+.rl-news::-webkit-scrollbar-thumb {
+  background: #243040;
+  border-radius: 4px;
+}
+.rl-box {
+  scrollbar-gutter: stable;
+  outline: none;
+}
+.rl-box:focus-visible {
+  border-color: var(--accent-amber);
+}
+@media (max-width: 899px) {
+  .rl-box {
+    max-height: none !important;
+    overflow: visible;
+  }
+}
+
+.rl-grid {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 480px) 92px 56px 14px 132px 60px 12px;
+  column-gap: 12px;
+}
+.rl-heads {
+  padding: 7px 14px 6px 14px;
+  background: var(--bg-panel);
+  border-bottom: 0.5px solid var(--border-strong);
+  font-size: var(--fs-9);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
   color: var(--text-dim);
+}
+@media (min-width: 900px) {
+  .rl-heads {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+  }
+}
+.rl-heads > span {
+  white-space: nowrap;
+}
+.rl-h-c {
+  text-align: right;
+}
+.rl-h-x {
+  display: none;
 }
 .race-list {
   list-style: none;
@@ -6027,12 +6216,11 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .race-list-item {
   border-bottom: 0.5px solid var(--border-soft);
 }
+.race-list-item.rl-flash > .race-list-row {
+  background-color: #141d2b;
+}
 .race-list-row {
-  display: grid;
-  grid-template-columns:
-    70px minmax(0, 1fr) 96px 56px 14px 152px 80px 14px;
-  align-items: center;
-  column-gap: 12px;
+  align-items: start;
   padding: 8px 14px 8px 11px;
   border-left: 3px solid var(--text-dim);
   cursor: pointer;
@@ -6043,37 +6231,58 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .race-list-seat {
   font-size: var(--fs-13);
   color: var(--text-secondary);
-}
-.race-list-cand {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-  font-size: var(--fs-13);
-}
-.race-list-party {
-  font-size: var(--fs-11);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-.race-list-open-glyph {
-  color: var(--text-dim);
-  flex-shrink: 0;
-}
-.race-list-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.race-list-inc-link {
-  color: var(--text-primary);
-  text-decoration: none;
-  transition: color 0.12s;
+.race-list-cand {
+  min-width: 0;
 }
-.race-list-inc-link:hover {
+.rl-mu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 7px;
+  font-size: var(--fs-13);
+}
+.rl-maj,
+.rl-holder {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px 7px;
+}
+.rl-pt {
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+}
+.rl-nm {
+  color: var(--text-primary);
+}
+.rl-nm--dim {
+  color: var(--text-dim);
+}
+a.rl-nm:hover,
+.rl-nm--link:hover {
   color: var(--accent-amber-bright);
+}
+.rl-inc {
+  font-size: var(--fs-10);
+  letter-spacing: 0.3px;
+  color: var(--text-dim);
+}
+.rl-v {
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+.rl-q {
+  font-size: var(--fs-12);
+  color: var(--text-dim);
+}
+/* The day after: the check travels with the name it marks. */
+.rl-wn {
+  white-space: nowrap;
+}
+.rl-ck {
+  margin-left: 4px;
+  color: var(--result-elected);
 }
 .race-list-chip {
   display: inline-flex;
@@ -6086,6 +6295,27 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
+/* HO 767: the result where the consensus chip was (HO 758's terms). */
+.rl-res--d {
+  border: 1px solid var(--party-democrat);
+  color: var(--party-democrat);
+}
+.rl-res--r {
+  border: 1px solid var(--party-republican);
+  color: var(--party-republican);
+}
+.rl-res--o {
+  border: 1px solid var(--party-independent);
+  color: var(--party-independent);
+}
+.rl-res--ro {
+  border: 1px solid var(--accent-amber);
+  color: var(--accent-amber);
+}
+.rl-res--nc {
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+}
 /* 3-segment rater spread (Cook · Sabato · Inside); empty rater = --bg-base. */
 .race-spread {
   display: inline-flex;
@@ -6097,9 +6327,20 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   height: 9px;
   border-radius: 1px;
 }
+.race-list-row > .race-spread {
+  margin-top: 5px;
+}
+/* HO 767: the day after, the raters' bars are their final calls, dimmed as
+   HO 758 dims the race page's chips. */
+.race-spread--final {
+  opacity: 0.55;
+}
 .race-list-diverge {
   font-size: var(--fs-11);
   text-align: center;
+}
+.race-list-margin {
+  padding-top: 1px;
 }
 .race-list-margin :where(.racecard-margin) {
   padding-top: 0;
@@ -6110,37 +6351,726 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   color: var(--text-dim);
 }
 .race-list-cash {
+  padding-top: 1px;
   font-size: var(--fs-12);
   text-align: right;
 }
 .race-list-chevron {
+  padding-top: 2px;
   font-size: var(--fs-11);
   text-align: center;
 }
-/* Expand: per-rater detail + Kalshi line + hub link (no news block — there is
-   no race→news linkage; see RaceListView header). */
-.race-list-expand {
+/* The row's second line: MOVED, PAC, NEWS. */
+.rl-sig {
+  grid-column: 2 / -1;
+  min-width: 0;
+  margin-top: 5px;
+  font-size: var(--fs-11);
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.rl-sg {
+  margin-right: 16px;
+}
+.rl-sg > * + * {
+  margin-left: 6px;
+}
+.rl-lab {
+  padding: 0 4px;
+  border-radius: 2px;
+  font-size: var(--fs-9);
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+.rl-lab--news {
+  border: 0.5px solid var(--ticker-closed);
+  color: var(--ticker-closed);
+  background: rgba(155, 61, 61, 0.16);
+}
+.rl-lab--mv {
+  border: 0.5px solid var(--accent-amber-bright);
+  color: var(--accent-amber-bright);
+  background: rgba(251, 191, 36, 0.16);
+}
+.rl-lab--pac {
+  border: 0.5px solid var(--border-strong);
+  color: var(--text-muted);
+}
+.rl-sig .rc-pac--glance {
+  display: inline;
+  margin-top: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.rl-hl {
+  color: var(--text-secondary);
+}
+.rl-hl:hover {
+  color: var(--accent-amber-bright);
+  text-decoration: underline;
+}
+.rl-src {
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rl-age {
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+}
+.rl-moreN {
+  color: var(--text-dim);
+}
+.rl-stub {
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--border-soft);
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+.rl-stub button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  color: var(--text-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+@container rlmain (min-width: 1560px) {
+  .rl-grid {
+    grid-template-columns: 64px minmax(260px, 500px) 92px 56px 14px 132px 60px 12px minmax(0, 1fr);
+  }
+  .rl-sig {
+    grid-column: 9;
+    grid-row: 1;
+    margin-top: 0;
+  }
+  .rl-h-x {
+    display: block;
+  }
+}
+@media (max-width: 899px) {
+  .rl-grid {
+    grid-template-columns: 58px minmax(0, 1fr) 84px 14px 12px;
+  }
+  .race-list-row > .race-spread,
+  .race-list-margin,
+  .race-list-cash,
+  .rl-h-s,
+  .rl-h-m,
+  .rl-h-c {
+    display: none;
+  }
+}
+
+/* The open row (OPEN ROW 2, TEXT 2). One scale, four steps, each with one job:
+   --tl labels · --tm the line that explains a name or a number · --tt names,
+   headlines and sentences · --tf the figures, in medium weight. Nothing a
+   reader has to read is set in --text-dim. Three columns where the main
+   column is 1,560px or wider, two below, one under 880px. */
+.rl-x {
+  --tl: var(--fs-12);
+  --tm: var(--fs-13);
+  --tt: var(--fs-14);
+  --tf: var(--fs-14);
+  --fig: 500;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "r n" "f n";
+  grid-template-rows: auto 1fr;
+  gap: 16px 40px;
+  align-items: start;
+  padding: 14px 18px 16px 78px;
+  background-color: var(--bg-row-hover);
+  font-size: var(--tt);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.rl-x.has-p {
+  grid-template-areas: "r p" "f p" "n n";
+  grid-template-rows: auto 1fr auto;
+}
+.rl-xr {
+  grid-area: r;
+}
+.rl-xp {
+  grid-area: p;
+}
+.rl-xn {
+  grid-area: n;
+}
+.rl-xfoot {
+  grid-area: f;
+}
+.rl-xr,
+.rl-xp,
+.rl-xn {
+  min-width: 0;
+}
+.rl-x.has-p .rl-xn {
+  border-top: 1px solid var(--border-strong);
+  padding-top: 12px;
+}
+@container rlmain (min-width: 1560px) {
+  .rl-x.has-p {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-areas: "r p n" "f p n";
+    grid-template-rows: auto 1fr;
+  }
+  .rl-x.has-p .rl-xn {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+@container rlmain (max-width: 879px) {
+  .rl-x,
+  .rl-x.has-p {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "r" "p" "n" "f";
+    grid-template-rows: none;
+  }
+  .rl-x .rl-xp,
+  .rl-x .rl-xn {
+    border-top: 1px solid var(--border-strong);
+    padding-top: 12px;
+  }
+}
+.rl-tl {
+  display: block;
+  font-size: var(--tl);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.rl-tv {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--tf);
+  font-weight: var(--fig);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.rl-ts {
+  display: block;
+  margin-top: 3px;
+  font-size: var(--tm);
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.rl-dash {
+  color: var(--text-muted);
+}
+.rl-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+}
+.rl-tile {
+  min-width: 0;
+}
+.rl-blk {
+  margin-top: 14px;
+}
+.rl-bv {
+  margin-top: 3px;
+}
+.rl-ballot > .rl-bv {
+  margin-top: 6px;
+}
+/* Who's running, then under a rule the seat itself (v13, v14). */
+.rl-seatctx {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-strong);
+}
+.rl-seatctx > .rl-blk:first-child {
+  margin-top: 0;
+}
+.rl-xr .racecard-kalshi {
+  margin-top: 14px;
+}
+.rl-none {
+  font-size: var(--tm);
+  color: var(--text-muted);
+}
+.rl-fc .rl-tv {
+  opacity: 0.55;
+}
+/* The ballot: party, name, how they got there, three columns that line up
+   down the list; the line under a name spans the last two. */
+.rl-bal {
+  display: grid;
+  grid-template-columns: auto fit-content(58%) minmax(0, 1fr);
+  gap: 7px 10px;
+  align-items: baseline;
+}
+.rl-bal-row {
+  display: contents;
+}
+.rl-bal .rl-pt {
+  font-size: var(--tm);
+}
+.rl-how {
+  padding-left: 4px;
+  font-size: var(--tm);
+  color: var(--text-muted);
+}
+.rl-how--el {
+  color: var(--result-elected);
+}
+.rl-how--ro {
+  color: var(--accent-amber);
+}
+.rl-hd {
+  grid-column: 2 / -1;
+  margin-top: -5px;
+  font-size: var(--tm);
+  color: var(--text-muted);
+}
+.rl-hd--wd {
+  margin-top: 3px;
+}
+.rl-prov {
+  margin-top: 8px;
+  font-size: var(--tm);
+  color: var(--text-muted);
+}
+.rl-sh {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rl-seatbtn {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--tl);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.rl-seatbtn:hover {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber-bright);
+}
+.rl-lk,
+.rl-hub {
+  white-space: nowrap;
+  color: var(--accent-amber);
+}
+.rl-lk:hover,
+.rl-hub:hover {
+  color: var(--accent-amber-bright);
+}
+.rl-mh .rl-lk,
+.rl-hub {
+  font-size: var(--fs-12);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+/* A sitting member on the ballot: the portrait beside the name and the money,
+   the record under both (v7, v14, v15). */
+.rl-x .rl-xp-l {
+  margin-bottom: 10px;
+}
+.rl-mem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 10px;
+}
+.rl-mem.has-face {
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 14px;
+}
+.rl-mem.has-face > .rl-face {
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.rl-mem > .rl-rec {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+.rl-mem + .rl-mem {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-strong);
+}
+.rl-mh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1px 14px;
+}
+.rl-mn {
+  font-weight: 500;
+}
+.rl-mi {
+  flex-basis: 100%;
+  font-size: var(--tm);
+  color: var(--text-muted);
+}
+.rl-mr {
+  color: var(--text-secondary);
+}
+.rl-ok {
+  color: var(--result-elected);
+}
+/* The race page's incumbent-card crop (.member-photo): a square, cover, a
+   hairline border; no photo is the initials in party colour. */
+.rl-face {
+  display: block;
+  flex: none;
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border: 0.5px solid var(--border-strong);
+  background: var(--bg-base);
+}
+.rl-face--ini {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+.rl-face--sm {
+  width: 30px;
+  height: 30px;
+}
+.rl-face--sm.rl-face--ini {
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+}
+/* Money beside a portrait: cash on hand rides under RAISED and runs past
+   that tile instead of widening it. The incumbent's cash is the row's to show
+   (C5), so it prints here only where the row drops the column. */
+.rl-ts.rl-spill {
+  width: 0;
+  overflow: visible;
+}
+.rl-tile--cash,
+.rl-ts.rl-cash--inc,
+.rl-only-narrow {
+  display: none;
+}
+.rl-camp {
+  align-self: center;
+  padding: 0 4px;
+  border: 1px solid var(--accent-amber);
+  border-radius: 2px;
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--accent-amber-bright);
+}
+.rl-ideo {
+  position: relative;
+  display: block;
+  width: 76px;
+  height: 3px;
+  margin: 9px 0 5px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.rl-ideo::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  width: 1px;
+  height: 9px;
+  background: var(--text-muted);
+}
+.rl-ideo i {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 11px;
+  margin-left: -1px;
+  border-radius: 1px;
+}
+.rl-ideo i.d {
+  background: var(--party-democrat);
+}
+.rl-ideo i.r {
+  background: var(--party-republican);
+}
+.rl-ideo i.o {
+  background: var(--party-independent);
+}
+/* News in the open row: the source and the age travel together and follow
+   the headline (C1). */
+.rl-xn > .rl-tl {
+  margin-bottom: 4px;
+}
+.rl-nw {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rl-nw:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.rl-nw .rl-hl {
+  min-width: 0;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+.rl-nw .rl-src {
+  margin-right: 10px;
+  font-size: var(--tl);
+}
+.rl-nw .rl-age {
+  font-size: var(--tm);
+}
+@media (max-width: 899px) {
+  .rl-x,
+  .rl-x.has-p {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "r" "p" "n" "f";
+    grid-template-rows: none;
+    padding: 14px 16px 16px;
+  }
+  .rl-x .rl-xp,
+  .rl-x .rl-xn {
+    border-top: 1px solid var(--border-strong);
+    padding-top: 12px;
+  }
+  .rl-only-narrow,
+  .rl-ts.rl-cash--inc {
+    display: block;
+  }
+  .rl-tiles {
+    gap: 12px 22px;
+  }
+}
+@media (max-width: 560px) {
+  .rl-face {
+    width: 60px;
+    height: 60px;
+  }
+  .rl-face--sm {
+    width: 30px;
+    height: 30px;
+  }
+  .rl-mem.has-face > .rl-face {
+    grid-row: 1;
+  }
+  .rl-mem.has-face > .rl-tiles,
+  .rl-mem.has-face > .rl-none {
+    grid-column: 1 / -1;
+  }
+  .rl-ts.rl-cash,
+  .rl-ts.rl-cash.rl-cash--inc {
+    display: none;
+  }
+  .rl-tile--cash {
+    display: block;
+  }
+}
+
+/* RACE NEWS (WHERE rows+beside): beside the box from 1,150px with the same
+   bottom edge (the list sets its max-height), stacked above the rows below
+   that, where it shows five and folds the rest. */
+.rl-news-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 0.5px solid var(--border-strong);
+  background: var(--bg-panel);
+}
+.rl-news-title {
+  font-size: var(--fs-12);
+  letter-spacing: 0.5px;
+  color: var(--accent-amber);
+}
+.rl-news-meta {
+  font-size: var(--fs-10);
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+.rl-news-item {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rl-news-item:hover {
+  background: var(--bg-row-hover);
+}
+.rl-news-h {
+  display: block;
+  font-size: var(--fs-13);
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+.rl-news-h:hover {
+  color: var(--accent-amber-bright);
+}
+.rl-news-m {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 16px;
-  padding: 8px 14px 12px 16px;
-  background-color: var(--bg-row-hover);
-}
-.race-list-raters {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  font-size: var(--fs-12);
+  margin-top: 4px;
 }
-.race-list-rater-src {
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.rl-news-tag {
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-10);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.rl-news-tag:hover {
+  border-color: var(--accent-amber);
+  color: var(--accent-amber-bright);
+}
+.rl-news-more {
+  display: none;
+  width: 100%;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
   font-size: var(--fs-11);
-}
-.race-list-rater-sep {
+  text-align: left;
   color: var(--text-dim);
+  cursor: pointer;
+}
+.rl-news-more:hover {
+  color: var(--accent-amber-bright);
+}
+.rl-news-empty {
+  padding: 14px;
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+@media (max-width: 1149px) {
+  .rl-news {
+    max-height: none !important;
+    overflow: visible;
+  }
+  .rl-news-head {
+    position: static;
+  }
+  /* The head is the first child, so items 6 and on are children 7 and on. */
+  .rl-news:not([data-more]) > .rl-news-item:nth-child(n + 7) {
+    display: none;
+  }
+  .rl-news-more {
+    display: block;
+  }
+}
+
+/* The grade's card (components/GradeCard.tsx): the chip by a name is its
+   trigger; the card is .tooltip-panel's look, a little wider, and it takes the
+   pointer (the Tooltip's panel does not). */
+.palestine-badge--trigger {
+  cursor: pointer;
+  outline: none;
+}
+.rl-mn .palestine-badge--trigger,
+.rl-sh .palestine-badge--trigger {
+  margin: -1px 0;
+}
+.palestine-badge--trigger:focus-visible {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 2px;
+}
+.palestine-badge--trigger[aria-expanded="true"] {
+  box-shadow: 0 0 0 1px currentColor;
+}
+.tooltip-panel.grade-card {
+  width: max-content;
+  max-width: 300px;
+  padding: 10px 12px 9px;
+  pointer-events: auto;
+  text-align: left;
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.grade-card-l {
+  margin-bottom: 6px;
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+.grade-card-l b {
+  font-weight: 400;
+  color: var(--accent-amber);
+}
+/* The figures break between their parts, never inside one, and a part that
+   starts a line drops its dot: each part draws its dot in its own left
+   padding, and the line is pulled left by that padding and clipped there. */
+.grade-card-f {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  margin: 0 0 4px -17px;
+  clip-path: inset(-4px -4px -4px 17px);
+  color: var(--text-secondary);
+}
+.grade-card-f > span {
+  position: relative;
+  padding-left: 17px;
+  white-space: nowrap;
+}
+.grade-card-f > span::before {
+  content: "·";
+  position: absolute;
+  left: 5px;
+  color: var(--text-muted);
+}
+.grade-card-sc {
+  font-size: var(--fs-13);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.grade-card-m {
+  font-variant-numeric: tabular-nums;
+}
+.grade-card-k {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border-strong);
+}
+.grade-card-k a {
+  font-size: var(--fs-11);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--accent-amber);
+  outline: none;
+}
+.grade-card-k a:hover,
+.grade-card-k a:focus-visible {
+  color: var(--accent-amber-bright);
+  text-decoration: underline;
 }
 
 /* ---- HO 328: merged members + committees two-pane browser (.mc-*) ------ */
@@ -8338,6 +9268,89 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   padding: 11px 14px 9px;
   margin-top: var(--space-md);
 }
+/* HO 767 (CALENDAR 2): the calendar under the title, over the band, folded to
+   one line; the whole line is the button that opens it. */
+.electoral-tl-band--top {
+  margin: 0 0 var(--space-md);
+}
+.electoral-tl-fold {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+.electoral-tl-band[data-open] .electoral-tl-fold {
+  margin-bottom: 6px;
+}
+.electoral-tl-fold:hover .electoral-tl-next,
+.electoral-tl-fold:hover .electoral-tl-chev {
+  color: var(--accent-amber-bright);
+}
+.electoral-tl-count,
+.electoral-tl-next {
+  font-size: var(--fs-11);
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+}
+.electoral-tl-next {
+  color: var(--accent-amber);
+}
+.electoral-tl-chev {
+  font-size: var(--fs-11);
+  color: var(--text-dim);
+}
+/* The year's primaries under the bars, read down each column (v16). CSS
+   multi-column, marked data-col-flow: its rag is the column gutter, counted on
+   the layout audit's M1c line, not scored as a C1 gap. */
+.electoral-cal-list {
+  columns: 210px;
+  column-gap: 32px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+.electoral-cal-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 1px 0;
+  break-inside: avoid;
+}
+.electoral-cal-d {
+  flex: none;
+  width: 7ch;
+  color: var(--text-muted);
+}
+.electoral-cal-s {
+  min-width: 0;
+  color: var(--text-secondary);
+}
+.electoral-cal-n {
+  color: var(--text-muted);
+}
+.electoral-cal-row.is-up .electoral-cal-d,
+.electoral-cal-row.is-up .electoral-cal-s {
+  color: var(--accent-amber);
+}
+/* HO 767 (LEAD B): the dashboard's band on /electoral, in its own frame. */
+.electoral-band {
+  margin-bottom: var(--space-md);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--bg-base);
+}
+.electoral-band:empty {
+  display: none;
+}
 /* HO 619 (C1) — `justify-content: space-between` removed; the right-hand legend
    FOLLOWS the title rather than being thrown 1,960px across the band. */
 .electoral-tl-head {
@@ -8541,11 +9554,11 @@ a.racecard-cand-name:hover {
   min-width: 48px;
 }
 /* HO 219: chamber-control hero band on /races (Variant A — single stat row).
-   Three equal cells with --border-soft dividers; sits between the description
-   and the map. Static readout. */
+   Equal cells with --border-soft dividers. Static readout. HO 767: two cells,
+   the KALSHI control pair, under the band (SEATS IN PLAY is gone, TOP none). */
 .races-hero-band {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   border: 1px solid var(--border-strong);
   background: var(--bg-panel);
   border-radius: 4px;

@@ -90,20 +90,25 @@ export function SpreadBar({
   cook,
   sabato,
   ie,
+  final = false,
 }: {
   cook: string | null;
   sabato: string | null;
   ie: string | null;
+  // HO 767: past election day the raters' bars are their final calls, dimmed
+  // as HO 758 dims the race page's chips, and titled so.
+  final?: boolean;
 }) {
   const segs = [
     { src: "Cook", rating: cook },
     { src: "Sabato", rating: sabato },
     { src: "Inside Elections", rating: ie },
   ];
+  const title = segs.map((s) => `${s.src}: ${s.rating ?? "—"}`).join(" · ");
   return (
     <span
-      className="race-spread"
-      title={segs.map((s) => `${s.src}: ${s.rating ?? "—"}`).join(" · ")}
+      className={final ? "race-spread race-spread--final" : "race-spread"}
+      title={final ? `final calls: ${title}` : title}
     >
       {segs.map((s) => (
         <span

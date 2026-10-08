@@ -7,10 +7,18 @@
 // is retired — one surface, no GroupTabs. /races + /primaries 308-redirect here.
 //
 // HO 710: ?cycle=2028 switches to the seat outlook (a report since HO 718). The DEFAULT IS THE
-// ABSENCE OF THE PARAM (HO 690) — bare /electoral is 2026 and is byte-identical
-// to its pre-710 self apart from the toggle node. The 2028 branch deliberately
+// ABSENCE OF THE PARAM (HO 690) — bare /electoral is 2026. The 2028 branch deliberately
 // mounts NO hero band, board, calendar or list view: nothing is rated or
 // scheduled for that cycle yet, and an empty map is noise rather than honesty.
+//
+// HO 767 (mock-767 v18, ruled "as set"): the 2026 branch in the general window.
+// The title row; the primary calendar, folded; the band (Battlefield, LEAD B)
+// and the two Kalshi control cells; the controls; the rows, LIST by default
+// with the map one toggle away and unchanged. TOP none: the intro paragraph and
+// the SEATS IN PLAY cell are gone. Every read takes the cycle. Once election day
+// has passed (lib/clock.ts) the rows read HO 758's results.
+import { Battlefield } from "@/components/Battlefield";
+import { FEATURED_POOL, featuredRaces } from "@/components/CompetitiveRacesBlock";
 import { ElectoralBoard } from "@/components/ElectoralBoard";
 import { HeaderBar } from "@/components/HeaderBar";
 import { RaceListView } from "@/components/RaceListView";
@@ -18,14 +26,25 @@ import { RacesHeroBand } from "@/components/RacesHeroBand";
 import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
+import { clockNowMs } from "@/lib/clock";
+import { buildElectoralRows } from "@/lib/electoral-rows";
+import { daysToElection } from "@/lib/format";
 import { withIncumbentTags } from "@/lib/incumbent-tag";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   ELECTORAL_CYCLES,
+  getBallotMemberFacts,
+  getBallotNews,
   getChamberControl,
+  getChamberParticipationContext,
+  getGeneralBallots,
+  getMostCompetitiveRaces,
   getPacIeSpending,
+  getPalestinePools,
   getPrimaryCalendar,
   getRaceCandidatesForCycle,
+  getRaceResults,
+  getRecentRaceMoves,
   getCycleMarketCoverage,
   getIncumbentQualifiers,
   getRacesIndex,
@@ -71,27 +90,46 @@ export default async function ElectoralPage({
 
   if (cycle === 2028) return <SeatOutlookPage cycle={cycle} />;
 
-  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags] =
+  // HO 490: the page's one clock for the ages and the news and MOVED windows,
+  // prop-drilled to the client rows. HO 758: the day-after gate and the
+  // calendar's today read lib/clock.ts, the one now a legs copy can move.
+  const nowMs = Date.now();
+  const clockMs = clockNowMs();
+  const passed = daysToElection(cycle, clockMs) < 0;
+
+  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags, general, pools, participation, pool] =
     await Promise.all([
-      getRacesIndex(2026),
-      getRaceCandidatesForCycle(2026),
+      getRacesIndex(cycle),
+      getRaceCandidatesForCycle(cycle),
       getChamberControl(),
-      getPrimaryCalendar(2026),
-      getPacIeSpending(2026),
-      getIncumbentQualifiers(2026),
+      getPrimaryCalendar(cycle),
+      getPacIeSpending(cycle),
+      getIncumbentQualifiers(cycle),
+      getGeneralBallots(cycle),
+      getPalestinePools(),
+      getChamberParticipationContext(),
+      getMostCompetitiveRaces(cycle, FEATURED_POOL),
     ]);
   // HO 759: each row carries its incumbent's tag, so the list, the map's hover,
   // the pinned card and the district card read the same one.
   const races = withIncumbentTags(index, incumbentTags);
-  const senate = races.filter((r) => r.chamber === "senate");
-  const house = races.filter((r) => r.chamber === "house");
+  // The members on the ballots, for their news (R2); the facts read also takes
+  // the seat holders off their ballots, whose grade and face print in the row.
+  const onBallots = [...new Set(Object.values(general.races).flatMap((g) => g.memberIds))].sort();
+  const [moves, members, news, results] = await Promise.all([
+    getRecentRaceMoves(races.map((r) => r.raceId)),
+    getBallotMemberFacts(general.memberIds),
+    getBallotNews(onBallots),
+    passed ? getRaceResults(cycle) : Promise.resolve(null),
+  ]);
+  const { rows, raceNews } = buildElectoralRows({ cycle, index: races, general, moves, pacByRace, news, results, nowMs, clockMs });
 
   // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
   // tile count === the number of rows the LIST shows for that state.
   // HO 393: pacByRace threads the UDP IE direction rows onto each contest.
   const cartogram = buildRacesCartogram(races, raceCandidates, pacByRace);
   const geometry = getUsMapGeometry();
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = new Date(clockMs).toISOString().slice(0, 10);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -107,32 +145,37 @@ export default async function ElectoralPage({
           <CycleToggle cycle={cycle} />
         </div>
 
-        <p
-          className="mb-4 text-[length:var(--fs-12)] leading-snug"
-          style={{ color: "var(--text-muted)" }}
-        >
-          Competitive 2026 races (rated by Cook, Sabato, or Inside Elections as
-          anything other than Solid/Safe) on the map; the primary calendar below.
-          Click a timeline date to highlight which states vote then — stack
-          several to build a window. Click a state to drill into its districts;
-          one MAP/LIST toggle away is the consensus-led, toss-ups-first list.
-        </p>
-
-        <RacesHeroBand
-          control={chamberControl}
-          ratedCount={races.length}
-          senateCount={senate.length}
-          houseCount={house.length}
-        />
-
         <ElectoralBoard
+          cycle={cycle}
           cells={cartogram.cells}
           summary={cartogram.summary}
           geometry={geometry}
           calendar={calendar}
           todayISO={todayISO}
+          initialView="list"
+          bandSlot={
+            <>
+              {/* The dashboard's band and its six featured dots, packed left
+                  on this full-width page (C1). */}
+              <div className="electoral-band">
+                <Battlefield cycle={cycle} featuredIds={featuredRaces(pool).map((r) => r.raceId)} packed />
+              </div>
+              <RacesHeroBand control={chamberControl} />
+            </>
+          }
           listSlot={
-            <RaceListView senate={senate} house={house} pacByRace={pacByRace} />
+            <RaceListView
+              rows={rows}
+              raceNews={raceNews}
+              members={members}
+              pools={pools}
+              medians={{
+                house: participation.house.medianMissedPct,
+                senate: participation.senate.medianMissedPct,
+              }}
+              nowMs={nowMs}
+              passed={passed}
+            />
           }
         />
       </main>

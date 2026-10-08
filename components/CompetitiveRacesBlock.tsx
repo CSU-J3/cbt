@@ -53,6 +53,16 @@ function isSenate(race: CompetitiveRace): boolean {
 const POOL = 30;
 const PER_CHAMBER = 3;
 
+// The cards' races, Senate first: the pool's top PER_CHAMBER of each chamber.
+// HO 767: /electoral's band draws the same six as its featured dots (mock-767
+// draws the band as served on /), so the pick is one function, not two copies.
+export const FEATURED_POOL = POOL;
+export function featuredRaces(pool: CompetitiveRace[]): CompetitiveRace[] {
+  const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
+  const house = pool.filter((r) => !isSenate(r)).slice(0, PER_CHAMBER);
+  return [...senate, ...house];
+}
+
 export async function CompetitiveRacesBlock({
   cycle = 2026,
   // HO 254: the D↔R battlefield axis at the top of the panel. Off by default so
@@ -64,9 +74,7 @@ export async function CompetitiveRacesBlock({
   showBattlefield?: boolean;
 }) {
   const pool = await getMostCompetitiveRaces(cycle, POOL);
-  const senate = pool.filter(isSenate).slice(0, PER_CHAMBER);
-  const house = pool.filter((r) => !isSenate(r)).slice(0, PER_CHAMBER);
-  const races = [...senate, ...house]; // Senate-led order
+  const races = featuredRaces(pool); // Senate-led order
   if (races.length === 0) return null;
 
   // HO 260: for the rich cards, pull the full rated-seat index (cached, tag

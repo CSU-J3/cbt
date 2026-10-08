@@ -1,8 +1,12 @@
 // HO 219: chamber-control hero band for /races (Variant A — single stat row).
-// Three cells: HOUSE CONTROL · SENATE CONTROL · SEATS IN PLAY. Pure server
-// presentational component — the page fetches the data and passes it in.
-// Static readout, no interactions. RACES route only (it's just not mounted on
-// /primaries — separate route, no conditional needed).
+// Pure server presentational component — the page fetches the data and passes
+// it in. Static readout, no interactions.
+//
+// HO 767 (mock-767 v18, TOP none): two cells, KALSHI's HOUSE CONTROL and SENATE
+// CONTROL. SEATS IN PLAY is gone (the tabs carry each chamber's count in LIST,
+// the count line in MAP), and so is the band whenever it would hold nothing
+// (C4): with no control market for either chamber it renders nothing, and with
+// odds off the whole band hides (HO 692 site 9, the gate on the band itself).
 import type { ChamberOdds, ChamberControl } from "@/lib/kalshi";
 
 function partyColor(p: "D" | "R" | "I"): string {
@@ -36,24 +40,16 @@ function ControlValue({ odds }: { odds: ChamberOdds | null }) {
   );
 }
 
-export function RacesHeroBand({
-  control,
-  ratedCount,
-  senateCount,
-  houseCount,
-}: {
-  control: ChamberControl | null;
-  ratedCount: number;
-  senateCount: number;
-  houseCount: number;
-}) {
+export function RacesHeroBand({ control }: { control: ChamberControl | null }) {
+  if (!control?.house && !control?.senate) return null;
   return (
-    <div className="races-hero-band">
-      {/* HO 692 site 9 — a KALSHI control cell. `display:none` is safe here ONLY
-        because the attribute rule also re-shapes the band to a single column;
-        these are direct grid children, and without the re-shape SEATS IN PLAY
-        would sit in one third of the band with two empty tracks beside it. */}
-    <div className="races-hero-cell odds-only" data-market="kalshi">
+    // HO 692 site 9 — the KALSHI control cells, gated on the BAND, not on the
+    // cells: with SEATS IN PLAY gone every cell is a market cell, and hiding
+    // only the cells left the band's own border and panel as an empty strip
+    // (C4). The band's parent is not a grid, so `display: none` re-flows
+    // nothing; the HO 692 re-shape rule for the cells has retired with them.
+    <div className="races-hero-band odds-only" data-market="kalshi">
+      <div className="races-hero-cell">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">HOUSE CONTROL</span>
@@ -62,29 +58,12 @@ export function RacesHeroBand({
         <ControlValue odds={control?.house ?? null} />
       </div>
 
-      {/* HO 692 site 9 — a KALSHI control cell. `display:none` is safe here ONLY
-        because the attribute rule also re-shapes the band to a single column;
-        these are direct grid children, and without the re-shape SEATS IN PLAY
-        would sit in one third of the band with two empty tracks beside it. */}
-    <div className="races-hero-cell odds-only" data-market="kalshi">
+      <div className="races-hero-cell">
         <div className="races-hero-cap">
           <span className="races-hero-kalshi">KALSHI</span>
           <span className="races-hero-label">SENATE CONTROL</span>
         </div>
         <ControlValue odds={control?.senate ?? null} />
-      </div>
-
-      <div className="races-hero-cell">
-        <div className="races-hero-cap">
-          <span className="races-hero-label">SEATS IN PLAY</span>
-        </div>
-        <div className="races-hero-count">
-          <span className="races-hero-bignum tabular-nums">{ratedCount}</span>
-          <span className="races-hero-sub">rated</span>
-        </div>
-        <div className="races-hero-split tabular-nums">
-          {senateCount} SEN · {houseCount} HOUSE
-        </div>
       </div>
     </div>
   );

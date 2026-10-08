@@ -21,11 +21,15 @@
   },
   "components/RaceListView.tsx": {
     "reason": "gated",
-    "note": "The divergence column (visibility:hidden — it is a fixed-track grid child) and the readout clause."
+    "note": "The divergence column (visibility:hidden — it is a fixed-track grid child) and the readout clause, which rides line 2 after the tier switches with its separator inside the gate (HO 767, R4)."
   },
   "components/RacesHeroBand.tsx": {
     "reason": "gated",
-    "note": "Two KALSHI control cells; the attribute rule re-shapes the band to one column on OFF."
+    "note": "The two KALSHI control cells. Since HO 767 the band holds only those, so the gate sits on the band itself (odds-only + data-market on .races-hero-band, a block child of <main>); the re-shape rule retired."
+  },
+  "components/RaceOpenRow.tsx": {
+    "reason": "consumer-of-gated-primitive",
+    "note": "HO 767: renders KalshiLine only, in the seat column's flow (not a grid child), and none for a called seat (R6)."
   },
   "components/RaceMapCard.tsx": {
     "reason": "consumer-of-gated-primitive",

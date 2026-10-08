@@ -1,9 +1,13 @@
 "use client";
 
-// HO 210 Pass 1: the shared US-map index shell. Map-first — the literal
-// geoAlbersUsa choropleth (geometry computed server-side in lib/us-map-geo.ts) is
-// the default view; the existing spectrum-bar list (passed in as `listSlot`) is
-// one MAP/LIST toggle away and is NOT rebuilt.
+// HO 210 Pass 1: the shared US-map index shell. The literal geoAlbersUsa
+// choropleth (geometry computed server-side in lib/us-map-geo.ts) and the list
+// (passed in as `listSlot`) are one MAP/LIST toggle apart. HO 767: the caller
+// picks which opens (`initialView`); /electoral opens on the LIST in the general
+// window (mock-767 v18, LEAD B), the map unchanged one toggle away. In LIST the
+// count line and the map's legend give way to the list's own tabs, and the
+// search box filters the list as you type (ListQueryContext); MAP keeps its
+// submit-to-pin search.
 //
 // FORM HISTORY: an in-session tile-grid cartogram was REJECTED in design
 // ("squares are lifeless, don't read as 'my state' — geographic legibility won").
@@ -25,6 +29,7 @@
 // Phase-1 report stub stays until Pass 2 (the basic null-safe card).
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ListQueryContext } from "@/components/ListQueryContext";
 import { RaceMapCard } from "@/components/RaceMapCard";
 import type { CartogramCell } from "@/lib/cartogram-data";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
@@ -119,11 +124,14 @@ export function CartogramShell({
   dimmedStates,
   highlightedStates,
   previewStates,
+  initialView = "map",
 }: {
   cells: CartogramCell[];
   summary: string;
   geometry: UsMapGeometry;
   listSlot: React.ReactNode;
+  // HO 767: which view opens. "map" unless the caller says otherwise.
+  initialView?: "map" | "list";
   // HO 225 (additive, /races only): when provided, clicking an active state
   // calls this instead of pinning the inline report — the district modal opens.
   // Omitted on /primaries, which keeps the pin→inline-card behavior unchanged.
@@ -140,7 +148,7 @@ export function CartogramShell({
   highlightedStates?: ReadonlySet<string>;
   previewStates?: readonly string[] | null;
 }) {
-  const [view, setView] = useState<"map" | "list">("map");
+  const [view, setView] = useState<"map" | "list">(initialView);
   const [hovered, setHovered] = useState<string | null>(null);
   const [pinned, setPinned] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -208,6 +216,8 @@ export function CartogramShell({
 
   function onSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // HO 767: in LIST the box filters as you type; Enter has nothing to add.
+    if (view === "list") return;
     const hit = resolveSearch(query);
     if (hit) {
       setSearchMiss(false);
@@ -292,15 +302,17 @@ export function CartogramShell({
               setSearchMiss(false);
             }}
             placeholder="name, seat (PA-07), or state…"
-            aria-label="search the map"
+            aria-label={view === "list" ? "search the races" : "search the map"}
             spellCheck={false}
+            autoComplete="off"
           />
-          {searchMiss ? <span className="cart-search-miss">no match</span> : null}
+          {searchMiss && view === "map" ? <span className="cart-search-miss">no match</span> : null}
         </form>
-        <span className="cart-summary">{summary}</span>
+        {/* HO 767: MAP only. In LIST the tabs carry each chamber's count. */}
+        {view === "map" ? <span className="cart-summary">{summary}</span> : null}
       </div>
 
-      <RacesLegend />
+      {view === "map" ? <RacesLegend /> : null}
 
       {view === "map" ? (
         <>
@@ -490,7 +502,9 @@ export function CartogramShell({
           ) : null}
         </>
       ) : (
-        <div className="cart-listslot">{listSlot}</div>
+        <div className="cart-listslot">
+          <ListQueryContext.Provider value={{ query, setQuery }}>{listSlot}</ListQueryContext.Provider>
+        </div>
       )}
     </div>
   );

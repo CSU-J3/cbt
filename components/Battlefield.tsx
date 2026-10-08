@@ -1,6 +1,6 @@
 import { getBattlefieldSeats, getElectionResults, type BattlefieldSeat } from "@/lib/queries";
 import { clockNowMs } from "@/lib/clock";
-import { daysToElection as daysToElectionFor } from "@/lib/format";
+import { daysToElection as daysToElectionFor, electionDay } from "@/lib/format";
 import { formatReadMt } from "@/lib/race-result";
 import { partyColor } from "@/lib/race-colors";
 
@@ -18,11 +18,17 @@ import { partyColor } from "@/lib/race-colors";
 // off the axis entirely — matches the mock's "~N competitive seats".
 const COMPETITIVE_MAX = 1.5;
 
-// Election Day 2026 is Tuesday Nov 3. force-dynamic page → request-time fresh.
-// HO 758: "now" is lib/clock.ts's clockNowMs, the one the race page reads too.
-const ELECTION_DAY_MS = Date.UTC(2026, 10, 3);
-function daysToElection(): number {
-  return Math.max(0, Math.ceil((ELECTION_DAY_MS - clockNowMs()) / 86_400_000));
+// Election day is the cycle's (lib/format.ts electionDay; 2026's is Tuesday
+// Nov 3). force-dynamic page → request-time fresh. HO 758: "now" is
+// lib/clock.ts's clockNowMs, the one the race page reads too. HO 767: both the
+// countdown and the printed date follow `cycle`, which was a 2026 literal.
+function daysToElection(cycle: number): number {
+  return Math.max(0, Math.ceil((electionDay(cycle).getTime() - clockNowMs()) / 86_400_000));
+}
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+function electionDayLabel(cycle: number): string {
+  const d = electionDay(cycle);
+  return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
 // Consensus → axis x%. Piecewise-linear through the mock's tier anchors so the
@@ -69,12 +75,19 @@ const TIERS: Tier[] = [
 export async function Battlefield({
   cycle = 2026,
   featuredIds = [],
+  packed = false,
 }: {
   cycle?: number;
   // The card races (top Senate + House) get individual dots on the axis —
   // keeps the dot set in lockstep with the cards below (the next handoff wires
   // the cross-highlight off the shared data-seat).
   featuredIds?: string[];
+  // HO 767 (C1): on a full-width page the ELECTION DAY line would sit at the
+  // band's far right, a page-width away from the legend it reads with, so
+  // /electoral packs it left after the legend. Off by default: the dashboard's
+  // band, in its narrow races panel, is unchanged. The RESULTS line already
+  // takes its own left-aligned row (HO 758), so this touches the countdown only.
+  packed?: boolean;
 }) {
   const seats = await getBattlefieldSeats(cycle);
   if (seats.length === 0) return null;
@@ -119,7 +132,7 @@ export async function Battlefield({
 
   return (
     <section className="battlefield" aria-label="Competitive battlefield">
-      <div className={results ? "ctl-head ctl-head--results" : "ctl-head"}>
+      <div className={results ? "ctl-head ctl-head--results" : packed ? "ctl-head ctl-head--packed" : "ctl-head"}>
         <div className="ctl-legend">
           TOSS-UPS <span className="ctl-sw" /> SEN{" "}
           <span className="ctl-sw ctl-sw-sq" /> HOUSE ·{" "}
@@ -131,7 +144,7 @@ export async function Battlefield({
           // first; any other letter is "other", shown when nonzero); the House
           // seats not yet called; the newest read behind the marks, in MT.
           <div className="ctl-eday" data-results>
-            <span className="ctl-eday-t">RESULTS</span> · NOV 3 ·{" "}
+            <span className="ctl-eday-t">RESULTS</span> · {electionDayLabel(cycle)} ·{" "}
             <span className="ctl-eday-cd">
               {results.ratedCalled} of {results.rated}
             </span>{" "}
@@ -143,8 +156,8 @@ export async function Battlefield({
           </div>
         ) : (
           <div className="ctl-eday">
-            <span className="ctl-eday-t">ELECTION DAY</span> · NOV 3 ·{" "}
-            <span className="ctl-eday-cd">{daysToElection()} DAYS</span> · ~
+            <span className="ctl-eday-t">ELECTION DAY</span> · {electionDayLabel(cycle)} ·{" "}
+            <span className="ctl-eday-cd">{daysToElection(cycle)} DAYS</span> · ~
             {competitive.length} competitive seats
           </div>
         )}

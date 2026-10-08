@@ -8,8 +8,16 @@
 // The map stays the existing competitive purple map; the timeline ADDS the amber
 // highlight layer on top. Clicking a STATE still opens the HO 225 district modal
 // (state-click drill preserved); the timeline is what paints the amber.
-import { useMemo, useState } from "react";
+//
+// HO 767 (mock-767 v18, CALENDAR 2 · LEAD B): the calendar comes FIRST, under
+// the title and over the band, folded to one line (its counts and the next
+// date); opened, the bars run to mid-November and the year's dates are listed
+// under them. It stays in this board because the board owns the state it
+// shares with the map, so the band (Battlefield and the Kalshi cells) arrives
+// as a slot rendered between the calendar and the controls.
+import { useEffect, useId, useMemo, useState } from "react";
 import { CartogramShell } from "@/components/CartogramShell";
+import { ELECTORAL_LAYOUT_EVENT } from "@/components/ListQueryContext";
 import { PrimaryTimeline } from "@/components/PrimaryTimeline";
 import { RaceDistrictModal } from "@/components/RaceDistrictModal";
 import type { CartogramCell } from "@/lib/cartogram-data";
@@ -27,23 +35,35 @@ function monDay(iso: string): string {
 }
 
 export function ElectoralBoard({
+  cycle,
   cells,
   summary,
   geometry,
   listSlot,
+  bandSlot,
   calendar,
   todayISO,
+  initialView = "map",
 }: {
+  cycle: number;
   cells: CartogramCell[];
   summary: string;
   geometry: UsMapGeometry;
   listSlot: React.ReactNode;
+  bandSlot?: React.ReactNode;
   calendar: PrimaryCalendarDate[];
   todayISO: string;
+  initialView?: "map" | "list";
 }) {
   const [locked, setLocked] = useState<ReadonlySet<string>>(new Set());
   const [hovered, setHovered] = useState<string | null>(null);
   const [openAbbr, setOpenAbbr] = useState<string | null>(null);
+  const [calOpen, setCalOpen] = useState(false);
+  const bodyId = useId();
+
+  useEffect(() => {
+    window.dispatchEvent(new Event(ELECTORAL_LAYOUT_EVENT));
+  }, [calOpen]);
 
   const dateToStates = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -84,12 +104,14 @@ export function ElectoralBoard({
     ? cells.find((c) => c.state === openAbbr) ?? null
     : null;
 
-  // Header legend totals.
+  // Header legend totals. A date on or before today has voted, as the bars
+  // color it; the next date is the first one after today.
   const totalContests = calendar.reduce((a, c) => a + c.contestCount, 0);
   const votedContests = calendar.reduce(
     (a, c) => a + (c.date <= todayISO ? c.contestCount : 0),
     0,
   );
+  const next = calendar.find((c) => c.date > todayISO) ?? null;
 
   // Readout (under the timeline) reads the same locked state.
   const lockedDates = [...locked].sort();
@@ -100,6 +122,107 @@ export function ElectoralBoard({
 
   return (
     <>
+      {/* Primary-calendar band — folded to one line; opened, it drives the map
+          highlight under the controls. */}
+      <div className="electoral-tl-band electoral-tl-band--top" data-open={calOpen ? "" : undefined}>
+        <button
+          type="button"
+          className="electoral-tl-head electoral-tl-fold"
+          aria-expanded={calOpen}
+          aria-controls={calOpen ? bodyId : undefined}
+          onClick={() => setCalOpen((o) => !o)}
+        >
+          <span className="electoral-tl-title">PRIMARY CALENDAR · {cycle}</span>
+          <span className="electoral-tl-count">
+            {totalContests} contests · {votedContests} voted
+          </span>
+          {calOpen ? (
+            <span className="electoral-tl-legend">
+              <span
+                className="electoral-tl-swatch"
+                style={{ background: "#0e7490" }}
+              />
+              VOTED
+              <span
+                className="electoral-tl-swatch"
+                style={{ background: "#b45309" }}
+              />
+              UPCOMING
+            </span>
+          ) : next ? (
+            // No separator dot before NEXT: a wrapped phone line would open on it.
+            <span className="electoral-tl-next">
+              NEXT {monDay(next.date)} · {next.states.join(" ")} · {next.contestCount}
+            </span>
+          ) : null}
+          <span className="electoral-tl-chev" aria-hidden>
+            {calOpen ? "▾" : "▸"}
+          </span>
+        </button>
+
+        {calOpen ? (
+          <div id={bodyId}>
+            <PrimaryTimeline
+              cycle={cycle}
+              calendar={calendar}
+              todayISO={todayISO}
+              locked={locked}
+              onHover={setHovered}
+              onToggle={toggle}
+            />
+
+            {/* The year's primaries: a date, its states, its contests, read down
+                each column. CSS multi-column, so its rag is the column gutter
+                (SKILL, the column-flow clause): marked for the layout audit. */}
+            <div className="electoral-cal-list" data-col-flow>
+              {calendar.map((c) => (
+                <div
+                  key={c.date}
+                  className={c.date > todayISO ? "electoral-cal-row is-up" : "electoral-cal-row"}
+                >
+                  <span className="electoral-cal-d">{monDay(c.date)}</span>
+                  <span className="electoral-cal-s">
+                    {c.states.join(" ")}{" "}
+                    <span className="electoral-cal-n">· {c.contestCount}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="electoral-readout">
+              {lockedDates.length === 0 ? (
+                <>
+                  <span className="electoral-readout-mark">▸</span>
+                  <span className="electoral-readout-hint">
+                    click primary dates to stack which states vote then · click again
+                    to drop one
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="electoral-readout-mark">▸</span>
+                  <span className="electoral-readout-dates">
+                    {lockedDates.map(monDay).join(" · ")}
+                  </span>
+                  <span className="electoral-readout-count">
+                    — {highlightedStates.size} states · {lockedContests} contests
+                  </span>
+                  <button
+                    type="button"
+                    className="electoral-readout-clear"
+                    onClick={() => setLocked(new Set())}
+                  >
+                    CLEAR ALL
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {bandSlot}
+
       <CartogramShell
         cells={cells}
         summary={summary}
@@ -108,6 +231,7 @@ export function ElectoralBoard({
         onStatePick={setOpenAbbr}
         highlightedStates={highlightedStates}
         previewStates={previewStates}
+        initialView={initialView}
       />
       {openCell ? (
         <RaceDistrictModal
@@ -116,63 +240,6 @@ export function ElectoralBoard({
           onClose={() => setOpenAbbr(null)}
         />
       ) : null}
-
-      {/* Primary-calendar timeline band — drives the map highlight above. */}
-      <div className="electoral-tl-band">
-        <div className="electoral-tl-head">
-          <span className="electoral-tl-title">PRIMARY CALENDAR · 2026</span>
-          <span className="electoral-tl-legend">
-            {totalContests} contests · {votedContests} voted
-            <span
-              className="electoral-tl-swatch"
-              style={{ background: "#0e7490" }}
-            />
-            VOTED
-            <span
-              className="electoral-tl-swatch"
-              style={{ background: "#b45309" }}
-            />
-            UPCOMING
-          </span>
-        </div>
-
-        <PrimaryTimeline
-          calendar={calendar}
-          todayISO={todayISO}
-          locked={locked}
-          onHover={setHovered}
-          onToggle={toggle}
-        />
-
-        <div className="electoral-readout">
-          {lockedDates.length === 0 ? (
-            <>
-              <span className="electoral-readout-mark">▸</span>
-              <span className="electoral-readout-hint">
-                click primary dates to stack which states vote then · click again
-                to drop one
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="electoral-readout-mark">▸</span>
-              <span className="electoral-readout-dates">
-                {lockedDates.map(monDay).join(" · ")}
-              </span>
-              <span className="electoral-readout-count">
-                — {highlightedStates.size} states · {lockedContests} contests
-              </span>
-              <button
-                type="button"
-                className="electoral-readout-clear"
-                onClick={() => setLocked(new Set())}
-              >
-                CLEAR ALL
-              </button>
-            </>
-          )}
-        </div>
-      </div>
     </>
   );
 }
