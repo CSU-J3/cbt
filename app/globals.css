@@ -9353,9 +9353,10 @@ a.rl-nm:hover,
 }
 /* At phone width the band's axis does not fit: its six featured labels and the
    tier counts run into each other (measured at 430: "AZ-01IA-01MI-SEN…",
-   "15 RACES6 RACES"). The dashboard never shows the band that narrow; here the
-   axis and its legend give way and the ELECTION DAY line stays (C4: an
-   unreadable panel renders its one line, not a reserved box). */
+   "15 RACES6 RACES"). Here the axis and its legend give way and the ELECTION
+   DAY line stays. Scoped to /electoral: the dashboard's own band, behind its
+   Races tab, runs together the same way at that width, and HO 767's scope
+   guard leaves the dashboard as it was. */
 @media (max-width: 700px) {
   .electoral-band .ctl,
   .electoral-band .ctl-legend {
