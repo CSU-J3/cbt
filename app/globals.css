@@ -9351,6 +9351,20 @@ a.rl-nm:hover,
 .electoral-band:empty {
   display: none;
 }
+/* At phone width the band's axis does not fit: its six featured labels and the
+   tier counts run into each other (measured at 430: "AZ-01IA-01MI-SEN…",
+   "15 RACES6 RACES"). The dashboard never shows the band that narrow; here the
+   axis and its legend give way and the ELECTION DAY line stays (C4: an
+   unreadable panel renders its one line, not a reserved box). */
+@media (max-width: 700px) {
+  .electoral-band .ctl,
+  .electoral-band .ctl-legend {
+    display: none;
+  }
+  .electoral-band .battlefield {
+    padding-bottom: 10px;
+  }
+}
 /* HO 619 (C1) — `justify-content: space-between` removed; the right-hand legend
    FOLLOWS the title rather than being thrown 1,960px across the band. */
 .electoral-tl-head {
