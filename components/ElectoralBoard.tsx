@@ -116,12 +116,15 @@ export function ElectoralBoard({
   );
   const next = calendar.find((c) => c.date > todayISO) ?? null;
 
-  // Readout (under the timeline) reads the same locked state.
+  // Readout (under the timeline) reads the same locked state. HO 768: it names
+  // the stacked states, A to Z, so a lock reads in LIST too, where the amber
+  // map it paints is one toggle away.
   const lockedDates = [...locked].sort();
   const lockedContests = lockedDates.reduce(
     (a, d) => a + (dateToCount.get(d) ?? 0),
     0,
   );
+  const lockedStates = [...highlightedStates].sort();
 
   return (
     <>
@@ -208,7 +211,7 @@ export function ElectoralBoard({
                     {lockedDates.map(monDay).join(" · ")}
                   </span>
                   <span className="electoral-readout-count">
-                    — {highlightedStates.size} states · {lockedContests} contests
+                    — {lockedStates.join(" ")} · {lockedContests} contests
                   </span>
                   <button
                     type="button"
