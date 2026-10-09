@@ -114,11 +114,17 @@ async function prodUntouched(label: string, fp0: Record<string, string>, t0: str
   const changed = Object.keys(fp0).filter((k) => fp0[k] !== fp1[k]);
   if (changed.length === 0) { check("*", `prod untouched (${label})`, true, "fingerprints equal"); return; }
   const db = prodClient();
-  const runs = (await reader(db)(`SELECT id, route, started_at FROM cron_runs WHERE started_at >= ? ORDER BY id`, [t0])).rows.map((r) => `${r.route}#${r.id}`);
+  // A run overlaps the window if it started inside it, or was still in flight when it opened:
+  // the review's legs run read prod's general-ballot cron (#23538), started 61s before t0,
+  // writing both of its tables every 6s through the window, and the started-inside rule alone
+  // read "runs none". The in-flight half looks back an hour, so a long-dead row that never
+  // closed explains nothing.
+  const t0m = new Date(Date.parse(t0) - 60 * 60 * 1000).toISOString();
+  const runs = (await reader(db)(`SELECT id, route, started_at FROM cron_runs WHERE started_at >= ? OR (started_at >= ? AND (ended_at IS NULL OR ended_at >= ?)) ORDER BY id`, [t0, t0m, t0])).rows.map((r) => `${r.route}#${r.id}`);
   db.close();
   const cronOwned = new Set(["race_candidates", "general_ballot", "general_ballot_reads", "primary_candidates", "member_fundraising"]);
   const unexplained = changed.filter((k) => !cronOwned.has(k) || runs.length === 0);
-  check("*", `prod untouched (${label}): every difference is a prod cron's own run in the window`, unexplained.length === 0, `changed ${changed.join(", ")} · runs ${runs.join("; ") || "none"}${unexplained.length ? ` · UNEXPLAINED ${unexplained.join(", ")}` : ""}`);
+  check("*", `prod untouched (${label}): every difference is a prod cron's own run overlapping the window`, unexplained.length === 0, `changed ${changed.join(", ")} · runs ${runs.join("; ") || "none"}${unexplained.length ? ` · UNEXPLAINED ${unexplained.join(", ")}` : ""}`);
 }
 
 // ── copies ──────────────────────────────────────────────────────────────────
