@@ -6464,6 +6464,23 @@ a.rl-nm:hover,
     display: none;
   }
 }
+/* HO 767 review: the Senate tab has no 2024 House column (the row and the
+   heads don't render it there), so its grid drops the 132px track and Latest
+   moves up one. Scoped to 900px and up: under it every tab already runs the
+   five-track grid above. */
+@media (min-width: 900px) {
+  .rl-box[data-tab="senate"] .rl-grid {
+    grid-template-columns: 64px minmax(0, 480px) 92px 56px 14px 60px 12px;
+  }
+}
+@container rlmain (min-width: 1560px) {
+  .rl-box[data-tab="senate"] .rl-grid {
+    grid-template-columns: 64px minmax(260px, 500px) 92px 56px 14px 60px 12px minmax(0, 1fr);
+  }
+  .rl-box[data-tab="senate"] .rl-sig {
+    grid-column: 8;
+  }
+}
 
 /* The open row (OPEN ROW 2, TEXT 2). One scale, four steps, each with one job:
    --tl labels · --tm the line that explains a name or a number · --tt names,

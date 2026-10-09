@@ -93,8 +93,8 @@ function ResultChip({ row }: { row: ElectoralRow }) {
   );
 }
 
+// House rows only: the Senate tab has no 2024 House column (see the row).
 function MarginCell({ row }: { row: ElectoralRow }) {
-  if (row.chamber === "senate") return <span className="race-list-margin-na">— senate</span>;
   if (row.margin2024 == null) return <span className="race-list-margin-na">— no data</span>;
   return <MarginBar margin={row.margin2024} />;
 }
@@ -266,9 +266,17 @@ function RaceListRow({
         >
           ◆
         </span>
-        <span className="race-list-margin">
-          <MarginCell row={row} />
-        </span>
+        {/* HO 767 review: the Senate tab drops its 2024 House column. On that
+            tab the cell read "— senate" on every row, a column empty for the
+            whole tab (C4), and its slack against Inc. cash's "—" was seven of
+            the eight new M1 rows. The tab's grid drops the track with it
+            (`.rl-box[data-tab="senate"]`, app/globals.css), so no item
+            re-flows. */}
+        {row.chamber === "house" ? (
+          <span className="race-list-margin">
+            <MarginCell row={row} />
+          </span>
+        ) : null}
         <span
           className="race-list-cash tabular-nums"
           style={{ color: row.cash != null ? "var(--text-secondary)" : "var(--text-dim)" }}
@@ -493,6 +501,7 @@ export function RaceListView({
           <div
             ref={boxRef}
             className="rl-box"
+            data-tab={tab}
             data-scroll-box
             tabIndex={0}
             role="region"
@@ -507,7 +516,7 @@ export function RaceListView({
                 C · S · I
               </span>
               <span aria-hidden />
-              <span className="rl-h-m">2024 House</span>
+              {tab === "house" ? <span className="rl-h-m">2024 House</span> : null}
               <span className="rl-h-c">Inc. cash</span>
               <span aria-hidden />
               <span className="rl-h-x">Latest</span>
