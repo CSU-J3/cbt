@@ -432,6 +432,19 @@ async function leg1(browser: Browser, shots: string, headMaps: Record<string, st
           if (w === 1440) opened[id] = await readOpen(page);
         }
         await page.locator(".rl-tab", { hasText: "SENATE" }).click();
+        // The review's ruling: the Senate tab has no 2024 House column, neither head nor
+        // cells, and its grid carries one track fewer. The House tab keeps both, and is the
+        // check's control (the same reads find the column there). Under 900px every tab runs
+        // the five-track grid, so the track count is compared from 900px up.
+        const COL = `(() => { const h = document.querySelector('.rl-heads'); return { head: document.querySelectorAll('.rl-heads .rl-h-m').length, cells: document.querySelectorAll('ul.race-list .race-list-margin').length, rows: document.querySelectorAll('ul.race-list > li').length, tracks: h ? getComputedStyle(h).gridTemplateColumns.split(' ').length : 0 }; })()`;
+        type Col = { head: number; cells: number; rows: number; tracks: number };
+        const sen = (await page.evaluate(COL)) as Col;
+        await page.locator(".rl-tab", { hasText: "HOUSE" }).click();
+        await page.waitForTimeout(150);
+        const hou = (await page.evaluate(COL)) as Col;
+        await page.locator(".rl-tab", { hasText: "SENATE" }).click();
+        await page.waitForTimeout(150);
+        check("1", `@${tag}: the Senate tab has no 2024 House column (head, cells, track), and the House tab keeps it (the control)`, sen.head === 0 && sen.cells === 0 && sen.rows === 13 && hou.head === 1 && hou.cells === hou.rows && hou.rows === 86 && (w < 900 || hou.tracks === sen.tracks + 1), `Senate head ${sen.head} · cells ${sen.cells}/${sen.rows} · tracks ${sen.tracks} | House head ${hou.head} · cells ${hou.cells}/${hou.rows} · tracks ${hou.tracks}`);
         await page.locator(".electoral-tl-fold").click();
         await page.waitForTimeout(250);
         const bars = await page.locator(".electoral-tl-band rect[role='button']").count();
@@ -631,6 +644,20 @@ async function leg4(browser: Browser, shots: string, out: Record<string, unknown
   const rerendered = await card.count();
   await page.locator(".rl-f--likely").click();
   check("4", "(h) a re-render (a tier switch) closes it", open1 === 1 && rerendered === 0, `before ${open1} · after the switch ${rerendered}`);
+  // (j) the review's find: nothing in the card carries a native title, so a pointer resting on
+  // the card's own badge raises no second tooltip over it. The control is Ossoff's member page,
+  // where the same query finds the badge's title: the read can see one when it is there.
+  await openRow(page, "S-GA-2026");
+  await chip.click();
+  await page.waitForTimeout(300);
+  const inCard = (await page.evaluate(`(() => { const c = document.querySelector('.grade-card'); if (!c) return null; const b = c.querySelector('.grade-card-f > span > span'); return { titled: Array.from(c.querySelectorAll('[title]')).map((e) => e.getAttribute('title')), badge: b ? b.textContent.trim() : null }; })()`)) as { titled: string[]; badge: string | null } | null;
+  await chip.click();
+  await page.waitForTimeout(150);
+  const mp = await ctx.newPage();
+  await mp.goto(`${BASE}/members/O000174`, { waitUntil: "networkidle" });
+  const ctrlTitle = (await mp.evaluate(`(() => { const e = document.querySelector('[title^="Palestine Tracker:"]'); return e ? e.getAttribute('title') : null; })()`)) as string | null;
+  await mp.close();
+  check("4", "(j) nothing in the card carries a native title, its badge included; the member page's badge keeps one (the control)", !!inCard && !!inCard.badge && inCard.titled.length === 0 && !!ctrlTitle, `card badge "${inCard?.badge ?? "none"}" · titled in card ${JSON.stringify(inCard?.titled ?? null)} · member page badge title "${ctrlTitle ?? "none"}"`);
   await ctx.close();
   // (i) a tap pins the card in a touch context. Two ways a page sees a tap: Playwright's tap in a
   // hasTouch context (CDP Input.dispatchTouchEvent), and DevTools' device mode, which turns a mouse
