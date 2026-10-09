@@ -590,7 +590,8 @@ export default async function MemberPage({
             ];
 
             // Scorecard is the one CONDITIONAL tab — genuinely inapplicable
-            // (Senate Democrats only), not merely zero. No count: it's
+            // (each chamber's Democrats the tracker grades, the House since
+            // HO 768), not merely zero. No count: it's
             // present-or-absent, not a tally. HO 767: the out-link names the
             // tracker, not USCPR, and opens it on the member's own tab.
             if (scorecard) {

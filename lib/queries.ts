@@ -1459,12 +1459,13 @@ export type PalestineScorecard = {
   votes: Record<string, string>;
 };
 
-// USCPR Senate Palestine voting scorecard for a member (handoff 90). Returns
-// null for anyone not on the scorecard — Republicans, House members, and any
-// senator absent from the source sheet — so the member hub renders the
-// section only when this is non-null. Synced manually via
-// `npm run sync:palestine`; tagged "members" to ride the member-bio cache
-// invalidation surface.
+// The Palestine Tracker's grade for a member, scored on USCPR's metric
+// (handoff 90; its House tab since HO 768). Returns null for anyone not on the
+// tracker — Republicans, and any member absent from the sheet or unmatched on
+// it — so the member hub renders the section only when this is non-null.
+// Synced by hand via `npm run sync:palestine -- --write`; tagged "members" to
+// ride the member-bio cache invalidation surface, and since HO 768
+// "palestine", the flush after a write.
 export const getPalestineScorecard = unstable_cache(
   async (bioguideId: string): Promise<PalestineScorecard | null> => {
     const db = getDb();
