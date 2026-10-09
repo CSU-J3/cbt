@@ -282,7 +282,7 @@ export function GradeChip({
             </div>
             <div className="grade-card-f">
               <span>
-                <PalestineBadge grade={grade} rank={rank} />{" "}
+                <PalestineBadge grade={grade} rank={rank} untitled />{" "}
                 {total ? <span className="grade-card-sc">{total}</span> : null}
               </span>
               {rank != null ? (
