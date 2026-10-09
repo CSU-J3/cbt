@@ -97,10 +97,12 @@ function RaceCardRow({
   contest,
   open,
   onToggle,
+  nowMs,
 }: {
   contest: CartogramContest;
   open: boolean;
   onToggle: () => void;
+  nowMs: number;
 }) {
   const incName = contest.incumbent?.name ?? "Open seat";
   const challengers = contest.challengers ?? [];
@@ -235,6 +237,7 @@ function RaceCardRow({
               incumbent + challengers, for name-market party resolution. */}
           <KalshiLine
             odds={contest.kalshiOdds}
+            nowMs={nowMs}
             roster={[
               ...(contest.incumbent
                 ? [
@@ -266,7 +269,7 @@ function RaceCardRow({
   );
 }
 
-export function RaceMapCard({ contests }: { contests: CartogramContest[] }) {
+export function RaceMapCard({ contests, nowMs }: { contests: CartogramContest[]; nowMs: number }) {
   // Single-open within the card. Contests arrive Senate-first from the builder.
   const [openLabel, setOpenLabel] = useState<string | null>(null);
   if (contests.length === 0) {
@@ -284,6 +287,7 @@ export function RaceMapCard({ contests }: { contests: CartogramContest[] }) {
           onToggle={() =>
             setOpenLabel((cur) => (cur === c.label ? null : c.label))
           }
+          nowMs={nowMs}
         />
       ))}
     </ul>

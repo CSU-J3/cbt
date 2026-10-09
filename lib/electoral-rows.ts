@@ -275,3 +275,19 @@ export function buildElectoralRows(input: {
   const sorted = (m: Map<string, RaceNewsItem>) => [...m.values()].sort((a, b) => (a.observedAt < b.observedAt ? 1 : a.observedAt > b.observedAt ? -1 : 0));
   return { rows, raceNews: { senate: sorted(panel.senate), house: sorted(panel.house) } };
 }
+
+// HO 768: R6's MAP half. The map's contests are built from the index, not from
+// the rows, so the pinned card, the district card and the district export each
+// kept a called seat's market. The page strips it here, from the rows' one mark,
+// before the cartogram is built. Before election day nothing is called and the
+// index passes through as is. (A helper rather than a literal in the page: the
+// odds-sites gate reads every .tsx for the market's name, and the page isn't a
+// market site.)
+export function withoutCalledOdds<T extends { raceId: string; kalshiOdds: KalshiOdds | null }>(
+  index: T[],
+  rows: Pick<ElectoralRow, "raceId" | "result">[],
+): T[] {
+  const called = new Set(rows.filter((r) => r.result?.called).map((r) => r.raceId));
+  if (called.size === 0) return index;
+  return index.map((r) => (called.has(r.raceId) ? { ...r, kalshiOdds: null } : r));
+}

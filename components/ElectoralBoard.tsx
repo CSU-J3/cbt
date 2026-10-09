@@ -43,6 +43,7 @@ export function ElectoralBoard({
   bandSlot,
   calendar,
   todayISO,
+  nowMs,
   initialView = "map",
 }: {
   cycle: number;
@@ -53,6 +54,8 @@ export function ElectoralBoard({
   bandSlot?: React.ReactNode;
   calendar: PrimaryCalendarDate[];
   todayISO: string;
+  // HO 768: the page's clock, for the MAP's market close checks.
+  nowMs: number;
   initialView?: "map" | "list";
 }) {
   const [locked, setLocked] = useState<ReadonlySet<string>>(new Set());
@@ -232,12 +235,14 @@ export function ElectoralBoard({
         highlightedStates={highlightedStates}
         previewStates={previewStates}
         initialView={initialView}
+        nowMs={nowMs}
       />
       {openCell ? (
         <RaceDistrictModal
           abbr={openCell.state}
           contests={openCell.contests}
           onClose={() => setOpenAbbr(null)}
+          nowMs={nowMs}
         />
       ) : null}
     </>

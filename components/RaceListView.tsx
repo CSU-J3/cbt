@@ -225,7 +225,7 @@ function RaceListRow({
   nowMs: number;
   children: React.ReactNode;
 }) {
-  const diverges = !row.result?.called && kalshiDivergesFromConsensus(row.kalshiOdds, row.consensusScore, row.roster);
+  const diverges = !row.result?.called && kalshiDivergesFromConsensus(row.kalshiOdds, row.consensusScore, row.roster, nowMs);
   return (
     <li className={`race-list-item${flash ? " rl-flash" : ""}`} id={`row-${row.raceId}`} data-race={row.raceId}>
       <div
@@ -436,7 +436,7 @@ export function RaceListView({
   const tierTotal = (t: Tier) => all.filter((r) => r.tier === t).length;
   const onTotal = all.filter((r) => tiers.has(r.tier)).length;
   const said = q ? `${shown.length} match “${query.trim()}”` : onTotal < all.length ? `showing ${onTotal} of ${all.length}` : "";
-  const diverge = all.filter((r) => !r.result?.called && kalshiDivergesFromConsensus(r.kalshiOdds, r.consensusScore, r.roster)).length;
+  const diverge = all.filter((r) => !r.result?.called && kalshiDivergesFromConsensus(r.kalshiOdds, r.consensusScore, r.roster, nowMs)).length;
   const label = tab === "senate" ? "Senate" : "House";
 
   return (

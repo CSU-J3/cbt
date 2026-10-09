@@ -18,7 +18,7 @@ import { formatCash } from "@/components/race-cells";
 import type { CartogramContest } from "@/lib/cartogram-data";
 import { incumbentTagText } from "@/lib/incumbent-tag";
 import type { DistrictShape, StateDistrictGeometry } from "@/lib/district-geo";
-import { ratingColor } from "@/lib/race-colors";
+import { kalshiActive, ratingColor } from "@/lib/race-colors";
 import { STATE_ABBR_TO_NAME } from "@/lib/states";
 
 function humanStatus(status: string | null): string {
@@ -28,7 +28,9 @@ function humanStatus(status: string | null): string {
 
 // Client-side markdown report from data already on the card. No news section
 // (no race→news linkage) and no new pipeline — just serialize the contest.
-function buildReport(c: CartogramContest): string {
+// HO 768: the market line reads the page's clock, as the cards do, and a called
+// seat's contest arrives without its market (the page strips it).
+function buildReport(c: CartogramContest, nowMs: number): string {
   const L: string[] = [`# ${c.label} — 2026 race report`, ""];
   L.push(`**Consensus rating:** ${c.rating ?? "—"}`);
   const s = c.raterSpread;
@@ -45,7 +47,7 @@ function buildReport(c: CartogramContest): string {
   const oddsOff =
     typeof document !== "undefined" &&
     document.documentElement.dataset.odds === "off";
-  if (c.kalshiOdds && !oddsOff)
+  if (kalshiActive(c.kalshiOdds, nowMs) && !oddsOff)
     L.push(`**Kalshi market:** ${c.kalshiOdds.favoriteLabel} ${c.kalshiOdds.impliedPct}%`);
   if (c.incumbent) {
     // HO 759: the tag's words where the ballot doesn't carry the incumbent.
@@ -62,8 +64,8 @@ function buildReport(c: CartogramContest): string {
   return L.join("\n") + "\n";
 }
 
-function downloadReport(c: CartogramContest): void {
-  const blob = new Blob([buildReport(c)], { type: "text/markdown" });
+function downloadReport(c: CartogramContest, nowMs: number): void {
+  const blob = new Blob([buildReport(c, nowMs)], { type: "text/markdown" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -78,10 +80,12 @@ export function RaceDistrictModal({
   abbr,
   contests,
   onClose,
+  nowMs,
 }: {
   abbr: string;
   contests: CartogramContest[];
   onClose: () => void;
+  nowMs: number;
 }) {
   const [geo, setGeo] = useState<StateDistrictGeometry | null>(null);
   const [selected, setSelected] = useState<string | null>(null); // raceId
@@ -273,7 +277,7 @@ export function RaceDistrictModal({
             <button
               className="rdm-action"
               disabled={!selectedContest}
-              onClick={() => selectedContest && downloadReport(selectedContest)}
+              onClick={() => selectedContest && downloadReport(selectedContest, nowMs)}
             >
               ↓ EXPORT REPORT
             </button>
@@ -289,7 +293,7 @@ export function RaceDistrictModal({
 
         <div className="rdm-detail">
           {selectedContest ? (
-            <RaceDistrictCard contest={selectedContest} />
+            <RaceDistrictCard contest={selectedContest} nowMs={nowMs} />
           ) : (
             <div className="rdm-empty">CLICK A COMPETITIVE DISTRICT</div>
           )}

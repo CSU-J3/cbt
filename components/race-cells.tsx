@@ -48,14 +48,17 @@ export function MarginBar({ margin }: { margin: number | null | undefined }) {
 // HO 218: per-seat Kalshi market line. Named-favorite with a party degrade.
 // Party-labeled market → "KALSHI · Dem 72%"; name-labeled → surname, party
 // resolved against the roster for color else neutral; null/closed → nothing.
+// HO 768: `nowMs` is the page's clock, passed by every /electoral site.
 export function KalshiLine({
   odds,
   roster,
+  nowMs,
 }: {
   odds: KalshiOdds | null | undefined;
   roster: RosterEntry[];
+  nowMs?: number;
 }) {
-  if (!kalshiActive(odds)) return null;
+  if (!kalshiActive(odds, nowMs)) return null;
   const party = resolveKalshiFavoriteParty(odds, roster);
   const text = odds.favoriteIsParty
     ? party

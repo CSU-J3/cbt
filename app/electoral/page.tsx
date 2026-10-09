@@ -27,7 +27,7 @@ import { SeatOutlookList } from "@/components/SeatOutlookList";
 import { SegmentedToggle } from "@/components/SegmentedToggle";
 import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { clockNowMs } from "@/lib/clock";
-import { buildElectoralRows } from "@/lib/electoral-rows";
+import { buildElectoralRows, withoutCalledOdds } from "@/lib/electoral-rows";
 import { daysToElection } from "@/lib/format";
 import { withIncumbentTags } from "@/lib/incumbent-tag";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
@@ -91,7 +91,8 @@ export default async function ElectoralPage({
   if (cycle === 2028) return <SeatOutlookPage cycle={cycle} />;
 
   // HO 490: the page's one clock for the ages and the news and MOVED windows,
-  // prop-drilled to the client rows. HO 758: the day-after gate and the
+  // prop-drilled to the client rows, and since HO 768 to every client site that
+  // asks whether a market has closed. HO 758: the day-after gate and the
   // calendar's today read lib/clock.ts, the one now a legs copy can move.
   const nowMs = Date.now();
   const clockMs = clockNowMs();
@@ -127,7 +128,9 @@ export default async function ElectoralPage({
   // HO 210: cartogram cells reuse the EXACT getRacesIndex rows, so a state's
   // tile count === the number of rows the LIST shows for that state.
   // HO 393: pacByRace threads the UDP IE direction rows onto each contest.
-  const cartogram = buildRacesCartogram(races, raceCandidates, pacByRace);
+  // HO 768: built once the rows exist, so a called seat's Kalshi market leaves
+  // the MAP as it leaves the rows (R6).
+  const cartogram = buildRacesCartogram(withoutCalledOdds(races, rows), raceCandidates, pacByRace);
   const geometry = getUsMapGeometry();
   const todayISO = new Date(clockMs).toISOString().slice(0, 10);
 
@@ -152,6 +155,7 @@ export default async function ElectoralPage({
           geometry={geometry}
           calendar={calendar}
           todayISO={todayISO}
+          nowMs={nowMs}
           initialView="list"
           bandSlot={
             <>

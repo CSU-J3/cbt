@@ -125,11 +125,14 @@ export function CartogramShell({
   highlightedStates,
   previewStates,
   initialView = "map",
+  nowMs,
 }: {
   cells: CartogramCell[];
   summary: string;
   geometry: UsMapGeometry;
   listSlot: React.ReactNode;
+  // HO 768: the page's clock, for the pinned card's market close check.
+  nowMs: number;
   // HO 767: which view opens. "map" unless the caller says otherwise.
   initialView?: "map" | "list";
   // HO 225 (additive, /races only): when provided, clicking an active state
@@ -497,7 +500,7 @@ export function CartogramShell({
                   ×
                 </button>
               </div>
-              <RaceMapCard contests={pinnedCell.contests} />
+              <RaceMapCard contests={pinnedCell.contests} nowMs={nowMs} />
             </div>
           ) : null}
         </>

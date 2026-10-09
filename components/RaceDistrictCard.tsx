@@ -103,7 +103,7 @@ function ChallengerRow({ c, openSeat }: { c: CartogramChallenger; openSeat?: boo
   );
 }
 
-function HeaderStrip({ contest, isOpen }: { contest: CartogramContest; isOpen: boolean }) {
+function HeaderStrip({ contest, isOpen, nowMs }: { contest: CartogramContest; isOpen: boolean; nowMs: number }) {
   return (
     <div className="rdc-header">
       <div className="rdc-idblock">
@@ -117,7 +117,7 @@ function HeaderStrip({ contest, isOpen }: { contest: CartogramContest; isOpen: b
         ) : (
           <MarginBar margin={contest.margin2024} />
         )}
-        <KalshiLine odds={contest.kalshiOdds} roster={rosterOf(contest)} />
+        <KalshiLine odds={contest.kalshiOdds} roster={rosterOf(contest)} nowMs={nowMs} />
         <SpreadBar
           cook={contest.raterSpread?.cook ?? null}
           sabato={contest.raterSpread?.sabato ?? null}
@@ -128,7 +128,7 @@ function HeaderStrip({ contest, isOpen }: { contest: CartogramContest; isOpen: b
   );
 }
 
-export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
+export function RaceDistrictCard({ contest, nowMs }: { contest: CartogramContest; nowMs: number }) {
   const isOpen = contest.isOpen ?? false;
   const challengers = contest.challengers ?? [];
   const incName = contest.incumbent?.name ?? null;
@@ -139,7 +139,7 @@ export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
   if (isOpen) {
     return (
       <div className="rdc">
-        <HeaderStrip contest={contest} isOpen />
+        <HeaderStrip contest={contest} isOpen nowMs={nowMs} />
         <div className="rdc-open">
           <div className="rdc-open-head">OPEN SEAT · NO INCUMBENT</div>
           <p className="rdc-open-explain">
@@ -189,7 +189,7 @@ export function RaceDistrictCard({ contest }: { contest: CartogramContest }) {
 
   return (
     <div className="rdc">
-      <HeaderStrip contest={contest} isOpen={false} />
+      <HeaderStrip contest={contest} isOpen={false} nowMs={nowMs} />
       <div className="rdc-incumbent">
         <Face url={contest.incumbentDepictionUrl} name={incName ?? "?"} party={contest.party} />
         <div className="rdc-inc-body">

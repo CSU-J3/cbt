@@ -73,12 +73,16 @@ export function surname(name: string): string {
 }
 export const nameKey = (name: string) => surname(name).toLowerCase();
 
-// A Kalshi market is "active" only if it exists and hasn't closed.
+// A Kalshi market is "active" only if it exists and hasn't closed. HO 768: a
+// client site passes its page's `nowMs`, so a market closing between the server
+// render and hydration can't flip a node (the HO 490 class); a server component
+// renders once and keeps the default.
 export function kalshiActive(
   odds: KalshiOdds | null | undefined,
+  nowMs: number = Date.now(),
 ): odds is KalshiOdds {
   if (!odds) return false;
-  if (odds.closeTime && Date.parse(odds.closeTime) < Date.now()) return false;
+  if (odds.closeTime && Date.parse(odds.closeTime) < nowMs) return false;
   return true;
 }
 
@@ -105,8 +109,9 @@ export function kalshiDivergesFromConsensus(
   odds: KalshiOdds | null | undefined,
   consensusScore: number | null,
   roster: RosterEntry[],
+  nowMs?: number,
 ): boolean {
-  if (!kalshiActive(odds)) return false;
+  if (!kalshiActive(odds, nowMs)) return false;
   if (consensusScore == null || consensusScore === 0) return false;
   const fav = resolveKalshiFavoriteParty(odds, roster);
   if (fav !== "R" && fav !== "D") return false;

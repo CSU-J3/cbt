@@ -454,7 +454,7 @@ export function RaceOpenRow({
               grid child), so the odds-off rule's display:none moves nothing.
               A called seat's market hides on the result (R6), not on its
               close time. */}
-          {row.result?.called ? null : <KalshiLine odds={row.kalshiOdds} roster={row.roster} />}
+          {row.result?.called ? null : <KalshiLine odds={row.kalshiOdds} roster={row.roster} nowMs={nowMs} />}
           {row.pac?.length ? (
             <div className="rl-blk rl-pac">
               <PacSpendingLine rows={row.pac} />
