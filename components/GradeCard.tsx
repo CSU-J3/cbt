@@ -11,7 +11,7 @@
 //   - leaving the chip gives the pointer 160ms to reach the card;
 //   - a click, a tap or Enter pins it, and a second one closes it; a touch
 //     never opens it by hover, so the tap that pins it is not undone by the
-//     synthesized pointer leave that follows (the Tooltip's touch defect);
+//     synthesized pointer leave that follows;
 //   - Tab from the chip reaches the card's link, and Tab from the link moves on
 //     past the chip; Shift+Tab goes back; Esc closes it and hands focus back;
 //   - it follows the chip as the list's box scrolls and closes once the chip is
