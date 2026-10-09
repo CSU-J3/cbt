@@ -14,6 +14,7 @@ import {
   readMemberFacts,
   readPalestinePools,
   readRaceResults,
+  readRecentRaceMoves,
   type BallotNewsItem,
   type GeneralBallots,
   type MemberFacts,
@@ -2440,11 +2441,17 @@ export type CompetitiveRace = {
 //     correlated subquery, so one pass yields both it and the LAG below;
 //   - `from` is `LAG(rating) OVER (PARTITION BY race_id, source ORDER BY
 //     observed_at)` — the same pair's previous rating;
-//   - `rn = 1` takes the latest row per RACE (several sources may have moved;
+//   - `rn = 1` took the latest row per RACE (several sources may have moved;
 //     the ratings line under the score bar carries all three current values
 //     regardless, so showing the latest one here loses nothing).
 // Parity was measured before anything was built on it (HO 684 STEP 0): 64 races
 // both shapes, 0 date mismatches against the query this replaces.
+//
+// HO 768: the read moved into readRecentRaceMoves (lib/electoral-general.ts,
+// pure of Next), and `rn = 1` gave way to the MOVED guard (lib/move-freshness.ts):
+// a race shows its newest move that the guard passes, so a rater's first run
+// after a gap no longer reads as that week's moves, and a race with no passing
+// move has no entry. Same key, same tag, same return.
 //
 // `from` is the baseline rating for a pair's FIRST real move, so it should never
 // be null — measured 0 of 64 at HO 684. The null branch in the renderer is
@@ -2465,46 +2472,7 @@ export type RaceMove = {
 };
 
 export const getRecentRaceMoves = unstable_cache(
-  async (raceIds: string[]): Promise<Record<string, RaceMove>> => {
-    if (raceIds.length === 0) return {};
-    const db = getDb();
-    const placeholders = raceIds.map(() => "?").join(",");
-    const rs = await db.execute({
-      sql: `WITH h AS (
-              SELECT rh.race_id, rh.source, rh.rating, rh.observed_at,
-                     LAG(rh.rating) OVER (
-                       PARTITION BY rh.race_id, rh.source ORDER BY rh.observed_at
-                     ) AS prev_rating,
-                     MIN(rh.observed_at) OVER (
-                       PARTITION BY rh.race_id, rh.source
-                     ) AS baseline_at
-              FROM rating_history rh
-              WHERE rh.race_id IN (${placeholders})
-            ),
-            m AS (
-              SELECT race_id, source, rating, prev_rating, observed_at,
-                     ROW_NUMBER() OVER (
-                       PARTITION BY race_id ORDER BY observed_at DESC, source DESC
-                     ) AS rn
-              FROM h
-              WHERE observed_at > baseline_at
-            )
-            SELECT race_id, observed_at AS last_move, source,
-                   rating AS to_rating, prev_rating AS from_rating
-            FROM m WHERE rn = 1`,
-      args: raceIds,
-    });
-    const out: Record<string, RaceMove> = {};
-    for (const r of rs.rows) {
-      out[r.race_id as string] = {
-        date: r.last_move as string,
-        source: r.source as string,
-        to: r.to_rating as string,
-        from: (r.from_rating as string | null) ?? null,
-      };
-    }
-    return out;
-  },
+  async (raceIds: string[]): Promise<Record<string, RaceMove>> => readRecentRaceMoves(getDb(), raceIds),
   ["getRecentRaceMoves"],
   { revalidate: 3600, tags: ["races"] },
 );

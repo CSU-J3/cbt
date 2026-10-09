@@ -1,6 +1,6 @@
 // HO 767 — THE GENERAL-WINDOW READS FOR /electoral's LIST, batched for the page
 // (mock-767 v18, ruled "as set"). Pure of Next, so the legs call what the page
-// runs; lib/queries.ts caches each read. Five reads, each one statement batch
+// runs; lib/queries.ts caches each read. Six reads, each one statement batch
 // for the whole page, never a query per row:
 //
 //   readGeneralBallots   every rated seat's ballot as the race page prints it:
@@ -29,9 +29,20 @@
 //   readRaceResults      HO 758's reading for every rated seat, with the marked
 //                        rows (lib/race-result.ts resultFromRows), for the day
 //                        after.
+//   readRecentRaceMoves  (HO 768) each race's newest rating move that the MOVED
+//                        guard passes (lib/move-freshness.ts); the dashboard's
+//                        race cards read it too.
 import type { Client, InValue } from "@libsql/client";
 import { findIncumbentOnBallot, normName, type BallotPerson } from "./ballot-incumbent";
 import { senateClassForCycle } from "./derive-term";
+import {
+  isFreshMove,
+  type GuardHorizons,
+  type HistoryRunRow,
+  type MoveChamber,
+  type SyncRunRow,
+} from "./move-freshness";
+import type { RaceMove } from "./queries";
 import { surname } from "./race-colors";
 import { resultFromRows, type MarkedRow, type RaceResultReading } from "./race-result";
 import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
@@ -638,6 +649,92 @@ export async function readRaceResults(db: Client, cycle: number): Promise<Record
       rows.get(id) ?? [],
       jungle.get(id) ?? [],
     );
+  }
+  return out;
+}
+
+// ---- HO 768: each race's newest move the MOVED guard passes ----------------
+
+// getRecentRaceMoves's read (lib/queries.ts caches it; /electoral's rows and the
+// dashboard's race cards both read it), here so the legs run what the page
+// runs. One batch: every post-baseline move for the ids, newest first per race,
+// not just the newest (a race whose newest move fails the guard shows its
+// newest move that passes, and a race with none has no entry); the ratings
+// sync's runs; the rating-history tick's successes; each route's first run.
+// lib/move-freshness.ts holds the rule. A move is any rating_history row later
+// than its (race, source) pair's first, which is the baseline (HO 272/684); the
+// order within a race is HO 684's, observed_at then source, both descending.
+export const RATINGS_SYNC_ROUTE = "/api/sync-race-ratings";
+export const RATING_HISTORY_ROUTE = "/api/cron/rating-history";
+
+export async function readRecentRaceMoves(db: Client, raceIds: string[]): Promise<Record<string, RaceMove>> {
+  if (raceIds.length === 0) return {};
+  const placeholders = raceIds.map(() => "?").join(",");
+  const [movesRs, syncRs, histRs, firstRs] = await db.batch(
+    [
+      {
+        sql: `WITH h AS (
+                SELECT rh.race_id, rh.source, rh.rating, rh.observed_at,
+                       LAG(rh.rating) OVER (
+                         PARTITION BY rh.race_id, rh.source ORDER BY rh.observed_at
+                       ) AS prev_rating,
+                       MIN(rh.observed_at) OVER (
+                         PARTITION BY rh.race_id, rh.source
+                       ) AS baseline_at
+                FROM rating_history rh
+                WHERE rh.race_id IN (${placeholders})
+              )
+              SELECT race_id, observed_at, source, rating AS to_rating, prev_rating AS from_rating
+                FROM h
+               WHERE observed_at > baseline_at
+               ORDER BY race_id, observed_at DESC, source DESC`,
+        args: raceIds,
+      },
+      {
+        sql: `SELECT started_at, status, payload FROM cron_runs WHERE route = ? ORDER BY started_at, id`,
+        args: [RATINGS_SYNC_ROUTE],
+      },
+      {
+        sql: `SELECT started_at, status FROM cron_runs WHERE route = ? AND status = 'success' ORDER BY started_at, id`,
+        args: [RATING_HISTORY_ROUTE],
+      },
+      {
+        sql: `SELECT route, MIN(started_at) AS first FROM cron_runs WHERE route IN (?, ?) GROUP BY route`,
+        args: [RATINGS_SYNC_ROUTE, RATING_HISTORY_ROUTE],
+      },
+    ],
+    "read",
+  );
+  const syncRuns: SyncRunRow[] = syncRs!.rows.map((r) => ({
+    startedAt: String(r.started_at),
+    status: String(r.status),
+    payload: str(r.payload),
+  }));
+  const historyRuns: HistoryRunRow[] = histRs!.rows.map((r) => ({ startedAt: String(r.started_at), status: String(r.status) }));
+  const firstOf = (route: string) => str(firstRs!.rows.find((r) => r.route === route)?.first);
+  const horizons: GuardHorizons = { sync: firstOf(RATINGS_SYNC_ROUTE), history: firstOf(RATING_HISTORY_ROUTE) };
+  // The verdict turns on the day and the chamber alone, so it is taken once per pair.
+  const verdicts = new Map<string, boolean>();
+  const out: Record<string, RaceMove> = {};
+  for (const r of movesRs!.rows) {
+    const raceId = String(r.race_id);
+    if (out[raceId]) continue;
+    const date = String(r.observed_at);
+    // lib/race-id.ts: a Senate id is S-<STATE>-<YYYY>.
+    const chamber: MoveChamber = raceId.startsWith("S-") ? "senate" : "house";
+    const key = `${date}|${chamber}`;
+    let fresh = verdicts.get(key);
+    if (fresh === undefined) {
+      fresh = isFreshMove(date, chamber, syncRuns, historyRuns, horizons);
+      verdicts.set(key, fresh);
+    }
+    if (!fresh) continue;
+    out[raceId] = {
+      date,
+      source: String(r.source),
+      to: String(r.to_rating),
+      from: str(r.from_rating),
+    };
   }
   return out;
 }
