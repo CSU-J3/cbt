@@ -51,6 +51,11 @@ const ALLOWED_TAGS = new Set([
   // /api/cron/general-ballot on a tick that wrote a READ; this entry is the
   // manual path after `npm run sync:general-ballot -- --write`.
   "general-ballot",
+  // HO 768: every reader of palestine_scorecard (getPalestineScorecard,
+  // getBallotMemberFacts, getPalestinePools, getAbsenceWatch, getMembersRanked,
+  // getCommitteeRoster; 6 readers). The tracker syncs by hand, so this entry is
+  // the one flush, the manual path after `npm run sync:palestine -- --write`.
+  "palestine",
 ]);
 
 export async function POST(request: Request) {

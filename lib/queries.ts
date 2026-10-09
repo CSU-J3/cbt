@@ -1486,7 +1486,7 @@ export const getPalestineScorecard = unstable_cache(
     };
   },
   ["getPalestineScorecard"],
-  { revalidate: 86400, tags: ["members"] },
+  { revalidate: 86400, tags: ["members", "palestine"] },
 );
 
 // ---- Primaries (handoff 91) ---------------------------------------------
@@ -2226,7 +2226,7 @@ export const getBallotMemberFacts = unstable_cache(
   async (bioguideIds: string[]): Promise<Record<string, MemberFacts>> =>
     readMemberFacts(getDb(), bioguideIds, getCurrentCongress()),
   ["getBallotMemberFacts"],
-  { revalidate: 3600, tags: ["members", "member-fundraising", "member-ideology", "votes"] },
+  { revalidate: 3600, tags: ["members", "member-fundraising", "member-ideology", "votes", "palestine"] },
 );
 
 // The observations about those members over the last 31 days (the page shows
@@ -2245,7 +2245,7 @@ export const getBallotNews = unstable_cache(
 export const getPalestinePools = unstable_cache(
   async (): Promise<PalestinePools> => readPalestinePools(getDb()),
   ["getPalestinePools"],
-  { revalidate: 86400, tags: ["members"] },
+  { revalidate: 86400, tags: ["members", "palestine"] },
 );
 
 // HO 758's reading for every rated seat, with its marked rows. Read only once
@@ -6096,7 +6096,7 @@ async function queryAbsenceWatch(): Promise<AbsenceWatch> {
 
 const absenceWatchCached = unstable_cache(queryAbsenceWatch, ["getAbsenceWatch"], {
   revalidate: 3600,
-  tags: ["votes"],
+  tags: ["votes", "palestine"],
 });
 
 // The degradation guard sits OUTSIDE the cache boundary, deliberately (HO 598):
@@ -7477,7 +7477,7 @@ export const getMembersRanked = unstable_cache(
   // expiry land a cold recompute inside a user request (the slow path that 500'd).
   // HO 535: +"votes" — the MISSED sort reads member_votes, so a votes sync must
   // flush this too (the getChamberParticipationContext precedent).
-  { revalidate: 86400, tags: ["members", "bills", "votes"] },
+  { revalidate: 86400, tags: ["members", "bills", "votes", "palestine"] },
 );
 
 // Distinct state codes among currently-serving members, alphabetical, for
@@ -7622,7 +7622,7 @@ export const getCommitteeRoster = unstable_cache(
   },
   ["getCommitteeRoster"],
   // HO 535: +"votes" — the MISSED sort reads member_votes (see getMembersRanked).
-  { revalidate: 86400, tags: ["committees", "bills", "votes"] },
+  { revalidate: 86400, tags: ["committees", "bills", "votes", "palestine"] },
 );
 
 // HO 335: type SponsorPassRate + getSponsorsRanked + getSponsorPassRates deleted

@@ -42,6 +42,7 @@ import {
   type MoveChamber,
   type SyncRunRow,
 } from "./move-freshness";
+import { PALESTINE_POOLS_KEY } from "./palestine-config";
 import type { RaceMove } from "./queries";
 import { surname } from "./race-colors";
 import { resultFromRows, type MarkedRow, type RaceResultReading } from "./race-result";
@@ -568,24 +569,49 @@ export async function readBallotNews(db: Client, bioguideIds: string[], sinceIso
 
 export type PalestinePools = { senate: number; house: number; syncedAt: string | null };
 
-// The grade's "#N of {pool}": the table's rows per chamber of the member they
-// score (the table holds no chamber of its own), and the last sync.
+// The grade's "#N of {pool}". HO 768: the pool is the graded rows the sync last
+// read off each chamber's tab (dashboard_state PALESTINE_POOLS_KEY, written by
+// `npm run sync:palestine -- --write`), not the rows it matched, so a member
+// the matcher misses never shrinks the denominator. Where the key has no count
+// for a chamber, the table's rows per chamber of the member they score (the
+// table holds no chamber of its own), as before. syncedAt is the last sync.
 export async function readPalestinePools(db: Client): Promise<PalestinePools> {
-  const rs = await db.execute(
-    `SELECT m.chamber AS chamber, COUNT(*) AS n, MAX(ps.synced_at) AS synced
-       FROM palestine_scorecard ps JOIN members m ON m.bioguide_id = ps.bioguide_id
-      GROUP BY m.chamber`,
+  const [rs, ks] = await db.batch(
+    [
+      `SELECT m.chamber AS chamber, COUNT(*) AS n, MAX(ps.synced_at) AS synced
+         FROM palestine_scorecard ps JOIN members m ON m.bioguide_id = ps.bioguide_id
+        GROUP BY m.chamber`,
+      { sql: `SELECT value FROM dashboard_state WHERE key = ?`, args: [PALESTINE_POOLS_KEY] },
+    ],
+    "read",
   );
   let senate = 0;
   let house = 0;
   let syncedAt: string | null = null;
-  for (const r of rs.rows) {
+  for (const r of rs!.rows) {
     if (r.chamber === "senate") senate = Number(r.n);
     if (r.chamber === "house") house = Number(r.n);
     const s = str(r.synced);
     if (s && (!syncedAt || s > syncedAt)) syncedAt = s;
   }
-  return { senate, house, syncedAt };
+  const read = trackerPools(str(ks!.rows[0]?.value));
+  return { senate: read.senate ?? senate, house: read.house ?? house, syncedAt };
+}
+
+// The key's graded count per chamber, or null where it carries none (a
+// missing key, a malformed value, a count that isn't a positive integer).
+function trackerPools(value: string | null): { senate: number | null; house: number | null } {
+  let v: unknown = null;
+  try {
+    v = value == null ? null : JSON.parse(value);
+  } catch {
+    v = null;
+  }
+  const graded = (c: "senate" | "house"): number | null => {
+    const n = (v as Record<string, { graded?: unknown } | undefined> | null)?.[c]?.graded;
+    return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : null;
+  };
+  return { senate: graded("senate"), house: graded("house") };
 }
 
 // ---- HO 758's reading for every rated seat ----------------------------------
