@@ -3744,6 +3744,25 @@ html[data-week-summary="collapsed"] .week-sentences-text {
 .battlefield {
   padding: 16px 8px 0;
 }
+/* HO 768: at phone width the band's axis does not fit, on the dashboard (behind
+   its Races tab) and on /electoral alike: its six featured labels and the tier
+   counts ran into each other at 430 ("AZ-01IA-01MI-SEN…", "15 RACES6 RACES").
+   Under 700px the axis and its legend give way, and the ELECTION DAY line, or
+   HO 758's RESULTS line, stands alone. Why 700: the featured labels sit
+   FEATURED_MIN_GAP, 9% of the axis, apart (components/Battlefield.tsx) and run
+   ~36px wide at this size, so they clear from about 500px of track; and 700 is
+   the band's own breakpoint, as .races-hero-band's. (HO 767 scoped this to
+   /electoral's `.electoral-band`; the dashboard's band ran together the same
+   way until it moved here.) */
+@media (max-width: 700px) {
+  .battlefield .ctl,
+  .battlefield .ctl-legend {
+    display: none;
+  }
+  .battlefield {
+    padding-bottom: 10px;
+  }
+}
 .ctl-head {
   display: flex;
   align-items: baseline;
@@ -9367,21 +9386,6 @@ a.rl-nm:hover,
 }
 .electoral-band:empty {
   display: none;
-}
-/* At phone width the band's axis does not fit: its six featured labels and the
-   tier counts run into each other (measured at 430: "AZ-01IA-01MI-SEN…",
-   "15 RACES6 RACES"). Here the axis and its legend give way and the ELECTION
-   DAY line stays. Scoped to /electoral: the dashboard's own band, behind its
-   Races tab, runs together the same way at that width, and HO 767's scope
-   guard leaves the dashboard as it was. */
-@media (max-width: 700px) {
-  .electoral-band .ctl,
-  .electoral-band .ctl-legend {
-    display: none;
-  }
-  .electoral-band .battlefield {
-    padding-bottom: 10px;
-  }
 }
 /* HO 619 (C1) — `justify-content: space-between` removed; the right-hand legend
    FOLLOWS the title rather than being thrown 1,960px across the band. */
