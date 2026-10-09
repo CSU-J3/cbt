@@ -515,6 +515,35 @@ test.describe("home /", () => {
     assertClean(c, "home horizontal scroll");
   });
 
+  // HO 768 — the band's phone rule sits on the band (`.battlefield`), so the
+  // dashboard's Races tab reads its ELECTION DAY line alone at phone width, as
+  // /electoral has since 8483000: at 430 the axis (`.ctl`) is hidden and the
+  // ELECTION DAY line (`.ctl-eday`, the RESULTS line after election day) shows.
+  // The 1440 half is the control: a rule that hid the axis at every width would
+  // pass the 430 half alone. No skip-on-empty: the races box is not optional on
+  // `/` (docs/method.md § Gates).
+  test("/ Races tab: at 430 the band reads its ELECTION DAY line alone, at 1440 its axis shows", async ({ page }) => {
+    const c = attachCollectors(page);
+    for (const width of [430, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await settle(page);
+      const tabs = page.locator("button.dv2-racesbox-tab");
+      await expect(tabs.first(), `races box tabs should render on / at ${width}`).toBeVisible({ timeout: 15_000 });
+      await tabs.filter({ hasText: "Races" }).first().click();
+      const band = page.locator(".dv2-racesbox-panel--races .battlefield").first();
+      await expect(band, `the band renders in the Races panel at ${width}`).toBeVisible({ timeout: 10_000 });
+      if (width === 430) {
+        await expect(band.locator(".ctl").first(), "under 700px the band's axis is hidden").toBeHidden();
+        await expect(band.locator(".ctl-eday").first(), "under 700px the ELECTION DAY line stays").toBeVisible();
+      } else {
+        await expect(band.locator(".ctl").first(), "at 1440 the band's axis shows (the control)").toBeVisible();
+      }
+    }
+    logClean("home-band-phone", c);
+    assertClean(c, "home band at phone width");
+  });
+
   // HO 673 — REPLACES "sponsor hover card renders inside the expand panel".
   //
   // The test this supersedes asserted the portrait appeared ON HOVER, and it
