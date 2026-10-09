@@ -3745,15 +3745,15 @@ html[data-week-summary="collapsed"] .week-sentences-text {
   padding: 16px 8px 0;
 }
 /* HO 768: at phone width the band's axis does not fit, on the dashboard (behind
-   its Races tab) and on /electoral alike: its six featured labels and the tier
-   counts ran into each other at 430 ("AZ-01IA-01MI-SEN…", "15 RACES6 RACES").
-   Under 700px the axis and its legend give way, and the ELECTION DAY line, or
-   HO 758's RESULTS line, stands alone. Why 700: the featured labels sit
-   FEATURED_MIN_GAP, 9% of the axis, apart (components/Battlefield.tsx) and run
-   ~36px wide at this size, so they clear from about 500px of track; and 700 is
-   the band's own breakpoint, as .races-hero-band's. (HO 767 scoped this to
-   /electoral's `.electoral-band`; the dashboard's band ran together the same
-   way until it moved here.) */
+   its Races tab) and on /electoral alike. Under 700px the axis and its legend
+   give way, and the ELECTION DAY line, or HO 758's RESULTS line, stands alone.
+   Why 700: the featured labels sit FEATURED_MIN_GAP, 9% of the axis, apart
+   (components/Battlefield.tsx) and run 30-36px wide at this size, so two of
+   them clear from 400px of track (36 / 0.09). Measured at HO 768 on the
+   dashboard: 4.7px of overlap on 348px of track at 430, none on 595px at 701;
+   the tier counts overlapped at neither. 700 is the band's own breakpoint, as
+   .races-hero-band's. (HO 767 scoped this to /electoral's `.electoral-band`;
+   the dashboard's band ran together until it moved here.) */
 @media (max-width: 700px) {
   .battlefield .ctl,
   .battlefield .ctl-legend {
