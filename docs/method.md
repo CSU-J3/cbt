@@ -56,6 +56,13 @@
 - **Enumerate-first where scope is uncertain:** STEP 0 produces a closure table
   (candidate · verdict · evidence `file:line` · destination) and **HALTS** for
   review before any file is created, edited or removed (HO 650 / 658 / 662).
+- **When the handoff carries the architect's closure table, STEP 0 is a check, not
+  a HALT** (Corey, HO 768, verbatim: *"pls stop stopping and waiting"*). The
+  architect enumerates from the clone at the base SHA and states each claim with
+  its `file:line`, and each measurement with its bound. Code re-derives them at
+  its HEAD and goes on through the build, legs, docs and review push unless one
+  fails; a failed claim, or a reading outside its bound, HALTs as before. Scope
+  the architect could not enumerate keeps the HALT.
 - **Probe before build.** New upstream: SKILL, "External data sources" — the
   probe → wire cadence, diagnostic-only probe handoff first. New premise of any
   kind: SKILL, "Pre-flight verification".
@@ -105,10 +112,11 @@ instead of a pasted block.** It supersedes the standing-instructions artifact th
 was pasted ahead of every handoff (HO 695).
 
 - **Before executing:** STEP 0 closure table, then HALT — nothing executes before
-  the table is read (§ Handoff discipline). Re-derive every line number at your
-  HEAD; a handoff's anchors are as-of its base SHA and any edit above them
-  invalidates them. Controls before zeros (§ Gates). Bare-substring greps — never
-  prefix-sweep, never quote-anchor.
+  the table is read — unless the handoff carries the architect's table, which
+  STEP 0 checks and HALTs on only when a claim fails (§ Handoff discipline).
+  Re-derive every line number at your HEAD; a handoff's anchors are as-of its
+  base SHA and any edit above them invalidates them. Controls before zeros
+  (§ Gates). Bare-substring greps — never prefix-sweep, never quote-anchor.
 - **When the handoff is wrong:** flag, don't absorb. A forced consequence of an
   approved change is not a widening; say which it is. A gate that is internally
   inconsistent, or a discriminator that cannot fire on this change, is a defect in
