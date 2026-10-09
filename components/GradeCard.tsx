@@ -2,7 +2,7 @@
 
 // HO 767 — the grade's card (mock-767 v18, GRADE AS chip; v9 to v12). The chip
 // is PalestineBadge; the card opens from it like the app's tooltip but can be
-// used: the Tooltip primitive (components/Tooltip.tsx, untouched) is
+// used: the Tooltip primitive (components/Tooltip.tsx) is
 // non-interactive by design — its panel is `pointer-events: none`
 // (app/globals.css `.tooltip-panel`), `role="tooltip"`, and closes on
 // mouseleave — so it cannot hold the tracker's link. This card can:
@@ -15,8 +15,8 @@
 //   - Tab from the chip reaches the card's link, and Tab from the link moves on
 //     past the chip; Shift+Tab goes back; Esc closes it and hands focus back;
 //   - it follows the chip as the list's box scrolls and closes once the chip is
-//     out of sight; and the list closes it whenever it re-renders
-//     (GRADE_CARDS_CLOSE_EVENT).
+//     out of sight (lib/in-sight.ts, the rule the Tooltip shares since HO 768);
+//     and the list closes it whenever it re-renders (GRADE_CARDS_CLOSE_EVENT).
 // Placed by computeTooltipPosition, styled as `.tooltip-panel`.
 import {
   useCallback,
@@ -28,6 +28,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { PalestineBadge } from "@/components/PalestineBadge";
+import { inSight } from "@/lib/in-sight";
 import {
   PALESTINE_TRACKER_NAME,
   isPalestineGrade,
@@ -120,25 +121,14 @@ export function GradeChip({
     graceTimer.current = setTimeout(() => close(), GRACE_MS);
   }, [clearGrace, close]);
 
-  // Is the chip in sight: inside the window, and inside the list's box below
-  // its pinned column heads when it sits in one.
-  const chipVisible = useCallback((): boolean => {
-    const chip = chipRef.current;
-    if (!chip || !chip.isConnected) return false;
-    const r = chip.getBoundingClientRect();
-    if (r.bottom <= 0 || r.top >= window.innerHeight || r.width === 0) return false;
-    const box = chip.closest<HTMLElement>("[data-scroll-box]");
-    if (!box || box.scrollHeight <= box.clientHeight) return true;
-    const b = box.getBoundingClientRect();
-    const heads = box.querySelector<HTMLElement>("[data-sticky-heads]");
-    return r.bottom > b.top + (heads?.offsetHeight ?? 0) && r.top < b.bottom;
-  }, []);
-
   const place = useCallback(() => {
     const chip = chipRef.current;
     const card = cardRef.current;
     if (!chip || !card) return;
-    if (!chipVisible()) {
+    // Is the chip in sight: inside the window, and inside the list's box below
+    // its pinned column heads when it sits in one (lib/in-sight.ts, HO 768: the
+    // Tooltip primitive closes on the same rule).
+    if (!inSight(chip)) {
       close();
       return;
     }
@@ -153,7 +143,7 @@ export function GradeChip({
         viewportHeight: window.innerHeight,
       }),
     );
-  }, [chipVisible, close]);
+  }, [close]);
 
   useLayoutEffect(() => {
     if (mode) place();

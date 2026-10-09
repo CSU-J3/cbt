@@ -16,6 +16,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { inSight } from "@/lib/in-sight";
 import {
   type TooltipPosition,
   computeTooltipPosition,
@@ -188,14 +189,22 @@ export function Tooltip(props: TooltipProps) {
 
   useEffect(() => () => clearHoverTimer(), [clearHoverTimer]);
 
-  useLayoutEffect(() => {
-    if (!open) {
-      setPosition(null);
-      return;
-    }
+  // HO 768: the placement is a callback. The panel is `position: fixed`, so
+  // placed once per open it stayed put while its trigger scrolled away. While
+  // open, a capture-phase scroll listener on the document (the page's scroll
+  // and any box's) and a resize listener on the window re-place it, and it
+  // closes once the trigger is out of sight, by the grade card's rule
+  // (lib/in-sight.ts). Nothing else changes: the 400ms delay, focus, Escape,
+  // `pointer-events: none`, `role="tooltip"`.
+  const place = useCallback(() => {
     const trigger = triggerRef.current;
     const panel = panelRef.current;
     if (!trigger || !panel) return;
+    if (!inSight(trigger)) {
+      clearHoverTimer();
+      setOpen(false);
+      return;
+    }
     const tr = trigger.getBoundingClientRect();
     const pr = panel.getBoundingClientRect();
     const pos = computeTooltipPosition({
@@ -212,7 +221,25 @@ export function Tooltip(props: TooltipProps) {
       preferBelow: props.preferBelow,
     });
     setPosition(pos);
-  }, [open, props.preferBelow]);
+  }, [clearHoverTimer, props.preferBelow]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+    place();
+  }, [open, place]);
+
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, place]);
 
   const sharedTriggerProps = {
     ref: triggerRef,
