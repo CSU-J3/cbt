@@ -5043,3 +5043,144 @@ The rest of the ruling: the payload at page load, trimmed; 76 members; the five 
 - **No SKILL edit:** HO 770 carries the ratings edits.
 - **OPEN LOOPS reconciled: 265 live / 333 struck at open (598), 266 / 333 (599) at close** (§ OPEN LOOPS: 64 → 65 live, 104 struck), control `^- \*\*~~` 0 at both.
 - **Also notes now run through HO 769.**
+
+**Also (HO 770), the ratings come from each rater's own source: Sabato's Crystal Ball, from its rating-changes page, is the first rater wired, and the MOVED guard reads the move's own rater.** Two STEP 0s, each HALTed, and the two rulings that followed; one reader per rater with Sabato wired; the guard per rater; four legs. Five commits on `769-review`'s head, kinds unmixed: `fix` (§ 1) · `fix` (§ 2) · `diag` · `docs` · `docs(skill)`, alone and last. No migration and no prod write: the FF go's `POST` is the deployed path's first read of Sabato's page. The pointer is 770 by plain arithmetic: pointer 769, highest HO in commit subjects 769, the HO stacked on `769-review`.
+
+**The source census** (`docs/handoffs/770-artifacts/`, repo-ignored).
+- **Ballotpedia:** the widget's GET is retired, and the table now comes from a POST that carries a signed per-page token, whose replay is ruled out (HO 769).
+- **Wikipedia, the architect's read of 2026-10-09:**
+  - The House ratings table dates its Cook, IE and Sabato columns Aug. 25, Aug. 20 and Aug. 26.
+  - Against Cook's own page, dated Oct 9, 19 of 28 sampled Cook cells differ, among them every House race in the 09-30 MOVED batch.
+  - The Senate table (Sep 17-23) is behind Cook's Oct 6 page and IE's Oct 1 file.
+  - **M3, mine to set beside it: not read.** HO 769's ruling dropped its P4, so I have no reading of my own, and M3 says not to read it now.
+- **Cook:**
+  - Its Terms & Conditions bar "any robot, spider, or other automatic device, process, or means to access the Website for any purpose". No code in this HO fetched cookpolitical.com.
+  - The API (`/api/race/{house|senate}`, HTTP Basic with an account, at most one call a day) is by request. Corey asked on 2026-10-09.
+- **Inside Elections, M1** (`m1/`):
+  - The export is linked under *Export → API*. `robots.txt` (200, 120 bytes) disallows only `/wp-admin/`.
+  - With § 1's agent, an 8s budget and an Accept per call, at 00:49-00:51Z: both pages answered **403 with 5,851 bytes**, and both export files **403 with 5,490**.
+  - The body is Cloudflare's *block* page, not a challenge. Ray IDs `a4819fc728037b15`, `a481a1d06efde65b`, `a481a1f02f9ee775` and `a481a20fdbca987c`.
+  - Claims 6-8 sit behind it, unread, and M2 couldn't run. **HALT.**
+- **Sabato, M4** (`m4/`):
+  - `robots.txt` bars only `/?s=`, `/?T=` and `/search/`. The footer names terms only as unlinked text.
+  - `/2026-house/` and `/2026-senate/` publish the ratings as PNG maps (Updated Oct. 8 and Oct. 6), and none of their 72 and 73 Playwright responses carries them.
+  - `/2026-rating-changes/` carries them as text: dated old → new tables, House 33 tables and 136 rows, Senate 20 and 26, governors 14 and 29.
+  - The RSS feed has no tables, and no page embeds another host's map.
+- **The STEP 0 ruling** (`770-step0-ruling.md`):
+  - IE stays unwired, and Corey writes to IE with the Ray IDs. There's no Vercel probe.
+  - Sabato's rating-changes page is the first rater wired. A change log is enough, since the store holds Ballotpedia's base of 09-30.
+  - My M4 deviation (footer terms, unreadable before the page) is accepted.
+- **S1, the page saved at 00:55Z with § 1's agent:**
+  - Three `<h2>` sections and 67 tables. The headers read `Senator` ×19, `Senate` ×1, `District` ×33 and `Governor` ×14, and each agrees with its heading.
+  - The old and new columns are found by header text in all 67.
+  - Every date form parses (`Oct. 6, 2026`, `Sept. 22, 2026`, `Sept 29, 2026`, `June 11, 2026`).
+  - 0 unparsed rows, no race twice on a date, and seven labels.
+  - **One table had no date: table 39.** It holds two House rows (AL-02 Likely R → Leans R, TX-34 Toss-up → Leans D) and sits directly under table 38 (*Sept 10, 2026*), with a newline between them. **HALT.**
+- **The S1 ruling** (`770-s1-ruling.md`): a table takes the date of the table above it, in the same section, when only whitespace separates the two, and any other table without its own date line throws. Table 39 takes Sept. 10. No oddity: it's one table, read by a rule.
+- **S2 under that rule** (prod by `SELECT`: 95 stored `sabato` rows, 103 races with a change row):
+  - **House, 88 races:**
+    - current 43;
+    - behind 13: CA-45, KY-06, ME-02, MO-02, MT-01, PA-07, VA-01, VA-02, VA-05 on 09-29, and FL-22, FL-25, NE-02, WI-01 on 10-08;
+    - new pair 3: CA-03, NC-03, OH-15;
+    - departure 2: CT-05, KS-03, Likely D → Safe D on 07-30;
+    - conflict 0;
+    - no row with a Safe newest label, 27.
+  - **Senate, 15 races:** current 11; behind 1 (S-AK, 10-06); new pair 1 (S-SC); departure 0; conflict 0; no row with a Safe newest label, 2 (S-FL, S-MT).
+  - **Before the rule,** AL-02 and TX-34 were the only conflicts, with House current at 41. The store holds their new labels, Lean R and Lean D, written by Ballotpedia with `rating_date` 2026-09-15.
+
+**What's wired.**
+1. **`fix` `06c29a7`, one reader per rater** (`lib/race-ratings-scrape.ts`, `lib/race-ratings-sync.ts`, the route header).
+   - **What goes:** the Ballotpedia transport. **What stays:** `Chamber`, `RatingSource`, `RATING_SCORE`, the locked labels, the scrape types and the 8s cap.
+   - **The agent and the fetch:** the agent is `CBT-ratings-sync/1.0 (+https://github.com/CSU-J3/cbt)`. `fetchSource` holds the cap over headers and body, takes an Accept per call, and throws `fetchError` on a non-2xx, with status 0 for our own timeout.
+   - **What's wired:** `WIRED` is `{house: ["sabato"], senate: ["sabato"]}`. `newScrapeRun` shares one run's fetches, so the page is fetched once per run.
+   - **`parseSabatoChanges(html, chamber)`:**
+     - A table is a chamber's when its section heading and its header's id cell both say so.
+     - Its date is its own date line, or by the S1 ruling the date of the table above it.
+     - Columns are found by header text. House ids come from `ST-N`, Senate ids from the one state named.
+     - Floors: House 100 and Senate 20 rows, with at most 2 unparsed. A race changed twice on one date throws.
+     - Each race's newest change is its current rating, carried with its chain.
+   - **`scrapeChamber`** runs the wired readers under `allSettled`.
+   - **The sync,** inside a leg and rater by rater: the chain check (a stored label nowhere in the race's chain is a conflict, warned and counted, not written), then upserts, then departures. Both predicates are unchanged, and each row cites its rater's page. A rater that didn't read fails the leg after the others have written.
+   - **`stats.raters.<source>`** for each rater that read, Sabato's with `conflicts`, `pageAsOf` and `unparsed`.
+   - `scripts/diagnostic/race-ratings-shape-742.ts` is deleted in this commit (below).
+2. **`fix` `94dc342`, the guard per rater** (`lib/move-freshness.ts`, `readRecentRaceMoves`):
+   - `syncLegOk(run, chamber, source?)` reads `stats.raters[source]` where a leg carries it. A pre-770 leg counts for every rater on the chamber reading.
+   - `isFreshMove` passes the source through, and the verdict key is `date|chamber|source`. P, the 8 days, `error` runs, the horizons and the fallback are unchanged.
+
+**The legs** (`legA.txt`, `legBD.txt`, `legB-run*.txt`, `legC-c1.txt` to `legC-c3.txt`, `legD-legE-768-unchanged.txt`), on Node 24.21.0.
+- **A, the shape** (`scripts/diagnostic/race-ratings-shape-770.ts`, on the saved page): **31 PASS · 0 FAIL.**
+  - Both chambers parse at the floors. House: 33 tables, 136 rows, 0 unparsed; current 59 competitive and 29 Safe. Senate: 20, 26, 0; current 13 and 2. The id sets don't intersect.
+  - **Control:** table 39 takes 2026-09-10 and is the only table that inherits, so AL-02 reads Lean R and TX-34 Lean D, both as of 09-10.
+  - **Edge:** a paragraph between tables 38 and 39 throws, *table 39 has no date: no date line between it and table 38, only "A note on these changes."*
+  - **First tables:** each section's first table (34, 0) without its date line throws, *no table above it in the section to take one from*.
+  - **Reach:** table 40 without its date line takes table 39's Sept. 10.
+  - **Mangles:**
+    - a heading removed throws, and the other chamber still parses;
+    - three House tokens removed throw, *133 rows minted a race id (floor 100) and 3 didn't (at most 2)*;
+    - every label unknown throws;
+    - one race twice on a date throws, naming it.
+  - **Swap:** with the headers swapped, table 34's four races read their old labels.
+  - **Counted:** one unparsed row is counted and listed, and one unknown label is counted with its race unwritten.
+  - **The fetch:** a local 404 throws `fetch <url> -> 404`, the request having carried the shipped agent and `Accept: text/html`. A silent host throws status 0 at 8,017 ms.
+- **B, the sync** (`scripts/diagnostic/ratings-source-770.ts`): **20 PASS** of the script's 30 · 0 FAIL.
+  - **The setup:** the route's handler (`wrapCronRoute` around `runRaceRatingsSync`) runs as a child against a `file:` copy, built by the real `scripts/migrate.ts` and seeded from prod by `SELECT`. The page is served from STEP 0's copy, once per run, to the shipped agent.
+  - **Run 1:** `success`, both legs `ok`. The copy's classes are S2's exactly, and the sync's counts equal them:
+    - House: unchanged 43, changed 13, new 3, deleted 2, conflicts `[]`;
+    - Senate: 11, 1, 1, 0, `[]`.
+  - **Every change** reads its newest label, with its change's date as `rating_date` and the page as `source_url`. For example, FL-22 goes Lean R (09-15) → Toss Up (10-08), and S-AK goes Toss Up (09-22) → Lean D (10-06).
+  - **Departures:** CT-05 and KS-03 left, each logging *Safe D (−3)*.
+  - **Rated races:** the House rated-race set stays at 86 (CA-03 and NC-03 in, CT-05 and KS-03 out), and the Senate's at 13.
+  - **Other raters:** every `cook` (87) and `inside_elections` (86) row is unchanged.
+  - **A second run** writes nothing.
+  - **The red:** two rows planted at *Toss Up*, which their chains never read: AL-02, which would be rewritten, and CA-01, which would be departed. Both are counted as conflicts, warned, and left as planted.
+  - **The live read** gave no answer within the cap (below).
+- **C, the hang and the split** (`scripts/diagnostic/ratings-hang-legs-744.ts` and its shim, rewritten in place; the build of this tree; a `file:` copy; one `sabato` row per chamber set back to an earlier label in its own chain):
+  - **c1, the page hangs: 11 PASS.** `error` in 8,026 ms naming house and senate, each as *sabato did not read: fetch …2026-rating-changes/ -> 0: no answer within the 8000ms per-fetch budget*. Health is red, and neither chamber wrote.
+  - **c2, served without its Senate heading: 9 PASS.** `error` naming senate (*table 0's heading says no chamber and its header says senate*). The House wrote: AL-02 restored, 17 upserts and 2 departures. The Senate is untouched.
+  - **c3, the cap removed: 10 PASS.** `timeout` at 55,014 ms, HTTP 504, health healthy, and nothing written.
+  - **One request per run:** in every run the hung host or the shim saw the page requested once, with the shipped agent.
+- **D, the guard: 9 PASS** of the script's 30.
+  - A planted pre-770 run and prod's #21278 each count for all three raters in both chambers, and the pre-HO 744 shape counts for all three in the House and none in the Senate.
+  - Leg B's own run 1, as `cron_runs` stored it, counts for sabato and not for cook or inside_elections, and still counts for the chamber.
+  - **Cook wired after three sabato-only weeks:** its first move (11-04) reads not fresh (S′ is 09-30), while sabato's reads fresh. The chamber reading alone would have passed cook's catch-up, which is the red § 2 removes.
+  - An `error` run counts for no rater.
+  - `electoral-legs-768.ts`'s leg E, unchanged, gives **11 PASS · 0 FAIL**. It runs from a harness that copies its own text, since the file exports nothing, and its prod read still matches HO 768's M1 distribution.
+  - On the copy, all 401 moves read the same with their source and without it, 3 of the 29 runs being post-770.
+- Prod's `race_ratings`, `rating_history` and ratings runs read the same before and after every leg.
+
+**Findings, flagged.**
+- **Sabato's origin went quiet from this box for a stretch** (`live-timing.txt`).
+  - **00:55Z:** the page answered from Cloudflare's edge in 60 ms (`HIT`, `max-age=28800`).
+  - **05:16-05:20Z:** it gave no answer within 8 (leg B's read), 60 or 125s, nor did `/crystalball/2026-house/` within 30s. `robots.txt` answered from the edge in 86 ms, with TLS in 25 ms.
+  - **05:30Z:** it answered from the origin in 245 ms (`BYPASS`, `no-store`), its 67 tables byte-identical to STEP 0's copy.
+  - **What it means:** the run's one fetch rests on the origin answering at 11:00Z. When it doesn't, the cap makes it `error` in both legs, which is loud, with nothing written. Filed in the rewritten WATCH. pdx1 is unmeasured.
+- **HO 744's second connection, read.** HO 744's oddity left it *unexplained*. c1 logged what each connection carried: the first held the one `GET`, and the second opened at the abort, 8.02s later, carrying no bytes. That is the HTTP client dialing a replacement when the abort tears the first socket down. c3, where nothing aborts, shows one. My first c1 run had asserted one socket and failed on it (`legC-c1-run1-note.txt`), so the assertion now counts requests.
+- **Deviations:**
+  - **`race-ratings-shape-742.ts` is deleted in the § 1 `fix`, not in `diag`:** it imports what § 1 deletes, so each commit compiles.
+  - **The route's budget line reads 8s for the run's one fetch.** HO 744's sums below it, taken at 2 × 8s per leg, are kept and said to overstate the fetch term by 8s.
+  - **The sync header's first sentence**, which said it scraped via Ballotpedia, is corrected.
+  - **`stats.raters.sabato` also carries `unparsed`.** `pageAsOf` is per chamber (House 2026-10-08, Senate 2026-10-06), `asOf` is the page's `article:modified_time` (2026-10-08T16:16:16+00:00), `dataUrl` is the page, and `conflicts` lists ids.
+  - **A table's chamber is read from its heading and its header's id cell,** and a disagreement throws. That cross-check is what lets c2's House parse a page whose Senate heading is gone, and it turns a House section filed under the governors' heading into a throw rather than a skip.
+  - **By the rule, the STEP 0 ruling's *a table's date removed* now throws only for a section's first table.** Leg A shows its reach mid-section.
+  - **Leg C's control removes the cap in the shim, by dropping `fetchSource`'s signal, not by building a draft.** Its perturbation is an earlier chain label, because a planted one would read as a conflict.
+  - **Leg D's planted cases name Sabato where the handoff named IE.**
+- **SKILL's Ballotpedia-era text still names `race-ratings-shape-742.ts`.** Edit 3 marks that text as the Ballotpedia era, so it stays as history, with no fifth edit.
+
+**Owed in the FF go:**
+- the FF to `770-review`'s head, which holds HO 769's commits and these;
+- `verify:deploy`, in the foreground;
+- the Production `e2e-prod`;
+- one `POST /api/sync-race-ratings` on Production;
+- HO 769's `POST /api/revalidate?tag=palestine`, with `$CRON_SECRET` by env name;
+- the prod reading.
+
+The `POST` is the deployed path's first read of Sabato's page. Expect `success` with both Sabato legs `ok`, the writes leg B made, and its moves reading not fresh, since Sabato's last read before it is #21278.
+
+**Docs (HO 770):**
+- This block.
+- **backlog, 3+/1−:** the ratings WATCH rewritten in place, unstruck (the one deletion): Sabato wired, IE's and Cook's rows at 09-30, the close on the first scheduled run after the FF, and this HO's reading of the page. Filed: Cook (API only, access asked 2026-10-09) and IE (Cloudflare's block page, the Ray IDs).
+- **oddities 8+:** the Wikipedia entry and the IE entry, each verbatim from its ruling.
+- **README 4+/2−:** the credits line replaced with the STEP 0 ruling's text, verbatim (the two deletions are the old line's two lines).
+- **SKILL, its own commit, last:** edits 1-3 as the STEP 0 ruling replaced them, with edit 2 carrying the S1 ruling's sentence after *(governors are skipped).*, and edit 4 as written. Every OLD string occurred once.
+- **OPEN LOOPS reconciled: 266 live / 333 struck at open (599), 268 / 333 (601) at close** (§ OPEN LOOPS: 65 → 67 live, 104 struck), control `^- \*\*~~` 0 at both.
+- **Also notes now run through HO 770.**

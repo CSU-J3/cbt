@@ -154,8 +154,10 @@ crawl), and `design-citations.yml`.
   commodities, VIX).
 - **Prediction markets** — [Kalshi](https://kalshi.com) and
   [Polymarket](https://polymarket.com) for race and chamber-control odds.
-- **Race ratings & candidates** — [Ballotpedia](https://ballotpedia.org) (which
-  aggregates Cook, Sabato, and Inside Elections).
+- **Race ratings** — [Sabato's Crystal Ball](https://centerforpolitics.org/crystalball/), read from its
+  published rating changes. Cook Political Report and Inside Elections ratings are as
+  [Ballotpedia](https://ballotpedia.org) last carried them, on 2026-09-30.
+- **Candidates** — [Ballotpedia](https://ballotpedia.org).
 - **Fundraising** — the [FEC](https://www.fec.gov/data/) API.
 - **Lobbying** — the [LDA API](https://lda.gov) (Lobbying Disclosure Act filings).
 - **Ideology & vote history** — [Voteview](https://voteview.com) (DW-NOMINATE).
