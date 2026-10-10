@@ -1,6 +1,9 @@
-// Race-ratings sync cron entry (handoff 88). Scrapes 2026 House AND Senate
-// Cook / Inside Elections / Sabato ratings from Ballotpedia weekly (HO 744;
-// House-only before that). Separate route + cron because the cadence is
+// Race-ratings sync cron entry (handoff 88). Reads 2026 House AND Senate race
+// ratings weekly (HO 744; House-only before that), one reader per rater since
+// HO 770: `WIRED` (lib/race-ratings-scrape.ts) names the raters each chamber
+// reads, today Sabato's Crystal Ball alone, from its rating-changes page, and
+// Cook's and Inside Elections' rows stand as Ballotpedia last wrote them on
+// 2026-09-30. Separate route + cron because the cadence is
 // weekly (Sabato updates mid-week) while /api/sync runs every 6h (`0 */6`, vercel.json), and the work is
 // unrelated to the bill pipeline.
 //
@@ -21,8 +24,10 @@
 //
 // THE BUDGET IS 55s, NOT THE 60 BELOW: wrapCronRoute races the handler against
 // DEFAULT_SOFT_TIMEOUT_MS (lib/cron-log.ts). The FETCH term is structural: at
-// most 2 × 8s per leg (a page answering just inside the cap, then a widget that
-// never does), legs overlapped = 16s. The WRITE term is measured, not bounded:
+// most 8s for the run (HO 770: one page, Sabato's, fetched once and shared by
+// both legs, answering just inside the cap or never). The sums below were
+// taken at HO 744's 2 × 8s per leg, legs overlapped = 16s, and so overstate
+// it by 8s. The WRITE term is measured, not bounded:
 // sequential Turso round trips, ~330 House (#19499) + ~75 on the Senate leg's
 // first run = ~405, or ~627 in a week where every rating moved. The wrapper's
 // own three writes (reaper, the row's INSERT, its finish) sit OUTSIDE the 55s

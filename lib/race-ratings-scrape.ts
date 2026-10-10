@@ -68,8 +68,41 @@
 // at zero extra cost. It is READ AND IGNORED here, and logged once per run as
 // `column present, not ingested`, so the decision to take it is a decision
 // somebody makes rather than one that happens.
+//
+// ── HO 770: ONE READER PER RATER, AND SABATO'S CHANGE LOG IS THE FIRST ──────
+//
+// The Ballotpedia transport is gone from this file. Its widget stopped
+// answering a plain GET: the ratings table now comes from a POST that carries
+// a signed per-page token (`wgBPWDeferToken`, HO 769 STEP 0), and replaying
+// that token is ruled out. The raters were then weighed one at a time:
+//  - Wikipedia's 2026 ratings tables lag the raters they cite. On 2026-10-09
+//    the House table dated its Cook, IE and Sabato columns Aug. 25, 20 and 26,
+//    and 19 of 28 sampled Cook cells differed from Cook's own page, so reading
+//    it would roll the store back and log the rollback as a move.
+//  - Cook's site is public, but its Terms & Conditions bar "any robot, spider,
+//    or other automatic device, process, or means to access the Website for
+//    any purpose". No code here fetches cookpolitical.com. Its API is by
+//    request, and access was asked for on 2026-10-09.
+//  - Inside Elections publishes its ratings as a JSON export under its ratings
+//    pages' Export → API, but Cloudflare answers this file's user agent with
+//    its block page (403, 2026-10-10). IE's reader waits on IE.
+//  - Sabato's Crystal Ball publishes its ratings pages as map images, and its
+//    rating-changes page as text: dated tables of old → new ratings for the
+//    House, the Senate and governors. That page is the one source wired.
+// A change log is enough because the store already holds a base, Ballotpedia's
+// reading of 2026-09-30: each race's newest change is the rater's current
+// rating, and a race with no change keeps the row it has. A stored row whose
+// label appears nowhere in its race's chain of changes can't be squared with
+// the log, so the sync sets it aside as a conflict rather than write over it
+// (lib/race-ratings-sync.ts).
+//
+// What HO 742-744 learned carries over: throws that carry their census,
+// absolute floors per chamber, a chamber passed and never inferred, departures
+// on evidence and never on absence, and the 8s cap. The user agent says what
+// it is. A source that refuses an honest fetcher is a finding to report, never
+// a reason to disguise the fetcher.
 
-import { stateAbbr } from "./states";
+import { STATE_ABBR_TO_NAME, isTerritorialState } from "./states";
 import { fetchError } from "./redact";
 
 // ── HO 744: THE CHAMBER IS A PARAMETER, BECAUSE A BARE STATE NAME IS NOT ────
@@ -100,75 +133,28 @@ import { fetchError } from "./redact";
 // remove it.
 //
 // So: the parser is TOLD its chamber. It is never inferred from the cell.
+//
+// HO 770: Sabato's page carries every chamber's tables, so the chamber also
+// picks which tables are read. A table is the chamber's only when its section
+// heading and its header's id cell both say so (parseSabatoChanges).
 export type Chamber = "house" | "senate";
 
-const HOUSE_URL =
-  "https://ballotpedia.org/United_States_House_of_Representatives_elections,_2026";
-const SENATE_URL = "https://ballotpedia.org/United_States_Senate_elections,_2026";
-
-// The page a chamber's ratings are discovered from, and the `source_url` its
-// rows cite. Writing the House page onto a Senate row would put the wrong
-// provenance on the rows whose entire defect was their provenance.
-const BALLOTPEDIA_URL: Record<Chamber, string> = {
-  house: HOUSE_URL,
-  senate: SENATE_URL,
-};
-
-// The widget's `office_type` query value, which is also what `discoverWidgetUrl`
-// matches on. Capitalized exactly as Ballotpedia writes it.
-const OFFICE_TYPE: Record<Chamber, string> = {
-  house: "House",
-  senate: "Senate",
-};
-
-// Browser-ish UA — Ballotpedia 202s a bare/automation UA.
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+// HO 770: the agent names the project and where to find it. The browser string
+// it replaced existed for Ballotpedia's 202 wall.
+const USER_AGENT = "CBT-ratings-sync/1.0 (+https://github.com/CSU-J3/cbt)";
 
 export type RatingSource = "cook" | "inside_elections" | "sabato";
 
-// HO 742: sources are located by HEADER TEXT, not by index. The substrings are
-// the shortest that identify a column unambiguously in the widget's header
-// (`District | Cook Political Report | Decision Desk | Inside Elections |
-// Sabato's Crystal Ball`) — "cook" would also match "Cook Partisan Voter Index"
-// on the wiki page, which is why the table is header-selected first.
-const SOURCE_MATCH: { needle: string; source: RatingSource }[] = [
-  { needle: "cook", source: "cook" },
-  { needle: "inside elections", source: "inside_elections" },
-  { needle: "sabato", source: "sabato" },
-];
-// HO 744: the id column's header token, per chamber. The House widget's first
-// column is `District`, the Senate's is `State`; everything to the right of it
-// is identical and is still located by SOURCE_MATCH.
-const ID_HEADER: Record<Chamber, string> = {
-  house: "district",
-  senate: "state",
-};
-
-// Ballotpedia preserves each rater's own vocabulary per column. Mapping to
-// the normalized labels already used in race_ratings (handoff 71's
-// RATING_SCORES vocabulary). The four partisan-locked labels — Cook/IE
-// "Solid" and Sabato "Safe" — map to null: Solid/Safe House seats are not
-// seeded (SKILL.md: 360+ partisan-locked rows of zero analytical value).
-// Inside Elections' "Tilt" tier maps through verbatim.
-//
-// HO 743 — A LOCKED CELL IS NOW EVIDENCE, NOT AN ABSENCE. `null` here still
-// means "do not seed this", and it now ALSO means "this rater says the seat is
-// out of play today", which is the one thing that can retire a row this sync
-// wrote months ago. The four are lifted out into LOCKED_LABEL below and
-// returned alongside the competitive ratings; nothing about the mapping moves.
-const NORMALIZE: Record<string, string | null> = {
-  "Solid Republican": null,
-  "Solid Democratic": null,
-  "Safe Republican": null,
-  "Safe Democratic": null,
-  "Likely Republican": "Likely R",
-  "Likely Democratic": "Likely D",
-  "Lean Republican": "Lean R",
-  "Lean Democratic": "Lean D",
-  "Tilt Republican": "Tilt R",
-  "Tilt Democratic": "Tilt D",
-  "Toss-up": "Toss Up",
+// HO 770 — THE RATERS EACH CHAMBER READS. Sabato's Crystal Ball, from its
+// rating-changes page, for both chambers. Inside Elections is not wired:
+// Cloudflare answers this file's agent with its block page, and its reader
+// waits on IE allowing the agent. Cook is not wired: its terms bar automated
+// access to the site, and its reader waits on the API access asked for on
+// 2026-10-09. An unwired rater's rows are left exactly as they are: no
+// upserts, no departures, and their `rating_date` shows their age.
+export const WIRED: Record<Chamber, readonly RatingSource[]> = {
+  house: ["sabato"],
+  senate: ["sabato"],
 };
 
 // Score for the normalized label — mirrors scripts/seed-race-ratings.ts.
@@ -183,9 +169,9 @@ const RATING_SCORE: Record<string, number> = {
   "Tilt R": 1,
   "Lean R": 1,
   "Likely R": 2,
-  // HO 743: the partisan-locked ends of the same scale. These are never
-  // produced by `parseRatingCell` (NORMALIZE sends the four labels to null);
-  // they are here so the DEPARTURE row a locked cell writes is scored by the
+  // HO 743: the partisan-locked ends of the same scale. These never reach a
+  // ScrapedRating (a locked label goes to `locked`, LOCKED below); they are
+  // here so the DEPARTURE row a locked cell writes is scored by the
   // same map as every other row, and they carry the values the seeder already
   // assigns (scripts/seed-race-ratings.ts — "Solid D"/"Safe D" -3, "Solid R"/
   // "Safe R" 3). NOT 0: 0 is Toss Up's, so a seat going safe would otherwise
@@ -196,46 +182,37 @@ const RATING_SCORE: Record<string, number> = {
   "Safe R": 3,
 };
 
-// HO 743: the rater's own word for a locked seat, kept verbatim so the
-// departure row says "Solid R" where Cook/IE said it and "Safe D" where Sabato
-// did. Keys are exactly the NORMALIZE entries that map to null — a label in one
-// and not the other is a bug, which `race-ratings-shape-742.ts` asserts.
-const LOCKED_LABEL: Record<string, string> = {
-  "Solid Republican": "Solid R",
-  "Solid Democratic": "Solid D",
-  "Safe Republican": "Safe R",
-  "Safe Democratic": "Safe D",
-};
+// HO 743's locked-label idea, kept. A label at either partisan-locked end is
+// the rater saying the seat is out of play: evidence that can retire a row
+// (applyDepartures, lib/race-ratings-sync.ts), never a rating to seed. Cook
+// and IE say Solid; Sabato says Safe.
+const LOCKED = new Set(["Solid D", "Solid R", "Safe D", "Safe R"]);
 
-// HO 744 — THE PARSED-ROW FLOOR IS PER CHAMBER, AND SO IS ITS TOLERANCE.
-//
-// This is the one of the four throws that could NOT be left alone. It read
-// `parsedRows < EXPECTED_HOUSE_ROWS - 5` — a hard 430 — so a 35-row Senate
-// table fails it unconditionally, forever, on every run. The header throw
-// fires first today, which is exactly why the floor stays invisible until the
-// header token is fixed and then becomes a permanent error.
-//
-// The tolerance is absolute and per chamber, NOT proportional: `-5` on 435 is
-// a stray spacer row, and the same 5 on 35 would swallow six missing states
-// without a sound. Senate is `0` — the widget renders every seat in the cycle
-// or the shape changed, and there is no spacer row to forgive. Measured at
-// HO 744 STEP 0: 435 House rows, 35 Senate rows, 0 unparsed in either.
-const EXPECTED_ROWS: Record<Chamber, number> = { house: 435, senate: 35 };
-const ROW_FLOOR_TOLERANCE: Record<Chamber, number> = { house: 5, senate: 0 };
+/** HO 770 — one step in a change-log rater's chain for a race. */
+export type RatingChange = {
+  date: string; // YYYY-MM-DD, the date of the change's table
+  from: string | null; // normalized; null when outside the vocabulary
+  to: string | null;
+};
 
 export type ScrapedRating = {
   raceId: string; // e.g. "CA-22-2026"
   source: RatingSource;
   rating: string; // normalized: "Lean R" | "Toss Up" | "Tilt D" | ...
   ratingScore: number;
-  rawRating: string; // exactly as Ballotpedia rendered it
+  rawRating: string; // exactly as the rater's page rendered it
   // HO 742: the widget's caption carries Ballotpedia's own as-of date ("2026
   // U.S. House Race Ratings as of September 15, 2026"). The wiki page gave
   // nothing better than the scrape date, so `race_ratings.rating_date` has
   // always been "when we looked"; now it can be "what they published". NULL
   // when the caption does not parse — the sync falls back to the scrape date,
   // which is exactly today's behaviour, so the fallback degrades nothing.
+  // HO 770: for Sabato, the date of the race's newest change.
   asOfDate: string | null; // YYYY-MM-DD
+  // HO 770: a change-log rater's every change for this race, oldest first.
+  // The sync checks the stored row against it before writing; absent for a
+  // rater whose source is a table of current ratings.
+  chain?: readonly RatingChange[];
 };
 
 /**
@@ -247,30 +224,29 @@ export type ScrapedRating = {
  * DELETE safe: the sync retires a row on an explicit statement, never on an
  * absence. An empty cell, a missing row and a source whose column vanished for
  * a week are all absences and none of them appears here.
+ *
+ * HO 770: for Sabato, a race whose newest change moved it to Safe, which is the
+ * rater saying so on that change's date. A race the log never mentions is an
+ * absence and appears nowhere.
  */
 export type LockedCell = {
   raceId: string;
   source: RatingSource;
   label: string; // the rater's own word, normalized: "Solid R" | "Safe D" | ...
   ratingScore: number; // ±3 — the locked ends of the same scale (RATING_SCORE)
-  rawRating: string; // exactly as Ballotpedia rendered it
-  asOfDate: string | null; // the caption's date, as on ScrapedRating
+  rawRating: string; // exactly as the rater's page rendered it
+  asOfDate: string | null; // as on ScrapedRating
+  chain?: readonly RatingChange[]; // as on ScrapedRating
 };
 
 /**
- * What one parse of the widget yields. `ratings` is what it has always been
- * and is byte-identical in shape; the other two are HO 743.
+ * What a read yields: the competitive ratings, and (HO 743) the locked cells
+ * and the raters they came from.
  *
- * `sourcesPresent` is the list of raters whose header cell MATCHED, and the
- * sync refuses to delete for a source outside it. Say plainly what it is worth
- * today: past the missing-columns throw above, all three columns matched by
- * construction, so this is always the full set and the per-source guard the
- * backlog line asked for is ALREADY HELD BY THAT THROW — a rater's column
- * dropping out of the widget errors the tick instead of deleting that rater's
- * every row. It is returned and checked anyway because the delete must not
- * inherit its safety from a throw two hundred lines away that a later edit
- * could narrow; if that throw ever becomes per-source, this is where the
- * deletion stops.
+ * `sourcesPresent` is the list of raters that read, and the sync refuses to
+ * delete for a source outside it. HO 770: from `scrapeChamber` it is exactly the
+ * wired raters whose read succeeded, so a rater that failed deletes nothing
+ * and its leg fails after the others have written.
  */
 export type RatingsScrape = {
   ratings: ScrapedRating[];
@@ -295,13 +271,23 @@ export type RatingsScrape = {
 // 4.3-5.0 s. The arithmetic that picks 8s is in the route header. The signal
 // errors `res.text()` too, so a stalled body is bounded (measured HO 744 on
 // Node 25; the deployed runtime is 24.x).
+//
+// HO 770: a run makes one fetch, Sabato's page, and both legs share it
+// (newScrapeRun). A hang therefore fails both legs inside the one cap, and a
+// page that arrives but doesn't parse for a chamber fails only that leg.
 const FETCH_TIMEOUT_MS = 8_000;
 
-async function fetchHtml(url: string): Promise<string> {
+/**
+ * Every reader's fetch: this file's agent, an `Accept` per call, the 8s budget
+ * over headers and body, and `fetchError` on a non-2xx answer, or with status 0
+ * on our own timeout. Exported so the shape diagnostic's controls run it
+ * against local servers.
+ */
+export async function fetchSource(url: string, accept: string): Promise<string> {
   const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+      headers: { "User-Agent": USER_AGENT, Accept: accept },
       redirect: "follow",
       signal,
     });
@@ -318,324 +304,418 @@ async function fetchHtml(url: string): Promise<string> {
   }
 }
 
-// Decode the handful of HTML entities Ballotpedia emits inside cells.
+/**
+ * HO 770 — one run's fetches. Both chambers read the same page, so a run
+ * fetches it once and both legs await the same answer: a hang costs the cap
+ * once and fails both legs inside it, while each chamber still parses on its
+ * own.
+ */
+export type ScrapeRun = { get(url: string, accept: string): Promise<string> };
+
+export function newScrapeRun(): ScrapeRun {
+  const inflight = new Map<string, Promise<string>>();
+  return {
+    get(url, accept) {
+      const key = `${accept} ${url}`;
+      let p = inflight.get(key);
+      if (!p) {
+        p = fetchSource(url, accept);
+        inflight.set(key, p);
+      }
+      return p;
+    },
+  };
+}
+
+// Decode the handful of HTML entities the page emits in cells and headings.
 function decodeEntities(s: string): string {
   return s
-    .replace(/&#0?39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/&nbsp;/g, " ")
-    .trim();
+    .replace(/&#0?39;|&#x27;|&#8217;|&rsquo;/gi, "'")
+    .replace(/&nbsp;|&#160;|&#xa0;/gi, " ")
+    .replace(/&amp;/g, "&");
 }
 
 function stripTags(s: string): string {
-  return decodeEntities(s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
-// District cell text is "Alabama District 1" for multi-seat states and the bare
-// state name ("Alaska") for at-large. Measured on the widget at HO 742: 429 of
-// the former, 6 of the latter, 0 unmatched.
-//
-// HO 742 — AT-LARGE SEATS ARE IN SCOPE NOW. This used to return null for them,
-// on the comment "no race row exists for at-large states — backfill:races skips
-// NULL-district members, same as handoff 84". That premise was RETIRED BY HO
-// 711, which mints `{ST}-AL-{YYYY}` for the six at-large states and gives each
-// one a `races` row; the drop survived it by four HOs. All three raters have
-// `AK-AL-2026` at Likely R, and it had never received a synced rating.
-//
-// Only one new branch, deliberately. The "Alabama's 1st" form belongs to the
-// Cook PVI table, not this one, and teaching the parser a form the source does
-// not use would hide the next shape change inside a successful parse — a form
-// this does not know surfaces as a floor breach, which is the signal wanted.
-// HO 744: RENAMED, BEHAVIOUR UNCHANGED. Every line below is what `toRaceId`
-// did before, byte for byte; the name now says which chamber's ids it mints,
-// because the bare-state branch is the ambiguity documented at CHAMBER above —
-// this function will happily turn a SENATE widget's "Alaska" into
-// `AK-AL-2026`, a live House race. It is only ever called with House cells.
-function toHouseRaceId(districtCell: string): string | null {
-  const text = stripTags(districtCell);
-  const m = text.match(/^(.+?) District (\d{1,2})$/);
-  if (m?.[1] && m[2]) {
-    const abbr = stateAbbr(m[1]);
-    return abbr ? `${abbr}-${m[2].padStart(2, "0")}-2026` : null;
-  }
-  // Bare state name, or an explicit at-large label.
-  const bare = text.replace(/'s At-Large$/i, "").replace(/ At-Large$/i, "").trim();
-  const abbr = stateAbbr(bare);
-  return abbr ? `${abbr}-AL-2026` : null;
-}
+// ── HO 770: Sabato's Crystal Ball, from its rating-changes page ─────────────
 
-// HO 744 — the Senate id form, `S-{ST}-2026` (lib/race-id.ts; the seed files
-// and `races` agree).
-//
-// ONE FORM, AND NOTHING ELSE. Measured at STEP 0 against the 2026-09-15
-// widget: all 35 `State` cells are bare state names — no "Florida (Special)",
-// no parenthetical of any kind — and FL and OH appear exactly once each, so
-// the special-election collapse the cook seed's `note` warns about
-// (`races` keys Senate seats by next_election_year alone, so a regular AND a
-// special row for one state would both mint `S-{ST}-2026` and the second
-// would silently overwrite the first) IS NOT LIVE. It is one Ballotpedia
-// re-render away from being live, so a cell this does not recognize returns
-// null and is counted as an unparsed row — which trips the Senate floor's
-// zero tolerance and throws — rather than being guessed at. A shape this does
-// not know must surface as a failure, never inside a successful parse.
-function toSenateRaceId(stateCell: string): string | null {
-  const text = stripTags(stateCell);
-  const abbr = stateAbbr(text);
-  return abbr ? `S-${abbr}-2026` : null;
-}
+/** The page Sabato's ratings are read from, and the `source_url` its rows cite. */
+export const SABATO_CHANGES_URL = "https://centerforpolitics.org/crystalball/2026-rating-changes/";
 
-const TO_RACE_ID: Record<Chamber, (cell: string) => string | null> = {
-  house: toHouseRaceId,
-  senate: toSenateRaceId,
+// Sabato's words as the Old Rating and New Rating columns print them, to the
+// normalized labels race_ratings already holds. Measured at STEP 0 (S1,
+// 2026-10-10): these seven and no others. "Leans" is the store's "Lean", and
+// Safe D and Safe R are the locked ends. Any other label is counted and never
+// written, so a race whose newest label is one keeps the row it has.
+const SABATO_LABEL: Record<string, string> = {
+  "Safe Democratic": "Safe D",
+  "Likely Democratic": "Likely D",
+  "Leans Democratic": "Lean D",
+  "Toss-up": "Toss Up",
+  "Leans Republican": "Lean R",
+  "Likely Republican": "Likely R",
+  "Safe Republican": "Safe R",
 };
 
-// Parse one rating cell into a normalized ScrapedRating, or null when the
-// cell is Solid/Safe (skipped) or an unrecognized vocabulary (warned).
-function parseRatingCell(
-  raceId: string,
-  source: RatingSource,
-  cellHtml: string,
-): Omit<ScrapedRating, "asOfDate"> | null {
-  const rawRating = stripTags(cellHtml);
-  const normalized = NORMALIZE[rawRating];
-  if (normalized === undefined) {
-    // Vocabulary we didn't expect — worth a log. Empty cells (a rater
-    // hasn't rated the seat) are common and silently skipped.
-    if (rawRating) {
-      console.warn(`  unknown ${source} rating "${rawRating}" for ${raceId}`);
-    }
-    return null;
+// The floors, per chamber and absolute, for HO 744's reason: a proportional
+// tolerance forgives a different number of missing rows in each chamber. A
+// change log only grows (136 House rows and 26 Senate on 2026-10-08), so a
+// floor under today's count still catches a page that lost most of a section.
+// Apart from the floor, at most UNPARSED_MAX rows per chamber may mint no race
+// id, or two: one or two odd cells are a typo, more are a change of shape.
+const MIN_ROWS: Record<Chamber, number> = { house: 100, senate: 20 };
+const UNPARSED_MAX = 2;
+
+type Section = Chamber | "governor";
+
+// The section headings, as the page writes them: `<h2>`s reading "Senate
+// rating changes", "Governor rating changes" and "House rating changes".
+const SECTION_HEADING = /^(Senate|Governor|House) rating changes$/i;
+
+// What a header row says its table is, by the id column's own text: `District`
+// for the House, `Senator` (once, `Senate`) for the Senate, `Governor` for
+// governors.
+function sectionOfHeaderCell(text: string): Section | null {
+  switch (text.toLowerCase()) {
+    case "district":
+      return "house";
+    case "senator":
+    case "senate":
+      return "senate";
+    case "governor":
+      return "governor";
+    default:
+      return null;
   }
-  if (normalized === null) return null; // Solid/Safe — not seeded
-  return {
-    raceId,
-    source,
-    rating: normalized,
-    ratingScore: RATING_SCORE[normalized] ?? 0,
-    rawRating,
-  };
 }
 
+// A date line's text, in the forms the page uses ("Oct. 8, 2026", "Sept. 22,
+// 2026", "Sept 29, 2026", "June 11, 2026"), as YYYY-MM-DD; anything else null.
+const MONTH: Record<string, number> = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
+  may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11,
+  dec: 12, december: 12,
+};
+function parseChangeDate(text: string): string | null {
+  const m = /^([A-Za-z]+)\.? (\d{1,2}), (\d{4})$/.exec(text);
+  const month = m ? MONTH[m[1]!.toLowerCase()] : undefined;
+  if (!m || month === undefined) return null;
+  const day = Number(m[2]);
+  const d = new Date(Date.UTC(Number(m[3]), month - 1, day));
+  if (d.getUTCMonth() !== month - 1 || d.getUTCDate() !== day) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+const isState = (abbr: string) => abbr in STATE_ABBR_TO_NAME && !isTerritorialState(abbr);
+
+// A House row names its seat as `ST-N` or `ST-AL` ("Bryan Steil (R, WI-1)",
+// "NE-2 Open (Bacon, R)", "FL-22 (New)") and mints `{ST}-{NN|AL}-2026`.
+function houseIds(cell: string): string[] {
+  const ids = [...cell.matchAll(/\b([A-Z]{2})-(\d{1,2}|AL)\b/g)]
+    .filter((m) => isState(m[1]!))
+    .map((m) => `${m[1]}-${m[2] === "AL" ? "AL" : m[2]!.padStart(2, "0")}-2026`);
+  return [...new Set(ids)];
+}
+
+// A Senate row names its state once ("Dan Sullivan (R-AK)", "IA Open (Ernst,
+// R)") and mints `S-{ST}-2026`.
+function senateIds(cell: string): string[] {
+  const ids = [...cell.matchAll(/(?:^|[\s(,-])([A-Z]{2})(?=$|[\s),-])/g)]
+    .map((m) => m[1]!)
+    .filter(isState)
+    .map((st) => `S-${st}-2026`);
+  return [...new Set(ids)];
+}
+
+/** A House or Senate row that minted no race id, or two. */
+export type UnparsedRow = { table: number; date: string; cell: string };
+
+export type SabatoChanges = RatingsScrape & {
+  // This chamber's tables, by their index among the page's tables.
+  tables: { index: number; date: string; inherited: boolean; rows: number }[];
+  rows: number; // rows that minted exactly one race id
+  unparsed: UnparsedRow[];
+  unknown: Record<string, number>; // labels outside the vocabulary, old and new, with counts
+  pageAsOf: string | null; // the newest of this chamber's table dates
+};
+
 /**
- * Find the ratings widget the page defers to, for one chamber.
+ * Sabato's rating-changes page, read for one chamber. Pure, and exported so the
+ * shape diagnostic runs the shipped parser on the saved page and its mangled
+ * copies.
  *
- * Matched on two substrings of the `data-url` — `race-ratings-full-table` and
- * `office_type=<Chamber>` — and never on the div's id, which is a generated
- * hash (`bpw-94f2ef45`) that will not survive a re-render. Exactly one must
- * match. HO 744: the office-type half is a parameter; both chamber pages carry
- * exactly one such div, measured at STEP 0. (The gubernatorial page carries an
- * `office_type=Governor` one too — out of scope, since `races` has no governor
- * rows for a rating to land on.)
+ * Each table is one date's changes, a row per race: the id cell, then the old
+ * and new ratings. A race's chain is its rows across the tables, oldest first,
+ * and its newest change is Sabato's current rating for it: a competitive label
+ * goes to `ratings` and a Safe one to `locked`, each dated by its table. A race
+ * the page never mentions appears in neither.
  */
-export function discoverWidgetUrl(pageHtml: string, chamber: Chamber): string {
-  const officeType = OFFICE_TYPE[chamber];
-  const urls = [...pageHtml.matchAll(/data-url="([^"]+)"/g)].map((m) =>
-    decodeEntities(m[1] ?? ""),
-  );
-  const hits = urls.filter(
-    (u) => u.includes("race-ratings-full-table") && u.includes(`office_type=${officeType}`),
-  );
-  if (hits.length !== 1) {
-    throw new Error(
-      `Ballotpedia ${officeType} page: expected exactly 1 race-ratings widget data-url ` +
-        `(office_type=${officeType}), found ${hits.length}. ` +
-        `data-urls on the page: ${urls.length ? urls.join(" | ") : "(none)"}`,
-    );
-  }
-  return hits[0]!;
-}
-
-/** The caption's "as of <Month D, YYYY>", or null when it does not parse. */
-const MONTHS = [
-  "january", "february", "march", "april", "may", "june",
-  "july", "august", "september", "october", "november", "december",
-];
-// HO 744: `chamber` only tags the warnings. The two scrapes now overlap, so a
-// line's position in the log no longer says which widget it came from; the tag
-// goes on the END so the quoted form every doc greps for is unchanged.
-export function captionAsOfDate(widgetHtml: string, chamber?: Chamber): string | null {
-  const tag = chamber ? ` (${chamber})` : "";
-  const cap = widgetHtml.match(/<caption[^>]*>([\s\S]*?)<\/caption>/);
-  const text = cap ? stripTags(cap[1] ?? "") : "";
-  const m = text.match(/as of ([A-Za-z]+) (\d{1,2}),\s*(\d{4})/i);
-  if (!m) {
-    if (text) console.warn(`  caption did not parse an as-of date: "${text}"${tag}`);
-    return null;
-  }
-  const mo = MONTHS.indexOf(m[1]!.toLowerCase());
-  if (mo === -1) {
-    console.warn(`  caption month not recognized: "${text}"${tag}`);
-    return null;
-  }
-  return `${m[3]}-${String(mo + 1).padStart(2, "0")}-${m[2]!.padStart(2, "0")}`;
-}
-
-/**
- * Parse the widget's ratings table. Separated from the fetch so the HO 742
- * shape diagnostic can run the SHIPPED parser against saved and mangled
- * fixtures — a parser only ever exercised through the network is a parser whose
- * failure modes are only ever seen in production.
- */
-export function parseRatingsTable(widgetHtml: string, chamber: Chamber): RatingsScrape {
-  const idHeader = ID_HEADER[chamber];
-  const toRaceId = TO_RACE_ID[chamber];
-  const tables = [...widgetHtml.matchAll(/<table[\s\S]*?<\/table>/g)].map((m) => m[0]);
-  const headerOf = (t: string): string[] => {
-    const thead = t.match(/<thead>([\s\S]*?)<\/thead>/);
-    const scope = thead ? thead[1]! : t;
-    const firstRow = scope.match(/<tr[^>]*>[\s\S]*?<\/tr>/);
-    if (!firstRow) return [];
-    return (firstRow[0].match(/<t[hd][^>]*>[\s\S]*?<\/t[hd]>/g) ?? []).map(stripTags);
-  };
-
-  // (1) THE TABLE IS SELECTED BY ITS HEADER.
-  const matched = tables
-    .map((t, i) => ({ t, i, header: headerOf(t) }))
-    .filter(({ header }) => {
-      const joined = header.join(" | ").toLowerCase();
-      return SOURCE_MATCH.every(({ needle }) => joined.includes(needle));
-    });
-  if (matched.length !== 1) {
-    throw new Error(
-      `race-ratings widget (${chamber}): expected exactly 1 table whose header names Cook, Inside Elections and Sabato, ` +
-        `found ${matched.length} of ${tables.length} tables. Headers seen: ` +
-        (tables.length
-          ? tables.map((t, i) => `[${i}] ${headerOf(t).join(" / ") || "(no header)"}`).join(" ;; ")
-          : "(no tables)"),
-    );
-  }
-  const { t: table, header } = matched[0]!;
-
-  // (2) THE COLUMN INDICES COME FROM THAT HEADER. No fallback to literals.
-  // HO 744: the id column's token is the chamber's — `district` or `state`.
-  const districtCol = header.findIndex((h) => h.toLowerCase().includes(idHeader));
-  const sourceCols = SOURCE_MATCH.map(({ needle, source }) => ({
-    source,
-    index: header.findIndex((h) => h.toLowerCase().includes(needle)),
+export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChanges {
+  const where = `Sabato rating changes (${chamber})`;
+  const headings = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => ({
+    at: m.index ?? 0,
+    end: (m.index ?? 0) + m[0].length,
+    text: stripTags(m[1] ?? ""),
   }));
-  const missing = [
-    ...(districtCol === -1 ? [idHeader] : []),
-    ...sourceCols.filter((c) => c.index === -1).map((c) => c.source),
-  ];
-  if (missing.length) {
-    throw new Error(
-      `race-ratings widget (${chamber}): header matched the table but not its columns — missing ${missing.join(", ")}. ` +
-        `Header: ${header.join(" / ")}`,
+  type Table = {
+    index: number;
+    section: Section | null; // what its heading says
+    heading: string | null;
+    header: string[];
+    rows: string[][];
+    idCol: number;
+    byHeader: Section | null; // what its header's id cell says
+    date: string | null;
+    inherited: boolean;
+    noDate: string; // why it has no date, when it hasn't
+  };
+  const spans = [...html.matchAll(/<table\b[\s\S]*?<\/table>/gi)];
+  const tables: Table[] = [];
+  for (const [i, m] of spans.entries()) {
+    const at = m.index ?? 0;
+    const h = headings.filter((x) => x.at < at).at(-1) ?? null;
+    const hm = h ? SECTION_HEADING.exec(h.text) : null;
+    const rows = [...m[0].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].map((r) =>
+      [...(r[1] ?? "").matchAll(/<t([hd])\b[^>]*>([\s\S]*?)<\/t\1>/gi)].map((c) => stripTags(c[2] ?? "")),
     );
+    const header = rows[0] ?? [];
+    const idCol = header.findIndex((c) => sectionOfHeaderCell(c) !== null);
+
+    // THE DATE. A table's own date line is a paragraph between it and what
+    // stands above it (the table above, or its section heading) whose whole
+    // text is a date. The S1 ruling (HO 770) adds one rule, for the page as
+    // Sabato lays it out: a table with nothing but whitespace between it and
+    // the table above, in the same section, takes that table's date, since the
+    // date line above both governs the block. One table does today: table 39,
+    // two House rows (AL-02 Likely Republican → Leans Republican, TX-34 Toss-up
+    // → Leans Democratic) directly under the Sept. 10, 2026 table (MO-02,
+    // MO-05). Any other table without its own date line throws, and so does a
+    // section's first table, which has no table above it to take one from.
+    const prev = i > 0 ? spans[i - 1]! : null;
+    const above = prev && (!h || (prev.index ?? 0) > h.at) ? tables[i - 1]! : null;
+    const from = above && prev ? (prev.index ?? 0) + prev[0].length : h ? h.end : 0;
+    const gap = html.slice(from, at);
+    const lines = [...gap.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map((p) => parseChangeDate(stripTags(p[1] ?? "")))
+      .filter((d): d is string => d !== null);
+    let date: string | null = null;
+    let inherited = false;
+    let noDate = "";
+    if (lines.length === 1) date = lines[0]!;
+    else if (lines.length > 1) noDate = `${lines.length} date lines above it (${lines.join(", ")})`;
+    else if (above && /^\s*$/.test(gap)) {
+      if (above.date !== null) [date, inherited] = [above.date, true];
+      else noDate = `only whitespace above it, and table ${above.index} above it has no date either (${above.noDate})`;
+    } else if (above) {
+      noDate = `no date line between it and table ${above.index}, only ${JSON.stringify(stripTags(gap).slice(0, 160))}`;
+    } else {
+      noDate = "no date line under its section heading, and no table above it in the section to take one from";
+    }
+    tables.push({
+      index: i,
+      section: hm ? (hm[1]!.toLowerCase() as Section) : null,
+      heading: h?.text ?? null,
+      header,
+      rows,
+      idCol,
+      byHeader: idCol === -1 ? null : sectionOfHeaderCell(header[idCol]!),
+      date,
+      inherited,
+      noDate,
+    });
   }
-  // Every column we do NOT ingest, named once per run. Decision Desk HQ / The
-  // Hill arrives here; it is received and ignored until somebody decides.
-  const taken = new Set([districtCol, ...sourceCols.map((c) => c.index)]);
-  header.forEach((h, i) => {
-    if (!taken.has(i) && h) console.log(`  column present, not ingested: "${h}" (${chamber})`);
-  });
 
-  const tbody = table.match(/<tbody>([\s\S]*?)<\/tbody>/);
-  const body = tbody ? tbody[1]! : table;
-  const rowMatches = [...body.matchAll(/<tr[^>]*>[\s\S]*?<\/tr>/g)].map((m) => m[0]);
-  const asOfDate = captionAsOfDate(widgetHtml, chamber);
+  // THE CHAMBER. A table is this chamber's when its section heading and its
+  // header's id cell both say so, and if only one does the page has moved under
+  // us and the parse throws. A table placed in another section, by both or by
+  // either alone, stays out of this chamber's reading: that is what lets the
+  // House parse a page whose Senate heading is gone. A table with no chamber by
+  // either throws in every leg, since it could be any chamber's.
+  const mine: Table[] = [];
+  for (const t of tables) {
+    const shown = `heading ${JSON.stringify(t.heading)}, header ${t.header.join(" | ") || "(none)"}`;
+    if (t.section === chamber && t.byHeader === chamber) mine.push(t);
+    else if (t.section === chamber || t.byHeader === chamber) {
+      throw new Error(
+        `${where}: table ${t.index}'s heading says ${t.section ?? "no chamber"} and its header says ` +
+          `${t.byHeader ?? "no chamber"} (${shown})`,
+      );
+    } else if (t.section === null && t.byHeader === null) {
+      throw new Error(`${where}: table ${t.index} has no chamber by its heading or its header (${shown})`);
+    }
+  }
 
-  const out: ScrapedRating[] = [];
-  const locked: LockedCell[] = [];
-  const unknown = new Map<string, number>();
-  let parsedRows = 0;
-  for (const row of rowMatches) {
-    const cells = row.match(/<t[hd][^>]*>[\s\S]*?<\/t[hd]>/g) ?? [];
-    if (cells.length <= districtCol) continue;
-    const raceId = toRaceId(cells[districtCol]!);
-    if (!raceId) continue;
-    parsedRows++;
-    for (const { source, index } of sourceCols) {
-      const cell = cells[index];
-      if (cell === undefined) continue;
-      const raw = stripTags(cell);
-      if (raw && NORMALIZE[raw] === undefined) unknown.set(raw, (unknown.get(raw) ?? 0) + 1);
-      // HO 743: a locked cell, collected rather than skipped. This reads the
-      // RAW label, not a null return — `parseRatingCell` returns null for an
-      // empty cell and an unknown one too, and those are absences.
-      const lockedLabel = LOCKED_LABEL[raw];
-      if (lockedLabel) {
-        locked.push({
-          raceId,
-          source,
-          label: lockedLabel,
-          ratingScore: RATING_SCORE[lockedLabel] ?? 0,
-          rawRating: raw,
-          asOfDate,
-        });
+  type Step = RatingChange & { rawTo: string };
+  const chains = new Map<string, Step[]>();
+  const seenOn = new Map<string, number>(); // `${raceId}|${date}` → the table it was first seen in
+  const unparsed: UnparsedRow[] = [];
+  const unknown: Record<string, number> = {};
+  const label = (raw: string): string | null => {
+    const l = SABATO_LABEL[raw];
+    if (l === undefined) unknown[raw] = (unknown[raw] ?? 0) + 1;
+    return l ?? null;
+  };
+  const mint = chamber === "house" ? houseIds : senateIds;
+  let parsed = 0;
+  for (const t of mine) {
+    if (t.date === null) throw new Error(`${where}: table ${t.index} has no date: ${t.noDate}`);
+    // THE COLUMNS come from the header's text, never from position (HO 742).
+    const oldCol = t.header.findIndex((c) => /^old rating$/i.test(c));
+    const newCol = t.header.findIndex((c) => /^new rating$/i.test(c));
+    if (oldCol === -1 || newCol === -1) {
+      throw new Error(
+        `${where}: table ${t.index} (${t.date}) has no ${oldCol === -1 ? "Old Rating" : "New Rating"} column ` +
+          `(header ${t.header.join(" | ") || "(none)"})`,
+      );
+    }
+    for (const cells of t.rows.slice(1)) {
+      const cell = cells[t.idCol] ?? "";
+      const ids = mint(cell);
+      if (ids.length !== 1) {
+        unparsed.push({ table: t.index, date: t.date, cell });
         continue;
       }
-      const parsed = parseRatingCell(raceId, source, cell);
-      if (parsed) out.push({ ...parsed, asOfDate });
+      parsed++;
+      const raceId = ids[0]!;
+      const first = seenOn.get(`${raceId}|${t.date}`);
+      if (first !== undefined) {
+        throw new Error(
+          `${where}: ${raceId} changed twice on ${t.date} (tables ${first} and ${t.index}), ` +
+            `so the page doesn't say which change came last`,
+        );
+      }
+      seenOn.set(`${raceId}|${t.date}`, t.index);
+      const rawTo = cells[newCol] ?? "";
+      const step: Step = { date: t.date, from: label(cells[oldCol] ?? ""), to: label(rawTo), rawTo };
+      const chain = chains.get(raceId);
+      if (chain) chain.push(step);
+      else chains.set(raceId, [step]);
     }
   }
 
-  // (3) THE PARSED-ROW FLOOR. Counted where `toRaceId` is called, so a cell-shape
-  // change reads as a shape change rather than as 435 silent skips. House's `- 5`
-  // tolerates a stray spacer row; it does NOT tolerate the six at-large seats
-  // being dropped again, which is the regression this number is sized against.
-  // Senate's tolerance is 0 — see EXPECTED_ROWS for why the House number could
-  // not simply be reused.
-  const floor = EXPECTED_ROWS[chamber] - ROW_FLOOR_TOLERANCE[chamber];
-  if (parsedRows < floor) {
+  // THE FLOOR, with the unparsed rows' bound beside it.
+  if (parsed < MIN_ROWS[chamber] || unparsed.length > UNPARSED_MAX) {
     throw new Error(
-      `race-ratings widget (${chamber}): only ${parsedRows} of ${rowMatches.length} rows yielded a race id ` +
-        `(expected ${EXPECTED_ROWS[chamber]}, floor ${floor}) — the ${idHeader}-cell shape changed. ` +
-        `First cells: ${rowMatches
-          .slice(0, 3)
-          .map((r) => JSON.stringify(stripTags((r.match(/<t[hd][^>]*>[\s\S]*?<\/t[hd]>/g) ?? [])[districtCol] ?? "")))
-          .join(", ")}`,
+      `${where}: ${parsed} rows minted a race id (floor ${MIN_ROWS[chamber]}) and ${unparsed.length} didn't ` +
+        `(at most ${UNPARSED_MAX}), across ${mine.length} tables — the page's shape changed. Unparsed: ` +
+        (unparsed.map((u) => `${u.date} ${JSON.stringify(u.cell)}`).slice(0, 5).join(", ") || "none"),
     );
   }
 
-  // (4) A NON-EMPTY RESULT. Every district Solid/Safe is not a reading anyone
-  // has ever taken; an empty result is the two-week silence this HO exists for.
-  if (out.length === 0) {
-    const vocab = [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", ");
+  // Each race's newest change is its current rating.
+  const ratings: ScrapedRating[] = [];
+  const locked: LockedCell[] = [];
+  for (const [raceId, steps] of chains) {
+    steps.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    const newest = steps.at(-1)!;
+    if (newest.to === null) continue; // outside the vocabulary: counted, never written
+    const chain = steps.map(({ date, from, to }) => ({ date, from, to }));
+    const base = { raceId, source: "sabato" as const, ratingScore: RATING_SCORE[newest.to] ?? 0, rawRating: newest.rawTo, asOfDate: newest.date, chain };
+    if (LOCKED.has(newest.to)) locked.push({ ...base, label: newest.to });
+    else ratings.push({ ...base, rating: newest.to });
+  }
+
+  // A NON-EMPTY RESULT. A page where no race's newest label is competitive is
+  // not a reading anyone has taken.
+  const vocab = Object.entries(unknown)
+    .map(([k, v]) => `${JSON.stringify(k)}×${v}`)
+    .join(", ");
+  if (ratings.length === 0) {
     throw new Error(
-      `race-ratings widget (${chamber}): parsed ${parsedRows} rows and scraped ZERO competitive ratings — ` +
-        `the table parsed but no cell matched the known vocabulary. ` +
-        `Unrecognized labels seen: ${vocab || "(none — every cell was Solid/Safe or empty)"}`,
+      `${where}: ${parsed} rows and ZERO competitive current ratings — no race's newest label is in the vocabulary. ` +
+        `Unrecognized labels seen: ${vocab || "(none; every race's newest label is Safe)"}`,
     );
   }
-  if (unknown.size) {
-    console.warn(
-      `  ${unknown.size} unrecognized rating label(s): ` +
-        [...unknown.entries()].map(([k, v]) => `${JSON.stringify(k)}×${v}`).join(", ") +
-        ` (${chamber})`,
-    );
-  }
-  return { ratings: out, locked, sourcesPresent: sourceCols.map((c) => c.source) };
+  if (vocab) console.warn(`  ${Object.keys(unknown).length} unrecognized rating label(s), never written: ${vocab} (${chamber})`);
+  for (const u of unparsed) console.warn(`  unparsed row, ${u.date} table ${u.table}: ${JSON.stringify(u.cell)} (${chamber})`);
+
+  const dated = mine.map((t) => ({ index: t.index, date: t.date ?? "", inherited: t.inherited, rows: t.rows.length - 1 }));
+  return {
+    ratings,
+    locked,
+    sourcesPresent: ["sabato"],
+    tables: dated,
+    rows: parsed,
+    unparsed,
+    unknown,
+    pageAsOf: dated.map((t) => t.date).sort().at(-1) ?? null,
+  };
 }
+
+/** HO 770 — where one rater's read came from, for its rows and its stats. */
+export type RaterRead = {
+  source: RatingSource;
+  sourceUrl: string; // the page its rows cite as source_url
+  dataUrl: string; // what was fetched to read it; for a page, the page itself
+  asOf: string | null; // the source's own stamp on what was read (a page's article:modified_time)
+  pageAsOf?: string | null; // a change log's newest table date, this chamber
+  unparsed?: string[]; // a change log's rows that minted no race id, or two
+};
+
+type Reader = (chamber: Chamber, run: ScrapeRun) => Promise<{ read: RaterRead; scrape: RatingsScrape }>;
+
+async function readSabato(chamber: Chamber, run: ScrapeRun): Promise<{ read: RaterRead; scrape: RatingsScrape }> {
+  const html = await run.get(SABATO_CHANGES_URL, "text/html");
+  const parsed = parseSabatoChanges(html, chamber);
+  const asOf = /<meta\b[^>]*property="article:modified_time"[^>]*content="([^"]+)"/i.exec(html)?.[1] ?? null;
+  const inherited = parsed.tables.filter((t) => t.inherited);
+  console.log(
+    `  sabato (${chamber}): ${parsed.tables.length} tables, ${parsed.rows} rows, current ${parsed.ratings.length} ` +
+      `competitive and ${parsed.locked.length} Safe · newest table ${parsed.pageAsOf} · page modified ${asOf ?? "(no stamp)"}` +
+      (inherited.length ? ` · dated by the table above: ${inherited.map((t) => `table ${t.index} (${t.date})`).join(", ")}` : ""),
+  );
+  return {
+    scrape: { ratings: parsed.ratings, locked: parsed.locked, sourcesPresent: ["sabato"] },
+    read: {
+      source: "sabato",
+      sourceUrl: SABATO_CHANGES_URL,
+      dataUrl: SABATO_CHANGES_URL,
+      asOf,
+      pageAsOf: parsed.pageAsOf,
+      unparsed: parsed.unparsed.map((u) => `${u.date} ${u.cell}`),
+    },
+  };
+}
+
+// The raters with a reader. One in WIRED without a reader fails its leg by name.
+const READERS: Partial<Record<RatingSource, Reader>> = { sabato: readSabato };
+
+/** What `scrapeChamber` returns: the raters that read, merged, their provenance, and the failures. */
+export type ChamberScrape = {
+  scrape: RatingsScrape;
+  reads: RaterRead[];
+  failures: { source: RatingSource; error: string }[];
+};
 
 /**
- * Scrape all three rater columns for one chamber. Two fetches: the wiki page
- * (to discover the widget) and the widget itself (~208 KB House, ~16 KB
- * Senate).
- *
- * HO 744: the two named callers below are thin — the chamber is the only thing
- * that differs, and it is passed, never inferred.
+ * One chamber: its WIRED readers under Promise.allSettled, so a rater that fails
+ * costs only its own rows. `scrape.sourcesPresent` names exactly the raters that
+ * read. The sync writes those and then fails the leg on any failure. A caller
+ * reading both chambers passes one run, so the page is fetched once.
  */
-export async function scrapeRatings(chamber: Chamber): Promise<RatingsScrape> {
-  const pageHtml = await fetchHtml(BALLOTPEDIA_URL[chamber]);
-  const widgetUrl = discoverWidgetUrl(pageHtml, chamber);
-  console.log(`  ratings widget (${chamber}): ${widgetUrl}`);
-  const widgetHtml = await fetchHtml(widgetUrl);
-  return parseRatingsTable(widgetHtml, chamber);
-}
-
-export async function scrapeHouseRatings(): Promise<RatingsScrape> {
-  return scrapeRatings("house");
-}
-
-export async function scrapeSenateRatings(): Promise<RatingsScrape> {
-  return scrapeRatings("senate");
-}
-
-export const BALLOTPEDIA_HOUSE_URL = HOUSE_URL;
-export const BALLOTPEDIA_SENATE_URL = SENATE_URL;
-/** The page a chamber's rows cite as `source_url`. */
-export function ballotpediaUrlFor(chamber: Chamber): string {
-  return BALLOTPEDIA_URL[chamber];
+export async function scrapeChamber(chamber: Chamber, run: ScrapeRun = newScrapeRun()): Promise<ChamberScrape> {
+  const wired = WIRED[chamber];
+  const settled = await Promise.allSettled(
+    wired.map(async (source) => {
+      const reader = READERS[source];
+      if (!reader) throw new Error(`${source} is wired for the ${chamber} but has no reader`);
+      return reader(chamber, run);
+    }),
+  );
+  const out: ChamberScrape = { scrape: { ratings: [], locked: [], sourcesPresent: [] }, reads: [], failures: [] };
+  settled.forEach((s, i) => {
+    const source = wired[i]!;
+    if (s.status === "fulfilled") {
+      out.scrape.ratings.push(...s.value.scrape.ratings);
+      out.scrape.locked.push(...s.value.scrape.locked);
+      out.scrape.sourcesPresent.push(source);
+      out.reads.push(s.value.read);
+    } else {
+      out.failures.push({ source, error: s.reason instanceof Error ? s.reason.message : String(s.reason) });
+    }
+  });
+  return out;
 }
