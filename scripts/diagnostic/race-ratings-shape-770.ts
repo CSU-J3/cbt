@@ -19,8 +19,9 @@
 //   the columns       old and new headers swapped: the labels follow the headers
 //   the counted       one row's token removed is unparsed, counted and listed; one unknown label is
 //                     counted and its race not written
-//   the fetch         a local 404 throws fetchError naming the URL, after the shipped agent and Accept
-//                     arrived; a local host that accepts and never answers throws status 0 inside 8s
+//   the fetch         a local 404 throws fetchError naming the URL (and, since HO 771, its size), after
+//                     the shipped agent and Accept arrived; a local host that accepts and never answers
+//                     throws status 0 inside 8s
 //
 // Read-only: the saved page (no fetch of Sabato's host) and two servers on 127.0.0.1.
 import { readFileSync } from "node:fs";
@@ -323,7 +324,9 @@ async function controls() {
     e404 = e instanceof Error ? e.message : String(e);
   }
   http.close();
-  check("a local 404 throws fetchError naming the URL", e404 === `fetch ${url404} -> 404`, JSON.stringify(e404));
+  // HO 771: a refusal's message carries its shape; this one has none of the three headers and no
+  // <title>, so it reads as before, plus its size.
+  check("a local 404 throws fetchError naming the URL", e404 === `fetch ${url404} -> 404: 8 bytes`, JSON.stringify(e404));
   const h = headers as IncomingHttpHeaders | null;
   check("…and the request carried the shipped agent and Accept: text/html", h?.["user-agent"] === AGENT && h?.accept === "text/html", `User-Agent ${JSON.stringify(h?.["user-agent"])} · Accept ${JSON.stringify(h?.accept)}`);
 
