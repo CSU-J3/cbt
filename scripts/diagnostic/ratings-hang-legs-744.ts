@@ -1,42 +1,40 @@
-// HO 744 — the hang legs. The ratings route, over HTTP, on a LOCAL PRODUCTION
-// BUILD (`next build` then `next start`) pointed at a `file:` copy of prod, with
-// one chamber's widget fetch sent to a local server that accepts and never
-// answers. Everything under test is the shipped path end to end: the route,
-// wrapCronRoute and its 55s soft timeout, the sync's allSettled, fetchHtml's
-// per-fetch cap, the `cron_runs` row, and /api/health's reading of it. The only
-// substitutions are the database (a file) and one host (ratings-hang-shim-744.cjs).
+// HO 744 — the hang legs, re-aimed by HO 770 at the run's one fetch, Sabato's rating-changes page.
+// The ratings route, over HTTP, on a LOCAL PRODUCTION BUILD (`next build` then `next start`)
+// pointed at a `file:` copy of prod, with the page fetch sent somewhere else by
+// ratings-hang-shim-744.cjs. Everything under test is the shipped path end to end: the route,
+// wrapCronRoute and its 55s soft timeout, the sync's allSettled, the run's shared page fetch,
+// fetchSource's per-fetch cap, the per-chamber parse, the `cron_runs` row, and /api/health's
+// reading of it. The only substitutions are the database (a file) and one host.
 //
-//   npm run build && npx tsx scripts/diagnostic/ratings-hang-legs-744.ts --leg a
+//   npm run build && npx tsx scripts/diagnostic/ratings-hang-legs-744.ts --leg c1
 //
-//   leg a  SENATE widget hangs -> House writes land, the run records `error`
-//                                 naming senate, health reads the route
-//                                 unhealthy, elapsed near the 8s cap
-//   leg b  HOUSE widget hangs  -> the mirror: Senate writes land, `error`
-//                                 naming house
-//   leg c  CONTROL — leg a's hang on a build with the per-fetch cap REMOVED:
-//                                 `timeout` near 55s, health reads it healthy,
-//                                 neither chamber wrote. The failure this change
-//                                 exists to prevent. Run it on the real build
-//                                 too and it must go red: the cap turns it into
-//                                 leg a.
+//   leg c1  the PAGE hangs           -> both legs fail inside the cap: `error` naming house and
+//                                       senate, health reads the route unhealthy, elapsed near
+//                                       8s, the hung host reached once (the legs share the fetch)
+//   leg c2  the page arrives with    -> the House writes land, `error` naming senate, health red
+//           the Senate heading gone     (each chamber parses on its own)
+//   leg c3  CONTROL — c1's hang with -> `timeout` near 55s, health reads it healthy, neither
+//           the cap removed             chamber wrote: the failure the cap exists to prevent.
+//                                       The shim drops fetchSource's signal, which is the cap.
+// (HO 744's legs were a/b, one chamber's Ballotpedia widget hanging, and c, the same on a draft
+// without the cap. That transport is gone, and with it the per-chamber fetch they hung.)
 //
-// WHY A PERTURBATION. The House store is current, so the House leg writes
-// nothing on a normal day and "House writes land" would read the same whether
-// the leg ran or not (the blind instrument this project keeps catching). One
-// House row is set to a label no widget emits before the run; the House leg
-// wrote if and only if that row changed. The Senate store is four months stale,
-// so the Senate leg writes on its own.
+// WHY A PERTURBATION. A chamber whose store is current writes nothing, and "House writes land"
+// would read the same whether the leg ran or not (the blind instrument this project keeps
+// catching). One `sabato` row per chamber is set back to an EARLIER label in its own chain of
+// changes before the run, so that leg wrote if and only if that row went back to its newest
+// label. An earlier label, not a planted one: a label the chain never reads is a conflict
+// (lib/race-ratings-sync.ts), which the leg sets aside unwritten by design.
 //
-// SAFETY. Prod is only ever READ (seed and the untouched-check), through a
-// SELECT/WITH guard. The server gets `TURSO_DATABASE_URL=file:…` and no token,
-// and nothing is triggered until /api/health on that server returns a sentinel
-// row that exists only in the file copy — the transport discriminator. One run
-// per process and a fresh file per run (a libsql `file:` handle stays locked
-// after close() on this box, HO 724). The server is killed by its own PID tree.
+// SAFETY. Prod is only ever READ (seed and the untouched-check), through a SELECT/WITH guard. The
+// server gets `TURSO_DATABASE_URL=file:…` and no token, and nothing is triggered until
+// /api/health on that server returns a sentinel row that exists only in the file copy — the
+// transport discriminator. One run per process and a fresh file per run (a libsql `file:` handle
+// stays locked after close() on this box, HO 724). The server is killed by its own PID tree.
 import { spawn, execFileSync } from "node:child_process";
 import { createServer, type Socket } from "node:net";
 import { randomBytes } from "node:crypto";
-import { createWriteStream, existsSync, rmSync } from "node:fs";
+import { createWriteStream, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { config } from "dotenv";
 import { createClient, type Client, type InArgs, type ResultSet } from "@libsql/client";
@@ -44,32 +42,40 @@ import { createClient, type Client, type InArgs, type ResultSet } from "@libsql/
 config({ path: ".env" });
 
 const ROUTE = "/api/sync-race-ratings";
+const PAGE_URL = "https://centerforpolitics.org/crystalball/2026-rating-changes/"; // SABATO_CHANGES_URL
+const AGENT = "CBT-ratings-sync/1.0 (+https://github.com/CSU-J3/cbt)"; // USER_AGENT, lib/race-ratings-scrape.ts
 const FETCH_CAP_MS = 8_000; // FETCH_TIMEOUT_MS, lib/race-ratings-scrape.ts
 const SOFT_TIMEOUT_MS = 55_000; // DEFAULT_SOFT_TIMEOUT_MS, lib/cron-log.ts
 const PLATFORM_KILL_MS = 60_000; // maxDuration, app/api/sync-race-ratings/route.ts
-const SENTINEL_STARTED_AT = "2026-09-23T12:34:56.744Z";
-const PERTURBED_ID = "CO-05-2026-inside_elections";
-const PERTURBED_LABEL = "PERTURBED-744";
+const SAVED_PAGE = path.resolve("docs/handoffs/770-artifacts/m4/centerforpolitics.org_crystalball_2026-rating-changes_.html");
+// One `sabato` row per chamber, its stored (current) label, and an earlier label from its chain.
+const PERTURB = {
+  house: { id: "AL-02-2026-sabato", current: "Lean R", earlier: "Likely R", score: 2 },
+  senate: { id: "S-GA-2026-sabato", current: "Likely D", earlier: "Lean D", score: -1 },
+} as const;
 
-type Leg = "a" | "b" | "c";
-const LEGS: Record<Leg, { hang: "senate" | "house"; expect: "error" | "timeout" }> = {
-  a: { hang: "senate", expect: "error" },
-  b: { hang: "house", expect: "error" },
-  c: { hang: "senate", expect: "timeout" },
+type Leg = "c1" | "c2" | "c3";
+const LEGS: Record<Leg, { mode: "hang" | "serve" | "hang-nocap"; expect: "error" | "timeout" }> = {
+  c1: { mode: "hang", expect: "error" },
+  c2: { mode: "serve", expect: "error" },
+  c3: { mode: "hang-nocap", expect: "timeout" },
 };
 const argAt = (flag: string) => {
   const i = process.argv.indexOf(flag);
   return i === -1 ? undefined : process.argv[i + 1];
 };
-const LEG = (argAt("--leg") ?? "a") as Leg;
-if (!(LEG in LEGS)) throw new Error(`--leg must be a|b|c, got ${LEG}`);
+const LEG = (argAt("--leg") ?? "c1") as Leg;
+if (!(LEG in LEGS)) throw new Error(`--leg must be c1|c2|c3, got ${LEG}`);
 const CFG = LEGS[LEG];
 const PORT = Number(argAt("--port") ?? 3744);
 const STAMP = Date.now();
 const DIR = path.resolve("scripts/diagnostic/scratch"); // gitignored
-const FILE = path.join(DIR, `legs-744-${LEG}-${STAMP}.db`);
-const LOG = path.join(DIR, `legs-744-${LEG}-${STAMP}.server.log`);
+const FILE = path.join(DIR, `legs-770-${LEG}-${STAMP}.db`);
+const LOG = path.join(DIR, `legs-770-${LEG}-${STAMP}.server.log`);
+const SERVED = path.join(DIR, `legs-770-${LEG}-${STAMP}.page.html`);
 const SHIM = path.resolve("scripts/diagnostic/ratings-hang-shim-744.cjs").replace(/\\/g, "/");
+// Later than every prod row, so it is the route's newest run on the copy.
+const SENTINEL_STARTED_AT = new Date(STAMP - 60_000).toISOString();
 
 let failures = 0;
 const ok = (l: string, d: string) => console.log(`  PASS  ${l}: ${d}`);
@@ -125,10 +131,18 @@ async function seed(): Promise<void> {
   const races = await prodRead("SELECT * FROM races");
   const ratings = await prodRead("SELECT * FROM race_ratings");
   const history = await prodRead("SELECT * FROM rating_history");
-  // Two weeks of every route is enough for health to evaluate each without
+  // Three weeks of every route is enough for health to evaluate each without
   // throwing; only this route's entry is read.
-  const runs = await prodRead("SELECT * FROM cron_runs WHERE started_at >= '2026-09-09'");
+  const since = new Date(STAMP - 21 * 86_400_000).toISOString().slice(0, 10);
+  const runs = await prodRead("SELECT * FROM cron_runs WHERE started_at >= ?", [since]);
   const ticks = await prodRead("SELECT MAX(ticked_at) AS t FROM market_ticks");
+  const newest = String((await prodRead("SELECT MAX(started_at) AS t FROM cron_runs WHERE route = ?", [ROUTE])).rows[0]?.t ?? "");
+  if (!(newest < SENTINEL_STARTED_AT)) throw new Error(`prod's newest ${ROUTE} run ${newest} is not before the sentinel ${SENTINEL_STARTED_AT}`);
+  for (const c of ["house", "senate"] as const) {
+    const p = PERTURB[c];
+    const row = (await prodRead("SELECT rating FROM race_ratings WHERE id = ?", [p.id])).rows[0];
+    if (row?.rating !== p.current) throw new Error(`${p.id} reads ${String(row?.rating)} on prod, not ${p.current}; the perturbation's premise moved`);
+  }
   const local = createClient({ url: `file:${FILE}` });
   for (const d of DDL) await local.execute(d);
   const ins = (t: string, rows: ResultSet["rows"], cols: string[]) =>
@@ -144,18 +158,22 @@ async function seed(): Promise<void> {
   // The transport discriminator: a row prod does not have.
   await local.execute({
     sql: `INSERT INTO cron_runs (route, started_at, ended_at, elapsed_ms, status, payload)
-          VALUES (?, ?, ?, 744, 'success', '{"sentinel":"HO 744 legs, file copy only"}')`,
+          VALUES (?, ?, ?, 770, 'success', '{"sentinel":"HO 770 legs, file copy only"}')`,
     args: [ROUTE, SENTINEL_STARTED_AT, SENTINEL_STARTED_AT],
   });
-  await local.execute({
-    sql: "UPDATE race_ratings SET rating = ?, rating_score = 0, updated_at = '2000-01-01T00:00:00.000Z' WHERE id = ?",
-    args: [PERTURBED_LABEL, PERTURBED_ID],
-  });
-  const chk = await local.execute({ sql: "SELECT rating FROM race_ratings WHERE id = ?", args: [PERTURBED_ID] });
-  if (chk.rows[0]?.rating !== PERTURBED_LABEL) throw new Error(`perturbation did not land on ${PERTURBED_ID}`);
+  for (const c of ["house", "senate"] as const) {
+    const p = PERTURB[c];
+    await local.execute({
+      sql: "UPDATE race_ratings SET rating = ?, rating_score = ?, updated_at = '2000-01-01T00:00:00.000Z' WHERE id = ?",
+      args: [p.earlier, p.score, p.id],
+    });
+    const chk = await local.execute({ sql: "SELECT rating FROM race_ratings WHERE id = ?", args: [p.id] });
+    if (chk.rows[0]?.rating !== p.earlier) throw new Error(`perturbation did not land on ${p.id}`);
+  }
   console.log(
     `  seeded ${FILE}\n    ${races.rows.length} races · ${ratings.rows.length} ratings · ${history.rows.length} history · ` +
-      `${runs.rows.length} cron_runs (prod read-only) · sentinel ${SENTINEL_STARTED_AT} · ${PERTURBED_ID} -> ${PERTURBED_LABEL}`,
+      `${runs.rows.length} cron_runs since ${since} (prod read-only) · sentinel ${SENTINEL_STARTED_AT} · ` +
+      `${PERTURB.house.id} ${PERTURB.house.current} -> ${PERTURB.house.earlier} · ${PERTURB.senate.id} ${PERTURB.senate.current} -> ${PERTURB.senate.earlier}`,
   );
   local.close();
 }
@@ -188,18 +206,35 @@ function isDescendant(pid: number, root: number): boolean {
 }
 
 async function main() {
-  console.log(`=== LEG ${LEG}: ${CFG.hang} widget hangs, expecting \`${CFG.expect}\` ===`);
+  console.log(`=== LEG ${LEG}: the page fetch ${CFG.mode === "serve" ? "served with the Senate heading removed" : CFG.mode === "hang" ? "hangs" : "hangs with the cap removed"}, expecting \`${CFG.expect}\` · node ${process.version} ===`);
   if (listeningPids().length) throw new Error(`port ${PORT} is already bound; refusing to share it`);
   const prodBefore = await prodFingerprint();
   await seed();
 
+  // c2's page: the saved one with the "Senate rating changes" heading removed, and nothing else.
+  if (CFG.mode === "serve") {
+    const html = readFileSync(SAVED_PAGE, "utf8");
+    const h2 = [...html.matchAll(/<h2\b[^>]*>[\s\S]*?<\/h2>/gi)].filter((m) => /Senate rating changes/.test(m[0]));
+    if (h2.length !== 1) throw new Error(`expected one Senate heading on the saved page, found ${h2.length}`);
+    const at = h2[0]!.index ?? 0;
+    writeFileSync(SERVED, html.slice(0, at) + html.slice(at + h2[0]![0].length));
+    console.log(`  served page: ${SERVED} (the saved page less ${JSON.stringify(h2[0]![0].replace(/<[^>]+>/g, ""))})`);
+  }
+
   // The host that accepts and never answers.
   const sockets: Socket[] = [];
+  // What each connection carried: its arrival and its request line, read and never answered.
+  const seen: string[] = [];
   // The peer resets these when its fetch aborts or the server dies; that reset
   // is the expected end of a hung connection, not a failure of this run.
   const hang = createServer((s) => {
     s.on("error", () => {});
-    sockets.push(s);
+    const i = sockets.push(s);
+    const at = new Date().toISOString();
+    seen[i - 1] = `#${i} ${at} (no bytes)`;
+    s.once("data", (b: Buffer) => {
+      seen[i - 1] = `#${i} ${at} ${JSON.stringify(b.toString("latin1").split("\r\n")[0])}`;
+    });
   });
   await new Promise<void>((r) => hang.listen(0, "127.0.0.1", () => r()));
   const hangPort = (hang.address() as { port: number }).port;
@@ -210,10 +245,13 @@ async function main() {
     TURSO_DATABASE_URL: `file:${FILE}`,
     CRON_SECRET: secret,
     NODE_OPTIONS: `--require ${SHIM}`,
-    HANG_744_TARGET: CFG.hang,
-    HANG_744_PORT: String(hangPort),
+    HANG_770_MODE: CFG.mode,
+    ...(CFG.mode === "serve" ? { HANG_770_FILE: SERVED } : { HANG_770_PORT: String(hangPort) }),
   };
   delete env.TURSO_AUTH_TOKEN;
+  // Next's own fetch cache lives under .next/cache/fetch-cache; this route's fetch is
+  // force-dynamic, and the cache is cleared anyway so no run can be answered from another's.
+  rmSync(path.resolve(".next/cache/fetch-cache"), { recursive: true, force: true });
   const log = createWriteStream(LOG);
   const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(PORT)], {
     env,
@@ -262,7 +300,7 @@ async function main() {
     const res = await fetch(`http://127.0.0.1:${PORT}${ROUTE}`, { headers: { authorization: `Bearer ${secret}` } });
     const body = await res.text();
     const wallMs = Date.now() - t0;
-    console.log(`  route: HTTP ${res.status} after ${wallMs} ms · ${body.slice(0, 400)}`);
+    console.log(`  route: HTTP ${res.status} after ${wallMs} ms · ${body.slice(0, 600)}`);
     const h = await health();
     console.log(`  health: ${JSON.stringify(h)}`);
     if (CFG.expect === "timeout") {
@@ -279,55 +317,74 @@ async function main() {
 
     const db: Client = createClient({ url: `file:${FILE}` });
     const run = (await db.execute({
-      sql: `SELECT id, started_at, status, elapsed_ms, error_message FROM cron_runs
+      sql: `SELECT id, started_at, status, elapsed_ms, error_message, payload FROM cron_runs
             WHERE route = ? ORDER BY started_at DESC LIMIT 1`,
       args: [ROUTE],
     })).rows[0]!;
-    const pert = (await db.execute({ sql: "SELECT rating, updated_at FROM race_ratings WHERE id = ?", args: [PERTURBED_ID] })).rows[0]!;
-    const sen = (await db.execute({
-      sql: `SELECT COUNT(*) n, SUM(CASE WHEN updated_at >= ? THEN 1 ELSE 0 END) touched FROM race_ratings WHERE race_id LIKE 'S-%'`,
-      args: [t0Iso],
-    })).rows[0]!;
-    const senHist = (await db.execute({
-      sql: `SELECT COUNT(*) n FROM rating_history WHERE race_id LIKE 'S-%' AND observed_at >= ?`,
-      args: [t0Iso.slice(0, 10)],
-    })).rows[0]!;
+    const wrote: Record<"house" | "senate", { label: string; at: string; touched: number; history: number }> = {
+      house: { label: "", at: "", touched: 0, history: 0 },
+      senate: { label: "", at: "", touched: 0, history: 0 },
+    };
+    for (const c of ["house", "senate"] as const) {
+      const p = (await db.execute({ sql: "SELECT rating, updated_at FROM race_ratings WHERE id = ?", args: [PERTURB[c].id] })).rows[0]!;
+      const like = c === "senate" ? "S-%" : "%";
+      const notLike = c === "senate" ? "" : " AND race_id NOT LIKE 'S-%'";
+      const t = (await db.execute({ sql: `SELECT COUNT(*) n FROM race_ratings WHERE race_id LIKE ?${notLike} AND updated_at >= ?`, args: [like, t0Iso] })).rows[0]!;
+      const hh = (await db.execute({ sql: `SELECT COUNT(*) n FROM rating_history WHERE race_id LIKE ?${notLike} AND observed_at >= ?`, args: [like, t0Iso.slice(0, 10)] })).rows[0]!;
+      wrote[c] = { label: String(p.rating), at: String(p.updated_at), touched: Number(t.n), history: Number(hh.n) };
+    }
     db.close();
     const msg = String(run.error_message ?? "");
     const elapsed = Number(run.elapsed_ms);
-    const houseWrote = pert.rating !== PERTURBED_LABEL && String(pert.updated_at) >= t0Iso;
-    const senateWrote = Number(sen.touched) > 0 || Number(sen.n) !== 105 || Number(senHist.n) > 0;
+    const legWrote = (c: "house" | "senate") => wrote[c].label === PERTURB[c].current && wrote[c].at >= t0Iso;
+    const untouched = (c: "house" | "senate") => wrote[c].label === PERTURB[c].earlier && wrote[c].touched === 0 && wrote[c].history === 0;
     console.log(
-      `  cron_runs #${run.id}: ${run.status} · ${elapsed} ms · ${msg.slice(0, 600)}\n` +
-        `  ${PERTURBED_ID}: ${pert.rating} @ ${pert.updated_at} · Senate rows ${sen.n} (touched ${sen.touched}) · Senate history today ${senHist.n}\n` +
-        `  hung host: ${sockets.length} connection(s) accepted, 0 answered`,
+      `  cron_runs #${run.id}: ${run.status} · ${elapsed} ms · ${msg.slice(0, 900)}\n` +
+        (["house", "senate"] as const)
+          .map((c) => `  ${c}: ${PERTURB[c].id} ${wrote[c].label} @ ${wrote[c].at} · rows touched ${wrote[c].touched} · history rows today ${wrote[c].history}`)
+          .join("\n") +
+        `\n  hung host: ${sockets.length} connection(s) accepted, 0 answered${seen.length ? ` · ${seen.join(" · ")}` : ""}`,
     );
-    const shim = serverOut.split(/\r?\n/).filter((l) => l.includes("[hang-744]") || / leg FAILED/.test(l));
+    const shim = serverOut.split(/\r?\n/).filter((l) => l.includes("[hang-770]") || / leg FAILED/.test(l) || /CONFLICT|sabato \(/.test(l));
     for (const l of shim) console.log(`  server| ${l.trim()}`);
+    const fetches = serverOut.split(/\r?\n/).filter((l) => l.includes("[hang-770] page fetch #"));
 
-    check("the hung host was actually reached", sockets.length >= 1, `${sockets.length} connection(s)`);
     check(`recorded \`${CFG.expect}\``, run.status === CFG.expect, String(run.status));
-    if (CFG.expect === "error") {
-      const failing = CFG.hang;
-      const surviving = failing === "senate" ? "house" : "senate";
-      check(`the error names ${failing}`, msg.includes(`${failing}: `), msg.slice(0, 160));
-      check("…as the per-fetch cap", msg.includes(`no answer within the ${FETCH_CAP_MS}ms per-fetch budget`), "fetchError text");
-      check(`…and carries ${surviving} OK`, msg.includes(`${surviving} OK`), "surviving leg's counts in the message");
+    check(
+      "the run fetched the page once, with the shipped agent and Accept: text/html",
+      fetches.length === 1 && fetches[0]!.includes(`User-Agent ${JSON.stringify(AGENT)}`) && fetches[0]!.includes(`Accept "text/html"`),
+      fetches.map((l) => l.trim()).join(" | ") || "(no page fetch logged)",
+    );
+    // Requests, not sockets: the HTTP client dials an empty replacement connection when the abort
+    // tears the first one down (it carries no bytes), so the count that means "one fetch" is the
+    // request lines the host received.
+    const requests = seen.filter((s) => s.includes('"GET /hang-770 HTTP/1.1"')).length;
+    if (CFG.mode !== "serve") check("the hung host received the page request once: both legs waited on the one fetch", requests === 1, `${requests} request(s) over ${sockets.length} connection(s) · ${seen.join(" · ")}`);
+    if (LEG === "c1") {
+      const cap = `sabato did not read: fetch ${PAGE_URL} -> 0: no answer within the ${FETCH_CAP_MS}ms per-fetch budget`;
+      check("the error names house and senate, each as the per-fetch cap", msg.includes(`house: ${cap}`) && msg.includes(`senate: ${cap}`), msg.slice(0, 200));
+      check("…and says nothing was written", msg.includes("No chamber completed.") && (msg.match(/Nothing was written in this leg/g) ?? []).length === 2, "both legs' messages");
       check("elapsed near the cap", elapsed >= FETCH_CAP_MS && elapsed < FETCH_CAP_MS + 10_000, `${elapsed} ms (cap ${FETCH_CAP_MS})`);
       check("health reads the route UNHEALTHY", h?.healthy === false && h?.lastStatus === "error", `healthy=${h?.healthy} lastStatus=${h?.lastStatus}`);
-      if (failing === "senate") {
-        check("HOUSE WRITES LANDED", houseWrote, `${PERTURBED_ID} ${PERTURBED_LABEL} -> ${pert.rating}`);
-        check("Senate untouched", !senateWrote, `rows ${sen.n}, touched ${sen.touched}, history ${senHist.n}`);
-      } else {
-        check("SENATE WRITES LANDED", senateWrote, `rows 105 -> ${sen.n}, touched ${sen.touched}, history ${senHist.n}`);
-        check("House untouched", !houseWrote, `${PERTURBED_ID} still ${pert.rating}`);
-      }
+      check("House untouched", untouched("house"), `${PERTURB.house.id} still ${wrote.house.label}`);
+      check("Senate untouched", untouched("senate"), `${PERTURB.senate.id} still ${wrote.senate.label}`);
+    } else if (LEG === "c2") {
+      check(
+        "the error names senate, as its own parse of the page",
+        msg.includes("senate: sabato did not read: Sabato rating changes (senate): table 0's heading says no chamber and its header says senate"),
+        msg.slice(0, 260),
+      );
+      check("…and carries house OK", msg.includes("house OK (upserted="), /house OK \([^)]*\)/.exec(msg)?.[0] ?? "(no house OK)");
+      check("health reads the route UNHEALTHY", h?.healthy === false && h?.lastStatus === "error", `healthy=${h?.healthy} lastStatus=${h?.lastStatus}`);
+      check("HOUSE WRITES LANDED", legWrote("house"), `${PERTURB.house.id} ${PERTURB.house.earlier} -> ${wrote.house.label} · ${wrote.house.touched} House rows touched · ${wrote.house.history} House history rows today`);
+      check("Senate untouched", untouched("senate"), `${PERTURB.senate.id} still ${wrote.senate.label} · touched ${wrote.senate.touched} · history ${wrote.senate.history}`);
+      console.log(`  elapsed ${elapsed} ms (no hang in this leg)`);
     } else {
       check("HTTP 504 from the soft timeout", res.status === 504, `HTTP ${res.status}`);
       check("elapsed near 55s", elapsed >= SOFT_TIMEOUT_MS - 1_000 && elapsed < SOFT_TIMEOUT_MS + 2_000, `${elapsed} ms`);
       check("health reads the route HEALTHY", h?.healthy === true && h?.lastStatus === "timeout", `healthy=${h?.healthy} lastStatus=${h?.lastStatus}`);
-      check("House did NOT write", !houseWrote, `${PERTURBED_ID} still ${pert.rating}`);
-      check("Senate did NOT write", !senateWrote, `rows ${sen.n}, touched ${sen.touched}, history ${senHist.n}`);
+      check("House did NOT write", untouched("house"), `${PERTURB.house.id} still ${wrote.house.label}`);
+      check("Senate did NOT write", untouched("senate"), `${PERTURB.senate.id} still ${wrote.senate.label}`);
     }
   } finally {
     kill();
