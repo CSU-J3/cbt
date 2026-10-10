@@ -739,25 +739,27 @@ export async function readRecentRaceMoves(db: Client, raceIds: string[]): Promis
   const historyRuns: HistoryRunRow[] = histRs!.rows.map((r) => ({ startedAt: String(r.started_at), status: String(r.status) }));
   const firstOf = (route: string) => str(firstRs!.rows.find((r) => r.route === route)?.first);
   const horizons: GuardHorizons = { sync: firstOf(RATINGS_SYNC_ROUTE), history: firstOf(RATING_HISTORY_ROUTE) };
-  // The verdict turns on the day and the chamber alone, so it is taken once per pair.
+  // The verdict turns on the day, the chamber and (HO 770) the move's rater
+  // alone, so it is taken once per triple.
   const verdicts = new Map<string, boolean>();
   const out: Record<string, RaceMove> = {};
   for (const r of movesRs!.rows) {
     const raceId = String(r.race_id);
     if (out[raceId]) continue;
     const date = String(r.observed_at);
+    const source = String(r.source);
     // lib/race-id.ts: a Senate id is S-<STATE>-<YYYY>.
     const chamber: MoveChamber = raceId.startsWith("S-") ? "senate" : "house";
-    const key = `${date}|${chamber}`;
+    const key = `${date}|${chamber}|${source}`;
     let fresh = verdicts.get(key);
     if (fresh === undefined) {
-      fresh = isFreshMove(date, chamber, syncRuns, historyRuns, horizons);
+      fresh = isFreshMove(date, chamber, syncRuns, historyRuns, horizons, source);
       verdicts.set(key, fresh);
     }
     if (!fresh) continue;
     out[raceId] = {
       date,
-      source: String(r.source),
+      source,
       to: String(r.to_rating),
       from: str(r.from_rating),
     };

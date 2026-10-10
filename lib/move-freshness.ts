@@ -30,6 +30,13 @@
 // That is the conservative side, and it is chosen.
 // A move logged on a day before either route's first cron_runs row passes:
 // the guard has nothing to read there.
+// HO 770: with one reader per rater, a chamber leg that read no longer says a
+// given rater was read, so once Cook or Inside Elections is wired after weeks
+// away, Sabato's weekly legs would vouch for its catch-up. A run therefore
+// counts for a move only if it read the move's own rater, its leg's
+// stats.raters.<source> ok with rows scraped. A run from before HO 770, whose
+// one table carried all three raters, counts for each of them on its chamber
+// reading.
 
 export const MOVE_FRESH_DAYS = 8;
 
@@ -46,10 +53,18 @@ export type HistoryRunRow = { startedAt: string; status: string };
 // Each route's first cron_runs started_at; null when the route has none.
 export type GuardHorizons = { sync: string | null; history: string | null };
 
-type Leg = { ok?: unknown; stats?: { scraped?: unknown } | null };
+type RaterLeg = { ok?: unknown; scraped?: unknown };
+type Leg = {
+  ok?: unknown;
+  stats?: { scraped?: unknown; raters?: Partial<Record<string, RaterLeg | null>> | null } | null;
+};
 
 // Did this ratings run read the chamber: a `success` row whose leg scraped rows.
-export function syncLegOk(run: SyncRunRow, chamber: MoveChamber): boolean {
+// HO 770: with `source`, did it read that rater in the chamber. A leg carrying
+// stats.raters answers for each rater on its own; a leg without it predates
+// HO 770 and answers for every rater on the chamber reading, as does the
+// pre-HO 744 House shape. Without `source`, the chamber reading.
+export function syncLegOk(run: SyncRunRow, chamber: MoveChamber, source?: string): boolean {
   if (run.status !== "success" || run.payload == null) return false;
   let body: unknown;
   try {
@@ -64,18 +79,25 @@ export function syncLegOk(run: SyncRunRow, chamber: MoveChamber): boolean {
   if (!p || typeof p !== "object") return false;
   if (p.chambers) {
     const leg = p.chambers[chamber];
+    const raters = leg?.stats?.raters;
+    if (source !== undefined && raters) {
+      const r = raters[source];
+      return leg?.ok === true && r?.ok === true && Number(r.scraped ?? 0) > 0;
+    }
     return leg?.ok === true && Number(leg.stats?.scraped ?? 0) > 0;
   }
   return chamber === "house" && Number(p.stats?.scraped ?? 0) > 0;
 }
 
-// The rule above, for one move: `observedAt` is rating_history's day.
+// The rule above, for one move: `observedAt` is rating_history's day, and
+// `source` (HO 770) the move's rater, so S and S' are runs that read it.
 export function isFreshMove(
   observedAt: string,
   chamber: MoveChamber,
   syncRuns: readonly SyncRunRow[],
   historyRuns: readonly HistoryRunRow[],
   horizons: GuardHorizons,
+  source?: string,
 ): boolean {
   const t0 = Date.parse(`${observedAt.slice(0, 10)}T00:00:00Z`);
   if (!Number.isFinite(t0)) return false;
@@ -92,7 +114,7 @@ export function isFreshMove(
   if (!(p >= t0 - bound)) return false;
 
   const legs = syncRuns
-    .filter((r) => syncLegOk(r, chamber))
+    .filter((r) => syncLegOk(r, chamber, source))
     .map((r) => Date.parse(r.startedAt))
     .filter((t) => Number.isFinite(t))
     .sort((a, b) => a - b);
