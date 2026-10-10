@@ -3,12 +3,13 @@
 //
 // rating_history logs a move on the day the daily tick (/api/cron/rating-history,
 // `0 15 * * *`) first sees it, and the ratings sync (/api/sync-race-ratings,
-// `0 11 * * 3`) is what changes the ratings. So after a gap in either, the first
-// run back logs every change the gap held as if it happened that day: the House
-// run of 2026-09-20 23:35Z came 18.5 days after the last House leg that read
-// rows, and 47 rated races' newest move was logged on 09-21 (HO 768 STEP 0). A move
-// counts only when the runs behind it read as an ordinary week. For a move
-// logged on day T (UTC, as observed_at is) in chamber C:
+// `0 11 * * *` (daily since HO 771)) is what changes the ratings. So after a gap
+// in either, the first run back logs every change the gap held as if it
+// happened that day: the House run of 2026-09-20 23:35Z came 18.5 days after
+// the last House leg that read rows, and 47 rated races' newest move was logged
+// on 09-21 (HO 768 STEP 0). A move counts only when the runs behind it read as
+// ordinary, not as a catch-up. For a move logged on day T (UTC, as observed_at
+// is) in chamber C:
 //   P  — the latest rating-history run with status `success` started before
 //        day T. The move is fresh only if P started within MOVE_FRESH_DAYS
 //        before T, so T's log is not a catch-up after a history gap.
@@ -19,20 +20,23 @@
 //        batch's two runs, #18881 and #18897, started 67 minutes apart.)
 //   S' — the latest leg-ok run started before S. The move is fresh only if S
 //        and S' both exist and S − S' ≤ MOVE_FRESH_DAYS: a weekly cadence plus a
-//        day, so a missed week (14 days) reads not fresh.
+//        day, so a missed week (14 days) reads not fresh. Kept at 8 when the
+//        sync went daily (HO 771). Daily, a gap past 8 days takes eight missed
+//        runs; a week of them is an 8-day gap, which sits on the bound and reads
+//        fresh or not by the seconds between the two runs' starts.
 // A leg is ok on a `success` run whose payload has chambers.<C>.ok true and
 // chambers.<C>.stats.scraped > 0 (HO 744 on), or, for the House on an earlier
 // run, stats.scraped > 0. The column holds wrapCronRoute's response body
 // (lib/cron-log.ts), so the handler's payload sits one level down.
 // A run that isn't `success` counts for neither leg. The sync throws when
 // either leg fails, after both have run, so its row reads `error` though the
-// other leg wrote: one leg's failure can hide the other's moves for a week.
+// other leg wrote: one leg's failure can hide the other's moves for a day.
 // That is the conservative side, and it is chosen.
 // A move logged on a day before either route's first cron_runs row passes:
 // the guard has nothing to read there.
 // HO 770: with one reader per rater, a chamber leg that read no longer says a
 // given rater was read, so once Cook or Inside Elections is wired after weeks
-// away, Sabato's weekly legs would vouch for its catch-up. A run therefore
+// away, Sabato's daily legs would vouch for its catch-up. A run therefore
 // counts for a move only if it read the move's own rater, its leg's
 // stats.raters.<source> ok with rows scraped. A run from before HO 770, whose
 // one table carried all three raters, counts for each of them on its chamber

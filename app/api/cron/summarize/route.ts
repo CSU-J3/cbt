@@ -9,7 +9,7 @@
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
 // Schedule lives in vercel.json: */10, every ten minutes. The neighbours this
 // route was once written to dodge have moved too — /api/sync is 0 */6,
-// sync-votes 0 10, race-ratings 0 11 Wed, primaries 0 0,12 — so it no longer
+// sync-votes 0 10, race-ratings 0 11, primaries 0 0,12 — so it no longer
 // has a reserved slot and does not need one (the HO 432 lock handles overlap).
 // expireTag("bills") flushes the cached bill queries so the dashboard sees
 // fresh summaries — GUARDED as of HO 671: it fires only when the tick actually

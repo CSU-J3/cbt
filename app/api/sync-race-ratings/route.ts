@@ -1,11 +1,12 @@
 // Race-ratings sync cron entry (handoff 88). Reads 2026 House AND Senate race
-// ratings weekly (HO 744; House-only before that), one reader per rater since
-// HO 770: `WIRED` (lib/race-ratings-scrape.ts) names the raters each chamber
-// reads, today Sabato's Crystal Ball alone, from its rating-changes page, and
-// Cook's and Inside Elections' rows stand as Ballotpedia last wrote them on
-// 2026-09-30. Separate route + cron because the cadence is
-// weekly (Sabato updates mid-week) while /api/sync runs every 6h (`0 */6`, vercel.json), and the work is
-// unrelated to the bill pipeline.
+// ratings daily since HO 771 (both chambers since HO 744; House-only before
+// that), one reader per rater since HO 770: `WIRED` (lib/race-ratings-scrape.ts)
+// names the raters each chamber reads, today Sabato's Crystal Ball alone, from
+// its rating-changes page, and Cook's and Inside Elections' rows stand as
+// Ballotpedia last wrote them on 2026-09-30. Separate route + cron because the
+// cadence is daily since HO 771 (a stall at 11:00Z costs a day, not a week, and
+// the raters publish on any weekday) while /api/sync runs every 6h (`0 */6`,
+// vercel.json), and the work is unrelated to the bill pipeline.
 //
 // Auth mirrors /api/sync and /api/sync-votes exactly: Bearer CRON_SECRET.
 // expireTag("race-ratings") flushes the cached race query helpers so

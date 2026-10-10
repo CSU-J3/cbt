@@ -89,7 +89,7 @@ export const CRON_ROUTES: readonly CronRoute[] = [
   { path: "/api/cron/amendments", schedule: "0 7 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/nominations", schedule: "0 9 * * *", maxStaleMs: 26 * HOUR }, // daily
   { path: "/api/cron/weekly-report", schedule: "30 9 * * 1", maxStaleMs: 9 * DAY, windowOnly: true }, // weekly
-  { path: "/api/sync-race-ratings", schedule: "0 11 * * 3", maxStaleMs: 9 * DAY, windowOnly: true }, // weekly (Wed)
+  { path: "/api/sync-race-ratings", schedule: "0 11 * * *", maxStaleMs: 26 * HOUR }, // daily (HO 771; weekly Wed before)
 ];
 
 export type CronRouteHealth = {
