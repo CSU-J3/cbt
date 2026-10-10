@@ -2,9 +2,10 @@
 // and it logs a rating_history row only when a race_ratings value MOVES. First
 // run logs the baseline (one row per current rating); static days log zero.
 // Daily is enough: ratings move rarely, and the ratings sync runs daily, four
-// hours earlier (HO 771). No revalidate — nothing reads rating_history yet (the
-// sparkline is a future handoff). Bearer CRON_SECRET, mirrors the other cron
-// routes.
+// hours earlier (HO 771). No revalidate: MOVED reads rating_history through
+// getRecentRaceMoves (HO 768), whose cache holds an hour (`revalidate: 3600`,
+// tag `races`), so a move logged here shows within the hour. Bearer
+// CRON_SECRET, mirrors the other cron routes.
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { getDb } from "@/lib/db";
