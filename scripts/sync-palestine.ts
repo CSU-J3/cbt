@@ -19,7 +19,10 @@
 //   reads members' NULL district as AL); then the sheet's last name must equal
 //   members.last_name or appear in members.name, ignoring case, accents and
 //   hyphens ("McClain-Delaney" on the sheet, "McClain Delaney" in members).
-//   Votes run from column 10 to the first empty header cell.
+//   HO 769: two members at the CD with the surname are told apart by the
+//   sheet's first name; a surname nobody at the CD holds is looked for among
+//   the state's House members, and one there is the match, printed "matched by
+//   state". Votes run from column 10 to the first empty header cell.
 // - Either tab: exactly one member passes, or the row is unmatched and printed
 //   with its reason. A member two rows match is printed, and --write refuses.
 // - Only A to F is stored; N/A and blank grades are skipped and counted.
@@ -200,7 +203,7 @@ type SheetRow = {
   votes: Record<string, string>;
 };
 
-type Match = { row: SheetRow; bioguideId: string };
+type Match = { row: SheetRow; bioguideId: string; note?: string };
 type Miss = { row: SheetRow; reason: string };
 
 function readRows(rows: string[][], header: Header): { members: SheetRow[]; other: number } {
@@ -244,17 +247,35 @@ function matchSenate(row: SheetRow, members: Member[]): Match | Miss {
   return { row, reason: `${hits.length} senators from ${state} match: ${hits.map((m) => `${m.name} ${m.bioguideId}`).join(", ")}` };
 }
 
+// HO 769: the two rows HO 768's write left unmatched, as members read on 2026-10-09.
+// AZ-07 holds two Grijalvas, Raúl G000551 (is_current 0) and Adelita G000606
+// (is_current 1), so the sheet's first name breaks a tie at the CD. The tracker
+// puts Lucy McBath at GA-07, where members holds Richard McCormick, and members
+// holds her at GA-06 (M001208), so a surname nobody at the CD holds is looked for
+// among the state's House members. Each step takes exactly one member or none.
 function matchHouse(row: SheetRow, members: Member[]): Match | Miss {
   const cd = /^([A-Z]{2})-(\d{1,2}|AL)$/.exec(row.place);
   if (!cd) return { row, reason: `CD "${row.place}" doesn't read as a district` };
   const token = cd[2] === "AL" ? "AL" : cd[2]!.padStart(2, "0");
-  const atCd = members.filter((m) => m.chamber === "house" && m.state === cd[1] && districtToken(m.district) === token);
-  if (atCd.length === 0) return { row, reason: `no House member at ${row.place}` };
   const last = fold(row.last);
-  const hits = atCd.filter((m) => fold(m.lastName ?? "") === last || ` ${fold(m.name)} `.includes(` ${last} `));
+  const hasSurname = (m: Member) => fold(m.lastName ?? "") === last || ` ${fold(m.name)} `.includes(` ${last} `);
+  const list = (ms: Member[]) => ms.map((m) => `${m.name} ${m.bioguideId}`).join(", ");
+  const atCd = members.filter((m) => m.chamber === "house" && m.state === cd[1] && districtToken(m.district) === token);
+  const hits = atCd.filter(hasSurname);
   if (hits.length === 1) return { row, bioguideId: hits[0]!.bioguideId };
-  if (hits.length === 0) return { row, reason: `${row.place} holds ${atCd.map((m) => `${m.name} ${m.bioguideId}`).join(", ")}; no "${row.last}"` };
-  return { row, reason: `${hits.length} House members at ${row.place} match: ${hits.map((m) => `${m.name} ${m.bioguideId}`).join(", ")}` };
+  if (hits.length > 1) {
+    const first = fold(row.first);
+    const named = first ? hits.filter((m) => ` ${fold(m.name)} `.includes(` ${first} `)) : [];
+    if (named.length === 1) return { row, bioguideId: named[0]!.bioguideId };
+    return { row, reason: `${hits.length} House members at ${row.place} match: ${list(hits)}; ${named.length} of them hold "${row.first}"` };
+  }
+  const inState = members.filter((m) => m.chamber === "house" && m.state === cd[1] && hasSurname(m));
+  if (inState.length === 1) {
+    const m = inState[0]!;
+    return { row, bioguideId: m.bioguideId, note: `matched by state: the tracker's CD ${row.place}, members' ${m.state}-${districtToken(m.district)}` };
+  }
+  const here = atCd.length ? `${row.place} holds ${list(atCd)}; no "${row.last}"` : `no House member at ${row.place}`;
+  return { row, reason: inState.length ? `${here}; ${inState.length} House members in ${cd[1]} match: ${list(inState)}` : `${here}, nor anywhere in ${cd[1]}` };
 }
 
 // ---- the run ----------------------------------------------------------------
@@ -320,6 +341,7 @@ async function main() {
     console.log(`  rows: ${sheetRows.length} member rows, ${other} other rows with content`);
     console.log(`  graded: ${graded.length} (${letters})`);
     console.log(`  matched: ${hits.length}`);
+    for (const m of hits) if (m.note) console.log(`    ${m.row.first} ${m.row.last}, row ${m.row.line}: ${m.note}`);
     console.log(`  unmatched graded: ${misses.length}`);
     for (const m of misses) console.log(`    ${m.row.first} ${m.row.last} (${m.row.place}), row ${m.row.line}: ${m.reason}`);
     const why = new Map<string, SheetRow[]>();
