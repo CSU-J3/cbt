@@ -4822,6 +4822,8 @@ No outcome depends on it. The abort landed at 8.2-8.5s in every run, and the hos
 
 One standalone probe was tried: a plain `fetch` to a silent `net` server, with and without the signal. It fell over on its own teardown before it read anything, so it isolated nothing. **Ruled unexplained and not worth chasing** (HO 744 ff-go). If it ever matters, the first question is whose connection it is, undici's or Next's patched fetch: repeat the count in plain Node, outside `next start`, with and without the signal.
 
+**Explained at HO 770.** Leg c1 re-aimed the hang at Sabato's page and logged what each socket carried. The one GET went out on the first connection. The second opened at the abort, 8.02s later, and carried no bytes: the client dialed a replacement when the abort tore the first one down. Leg c3, where nothing aborts, shows one connection. So the second socket is the client's redial on abort, not a second request, and c1 now counts requests rather than sockets.
+
 ## A review ref whose pages read a new column is red on Preview until prod is migrated, because Preview reads prod's database (HO 754, Sep 2026)
 
 HO 754 filtered every meeting reader on a new column, `committee_meetings.absent_upstream_at`. Its FF go ordered `npm run migrate` on prod before the fast-forward, as HO 751 and HO 753 did. That order protects Production. It does not protect the review ref.

@@ -107,8 +107,8 @@ The schedule is native Vercel Cron end-to-end — `vercel.json` carries all 18 e
 and is the authority. The shape: `/api/sync` every 6 hours, summarize every 10
 minutes, news every 30, markets every 4 hours plus half-hourly FMP ticks through US
 market hours, Kalshi odds every 2 hours, bill rosters every 3, daily passes for LDA,
-amendments, nominations, and votes, and two weeklies — race-ratings (Wed) and the
-weekly report (Mon 09:30 UTC).
+amendments, nominations, votes, and race ratings, and one weekly, the weekly report
+(Mon 09:30 UTC).
 
 GitHub Actions carries CI, not data: `ci.yml` (typecheck, the odds-site allowlist
 check, and build), `e2e-prod.yml` (the scheduled and post-deploy production smoke

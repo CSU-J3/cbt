@@ -5184,3 +5184,128 @@ The `POST` is the deployed path's first read of Sabato's page. Expect `success` 
 - **SKILL, its own commit, last:** edits 1-3 as the STEP 0 ruling replaced them, with edit 2 carrying the S1 ruling's sentence after *(governors are skipped).*, and edit 4 as written. Every OLD string occurred once.
 - **OPEN LOOPS reconciled: 266 live / 333 struck at open (599), 268 / 333 (601) at close** (§ OPEN LOOPS: 65 → 67 live, 104 struck), control `^- \*\*~~` 0 at both.
 - **Also notes now run through HO 770.**
+
+**Also (HO 771), the ratings sync reads daily, so a stalled origin costs a day, not a week, and a refusal now says what it looked like. It opens with HO 770's FF go, whose one POST Sabato refused from pdx1 too.**
+- **What's here:**
+  - the FF go's readings and its two rulings;
+  - STEP 0 and the claim-3 rule;
+  - the daily schedule, the refusal's shape, and the legs.
+- **Five commits, kinds unmixed:** `feat` (§ 1) · `fix` (§ 2) · `diag` · `docs` · `docs(skill)`.
+- **No migration, and no prod write.** Nothing was fetched from centerforpolitics.org from this box after the challenge ruling.
+- **The pointer is 771:** pointer 770, highest HO in commit subjects 770, `main` at `12f4228`.
+
+**HO 770's FF go, as taken** (`docs/handoffs/770-artifacts/ff/`, both of its pastes).
+- **The FF.**
+  - **The cheap gates, immediately before the push** (17:44:11-17:44:45Z, Node 24.21.0, `12f4228`, tree clean): both `tsc` runs exit 0, `check:odds-sites` OK (188 scanned, 13 listed), and `check:design-citations` 0 problems.
+  - **The push:** `origin/main` was `140aa77`, an ancestor, 9 behind. `git push origin 12f4228…:main` ran at 17:45:01Z, with no force (`140aa77..12f4228`).
+  - `769-review` and `770-review` are deleted, remote and local. `git rev-parse main` reads `12f4228e4991222ed6ce2f2a468405395195448f`.
+- **`verify:deploy`, in the foreground:** first match 11s in, and five consecutive reads by 17:46:46Z.
+- **The Production build is cold:** `dpl_GHgGuNPSaoi7XLoXtKDKEn2zMw7r`, build `bld_hh4lyrdt3`, logged *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 17:45:06Z and built in 41s.
+- **`e2e-prod` #38073072180:** `smoke` 141 passed (5.8m).
+- **The MOVED baseline** (page reads, 17:51Z, 1440 and 430, reduced motion): 17 rows, all 09-30, the same 17 as HO 768's reading.
+- **The origin check**, one GET with § 1's agent:
+  - It got **403 at 17:53:03Z and again at 18:09:31Z**, Cloudflare's managed challenge both times (below).
+  - The go's "no answer" branch was read as covering a refusal, so nothing ran after it.
+  - `/api/health` at 18:10Z was already 503:
+    - the ratings route on #23765's `error`, and stale past its window;
+    - `/api/cron/lda` on lda.gov's 503s of 10-09 and 10-10.
+- **The challenge ruling** (`770-ff-challenge-ruling.md`): a challenge at this box is this box's reading, and pdx1's is the one that matters. So POST once anyway, with no retries and nothing more fetched from centerforpolitics.org from this box.
+- **#23996, the one POST,** at 18:33:31Z (`x-vercel-id sfo1::pdx1::…`):
+  - HTTP 500 in 322 ms;
+  - `cron_runs` `error` in 146 ms, both legs reading *sabato did not read: fetch …/2026-rating-changes/ -> 403. Nothing was written in this leg*.
+  - **The read-back by `SELECT`: nothing written.** `cook`'s 87 rows and `inside_elections`' 86 kept their sha256, `sabato`'s 95 are byte-identical, and `rating_history` on CT-05 and KS-03 holds 6 → 6.
+- **The three challenges:**
+  - **17:53:03Z, this box:** 403, 5,572 bytes, `cf-ray a4877b7b8b0659d4-DEN`, a challenge page (*Just a moment…*, `cType: 'managed'`). Its `cf-mitigated` and `server` weren't recorded.
+  - **18:09:31Z, this box:** 403, 5,572 bytes, `cf-ray a487939fd8215380-DEN`, `cf-mitigated: challenge`, `server: cloudflare`, a challenge page.
+  - **18:33:31Z, pdx1:** 403, and nothing else kept. The shipped fetch threw the status alone, which is § 2's reason.
+- **The flush:** `POST /api/revalidate?tag=palestine`, HTTP 200 in 170 ms, `{"ok":true,"tag":"palestine"}`.
+- **The tracker and health reading** (18:34:55Z, 1440 and 430):
+  - `/members/G000606`: B, *Rank #9 of 212*.
+  - `/members/M001208`: F, *Rank #191 of 212*.
+  - A dry run at 18:13Z had already read both right, before any flush.
+  - `/api/health`: 503, with the ratings route on #23996.
+  - The ratings checks were skipped, as ruled.
+- **The resume ruling** (`771-resume-ruling.md`): HO 771 ships anyway.
+  - **Why:** the route is already red; Sabato's posture moves (200 at 00:55Z and 05:30Z, a challenge at 17:53Z); and the sources reopen on someone else's schedule.
+  - HO 770's FF go is done as it stands. There's no manual POST, and the daily cron is the reading from here.
+
+**STEP 0** (read at `12f4228` during the FF go's 15-minute wait; line numbers are `12f4228`'s).
+- **Claims 1 and 2 held.**
+- **Claim 3 failed.** The cron string sat only where claimed and in dated records, but the schedule was written in words in eight more live places.
+- **The rule** (the challenge ruling): every place that states the schedule as it stands changes with it, and every place that records what it was stays.
+- **Changed:**
+  - ruled: `app/api/cron/news/route.ts:14`, `app/api/cron/rating-history/route.ts:4` and `lib/move-freshness.ts:35`;
+  - mine, ruled to stand: `app/api/cron/summarize/route.ts:12`, `lib/move-freshness.ts:29` (*for a week* → *for a day*), and backlog `:71` and `:473`;
+  - found while building: `lib/move-freshness.ts:10`, where *the runs behind it read as an ordinary week* now reads *as ordinary, not as a catch-up*.
+- **Stayed:**
+  - the roadmap, the oddities entries and the struck backlog lines;
+  - `lib/race-ratings-scrape.ts:39` and `:226`, and `docs/method.md:464`;
+  - the HO 581 WATCH (backlog `:586`) and the BANKED Decision Desk line (`:75`);
+  - the route header's HO 744 arithmetic: `:32`, `:38` and `:40`, plus `:37`, `:39` and `:60`, found while building;
+  - `lib/cron-health.ts:41` and `:44`;
+  - `lib/race-ratings-sync.ts:20` (*said this week*, HO 744's history) and `lib/move-freshness.ts:34` (*after weeks away*, a gap);
+  - SKILL's *for two Wednesdays*, and the tracked old handoffs.
+
+**What's built.**
+1. **`feat` `4eb912e`, daily.** It touches `vercel.json`, `lib/cron-health.ts`, the route header, `lib/move-freshness.ts`, and the news, rating-history and summarize headers.
+   - The schedule is `0 11 * * *`, and the registry entry is verbatim: `26 * HOUR`, with no `windowOnly`.
+   - The route header's cadence sentence gives the reason: a stall at 11:00Z costs a day, not a week, and the raters publish on any weekday.
+   - The claim-3 changes are above.
+   - `MOVE_FRESH_DAYS` is unchanged, and the bound's sentence says what 8 means daily (Findings).
+2. **`fix` `3a171ea`, what a refusal looked like** (`lib/race-ratings-scrape.ts`). On a non-2xx, `fetchSource` reads the body inside the same 8s budget and throws, through `fetchError`:
+   - the status;
+   - `cf-mitigated`, `server` and `cf-ray`, when present;
+   - the body's size and its `<title>`, at most 80 characters.
+
+   It reads *-> 403: cf-mitigated challenge, server cloudflare, cf-ray …, 5,572 bytes, "Just a moment..."*. Response headers only. A body that misses the budget still throws with the status and headers. Our own timeout is status 0, as before.
+
+**Legs** (`scripts/diagnostic/ratings-daily-771.ts`, **23 PASS**). No prod is read, and a tripwire on `fetch` let nothing past 127.0.0.1.
+- **The registry:** `vercel.json` and `CRON_ROUTES` agree on `0 11 * * *`, and the entry is 26h with no `windowOnly`. The red: `12f4228`'s pair agrees on `0 11 * * 3` and fails the daily assertion.
+- **The health:** `computeCronHealth` runs on a `file:` copy built by the real `scripts/migrate.ts`, with `cron_runs` planted relative to now.
+  - A 25h-old success reads healthy.
+  - The red: a 27h-old success reads stale (*no success/timeout in 27.0h (> 26.0h)*), where `12f4228`'s entry reads the same row healthy.
+  - The control: weekly-report's 8-day-old success reads healthy.
+- **The guard on daily runs** (added): gaps of 1 and 7 days read fresh; an 8-day gap reads fresh a second under the bound and not fresh a second over it; 9 days reads not fresh.
+- **The refusal's shape** (servers on 127.0.0.1):
+  - A 403 shaped like the 18:09Z challenge, with its body and its three headers, throws every field and no request header.
+  - The red: `12f4228`'s `fetchSource` throws the status alone.
+  - The same message reaches the leg's failure through `scrapeChamber`.
+  - A planted token and Bearer value in a `<title>` come out redacted.
+  - A 404 with none of the fields reads as before, plus *8 bytes*.
+  - A 403 whose body stalls throws at 8,004 ms with its status and headers.
+  - The controls: a stalled 200 (8,010 ms) and a silent host (8,006 ms) throw status 0.
+- **Leg A** (`race-ratings-shape-770.ts`), re-run with § 2: **31 PASS**, its 404 control now expecting the size.
+
+**Findings, flagged.**
+- **The handoff's sentence for the bound was false at its edge, so the comment says what 8 means daily instead.**
+  - The handoff had *kept at 8 when the sync went daily (HO 771), so a missed week still reads not fresh*.
+  - Daily, a week of missed runs is an 8-day gap, and `s − sPrev ≤ 8 × DAY` decides it by the seconds between two runs' starts. The guard leg reads fresh at 7.99999 days and not fresh at 8.00001.
+  - A gap past 8 days takes eight missed runs.
+  - `MOVE_FRESH_DAYS` is unchanged, as ruled. Whether a week's outage should read not fresh for certain is a bound to set, not a comment to write.
+- **Deviations:**
+  - The shape uses `fetchError`'s own `: ` separator, as the timeout's detail does, so `lib/redact.ts` is untouched.
+  - Leg A's assertion moves with § 2 in the `diag` commit, so at `3a171ea` alone leg A's 404 control is red.
+  - The WATCH's close parenthetical, *(pdx1 is unmeasured)*, now reads *(pdx1 was refused at #23996)*.
+  - The route header's parenthetical now reads *(both chambers since HO 744; House-only before that)*, since *weekly* no longer sits beside it.
+  - Some legs go beyond the ruling's: the guard, the redaction, the stalled 403, the stalled 200, the `scrapeChamber` pass-through, the old entry's reading, and the tripwire.
+- **Two stale lines, seen and left because they fall outside the rule:**
+  - `app/api/cron/rating-history/route.ts`'s header says *nothing reads rating_history yet*, but MOVED has read it since HO 768.
+  - `README.md:106` counts *all 18 entries*, and `vercel.json` has 20 (19 paths).
+
+**Owed in the FF go:**
+- the FF to `771-review`'s head;
+- `verify:deploy`, in the foreground;
+- the Production `e2e-prod`.
+
+There's no manual POST. **The deployed reading is the first scheduled `0 11 * * *` run after the FF.** If it reads `success`, it closes the ratings WATCH. Otherwise it records the refusal's shape in its `error_message` (§ 2).
+
+**Docs (HO 771):**
+- This block.
+- **backlog, 4+/3−:**
+  - filed: Sabato's line (the challenges and #23996, owned by Corey);
+  - rewritten in place, unstruck: the ratings WATCH (its dated field, #23996, and the close parenthetical), `:71` and `:473`. These are the three deletions.
+- **oddities, 2+:** the HO 744 entry's *Explained at HO 770* paragraph, verbatim, and its blank line.
+- **README, 2+/2−:** the schedule sentence, verbatim. The two deletions are the old sentence's two lines.
+- **SKILL, its own commit, last:** the cron entry's opening, verbatim.
+- **OPEN LOOPS reconciled:** 268 live / 333 struck at open (601), 269 / 333 (602) at close (§ OPEN LOOPS: 67 → 68 live, 104 struck). The control, `^- \*\*~~`, is 0 at both.
+- **Also notes now run through HO 771.**
