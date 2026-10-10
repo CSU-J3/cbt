@@ -279,29 +279,59 @@ const FETCH_TIMEOUT_MS = 8_000;
 
 /**
  * Every reader's fetch: this file's agent, an `Accept` per call, the 8s budget
- * over headers and body, and `fetchError` on a non-2xx answer, or with status 0
- * on our own timeout. Exported so the shape diagnostic's controls run it
- * against local servers.
+ * over headers and body, and `fetchError` on a non-2xx answer, carrying the
+ * refusal's shape (HO 771, refusalShape), or with status 0 on our own timeout.
+ * Exported so the shape diagnostic's controls run it against local servers.
  */
 export async function fetchSource(url: string, accept: string): Promise<string> {
   const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT, Accept: accept },
-      redirect: "follow",
-      signal,
-    });
-    if (!res.ok) throw fetchError(url, res.status);
-    return await res.text();
-  } catch (e) {
-    // Our budget running out, not the host's answer. Through `fetchError` like
-    // every URL-bearing throw (HO 679); status 0 marks our own timeout, as the
-    // primaries scrape's `httpStatus: 0` does.
-    if (signal.aborted) {
-      throw fetchError(url, 0, `no answer within the ${FETCH_TIMEOUT_MS}ms per-fetch budget`);
-    }
-    throw e;
+  // Our budget running out, not the host's answer. Through `fetchError` like
+  // every URL-bearing throw (HO 679); status 0 marks our own timeout, as the
+  // primaries scrape's `httpStatus: 0` does.
+  const timedOut = (e: unknown) => {
+    throw signal.aborted ? fetchError(url, 0, `no answer within the ${FETCH_TIMEOUT_MS}ms per-fetch budget`) : e;
+  };
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, Accept: accept },
+    redirect: "follow",
+    signal,
+  }).catch(timedOut);
+  // A refusal is the host's answer, so it never reads as status 0, even when
+  // its body runs out the budget.
+  if (!res.ok) throw fetchError(url, res.status, await refusalShape(res, signal));
+  return await res.text().catch(timedOut);
+}
+
+/**
+ * HO 771 — what a refusal looked like. HO 770's one POST got Sabato's 403 from
+ * pdx1 with the status alone (#23996), so nobody could say whether it was
+ * Cloudflare's challenge or its block page. A non-2xx answer now has its body
+ * read inside the same budget, and the thrown message carries the refusal's
+ * shape: `cf-mitigated`, `server` and `cf-ray` when the answer has them, the
+ * body's size, and its HTML <title>, 80 characters at most. Response headers
+ * only, never a request header, and the message still goes through
+ * `fetchError`, so it's redacted. A body that doesn't arrive inside the budget
+ * still throws, with the status and the headers it has.
+ */
+async function refusalShape(res: Response, signal: AbortSignal): Promise<string> {
+  const parts: string[] = [];
+  for (const h of ["cf-mitigated", "server", "cf-ray"]) {
+    const v = res.headers.get(h);
+    if (v) parts.push(`${h} ${v}`);
   }
+  try {
+    const body = new Uint8Array(await res.arrayBuffer());
+    const n = body.byteLength;
+    parts.push(`${n.toLocaleString("en-US")} ${n === 1 ? "byte" : "bytes"}`);
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/i
+      .exec(new TextDecoder().decode(body))?.[1]
+      ?.replace(/\s+/g, " ")
+      .trim();
+    if (title) parts.push(`"${title.slice(0, 80)}"`);
+  } catch {
+    parts.push(signal.aborted ? `body not read within the ${FETCH_TIMEOUT_MS}ms budget` : "body unreadable");
+  }
+  return parts.join(", ");
 }
 
 /**
