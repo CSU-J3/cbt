@@ -103,7 +103,7 @@ Deploys ride the Vercel Git integration: a push to `main` builds Production
 confirms the served SHA after a ship. Cron auth is a `Bearer ${CRON_SECRET}` header
 on every tick, and `/api/health` watches the fleet.
 
-The schedule is native Vercel Cron end-to-end — `vercel.json` carries all 18 entries
+The schedule is native Vercel Cron end-to-end — `vercel.json` carries every entry
 and is the authority. The shape: `/api/sync` every 6 hours, summarize every 10
 minutes, news every 30, markets every 4 hours plus half-hourly FMP ticks through US
 market hours, Kalshi odds every 2 hours, bill rosters every 3, daily passes for LDA,
