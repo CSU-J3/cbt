@@ -1,0 +1,4 @@
+# HO 772: other people's bytes, kept as they came. OFL.txt is google/fonts' file as shipped
+# (CRLF, 4,456 bytes), and core.autocrlf would store it LF; the woff2 files are Production's.
+OFL.txt -text
+*.woff2 binary

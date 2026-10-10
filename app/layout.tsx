@@ -1,7 +1,31 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { prefBootScript } from "@/lib/prefs";
 import "./globals.css";
+import "./fonts/ibm-plex.css";
+
+// HO 772 — BOTH FACES ARE FILES IN THIS REPO, SO NO BUILD ASKS GOOGLE FOR
+// ANYTHING. next/font/google fetched Google's stylesheet and files at build
+// time, and since HO 768 every build is cold, so every build asked again; on
+// 2026-10-10 a Preview of the commit Production had just built failed in
+// next/font/google with 18 errors (docs/oddities.md, HO 772). The bytes are
+// Production's own, as served at 3785c41: app/fonts/ibm-plex-sans/ and
+// app/fonts/ibm-plex-mono/ hold the woff2 files, named by subset (and weight,
+// where each weight is its own file). The two calls below carry the latin cut
+// only, the one Next preloads, because next/font/local takes a unicode-range
+// only for a whole call; every other subset, renamed IBM Plex Sans Subsets and
+// IBM Plex Mono Subsets, and both metric fallbacks (Production's names and
+// values) are in app/fonts/ibm-plex.css, in Production's order with its
+// descriptors. Each variable reads the latin family, then Subsets, then
+// Fallback, so every character gets the face Production gave it
+// (scripts/diagnostic/fonts-local-772.ts measures that). adjustFontFallback is
+// off because next/font/local would compute its fallback from a plain average
+// advance, not capsize's weighted width, and the fallback has to stay
+// Production's. The fallback names are single-quoted because Turbopack writes
+// the list into a double-quoted JS string without escaping it. License:
+// app/fonts/OFL.txt.
+// DO NOT BRING BACK next/font/google: Turbopack can't carry a Google font URL
+// that has its own query string, and one such answer failed a build.
 
 // HO 633 — the sans face is IBM Plex Sans, self-hosted. Owner ruling off
 // docs/design/mock-633-sans-specimen.html (a four-face knob on the real
@@ -22,11 +46,24 @@ import "./globals.css";
 // The token stays the seam: `variable` goes on <html>, `--sans` is re-pointed in
 // globals.css, and no consumer is edited — every `var(--sans)` site moves
 // together by construction, which is why no per-route ruling was needed.
-const plexSans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const plexSans = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-sans/latin.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-sans/latin.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibm-plex-sans/latin.woff2", weight: "600", style: "normal" },
+  ],
   display: "swap",
   variable: "--font-plex-sans",
+  declarations: [
+    {
+      prop: "unicode-range",
+      value:
+        "U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+    },
+    { prop: "font-stretch", value: "100%" },
+  ],
+  adjustFontFallback: false,
+  fallback: ["'IBM Plex Sans Subsets'", "'IBM Plex Sans Fallback'"],
 });
 
 // HO 697 — the MONO half, and it is the same fix as the sans one above rather
@@ -51,11 +88,24 @@ const plexSans = IBM_Plex_Sans({
 // Ruled by Corey 2026-08-17 in the /welcome mock, which toggles the two faces via
 // a `body.plexmono` class; backlog:137. Same preload caveat as the sans above —
 // FONT TIMING IS MEASURED ON THE DEPLOY, NEVER ON THIS BOX.
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+const plexMono = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-mono/latin-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-mono/latin-500.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ibm-plex-mono/latin-600.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/ibm-plex-mono/latin-700.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
   variable: "--font-plex-mono",
+  declarations: [
+    {
+      prop: "unicode-range",
+      value:
+        "U+??,U+131,U+152-153,U+2BB-2BC,U+2C6,U+2DA,U+2DC,U+304,U+308,U+329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD",
+    },
+  ],
+  adjustFontFallback: false,
+  fallback: ["'IBM Plex Mono Subsets'", "'IBM Plex Mono Fallback'"],
 });
 
 // HO 633 C1b — THE PRELOAD IS ON AND WORKS IN PRODUCTION. DO NOT HAND-ROLL A
