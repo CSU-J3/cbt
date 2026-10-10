@@ -174,8 +174,8 @@ type FontState = {
 
 const FONT_STATE = `(() => ({
   status: document.fonts.status,
-  mono: document.fonts.check('12px "IBM Plex Mono"'),
-  sans: document.fonts.check('12px "IBM Plex Sans"'),
+  mono: document.fonts.check('12px ' + getComputedStyle(document.documentElement).getPropertyValue('--font-plex-mono').split(',')[0].trim()),
+  sans: document.fonts.check('12px ' + getComputedStyle(document.documentElement).getPropertyValue('--font-plex-sans').split(',')[0].trim()),
   bodyFamily: getComputedStyle(document.body).fontFamily.split(',')[0].replace(/["']/g, ''),
 }))()`;
 
