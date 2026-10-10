@@ -291,6 +291,13 @@ pass under a second name:**
   (HO 670 used 1920 / 1440 / 1100 / 430), a **separate `prefers-reduced-motion`
   pass** — it is a different layout, not a dimmer one — and the screenshots
   retained in the paste. "I looked at it" is not a capture.
+- **A CSS change is read in the served stylesheet before any capture is trusted**
+  (HO 717 locally, HO 768 on Vercel). A warm Turbopack build has twice emitted the
+  previous stylesheet under its old name while the build passed, the SHA went live
+  and the markup was new, so the prod reading greps the stylesheet the page links
+  for a token the change adds or removes. Since HO 768 every Vercel build runs
+  cold (`VERCEL_FORCE_NO_BUILD_CACHE=1`, Production and Preview); the read stays,
+  because a cache is a cache.
 - **Any instrument: state what its zero means, and fire a control that can
   produce a non-zero on the same instrument.** An untriggered guard is unproven,
   not protection. Where a state can mimic the condition being tested, the control
