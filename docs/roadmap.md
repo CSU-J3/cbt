@@ -5309,3 +5309,110 @@ There's no manual POST. **The deployed reading is the first scheduled `0 11 * * 
 - **SKILL, its own commit, last:** the cron entry's opening, verbatim.
 - **OPEN LOOPS reconciled:** 268 live / 333 struck at open (601), 269 / 333 (602) at close (§ OPEN LOOPS: 67 → 68 live, 104 struck). The control, `^- \*\*~~`, is 0 at both.
 - **Also notes now run through HO 771.**
+
+**Also (HO 772), the fonts move into the repo, so no build asks Google for anything. It opens with HO 771's FF go, whose Preview failed in `next/font/google` on the commit Production had just built.**
+- **What's here:**
+  - HO 771's FF go as taken, and three records HO 771's block owes;
+  - STEP 0 and its two reads;
+  - § 1, the faces from the repo, and legs A and B.
+  - Leg C and HO 772's FF go open the next block.
+- **Five commits, kinds unmixed:** `diag` · `fix` · `test` · `docs` · `docs(skill)`.
+- **No migration, and no prod write:** Delaware's read found both winners stored, so the one authorized write, `reingest:primary-slate`, didn't run.
+- **The pointer is 772:** pointer 771, highest HO in commit subjects 771, `main` at `3785c41`.
+
+**HO 771's FF go, as taken** (`docs/handoffs/771-artifacts/ff/`, its paste).
+- **The two fixes, approved as landed:**
+  - `6f5aa74` `chore(HO 771)`: the rating-history route's header names its reader, the go's text verbatim (4+/3−).
+  - `3785c41` `docs(HO 771)`: the README's schedule says *every entry* (1+/1−).
+  - Pushed to `771-review` at 21:10:52Z (`350d8eb..3785c41`), after gates at 21:10:36-21:10:42Z.
+- **The FF:**
+  - **The cheap gates, immediately before the push** (21:11:08-21:11:14Z, Node 24.21.0, `3785c41`, tree clean): both `tsc` runs exit 0, `check:odds-sites` OK (188 scanned, 13 listed), and `check:design-citations` 0 problems (1,136 scanned).
+  - **The push:** `git push origin 3785c41…:main` at 21:11:29Z, no force (`12f4228..3785c41`, 7 commits). The classifier didn't block it.
+  - `771-review` is deleted, remote and local. `git rev-parse main` reads `3785c4107f40776886d0e69ad4b7e6d810f9562a`.
+- **`verify:deploy`, in the foreground:** `3785c41` from the first read, and five consecutive reads by 21:13:26Z.
+- **The Production build is cold:** `dpl_gvGhfBQXbob4pNRecUKzTC5S7isT`, build `bld_hfs85ewc7` (iad1), logged *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 21:11:35Z and was READY at 21:12:16Z.
+- **`e2e-prod` #38086717127:** `smoke` 141 passed (6.1m).
+- **The failed Preview:** `dpl_BeXhuNNk3XufgKPbmf4xRFnHmozG`, the build of the push to `771-review`, created at 21:13:26Z after the FF, cold in iad1.
+  - `next build` failed after 10s with 18 errors in IBM Plex Sans's generated stylesheet, each reading *next/font/google queries have exactly one entry*.
+  - Production was unaffected, and `e2e-prod` #38086811030 skipped both jobs.
+  - Ruled: fixed here rather than watched (oddities, HO 772).
+
+**Three records HO 771's block owes,** carried here because that block is landed.
+- **The correction:** HO 771's block (`docs/roadmap.md:5292`) says MOVED has read `rating_history` since HO 768. It has since HO 272 (`d777c1b`, 2026-06-18, the v2 races-tab MOVES badge), and HO 768 rebuilt the reader around the guard.
+- **Fixed:** the two stale lines HO 771's block left (`:5291-5293`), at `6f5aa74` (the rating-history header) and `3785c41` (the README's count).
+- **The count:** `vercel.json` has 20 entries and 20 path strings, on 19 routes. `/api/cron/markets?source=fmp` shares markets' route.
+
+**STEP 0**, the architect's table, read at `3785c41` before any edit; a check, not a HALT.
+1. **Holds.** `app/layout.tsx:2` imports both faces from `next/font/google`; `:25-30` is Sans, `:54-59` is Mono, and `:113` puts both variables on `<html>`.
+2. **Holds.** Nothing else imports `next/font`; the other mentions are comments (`app/globals.css:105`, `:186`, `app/layout.tsx:65`, `scripts/diagnostic/mono-features-697.ts:16`). Google's font hosts are named only in `mono-features-697.ts`, at `:34-36` and in `:64`'s message.
+3. **Holds.** `--font-plex-*` is read by `--sans` (`app/globals.css:112`) and `--font-mono` (`:199`). The one other mention is a comment (`scripts/diagnostic/mono-weights-697.ts:49`).
+4. **Holds.** `FONT_STATE`'s `mono` and `sans` reach only the log message (`e2e/narrow.spec.ts:346`, `:350`), never an `expect`.
+5. **Holds, with one miss.** Each edit's anchor occurs once, but `:1945` states the mechanism twice. Its mono sentence (*IBM Plex Mono via `next/font/google` at 400/500/600/700*) goes false with § 1, so `docs(skill)` corrects it as a ride-along, flagged for approval.
+6. **Holds.** `package-lock.json:3880-3881`: next 16.3.4, and 16.3.4 is installed.
+
+**The two reads:**
+- **Delaware** (22:09Z, by `SELECT`): S-DE's *Michael Katz* is `winner` at 77.3%, written 2026-10-06 00:00:23Z by #22731 (`/api/cron/primaries`, the Senate slice from unit 1), the visit the line's arithmetic put on 10-06. DE-AL's *Joseph Arminio* is `winner` at 47.8%. **No reingest:** both winners are stored, and nothing was written.
+- **The first daily ratings run:** this session opened at 22:06Z on 10-10, before 2026-10-11 11:00Z, so the run is read at the FF go.
+
+**§ 1, the faces from the repo** (`fix` `87b3bbc`).
+- **`app/layout.tsx`:** `IBM_Plex_Sans` and `IBM_Plex_Mono` become two `localFont` calls holding the latin cut. Each has:
+  - one `src` entry per weight: Sans's one variable file at 400/500/600, and Mono's four static files;
+  - `display: "swap"`, with the variables unchanged;
+  - Production's latin range, verbatim, through `declarations`;
+  - `adjustFontFallback: false`;
+  - the fallback list: Subsets, then Production's metric fallback.
+
+  The comment gains the HO 772 paragraph, and HO 633 C1b's stays.
+- **`app/fonts/`:**
+  - the 26 woff2 files Production served at `3785c41`, byte for byte;
+  - `ibm-plex.css`: the 31 non-latin faces, renamed *IBM Plex Sans Subsets* and *IBM Plex Mono Subsets*, and both metric fallbacks, with Production's descriptors in Production's order;
+  - `OFL.txt`: google/fonts' file for both families, 4,456 bytes, sha256 `7e6b2818…07da`.
+- **Three departures, forced:**
+  - **The fallback names are single-quoted** (`"'IBM Plex Sans Subsets'"`). The handoff's `'"IBM Plex Sans Subsets"'` failed the build, because Turbopack writes the list into a double-quoted JS string without escaping it: *Expected ',', got 'ident'* at `plexsans_95cdd997.js:5:35`, and in its mono twin. The built CSS reads the same families.
+  - **Sans's call also declares `font-stretch: 100%`,** because Production's 18 Sans faces carry it. Mono's carry none.
+  - **`app/fonts/.gitattributes`** (`OFL.txt -text`, `*.woff2 binary`): google/fonts ships `OFL.txt` with CRLF, and `core.autocrlf` would have stored it LF.
+
+**Leg A, `capture` against Production** (`3785c41`, 22:29:26Z, by the committed script; `docs/handoffs/772-artifacts/`).
+- **The faces: 40, the handoff's estimate exactly.**
+  - IBM Plex Sans has 18: cyrillic-ext, cyrillic, greek, vietnamese, latin-ext and latin, each at 400/500/600, all with `font-stretch: 100%`.
+  - IBM Plex Mono has 20: the same subsets without greek, each at 400/500/600/700, with no stretch.
+  - All 38 are `normal` and `swap`, each with a `unicode-range`.
+  - The two fallbacks are on `local(Arial)`:
+    - Sans: `ascent-override 101.32%`, `descent-override 27.18%`, `line-gap-override 0.0%`, `size-adjust 101.17%`.
+    - Mono: `76.16%`, `20.43%`, `0.0%`, `134.59%`.
+- **The files: 26 distinct.** Sans serves one file per subset across its weights (6). Mono serves one per subset and weight (20).
+- **The preloads: the 5 latin files,** sent in the `Link` response header, not as `<link>` elements in the HTML. After hydration the DOM carries the same five as elements.
+- **The latin range is served as `U+??,U+131,…`,** the minifier's wildcard for U+0000-00FF, and is written into both calls as served.
+- **The specimen baseline:** 42 spans and 21 font requests, all 200 from Production's host. 33 faces are loaded after the block (5 before), and the PNG is 532×1360 (sha256 `39cc3577…`).
+  - No specimen falls in cyrillic-ext. Its faces are checked by C1 (bytes and descriptors), not by the specimen.
+- **Determinism, read early:** four Production captures, and one of a local build of the fix, gave the same PNG.
+
+**Leg B, the build.**
+- **B1** (`87b3bbc`, Node 24.21.0, cold, 22:32:57-22:33:28Z): `next build` exits 0 with no warning lines. `built` reads:
+  - 38 web faces and 2 fallbacks;
+  - every Production face with a built twin of the same display, stretch, code points and bytes;
+  - the fallbacks equal in every descriptor;
+  - no Google font host in `.next/static` (66 files). This check reads 0 at `3785c41` too, since Production's three stylesheets name neither host, so it guards rather than discriminates.
+- **The grep, as written, can't pass.** `git grep -n "next/font/google" -- app components lib` finds the HO 772 comment's three mentions (`app/layout.tsx:8`, `:11`, `:27`), which the handoff asked for.
+  - The import-shaped grep (`from ['"]next/font/google['"]`) finds nothing at HEAD.
+  - **The red:** both greps find `app/layout.tsx:2` at `3785c41`.
+- **B2, offline:** `HTTPS_PROXY` and `HTTP_PROXY` at a closed `127.0.0.1:9`, for the build process only.
+  - **The red:** `3785c41`, in a worktree, fails in `next/font/google` (*Failed to fetch IBM Plex Sans from Google Fonts*, and Mono), so the proxy was honored.
+  - **The green:** `87b3bbc` passes, and its CSS passes `built`.
+
+**Found while building, filed.**
+- `app/layout.tsx`'s HO 633 C1b paragraph describes webpack's preload chain and its Windows break, but this box's Turbopack build of the fix preloads all five latin files.
+- `app/globals.css:110-111` says changing the face is one line plus one import.
+
+Both are left, as the handoff kept C1b and changed neither token. They're filed in the backlog as *Two font comments describe plumbing that has moved*.
+
+**Docs (HO 772):**
+- This block.
+- **backlog, 2+/1−:**
+  - Delaware's line records the read: the one deletion is that line, rewritten in place.
+  - The font-comments line is filed.
+  - The 10-11 run wasn't read, so the ratings WATCH and Sabato's line are unchanged.
+- **oddities, 4+:** the handoff's entry, verbatim, with its blank lines.
+- **SKILL, its own commit, last:** edits 1 and 2, verbatim, and the mono sentence at `:1945`, flagged.
+- **OPEN LOOPS reconciled:** 269 live / 333 struck at open (602), 270 / 333 (603) at close (§ OPEN LOOPS: 68 → 69 live, 104 struck). The control, `^- \*\*~~`, is 0 at both.
+- **Also notes now run through HO 772.**
