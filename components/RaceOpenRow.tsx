@@ -17,7 +17,8 @@ import { useState } from "react";
 import { GradeChip } from "@/components/GradeCard";
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { KalshiLine } from "@/components/race-cells";
-import type { BallotEntry, MemberFacts, PalestinePools } from "@/lib/queries";
+import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "@/lib/enums";
+import type { BallotEntry, MemberFacts, PalestinePools, RatingSource } from "@/lib/queries";
 import type { ElectoralRow } from "@/lib/electoral-rows";
 import { formatDollarsCompact, formatRelativeAge } from "@/lib/format";
 import { ratingColor } from "@/lib/race-colors";
@@ -64,13 +65,30 @@ export function Face({ url, name, party, small = false }: { url: string | null; 
   return <img className={cls} src={url} alt={name} onError={() => setFailed(true)} />;
 }
 
-function Tile({ label, value, sub, className = "", title }: { label: string; value: React.ReactNode; sub?: React.ReactNode; className?: string; title?: string }) {
+function Tile({ label, value, sub, className = "", title }: { label: React.ReactNode; value: React.ReactNode; sub?: React.ReactNode; className?: string; title?: string }) {
   return (
     <div className={`rl-tile ${className}`} title={title}>
       <span className="rl-tl">{label}</span>
       <span className="rl-tv">{value}</span>
       {sub ? <span className="rl-ts">{sub}</span> : null}
     </div>
+  );
+}
+
+// HO 775: a rater's name, linked to that rater's own 2026 ratings page for the
+// row's chamber (RACE_RATING_PAGES_2026), the attribution. The list renders
+// only 2026: app/electoral/page.tsx sends 2028 to the seat outlook.
+function RaterLink({ source, chamber, children }: { source: RatingSource; chamber: "senate" | "house"; children: string }) {
+  return (
+    <a
+      className="rater-link"
+      href={RACE_RATING_PAGES_2026[source]?.[chamber]}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={RACE_RATING_SOURCES[source]}
+    >
+      {children}
+    </a>
   );
 }
 
@@ -407,9 +425,18 @@ export function RaceOpenRow({
   const passed = row.result != null;
   const calls = (
     <>
-      <Tile label="Cook" value={<span style={{ color: ratingColor(row.cook) }}>{row.cook ?? "—"}</span>} />
-      <Tile label="Sabato" value={<span style={{ color: ratingColor(row.sabato) }}>{row.sabato ?? "—"}</span>} />
-      <Tile label="Inside" value={<span style={{ color: ratingColor(row.ie) }}>{row.ie ?? "—"}</span>} />
+      <Tile
+        label={<RaterLink source="cook" chamber={row.chamber}>Cook</RaterLink>}
+        value={<span style={{ color: ratingColor(row.cook) }}>{row.cook ?? "—"}</span>}
+      />
+      <Tile
+        label={<RaterLink source="sabato" chamber={row.chamber}>Sabato</RaterLink>}
+        value={<span style={{ color: ratingColor(row.sabato) }}>{row.sabato ?? "—"}</span>}
+      />
+      <Tile
+        label={<RaterLink source="inside_elections" chamber={row.chamber}>Inside</RaterLink>}
+        value={<span style={{ color: ratingColor(row.ie) }}>{row.ie ?? "—"}</span>}
+      />
       {row.chamber === "house" ? (
         // The row drops its 2024 column under 900px; the open row picks it up.
         <Tile

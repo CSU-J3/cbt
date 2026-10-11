@@ -216,3 +216,22 @@ export const RACE_RATING_SOURCES: Record<string, string> = {
   sabato: "Sabato's Crystal Ball (UVA Center for Politics)",
   inside_elections: "Inside Elections with Nathan L. Gonzales",
 };
+
+// HO 775: each rater's own 2026 ratings page, by chamber. It's the attribution
+// link on the rater's name (the chips on /race/[id], the three rater tiles in
+// /electoral's open row), never source_url, which says where we read the row.
+// No code fetches these pages: they're links a reader clicks.
+export const RACE_RATING_PAGES_2026: Record<string, { house: string; senate: string }> = {
+  cook: {
+    house: "https://www.cookpolitical.com/ratings/house-race-ratings",
+    senate: "https://www.cookpolitical.com/ratings/senate-race-ratings",
+  },
+  sabato: {
+    house: "https://centerforpolitics.org/crystalball/2026-house/",
+    senate: "https://centerforpolitics.org/crystalball/2026-senate/",
+  },
+  inside_elections: {
+    house: "https://insideelections.com/ratings/house/",
+    senate: "https://insideelections.com/ratings/senate/",
+  },
+};

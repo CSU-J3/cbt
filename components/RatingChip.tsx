@@ -1,4 +1,4 @@
-import { RACE_RATING_SOURCES } from "@/lib/enums";
+import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "@/lib/enums";
 import type { RaceRating } from "@/lib/queries";
 import { ratingBorderColor, ratingColor } from "@/lib/race-colors";
 
@@ -15,6 +15,23 @@ import { ratingBorderColor, ratingColor } from "@/lib/race-colors";
 //   - COOK in 11px muted, letter-spacing 0.5px
 //   - rating in 12px (md) or 11px (sm), colored
 //   - 1px border in the rating color at 40% opacity, transparent background
+//
+// HO 775: on a 2026 rating, the rater's name links to that rater's own ratings
+// page for the race's chamber (RACE_RATING_PAGES_2026), the attribution. It
+// never points at sourceUrl, which says where we read the row; the chip's
+// title names Ballotpedia when that's where it was. Another cycle keeps the
+// plain label.
+
+// Every row the sync wrote before HO 770 cites Ballotpedia's chamber page; a
+// seed row it never rewrote cites the rater's own.
+function readFromBallotpedia(sourceUrl: string | null): boolean {
+  if (!sourceUrl) return false;
+  try {
+    return new URL(sourceUrl).hostname === "ballotpedia.org";
+  } catch {
+    return false;
+  }
+}
 
 function sourceLabel(source: RaceRating["source"]): string {
   switch (source) {
@@ -29,15 +46,20 @@ function sourceLabel(source: RaceRating["source"]): string {
 
 export function RatingChip({
   rating,
+  chamber,
   size = "md",
 }: {
   rating: RaceRating;
+  chamber: "house" | "senate";
   size?: "sm" | "md";
 }) {
   const color = ratingColor(rating.rating);
   const borderColor = ratingBorderColor(rating.rating);
   const ratingSize = size === "sm" ? "11px" : "12px";
-  const title = rating.ratingDate ? `Updated ${rating.ratingDate}` : undefined;
+  const title = rating.ratingDate
+    ? `Updated ${rating.ratingDate}${readFromBallotpedia(rating.sourceUrl) ? ", read from Ballotpedia" : ""}`
+    : undefined;
+  const page = rating.cycle === 2026 ? RACE_RATING_PAGES_2026[rating.source]?.[chamber] : undefined;
 
   return (
     <span
@@ -48,13 +70,26 @@ export function RatingChip({
       }}
       title={title}
     >
-      <span
-        className="text-[length:var(--fs-11)]"
-        style={{ color: "var(--text-muted)" }}
-        title={RACE_RATING_SOURCES[rating.source]}
-      >
-        {sourceLabel(rating.source)}
-      </span>
+      {page ? (
+        <a
+          className="text-[length:var(--fs-11)] rater-link"
+          style={{ color: "var(--text-muted)" }}
+          title={RACE_RATING_SOURCES[rating.source]}
+          href={page}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {sourceLabel(rating.source)}
+        </a>
+      ) : (
+        <span
+          className="text-[length:var(--fs-11)]"
+          style={{ color: "var(--text-muted)" }}
+          title={RACE_RATING_SOURCES[rating.source]}
+        >
+          {sourceLabel(rating.source)}
+        </span>
+      )}
       <span aria-hidden style={{ color: "var(--text-dim)" }}>
         ·
       </span>

@@ -85,7 +85,7 @@ export function RaceHeader({
                   ·
                 </span>
               ) : null}
-              <RatingChip rating={r} />
+              <RatingChip rating={r} chamber={race.chamber} />
             </span>
           ))}
         </div>
