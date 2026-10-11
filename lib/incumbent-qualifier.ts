@@ -35,7 +35,15 @@
 //                 stays as the second guard. Identity also ties a House member
 //                 on a SENATE primary's row, so one who lost a Senate primary
 //                 reads lost_primary on the House seat (six at HO 764: IL-02,
-//                 IL-08, MA-06, MI-11, TX-30, TX-38, each `absent` before);
+//                 IL-08, MA-06, MI-11, TX-30, TX-38, each `absent` before).
+//                 HO 773: a tie the page makes needs no name check. A row the
+//                 page links to the member's own title (its person_key is
+//                 titleKey of their resolved-or-stored title) or underlines
+//                 in their seat (primary_candidates.incumbent) is the member,
+//                 so it is `trusted`; the name check stays as the guard for a
+//                 row tied any other way. TN-05's Andy Ogles, stored first name
+//                 Andrew, read `absent` until HO 773, though his row is tied
+//                 both ways;
 //   absent        none of these.
 // A runoff round is a primary of its own (primaries.election_round), and a
 // round that went to a runoff marks its advancers 'winner'. So an incumbent who
@@ -48,6 +56,7 @@
 // writeRunoffRounds), and its leg 3 reads the three as `lost_primary`.
 import type { Client } from "@libsql/client";
 import { findIncumbentOnBallot, tokenCheck, type BallotPerson } from "./ballot-incumbent";
+import { titleKey } from "./primary-candidates-scrape";
 
 export type IncumbentReason = "retiring" | "withdrew" | "lost_primary" | "absent";
 export type IncumbentQualifier =
@@ -67,7 +76,9 @@ export type QualifierRace = {
   readStatus: string | null;
 };
 export type QualifierBallotRow = BallotPerson & { race_id: string; withdrawn: number };
-export type QualifierPrimaryRow = { bioguide_id: string; name: string; status: string; decided: boolean };
+// `trusted`: the page itself ties the row to the member, by identity (its
+// person_key is the member's own title key) or by its underline (HO 773).
+export type QualifierPrimaryRow = { bioguide_id: string; name: string; status: string; decided: boolean; trusted: boolean };
 
 // Every reading the rule could take for one race, before the order picks one:
 // the legs read `reasons` whole, so an incumbent in two classes shows.
@@ -101,7 +112,7 @@ export function readQualifier(
   if (race.incumbentRunning === 0) reasons.push("retiring");
   if ((ballotByBioguide.get(bio) ?? []).some((g) => g.withdrawn === 1)) reasons.push("withdrew");
   const member = { firstName: race.firstName, lastName: race.lastName, member: race.name ?? "" };
-  if ((primariesByBioguide.get(bio) ?? []).some((p) => p.decided && p.status !== "winner" && tokenCheck(p.name, member).ok)) reasons.push("lost_primary");
+  if ((primariesByBioguide.get(bio) ?? []).some((p) => p.decided && p.status !== "winner" && (p.trusted || tokenCheck(p.name, member).ok))) reasons.push("lost_primary");
   let qualifier: IncumbentQualifier | null = null;
   if (!onOwnBallot) {
     if (moved.length) qualifier = { kind: "moved", raceId: moved[0]! };
@@ -132,9 +143,11 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
         args: [cycle],
       },
       {
-        sql: `SELECT c.bioguide_id, c.name, c.status,
+        sql: `SELECT c.bioguide_id, c.name, c.status, c.person_key, c.incumbent,
+                     COALESCE(NULLIF(TRIM(mi.ballotpedia_title_resolved), ''), mi.ballotpedia_title) AS title,
                      EXISTS (SELECT 1 FROM primary_candidates w WHERE w.primary_id = c.primary_id AND w.status = 'winner') AS decided
                 FROM primary_candidates c JOIN primaries p ON p.id = c.primary_id
+                LEFT JOIN member_ids mi ON mi.bioguide_id = c.bioguide_id
                WHERE c.bioguide_id IN (SELECT incumbent_bioguide_id FROM races WHERE cycle = ? AND incumbent_bioguide_id IS NOT NULL)
                  AND substr(p.primary_date, 1, 4) = ?`,
         args: [cycle, String(cycle)],
@@ -173,7 +186,15 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
   }
   const primariesByBioguide = new Map<string, QualifierPrimaryRow[]>();
   for (const p of primaryRs!.rows) {
-    const row: QualifierPrimaryRow = { bioguide_id: String(p.bioguide_id), name: String(p.name), status: String(p.status), decided: Number(p.decided) === 1 };
+    const title = p.title == null ? "" : String(p.title).trim();
+    const byIdentity = p.person_key != null && title !== "" && String(p.person_key) === titleKey(title);
+    const row: QualifierPrimaryRow = {
+      bioguide_id: String(p.bioguide_id),
+      name: String(p.name),
+      status: String(p.status),
+      decided: Number(p.decided) === 1,
+      trusted: byIdentity || Number(p.incumbent) === 1,
+    };
     (primariesByBioguide.get(row.bioguide_id) ?? primariesByBioguide.set(row.bioguide_id, []).get(row.bioguide_id)!).push(row);
   }
   const out = new Map<string, QualifierReading>();
