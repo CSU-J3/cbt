@@ -118,6 +118,13 @@ const plexMono = localFont({
 // .next/server/next-font-manifest.json; app-render's getPreloadableFonts reads
 // that manifest and calls ReactDOM.preload. Every link in that chain is Next's.
 //
+// HO 772: NextFontManifestPlugin above, and the Windows break below, are
+// webpack's. CBT now builds with Turbopack, which doesn't run that plugin, and
+// HO 772's local build on the Windows box preloaded all five latin files, in
+// the Link header and as <link> elements
+// (docs/handoffs/772-artifacts/dry/capture-local-dry.json). The two paragraphs
+// below and their 2026-08-09 measurement stay as the webpack-era record.
+//
 // THE CHAIN BREAKS ON WINDOWS, AND ONLY ON WINDOWS. The plugin finds the font
 // module with `mod.request.includes('/next-font-loader/index.js?')` — a
 // forward-slash literal — while the loader path is built with path.join, which
