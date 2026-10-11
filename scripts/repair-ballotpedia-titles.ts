@@ -14,8 +14,8 @@
 // classes no underline marks: `senate`, a sitting House member printed, untied
 // and not underlined, on their state's Senate ballot (AL-01's Moore on S-AL),
 // and `primary`, a sitting incumbent tied to no primary row of the cycle whose
-// own race's primaries hold one keyed, untied row that passes the name check
-// (GA-13's Blair), learning that row's person_key. It is confirmed by one
+// own race's keyed, untied primary rows that pass the name check give one
+// distinct key (GA-13's Blair), learning that key. It is confirmed by one
 // of three signals (the HO 751 ruling): the stale title's redirect (one GET per
 // stale title, at the reader's 6s pacing and user agent, one attempt, stopping
 // at the first unreadable page); a Ballotpedia disambiguation page, at the stale

@@ -255,7 +255,7 @@ export function linkedKeys(html: string): Set<string> {
 export { tokenCheck };
 
 export type Signal = "redirect" | "disambiguation" | "ballot" | "ballot-prefix";
-export type Verdict = "confirmed" | "unconfirmed" | "already resolved" | "not attempted";
+export type Verdict = "confirmed" | "unconfirmed" | "already resolved";
 export type Confirmation = TitleCase & { signal: Signal | null; evidence: string; verdict: Verdict; reason: string | null };
 export type Fetched = { url: string; status: number | null; canonicalKey: string | null; redirectedFrom: string | null; disambiguation: boolean; bytes: number; kind: string };
 
