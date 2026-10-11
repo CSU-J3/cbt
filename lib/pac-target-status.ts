@@ -46,7 +46,9 @@
 // TX-23's round-1 rows carry `runoff_date = 2026-05-26`, which is the forward
 // link the schema documents. So the seat KNOWS a later round happened and we
 // have no result for it. That is the case rung 1b exists for: a primary winner
-// whose seat has a past-dated `runoff_date` and no resulted runoff row is
+// whose contest carries a past-dated `runoff_date` and no resulted row in its
+// own runoff (`<primary id>-runoff`; since HO 773 the other party's runoff in
+// the seat says nothing about this one, so it doesn't count) is
 // `unknown`, not `active` — we know he advanced and we do not know what
 // happened next, and the honest rendering of that is the present tense we were
 // already showing. HO 761 ingests the runoff rounds Ballotpedia prints (33 on
@@ -247,8 +249,11 @@ export function classifyTarget(
     if (latest.status === "winner") {
       // Rung 1b — advanced, outcome unrecorded.
       const runoffPast = !!latest.runoffDate && latest.runoffDate < today;
+      // HO 773: the target's own runoff, the row lib/primaries-sync.ts writes as
+      // `<first round's id>-runoff`. Until HO 773 any resulted runoff in the seat
+      // counted, and the other party's runoff says nothing about this one.
       const haveRunoff = seatContests.some(
-        (c) => c.round === "runoff" && c.votePct != null,
+        (c) => c.primaryId === `${latest.primaryId}-runoff` && c.votePct != null,
       );
       if (latest.round !== "runoff" && runoffPast && !haveRunoff) {
         return {
