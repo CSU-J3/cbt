@@ -5416,3 +5416,178 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **SKILL, its own commit, last:** edits 1 and 2, verbatim, and the mono sentence at `:1945`, flagged.
 - **OPEN LOOPS reconciled:** 269 live / 333 struck at open (602), 270 / 333 (603) at close (§ OPEN LOOPS: 68 → 69 live, 104 struck). The control, `^- \*\*~~`, is 0 at both.
 - **Also notes now run through HO 772.**
+
+**Also (HO 773), the electoral cleanup: TN-05 and GA-13 say their incumbents lost their primaries, SC's runoff dates are right, and PAC rung 1b reads the target's own runoff. AL-01's Barry Moore and the four first rounds wait on Ballotpedia, which challenges this box. It opens with HO 772's FF go as taken.**
+- **What's here:**
+  - HO 772's FF go as taken;
+  - Corey's ruling;
+  - STEP 0, M1-M5 and the ratings run;
+  - §§ 1-3, the writes and legs A-E;
+  - one line filed: Alabama's voided May primaries.
+- **Six commits, kinds unmixed:** `feat` · `fix` · `fix` · `diag` · `docs` · `docs(skill)`, alone and last.
+- **No migration. Three prod writes landed before the review push:** W1, W2 (Blair's title) and W4 (his row). W3 had nothing to re-read, and leg E's `repair:runoffs` didn't run.
+- **The pointer is 773:** pointer 772, highest HO in commit subjects 772, `main` at `889c737`.
+
+**HO 772's FF go, as taken** (`docs/handoffs/772-artifacts/ff/`, its paste).
+- **The three fixes, approved as landed:**
+  - `8d052b5` `fix(HO 772)`: the landing gate tests `session?.user` (5+/2−).
+  - `caae172` `chore(HO 772)`: the two font comments (7+ in `app/layout.tsx`, 3+/2− in `app/globals.css`).
+  - `889c737` `docs(HO 772)`: the font-comments line struck, closed by `caae172` (1+/1−).
+  - Pushed to `772-review` (`8634758..889c737`, no force; `ls-remote` 01:06:00Z), after gates at 01:05:10-01:05:37Z.
+- **Their Preview,** `dpl_47LyZRrYnZhKCgZEeZFG1dgDJGiD` (build `bld_n2sa5qvyi`, iad1), built cold: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 01:06:00.453Z, READY 01:06:42Z.
+  - **The gate:** through a new share link, an anonymous `GET /` carrying `_vercel_jwt` alone (no `ct_seen`, no session) answered **307** to `/welcome` at 01:08:07.897Z (`x-vercel-id …cxl4z-1791680887970-34deb7550b23`), and `/welcome` answered 200. The reading is confirmed: at `8634758` the same request rendered the dashboard.
+  - **Its runtime log** for that request reads ``[auth][error] MissingSecret: Please define a `secret`.``, and `/members`, `/electoral` and `OPTIONS /` logged the same in one 12-second window.
+  - **`narrow-preview`** (`e2e-prod` #38100721533): 82 passed (2.6m), route by route equal to `8634758`'s run.
+- **The FF:**
+  - **The cheap gates, immediately before the push** (01:11:11-01:11:17Z, `889c737`, tree clean): both `tsc` runs exit 0, `check:odds-sites` OK (188 scanned, 13 listed), and `check:design-citations` 0 problems (1,140 scanned).
+  - **The push:** `git push origin 889c737…:main`, no force (`3785c41..889c737`, 8 commits). The classifier didn't block it.
+  - `772-review` is deleted, remote and local. `git rev-parse main` reads `889c73726251744b3bb7ca9b94fea789efe85673`.
+- **`verify:deploy`, in the foreground:** exit 0. It matched from 41s and held five consecutive reads at 82s (01:13:08Z).
+- **The Production build is cold:** `dpl_JDTF6KaeoGyY9tBGtuSPye46SUt5`, build `bld_5bnbvz4b7` (iad1), logged *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 01:11:27.808Z and no *Restored build cache*. It was READY at 01:12:24Z.
+- **The CSS reading** (01:13:46Z, `GET /` with `ct_seen`): `/` links `2di1y971kqboc.css` (8,978 bytes), which carries 15 *IBM Plex Sans Subsets* faces, 16 *IBM Plex Mono Subsets* faces and both fallbacks. `3785c41`'s `/`, read the same way at 01:09:54Z, linked `278gza8oiv-q6.css`, with 0 Subsets faces. All three stylesheets `/` links are byte-identical to the Preview's. The CSS WATCH closes on this reading (backlog, this block).
+- **`e2e-prod` #38101050451:** `smoke` 141 passed (5.9m).
+- **Leg C on Production, on leg A's baseline** (01:14:30-01:14:37Z; every capture landed on `/welcome`, as leg A did):
+  - 38 of 38 faces with the same sha256, and both fallbacks equal in every descriptor;
+  - the same 5 preloads;
+  - 42 of 42 widths equal to the bit, and 0 pixels differ (PNG `39cc3577…` for leg A and both reads);
+  - 21 of 21 font requests answered from Production's host;
+  - **the control,** Subsets dropped: 24 of 24 non-latin cells change width, and the other 18 hold.
+- **The anonymous `GET /` on Production** (01:15:22Z, no cookies): 307 to `/welcome`, as before.
+
+**Corey's ruling, 2026-10-10 about 7:45 PM MT:** asked what Code should take on while the ratings wait on Cook and the raters, he picked *Electoral cleanup* over *Records only* and *Wait for Cook*.
+
+**STEP 0**, the architect's table, read at `889c737` before any edit; a check, not a HALT.
+1. **Holds.** `lib/incumbent-qualifier.ts:104` takes a row only if `tokenCheck(p.name, member).ok`, and the read at `:135-140` selects `c.bioguide_id, c.name, c.status` and `decided`, with no `person_key`.
+2. **Holds.** `lib/ballot-incumbent.ts:121-142`: *andy* and *andrew* match neither whole nor as a prefix (`andrew` doesn't start with `andy`).
+3. **Holds.** `lib/ballotpedia-title-repair.ts:51`. The own-ballot class (`:108-116`) and the moved class (`:117-131`) both start from an underlined row, so neither reaches an un-underlined row or a member on no ballot.
+4. **Holds.** `scripts/migrate.ts:1271-1274`; `lib/general-ballot.ts:528-545`; SKILL `:2932`. `lib/primary-identity-repair.ts:231-262` re-matches every stored row, and `--saved-only` builds no IO (`scripts/repair-primary-identity.ts:31`).
+5. **Holds.** `lib/pac-target-status.ts:250-252`; `lib/primaries-sync.ts:820` writes `` `${firstId}-runoff` ``.
+6. **Holds, with three readers the list didn't name, none of them a page:**
+   - `lib/race-result.ts:56`, jungle contests only, like `lib/electoral-general.ts:645`;
+   - `lib/queries.ts:1573`: `PRIMARY_SELECT` carries `runoff_date` into `PrimaryWithCandidates`, and no component renders it;
+   - `lib/runoff-repair.ts:54`, `repair:runoffs`' page list.
+7. **Holds.** SKILL `:1337` ends on the sentence, `:1985` is the clause, `:2551` carries the round sentence, and each anchor occurs once.
+
+**The measurements** (prod by `SELECT`, through a client that refuses anything else; `docs/handoffs/773-artifacts/`).
+- **M1, the three cards** (04:21Z, `889c737`): each reads `{ kind: "none", reason: "absent" }`, so no premise has moved.
+  - **AL-01, Barry Moore (`M001212`):** stored title *Barry Moore (Alabama)*, none resolved. S-AL's row is keyed `Barry_Moore_(Alabama_U.S._representative)`, printed, untied and not underlined. His S-AL R rows, the first round (39.2%) and the runoff (55.8%), are both `winner`, both keyed with that key, and both untied.
+  - **GA-13, Everton Blair Jr. (`B001328`):** no `member_ids` row. His row in the decided D primary is keyed `Everton_Blair_Jr.`, untied and `running` (11.6%).
+  - **TN-05, Andy Ogles (`O000175`):** `members` stores *Andrew Ogles*, first name *Andrew*; his title is *Andy Ogles*. His row, *Andy Ogles*, is tied to him and `running` (46.7%), by both routes: its `person_key` `Andy_Ogles` is his title's key, and it's underlined.
+  - **Leg D's base:** `readIncumbentQualifierReadings(db, 2026)` at `889c737`, 461 readings saved whole (`m1-readings-889c737.json`): 94 with a qualifier, 367 on their own ballot.
+- **M4, SC** (04:21Z): exactly the fourteen first rounds, each `runoff_date` 2026-08-25 (updated 2026-07-31T17:54:49.716Z). `senate-SC-2026-{D,R}` read 2026-06-23.
+- **M2, § 1's classes, dry** (04:24Z, no fetch): 3 cases, within the bound of six.
+  - `889c737`'s finder lists one case, S-AK's Dan Sullivan (`stale`), and neither Moore nor Blair: the red.
+  - § 1's lists Sullivan, Moore as `senate` on S-AL-2026 with S-AL's key, and Blair as `primary` on GA-13-2026 with `Everton_Blair_Jr.`.
+  - **Sullivan is a stale case already there at `889c737`:** S-AK prints him as `Dan_S._Sullivan_(United_States_Senator_from_Alaska)`, and his resolved title is *Daniel S. Sullivan (United States Senator from Alaska)*.
+  - **Controls:** the three old classes find exactly what they found at `889c737`, and the moved class's ambiguous list is the same (empty).
+- **M3, the ties the name check rejects** (04:25Z): 387 primary rows carry a stored incumbent's bioguide, and all 387 are page-tied, by identity or the underline. The new clause takes one row the old one didn't: TN-05's *Andy Ogles*, by both routes. On one read, `889c737`'s readings and the tree's differ on TN-05 alone.
+- **M5, rung 1b's live set** (04:30Z): 18 PAC rows on 11 seats, today 2026-10-11. 0 of 18 change, status or `why`. The tree's statuses equal `getPacIeSpending`'s, row for row (under the `next/cache` stub). A first try failed that cross-check with *fetch failed*; the second read clean.
+- **The ratings run:** this session opened at 04:13Z on 10-11, before the first `0 11 * * *` run at 11:00Z, so it's read at the FF go.
+
+**§ 1, two more title classes** (`feat` `15de1d0`).
+- **`lib/ballotpedia-title-repair.ts`:** `TitleCase.kind` gains `senate` and `primary`, and the read batch gains the cycle's primary rows.
+  - **`senate`,** after the moved class: a printed row on an `S-` race of the cycle that's untied, not underlined and not taken by the race's rule, whose name passes `tokenCheck` for exactly one sitting House member of the state. Two or more fits are ambiguous.
+  - **`primary`:** a sitting incumbent of a race of the cycle, with no bioguide on any primary row of the cycle and no case already, from their own race's keyed, untied rows that pass the name check. One distinct key is the case, and two or more are ambiguous. The race id is `lib/primary-identity-repair.ts:146`'s derivation, at the cycle.
+  - The header gains the paragraph naming Moore and Blair. `confirmCases` and the writes don't change.
+- **A forced consequence:** *the ambiguous list with their kind* turns `Finding.ambiguousMoved` into `ambiguous`, with a `kind` on each entry. Its one consumer is the repair script, and the moved class's own list is unchanged (M2's control).
+- **`scripts/repair-ballotpedia-titles.ts`:**
+  - a plan row carries its kind;
+  - after a write, every kind but `primary` re-reads its race, and a `primary` case prints `repair:primary-identity -- --saved-only --write`;
+  - a plan with no kind (HO 751's) re-reads every race, as before;
+  - the header names both classes.
+
+**§ 2, a tie the page makes needs no name check** (`fix` `d8c06cc`).
+- `lib/incumbent-qualifier.ts`'s primary read adds `c.person_key`, `c.incumbent`, and the tied member's resolved-or-stored title through `member_ids`.
+- A row is `trusted` when its `person_key` is `titleKey` of that title, or it's underlined.
+- `lost_primary` takes `p.trusted || tokenCheck(…).ok`.
+- `titleKey` comes from `lib/primary-candidates-scrape.ts`, which imports no Next module. The qualifier's one runtime importer outside `scripts/` is `lib/queries.ts`, on the server. Every other importer takes its types only.
+
+**§ 3, rung 1b reads the target's own runoff** (`fix` `5c8ea99`).
+- `haveRunoff` asks for `` `${latest.primaryId}-runoff` ``, with the HO 773 comment above it.
+- **A forced consequence:** the module header's statement of rung 1b said *whose seat has … no resulted runoff row*, which § 3 makes false, so it now says the contest's own runoff, as SKILL edit 3 does.
+
+**The writes, before the review push, each read back** (the Preview reads prod's database).
+- **W1, SC's runoff dates** (04:31:41.172Z): the one scoped UPDATE with the fourteen ids written out. `rowsAffected` 14, and all fourteen read back 2026-06-23 at that `updated_at`.
+- **W2, the titles.** Every dry run met Ballotpedia's challenge on its first fetch, Sullivan's stale title (*Daniel S. Sullivan* → 202, an AWS WAF page with no canonical link). That happened at 04:31:59Z, at 04:47:38Z after the reader's 15-minute pause, and at 05:10:10Z.
+  - By the reader's first-UNREAD rule, the fetching stopped. Moore's stale title was *not attempted*, and Sullivan's is unconfirmed.
+  - Blair confirmed by the name check, with no fetch (`ballot`: surname *blair*, first name *everton* whole).
+  - **The second run's plan held Blair alone,** and `--write --plan` wrote it at 04:48:04.659Z: a minimal `member_ids` row (`B001328` had none), resolved *Everton Blair Jr.*, from `ballot`. Read back.
+  - The third run, after W4, found two cases, Sullivan and Moore. Blair, now tied, is no case.
+  - **Moore is unconfirmed, so he isn't written,** and his line stays open with the reading.
+  - **The challenge is this box's:** the Vercel reader read TX-01 to TX-09 cleanly at 04:23-04:24Z.
+- **W3, the re-read: not run.** The write printed no race to re-read (Blair's case is on no ballot), and S-AL's re-read can't tie Moore while his title is unresolved.
+- **W4, the primary ties** (`repair:primary-identity -- --saved-only`, no fetch):
+  - **The dry run** changes one bioguide: `house-GA-13-2026-D` *"Everton Blair Jr."* [`Everton_Blair_Jr.`], NULL → `B001328`. No `person_key` changes. That's exactly the rows keyed by the title W2 wrote.
+  - `--write` at 04:48:37.581Z, read back. Moore's two S-AL rows stay NULL.
+
+**Legs A-C** (`scripts/diagnostic/electoral-cleanup-773.ts`, `diag`; each red runs `889c737`'s own module, read by `git cat-file`, with every module it imports checked unchanged since `889c737`).
+- **A, the classes:**
+  - **On prod:** `889c737`'s finder lists neither Moore nor Blair (the red), and § 1's lists both (M2).
+  - **On planted rows** (a `file:` fixture holding only the columns the finder reads): Moore printed, untied and not underlined on S-AL, with Everett Wess beside him, and Blair keyed and untied in GA-13's D primary.
+    - `889c737`'s finder: no case.
+    - § 1's: exactly Moore `senate` and Blair `primary`.
+  - **The controls:**
+    - Wess fits no House member, so he's no case and isn't listed;
+    - a second sitting AL member who fits the same row (*Barry L. Moore*) makes it ambiguous, `senate`, with no case;
+    - **added:** a second key that fits Blair makes it ambiguous, `primary`, with no case;
+    - **added:** Blair tied on any other primary row of the cycle makes him no `primary` case.
+- **B, the qualifier** (`readIncumbentQualifierReadings` over planted TN-05 rows, so the routes are computed as on prod):
+  - *Andy Ogles*, decided and not the winner, tied by identity: `lost_primary`. `889c737` reads `absent`, the red.
+  - The same row, not keyed to him but underlined: `lost_primary` (`absent` at `889c737`).
+  - **The guard:** neither keyed nor underlined: `absent` on both.
+  - **The control:** a winner row tied by identity reads no `lost_primary` on both.
+  - **Added:** neither keyed nor underlined, but named *Andrew Ogles*: `lost_primary` on both, so the name check still admits what it did.
+- **C, rung 1b** (planted TX-23 contests, FEC name *HERRERA, BRANDON*, today 2026-10-11, no ballot):
+  - An R first-round winner, the runoff date past, no R runoff row, the seat's D runoff resulted: `unknown`. `889c737` reads `active` (*winner in house-TX-23-2026-R*), the red.
+  - **The controls,** the same on both:
+    - the target in its own resulted runoff, as winner: `active`;
+    - no runoff row anywhere, the date past: `unknown`.
+  - Then M5: 0 of 18 live targets change.
+
+**Leg D, the cards on prod** (04:48:49Z, after W1-W4, the branch's code, against M1's base):
+- **The tree today against the base:** two changes. GA-13 and TN-05 go `absent` → `lost_primary`.
+- **What moved them:**
+  - `889c737`'s code on today's data moves GA-13 alone: the writes, W2 and W4.
+  - The tree against `889c737`'s code, both today, moves TN-05 alone: § 2.
+- **AL-01 still reads `absent`,** since its case wasn't written.
+- No other card changes, so no HALT.
+
+**Leg E, the four rounds.**
+- **The live read** (04:49:12Z): AL-01's page answered the challenge (202, 2,427 bytes), so the read stopped there. OK-01, TX-23 and TX-32 weren't read.
+- **HO 747's saved copies** (2026-09-25), read by the same leg with `--saved` and no fetch, print no R runoff box on any of the four. Each reason, in the page's words:
+  - **AL-01:** *"The Republican primary runoff scheduled for June 16, 2026, was canceled."*
+    - The section's note gives the reason: *"The winners of the special primary on August 11, 2026, advanced to the general election on November 3, 2026. The winners of the primaries originally scheduled for May 19, 2026, did not advance as those results were voided. The primary runoff originally scheduled for June 16, 2026, was canceled."* (`legE-saved-AL01-notes.txt`)
+    - May 19's R box marks Jerry Carl and Rhett Marques. August 11's marks Jerry Carl, who is the general box's R candidate.
+    - Barry Moore is listed withdrawn from the May primary.
+  - **OK-01:** *"The Republican primary runoff election was canceled. Mark Tedford advanced from the Republican primary runoff for U.S. House Oklahoma District 1."* The runoff's withdrawn list is *Jackson Lahmeyer (R)*. General: Mark Tedford.
+  - **TX-23:** the R primary's results line reads *"Brandon Herrera and incumbent Tony Gonzales advanced to a runoff."*, then *"The Republican primary runoff election was canceled. Brandon Herrera advanced …"*, with *Tony Gonzales (R)* withdrawn. General: Brandon Herrera.
+  - **TX-32:** *"The Republican primary runoff election was canceled. Jace Yarbrough advanced …"*, with *Ryan Binkley (R)* withdrawn. General: Jace Yarbrough.
+- **No page printed an R runoff box,** so `repair:runoffs` didn't run.
+- The four rounds' line stays open with these readings, for a live read or a ruling that the saved copies close it.
+
+**Found while executing, filed:** leg E's saved pages show that four Alabama districts (AL-01, AL-02, AL-06, AL-07) voided their May 19 primaries and held special primaries on August 11.
+- Every stored `house-AL-0N-2026` first round is still dated May 19.
+- AL-01's R primary still marks the voided round's two advancers, Jerry Carl and Rhett Marques (August 11's box marks Carl alone).
+- It's out of this HO's scope, so it's filed rather than fixed: *Four Alabama districts voided their May 19 primaries…*
+
+**Docs (HO 773):**
+- This block.
+- **backlog, 8+/7−:**
+  - **Struck, each with its close note:**
+    - the CSS WATCH (the handoff's note, verbatim);
+    - rung 1b (leg C);
+    - SC's runoff dates (W1's read-back);
+    - the seven incumbents (leg D, with the nickname ruling).
+  - **Appended, the lines staying open:**
+    - the four first rounds: leg E's walled read and the saved copies' reasons;
+    - AL-01's Moore: W2's three walled dry runs;
+    - the *NextAuth `MissingSecret`* line: the handoff's sentence, verbatim.
+  - **Filed:** Alabama's voided May primaries.
+  - The seven deletions are those seven lines, each rewritten in place.
+  - The ratings run wasn't read, so the ratings WATCH and Sabato's line are unchanged.
+- **oddities, 2+:** HO 713's entry gains the handoff's paragraph, verbatim, with its blank line.
+- **SKILL, its own commit, last:**
+  - Edits 2 and 3 are verbatim.
+  - Edit 1 lands with one clause corrected, flagged. *Exactly one keyed, untied row that passes the name check* reads *keyed, untied rows that pass the name check for them under exactly one key*. § 1 takes one distinct key, and a member who advanced and then lost a runoff has two rows under one key.
+- **OPEN LOOPS reconciled:** 269 live / 334 struck at open (603), 266 / 338 (604) at close (§ OPEN LOOPS: 68 → 65 live, 105 → 109 struck). The control, `^- \*\*~~`, is 0 at both.
+- **Also notes now run through HO 773.**

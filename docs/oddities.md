@@ -4268,6 +4268,8 @@ The repo already knew. `GATE_COOKIE` is carried by `e2e/smoke.spec.ts`, `e2e/nar
 
 The cost was a whole handoff written against a cause that did not exist — caught at its STEP 0, which is what STEP 0 is for, and cheaply: the first two readings of the bisection (the function returns 12, the local server renders 12) already contradicted the premise.
 
+**Closed at HO 772 (`8d052b5`).** The gate tested `!session`, and on a configuration error Auth.js's `auth()` resolves to its error body, `{ message }`, which is truthy (`next-auth` 5.0.0-beta.31 `lib/index.js:48`; `@auth/core` 0.41.2 `index.js:85-88`). So wherever `AUTH_SECRET` was missing, locally and on every Preview, the gate saw a session and let the visitor through. It tests `session?.user` now, and a cookieless `/` answers 307 to `/welcome` everywhere; HO 772's Preview logged the `MissingSecret` behind it.
+
 ---
 
 ## A class-token grep over a served App Router document counts every class about twice (HO 714, Sep 2026)
