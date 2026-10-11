@@ -5711,3 +5711,97 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **SKILL, its own commit, last:** the handoff's line after `:2341`, verbatim.
 - **OPEN LOOPS reconciled:** 267 live / 339 struck at open (606), and 264 / 342 at close (§ OPEN LOOPS: 66 → 63 live, 110 → 113 struck). The control, `^- \*\*~~`, is 0 at both.
 - **Also notes now run through HO 774.**
+
+**Also (HO 775), each rater's name links to that rater's own ratings page, the attribution the Crystal Ball asks for. It opens with HO 774's FF go as taken.**
+- **What's here:**
+  - HO 774's FF go as taken;
+  - Corey's ruling, and why the rater's page;
+  - STEP 0 and the reading;
+  - §§ 1-2 and leg A.
+- **Four commits, kinds unmixed:** `feat` · `diag` · `docs` · `docs(skill)`, alone and last.
+- **No migration and no prod write.**
+- **The pointer is 775:** pointer 774, highest HO in commit subjects 774, `main` at `ca11c35`.
+
+**HO 774's FF go, as taken** (`docs/handoffs/774-artifacts/ff/paste-774-ff.md`).
+- **The rulings:**
+  - SKILL `ca11c35` approved;
+  - the client trap's close stands as written, and nothing new is filed;
+  - no `.env` in leg A is right;
+  - the panic log stays where it is;
+  - both choices stand (the re-export form, the reflow at 80).
+  - AL-01's reading moved to this HO's STEP 0.
+- **Immediately before the push:** the cold build (Node 24.21.0, `.env`, 20:19:03-20:19:37Z, `ca11c35`, tree clean) exited 0 in 33.5s with no warning line. The cheap gates were green (20:19:37-44Z).
+- **The FF:** `042f891..ca11c35`, 4 commits, no force (20:19:52Z); the classifier didn't block it. `774-review` is deleted, remote and local, and local `main` is forwarded. `git rev-parse main` reads `ca11c3516dbe88359aae09e9af4d20b2c56ce97c`.
+- **`verify:deploy`, in the foreground:** matched at 31s and held five consecutive reads at 72s (20:21:24Z).
+- **The Production build,** `dpl_GHZvtitbT5Qf1WdcTkDpPsEbUank` (`bld_8wvolhqoy`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 20:19:57.611Z. It logged no Next warning line.
+- **`e2e-prod` #38171809025:** `smoke` 141 passed (5.8m), and all 39 crawl lines read `failed=0`, `console=0`, `pageErr=0`.
+  - `/search`'s line (20:24:51Z), the route HO 774's § 1 changed: `hit1=200 failed=0 bad=0 console=0 pageErr=0 mut kept=14(insert:10,text:4) …` and `hit2=200 failed=0 bad=0 console=0 pageErr=0 mut kept=8(insert:5,text:3) …`.
+  - HO 773's Production smoke read `kept=15(insert:10,text:5)` on hit1. Both are clean.
+- **No flush:** that HO changed no data.
+
+**Corey's ruling, 2026-10-11 about 2:29 PM MT:** the Crystal Ball's About page says *"Crystal Ball content may be used by educators, press, and others with proper attribution"* (his screenshot), and our chips said only *Sabato*. Asked whether to link each rater's chip to its source page, he said yes.
+
+**Why the rater's page, not `source_url`.**
+- A link to `source_url` would credit where we read the row, which is Ballotpedia on most rows, and attribution credits the rater. So the link goes to the rater's own page, from a constant, and `source_url` stays what it is.
+- The handoff's premise, that every row written before HO 770 cites Ballotpedia, doesn't hold: 101 seed rows cite the rater's own page (the reading, below). The decision stands, and the chip's title names Ballotpedia only on the rows that cite it.
+
+**STEP 0** (a check, HO 768's rule), at `ca11c35`, 21:35Z. All five claims hold.
+1. `components/RatingChip.tsx:51-57` is the label `<span>` titled `RACE_RATING_SOURCES[rating.source]`, and `:40` titles the chip *Updated <ratingDate>*. Its one caller is `components/RaceHeader.tsx:88`, inside no link (`RaceHubBody.tsx:114` renders the header).
+2. `components/RaceOpenRow.tsx:410-412` are the three tiles, and `Tile` (`:67`) renders `label` in `.rl-tl` (`:70`). The open row renders at `components/RaceListView.tsx:291`, after the `role="button"` div (`:231-290`, the role at `:232`) closes.
+3. `lib/enums.ts` imports nothing, and `RACE_RATING_SOURCES` is `:214-218`.
+4. `sanitizeCycle` returns 2026 or 2028 (`lib/queries.ts:378-386`), and `app/electoral/page.tsx:91` sends 2028 to the seat outlook. `RaceRating.cycle` is `lib/queries.ts:2367`.
+5. SKILL `:2581` begins as stated and occurs once.
+- **The other places that name a rater,** none in scope and none linked:
+  - `SpreadBar`'s `title` (`components/race-cells.tsx:110-114`);
+  - `RaceCard`'s spread and its `RaceMovedIndicator` (`RaceCard.tsx:273`, `:479`), inside the card's `<Link>`;
+  - the district modal's export (`RaceDistrictModal.tsx:38`);
+  - `/electoral`'s column head, titled *Cook · Sabato · Inside Elections* (`RaceListView.tsx:515`);
+  - the row's MOVED line, which prints the rater's short name inside the row's toggle (`RaceListView.tsx:167-178`), beside a NEWS link that stops propagation (`:192-201`).
+
+**The reading** (SELECT only, 21:39:44Z), `SELECT source, source_url, COUNT(*), MAX(rating_date) FROM race_ratings WHERE cycle = 2026 GROUP BY 1, 2`.
+- 268 rows, all cycle 2026. None is dated after 2026-09-29, and none was written after 2026-09-30T11:00:45.578Z.
+- **Outside the expectation:** 167 rows cite Ballotpedia's two chamber pages, and **101 cite the rater's own page**:
+  - Cook: `cookpolitical.com/ratings/house-race-ratings` 42 (newest 2026-05-19) and `…/senate-race-ratings` 6 (2026-04-13);
+  - Inside Elections: `insideelections.com/ratings/house` 8 (2026-05-19) and `…/senate` 2 (2026-01-12);
+  - Sabato: `centerforpolitics.org/crystalball/house/` 39 (2026-05-19) and `…/2026-senate/` 4 (2026-01-29).
+- **All 101 were written at 2026-05-19T21:57:43.937Z, the seed.** The sync rewrites a row only when its rating changes (`lib/race-ratings-sync.ts:349-352`), so a seed row it reads unchanged keeps the seed's URL. The Ballotpedia rows were written 2026-05-20 to 2026-09-30.
+- No row has a null `rating_date` or `source_url`.
+- The title rule holds either way, as the handoff says. The SKILL sentence that said every row written before HO 770 cites Ballotpedia is corrected in its commit (below).
+
+**AL-01's reading:** not taken. STEP 0 ran at 21:35Z, ahead of the reader's 2026-10-12 02:20Z S-AL tick. It's taken at the FF go if that falls after 02:22Z, and otherwise it carries. Moore's line is unchanged.
+
+**§ 1, the rater links** (`feat` `9d3d5c0`).
+- **`lib/enums.ts`** gains `RACE_RATING_PAGES_2026`, typed `Record<string, { house: string; senate: string }>` like `RACE_RATING_SOURCES`, so the module still imports nothing. Its comment says it's the attribution link and not `source_url`, and that no code fetches these pages. The six URLs are the handoff's.
+- **`RatingChip`** takes `chamber`, and `RaceHeader` passes `race.chamber`.
+  - On a 2026 rating the label is an `<a>` (`target="_blank"`, `rel="noopener noreferrer"`, titled with the full name) that keeps the span's class and inline color. Another cycle keeps the `<span>`.
+  - The chip's title is *Updated <date>*, plus *, read from Ballotpedia* when `sourceUrl`'s host is `ballotpedia.org`.
+- **`RaceOpenRow`:** `Tile`'s `label` widens to `React.ReactNode`. The three rater tiles' labels are `RaterLink` anchors inside `.rl-tl`, to `row.chamber`'s page, titled with the full name.
+- **`app/globals.css`:** `.rater-link` is `color: inherit` with no underline, and underlined on `:hover` and `:focus-visible`.
+
+**§ 2, leg A's script** (`diag` `16a61a6`): `scripts/diagnostic/rater-links-775.ts <base URL> [--races H,S,C]`.
+- **The races, by SELECT:** of the 80 2026 races carrying all three raters, 18 House and 5 Senate have all three rows citing `ballotpedia.org`. The first of each by id is **AK-AL-2026** and **S-AK-2026**, and both are in `/electoral`'s default list (every rated race, every tier on).
+- **Added, a control:** AZ-01-2026, the first race whose rows cite both kinds of page (its Sabato seed row cites `crystalball/house/`). That chip's title must not name Ballotpedia, so a title that always named it would fail.
+- **Link checks** read the anchors: the `href` against the handoff's six URLs, written out in the script rather than read from the constant, then `target`, `rel`, the text, the tile's title and the chip's title.
+- **Controls** read what the HO leaves alone (the label in the header, the row in the list, the tile, the control's seed-row title), so they hold on both builds.
+- **It reads only our own pages:** a request to a rater's host is aborted and counted.
+
+**Leg A, the links.**
+- **The red,** Production at `ca11c35` (`/api/version` read it), 21:49:14Z: link checks 0 of 89, controls 18 of 18. Every chip label is a `<span>`, every tile label plain text, and every Ballotpedia row's title reads *Updated <date>* alone.
+- **The green,** `next start` on the tree's cold build (port 3775, listener PID 50496, the scratchpad's Node 24), 21:51:08Z: 89 of 89 and 18 of 18. The Preview's green and `narrow-preview` come with the review push.
+- **Neither run requested a rater's host.**
+- **Added, the look** (`look-775.mjs`, both races' chips and tiles):
+  - At rest, each label's color, font, letter-spacing, transform, decoration and box match Production's (18 of 18).
+  - On the tree, each of the 12 anchors underlines on hover and on keyboard focus (`:focus-visible`).
+- **The build** (Node 24.21.0, `.env`, 21:49:55-21:50:27Z) exited 0 with no warning line, and the cheap gates were green.
+
+**Flagged, not changed:**
+- **SKILL `:2587`** says adding a rater label means extending `colorFor` and `borderColorFor` in `components/RatingChip.tsx` and `ratingColor` in `components/MemberHeader.tsx`.
+  - Neither file has them: since HO 222 they're `ratingColor` and `ratingBorderColor` in `lib/race-colors.ts:37,47`.
+  - Since this HO, a new rater also needs its pages in `RACE_RATING_PAGES_2026`, or its label stays plain text.
+- **The MOVED line** on `/electoral`'s row names the rater with no link (above).
+
+**Docs (HO 775):**
+- This block.
+- **backlog:** no change, since AL-01 wasn't read. Reconciled: 264 live / 342 struck (606), § OPEN LOOPS 63 / 113, and the control, `^- \*\*~~`, is 0.
+- **SKILL, its own commit, last:** the handoff's paragraph after `:2581`, with one clause corrected to the reading.
+- **Also notes now run through HO 775.**
