@@ -81,9 +81,12 @@ export default async function DashboardPage({
   // An anonymous visitor with no `ct_seen` cookie is bounced to /welcome; the
   // landing's "Enter terminal" sets that cookie (and "Sign in" gives a session),
   // so both paths return here without a loop. A returning cookie OR a session
-  // renders the terminal directly.
+  // renders the terminal directly. A session is `session?.user` (HO 772): on a
+  // configuration error, such as a missing AUTH_SECRET, auth() resolves to
+  // Auth.js's error body, `{ message }`, which is truthy. Every other caller
+  // already tests `session?.user`.
   const [cookieStore, session] = await Promise.all([cookies(), auth()]);
-  if (!cookieStore.get("ct_seen") && !session) {
+  if (!cookieStore.get("ct_seen") && !session?.user) {
     redirect("/welcome");
   }
 
