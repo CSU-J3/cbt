@@ -5805,3 +5805,127 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **backlog:** no change, since AL-01 wasn't read. Reconciled: 264 live / 342 struck (606), § OPEN LOOPS 63 / 113, and the control, `^- \*\*~~`, is 0.
 - **SKILL, its own commit, last:** the handoff's paragraph after `:2581`, with one clause corrected to the reading.
 - **Also notes now run through HO 775.**
+
+**Also (HO 776), Alabama's four rerun districts store their August 11 primaries, the contests that chose their nominees, and the voided May round is recorded in oddities. It opens with HO 775's FF go as taken.**
+- **What's here:**
+  - HO 775's FF go as taken;
+  - Corey's ruling and the design;
+  - STEP 0, the readings, the HALT and its ruling;
+  - § 1, W1, W2, the flush and the readback.
+- **Three commits, kinds unmixed:** `fix` · `docs` · `docs(skill)`, alone and last.
+- **Two prod writes and a flush,** W1 and W2. No migration.
+- **The pointer is 776:** pointer 775, highest HO in commit subjects 775, `main` at `e76610e`.
+
+**HO 775's FF go, as taken** (`docs/handoffs/775-artifacts/ff/paste-775-ff.md`).
+- **AL-01 was skipped** at 22:28:51Z, before 02:22Z, so there was no `docs(HO 775)` commit.
+- **The SKILL replacement at `:2589` landed as `e76610e`:** the go's NEW line, its closing parenthetical corrected.
+  - **The architect's ruling:** approved with the wording Code proposed and Corey supplied, since `MemberHeader` kept its own copy until HO 509 (`8538660`), and with Code's backticks.
+  - The go's parenthetical had dated both moves to HO 222, a dating that began in Code's own paste.
+- **Before the FF:** the build before the review push (22:33:55-22:34:28Z) exited 0 with no warning line, and the gates were green. The review push was `e780d1a..e76610e`, and its Preview's `narrow-preview`, #38181030823, read 82 of 82 cells equal to #38170374526 and #38178554541.
+- **The FF:** immediately before the push, the cold build (22:34:52-22:35:24Z) exited 0 with no warning line, and the cheap gates were green (22:35:24-31Z). Then `ca11c35..e76610e`, 5 commits, no force (22:35:38Z). `775-review` is deleted, remote and local, and `git rev-parse main` reads `e76610eefd7607824e144a3401ce79f3a58e4879`.
+- **`verify:deploy`, in the foreground:** matched at 41s and held five consecutive reads at 82s (22:37:25Z).
+- **The Production build,** `dpl_9RLC1QMP9rBUc62Yp52creSmb8f8` (`bld_kiey6j7pt`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 22:35:46.284Z. It logged no Next warning line.
+- **`e2e-prod` #38181099884:** `smoke` 141 passed (5.7m), and all 39 crawl lines read `failed=0`, `console=0` and `pageErr=0` on both hits.
+- **Leg A on Production** (22:37:40Z, `/api/version` = `e76610e`): link checks 89 of 89, controls 18 of 18, and no request to a rater's host.
+- **No flush:** that HO changed no data.
+
+**Corey's ruling, 2026-10-11 about 4:50 PM MT:** asked what Code should do next, he picked *Alabama's primaries* (store the Aug. 11 special primaries for AL-01, 02, 06 and 07 from the saved pages, with the voided May round marked) over *Done for today*.
+
+**The design.**
+- **The base row takes the contest that chose the nominee.** Every reader that shows a House primary reads the base row, `house-{ST}-{DD}-2026-{party}`: `getPrimaryForRace` skips `-special-` ids for a House member (`lib/queries.ts:1652`), and the calendar groups every first round by date (`:1732`). A voided row kept in the store would need every reader taught to skip it.
+- **The voided round goes to oddities.**
+- **The settled freeze keeps the write** (`lib/primaries-sync.ts:1842`).
+
+**STEP 0** (a check, HO 768's rule), at `e76610e`, 23:02Z. All five claims hold.
+- `:1873` filters the roster by party alone. The parser's dedup carries specialness (`lib/primary-candidates-scrape.ts:436`), and `ScrapedRunoff` carries a round's date and specialness (`:92`).
+- `isSettled` (`:1842`) comes before the date write (`:1846-1864`) and the roster (`:1873`). The only other writes to `primaries`, outside the runoff writer, are Senate rows in `syncCalendar` (`:437`, `:465`).
+- Every other House-primary reader reads by seat or by member, so it takes in the base row:
+  - `getRunoffsForRace` (`:1703`);
+  - `getDashboardPrimaries` (`:1809`);
+  - `getPacIeSpending`'s target read (`:2557`);
+  - `electoral-general.ts:192-198`;
+  - `incumbent-qualifier.ts:146-153`.
+  - The rest are jungle-only.
+- `SAVED_PAGES_DIR` is `lib/primary-identity-repair.ts:42`, and `createRunoffWriter` (`lib/primaries-sync.ts:985`) is exported.
+- SKILL `:2607`, *Seed → page (HO 761).*, occurs once and ends the runoff section.
+
+**The readings** (23:03-23:10Z, by `SELECT` and from HO 747's saved pages only):
+- **R1, the store:**
+  - No runoff row for the four districts. All eight base rows were dated 2026-05-19, with `runoff_date` 2026-06-16.
+  - AL-01-R and AL-06-R held May's voided round, last written 2026-07-29.
+  - AL-02-R, AL-06-D and AL-07-R already held August's rosters.
+  - AL-01-D, AL-02-D and AL-07-D were empty.
+- **R2, the pages:**
+  - All four carry the note, and it names August 11.
+  - **No box is marked special.** Each reads like *Republican primary for U.S. House Alabama District 1*, and only its results line's date tells the rerun (*… on August 11, 2026.*) from the voided round (*… on May 19, 2026.*, under *Primary held May 19*, then *Note: These results were voided.*).
+  - AL-01 and AL-06 print May's R box; AL-02 and AL-07 print none. AL-01, 02 and 07 print no D box in either round, and no page prints a runoff round.
+  - `parseCandidatesPage`'s dedup folds each page's two R boxes by name.
+- **R3, the ballots:** all four read `box`, and each August nominee is printed by `person_key`: Carl, Marques, Mercer, Palmer and Akin. The qualifiers read AL-01 `absent` (Moore's line) and the other three `null`.
+- **R4, the class:** 0 special boxes on 435 saved House pages. 2 carry two first-round boxes for one party: AL-01 R and AL-06 R.
+
+**The HALT and its ruling.**
+- **What fired:** *"a party has no special primary box"* — for every party by the parser's reading, and for D in AL-01, 02 and 07 by the date's.
+- **The ruling** (2026-10-11):
+  - Each party's rerun is picked by its own results line, read as the runoff branch reads a box's date.
+  - All eight rows take 2026-08-11 and `runoff_date` NULL, the three uncontested D rows among them.
+  - AL-02-R, AL-06-D and AL-07-R keep their rosters, each to be read equal to its box.
+  - AL-01-R and AL-06-R take their August rosters.
+  - The new line's *what it does*, the oddities entry and the SKILL paragraph are amended to match.
+
+**§ 1, the repair** (`fix` `1b03a9a`): `scripts/repair-al-special-primaries-776.ts`, dry by default.
+- **How it picks the rerun:** it splits each saved page's boxes the way `parseCandidatesPage` does, and dates each by its results line with the runoff branch's own reading. `isoFromLongDate` is now exported, on the same line, so no line moves. Then it parses the August 11 box alone through `parseCandidatesPage`.
+- **The plan is held to the ruling's shape.** It refuses:
+  - a contested party without exactly one August 11 box;
+  - an uncontested D that shows a box;
+  - a kept roster that differs from its box;
+  - any stored row beyond the eight.
+- **`--write`:**
+  - backs every row up to `before.json`;
+  - refuses a plan whose rows changed (by `updated_at`, the row's and its candidates' latest);
+  - writes one batch, every statement guarded by the row's planned `updated_at`.
+
+**W1, the rerun dates and rosters.**
+- **The dry run** (23:23:56Z) planned exactly what the ruling says:
+  - replace AL-01-R (Carl ✔ 74.6, Sidwell 17.8, Mills 5.7, Burger 1.8) and AL-06-R (Palmer ✔ 85.7, Dixon 14.3);
+  - keep AL-02-R, AL-06-D and AL-07-R, each equal to its August box in names, marks, exact shares and person keys;
+  - dates only on the three D rows;
+  - no runoff row and no delete.
+  - Both replaced rosters read equal to their pages' May 19 boxes.
+- **The write** (2026-10-11T23:24:31.569Z):
+  - The backup holds 8 rows and 21 candidates (`docs/handoffs/776-artifacts/w1/before.json`).
+  - One batch of 16 statements ran: 2 roster deletes, 6 inserts and 8 row updates, each affecting exactly the rows planned.
+  - The readback: all eight rows are dated 2026-08-11 with `runoff_date` NULL, and the rosters are as planned, `bioguide_id` NULL on the two replaced.
+
+**W2, the ties** (`npm run repair:primary-identity -- --saved-only`).
+- **A dry run before W1** read 0 changes anywhere.
+- **The dry run after W1** read one: `house-AL-06-2026-R` Gary Palmer, NULL → `P000609`, a row W1 wrote. No person key changed, and Carl's title keys to no member.
+- **`--write`** (23:24:57Z) wrote that one change.
+
+**The flush:** `POST /api/revalidate?tag=races` at 23:25:10.565Z returned 200 `{"ok":true,"tag":"races"}`. `$CRON_SECRET` was read from `.env` by name inside a Node script.
+
+**The readback** (23:25:32Z).
+- **`getPrimaryCalendar`'s SQL lists AL on both dates:**
+  - 2026-05-19: 106 contests, with AL-03, 04 and 05's six rows;
+  - 2026-08-11: 55 contests, with the eight rerun rows.
+- **All four qualifier readings are unchanged from R3's,** since no incumbent lost an August 11 primary: Palmer won AL-06 R with 85.7, and Figures and Sewell were uncontested.
+- **`isSettled`'s own SQL reads all eight rows settled** (23:26:11Z, floor 2026-09-11): the three D rows by expiry, and the five with a winner by their winner.
+
+**Docs (HO 776):**
+- This block.
+- **backlog, 2+/1−:**
+  - The Alabama line is struck, its close met.
+  - The merge line is filed after it.
+  - **The merge line's *Close* names the date as well as specialness.** The handoff's version, *"the House path routes a special box the way the Senate router does"*, could be met with this class still open, since its boxes aren't marked special.
+- **oddities:** the entry, its heading and first paragraph verbatim, then:
+  - AL-01-R's and AL-06-R's May marks from `before.json`;
+  - the three rosters already August's;
+  - the May boxes AL-02 and AL-07 don't print;
+  - the three D rows without a box;
+  - the date as the only tell.
+- **SKILL, its own commit, last:** the ruling's paragraph after `:2607`, verbatim.
+- **OPEN LOOPS reconciled:**
+  - **open:** 264 live / 342 struck (606), § OPEN LOOPS 63 / 113;
+  - **close:** 264 / 343 (607), § OPEN LOOPS 63 / 114;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **AL-01** is read at this HO's FF go if that falls after 2026-10-12 02:22Z, and otherwise it carries. Moore's line is unchanged.
+- **Also notes now run through HO 776.**
