@@ -34,7 +34,30 @@
 // loadIdentity keys COALESCE(resolved, ballotpedia_title). No runtime heuristic
 // is added: the reader keeps tying by identity only, and the harvest payload's
 // incumbentRoutes["underline-surname"] stays the alarm for the next stale title.
-import type { Client, InStatement } from "@libsql/client";
+//
+// HO 773: TWO CLASSES THE BALLOT RULE CAN'T REACH. Both finds above start from an
+// underlined row, and two members were left that no underline marks:
+//   · `senate`: a sitting House member printed on their state's Senate ballot in
+//     a row that's untied, not underlined (they aren't that seat's incumbent) and
+//     not taken by the race's own rule. The row's name must pass the name check
+//     for exactly ONE sitting House member of the state; two or more go on the
+//     ambiguous list, and none is no case (most of a Senate ballot isn't a
+//     member). AL-01's Barry Moore found it: S-AL prints him under
+//     Barry_Moore_(Alabama_U.S._representative), which his stale stored title,
+//     "Barry Moore (Alabama)", doesn't tie.
+//   · `primary`: a sitting member who is the stored incumbent of a race of the
+//     cycle, carries no bioguide on any primary row of the cycle, and isn't
+//     already a case. Their own race's primary rows, both rounds (the race id
+//     derived as lib/primary-identity-repair.ts derives it), that are keyed,
+//     untied and pass the name check give the key: one distinct key is the case,
+//     two or more go on the ambiguous list. GA-13's Everton Blair Jr. found it:
+//     he has no member_ids row, and the page doesn't underline his row, so HO
+//     764's match left it NULL.
+// Both confirm as the others do (a stored title by its page, a missing one by
+// the name check). A `senate` case is tied by re-reading its race; a `primary`
+// case is on no ballot, and is tied by `repair:primary-identity -- --saved-only
+// --write`.
+import type { Client, InStatement, Row } from "@libsql/client";
 import { findIncumbentOnBallot, surnameMatches, tokenCheck, type BallotPerson } from "./ballot-incumbent";
 import { hrefKey, titleKey, type IO } from "./general-ballot";
 
@@ -48,23 +71,30 @@ export type TitleCase = {
   stored: string | null; // member_ids.ballotpedia_title, trimmed, or null
   resolved: string | null; // member_ids.ballotpedia_title_resolved, if the column exists
   hasRow: boolean; // a member_ids row exists
-  kind: "stale" | "missing" | "moved";
-  race: string; // the race the member is printed in
+  kind: "stale" | "missing" | "moved" | "senate" | "primary";
+  race: string; // the race the member is printed in (`primary`: the race they're the stored incumbent of)
   key: string; // the printed row's person_key
   learned: string; // the key decoded to a title
 };
-export type Finding = { cases: TitleCase[]; ambiguousMoved: { race: string; row: string; candidates: string[] }[] };
+// A row no one member can be learned from, by its kind: for `moved` and `senate`
+// the printed row and the members whose names fit it (for `moved`, none or two or
+// more; for `senate`, two or more); for `primary` the member and the distinct keys
+// of their race's rows that fit them.
+export type Ambiguous = { kind: "moved" | "senate" | "primary"; race: string; row: string; candidates: string[] };
+export type Finding = { cases: TitleCase[]; ambiguous: Ambiguous[] };
 
 // The learned title from a person_key: underscores to spaces. titleKey of it
 // returns the key again (STEP 0 read 45 of 45).
 export const learnedTitle = (key: string) => key.replace(/_/g, " ");
 
 // Every stored 2026 incumbent printed on a ballot but untied by identity, with
-// the row that holds their current key. One read batch; SELECT only.
+// the row that holds their current key, and (HO 773) every sitting incumbent
+// tied to no primary row whose own race's primaries hold their key. One read
+// batch; SELECT only.
 export async function findStaleTitles(db: Client, cycle = 2026): Promise<Finding> {
   const cols = (await db.execute(`SELECT name FROM pragma_table_info('member_ids')`)).rows.map((r) => String(r.name));
   const hasResolved = cols.includes("ballotpedia_title_resolved");
-  const [racesRs, membersRs, midsRs, readsRs, gbRs] = await db.batch(
+  const [racesRs, membersRs, midsRs, readsRs, gbRs, primRs] = await db.batch(
     [
       { sql: `SELECT id, state, incumbent_bioguide_id FROM races WHERE cycle = ?`, args: [cycle] },
       { sql: `SELECT bioguide_id, name, first_name, last_name, state, chamber, is_current FROM members`, args: [] },
@@ -74,6 +104,12 @@ export async function findStaleTitles(db: Client, cycle = 2026): Promise<Finding
         sql: `SELECT g.race_id, g.person_key, g.name, g.bioguide_id, g.incumbent_marked, g.on_ballot
                 FROM general_ballot g JOIN general_ballot_reads rd ON rd.race_id = g.race_id AND rd.status = 'box'`,
         args: [],
+      },
+      {
+        sql: `SELECT c.primary_id, c.name, c.person_key, c.bioguide_id, p.chamber, p.state, p.district
+                FROM primary_candidates c JOIN primaries p ON p.id = c.primary_id
+               WHERE substr(p.primary_date, 1, 4) = ?`,
+        args: [String(cycle)],
       },
     ],
     "read",
@@ -120,17 +156,63 @@ export async function findStaleTitles(db: Client, cycle = 2026): Promise<Finding
   // resolved" below rather than vanishing before the race is re-read).
   const noTitleHouse = [...members.values()].filter((m) => !mids.get(String(m.bioguide_id))?.stored && Number(m.is_current ?? 1) === 1 && String(m.chamber ?? "").toLowerCase().startsWith("house"));
   const stateOf = new Map(racesRs!.rows.map((r) => [String(r.id), String(r.state)]));
-  const ambiguousMoved: Finding["ambiguousMoved"] = [];
+  const ambiguous: Ambiguous[] = [];
   for (const [id, rows] of byRace) {
     for (const p of rows) {
       if (p.on_ballot !== 1 || p.incumbent_marked !== 1 || p.bioguide_id !== null || picked.has(`${id}|${p.person_key}`)) continue;
       const cands = noTitleHouse.filter((m) => m.state === stateOf.get(id) && surnameMatches(p.name, S(m.last_name)));
       if (cands.length === 1) cases.push(caseOf(String(cands[0]!.bioguide_id), "moved", id, p.person_key));
-      else ambiguousMoved.push({ race: id, row: p.name, candidates: cands.map((m) => String(m.name)) });
+      else ambiguous.push({ kind: "moved", race: id, row: p.name, candidates: cands.map((m) => String(m.name)) });
     }
   }
-  cases.sort((a, b) => (a.kind === "moved" ? 1 : 0) - (b.kind === "moved" ? 1 : 0) || a.race.localeCompare(b.race));
-  return { cases, ambiguousMoved };
+  const nameOf = (m: Row) => ({ firstName: S(m.first_name), lastName: S(m.last_name), member: String(m.name ?? "") });
+  // HO 773, the senate cases: a printed, untied, un-underlined row on a Senate
+  // ballot of the cycle that the race's rule didn't take, whose name passes the
+  // name check for exactly one sitting House member of the state (title stored
+  // or not, so a stale stored title like Moore's is reached).
+  const sittingHouse = [...members.values()].filter((m) => Number(m.is_current ?? 1) === 1 && String(m.chamber ?? "").toLowerCase().startsWith("house"));
+  for (const [id, rows] of byRace) {
+    if (!id.startsWith("S-") || !stateOf.has(id)) continue;
+    for (const p of rows) {
+      if (p.on_ballot !== 1 || p.incumbent_marked === 1 || p.bioguide_id !== null || picked.has(`${id}|${p.person_key}`)) continue;
+      const cands = sittingHouse.filter((m) => m.state === stateOf.get(id) && tokenCheck(p.name, nameOf(m)).ok);
+      if (cands.length === 1) cases.push(caseOf(String(cands[0]!.bioguide_id), "senate", id, p.person_key));
+      else if (cands.length > 1) ambiguous.push({ kind: "senate", race: id, row: p.name, candidates: cands.map((m) => String(m.name)) });
+    }
+  }
+  // HO 773, the primary cases: a sitting member who is the stored incumbent of a
+  // race of the cycle, carries no bioguide on any primary row of the cycle and
+  // isn't already a case, from their own race's keyed, untied rows that pass the
+  // name check. The race id is lib/primary-identity-repair.ts's derivation, at
+  // the cycle.
+  const raceOfPrimary = (chamber: string, state: string, district: string | null) =>
+    chamber === "senate" ? `S-${state}-${cycle}` : `${state}-${district === "00" ? "AL" : district}-${cycle}`;
+  const tiedInPrimaries = new Set<string>();
+  const primByRace = new Map<string, { name: string; key: string | null; bioguide: string | null }[]>();
+  for (const r of primRs!.rows) {
+    const bioguide = S(r.bioguide_id);
+    if (bioguide) tiedInPrimaries.add(bioguide);
+    const race = raceOfPrimary(String(r.chamber), String(r.state), S(r.district));
+    (primByRace.get(race) ?? primByRace.set(race, []).get(race)!).push({ name: String(r.name), key: S(r.person_key), bioguide });
+  }
+  const isCase = new Set(cases.map((c) => c.bioguide));
+  for (const r of racesRs!.rows) {
+    const id = String(r.id), inc = S(r.incumbent_bioguide_id);
+    if (!inc || tiedInPrimaries.has(inc) || isCase.has(inc)) continue;
+    const m = members.get(inc);
+    if (!m || Number(m.is_current ?? 1) !== 1) continue;
+    const fits = (primByRace.get(id) ?? []).filter((p) => p.key && !p.bioguide && tokenCheck(p.name, nameOf(m)).ok);
+    const keys = [...new Set(fits.map((p) => p.key!))].sort();
+    if (keys.length === 1) {
+      cases.push(caseOf(inc, "primary", id, keys[0]!));
+      isCase.add(inc);
+    } else if (keys.length > 1) {
+      ambiguous.push({ kind: "primary", race: id, row: String(m.name ?? inc), candidates: keys });
+    }
+  }
+  const order: Record<TitleCase["kind"], number> = { stale: 0, missing: 0, moved: 1, senate: 2, primary: 3 };
+  cases.sort((a, b) => order[a.kind] - order[b.kind] || a.race.localeCompare(b.race));
+  return { cases, ambiguous };
 }
 
 // The page's own canonical link, keyed like a ballot row's href. MediaWiki

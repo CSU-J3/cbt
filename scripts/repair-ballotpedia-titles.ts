@@ -10,7 +10,12 @@
 // What it does (lib/ballotpedia-title-repair.ts): every stored 2026 incumbent
 // printed on a ballot but untied by identity (the rule found them by underline
 // and surname, or they moved and are underlined, untied, in another district)
-// gets a learned title from the printed row's person_key. It is confirmed by one
+// gets a learned title from the printed row's person_key. HO 773 adds two
+// classes no underline marks: `senate`, a sitting House member printed, untied
+// and not underlined, on their state's Senate ballot (AL-01's Moore on S-AL),
+// and `primary`, a sitting incumbent tied to no primary row of the cycle whose
+// own race's primaries hold one keyed, untied row that passes the name check
+// (GA-13's Blair), learning that row's person_key. It is confirmed by one
 // of three signals (the HO 751 ruling): the stale title's redirect (one GET per
 // stale title, at the reader's 6s pacing and user agent, one attempt, stopping
 // at the first unreadable page); a Ballotpedia disambiguation page, at the stale
@@ -29,6 +34,11 @@
 // (`npm run sync:general-ballot -- --race A,B,... --write`: 6s start to start, the
 // first UNREAD ends it), then run the harvest once (the handoff's FF go names
 // both). A second --write after the re-read counts the tied members as done.
+// The follow-up goes by kind (HO 773): every kind but `primary` is printed on a
+// ballot, so its race is re-read; a `primary` case is on no ballot, and its
+// primary rows are tied by `npm run repair:primary-identity -- --saved-only
+// --write` (no fetch). A plan saved before HO 773 carries no kind, and every
+// race in it is re-read, as before.
 // Requires `npm run migrate` first (the three columns).
 import "dotenv/config";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -54,7 +64,7 @@ if (RECORD && REPLAY) throw new Error("--record and --replay are exclusive");
 if (WRITE && !PLAN) throw new Error("--write needs --plan <file>: the confirmed rows a dry run saved with --plan-out and a human read");
 if (WRITE && (RECORD || REPLAY || CONTROL || PLAN_OUT)) throw new Error("--write fetches nothing and takes only --plan");
 
-type PlanRow = { bioguide: string; member: string; race: string; key: string; learned: string; signal: Signal; evidence: string };
+type PlanRow = { bioguide: string; member: string; race: string; key: string; learned: string; signal: Signal; evidence: string; kind?: TitleCase["kind"] };
 
 function printTable(title: string, rows: Confirmation[]) {
   console.log(title);
@@ -85,7 +95,7 @@ async function main() {
     const b = String(r.bioguide_id);
     identity.set(k, identity.has(k) && identity.get(k) !== b ? null : b);
   }
-  const { cases, ambiguousMoved } = await findStaleTitles(db);
+  const { cases, ambiguous } = await findStaleTitles(db);
 
   if (WRITE) {
     const plan = JSON.parse(readFileSync(PLAN!, "utf8")) as PlanRow[];
@@ -116,8 +126,10 @@ async function main() {
     const stmts = resolvedWriteStatements(rows, new Date().toISOString());
     await db.batch(stmts, "write");
     console.log(`\nwrote ${stmts.length} resolved titles.`);
-    const races = [...new Set(plan.map((p) => p.race))].sort();
-    console.log(`re-read now, in one paced process (${races.length} races): npm run sync:general-ballot -- --race ${races.join(",")} --write`);
+    const races = [...new Set(plan.filter((p) => p.kind !== "primary").map((p) => p.race))].sort();
+    const unballoted = plan.filter((p) => p.kind === "primary");
+    if (races.length) console.log(`re-read now, in one paced process (${races.length} races): npm run sync:general-ballot -- --race ${races.join(",")} --write`);
+    if (unballoted.length) console.log(`tie their primary rows now (${unballoted.map((p) => `${p.member} on ${p.race}`).join(", ")}: on no ballot, so no re-read): npm run repair:primary-identity -- --saved-only --write`);
     return;
   }
 
@@ -167,12 +179,12 @@ async function main() {
   const tally: Record<string, number> = {};
   for (const c of confirmations) tally[`${c.verdict}${c.signal ? `/${c.signal}` : ""}`] = (tally[`${c.verdict}${c.signal ? `/${c.signal}` : ""}`] ?? 0) + 1;
   console.log(`\nverdicts ${JSON.stringify(tally)} · requests ${paced.requests()} · minGapMs ${paced.minGapMs()} · pages ${fetched.length}`);
-  if (ambiguousMoved.length) console.log(`moved rows with no unique member (not repaired): ${ambiguousMoved.map((a) => `${a.race} ${a.row} [${a.candidates.join(", ")}]`).join("; ")}`);
+  if (ambiguous.length) console.log(`rows with no unique member (not repaired): ${ambiguous.map((a) => `${a.kind} ${a.race} ${a.row} [${a.candidates.join(", ")}]`).join("; ")}`);
   const confirmed = confirmations.filter((c) => c.verdict === "confirmed" && c.signal && c.bioguide !== "CONTROL");
   const noRow = confirmed.filter((c) => !c.hasRow);
   if (noRow.length) console.log(`confirmed with no member_ids row (a minimal row is created on --write): ${noRow.map((c) => `${c.member} ${c.bioguide}`).join(", ")}`);
   if (PLAN_OUT) {
-    const plan: PlanRow[] = confirmed.map((c) => ({ bioguide: c.bioguide, member: c.member, race: c.race, key: c.key, learned: c.learned, signal: c.signal!, evidence: c.evidence }));
+    const plan: PlanRow[] = confirmed.map((c) => ({ bioguide: c.bioguide, member: c.member, race: c.race, key: c.key, learned: c.learned, signal: c.signal!, evidence: c.evidence, kind: c.kind }));
     writeFileSync(PLAN_OUT, JSON.stringify(plan, null, 1));
     console.log(`plan: ${plan.length} confirmed rows saved to ${PLAN_OUT}`);
   }
