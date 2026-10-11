@@ -20,7 +20,8 @@
 // stale title, at the reader's 6s pacing and user agent, one attempt, stopping
 // at the first unreadable page); a Ballotpedia disambiguation page, at the stale
 // title, that links the learned title; or the name check, for a missing title
-// and as the fallback for a stale title whose page confirms neither way.
+// and as the fallback for a stale title whose page confirms neither way or,
+// since HO 773, can't be read (the wall still ends the fetching).
 //
 // THE WRITE IS BOUND TO WHAT WAS READ (the HO 751 review). A dry run prints every
 // case and saves its confirmed rows with --plan-out; --write takes that plan,

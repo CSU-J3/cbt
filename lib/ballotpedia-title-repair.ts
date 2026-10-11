@@ -27,8 +27,12 @@
 //     title carries every surname token of members.last_name and a first-name
 //     token, whole (`ballot`) or as a prefix of three or more letters either way
 //     (`ballot-prefix`, NJ-04's "Chris" against "Christopher").
-// An unreadable page (the wall) is not "confirms neither way": it stops the
-// fetching and the rest stay "not attempted", the reader's first-UNREAD rule.
+// An unreadable page (the wall) stops the fetching, the reader's first-UNREAD
+// rule. Since HO 773 the name check decides the walled case and every stored
+// case after it: every readable answer leaves a case the name check passes
+// confirmed (a redirect or a disambiguation page outright, a 404 or a page that
+// lands elsewhere by the name check), so the wall withholds only the stronger
+// signal.
 // A confirmed title is written to member_ids.ballotpedia_title_resolved (never
 // ballotpedia_title, which the crosswalk owns and overwrites), and the reader's
 // loadIdentity keys COALESCE(resolved, ballotpedia_title). No runtime heuristic
@@ -260,7 +264,8 @@ export const pageUrl = (title: string) => BP + encodeURIComponent(title.trim().r
 // Confirm each case. `io` must already be paced (pacedIO at the reader's gap);
 // every stale title is ONE attempt, and a page that is not a readable page
 // (no canonical link and not a 404: the challenge, a timeout) stops further
-// fetching, the reader's first-UNREAD rule, leaving the rest "not attempted".
+// fetching, the reader's first-UNREAD rule. The name check decides that case
+// and every stored case after it (HO 773).
 const nameSignal = (c: TitleCase, why: string): Pick<Confirmation, "signal" | "evidence" | "verdict" | "reason"> => {
   const t = tokenCheck(c.learned, c);
   return {
@@ -294,7 +299,7 @@ export async function confirmCases(cases: TitleCase[], io: IO, identity: Map<str
     }
     if (c.stored) {
       if (walled) {
-        out.push({ ...c, signal: null, evidence: "", verdict: "not attempted", reason: "fetching stopped at an unreadable page" });
+        out.push({ ...c, ...nameSignal(c, "fetching stopped at an unreadable page") });
         continue;
       }
       const url = pageUrl(c.stored);
@@ -309,7 +314,7 @@ export async function confirmCases(cases: TitleCase[], io: IO, identity: Map<str
         out.push({ ...c, ...nameSignal(c, `${c.stored} → 404, no page`) });
       } else if (f.status !== 200 || !f.canonicalKey) {
         walled = true;
-        out.push({ ...c, signal: null, evidence: `${url} → ${f.status ?? f.kind}, no readable page`, verdict: "unconfirmed", reason: "no readable page (the wall?); fetching stops here" });
+        out.push({ ...c, ...nameSignal(c, `${url} → ${f.status ?? f.kind}, no readable page; fetching stops here`) });
       } else if (f.canonicalKey === c.key) {
         out.push({ ...c, signal: "redirect", evidence: `${c.stored} → ${f.redirectedFrom ? "redirected to " : "lands on "}${f.canonicalKey}`, verdict: "confirmed", reason: null });
       } else if (f.disambiguation && linkedKeys(body).has(c.key)) {
