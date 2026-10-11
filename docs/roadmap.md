@@ -5424,7 +5424,7 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - STEP 0, M1-M5 and the ratings run;
   - §§ 1-3, the writes and legs A-E;
   - one line filed: Alabama's voided May primaries.
-- **Six commits, kinds unmixed:** `feat` · `fix` · `fix` · `diag` · `docs` · `docs(skill)`, alone and last.
+- **Eight commits, kinds unmixed:** `feat` · `fix` · `fix` · `diag` · `docs` · `docs(skill)`, alone. Then, after the review push's Preview failed its build, `fix` (the key helpers to a leaf module) · `docs` (this block's correction). `docs(skill)` is no longer last: the two went on top rather than rewriting the pushed ref.
 - **No migration. Three prod writes landed before the review push:** W1, W2 (Blair's title) and W4 (his row). W3 had nothing to re-read, and leg E's `repair:runoffs` didn't run.
 - **The pointer is 773:** pointer 772, highest HO in commit subjects 772, `main` at `889c737`.
 
@@ -5500,7 +5500,7 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - `lib/incumbent-qualifier.ts`'s primary read adds `c.person_key`, `c.incumbent`, and the tied member's resolved-or-stored title through `member_ids`.
 - A row is `trusted` when its `person_key` is `titleKey` of that title, or it's underlined.
 - `lost_primary` takes `p.trusted || tokenCheck(…).ok`.
-- `titleKey` comes from `lib/primary-candidates-scrape.ts`, which imports no Next module. The qualifier's one runtime importer outside `scripts/` is `lib/queries.ts`, on the server. Every other importer takes its types only.
+- `titleKey` came from `lib/primary-candidates-scrape.ts`, as the handoff named it. That module imports no Next module, but it does import `node:fs`, and the qualifier is in `/search`'s browser bundle through `lib/queries.ts`. That failed the Preview's build (below). Since `c370372` the qualifier takes `titleKey` from `lib/ballotpedia-key.ts`, which imports nothing.
 
 **§ 3, rung 1b reads the target's own runoff** (`fix` `5c8ea99`).
 - `haveRunoff` asks for `` `${latest.primaryId}-runoff` ``, with the HO 773 comment above it.
@@ -5565,6 +5565,20 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **No page printed an R runoff box,** so `repair:runoffs` didn't run.
 - The four rounds' line stays open with these readings, for a live read or a ruling that the saved copies close it.
 
+**The review push's Preview failed its build, and `c370372` fixes it.**
+- **The push:** `773-review` at `0a7725e` at 05:13:10Z, no force, after the cheap gates at 05:12:51-05:12:57Z, all green.
+- **The Preview,** `dpl_HkXiaTsZJLUUuB1mHhXepVWpQDhV` (build `bld_8iac2wg1i`, iad1), built cold and failed `next build` within 8s, in Turbopack: *Failed to write app endpoint /search/page … the chunking context (unknown) does not support external modules (request: node:fs)*.
+- **The cause:**
+  - `components/SearchTabs.tsx`, a client component, imports `SEARCH_TABS` from `lib/queries.ts`, so `lib/queries`' import graph is in `/search`'s browser bundle.
+  - § 2's import of `titleKey` from `lib/primary-candidates-scrape.ts` brought that module's `node:fs` into it.
+  - `tsc` and the cheap gates can't see a bundle. method.md's Code-side gates say *build, then typecheck*, and the build was skipped before the push.
+  - Filed: *A client component imports a value from `lib/queries.ts`…*
+- **The fix** (`fix` `c370372`): `decodeEntities`, `hrefKey` and `titleKey` move verbatim to `lib/ballotpedia-key.ts`, which imports nothing. The scrape module imports and re-exports them, so its importers are unchanged, and the qualifier imports `titleKey` from the leaf.
+- **Local cold builds, Node 24.21.0:**
+  - with the scrape import, exit 1 at 05:17:09Z on the Preview's error (the red);
+  - with the leaf's, exit 0 at 05:17:52Z, with no warning lines.
+  - Legs A-D, re-run on `c370372`, read as before.
+
 **Found while executing, filed:** leg E's saved pages show that four Alabama districts (AL-01, AL-02, AL-06, AL-07) voided their May 19 primaries and held special primaries on August 11.
 - Every stored `house-AL-0N-2026` first round is still dated May 19.
 - AL-01's R primary still marks the voided round's two advancers, Jerry Carl and Rhett Marques (August 11's box marks Carl alone).
@@ -5572,7 +5586,7 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 
 **Docs (HO 773):**
 - This block.
-- **backlog, 8+/7−:**
+- **backlog, 8+/7− in `4bf9e40`, and 1+ in the correction:**
   - **Struck, each with its close note:**
     - the CSS WATCH (the handoff's note, verbatim);
     - rung 1b (leg C);
@@ -5582,12 +5596,12 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
     - the four first rounds: leg E's walled read and the saved copies' reasons;
     - AL-01's Moore: W2's three walled dry runs;
     - the *NextAuth `MissingSecret`* line: the handoff's sentence, verbatim.
-  - **Filed:** Alabama's voided May primaries.
+  - **Filed:** Alabama's voided May primaries, and in the correction, the client component that imports `lib/queries.ts`.
   - The seven deletions are those seven lines, each rewritten in place.
   - The ratings run wasn't read, so the ratings WATCH and Sabato's line are unchanged.
 - **oddities, 2+:** HO 713's entry gains the handoff's paragraph, verbatim, with its blank line.
-- **SKILL, its own commit, last:**
+- **SKILL, its own commit:**
   - Edits 2 and 3 are verbatim.
   - Edit 1 lands with one clause corrected, flagged. *Exactly one keyed, untied row that passes the name check* reads *keyed, untied rows that pass the name check for them under exactly one key*. § 1 takes one distinct key, and a member who advanced and then lost a runoff has two rows under one key.
-- **OPEN LOOPS reconciled:** 269 live / 334 struck at open (603), 266 / 338 (604) at close (§ OPEN LOOPS: 68 → 65 live, 105 → 109 struck). The control, `^- \*\*~~`, is 0 at both.
+- **OPEN LOOPS reconciled:** 269 live / 334 struck at open (603), 267 / 338 (605) at close (§ OPEN LOOPS: 68 → 66 live, 105 → 109 struck). The control, `^- \*\*~~`, is 0 at both.
 - **Also notes now run through HO 773.**
