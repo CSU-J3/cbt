@@ -56,7 +56,7 @@
 // writeRunoffRounds), and its leg 3 reads the three as `lost_primary`.
 import type { Client } from "@libsql/client";
 import { findIncumbentOnBallot, tokenCheck, type BallotPerson } from "./ballot-incumbent";
-import { titleKey } from "./primary-candidates-scrape";
+import { titleKey } from "./ballotpedia-key";
 
 export type IncumbentReason = "retiring" | "withdrew" | "lost_primary" | "absent";
 export type IncumbentQualifier =

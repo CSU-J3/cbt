@@ -39,6 +39,11 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { decodeEntities, hrefKey, titleKey } from "./ballotpedia-key";
+
+// HO 773: the three key helpers live in lib/ballotpedia-key.ts, which imports
+// nothing, so a module on a client graph can key a title; re-exported here.
+export { decodeEntities, hrefKey, titleKey };
 
 export const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
@@ -124,45 +129,14 @@ function isoFromLongDate(month: string, day: string, year: string): string | nul
   return `${year}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-export function decodeEntities(s: string): string {
-  return s
-    .replace(/&#0?39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&#0?34;/g, '"')
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&ndash;/g, "-")
-    .trim();
-}
-
 export function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
 }
 
 // ── identity ───────────────────────────────────────────────────────────────
-// A person link's title, as a comparable key: HTML entities decoded (reading the
-// attribute), the origin dropped, percent-decoded, spaces as underscores. The
-// stored side is `https://ballotpedia.org/` + the member's title (HO 751:
-// COALESCE(ballotpedia_title_resolved, ballotpedia_title)) through the same
-// function, so both sides are percent-decoded before they are compared. This key
-// is `general_ballot.person_key` and, since HO 764, `primary_candidates.person_key`.
-// Moved here from lib/general-ballot.ts at HO 764 (which re-exports both), so
-// the primary parser can key its rows without importing the reader, which
-// imports this file.
-const BP = "https://ballotpedia.org/";
-export function hrefKey(href: string | null | undefined): string | null {
-  if (!href) return null;
-  let s = decodeEntities(href);
-  if (s.startsWith(BP)) s = s.slice(BP.length);
-  try {
-    s = decodeURIComponent(s);
-  } catch {
-    // a malformed escape stays raw rather than failing the page
-  }
-  return s.replace(/ /g, "_");
-}
-export const titleKey = (title: string) => hrefKey(BP + title.replace(/ /g, "_"));
+// hrefKey and titleKey, the person link's title as a comparable key
+// (`general_ballot.person_key`, and since HO 764 `primary_candidates.person_key`),
+// live in lib/ballotpedia-key.ts since HO 773 and are re-exported above.
 
 export function senatePageUrl(slug: string): string {
   return `https://ballotpedia.org/United_States_Senate_election_in_${slug},_2026`;
