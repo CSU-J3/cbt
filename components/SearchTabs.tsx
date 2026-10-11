@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { SEARCH_TABS, type SearchTab } from "@/lib/queries";
+import { SEARCH_TABS, type SearchTab } from "@/lib/search-tabs";
 
 const TAB_LABELS: Record<SearchTab, string> = {
   bills: "Legislation",

@@ -2,11 +2,11 @@
 // imports nothing. Moved here from lib/primary-candidates-scrape.ts (which
 // re-exports all three, so its importers are unchanged) when the incumbent
 // qualifier (lib/incumbent-qualifier.ts) began keying a member's title: the
-// qualifier reaches client bundles through lib/queries.ts (components/
-// SearchTabs.tsx imports SEARCH_TABS from it), and the scrape module's
-// `node:fs` import fails a browser chunk. Turbopack: "the chunking context
-// (unknown) does not support external modules (request: node:fs)", on
-// /search/page at 0a7725e's Preview.
+// qualifier reached client bundles through lib/queries.ts
+// (components/SearchTabs.tsx imported SEARCH_TABS from it until HO 774), and
+// the scrape module's `node:fs` import fails a browser chunk. Turbopack: "the
+// chunking context (unknown) does not support external modules (request:
+// node:fs)", on /search/page at 0a7725e's Preview.
 
 export function decodeEntities(s: string): string {
   return s

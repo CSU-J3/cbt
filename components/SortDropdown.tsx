@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { type SortKey } from "@/lib/queries";
+import type { SortKey } from "@/lib/queries";
 
 const SORT_LABEL: Record<SortKey, string> = {
   action: "LATEST ACTION",

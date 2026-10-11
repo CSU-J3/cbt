@@ -91,6 +91,7 @@ import {
   STALE_PROCEDURAL_IDS,
   STALE_PROCEDURAL_TITLE_PATTERN,
 } from "./stale-procedural";
+import { SEARCH_TABS, type SearchTab } from "./search-tabs";
 
 // HO 130: media-attention column. JOIN-at-read pattern reused across every
 // feed-shaped query (getFeedBills, getStaleBills, getStageChanges,
@@ -8638,8 +8639,10 @@ export const getClusterDrilldown = unstable_cache(
 
 // ---- /search global search (HO 129) -----------------------------------
 
-export const SEARCH_TABS = ["bills", "members", "news", "reports"] as const;
-export type SearchTab = (typeof SEARCH_TABS)[number];
+// HO 774: both live in lib/search-tabs.ts, which imports nothing, so the client
+// components/SearchTabs.tsx imports them without bundling this module's graph.
+export { SEARCH_TABS };
+export type { SearchTab };
 const SEARCH_TABS_SET = new Set<string>(SEARCH_TABS);
 
 const SEARCH_Q_MAX = 200;
