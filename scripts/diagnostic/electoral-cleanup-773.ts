@@ -1,8 +1,8 @@
 // HO 773: the electoral cleanup's measurements, its one scoped write, and its legs. Prod is READ through a
 // SELECT-only client (a non-SELECT statement or a non-"read" batch throws before it is sent) in every mode
-// but --w1 --write. The base side of each red is 889c737's own module, read with `git cat-file` into the
-// gitignored scratch directory (relative imports pointed at @/lib, each such import checked unchanged since
-// 889c737), so it stays 889c737's after the build.
+// but --w1 --write. The base side of each red is 889c737's own module (leg F's, 99026df's), read with
+// `git cat-file` into the gitignored scratch directory (relative imports pointed at @/lib, each such import
+// checked unchanged since that SHA), so it stays that SHA's after the build.
 //   node <tsx> --tsconfig tsconfig.json scripts/diagnostic/electoral-cleanup-773.ts <mode>
 //   --m1             the three cards today, and the cycle's readings at 889c737, saved whole (leg D's base)
 //   --m4             SC's fourteen House first rounds
@@ -15,6 +15,8 @@
 //   --leg D          the cards on prod after the writes, against M1's saved base
 //   --leg E          one GET of each of the four district pages at the reader's pacing and agent, the first
 //                    UNREAD ending the read; --saved reads HO 747's copies instead, with no fetch
+//   --leg F          the wall (HO 773's FF go): confirmCases with an IO whose first GET answers 202, at 99026df
+//                    and in the tree (no fetch, no database)
 // Every printed line passes redactSecrets.
 import { config } from "dotenv";
 import { createClient, type Client, type InStatement, type InArgs } from "@libsql/client";
@@ -89,11 +91,11 @@ const prodReader = () => readOnly(createClient({ url: prodUrl(), authToken: proc
 const rowsOf = async (db: Client, sql: string, args: InArgs = []) => (await db.execute({ sql, args })).rows.map((r) => ({ ...r }) as Record<string, unknown>);
 
 // ── 889c737's modules ───────────────────────────────────────────────────────
-// One module at BASE_SHA, its relative imports pointed at @/lib. Each import so pointed must be a file
-// the tree carries unchanged since BASE_SHA, or the base would run against new code.
-function baseFile(repoPath: string): string {
+// One module at BASE_SHA (or another SHA, leg F's), its relative imports pointed at @/lib. Each import so
+// pointed must be a file the tree carries unchanged since that SHA, or the base would run against new code.
+function baseFile(repoPath: string, sha: string = BASE_SHA): string {
   mkdirSync(DIR, { recursive: true });
-  const src = git(["cat-file", "-p", `${BASE_SHA}:${repoPath}`]);
+  const src = git(["cat-file", "-p", `${sha}:${repoPath}`]);
   const deps: string[] = [];
   const out = src.replace(/from "\.\/([^"]+)"/g, (_, m: string) => {
     deps.push(`lib/${m}.ts`);
@@ -101,13 +103,13 @@ function baseFile(repoPath: string): string {
   });
   for (const m of src.matchAll(/from "@\/lib\/([^"]+)"/g)) deps.push(`lib/${m[1]}.ts`);
   for (const d of deps) {
-    const atBase = git(["rev-parse", `${BASE_SHA}:${d}`]).trim();
+    const atBase = git(["rev-parse", `${sha}:${d}`]).trim();
     const inTree = git(["hash-object", d]).trim();
-    if (atBase !== inTree) throw new Error(`${repoPath} at ${BASE_SHA} imports ${d}, which the tree has changed (${atBase.slice(0, 10)} → ${inTree.slice(0, 10)})`);
+    if (atBase !== inTree) throw new Error(`${repoPath} at ${sha} imports ${d}, which the tree has changed (${atBase.slice(0, 10)} → ${inTree.slice(0, 10)})`);
   }
-  const dst = path.join(DIR, path.basename(repoPath));
+  const dst = path.join(DIR, sha === BASE_SHA ? path.basename(repoPath) : `${sha}-${path.basename(repoPath)}`);
   writeFileSync(dst, out);
-  say(`  base: ${repoPath} at ${BASE_SHA} (blob ${git(["rev-parse", `${BASE_SHA}:${repoPath}`]).trim().slice(0, 10)}) · imports unchanged: ${deps.join(", ") || "none"}`);
+  say(`  base: ${repoPath} at ${sha} (blob ${git(["rev-parse", `${sha}:${repoPath}`]).trim().slice(0, 10)}) · imports unchanged: ${deps.join(", ") || "none"}`);
   return pathToFileURL(dst).href;
 }
 const treeBlob = (f: string) => git(["hash-object", f]).trim().slice(0, 10);
@@ -720,6 +722,73 @@ async function legE() {
   writeFileSync(path.join(ART, SAVED ? "legE-report-saved-747.json" : "legE-report.json"), JSON.stringify({ at: new Date().toISOString(), saved: !!SAVED, report }, null, 1));
 }
 
+// ── leg F: the wall hands its case to the name check (HO 773's FF go) ───────
+// confirmCases over three stale cases with an IO whose first GET answers 202 with the AWS WAF challenge's
+// markers and no canonical link (what this box got at HO 773), and whose every later GET answers a readable
+// page landing on the case's own learned key, so a second request would show (as a `redirect`). The red is
+// 99026df's module, the wall's code before the FF go. No fetch and no database.
+const LEG_F_SHA = "99026df";
+type FCase = { bioguide: string; member: string; firstName: string | null; lastName: string | null; stored: string | null; resolved: string | null; hasRow: boolean; kind: "stale"; race: string; key: string; learned: string };
+type FConfirmation = FCase & { signal: string | null; evidence: string; verdict: string; reason: string | null };
+type FModule = { confirmCases: (cases: FCase[], io: import("@/lib/general-ballot").IO, identity: Map<string, string | null>) => Promise<{ confirmations: FConfirmation[] }> };
+const WALL_BODY = `<!DOCTYPE html><html><head><title></title><script>window.awsWafCookieDomainList = [];window.gokuProps = {"key":"planted"};</script></head><body></body></html>`;
+const pageOn = (key: string) => `<!DOCTYPE html><html><head><link rel="canonical" href="https://ballotpedia.org/${key}"/><script>RLCONF={"wgCategories":["Living people"]};</script></head><body>${key}</body></html>`;
+const fCase = (o: Omit<FCase, "resolved" | "hasRow" | "kind">): FCase => ({ ...o, resolved: null, hasRow: true, kind: "stale" });
+// Sullivan's shape (a whole first name), NJ-04's (a prefix), and a learned title that carries no part of the name.
+const F_PASS_WHOLE = fCase({ bioguide: "S001198", member: "Dan Sullivan", firstName: "Dan", lastName: "Sullivan", stored: "Daniel S. Sullivan", race: "S-AK-2026", key: "Dan_S._Sullivan_(United_States_Senator_from_Alaska)", learned: "Dan S. Sullivan (United States Senator from Alaska)" });
+const F_PASS_PREFIX = fCase({ bioguide: "S000522", member: "Christopher H. Smith", firstName: "Christopher", lastName: "Smith", stored: "Christopher Smith", race: "NJ-04-2026", key: "Chris_Smith_(New_Jersey)", learned: "Chris Smith (New Jersey)" });
+const F_FAIL = fCase({ bioguide: "Z900003", member: "Jane Doe", firstName: "Jane", lastName: "Doe", stored: "Jane Doe (Nowhere)", race: "XX-01-2026", key: "Someone_Else", learned: "Someone Else" });
+function legFio(firstAnswer: "wall" | "page") {
+  const urls: string[] = [];
+  const keyOf = new Map([F_PASS_WHOLE, F_PASS_PREFIX, F_FAIL].map((c) => [c.stored!.replace(/ /g, "_"), c.key]));
+  const io: import("@/lib/general-ballot").IO = {
+    now: () => Date.now(),
+    sleep: async () => {},
+    get: async (url) => {
+      urls.push(url);
+      if (urls.length === 1 && firstAnswer === "wall") return { kind: "response", status: 202, body: WALL_BODY };
+      const key = keyOf.get(decodeURIComponent(url.replace("https://ballotpedia.org/", ""))) ?? "Unknown";
+      return { kind: "response", status: 200, body: pageOn(key) };
+    },
+  };
+  return { io, urls };
+}
+async function legF() {
+  say(`=== HO 773 leg F · the wall · ${new Date().toISOString()} · repair module ${treeBlob("lib/ballotpedia-title-repair.ts")} ===`);
+  const base = (await import(baseFile("lib/ballotpedia-title-repair.ts", LEG_F_SHA))) as FModule;
+  const tree = (await import("@/lib/ballotpedia-title-repair")) as unknown as FModule;
+  const line = (c: FConfirmation) => `${c.member}: ${c.verdict}${c.signal ? ` / ${c.signal}` : ""} · evidence "${c.evidence}"${c.reason ? ` · reason "${c.reason}"` : ""}`;
+  const cases = [F_PASS_WHOLE, F_PASS_PREFIX, F_FAIL];
+  say(`\n  three stale cases, in order: ${cases.map((c) => `${c.member} (stored "${c.stored}", learned "${c.learned}")`).join(" · ")}; the IO's first GET answers 202, the challenge`);
+  const rb = legFio("wall");
+  const red = (await base.confirmCases(cases, rb.io, new Map())).confirmations;
+  const tb = legFio("wall");
+  const got = (await tree.confirmCases(cases, tb.io, new Map())).confirmations;
+  say(`    ${LEG_F_SHA} (requests ${rb.urls.length}: ${rb.urls.join(", ")}):`);
+  for (const c of red) say(`      ${line(c)}`);
+  say(`    tree (requests ${tb.urls.length}: ${tb.urls.join(", ")}):`);
+  for (const c of got) say(`      ${line(c)}`);
+  check("F red", `${LEG_F_SHA}: the walled case reads unconfirmed, then the stored cases after it not attempted`, red[0]?.verdict === "unconfirmed" && red[1]?.verdict === "not attempted" && red[2]?.verdict === "not attempted", red.map((c) => c.verdict).join(", "));
+  const walled = /no readable page|unreadable page/;
+  check(
+    "F",
+    "the two cases whose learned titles pass the name check read confirmed, by `ballot` and `ballot-prefix`, the wall in each one's evidence",
+    got[0]?.verdict === "confirmed" && got[0]?.signal === "ballot" && walled.test(got[0]?.evidence ?? "") && got[1]?.verdict === "confirmed" && got[1]?.signal === "ballot-prefix" && walled.test(got[1]?.evidence ?? ""),
+    got.slice(0, 2).map((c) => `${c.verdict}/${c.signal}`).join(", "),
+  );
+  check("F", "the IO saw one request: the wall still ends the fetching", tb.urls.length === 1 && rb.urls.length === 1, `tree ${tb.urls.length}, ${LEG_F_SHA} ${rb.urls.length}`);
+  check("F", "the case after the wall whose learned title fails the name check reads unconfirmed", got[2]?.verdict === "unconfirmed" && got[2]?.signal === null && walled.test(got[2]?.evidence ?? ""), got[2] ? line(got[2]) : "missing");
+
+  say(`\n  the control: the same first case alone, its page readable (200, the canonical link on its learned key)`);
+  const rc = legFio("page");
+  const redC = (await base.confirmCases([F_PASS_WHOLE], rc.io, new Map())).confirmations[0]!;
+  const tc = legFio("page");
+  const gotC = (await tree.confirmCases([F_PASS_WHOLE], tc.io, new Map())).confirmations[0]!;
+  say(`    ${LEG_F_SHA}: ${line(redC)}`);
+  say(`    tree: ${line(gotC)}`);
+  check("F control", "a readable page whose canonical key is the learned key still reads `redirect`, on both", gotC.verdict === "confirmed" && gotC.signal === "redirect" && redC.verdict === "confirmed" && redC.signal === "redirect", `tree ${gotC.verdict}/${gotC.signal}, ${LEG_F_SHA} ${redC.verdict}/${redC.signal}`);
+}
+
 // ── W1 ──────────────────────────────────────────────────────────────────────
 const W1_SQL = `UPDATE primaries SET runoff_date = '2026-06-23', updated_at = ?
  WHERE election_round = 'primary' AND runoff_date = '2026-08-25'
@@ -760,6 +829,7 @@ async function main() {
   else if (argAt("--leg") === "C") await legC();
   else if (argAt("--leg") === "D") await legD();
   else if (argAt("--leg") === "E") await legE();
+  else if (argAt("--leg") === "F") await legF();
   else if (has("--w1")) await w1();
   else throw new Error("a mode: --m1 | --m4 | --w1 [--write]");
   say(`\n${passes} passed, ${fails} failed`);
