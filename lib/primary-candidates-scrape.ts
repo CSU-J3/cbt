@@ -122,7 +122,7 @@ export type CandidateScrapeResult = {
 
 // "May 26, 2026" -> "2026-05-26"; null for anything else.
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-function isoFromLongDate(month: string, day: string, year: string): string | null {
+export function isoFromLongDate(month: string, day: string, year: string): string | null {
   const m = MONTHS.indexOf(month.toLowerCase());
   const d = Number(day);
   if (m < 0 || !(d >= 1 && d <= 31)) return null;
