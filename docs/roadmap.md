@@ -5605,3 +5605,109 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - Edit 1 lands with one clause corrected, flagged. *Exactly one keyed, untied row that passes the name check* reads *keyed, untied rows that pass the name check for them under exactly one key*. § 1 takes one distinct key, and a member who advanced and then lost a runoff has two rows under one key.
 - **OPEN LOOPS reconciled:** 269 live / 334 struck at open (603), 267 / 338 (605) at close (§ OPEN LOOPS: 68 → 66 live, 105 → 109 struck). The control, `^- \*\*~~`, is 0 at both.
 - **Also notes now run through HO 773.**
+
+**Also (HO 774), housekeeping: no client bundle carries `lib/queries.ts`, the title repair's two leftovers go, and the ratings WATCH closes as read. AL-01's flip waits on the reader's 02:20Z tick, so it's read at the FF go. It opens with HO 773's FF go as taken.**
+- **What's here:**
+  - HO 773's FF go as taken;
+  - Corey's ruling and the WATCH's;
+  - STEP 0;
+  - §§ 1-2 and leg A.
+- **Four commits, kinds unmixed:** `fix` · `chore` · `docs` · `docs(skill)`, alone and last.
+- **No migration and no prod write.**
+- **The pointer is 774:** pointer 773, highest HO in commit subjects 773, `main` at `042f891`.
+
+**HO 773's FF go, as taken** (`docs/handoffs/773-artifacts/paste-773-ff.md`).
+- **The ratings read, first:** one `/api/sync-race-ratings` row started after 2026-10-10 21:12Z, #24166 at 2026-10-11T11:00:44.271Z.
+  - It read `error` in 112 ms: *2 of 2 chamber leg(s) failed*, each at Sabato's one fetch (403, `cf-mitigated` challenge, `server` cloudflare, `cf-ray` `a48d5ce13a68ccd1-PDX`, 5,785 bytes, *Just a moment...*), and *No chamber completed*.
+  - Its payload carries no leg, so no `stats.raters.sabato`, and no `race_ratings` row of any source was updated after 10-10 21:12Z.
+  - Recorded on the ratings WATCH and Sabato's line, neither close met. The WATCH closes at this HO, as read (below).
+- **Fix 1** (`fix` `9045f48`): the architect's four replacements in `lib/ballotpedia-title-repair.ts` and one in `scripts/repair-ballotpedia-titles.ts`, checked byte-identical to `99026df` plus the replacements. The walled case and every stored case after it go to the name check, and the wall still ends the fetching.
+- **Leg F** (`diag` `4eb5c8a`, 5 of 5): `confirmCases` with an IO whose first GET answers 202.
+  - In the tree, the two cases whose learned titles pass the name check read `confirmed` (`ballot`, `ballot-prefix`) with the wall in their evidence, the one that fails reads `unconfirmed`, and the IO saw one request.
+  - `99026df` reads `unconfirmed`, then `not attempted` twice: the red.
+  - **The control,** a readable page on the learned key, reads `redirect` on both.
+  - `baseFile` gained a SHA parameter, so leg F's base is `99026df` and legs A-E keep `889c737`.
+- **W2b** (19:01:34-19:01:51Z): the dry run met the challenge again on its first fetch, Sullivan's *Daniel S. Sullivan* (202, the 2,427-byte AWS WAF page), with one request.
+  - The name check confirmed both cases by `ballot`: S-AK's Dan Sullivan (`stale`) and AL-01's Barry Moore (`senate`, on S-AL-2026). The plan held exactly those two.
+  - `--write --plan` wrote both resolved titles at 19:01:51.599Z, read back: *Barry Moore (Alabama U.S. representative)*, and *Dan S. Sullivan (United States Senator from Alaska)*, which replaces HO 751's *Daniel S. …* (`disambiguation`, 09-28), a key S-AK's ballot no longer prints.
+- **W4b:** a baseline dry run before W2b changed nothing. After W2b the dry run changed exactly Moore's two S-AL primary rows, NULL → `M001212`, on rows keyed by W2b's title. `--write` at 19:02:25.023Z; rows 8393 and 13972 read back `M001212`, and Sullivan's S-AK primary row keeps `S001198`.
+- **The queue reading** (19:03:25Z, in `selectQueue`'s order):
+  - S-AL-2026, last attempted 2026-10-11T02:23:18.414Z, is 138th of 470: the 2026-10-12 02:20Z tick.
+  - S-AK-2026, last attempted 14:23:42.599Z, is 382nd: the 14:20Z tick.
+  - The reader's last six ticks each read 40 of 40.
+- **Docs:** backlog `3bd3ffa`. The four rounds were struck on HO 747's saved pages, with the architect's note verbatim. Moore's line was given W2b and W4b, both ratings lines the read, and the title repair's two leftovers were filed. SKILL `042f891`, last: the go's `:1337` replacement, byte-identical.
+- **The builds and the pushes:**
+  - **Cold builds,** Node 24.21.0, exit 0 with no warning line: before the review push (19:10:14-19:11:16Z) and immediately before the FF (19:11:55-19:12:27Z). The cheap gates were green both times (19:11:22-28Z and 19:12:28-34Z).
+  - **The review push:** `99026df..042f891`, no force. Its Preview, `dpl_GC2155rfxCQvzhQQK588VKxgs6Zo`, was READY. `narrow-preview` #38167037796: 82 passed, and 82 of 82 cells equal `99026df`'s run.
+  - **The FF:** `889c737..042f891`, 12 commits, no force (19:12:51Z). `773-review` is deleted, remote and local. `git rev-parse main` reads `042f891ec9db6794f0ab26826903a8af2b445cac`.
+- **The deploy:**
+  - **`verify:deploy`, in the foreground:** matched at 12s and held five consecutive reads at 53s (19:14:18Z).
+  - **The Production build,** `dpl_5iRYa582nNg9hQ9gRjVDPf94Eeau` (`bld_aapdet7tf`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 19:12:57.202Z. It logged no Next warning line.
+  - **`e2e-prod` #38167110778:** `smoke` 141 passed (5.6m), every crawl line `failed=0`, `console=0`, `pageErr=0`.
+- **The flush:** `POST /api/revalidate?tag=races` at 19:20:49.156Z returned 200 `{"ok":true,"tag":"races"}`. `$CRON_SECRET` was read from `.env` by name inside a Node script.
+- **The three cards on Production** (19:20:59-19:21:05Z, after the flush):
+  - GA-13 and TN-05 read LOST PRIMARY (NOT ON THE BALLOT at `889c737`).
+  - AL-01 reads NOT ON THE BALLOT, with S-AL's `last_attempt_at` still 02:23:18.414Z.
+  - The reader's S-AL tick ties Moore's row and expires `general-ballot` (`lib/general-ballot.ts:934`), one of the qualifier cache's two tags.
+- **Flagged at the go:** leg D, re-run after W4b, read 3 of 4. Its AL-01 check expects `senate` once Moore's title is written (`scripts/diagnostic/electoral-cleanup-773.ts:598`), which assumed W3's re-read straight after. GA-13 and TN-05 read `lost_primary`, and no other card moved.
+
+**Corey's ruling, 2026-10-11 about 1:30 PM MT:** asked what Code should do while the ratings wait on Cook and the raters, he picked *Housekeeping now* over *Alabama's voided primaries* and *Wait for Cook*.
+
+**The ratings WATCH, closed as read (the architect's ruling).**
+- Its dated run, #24166, came back refused: Cloudflare's managed challenge answered Production's one fetch of Sabato's page from pdx1, both chamber legs failed on it, and nothing was written. That answers what the WATCH watched.
+- The refusal still open belongs to Sabato's line, and Cook's and IE's rows keep their own lines. Two live lines for one blocker would double-count it.
+
+**STEP 0**, the architect's table, read at `042f891`; a check, not a HALT (`docs/handoffs/774-artifacts/`).
+1. **Holds.** `components/SearchTabs.tsx:4` imports `SEARCH_TABS` and `type SearchTab` from `@/lib/queries`, defined at `lib/queries.ts:8641-8642`. Their other users are `lib/queries.ts:8643-8655` and `app/search/page.tsx:10-11`, which carries no directive (a server page). The other bare-substring hits are a comment (`components/GroupTabs.tsx:10`, naming the component's file), `lib/ballotpedia-key.ts:6`'s header, and docs.
+2. **Holds,** parsed with the repo's own TypeScript (`step0-client-graph-042f891.txt`).
+   - **The importers:** 75 `"use client"` modules, 29 of them importing from `lib/queries.ts`:
+     - 27 with `import type` (`components/MemberHeader.tsx:7-11` among them);
+     - `SearchTabs.tsx:4`, a value import;
+     - `SortDropdown.tsx:5`, `import { type SortKey }` (`SortKey` is `lib/queries.ts:205`).
+   - **The paths:** over value edges from every client module (141 modules), the one edge into `lib/queries.ts` is `SearchTabs`'. Counting the inline type import as a side-effect import, as `verbatimModuleSyntax` would keep it, adds `SortDropdown`'s.
+3. **Holds.** `lib/ballotpedia-key.ts:5-6`.
+4. **Holds.** `scripts/repair-ballotpedia-titles.ts:16-18` and `lib/ballotpedia-title-repair.ts:258`.
+   - In code, *not attempted* appears elsewhere only in leg F's red (`scripts/diagnostic/electoral-cleanup-773.ts:771`, through its own `verdict: string` at `:732`).
+   - Its other mentions are prose: backlog `:37` (the leftovers line), backlog `:43` (Moore's) and roadmap `:5512` (HO 773's block).
+5. **Holds.** SKILL `:2341` occurs once.
+
+**AL-01's reading: not taken.** This HO ran at 19:41Z on 10-11, ahead of the 2026-10-12 02:20Z tick, so it's read at the FF go. Moore's line stays open.
+
+**§ 1, no client bundle carries `lib/queries.ts`** (`fix` `7c7fcc9`).
+- **New `lib/search-tabs.ts`,** which imports nothing, holds `SEARCH_TABS` and `SearchTab`, moved verbatim, under a header saying why.
+- **`lib/queries.ts`** imports both from it and re-exports them where they were (`export { SEARCH_TABS };`, `export type { SearchTab };`), so `app/search/page.tsx` and every server importer are unchanged.
+- **`components/SearchTabs.tsx`** imports them from `@/lib/search-tabs`.
+- **`components/SortDropdown.tsx:5`** is `import type { SortKey } from "@/lib/queries";`.
+- **`lib/ballotpedia-key.ts`'s header** moves to the past tense where it speaks of `SearchTabs`, reflowed from `:5` to its width (79). `:1-4` are unchanged.
+- **After it** (the same scanner, on the tree):
+  - 28 client modules import from `lib/queries.ts`, all `import type`.
+  - The client bundle's graph falls from 141 modules to 113, and no value edge reaches `lib/queries.ts` under either setting.
+  - `lib/queries.ts`'s own value graph is 42 modules. 13 of them are in client bundles by other paths (`lib/format.ts`, `lib/enums.ts` and `lib/search-tabs.ts` among them), and the other 29, `lib/queries.ts` included, are in none.
+
+**§ 2, the title repair's leftovers** (`chore` `2aa97ee`).
+- `scripts/repair-ballotpedia-titles.ts:17-18` now reads *own race's keyed, untied primary rows that pass the name check give one distinct key (GA-13's Blair), learning that key.*, reflowed at the paragraph's width (80). `:16` and `:19` are unchanged.
+- `Verdict` drops `"not attempted"`. `tsc` exits 0, and leg F, re-run, reads 5 of 5.
+
+**Leg A, the build trap.**
+- **The setup:**
+  - a scratch worktree in the session scratchpad, detached, with `node_modules` hard-linked from the checkout;
+  - cold builds, Node 24.21.0, no `.env`, as CI builds;
+  - the plant, `import { existsSync } from "node:fs"; void existsSync;`, at the top of `lib/queries.ts`, never staged.
+- **The red,** `042f891` planted (19:51:16Z): exit 1 in 7.7s, *Failed to write app endpoint /search/page … the chunking context (unknown) does not support external modules (request: node:fs)*, HO 773's error. Only `/search/page` is named. Turbopack wrote a panic log into the system temp folder, left unread.
+- **The green,** `7c7fcc9` planted (19:51:49Z): exit 0 in 31.8s, no warning line, `/search` in the route table.
+- **The control,** `7c7fcc9` unplanted (19:52:29Z): exit 0 in 30.0s, no warning line.
+- **Clean-up:** the worktree is removed, no commit carries the plant (`git log --all -S 'void existsSync'` finds 0), and the checkout's `node_modules` is intact.
+
+**Docs (HO 774):**
+- This block.
+- **backlog, 3+/3−:**
+  - **Struck, each with its close note:**
+    - the ratings WATCH (the handoff's note, verbatim);
+    - the `lib/queries.ts` client trap (leg A);
+    - the title repair's two leftovers (§ 2).
+  - The three deletions are those three lines, each rewritten in place.
+  - **The client trap's note** says its close's second clause reads wider than leg A: 13 of the 41 modules `lib/queries.ts` imports are in client bundles by other paths.
+  - Moore's line is unchanged, for the FF go.
+- **SKILL, its own commit, last:** the handoff's line after `:2341`, verbatim.
+- **OPEN LOOPS reconciled:** 267 live / 339 struck at open (606), and 264 / 342 at close (§ OPEN LOOPS: 66 → 63 live, 110 → 113 struck). The control, `^- \*\*~~`, is 0 at both.
+- **Also notes now run through HO 774.**
