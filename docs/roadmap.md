@@ -6159,3 +6159,133 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the handoff's two sentences, verbatim, at the end of the `/api/cron/primaries` and `/api/cron/general-ballot` bullets in § Cron topology;
   - and two ride-alongs, named: the general-ballot bullet's `stop` list gains `yielded`, and the wrapper section's `Promise.race(handler(), timeoutPromise)` becomes `handler({ runId })`.
 - **Also notes now run through HO 778.**
+
+**Also (HO 779), Corey's two tag rulings: a called race keeps its incumbent's tag, a run for the Senate or another district shows its result past election day, and five incumbents on a November governor ballot read RUNNING FOR GOVERNOR. It opens with HO 778's FF go as taken.**
+- **What's here:**
+  - HO 778's FF go as taken;
+  - STEP 0, with its measurements;
+  - § 1, the tag after a race is called, and § 2, RUNNING FOR GOVERNOR;
+  - legs 0 to 2, and the two runs before the one that stands.
+- **Six commits, kinds unmixed:** `feat` · `feat` · `diag` · `diag` · `docs` · `docs(skill)` alone and last. The second `diag` adds a case after the second run (below).
+- **No prod write.** Prod was read by `SELECT` only: STEP 0, the tree's rule, and each seed.
+- **The pointer is 779:** pointer 778, highest HO in commit subjects 778, `main` at `0d53dae`.
+
+**HO 778's FF go, as taken** (`docs/handoffs/778-artifacts/ff/paste-778-ff.md`).
+- **`narrow-preview`, before the FF:** when the go was taken, `7bdae36` still had no GitHub deployment, 24 minutes after its Preview went READY.
+  - **The hand-made record:** deployment 7022121801 (`Preview`, by `CSU-J3`), whose `success` status at 19:33:16Z fired #38298417831.
+  - **`vercel[bot]`'s own `success` status** landed on the same record at 19:36:06Z, 28 minutes late, and fired #38298728859. The per-SHA concurrency group then cancelled the first run, after its spec had read 82 passed.
+  - **#38298728859: 82 passed (2.4m), every cell equal to #38189661717's.**
+- **`docs(HO 778)` `0d53dae`:** the Vercel line at the top of OPEN LOOPS, and HO 778's block amended to ship true. Reconcile 266 / 345 (611), § OPEN LOOPS 65 / 116.
+- **The FF:**
+  - immediately before it, the cold build (exit 0, *Compiled successfully in 9.2s*, no warning line) and the cheap gates (green);
+  - then `7a14df1..0d53dae`, 6 commits, no force (19:44:12Z);
+  - `778-review` deleted, remote and local, and `main` reads `0d53dae8ce2d…`.
+- **`verify:deploy`, in the foreground:** matched at 41s, five consecutive reads at 83s.
+- **The Production build,** `dpl_GDpCMGQz3kpiaJXxVaWEHaLhrDVV` (`bld_du27et1qf`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 19:44:19.410Z. It compiled in 9.8s, and its 120 events held no Next warning line.
+- **`e2e-prod`:**
+  - **The Preview record came promptly** (19:44:06Z): #38299601560, `narrow-preview` 82 passed, every cell equal.
+  - **The Production record came about 5½ minutes after READY** (19:50:42Z). So when `verify:deploy` matched, Code dispatched on `main`: #38299844817, `smoke` **141 passed (5.8m)**, all 39 crawl lines clean.
+  - The late record then fired #38300326794, **141 passed (5.4m)**.
+- **Louisiana's first prod read:** one authorized `POST /api/cron/primaries?state=LA` at 19:47:14Z (HTTP 200 in 11.6s, `sfo1::pdx1`).
+  - **Its row, #24524:** 10,960 ms, `success`, `house-target`, attempted 6, parsedOk 6, 39 candidates, matchedIncumbents 4, with no fetch failure and nothing settled-skipped or refused.
+  - **The six rows are unchanged in content** against the cursor's last LA pass (12:00:22.740Z); only `updated_at` moved.
+  - LA-05 prints *Pat Moore*, before and after, where HO 747's saved page of 09-25 printed *Patricia Moore*.
+- **The lock's prod reading:** the first `20 */2` tick after the deploy, **#24533** (20:20:35.619Z to 20:24:31.770Z, 236,151 ms, `success`), read 40 of 40, stop `cap`, `yieldedTo` null. It was the only general-ballot row since the deploy.
+- **A changed premise, named:** Vercel's GitHub records came late, not never (`7a14df1`'s about 45 minutes after READY). So the Vercel line was written to that fact, with a *Close* asking for a record within a couple of minutes of READY.
+- **No flush.**
+
+**STEP 0** (a check, HO 768's rule), 2026-10-12 21:02Z: **all eight hold.**
+- **1:** `main` is `0d53dae`, and its Production smoke passed (#38299844817, and #38300326794 from Vercel's late record).
+- **2-7, at their anchors:**
+  - the race page drops the tag on a decided race (`components/RaceHubBody.tsx:171-178`), and the card prints the qualifier over the tag (`components/RaceIncumbentCard.tsx:128-138`);
+  - HO 758's *not on the ballot* (`lib/race-result.ts:173`) sits behind `raceResultView`'s gate (`:164-165`), on `clockNowMs()`;
+  - one mark decides a box race and two make a runoff (`:26-31`);
+  - the qualifier has three kinds and four reasons (`lib/incumbent-qualifier.ts:61-65`), picked in `readQualifier` (`:93`, the kinds at `:117`); its `general_ballot` read has no `marked` (`:140`); `getIncumbentQualifiers` caches it (`lib/queries.ts:2296-2300`);
+  - the words are in `lib/incumbent-tag.ts:7` and `:18` and `components/IncumbentTag.tsx:20`; the open row composes its own holder words (`components/RaceOpenRow.tsx:196-216`), and its member rows' words are `roleParts` (`:261`, `:271-275`);
+  - four places merge the tags, and nothing else calls `getIncumbentQualifiers`.
+- **8:** each of the five's stored incumbent is that bioguide (WI-07's is stored as *Thomas P. Tiffany*), and none reads `moved` or `senate`.
+- **The measurements** (prod by `SELECT`, through `readIncumbentQualifierReadings`; `docs/handoffs/779-artifacts/step0-measurements.txt`):
+  - **94 tags** of 461 readings (367 on their own ballot): RETIRING 31, NOT ON THE BALLOT 24, LOST PRIMARY 20, `moved` 11, `senate` 7, WITHDREW 1;
+  - **`senate` (7):** AL-01 → S-AL, GA-10 → S-GA, IA-02 → S-IA, KY-06 → S-KY, NH-01 → S-NH, OK-01 → S-OK, WY-AL → S-WY;
+  - **`moved` (11):** CA-03 → CA-06, CA-06 → CA-03, CA-38 → CA-41, CA-41 → CA-40, FL-22 → FL-23, FL-23 → FL-25, FL-25 → FL-20, TX-35 → TX-37, UT-01 → UT-02, UT-02 → UT-03, UT-03 → UT-04;
+  - **every target is a `box` read,** with 0 marked rows;
+  - **the five today:** S-AL, WI-07 and MI-10 read RETIRING (curated `incumbent_running = 0`), and AZ-05 and FL-19 NOT ON THE BALLOT. Only MI-10 is rated.
+
+**§ 1, the tag after a race is called** (`feat` `c4d116b`).
+- **The race page keeps the tag:** where the incumbent carries one, the card shows it, decided or not, and HO 758's qualifier shows only where there's no tag (`components/RaceHubBody.tsx`).
+- **A `senate` or `moved` tag turns to its own race's result past election day,** by the race page's gate. `readQualifier` reads that race's marks the way a race page reads its own, on its `box` read:
+  - one marked printed row decides it: theirs, elected; another's, lost;
+  - two or more are a runoff: theirs among them, in it; else out of it;
+  - none leaves the running words.
+  - The qualifier carries it as `outcome`.
+- **The words** (`lib/incumbent-tag.ts`, `tagWords`):
+  - ELECTED TO THE SENATE, LOST THE SENATE RACE, IN THE SENATE RUNOFF, OUT OF THE SENATE RUNOFF;
+  - ELECTED IN <seat>, LOST IN <seat>, IN THE <seat> RUNOFF, OUT OF THE <seat> RUNOFF.
+  - SENATE and the seat keep their link, `data-incumbent-outcome` names the outcome, and the reason tags stand.
+- **The holder line** (`components/RaceOpenRow.tsx`, through `holderWords`) takes the same outcome in lower case: *lost the Senate race* IA SEN, *elected in* FL-20 →.
+- **The marks ride in the cached read:** the qualifier's `general_ballot` read takes `marked`, so `getIncumbentQualifiers` carries the outcome whatever the date, under its same two tags.
+- **The clock applies on the server,** at the four merge points (the race page, `/electoral`, `/`'s `CompetitiveRacesBlock`, `/welcome`), through one helper, `incumbentTagAt` / `incumbentTagsAt`. Before election day a tag says what it says today, whatever the marks. Never in a client component.
+
+**§ 2, RUNNING FOR GOVERNOR** (`feat` `9504470`).
+- **The list:** `data/governor-runs-2026.json`, beside `races-seed.json`.
+  - One entry per member: race, bioguide, name, office, state, source and as-of. The ruling is verbatim in its `_comment`.
+  - It holds the five, each sourced to CQ-Roll Call's *Congress Is Becoming a Pipeline to Governors' Mansions* (Aug 26, 2026).
+  - The `_comment` names those not listed: the members who ran for governor and are on no November ballot, and Chip Roy.
+- **The loader:** `lib/incumbent-qualifier.ts` imports the file (`GOVERNOR_RUNS`, the entries whose office is `governor`), and `readQualifier` takes the list as a parameter defaulting to it.
+- **The kind, `governor`,** comes after `moved` and `senate` and before the reasons. It applies where the race's stored incumbent is the entry's bioguide and is printed on none of the ballots CBT reads. So it beats the curated flag as Hinson's does: S-AL, WI-07 and MI-10 lose RETIRING, and AZ-05 and FL-19 lose NOT ON THE BALLOT.
+- **The tag:** RUNNING FOR GOVERNOR, unlinked, in the kinds' `.micro-tag`. Past election day it reads RAN FOR GOVERNOR (the clock's `ran`), since CBT reads no governor race. The holder line reads *running for governor*, then *ran for governor*.
+- **The tree's rule, read on prod by `SELECT`** (`docs/handoffs/779-artifacts/tree-rule-on-prod.txt`): 94 tags, `governor` 5, RETIRING 28, NOT ON THE BALLOT 22, the rest unchanged.
+
+**The legs** (`diag` `e2fcd49` and `b2543a4`, `scripts/diagnostic/incumbent-tag-legs-779.ts`): **r3, 51 PASS, 0 FAIL.**
+- **The seed** (r3, 21:31:22-21:32:08Z):
+  - the real `scripts/migrate.ts` against a `file:` template;
+  - 22 tables whole from prod by `SELECT`, `bills` and `member_votes` cut to the rated seats' members, and the newest 400 `cron_runs`;
+  - prod's fingerprint read equal before and after.
+- **The marks planted** (17, each matching one printed row):
+  - each case's own race is decided, so HEAD's card reads *not on the ballot*;
+  - **senate, elected:** AL-01, with S-AL's Barry Moore marked;
+  - **senate, lost:** IA-02, with S-IA's Josh Turek marked;
+  - **senate, in the runoff:** GA-10, with S-GA's Ossoff and Collins marked;
+  - **senate, out of it:** NH-01, with S-NH's Sununu and Laplante marked (the two-mark shape);
+  - **senate, not called:** KY-06, S-KY unmarked;
+  - **moved, elected:** FL-25, with FL-20's Wasserman Schultz marked;
+  - **moved, lost:** FL-22, with FL-23's Deborah Adeimy marked;
+  - **GA-13** (LOST PRIMARY), **S-IA** (RETIRING), **S-MN** (NOT ON THE BALLOT) and **S-AL** (governor).
+- **The builds:** HEAD's (`0d53dae`) and the tree's (`9504470`), each cold and secretless in a scratch worktree, exit 0 with no warning line. Each runs by `next start` on the copy, with its own sentinel and the fetch cache cleared per server, the clock set by `CBT_CLOCK_NOW`.
+- **Leg 0, today's clock, the marks planted:**
+  - **465 of 470** race pages' server-rendered `<main>` read byte-identical to HEAD's. The five governor seats differ only in the card's tag: RUNNING FOR GOVERNOR on the tree, and RETIRING or NOT ON THE BALLOT on HEAD.
+  - **Every tag on `/electoral`** (27), **`/`** (4) and **`/welcome`** (14) equals HEAD's but MI-10's, the only one of the five on a compact surface.
+  - **No outcome word,** and no `data-incumbent-outcome`, anywhere on the tree (0 of 45 tags, 0 of 470 pages, 0 of 2 pages). So the gate holds with the marks planted.
+- **Leg 1, Nov 4** (15:00Z):
+  - **Every case's card** reads *not on the ballot* on HEAD, the tag dropped (red). On the tree it reads the table's words with no qualifier beside it (green): ELECTED TO THE SENATE, LOST THE SENATE RACE, IN THE SENATE RUNOFF, OUT OF THE SENATE RUNOFF, RUNNING FOR SENATE, ELECTED IN FL-20, LOST IN FL-23, LOST PRIMARY, RETIRING, NOT ON THE BALLOT, RAN FOR GOVERNOR.
+  - **`/electoral`'s rows,** for the seven rated cases, read the same words. HEAD's still read RUNNING FOR SENATE, RUNNING IN FL-20 and RUNNING IN FL-23, since its compact surfaces keep the tag past election day.
+  - **The holder lines** read *lost the Senate race* IA SEN, *out of the Senate runoff* NH SEN, *running for Senate* KY SEN →, *elected in* FL-20 → and *lost in* FL-23 →.
+  - **IA-02** reads LOST THE SENATE RACE on its MAP card (meta *R · lost the senate race*), its district card and export (*- Ashley Hinson [R] (LOST THE SENATE RACE)*), and its hover meta (*Ashley Hinson · Toss Up · LOST THE SENATE RACE*). HEAD reads RUNNING FOR SENATE on each.
+  - **FL-22's featured cards** read LOST IN FL-23 on `/` and `/welcome`, and HEAD's read RUNNING IN FL-23.
+- **Leg 2, the census at Nov 4:** every tag on every race page equals the rule computed from the copy's rows, **94 tags on 470 pages, 0 mismatches.** HO 759's classes come from HEAD's unchanged rule, and the governor list and the outcome are computed in the leg.
+- **Captures** (`docs/handoffs/779-artifacts/captures/`, 76, all r3's):
+  - the cases' cards at 1440, 430 and 1440 with reduced motion, and HEAD's at 1440;
+  - `/electoral`'s rows and IA-02's MAP card, at the same three;
+  - IA-02's district card and hover peek.
+  - Eyeballed styled: the tag in the dim `.micro-tag` with SENATE or the seat in amber, and HEAD's card with HO 758's *NOT ON THE BALLOT*.
+- **The two runs before it, named:**
+  - **r1** read 45 PASS, 1 FAIL: the hover check, empty on both builds. The map's IA label covers the path's centre, so the mouse landed on the label and the peek never opened. r2 moves the mouse to a point the path itself is under: 46 PASS, 0 FAIL.
+  - **r2** never read `/welcome` at Nov 4, and `/`'s one featured case was S-IA, whose RETIRING reads the same either side of election day. So neither merge point's clock was seen turning a tag. r3 adds FL-22 (moved, lost), rated and featured on both, as the second `diag`.
+- **Clean-up:** the worktrees are removed, and the checkout's `node_modules` is back to one link per file (0 of 15,152 multiply linked).
+
+**Docs (HO 779):**
+- This block.
+- **backlog, 3+/3−:**
+  - **The rulings line is struck** on the legs.
+  - **The Louisiana line is struck** with HO 778's FF go read (#24524: 6 of 6, the rows unchanged against the cursor's 12:00:22Z pass).
+  - **The WATCH (HO 758) line:**
+    - (c) is unblocked: *"It stays blocked until the FF go's prod read closes the Louisiana line below."* is dropped, and the procedure's *"(c) once it's unblocked"* now reads *(c)*;
+    - its reads gain one off-ballot incumbent's tag on a called race.
+- **OPEN LOOPS reconciled:**
+  - open: 266 live / 345 struck (611), § OPEN LOOPS `:14-209` 65 / 116;
+  - close: **264 / 347 (611), § OPEN LOOPS 63 / 118**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - the four places the handoff counts, rewritten to the tree;
+  - and a fifth, named: the kinds' lead-in, *"by identity (`general_ballot.bioguide_id`)"*, which the governor kind isn't.
+- **Also notes now run through HO 779.**
