@@ -6045,3 +6045,109 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - **Production's tag** (18:15:02Z, `/api/version` `e15daca`): `/race/AL-01-2026` carries the `senate` tag, *RUNNING FOR SENATE*, linked to `/race/S-AL-2026`.
   - So Moore's line is struck, on the tie and the tag.
 - **Also notes now run through HO 777.**
+
+**Also (HO 778), Nov 4's two routes: `/api/cron/primaries` takes a state and reads it live, so Louisiana can be read on demand, and `/api/cron/general-ballot` runs one at a time. It opens with HO 777's FF go as taken, and files Corey's two tag rulings.**
+- **What's here:**
+  - HO 777's FF go as taken;
+  - Corey's rulings, filed;
+  - STEP 0, its HALT and its rerun;
+  - § 1, the named state, and § 2, the lock;
+  - legs L and K.
+- **Five commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)`, alone and last.
+- **No prod write.** The named state's first prod read is the FF go's.
+- **The pointer is 778:** pointer 777, highest HO in commit subjects 777, `main` at `7a14df1`.
+
+**HO 777's FF go, as taken** (`docs/handoffs/777-artifacts/ff/paste-777-ff.md`).
+- **AL-01 was read** (18:15Z), HO 774's three reads as the go expected:
+  - S-AL's Moore row carries `M001212` (re-read at 00:37:13Z by Part B's #24309);
+  - leg D read 4 of 4: AL-01 `senate`, GA-13 and TN-05 `lost_primary`, and no other card moved;
+  - Production (`e15daca`) shows RUNNING FOR SENATE on `/race/AL-01-2026`.
+  - So Moore's line is struck.
+- **`docs(HO 777)` `7a14df1`:** Moore's line struck, the lock line filed, and HO 777's block amended to ship true. One amendment went beyond the go's list, named: STEP 0's *"so the reading carries"* now says the FF go took the reading. Reconcile 265 / 344 (609).
+- **The FF:** immediately before it, the cold build (exit 0, no warning line) and the cheap gates (green). Then `e15daca..7a14df1`, 3 commits, no force (18:19:32Z). `777-review` is deleted, remote and local, and `git rev-parse main` reads `7a14df192ea5dbaf4a522e697c5a214f7c7d979e`.
+- **`verify:deploy`, in the foreground:** matched at 41s and held five consecutive reads at 82s.
+- **The Production build,** `dpl_zg2njYqYiAM7iyC5UTdRTsqWUEo5` (`bld_fpdu8q4yw`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 18:19:37.568Z. Read whole (120 events), it logged no Next warning line.
+- **`e2e-prod`, a departure from the go:** Vercel created no GitHub deployment for `7a14df1`, Preview or Production (the repo's newest `vercel[bot]` deployment was `e04d68d`'s Preview, 00:52:09Z), so no `deployment_status` fired. Code dispatched it on `main`: #38291731924 (`workflow_dispatch`, `7a14df1`), `smoke` 141 passed (5.8m), all 39 crawl lines clean on both hits.
+- **No flush.**
+
+**Corey's rulings, 2026-10-11, verbatim** (two questions after HO 777's review, answered by selection):
+- what a called race's page should say of an incumbent off its ballot: *"Keep the tag; Senate and district runs show their result (Recommended)"*;
+- what an incumbent marked as leaving to run for another office should show: *"RUNNING FOR GOVERNOR (Recommended)"*.
+- **Filed here** (the backlog's rulings line) **and built in the HO after this one:** they touch every surface that prints the tag and need a curated list, and the routes shouldn't wait on either. This HO changes no page.
+
+**STEP 0** (a check, HO 768's rule).
+- **First run, 2026-10-12 18:10Z: HALT on claim 1.**
+  - `main` was `e15daca`, and `777-review` was still on the remote at `e04d68d`.
+  - No Production `e2e-prod` existed for an HO 777 head, and OPEN LOOPS held no lock line.
+  - So HO 777's FF go had not been taken. Claims 2-8 held (`docs/handoffs/778-artifacts/step0-halt.txt`), and nothing was written.
+- **Rerun after the FF go, 18:42Z: all eight hold.**
+  - **1:** `main` is `7a14df1`, HO 777's FF head; its smoke passed against Production (#38291731924, the dispatch above); `777-review` is gone; the lock line is in OPEN LOOPS.
+  - **2-8:** the FF changed no code (`git diff e15daca 7a14df1 -- app lib components vercel.json .gitignore package.json` is empty), so the first run's readings stand:
+    - the primaries route's one handler (`:43`, `:49`), `maxDuration` 60 (`:22`, `vercel.json:13-14`);
+    - the priority pass before the cursor (`lib/primaries-sync.ts:2498`) and the House slice (`:2575`);
+    - `syncHouseDistricts`' two options (`:1583-1584`), the bare `scrapeHouseCandidates` call and its 1s sleep (`:1724-1725`);
+    - the dev cache (`lib/primary-candidates-scrape.ts:293`, `:585`), gitignored (`.gitignore:37`; there's no `.vercelignore`, and the build is `next build`);
+    - Louisiana's six, the jungle dates, the `-open` id and `isSettled` (`:96`, `:204`, `:161`, `:1810`, `:1830`, `:1842`, `:662`);
+    - the harvest's jungle rule (`lib/harvest-challengers.ts:209-233`) and the unconditional `races` expiry (`route.ts:53`);
+    - the ballot queue read once (`lib/general-ballot.ts:764`, `:790`), with no in-flight check in the route, `generalBallotTick` or `wrapCronRoute` (`lib/cron-log.ts:142`; the reaper at `:26` and `:149`, before the insert at `:152`);
+    - LA-01 to LA-06 among HO 747's saved pages, each page's canonical URL equal to `houseDistrictUrl("Louisiana", n)`.
+
+**§ 1, the named state** (`feat` `1b91062`): `/api/cron/primaries?state=XX`.
+- **What it reads:** an authorized GET or POST naming a state reads every House district of it live, now.
+- **The refusal:** `resolveHouseTarget` takes the districts from the House list (`HOUSE_DISTRICTS_BY_REGION`). A state outside it, or with more than `CRON_HOUSE_SLICE` (12) districts, is refused with 400 before any run row.
+- **The read:** `runPrimariesStateTarget` runs `syncHouseDistricts` with a new `bypassCache` option, handed to `scrapeHouseCandidates`, the same 1s pacing and per-district writes behind `isSettled`, and `deadlineMs` from the route's start. There's no cursor read or write, no priority pass and no calendar.
+- **The row:** `wrapCronRoute`'s, under `/api/cron/primaries?state=XX`. `lib/cron-health.ts` reads routes by exact match (`:128`), so the watchdog's `/api/cron/primaries` reads only the scheduled tick.
+- **The payload:** `unit: "house-target"`, `state`, the cursor tick's House block (`firstDistrict`, `lastDistrict`, `count`, `attempted`, `parsedOk`, `totalCandidates`, `matchedIncumbents`, `rosterDeletesRefused`, `settledSkipped`, `runoffs`), `budgetStopped`, `fetchFailures`, `perUnitMs` and `runoffStrays`.
+- With no `state`, the route runs the cursor tick as before.
+
+**§ 2, one run at a time** (`feat` `ca7e349`).
+- **The check:** `generalBallotTick` first reads `runInFlight`: a `general-ballot` row still `running`, started inside the route's 300s ceiling (julianday elapsed, as the reaper reads it), with an id below its own. Finding one, it reads nothing: `stop` is `yielded` (a new `StopReason`), `yieldedTo` names the run, and its row closes `success`.
+- **Its own row doesn't count:** `wrapCronRoute` now hands the handler its run id (`handler({ runId })`), which the other routes' handlers ignore.
+  - An older open row doesn't block, and the reaper takes it at 5 minutes.
+  - Of two runs that start together, the later id yields.
+  - A caller with no row of its own passes no `runId`, and any such run blocks it.
+- **`emptyRun`** is the initializer `runGeneralBallot` already used, now shared with the yield.
+- **The route's call changed shape** to `({ runId }) => generalBallotTick(getDb(), undefined, undefined, { runId })`, so it still passes the default IO and flush. HO 750's leg 6 checks the route's source for the literal `generalBallotTick(getDb())`, so that text check would now read false if re-run, though the flush it guards is unchanged.
+
+**The legs** (`diag` `463f057`, `scripts/diagnostic/nov4-routes-legs-778.ts`): **26 PASS, 0 FAIL.**
+- **The seed** (18:56:55-18:57:13Z): the real `scripts/migrate.ts` against a `file:` template, then nine tables whole and the newest 400 `cron_runs` from prod by `SELECT`. Prod's fingerprint read equal before and after.
+- **Leg K, in process,** with a counting IO that answers every page 404 on a virtual clock:
+  - **red:** HEAD's tick (`7a14df1`, loaded with `git cat-file`), beside a `running` row planted 10s back, made 40 requests, stop `cap`;
+  - **green:** the tree's tick, with its own row after the plant, made 0 requests, stop `yielded`, `yieldedTo` the plant (#24515), and flushed nothing;
+  - **controls:** a 400s plant, no plant, and a row started after its own (the later id) each read 40. The route's own wrapper, beside a 10s plant, closed its row `success`, yielded, naming the plant.
+- **Leg L, through each build's server:**
+  - **The builds:** a cold build of `7a14df1` and of `ca7e349`, each in a scratch worktree, so a live read's dev-cache write lands there and not in the checkout's `.cache/`. Both secretless, both exit 0 with no warning line.
+  - **The servers:** `next start` with the copy's URL, a `CRON_SECRET` minted for the run, and `scripts/diagnostic/saved-pages-preload-778.cjs` by `NODE_OPTIONS=--require`. The preload answers `ballotpedia.org` from HO 747's saved pages (388, by canonical URL), 404s a page not saved, refuses every other host, and logs each request.
+  - **The plant:** each copy's cursor on CT-01 (36), and LA's six rows blanked (39 candidates).
+  - **red, HEAD's build, `POST ?state=LA`:**
+    - the cursor tick ran, its row under `/api/cron/primaries`, unit `house`, CT-01 to MA-05, the cursor 36 → 48;
+    - the six LA rows stayed blank;
+    - the preload answered 12 requests (7 saved, 5 not) and refused none.
+  - **green, the tree's build, `POST ?state=LA`:**
+    - the row under `/api/cron/primaries?state=LA`, `success`;
+    - unit `house-target`, LA, attempted 6, parsedOk 6, 39 candidates;
+    - each of the six rows holds its saved page's roster, `jungle`, 2026-11-03 and 2026-12-12;
+    - the cursor stayed at 36;
+    - a whole-table diff over 61 tables outside the six ids read no change, and `cron_runs` gained only the run's row;
+    - the preload served the six LA pages and nothing else.
+  - **refusals:** `?state=CA` and `?state=ZZ` answered 400, wrote no run row and made no request.
+  - **control:** no `state` on the tree's build ran the cursor tick, its row under `/api/cron/primaries`, the cursor 36 → 48.
+- **Clean-up:** the worktrees are removed, and the checkout's `node_modules` is back to one link per file.
+
+**Docs (HO 778):**
+- This block.
+- **backlog, 3+/2−:**
+  - **The WATCH (HO 758) line:**
+    - (a)'s *"the route has no lock"* clause is replaced by the lock, and the 10s pause stays as a margin;
+    - (c) is one authorized `POST /api/cron/primaries?state=LA`, after the 12:00Z tick and the last ballot call, clear of :15-:35 of an even UTC hour, its `cron_runs` row read before (b). It stays blocked until the FF go's prod read closes the Louisiana line, and its `isSettled` sentence is kept.
+  - **The lock line is struck** on leg K, the prod reading owed in the FF go.
+  - **The Louisiana line is unchanged.**
+  - **Corey's rulings are filed** after the WATCH, verbatim as the handoff gave them.
+- **OPEN LOOPS reconciled:**
+  - **open:** 265 live / 344 struck (609), § OPEN LOOPS 64 / 115;
+  - **close:** 265 / 345 (610), § OPEN LOOPS 64 / 116;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - the handoff's two sentences, verbatim, at the end of the `/api/cron/primaries` and `/api/cron/general-ballot` bullets in § Cron topology;
+  - and two ride-alongs, named: the general-ballot bullet's `stop` list gains `yielded`, and the wrapper section's `Promise.race(handler(), timeoutPromise)` becomes `handler({ runId })`.
+- **Also notes now run through HO 778.**
