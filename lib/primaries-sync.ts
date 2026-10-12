@@ -1575,13 +1575,15 @@ export type HouseSyncSummary = {
 // completed — the cron route uses it to commit the cursor per-district so a
 // tick that gets killed mid-slice doesn't discard the districts it already
 // finished. CLI callers (sync-primaries.ts) pass neither and the loop runs
-// as it always has.
+// as it always has. HO 778: `opts.bypassCache` reads every page live, past
+// the dev cache, for the route's named-state read (runPrimariesStateTarget).
 export async function syncHouseDistricts(
   districts: HouseDistrict[],
   label: string,
   opts: {
     deadlineMs?: number;
     onProgress?: (i: number) => Promise<void>;
+    bypassCache?: boolean;
   } = {},
 ): Promise<HouseSyncSummary> {
   const db = getDb();
@@ -1721,7 +1723,7 @@ export async function syncHouseDistricts(
     const dd = String(d.district).padStart(2, "0");
     const districtLabel = `${d.state}-${dd}`;
     const slug = stateName(d.state).replace(/ /g, "_");
-    const result = await scrapeHouseCandidates(d.state, slug, d.district);
+    const result = await scrapeHouseCandidates(d.state, slug, d.district, { bypassCache: opts.bypassCache });
     await sleep(1000); // ~1 req/sec — be polite to Ballotpedia
 
     if (result.status === "special") {
@@ -2603,5 +2605,80 @@ export async function runPrimariesCronTick(
     budgetStopped: summary.budgetStopped,
     fetchFailures: summary.fetchFailures,
     perUnitMs: summarizeMs(summary.perDistrictMs),
+  };
+}
+
+// HO 778 — a named state on demand: `/api/cron/primaries?state=XX`. The
+// state's House districts come from the House list, and a state with more than
+// CRON_HOUSE_SLICE of them is refused, so one call stays inside DEADLINE_MS as
+// a cursor slice does. The route refuses before any run row, so a refusal
+// writes nothing.
+export type HouseTarget =
+  | { ok: true; state: string; districts: HouseDistrict[] }
+  | { ok: false; error: string };
+
+export function resolveHouseTarget(raw: string): HouseTarget {
+  const state = raw.trim().toUpperCase();
+  const districts = Object.values(HOUSE_DISTRICTS_BY_REGION)
+    .flat()
+    .filter((d) => d.state === state);
+  if (districts.length === 0) {
+    return { ok: false, error: `state=${raw} names no state in the House list` };
+  }
+  if (districts.length > CRON_HOUSE_SLICE) {
+    return {
+      ok: false,
+      error: `${state} has ${districts.length} House districts; a call reads at most ${CRON_HOUSE_SLICE}`,
+    };
+  }
+  return { ok: true, state, districts };
+}
+
+export type PrimariesTargetResult = {
+  unit: "house-target";
+  state: string;
+  house: NonNullable<PrimariesCronResult["house"]>;
+  budgetStopped: boolean;
+  fetchFailures: string[];
+  perUnitMs?: { p50: number; p95: number; max: number; count: number };
+  runoffStrays: string[];
+};
+
+// HO 778 — reads every House district of one state live, now: the House pass
+// with `bypassCache`, its 1s pacing and its per-district writes, behind the
+// same isSettled guard, with the deadline from the route's start. Nothing
+// else: no cursor read or write, no priority pass, no calendar. Nothing
+// schedules it; it's for a results night, when a state's contests can't wait
+// for the cursor (Louisiana's Nov 3 jungle).
+export async function runPrimariesStateTarget(
+  target: Extract<HouseTarget, { ok: true }>,
+  routeStart: number = Date.now(),
+): Promise<PrimariesTargetResult> {
+  const db = getDb();
+  const summary = await syncHouseDistricts(target.districts, `target ${target.state}`, {
+    deadlineMs: routeStart + DEADLINE_MS,
+    bypassCache: true,
+  });
+  const fmt = (d: HouseDistrict) =>
+    `${d.state}-${String(d.district).padStart(2, "0")}`;
+  return {
+    unit: "house-target",
+    state: target.state,
+    house: {
+      firstDistrict: fmt(target.districts[0]!),
+      lastDistrict: fmt(target.districts[target.districts.length - 1]!),
+      count: target.districts.length,
+      attempted: summary.attempted,
+      parsedOk: summary.parsedOk,
+      totalCandidates: summary.totalCandidates,
+      matchedIncumbents: summary.matchedIncumbents,
+      rosterDeletesRefused: summary.rosterDeletesRefused,
+      settledSkipped: summary.settledSkipped,
+      runoffs: summary.runoffs,
+    },
+    budgetStopped: summary.budgetStopped,
+    fetchFailures: summary.fetchFailures,
+    perUnitMs: summarizeMs(summary.perDistrictMs),
+    runoffStrays: await findRunoffStrays(db),
   };
 }

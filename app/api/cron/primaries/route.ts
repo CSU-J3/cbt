@@ -14,9 +14,16 @@
 //
 // HO 139: migrated to wrapCronRoute; inline reaper sweeps stale rows from
 // prior SIGKILLs (5-22 / 5-23 ticks both got reaped during this handoff).
+//
+// HO 778: `?state=XX` reads that state's House districts live, now, and nothing
+// else (runPrimariesStateTarget): no cursor, no priority pass, no calendar. A
+// state outside the House list, or with more than CRON_HOUSE_SLICE districts,
+// is refused with 400 before any run row. Its row logs under
+// `/api/cron/primaries?state=XX`, so the watchdog's `/api/cron/primaries`
+// (lib/cron-health.ts, an exact route match) reads only the scheduled tick.
 import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
-import { runPrimariesCronTick } from "@/lib/primaries-sync";
+import { resolveHouseTarget, runPrimariesCronTick, runPrimariesStateTarget } from "@/lib/primaries-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,6 +46,23 @@ function authorize(request: Request): NextResponse | null {
 async function handle(request: Request) {
   const denied = authorize(request);
   if (denied) return denied;
+
+  const state = new URL(request.url).searchParams.get("state");
+  if (state !== null) {
+    const target = resolveHouseTarget(state);
+    if (!target.ok) return NextResponse.json({ error: target.error }, { status: 400 });
+    const targeted = await wrapCronRoute(`/api/cron/primaries?state=${target.state}`, async () => {
+      const t0 = Date.now();
+      const r = await runPrimariesStateTarget(target, t0);
+      console.log(
+        `[cron-primaries] unit=house-target state=${r.state} ` +
+          `attempted=${r.house.attempted} parsedOk=${r.house.parsedOk} ` +
+          `elapsedMs=${Date.now() - t0}`,
+      );
+      return { payload: r };
+    });
+    return NextResponse.json(targeted.body, { status: targeted.httpStatus });
+  }
 
   const result = await wrapCronRoute("/api/cron/primaries", async () => {
     const t0 = Date.now();
