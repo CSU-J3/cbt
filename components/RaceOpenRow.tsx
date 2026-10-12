@@ -23,7 +23,7 @@ import type { ElectoralRow } from "@/lib/electoral-rows";
 import { formatDollarsCompact, formatRelativeAge } from "@/lib/format";
 import { ratingColor } from "@/lib/race-colors";
 import { districtToken } from "@/lib/race-id";
-import { seatOf } from "@/lib/incumbent-tag";
+import { holderWords } from "@/lib/incumbent-tag";
 
 // The race page's palette: D and R by party, every other party the
 // independents' purple (components/RaceCandidates.tsx).
@@ -195,9 +195,10 @@ function SeatHeldBy({
   const h = row.holder!;
   const q = h.tag;
   let why: React.ReactNode = null;
+  // HO 779: the tag's words in lower case (lib/incumbent-tag.ts holderWords),
+  // past election day the outcome: "elected to the Senate" AL SEN →.
   if (q?.kind === "moved" || q?.kind === "senate") {
-    const target = q.kind === "senate" ? `${seatOf(q.raceId).replace(/^S-/, "")} SEN` : seatOf(q.raceId);
-    const lead = q.kind === "senate" ? "running for Senate" : "running in";
+    const { lead, target, tail } = holderWords(q);
     why = (
       <span className="nb">
         {lead}{" "}
@@ -210,10 +211,16 @@ function SeatHeldBy({
             {target} →
           </Link>
         )}
+        {tail ? (
+          <>
+            {" "}
+            {tail}
+          </>
+        ) : null}
       </span>
     );
-  } else if (q?.kind === "none") {
-    why = { retiring: "retiring", withdrew: "withdrew", lost_primary: "lost the primary", absent: "not on the ballot" }[q.reason];
+  } else if (q) {
+    why = holderWords(q).lead;
   }
   const grade = facts?.grade;
   const party = <span className={partyClass(h.party)}>({h.party ?? "?"})</span>;

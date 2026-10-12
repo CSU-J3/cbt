@@ -168,14 +168,15 @@ export function RaceHubBody({
           </h2>
         </div>
         <div className="px-4">
-          {/* HO 759: once election day has passed, a DECIDED race shows HO 758's
-              qualifier and not the tag; an undecided one keeps the tag, where
-              HO 758 would say "not on the ballot" of every such incumbent. */}
+          {/* HO 779 (Corey's ruling): the card keeps the incumbent's tag, decided
+              or not, and past election day a run for the Senate or another
+              district shows its result (the merge point applies the clock);
+              HO 758's qualifier shows only where there's no tag. */}
           <RaceIncumbentCard
             member={incumbent}
             race={race}
-            qualifier={incumbentTag && !result.decided ? null : result.qualifier}
-            tag={result.decided ? null : incumbentTag}
+            qualifier={incumbentTag ? null : result.qualifier}
+            tag={incumbentTag}
           />
         </div>
       </section>

@@ -15,7 +15,8 @@ import {
   getRacesIndex,
   getRecentRaceMoves,
 } from "@/lib/queries";
-import { withIncumbentTags } from "@/lib/incumbent-tag";
+import { clockNowMs } from "@/lib/clock";
+import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
 
 // HO 163: a race is Senate if its joined chamber says so, or — for rating
 // rows whose `races` row is missing (loose link, chamber null) — if the
@@ -84,7 +85,8 @@ export async function CompetitiveRacesBlock({
   const richRows = await (async () => {
     // HO 759: the incumbent's tag rides on the rich row (RaceCard reads it).
     const [raw, tags] = await Promise.all([getRacesIndex(cycle), getIncumbentQualifiers(cycle)]);
-    const index = withIncumbentTags(raw, tags);
+    // HO 779: the clock applied here, on the server.
+    const index = withIncumbentTags(raw, incumbentTagsAt(tags, cycle, clockNowMs()));
     const byId = new Map(index.map((r) => [r.raceId, r]));
     return races.map((r) => byId.get(r.raceId) ?? null);
   })();

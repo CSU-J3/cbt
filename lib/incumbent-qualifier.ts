@@ -17,6 +17,13 @@
 //   none    neither.
 // Kind beats the curated flag: IA-02's Hinson, curated incumbent_running = 0,
 // is printed on S-IA's ballot and reads RUNNING FOR SENATE, not RETIRING.
+// HO 779 (Corey's ruling): a `moved` or `senate` kind carries its own race's
+// OUTCOME, read from that race's marks the way its page reads its own
+// (lib/race-result.ts): one marked printed row of a `box` read decides it, two
+// or more are a runoff, none is not called. Their row marked: elected, or in
+// the runoff; another's: lost, or out of the runoff. The read carries it
+// whatever the clock; the merge points show it only once election day has
+// passed (lib/incumbent-tag.ts incumbentTagAt).
 // THE REASON, for `none` only, first match in this order:
 //   retiring      the curated races.incumbent_running = 0 (HO 221);
 //   withdrew      a row with their bioguide in any withdrawn block of the
@@ -59,9 +66,12 @@ import { findIncumbentOnBallot, tokenCheck, type BallotPerson } from "./ballot-i
 import { titleKey } from "./ballotpedia-key";
 
 export type IncumbentReason = "retiring" | "withdrew" | "lost_primary" | "absent";
+// HO 779: how a `moved` or `senate` incumbent's own race went (above); absent
+// while it is not called.
+export type TagOutcome = "elected" | "lost" | "runoff" | "out_of_runoff";
 export type IncumbentQualifier =
-  | { kind: "moved"; raceId: string }
-  | { kind: "senate"; raceId: string }
+  | { kind: "moved"; raceId: string; outcome?: TagOutcome }
+  | { kind: "senate"; raceId: string; outcome?: TagOutcome }
   | { kind: "none"; reason: IncumbentReason };
 
 export type QualifierRace = {
@@ -75,7 +85,8 @@ export type QualifierRace = {
   lastName: string | null;
   readStatus: string | null;
 };
-export type QualifierBallotRow = BallotPerson & { race_id: string; withdrawn: number };
+export type QualifierBallotRow = BallotPerson & { race_id: string; withdrawn: number; marked: number };
+export type QualifierRaceRef = { state: string; chamber: string; readStatus?: string | null };
 // `trusted`: the page itself ties the row to the member, by identity (its
 // person_key is the member's own title key) or by its underline (HO 773).
 export type QualifierPrimaryRow = { bioguide_id: string; name: string; status: string; decided: boolean; trusted: boolean };
@@ -92,7 +103,7 @@ export type QualifierReading = {
 
 export function readQualifier(
   race: QualifierRace,
-  races: Map<string, { state: string; chamber: string }>,
+  races: Map<string, QualifierRaceRef>,
   ballotByRace: Map<string, QualifierBallotRow[]>,
   ballotByBioguide: Map<string, QualifierBallotRow[]>,
   primariesByBioguide: Map<string, QualifierPrimaryRow[]>,
@@ -113,10 +124,23 @@ export function readQualifier(
   if ((ballotByBioguide.get(bio) ?? []).some((g) => g.withdrawn === 1)) reasons.push("withdrew");
   const member = { firstName: race.firstName, lastName: race.lastName, member: race.name ?? "" };
   if ((primariesByBioguide.get(bio) ?? []).some((p) => p.decided && p.status !== "winner" && (p.trusted || tokenCheck(p.name, member).ok))) reasons.push("lost_primary");
+  // HO 779: the outcome in the race they're printed in, by its marks.
+  const outcomeIn = (raceId: string): TagOutcome | undefined => {
+    if (races.get(raceId)?.readStatus !== "box") return undefined;
+    const marked = (ballotByRace.get(raceId) ?? []).filter((g) => g.on_ballot === 1 && g.marked === 1);
+    if (marked.length === 0) return undefined;
+    const theirs = marked.some((g) => g.bioguide_id === bio);
+    if (marked.length === 1) return theirs ? "elected" : "lost";
+    return theirs ? "runoff" : "out_of_runoff";
+  };
+  const withOutcome = <Q extends { kind: "moved" | "senate"; raceId: string }>(q: Q): Q & { outcome?: TagOutcome } => {
+    const outcome = outcomeIn(q.raceId);
+    return outcome ? { ...q, outcome } : q;
+  };
   let qualifier: IncumbentQualifier | null = null;
   if (!onOwnBallot) {
-    if (moved.length) qualifier = { kind: "moved", raceId: moved[0]! };
-    else if (senate.length) qualifier = { kind: "senate", raceId: senate[0]! };
+    if (moved.length) qualifier = withOutcome({ kind: "moved", raceId: moved[0]! });
+    else if (senate.length) qualifier = withOutcome({ kind: "senate", raceId: senate[0]! });
     else qualifier = { kind: "none", reason: reasons[0] ?? "absent" };
   }
   return { onOwnBallot, moved, senate, reasons, qualifier };
@@ -137,7 +161,7 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
         args: [cycle],
       },
       {
-        sql: `SELECT g.race_id, g.person_key, g.name, g.bioguide_id, g.incumbent_marked, g.on_ballot, g.withdrawn
+        sql: `SELECT g.race_id, g.person_key, g.name, g.bioguide_id, g.incumbent_marked, g.on_ballot, g.withdrawn, g.marked
                 FROM general_ballot g JOIN races r ON r.id = g.race_id
                WHERE r.cycle = ?`,
         args: [cycle],
@@ -168,7 +192,7 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
     lastName: str(r.last_name),
     readStatus: str(r.read_status),
   }));
-  const byId = new Map(races.map((r) => [r.id, { state: r.state, chamber: r.chamber }]));
+  const byId = new Map(races.map((r) => [r.id, { state: r.state, chamber: r.chamber, readStatus: r.readStatus }]));
   const ballotByRace = new Map<string, QualifierBallotRow[]>();
   const ballotByBioguide = new Map<string, QualifierBallotRow[]>();
   for (const g of ballotRs!.rows) {
@@ -180,6 +204,7 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
       incumbent_marked: Number(g.incumbent_marked),
       on_ballot: Number(g.on_ballot),
       withdrawn: Number(g.withdrawn),
+      marked: Number(g.marked ?? 0),
     };
     (ballotByRace.get(row.race_id) ?? ballotByRace.set(row.race_id, []).get(row.race_id)!).push(row);
     if (row.bioguide_id) (ballotByBioguide.get(row.bioguide_id) ?? ballotByBioguide.set(row.bioguide_id, []).get(row.bioguide_id)!).push(row);

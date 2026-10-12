@@ -3,6 +3,7 @@ import { HeaderBar } from "@/components/HeaderBar";
 import { raceLabelCompact } from "@/components/RaceHeader";
 import { RaceHubBody } from "@/components/RaceHubBody";
 import { clockNowMs } from "@/lib/clock";
+import { incumbentTagAt } from "@/lib/incumbent-tag";
 import { raceResultView } from "@/lib/race-result";
 import {
   getMember,
@@ -117,7 +118,7 @@ export default async function RacePage({
           pac={pacByRace[race.id]}
           news={news}
           result={result}
-          incumbentTag={qualifiers[race.id] ?? null}
+          incumbentTag={incumbentTagAt(qualifiers[race.id] ?? null, race.cycle, clockNowMs())}
         />
       </main>
     </div>

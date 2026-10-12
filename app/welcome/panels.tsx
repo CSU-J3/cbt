@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { IncumbentTag } from "@/components/IncumbentTag";
+import { clockNowMs } from "@/lib/clock";
 import { formatRelativeAge } from "@/lib/format";
+import { incumbentTagsAt } from "@/lib/incumbent-tag";
 import {
   type ClusterStat,
   type CommitteeMeeting,
@@ -193,7 +195,7 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
     news,
     races,
     clusters,
-    incumbentTags,
+    cachedTags,
   ] = await Promise.all([
     getStageChanges({}, 7, 12),
     getStaleBills({}, 12),
@@ -208,6 +210,9 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
     // HO 759: the tag for a named incumbent the seat's ballot doesn't carry.
     getIncumbentQualifiers(2026),
   ]);
+  // HO 779: past election day a run elsewhere shows its result (the clock
+  // applied here, on the server).
+  const incumbentTags = incumbentTagsAt(cachedTags, 2026, clockNowMs());
 
   const billsRows: PanelRow[] = movers.map((b) => ({
     key: `mv-${b.id}`,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { IncumbentQualifier } from "@/lib/incumbent-qualifier";
-import { REASON_TAG, seatOf } from "@/lib/incumbent-tag";
+import { REASON_TAG, seatOf, tagWords } from "@/lib/incumbent-tag";
 
 // HO 759 (ruled C on docs/design/mock-moved-incumbent.html) — the tag beside a
 // stored incumbent the race's ballot doesn't carry (lib/incumbent-qualifier.ts
@@ -16,16 +16,21 @@ import { REASON_TAG, seatOf } from "@/lib/incumbent-tag";
 // (RaceCard), which passes link={false}: an anchor inside an anchor is invalid
 // markup. The link stops its click and its keydown, so a clickable row
 // (RaceListView, RaceMapCard) neither toggles on the click nor cancels the
-// link's Enter with its own key handler (HO 759's review).
+// link's Enter with its own key handler (HO 759's review). HO 779: past election
+// day a kind says how its own race went (lib/incumbent-tag.ts tagWords), and
+// `data-incumbent-outcome` names it; the words arrive with the clock applied.
 export function IncumbentTag({ q, link = true }: { q: IncumbentQualifier; link?: boolean }) {
   const reason = q.kind === "none" && q.reason !== "absent";
   const key = q.kind === "none" ? q.reason : q.kind;
   let body: ReactNode;
   let title: string;
+  let outcome: string | undefined;
   if (q.kind === "moved" || q.kind === "senate") {
-    const lead = q.kind === "moved" ? "RUNNING IN" : "RUNNING FOR";
-    const target = q.kind === "moved" ? seatOf(q.raceId) : "SENATE";
-    title = `Printed on the ${seatOf(q.raceId)} ballot, not this seat's (Ballotpedia)`;
+    const { lead, target, tail } = tagWords(q);
+    outcome = q.outcome;
+    title = q.outcome
+      ? `Printed on the ${seatOf(q.raceId)} ballot, not this seat's; its result as Ballotpedia marks it`
+      : `Printed on the ${seatOf(q.raceId)} ballot, not this seat's (Ballotpedia)`;
     body = (
       <>
         {lead}{" "}
@@ -42,6 +47,12 @@ export function IncumbentTag({ q, link = true }: { q: IncumbentQualifier; link?:
         ) : (
           target
         )}
+        {tail ? (
+          <>
+            {" "}
+            {tail}
+          </>
+        ) : null}
       </>
     );
   } else {
@@ -49,7 +60,7 @@ export function IncumbentTag({ q, link = true }: { q: IncumbentQualifier; link?:
     title = REASON_TAG[q.reason].title;
   }
   return (
-    <span className="so-qual" data-incumbent-tag={key}>
+    <span className="so-qual" data-incumbent-tag={key} data-incumbent-outcome={outcome}>
       <span className={reason ? "so-tag so-tag--open" : "micro-tag"} title={title}>
         {body}
       </span>

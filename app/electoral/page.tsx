@@ -29,7 +29,7 @@ import { buildRacesCartogram } from "@/lib/cartogram-data";
 import { clockNowMs } from "@/lib/clock";
 import { buildElectoralRows, withoutCalledOdds } from "@/lib/electoral-rows";
 import { daysToElection } from "@/lib/format";
-import { withIncumbentTags } from "@/lib/incumbent-tag";
+import { incumbentTagsAt, withIncumbentTags } from "@/lib/incumbent-tag";
 import { getUsMapGeometry } from "@/lib/us-map-geo";
 import {
   ELECTORAL_CYCLES,
@@ -113,7 +113,9 @@ export default async function ElectoralPage({
     ]);
   // HO 759: each row carries its incumbent's tag, so the list, the map's hover,
   // the pinned card and the district card read the same one.
-  const races = withIncumbentTags(index, incumbentTags);
+  // HO 779: past election day a run elsewhere shows its result (the clock
+  // applied here, on the server).
+  const races = withIncumbentTags(index, incumbentTagsAt(incumbentTags, cycle, clockMs));
   // The members on the ballots, for their news (R2); the facts read also takes
   // the seat holders off their ballots, whose grade and face print in the row.
   const onBallots = [...new Set(Object.values(general.races).flatMap((g) => g.memberIds))].sort();
