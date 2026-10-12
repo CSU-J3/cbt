@@ -5936,8 +5936,9 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - Corey's ruling;
   - STEP 0;
   - Part A, the rendering: the seed, the plants, the build, the checks and the captures;
-  - Part B, the procedure: the two calls, Nov 4's count and timing, and Louisiana.
-- **Two commits, kinds unmixed:** `diag` · `docs`.
+  - Part B, the procedure: the two calls, Nov 4's count and timing, and Louisiana;
+  - the FF go's commit: AL-01's reading and the lock line.
+- **Three commits, kinds unmixed:** `diag` · `docs` · `docs`, the last the FF go's (AL-01's reading and the lock line).
 - **Two prod writes,** the two authorized cron calls, each the write its scheduled tick makes. No flush, no migration.
 - **The pointer is 777:** pointer 776, highest HO in commit subjects 776, `main` at `e15daca`.
 
@@ -5958,7 +5959,7 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **3:** `/api/cron/general-ballot` takes an authorized GET or POST and reads at most `TICK_CAP` 40 races (`lib/general-ballot.ts:76`) inside `TICK_BUDGET_MS` 240s (`:77`). Its `maxDuration` is 300 (`vercel.json:55-56`).
 - **4:** `/api/cron/primaries` walks its cursor and takes no target (`app/api/cron/primaries/route.ts:1-8`). `scrapeHouseCandidates` reads the dev cache first unless `bypassCache` is set (`lib/primary-candidates-scrape.ts:585`).
 - **5:** the WATCH (HO 758) line's procedure has the three steps the handoff names.
-- **AL-01 was not read:** STEP 0 fell before 02:22Z, so the reading carries.
+- **AL-01 was not read at STEP 0,** which fell before 02:22Z. The FF go took the reading (Docs, below).
 
 **Part A, the rendering** (`diag`): `scripts/diagnostic/election-night-rehearsal-777.ts`, built from the two leg scripts by copying what it needs, importing nothing from them.
 - **The seed** (00:24:46-00:25:45Z), after the 00:20Z tick closed at 00:24:29Z (`docs/handoffs/777-artifacts/seed-r1.txt`):
@@ -6031,11 +6032,16 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - **The WATCH (HO 758) line's procedure is rewritten from Part B:** (a) the authorized POSTs, with the count and spacing; (b) as rehearsed; (c) blocked on the Louisiana line.
   - **The Louisiana line is filed after it.**
   - **No Part A FAIL,** so there's no FAIL line.
-  - **Moore's line is unchanged,** since AL-01 wasn't read.
+  - **Moore's line is struck** on AL-01's reading (below): the tie and the tag.
+  - **The lock line is filed** after the Louisiana line (the FF go): `/api/cron/general-ballot` has no lock, so two runs started together read the same races at twice the rate. *Owner:* Code, medium, dated before 2026-11-03; *Close:* a call that finds a `general-ballot` row still `running`, started inside the 300s ceiling, returns without reading and says so, proved on a `file:` copy with a planted open row.
 - **OPEN LOOPS reconciled:**
   - **open:** 264 live / 343 struck (607), § OPEN LOOPS 63 / 114;
-  - **close:** 265 / 343 (608), § OPEN LOOPS 64 / 114;
+  - **close,** after the FF go's commit: 265 / 344 (609), § OPEN LOOPS 64 / 115 (the review's close was 265 / 343 (608), 64 / 114; the lock line filed, Moore's struck);
   - the control, `^- \*\*~~`, is 0 at both.
 - **No SKILL edit:** no FAIL changes a convention.
-- **AL-01 carries** to the next HO's STEP 0. Part B's tick tied S-AL's Moore row, the first of HO 774's three reads; leg D and the Production tag remain.
+- **AL-01's reading** (the FF go, 2026-10-12, HO 774's three reads, as read):
+  - **S-AL's row:** `last_attempt_at` 2026-10-12T00:37:13.317Z (READ, `box`, Part B's #24309), and Moore's row `Barry_Moore_(Alabama_U.S._representative)` carries `M001212`;
+  - **leg D** of `scripts/diagnostic/electoral-cleanup-773.ts`, re-run at 18:15:18Z: 4 of 4. AL-01 reads `{"kind":"senate","raceId":"S-AL-2026"}`, GA-13 and TN-05 `lost_primary`, and no other card moved from M1's base;
+  - **Production's tag** (18:15:02Z, `/api/version` `e15daca`): `/race/AL-01-2026` carries the `senate` tag, *RUNNING FOR SENATE*, linked to `/race/S-AL-2026`.
+  - So Moore's line is struck, on the tie and the tag.
 - **Also notes now run through HO 777.**
