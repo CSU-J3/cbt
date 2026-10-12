@@ -5929,3 +5929,113 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **AL-01** is read at this HO's FF go if that falls after 2026-10-12 02:22Z, and otherwise it carries. Moore's line is unchanged.
 - **Also notes now run through HO 776.**
+
+**Also (HO 777), election night rehearsed: today's code on a fresh copy of prod, the clock at Nov 4 with marks planted, every surface that turns read as PASS or FAIL, and the Nov 4 procedure walked against today's setup with two authorized cron calls. It opens with HO 776's FF go as taken.**
+- **What's here:**
+  - HO 776's FF go as taken;
+  - Corey's ruling;
+  - STEP 0;
+  - Part A, the rendering: the seed, the plants, the build, the checks and the captures;
+  - Part B, the procedure: the two calls, Nov 4's count and timing, and Louisiana.
+- **Two commits, kinds unmixed:** `diag` · `docs`.
+- **Two prod writes,** the two authorized cron calls, each the write its scheduled tick makes. No flush, no migration.
+- **The pointer is 777:** pointer 776, highest HO in commit subjects 776, `main` at `e15daca`.
+
+**HO 776's FF go, as taken** (`docs/handoffs/776-artifacts/ff/paste-776-ff.md`).
+- **AL-01 was skipped** at 23:41:19Z, before 02:22Z, so there was no `docs(HO 776)` commit, and Moore's line was unchanged.
+- **One slip in the go, for the record:** it named *"AL-02, 06 and 07"* as called uncontested. The close note (`docs/backlog.md:35`) and the script's header (`scripts/repair-al-special-primaries-776.ts:29`) rightly say AL-01, 02 and 07, the three D primaries with no box in either round; AL-06's D primary was contested (Mercer 64.2 over three). The ruling stood on what was written, so nothing changed.
+- **The FF:** immediately before the push, the cold build (23:41:36-23:42:09Z) exited 0 with no warning line, and the cheap gates were green (23:42:09-16Z). Then `e76610e..e15daca`, 3 commits, no force (23:42:23Z). `776-review` is deleted, remote and local, and `git rev-parse main` reads `e15daca073da8626b95c9e49a90d65c4513b8d3c`.
+- **`verify:deploy`, in the foreground:** matched at 41s and held five consecutive reads at 82s.
+- **The Production build,** `dpl_E1qHMZVyoEjvNDfPVuFBL8RbHBhK` (`bld_20dmmq5vw`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 23:42:29.117Z. It logged no Next warning line.
+- **`e2e-prod` #38185338180:** `smoke` 141 passed (5.7m), and all 39 crawl lines read `failed=0`, `console=0` and `pageErr=0` on both hits, `/race/AL-01-2026` among them.
+- **No flush:** W1 and W2 had been flushed at 23:25:10Z, and the FF changed no data.
+
+**Corey's ruling, 2026-10-11 about 5:55 PM MT:** asked what Code should do next, he picked *Election-night rehearsal* over *Your stub-sentence call* and *Done for today*.
+
+**STEP 0** (a check, HO 768's rule), at `e15daca`, 2026-10-12 00:04Z. All five claims hold.
+- **1:** `lib/clock.ts:11-13` honours `CBT_CLOCK_NOW` only under a `file:` URL. `daysToElection` defaults to it (`lib/format.ts:142`), and the band (`components/Battlefield.tsx:2`) and the race page (`app/race/[id]/page.tsx:5`) read it.
+- **2:** both leg scripts seed whole tables through a SELECT-only reader into `file:` copies, plant marks by hand, and start one server per copy with its sentinel checked on `/api/health`. Their headers list the plants.
+- **3:** `/api/cron/general-ballot` takes an authorized GET or POST and reads at most `TICK_CAP` 40 races (`lib/general-ballot.ts:76`) inside `TICK_BUDGET_MS` 240s (`:77`). Its `maxDuration` is 300 (`vercel.json:55-56`).
+- **4:** `/api/cron/primaries` walks its cursor and takes no target (`app/api/cron/primaries/route.ts:1-8`). `scrapeHouseCandidates` reads the dev cache first unless `bypassCache` is set (`lib/primary-candidates-scrape.ts:585`).
+- **5:** the WATCH (HO 758) line's procedure has the three steps the handoff names.
+- **AL-01 was not read:** STEP 0 fell before 02:22Z, so the reading carries.
+
+**Part A, the rendering** (`diag`): `scripts/diagnostic/election-night-rehearsal-777.ts`, built from the two leg scripts by copying what it needs, importing nothing from them.
+- **The seed** (00:24:46-00:25:45Z), after the 00:20Z tick closed at 00:24:29Z (`docs/handoffs/777-artifacts/seed-r1.txt`):
+  - the real `scripts/migrate.ts` against a `file:` template, then the union of the two scripts' tables from prod by `SELECT`: 22 whole, `bills` and `member_votes` cut to the 102 members, and `cron_runs` the newest 400;
+  - prod's fingerprint (`race_candidates`, `general_ballot`, `general_ballot_reads`, `primary_candidates`, `palestine_scorecard`, `member_fundraising` and the schema) read equal before and after.
+- **Four copies,** each with its own sentinel back on `/api/health` when served:
+  - `today`: no marks, the clock unset;
+  - `night`: the plants, the clock at 2026-11-04T15:00:00Z;
+  - `band`: HO 758's band plant, 61 rated seats plus 20 R, 19 D and 1 other unrated, and LA-03 one jungle winner;
+  - `reader`: the reader's write path.
+- **The plants on `night`,** each matched to today's printed rows:
+  - LA-01's two jungle winners and LA-02's one, then the tree's harvest (jungle: 6 races, 1 decided, 1 runoff);
+  - then 17 marks: MI-04, IA-02, FL-14, AR-02 (two), S-NH, S-IA, S-ME, S-OH, S-GA (two), S-NE, FL-25, TX-23 (Herrera, its only R), GA-13 (Clark), AL-01 (Carl) and S-AL (Moore);
+  - CO-08, FL-10 (`no_box`) and S-AK carry none.
+- **STALE: S-ME's curated name** (HO 758's *"Troy Jackson"* beside the ballot's *"Troy Dale Jackson"*). S-ME's roster is now *Troy Dale Jackson*, harvested, with Platner and Mills curated `withdrew`. No box race has a live curated row, so nothing re-plants it, as `getRaceRoster`'s comment says of HO 760 (`lib/queries.ts:2073-2076`).
+- **The build:** cold `next build`, Node 24.21.0 (00:26:08-00:27:08Z): exit 0, *Compiled successfully in 27.8s*, no warning line.
+- **The checks: 247 PASS, 0 FAIL, 1 N/A.** The seed's 5 (`seed-r1.txt`), then the run's 242 (00:42:36-00:44:05Z, `run-r1.txt`; a first run at 00:27:49Z read 241 and 1, before the LIST captures went full-page and the MAP card was read at 430 too).
+  - **Dormant (`today`, the real clock):**
+    - all 470 race pages' server HTML read a countdown, with no *final call*, provenance line, *Elected* or result word;
+    - `/electoral`'s 99 rows carry no result chip, check, final bars or RUNOFF, and the head reads Consensus;
+    - the band reads *ELECTION DAY · NOV 3 · 22 DAYS · ~54 competitive seats*.
+  - **Race pages (`night`),** all 20 shapes: the header (*Decided · Nov 3, 2026*, *Not yet called*, *Runoff Dec 12*, *Runoff*), the chips dimmed at 0.55 under *final call ·* (or none, unrated), *Elected* on the marked row alone, the card's word, and the provenance line with its read time. MI-04's and S-ME's three chips are HO 775's anchors to their chamber's pages, inside the dimmed block.
+  - **`/electoral` (`night`, 1440 and 430):**
+    - each planted row's chip: `D HOLD` (S-NH, FL-25), `D GAIN` (S-IA, S-OH), `R HOLD` (S-ME), `I GAIN` (S-NE), `R WIN` (TX-23), RUNOFF (S-GA) and NO CALL (S-AK), each with its check, final bars, ballot words and role lines;
+    - the head reads Result, and the calendar is folded, *873 contests · 873 voted*, with no NEXT;
+    - a called seat's open row has no Kalshi line, and the two uncalled keep theirs;
+    - the MAP card reads `{"NH SEN":0,"NH-01":1,"NH-02":1}` at both widths.
+  - **The band (`band`, Nov 4):** *RESULTS · NOV 3 · 61 of 99 competitive seats called · House R 44 · D 44 · other 1 · 346 open*, equal to a `SELECT` over the marks.
+  - **The reader** (HO 758's leg 9, on HO 747's saved pages):
+    - AK-AL's, ME-02's and ME-01's ranked-choice boxes mark only Begich, Golden and Pingree;
+    - Begich's mark reaches `general_ballot.marked` through `pageResult` and `raceWriteStatements`, alone.
+  - **N/A: AL-01's R HOLD on `/electoral`.** `/electoral` lists the rated index, and AL-01 has no rating, so it has no row there, and no open row; S-AL and GA-13 have none either. *Elected* on Carl's row reads on the race page.
+  - **Recorded:**
+    - **GA-13** (`B001328`, Everton Blair Jr.): LOST PRIMARY today; *not on the ballot* on Nov 4.
+    - **AL-01** (Moore): NOT ON THE BALLOT today (`absent`); *not on the ballot* on Nov 4.
+    - **S-AL** (Tuberville): RETIRING today; *not on the ballot* on Nov 4.
+    - **The pattern:** a decided race shows HO 758's word where the tag was (`components/RaceHubBody.tsx:171-178`, HO 759's rule).
+    - **S-AL's Moore row was untied at the seed** (`bioguide_id` NULL, 00:24:46Z). Part B's tick tied it.
+- **Captures** (`docs/handoffs/777-artifacts/captures/`, 1440 and 430):
+  - MI-04 and IA-02 (decided) and CO-08 (not called);
+  - `/electoral`'s LIST, full-page, and each planted row open;
+  - the band.
+
+**Part B, the procedure.**
+- **(a) The ballot.** `npm run sync:general-ballot` runs from this box, which Ballotpedia's wall has challenged since HO 773. Its W2b dry run met the 202 AWS WAF page on its first fetch at 19:01:36Z, and nothing fetched Ballotpedia from the box here. The replacement is authorized POSTs of `/api/cron/general-ballot`.
+  - **The one POST** (00:35:30Z, clear of :15-:35 and 00:00-00:10, with nothing in flight; `$CRON_SECRET` by env name):
+    - run #24309, 00:35:30.785Z to 00:39:25.330Z, 234,545 ms, `success`;
+    - attempted 40, READ 40, `box` 40, 165 rows written, stop `cap`, 40 requests, minimum gap 6,000 ms, no UNREAD.
+  - **The client side dropped at 60s** (`fetch failed`, 00:36:30Z). The run went on to close `success`, and its own log line (00:39:25.336Z) matches the row. So on Nov 4 a call's outcome is its `cron_runs` row, not the response.
+  - **The queue after it:**
+    - 470 races, none unattempted, all attempted in the 24h before the newest;
+    - the next 40 run from S-OR (2026-10-11T04:21:36Z) to TX-20 (06:21:31Z);
+    - S-AL, 18th before, was read at 00:37:13Z (`box`), and its Moore row now carries `M001212`.
+  - **Nov 4:** 470 races at 40 a call is **12 calls**, eleven of 40 and one of 30.
+    - **Time:** at the measured 234.5s a call, they run about **46 minutes back to back**, about 48 with a 10s pause after each run closes.
+    - **Why the pause:** the 6s spacing holds inside a run only (`runGeneralBallot` makes its pacer, `lib/general-ballot.ts:785`), and the route has no lock, so a second call while one runs would read the same 40 at twice the rate.
+    - **When:** 8am MT that day is 15:00Z (standard time from Nov 1). From then they end near 15:48Z, clear of the 16:15Z window.
+- **(b) The harvest.** The one POST (00:40:48Z): HTTP 200 in 2.2s (`x-vercel-id` `sfo1::pdx1::…`).
+  - **The row:** run #24312, 1,973 ms, `success`. It cleared and inserted 914 rows over 465 of 470 seats: `harvest:general_ballot` 879 over 459 races, and `harvest:primary_winner` 35 over Louisiana's 6. It kept 7 curated history rows and retired none; jungle 6 races, 0 decided.
+  - **It expired `races`.** The route calls `expireTag("races")` unconditionally, after the harvest and before its log line (`app/api/cron/race-challengers/route.ts:52-54`), and that line was logged at 00:40:50.354Z.
+- **(c) Louisiana, in code.** Nothing reads Louisiana's six on demand.
+  - **The CLI runs from the walled box,** and its House pass reads the dev cache first (`lib/primary-candidates-scrape.ts:585`): the roster sync leaves `bypassCache` unset. The two scripts that set it (`scripts/backfill-primary-results.ts:72`, `scripts/reingest-primary-slate.ts:93`) run from the box too.
+  - **The cron takes no target.** It walks its cursor 12 House districts a tick at `0 0,12` (`lib/primaries-sync.ts:2334`), and its dated priority pass reads only Senate specials (`:1166`, `:1205`).
+  - **Filed:** a route that reads LA's six House contests live from pdx1 when called.
+- **Nothing else wrote:** exactly one `general-ballot` run (#24309) and one `race-challengers` run (#24312) followed the two calls.
+
+**Docs (HO 777):**
+- This block.
+- **backlog:**
+  - **The WATCH (HO 758) line's procedure is rewritten from Part B:** (a) the authorized POSTs, with the count and spacing; (b) as rehearsed; (c) blocked on the Louisiana line.
+  - **The Louisiana line is filed after it.**
+  - **No Part A FAIL,** so there's no FAIL line.
+  - **Moore's line is unchanged,** since AL-01 wasn't read.
+- **OPEN LOOPS reconciled:**
+  - **open:** 264 live / 343 struck (607), § OPEN LOOPS 63 / 114;
+  - **close:** 265 / 343 (608), § OPEN LOOPS 64 / 114;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **No SKILL edit:** no FAIL changes a convention.
+- **AL-01 carries** to the next HO's STEP 0. Part B's tick tied S-AL's Moore row, the first of HO 774's three reads; leg D and the Production tag remain.
+- **Also notes now run through HO 777.**
