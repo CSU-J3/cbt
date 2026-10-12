@@ -138,10 +138,14 @@ export type WrapCronResult<T> = {
  *
  * The handler MUST return `{ payload }` (and optionally `chronicErr`). The
  * wrapper does not look inside `payload`.
+ *
+ * HO 778: the handler is handed its own row's id (`run.runId`), so a route can
+ * tell its row from another in flight (the general-ballot route's lock). A
+ * handler that doesn't need it takes no argument.
  */
 export async function wrapCronRoute<T>(
   route: string,
-  handler: () => Promise<CronHandlerResult<T>>,
+  handler: (run: { runId: number }) => Promise<CronHandlerResult<T>>,
   opts: { softTimeoutMs?: number } = {},
 ): Promise<WrapCronResult<T>> {
   const softTimeoutMs = opts.softTimeoutMs ?? DEFAULT_SOFT_TIMEOUT_MS;
@@ -160,7 +164,7 @@ export async function wrapCronRoute<T>(
   });
 
   try {
-    const result = await Promise.race([handler(), timeoutPromise]);
+    const result = await Promise.race([handler({ runId }), timeoutPromise]);
     if (timeoutHandle) clearTimeout(timeoutHandle);
     const elapsedMs = Date.now() - routeStart;
     const responseBody = { ok: true as const, elapsedMs, payload: result.payload };

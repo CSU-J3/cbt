@@ -18,6 +18,12 @@
 // at :00. The bounds and the pacing live in lib/general-ballot.ts beside the
 // measurement that set them.
 //
+// HO 778: one run at a time. wrapCronRoute hands the tick its own row's id, and
+// a tick that finds another general-ballot run in flight, started inside this
+// route's 300s ceiling, returns without reading and names that run in its
+// payload (generalBallotTick), so a manual call beside a tick can't read the
+// same races twice.
+//
 // Auth mirrors the other cron routes (Bearer CRON_SECRET).
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
@@ -51,7 +57,7 @@ async function handle(request: Request) {
   // wrapper finalizes the cron_runs row cleanly before Vercel's SIGKILL.
   const result = await wrapCronRoute(
     "/api/cron/general-ballot",
-    () => generalBallotTick(getDb()),
+    ({ runId }) => generalBallotTick(getDb(), undefined, undefined, { runId }),
     { softTimeoutMs: 290_000 },
   );
 

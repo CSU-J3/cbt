@@ -712,7 +712,9 @@ export async function writeRace(db: Client, raceId: string, w: RaceWrite, at: st
 }
 
 // ── the run ────────────────────────────────────────────────────────────────
-export type StopReason = "unread" | "budget" | "cap" | "queue";
+// HO 778: "yielded", a tick that found another general-ballot run in flight and
+// read nothing (generalBallotTick).
+export type StopReason = "unread" | "budget" | "cap" | "queue" | "yielded";
 export type RunOptions = {
   write?: boolean;
   // Races attempted, at most. The cron passes TICK_CAP; --all passes none.
@@ -757,6 +759,8 @@ export type RunResult = {
   noLinkRows: number;
   folded: Folded;
   pauses: number;
+  // HO 778: the run a yielded tick found in flight.
+  yieldedTo?: { id: number; startedAt: string };
 };
 
 // The queue is the reads table: every 2026 race, never-attempted first, then
@@ -780,17 +784,12 @@ export async function selectQueue(db: Client, raceIds?: string[]): Promise<(Ball
   }));
 }
 
-export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promise<RunResult> {
-  const write = opts.write === true;
-  const paced = pacedIO(opts.io ?? liveIO(), opts.gapMs ?? MIN_START_GAP_MS);
-  const io = paced.io;
-  const cap = opts.cap ?? Number.POSITIVE_INFINITY;
-  const rule = opts.stopRule ?? "first-unread";
-  const identity = await loadIdentity(db);
-  const queue = await selectQueue(db, opts.raceIds);
-  const res: RunResult = {
-    mode: write ? "write" : "dry",
-    queued: queue.length,
+// A run that has read nothing yet: the result runGeneralBallot fills in, and a
+// yielded tick's whole payload (HO 778).
+function emptyRun(mode: RunResult["mode"]): RunResult {
+  return {
+    mode,
+    queued: 0,
     attempted: 0,
     verdicts: { READ: 0, UNREAD: 0, NO_PAGE: 0 },
     statuses: { box: 0, no_box: 0, ambiguous: 0 },
@@ -806,6 +805,37 @@ export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promi
     folded: { merged: 0, repeated: 0, noKey: 0 },
     pauses: 0,
   };
+}
+
+// HO 778: the general-ballot run in flight that a tick yields to, if any: a
+// `running` row of the route, started inside its 300s ceiling (maxDuration,
+// app/api/cron/general-ballot/route.ts), whose id is below `runId`. With no
+// `runId`, any such row. Elapsed time by julianday, as wrapCronRoute's reaper
+// reads it, against the wall clock that wrote `started_at`.
+export const TICK_ROUTE = "/api/cron/general-ballot";
+export const TICK_CEILING_MS = 300_000;
+export async function runInFlight(db: Client, runId: number | null): Promise<{ id: number; startedAt: string } | null> {
+  const rs = await db.execute({
+    sql: `SELECT id, started_at FROM cron_runs
+           WHERE route = ? AND status = 'running'
+             AND (julianday(?) - julianday(started_at)) * 86400000 < ?
+             AND (? IS NULL OR id < ?)
+           ORDER BY id LIMIT 1`,
+    args: [TICK_ROUTE, new Date().toISOString(), TICK_CEILING_MS, runId, runId],
+  });
+  const row = rs.rows[0];
+  return row ? { id: Number(row.id), startedAt: String(row.started_at) } : null;
+}
+
+export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promise<RunResult> {
+  const write = opts.write === true;
+  const paced = pacedIO(opts.io ?? liveIO(), opts.gapMs ?? MIN_START_GAP_MS);
+  const io = paced.io;
+  const cap = opts.cap ?? Number.POSITIVE_INFINITY;
+  const rule = opts.stopRule ?? "first-unread";
+  const identity = await loadIdentity(db);
+  const queue = await selectQueue(db, opts.raceIds);
+  const res: RunResult = { ...emptyRun(write ? "write" : "dry"), queued: queue.length };
   let streak = 0;
   for (const race of queue) {
     if (res.attempted >= cap) {
@@ -899,11 +929,28 @@ export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promi
 // ("static generation store missing"): every caller outside the route passes
 // its own, HO 750's leg 6 to count the calls and HO 749's leg 4 a no-op, so
 // the legs still run the tick that ships in every other respect.
+//
+// HO 778: one run at a time. The queue is read once, at the start (selectQueue),
+// and nothing else stops two runs started together from reading the same races
+// at twice the spacing HO 747 measured the wall against. So a tick that finds
+// another general-ballot row still `running`, started inside the route's 300s
+// ceiling, returns without reading: its row closes `success`, its payload's stop
+// is "yielded" and `yieldedTo` names that run. Its own row doesn't count (the
+// route hands it `runId` through wrapCronRoute), an older open row doesn't block
+// (wrapCronRoute's reaper takes it at 5 minutes), and of two that start together
+// and see each other, the later id yields. A caller with no row of its own (a
+// leg) passes no `runId`, and any such run blocks it.
 export async function generalBallotTick(
   db: Client,
   io: IO = liveIO(),
   expire: (tag: string) => void = expireTag,
+  opts: { runId?: number } = {},
 ): Promise<{ payload: RunResult; chronicErr?: string }> {
+  const ahead = await runInFlight(db, opts.runId ?? null);
+  if (ahead) {
+    console.log(`[general-ballot] yielded to #${ahead.id}, running since ${ahead.startedAt}: nothing read`);
+    return { payload: { ...emptyRun("write"), stop: "yielded", yieldedTo: ahead } };
+  }
   let r: RunResult;
   try {
     r = await runGeneralBallot(db, {
