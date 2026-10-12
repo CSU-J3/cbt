@@ -45,6 +45,8 @@ export function tagWords(q: IncumbentQualifier): TagWords {
     const [lead, tail] = OUTCOME_WORDS[q.kind][q.outcome ?? "running"];
     return { lead, target: q.kind === "moved" ? seatOf(q.raceId) : "SENATE", tail };
   }
+  // HO 779: unlinked; past election day RAN, since CBT reads no governor race.
+  if (q.kind === "governor") return { lead: q.ran ? "RAN FOR GOVERNOR" : "RUNNING FOR GOVERNOR", target: null, tail: null };
   return { lead: REASON_TAG[q.reason].text, target: null, tail: null };
 }
 
@@ -72,6 +74,7 @@ export function holderWords(q: IncumbentQualifier): TagWords {
     const [lead, tail] = OUTCOME_WORDS.moved[q.outcome ?? "running"];
     return { lead: lead.toLowerCase(), target: seatOf(q.raceId), tail: tail?.toLowerCase() ?? null };
   }
+  if (q.kind === "governor") return { lead: q.ran ? "ran for governor" : "running for governor", target: null, tail: null };
   return { lead: HOLDER_REASON[q.reason], target: null, tail: null };
 }
 
@@ -79,9 +82,13 @@ export function holderWords(q: IncumbentQualifier): TagWords {
 // page, /electoral, /'s competitive block, /welcome), by the race page's gate
 // (lib/race-result.ts raceResultView): until election day has passed a tag
 // says what it says today, whatever its race's marks; past it, the outcome
-// the cached read carries. Never in a client component (HO 490).
+// the cached read carries, and a governor's tag RAN FOR GOVERNOR. Never in a
+// client component (HO 490).
 export function incumbentTagAt(q: IncumbentQualifier | null, cycle: number, nowMs: number): IncumbentQualifier | null {
-  if (!q || daysToElection(cycle, nowMs) < 0) return q;
+  if (!q) return q;
+  const passed = daysToElection(cycle, nowMs) < 0;
+  if (q.kind === "governor") return passed ? { ...q, ran: true } : q;
+  if (passed) return q;
   if ((q.kind === "moved" || q.kind === "senate") && q.outcome) {
     const { outcome: _outcome, ...today } = q;
     return today;

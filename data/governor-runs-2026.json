@@ -1,0 +1,50 @@
+{
+  "_comment": "HO 779 (Corey's ruling, 2026-10-11, verbatim: \"RUNNING FOR GOVERNOR (Recommended)\"). Stored incumbents on a November 3, 2026 governor ballot, each the Republican nominee for governor of their state, curated with a source each: the ballots CBT reads hold no governor race, so who is running is curated here. lib/incumbent-qualifier.ts reads this file: an entry applies while its race's stored incumbent is that bioguide and the incumbent is printed on none of the ballots CBT reads (a printed row is a `moved` or `senate` kind, which comes first). Its tag reads RUNNING FOR GOVERNOR before election day and RAN FOR GOVERNOR after it, never how the race went, since CBT reads none. The source names every current member on a November governor ballot; by it, the other members who ran for governor (David Schweikert, Nancy Mace, Ralph Norman, Dusty Johnson, Randy Feenstra, John Rose, Eric Swalwell) are on no November ballot and are not listed, and neither is Chip Roy (TX-21), who lost the Texas attorney general runoff on May 26.",
+  "entries": [
+    {
+      "race": "S-AL-2026",
+      "bioguide": "T000278",
+      "name": "Tommy Tuberville",
+      "office": "governor",
+      "state": "AL",
+      "source": "CQ-Roll Call, \"Congress Is Becoming a Pipeline to Governors' Mansions\" (Aug 26, 2026), https://www.governing.com/politics/congress-is-becoming-a-pipeline-to-governors-mansions",
+      "asOf": "2026-08-26"
+    },
+    {
+      "race": "AZ-05-2026",
+      "bioguide": "B001302",
+      "name": "Andy Biggs",
+      "office": "governor",
+      "state": "AZ",
+      "source": "CQ-Roll Call, \"Congress Is Becoming a Pipeline to Governors' Mansions\" (Aug 26, 2026), https://www.governing.com/politics/congress-is-becoming-a-pipeline-to-governors-mansions",
+      "asOf": "2026-08-26"
+    },
+    {
+      "race": "WI-07-2026",
+      "bioguide": "T000165",
+      "name": "Tom Tiffany",
+      "office": "governor",
+      "state": "WI",
+      "source": "CQ-Roll Call, \"Congress Is Becoming a Pipeline to Governors' Mansions\" (Aug 26, 2026), https://www.governing.com/politics/congress-is-becoming-a-pipeline-to-governors-mansions",
+      "asOf": "2026-08-26"
+    },
+    {
+      "race": "MI-10-2026",
+      "bioguide": "J000307",
+      "name": "John James",
+      "office": "governor",
+      "state": "MI",
+      "source": "CQ-Roll Call, \"Congress Is Becoming a Pipeline to Governors' Mansions\" (Aug 26, 2026), https://www.governing.com/politics/congress-is-becoming-a-pipeline-to-governors-mansions",
+      "asOf": "2026-08-26"
+    },
+    {
+      "race": "FL-19-2026",
+      "bioguide": "D000032",
+      "name": "Byron Donalds",
+      "office": "governor",
+      "state": "FL",
+      "source": "CQ-Roll Call, \"Congress Is Becoming a Pipeline to Governors' Mansions\" (Aug 26, 2026), https://www.governing.com/politics/congress-is-becoming-a-pipeline-to-governors-mansions",
+      "asOf": "2026-08-26"
+    }
+  ]
+}

@@ -55,6 +55,11 @@ export function IncumbentTag({ q, link = true }: { q: IncumbentQualifier; link?:
         ) : null}
       </>
     );
+  } else if (q.kind === "governor") {
+    // HO 779: a kind, so the kinds' dim style; unlinked (CBT reads no governor race).
+    body = tagWords(q).lead;
+    outcome = q.ran ? "ran" : undefined;
+    title = `Curated: on the ${q.state} governor ballot, Nov 3${q.ran ? "; CBT reads no governor race's result" : ""}`;
   } else {
     body = REASON_TAG[q.reason].text;
     title = REASON_TAG[q.reason].title;

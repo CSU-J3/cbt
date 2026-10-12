@@ -24,6 +24,12 @@
 // the runoff; another's: lost, or out of the runoff. The read carries it
 // whatever the clock; the merge points show it only once election day has
 // passed (lib/incumbent-tag.ts incumbentTagAt).
+// HO 779 (Corey's ruling): the `governor` kind, after `moved` and `senate`, before the
+// reasons: the race's stored incumbent is on a November governor ballot by the
+// curated list (data/governor-runs-2026.json, a source each; the ballots CBT
+// reads hold no governor race). A kind beats the curated flag here as well:
+// S-AL's Tuberville, curated incumbent_running = 0, reads RUNNING FOR GOVERNOR,
+// not RETIRING.
 // THE REASON, for `none` only, first match in this order:
 //   retiring      the curated races.incumbent_running = 0 (HO 221);
 //   withdrew      a row with their bioguide in any withdrawn block of the
@@ -64,6 +70,7 @@
 import type { Client } from "@libsql/client";
 import { findIncumbentOnBallot, tokenCheck, type BallotPerson } from "./ballot-incumbent";
 import { titleKey } from "./ballotpedia-key";
+import governorRuns2026 from "../data/governor-runs-2026.json";
 
 export type IncumbentReason = "retiring" | "withdrew" | "lost_primary" | "absent";
 // HO 779: how a `moved` or `senate` incumbent's own race went (above); absent
@@ -72,7 +79,14 @@ export type TagOutcome = "elected" | "lost" | "runoff" | "out_of_runoff";
 export type IncumbentQualifier =
   | { kind: "moved"; raceId: string; outcome?: TagOutcome }
   | { kind: "senate"; raceId: string; outcome?: TagOutcome }
+  // HO 779: `ran` is the clock's, set past election day at the merge points.
+  | { kind: "governor"; state: string; ran?: boolean }
   | { kind: "none"; reason: IncumbentReason };
+
+// HO 779: the curated list (data/governor-runs-2026.json): one entry per member,
+// with its race, office, state, source and as-of.
+export type GovernorRun = { race: string; bioguide: string; name: string; office: string; state: string; source: string; asOf: string };
+export const GOVERNOR_RUNS: GovernorRun[] = governorRuns2026.entries.filter((e) => e.office === "governor");
 
 export type QualifierRace = {
   id: string;
@@ -97,6 +111,7 @@ export type QualifierReading = {
   onOwnBallot: boolean;
   moved: string[];
   senate: string[];
+  governor: boolean; // HO 779: on the curated governor list for this race
   reasons: Exclude<IncumbentReason, "absent">[];
   qualifier: IncumbentQualifier | null;
 };
@@ -107,6 +122,7 @@ export function readQualifier(
   ballotByRace: Map<string, QualifierBallotRow[]>,
   ballotByBioguide: Map<string, QualifierBallotRow[]>,
   primariesByBioguide: Map<string, QualifierPrimaryRow[]>,
+  governorRuns: GovernorRun[] = GOVERNOR_RUNS,
 ): QualifierReading | null {
   const bio = race.incumbentBioguideId;
   if (bio == null || race.readStatus !== "box") return null;
@@ -119,6 +135,7 @@ export function readQualifier(
     return r != null && r.chamber === "house" && r.state === race.state;
   });
   const senate = printed.filter((id) => id.startsWith("S-"));
+  const governor = governorRuns.find((e) => e.race === race.id && e.bioguide === bio) ?? null;
   const reasons: QualifierReading["reasons"] = [];
   if (race.incumbentRunning === 0) reasons.push("retiring");
   if ((ballotByBioguide.get(bio) ?? []).some((g) => g.withdrawn === 1)) reasons.push("withdrew");
@@ -141,9 +158,10 @@ export function readQualifier(
   if (!onOwnBallot) {
     if (moved.length) qualifier = withOutcome({ kind: "moved", raceId: moved[0]! });
     else if (senate.length) qualifier = withOutcome({ kind: "senate", raceId: senate[0]! });
+    else if (governor) qualifier = { kind: "governor", state: governor.state };
     else qualifier = { kind: "none", reason: reasons[0] ?? "absent" };
   }
-  return { onOwnBallot, moved, senate, reasons, qualifier };
+  return { onOwnBallot, moved, senate, governor: governor != null, reasons, qualifier };
 }
 
 // The cycle's readings in one batch (the compact surfaces print every rated
