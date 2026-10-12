@@ -12,6 +12,7 @@
 //   senate, out of it     NH-01 (Pappas)   S-NH: Sununu and Laplante marked
 //   senate, not called    KY-06 (Barr)     S-KY: no mark
 //   moved, elected        FL-25 (Wasserman Schultz)  FL-20: her row marked
+//   moved, lost           FL-22 (Frankel)  FL-23: Adeimy marked     (rated, and featured on / and /welcome)
 //   LOST PRIMARY GA-13 · RETIRING S-IA · NOT ON THE BALLOT S-MN · governor S-AL (Tuberville)
 // Legs:
 //   0  today's clock: every race page's server-rendered <main> byte-identical to HEAD's but the five governor
@@ -19,7 +20,8 @@
 //      RUNNING FOR GOVERNOR on the tree; no outcome word, and no data-incumbent-outcome, anywhere
 //   1  the clock at Nov 4: each case's card, HEAD red (not on the ballot, no tag) and the tree green (the
 //      table's words, and no qualifier beside a tag); for the rated cases /electoral's row tag and holder
-//      line, and for IA-02 its MAP card, district modal and hover meta; /'s featured cards; captures
+//      line, and for IA-02 its MAP card, district modal and hover meta; the featured cards on / and
+//      /welcome; captures
 //   2  the census at Nov 4: every tag on every race page against the rule computed from the copy's rows
 //      (HO 759's classes by HEAD's unchanged rule, the governor list and the outcome computed here)
 //
@@ -66,6 +68,8 @@ const PLANTS: { race: string; marks: string[] }[] = [
   { race: "KY-06-2026", marks: ["R:"] },
   { race: "FL-25-2026", marks: ["Moskowitz"] },
   { race: "FL-20-2026", marks: ["Wasserman Schultz"] },
+  { race: "FL-22-2026", marks: ["Pia Dandiya"] },
+  { race: "FL-23-2026", marks: ["Deborah Adeimy"] },
   { race: "GA-13-2026", marks: ["Jasmine Clark"] },
   { race: "S-MN-2026", marks: ["D:"] },
 ];
@@ -77,6 +81,7 @@ const CASES: { race: string; label: string; tree: Want; rated: boolean }[] = [
   { race: "NH-01-2026", label: "senate, out of the runoff", tree: { key: "senate", outcome: "out_of_runoff", text: "OUT OF THE SENATE RUNOFF" }, rated: true },
   { race: "KY-06-2026", label: "senate, not called", tree: { key: "senate", outcome: null, text: "RUNNING FOR SENATE" }, rated: true },
   { race: "FL-25-2026", label: "moved, elected", tree: { key: "moved", outcome: "elected", text: "ELECTED IN FL-20" }, rated: true },
+  { race: "FL-22-2026", label: "moved, lost", tree: { key: "moved", outcome: "lost", text: "LOST IN FL-23" }, rated: true },
   { race: "GA-13-2026", label: "LOST PRIMARY", tree: { key: "lost_primary", outcome: null, text: "LOST PRIMARY" }, rated: false },
   { race: "S-IA-2026", label: "RETIRING", tree: { key: "retiring", outcome: null, text: "RETIRING" }, rated: true },
   { race: "S-MN-2026", label: "NOT ON THE BALLOT", tree: { key: "absent", outcome: null, text: "NOT ON THE BALLOT" }, rated: true },
@@ -88,6 +93,7 @@ const HOLDER: Record<string, RegExp> = {
   "NH-01-2026": /out of the Senate runoff NH SEN/,
   "KY-06-2026": /running for Senate KY SEN/,
   "FL-25-2026": /elected in FL-20/,
+  "FL-22-2026": /lost in FL-23/,
 };
 const FIVE: Record<string, string> = { "S-AL-2026": "T000278", "AZ-05-2026": "B001302", "WI-07-2026": "T000165", "MI-10-2026": "J000307", "FL-19-2026": "D000032" };
 
@@ -485,16 +491,17 @@ async function collectNov4(dir: string, tag: "HEAD" | "tree", browser: Browser, 
     out.mapMeta = (await card.locator(".racecard-cand-meta").allTextContents()).map(norm).filter((x) => /·/.test(x));
     await card.screenshot({ path: path.join(SHOTS, `${tag}-mapcard-IA-02-1440.png`) }).catch(() => {});
     await ctx.close();
-    // /: the featured cards
+    // / and /welcome: the featured cards (each page's own merge point applies the clock)
     const home = await newPage(browser, 1440);
     out.home = (await pageTags(home.page, "/")).tags;
+    out.welcome = (await pageTags(home.page, "/welcome")).tags;
     await home.ctx.close();
   } finally { await srv.kill(); }
   return out;
 }
 
 type RowRead = { tag: string | null; outcome: string | null; holder: string | null };
-type NovRead = { cards: Record<string, Card>; rows: Record<string, RowRead>; hover: string[]; hoverAt: { x: number; y: number } | null; modalTag: string | null; modalExport: string | null; mapTag: string | null; mapMeta: string[]; home: TagRead[] };
+type NovRead = { cards: Record<string, Card>; rows: Record<string, RowRead>; hover: string[]; hoverAt: { x: number; y: number } | null; modalTag: string | null; modalExport: string | null; mapTag: string | null; mapMeta: string[]; home: TagRead[]; welcome: TagRead[] };
 async function leg1and2(headDir: string, treeDir: string, browser: Browser, raceIds: string[]) {
   say(`\n── leg 1, the clock at ${NOV4}: the cases, red on HEAD and green on the tree`);
   const H = (await collectNov4(headDir, "HEAD", browser, raceIds, false)) as unknown as NovRead;
@@ -514,10 +521,17 @@ async function leg1and2(headDir: string, treeDir: string, browser: Browser, race
   check("1 MAP", "IA-02's pinned card: the tag and its lower-case contest line read LOST THE SENATE RACE", T.mapTag === "LOST THE SENATE RACE" && T.mapMeta.some((x) => x.includes("lost the senate race")), `tree "${T.mapTag}" ${JSON.stringify(T.mapMeta)} · HEAD "${H.mapTag}" ${JSON.stringify(H.mapMeta)}`);
   check("1 modal", "IA-02's district card and its export read LOST THE SENATE RACE", T.modalTag === "LOST THE SENATE RACE" && /\(LOST THE SENATE RACE\)/.test(String(T.modalExport)), `tree "${T.modalTag}" · export ${JSON.stringify(T.modalExport)} · HEAD "${H.modalTag}" ${JSON.stringify(H.modalExport)}`);
   check("1 hover", "IA-02's hover meta reads LOST THE SENATE RACE (HEAD's, RUNNING FOR SENATE)", T.hover.some((x) => x.includes("LOST THE SENATE RACE")) && H.hover.some((x) => x.includes("RUNNING FOR SENATE")), `tree ${JSON.stringify(T.hover)} at ${JSON.stringify(T.hoverAt)} · HEAD ${JSON.stringify(H.hover)} at ${JSON.stringify(H.hoverAt)}`);
+  // The featured cards: every case among them reads the table's words on the tree, and at least one has
+  // turned, where HEAD (whose compact surfaces keep the tag past election day) still reads it running.
   const caseIds = new Set(CASES.map((c) => c.race));
-  const featured = T.home.filter((x) => x.race && caseIds.has(x.race));
-  const featuredOk = featured.every((x) => { const c = CASES.find((y) => y.race === x.race)!; return x.text === c.tree.text; });
-  check("1 /", `the featured cards among the cases read the table's words (${featured.map((x) => x.race).join(", ") || "none featured"})`, featuredOk, `tree ${JSON.stringify(featured.map((x) => [x.race, x.text]))} · HEAD ${JSON.stringify(H.home.filter((x) => x.race && caseIds.has(x.race)).map((x) => [x.race, x.text]))}`);
+  for (const [name, tt, ht] of [["/", T.home, H.home], ["/welcome", T.welcome, H.welcome]] as const) {
+    const featured = tt.filter((x) => x.race && caseIds.has(x.race));
+    const featuredOk = featured.every((x) => { const c = CASES.find((y) => y.race === x.race)!; return x.text === c.tree.text && (x.outcome ?? null) === c.tree.outcome; });
+    const turned = [...new Set(featured.filter((x) => x.outcome).map((x) => x.race!))];
+    const headTurned = ht.filter((x) => x.race && turned.includes(x.race));
+    const redOk = headTurned.length > 0 && headTurned.every((x) => !x.outcome && /^RUNNING /.test(x.text));
+    check(`1 ${name}`, `the featured cards among the cases read the table's words, and a turned one reads running on HEAD (${[...new Set(featured.map((x) => x.race))].join(", ") || "none featured"})`, featured.length > 0 && featuredOk && turned.length > 0 && redOk, `tree ${JSON.stringify(featured.map((x) => [x.race, x.text]))} · HEAD ${JSON.stringify(ht.filter((x) => x.race && caseIds.has(x.race)).map((x) => [x.race, x.text]))}`);
+  }
 
   say(`\n── leg 2, the census at ${NOV4}: every tag on every race page against the rule`);
   const want = await expectedTags();
