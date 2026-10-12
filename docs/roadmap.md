@@ -6052,8 +6052,9 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - Corey's rulings, filed;
   - STEP 0, its HALT and its rerun;
   - § 1, the named state, and § 2, the lock;
-  - legs L and K.
-- **Five commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)`, alone and last.
+  - legs L and K;
+  - the FF go's commit: the review push's Preview and `narrow-preview`, through a hand-made record, and the Vercel line.
+- **Six commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)` alone, then the FF go's `docs` (`narrow-preview`'s reading and the Vercel line).
 - **No prod write.** The named state's first prod read is the FF go's.
 - **The pointer is 778:** pointer 777, highest HO in commit subjects 777, `main` at `7a14df1`.
 
@@ -6067,7 +6068,7 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - **The FF:** immediately before it, the cold build (exit 0, no warning line) and the cheap gates (green). Then `e15daca..7a14df1`, 3 commits, no force (18:19:32Z). `777-review` is deleted, remote and local, and `git rev-parse main` reads `7a14df192ea5dbaf4a522e697c5a214f7c7d979e`.
 - **`verify:deploy`, in the foreground:** matched at 41s and held five consecutive reads at 82s.
 - **The Production build,** `dpl_zg2njYqYiAM7iyC5UTdRTsqWUEo5` (`bld_fpdu8q4yw`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 18:19:37.568Z. Read whole (120 events), it logged no Next warning line.
-- **`e2e-prod`, a departure from the go:** Vercel created no GitHub deployment for `7a14df1`, Preview or Production (the repo's newest `vercel[bot]` deployment was `e04d68d`'s Preview, 00:52:09Z), so no `deployment_status` fired. Code dispatched it on `main`: #38291731924 (`workflow_dispatch`, `7a14df1`), `smoke` 141 passed (5.8m), all 39 crawl lines clean on both hits.
+- **`e2e-prod`, a departure from the go:** Vercel created no GitHub deployment for `7a14df1`, Preview or Production (the repo's newest `vercel[bot]` deployment was `e04d68d`'s Preview, 00:52:09Z), so no `deployment_status` fired. Code dispatched it on `main`: #38291731924 (`workflow_dispatch`, `7a14df1`), `smoke` 141 passed (5.8m), all 39 crawl lines clean on both hits. **The records came late, not never** (read at HO 778's FF go): `vercel[bot]` posted both at 19:04Z, about 45 minutes after each went READY, and they fired #38295159078 (`narrow-preview` 82 passed, every cell equal to #38189661717's) and #38295186036 (`smoke` 141 passed).
 - **No flush.**
 
 **Corey's rulings, 2026-10-11, verbatim** (two questions after HO 777's review, answered by selection):
@@ -6134,6 +6135,12 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - **control:** no `state` on the tree's build ran the cursor tick, its row under `/api/cron/primaries`, the cursor 36 → 48.
 - **Clean-up:** the worktrees are removed, and the checkout's `node_modules` is back to one link per file.
 
+**The review push and its Preview** (read at the FF go).
+- **The push:** `778-review` at `7bdae36` (19:07:36Z, no force), after a cold build (exit 0, no warning line) and green gates. The Preview, `dpl_BvBWYyaidXpz4LUvyyMShm8SCjZy`, went READY at 19:07:39Z, but Vercel posted no GitHub deployment for it, so `narrow-preview` didn't fire on its own.
+- **How it fired:** by the go's ruling (the paste's option 2), a hand-made Preview record: deployment 7022121801 on the full SHA (`Preview`, `production_environment` false, `auto_merge` false, no required contexts, by `CSU-J3`), with one `success` status at 19:33:16Z whose `environment_url` is the Preview's; never a Production record.
+  - It fired #38298417831. At 19:36:06Z `vercel[bot]` posted its own `success` status onto the same record, which fired #38298728859, and the workflow's per-SHA concurrency group cancelled #38298417831 (after its spec had read 82 passed, every cell equal).
+- **The reading:** #38298728859 `narrow-preview`, **82 passed (2.4m), every cell equal to #38189661717's**, as expected: this HO changes no page.
+
 **Docs (HO 778):**
 - This block.
 - **backlog, 3+/2−:**
@@ -6143,9 +6150,10 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - **The lock line is struck** on leg K, the prod reading owed in the FF go.
   - **The Louisiana line is unchanged.**
   - **Corey's rulings are filed** after the WATCH, verbatim as the handoff gave them.
+  - **The Vercel line is filed at the top of OPEN LOOPS** (the FF go): the records 28 to 45 minutes late since `e04d68d`'s Preview, *Owner:* Corey, then Code. Its *Close* asks for a record within a couple of minutes of READY, since a late record still fires its jobs.
 - **OPEN LOOPS reconciled:**
   - **open:** 265 live / 344 struck (609), § OPEN LOOPS 64 / 115;
-  - **close:** 265 / 345 (610), § OPEN LOOPS 64 / 116;
+  - **close,** after the FF go's commit: 266 / 345 (611), § OPEN LOOPS 65 / 116 (the review's close was 265 / 345 (610), 64 / 116; the Vercel line filed);
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:**
   - the handoff's two sentences, verbatim, at the end of the `/api/cron/primaries` and `/api/cron/general-ballot` bullets in § Cron topology;
