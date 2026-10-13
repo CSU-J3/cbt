@@ -2,6 +2,8 @@
 // matching `data/race-ratings-*.json` and upserts each row keyed on
 // (race_id, source). Idempotent: re-running after editing any JSON is the
 // quarterly refresh workflow.
+// Cook's two files left the repo in HO 782 (SKILL, race_ratings); a fresh
+// database holds no Cook rows until Cook is wired.
 //
 // race_id is a loose link to races.id; no FK constraint. Ratings sit in
 // the table even if no race row exists yet — useful when the seed runs
