@@ -6483,3 +6483,79 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the handoff's sentence, a bullet of its own in the race page's result list: past election day a stub page shows no sentence, only its provenance line (HO 781, Corey's ruling);
   - and four places the build made false or left short, named: the provenance bullet's *(and under a stub's sentence)*, the stub state's *single muted line*, HO 490's rule's *`const nowMs = Date.now()`*, and the clock seam's readers, which now include the race page's news ages.
 - **Also notes now run through HO 781.**
+
+**Also (HO 782), Cook's two seed snapshots leave the public repo before Corey answers Cook, and SKILL stops calling the seed files the source of truth.**
+- **What's here:**
+  - Cook's reply, paraphrased;
+  - Corey's ruling and its three parts;
+  - the why;
+  - STEP 0;
+  - § 1, the files, and leg A;
+  - what stays.
+- **Three commits, kinds unmixed:** `chore` · `docs` · `docs(skill)` alone and last.
+- **No migration and no prod write;** prod's `race_ratings` rows don't move.
+- **The pointer is 782:** pointer 781, highest HO in commit subjects 781, the HO stacked on `781-review`'s head (`c03727a`), so one FF takes both.
+
+**Cook's reply, 2026-10-12** (paraphrased; this file is public): to the 10-09 API request, Cook answered that access needs a subscription, at a level set by the use case, plus a signed licensing agreement. It asked three things: how the Ballotpedia pull worked and what changed, who has access to the site and how it works, and whether others could replicate it.
+
+**Corey's ruling, 2026-10-13** (answered by selection): asked whether the two Cook snapshot files in the public repo come out before he replies, he chose *Remove them before I reply*. Its three parts:
+- the two files leave the repo first (this HO);
+- Cook's frozen 09-30 column stays up, credited and linked, and the reply offers to take it down;
+- the reply asks the price before deciding.
+- The last two live in the email, not in code.
+
+**The why:**
+- `github.com/CSU-J3/cbt` is public and MIT, and the two files were Cook's ratings in it:
+  - `data/race-ratings-cook-2026.json`, 35 Senate rows: Wikipedia's table as of Jan 12, 2026, with Cook's Apr 13 updates applied to GA, NC, NE and OH;
+  - `data/race-ratings-cook-house-2026.json`, 62 House rows, fetched 2026-05-19.
+- Nothing read them but `scripts/seed-race-ratings.ts`, a first fill.
+- While a license is negotiated, the honest state of the repo is code only, and the reply will say the files are gone, so this lands before it.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-13 20:41Z at `c03727a`: **all four hold.**
+- **1:** `git ls-files data` lists six `race-ratings-*.json` files, a Senate and a House file each for Cook, Inside Elections and Sabato. Cook's pair holds 35 and 62 rows.
+- **2:** `scripts/seed-race-ratings.ts` is the one reader:
+  - `DATA_DIR` and `SEED_PATTERN` at `:53-54`, the `readdirSync(DATA_DIR).filter(…)` at `:64-65`, and the no-match warning at `:84-85`;
+  - `git grep -n race-ratings-cook -- app lib components scripts e2e` finds nothing.
+  - Named and not counted: a plain `grep -rn` also finds two lines in `scripts/diagnostic/scratch/tree-759-a2fail/`, an untracked, gitignored copy of SKILL and the backlog from HO 759, not a reader.
+- **3:** SKILL names the Cook file once, in the `race_ratings` schema comment (`:365-366`), and calls the seed files the source of truth once: `:2947`, which was `bae5790`'s `:2946` until HO 781's added bullet. `:1355` names no file and stays.
+- **4:** the README names neither file, and its credits (`:157-159`) already say Cook's and Inside Elections' ratings are as Ballotpedia last carried them, on 2026-09-30.
+- **The verbatim SKILL text, read against the tree before it lands:**
+  - `lib/race-ratings-sync.ts` writes `race_ratings`;
+  - *one reader per rater since HO 770* is the sync route's own description (`app/api/sync-race-ratings/route.ts:3`), with `WIRED` (`lib/race-ratings-scrape.ts:155`) naming Sabato alone;
+  - the race-id formats and the Senate-specials collapse are carried from the old bullet's text.
+
+**§ 1, the files** (`chore` `d30f990`).
+- **`git rm`** of the two files, by explicit path, nothing else staged.
+- **`scripts/seed-race-ratings.ts`'s header** gains two lines after its line 4, verbatim: *Cook's two files left the repo in HO 782 (SKILL, race_ratings); a fresh database holds no Cook rows until Cook is wired.* Its code is unchanged.
+
+**Leg A, the tree.**
+- **The red** (the base, `c03727a`): `git ls-files data | grep -c race-ratings` reads **6**.
+- **The green** (`782-review`): it reads **4**, Inside Elections' and Sabato's, none of them Cook's.
+- **`git grep -l race-ratings-cook` on the green lists four files, and not the four the handoff expected:**
+  - **two docs:** `docs/backlog.md`, whose one mention is the struck HO 743 line (`:87`, naming the Senate file as a snapshot's source; this HO's backlog text doesn't name the files), and `docs/roadmap.md`, whose six mentions are all this block's: the two files as removed, the leg's own grep pattern, and the old handoff's file name;
+  - **two tracked old handoffs:** `docs/handoffs/71-race-ratings-cook.md` and `73-additional-rating-sources.md`. They are among the 386 handoffs committed before `.gitignore:79` ignored `docs/handoffs/`, and name the file as the one to create;
+  - **two missing:** the seed script and SKILL. The handoff's verbatim lines for both don't carry the string (they say *Cook's two files* and `data/race-ratings-*.json`), so neither is listed. The tree wasn't bent to match: what the leg means to show holds, since no code names the files and every doc that does names them as history or as removed.
+- **The build and the cheap gates** pass unchanged, since nothing imports the files.
+
+**What stays:**
+- **Inside Elections' and Sabato's four seed files,** with a backlog line of their own (below):
+  - Senate files dated 2026-01-12 and 2026-01-29;
+  - House files dated 2026-05-19.
+- **The history:** the two files stay in git history, as every deleted file does. Nothing is rewritten.
+- **The database:** prod's `race_ratings` doesn't move. HO 781's r2 copy of prod (2026-10-13 20:05Z, a local file) holds 87 Cook rows, 48 of them as the seed last wrote them on 2026-05-19; the rest are as the sync last wrote them, through 2026-09-30.
+- **Named, and left as ruled:**
+  - **`docs/handoffs/71-race-ratings-cook.md`,** tracked and public, keeps a two-row format example presented as Cook's (`ME-SEN-2026` and `NC-SEN-2026`, *Toss Up*, 2026-04-15). It's outside the ruling's two files.
+  - **SKILL's `:1355`** (`npm run seed:ratings`) still says *v1 covers Cook, Sabato, and Inside Elections* and *Refresh quarterly by re-pulling each rater's page*.
+  - **The seed script's header** still calls a re-run *the quarterly refresh workflow*. Its upsert (`ON CONFLICT(id) DO UPDATE`) would write the snapshots over the sync's rows if run against a live database. The new SKILL bullet says the files are a first fill and that nothing reads them after it.
+
+**Docs (HO 782):**
+- This block.
+- **backlog, 2+/1−:**
+  - **The Cook line gains, in order:** Cook's 10-12 reply, paraphrased; the 10-13 rulings; *the two seed files removed, HO 782*; and *Corey replies after this FF; the site keeps Cook's 09-30 column, credited and linked, and the reply offers to take it down.* Its owner stays Corey.
+  - **New, at the top of OPEN LOOPS:** Inside Elections' and Sabato's four seed snapshots are still in the public repo (*Owner:* Corey). Its *Reads if never done* clause, the ledger's rule, is Code's addition to the handoff's text.
+- **OPEN LOOPS reconciled:**
+  - open: 264 live / 351 struck (615), § OPEN LOOPS `:14-213` 63 / 122;
+  - close: **265 / 351 (616), § OPEN LOOPS `:14-214` 64 / 122**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:** the two replacements, verbatim. The `race_ratings` schema comment (`:365-366`) now says the sync writes the rows and the seed is a first fill. The bullet that called the seed files the source of truth (`:2947`) is now *Race ratings are synced, not hand-seeded (HO 88, HO 770)*.
+- **Also notes now run through HO 782.**
