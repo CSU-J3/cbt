@@ -1909,7 +1909,9 @@ export type RosterCandidate = Omit<RaceCandidate, "party"> & {
   // HO 758: Ballotpedia marked this row the winner (general_ballot.marked for a
   // ballot-sourced row; for a Louisiana jungle row, the one winner marked in the
   // Nov-3 box, never either of a runoff's two), and when the mark was read. The
-  // page shows the mark only once election day has passed.
+  // page shows the mark only once election day has passed. HO 780: a Louisiana
+  // seat's ballot-sourced rows take the jungle box's mark until its box (the
+  // Dec-12 general) carries one.
   marked: boolean;
   read_at: string | null;
 };
@@ -2070,6 +2072,10 @@ export const getRaceRoster = unstable_cache(
     const oneMarked = ballotRows.filter((b) => b.marked).length === 1;
     const ballot = ballotRows.map((b) => ({ ...b, marked: b.marked && oneMarked }));
     const jungle = jungleRs!.rows.map((j) => ({ name: String(j.name), marked: j.status === "winner" && Number(j.winners) === 1, readAt: j.updated_at == null ? null : String(j.updated_at) }));
+    // HO 780: a Louisiana seat's box decides only once it carries a mark
+    // (lib/race-result.ts resultFromRows); until then the marks are its jungle
+    // box's, as with no box, so a Nov-3 winner on an unmarked box reads Elected.
+    const boxDecides = jungle.length === 0 || ballotRows.some((b) => b.marked);
     // A curated row may print differently from the ballot (S-ME's curated "Troy
     // Jackson", the ballot's "Troy Dale Jackson", until HO 760 retired it): without
     // an exact match, the one ballot row with the same first and last name. Since
@@ -2082,7 +2088,7 @@ export const getRaceRoster = unstable_cache(
       const name = r.name as string;
       const bioguide = (r.bioguide_id as string | null) ?? null;
       const byName = ballot.filter((b) => firstLast(b.name) === firstLast(name));
-      const g = ballot.find((b) => b.name === name && b.bioguide === bioguide) ?? (byName.length === 1 ? byName[0]! : null);
+      const g = boxDecides ? (ballot.find((b) => b.name === name && b.bioguide === bioguide) ?? (byName.length === 1 ? byName[0]! : null)) : null;
       const j = g ? null : (jungle.find((x) => x.name === name) ?? null);
       return {
         race_id: r.race_id as string,
@@ -2116,7 +2122,9 @@ export const getRaceResult = unstable_cache(
 //                        its first party; any other letter is "other");
 //   houseSeats / houseCalled  the cycle's House seats and those with a mark;
 //   latestReadAt         the newest Ballotpedia read behind the marks.
-// A Louisiana seat counts when exactly one winner is marked in its jungle box.
+// A Louisiana seat counts when exactly one winner is marked in its jungle box
+// and (HO 780) its box, if it has one, carries no mark; once it does, the box
+// counts it, as lib/race-result.ts resultFromRows reads it.
 export type ElectionResults = {
   rated: number;
   ratedCalled: number;
@@ -2150,7 +2158,10 @@ export const getElectionResults = unstable_cache(
                   JOIN primary_candidates pc ON pc.primary_id = p.id AND pc.status = 'winner'
                  WHERE r.cycle = ?
                    AND (SELECT COUNT(*) FROM primary_candidates w WHERE w.primary_id = p.id AND w.status = 'winner') = 1
-                   AND r.id NOT IN (SELECT race_id FROM general_ballot_reads WHERE status = 'box')`,
+                   -- HO 780: a box with no mark yet leaves the seat to its jungle box.
+                   AND r.id NOT IN (SELECT g3.race_id FROM general_ballot g3
+                                      JOIN general_ballot_reads rd3 ON rd3.race_id = g3.race_id AND rd3.status = 'box'
+                                     WHERE g3.marked = 1 AND g3.on_ballot = 1)`,
           args: [cycle, cycle],
         },
         {
