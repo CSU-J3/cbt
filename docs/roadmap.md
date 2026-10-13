@@ -6289,3 +6289,102 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the four places the handoff counts, rewritten to the tree;
   - and a fifth, named: the kinds' lead-in, *"by identity (`general_ballot.bioguide_id`)"*, which the governor kind isn't.
 - **Also notes now run through HO 779.**
+
+**Also (HO 780), Louisiana's runoff box: once Ballotpedia posts a seat's Dec 12 contest as a General election box, its candidates publish as Advanced, and the page keeps Runoff Dec 12 until that box carries a mark. It opens with HO 779's FF go as taken.**
+- **What's here:**
+  - HO 779's FF go as taken;
+  - STEP 0, with its measurements;
+  - § 1, the roster, and § 2, the result;
+  - legs 0 to 4, and the two runs before the one that stands.
+- **Five commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)` alone and last.
+- **No prod write.** Prod was read by `SELECT` only: STEP 0, the plants' row shapes, and each seed.
+- **The pointer is 780:** pointer 779, highest HO in commit subjects 779, `main` at `bae5790`.
+
+**HO 779's FF go, as taken** (`docs/handoffs/779-artifacts/ff/paste-779-ff.md`).
+- **Production before the FF** (2026-10-13 01:40:20Z, serving `0d53dae`): S-AL, WI-07 and MI-10 read RETIRING, and AZ-05 and FL-19 NOT ON THE BALLOT. `/electoral` held 27 tags (SENATE 6, HOUSE 21). The 18 `senate` and `moved` cards, `/`'s 4 tags and `/welcome`'s 14 were kept for the comparison, and no page carried `data-incumbent-outcome`.
+- **The FF:**
+  - immediately before it, the cold build (01:41:20-01:42:26Z, exit 0, *Compiled successfully in 25.2s*, no warning line) and the cheap gates (green);
+  - then `0d53dae..bae5790`, 6 commits, no force (01:42:58Z). The classifier didn't block it;
+  - `779-review` deleted, remote and local (`779-review-local`), and `main` reads `bae5790bddd3…`.
+- **`verify:deploy`, in the foreground:** matched at 21s, five consecutive reads at 62s.
+- **The Production build,** `dpl_AL35NpGpmrE7TrfgMAuAFshQB9Pm` (`bld_epp46m0da`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 01:43:03.670Z. It compiled in 8.3s and went READY at 01:43:49.957Z. Its log, read whole in two windows, held no Next warning line.
+- **Both of Vercel's records came at most 1s after READY:** the Preview's (7024604378) at 21:41:00Z against READY 21:40:59.955Z, and Production's (7027980633) at 01:43:50Z against READY 01:43:49.957Z. The Vercel line closes on them (below).
+- **`e2e-prod`:** the Production record fired #38333516212 (01:43:52Z): `smoke` **141 passed (5.5m)**, all 39 crawl lines clean. Nothing was dispatched.
+- **The flush,** after `smoke` ended: `POST /api/revalidate?tag=races`, Bearer `$CRON_SECRET` by name, HTTP 200 at 01:51:00.651Z.
+- **After the flush** (01:51:06Z, serving `bae5790`): **8 PASS, 0 FAIL.**
+  - The five cards read RUNNING FOR GOVERNOR: `governor`, unlinked, in `.micro-tag`, with no qualifier.
+  - `/electoral`'s 27 tags equal the before reading but MI-10's, RETIRING → RUNNING FOR GOVERNOR.
+  - No `data-incumbent-outcome` on `/electoral`, `/`, `/welcome` or the 18 pages, 0 of 68 tags with an outcome word, and AL-01 reads RUNNING FOR SENATE → `/race/S-AL-2026`.
+  - The 18 cards, `/` and `/welcome` equal the before reading.
+- **Named:** nothing was read between the deploy and the flush, so the go's premise (a cached value that predates the governor kind) went unread. This HO files it as the flush line.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-13 02:45Z: **all five hold.**
+- **1:** `main` is `bae5790`, its Production smoke passed (#38333516212), and after the `races` flush Production read 8 PASS, 0 FAIL.
+- **2:** `planBallotRoster` publishes `advanced` only in a top-two or top-four state (`lib/harvest-challengers.ts:356`, `:370`). Elsewhere a D or R row is `won_primary` when `primary_marked`, else `nominee`, and every other printed row is `on_ballot` (`:376` on).
+- **3:** `JUNGLE_FROM_WHERE` (`:223-232`) leaves out every race with a `box` read: its `json_each(?)` is the plan's `boxRaces`.
+- **4:** in `boxKind`, a general box's `<h5>` says *general election* and neither *primary* nor *runoff* (`lib/general-ballot.ts:163`); a *Nonpartisan primary* box is `primary-kept`, contest `open` (`:166-174`); a *runoff* label is `runoff` (`:175`). `primary_marked` is a kept primary's winner mark (`:567`, `:598`; the model's `primaries` are the section's `primary-kept` boxes).
+- **5:** `resultFromRows` reads the box first whenever the read is `box` (`lib/race-result.ts:88-117`), and the jungle only otherwise (`:118` on). `raceResultView`'s decided header names election day (`:170`), and its runoff label the jungle row's `runoff_date` (`:169`). `/electoral`'s `readRaceResults` hands the rated seats to the same function, jungle rows included (`lib/electoral-general.ts:624-680`).
+- **The measurements** (`docs/handoffs/780-artifacts/step0-measurements.txt`):
+  - **LA's six, prod by `SELECT`:**
+    - every read is `no_box` (2026-10-12 16:21Z), with no `general_ballot` row, and none is rated;
+    - each jungle row is `house-LA-0N-2026-open`, Nov 3 with a Dec 12 runoff, and has 0 winners: every candidate `running` (4, 5, 6, 5, 9 and 10);
+    - the roster is the jungle rule's `on_ballot` rows (3, 4, 5, 4, 9 and 10), the incumbent left out;
+    - today's rows at a Nov-5 clock read *Not yet called*, with LA-05's and LA-06's incumbents (Letlow, Fields), in no jungle box, *not on the ballot*.
+  - **HO 747's saved LA pages (09-25), every box, 27:**
+    - 2026: each page's one section box, *Nonpartisan primary election for U.S. House Louisiana District N*, dated Nov 3, 2026, `primary-kept`, contest `open`, unmarked;
+    - past cycles, under *District history*: the November contest is *Nonpartisan primary election* every time (Nov 5, 2024, six; Nov 8, 2022, five; Nov 3, 2020, six);
+    - **the one regular runoff,** LA-05's Dec 5, 2020 (Luke Letlow over Lance Harris), is labelled ***General election***, after its Nov 3, 2020 nonpartisan primary with two marked;
+    - the 2021 specials: LA-02's *Special Nonpartisan primary election* (Mar 20, two marked), then its *Special general election* (Apr 24); LA-05's *Special Nonpartisan primary election* (Mar 20, one marked, no runoff);
+    - no *General runoff election* label on any of the six.
+
+**§ 1, the roster** (`feat` `2729b36`).
+- **A jungle seat with a box read is planned as a top-two state is.** `planBallotRoster` reads the cycle's jungle seats in its one read snapshot, by the jungle rule's own join (`JUNGLE_JOIN`, which `JUNGLE_FROM_WHERE` now shares and renders unchanged). Such a seat publishes every printed row that isn't a write-in, less the incumbent's, as `advanced`: the Dec 12 box holds the two advancers, whatever their parties.
+- **Every other race plans as before** (leg 1's whole-table diff).
+
+**§ 2, the result** (`feat` `10ff9d1`).
+- **`resultFromRows`:** a jungle seat with a `box` read reads its box only once the box carries a mark (an `on_ballot` row marked). Until then it reads its jungle box as it does with no box: two winners *Runoff Dec 12*, one *Decided · Nov 3, 2026*, none *Not yet called*, and the incumbent's qualifier follows.
+- **A runoff its box decides is dated the runoff's day:** the reading gains `decidedOn`, the jungle row's `runoff_date` where the jungle marked two and the box marks the one, and `raceResultView`'s header names it, *Decided · Dec 12, 2026*.
+- **Two more readers take the same rule, named,** since each weighs a seat's box against its jungle box on its own: `getRaceRoster`'s marks (a Nov-3 winner on an unmarked box reads *Elected*), and `getElectionResults`' jungle half, which now leaves out a seat whose box carries a mark rather than every box read. Without them, leg 3's page would read *Decided* with no *Elected* on the winner's row, and the band wouldn't count the seat.
+- **Every other race reads as before** (leg 4). The race page and `/electoral` share `resultFromRows`.
+
+**The legs** (`diag` `3973c16`, `scripts/diagnostic/louisiana-runoff-legs-780.ts`): **r3, 21 PASS, 0 FAIL.**
+- **The seed** (r3, 03:12Z): the real `scripts/migrate.ts` against a `file:` template; 22 tables whole from prod by `SELECT`, `bills` and `member_votes` cut to the rated seats' members, and the newest 400 `cron_runs`; prod's fingerprint equal before and after. Two copies, one per build, each with its own sentinel.
+- **The plants,** the same on each copy, are what the reader would write for a Dec-12 *General election* box: the jungle box's winners, a `box` read, and the box's printed rows with `primary_marked` 1, the incumbent underlined and identified.
+  - **LA-05** (leg 1): Pat Moore (D) and Misti Cordell (R), the box unmarked; the incumbent is in no box.
+  - **LA-01** (leg 1, the qualifier): Steve Scalise (R, the incumbent) and Lauren Jewett (D), unmarked.
+  - **LA-06** (leg 2): Chauna Banks (D) and Blake Miguez (R), the box marking Miguez.
+  - **LA-04** (leg 3): Mike Johnson (R, the incumbent), the box printing him alone, unmarked.
+  - **LA-03** (leg 3): Kate Cotten (R), the box printing her alone, unmarked.
+  - LA-02 is unplanted, inside leg 4's control.
+- **The builds:** HEAD's (`bae5790`) and the tree's (`10ff9d1`), cold and secretless in scratch worktrees, exit 0 with no warning line.
+- **Each build's harvest** is its own `/api/cron/race-challengers`, POSTed to its own server on its own copy before any page is read: HTTP 200 on both, 888 rows on 464 races, 468 ballot races and 884 planned rows, with LA-02 the jungle rule's one seat.
+- **Leg 0, the reader** (unchanged by HO 780): HO 747's saved LA-01 page reads `no_box` as saved. With CA-17's 2026 *General election* box spliced in, carrying LA-01's two advancers, and the jungle box's two rows marked, `pageResult` reads `box`: two rows, both `primary_marked` 1 and unmarked, Scalise underlined and identified as S001176.
+- **Leg 1, Nov 5:**
+  - **LA-05:** HEAD reads *Not yet called* with Moore and Cordell *Won primary* (red); the tree *Runoff Dec 12* with both *Advanced* (green).
+  - **LA-01:** HEAD reads *Not yet called*, Jewett *Won primary*, and no qualifier; the tree *Runoff Dec 12*, Jewett *Advanced*, and Scalise's card *runoff Dec 12*.
+  - **`race_candidates`,** each build's after its harvest: 895 rows each, 889 equal in every column but `updated_at` (each run's stamp). The 6 that differ are the planted seats' `won_primary` → `advanced`.
+- **Leg 2, Dec 13:** LA-06 reads *Decided · Nov 3, 2026* on HEAD and *Decided · Dec 12, 2026* on the tree, with *Elected* on Miguez's row on both, and Banks *Won primary* against *Advanced*.
+- **Leg 3, Nov 5:**
+  - **LA-04:** HEAD reads *Not yet called*; the tree *Decided · Nov 3, 2026*, with Johnson *re-elected*. The page is a stub on both, since the box prints only him.
+  - **LA-03:** HEAD reads *Not yet called*, Cotten *Won primary*; the tree *Decided · Nov 3, 2026*, with *Elected* on Cotten's row.
+  - **The band** (`/electoral`): HEAD *House R 1 · D 0 · 434 open*; the tree *House R 3 · D 0 · 432 open*.
+- **Leg 4, Nov 5:** every other race page's `<main>`, 465 of 465, is byte-identical to HEAD's, each page read twice per server and equal to itself, with the news ages set aside (785 spans, all matched). None of the five is rated, so `/electoral` has no planted row to read.
+- **Captures** (`docs/handoffs/780-artifacts/captures/`, 20): the five planted pages at 1440, 430 and 1440 with reduced motion, and HEAD's at 1440, eyeballed styled.
+- **The two runs before it, named:**
+  - **r1** read 13 PASS, 1 FAIL: leg 4's AZ-04. The race page's news ages run on `Date.now()`, not the clock seam (HO 490), and AZ-04's item of 2026-07-22T03:06:03Z turned *82d* into *83d* at 03:06:03Z, between HEAD's read and the tree's.
+  - **r2** read every page twice per server and dumped any difference: 21 PASS, 0 FAIL. r3 sets the news ages aside, so a label crossing a unit can't fail the control, and counts the spans it set aside.
+- **Clean-up:** the worktrees are removed, the checkout's `node_modules` is back to one link per file (0 of 15,152 multiply linked), and r1's and r2's copies are deleted (r3's kept).
+
+**Docs (HO 780):**
+- This block.
+- **backlog, 5+/3−:**
+  - **The Louisiana-box line is struck** on the legs, its premise named as inferred.
+  - **The Vercel line is struck** with HO 779's FF go reading: both records at most 1s after READY.
+  - **Two lines filed at the top:** the general runoff (a *General runoff election* box is read nowhere; Code, medium, dated before Tuesday 2026-12-01), and the flush (whether the data cache serves a cached read's old value across a deploy; Code, low).
+  - **The WATCH (HO 758) line's reads** gain the first Louisiana seat whose read turns `box` after Nov 3.
+- **OPEN LOOPS reconciled:**
+  - open: 264 live / 347 struck (611), § OPEN LOOPS `:14-209` 63 / 118;
+  - close: **264 / 349 (613), § OPEN LOOPS `:14-211` 63 / 120**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:** the three places the handoff expects (HO 750's roster rule, in its scope and its statuses; HO 758's jungle rule; `:1974`'s *Decided · Nov 3, 2026*), and three more the build made false, named: the band's Louisiana count (`:1949`), the race page's reading (`:1973`) and the roster's *Elected* (`:1977`).
+- **Also notes now run through HO 780.**
