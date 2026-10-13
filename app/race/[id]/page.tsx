@@ -29,8 +29,10 @@ export default async function RacePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  // HO 490: page-computed clock for the race-news relative ages (#418).
-  const nowMs = Date.now();
+  // HO 490: page-computed clock for the race-news relative ages (#418). HO 781:
+  // lib/clock.ts's now, Date.now() on every deployed environment, so a legs
+  // copy's CBT_CLOCK_NOW sets the ages too.
+  const nowMs = clockNowMs();
 
   const race = await getRace(id);
 
