@@ -6295,8 +6295,9 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - HO 779's FF go as taken;
   - STEP 0, with its measurements;
   - § 1, the roster, and § 2, the result;
-  - legs 0 to 4, and the two runs before the one that stands.
-- **Five commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)` alone and last.
+  - legs 0 to 4, and the two runs before the one that stands;
+  - the FF go's commit: the two lines it files, the stub sentence after election day and the news ages' clock.
+- **Six commits, kinds unmixed:** `feat` · `feat` · `diag` · `docs` · `docs(skill)` alone, then the FF go's `docs` (the two lines).
 - **No prod write.** Prod was read by `SELECT` only: STEP 0, the plants' row shapes, and each seed.
 - **The pointer is 780:** pointer 779, highest HO in commit subjects 779, `main` at `bae5790`.
 
@@ -6382,9 +6383,10 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - **The Vercel line is struck** with HO 779's FF go reading: both records at most 1s after READY.
   - **Two lines filed at the top:** the general runoff (a *General runoff election* box is read nowhere; Code, medium, dated before Tuesday 2026-12-01), and the flush (whether the data cache serves a cached read's old value across a deploy; Code, low).
   - **The WATCH (HO 758) line's reads** gain the first Louisiana seat whose read turns `box` after Nov 3.
+  - **Two more lines filed at the top** (the FF go's commit, 2+/0−): the stub sentence after election day (*Owner:* Corey, a copy call, then Code; dated before Tuesday 2026-11-03), from the paste's LA-04 note, and the news ages' clock (*Owner:* Code, low), from r1's AZ-04.
 - **OPEN LOOPS reconciled:**
   - open: 264 live / 347 struck (611), § OPEN LOOPS `:14-209` 63 / 118;
-  - close: **264 / 349 (613), § OPEN LOOPS `:14-211` 63 / 120**;
+  - close, after the FF go's commit: **266 / 349 (615), § OPEN LOOPS `:14-213` 65 / 120** (the review's close was 264 / 349 (613), `:14-211` 63 / 120; the two lines filed);
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the three places the handoff expects (HO 750's roster rule, in its scope and its statuses; HO 758's jungle rule; `:1974`'s *Decided · Nov 3, 2026*), and three more the build made false, named: the band's Louisiana count (`:1949`), the race page's reading (`:1973`) and the roster's *Elected* (`:1977`).
 - **Also notes now run through HO 780.**
