@@ -6390,3 +6390,96 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the three places the handoff expects (HO 750's roster rule, in its scope and its statuses; HO 758's jungle rule; `:1974`'s *Decided · Nov 3, 2026*), and three more the build made false, named: the band's Louisiana count (`:1949`), the race page's reading (`:1973`) and the roster's *Elected* (`:1977`).
 - **Also notes now run through HO 780.**
+
+**Also (HO 781), past election day a stub page drops its sentence and keeps its provenance line, and the race page's news ages read the clock seam. It opens with HO 780's FF go as taken.**
+- **What's here:**
+  - HO 780's FF go as taken;
+  - Corey's ruling, verbatim;
+  - STEP 0, its HALT and its rerun, with the count;
+  - § 1, the stub sentence, and § 2, the news ages' clock;
+  - legs 0 to 2, and the run before the one that stands.
+- **Five commits, kinds unmixed:** `feat` · `fix` · `diag` · `docs` · `docs(skill)` alone and last.
+- **No prod write.** Prod was read by `SELECT` only: each seed.
+- **The pointer is 781:** pointer 780, highest HO in commit subjects 780, `main` at `2ffc153`.
+
+**HO 780's FF go, as taken** (`docs/handoffs/780-artifacts/ff/paste-780-ff.md`).
+- **The go's `docs` commit, `2ffc153`, on `780-review`:**
+  - the two lines filed at the top of OPEN LOOPS: the stub sentence after election day (*Owner:* Corey, a copy call, then Code; dated before Tuesday 2026-11-03) and the news ages' clock (*Owner:* Code, low);
+  - HO 780's block shipping true (six commits, the two lines, the close after the commit);
+  - the reconcile, 264 / 349 (613) to 266 / 349 (615), § OPEN LOOPS `:14-213` 65 / 120, the control 0.
+- **The FF:**
+  - a cold build and the cheap gates before the review push (19:39:31Z) and again immediately before the FF, each build exit 0 with no warning line, each gate run green;
+  - then `bae5790..2ffc153`, 6 commits, no force (19:40:38Z). The classifier didn't block it;
+  - `780-review` deleted, remote and local (`780-review-local`), and `main` reads `2ffc153dc0ab…`.
+- **`verify:deploy`, in the foreground:** matched at 41s, five consecutive reads at 83s.
+- **The Production build,** `dpl_J312m49HKG73kcwcYz18KjrnzS15` (`bld_kska5qhmi`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 19:40:44.023Z. It compiled in 11.5s and went READY at 19:41:42.202Z. Its log, read whole in two windows, held no Next warning line.
+- **Both of Vercel's records came at most 1s after READY:** Production's (7048319227) at 19:41:42Z against READY 19:41:42.202Z, and the review push's Preview's (7048291852) at 19:40:23Z against 19:40:22.487Z.
+- **`e2e-prod`:** the Production record fired #38456875946 (19:41:44Z): `smoke` **141 passed (5.5m)**, all 39 crawl lines clean. Nothing was dispatched.
+- **No flush,** as the go ruled.
+- **Named:**
+  - the stub-sentence line's LA-04 clause is narrower than the go's note. HO 780's saved dumps show the sentence on both builds, and *Decided · Nov 3, 2026* and *re-elected* on the tree's only;
+  - the review push's Preview fired `narrow-preview` #38456698659: 82 passed. 18 cells differ from #38189661717's, each only in the home page's enacted-bill chip count (`ids:3` for `ids:2`), and with that field aside all 82 are equal. `36a4a30..2ffc153` touches only docs, so the difference is data: a third bill enacted this week.
+
+**Corey's ruling, 2026-10-12, verbatim** (answered by selection):
+- the question: *"On Nov 4, an unrated race page whose ballot lists only the incumbent will show 'Decided · Nov 3, 2026' and 're-elected', but its sentence still says 'Incumbent running for re-election. No competitive rating yet.' What should that sentence say after election day?"*;
+- the answer: *"Drop the sentence (Recommended)"*.
+- **The architect's read:** past election day (`raceResultView`'s `passed`), a stub page shows no sentence, decided or not, in all three of its forms, and the provenance line stays. Extending the ruling from the asked case to all three forms was the architect's call.
+
+**STEP 0** (a check, HO 768's rule).
+- **First run, 2026-10-13 19:07Z: HALT on claim 1.**
+  - `main` was `bae5790`, and `780-review` was still on the remote at `36a4a30`, five ahead: HO 780's FF go had not been taken.
+  - OPEN LOOPS held neither of the go's lines.
+  - Claims 2 to 4 held at `36a4a30`, and nothing was built (`docs/handoffs/781-artifacts/step0-halt.txt`).
+- **Rerun, 19:51Z, after the go: all four hold.**
+  - **1:** `main` is `2ffc153`, `36a4a30` plus the go's `docs` commit; its Production `smoke` passed (#38456875946); OPEN LOOPS holds both lines (`:15`, `:16`).
+  - **2:** `stubSentence`'s three forms (`lib/race-stub.ts:11-16`); its one rendering caller, `RaceHubBody` (`components/RaceHubBody.tsx:193`), inside the stub `<p>` (`:186-199`) that carries the provenance line (`:194-198`); `isStub` (`:106-110`). Named and not counted: HO 750's legs (`scripts/diagnostic/harvest-yields-legs-750.ts:760`, `:772`) call it to check its forms.
+  - **3:** `DORMANT` (`lib/race-result.ts:171`) is returned before election day (`:182`), and `passed` is true after it (`:204`).
+  - **4:** the news clock is `Date.now()` (`app/race/[id]/page.tsx:33`), with `clockNowMs` imported (`:5`) and already read at `:95` and `:121`.
+- **The measurement** (a fresh copy, HEAD's build, today's clock; r1's seed at 19:58Z and r2's at 20:05Z read the same): **5 stub pages of 470.**
+  - *Incumbent running for re-election. No competitive rating yet.*: 4, MA-02, MA-05, MA-07 and WI-02, each box printing its incumbent alone;
+  - *No competitive rating yet.* alone: 1, FL-10, read `no_box` (its canceled general);
+  - *Open seat. Candidate filings forthcoming.*: none.
+
+**§ 1, the stub sentence** (`feat` `7da4ac9`).
+- **`RaceHubBody` prints `stubSentence` only while the result view's `passed` is false.** Past election day the stub `<p>` holds the provenance line alone, and with neither it doesn't render. `raceResultView` can't produce that state today: past election day it always gives a provenance line.
+- **Before election day nothing changes** (leg 0).
+
+**§ 2, the news ages' clock** (`fix` `dbb5cff`).
+- **`app/race/[id]/page.tsx` computes its one `nowMs` (HO 490) from `clockNowMs()`, not `Date.now()`.** On Production and every Preview the two are the same. On a `file:` copy, `CBT_CLOCK_NOW` now sets the news ages too.
+
+**The legs** (`diag` `eec7fdf`, `scripts/diagnostic/stub-sentence-legs-781.ts`): **r2, 18 PASS, 0 FAIL.**
+- **The seed** (r2, 20:05Z): the real `scripts/migrate.ts` against a `file:` template; 22 tables whole from prod by `SELECT`, `bills` and `member_votes` cut to the rated seats' members, and the newest 400 `cron_runs`; prod's fingerprint equal before and after. Two copies, one per build, each with its own sentinel.
+- **The builds:** HEAD's (`2ffc153`) and the tree's (`dbb5cff`), cold and secretless in scratch worktrees, exit 0 with no warning line.
+- **Leg 0, today's clock (no seam):**
+  - every race page's `<main>` equals HEAD's, the stub sentences included: 469 of 470 byte-identical as served, and S-KS differing only in a news age, the set-aside's one catch (its newest item was minutes old, so its label runs on the minute);
+  - each stub's paragraph is equal on both builds, 5 of 5, each with its sentence;
+  - each page read twice per server is equal to itself.
+- **The plants,** the same on each copy:
+  - MA-02's one printed row, McGovern's, marked (the decided stub);
+  - one news item for leg 2, on S-KS (M001198), observed two minutes before the plant (20:04:49Z);
+  - MA-05 is the undecided stub, and the census holds no open-seat stub, so that case is unread.
+- **Leg 1, Nov 4:**
+  - **MA-02:** both builds read *Decided · Nov 3, 2026* and *re-elected*. HEAD's prints the sentence above *Called by Ballotpedia · read Oct 13, 2026, 10:21 AM MT* (red); the tree's prints the line alone (green).
+  - **MA-05:** *Not yet called* on both. HEAD's prints the sentence; the tree's prints none, its *No call on Ballotpedia · read …* line kept.
+  - **The census:** no stub page on the tree prints a sentence, 5 of 5 keeping the provenance line; each stub page's `<main>` is HEAD's less its sentence (5 of 5), and every other page's equals HEAD's (465 of 465), the news ages aside.
+- **Leg 2, Nov 4:**
+  - on the tree, every news age on every race page reads against the set clock: 793 of 793 spans equal `formatRelativeAge(observed_at, Nov 4)`. On HEAD, all 793 read against the read's own time, and none equals the Nov 4 label;
+  - S-KS read twice 60s apart: the tree's byte-identical (*21d*, *21d*, *21d*, *23d* …), HEAD's planted item *2m* then *3m*;
+  - on the tree every race page read twice is equal to itself, with nothing set aside.
+- **Captures** (`docs/handoffs/781-artifacts/captures/`): MA-02 on the tree at 1440, at 430, and at 1440 with reduced motion, and HEAD's at 1440, eyeballed styled. The tree's news age reads *110d* at the Nov 4 clock, HEAD's *88d*.
+- **The run before it, named:** r1 read 17 PASS, 1 FAIL, the instrument's own. Its census filed a stub paragraph with no sentence under *other*, which the check counts as a printed sentence, so the tree's five sentence-less stubs failed it while its detail read 5 of 5 with no sentence. r2 gives them their own bucket, on a fresh seed. r1's other 17 checks passed, with S-KY as leg 2's page and every leg-0 page byte-identical as served.
+- **Clean-up:** the worktrees are removed, the checkout's `node_modules` is back to one link per file (0 of 15,152 multiply linked), and r1's copies are deleted (r2's kept).
+
+**Docs (HO 781):**
+- This block.
+- **backlog, 2+/2−:**
+  - **The stub-sentence line is struck** on the legs, Corey's ruling quoted.
+  - **The news-ages line is struck** on leg 2: at a set clock the tree's every race page read twice equals itself with nothing set aside. Leg 1's cross-build control still set the ages aside, since HEAD's build predates the fix.
+- **OPEN LOOPS reconciled:**
+  - open: 266 live / 349 struck (615), § OPEN LOOPS `:14-213` 65 / 120;
+  - close: **264 / 351 (615), § OPEN LOOPS `:14-213` 63 / 122**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - the handoff's sentence, a bullet of its own in the race page's result list: past election day a stub page shows no sentence, only its provenance line (HO 781, Corey's ruling);
+  - and four places the build made false or left short, named: the provenance bullet's *(and under a stub's sentence)*, the stub state's *single muted line*, HO 490's rule's *`const nowMs = Date.now()`*, and the clock seam's readers, which now include the race page's news ages.
+- **Also notes now run through HO 781.**
