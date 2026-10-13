@@ -108,6 +108,11 @@ export function RaceHubBody({
     ratings.length === 0 &&
     candidates.length === 0 &&
     runoffs.length === 0;
+  // HO 781 (Corey's ruling, 2026-10-12): past election day a stub page shows no
+  // sentence, only its provenance line, and with neither it renders nothing.
+  // Each of the three sentences goes stale on Nov 4. HO 750: "running for
+  // re-election" only when the ballot shows it (lib/race-stub.ts).
+  const stubLine = result.passed ? null : stubSentence(!!incumbent, incumbentOnBallot);
 
   return (
     <>
@@ -184,19 +189,19 @@ export function RaceHubBody({
       <RaceRunoffs runoffs={runoffs} />
 
       {isStub ? (
-        <p
-          className="mt-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-          style={{ color: "var(--text-muted)" }}
-        >
-          {/* HO 750: "running for re-election" only when the ballot shows it
-              (lib/race-stub.ts). */}
-          {stubSentence(!!incumbent, incumbentOnBallot)}
-          {result.provenance ? (
-            <span className="mt-2 block normal-case tracking-normal" data-result-provenance>
-              {result.provenance}
-            </span>
-          ) : null}
-        </p>
+        stubLine || result.provenance ? (
+          <p
+            className="mt-6 text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {stubLine}
+            {result.provenance ? (
+              <span className="mt-2 block normal-case tracking-normal" data-result-provenance>
+                {result.provenance}
+              </span>
+            ) : null}
+          </p>
+        ) : null
       ) : (
         <section
           className="mt-6 border"
