@@ -166,14 +166,24 @@ const HARVEST_FROM_WHERE = `
 // general_ballot_reads.status is `box` (curated or not, since HO 760), the
 // roster is the ballot's (lib/general-ballot.ts, HO 749), not the primary's:
 //   · candidates: on_ballot = 1 and write_in = 0, less the incumbent's row (the
-//     rule in lib/ballot-incumbent.ts). In a top-two or top-four state every
-//     one of them; otherwise those whose party is D or R. (HO 757: whether
+//     rule in lib/ballot-incumbent.ts). In a top-two or top-four state, and
+//     (HO 780) at a Louisiana jungle seat, every one of them; otherwise those
+//     whose party is D or R. (HO 757: whether
 //     race pages list third parties and independents was ruled C; the plan
 //     now also publishes every other printed row as `on_ballot`, below.)
 //   · status: `advanced` in a top-two or top-four state; otherwise `won_primary`
 //     when the same person was marked winner in a kept primary box on the page
 //     (primary_marked = 1), and `nominee` when not (a convention, a
 //     replacement, a canceled primary).
+//   · HO 780: a Louisiana jungle seat (the jungle rule's join, below) with a box
+//     read is planned as a top-two state is. Under Act 7 its Nov-3 contest is
+//     the "Nonpartisan primary" box, and a box it reads is the Dec-12 general,
+//     which prints that contest's two advancers whatever their parties: each
+//     publishes as `advanced`, where until HO 780 the D and R rows read
+//     `won_primary` and the rest `on_ballot`. Inferred, not measured: no
+//     Louisiana seat had a box when it was written. HO 747's saved pages label
+//     LA-05's Dec-5-2020 runoff "General election", after a "Nonpartisan
+//     primary election" box with two marked.
 //   · `withdrew`: primary_marked = 1, on_ballot = 0 and withdrawn = 1, so an
 //     advancer who left the ballot is shown leaving it (S-AK's Leslie) rather
 //     than vanishing. A runoff loser has none of these and is not published.
@@ -219,13 +229,17 @@ const HARVEST_FROM_WHERE = `
 //     `on_ballot`.
 // No race with a `box` read (the plan's, one JSON argument) is touched, as in
 // the primary-sourced half; since HO 760 a curated race is not skipped here
-// either.
-const JUNGLE_FROM_WHERE = `
-  FROM races r
+// either. Since HO 780 a jungle seat with a box read publishes from its box
+// (planBallotRoster, every printed row `advanced`): the box is the Dec-12
+// general, printing the two this rule would mark `advanced`.
+// HO 780: the join, shared with the plan's jungle seats.
+const JUNGLE_JOIN = `
   JOIN primaries p
     ON p.state = r.state AND p.chamber = r.chamber
    AND ( r.chamber = 'senate' OR CAST(p.district AS INTEGER) = r.district )
-   AND p.primary_type = 'jungle' AND p.election_round IS NOT 'runoff'
+   AND p.primary_type = 'jungle' AND p.election_round IS NOT 'runoff'`;
+const JUNGLE_FROM_WHERE = `
+  FROM races r${JUNGLE_JOIN}
   JOIN primary_candidates pc ON pc.primary_id = p.id
   WHERE r.cycle = ${CYCLE}
     AND ( pc.bioguide_id IS NULL OR pc.bioguide_id IS NOT r.incumbent_bioguide_id )
@@ -276,7 +290,7 @@ export function rosterPartyLetter(printed: string | null, ingestLetter: string |
 
 export async function planBallotRoster(db: Client): Promise<BallotPlan> {
   // One read transaction, so the reads and the rows are one snapshot.
-  const [racesRs, curatedRs, gbRs, boxRs] = await db.batch(
+  const [racesRs, curatedRs, gbRs, boxRs, jungleRs] = await db.batch(
     [
       {
         sql: `SELECT r.id, r.state, r.incumbent_bioguide_id, m.last_name
@@ -300,6 +314,8 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
       // A race with a box read but no rows (every person a write-in, say)
       // still has a box: it gets no ballot rows and no primary-sourced rows.
       { sql: `SELECT race_id FROM general_ballot_reads WHERE status = 'box'`, args: [] },
+      // HO 780: the cycle's jungle seats (Louisiana's House), by the jungle rule's join.
+      { sql: `SELECT DISTINCT r.id FROM races r${JUNGLE_JOIN} WHERE r.cycle = ?`, args: [CYCLE] },
     ],
     "read",
   );
@@ -343,6 +359,7 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
     (byRace.get(row.race_id) ?? byRace.set(row.race_id, []).get(row.race_id)!).push(row);
   }
   const boxRaces = new Set(boxRs!.rows.map((r) => String(r.race_id)));
+  const jungleRaces = new Set(jungleRs!.rows.map((r) => String(r.id)));
 
   const plan: BallotPlan = { rows: [], ballotRaces: [], boxRaces: [...boxRaces].sort(), incumbentRoutes: { identity: 0, "underline-surname": 0, none: 0 }, curatedHistoryKept: [], curatedRetired };
   for (const id of [...boxRaces].filter((x) => races.has(x)).sort()) {
@@ -353,7 +370,9 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
     // A top-two or top-four STATE, by the calendar's own sets, not by
     // primaries.primary_type: Washington's ten rows carry NULL there, and a
     // branch on the column would miss a whole top-two state (HO 750 review).
-    const tx = TOP_TWO_STATES.has(race.state) || TOP_FOUR_STATES.has(race.state);
+    // HO 780: or a Louisiana jungle seat, by the jungle rule's join (there the
+    // column is the override's own, never NULL): its box is the Dec-12 general.
+    const tx = TOP_TWO_STATES.has(race.state) || TOP_FOUR_STATES.has(race.state) || jungleRaces.has(id);
     const inScope = rows.filter(
       (r) => r.on_ballot === 1 && r.write_in === 0 && r !== inc?.row && (tx || r.party === "D" || r.party === "R"),
     );
@@ -372,7 +391,8 @@ export async function planBallotRoster(db: Client): Promise<BallotPlan> {
       });
     }
     // HO 757: the others on a party-primary state's ballot (ruled C). Top-two
-    // and top-four states already published everyone above.
+    // and top-four states, and (HO 780) a jungle seat's box, already published
+    // everyone above.
     if (!tx) {
       for (const r of rows) {
         if (r.on_ballot === 1 && r.write_in === 0 && r !== inc?.row && r.party !== "D" && r.party !== "R") {
@@ -518,7 +538,8 @@ export async function harvestChallengers(db: Client): Promise<HarvestResult> {
           ${HARVEST_FROM_WHERE}`,
     args: [runStamp, JSON.stringify(plan.boxRaces)],
   });
-  // 2b. HO 758: Louisiana's jungle seats, every candidate in the Nov-3 box.
+  // 2b. HO 758: Louisiana's jungle seats, every candidate in the Nov-3 box
+  //     (a seat with a box read is the plan's since HO 780, as every box race is).
   stmts.push({
     sql: `INSERT OR IGNORE INTO race_candidates
             (race_id, name, party, bioguide_id, status, source_url, updated_at)
