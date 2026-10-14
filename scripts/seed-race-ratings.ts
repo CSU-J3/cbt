@@ -1,7 +1,8 @@
 // Seeds third-party race ratings (handoffs 71 + 73). Globs every file
 // matching `data/race-ratings-*.json` and upserts each row keyed on
-// (race_id, source). Idempotent: re-running after editing any JSON is the
-// quarterly refresh workflow.
+// (race_id, source). A first fill for an empty table: it refuses a table that
+// has rows unless run with `--force` (HO 784), because its upsert would write
+// the snapshots over the synced ratings.
 // Cook's two files left the repo in HO 782 (SKILL, race_ratings); a fresh
 // database holds no Cook rows until Cook is wired.
 //
@@ -81,6 +82,17 @@ function displayName(source: string): string {
 async function main() {
   const db = getDb();
   const now = new Date().toISOString();
+
+  // HO 784: the guard, ahead of the seed files and of any write.
+  const existing = Number((await db.execute("SELECT COUNT(*) AS n FROM race_ratings")).rows[0]?.n ?? 0);
+  if (existing > 0 && !process.argv.includes("--force")) {
+    console.error(
+      `race_ratings has ${existing} rows; seed:ratings is a first fill for an empty table and would write its snapshots over the synced ratings. Re-run with --force to do it anyway.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const seeds = readSeedFiles();
 
   if (seeds.length === 0) {
