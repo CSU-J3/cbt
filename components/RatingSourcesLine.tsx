@@ -44,9 +44,11 @@ export function RatingSourcesLine({
         const f = freshness[s];
         return (
           <Fragment key={s}>
-            <span aria-hidden className="mx-1.5" style={{ color: "var(--text-dim)" }}>
+            {/* The spaces sit outside the hidden dot, so a screen reader and a copy
+                still part the words. */}{" "}
+            <span aria-hidden style={{ color: "var(--text-dim)" }}>
               ·
-            </span>
+            </span>{" "}
             <span data-rater={s}>
               {page ? (
                 <a
