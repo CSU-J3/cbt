@@ -6559,3 +6559,101 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the two replacements, verbatim. The `race_ratings` schema comment (`:365-366`) now says the sync writes the rows and the seed is a first fill. The bullet that called the seed files the source of truth (`:2947`) is now *Race ratings are synced, not hand-seeded (HO 88, HO 770)*.
 - **Also notes now run through HO 782.**
+
+**Also (HO 783), the general runoff box: the reader stores a race's *General runoff election* box, and its mark decides the seat on every reader, Georgia's Dec 1 and Louisiana's Dec 12 if it's labelled so. It opens with HOs 781 and 782's FF go as taken.**
+- **What's here:**
+  - HOs 781 and 782's FF go as taken;
+  - Corey's choice;
+  - STEP 0, with its measurements;
+  - the prod migration;
+  - § 1, the reader, and § 2, the readers;
+  - legs 0 to 4.
+- **Five commits, kinds unmixed:** `feat` (the migration and § 1) · `feat` (§ 2) · `diag` · `docs` · `docs(skill)` alone and last.
+- **One prod write, the migration,** before the review push (method.md, HO 754's rule). Otherwise prod was read by `SELECT` only: the read-back and the seed.
+- **The pointer is 783:** pointer 782, highest HO in commit subjects 782, `main` at `4d73ca7`.
+
+**HOs 781 and 782's FF go, as taken** (`docs/handoffs/782-artifacts/ff/paste-781-782-ff.md`).
+- **The FF:**
+  - immediately before it, the cold build (21:00:27-58Z, exit 0, *Compiled successfully in 9.1s*, no warning line) and the cheap gates (green);
+  - then `2ffc153..4d73ca7`, 8 commits, 781's five and 782's three, no force (21:01:12Z). The classifier didn't block it;
+  - `781-review` and `782-review` deleted, remote and local, and `main` reads `4d73ca79dc8b…`.
+- **`verify:deploy`, in the foreground:** matched at 31s, five consecutive reads at 73s.
+- **The Production build,** `dpl_EvjD9fEFMZcajo3hYuNfk4tsXmtd` (`bld_kp1be19fs`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 21:01:16.787Z. It compiled in 8.9s and went READY at 21:02:01.601Z. Its log, read whole in two windows, held no Next warning line.
+- **Vercel's records came at most 1s after READY:** Production's (7049997553) at 21:02:02Z against 21:02:01.601Z, and HO 782's review Preview's (7049725779) at 20:48:25Z against 20:48:25.080Z.
+- **`e2e-prod`:** the Production record fired #38467503450 (21:02:04Z): `smoke` **141 passed (5.6m)**, all 39 crawl lines clean. Nothing was dispatched.
+- **No flush:** the stub's gate and the news clock are both render-time.
+- **Reading 1, Cook's files gone from `main`** (21:03:27Z): both answer **404** on `raw.githubusercontent.com/CSU-J3/cbt/main` (`X-Cache: MISS`), a Sabato control answers 200, and `git ls-tree origin/main data` lists four `race-ratings-*.json` files. Corey sends his reply on this reading.
+- **Reading 2, the stub sentence still up today** (21:03:39Z): `/race/MA-02-2026` on Production, serving `4d73ca7`, prints *Incumbent running for re-election. No competitive rating yet.* under *21 days to election*, with no provenance line.
+
+**Corey's choice, 2026-10-13** (from four): *"Georgia runoff reading (Recommended)"*, the backlog's general-runoff line (HO 780, dated before Tuesday 2026-12-01).
+
+**STEP 0** (a check, HO 768's rule), 2026-10-14 00:22Z at `4d73ca7`: **all six hold.**
+- **1:** `main` is `4d73ca7`, its Production `smoke` passed (#38467503450), and both Cook files answer 404 on `main`.
+- **2:** `boxKind` gives a primary runoff and a general runoff the one `runoff` kind (`lib/general-ballot.ts:175`). `PageModel` keeps `general`, `primaries` and `outsideGeneral` (`:146`, `:313`), `pageResult` reads `model.general` only (`:563-565`), and `writeRace` (`:710`) writes `general_ballot` (`:689`) and `general_ballot_reads` (`:695`) only.
+- **3:** the scrape drops a general runoff box (`lib/primary-candidates-scrape.ts:379-384`, the drop at `:405`).
+- **4:** `resultFromRows` reads two or more marks in the general box as a runoff (`lib/race-result.ts:98`, `:127`). The runoff label dates only from the jungle row (`:186`), and `decidedOn` is the jungle's runoff date only (`:130`, `:188-189`).
+- **5:** the four readers of a result read `general_ballot`'s marks only: `getRaceRoster`, `getElectionResults`, the qualifier's outcome, and `readRaceResults`, which hands its rows to `resultFromRows`. Named and not counted:
+  - `lib/pac-target-status.ts:214-225` builds a `why` from the box's marks, past election day (*decided* or *a runoff*), but its one caller keeps `.status` alone (`lib/queries.ts:2656`), and a printed row's status is `active` marked or not;
+  - `lib/electoral-general.ts:182` selects `marked` and never uses it.
+- **6:** georgia.gov's *Election Day - General Election Runoff* page lists **December 1, 2026**; Nov 3 plus 28 days is Dec 1, a Tuesday.
+- **The measurements,** over HO 747's saved pages (470 races, the latest page each; `step0-runoff-h5.txt`):
+  - **5 `<h5>` say *runoff* and not *primary*, all outside the 2026 section:**
+    - S-GA's two *General runoff election for U.S. Senate Georgia* (Dec 6, 2022; Jan 5, 2021);
+    - GA-05's and TX-18's *Special general runoff election* (Dec 1, 2020; Jan 31, 2026);
+    - NM-01's *Special Democratic convention runoff* (Mar 31, 2021), which says no *general*.
+  - **Every such box prints its date** in its results text (*"… on December 6, 2022."*), and the heading above it doesn't. A pending 2026 box prints its date too (*"… are running in the general election … on November 3, 2026."*), so the box's own date is preferred where it prints one.
+
+**The prod migration** (before the review push): `npm run migrate` on prod, 2026-10-14 00:29:07-00:29:24Z, exit 0. It printed `ok: CREATE TABLE IF NOT EXISTS general_runoff (` and `migration complete`. Read back by `SELECT` at 00:29:38Z: the table's 11 columns as written, `PRIMARY KEY (race_id, person_key)` with its automatic index, and 0 rows.
+
+**§ 1, the reader** (`feat` `a2c97d5`).
+- **`general_runoff`** (`scripts/migrate.ts`): one row per person in a race's 2026 general runoff box, keyed on race and person. Its columns are race, person key, name, party, bioguide by identity (as `general_ballot` takes it), `marked`, `on_ballot`, box prefix and read time, plus two more:
+  - `incumbent_marked`, the box's underline, which the incumbent rule reads;
+  - `box_date`, the date the box prints.
+- **The read** (`lib/general-ballot.ts`): a box in the 2026 section whose `<h5>` says *general* and *runoff* and not *primary* is a kind of its own, `general-runoff`.
+  - Every READ stores the race's one such box, replaced whole in the same batch as the general box and before the reads stamp, whatever the general box's status, so a Louisiana seat read `no_box` keeps its runoff rows.
+  - None stores nothing. Two store nothing, and the run's payload names the race (`runoffAmbiguous`), as it names each stored box (`runoffBoxes`).
+  - Each box carries the date its results text prints.
+  - A READ write without a runoff part (HO 749's and HO 751's legs, which build their own) leaves `general_runoff` alone.
+
+**§ 2, the readers** (`feat` `a86a287`).
+- **`resultFromRows`** (`lib/race-result.ts`) takes the race's runoff rows, and where the race is.
+  - **One marked printed row decides the race.** The header reads *Decided* on the runoff's date, that row is the mark, and the incumbent reads *re-elected* or *defeated* by their own runoff row.
+  - **No mark keeps the runoff:** the general box's two marks, or Louisiana's jungle winners, stay its advancers.
+  - **The runoff's date (`runoffOn`)** is the one the box prints, else Louisiana's jungle row's, else Georgia's, 28 days after election day. So a Georgia race whose general box reads two marks reads *Runoff Dec 1* before any runoff box exists.
+  - The race page's read and `/electoral`'s batched read both fetch the rows.
+- **The roster, the band and the tag take the same rule:**
+  - `getRaceRoster`'s *Elected* comes from the runoff box's one mark;
+  - `getElectionResults` counts a race decided in its runoff by that mark, and no longer by its general box or jungle;
+  - a `senate` or `moved` tag whose race is decided in its runoff reads ELECTED or LOST by that mark.
+- **Every race without runoff rows reads as before** (leg 4).
+
+**The legs** (`diag` `aaf4393`, `scripts/diagnostic/general-runoff-legs-783.ts`): **r1, leg 0 4 PASS and legs 1-4 18 PASS, 0 FAIL.**
+- **The seed** (00:39Z): the real `scripts/migrate.ts` (so `general_runoff` exists, empty) against a `file:` template; 22 tables whole from prod by `SELECT`, `bills` and `member_votes` cut, the newest 400 `cron_runs`; prod's fingerprint, `general_runoff` included, equal before and after. Three copies: HEAD's, the tree's and leg 0's.
+- **The builds:** HEAD's (`4d73ca7`) and the tree's (`a86a287`), cold and secretless in scratch worktrees, exit 0 with no warning line.
+- **Leg 0, the reader** (the tree's `runGeneralBallot` and its real write, through a fetch shim). The template is S-GA's own 2022 *General runoff election* box, spliced into HO 747's saved pages:
+  - **S-GA,** its general box's two advancers marked: it stores two runoff rows, Collins marked, dated 2026-12-01, both identified, Ossoff underlined, and its general rows (7, two marked) equal the same page's without the box;
+  - **two runoff boxes** store nothing, and the payload names S-GA;
+  - **LA-01,** with no general box, stays `no_box` and keeps its runoff rows (Jewett marked, 2026-12-12).
+- **Leg 1, Nov 5** (S-GA's general box marking Ossoff and Collins):
+  - S-GA reads *Runoff* on HEAD (red) and ***Runoff Dec 1*** on the tree, its incumbent's card *runoff Dec 1* (green);
+  - GA-10's tag reads IN THE SENATE RUNOFF on both.
+- **Leg 2, Dec 2** (S-GA's runoff rows marking Collins):
+  - **HEAD (red):** *Runoff*, no *Elected*, GA-10's tag IN THE SENATE RUNOFF, `/electoral`'s chip RUNOFF, and the band *0 of 99 competitive seats called*;
+  - **the tree (green):** ***Decided · Dec 1, 2026***, *Elected* on Collins's row alone, Ossoff *defeated*, GA-10's tag ELECTED TO THE SENATE, the chip R GAIN, and the band *1 of 99*.
+- **Leg 3, Dec 13** (LA-01, read `no_box`, two jungle winners, runoff rows marking Jewett): HEAD reads *Runoff Dec 12*; the tree ***Decided · Dec 12, 2026***, *Elected* on Jewett's row.
+- **Leg 4, the control at Dec 2:** every other race page's `<main>`, 468 of 468, is byte-identical to HEAD's with **nothing set aside** (795 news-age spans), and each page read twice equals itself on both servers. Both builds carry HO 781's clock, so this is the news-ages line's *Close* read in practice.
+- **Captures** (`docs/handoffs/783-artifacts/captures/`): S-GA at Nov 5 and at Dec 2, on the tree at 1440, at 430 and at 1440 with reduced motion, and HEAD's at 1440, eyeballed styled.
+- **Clean-up:** the worktrees are removed, and the checkout's `node_modules` is back to one link per file (0 of 15,152 multiply linked).
+
+**Docs (HO 783):**
+- This block.
+- **backlog, 3+/2−:**
+  - **The general-runoff line is struck** on the legs.
+  - **The `seed:ratings` line is filed at the top** (HO 782's note 5; *Owner:* Code, low): run against a live database, the seed would write its January-to-May snapshots over the synced rows.
+  - **The WATCH (HO 758) line's reads** gain Georgia's: any race whose general box reads two marks on Nov 4 should read *Runoff Dec 1*.
+- **OPEN LOOPS reconciled:**
+  - open: 265 live / 351 struck (616), § OPEN LOOPS `:14-214` 64 / 122;
+  - close: **265 / 352 (617), § OPEN LOOPS `:14-215` 64 / 123**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:** the general runoff added where SKILL describes the reader and its tables, and every sentence the build made false rewritten (named in the paste).
+- **Also notes now run through HO 783.**
