@@ -1302,6 +1302,39 @@ const statements = [
     -- 'READ', 'UNREAD' or 'NO_PAGE'.
     last_attempt TEXT NOT NULL
   )`,
+  // HO 783 — the race's 2026 general RUNOFF box, written by lib/general-ballot.ts
+  // in the same READ, and the same batch, as the general box. Georgia's general
+  // goes to a runoff when no candidate takes a majority (Dec 1, 28 days after
+  // election day): Ballotpedia marks both advancers in the general box and posts
+  // the runoff as a box of its own, "General runoff election for …". Louisiana's
+  // Dec 12 lands here too if Ballotpedia labels it so. One row per person, keyed
+  // as general_ballot is. Replaced whole on every READ: one box stores its rows,
+  // none or two store nothing. The race page, /electoral, the band, the roster's
+  // Elected and the incumbent tag read its marks: one marked printed row decides
+  // the race (lib/race-result.ts resultFromRows).
+  `CREATE TABLE IF NOT EXISTS general_runoff (
+    race_id TEXT NOT NULL,
+    person_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    -- One letter, as general_ballot.party reads it.
+    party TEXT,
+    -- The box's underline (<u>), which the incumbent rule reads
+    -- (lib/ballot-incumbent.ts).
+    incumbent_marked INTEGER NOT NULL DEFAULT 0,
+    -- A row of the box's results table; 0 for a withdrawn-only entry.
+    on_ballot INTEGER NOT NULL DEFAULT 0,
+    -- The box's winner mark.
+    marked INTEGER NOT NULL DEFAULT 0,
+    -- BY IDENTITY ONLY, as general_ballot.bioguide_id.
+    bioguide_id TEXT,
+    -- The box's <h5> before " for " ("General runoff election").
+    box_prefix TEXT NOT NULL,
+    -- The date the box prints ("… on December 1, 2026."), ISO, else NULL. Every
+    -- runoff box on HO 747's saved pages prints one.
+    box_date TEXT,
+    read_at TEXT NOT NULL,
+    PRIMARY KEY (race_id, person_key)
+  )`,
 ];
 
 async function ensureColumn(

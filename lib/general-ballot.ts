@@ -127,7 +127,10 @@ export type Row = {
 // withdrawn incumbent's entry carries Ballotpedia's <u> like a ballot row.
 export type WithdrawnEntry = { name: string; href: string | null; key: string | null; token: string | null; underlined: boolean };
 export type Withdrawn = { heading: string; entries: WithdrawnEntry[] };
-export type BoxKind = "general" | "primary-kept" | "primary-dropped" | "runoff" | "unrecognized";
+// HO 783: "general-runoff", a box whose <h5> says "general" and "runoff" and not
+// "primary" (Georgia's Dec 1: "General runoff election for U.S. Senate Georgia").
+// Until HO 783 it was a `runoff` like a primary runoff, and nothing stored it.
+export type BoxKind = "general" | "general-runoff" | "primary-kept" | "primary-dropped" | "runoff" | "unrecognized";
 export type Contest = "D" | "R" | "open";
 export type Box = {
   offset: number;
@@ -142,6 +145,9 @@ export type Box = {
   noLinkRows: string[];
   withdrawn: Withdrawn | null;
   marked: number;
+  // HO 783: the date the box's results text prints ("… on December 1, 2026."),
+  // ISO, else null. Every runoff box on HO 747's saved pages prints one.
+  date: string | null;
 };
 export type PageModel = {
   title: string;
@@ -149,6 +155,9 @@ export type PageModel = {
   section: { start: number; end: number } | null;
   sectionBoxes: Box[];
   general: Box[];
+  // HO 783: the section's general runoff boxes (one is stored, none or two store
+  // nothing: runoffResult).
+  generalRunoff: Box[];
   primaries: Box[];
   outsideGeneral: Box[];
 };
@@ -158,10 +167,15 @@ export type PageModel = {
 // parseCandidatesPage's own rule for `candidates`, so `primary-kept` is exactly
 // the set of boxes the ingest reads as a first round. A primary-runoff box is
 // `runoff` here; since HO 761 the ingest reads it too, into `runoffs`, so
-// `primary_marked` still reads the first round.
+// `primary_marked` still reads the first round. HO 783: a GENERAL runoff box
+// ("general" and "runoff", not "primary") is a kind of its own, which the reader
+// stores (runoffResult).
 function boxKind(h5: string, cls: string): { kind: BoxKind; contest: Contest | null } {
   if (/general election/i.test(h5) && !/primary/i.test(h5) && !/runoff/i.test(h5)) {
     return { kind: "general", contest: null };
+  }
+  if (/general/i.test(h5) && /runoff/i.test(h5) && !/primary/i.test(h5)) {
+    return { kind: "general-runoff", contest: null };
   }
   let contest: Contest | null = cls.includes("democratic")
     ? "D"
@@ -175,6 +189,15 @@ function boxKind(h5: string, cls: string): { kind: BoxKind; contest: Contest | n
   if (/runoff/i.test(h5)) return { kind: "runoff", contest };
   if (/primary/i.test(h5)) return { kind: "primary-dropped", contest };
   return { kind: "unrecognized", contest };
+}
+
+// HO 783: "… on December 1, 2026." in the box's results text, as an ISO date.
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function printedDate(slice: string): string | null {
+  const text = stripTags(slice.match(/<p class="results_text">([\s\S]*?)<\/p>/)?.[1] ?? "");
+  const m = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})\b/);
+  if (!m) return null;
+  return `${m[3]}-${String(MONTHS.indexOf(m[1]!) + 1).padStart(2, "0")}-${m[2]!.padStart(2, "0")}`;
 }
 
 function readBox(slice: string, offset: number, cls: string, inSection: boolean): Box {
@@ -270,6 +293,7 @@ function readBox(slice: string, offset: number, cls: string, inSection: boolean)
     noLinkRows,
     withdrawn,
     marked,
+    date: printedDate(slice),
   };
 }
 
@@ -297,6 +321,7 @@ export function readPageModel(html: string): PageModel {
       section: null,
       sectionBoxes: [],
       general: [],
+      generalRunoff: [],
       primaries: [],
       outsideGeneral: all.filter((b) => b.kind === "general"),
     };
@@ -311,6 +336,7 @@ export function readPageModel(html: string): PageModel {
     section: { start: anchor, end },
     sectionBoxes,
     general: sectionBoxes.filter((b) => b.kind === "general"),
+    generalRunoff: sectionBoxes.filter((b) => b.kind === "general-runoff"),
     primaries: sectionBoxes.filter((b) => b.kind === "primary-kept"),
     outsideGeneral: outside.filter((b) => b.kind === "general"),
   };
@@ -641,9 +667,66 @@ export function pageResult(raceId: string, model: PageModel, identity: Identity,
   return { status: "box", box, rows, folded };
 }
 
+// HO 783 — THE GENERAL RUNOFF BOX. A general that goes to a runoff (Georgia's,
+// Dec 1, when no candidate takes a majority) shows its two advancers marked in
+// the general box, and Ballotpedia posts the runoff as a box of its own in the
+// 2026 section. Exactly one such box is stored, one row per person as the
+// general box's are (the person key, identity, the underline, the box's mark,
+// a withdrawn-only entry on_ballot 0), with the date the box prints. None
+// stores nothing; two store nothing and the run names the race. Read whatever
+// the general box's status, so a Louisiana seat read `no_box` keeps its runoff.
+export type RunoffRow = {
+  race_id: string;
+  person_key: string;
+  name: string;
+  party: string | null;
+  incumbent_marked: number;
+  on_ballot: number;
+  marked: number;
+  bioguide_id: string | null;
+  box_prefix: string;
+  box_date: string | null;
+  read_at: string;
+};
+export type RunoffResult = { status: "box" | "none" | "ambiguous"; rows: RunoffRow[] };
+export function runoffResult(raceId: string, model: PageModel, identity: Identity, readAt: string): RunoffResult {
+  if (model.generalRunoff.length === 0) return { status: "none", rows: [] };
+  if (model.generalRunoff.length > 1) return { status: "ambiguous", rows: [] };
+  const box = model.generalRunoff[0]!;
+  const row = (key: string, name: string, party: string | null, underlined: boolean, onBallot: number, marked: number): RunoffRow => ({
+    race_id: raceId,
+    person_key: key,
+    name,
+    party,
+    incumbent_marked: underlined ? 1 : 0,
+    on_ballot: onBallot,
+    marked,
+    bioguide_id: identity.get(key) ?? null,
+    box_prefix: box.prefix,
+    box_date: box.date,
+    read_at: readAt,
+  });
+  const rows: RunoffRow[] = [];
+  const seen = new Set<string>();
+  for (const r of box.rows) {
+    if (!r.key || seen.has(r.key)) continue;
+    seen.add(r.key);
+    rows.push(row(r.key, r.name, r.printedParty ?? r.party, r.underlined, 1, r.winner ? 1 : 0));
+  }
+  for (const w of box.withdrawn?.entries ?? []) {
+    if (!w.key || seen.has(w.key)) continue;
+    seen.add(w.key);
+    const token = w.token ? decodeEntities(w.token) : null;
+    rows.push(row(w.key, w.name, token ? partyLetter(token.split("/")[0]!) : null, w.underlined, 0, 0));
+  }
+  return { status: "box", rows };
+}
+
 // ── writes ─────────────────────────────────────────────────────────────────
 // One race, one `db.batch` transaction, `general_ballot_reads` stamped LAST:
 //   READ with a box            delete the race's rows, insert the new set, stamp.
+//   READ, any status (HO 783)  the race's general runoff rows likewise: deleted,
+//                              and the one box's rows inserted.
 //   READ, no box or ambiguous  delete the race's rows, stamp the verdict.
 //   UNREAD or NO_PAGE          touch only last_attempt_at / last_attempt; the
 //                              rows and the last READ stay as they were, so an
@@ -651,7 +734,9 @@ export function pageResult(raceId: string, model: PageModel, identity: Identity,
 // Plain INSERT, not OR IGNORE: a repeated key throws and the whole batch rolls
 // back, leaving the race's previous rows in place.
 export type RaceWrite =
-  | { verdict: "READ"; status: BallotStatus; rows: BallotRow[]; marked: number; url: string }
+  // HO 783: `runoff` is the READ's general runoff box. The run always passes it;
+  // a write without it (a caller that predates it) leaves general_runoff alone.
+  | { verdict: "READ"; status: BallotStatus; rows: BallotRow[]; marked: number; url: string; runoff?: RunoffResult }
   | { verdict: "UNREAD" | "NO_PAGE" };
 const COLS = [
   "race_id",
@@ -673,6 +758,19 @@ const COLS = [
   // database fails both.
   "marked",
 ] as const;
+const RUNOFF_COLS = [
+  "race_id",
+  "person_key",
+  "name",
+  "party",
+  "incumbent_marked",
+  "on_ballot",
+  "marked",
+  "bioguide_id",
+  "box_prefix",
+  "box_date",
+  "read_at",
+] as const;
 export function raceWriteStatements(raceId: string, w: RaceWrite, at: string): InStatement[] {
   if (w.verdict !== "READ") {
     return [
@@ -691,6 +789,16 @@ export function raceWriteStatements(raceId: string, w: RaceWrite, at: string): I
       sql: `INSERT INTO general_ballot (${COLS.join(", ")}) VALUES (${COLS.map(() => "?").join(", ")})`,
       args: COLS.map((c) => r[c]),
     })),
+    // HO 783: needs general_runoff (scripts/migrate.ts) on the database first.
+    ...(w.runoff
+      ? [
+          { sql: `DELETE FROM general_runoff WHERE race_id = ?`, args: [raceId] },
+          ...w.runoff.rows.map((r) => ({
+            sql: `INSERT INTO general_runoff (${RUNOFF_COLS.join(", ")}) VALUES (${RUNOFF_COLS.map(() => "?").join(", ")})`,
+            args: RUNOFF_COLS.map((c) => r[c]),
+          })),
+        ]
+      : []),
     {
       sql: `INSERT INTO general_ballot_reads
               (race_id, status, read_at, rows, marked, source_url, last_attempt_at, last_attempt)
@@ -756,6 +864,10 @@ export type RunResult = {
   unread: { race: string; cause: string | null }[];
   noPage: string[];
   ambiguous: string[];
+  // HO 783: the races whose READ stored a general runoff box, and those whose
+  // section held two (nothing stored).
+  runoffBoxes: string[];
+  runoffAmbiguous: string[];
   noLinkRows: number;
   folded: Folded;
   pauses: number;
@@ -801,6 +913,8 @@ function emptyRun(mode: RunResult["mode"]): RunResult {
     unread: [],
     noPage: [],
     ambiguous: [],
+    runoffBoxes: [],
+    runoffAmbiguous: [],
     noLinkRows: 0,
     folded: { merged: 0, repeated: 0, noKey: 0 },
     pauses: 0,
@@ -868,6 +982,9 @@ export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promi
       const pr = pageResult(race.id, model, identity, at);
       res.statuses[pr.status]++;
       if (pr.status === "ambiguous") res.ambiguous.push(race.id);
+      const rr = runoffResult(race.id, model, identity, at);
+      if (rr.status === "box") res.runoffBoxes.push(race.id);
+      if (rr.status === "ambiguous") res.runoffAmbiguous.push(race.id);
       const marked = pr.box?.marked ?? 0;
       res.noLinkRows += pr.box?.noLinkRows.length ?? 0;
       if (pr.folded) {
@@ -877,7 +994,7 @@ export async function runGeneralBallot(db: Client, opts: RunOptions = {}): Promi
       }
       res.rowsRead += pr.rows.length;
       line = { ...line, status: pr.status, rows: pr.rows.length, marked, folded: pr.folded };
-      w = { verdict: "READ", status: pr.status, rows: pr.rows, marked, url: reading.url };
+      w = { verdict: "READ", status: pr.status, rows: pr.rows, marked, url: reading.url, runoff: rr };
     } else {
       if (reading.verdict === "UNREAD") res.unread.push({ race: race.id, cause: reading.cause });
       if (reading.verdict === "NO_PAGE") res.noPage.push(race.id);
@@ -970,7 +1087,8 @@ export async function generalBallotTick(
   console.log(
     `[general-ballot] attempted=${r.attempted} READ=${r.verdicts.READ} UNREAD=${r.verdicts.UNREAD} ` +
       `NO_PAGE=${r.verdicts.NO_PAGE} box=${r.statuses.box} no_box=${r.statuses.no_box} ` +
-      `ambiguous=${r.statuses.ambiguous} rowsWritten=${r.rowsWritten} stop=${r.stop} ` +
+      `ambiguous=${r.statuses.ambiguous} runoffBoxes=${r.runoffBoxes.length} runoffAmbiguous=${r.runoffAmbiguous.length} ` +
+      `rowsWritten=${r.rowsWritten} stop=${r.stop} ` +
       `requests=${r.requests} minGapMs=${r.minGapMs}`,
   );
   // An UNREAD is the wall, or the page changing shape under us. Either is worth
