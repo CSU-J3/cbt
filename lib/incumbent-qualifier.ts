@@ -100,6 +100,8 @@ export type QualifierRace = {
   readStatus: string | null;
 };
 export type QualifierBallotRow = BallotPerson & { race_id: string; withdrawn: number; marked: number };
+// HO 783: a race's general runoff row (general_runoff), for a tag's outcome.
+export type QualifierRunoffRow = { race_id: string; bioguide_id: string | null; on_ballot: number; marked: number };
 export type QualifierRaceRef = { state: string; chamber: string; readStatus?: string | null };
 // `trusted`: the page itself ties the row to the member, by identity (its
 // person_key is the member's own title key) or by its underline (HO 773).
@@ -123,6 +125,8 @@ export function readQualifier(
   ballotByBioguide: Map<string, QualifierBallotRow[]>,
   primariesByBioguide: Map<string, QualifierPrimaryRow[]>,
   governorRuns: GovernorRun[] = GOVERNOR_RUNS,
+  // HO 783: each race's general runoff rows.
+  runoffByRace: Map<string, QualifierRunoffRow[]> = new Map(),
 ): QualifierReading | null {
   const bio = race.incumbentBioguideId;
   if (bio == null || race.readStatus !== "box") return null;
@@ -143,6 +147,9 @@ export function readQualifier(
   if ((primariesByBioguide.get(bio) ?? []).some((p) => p.decided && p.status !== "winner" && (p.trusted || tokenCheck(p.name, member).ok))) reasons.push("lost_primary");
   // HO 779: the outcome in the race they're printed in, by its marks.
   const outcomeIn = (raceId: string): TagOutcome | undefined => {
+    // HO 783: a race decided in its general runoff, by that box's one mark.
+    const won = (runoffByRace.get(raceId) ?? []).filter((g) => g.on_ballot === 1 && g.marked === 1);
+    if (won.length === 1) return won[0]!.bioguide_id === bio ? "elected" : "lost";
     if (races.get(raceId)?.readStatus !== "box") return undefined;
     const marked = (ballotByRace.get(raceId) ?? []).filter((g) => g.on_ballot === 1 && g.marked === 1);
     if (marked.length === 0) return undefined;
@@ -167,7 +174,7 @@ export function readQualifier(
 // The cycle's readings in one batch (the compact surfaces print every rated
 // seat at once, so a per-race read would be a cache entry per row).
 export async function readIncumbentQualifierReadings(db: Client, cycle: number): Promise<Map<string, QualifierReading>> {
-  const [racesRs, ballotRs, primaryRs] = await db.batch(
+  const [racesRs, ballotRs, primaryRs, runoffRs] = await db.batch(
     [
       {
         sql: `SELECT r.id, r.state, r.chamber, r.incumbent_bioguide_id, r.incumbent_running,
@@ -193,6 +200,12 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
                WHERE c.bioguide_id IN (SELECT incumbent_bioguide_id FROM races WHERE cycle = ? AND incumbent_bioguide_id IS NOT NULL)
                  AND substr(p.primary_date, 1, 4) = ?`,
         args: [cycle, String(cycle)],
+      },
+      {
+        sql: `SELECT ro.race_id, ro.bioguide_id, ro.on_ballot, ro.marked
+                FROM general_runoff ro JOIN races r ON r.id = ro.race_id
+               WHERE r.cycle = ?`,
+        args: [cycle],
       },
     ],
     "read",
@@ -240,9 +253,14 @@ export async function readIncumbentQualifierReadings(db: Client, cycle: number):
     };
     (primariesByBioguide.get(row.bioguide_id) ?? primariesByBioguide.set(row.bioguide_id, []).get(row.bioguide_id)!).push(row);
   }
+  const runoffByRace = new Map<string, QualifierRunoffRow[]>();
+  for (const g of runoffRs!.rows) {
+    const row: QualifierRunoffRow = { race_id: String(g.race_id), bioguide_id: str(g.bioguide_id), on_ballot: Number(g.on_ballot), marked: Number(g.marked ?? 0) };
+    (runoffByRace.get(row.race_id) ?? runoffByRace.set(row.race_id, []).get(row.race_id)!).push(row);
+  }
   const out = new Map<string, QualifierReading>();
   for (const race of races) {
-    const reading = readQualifier(race, byId, ballotByRace, ballotByBioguide, primariesByBioguide);
+    const reading = readQualifier(race, byId, ballotByRace, ballotByBioguide, primariesByBioguide, GOVERNOR_RUNS, runoffByRace);
     if (reading) out.set(race.id, reading);
   }
   return out;

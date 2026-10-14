@@ -1911,7 +1911,8 @@ export type RosterCandidate = Omit<RaceCandidate, "party"> & {
   // Nov-3 box, never either of a runoff's two), and when the mark was read. The
   // page shows the mark only once election day has passed. HO 780: a Louisiana
   // seat's ballot-sourced rows take the jungle box's mark until its box (the
-  // Dec-12 general) carries one.
+  // Dec-12 general) carries one. HO 783: a race with a general runoff box takes
+  // that box's one mark, and no other.
   marked: boolean;
   read_at: string | null;
 };
@@ -2026,7 +2027,7 @@ export const getRaceRoster = unstable_cache(
     // within a race (S-AK-2026 prints the senator and a second Dan Sullivan), so
     // a ballot row is matched on name AND bioguide (the identity HO 750 copied
     // into race_candidates), and no join can multiply a roster row.
-    const [rs, gbRs, jungleRs] = await db.batch(
+    const [rs, gbRs, jungleRs, roRs] = await db.batch(
       [
         {
           sql: `SELECT race_id, name, party, bioguide_id, status, source_url, printed_party
@@ -2063,6 +2064,11 @@ export const getRaceRoster = unstable_cache(
                WHERE r.id = ?`,
           args: [raceId],
         },
+        {
+          // HO 783: the race's general runoff box, its printed rows.
+          sql: `SELECT name, bioguide_id, marked, read_at FROM general_runoff WHERE race_id = ? AND on_ballot = 1`,
+          args: [raceId],
+        },
       ],
       "read",
     );
@@ -2076,6 +2082,11 @@ export const getRaceRoster = unstable_cache(
     // (lib/race-result.ts resultFromRows); until then the marks are its jungle
     // box's, as with no box, so a Nov-3 winner on an unmarked box reads Elected.
     const boxDecides = jungle.length === 0 || ballotRows.some((b) => b.marked);
+    // HO 783: a race with a general runoff box: its one marked row is the result
+    // (lib/race-result.ts resultFromRows), the general box's two marks only its
+    // advancers; with none marked, no row reads Elected.
+    const runoffRows = roRs!.rows.map((g) => ({ name: String(g.name), bioguide: g.bioguide_id == null ? null : String(g.bioguide_id), marked: Number(g.marked ?? 0) === 1, readAt: g.read_at == null ? null : String(g.read_at) }));
+    const runoffOne = runoffRows.filter((b) => b.marked).length === 1;
     // A curated row may print differently from the ballot (S-ME's curated "Troy
     // Jackson", the ballot's "Troy Dale Jackson", until HO 760 retired it): without
     // an exact match, the one ballot row with the same first and last name. Since
@@ -2090,6 +2101,8 @@ export const getRaceRoster = unstable_cache(
       const byName = ballot.filter((b) => firstLast(b.name) === firstLast(name));
       const g = boxDecides ? (ballot.find((b) => b.name === name && b.bioguide === bioguide) ?? (byName.length === 1 ? byName[0]! : null)) : null;
       const j = g ? null : (jungle.find((x) => x.name === name) ?? null);
+      const roByName = runoffRows.filter((b) => firstLast(b.name) === firstLast(name));
+      const ro = runoffRows.find((b) => b.name === name && b.bioguide === bioguide) ?? (roByName.length === 1 ? roByName[0]! : null);
       return {
         race_id: r.race_id as string,
         name,
@@ -2098,8 +2111,8 @@ export const getRaceRoster = unstable_cache(
         status: (r.status as string | null) ?? null,
         source_url: (r.source_url as string | null) ?? null,
         printed_party: (r.printed_party as string | null) ?? null,
-        marked: g ? g.marked : !!j?.marked,
-        read_at: g?.readAt ?? j?.readAt ?? null,
+        marked: runoffRows.length ? !!ro?.marked && runoffOne : g ? g.marked : !!j?.marked,
+        read_at: ro?.readAt ?? g?.readAt ?? j?.readAt ?? null,
       };
     });
   },
@@ -2124,7 +2137,8 @@ export const getRaceResult = unstable_cache(
 //   latestReadAt         the newest Ballotpedia read behind the marks.
 // A Louisiana seat counts when exactly one winner is marked in its jungle box
 // and (HO 780) its box, if it has one, carries no mark; once it does, the box
-// counts it, as lib/race-result.ts resultFromRows reads it.
+// counts it, as lib/race-result.ts resultFromRows reads it. HO 783: a race with a
+// general runoff box is counted by that box's one mark, and only by it.
 export type ElectionResults = {
   rated: number;
   ratedCalled: number;
@@ -2147,6 +2161,8 @@ export const getElectionResults = unstable_cache(
                  WHERE r.cycle = ? AND g.marked = 1 AND g.on_ballot = 1
                    -- HO 758's review: one mark is a call; two or more are a runoff.
                    AND (SELECT COUNT(*) FROM general_ballot g2 WHERE g2.race_id = g.race_id AND g2.marked = 1 AND g2.on_ballot = 1) = 1
+                   -- HO 783: a race with a general runoff box is counted by that box.
+                   AND g.race_id NOT IN (SELECT ro0.race_id FROM general_runoff ro0 WHERE ro0.on_ballot = 1)
                 UNION ALL
                 SELECT r.id, r.chamber, pc.party,
                        EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = r.cycle)
@@ -2161,8 +2177,17 @@ export const getElectionResults = unstable_cache(
                    -- HO 780: a box with no mark yet leaves the seat to its jungle box.
                    AND r.id NOT IN (SELECT g3.race_id FROM general_ballot g3
                                       JOIN general_ballot_reads rd3 ON rd3.race_id = g3.race_id AND rd3.status = 'box'
-                                     WHERE g3.marked = 1 AND g3.on_ballot = 1)`,
-          args: [cycle, cycle],
+                                     WHERE g3.marked = 1 AND g3.on_ballot = 1)
+                   AND r.id NOT IN (SELECT ro1.race_id FROM general_runoff ro1 WHERE ro1.on_ballot = 1)
+                UNION ALL
+                -- HO 783: one marked printed row of a general runoff box decides the race.
+                SELECT ro.race_id, r.chamber, ro.party,
+                       EXISTS (SELECT 1 FROM race_ratings rr WHERE rr.race_id = r.id AND rr.cycle = r.cycle)
+                  FROM general_runoff ro
+                  JOIN races r ON r.id = ro.race_id
+                 WHERE r.cycle = ? AND ro.marked = 1 AND ro.on_ballot = 1
+                   AND (SELECT COUNT(*) FROM general_runoff ro2 WHERE ro2.race_id = ro.race_id AND ro2.marked = 1 AND ro2.on_ballot = 1) = 1`,
+          args: [cycle, cycle, cycle],
         },
         {
           sql: `SELECT COUNT(*) AS n FROM races r
@@ -2175,6 +2200,8 @@ export const getElectionResults = unstable_cache(
                   SELECT MAX(read_at) AS t FROM general_ballot_reads WHERE status = 'box'
                   UNION ALL
                   SELECT MAX(updated_at) FROM primaries WHERE primary_type = 'jungle'
+                  UNION ALL
+                  SELECT MAX(read_at) FROM general_runoff
                 )`,
           args: [],
         },

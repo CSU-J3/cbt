@@ -6,6 +6,9 @@
 //     'winner', read by /api/cron/primaries). lib/queries.ts caches it
 //     (getRaceResult). HO 780: a Louisiana seat with a box (the Dec-12
 //     general) reads it only once it carries a mark, its jungle box until then.
+//     HO 783: a race with a general runoff box (general_runoff) reads that box
+//     first: its one marked printed row decides the race, on the runoff's date;
+//     unmarked, the race stays a runoff, the general box's marks its advancers.
 //   · raceResultView(reading, cycle, nowMs): what the page says. DORMANT before
 //     election day: every field null or false, so nothing on the page changes
 //     until daysToElection(cycle) < 0 (lib/format.ts, on lib/clock.ts's now).
@@ -41,13 +44,17 @@ export type RaceResultReading = {
   // runoff's general) marks the one winner. Null otherwise; the header then
   // names election day.
   decidedOn: string | null;
+  // HO 783: the runoff's date, which the runoff label names ("Runoff Dec 1"): the
+  // date a general runoff box prints, else Louisiana's jungle row's, else
+  // Georgia's, 28 days after election day. Null elsewhere (a plain "Runoff").
+  runoffOn: string | null;
 };
 
 export async function readRaceResult(db: Client, raceId: string): Promise<RaceResultReading> {
-  const [raceRs, readRs, rowsRs, jungleRs] = await db.batch(
+  const [raceRs, readRs, rowsRs, jungleRs, runoffRs] = await db.batch(
     [
       {
-        sql: `SELECT r.incumbent_bioguide_id, m.last_name
+        sql: `SELECT r.incumbent_bioguide_id, m.last_name, r.state, r.cycle
                 FROM races r LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
                WHERE r.id = ?`,
         args: [raceId],
@@ -69,6 +76,11 @@ export async function readRaceResult(db: Client, raceId: string): Promise<RaceRe
                WHERE r.id = ?`,
         args: [raceId],
       },
+      {
+        sql: `SELECT person_key, name, party, bioguide_id, incumbent_marked, on_ballot, marked, box_date, read_at
+                FROM general_runoff WHERE race_id = ?`,
+        args: [raceId],
+      },
     ],
     "read",
   );
@@ -77,7 +89,9 @@ export async function readRaceResult(db: Client, raceId: string): Promise<RaceRe
   // HO 767: the rows go to resultFromRows, the one function the batched
   // /electoral reading (lib/electoral-general.ts readRaceResults) runs too. The
   // race page's reading carries no marks, so its cached value is as before.
-  const { marks: _marks, ...reading } = resultFromRows(stored, readRs!.rows[0] ?? null, rowsRs!.rows, jungleRs!.rows);
+  const race = raceRs!.rows[0];
+  const place = race ? { state: String(race.state), cycle: Number(race.cycle) } : null;
+  const { marks: _marks, ...reading } = resultFromRows(stored, readRs!.rows[0] ?? null, rowsRs!.rows, jungleRs!.rows, runoffRs!.rows, place);
   return reading;
 }
 
@@ -95,12 +109,12 @@ type Row = Record<string, unknown>;
 // Ballotpedia posts it) reads that box only once it carries a mark; until then
 // it reads its jungle box, as it does with no box. getRaceRoster's marks and
 // getElectionResults' count (lib/queries.ts) take the same rule.
-export function resultFromRows(
+function baseResult(
   stored: { bioguideId: string; lastName: string | null } | null,
   read: Row | null,
   ballotRows: Row[],
   jungleRows: Row[],
-): RaceResultReading & { marks: MarkedRow[] } {
+): Omit<RaceResultReading, "runoffOn"> & { marks: MarkedRow[] } {
   const boxMarked = ballotRows.some((r) => Number(r.on_ballot) === 1 && Number(r.marked ?? 0) === 1);
   if (read?.status === "box" && (jungleRows.length === 0 || boxMarked)) {
     const rows = ballotRows.map((r) => ({
@@ -160,12 +174,81 @@ export function resultFromRows(
   return { source: null, readAt: null, anyMarked: false, runoff: false, incumbent: { stored: !!stored, onBallot: null, marked: false, inRunoff: false }, jungle: null, decidedOn: null, marks: [] };
 }
 
+// HO 783: Georgia's general runoff, 28 days after election day (georgia.gov's
+// calendar lists the 2026 one on Tuesday, December 1). No other state's regular
+// general goes to a runoff here; Louisiana's Dec 12 is its jungle row's date.
+export function generalRunoffDate(place: { state: string; cycle: number } | null): string | null {
+  if (!place || place.state !== "GA") return null;
+  const d = electionDay(place.cycle);
+  d.setUTCDate(d.getUTCDate() + 28);
+  return d.toISOString().slice(0, 10);
+}
+
+// One race's reading from its rows (baseResult above), and HO 783's general
+// runoff over it. A race with a general runoff box (general_runoff, printed
+// rows) is decided by that box's one marked row: Decided on the runoff's date,
+// that row the mark, the incumbent re-elected or defeated by their own runoff
+// row. Unmarked, the race is a runoff: the base reading's marks (the general
+// box's two, or Louisiana's jungle winners) stay its advancers, and the
+// incumbent is in it when the box prints them. `place` dates Georgia's runoff
+// when the box prints no date. A race with no runoff rows reads as before, and
+// carries the runoff's date for its label.
+export function resultFromRows(
+  stored: { bioguideId: string; lastName: string | null } | null,
+  read: Row | null,
+  ballotRows: Row[],
+  jungleRows: Row[],
+  runoffRows: Row[] = [],
+  place: { state: string; cycle: number } | null = null,
+): RaceResultReading & { marks: MarkedRow[] } {
+  const base = baseResult(stored, read, ballotRows, jungleRows);
+  const boxDate = runoffRows.map((r) => r.box_date).find((d) => d != null);
+  const jungleDate = jungleRows[0]?.runoff_date == null ? null : String(jungleRows[0]!.runoff_date);
+  const runoffOn = boxDate != null ? String(boxDate) : (jungleDate ?? generalRunoffDate(place));
+  const rows = runoffRows.map((r) => ({
+    person_key: String(r.person_key),
+    name: String(r.name),
+    party: r.party == null ? null : String(r.party),
+    bioguide_id: r.bioguide_id == null ? null : String(r.bioguide_id),
+    incumbent_marked: Number(r.incumbent_marked ?? 0),
+    on_ballot: Number(r.on_ballot),
+    marked: Number(r.marked ?? 0),
+    read_at: r.read_at == null ? null : String(r.read_at),
+  }));
+  const printed = rows.filter((r) => r.on_ballot === 1);
+  if (printed.length === 0) return { ...base, runoffOn };
+  const found = stored ? findIncumbentOnBallot(rows, stored) : null;
+  const readAt = printed.find((r) => r.read_at != null)?.read_at ?? base.readAt;
+  const won = printed.filter((r) => r.marked === 1);
+  if (won.length === 1) {
+    return {
+      ...base,
+      readAt,
+      anyMarked: true,
+      runoff: false,
+      incumbent: { ...base.incumbent, marked: found?.row?.marked === 1, inRunoff: false },
+      decidedOn: runoffOn,
+      runoffOn,
+      marks: won.map((r) => ({ personKey: r.person_key, name: r.name, party: r.party, bioguideId: r.bioguide_id })),
+    };
+  }
+  return {
+    ...base,
+    readAt,
+    anyMarked: false,
+    runoff: true,
+    incumbent: { ...base.incumbent, marked: false, inRunoff: found?.row != null },
+    decidedOn: null,
+    runoffOn,
+  };
+}
+
 export type RaceResultView = {
   passed: boolean; // election day has passed (the only gate)
   decided: boolean;
   runoff: boolean;
-  header: string | null; // replaces the countdown: "Decided · Nov 3, 2026" (HO 780: "Decided · Dec 12, 2026" for a Louisiana runoff) / "Runoff Dec 12" / "Not yet called"
-  qualifier: string | null; // the incumbent card's: re-elected / defeated / not on the ballot / runoff Dec 12
+  header: string | null; // replaces the countdown: "Decided · Nov 3, 2026" (HO 780: "Decided · Dec 12, 2026" for a Louisiana runoff; HO 783: "Decided · Dec 1, 2026" for Georgia's) / "Runoff Dec 12" / "Runoff Dec 1" / "Not yet called"
+  qualifier: string | null; // the incumbent card's: re-elected / defeated / not on the ballot / runoff Dec 12 / runoff Dec 1
   provenance: string | null; // under the roster
 };
 export const DORMANT: RaceResultView = { passed: false, decided: false, runoff: false, header: null, qualifier: null, provenance: null };
@@ -182,8 +265,11 @@ export function raceResultView(r: RaceResultReading, cycle: number, nowMs: numbe
   if (daysToElection(cycle, nowMs) >= 0) return DORMANT;
   const runoff = r.runoff;
   const decided = !runoff && (r.anyMarked || r.incumbent.marked);
-  // Louisiana's runoff date is the jungle row's; a general box carries none.
-  const runoffLabel = r.jungle?.runoffDate ? `Runoff ${monthDay(new Date(`${r.jungle.runoffDate}T00:00:00Z`))}` : "Runoff";
+  // The runoff's date (HO 783's runoffOn: a runoff box's own, Louisiana's
+  // jungle row's, or Georgia's 28 days after election day). A reading cached
+  // before HO 783 carries none, and then Louisiana's comes from its jungle.
+  const runoffDay = r.runoffOn ?? r.jungle?.runoffDate ?? null;
+  const runoffLabel = runoffDay ? `Runoff ${monthDay(new Date(`${runoffDay}T00:00:00Z`))}` : "Runoff";
   // HO 780: a race decided on another day than election day names that day.
   const decidedOn = r.decidedOn ? new Date(`${r.decidedOn}T00:00:00Z`) : null;
   const decidedDay = decidedOn ? `${monthDay(decidedOn)}, ${decidedOn.getUTCFullYear()}` : `${monthDay(electionDay(cycle))}, ${cycle}`;

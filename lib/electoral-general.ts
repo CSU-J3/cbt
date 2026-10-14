@@ -622,10 +622,10 @@ export type RaceResultWithMarks = RaceResultReading & { marks: MarkedRow[] };
 // rated seats, each race's rows handed to resultFromRows (lib/race-result.ts),
 // the one function the race page's reading runs too.
 export async function readRaceResults(db: Client, cycle: number): Promise<Record<string, RaceResultWithMarks>> {
-  const [raceRs, readRs, rowsRs, jungleRs] = await db.batch(
+  const [raceRs, readRs, rowsRs, jungleRs, runoffRs] = await db.batch(
     [
       {
-        sql: `SELECT r.id, r.incumbent_bioguide_id, m.last_name
+        sql: `SELECT r.id, r.incumbent_bioguide_id, m.last_name, r.state, r.cycle
                 FROM races r LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
                WHERE r.cycle = ? AND ${RATED}`,
         args: [cycle],
@@ -652,6 +652,13 @@ export async function readRaceResults(db: Client, cycle: number): Promise<Record
                WHERE r.cycle = ? AND ${RATED}`,
         args: [cycle],
       },
+      {
+        // HO 783: each rated seat's general runoff rows.
+        sql: `SELECT ro.race_id, ro.person_key, ro.name, ro.party, ro.bioguide_id, ro.incumbent_marked, ro.on_ballot, ro.marked, ro.box_date, ro.read_at
+                FROM general_runoff ro
+               WHERE ro.race_id IN (SELECT r.id FROM races r WHERE r.cycle = ? AND ${RATED})`,
+        args: [cycle],
+      },
     ],
     "read",
   );
@@ -666,6 +673,7 @@ export async function readRaceResults(db: Client, cycle: number): Promise<Record
   const reads = new Map(readRs!.rows.map((r) => [String(r.race_id), r]));
   const rows = groupRows(rowsRs!.rows as unknown as Record<string, unknown>[]);
   const jungle = groupRows(jungleRs!.rows as unknown as Record<string, unknown>[]);
+  const runoff = groupRows(runoffRs!.rows as unknown as Record<string, unknown>[]);
   const out: Record<string, RaceResultWithMarks> = {};
   for (const r of raceRs!.rows) {
     const id = String(r.id);
@@ -674,6 +682,8 @@ export async function readRaceResults(db: Client, cycle: number): Promise<Record
       reads.get(id) ?? null,
       rows.get(id) ?? [],
       jungle.get(id) ?? [],
+      runoff.get(id) ?? [],
+      { state: String(r.state), cycle: Number(r.cycle) },
     );
   }
   return out;
