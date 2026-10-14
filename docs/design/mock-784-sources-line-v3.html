@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mock-784 v3 · the ratings sources line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* tokens copied from app/globals.css @ 4d73ca7 */
+:root{
+  --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+  --border-strong:#1f2937; --border-soft:#111820;
+  --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+  --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+  --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+  --kalshi:#4de4b2; --rail-house:#22d3ee; --rail-senate:#c084fc;
+  --fs-9:9px; --fs-10:10px; --fs-11:11px; --fs-12:12px; --fs-13:13px; --fs-14:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#07090d;color:var(--text-primary);
+  font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-12);line-height:1.45}
+button{font:inherit;color:inherit}
+a{color:inherit;text-decoration:none}
+[hidden]{display:none!important}
+.d{color:var(--party-democrat)} .r{color:var(--party-republican)}
+.tu{color:var(--accent-amber-bright)} .dim{color:var(--text-dim)} .muted{color:var(--text-muted)}
+.up{text-transform:uppercase;letter-spacing:.5px}
+
+/* ───────── mock chrome (not product) ───────── */
+.mock{position:sticky;top:0;z-index:20;background:#0b0f15;border-bottom:1px dashed #2b3646;padding:8px 16px 9px}
+.mock-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.mock-title{font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.mock-top button{background:transparent;border:0;color:var(--text-dim);font-size:var(--fs-10);cursor:pointer;padding:0;text-decoration:underline}
+.groups{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:7px}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.grp .k{font-size:var(--fs-10);letter-spacing:.5px;color:var(--text-dim);margin-right:1px}
+.grp button{background:transparent;border:1px solid var(--border-strong);border-radius:2px;padding:3px 7px;
+  font-size:var(--fs-11);color:var(--text-muted);cursor:pointer;white-space:nowrap}
+.grp button:hover{color:var(--text-secondary)}
+.grp button.on{color:var(--text-primary);border-color:var(--accent-amber);background:var(--bg-row-hover)}
+.note{font-size:var(--fs-11);color:var(--text-muted);margin-top:7px;max-width:1300px}
+.note b{color:var(--text-secondary);font-weight:500}
+.ruling{font-size:var(--fs-11);color:var(--text-dim);margin-top:5px}
+.ruling b{color:var(--accent-amber-bright);font-weight:500}
+.prov{font-size:var(--fs-11);color:var(--text-dim);margin-top:5px;max-width:1300px}
+.prov summary{cursor:pointer;color:var(--text-dim);text-decoration:underline}
+.prov p{margin:5px 0 0}
+.mock.folded .groups,.mock.folded .note,.mock.folded .prov{display:none}
+.slice{margin:22px 16px 0;border:1px dashed #2b3646;border-radius:3px;overflow:hidden}
+.slice-cap{font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim);background:#0b0f15;padding:4px 10px;border-bottom:1px dashed #2b3646}
+.slice-cap b{color:var(--text-muted);font-weight:500}
+.slice-cap i{font-style:normal;margin-left:10px}
+.end{height:40px}
+
+/* ───────── product ───────── */
+.page{background:var(--bg-base)}
+.masthead{display:flex;gap:18px;align-items:center;padding:7px 16px;border-bottom:1px solid var(--border-strong);background:var(--bg-panel)}
+.masthead .brand{font-size:var(--fs-13);letter-spacing:1px;color:var(--accent-amber-bright);text-transform:uppercase}
+.masthead .nav{display:flex;gap:14px;font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.masthead .nav .cur{color:var(--text-primary);border-bottom:1px solid var(--accent-amber)}
+.masthead .clock{margin-left:auto;font-size:var(--fs-11);color:var(--text-dim)}
+main{padding:16px}
+.titlerow{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;margin-bottom:12px}
+.titlerow h1{margin:0;font-size:var(--fs-14);font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--accent-amber)}
+.cyc{display:inline-flex;border:1px solid var(--border-strong);border-radius:2px;font-size:var(--fs-10);letter-spacing:.5px}
+.cyc span{padding:2px 8px;color:var(--text-dim)}
+.cyc span.on{color:var(--accent-amber-bright);background:var(--bg-row-hover)}
+.band{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border-strong);border:1px solid var(--border-strong);border-radius:2px;overflow:hidden;margin-bottom:14px}
+.cell{background:var(--bg-panel);padding:8px 12px}
+.cap{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim)}
+.cap .k{color:var(--kalshi)} .cap .live{color:var(--accent-amber-bright)}
+.val{margin-top:3px;font-size:var(--fs-14)}
+.val .pct{color:var(--text-primary)} .val .lab{color:var(--text-muted);margin-left:6px;font-size:var(--fs-11);text-transform:uppercase;letter-spacing:.5px}
+
+/* the list */
+.listhead{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--border-strong)}
+.tabs{display:inline-flex;gap:0;border:1px solid var(--border-strong);border-radius:2px;overflow:hidden}
+.tabs button{background:transparent;border:0;padding:3px 10px;font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim);cursor:default}
+.tabs button.on{color:var(--text-primary);background:var(--bg-row-hover)}
+.tiers{display:inline-flex;gap:6px}
+.tiers span{border:1px solid var(--border-strong);border-radius:2px;padding:2px 8px;font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.tiers span.on{border-color:var(--accent-amber);color:var(--text-primary)}
+.count{font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim)}
+.headright{margin-left:auto}
+.box{border:1px solid var(--border-strong);border-top:0;background:var(--bg-panel)}
+.row{display:grid;grid-template-columns:84px 240px 112px 1fr 92px 72px;gap:12px;align-items:center;padding:7px 12px;border-bottom:1px solid var(--border-soft);font-size:var(--fs-12)}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--bg-row-hover)}
+.seat{color:var(--text-primary);letter-spacing:.5px}
+.inc .nm{color:var(--text-secondary)} .inc .tag{display:inline-block;margin-left:6px;font-size:var(--fs-9);letter-spacing:.5px;color:var(--text-dim);border:1px solid var(--border-strong);border-radius:2px;padding:0 4px;vertical-align:1px}
+.pty{display:inline-block;width:14px;text-align:center;font-size:var(--fs-10);margin-left:6px;border-radius:2px}
+.pty.r{color:#fff;background:rgba(239,68,68,.55)} .pty.d{color:#fff;background:rgba(59,130,246,.55)}
+.cons{font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase}
+.raters{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:1px 8px;border:1px solid var(--border-strong);border-radius:2px;letter-spacing:.5px;text-transform:uppercase;font-variant-numeric:tabular-nums}
+.chip .src{font-size:var(--fs-11);color:var(--text-muted)}
+.chip a.src:hover{text-decoration:underline}
+.chip .sep{color:var(--text-dim)}
+.chip .rt{font-size:var(--fs-12)}
+.chip.tu{border-color:rgba(251,191,36,.4)} .chip.tu .rt{color:var(--accent-amber-bright)}
+.chip.r{border-color:rgba(239,68,68,.4)} .chip.r .rt{color:var(--party-republican)}
+.chip.d{border-color:rgba(59,130,246,.4)} .chip.d .rt{color:var(--party-democrat)}
+.num{font-size:var(--fs-11);color:var(--text-muted);text-align:right;font-variant-numeric:tabular-nums}
+
+/* THE SOURCES LINE (the thing under review) */
+.src-line{color:var(--text-muted)}
+.src-line.chrome{font-size:var(--fs-12);letter-spacing:.5px;text-transform:uppercase}
+.src-line a{color:var(--text-muted)}              /* the chip's rater colour */
+.src-line .fr{color:var(--ember)}                   /* as of … · via … */
+.src-line .off a,.src-line .off .fr{color:var(--text-dim)}
+.src-line.prose{font-size:var(--fs-12);text-transform:none;letter-spacing:0}
+.src-line .lab{color:var(--text-dim)}
+.src-line a{color:var(--text-secondary)} .src-line a:hover,.src-line a:focus-visible{text-decoration:underline}
+.src-line .fr{color:var(--text-dim)} .src-line .sep{color:var(--text-dim);margin:0 6px}
+.src-line .off{color:var(--text-dim)} .src-line .off a{color:var(--text-dim)}
+.src-line.stack{display:grid;grid-template-columns:auto 1fr;gap:2px 12px}
+.src-line.stack .lab{grid-row:1 / span 3}
+.src-line.stack .it{display:block}
+.src-line.stack .it .sep:first-child{display:none}
+.sl-title{margin:-4px 0 12px}
+.sl-list{padding:0 0 6px}
+.sl-foot{padding:10px 12px;border:1px solid var(--border-strong);border-top:0;background:var(--bg-panel)}
+.sl-head{font-size:var(--fs-10)}
+.sl-head.src-line.chrome{font-size:var(--fs-10)}
+.sl-chips{margin-top:8px}
+.sl-racefoot{margin-top:14px;padding-top:8px;border-top:1px solid var(--border-strong)}
+
+/* race page */
+.race-header h1{margin:0;font-size:16px;font-weight:500;letter-spacing:.5px;text-transform:uppercase;color:var(--text-primary)}
+.race-header .dl{margin-top:4px;font-size:var(--fs-13);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.race-header .dl .cd{color:var(--accent-amber)}
+.race-header .chips{margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.race-header .chips .dot{color:var(--text-dim)}
+.body-standin{margin-top:14px;border:1px dashed #2b3646;border-radius:2px;padding:18px 12px;color:var(--text-dim);font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase}
+
+/* welcome board (the races panel + the bottom foot) */
+.wb{padding:16px}
+.panel{border:1px solid var(--border-strong);border-radius:2px;background:var(--bg-panel);max-width:720px}
+.panel .ph{display:flex;align-items:baseline;gap:10px;padding:6px 12px;border-bottom:1px solid var(--border-strong);font-size:var(--fs-11);letter-spacing:.5px;text-transform:uppercase;color:var(--text-muted)}
+.panel .ph .n{color:var(--text-dim);margin-left:auto}
+.prow{display:grid;grid-template-columns:72px 1fr;gap:10px;padding:6px 12px;border-bottom:1px solid var(--border-soft)}
+.prow:last-child{border-bottom:0}
+.prow .id{color:var(--rail-senate);font-size:var(--fs-11);letter-spacing:.5px}
+.prow .id.h{color:var(--rail-house)}
+.prow .t{color:var(--text-secondary)}
+.prow .m{font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim);margin-top:2px}
+.prow .m .who{color:var(--text-muted)}
+.prow .m a{color:var(--text-muted)} .prow .m a:hover{text-decoration:underline}
+.bottom{display:flex;gap:12px;align-items:baseline;margin-top:14px;font-size:var(--fs-10);letter-spacing:.5px;text-transform:uppercase;color:var(--text-dim)}
+.bottom .sep{margin:0 4px} .bottom .sp{flex:1} .bottom .k{color:var(--text-muted)}
+.bottom a{color:var(--text-muted)} .bottom a:hover{text-decoration:underline}
+.bottom a.add{color:var(--text-muted)} .bottom span.add{color:var(--ember)}
+@media (max-width:1000px){.mock{position:static}.row{grid-template-columns:72px 1fr}.row .num,.row .cons{display:none}}
+</style>
+</head>
+<body>
+
+<div class="mock" id="mock">
+  <div class="mock-top">
+    <span class="mock-title">mock-784 v3 · the ratings sources line · drawn against main at 4d73ca7, 2026-10-13</span>
+    <button id="foldBtn">hide controls</button>
+  </div>
+  <div class="groups" id="groups"></div>
+  <div class="note" id="note"></div>
+  <div class="ruling">Reply with the line as set: <b id="ruling"></b></div>
+  <details class="prov">
+    <summary>what's real in this mock</summary>
+    <p>The rows are the Senate toss-ups and leans as the app lists them (seat, incumbent, the three raters, cash) from the 767 read of 2026-10-06; AK SEN's chips are the ones in your screenshot. The chip is drawn from <code>components/RatingChip.tsx</code>: the rater's short name is the link, the rating isn't. The three dates are real and equal: every rater's rows last changed on 2026-09-30, the last Ballotpedia read; the app would print each rater's own newest date, so they drift apart once Sabato's reader gets through Cloudflare or Cook's API is wired.</p>
+    <p>Links go where the chips already go (<code>lib/enums.ts:226-235</code>): Cook's and Sabato's chamber pages, Inside Elections' ratings page. The via word is one of two, VIA BALLOTPEDIA or DIRECT, taken from the rater's newest row's <code>source_url</code>; today all three are Ballotpedia, since no rater's own feed has written a row yet. The ember is a new token (one of the three shades in the bar; the palette has amber #d97706 and amber-bright #fbbf24 and nothing darker), used only here so it stays the sources colour.</p>
+    <p>The welcome board's bottom line already credits congress.gov, FRED, Kalshi, Polymarket and FEC and never named the raters; WELCOME → FOOT adds them to that line. The race page's header, dateline and chip strip are <code>components/RaceHeader.tsx</code>; its body is a stand-in.</p>
+    <p><b>v3.</b> Only the freshness text ("as of 2026-09-30 · via Ballotpedia") is ember; the rater names keep the colour the chips give them (text-muted). The TINT control is gone, that's ruled. EMBER's shade is still open.</p>
+    <p><b>v2.</b> Your v1 settings are the defaults: ELECTORAL foot · RACE chips · WELCOME foot · FRESH via · LAYOUT line · CASE chrome · COOK on. "From its own page" is gone, the line is 12px instead of 11px, and it's tinted. The welcome board's bottom line now spans the board, as it does on the site, rather than the panel's width.</p>
+    <p>COOK → TAKEN DOWN is the state if Cook asks for the column to come down while the license is open: the Cook chip leaves every row, the welcome rows count 2 raters, and the line says so with a link to Cook's page, so the credit survives the data.</p>
+  </details>
+</div>
+
+<!-- ───────── /electoral ───────── -->
+<div class="slice">
+  <div class="slice-cap"><b>/electoral</b><i>list view · Senate tab</i></div>
+  <div class="page">
+    <div class="masthead"><span class="brand">Congressional Terminal</span><span class="nav"><span>Bills</span><span>Members</span><span class="cur">Electoral</span><span>Votes</span><span>Committees</span></span><span class="clock">Oct 13 · 3:41 PM MT</span></div>
+    <main>
+      <div class="titlerow"><h1>2026 electoral</h1><span class="cyc"><span class="on">2026</span><span>2028</span></span></div>
+      <div class="src-line sl-title" id="sl-title"></div>
+      <div class="band">
+        <div class="cell"><div class="cap"><span class="k">Kalshi</span><span>House control</span><span class="live">Live</span></div><div class="val"><span class="pct">D 71%</span><span class="lab">to win the House</span></div></div>
+        <div class="cell"><div class="cap"><span class="k">Kalshi</span><span>Senate control</span></div><div class="val"><span class="pct">R 64%</span><span class="lab">to keep the Senate</span></div></div>
+      </div>
+      <div class="src-line sl-list" id="sl-list"></div>
+      <div class="listhead">
+        <span class="tabs"><button class="on">Senate 13</button><button>House 86</button></span>
+        <span class="tiers"><span class="on">7 toss-up</span><span class="on">3 lean</span><span>3 likely/solid</span></span>
+        <span class="count">10 races</span>
+        <span class="src-line sl-head headright" id="sl-head"></span>
+      </div>
+      <div class="box" id="elist"></div>
+      <div class="src-line sl-foot" id="sl-foot"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ───────── /race/AK-SEN ───────── -->
+<div class="slice">
+  <div class="slice-cap"><b>/race/S-AK-2026</b><i>the header, then the page's body as a stand-in</i></div>
+  <div class="page">
+    <div class="masthead"><span class="brand">Congressional Terminal</span><span class="nav"><span>Bills</span><span>Members</span><span class="cur">Electoral</span><span>Votes</span><span>Committees</span></span><span class="clock">Oct 13 · 3:41 PM MT</span></div>
+    <main>
+      <div class="race-header">
+        <h1>Alaska Senate</h1>
+        <div class="dl">2026 General Election · <span class="cd">21 days to election</span></div>
+        <div class="chips" id="rchips"></div>
+        <div class="src-line sl-chips" id="sl-chips"></div>
+      </div>
+      <div class="body-standin">candidates · the seat · news · district · markets (unchanged)</div>
+      <div class="src-line sl-racefoot" id="sl-racefoot"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ───────── /welcome ───────── -->
+<div class="slice">
+  <div class="slice-cap"><b>/welcome</b><i>the races panel and the board's bottom line</i></div>
+  <div class="page wb">
+    <div class="panel">
+      <div class="ph"><span>Races</span><span class="n">6 of 99 rated</span></div>
+      <div id="wrows"></div>
+    </div>
+    <div class="bottom" id="wbottom"></div>
+  </div>
+</div>
+<div class="end"></div>
+
+<script>
+/* ───────── data ───────── */
+const TU = "Toss Up";
+// r = [Cook, Inside Elections, Sabato], the order the row prints them
+const ROWS = [
+ {id:"AK SEN",inc:"Dan Sullivan",p:"r",cons:TU,r:[TU,"Tilt R",TU],m:"—",cash:"$7.1M"},
+ {id:"IA SEN",inc:"Joni Ernst",p:"r",tag:"Retiring",cons:TU,r:[TU,"Tilt R",TU],m:"—",cash:"—"},
+ {id:"ME SEN",inc:"Susan M. Collins",p:"r",cons:TU,r:[TU,TU,TU],m:"—",cash:"$9.7M"},
+ {id:"MI SEN",inc:"Gary C. Peters",p:"d",tag:"Retiring",cons:TU,r:[TU,TU,"Lean D"],m:"—",cash:"—"},
+ {id:"NH SEN",inc:"Jeanne Shaheen",p:"d",tag:"Retiring",cons:TU,r:[TU,TU,"Lean D"],m:"—",cash:"—"},
+ {id:"OH SEN",inc:"Jon Husted",p:"r",cons:TU,r:[TU,TU,TU],m:"—",cash:"$8.2M"},
+ {id:"GA SEN",inc:"Jon Ossoff",p:"d",cons:"Tilt D",r:["Likely D","Tilt D","Likely D"],m:"—",cash:"$33M"},
+ {id:"NC SEN",inc:"Thom Tillis",p:"r",tag:"Retiring",cons:"Lean D",r:["Lean D","Tilt D","Lean D"],m:"—",cash:"—"},
+];
+const RATERS = [
+ {k:"cook", short:"Cook", name:"Cook Political Report", url:"https://www.cookpolitical.com/ratings/senate-race-ratings", asof:"2026-09-30", via:"via Ballotpedia"},
+ {k:"ie",   short:"Inside Elections", name:"Inside Elections with Nathan L. Gonzales", url:"https://insideelections.com/ratings/senate/", asof:"2026-09-30", via:"via Ballotpedia"},
+ {k:"sab",  short:"Sabato", name:"Sabato's Crystal Ball (UVA Center for Politics)", url:"https://centerforpolitics.org/crystalball/2026-senate/", asof:"2026-09-30", via:"via Ballotpedia"},
+];
+
+/* ───────── controls ───────── */
+const CTL = [
+ ["electoral","ELECTORAL",[["title","TITLE"],["list","LIST"],["foot","FOOT"],["head","HEAD →"]]],
+ ["race","RACE",[["chips","UNDER CHIPS"],["foot","FOOT"]]],
+ ["welcome","WELCOME",[["foot","FOOT"],["rows","IN ROWS"]]],
+ ["fresh","FRESHNESS",[["date","AS OF"],["via","AS OF + VIA"],["hover","HOVER"]]],
+ ["layout","LAYOUT",[["line","ONE LINE"],["stack","STACKED"]]],
+ ["case","CASE",[["chrome","CHROME"],["prose","PROSE"]]],
+ ["cook","COOK",[["on","SHOWN"],["off","TAKEN DOWN"]]],
+ ["orange","EMBER",[["600","#EA580C"],["650","#D2500E"],["700","#C2410C"]]],
+ ["sabato","SABATO FEED (preview, not a ruling)",[["bp","BALLOTPEDIA · TODAY"],["direct","DIRECT · WHEN ITS READER GETS THROUGH"]]],
+];
+const DEF = {electoral:"foot",race:"chips",welcome:"foot",fresh:"via",layout:"line",case:"chrome",cook:"on",orange:"650",sabato:"bp"};
+const EMBER = {"600":"#ea580c","650":"#d2500e","700":"#c2410c"};
+const st = Object.assign({}, DEF, Object.fromEntries(location.hash.slice(1).split("&").filter(Boolean).map(kv => kv.split("="))));
+const $ = (id) => document.getElementById(id);
+
+/* ───────── the line ───────── */
+function viaOf(r) { return r.k === "sab" && st.sabato === "direct" ? "direct" : r.via; }
+function raterItem(r, i) {
+  const off = st.cook === "off" && r.k === "cook";
+  const hover = `${r.name} · ratings as of ${r.asof} · ${viaOf(r)}`;
+  const name = `<a href="${r.url}" target="_blank" rel="noopener noreferrer" title="${hover}">${st.case === "prose" ? r.name : r.short}</a>`;
+  let fr = "";
+  if (off) fr = st.case === "prose" ? ` (not shown here)` : `<span class="fr"> · not shown here</span>`;
+  else if (st.fresh === "date") fr = st.case === "prose" ? ` (as of ${r.asof})` : `<span class="fr"> · as of ${r.asof}</span>`;
+  else if (st.fresh === "via") fr = st.case === "prose" ? ` (as of ${r.asof}, ${viaOf(r)})` : `<span class="fr"> · as of ${r.asof} · ${viaOf(r)}</span>`;
+  const sep = st.case === "prose" ? (i === 0 ? "" : (i === RATERS.length - 1 ? " and " : ", ")) : `<span class="sep">·</span>`;
+  return `<span class="it ${off ? "off" : ""}">${sep}${name}${fr}</span>`;
+}
+function lineHTML(opts = {}) {
+  const items = RATERS.map(raterItem).join("");
+  if (st.case === "prose") return `<span class="lab">Ratings from</span> ${items}.`;
+  return `<span class="lab">${opts.label ?? "Ratings"}</span>${items}`;
+}
+function classes() { return `src-line ${st.case} ${st.layout === "stack" ? "stack" : ""}`; }
+
+/* ───────── chips ───────── */
+function chipClass(rt) { return rt === TU ? "tu" : rt.endsWith(" R") ? "r" : rt.endsWith(" D") ? "d" : ""; }
+function chip(r, rt) {
+  return `<span class="chip ${chipClass(rt)}" title="Updated ${r.asof}${r.via === "via Ballotpedia" ? ", read from Ballotpedia" : ""}"><a class="src" href="${r.url}" target="_blank" rel="noopener noreferrer" title="${r.name}">${r.short}</a><span class="sep">·</span><span class="rt">${rt}</span></span>`;
+}
+function rowChips(row) {
+  return RATERS.map((r, i) => (st.cook === "off" && r.k === "cook") ? "" : chip(r, row.r[i])).filter(Boolean);
+}
+
+/* ───────── render ───────── */
+function render() {
+  $("groups").innerHTML = CTL.map(([g, label, opts]) =>
+    `<div class="grp"><span class="k">${label}</span>` +
+    opts.map(([v, t]) => `<button data-g="${g}" data-v="${v}" class="${st[g] === v ? "on" : ""}">${t}</button>`).join("") + `</div>`).join("");
+  $("ruling").textContent = `ELECTORAL ${st.electoral} · RACE ${st.race} · WELCOME ${st.welcome} · FRESH ${st.fresh} · LAYOUT ${st.layout} · CASE ${st.case} · COOK ${st.cook} · EMBER ${EMBER[st.orange]}`;
+  document.documentElement.style.setProperty("--ember", EMBER[st.orange]);
+  $("note").innerHTML = noteText();
+  location.hash = Object.entries(st).map(([k, v]) => `${k}=${v}`).join("&");
+
+  // /electoral: the line in one of four places
+  for (const p of ["title","list","foot","head"]) {
+    const el = $("sl-" + p);
+    el.hidden = st.electoral !== p;
+    el.className = `${classes()} sl-${p} ${p === "head" ? "headright" : ""}`;
+    el.innerHTML = lineHTML();
+  }
+  $("elist").innerHTML = ROWS.map(row => `
+    <div class="row">
+      <span class="seat">${row.id}</span>
+      <span class="inc"><span class="nm">${row.inc}</span><span class="pty ${row.p}">${row.p.toUpperCase()}</span>${row.tag ? `<span class="tag">${row.tag}</span>` : ""}</span>
+      <span class="cons ${chipClass(row.cons)}" style="color:${row.cons === TU ? "var(--accent-amber-bright)" : row.cons.endsWith(" D") ? "var(--party-democrat)" : "var(--party-republican)"}">${row.cons}</span>
+      <span class="raters">${rowChips(row).join(`<span class="dim">·</span>`)}</span>
+      <span class="num">${row.m}</span>
+      <span class="num">${row.cash}</span>
+    </div>`).join("");
+
+  // /race
+  $("rchips").innerHTML = rowChips(ROWS[0]).join(`<span class="dot">·</span>`);
+  $("sl-chips").hidden = st.race !== "chips";
+  $("sl-chips").className = `${classes()} sl-chips`;
+  $("sl-chips").innerHTML = lineHTML();
+  $("sl-racefoot").hidden = st.race !== "foot";
+  $("sl-racefoot").className = `${classes()} sl-racefoot`;
+  $("sl-racefoot").innerHTML = lineHTML();
+
+  // /welcome
+  const wrows = ROWS.slice(0, 6).map(row => {
+    const shown = RATERS.filter(r => !(st.cook === "off" && r.k === "cook"));
+    const rts = [...new Set(row.r.filter((_, i) => shown.includes(RATERS[i])).map(x => x.toUpperCase()))].join(" · ");
+    const tail = st.welcome === "rows"
+      ? shown.map(r => `<a href="${r.url}" target="_blank" rel="noopener noreferrer" title="${r.name} · ratings as of ${r.asof} · ${viaOf(r)}">${r.short}</a>`).join(" · ")
+      : `${shown.length} RATERS`;
+    return `<div class="prow"><span class="id">${row.id}</span><span><div class="t">${row.inc}</div><div class="m"><span class="who">${row.p.toUpperCase()}</span> · <span class="who">${rts}</span> · ${tail}</div></span></div>`;
+  }).join("");
+  $("wrows").innerHTML = wrows;
+  const allSame = RATERS.every(r => r.asof === RATERS[0].asof);
+  const shownR = RATERS.filter(r => !(st.cook === "off" && r.k === "cook"));
+  const raterBits = st.welcome === "foot"
+    ? shownR.map(r => `<a class="add" href="${r.url}" target="_blank" rel="noopener noreferrer" title="${r.name} · ratings as of ${r.asof} · ${viaOf(r)}">${r.short}</a>`).join(`<span class="sep">·</span>`)
+      + (st.fresh === "hover" ? "" : `<span class="sep">·</span><span class="add">ratings as of ${allSame ? RATERS[0].asof : "each rater's date"}</span>`)
+      + (st.cook === "off" ? `<span class="sep">·</span><span>Cook not shown</span>` : "")
+    : "";
+  $("wbottom").innerHTML = `<span>119th Congress<span class="sep">·</span>congress.gov<span class="sep">·</span>FRED<span class="sep">·</span>Kalshi<span class="sep">·</span>Polymarket<span class="sep">·</span>FEC${raterBits ? `<span class="sep">·</span>${raterBits}` : ""}<span class="sep">·</span>synced 4× daily</span><span class="sp"></span><span>Last sync <span class="k">Oct 13, 3:00 PM MT</span></span>`;
+}
+
+function noteText() {
+  const e = {
+    title: "<b>TITLE</b>: a dateline under the page title, over the markets band. First thing read, but it sits over Kalshi's cells, which it doesn't describe.",
+    list: "<b>LIST</b>: a caption over the list head, the ratings' own section. It describes exactly what's under it. (my pick)",
+    foot: "<b>FOOT</b>: a footnote under the list box. Out of the way, and out of sight on a tall list.",
+    head: "<b>HEAD →</b>: right-aligned inside the list head, opposite the tabs. Compact; STACKED wraps badly here and the line competes with the tier filters.",
+  }[st.electoral];
+  const r = st.race === "chips" ? "<b>UNDER CHIPS</b>: directly under the strip the line explains. (my pick)" : "<b>FOOT</b>: at the bottom of the race page, where a reader who scrolled past the chips won't connect them.";
+  const w = st.welcome === "foot" ? "<b>FOOT</b>: the raters join the board's existing credits line, which never named them; one shared date while all three agree. (my pick)" : "<b>IN ROWS</b>: each race row names its raters instead of counting them; the credit is per row, so there's no single place that says what the raters are.";
+  const f = {date:"<b>AS OF</b>: each rater's newest rating date, inline. It's what makes the line honest today: all three say 2026-09-30.", via:"<b>AS OF + VIA</b>: adds where the rows came from, which the chips already say on hover. Heavier, and it goes stale the day a feed changes.", hover:"<b>HOVER</b>: names only; the dates live in the hover. Cleanest, and the staleness is invisible to anyone who doesn't hover."}[st.fresh];
+  const c = {"600":"<b>#EA580C</b> (orange-600): 5.7:1 on the panel. Brightest of the three; reads as a highlight.","650":"<b>#D2500E</b>: 4.8:1 on the panel, passes AA for the 12px line. Dark enough to sit under the amber title, bright enough to find. (my pick)","700":"<b>#C2410C</b> (orange-700): 3.9:1, fails AA at this size; the darkest that still reads as orange."}[st.orange];
+  const t = "<b>TINT</b> (ruled): the rater names keep the chip's own colour (text-muted); only \"as of … · via …\" takes the ember.";
+  const v = st.sabato === "direct" ? "<b>DIRECT</b>: the second word of the via vocabulary. The app prints it for a rater whose newest row came from the rater's own feed; Sabato flips to it the day its reader gets through Cloudflare, Cook the day its API is wired." : "<b>VIA BALLOTPEDIA</b>: true for all three today, because every rater's newest rows are the Sept 30 Ballotpedia read. The vocabulary has exactly two words, VIA BALLOTPEDIA and DIRECT, chosen from the newest row's source_url.";
+  return `${e}<br>${r}<br>${w}<br>${f}<br>${c}<br>${t}<br>${v}${st.cook === "off" ? "<br><b>COOK TAKEN DOWN</b>: the chip is gone from every row and the line still credits Cook, with the link, so the attribution outlives the data." : ""}`;
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-g]");
+  if (!b) return;
+  st[b.dataset.g] = b.dataset.v;
+  render();
+});
+$("foldBtn").addEventListener("click", () => {
+  const m = $("mock");
+  m.classList.toggle("folded");
+  $("foldBtn").textContent = m.classList.contains("folded") ? "show controls" : "hide controls";
+});
+render();
+</script>
+</body>
+</html>
