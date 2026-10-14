@@ -14,6 +14,7 @@
 
   --accent-amber: #d97706;
   --accent-amber-bright: #fbbf24;
+  --rating-freshness: #d2500e; /* HO 784: a rater's as-of and via on the ratings sources line, nothing else (HO 610 rule); docs/design/mock-784-sources-line-v3.html */
 
   --party-republican: #ef4444;
   --party-democrat: #3b82f6;
@@ -6196,6 +6197,21 @@ html[data-week-summary="collapsed"] .week-sentences-text {
     max-height: none !important;
     overflow: visible;
   }
+}
+/* HO 784: the ratings sources line under the box, continuing it (its border,
+   no top border, its bottom corners) while the box's own bottom corners go
+   square. measure() (RaceListView) takes the line's height off the box's, so on
+   a tall list the pair still ends at the window's bottom edge. */
+.rl-sources {
+  border: 1px solid var(--border-strong);
+  border-top: 0;
+  border-radius: 0 0 3px 3px;
+  background: var(--bg-base);
+  padding: 8px 12px;
+}
+.rl-box:has(+ .rl-sources) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 .rl-grid {

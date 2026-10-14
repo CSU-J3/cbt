@@ -16,6 +16,7 @@ import type {
   RosterCandidate,
   RaceNewsItem,
   RaceRating,
+  RaterFreshness,
 } from "@/lib/queries";
 
 // HO 166 — the race-hub body. Pure presentational: no async, no DB — every
@@ -65,6 +66,7 @@ export function RaceHubBody({
   nowMs,
   result = DORMANT,
   incumbentTag = null,
+  freshness,
 }: {
   race: Race;
   // HO 757: getRaceRoster's rows, the others on the ballot included.
@@ -95,6 +97,8 @@ export function RaceHubBody({
   // HO 759: the tag for a stored incumbent this race's ballot doesn't carry
   // (lib/incumbent-qualifier.ts), null for one it does or with no reading.
   incumbentTag?: IncumbentQualifier | null;
+  // HO 784: each rater's AS OF and VIA, for the sources line under the chips.
+  freshness?: RaterFreshness;
 }) {
   const rating = ratingMeta(race.rating);
   // A race that went to runoff is never a "stub" — runoffs.length guards the
@@ -116,7 +120,7 @@ export function RaceHubBody({
 
   return (
     <>
-      <RaceHeader race={race} ratings={ratings} result={result} />
+      <RaceHeader race={race} ratings={ratings} result={result} freshness={freshness} />
 
       {rating ? (
         <div

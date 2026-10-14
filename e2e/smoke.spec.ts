@@ -3,6 +3,7 @@ import fs from "node:fs";
 import zlib from "node:zlib";
 import { isKnownNoise } from "./console-noise";
 import { ROUTES } from "./routes";
+import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "../lib/enums";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -964,6 +965,68 @@ test.describe("targeted interactions", () => {
     const resp = await page.goto("/races", { waitUntil: "domcontentloaded", timeout: 45_000 });
     expect(page.url(), "/races should land on /electoral").toContain("/electoral");
     expect(resp?.status(), "and resolve 200 at the target").toBe(200);
+  });
+
+  test("the ratings sources line names, links and dates the raters", async ({ page }) => {
+    // HO 784 (mock-784 v3): /electoral's line under the list box, its links
+    // following the tab; /race/[id]'s under the chip strip, naming the strip's
+    // raters; /welcome's foot, linking each rater's House page. The dates are
+    // data, so this reads their shape; HO 784's legs read them against the
+    // database.
+    const order = ["cook", "inside_elections", "sabato"] as const;
+    const fresh = /as of \d{4}-\d{2}-\d{2}( · via ballotpedia| · direct)?/i;
+
+    await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const line = page.locator(".rl-main > .rl-sources > [data-rating-sources]");
+    await expect(line, "/electoral's sources line").toBeVisible({ timeout: 20_000 });
+    const [boxBottom, lineTop] = await page.evaluate(() => [
+      document.querySelector(".rl-main > .rl-box")?.getBoundingClientRect().bottom ?? Infinity,
+      document.querySelector(".rl-main > .rl-sources")?.getBoundingClientRect().top ?? -Infinity,
+    ]);
+    expect(lineTop, "the line sits under the list box").toBeGreaterThanOrEqual(boxBottom - 1);
+    expect(
+      await line.locator("[data-rater]").evaluateAll((els) => els.map((e) => e.getAttribute("data-rater"))),
+      "the three raters, in order",
+    ).toEqual([...order]);
+    for (const chamber of ["senate", "house"] as const) {
+      if (chamber === "house") await page.locator(".rl-tab", { hasText: "HOUSE" }).click();
+      for (const s of order) {
+        await expect(line.locator(`[data-rater="${s}"] a`), `${s}'s ${chamber} page`).toHaveAttribute(
+          "href",
+          RACE_RATING_PAGES_2026[s]?.[chamber] ?? "",
+        );
+      }
+    }
+    const dates = await line.locator("[data-rater-freshness]").allTextContents();
+    expect(dates.length, "at least one rater says how old its ratings are").toBeGreaterThan(0);
+    for (const d of dates) expect(d, "AS OF, then VIA when known").toMatch(fresh);
+
+    await page.goto("/race/S-AK-2026", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const raceLine = page.locator(".race-header [data-rating-sources]");
+    await expect(raceLine, "the race page's sources line").toBeVisible({ timeout: 20_000 });
+    const [strip, named] = await raceLine.evaluate((el, full) => {
+      const raters = (root: Element | null) =>
+        root
+          ? [...root.querySelectorAll("[title]")]
+              .map((e) => e.getAttribute("title") ?? "")
+              .filter((t) => full.includes(t))
+              .sort()
+          : [];
+      return [raters(el.previousElementSibling), raters(el)];
+    }, Object.values(RACE_RATING_SOURCES));
+    expect(named.length, "the line names raters").toBeGreaterThan(0);
+    expect(named, "the line's raters are the strip's").toEqual(strip);
+
+    await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const foot = page.locator("span", { hasText: "synced 4× daily" });
+    await expect(foot, "/welcome's foot").toHaveCount(1);
+    for (const s of order) {
+      await expect(
+        foot.locator(`a[href="${RACE_RATING_PAGES_2026[s]?.house ?? ""}"]`),
+        `the foot links ${s}'s House page`,
+      ).toHaveCount(1);
+    }
+    await expect(foot).toContainText(/ratings as of \d{4}-\d{2}-\d{2}/);
   });
 
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert

@@ -44,6 +44,7 @@ import {
   getPrimaryCalendar,
   getRaceCandidatesForCycle,
   getRaceResults,
+  getRaterFreshness,
   getRecentRaceMoves,
   getCycleMarketCoverage,
   getIncumbentQualifiers,
@@ -98,7 +99,7 @@ export default async function ElectoralPage({
   const clockMs = clockNowMs();
   const passed = daysToElection(cycle, clockMs) < 0;
 
-  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags, general, pools, participation, pool] =
+  const [index, raceCandidates, chamberControl, calendar, pacByRace, incumbentTags, general, pools, participation, pool, freshness] =
     await Promise.all([
       getRacesIndex(cycle),
       getRaceCandidatesForCycle(cycle),
@@ -110,6 +111,8 @@ export default async function ElectoralPage({
       getPalestinePools(),
       getChamberParticipationContext(),
       getMostCompetitiveRaces(cycle, FEATURED_POOL),
+      // HO 784: each rater's AS OF and VIA, for the sources line under the list.
+      getRaterFreshness(),
     ]);
   // HO 759: each row carries its incumbent's tag, so the list, the map's hover,
   // the pinned card and the district card read the same one.
@@ -181,6 +184,7 @@ export default async function ElectoralPage({
               }}
               nowMs={nowMs}
               passed={passed}
+              freshness={freshness}
             />
           }
         />

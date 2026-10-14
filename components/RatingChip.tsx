@@ -33,7 +33,8 @@ function readFromBallotpedia(sourceUrl: string | null): boolean {
   }
 }
 
-function sourceLabel(source: RaceRating["source"]): string {
+// HO 784: exported for the ratings sources line (components/RatingSourcesLine.tsx).
+export function sourceLabel(source: RaceRating["source"]): string {
   switch (source) {
     case "cook":
       return "Cook";

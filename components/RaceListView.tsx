@@ -20,6 +20,11 @@
 //   - a row opens into RaceOpenRow, one at a time (the HO 148 accordion).
 // Every field arrives built (lib/electoral-rows.ts): no fetch.
 //
+// HO 784 (docs/design/mock-784-sources-line-v3.html): the ratings sources line
+// under the box (RatingSourcesLine, its links following the tab), continuing the
+// box's border; the box gives up the line's height, so on a tall list the line
+// still ends at the window's bottom edge.
+//
 // Superseded: the HO 222 header's dropped premise ("there is no race→news
 // linkage in the data layer") stopped being true with the observation layer
 // (HO 394) and HO 718's getSeatNews; NEWS here is the members on the ballot's
@@ -32,11 +37,12 @@ import { ELECTORAL_LAYOUT_EVENT, ListQueryContext } from "@/components/ListQuery
 import { PacSpendingLine } from "@/components/PacSpendingLine";
 import { RaceNewsPanel } from "@/components/RaceNewsPanel";
 import { RaceOpenRow, ageColor, partyClass } from "@/components/RaceOpenRow";
+import { RatingSourcesLine } from "@/components/RatingSourcesLine";
 import { MarginBar, SpreadBar, formatCash } from "@/components/race-cells";
 import type { ElectoralRow, RaceNews, Tier } from "@/lib/electoral-rows";
 import { formatRelativeAge } from "@/lib/format";
 import { kalshiDivergesFromConsensus, ratingBorderColor, ratingColor } from "@/lib/race-colors";
-import type { MemberFacts, PacIeRow, PalestinePools } from "@/lib/queries";
+import type { MemberFacts, PacIeRow, PalestinePools, RaterFreshness } from "@/lib/queries";
 
 const TIERS: { key: Tier; label: string }[] = [
   { key: "toss", label: "TOSS-UP" },
@@ -301,6 +307,7 @@ export function RaceListView({
   medians,
   nowMs,
   passed,
+  freshness,
 }: {
   rows: ElectoralRow[];
   raceNews: RaceNews;
@@ -309,6 +316,8 @@ export function RaceListView({
   medians: { house: number | null; senate: number | null };
   nowMs: number;
   passed: boolean;
+  // HO 784: each rater's AS OF and VIA, for the sources line under the box.
+  freshness: RaterFreshness;
 }) {
   const { query, setQuery } = useContext(ListQueryContext);
   const [tab, setTab] = useState<"senate" | "house">("senate");
@@ -319,6 +328,7 @@ export function RaceListView({
   const [newsH, setNewsH] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const asideRef = useRef<HTMLDivElement | null>(null);
+  const footRef = useRef<HTMLDivElement | null>(null);
   const revealRef = useRef<string | null>(null);
 
   const q = query.trim().toLowerCase();
@@ -348,7 +358,9 @@ export function RaceListView({
   }, [tab, tiersKey, q, openId]);
 
   // BOX fit: the box's top is measured here, its bottom is the window's less
-  // the page's bottom padding; RACE NEWS beside it shares that bottom edge.
+  // the page's bottom padding and (HO 784) less the sources line under it, so
+  // the line stays in the window on a tall list; RACE NEWS beside it runs to the
+  // line's bottom, the two columns sharing one bottom edge.
   // Whether the box applies at all (900px and up) and whether the column sits
   // beside it (1,150px and up) is the stylesheet's call, so the server render
   // and the first client render agree.
@@ -357,11 +369,12 @@ export function RaceListView({
     if (!box) return;
     const main = box.closest("main");
     const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 16;
+    const foot = footRef.current?.offsetHeight ?? 0;
     const top = box.getBoundingClientRect().top + window.scrollY;
-    const h = Math.min(BOX_MAX, Math.max(BOX_MIN, Math.round(window.innerHeight - top - pad)));
+    const h = Math.min(BOX_MAX, Math.max(BOX_MIN, Math.round(window.innerHeight - top - pad - foot)));
     setBoxH(h);
     const aside = asideRef.current;
-    if (aside) setNewsH(Math.max(BOX_MIN, Math.round(top + h - (aside.getBoundingClientRect().top + window.scrollY))));
+    if (aside) setNewsH(Math.max(BOX_MIN, Math.round(top + h + foot - (aside.getBoundingClientRect().top + window.scrollY))));
   }, []);
   useLayoutEffect(() => {
     measure();
@@ -556,6 +569,9 @@ export function RaceListView({
                 </button>
               </div>
             ) : null}
+          </div>
+          <div ref={footRef} className="rl-sources">
+            <RatingSourcesLine freshness={freshness} chamber={tab} />
           </div>
         </div>
         <aside className="rl-aside" ref={asideRef}>

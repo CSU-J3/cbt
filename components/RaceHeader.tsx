@@ -1,7 +1,8 @@
 import { RatingChip } from "./RatingChip";
+import { RatingSourcesLine } from "./RatingSourcesLine";
 import { daysToElection, ordinal } from "@/lib/format";
 import { stateName } from "@/lib/states";
-import type { Race, RaceRating } from "@/lib/queries";
+import type { Race, RaceRating, RaterFreshness } from "@/lib/queries";
 import type { RaceResultView } from "@/lib/race-result";
 
 function raceName(r: Race): string {
@@ -27,12 +28,15 @@ export function RaceHeader({
   race,
   ratings = [],
   result,
+  freshness,
 }: {
   race: Race;
   ratings?: RaceRating[];
   // HO 758: once election day has passed, the result replaces the countdown
   // and the rating chips read as the final call. Dormant (or absent) before.
   result?: RaceResultView;
+  // HO 784: each rater's AS OF and VIA, for the sources line under the chips.
+  freshness?: RaterFreshness;
 }) {
   const days = daysToElection(race.cycle);
   const decidedState = result?.passed ? result : null;
@@ -66,29 +70,40 @@ export function RaceHeader({
         </span>
       </div>
       {ratings.length > 0 ? (
-        <div
-          className="mt-2 flex flex-wrap items-center gap-2"
-          style={decidedState ? { opacity: 0.55 } : undefined}
-        >
-          {decidedState ? (
-            <span
-              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
-              style={{ color: "var(--text-dim)" }}
-            >
-              final call ·
-            </span>
-          ) : null}
-          {ratings.map((r, i) => (
-            <span key={r.id} className="inline-flex items-center gap-2">
-              {i > 0 ? (
-                <span aria-hidden style={{ color: "var(--text-dim)" }}>
-                  ·
-                </span>
-              ) : null}
-              <RatingChip rating={r} chamber={race.chamber} />
-            </span>
-          ))}
-        </div>
+        <>
+          <div
+            className="mt-2 flex flex-wrap items-center gap-2"
+            style={decidedState ? { opacity: 0.55 } : undefined}
+          >
+            {decidedState ? (
+              <span
+                className="text-[length:var(--fs-12)] uppercase tracking-[0.5px]"
+                style={{ color: "var(--text-dim)" }}
+              >
+                final call ·
+              </span>
+            ) : null}
+            {ratings.map((r, i) => (
+              <span key={r.id} className="inline-flex items-center gap-2">
+                {i > 0 ? (
+                  <span aria-hidden style={{ color: "var(--text-dim)" }}>
+                    ·
+                  </span>
+                ) : null}
+                <RatingChip rating={r} chamber={race.chamber} />
+              </span>
+            ))}
+          </div>
+          {/* HO 784: the ratings sources line, naming the raters in the strip
+              above. Outside the strip's div, so it never takes the decided
+              state's 0.55. */}
+          <RatingSourcesLine
+            className="mt-2"
+            freshness={freshness ?? {}}
+            chamber={race.chamber}
+            sources={ratings.map((r) => r.source)}
+          />
+        </>
       ) : null}
     </div>
   );

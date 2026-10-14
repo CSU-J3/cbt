@@ -257,6 +257,7 @@
         border-top:1px solid var(--border-strong)}
 .foot{font-size:var(--fs-10);letter-spacing:.08em;color:var(--text-dim)}
 .footK{color:var(--text-muted)}
+a.footK:hover,a.footK:focus-visible{text-decoration:underline} /* HO 784: the foot's rater links */
 .sep{color:var(--border-strong)}
 
 /* ── responsive ───────────────────────────────────────────────────────────── */

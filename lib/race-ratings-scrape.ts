@@ -374,6 +374,14 @@ function stripTags(s: string): string {
 /** The page Sabato's ratings are read from, and the `source_url` its rows cite. */
 export const SABATO_CHANGES_URL = "https://centerforpolitics.org/crystalball/2026-rating-changes/";
 
+// HO 784: every direct reader's `source_url`, the URL its rows cite when they were
+// read from the rater itself rather than from Ballotpedia. The ratings sources
+// line says DIRECT for a rater whose newest row cites one of these
+// (getRaterFreshness, lib/queries.ts). A rater's own domain can't stand in for the
+// set: the seed wrote each rater's own chamber page as `source_url` on rows it
+// took from Wikipedia. The next direct reader adds its URL here.
+export const DIRECT_SOURCE_URLS: ReadonlySet<string> = new Set([SABATO_CHANGES_URL]);
+
 // Sabato's words as the Old Rating and New Rating columns print them, to the
 // normalized labels race_ratings already holds. Measured at STEP 0 (S1,
 // 2026-10-10): these seven and no others. "Leans" is the store's "Lean", and

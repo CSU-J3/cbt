@@ -6,6 +6,7 @@ import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { readIncumbentOnBallot, type IncumbentOnBallotReading } from "./incumbent-on-ballot";
 import { readRaceResult, type RaceResultReading } from "./race-result";
+import { DIRECT_SOURCE_URLS } from "./race-ratings-scrape";
 import { RUNOFF_SEAT_JOIN } from "./runoff-seat";
 import { readIncumbentQualifiers, type IncumbentQualifier } from "./incumbent-qualifier";
 import {
@@ -2422,9 +2423,13 @@ function rowToRaceRating(r: Record<string, unknown>): RaceRating | null {
   };
 }
 
-// Tagged "race-ratings" — separate from "races" because the rating seed
-// refreshes on a different cadence (quarterly, manual) than the race
-// surface (per-cycle backfill). Re-seed via /api/revalidate?tag=race-ratings.
+// Tagged "race-ratings", separate from "races". The ratings sync
+// (/api/sync-race-ratings, daily) writes a rating only when it changes, and
+// expires this tag at the end of a run that doesn't throw; a run that throws
+// (either leg failing) expires nothing, so whatever its other leg wrote waits on
+// the day-long revalidate below. /api/revalidate?tag=race-ratings flushes it by
+// hand. (HO 784: this said the seed refreshed it quarterly; the seed has been a
+// first fill since HO 782.)
 export const getRaceRatings = unstable_cache(
   async (raceId: string): Promise<RaceRating[]> => {
     const db = getDb();
@@ -2441,6 +2446,58 @@ export const getRaceRatings = unstable_cache(
       .filter((x): x is RaceRating => x !== null);
   },
   ["getRaceRatings"],
+  { revalidate: 86400, tags: ["race-ratings"] },
+);
+
+// HO 784: each rater's freshness, for the ratings sources line
+// (components/RatingSourcesLine.tsx). AS OF is MAX(rating_date) over the
+// rater's cycle-2026 rows: the reader's own stamp (Ballotpedia's widget caption
+// date, else the scrape date; for Sabato, the race's newest change), written
+// only when a rating changes (lib/race-ratings-sync.ts), so it is the rater's
+// newest rating date, not its last read. VIA is where the rater's most recently
+// updated row was read: Ballotpedia by host (RatingChip's own test), a direct
+// reader by its URL (DIRECT_SOURCE_URLS), and unsaid for anything else, such as
+// a seed row citing the rater's own page. A rater with no 2026 rows is absent;
+// the line still names and links it.
+export type RaterFreshness = Partial<
+  Record<RatingSource, { asOf: string | null; via: "ballotpedia" | "direct" | null }>
+>;
+
+function ratingVia(sourceUrl: string | null): "ballotpedia" | "direct" | null {
+  if (!sourceUrl) return null;
+  try {
+    if (new URL(sourceUrl).hostname === "ballotpedia.org") return "ballotpedia";
+  } catch {
+    return null;
+  }
+  return DIRECT_SOURCE_URLS.has(sourceUrl) ? "direct" : null;
+}
+
+export const getRaterFreshness = unstable_cache(
+  async (): Promise<RaterFreshness> => {
+    const db = getDb();
+    const rs = await db.execute(
+      `SELECT r.source,
+              MAX(r.rating_date) AS as_of,
+              (SELECT n.source_url FROM race_ratings n
+                WHERE n.source = r.source AND n.cycle = 2026
+                ORDER BY n.updated_at DESC LIMIT 1) AS newest_url
+         FROM race_ratings r
+        WHERE r.cycle = 2026
+        GROUP BY r.source`,
+    );
+    const out: RaterFreshness = {};
+    for (const row of rs.rows) {
+      const source = String(row.source);
+      if (!RATING_SOURCES_SET.has(source)) continue;
+      out[source as RatingSource] = {
+        asOf: row.as_of == null ? null : String(row.as_of),
+        via: ratingVia(row.newest_url == null ? null : String(row.newest_url)),
+      };
+    }
+    return out;
+  },
+  ["getRaterFreshness"],
   { revalidate: 86400, tags: ["race-ratings"] },
 );
 

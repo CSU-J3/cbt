@@ -15,6 +15,7 @@ import {
   getRaceRatings,
   getRaceResult,
   getRaceRoster,
+  getRaterFreshness,
   getRunoffsForRace,
 } from "@/lib/queries";
 
@@ -67,7 +68,7 @@ export default async function RacePage({
     );
   }
 
-  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot, resultReading, qualifiers] =
+  const [candidates, incumbent, ratings, runoffs, pacByRace, news, onBallot, resultReading, qualifiers, freshness] =
     await Promise.all([
       // HO 757: the roster's own read, the one that carries `on_ballot` rows.
       getRaceRoster(race.id),
@@ -92,6 +93,8 @@ export default async function RacePage({
       // HO 759: the tag for a stored incumbent this ballot doesn't carry (one
       // read for the cycle; this race's row, when it has one).
       getIncumbentQualifiers(race.cycle),
+      // HO 784: each rater's AS OF and VIA, for the sources line under the chips.
+      getRaterFreshness(),
     ]);
   // HO 758: dormant until election day has passed, on lib/clock.ts's now.
   const result = raceResultView(resultReading, race.cycle, clockNowMs());
@@ -121,6 +124,7 @@ export default async function RacePage({
           news={news}
           result={result}
           incumbentTag={incumbentTagAt(qualifiers[race.id] ?? null, race.cycle, clockNowMs())}
+          freshness={freshness}
         />
       </main>
     </div>

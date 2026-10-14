@@ -1,14 +1,19 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { BreakingTicker } from "@/components/BreakingTicker";
 import { LandingCTAs } from "@/components/LandingCTAs";
+import { sourceLabel } from "@/components/RatingChip";
+import { RATER_ORDER } from "@/components/RatingSourcesLine";
 import { WelcomeClock } from "@/components/WelcomeClock";
 import { currentCongressLabel } from "@/lib/congress";
+import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "@/lib/enums";
 import { isMarketOpen } from "@/lib/market-hours";
 import { MARKET_SYMBOLS } from "@/lib/markets";
 import {
   type MarketTick,
   getCorpusStats,
   getLatestMarketTicks,
+  getRaterFreshness,
   getStageChangesCount,
   getStageDistribution,
 } from "@/lib/queries";
@@ -203,7 +208,7 @@ function latestTickedAt(ticks: MarketTick[]): string | null {
 }
 
 export default async function WelcomePage() {
-  const [moversCount, corpus, stageDist, ticks] = await Promise.all([
+  const [moversCount, corpus, stageDist, ticks, freshness] = await Promise.all([
     getStageChangesCount({}, 7),
     getCorpusStats(true),
     getStageDistribution(undefined, true),
@@ -211,11 +216,25 @@ export default async function WelcomePage() {
     // already serves last-known values on cron lag, and any failure degrades to
     // an empty tape rather than a 500.
     getLatestMarketTicks().catch(() => [] as MarketTick[]),
+    // HO 784: the raters' dates, for the foot's "ratings as of".
+    getRaterFreshness(),
   ]);
   // HO 490: page-computed clock for every relative age below (#418).
   const nowMs = Date.now();
   const moved7d = moversCount.total;
   const board = await loadBoard(nowMs, moved7d);
+  // HO 784: the foot's one date phrase for the raters: a single date while they
+  // agree, the oldest to the newest when they don't, nothing when none has one
+  // (getRaterFreshness, each rater's newest rating date).
+  const raterDates = RATER_ORDER.map((s) => freshness[s]?.asOf)
+    .filter((d): d is string => typeof d === "string")
+    .sort();
+  const ratingsAsOf =
+    raterDates.length === 0
+      ? null
+      : raterDates[0] === raterDates[raterDates.length - 1]
+        ? raterDates[0]
+        : `${raterDates[0]} to ${raterDates[raterDates.length - 1]}`;
 
   const introduced = corpus.total;
   const enacted = stageDist.bars.find((b) => b.stage === "enacted")?.count ?? 0;
@@ -412,6 +431,28 @@ export default async function WelcomePage() {
           <span className={styles.sep}>·</span> Kalshi{" "}
           <span className={styles.sep}>·</span> Polymarket{" "}
           <span className={styles.sep}>·</span> FEC{" "}
+          {/* HO 784 (mock-784 v3): the raters, each linked to its House page (the
+              board mixes chambers), and their dates in --rating-freshness. */}
+          {RATER_ORDER.map((s) => (
+            <Fragment key={s}>
+              <span className={styles.sep}>·</span>{" "}
+              <a
+                className={styles.footK}
+                href={RACE_RATING_PAGES_2026[s]?.house}
+                title={RACE_RATING_SOURCES[s]}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {sourceLabel(s)}
+              </a>{" "}
+            </Fragment>
+          ))}
+          {ratingsAsOf ? (
+            <>
+              <span className={styles.sep}>·</span>{" "}
+              <span style={{ color: "var(--rating-freshness)" }}>ratings as of {ratingsAsOf}</span>{" "}
+            </>
+          ) : null}
           <span className={styles.sep}>·</span> synced 4× daily
         </span>
         <span className={styles.spacer} />
