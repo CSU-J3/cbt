@@ -6657,3 +6657,107 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the general runoff added where SKILL describes the reader and its tables, and every sentence the build made false rewritten (named in the paste).
 - **Also notes now run through HO 783.**
+
+**Also (HO 784), the ratings sources line: every ratings surface names its three raters, links each one, and says how old its ratings are, and `seed:ratings` refuses a table that has rows. It opens with HO 783's FF go as taken.**
+- **What's here:**
+  - HO 783's FF go as taken;
+  - Corey's ruling, its trail and the mock;
+  - STEP 0, with its measurements;
+  - the line, AS OF, VIA and the token;
+  - §§ 1 to 5;
+  - legs A to F.
+- **Seven commits, kinds unmixed:** `docs(design)` (the mock, ahead of the code that cites it) · `feat` (§§ 1 to 4 and the smoke test) · `fix` (§ 5) · `feat` (the line's spacing, after leg B's r1) · `diag` · `docs` · `docs(skill)` alone and last.
+- **No migration and no prod write.** Prod was read by `SELECT` only: STEP 0's reads, the seeds and leg A, each fingerprinted before and after.
+- **The pointer is 784:** pointer 783, highest HO in commit subjects 783, `main` at `372c433`.
+
+**HO 783's FF go, as taken** (`docs/handoffs/783-artifacts/ff/paste-783-ff.md`).
+- **The FF:**
+  - immediately before it, the cold build (01:51:07-38Z, exit 0, *Compiled successfully in 8.9s*, no warning line) and the cheap gates (green);
+  - then `4d73ca7..372c433`, 5 commits, no force (2026-10-14 01:51:59Z). The classifier didn't block it;
+  - `783-review` deleted, remote and local, and `main` reads `372c4330a27b…`.
+- **`verify:deploy`, in the foreground:** matched at 31s, five consecutive reads at 72s.
+- **The Production build,** `dpl_64sHegejbL4KRwdDJiJFhkUw8bdn` (`bld_hu6kck28u`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 01:52:04.645Z. It compiled in 7.7s and went READY at 01:52:44.943Z. Its log, read whole in two windows, held no Next warning line.
+- **Vercel's records came at most 1s after READY:** Production's (7054753348) at 01:52:45Z against 01:52:44.943Z, and HO 783's review Preview's (7053770370) at 00:46:45Z against 00:46:44.462Z.
+- **`e2e-prod`:** the Production record fired #38498068482 (01:52:47Z): `smoke` **141 passed (5.8m)**, all 39 crawl lines clean. Nothing was dispatched.
+- **No flush:** before Nov 3 no race has two marks.
+- **The first tick on the new code,** #24866 (02:20:35-02:24:30Z): `success`, 40 races READ, and `runoffBoxes` and `runoffAmbiguous` both empty, the first payload to carry them. All 40 batches committed (40 `general_ballot_reads` rows stamped after READY), and `general_runoff` holds 0 rows.
+- **The paste's note 1,** a header comment HO 783 made false (`app/api/cron/general-ballot/route.ts:7-8`), wasn't taken by this HO, so it's filed in the backlog (method.md: a finding caught in relay is filed).
+
+**Corey's ruling, verbatim: *"this works send it"*, on `docs/design/mock-784-sources-line-v3.html` as it opens.** The line as set: ELECTORAL foot · RACE chips · WELCOME foot · FRESH via · LAYOUT line · CASE chrome · COOK on · EMBER #d2500e. The trail:
+1. *"prob should have like a drop down on the dashboard that list these upfront?"*, answered with a static line, not a dropdown, since a dropdown hides what was asked for upfront.
+2. On v1 Corey set FOOT, UNDER CHIPS, FOOT, AS OF + VIA, ONE LINE, CHROME, SHOWN, and said: *"from its own page cant be the wording. make this more noticeable, maybe make the text a dark orange that we have not used yet"*.
+3. On v2: *"no just this text as of 2026-09-30 · via Ballotpedia. keep the ratting site name with the same color associated with it"*.
+4. On v3: *"this works send it"*.
+- **The mock,** committed in its own `docs(design)` commit ahead of the `feat` whose `app/globals.css` cites it (HO 718's order), so the citation resolves at every commit: sha256 `47fd497ac03c5471db12676a47c18472a978d0b0e014ff705a8e922520d22135`, 29,176 bytes, the committed blob reading the same. It was drawn as mock-783 and renamed before HO 783 went to the general runoff box; the old name was never cited in the repo. The bar's SABATO FEED buttons preview a future state and are not a ruling.
+- **The mock as it opens draws two of its three surfaces otherwise than its v3 note says.** Its CSS declares `.src-line a` and `.src-line .fr` twice, and the later pair (`:114-115`) wins the cascade. So on `/electoral` and `/race`, read headless, the names draw in `--text-secondary` (rgb(203, 213, 225)) and the dates in `--text-dim` (rgb(107, 114, 128)); only the welcome foot draws the dates in the ember (`docs/handoffs/784-artifacts/step0-mock-colours.json`). The build follows the v3 note and Corey's v2 words: names in `--text-muted`, as the chips', and the dates in the ember.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-14 18:28-18:40Z at `372c433`: **claims 1 to 5, 7 and 8 hold; claim 6 holds by its letter, not its substance.** Its *Fails if* is empty, so no HALT.
+- **1:** `main` is `372c433`, HO 783 is on it, and its FF paste recorded Production's `smoke` green (141).
+- **2:** the mock reads the sha256 above, 29,176 bytes.
+- **3:** the `race_ratings` DDL (SKILL `:368-378`); the unchanged-skip (`lib/race-ratings-sync.ts:349-352`); the upsert writing `rating_date` (`:386`) and the reader's `sourceUrl` (`:387`); `SABATO_CHANGES_URL` (`lib/race-ratings-scrape.ts:375`), the only `sourceUrl:` value (`:704`); the seed writing each row's `source_url` (`scripts/seed-race-ratings.ts:131`), which in all four files is the file's `source_url_base`, the rater's own chamber page. The `rating_date` comment the handoff cites at `:358-367` runs to `:368`.
+- **4, the prod read** (leg A's red half; `step0-prod-ratings.txt`):
+  - Cook: 87 rows, MAX(`rating_date`) 2026-09-29, the newest row (by `updated_at`) on `ballotpedia.org`;
+  - Inside Elections: 86 rows, 2026-09-22, `ballotpedia.org`;
+  - Sabato: 95 rows, 2026-09-29, `ballotpedia.org`;
+  - so the line must print *RATINGS · COOK · AS OF 2026-09-29 · VIA BALLOTPEDIA · INSIDE ELECTIONS · AS OF 2026-09-22 · VIA BALLOTPEDIA · SABATO · AS OF 2026-09-29 · VIA BALLOTPEDIA*, and `/welcome`'s foot *ratings as of 2026-09-22 to 2026-09-29*.
+- **5:** the surfaces at their anchors: `RaceListView` client (`:1`), `tab` (`:314`), `measure()` (`:355-365`) sizing the box from the window's bottom (`:360-362`), `.rl-main` / `.rl-box` (`:500-510`), the aside (`:561`); `/electoral`'s call (`app/electoral/page.tsx:172-184`); `RaceHeader`'s strip (`:68-92`), rendered only by `RaceHubBody` (`:119`) from the race page (`:112-124`, its `Promise.all` `:70-95`); the welcome foot (`app/welcome/page.tsx:408`, its `div` closing at `:421`, one past `:420`) and its classes; the box off under 900px (`app/globals.css:6194-6199`).
+- **6:** `getRaceRatings` (`lib/queries.ts:2425-2445`) is `unstable_cache`, a day, tag `race-ratings`, and its comment says the seed refreshes quarterly. No code calls `revalidateTag("race-ratings")` by that name, but `app/api/sync-race-ratings/route.ts:102` calls `expireTag("race-ratings")`, which is `revalidateTag(tag, { expire: 0 })` (`lib/cache/expire-tag.ts`), at the end of every run that doesn't throw. The seven runs since 2026-10-07 all threw, Sabato's page answering 403 with Cloudflare's challenge (`step0-sync-runs.txt`), so nothing has expired it since the 2026-09-30 run, but the code does. The comment and the new backlog line say that, not that nothing revalidates the tag.
+- **7:** the seed counts nothing before it writes (`:81-89`), its header calls it the quarterly refresh (`:1-6`), and SKILL `:1376` and `:2968` describe it.
+- **8:** `e2e/smoke.spec.ts`'s `targeted interactions` describe is at `:898`.
+- **The colours:** `#d2500e`, `#ea580c` and `#c2410c` are used nowhere in `app components lib`; `#b45309` is the nearest orange in use (`components/ElectoralBoard.tsx:154`, `components/PrimaryTimeline.tsx:35`). Measured: `#d2500e` is 4.702:1 on `--bg-panel` and 4.507:1 on `--bg-base`.
+
+**The line.**
+- **AS OF is MAX(`rating_date`) over the rater's cycle-2026 rows:** the reader's own stamp, Ballotpedia's widget caption date, else the scrape date, and for Sabato the race's newest change. The sync writes a rating only when it changes, so this is the rater's newest rating date, not its last read; for a live feed with no changes it understates. Nothing records a rater's last successful read, so that's filed, not fixed.
+- **VIA comes from the `source_url` of the rater's most recently updated row:** `ballotpedia.org` by host is *via Ballotpedia* (the chip's own test); a direct reader's URL is *direct* (`DIRECT_SOURCE_URLS`, beside `SABATO_CHANGES_URL` in `lib/race-ratings-scrape.ts`, which holds that one URL today and takes the next direct reader's); anything else says no via.
+- **Matching the rater's own domain can't stand for DIRECT:** the seed wrote each rater's own chamber page as `source_url` (each file's `source_url_base`) on rows that came from Wikipedia, so a seed row would read *direct*.
+- **The token** is `--rating-freshness: #d2500e`, for a rater's as-of and via and nothing else (HO 610's rule): 4.70:1 on `--bg-panel` and 4.51:1 on `--bg-base`, both AA at 12px.
+
+**§ 1, the data and the component** (`feat` `62bacb3`).
+- **`getRaterFreshness`** (`lib/queries.ts`, `unstable_cache`, a day, tag `race-ratings`) runs the handoff's query and returns, per rater with rows, `{ asOf, via }`. A rater with no rows is absent, and the line still names and links it without a clause.
+- **`getRaceRatings`' comment** now says the sync writes a rating when it changes and expires the tag at the end of a run that doesn't throw, and that a run that throws expires nothing.
+- **`components/RatingSourcesLine.tsx`,** presentational with no hooks, renders `<p data-rating-sources>` at 12px, uppercase: *Ratings* in `--text-dim`, then per rater a hidden dot and `<span data-rater>` holding its name, linked as the chip links it (`sourceLabel`, now exported from `RatingChip`), and `<span data-rater-freshness>` in the token, each date `nowrap`. The raters keep the fixed order, Cook, Inside Elections, Sabato (`RATER_ORDER`).
+- **`app/globals.css`:** the token on `:root`, and `.rl-sources` continuing the list box.
+
+**§ 2, `/electoral`'s foot.** The page reads the freshness, and `RaceListView` renders the line in a footer under `.rl-box`, its links following the tab, with the box's border continued and its bottom corners squared while the footer is there.
+- **`measure()` changes, the architect's call:** the box fills to the window's bottom, so a footer just appended would sit below the fold on the House tab, against v2's *make this more noticeable*. The box's height now gives up the footer's, and RACE NEWS runs to the footer's bottom, the two columns sharing one bottom edge. Under 900px nothing changes.
+
+**§ 3, `/race/[id]`, under the chips.** The page adds the freshness to its `Promise.all`; `RaceHeader` renders the line after the chip strip, naming the strip's raters in the line's order, outside the strip's `div`, so never at the decided state's 0.55.
+
+**§ 4, `/welcome`'s foot.** After FEC: *Cook · Inside Elections · Sabato*, each in `.footK` and linked to its House page (the board mixes chambers), then *ratings as of <date>* in the token (*<oldest> to <newest>* while the dates differ; nothing when none has one). The links underline on hover.
+
+**§ 5, the guard** (`fix` `76cd610`). `main()` counts `race_ratings` before it reads a seed file; with rows and no `--force` it prints that the table has N rows and the seed is a first fill for an empty table that would write its snapshots over the synced ratings, sets exit code 1 and returns without a write. The header says first fill.
+
+**The line's spacing** (`feat` `caa2b58`). The dots carried 6px side margins, as the mock's do, so the line's text ran *Ratings·Cook · as of …*, and a screen reader got *RatingsCook* past the hidden dot. A space either side of the dot parts the words, about 1.7px wider a side. Leg B's r1 read it (two FAILs, both this), and r2 reads the line word for word.
+
+**The legs** (`diag` `cae3780`, `scripts/diagnostic/rating-sources-legs-784.ts`): **r2, 24 PASS and 1 FAIL, with the seed's 1 PASS and leg E's 4 PASS.**
+- **The builds:** HEAD's (`372c433`) and the tree's (`caa2b58`; r1 ran `76cd610`), cold and secretless in scratch worktrees, exit 0 with no warning line.
+- **The seed:** the real `scripts/migrate.ts` against a `file:` template, 23 tables whole from prod by `SELECT`, `bills` and `member_votes` cut, the newest 400 `cron_runs`; four copies (HEAD's, the tree's and leg E's two), each server's with its own sentinel. Prod's `race_ratings` and schema fingerprints equal before and after every mode.
+- **A:** the prod read again, as STEP 0 read it, and both copies' `race_ratings` hash as prod's.
+- **B, the smoke test** (the tree's *the ratings sources line names, links and dates the raters*, by Playwright against each server):
+  - **HEAD red:** 1 failed, at its first assertion, *`/electoral`'s sources line*;
+  - **the tree green:** 1 passed;
+  - and read by the leg on the tree: `/electoral`'s line names the three raters in order, links the Senate pages and, after the HOUSE tab, the House pages, and reads A's text word for word; `/race/S-AK-2026`'s names the strip's three; `/welcome`'s foot links the three House pages and reads *ratings as of 2026-09-22 to 2026-09-29*. HEAD has no line and no rater link in the foot.
+- **C, the box fit** on `/electoral`'s HOUSE tab:
+  - **2560x1440 passes:** the document doesn't scroll, the line (one row, 39.5px) lies wholly in the window, and its bottom is RACE NEWS's (1423.25 against 1423.75);
+  - **1440x900 FAILS:** the document scrolls 32px, and the line (two rows there, 53px, the main column being narrower than the mock's) ends at 916 of 900. The box is held at its 320px floor (`BOX_MIN`, mock-767's): its top is 543, which leaves 900 - 543 - 16 = 341px, less the line's 53 is 288;
+  - **the counterfactual holds at both:** sized as before HO 784, the document scrolls by the line's height (53 at 1440, 39 at 2560);
+  - **HEAD, the control,** has no line and doesn't scroll at either size.
+- **D, the colours** on the tree: every freshness clause (7: `/electoral`'s three, `/race`'s three and the welcome foot's date) reads rgb(210, 80, 14); every rater name (9) reads rgb(148, 163, 184), as do the three chip names; the lowest contrast against its computed background is 4.51:1 (the freshness on `--bg-base`), the names 7.54:1.
+- **E, the seed** on scratch copies, each run in a worktree with no `.env` under an environment carrying its copy's URL and none of ours:
+  - **HEAD's script** on a table of 268 rows: exit 0, `updated_at` moved on 167 of the files' 248 ids, 114 rows rewritten with the snapshots, and 81 inserted;
+  - **the tree's:** exit 1 with the message (*race_ratings has 268 rows; …*), and the table hashes the same before and after;
+  - **the tree's with `--force`:** exit 0, the same 167, 114 and 81.
+- **F, captures** (`docs/handoffs/784-artifacts/captures/`): `/electoral` on Senate and House, `/race/S-AK-2026` and `/welcome` on the tree at 1440 and 2560, again with reduced motion, and HEAD's at 1440, 20 files, eyeballed styled. CI's `narrow-preview` and the Preview's 430 captures follow the review push.
+- **Locally at 430 and 390** (the tree, before the push): the three routes overflow by 0, and the line wraps to four rows (`narrow-local-r2.txt`, and two captures at 430, `tree-local-*`).
+
+**Docs (HO 784):**
+- This block.
+- **backlog, 3+/1−:**
+  - **The `seed:ratings` line is struck** on leg E.
+  - **Filed at the top:** the sources line's AS OF is a rater's newest rating date, not its last read (*Owner:* Code, low), and the general-ballot route's header (HO 783's FF paste, note 1; *Owner:* Code, low).
+- **OPEN LOOPS reconciled:**
+  - open: 265 live / 352 struck (617), § OPEN LOOPS `:14-215` 64 / 123;
+  - close: **266 / 353 (619), § OPEN LOOPS `:14-217` 65 / 124**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:** the palette gains the token; the ratings section gains the sources line; the seed's two descriptions say it refuses a table with rows unless run with `--force`; and the sentences this HO made false are rewritten (named in the paste).
+- **Also notes now run through HO 784.**
