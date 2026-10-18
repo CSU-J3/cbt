@@ -6761,3 +6761,125 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the palette gains the token; the ratings section gains the sources line; the seed's two descriptions say it refuses a table with rows unless run with `--force`; and the sentences this HO made false are rewritten (named in the paste).
 - **Also notes now run through HO 784.**
+
+**Also (HO 785), handoffs 662 to 784 ride as one tracked gzip, the way 362 to 661 do: 245 files, with the directory's ignore untouched. It opens with HO 784's FF go as taken.**
+- **What's here:**
+  - HO 784's FF go as taken, with the two notes it asked this block to record;
+  - STEP 0;
+  - M1, the census; M2, the archive read back; M3, the ignore;
+  - a secret check before the push, which the handoff didn't ask for, and the review reply's wider scan;
+  - the review reply's rulings, and the halt ruling on the wider scan's two findings;
+  - the README sentence, its last clause reworded at the review reply.
+- **Two commits, kinds unmixed:** `chore` (`c58cbb1`, the archive alone) · `docs`. No SKILL commit: neither SKILL nor method.md names the archive (`handoffs-archive`, 0 hits in each).
+- **Why now:** the CBT Project moved accounts on 2026-10-18. Everything after HO 661 in `docs/handoffs/` was on one disk and in one Project's knowledge. HO 662 priced the trade and Corey took it; this HO takes it again for the next range.
+- **The range starts at 662:** HO 662 archived through 661 and left its own file out, so `662-pre-migration-sweep.md` was the one hole. This archive closes it and leaves `785-handoff-archive.md` for the next.
+- **The pointer is 785:** pointer 784 (`docs/roadmap.md:6763`), highest HO in commit subjects 784, `main` at `9784a47`.
+
+**HO 784's FF go, as taken** (`docs/handoffs/784-artifacts/ff/paste-784-ff.md`).
+- **The FF:**
+  - immediately before it, the cold build (Node 24.21.0, 19:44:52-19:45:23Z, exit 0, *Compiled successfully in 8.9s*, no warning line) and the cheap gates (green);
+  - then `372c433..9784a47`, 7 commits, no force (2026-10-14 19:45:39Z). The classifier didn't block it;
+  - `784-review` deleted, remote and local, and `main` reads `9784a47b9087…`.
+- **`verify:deploy`, in the foreground:** first matched at 41s, five consecutive reads at 83s.
+- **The Production build,** `dpl_5PkorJfUuMUSsY5Mo1VEHRqjUKoU` (`bld_hdbe3g739`, iad1), skipped the build cache: *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 19:45:49.026Z. It compiled in 9.4s and went READY at 19:46:34.939Z. Its log, read whole in two windows, held no Next warning line.
+- **Vercel's records came at most 1s after READY:** Production's (7075542310) at 19:46:35Z against 19:46:34.939Z, and HO 784's review Preview's (7074747694) at 19:10:25Z against 19:10:24.443Z.
+- **`e2e-prod`:** the Production record fired #38626503217 (19:46:37Z): `smoke` **142 passed (6.0m)**, one more than HO 783's 141, and all 39 crawl lines clean. **The new test passed on its first Production run:** `smoke.spec.ts:970`, *the ratings sources line names, links and dates the raters* (2.9s). Nothing was dispatched.
+- **No flush:** `getRaterFreshness` is a new cache entry, so its first read is fresh.
+- **The reading** (plain `curl`, 19:48:14Z):
+  - `/api/version` reads `9784a47`;
+  - Production's `/electoral` serves one `[data-rating-sources]` whose text equals leg A's, case-insensitively: *Ratings · Cook · as of 2026-09-29 · via Ballotpedia · Inside Elections · as of 2026-09-22 · via Ballotpedia · Sabato · as of 2026-09-29 · via Ballotpedia*, linking the Senate pages;
+  - `/welcome`'s foot reads *ratings as of 2026-09-22 to 2026-09-29*, linking the House pages.
+- **Leg C's corrected bound:** the page scrolls by `max(0, boxTop + box + line + pad − innerHeight)`, with the box at `max(BOX_MIN, fit)`. At 1440×900 that's 543 + 320 + 53 + 16 − 900 = 32, which is what leg C measured; at 2560 it's 0. The bound HO 784 carried missed `BOX_MIN`, so the FAIL was the bound's, not the build's, and the floor stands (option c).
+- **mock-784's colours were a cascade bug in the mock.** v3's rules came earlier in its stylesheet than v1's, at equal specificity, so on `/electoral` and `/race` it draws the names in `--text-secondary` and the dates in `--text-dim`. **The mock is evidence for placement and text, not for its colours on those two surfaces.** The build follows Corey's v2 words and stands.
+- **Since the FF:** no commit on `main`, and the four scheduled `e2e-prod` runs on `9784a47` (10-15 to 10-18) all read `success`.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-18 at `9784a47`: **all five claims hold.**
+- **1:** `main`, `origin/main` and `ls-remote` read `9784a47` (*docs(skill): HO 784 — the ratings sources line…*), its Production reading passed (above), and `9784a47..origin/main` is empty.
+- **2:** `.gitignore:79` is `docs/handoffs/`, with the HO 604 rationale at `:69-78`. No rule matches `docs/*.tar.gz`: `git check-ignore` on the 362–661 archive prints nothing and exits 1.
+- **3:** `docs/handoffs-archive-362-661.tar.gz` is 829,609 bytes and 267 entries, every one `handoffs/<name>.md`, with no directory entry and no `*-artifacts/`.
+- **4:** `git ls-files docs/handoffs` lists 386 files; the highest-numbered is `429-doc-sweep-427-428.md`, and one more, `home-dashboard-cleanup.md`, has no number.
+- **5:** README carries the gzip at `:133-135`, its only mention (`tar.gz`, `gzip`, `handoffs-archive`: `:133` alone). The sentence § 2 rewrites starts at `:131`, but its first two lines stand, so the edit replaces `:133-135`.
+
+**M1, the census** of `docs/handoffs/`'s top level (1,031 names, 486,204,666 bytes), before this HO's artifacts folder existed. A name is in range when it starts with a number from 662 to 784 followed by `-`.
+
+| Reading | Value |
+|---|---|
+| in-range `.md`, archived | **245**, `662-pre-migration-sweep.md` to `784-rating-sources-line.md`, 2,170,669 bytes raw |
+| HOs 662–784 with no `.md` | **3:** 736, 739 and 762, each with only its `*-artifacts/` |
+| in-range `*-artifacts/`, excluded | 92 directories, 6,137 files, 412,785,304 bytes |
+| other in-range names, excluded | **19**, 2,651,041 bytes: 11 loose files (`663-review-diff.txt`, `674-artifacts-backfill.log`, `684-skill-diff.txt`, `685-skill-diff.txt`, `687-skill-diff.txt`, `689-skill-diff.txt`, `719-docs-and-skill.diff`, `723-docs.diff`, `724-code-and-docs.diff`, `724-skill.diff`, `727-skill-diff.patch`) and 8 directories not named `*-artifacts` (`731-artifacts-postff`, `731-scratch`, `732-artifacts-daily`, `732-artifacts-postff`, `733-artifacts-daily`, `733-artifacts-postff`, `733-artifacts-sample`, `733-scratch`) |
+| no numeric prefix, excluded | 2: `home-dashboard-cleanup.md` (tracked) and `registers-crosswalk-new-gray-pins-handoff-2026-09-26.md` (another repo's handoff) |
+| numbered above 784 | 1, `785-handoff-archive.md`, so no HALT |
+
+- **The HOs the handoff expected without a project file mostly have one on disk.** Of 662, 690, 713–717, 721, 739, 758, 759, 761, 762, 765, 766, 782 and 783, only 739 and 762 have none. 662 is present, as expected, and the other fourteen have a spec, a relay file or both.
+- **Appendix A against the disk: 102 of its 105 are on disk.** Three aren't:
+  - `671-sponsor-portrait-always-on.md` and `672-title-weight-breaking-sans-topic-colour.md`, whose slugs are on disk as `673-…` and `674-…` (HO 673 shipped the sponsor portrait);
+  - `736-fed-cut-second-horizon.md`, under no name on disk. HO 736 shipped the advancer status, and its number has only `736-artifacts/`. **It stays out, the review reply's ruling:** that spec never ran. HO 681's fork B is still live (`docs/backlog.md:230`), and the number 736 shipped as the advancer fix (`docs/roadmap.md:2542`), so archiving it would put a second, different 736 beside the roadmap's. It stays in the Project for when fork B is built under a fresh number.
+- **Appendix B against the disk: 95 of its 108 are on disk and ride.** 13 aren't, as B expects: `670-review-reply`, `670-skill-approval`, `671-reading-c-authorisation`, `671-skill-approval`, `671-step0-approval`, `672-step1-ruling`, `672-step2-ruling`, `672-worddiff-export-failure`, `686-ff-go`, `687-ff-go`, `688-ff-go`, `689-fork-rulings`, `692-step0-ruling` (each `.md`).
+- **On disk and in neither appendix: 48, and they ride** (each `.md`): `662-pre-migration-sweep`, `673-sponsor-portrait-always-on`, `674-title-weight-breaking-sans-topic-colour`, `678-pasteback`, `690-dashboard-chrome`, `696-reply2`, `696-review-reply`, `696-step0-ruling`, `697-a-prime-ruling`, `697-beta-clock-plex-mono`, `697-tag-arms-ruling`, `699-stats-strip-tiling`, `702-review-reply`, `703-step0-rulings`, `704-midflight-reply`, `705-step0-ruling`, `706-step4-ruling`, `712-congress-rollover`, `712-ff-go`, `712-step0-ruling`, `713-absence-watch-dark`, `713-ff-go`, `713-step0-ruling`, `714-absence-watch-two-zeros`, `714-ff-go`, `715-committee-votes-probe`, `715-ff-go`, `715-step0-ruling`, `716-ff-go`, `716-weekly-band-390`, `717-ff-go`, `717-recorded-votes-pointer`, `717-step0-ruling`, `718-electoral-report`, `721-step0-ruling`, `721-vote-col-flow-marking`, `724-step0-paste`, `730-step0-ruling`, `747-pass2-ruling`, `758-race-page-shows-the-result`, `759-incumbent-qualifier-by-kind`, `761-runoff-rounds-ingested`, `765-pac-rungs-read-the-ballot-first`, `766-select-codes-and-daily-comments`, `768-ff-go-amended`, `782-cook-seed-files`, `783-ff-go`, `783-general-runoff`.
+- 102 + 95 + 48 = 245, the archive's count.
+
+**M2, the archive read back** (`docs/handoffs-archive-662-784.tar.gz`, built by GNU tar 1.35 with `-C docs` from a list file sorted by name):
+- `gzip -t` is clean. There are 245 entries, equal to M1's count, and every one is `handoffs/<name>.md`, with no directory entry, no `*-artifacts/` and no `785-`. The entry list equals the census list.
+- **Every entry streamed out matches its working copy's md5: 245 match, 0 mismatch.**
+- **The control,** once and not archived: `784-rating-sources-line.md`, copied to scratch with one byte appended, reads a mismatch against its entry (`f12f60a9…` against `8b515cac…`), and the entry still matches the disk.
+- **746,432 bytes from 2,170,669 raw, 2.91×** (362–661's was 2.79×).
+
+**M3, the ignore:**
+- `git check-ignore -v docs/handoffs-archive-662-784.tar.gz` prints nothing and exits 1;
+- **the control,** `docs/handoffs/785-handoff-archive.md`, prints `.gitignore:79:docs/handoffs/` and exits 0;
+- `git status --porcelain docs/` shows the archive as `??` and no handoff file. It was staged by its pathspec alone.
+
+**A secret check over the 245, before the push** (not in the handoff; the repo is public, so the review push publishes them):
+- **By name:** the repo's 13 env names and 10 more credential names, reporting only `file:line`, the name and the length of the token that follows. **By sha256:** the 10 current `.env` values against 52,523 file tokens. Each arm fired on a planted control first.
+- **No credential.** There were 12 name hits:
+  - 7 are names followed by other names, in lists of names (HOs 678 and 679);
+  - 2 are 6-character `api_key` fixtures in HO 679's redaction test cases, and 2 more are that HO's `TRACER679…` tracer and `FIXTURE_CONGRESS_0123456789`;
+  - 1 is a `file:` database URL in HO 724.
+- There was 1 hash hit: HO 726's `http://localhost:3000/api/revalidate`, which is the local `REVALIDATE_URL`.
+- Shape counts (JWT, Google key, GitHub token, `_vercel_share=`, a bypass header with a value) read 0 each; their control read 1.
+
+**The review reply** (2026-10-18):
+- **`c58cbb1` stays.** Code committed it before checking Corey's commit rule, but it's on `785-review`, local, and `main` hadn't moved. On a public repo the review-ref push is publication, not staging, so the push waited for Corey's paste of the reply.
+- **Flag 1, the secret check:** accepted, and widened before the push (below). It hashed today's `.env`, so it couldn't see a key rotated at HO 680 or a credential this machine never held.
+- **Flag 2, the README clause:** reworded (below), and the Project's 736 spec stays out (M1, above).
+- **Flag 3, the artifacts folder's re-run census:** accepted.
+
+**The wider scan: HO 678's instruments over exactly what publishes.** `c58cbb1`'s archive blob (`git hash-object` equal to the committed `117b25c6…`) was extracted to a scratch folder outside the repo: 245 files, 2,170,669 bytes.
+- **gitleaks 8.30.1, default rules, `gitleaks dir <scratch> --redact`: 2 findings,** both `generic-api-key` in `679-emission-sink-redaction.md`:
+  - `:66`, the `FIXTURE_CONGRESS_…` fixture (27 chars, all capitals, digits and underscores);
+  - `:78`, the `TRACER679…` tracer.
+  - Both were classified by shape from the report's column span, and neither was printed.
+- **gitleaks's control:** a fake `ghp_` token planted in a scratch `handoffs/785-control.md` read 1 `github-pat` finding, redacted.
+- **gitleaks on the gzip itself:** at the default `--max-archive-depth 0` it reads 0, because it doesn't open archives; at depth 2 it reads the same two findings. So a default gitleaks run over the repo can't see inside either archive.
+- **Arm B, after HO 678's instrument B: 0 hits.** It compares the sha256 of each of the 8 held secrets' full value and first 8 chars against every window of the same length in every file: 17,136,852 windows, a superset of comparing candidate tokens.
+  - There was one config hit, HO 726's localhost `REVALIDATE_URL`, as above.
+  - The auth trio isn't held on this machine, so gitleaks is the instrument for that half.
+- **Arm B's control:** the script wrote `CONGRESS_API_KEY`'s first 8 chars into a scratch file inside filler text, never printing them. It read 1 `prefix8` hit, and the file was deleted afterwards.
+- **The same instruments over the 362–661 archive,** an extra reading outside the reply's ask. That archive has been public since HO 662, inside a gzip HO 678's history scan couldn't open:
+  - gitleaks reads 0;
+  - arm B reads 0, with one config hit: `TURSO_DATABASE_URL`'s full value in `602-doc-sweep-600-601-platform.md:68`, which HO 678 classed as configuration.
+- **The HALT:** the reply's rule is that any hit halts before the docs commit, so the two 679 findings HALTed it, pasted redacted.
+- **The halt ruling (Corey's paste): both findings ride as fixtures.** Nothing is redacted or edited, and the archive at `c58cbb1` stands as built.
+  - `:66` is fixture 7, a stub the redaction test sets itself: `CONGRESS_API_KEY` given `FIXTURE_CONGRESS_` and the digits 0 to 9 in order. The block names it by shape, because quoting the assignment trips gitleaks' `generic-api-key` rule in tracked text (this block's first draft did).
+  - `:78` is the tracer the control plants: `TRACER679_`, the digits 0 to 9 in order, then the letters a to f in order. The file calls it *a fake key* at `:76`.
+  - Arm B reads neither as a current secret or the start of one.
+  - The 362–661 reading stands as HO 678 classed it: `TURSO_DATABASE_URL` is config, not a secret.
+  - **Filed:** gitleaks reads 0 inside both gzips at its default archive depth and finds the two at depth 2. So a QUEUED line (`docs/backlog.md:220`) now requires any scan that claims an archive's coverage to run at depth 2 or over the extracted set, and every future archive to be scanned extracted before it's committed.
+
+**README** (`:133-137`, 5+/3−): the sentence is rewritten as the handoff gives it, with N = 245, wrapped to the file's width, and nothing else in the file changed. Its clause *less the HOs that shipped as inline blocks and have no file* didn't fit 736, whose number has a spec in the Project but none on disk. The review reply reworded it to state the measurement and no reason: *in 662–784, HOs 736, 739 and 762 have no file.*
+
+**Docs (HO 785):**
+- This block, and the README as above.
+- **backlog, 1+/0−:**
+  - **Nothing to strike.** At open, no live line named the archive (none in OPEN LOOPS, as the handoff said). The hits for `archive`, `local-only` and `after 661`, at this commit's line numbers:
+    - struck lines: `:156`, `:187`, `:222`, `:674` and `:869`;
+    - two lines calling `*-artifacts/` files local-only (`:390`, `:410`), which stays true, since the archive excludes those folders;
+    - `fit-finish.spec.ts`'s manual posture (`:620`).
+  - **Filed at the top of QUEUED** (`:220`), the halt ruling's instrument-family line: gitleaks at its default archive depth doesn't read inside the handoff archives (*Owner:* Code, standing).
+- **The reconcile:**
+  - open: 266 live / 353 struck (619), § OPEN LOOPS `:14-217` 65 / 124;
+  - close: **267 / 353 (620)**, § OPEN LOOPS `:14-217` 65 / 124, the new line being QUEUED's;
+  - the control, `^- \*\*~~`, is 0 at both.
+- No SKILL commit and no oddities entry.
+- **Also notes now run through HO 785.**

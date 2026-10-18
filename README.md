@@ -130,9 +130,11 @@ crawl), and `design-citations.yml`.
 - `docs/handoffs/` — the chronological handoff prompts that drove each step of
   development. **386 of them ship with the repo as loose files** (numbered through
   429 — they predate the `.gitignore` entry that now covers the directory), and
-  **267 more ride as one gzip** (`docs/handoffs-archive-362-661.tar.gz` — `tar -xzf`
-  it to read). The two sets are disjoint and together run from 01 to 661; everything
-  after 661 is repo-ignored and local-only (Tailwind build-input parity).
+  the rest ride as gzips (`docs/handoffs-archive-362-661.tar.gz`, 267 files, and
+  `docs/handoffs-archive-662-784.tar.gz`, 245 files — `tar -xzf` either to read).
+  The sets are disjoint and together run from 01 to 784; in 662–784, HOs 736, 739
+  and 762 have no file. Everything after 784 is repo-ignored and local-only
+  (Tailwind build-input parity) until the next archive.
 - `docs/roadmap.md` — where the dashboard is going; append-only narrative, one
   block per handoff.
 - `docs/backlog.md` — the open-loops ledger: open, queued, banked, watched, done.
