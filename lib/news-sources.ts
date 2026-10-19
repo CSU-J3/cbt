@@ -43,3 +43,10 @@ export const NEWS_SOURCES: NewsSource[] = [
     credibility: 2,
   },
 ];
+
+// HO 786: a mention's publisher as a reader names it. news_mentions.source
+// stores the slug; this is the matching feed's `display`, else the slug with
+// its underscores as spaces.
+export function newsSourceName(slug: string): string {
+  return NEWS_SOURCES.find((s) => s.slug === slug)?.display ?? slug.replace(/_/g, " ");
+}

@@ -33,6 +33,7 @@ import {
   hearingBadge,
   watchState,
 } from "@/lib/hearings";
+import { newsSourceName } from "@/lib/news-sources";
 import { stateName } from "@/lib/states";
 import type { FeedBill } from "@/lib/queries";
 import type { PanelData, PanelMeeting } from "@/components/bill-panel-types";
@@ -807,7 +808,7 @@ export function BillExpandPanel({
                   <span className="bxp-relnews-title">{n.title}</span>
                   <span className="bxp-relnews-meta">
                     {" · "}
-                    {n.source.toUpperCase()} · {formatRelativeAge(n.publishedAt, nowMs)}
+                    {newsSourceName(n.source).toUpperCase()} · {formatRelativeAge(n.publishedAt, nowMs)}
                   </span>
                 </a>
               ))

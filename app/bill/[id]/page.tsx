@@ -36,6 +36,7 @@ import {
   getVotesByBill,
   isInWatchlist,
 } from "@/lib/queries";
+import { newsSourceName } from "@/lib/news-sources";
 
 // HO 267 Phase 1: max meetings on a single bill = 5 (p90=2, none >8). Cap at 8
 // so today every bill shows in full; the "see all on /hearings" out only arms
@@ -385,7 +386,7 @@ export default async function BillDetailPage({
                         <span className="bxp-relnews-title">{n.title}</span>
                         <span className="bxp-relnews-meta">
                           {" · "}
-                          {n.source.toUpperCase()} ·{" "}
+                          {newsSourceName(n.source).toUpperCase()} ·{" "}
                           {formatRelativeAge(n.publishedAt, nowMs)}
                         </span>
                       </a>
