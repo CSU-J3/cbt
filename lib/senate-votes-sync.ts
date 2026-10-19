@@ -1,7 +1,7 @@
 // Senate roll-call vote sync (handoff 80). Senate has no Congress.gov API
 // coverage for votes, so we scrape the senate.gov LIS XML feeds:
 //   - menu (per session):   /legislative/LIS/roll_call_lists/vote_menu_{C}_{S}.xml
-//   - detail (per vote):    /legislative/LIS/roll_call_votes/vote{C}{S}/vote_{C}_{S}_{NNNNN}.xml
+//   - detail (per vote):    senateRollCallUrl(C, S, NNNNN, "xml"), lib/source-links.ts (HO 786)
 //     ({C} is the congress, already derived here — `opts.congress ?? getCurrentCongress()`)
 //
 // Senate XML keys members by `lis_member_id` (e.g. "S428"). Our schema keys
@@ -32,6 +32,7 @@ import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { buildSenatorResolver, type SenatorResolver } from "./lis-map";
 import { fetchError } from "./redact";
+import { senateRollCallUrl } from "./source-links";
 
 // Polite delay between detail fetches. senate.gov publishes no rate limit
 // but ~3-4 req/s is well within tolerance for their static XML.
@@ -133,7 +134,7 @@ function detailUrl(
   session: number,
   paddedNum: string,
 ): string {
-  return `https://www.senate.gov/legislative/LIS/roll_call_votes/vote${congress}${session}/vote_${congress}_${session}_${paddedNum}.xml`;
+  return senateRollCallUrl(congress, session, paddedNum, "xml");
 }
 
 async function fetchXml(url: string, attempt = 0): Promise<any> {

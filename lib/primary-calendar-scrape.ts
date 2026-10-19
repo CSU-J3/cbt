@@ -13,9 +13,8 @@
 // approach as lib/race-ratings-scrape.ts. A count check throws if fewer than
 // 50 state primaries are found, so a 270toWin restructure fails loud.
 
+import { PRIMARY_CALENDAR_URL } from "./source-links";
 import { stateAbbr } from "./states";
-
-const CALENDAR_URL = "https://www.270towin.com/2026-state-primary-calendar/";
 
 // Browser-ish UA — 270toWin is fine with it; matches the race-ratings scraper.
 const USER_AGENT =
@@ -82,11 +81,11 @@ function parseDate(text: string): string | null {
 export async function scrapeStatePrimaryCalendar(): Promise<
   StatePrimaryDate[]
 > {
-  const res = await fetch(CALENDAR_URL, {
+  const res = await fetch(PRIMARY_CALENDAR_URL, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
     redirect: "follow",
   });
-  if (!res.ok) throw new Error(`270toWin fetch ${res.status}: ${CALENDAR_URL}`);
+  if (!res.ok) throw new Error(`270toWin fetch ${res.status}: ${PRIMARY_CALENDAR_URL}`);
   const html = await res.text();
 
   const table = html.match(/<table[\s\S]*?<\/table>/)?.[0];
@@ -138,5 +137,3 @@ export async function scrapeStatePrimaryCalendar(): Promise<
   }
   return out;
 }
-
-export const PRIMARY_CALENDAR_URL = CALENDAR_URL;
