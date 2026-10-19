@@ -4875,3 +4875,17 @@ The voided round as the store held it until HO 776 (`docs/handoffs/776-artifacts
 The store already held August's rosters for AL-02-R, AL-06-D and AL-07-R, under May's dates, and the saved pages print no May box for AL-02 or AL-07, so their voided rounds are on neither. AL-01, 02 and 07 have no Democratic box in either round: Clyde Jones, Shomari Figures and Terri Sewell are on the general ballot without one. So those three rows carry August 11's date and no roster.
 
 The pages never mark the reruns special. A rerun's box reads "Republican primary for U.S. House Alabama District 1", just like the voided round's, which the page prints under "Primary held May 19". Only the results lines carry the date: "… on August 11, 2026." against "… on May 19, 2026.", which is followed by "Note: These results were voided." So the House cursor folds the two into one roster (`docs/backlog.md`, filed at HO 776), and HO 776's repair picked each rerun by its date.
+
+## A credit line can document a licence breach (HO 786, Oct 2026)
+
+The chat audit behind HO 786 set out to credit every upstream on the surface that shows its data. FMP feeds both markets tapes (the seven symbols at `lib/markets.ts:143-156`), `/trades` and the member pages' trades (`lib/fmp.ts`), so its line would have read "via FMP" on each of them. FMP's terms bar publicly displaying its data without FMP's prior written approval (site.financialmodelingprep.com/terms-of-service, § 2.2, read 2026-10-16), so "via FMP" would have named, on every surface, a display FMP's terms bar. The audit caught it only because it read the terms before writing the line. No "via FMP" line ships, and the licence is Corey's (backlog, *FMP display licence*).
+
+## A check that compares only the cells that printed passes over what it never read (HO 786, Oct 2026)
+
+HO 786's first local width run (`e2e/narrow.spec.ts` against each build's server, r1) compared the tree's cells with HEAD's and passed: no route over on the tree that HEAD read clean. It passed while 9 cells on HEAD and 10 on the tree had never been read. Of 82, 73 and 72 printed. Two causes were behind the gaps:
+- **`/stale` answered 500** before its test printed a cell, at both widths. The legs' `file:` copies lacked two indexes prod has and `scripts/migrate.ts` doesn't make (backlog QUEUED, the `migrate.ts` indexes line).
+- **The full run's last stretch at 390 timed out** on both builds (`page.goto`, 45s). That isn't the indexes': r2 made them, and its full run still left 5 cells unread on HEAD and 6 on the tree, all in that stretch, and the same check passed again.
+
+The check iterated over the cells that printed, so an unread one couldn't fail it. Its zero was the same whether a cell was read clean or never read at all.
+
+The reading of record is a different arrangement: a fresh server per build and width, one worker, and a check that requires the same cells read on both builds, each changed surface among them. It read 41 of 41 at 390 and at 430 on both builds, every one `over=0`.

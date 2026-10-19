@@ -6883,3 +6883,168 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - No SKILL commit and no oddities entry.
 - **Also notes now run through HO 785.**
+
+**Also (HO 786), the sources lines: a surface that renders an upstream's data names it where the data sits. senate.gov, LDA, 270toWin and Ballotpedia get a line in HO 784's register, and the news meta prints publisher names, not slugs. It opens with HO 785's FF go as taken.**
+- **What's here:**
+  - HO 785's FF go as taken, with the four records it owes;
+  - the review reply's rulings, and the departures it settled;
+  - STEP 0, three claims falling to their own rules, none a HALT;
+  - a correction to the chat audit this HO comes from (`/primaries`);
+  - the line, the URLs, the six surfaces and the news names;
+  - legs A to I and the smoke test, r3 on the committed code;
+  - what's held, and what the terms say.
+- **No ruling was needed** (method.md § Roles): a per-surface line in HO 784's ruled register is a non-fork call, and it pre-empts neither open fork, the footer + `/sources` surface or FMP's licence.
+- **Six commits, kinds unmixed:**
+  - `refactor` (`72d999a`), `fix` (`1b77b32`) and `feat` (`786d1b4`), the foot's nowrap phrases and dates riding the last;
+  - `diag` (`feb73d0`), `docs`, and `docs(skill)` alone and last.
+  - The first push carried `feat` as `23dbc61`. The second reply's amend (the dates) rode it, and the later commits were replayed onto it, so the ref moved by `--force-with-lease`.
+- **No migration and no prod write.** Prod was read by `SELECT` only, its schema fingerprinted before and after every mode.
+- **The local copy's read cost, on record** (HO 597's failure mode): the seed read all 56 tables whole **once**, and every later mode reused its copies.
+  - That's 1,452,565 rows in 402 page queries, and a page reads what it returns. Measured over hrana `/v2/pipeline` on four of the seed's own page queries: 4000 of 4000, 4000 of 4000, 4000 of 4000 and 1500 of 1500.
+  - **So about 1.45M `rows_read`,** about 0.06% of the plan's 2.5B a month (HO 602), plus a few hundred for the schema reads.
+  - The calibration cost 13,502. The planning pass's bare `COUNT(*)`s under-report, by HO 624's trap, and aren't priced.
+- **The pointer is 786:** pointer 785 (`docs/roadmap.md:6885`), highest HO in commit subjects 785, `main` at `692b276`. The HO was first written as 785 against `9784a47`, before the handoff archive landed under that number; every anchor was re-read at `692b276`.
+
+**HO 785's FF go, as taken** (`docs/handoffs/785-artifacts/ff/paste-785-ff.md`; the close read the remote itself).
+- **The FF:**
+  - immediately before it, the cold build (Node 24.22.0, 23:37:37-23:38:11Z, exit 0, *Compiled successfully in 10.1s*, no warning line) and the cheap gates (green);
+  - then `9784a47..692b276`, 2 commits, no force (2026-10-18 23:39:02Z). The classifier didn't block it;
+  - `785-review` deleted, remote and local, and `main` reads `692b276f6981…`.
+- **`verify:deploy`, in the foreground:** first matched at 1s, five consecutive reads at 41s. A plain `curl` of `/api/version` (23:42:48Z) read `692b276`, `no-store`, `X-Vercel-Cache: MISS`.
+- **The Production build, no dedup:** `dpl_5TLwQAxTaEz6JpADx7vt3mowQpLS` (`bld_mh37sa1nl`, iad1), created 23:39:06.810Z, 5s after the push.
+  - It skipped the build cache (*VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step.* at 23:39:09.483Z), compiled in 8.5s and went READY at 23:39:49.568Z. Its log, read whole in two windows, held no Next warning line.
+  - HO 540's case (`docs/oddities.md:700`) didn't recur: the review Preview of the same SHA (`dpl_F6rwkmvVVsA2ZZdM9v8aZcx99yRz`) and the Production build are two deployments, two hours apart.
+- **Vercel's records came under 1.5s after READY** (GitHub stamps whole seconds, so the lag is a bound): Production's (7162462657) at 23:39:50Z against 23:39:49.568Z, and the review Preview's (7161144790) at 21:39:53Z against 21:39:52.795Z.
+- **`e2e-prod`:** the Production record fired #39177458645 (23:39:51Z): `smoke` **142 passed (5.3m)**, HO 784's `smoke.spec.ts:970` among them, all 39 crawl lines clean. Nothing was dispatched.
+- **No flush:** no cached read changed.
+- **The four records the go owes:**
+  1. **The fixture literal at `docs/roadmap.md:6837` stands.**
+     - That line is in the by-name check's hit list (`:6835-6838`), not gitleaks' (`:6849-6852`, where fixture 7 is named by shape at `:6850`). The go placed it in gitleaks' list, and the close confirmed the by-name placement against the ref.
+     - It's HO 679's synthetic string, tracked at `scripts/diagnostic/redact-fixtures-679.ts`. A re-scan of the committed block (`692b276:docs/roadmap.md:6765-6885`) read gitleaks 0 and arm B 0 secret hits; its one config hit is the localhost `REVALIDATE_URL` quoted at `:6839`.
+  2. **The 771 and 777 readings:** against the Project's copies, the disk is the later text both times: `771-ratings-daily.md` by a 4-byte code-fence indent, and `777-ff-go.md` by a revision of the go.
+  3. **The 48 disk-only entries are the archive's surplus over the Project:** 195 byte-identical and 2 differing make 197, M1's appendix names on disk (A's 102 and B's 95), and 197 + 48 = 245.
+  4. **Production serves `692b276`,** built fresh, with no dedup (above).
+- **Chat side, the same day (the close):** the Project's knowledge was backfilled from the archive (the 48 and the two later texts), and the Drive mirror was audited against it, 268 for 268.
+
+**The review reply (2026-10-19, three pastes: the go, its additions, and one amend on the ref), and the departures it settled:**
+- **The HALT before any commit.**
+  - Code built and read everything, then held before the first commit. It cited the user's standing rule (*"Never commit, push or run a destructive git operation until I've approved the diff"*) against the handoff's *"build through to the review push without stopping"*.
+  - The reply read the hold and set the rule as this repo practises it, the review-ref route: commits on `786-review` are local and are how the diff is shown, the push is the publication, and Corey pasting the reply approves it.
+- **STEP 0's three fallbacks stand,** as the HO's own rules.
+- **Decision 2, `/electoral`'s fit, is accepted as a recorded cost, with no tuning.** The consequence was captured rather than discovered:
+  - the line and its 6px gap move everything under the band down 24px;
+  - **at 1440×900,** where the box holds its 320px floor, the document scrolls **56px, where HEAD's scrolls 32,** on both tabs (box top 543 → 567);
+  - **at 2560×1440** the box gives the space back (HOUSE's 809 → 781px high, its top 575 → 603), and nothing scrolls on either tab, before or after.
+- **Decision 3, the welcome foot:** *synced 4× daily* and the sync time with its *MT* are each one phrase, so each is in a `whitespace-nowrap` span, as `RatingSourcesLine` keeps the raters' dates whole (`:74`). The foot breaks between phrases, never inside one, and two rows at 1440 stand (leg G, below).
+  - **The first push read worse at 430, and it was pasted, not reverted:** the foot took a fifth row (four on HEAD), and its date range broke at a hyphen (*2026-* / *09-29*), a phrase that ruling didn't name. *LAST SYNC* dropped from four rows to two, its time whole.
+  - **The amend:** each date of the *ratings as of* range sits in its own `whitespace-nowrap` span, and only *to* may break. `ratingsAsOf` keeps the range's two ends rather than one string. r3 reads the foot at 430 in 5 rows, as before the amend (4 on HEAD), each date whole and the break inside the range at *to* (*ratings as of 2026-09-22 to* / *2026-09-29 · synced 4× daily*), with *LAST SYNC* in 2 rows, its time whole.
+- **Decision 4, the SKILL note:** Ballotpedia's copyright page, `https://ballotpedia.org/Ballotpedia:Copyrights`, read 2026-10-19 from the chat side (the dev box reads a 403).
+- **The two extra backlog lines stand,** for a close of 277 with the QUEUED line below. The race-page gap is named by subject, and its close stores the Ballotpedia page URL per race at harvest time.
+- **The 403:** the box read a 403 from `ballotpedia.org`, where SKILL records a 202 challenge for the reader. It's recorded on the dropped-link line and not acted on, since the reader runs from Vercel's egress.
+- **The six LF → CRLF files:**
+  - The Edit and Write tools left `app/vote/[id]/page.tsx`, `components/BillExpandPanel.tsx`, `lib/news-sources.ts` and the three new files LF.
+  - Git normalizes them, and the numstat read true. But the clone's working tree is CRLF, so all six were put back with a script that refuses mixed and lone-CR files, and the numstat read the same after.
+  - The first count of them was blind: `grep -c $'\r$'` can't count CRs on this box.
+- **The index skew:**
+  - The legs' copies lacked `idx_bills_dash_stage` and `idx_bills_dash_topics`, which prod has and `scripts/migrate.ts` doesn't make.
+  - So `/stale` answered 500 on both builds (*no such index*, from `lib/queries.ts:7311`'s `INDEXED BY`).
+  - Filed QUEUED (data integrity). SKILL has no local-copy recipe to carry them; its schema lists both (HO 241).
+  - **The full width run's last stretch at 390 also timed out on both builds, and that isn't the indexes'.** r2 made them and still left 5 cells unread on HEAD and 6 on the tree. The instrument half is an oddities note.
+- **`--fit` isn't a departure:** it's HO 784's leg C, read again, because the line moves `/electoral`'s box.
+- **Backlog `:184`:** the cause is appended as a dated note, an inserted paragraph with no strike.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-19 17:08-17:30Z at `692b276`: **claims 1, 2, 3 and 6 hold; 4, 5 and 7 fall to their own rules, none a HALT.**
+- **1:** `main`, `origin/main` and `ls-remote` read `692b276`, the tree clean.
+- **2:** every anchor in the handoff reads as stated. Two things beside them:
+  - `lib/primary-calendar-scrape.ts` also exported `PRIMARY_CALENDAR_URL = CALENDAR_URL` (`:142`), imported by nothing; the move takes it out;
+  - the Senate sync's header names the detail path (`lib/senate-votes-sync.ts:4`), which would be leg C's second site; it now points at `senateRollCallUrl`.
+- **3, senate.gov:** `senateRollCallUrl(…, "htm")` answers 200 with the roll number in the body on `senate-119-2-256`, `senate-119-1-458` and `senate-119-1-1` (the newest, the median and the oldest of 915), as does the sync's `.xml` beside each.
+- **4, the homes:** `https://lda.gov/` answers 200, landing on `/system/public/`, and 270toWin's calendar 200. **`https://ballotpedia.org/` answered Playwright with a 403,** CloudFront's *The request could not be satisfied*, from the dev box, whose IP Ballotpedia's wall has challenged since HO 773. By the claim's rule the link drops and the name stays: `/electoral` names Ballotpedia unlinked, and there's no `BALLOTPEDIA_HOME_URL` (filed).
+- **5, the welcome board:** eight of the nine datasets read Congress.gov, the news feeds or LDA. **Races reads Ballotpedia:** its incumbent tags come from `getIncumbentQualifiers`, which reads `general_ballot` (Ballotpedia's general-election box) and `primary_candidates` (its primary pages). By the claim's rule the foot names Ballotpedia too. Members' query reads participation for its MISSED sort (`member_votes`, a senator's from senate.gov), but the board prints only sponsored and enacted counts, so the foot doesn't name senate.gov.
+- **6:** the handoff's `SELECT` returns `119-hr-10828` (`the_hill`, 13 mentions, not ceremonial); the control is `119-s-5588`, with one Politico mention.
+- **7, recorded, not gating:**
+  - **LDA:** three filings read from the API with the sync's key, by name. Each `filing_document_url` is `https://lda.gov/filings/public/filing/{uuid}/print/`, one pattern in the uuid alone, and each answers 200 (*LD-2 Disclosure Form*), **but no body carries its uuid,** in any case or without its dashes. The rule doesn't hold, so the line ships alone and the link is filed.
+  - **House:** `house-119-2-314`'s `raw_json` carries `sourceDataURL` = `https://clerk.house.gov/evs/2026/roll314.xml`, a Clerk URL, so the House out-link is filed.
+
+**A correction to the chat audit this HO comes from:** it named `/primaries` as an uncredited surface. `/primaries` is a 308 to `/electoral` (HO 333, `app/primaries/page.tsx:8`), so the primary data lives in `/electoral`'s timeline band, credited here, and in the dashboard's next-primaries line (`components/CompetitiveRacesBlock.tsx:176`), held with `/`.
+
+**The line** (`feat`). `components/SourcesLine.tsx`, presentational with no hooks and no server-only import (`ElectoralBoard`, a client component, renders it), renders `<p data-sources>` with `RatingSourcesLine`'s classes: per group *<label> via <name>*, the label and *via* in `--text-dim`, the name in `--text-muted`, groups parted by the hidden dot with the spaces outside it. A name with an href is a `source-link` anchor in a new tab (`rel="noopener noreferrer"`), else a span. `app/globals.css` adds `.source-link` to the `.rater-link` selectors, one rule under two names. `RatingSourcesLine` isn't touched.
+
+**The URLs** (`refactor`). `lib/source-links.ts`, import-safe, holds each out-link once:
+- `senateRollCallUrl(congress, session, roll, ext)`, the path that was inline in the sync's `detailUrl` (`lib/senate-votes-sync.ts:131-137`), the roll padded to five digits. `detailUrl` calls it with `"xml"`.
+- `PRIMARY_CALENDAR_URL`, moved from the scraper's `CALENDAR_URL`; the scraper imports it.
+- `LDA_HOME_URL = "https://lda.gov/"`.
+
+**The surfaces** (`feat`):
+
+| Surface | The line |
+|---|---|
+| `/vote/[id]`, Senate | *Roll call via senate.gov* under the head, linked to `senateRollCallUrl(…, "htm")` |
+| `/vote/[id]`, House | *Roll call via Congress.gov*, unlinked |
+| `/members/[bioguideId]` | a senator only: *· Senate votes via senate.gov* at the end of the footer's attribution, plain |
+| `/lobbying` | *Filings via lda.gov* under the header, linked to `LDA_HOME_URL` |
+| `/electoral` | *Primary dates via 270toWin · Candidates and results via Ballotpedia* directly under the band, 6px under it (`.electoral-sources`), 270toWin linked to `PRIMARY_CALENDAR_URL` |
+| `/welcome` foot | *· lda.gov · Ballotpedia* after *FEC*, plain, like *congress.gov*; *synced 4× daily* and the sync time each in a `whitespace-nowrap` span |
+
+**News names** (`fix`). `newsSourceName(slug)` in `lib/news-sources.ts` returns the matching feed's `display`, else the slug with `_` as a space. `app/bill/[id]/page.tsx` and `components/BillExpandPanel.tsx` print `newsSourceName(n.source).toUpperCase()`, so a Hill row reads *THE HILL*, not *THE_HILL*.
+
+**The smoke test:** `targeted interactions` gains *the sources lines name where the data comes from*: `[data-sources]` on `/electoral` (270toWin linked to `PRIMARY_CALENDAR_URL`, Ballotpedia named), `/lobbying` (`LDA_HOME_URL`) and `/vote/senate-119-1-1` (`senateRollCallUrl(119, 1, 1, "htm")`). HO 784's test finds the welcome foot as the span that holds *synced 4× daily* and the raters' links, since the phrase now has a span of its own and a text-only locator matched two.
+
+**The legs** (`diag` `feb73d0`, `scripts/diagnostic/source-credits-legs-786.ts`): **r3, on the committed tree, 29 PASS and 0 FAIL; leg C 4 PASS; the width re-reads, 6 PASS; the fit 1 PASS.**
+- **The builds:** HEAD's (`692b276`) and the tree's (`feb73d0`), cold and secretless in scratch worktrees under Node 24.22.0, each exit 0 with no warning line.
+- **The earlier runs:** r1 ran on the tree before the commits (`692b276` plus the 15 changed files), and r2 on the first push's `94c0e2b`, before the dates' nowrap. They read the same except the foot.
+- **The seed:** the real `scripts/migrate.ts` against a `file:` template, then every prod table copied whole by `SELECT` (56 tables, 452s) except `users`, `watchlist` and the FTS index, which `bills`' own insert trigger refills. There were two copies, each server's with its own sentinel. Prod's schema fingerprint read the same before and after every mode.
+- **A, news names:** on `119-hr-10828`, HEAD's served page carries `THE_HILL` 10 times (5 in the DOM) and the tree's 0, with `THE HILL` 10 (5). The control, `119-s-5588`'s `POLITICO`, reads 2 (1) on both. The expand panel, opened on the bill's row in `/bills?sponsor=M001137`, reads `· THE_HILL · 1h` on HEAD and `· THE HILL · 1h` on the tree, 5 metas each.
+- **B, vote pages:** `[data-sources]` reads 0/0 on HEAD and 1/1 on the tree.
+  - `senate-119-2-256` reads *ROLL CALL VIA SENATE.GOV*, its one anchor `senateRollCallUrl(119, 2, 256, "htm")`.
+  - `house-119-2-314` reads *ROLL CALL VIA CONGRESS.GOV* with no anchor, and the House page holds no `senate.gov` anchor (the control).
+- **C, one copy of the Senate path:** for five real triples (119-1-1, 119-1-229, 119-1-458, 119-2-28, 119-2-256), HEAD's `detailUrl` string equals the tree's, and `senateRollCallUrl(…, "xml")`'s, byte for byte, and differs from the `"htm"` string (the control). `roll_call_votes/vote` is in `lib app components` once, at `lib/source-links.ts:15`.
+- **D, the member line:** *Senate votes via senate.gov* reads 0 on HEAD and 1 on the tree on B001236's page (a senator); on M001137's (House), it reads 0 on both.
+- **E, `/lobbying`:** 0 → 1, *FILINGS VIA LDA.GOV*, its anchor `https://lda.gov/`. The per-filing rule didn't hold (STEP 0), so no filing links.
+- **F, `/electoral`:** 0 → 1, *PRIMARY DATES VIA 270TOWIN · CANDIDATES AND RESULTS VIA BALLOTPEDIA*, **with one anchor, not the handoff's two:** 270toWin's, `PRIMARY_CALENDAR_URL`. Ballotpedia is named, not linked (claim 4). The line follows the band, 6px under it, and `2026-state-primary-calendar` is in `lib app components` once (`lib/source-links.ts:19`).
+- **G, `/welcome`'s foot:** *lda.gov* 0 → 1 and *Ballotpedia* 0 → 1 (claim 5); the three rater anchors read 3 on both. **The nowrap rulings**, read by a Range over each phrase's own characters, so HEAD's bare text reads on the same instrument:
+
+| Width | HEAD: rows (foot / LAST SYNC); pieces (*synced 4× daily* / the time / each date) | The tree, every phrase and date nowrap |
+|---|---|---|
+| 1440 | 1 / 1; 1 / 1 / 1, 1 | **2** / 2; 1 / 1 / 1, 1 |
+| 2560 | 1 / 1; 1 / 1 / 1, 1 | 1 / 1; 1 / 1 / 1, 1 |
+| 430 | 4 / 4; 1 / **2** / 1, 1 | **5** / 2; 1 / 1 / 1, 1 |
+
+  - The same row counter reads the tree's foot as 2 rows at 1440, the control that it can read a wrap.
+  - At 430 the break inside the range falls at *to* (`tree-welcome-430`). The first push's capture, `captures/r2/tree-welcome-430`, shows the date it split (*2026-* / *09-29*).
+- **H, the served stylesheet:** in the stylesheets `/lobbying` links, `.source-link` reads 0 on HEAD and 3 on the tree, and `.electoral-sources` 0 → 1.
+- **The smoke test:** the tree's *the sources lines name where the data comes from*, run by Playwright against each server.
+  - **HEAD red:** 1 failed, at its first assertion, *`/electoral`'s sources line* (`smoke.spec.ts:1035`).
+  - **The tree green:** 1 passed.
+- **The width reading, local** (`e2e/narrow.spec.ts`; the CI reading follows on `786-review`'s `narrow-preview`):
+  - **Every full run left cells unread,** and the check that compared them passed anyway:
+    - r1 (9 cells on HEAD and 10 on the tree): `/stale` answered 500, because the copies lacked the two indexes, and the last stretch at 390 timed out;
+    - r2, with the indexes made (5 and 6): only the timeouts;
+    - r3, on the amended tree (5 and 6): the same timeouts.
+  - **The reading of record** is a fresh server per build and width, one worker, requiring the same cells read on both. At the first push's tree (`94c0e2b`, before the dates' nowrap) it read **41 of 41 at 390 and 41 of 41 at 430 on both builds, every cell `over=0`,** each changed surface among them. Before the commits it read the same.
+  - At the amended head, CI's `narrow-preview` on `786-review` is the reading.
+- **`/electoral`'s fit** (HO 784's leg C, read again) is the recorded cost above. It was read at the tree before the commits; the commits change nothing on `/electoral` since.
+- **I, captures** (`docs/handoffs/786-artifacts/captures/`, 54 files from r3; r2's under `captures/r2/` and r1's under `captures/r1/`), eyeballed styled:
+  - **The surfaces:** both vote pages, a senator's and a House member's pages, `/lobbying`, `/electoral`, `/welcome`, `/bill/119-hr-10828`, and `/bills` with its panel open.
+  - **The views:** the tree at 1440 and 2560, again with reduced motion (18 of 18 read `prefers-reduced-motion` back true in the page); HEAD's at 1440; and the tree's at 430, each document `over=0` and each line inside the width.
+
+**Held, untouched:** FMP (a licence question, Corey's), FRED's notice, Kalshi, Polymarket, the dashboard `/` and its tape, and the courtesy credits (unitedstates, the Wikipedia caucus seed, Census geometry). All but FMP wait on the footer + `/sources` ruling. What the terms say is in SKILL (External data sources, *Credits*).
+
+**Docs (HO 786):**
+- This block.
+- **backlog, 13+/0−:**
+  - **Nine lines at the top of OPEN LOOPS, newest first:**
+    - the handoff's five: FMP's display licence, FRED's notice, the Kalshi agreement, Polymarket's and 270toWin's terms, and the global credit surface;
+    - its two conditional lines, both filed by STEP 0: the House roll-call out-link and the LDA per-filing link;
+    - two beyond its list, accepted: `/electoral`'s Ballotpedia link (claim 4, with the box's 403 against SKILL's 202), and the race pages' Ballotpedia link (5 of 470).
+  - **One QUEUED line:** the two indexes `migrate.ts` doesn't make (data integrity).
+  - **`:184`'s cause**, three lines inserted under it, the line itself untouched.
+- **oddities, 14+/0−:** *A credit line can document a licence breach*, and *A check that compares only the cells that printed passes over what it never read* (both HO 786).
+- **The reconcile:**
+  - open: 267 live / 353 struck (620), § OPEN LOOPS `:14-217` 65 / 124;
+  - close: **277 / 353 (630), § OPEN LOOPS `:14-229` 74 / 124**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - External data sources gains *Credits (HO 786)*, its Ballotpedia clause citing `Ballotpedia:Copyrights` (decision 4);
+  - the member hub's footer sentence (`:1994`) gains the senator's clause, a sentence this HO made false.
+- **Also notes now run through HO 786.**
