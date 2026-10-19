@@ -20,8 +20,10 @@ import { CartogramShell } from "@/components/CartogramShell";
 import { ELECTORAL_LAYOUT_EVENT } from "@/components/ListQueryContext";
 import { PrimaryTimeline } from "@/components/PrimaryTimeline";
 import { RaceDistrictModal } from "@/components/RaceDistrictModal";
+import { SourcesLine } from "@/components/SourcesLine";
 import type { CartogramCell } from "@/lib/cartogram-data";
 import type { PrimaryCalendarDate } from "@/lib/queries";
+import { PRIMARY_CALENDAR_URL } from "@/lib/source-links";
 import type { UsMapGeometry } from "@/lib/us-map-geo";
 
 const MON = [
@@ -226,6 +228,18 @@ export function ElectoralBoard({
           </div>
         ) : null}
       </div>
+
+      {/* HO 786: where the calendar and the candidates come from, directly
+          under the band. Ballotpedia is named, not linked: its home answered
+          HO 786's STEP 0 with a 403 (the rule drops a failing URL's link, never
+          the name). */}
+      <SourcesLine
+        className="electoral-sources"
+        groups={[
+          { label: "Primary dates", sources: [{ name: "270toWin", href: PRIMARY_CALENDAR_URL }] },
+          { label: "Candidates and results", sources: [{ name: "Ballotpedia" }] },
+        ]}
+      />
 
       {bandSlot}
 

@@ -777,6 +777,8 @@ export default async function MemberPage({
                   >
                     Member data via Congress.gov · Ideology via Voteview ·
                     Fundraising via FEC
+                    {/* HO 786: a senator's votes are read from senate.gov. */}
+                    {member.chamber === "senate" ? " · Senate votes via senate.gov" : null}
                   </span>
                 </div>
               </>

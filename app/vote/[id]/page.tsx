@@ -7,10 +7,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
+import { SourcesLine } from "@/components/SourcesLine";
 import { VotePositionList } from "@/components/VotePositionList";
 import { formatBillId, formatDateLong } from "@/lib/format";
 import { partyColor } from "@/lib/race-colors";
 import { getVoteAmendmentContext, getVoteById, getVoteMemberPositions } from "@/lib/queries";
+import { senateRollCallUrl } from "@/lib/source-links";
 
 export default async function VotePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -119,6 +121,26 @@ export default async function VotePage({ params }: { params: Promise<{ id: strin
             </div>
           ) : null}
         </div>
+
+        {/* HO 786: where the roll call comes from, under the head. A Senate roll
+            call is read from senate.gov and links its page there; a House one
+            arrives through Congress.gov's API and is named, not linked. */}
+        <SourcesLine
+          className="mt-2"
+          groups={[
+            vote.chamber === "house"
+              ? { label: "Roll call", sources: [{ name: "Congress.gov" }] }
+              : {
+                  label: "Roll call",
+                  sources: [
+                    {
+                      name: "senate.gov",
+                      href: senateRollCallUrl(vote.congress, vote.session, vote.rollCall, "htm"),
+                    },
+                  ],
+                },
+          ]}
+        />
 
         {/* POSITIONS — the reason the page exists, or one of two empty states. */}
         {hasPositions ? (

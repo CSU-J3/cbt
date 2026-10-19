@@ -4,6 +4,7 @@ import zlib from "node:zlib";
 import { isKnownNoise } from "./console-noise";
 import { ROUTES } from "./routes";
 import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "../lib/enums";
+import { LDA_HOME_URL, PRIMARY_CALENDAR_URL, senateRollCallUrl } from "../lib/source-links";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -1018,7 +1019,9 @@ test.describe("targeted interactions", () => {
     expect(named, "the line's raters are the strip's").toEqual(strip);
 
     await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    const foot = page.locator("span", { hasText: "synced 4× daily" });
+    // HO 786: "synced 4× daily" has its own nowrap span inside the foot, so the
+    // foot is the span that holds it and the raters' links.
+    const foot = page.locator("span", { hasText: "synced 4× daily", has: page.locator("a") });
     await expect(foot, "/welcome's foot").toHaveCount(1);
     for (const s of order) {
       await expect(
@@ -1027,6 +1030,36 @@ test.describe("targeted interactions", () => {
       ).toHaveCount(1);
     }
     await expect(foot).toContainText(/ratings as of \d{4}-\d{2}-\d{2}/);
+  });
+
+  test("the sources lines name where the data comes from", async ({ page }) => {
+    // HO 786: /electoral's line under the calendar band, /lobbying's under the
+    // header and a Senate roll call's under its head, each linking the page its
+    // data is read from (lib/source-links.ts).
+    await page.goto("/electoral", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const electoral = page.locator("[data-sources]");
+    await expect(electoral, "/electoral's sources line").toBeVisible({ timeout: 20_000 });
+    await expect(electoral).toContainText(/primary dates via 270toWin/i);
+    await expect(electoral).toContainText(/candidates and results via ballotpedia/i);
+    await expect(
+      electoral.locator(`a[href="${PRIMARY_CALENDAR_URL}"]`),
+      "270toWin links its calendar",
+    ).toHaveCount(1);
+
+    await page.goto("/lobbying", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const lobbying = page.locator("[data-sources]");
+    await expect(lobbying, "/lobbying's sources line").toBeVisible({ timeout: 20_000 });
+    await expect(lobbying).toContainText(/filings via lda\.gov/i);
+    await expect(lobbying.locator(`a[href="${LDA_HOME_URL}"]`), "lda.gov links its home").toHaveCount(1);
+
+    await page.goto("/vote/senate-119-1-1", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const vote = page.locator("[data-sources]");
+    await expect(vote, "a Senate roll call's sources line").toBeVisible({ timeout: 20_000 });
+    await expect(vote).toContainText(/roll call via senate\.gov/i);
+    await expect(
+      vote.locator(`a[href="${senateRollCallUrl(119, 1, 1, "htm")}"]`),
+      "senate.gov links the roll call's own page",
+    ).toHaveCount(1);
   });
 
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert

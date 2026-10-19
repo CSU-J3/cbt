@@ -8,8 +8,10 @@ import { IssueRailRow } from "@/components/IssueRailRow";
 import { LobbyingMiniBars } from "@/components/LobbyingMiniBars";
 import { Pagination } from "@/components/Pagination";
 import { type Segment, SegmentedToggle } from "@/components/SegmentedToggle";
+import { SourcesLine } from "@/components/SourcesLine";
 import { TopicCrosswalk } from "@/components/TopicCrosswalk";
 import { topicForCode } from "@/lib/lda-issue-topic-map";
+import { LDA_HOME_URL } from "@/lib/source-links";
 import { topicColor } from "@/lib/topic-colors";
 import {
   type FilingSummary,
@@ -260,6 +262,11 @@ export default async function LobbyingPage({
             tracked bill
           </span>
         </div>
+        {/* HO 786: where the filings come from, under the header. */}
+        <SourcesLine
+          className="mb-3"
+          groups={[{ label: "Filings", sources: [{ name: "lda.gov", href: LDA_HOME_URL }] }]}
+        />
         <p
           className="mb-4 max-w-[70ch] text-[length:var(--fs-12)] leading-snug"
           style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}

@@ -225,16 +225,15 @@ export default async function WelcomePage() {
   const board = await loadBoard(nowMs, moved7d);
   // HO 784: the foot's one date phrase for the raters: a single date while they
   // agree, the oldest to the newest when they don't, nothing when none has one
-  // (getRaterFreshness, each rater's newest rating date).
+  // (getRaterFreshness, each rater's newest rating date). HO 786: kept as its two
+  // ends, so the foot can keep each date whole and let only "to" break.
   const raterDates = RATER_ORDER.map((s) => freshness[s]?.asOf)
     .filter((d): d is string => typeof d === "string")
     .sort();
   const ratingsAsOf =
     raterDates.length === 0
       ? null
-      : raterDates[0] === raterDates[raterDates.length - 1]
-        ? raterDates[0]
-        : `${raterDates[0]} to ${raterDates[raterDates.length - 1]}`;
+      : { from: raterDates[0]!, to: raterDates[raterDates.length - 1]! };
 
   const introduced = corpus.total;
   const enacted = stageDist.bars.find((b) => b.stage === "enacted")?.count ?? 0;
@@ -431,6 +430,11 @@ export default async function WelcomePage() {
           <span className={styles.sep}>·</span> Kalshi{" "}
           <span className={styles.sep}>·</span> Polymarket{" "}
           <span className={styles.sep}>·</span> FEC{" "}
+          {/* HO 786: the Lobbying dataset's filings, and the Races dataset's
+              ballots and primaries, whose incumbent tags read Ballotpedia's
+              (getIncumbentQualifiers). Plain, like congress.gov. */}
+          <span className={styles.sep}>·</span> lda.gov{" "}
+          <span className={styles.sep}>·</span> Ballotpedia{" "}
           {/* HO 784 (mock-784 v3): the raters, each linked to its House page (the
               board mixes chambers), and their dates in --rating-freshness. */}
           {RATER_ORDER.map((s) => (
@@ -450,14 +454,27 @@ export default async function WelcomePage() {
           {ratingsAsOf ? (
             <>
               <span className={styles.sep}>·</span>{" "}
-              <span style={{ color: "var(--rating-freshness)" }}>ratings as of {ratingsAsOf}</span>{" "}
+              {/* HO 786: each date whole, as RatingSourcesLine keeps a rater's;
+                  only "to" may break. */}
+              <span style={{ color: "var(--rating-freshness)" }}>
+                ratings as of <span className="whitespace-nowrap">{ratingsAsOf.from}</span>
+                {ratingsAsOf.to !== ratingsAsOf.from ? (
+                  <>
+                    {" to "}
+                    <span className="whitespace-nowrap">{ratingsAsOf.to}</span>
+                  </>
+                ) : null}
+              </span>{" "}
             </>
           ) : null}
-          <span className={styles.sep}>·</span> synced 4× daily
+          {/* HO 786: two phrases that each stay whole when the foot wraps, as the
+              raters' dates do (RatingSourcesLine). */}
+          <span className={styles.sep}>·</span>{" "}
+          <span className="whitespace-nowrap">synced 4× daily</span>
         </span>
         <span className={styles.spacer} />
         <span className={styles.foot}>
-          LAST SYNC <span className={styles.footK}>{formatMt(corpus.lastSync)}</span>
+          LAST SYNC <span className={`${styles.footK} whitespace-nowrap`}>{formatMt(corpus.lastSync)}</span>
         </span>
       </div>
     </div>
