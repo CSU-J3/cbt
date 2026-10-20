@@ -4889,3 +4889,21 @@ HO 786's first local width run (`e2e/narrow.spec.ts` against each build's server
 The check iterated over the cells that printed, so an unread one couldn't fail it. Its zero was the same whether a cell was read clean or never read at all.
 
 The reading of record is a different arrangement: a fresh server per build and width, one worker, and a check that requires the same cells read on both builds, each changed surface among them. It read 41 of 41 at 390 and at 430 on both builds, every one `over=0`.
+
+## `git log --reverse -1` prints the newest commit, not the first (HO 787, Oct 2026)
+
+HO 787's handoff asked for the first commit on `main` with `git log --reverse --format='%h %ad' --date=iso -1`. It printed `88d6327 2026-10-19 13:11:53 -0600`, the HEAD it ran at. git limits the walk as it goes, newest first, and `--reverse` orders only the commits that limiting chose to show, so `-1 --reverse` is HEAD alone. `git rev-list --max-parents=0 main` names the first commit, `c578e09` (2026-05-03).
+
+The wrong answer has the right shape: a short hash and a date, in the requested format, from the right repository. It's a designated instrument answering a different question (method.md § Gates), and it was caught because the date it printed was the day of the run.
+
+## `/welcome`'s *LAST SYNC* is the newest Congress.gov update among the counted bills, not the time CT synced (HO 787, Oct 2026)
+
+The GradShow poster's draft quoted the board's foot, *last sync 2:05 AM MT*, as the as-of time of its figures. The foot prints `formatMt(corpus.lastSync)` (`app/welcome/page.tsx:477`), and `lastSync` is `MAX(update_date)` over the summarized, non-ceremonial bills (`lib/queries.ts:641`): Congress.gov's `updateDate` on the newest bill it changed, not the moment CT's sync ran. The type's own comment says so (`:616`, *ISO timestamp of most recent update_date*), and the function's header still calls the line *last sync* (`:619`).
+
+At HO 787's read the foot would have said 3:04 PM MT, while `/api/sync` had last run at 6:00 PM MT and the summarizer at 7:50 PM MT. A quiet evening on Congress.gov makes the sync look hours stale when it isn't. For an as-of time, the honest phrase is *Congress.gov's updates through …*.
+
+## Turbopack's `.next` holds a junction into `node_modules`, so a cold build's *remove `.next` first* is HO 737's hazard (HO 787, Oct 2026)
+
+HO 787's cold build, before its review push, began by removing `.next`. Listing it first found a junction, `.next\node_modules\@libsql\client-6da938047d5fc1cd` → `node_modules\@libsql\client`: a link Turbopack had made to an external package. A recursive `Remove-Item -Force` follows a junction out of the tree it was told to delete (HO 737's note, above), so removing `.next` that way would have emptied the main tree's `@libsql/client`, the database client, rather than a build output.
+
+That build unlinked it first with `cmd /c rmdir` (no `/s`), which removes the link and leaves its target. A separate process then read the target intact (24 files), `node_modules/.bin` unchanged (48 entries) and no reparse point left under `.next`, and only then was `.next` removed. The build that followed made the same junction again (created 02:08:09Z Oct 20, during that build), so the next cold build finds one too, and a cold build runs before every review push. SKILL's *Things to watch for* carries the rule (the review reply).

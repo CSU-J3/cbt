@@ -7048,3 +7048,106 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - External data sources gains *Credits (HO 786)*, its Ballotpedia clause citing `Ballotpedia:Copyrights` (decision 4);
   - the member hub's footer sentence (`:1994`) gains the senator's clause, a sentence this HO made false.
 - **Also notes now run through HO 786.**
+
+**Also (HO 787), the GradShow poster's numbers: every figure the poster prints, read from the tree and prod with its predicate, its scope and its as-of time; a CRS spot-check pack for Corey to grade; and the odds snapshot Corey takes on Nov 2 and Nov 3. It opens with HO 786's FF go as taken.**
+- **What's here:**
+  - HO 786's FF go as taken, with its records;
+  - STEP 0, a check: all eight claims hold, none a HALT;
+  - what was read, A to G, and the three questions the handoff settled from the tree;
+  - the labels finding;
+  - the snapshot plan;
+  - the review reply, taken before the push;
+  - prod's `rows_read`.
+- **No ruling was needed:** a diagnostic-only probe with its findings under `docs/probes/` is HO 715's and HO 747's shape, and nothing here touches app code, the schema, a sync or the database's contents.
+- **Three commits, kinds unmixed:** `diag` (`52c201f`), then `docs` (the two probe files, this block, the backlog and the oddities), then `docs(skill)`, alone and last. The handoff's Docs section says each probe file is *committed alone*. Its Commits section lists one `docs` commit and *the three*, which is what HO 715 and HO 747 did, so this follows the Commits section.
+- **No migration and no prod write.** Prod was read by `SELECT` only, through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name. Its schema fingerprint read `736e6b987bf77620` before and after every mode.
+- **Prod's `rows_read` for the run** (HO 597's failure mode): **890,762** over 182 statements in six runs, summed off each hrana pipeline response, and every statement's result carried the field. That's `--numbers` r1 197,426, then r2, r3 and r4 217,513 each; `--crs-pack` 37,254; and the snapshot's dry run 3,543. It's about 0.04% of the plan's 2.5B a month (HO 602).
+  - A count with no other predicate reads `WHERE id IS NOT NULL`, so its cost isn't under-reported (HO 624's trap).
+  - Congress.gov took **90 requests** for the pack, all 200, with `CONGRESS_API_KEY` by name in a header, one request in flight and at least 1s between starts. SKILL sets the limit (`:46`), not a probe cadence. The completeness read made one more, on Oct 20.
+- **The pointer is 787:** pointer 786 (`docs/roadmap.md:7050`), highest HO in commit subjects 786, `main` at `88d6327`.
+
+**HO 786's FF go, as taken** (`docs/handoffs/786-ff-go.md`). The handoff names `786-close.md` for the records; there's no such file, and they were read from `docs/handoffs/786-artifacts/ff/paste-786-ff.md`.
+- **The FF:** `692b276..88d6327`, 6 commits, no force (21:18:13Z, 3:18 PM MT Oct 19). `786-review` was deleted, remote and local, and `main` reads `88d6327`.
+- **Production built fresh, with no dedup:** `dpl_EKMDSmrKmhZW7xbgnrzJ5Rxx728o` (`bld_28ohv615w`), created 5.8s after the push. It skipped the build cache and went READY at 21:19:08.787Z (3:19 PM MT).
+- **`verify:deploy`, in the foreground:** its first read matched, and it held for five reads in a row (*first match at 0s*, five at 42s). The handoff says *matched at 1s*; that was HO 785's.
+- **`e2e-prod` #39326531220,** fired by Production's record: `smoke` **143 passed (5.8m)**, HO 786's test at `smoke.spec.ts:1035` among them. Its narrow pass made **82 checks against Production**, 41 of 41 at 430 and 41 of 41 at 390, every cell `over=0`.
+- **The CI 430 reading on the review head:** `narrow-preview` in #39314270842, 82 of 82, every cell `over=0`, the Preview serving `88d6327`.
+- **The foot's 430 reading:** five rows (four on HEAD), every date and phrase whole, the range breaking at *to*.
+- **The lag, read as two bounds** (GitHub stamps whole seconds): Production's record (7185251991) came 0.2 to 1.2s after READY, and its `success` status 1.2 to 2.2s after.
+- **No flush,** as the go ruled.
+- **Chat side:** the claude.ai `cbt` skill, rebuilt from `main`'s SKILL and uploaded, reads as blob `bcdd704` where it syncs to the dev box. That's `88d6327`'s SKILL, read 2026-10-19.
+
+**STEP 0** (a check, HO 768's rule), 2026-10-19 at `88d6327`: **all eight claims hold; no HALT.** The table is the probe file's.
+- **5 (record):** with `{}`, `${ceremonial}` reads ` AND (is_ceremonial = 0 OR is_ceremonial IS NULL)` (`lib/queries.ts:7423-7425`, by `:7512`). `bills_agg` has no Congress clause (`:7426-7444`); the members side is `m.is_current = 1`.
+- **8 (record):** `congress = 119` (`getCurrentCongress()`) reads 19,106, as does no clause, so the table holds one Congress and every count is the 119th's.
+- **The completeness read** (the review reply's, one call): Congress.gov lists **19,716** bills for the 119th (`/bill/119`, `limit=1`, its `pagination.count`, at 11:35 AM MT Oct 20, 17:35:41Z). That's **610 more** than CT's 19,106 at 7:54 PM MT Oct 19, about 20 days of introductions at the Congress's average pace, far more than a day's. So CT's rows aren't every 119th bill, and the poster's *Introduced* counts the bills CT holds. Which 610, and why, is unread (A).
+
+**What was read** (`docs/probes/787-gradshow-numbers.md`; `--numbers` r4, 7:54 PM MT Oct 19 / 01:54Z Oct 20, is the reading of record):
+- **A:**
+  - `/welcome`'s own statements read **18,137 introduced and 120 enacted (0.7%)**, the poster's figures. Both sit inside the bounds the rows changed since its read allow: [18,082, 18,141] and [120, 120].
+  - The ungated count is 18,137 too: at the read no non-ceremonial bill waited for a summary.
+  - Law-eligible bills: 16,303, with 119 enacted (0.7%). 1,834 (10.1%) are resolutions that can't become law.
+- **B:** 215 CRA resolutions and 18 enacted, 18 of 120 in both scopes: every CRA resolution is non-ceremonial and summarized, so the poster's mixed scopes change nothing today.
+- **C:** the top 12 sum to **1,551 and 9** (current members, non-ceremonial, the 119th; resolutions counted).
+- **D:**
+  - HO 786, or 787 once this lands; 1,656 commits at `88d6327`.
+  - The first commit is `c578e09` (May 3, 2026, 3:15 PM MT), earlier than the roadmap's first dated entry (2026-05-12, `:52`). The handoff's `git log --reverse … -1` prints HEAD instead (oddities).
+  - `vercel.json` has 20 cron entries over 19 routes. The poster's *19 cron jobs* counts routes; the other six cron claims are in Corey's draft, which is chat-side, so the probe tables every entry in words.
+  - Three workflows.
+- **E:**
+  - N is **99** rated races (86 House, 13 Senate). Kalshi covers 99, Polymarket 13, both 13, neither 0.
+  - No per-race odds history exists anywhere.
+  - `dashboard_state` holds nine keys, and `kalshi_chamber_control` is its only odds key.
+- **F:** 90 drawn bills read: **3 independent, 31 shown, 56 with no CRS summary yet**. The pack is the 3 independent bills and the first 27 shown ones. Every bill read carries one CRS version, so the handoff's rule and the pack's stricter one agree.
+- **G:** nothing in the tree counts visitors; Vercel Web Analytics is Corey's to read, if it's on.
+
+**The three questions the handoff settled from the tree held when read:**
+- the poster's figures are the summary-gated corpus, and today it equals the ungated count;
+- the CRS summary is a model input (`lib/summarize.ts:219`), so F's pack marks each bill independent or shown;
+- no per-race odds history exists, so E built the snapshot rather than HALT.
+
+**The labels:**
+- `computeStage` puts a bill that passed one chamber at `floor`. So the draft's *Passed one chamber = other_chamber+* (677) misses every bill waiting on its second chamber.
+- The handoff's text rule adds only 8, because a passed bill's latest action is usually a later step: *Held at the desk*, a motion to reconsider, a message between the chambers. Read from each bill's latest action, **848 to 885 bills passed at least one chamber.**
+- *Reached the floor* (1,472) holds 65 calendar placements the old model stored at `floor`, the BANKED *Deferred ~75-bill downward stage correction (HO 385)*.
+- *Became law* (120) holds one Senate resolution, `119-sres-611`, stored at `enacted` by the old model (filed). Bills alone, 119.
+
+**The snapshot plan:**
+- `--odds-snapshot` writes `docs/probes/odds-snapshots/<YYYY-MM-DD-HHMM-MT>.json`.
+- **The dry run** (7:57 PM MT) wrote `2026-10-19-1957-MT.json`, 192,299 bytes.
+  - Its row counts equal the tables', 469 and 34.
+  - 460 of the 469 Kalshi rows came from the newest tick (6:15 PM MT). The 9 older are California rows from Jun 30, none in N.
+  - It was deleted, and a separate process read it gone.
+- **Corey's three runs** (the review reply's), MST, each just after a :15 tick: **Monday Nov 2 at 9:30 PM, Tuesday Nov 3 at 7:30 AM, and Tuesday Nov 3 at 3:30 PM.** The third follows the 3:15 PM tick (22:15Z), the last before any poll closes: the first closures are at 6 PM ET (4:00 PM MST), and the next tick is 5:15 PM MST.
+- The HO after the results commits the three files and computes *favorites won X of N*.
+
+**Departures, named** (the probe file lists each):
+- F's stricter independence rule;
+- the pack's one added sentence on `updateDate`, written after the run. The committed instrument also adds a log line for the candidate list's hash, after `--crs-pack`'s run; its other modes are as they ran;
+- D's first commit read by `git rev-list --max-parents=0 main`;
+- the snapshot's 24-hour MT name;
+- four `--numbers` runs as the instrument grew, every shared number the same;
+- the completeness read from a scratchpad script, not the instrument, since the reply amends only the docs commits.
+
+**The review reply** (2026-10-20), taken before the push:
+- **Flags 1 and 2 were the architect's, and both corrections stand:** HO 786's records come from `786-artifacts/ff/paste-786-ff.md` (`786-close.md` is a chat-side file), `verify:deploy`'s first match was at 0s, and `git rev-list --max-parents=0 main` is the first-commit read.
+- **Flags 3 to 8 didn't reach the reply** (the attachment cut them), so they ride in the push paste in full. None needs a ruling the HO's rules don't give, so the push didn't wait on them.
+- **The `.next` junction, taken:** an oddities note in this commit, and one SKILL line in `docs(skill)`: before removing `.next` for a cold build, unlink any junction under it (`cmd /c rmdir`) and confirm the target intact. SKILL's only *Gotchas* heading is the Congress.gov API's (`:88`), so the line is the last of *Things to watch for* (`:2986`).
+- **The completeness read, taken:** one call, recorded beside STEP 0's 19,106 above and in the probe file's A. The two differ by far more than a day's introductions, so the block says so.
+- **One more OPEN LOOPS line,** owned by Code, low: the foot's *LAST SYNC* is Congress.gov's clock, not CT's; relabel it or source it from the sync's own time. The close count is 281, with the 610's line the second amend filed.
+- **Three snapshot runs, not two:** the third at 3:30 PM MST Nov 3, after the last tick before any poll closes (the snapshot plan, above).
+- **For the poster chat,** beside the probe file's table: *passed at least one chamber* prints the lower bound, at least 848; *reached the floor* is 1,472 as stored or 1,407 under today's rule, and the poster says which; the corpus as-of is Congress.gov's updates through 2:05 AM MT Oct 19.
+- **Two consequences in this HO's own text:** the backlog's odds line names the three runs, and the table's *Introduced* scope names the bills CT holds.
+- **Then** the build, the cheap gates and the push, with the two docs commits amended in place and `diag` unchanged.
+
+**Docs (HO 787):**
+- This block.
+- `docs/probes/787-gradshow-numbers.md` and `docs/probes/787-crs-spotcheck.md`.
+- **backlog, 4+/0−:** four lines at the top of OPEN LOOPS. One is the handoff's, the per-race odds history, owned by Corey, its runs now three. One is the loop the probe found, `119-sres-611` at `enacted`, owned by Code, low. The third is the reply's, the foot's *LAST SYNC* on Congress.gov's clock, owned by Code, low. The fourth is the second amend's, the 610 bills CT lacks, owned by Code. Nothing struck.
+- **oddities, 18+/0−:** *`git log --reverse -1` prints the newest commit, not the first*, */welcome's LAST SYNC is the newest Congress.gov update among the counted bills, not the time CT synced*, and *Turbopack's `.next` holds a junction into `node_modules`…* (all HO 787).
+- **The reconcile:**
+  - open: 277 live / 353 struck (630), § OPEN LOOPS `:14-229` 74 / 124;
+  - close: **281 / 353 (634), § OPEN LOOPS `:14-233` 78 / 124**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:** the pointer at the `/welcome` line (`:1975`), and the reply's line, the last of *Things to watch for* (`:2986`): before removing `.next` for a cold build, unlink any junction under it and confirm the target intact. The pointer: the banner's *Introduced* and *Became law*, and the foot's *LAST SYNC*, read the summary-gated corpus, and the two probe files are named. The handoff calls them *the foot's figures*; the two stats sit in the banner (`app/welcome/page.tsx:305-315`).
+- **Also notes now run through HO 787.**
