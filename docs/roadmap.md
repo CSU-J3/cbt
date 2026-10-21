@@ -7151,3 +7151,113 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - the control, `^- \*\*~~`, is 0 at both.
 - **SKILL, its own commit, last:** the pointer at the `/welcome` line (`:1975`), and the reply's line, the last of *Things to watch for* (`:2986`): before removing `.next` for a cold build, unlink any junction under it and confirm the target intact. The pointer: the banner's *Introduced* and *Became law*, and the foot's *LAST SYNC*, read the summary-gated corpus, and the two probe files are named. The handoff calls them *the foot's figures*; the two stats sit in the banner (`app/welcome/page.tsx:305-315`).
 - **Also notes now run through HO 787.**
+
+**Also (HO 788), the bills Congress.gov lists that CT lacked or held behind: named by type and number, their cause read off `/api/sync`'s own ledger as a join, and the ones that changed in substance repaired through `runSync`'s own upsert, the rest of the list read current on the read side only. It opens with HO 787's FF go as taken.**
+- **What's here:**
+  - HO 787's FF go as taken, with its records;
+  - STEP 0, a check: claims 1 and 2 hold, no HALT;
+  - the ledger, the census and the cause;
+  - the HALT before `--repair`, the estimate and its correction, and the ruling;
+  - the repair in two passes, and the censuses after it;
+  - the ruling on flags 1 and 2, and pass 3: the seven written under the rule by instant, with a write-time guard;
+  - the four readings the ruling asked for, and the list cache;
+  - the budgets, and one sentence for the poster chat.
+- **The probe file is `docs/probes/788-bills-gap.md`.** Every number below is the instrument's (`scripts/diagnostic/bills-gap-788.ts`), and its logs, list pages, census CSVs and allow-sets are in `docs/handoffs/788-artifacts/` (repo-ignored).
+- **Three commits, kinds unmixed:** `diag` (the instrument alone), then `docs` (the probe file, this block, the backlog and the oddities), then `docs(skill)`, alone and last.
+- **Prod was written only by ruling:** by the repair's `runSync`, through its own upsert, for the allow-set and nothing else, in passes 1 and 2 and again in pass 3. Everything else read prod by `SELECT` only, through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name. No product code, schema or sync code changed.
+- **The pointer is 788:** pointer 787 (`docs/roadmap.md:7153`), highest HO in commit subjects 787, `main` at `7776ea3`.
+
+**HO 787's FF go, as taken** (`docs/handoffs/787-ff-go.md`). These are the chat side's records, as the handoff lists them, each checked against the paste. The handoff names `docs/handoffs/787-artifacts/ff/paste-787-ff.md`; the paste is `docs/handoffs/787-artifacts/paste-787-ff.md`, one level up, and it agrees with every record below.
+- **`main` at `7776ea3`:** `88d6327..7776ea3`, three commits, no force (12:27 PM MT, 18:27:05Z). `787-review` was deleted, remote and local, and local `main` was forwarded `--ff-only`.
+- **Production built fresh, with no dedup:** `dpl_CoSJA5oi1ypMjgdTrCDG9WTC9TbD` (`bld_nf5c88ot5`), created 18:27:10Z. It skipped the build cache and went READY at 18:28:01Z (12:28 PM MT). The review Preview of the same SHA (`dpl_6ppK5w…`, 18:17:47Z) was a separate deployment, 9.4 minutes earlier.
+- **`verify:deploy`, in the foreground:** first matched at 31s and held for five reads in a row (confirmed at 72s).
+- **`e2e-prod` #39474983073,** fired by the Production record: `smoke` **143 passed (6.2m)**, and its narrow pass made 82 checks against Production, every cell `over=0`.
+- **The record's lag, as a bound:** the Production record (7207815123) and its `success` came 2.6 to 3.6s after READY, the bound the whole-second stamps allow. That's slower than HO 785's (under 1.5s) and HO 786's (0.2 to 2.2s).
+- **The served SHA:** the box read `/api/version` at 12:57 PM MT (18:57:01Z and 18:57:02Z), plain and with a fresh query string, and got `7776ea3` both times, with `Cache-Control: no-store`, `X-Vercel-Cache: MISS` and `Age: 0`. The production alias (`congressional-terminal-chi-silk.vercel.app`) resolves to `dpl_CoSJA5oi1ypMjgdTrCDG9WTC9TbD`. The chat side's fetch tool answered `88d6327` for over thirty minutes across fresh query strings, so a chat-side `/api/version` read is not a reading of record.
+- **The `cbt` skill, rebuilt from blob `3a58079`:** the box's synced copy hashed `3a58079…` at 2:32 PM MT (20:32:26Z), one line, its file written at 12:57 PM MT (18:57:45Z).
+- **The standing instruction until Nov 3:** Corey's three odds snapshots, MST, each at least five minutes after its `:15` tick: Mon Nov 2 at 9:30 PM, Tue Nov 3 at 7:30 AM and Tue Nov 3 at 3:30 PM, each `npx tsx scripts/diagnostic/gradshow-numbers-787.ts --odds-snapshot`. The HO after the results commits the three files.
+
+**STEP 0** (a check, HO 768's rule), 2:28 PM MT Oct 20 (20:28Z) at `7776ea3`: **claims 1 and 2 hold; no HALT.** The table is the probe file's.
+- **3 (record):** 19,127 bills, all 119th; `MAX(update_date)` 2026-10-20T17:49:25Z; `sync_state` empty.
+- **4 (record):** 481 `/api/sync` rows. **The handoff's path was the anchor's error, so ruled:** `$.sync.*` reads 0 budget stops, and the path `lib/cron-log.ts:170-171` writes, `$.payload.sync.*`, reads 126.
+- **5 (record):** Congress.gov lists 19,716, and the eight types sum to it.
+- **6 (record): `fromDateTime` filters on `updateDateIncludingText`, to the second.** For `119-hr-10841`, a ±1 s window around that field lists the bill, and the same window around `updateDate` lists nothing. The list prints both dates as a bare day.
+- **7 (record):** SKILL's local-run line is `:1240`, not `:1241`.
+
+**The ledger** (`--ticks`): **126 of the 411** ticks whose stats carry `budgetStopped` stopped on the 30 s budget (30.7%), worst in June (54.5%) and July (56.9%), and 61 more rows timed out. `failed` and `timedOut` are 0 in every row, and `seen` peaks at 240, so no tick has read a second page. A budget-stopped tick gets through a median 63 `seen` and 57 `upserted`.
+
+**The census, pass 1** (2:31 to 3:24 PM MT): the whole list, 79 pages plus 77 tie windows and a half-offset walk, 19,712 of 19,716 returned. **589 missing and 8,287 behind;** ahead 0, current 10,836, extra 4. The missing are mostly hr 9088–10544, s 4488–5677, hres 1303–1617 and sres 725–855, their latest actions mostly June (357) and July (148) 2026.
+
+**The cause, a join on `cron_runs`:** each bill's owed tick is the first row whose window `[fromDateTime, started_at)` holds its `updateDateIncludingText`, to the second off one detail read. **583 of the 589 missing and 8,021 of the 8,287 behind were first owed by a tick that stopped partway** (budget-stopped 347 and 6,666, timed out 223 and 1,231, errored 13 and 124). That is shape 1, HO 116's stopped-tick tail. Shape 2, the page-boundary tie, has never been exposed in a tick. Shape 3, before the ledger, holds 6 and 196. 50 behind are the handoff's unexplained fifth reading, and 20 were dated after the last tick.
+
+**The HALT, and the estimate's correction.** Pass 1 put 8,876 bills to write against the handoff's *about 900*. Every behind bill held a summary the upsert nulls, 43.3% of the corpus, and only 370 showed a newer latest action. So the HO HALTed before `--repair` and offered four options. **The ruling, option 3:** *the halt was right and the bound was mine.* The estimate carried HO 752's 3 of 200 from a sample of committee-walked bills, the recently updated ones, so it ran low by an order of magnitude for the corpus. The census's whole-list count is the reading (oddities). The cause is settled as shape 1, and *126 of 411 ticks budget-stopped, 61 timed out* is the capacity the next HO sizes from.
+
+**The repair, as ruled.** It writes the census's missing and its behind with a newer latest action, each listed before the day of `MAX(update_date)` read immediately before the run. The rest of `runSync`'s list reads current on the read side only, and nothing is marked in the store.
+- **Printed before the run** (7:25 PM MT, 01:25:13Z Oct 21):
+  - the watermark, **2026-10-20T22:49:19Z**;
+  - the allow-set, **950**: 585 missing and 365 behind with a newer action (the predicate read 368 at the run, against `--impact`'s 370);
+  - the control, 7,919;
+  - 7 excluded by the rule: `119-hr-9474`, `119-hres-1545`, `119-hres-1581` and `119-s-4914` (missing), and `119-hr-1653`, `119-hr-3514` and `119-hr-9640` (behind);
+  - **all seven dated Oct 20 before the watermark instant,** so no tick lists them either. Flagged at the push: the rule's *a bill dated on or after that day is the cron's* holds only from the watermark on. Ruled, and pass 3 wrote them (below).
+- **Pass 1** (7:25 to 7:37 PM MT, 11.9 min): `seen` 19,716, `upserted` **944**, `skipped` 18,772, `failed` 0, `timedOut` 0.
+  - 944 detail fetches, every one an allow-set bill.
+  - 944 rows stamped, all in the allow-set, 0 outside it; 581 new rows; the watermark unchanged.
+  - The walk never listed 6 allow-set bills (the offset walk's losses).
+- **Pass 2** (7:48 to 7:50 PM MT, `--from` 2026-08-10T11:51:26Z, one second before the residual's oldest date): `upserted` **6**, the six, 4 of them new rows.
+- **Together: 950 of 950 written,** 585 inserted and 365 updated, with 48 stage advances logged at upsert. **`rows_written` 14,446 against the allow-set's 950:** the upsert 950 times (14,254 rows, 15.0 a bill) and `stage_transitions` 48 times (192). Every row came from `runSync`'s statements, and no pass wrote a bill outside the allow-set.
+
+**After the repair** (the third census, 7:50 PM MT, the list complete at 19,716 of 19,716):
+- **Missing: 4,** the frontier rule's four, the whole of Congress.gov's 19,716 against CT's 19,712 (pass 3 wrote them, below).
+- **Behind: 7,897.** Of these, 7,890 are the control, plus the rule's three and four listed Oct 21 (the midnight tick's).
+- **The allow-set reads 950 of 950 current.**
+- **The control: `--impact`'s 7,917 read 7,890 still behind.** The 6:00 PM MT tick (#26680) wrote the other 27 before the repair began. Of the 988 rows stamped since census p1's snapshot, 950 fell inside a repair's window, every one in the allow-set, and the other 38 are that tick's.
+- The second census (7:40 PM MT, after pass 1) read 8 missing and 7,899 behind. Its first run stopped on a page whose body was cut off mid-read; the instrument now retries one.
+
+**The ruling on flags 1 and 2, and pass 3** (Oct 21, 7:11 to 7:41 PM MT):
+- **Flag 1 was a hole in the frontier rule:** it was written by day, and the cron lists from the watermark instant, to the second. **The rule, restated by instant:** the allow-set is (missing ∪ behind with a newer action) dated strictly before the watermark instant, read at the run. A bill listed on an earlier day is in on its list date, and one listed on the watermark's day is placed by one detail read. **A write-time guard** in the view removes `bill` from any detail response dated at or past the instant, so `lib/sync.ts:411-414` counts it failed and writes nothing, and the watermark can't move.
+- **Flag 2, ratified:** outside the allow-set, a stored bill reads current and an unstored one reads undated, and the sync skips both without a fetch.
+- **Census p4** (7:11 PM MT): the four missing and 7,905 behind. The day since p3 added 21 behind, all listed Oct 21 and none with a newer action, and no missing. **So the allow-set was the seven.**
+- **The day's ticks:** midnight, 6:00 AM and noon MT finished clean. **The 6:00 PM MT tick errored on a Cloudflare 520** at its first list page, so the watermark held at 2026-10-21T17:38:45Z.
+- **r3** (7:16 PM MT): the watermark 17:38:45Z, read at the run. The seven were all listed Oct 20, a day before the watermark's, so the run made no placement read and excluded none. `upserted` **5**, and the guard removed none. The walk never listed `119-hres-1581` or `119-hr-9640`.
+- **The `--from` pass** at 2026-10-20T08:05:19Z, one second before `119-hres-1581`'s date: r4 stopped on a 520 at its second page with nothing written, and r5 wrote both.
+- **The seven, written:** 4 inserted and 3 updated, `rows_written` 105, the watermark unchanged throughout.
+- **The closing census** (7:37 to 7:41 PM MT): **0 missing,** CT's 19,716 against Congress.gov's 19,716, and **7,902 behind, all by metadata alone:** census p4's control, every one still behind, none stamped by pass 3. The seven read current, and no bill in the gap sits outside the control. Of the 957 the ruling repaired, 956 read current; `119-hr-9467`, which pass 1 inserted, moved again on Oct 21 without a newer action and reads behind by metadata.
+- **The three doc asks:** deviation 6(a) reads three; the list cache has its own heading in the probe, the half walk read as the tie windows again plus two pages; and the instrument's `--readings` label and comments read the unsettled wording.
+- **One ride-along correction, flagged:** the probe's pass 2 said a `--from` pass moves every page boundary. Under `sort=updateDate desc` it doesn't: `fromDateTime` trims only the list's old end, and pass 2 listed `119-hr-9474` at offsets 0 and 250, as pass 1 did.
+
+**The four readings the ruling asked for:**
+- **The four stored bills no walk in census p1 returned** (`119-hr-4981`, `119-hr-4979`, `119-hr-4821` and `119-hr-5224`): **all 200, so Congress.gov dropped none; why no walk returned them is unsettled.** Each was updated on Oct 20 between 2:13 and 2:25 PM MT, 7 to 19 minutes before that census's walk read its first page, and the 6:00 PM MT tick has since written all four. Either the walk lost them, or Congress.gov's list lagged its detail (the handoff's fifth class, an entry that appeared in the list after its own `updateDate`), the plainer reading, since a bill updated minutes before a newest-first walk sits on its first page. Neither is measured: the next HO lists an id by `fromDateTime` right after its detail changes and times when it appears. p1's completeness check read short by exactly these four.
+- **The precision:** census p1's 235 saved pages hold 58,557 entries, and **0 carry a time in `updateDate`, 0 in `updateDateIncludingText`.** The repair's own pages read the same. This is the next HO's STEP 0 input.
+- **The predicate behind *a newer latest action*:** the census's listed `latestAction.actionDate` is later, as a `YYYY-MM-DD` string, than the stored `latest_action_date`, or the stored one is NULL and the listed one isn't.
+- **Claim 4's path:** `$.payload.sync.*`, corrected in the probe file.
+
+**The list cache** (its own heading in the probe): Congress.gov answers a repeated list URL from a cache, read off the saved pages. Census p1's half walk was the tie windows again plus two new pages, not a second walk, and census p3's list is p2's. **For the next HO:** a cursor that re-lists the same URL after a stopped tick may read a cached page; the cache's age is its STEP 0 measurement.
+
+**The budgets:**
+- **Congress.gov: 10,555 requests for the HO, all 200,** including the 9,132 spent before the HALT. That's census p1's 9,119, the repair's 1,067 (1,023 and 44), the three later censuses' 352, `--step0`'s 12, `--impact`'s 1 and the readings' 4. **`x-ratelimit-remaining` 17,629 of 20,000 at the end.** The handoff expected under 1,200; census p1's 8,876 detail reads are the overrun, flagged at the HALT. **Pass 3 added 587** (the three censuses' 497 and the repairs' 90), all 200 but r4's one 520, for **11,142** in all; `x-ratelimit-remaining` 19,319 at its end.
+- **Prod: `rows_read` 413,789 by the instrument,** over 2,122 hrana results that each carried the field, and 53,393 by the cron-window side read. That's against an expected 70,000, and most of it is whole-table reads of `bills`. **`rows_written` 14,446,** every row the repair's `runSync`. Pass 3 read 323,396 more by the instrument and 53,950 by side reads, and wrote 105, every row `runSync`'s upsert: **737,185 and 14,551 in all.**
+- **The schema fingerprint** read `736e6b987bf77620` before and after all seventeen runs.
+- **No cron failed alongside** either window, or pass 3's: news ran once and summarize three times, all `success`, and `/api/sync` didn't run.
+
+**For the poster chat:** *Introduced* on `/welcome` moves as the summarizer drains the repaired bills: the 589 new rows count once summarized, and the 368 updated ones drop out until they're re-summarized (pass 3's seven held summaries by 7:30 PM MT Oct 21). So the poster reads it again before it prints.
+
+**Docs (HO 788):**
+- This block.
+- `docs/probes/788-bills-gap.md`, in HO 747's header form: STEP 0, the corrections and the deviations, the ledger, the census and the cause, the HALT and the ruling, both passes, the censuses after, the ruling on flags 1 and 2 and pass 3, the residual, the four readings, the list cache, the cost, and every missing id in the appendix.
+- **backlog, 3+/2−:**
+  - One new OPEN LOOPS line at the top of the section, owned by **Corey**: whether a Congress.gov change with no new action should null a bill's summary at all.
+  - The 610 line (`:18`, now `:19`) is struck with its close reading, its text otherwise verbatim.
+  - The HO 752 line (`:78`, now `:79`) is annotated with a dated note naming it the next HO, its *low* read as *medium*.
+  - The two deletions are those two lines' rewrites.
+- **oddities, two entries:** *a tick's own `cron_runs` row names the window it owed…*, the handoff's, and *an estimate carried from a biased sample read an order of magnitude low…*. The second is a separate lesson: the join says what caused the gap, and the sample said how big it was.
+- **The reconcile:**
+  - open: 281 live / 353 struck (634), § OPEN LOOPS `:14-233` 78 / 124;
+  - close: **281 / 354 (635), § OPEN LOOPS `:14-234` 78 / 125**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - one paragraph after Sync logic's step 5: the stopped tick's tail, counted and repaired; the 959 / 7,917 split; and the frontier rule by instant, the standing rule for any future pass, with its write-time guard and the read-side clauses for stored and unstored bills;
+  - the `:90` gotcha's clause on the list's filter field;
+  - one sentence on the HO 135 watch (`:1342`) with `--ticks`' budget-stop count;
+  - one Backfill scripts bullet pointing at the paragraph.
+- **The FF go follows the architect's read of the ref.**
+- **Also notes now run through HO 788.**
