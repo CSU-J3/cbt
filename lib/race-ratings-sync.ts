@@ -69,17 +69,34 @@
 // The chamber totals stay as they were (the MOVED guard reads `scraped`), and
 // each rater that read adds `stats.raters.<source>`, which the guard reads too
 // (lib/move-freshness.ts).
+//
+// ── HO 789: A RUN FROM A SAVED PAGE, AND A BOARD'S SILENCE ──────────────────
+//
+// `runRaceRatingsSync({ run, supplements })`: the CLI passes a run that reads a
+// page Corey saved (fileScrapeRun) and the supplements read off its image
+// entries, and the legs, the chain check, the upserts and the departures run on
+// them as on the network's page. One step is new, for a board: a race the store
+// rates that the board leaves off is Safe for the incumbent party as of the
+// board's date (boardSilence), a locked cell applyDepartures retires like any
+// Safe, and a board's own row can't conflict with the store, since it states a
+// position, not a move. A failed run's error carries the legs' results, so the
+// CLI can flush when the surviving leg wrote.
 import type { Client, InStatement } from "@libsql/client";
 import { getDb } from "./db";
 import {
+  type BoardRead,
+  boardSilenceCell,
   type Chamber,
   type ChamberScrape,
+  type LockedCell,
   newScrapeRun,
   type RatingChange,
   type RatingSource,
   type RatingsScrape,
   scrapeChamber,
   type ScrapedRating,
+  type ScrapeRun,
+  type Supplement,
 } from "./race-ratings-scrape";
 
 /** HO 770 — one rater's reading and writes, inside a leg. */
@@ -98,6 +115,9 @@ export type RaterStats = {
   conflicts?: string[]; // races whose stored label is nowhere in their chain; not written
   pageAsOf?: string | null; // the newest of the chamber's table dates
   unparsed?: string[]; // rows that minted no race id, or two
+  // HO 789, a board's: stored races it leaves off whose incumbent is neither a D
+  // nor an R, so its footer names no label for them; kept as they are.
+  offBoard?: string[];
 };
 
 export type RaceRatingsSyncStats = {
@@ -126,6 +146,20 @@ export type ChamberLegResult = { ok: true; stats: RaceRatingsSyncStats } | { ok:
 
 export type RaceRatingsSyncResult = Record<Chamber, ChamberLegResult>;
 
+/**
+ * HO 789 — the throw after a failed leg, with the legs' results on it: the
+ * message is the one the route has always recorded, and `result` lets the CLI
+ * see what the surviving leg wrote, so `--flush` can fire for it.
+ */
+export class RaceRatingsSyncError extends Error {
+  constructor(
+    message: string,
+    readonly result: RaceRatingsSyncResult,
+  ) {
+    super(message);
+  }
+}
+
 const CHAMBERS: Chamber[] = ["house", "senate"];
 const SOURCES: RatingSource[] = ["cook", "inside_elections", "sabato"];
 
@@ -134,15 +168,21 @@ const SOURCES: RatingSource[] = ["cook", "inside_elections", "sabato"];
  *
  * Throws AFTER both legs have run if either failed — so the successful leg's
  * writes are already committed and only the reporting is affected.
+ *
+ * HO 789: `run` replaces the network's (a saved page, fileScrapeRun), and
+ * `supplements` ride on it into the readers, keeping scrapeChamber's signature.
  */
-export async function runRaceRatingsSync(): Promise<RaceRatingsSyncResult> {
+export async function runRaceRatingsSync(
+  opts: { run?: ScrapeRun; supplements?: readonly Supplement[] } = {},
+): Promise<RaceRatingsSyncResult> {
   const db = getDb();
   const result = {} as RaceRatingsSyncResult;
 
   // Both scrapes in flight at once, the writes after them, House then Senate.
   // allSettled, never all: one chamber's rejected scrape must not cost the other
   // chamber its writes. HO 770: one run for both, so they share the page.
-  const run = newScrapeRun();
+  const base = opts.run ?? newScrapeRun();
+  const run: ScrapeRun = opts.supplements?.length ? { ...base, supplements: opts.supplements } : base;
   const scrapes = await Promise.allSettled(CHAMBERS.map((c) => scrapeChamber(c, run)));
 
   for (const [i, chamber] of CHAMBERS.entries()) {
@@ -168,9 +208,10 @@ export async function runRaceRatingsSync(): Promise<RaceRatingsSyncResult> {
     const detail = failed
       .map((c) => `${c}: ${(result[c] as { ok: false; error: string }).error}`)
       .join(" ;; ");
-    throw new Error(
+    throw new RaceRatingsSyncError(
       `race-ratings sync: ${failed.length} of ${CHAMBERS.length} chamber leg(s) failed — ${detail}. ` +
         (survived ? `Writes that DID land: ${survived}.` : "No chamber completed."),
+      result,
     );
   }
   return result;
@@ -220,6 +261,9 @@ async function runChamberLeg(
       locked: scrape.locked.filter((x) => x.source === r.source),
       sourcesPresent: [r.source],
     };
+    // HO 789: what a board leaves off, read against the store, before the chain check.
+    const silence = r.board ? await boardSilence(db, chamber, r.source, r.board, own) : null;
+    if (silence) own.locked.push(...silence.locked);
     const { write, conflicts } = await setAsideConflicts(db, r.source, own);
     const s = emptyStats(own.ratings.length);
     await upsertRatings(db, write.ratings, r.sourceUrl, s, raceExists);
@@ -242,6 +286,7 @@ async function runChamberLeg(
       ...(conflicts ? { conflicts } : {}),
       ...(r.pageAsOf !== undefined ? { pageAsOf: r.pageAsOf } : {}),
       ...(r.unparsed ? { unparsed: r.unparsed } : {}),
+      ...(silence ? { offBoard: silence.kept } : {}),
     };
     stats.upserted += s.upserted;
     stats.changed += s.changed;
@@ -284,6 +329,9 @@ async function runChamberLeg(
  * or Safe alike: not upserted, not departed, warned, and counted with its id.
  * Every other race goes on to the predicates as they stand. A rater whose rows
  * carry no chain returns `conflicts` undefined, and nothing is set aside.
+ *
+ * HO 789: a board's entry matches any stored label. A board says where a race
+ * stands, not where it moved from, so no conflict can be read from it.
  */
 async function setAsideConflicts(
   db: Client,
@@ -296,7 +344,7 @@ async function setAsideConflicts(
   const conflicts: string[] = [];
   const fits = (x: { raceId: string; chain?: readonly RatingChange[] }): boolean => {
     const label = stored.get(x.raceId);
-    if (!x.chain || label === undefined || x.chain.some((c) => c.from === label || c.to === label)) return true;
+    if (!x.chain || label === undefined || x.chain.some((c) => c.board || c.from === label || c.to === label)) return true;
     const chain = x.chain.map((c) => `${c.date} ${c.from ?? "?"} → ${c.to ?? "?"}`).join("; ");
     console.warn(`  CONFLICT: ${x.raceId}-${source} is stored as ${label}, which its chain never reads (${chain}); not written`);
     conflicts.push(x.raceId);
@@ -306,6 +354,63 @@ async function setAsideConflicts(
     write: { ratings: scrape.ratings.filter(fits), locked: scrape.locked.filter(fits), sourcesPresent: scrape.sourcesPresent },
     conflicts,
   };
+}
+
+// HO 789: the id shapes the scrape mints (houseIds, senateIds), this cycle's.
+const CHAMBER_ID: Record<Chamber, RegExp> = { house: /^[A-Z]{2}-(?:\d{2}|AL)-2026$/, senate: /^S-[A-Z]{2}-2026$/ };
+
+/**
+ * HO 789 — A BOARD'S SILENCE. A board lists every competitive race, and its
+ * footer says the races not listed are Safe for the incumbent party. So a race
+ * this chamber's store rates, that the board leaves off and the scrape hasn't
+ * otherwise decided (a Safe move in the tables is already a locked cell), is
+ * Safe as of the board's date: a locked cell, which applyDepartures retires
+ * with its history row like a Safe in a table. The evidence is the board,
+ * read whole: its section counts are checked before anything reads it
+ * (parseSupplementCsv), so a missing row can't pass for a Safe.
+ *
+ * The party is the incumbent's (`races.incumbent_bioguide_id` → `members.party`).
+ * The footer names no label for a race whose incumbent is neither a D nor an R,
+ * or that has no races row, so that race keeps its row and is named in
+ * `offBoard`. A race the board leaves off with no stored row writes nothing.
+ */
+async function boardSilence(
+  db: Client,
+  chamber: Chamber,
+  source: RatingSource,
+  board: BoardRead,
+  scrape: RatingsScrape,
+): Promise<{ locked: LockedCell[]; kept: string[] }> {
+  const on = new Set(board.raceIds);
+  const decided = new Set([...scrape.ratings, ...scrape.locked].map((x) => x.raceId));
+  const rs = await db.execute({ sql: "SELECT race_id FROM race_ratings WHERE source = ?", args: [source] });
+  const ids = rs.rows
+    .map((r) => String(r.race_id))
+    .filter((id) => CHAMBER_ID[chamber].test(id) && !on.has(id) && !decided.has(id))
+    .sort();
+  if (ids.length === 0) return { locked: [], kept: [] };
+  const parties = await db.execute({
+    sql: `SELECT r.id, m.party FROM races r LEFT JOIN members m ON m.bioguide_id = r.incumbent_bioguide_id
+           WHERE r.id IN (${ids.map(() => "?").join(", ")})`,
+    args: ids,
+  });
+  const party = new Map(parties.rows.map((r) => [String(r.id), r.party == null ? null : String(r.party)]));
+  const chains = new Map<string, readonly RatingChange[]>(board.offBoard.map((o) => [o.raceId, o.chain]));
+  const locked: LockedCell[] = [];
+  const kept: string[] = [];
+  for (const id of ids) {
+    const cell = boardSilenceCell(id, source, party.get(id) ?? null, board, chains.get(id));
+    if (cell) {
+      locked.push(cell);
+      continue;
+    }
+    console.warn(
+      `  OFF-BOARD: ${id}-${source} is not on the ${board.date} board, and its incumbent's party is ` +
+        `${party.has(id) ? (party.get(id) ?? "unknown") : "unknown (no races row)"}, so the footer names no label; kept`,
+    );
+    kept.push(id);
+  }
+  return { locked, kept };
 }
 
 /**

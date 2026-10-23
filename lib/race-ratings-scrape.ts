@@ -191,8 +191,11 @@ const LOCKED = new Set(["Solid D", "Solid R", "Safe D", "Safe R"]);
 /** HO 770 — one step in a change-log rater's chain for a race. */
 export type RatingChange = {
   date: string; // YYYY-MM-DD, the date of the change's table
-  from: string | null; // normalized; null when outside the vocabulary
+  from: string | null; // normalized; null when outside the vocabulary, and on a board's entry
   to: string | null;
+  // HO 789: the entry is a board's, a position as of `date` and not a move, so it reads `from` null and the
+  // chain check matches it against any stored label (lib/race-ratings-sync.ts, setAsideConflicts).
+  board?: true;
 };
 
 export type ScrapedRating = {
@@ -339,8 +342,16 @@ async function refusalShape(res: Response, signal: AbortSignal): Promise<string>
  * fetches it once and both legs await the same answer: a hang costs the cap
  * once and fails both legs inside it, while each chamber still parses on its
  * own.
+ *
+ * HO 789: a run can also say what it read (`label`, which the stats' `dataUrl`
+ * carries in place of the page's URL) and carry the supplements a person read
+ * off the page's image entries, which ride beside it into the reader.
  */
-export type ScrapeRun = { get(url: string, accept: string): Promise<string> };
+export type ScrapeRun = {
+  get(url: string, accept: string): Promise<string>;
+  label?: string;
+  supplements?: readonly Supplement[];
+};
 
 export function newScrapeRun(): ScrapeRun {
   const inflight = new Map<string, Promise<string>>();
@@ -353,6 +364,28 @@ export function newScrapeRun(): ScrapeRun {
         inflight.set(key, p);
       }
       return p;
+    },
+  };
+}
+
+/**
+ * HO 789 — a run that reads a page a person saved instead of the network. The
+ * cron's read is refused by Cloudflare from pdx1 while the same agent from
+ * Corey's box is answered, so the page is read there and the sync ingests the
+ * file (scripts/sync-race-ratings.ts, `--html`). The caller reads the file and
+ * passes its text, which stands for Sabato's URL; any other URL throws, so a
+ * wired reader that reaches for the network fails its leg by name and nothing
+ * is fetched. The rows still cite the page (`sourceUrl`), and the stats'
+ * `dataUrl` carries `label`, the file's name. The file is read on the caller's
+ * side because this module imports no `node:` module: a lib/<source>.ts stays
+ * import-safe for client bundles (SKILL's house pattern; HO 774).
+ */
+export function fileScrapeRun({ html, label }: { html: string; label: string }): ScrapeRun {
+  return {
+    label,
+    async get(u) {
+      if (u !== SABATO_CHANGES_URL) throw fetchError(u, 0, "offline run: nothing is fetched");
+      return html;
     },
   };
 }
@@ -469,16 +502,188 @@ function senateIds(cell: string): string[] {
 }
 
 /** A House or Senate row that minted no race id, or two. */
-export type UnparsedRow = { table: number; date: string; cell: string };
+export type UnparsedRow = { table: number; date: string; cell: string; supplement?: string };
+
+// ── HO 789: IMAGE ENTRIES, AND THE ROWS A PERSON READ OFF THEM ──────────────
+//
+// On 2026-10-22 the page's House section opened with an entry that had no
+// table: a date line, *Oct. 20, 2026*, and an <img> (102026houseratings.png),
+// which by then 404ed. The House ratings page carried the same graphic as
+// 102026houseratings-2.png, and it was not a changes table but the whole
+// board: every competitive district in eight columns, each header printing its
+// count, and a footer saying the races not listed are Safe for the incumbent
+// party. The parser had read the image's date line as a second date above
+// Oct. 8's table, and HO 770's date rule threw on that, which is what caught
+// it: a reader that skipped the image would have written Oct. 8 as current.
+//
+// So a date line followed by an <img> before the next date line or table is an
+// IMAGE ENTRY, its date line no longer dates the table below, and a chamber
+// with one throws by name unless a SUPPLEMENT stands in for it: rows a person
+// read off the image, two readers diffed and every difference settled by Corey
+// (docs/handoffs/789-step0-ruling.md, 789-board-amendment.md). A `changes`
+// supplement is a table at its date. A `board` is every competitive race's
+// rating as of its date, so each of its rows enters the race's chain as a
+// position (`from` null, `board`), and a race the board leaves off is Safe for
+// the incumbent party as of that date, retired by the sync on that evidence
+// (lib/race-ratings-sync.ts, boardSilence). The evidence holds only because the
+// board is read whole: its own header counts are checked before anything else
+// (parseSupplementCsv), since a row a reader dropped is the one error that
+// would wrongly retire a rating.
+
+/** HO 789 — an entry whose rows are a picture: its date line, as ISO and as printed, and the image's src. */
+export type ImageEntry = { date: string; text: string; src: string };
+
+/**
+ * HO 789 — rows a person read off an image entry, standing in for it. `date` is
+ * the entry's, `source` the image's URL, `name` the file the rows came from.
+ * Rows use Sabato's words as printed (*Leans Democratic*, *Toss-up*); the
+ * vocabulary map normalizes them like any table's.
+ */
+export type Supplement = { chamber: Chamber; date: string; source: string; name: string } & (
+  | { kind: "board"; rows: { cell: string; rating: string; section: string }[] }
+  | { kind: "changes"; rows: { cell: string; from: string; to: string }[] }
+);
+
+/** HO 789 — what a chamber's board said, for the sync's check of the store against it. */
+export type BoardRead = {
+  date: string;
+  source: string;
+  raceIds: string[]; // every race on the board, pickups included
+  // Races the text tables carry with a competitive (or unknown) newest label
+  // older than the board, that the board leaves off. Their rating is the
+  // board's silence: Safe for the incumbent party, which the page doesn't name.
+  offBoard: { raceId: string; chain: readonly RatingChange[] }[];
+};
 
 export type SabatoChanges = RatingsScrape & {
   // This chamber's tables, by their index among the page's tables.
   tables: { index: number; date: string; inherited: boolean; rows: number }[];
-  rows: number; // rows that minted exactly one race id
+  rows: number; // rows that minted exactly one race id, a supplement's included
   unparsed: UnparsedRow[];
   unknown: Record<string, number>; // labels outside the vocabulary, old and new, with counts
-  pageAsOf: string | null; // the newest of this chamber's table dates
+  pageAsOf: string | null; // the newest of this chamber's table and supplement dates
+  images: ImageEntry[]; // HO 789: this chamber's image entries
+  supplements: { name: string; kind: Supplement["kind"]; date: string; source: string; rows: number }[]; // the ones read
+  board: BoardRead | null;
 };
+
+/**
+ * HO 789 — a supplement's file: header comments (`# key: value`, of which
+ * `source`, `chamber`, `date` and `kind` are read and the rest are the record),
+ * then a CSV with a header row: `cell,rating,section` for a board,
+ * `cell,from,to` for a changes table (`district` is taken for `cell`).
+ *
+ * A BOARD'S COUNTS ARE THE CONTROL, checked here, before anything else reads the
+ * rows: every row's `section` ends in its column's count as the board prints it
+ * (*LEANS REPUBLICAN (16)*), and the file is refused unless every section holds
+ * exactly that many rows. A transcription that dropped or doubled a row fails
+ * here, before the two readers' diff can miss it.
+ */
+export function parseSupplementCsv(text: string, name: string): Supplement {
+  const where = `supplement ${name}`;
+  const meta = new Map<string, string>();
+  const lines: { n: number; cells: string[] }[] = [];
+  for (const [i, raw] of text.split(/\r?\n/).entries()) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (line.startsWith("#")) {
+      const m = /^#\s*([a-z][a-z0-9 ]*?)\s*:\s*(.*)$/i.exec(line);
+      if (m && !meta.has(m[1]!.toLowerCase())) meta.set(m[1]!.toLowerCase(), m[2]!.trim());
+      continue;
+    }
+    lines.push({ n: i + 1, cells: csvCells(line, `${where}, line ${i + 1}`) });
+  }
+  const source = /^(https?:\/\/\S+)/.exec(meta.get("source") ?? "")?.[1];
+  const chamber = meta.get("chamber")?.toLowerCase();
+  const date = meta.get("date") ?? "";
+  const kind = /^(board|changes)\b/i.exec(meta.get("kind") ?? "")?.[1]?.toLowerCase();
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
+  const missing = [
+    !source && "`# source:` the image's URL",
+    chamber !== "house" && chamber !== "senate" && "`# chamber:` house or senate",
+    !(day && !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === date) && "`# date:` YYYY-MM-DD",
+    !kind && "`# kind:` board or changes",
+  ].filter((x): x is string => typeof x === "string");
+  if (missing.length) throw new Error(`${where}: refused, its header lacks ${missing.join(", ")}`);
+  const [head, ...rows] = lines;
+  const want = kind === "board" ? ["cell", "rating", "section"] : ["cell", "from", "to"];
+  const got = (head?.cells ?? []).map((c) => (c.toLowerCase() === "district" ? "cell" : c.toLowerCase()));
+  if (got.join(",") !== want.join(",")) {
+    throw new Error(`${where}: refused, a ${kind} has the columns ${want.join(",")}, and this one's are ${got.join(",") || "(none)"}`);
+  }
+  const short = rows.filter((r) => r.cells.length !== want.length || r.cells.some((c) => !c));
+  if (short.length || rows.length === 0) {
+    throw new Error(
+      `${where}: refused, ${rows.length === 0 ? "no rows" : `${short.length} row(s) without ${want.length} filled cells (line ${short.map((r) => r.n).join(", ")})`}`,
+    );
+  }
+  const base = { chamber: chamber as Chamber, date, source: source!, name };
+  if (kind === "changes") return { ...base, kind, rows: rows.map(({ cells: [cell, from, to] }) => ({ cell: cell!, from: from!, to: to! })) };
+
+  const board = rows.map(({ cells: [cell, rating, section] }) => ({ cell: cell!, rating: rating!, section: section! }));
+  const sections = new Map<string, { rows: number; says: number | null }>();
+  for (const r of board) {
+    const count = /\((\d+)\)\s*$/.exec(r.section)?.[1];
+    const s = sections.get(r.section) ?? { rows: 0, says: count === undefined ? null : Number(count) };
+    s.rows++;
+    sections.set(r.section, s);
+  }
+  const counts = [...sections].map(([s, c]) => `${s}: ${c.rows} ${c.rows === 1 ? "row" : "rows"}${c.says === null ? ", and no count in its header" : ""}`);
+  if ([...sections.values()].some((c) => c.says !== c.rows)) {
+    throw new Error(`${where}: refused, every section must hold the count its header prints (${counts.join(" · ")})`);
+  }
+  return { ...base, kind: "board", rows: board };
+}
+
+// One CSV line's cells: commas, and double quotes around a cell that holds one.
+function csvCells(line: string, where: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (quoted && ch === '"' && line[i + 1] === '"') {
+      cur += '"';
+      i++;
+    } else if (ch === '"') {
+      quoted = !quoted;
+    } else if (ch === "," && !quoted) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (quoted) throw new Error(`${where}: refused, a quote is never closed`);
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+/**
+ * HO 789 — a race the board leaves off, with a stored row: Safe for the
+ * incumbent party as of the board's date, by the board's footer, as a locked
+ * cell applyDepartures retires. `party` is the incumbent's; for anything but a
+ * D or an R the footer names no label, and this returns null.
+ */
+export function boardSilenceCell(
+  raceId: string,
+  source: RatingSource,
+  party: string | null,
+  board: BoardRead,
+  chain: readonly RatingChange[] = [],
+): LockedCell | null {
+  const label = party === "D" ? "Safe D" : party === "R" ? "Safe R" : null;
+  if (!label) return null;
+  return {
+    raceId,
+    source,
+    label,
+    ratingScore: RATING_SCORE[label]!,
+    rawRating: `not on the ${board.date} board: "Races not listed are rated as Safe for the incumbent party"`,
+    asOfDate: board.date,
+    chain: [...chain, { date: board.date, from: null, to: label, board: true }],
+  };
+}
 
 /**
  * Sabato's rating-changes page, read for one chamber. Pure, and exported so the
@@ -490,8 +695,15 @@ export type SabatoChanges = RatingsScrape & {
  * and its newest change is Sabato's current rating for it: a competitive label
  * goes to `ratings` and a Safe one to `locked`, each dated by its table. A race
  * the page never mentions appears in neither.
+ *
+ * HO 789: an image entry is read through the `supplements` for this chamber,
+ * one per entry, and throws by name without one. A board's row decides its
+ * race's rating; where it agrees with the race's newest move, the rating keeps
+ * that move's date, since a board states a position and can't date one. A race
+ * the board leaves off goes to `board.offBoard` when its newest label is
+ * competitive, for the sync to read against the store.
  */
-export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChanges {
+export function parseSabatoChanges(html: string, chamber: Chamber, supplements: readonly Supplement[] = []): SabatoChanges {
   const where = `Sabato rating changes (${chamber})`;
   const headings = [...html.matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi)].map((m) => ({
     at: m.index ?? 0,
@@ -509,6 +721,7 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     date: string | null;
     inherited: boolean;
     noDate: string; // why it has no date, when it hasn't
+    images: ImageEntry[]; // HO 789: the image entries between it and what stands above it
   };
   const spans = [...html.matchAll(/<table\b[\s\S]*?<\/table>/gi)];
   const tables: Table[] = [];
@@ -536,9 +749,21 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     const above = prev && (!h || (prev.index ?? 0) > h.at) ? tables[i - 1]! : null;
     const from = above && prev ? (prev.index ?? 0) + prev[0].length : h ? h.end : 0;
     const gap = html.slice(from, at);
-    const lines = [...gap.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
-      .map((p) => parseChangeDate(stripTags(p[1] ?? "")))
-      .filter((d): d is string => d !== null);
+    // HO 789: a date line followed by an <img> before the next date line, or
+    // before the table, is an image entry, and its date line dates nothing.
+    const dated = [...gap.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map((p) => {
+        const text = stripTags(p[1] ?? "");
+        return { at: p.index ?? 0, text, date: parseChangeDate(text) };
+      })
+      .filter((p): p is { at: number; text: string; date: string } => p.date !== null);
+    const images: ImageEntry[] = [];
+    const lines: string[] = [];
+    for (const [k, p] of dated.entries()) {
+      const img = /<img\b[^>]*>/i.exec(gap.slice(p.at, dated[k + 1]?.at ?? gap.length))?.[0];
+      if (img) images.push({ date: p.date, text: p.text, src: /\bsrc="([^"]*)"/i.exec(img)?.[1] ?? "(no src)" });
+      else lines.push(p.date);
+    }
     let date: string | null = null;
     let inherited = false;
     let noDate = "";
@@ -563,6 +788,7 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
       date,
       inherited,
       noDate,
+      images,
     });
   }
 
@@ -586,9 +812,38 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     }
   }
 
+  // HO 789 — THE IMAGE ENTRIES, each read through this chamber's supplement for
+  // its date or the chamber throws, naming it: an incomplete read never writes
+  // as current. A supplement must stand in for an entry, and one at most for
+  // each; a board, one per chamber.
+  const images = mine.flatMap((t) => t.images);
+  const supplied = supplements.filter((s) => s.chamber === chamber);
+  for (const s of supplied) {
+    if (!images.some((im) => im.date === s.date)) {
+      throw new Error(
+        `${where}: ${s.name} stands in for an image entry dated ${s.date}, and this section has ` +
+          (images.length ? `only ${images.map((im) => `${im.text} (${im.src.split("/").at(-1)})`).join(", ")}` : "none"),
+      );
+    }
+  }
+  const unread = images.filter((im) => !supplied.some((s) => s.date === im.date));
+  if (unread.length) {
+    throw new Error(
+      `${where}: ` +
+        unread.map((im) => `the ${im.text} entry is an image (${im.src.split("/").at(-1)}), no text rows`).join("; ") +
+        "; supply a supplement or hold the chamber",
+    );
+  }
+  for (const im of images) {
+    const two = supplied.filter((s) => s.date === im.date);
+    if (two.length > 1) throw new Error(`${where}: ${two.map((s) => s.name).join(" and ")} both stand in for the ${im.text} entry`);
+  }
+  const boards = supplied.filter((s) => s.kind === "board");
+  if (boards.length > 1) throw new Error(`${where}: two boards (${boards.map((s) => s.name).join(", ")}); one at a time`);
+
   type Step = RatingChange & { rawTo: string };
   const chains = new Map<string, Step[]>();
-  const seenOn = new Map<string, number>(); // `${raceId}|${date}` → the table it was first seen in
+  const seenOn = new Map<string, number | string>(); // `${raceId}|${date}` → the table (or supplement) it was first seen in
   const unparsed: UnparsedRow[] = [];
   const unknown: Record<string, number> = {};
   const label = (raw: string): string | null => {
@@ -634,6 +889,41 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     }
   }
 
+  // HO 789 — THE SUPPLEMENTS' ROWS, each at its entry's date. A changes table's
+  // row is read like any table's; a board's row is a position, and a board row
+  // that names no race, or two, throws: a board can't afford a dropped row.
+  const onBoard = new Set<string>();
+  for (const s of supplied) {
+    const rows: { cell: string; from?: string; to: string }[] = s.kind === "board" ? s.rows.map((r) => ({ cell: r.cell, to: r.rating })) : s.rows;
+    for (const r of rows) {
+      const ids = mint(r.cell);
+      if (ids.length !== 1) {
+        if (s.kind === "board") throw new Error(`${where}: ${s.name}'s row ${JSON.stringify(r.cell)} names ${ids.length} races, where a board's row names one`);
+        unparsed.push({ table: -1, date: s.date, cell: r.cell, supplement: s.name });
+        continue;
+      }
+      parsed++;
+      const raceId = ids[0]!;
+      const first = seenOn.get(`${raceId}|${s.date}`);
+      if (first === s.name) throw new Error(`${where}: ${raceId} appears twice in ${s.name}`);
+      if (first !== undefined) {
+        throw new Error(
+          `${where}: ${raceId} appears twice on ${s.date} (${typeof first === "number" ? `table ${first}` : first} and ${s.name}), ` +
+            `so the page doesn't say which came last`,
+        );
+      }
+      seenOn.set(`${raceId}|${s.date}`, s.name);
+      const step: Step =
+        s.kind === "board"
+          ? { date: s.date, from: null, to: label(r.to), rawTo: r.to, board: true }
+          : { date: s.date, from: label(r.from ?? ""), to: label(r.to), rawTo: r.to };
+      if (s.kind === "board") onBoard.add(raceId);
+      const chain = chains.get(raceId);
+      if (chain) chain.push(step);
+      else chains.set(raceId, [step]);
+    }
+  }
+
   // THE FLOOR, with the unparsed rows' bound beside it.
   if (parsed < MIN_ROWS[chamber] || unparsed.length > UNPARSED_MAX) {
     throw new Error(
@@ -646,12 +936,24 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
   // Each race's newest change is its current rating.
   const ratings: ScrapedRating[] = [];
   const locked: LockedCell[] = [];
+  const board = boards[0] ?? null;
+  const offBoard: BoardRead["offBoard"] = [];
   for (const [raceId, steps] of chains) {
     steps.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     const newest = steps.at(-1)!;
+    const chain = steps.map(({ date, from, to, board: b }) => (b ? { date, from, to, board: b } : { date, from, to }));
+    // HO 789: a race the board leaves off, whose newest move is older than the
+    // board and not to Safe, is Safe for the incumbent party by the board's
+    // silence, a label the page doesn't name: the sync reads it against the store.
+    if (board && !onBoard.has(raceId) && newest.date < board.date && !(newest.to !== null && LOCKED.has(newest.to))) {
+      offBoard.push({ raceId, chain });
+      continue;
+    }
     if (newest.to === null) continue; // outside the vocabulary: counted, never written
-    const chain = steps.map(({ date, from, to }) => ({ date, from, to }));
-    const base = { raceId, source: "sabato" as const, ratingScore: RATING_SCORE[newest.to] ?? 0, rawRating: newest.rawTo, asOfDate: newest.date, chain };
+    // HO 789: a board's row agreeing with the race's newest move keeps that move's date.
+    const prev = steps.at(-2);
+    const asOfDate = newest.board && prev && prev.to === newest.to ? prev.date : newest.date;
+    const base = { raceId, source: "sabato" as const, ratingScore: RATING_SCORE[newest.to] ?? 0, rawRating: newest.rawTo, asOfDate, chain };
     if (LOCKED.has(newest.to)) locked.push({ ...base, label: newest.to });
     else ratings.push({ ...base, rating: newest.to });
   }
@@ -668,7 +970,9 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     );
   }
   if (vocab) console.warn(`  ${Object.keys(unknown).length} unrecognized rating label(s), never written: ${vocab} (${chamber})`);
-  for (const u of unparsed) console.warn(`  unparsed row, ${u.date} table ${u.table}: ${JSON.stringify(u.cell)} (${chamber})`);
+  for (const u of unparsed) {
+    console.warn(`  unparsed row, ${u.date} ${u.supplement ?? `table ${u.table}`}: ${JSON.stringify(u.cell)} (${chamber})`);
+  }
 
   const dated = mine.map((t) => ({ index: t.index, date: t.date ?? "", inherited: t.inherited, rows: t.rows.length - 1 }));
   return {
@@ -679,7 +983,10 @@ export function parseSabatoChanges(html: string, chamber: Chamber): SabatoChange
     rows: parsed,
     unparsed,
     unknown,
-    pageAsOf: dated.map((t) => t.date).sort().at(-1) ?? null,
+    pageAsOf: [...dated.map((t) => t.date), ...supplied.map((s) => s.date)].sort().at(-1) ?? null,
+    images,
+    supplements: supplied.map((s) => ({ name: s.name, kind: s.kind, date: s.date, source: s.source, rows: s.rows.length })),
+    board: board ? { date: board.date, source: board.source, raceIds: [...onBoard], offBoard } : null,
   };
 }
 
@@ -691,29 +998,41 @@ export type RaterRead = {
   asOf: string | null; // the source's own stamp on what was read (a page's article:modified_time)
   pageAsOf?: string | null; // a change log's newest table date, this chamber
   unparsed?: string[]; // a change log's rows that minted no race id, or two
+  board?: BoardRead; // HO 789: a board supplement's reading, which the sync checks the store against
 };
 
 type Reader = (chamber: Chamber, run: ScrapeRun) => Promise<{ read: RaterRead; scrape: RatingsScrape }>;
 
 async function readSabato(chamber: Chamber, run: ScrapeRun): Promise<{ read: RaterRead; scrape: RatingsScrape }> {
   const html = await run.get(SABATO_CHANGES_URL, "text/html");
-  const parsed = parseSabatoChanges(html, chamber);
+  let parsed: SabatoChanges;
+  try {
+    parsed = parseSabatoChanges(html, chamber, run.supplements);
+  } catch (e) {
+    // HO 789: a file run's failure names the file it read.
+    if (run.label) throw new Error(`${e instanceof Error ? e.message : String(e)} (read from ${run.label})`);
+    throw e;
+  }
   const asOf = /<meta\b[^>]*property="article:modified_time"[^>]*content="([^"]+)"/i.exec(html)?.[1] ?? null;
   const inherited = parsed.tables.filter((t) => t.inherited);
   console.log(
     `  sabato (${chamber}): ${parsed.tables.length} tables, ${parsed.rows} rows, current ${parsed.ratings.length} ` +
       `competitive and ${parsed.locked.length} Safe · newest table ${parsed.pageAsOf} · page modified ${asOf ?? "(no stamp)"}` +
-      (inherited.length ? ` · dated by the table above: ${inherited.map((t) => `table ${t.index} (${t.date})`).join(", ")}` : ""),
+      (inherited.length ? ` · dated by the table above: ${inherited.map((t) => `table ${t.index} (${t.date})`).join(", ")}` : "") +
+      parsed.supplements.map((s) => ` · the ${s.date} image entry read from ${s.name} (${s.kind}, ${s.rows} rows)`).join("") +
+      (parsed.board ? ` · the board leaves off ${parsed.board.offBoard.length} race(s) the tables rate competitive` : ""),
   );
   return {
     scrape: { ratings: parsed.ratings, locked: parsed.locked, sourcesPresent: ["sabato"] },
     read: {
       source: "sabato",
       sourceUrl: SABATO_CHANGES_URL,
-      dataUrl: SABATO_CHANGES_URL,
+      // HO 789: what was read, the file in place of the page, and each supplement's image beside it.
+      dataUrl: [run.label ?? SABATO_CHANGES_URL, ...parsed.supplements.map((s) => s.source)].join(" + "),
       asOf,
       pageAsOf: parsed.pageAsOf,
       unparsed: parsed.unparsed.map((u) => `${u.date} ${u.cell}`),
+      ...(parsed.board ? { board: parsed.board } : {}),
     },
   };
 }
