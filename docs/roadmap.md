@@ -7261,3 +7261,290 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - one Backfill scripts bullet pointing at the paragraph.
 - **The FF go follows the architect's read of the ref.**
 - **Also notes now run through HO 788.**
+
+**Also (HO 789), Sabato's ratings from a page a person saved: the sync reads a saved copy of the rating-changes page, and the CLI flushes when any leg wrote. The Oct 20 House entry was an image on the page and a board on the House ratings page; two readers transcribed it and agreed on all 95 cells, and it went in as a supplement checked against the board's own counts. The Oct 22 page was written to prod in one run. It opens with HO 788's FF go as taken.**
+- **What's here:**
+  - HO 788's FF go as taken, with its records;
+  - the Oct 22 read and its headers;
+  - STEP 0, and its HALT on claim 4: the Oct 20 House entry is an image;
+  - the ruling, (a) to (d), and its amendment: the image is a board;
+  - § 1: the file run, the image entry, the supplement and the flush;
+  - the transcription by two readers, and the board against the store;
+  - the legs;
+  - § 3, the prod run, and the read-back;
+  - the cadence, and what was flagged;
+  - the review reply: its amend (no `node:` import in the scraper), the legs again, and the race the board leaves off, by id.
+- **There is no probe file.** The probe section is this block, from *The image, and the amendment* to *The board against the store*. The legs' readings, the board preview, the second reader's run and the prod run's output are in `docs/handoffs/789-artifacts/` (repo-ignored).
+- **Four commits, kinds unmixed:** `feat` (§ 1's three files), `diag` (the legs), `docs` (this block, the backlog and the oddities), then `docs(skill)`, alone and last.
+- **Prod was written by § 3's one run and nothing else,** through the sync's own upsert and departures, then the flush. Everything else read prod by `SELECT` only, through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name. Code fetched nothing from centerforpolitics.org: the page and the image are Corey's saves.
+- **The pointer is 789:** pointer 788 (`docs/roadmap.md:7263`), highest HO in commit subjects 788, `main` at `79cd202`.
+
+**HO 788's FF go, as taken** (`docs/handoffs/788-ff-go.md`). The paste is `docs/handoffs/788-artifacts/paste-788-ff.md`, and it agrees with every record below.
+- **`main` at `79cd202`:** `7776ea3..79cd202`, three commits, no force (12:52 PM MT, 18:52:20 to 18:52:22Z). `ls-remote` read `main` alone at 18:52:41Z.
+  - Local `main` was forwarded `--ff-only` first, and then `788-review` was deleted, local and remote.
+  - That reverses the go's order, as at HO 787, because `-d` refuses a branch `main` doesn't yet contain.
+- **Production built fresh, with no dedup:** `dpl_6TTnLdvCUG29rMdzdcDu7ParYF4R` (`bld_4fybk8ajo`, iad1), created 18:52:25Z.
+  - Its build printed *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step*.
+  - It went READY at 18:53:26Z (12:53 PM MT), 60.9s after it was created.
+  - The review Preview of the same SHA (`dpl_9nBSfmQRyW4PvccYCtPSPmCE43kq`, 01:57:43Z) was a separate deployment, 16.9 hours earlier.
+- **`verify:deploy`, in the foreground:** first matched at 41s and held for five reads in a row (confirmed at 82s).
+- **The served SHA:** the box's `curl -sD -` on `/api/version` at 12:54 PM MT (18:54:27Z), plain and with a fresh query string.
+  - It read `79cd202` both times, with `Cache-Control: no-store`, `X-Vercel-Cache: MISS` and `Age: 0`.
+  - The production alias resolves to that deployment. It was updated at 18:53:26Z, 0.2s after READY.
+- **`e2e-prod` #39835322645,** fired by the Production record: `smoke` **143 passed (5.6m)**, and its narrow pass read 82 cells against Production, every one `over=0`.
+- **The record's lag, as a bound:** the Production record (7260829805) and its `success` came at 18:53:27Z.
+  - That's 0.9 to 1.9s after READY, the bound the whole-second stamps allow.
+  - HO 787's was 2.6 to 3.6s.
+- **The two cron rows:**
+  - **`/api/sync-race-ratings` #27065** (Oct 22, 5:00 AM MT, 11:00:44Z), `error`. It's the twelfth scheduled refusal in a row, Oct 11 through Oct 22 (#24166 to #27065).
+    - Each was a 403 `cf-mitigated` challenge. This one carried `cf-ray a4e8000149b6fb74-PDX` and a 5,689-byte body.
+    - It is backlog `:40`'s wall. The last `success` is #21278, Sep 30.
+  - **`/api/cron/bill-rosters` #26890** (Oct 21, 12:40 PM MT, 18:40:03Z), `error`: *The operation was aborted due to timeout* at 20.1s, its payload carrying no stats.
+    - The next tick, #26924 (3:40 PM MT, 74.7s), read `success`: 120 fetched, 26 bills changed, flushed.
+    - Of the 15 rows from Oct 21 00:40Z through Oct 22 18:40Z, every other one read `success`.
+- **The `cbt` skill, rebuilt from blob `7ef6fa3`:** the box's synced copy hashed `7ef6fa3…`, which is `79cd202`'s SKILL. One line, its file written at 1:29 PM MT Oct 22 (19:29:45Z), and still one line at `7ef6fa3` when re-read at 12:10 PM MT Oct 23 (18:10:53Z).
+
+**The Oct 22 read.** At 1:46 PM MT (19:46Z) Corey fetched the rating-changes page from his box with the sync's own agent string, one plain GET, and Cloudflare answered 200.
+- **The read:** `CF-RAY a4eb0251d8755616-SJC`, `last-modified: Thu, 22 Oct 2026 11:06:54 GMT`, 443,558 bytes.
+  - It was saved as `docs/handoffs/sabato-rating-changes-2026-10-22.html` (repo-ignored).
+  - pdx1 is refused that agent every morning (#27065 above), so the two networks still read differently.
+- **The scheduled daily read re-read it** at 7:31 PM MT (01:31:48Z Oct 23). This is Corey's task, below.
+  - **Its headers:** 200, `CF-RAY a4ecfbfb1b5ee669-DEN`, `cf-cache-status: BYPASS`, and the same `last-modified`.
+  - **Its page:** the same `article:modified_time` (2026-10-22T10:37:28+00:00), and 443,558 bytes again.
+  - **Its bytes differ** (sha256 `c57864f0…` against STEP 0's `dbf44297…`), but the parse reads the same rows: the House's 33 tables and 136 rows through Oct 8 plus the image entry, and the Senate's 21 tables and 31 rows through Oct 14.
+  - § 3 ingested this copy.
+
+**STEP 0** (a check, HO 768's rule), 2:35 PM MT Oct 22 (20:35Z) at `79cd202`: claims 1, 2 and 3 hold. **Claim 4 is false, so the HO HALTed.**
+- **4:** the file is the real page:
+  - 443,558 bytes;
+  - *Just a moment* appears 0 times;
+  - the `<title>` is *2026 Rating Changes - Sabato's Crystal Ball*;
+  - `article:modified_time` 2026-10-22T10:37:28+00:00;
+  - the Senate parses: 21 tables, 31 rows, newest Oct 14.
+- **The House throws before it reaches the floors:** *table 36 has no date: 2 date lines above it (2026-10-20, 2026-10-08)*.
+  - Oct 20's House entry is a date line and an `<img>` (`102026houseratings.png`) in one `<p>`, with no table.
+  - So the parser saw two date lines above Oct 8's table, and HO 770's date rule refused to guess which one governed.
+- **5 (record):**
+  - **Sabato's rows:** 95 (House 83, Senate 12), with `rating_date` running 2026-01-29 to 2026-09-29. No row cited the rating-changes page yet.
+  - **History:** 221 Sabato `rating_history` rows.
+  - **The cron ledger:** the last `success` is #21278 (Sep 30), with 15 `error` rows since (#23114 to #27065).
+  - **The tables:** `races` 540, `race_ratings` 268, `rating_history` 820.
+  - **The schema fingerprint:** `736e6b987bf77620`.
+- **2 and 6 (record):**
+  - Two range ends are one line off: `fetchSource` closes at `:303`, and `readSabato` at `:719`.
+  - SKILL had no `sync:race-ratings` line, so the docs(skill) commit adds one.
+- **The preview for the ruling** (read-only, 2:36 PM MT):
+  - **The Senate:** 5 changed, 2 new, 0 conflicts, 0 departures.
+  - **The House,** with the image paragraph removed in memory, so read through Oct 8: 13 changed, 3 new, 2 departures (CT-05 and KS-03, Likely D → Safe D on Jul 30), 0 conflicts.
+  - The HALT recommended writing the Senate now and holding the House.
+
+**The ruling** (5:34 PM MT, `docs/handoffs/789-step0-ruling.md`): *the halt was right, and the recommendation is half right.* The Senate goes in. The House is written through Oct 20 from the image, read by two readers and supplied as a dated supplement.
+- **(a)** The parser learns image entries. A date line followed by an `<img>`, before the next date line or table, is recorded as `{ date, src }` (`images`), and its date no longer dates the table below. A chamber with one and no supplement throws by name: *house: the Oct. 20, 2026 entry is an image (102026houseratings.png), no text rows; supply a supplement or hold the chamber*.
+- **(b)** The CLI's flush fires when any leg wrote (`upserted + deleted > 0`), whatever the other leg did. The route has the same gap (`app/api/sync-race-ratings/route.ts:99-102`): one backlog line, owner Code, low, not fixed here.
+- **(c)** The supplement rides beside the file into `readSabato`, through `runRaceRatingsSync({ run, supplements })`, and `scrapeChamber`'s signature is kept.
+  - The CLI takes `--supplement <csv>`.
+  - A supplement whose date matches no image entry, or whose chamber is wrong, is an error.
+  - Its rows cite the rating-changes page as `source_url`, and the stats' `dataUrl` names the image beside the file's label.
+- **(d)** Leg A gains a red: the file without the supplement. The House fails by name, the Senate is ok, and the flush fires for the Senate's writes.
+
+**The image, and the amendment** (7:50 PM MT, `docs/handoffs/789-board-amendment.md`).
+- **The image 404s.** `102026houseratings.png` renders as a broken image on the rating-changes page, and Corey's screenshot at 5:42 PM MT reads *Page not found*.
+- **The House ratings page carries it under a new name.** `/crystalball/2026-house/` (*2026 House Ratings, Updated Oct. 20, 2026*, `article:modified_time` 2026-10-21T23:45:57+00:00) shows the same graphic as `102026houseratings-2.png`.
+- **It's a board, not a changes table:** every competitive House district in eight columns, each header printing its count.
+  - **Republicans:** Toss-up (8), Leans Republican (16), Likely Republican (20), Safe GOP Pickup (3).
+  - **Democrats:** Toss-up (4), Leans Democratic (20), Likely Democratic (21), Safe Dem Pickup (3).
+  - **95 cells,** under the footer *Races not listed are rated as Safe for the incumbent party*.
+  - **The totals:** Safe R 164, Safe+Likely+Leans R 200, Safe D 182, Safe+Likely+Leans D 223. That's 200 + 223 + 12 toss-ups = 435.
+- **The supplement gains a kind,** `board` or `changes`.
+  - **A board row** is the race's rating as of the board's date. It enters the chain as `{ date, from: null, to }` and matches any stored label in the chain check, since a board states a position, not a transition.
+  - **A race the board leaves off** (one with a stored Sabato row or a text-table entry) is Safe for the incumbent party as of the board's date. It becomes a locked cell, which `applyDepartures` retires with its history row.
+  - **The pickup cells** are Safe for the party named.
+- **The control:** before anything else, the CLI reads each section's count from its header's parentheses and refuses the file unless every section's rows equal it. A dropped row is the one error that would wrongly retire a rating.
+- **The floors** apply to the chamber as a whole, and the House's `pageAsOf` is the board's date.
+- **The HALT before § 3:** more than 15 departures, or any departure of a race the text tables moved on Oct 8 or later.
+
+**§ 1** (`feat`, three files, 565+/26− since the review's amend):
+- **`lib/race-ratings-scrape.ts`:**
+  - `fileScrapeRun({ html, label })` serves the page's text, which the caller read, for Sabato's URL, and throws on any other (`fetch … -> 0: offline run: nothing is fetched`). The module imports no `node:` module (the review's amend, below).
+  - `ScrapeRun` gains `label` (the caller's `file:<basename>`) and `supplements`.
+  - `readSabato` writes `dataUrl` as the label plus each supplement's source, and a file run's failed parse names the file.
+  - `parseSabatoChanges(html, chamber, supplements)` records image entries and reads supplements.
+  - `parseSupplementCsv` reads the header and rows and applies the counts control.
+- **`lib/race-ratings-sync.ts`:**
+  - `runRaceRatingsSync({ run, supplements })`.
+  - `boardSilence`: a stored row the board leaves off is retired as Safe for the incumbent's party (`races.incumbent_bioguide_id` → `members.party`). If that party is neither D nor R, the row is kept and named in `offBoard`.
+  - The chain check matches a board's entry against any stored label.
+  - `RaceRatingsSyncError` carries both legs' results under the same message.
+- **`scripts/sync-race-ratings.ts`:**
+  - `--html`, `--supplement` (repeatable) and `--flush`, the flush in sync-fec's pattern;
+  - it reads the `--html` file itself, after the supplements' checks, and hands its text to `fileScrapeRun`;
+  - unknown flags are refused;
+  - it exits 1 if a leg failed, after the flush.
+- **Unchanged:** `USER_AGENT`, `fetchSource`, `FETCH_TIMEOUT_MS`, the route, the cron and every UI file.
+
+**The transcription, two readers.**
+- **Reader 1, the architect,** from the image Corey attached at 7:44 PM MT: `docs/handoffs/sabato-house-2026-10-20.csv`.
+  - 95 rows of `cell,rating,section`.
+  - The header names the source, chamber, date and kind, the readers, the controls and the board's footnote: *Kiley, previously elected as a Republican, is seeking reelection as an independent*, on his CA-06 cell.
+- **The image, saved:** Corey saved `102026houseratings-2.png` into `docs/handoffs/` at 11:42 AM MT Oct 23 (17:42:51Z).
+  - 569,874 bytes, 600 × 1341 px, sha256 `74b9148d…`. That's the 1,253 × 2,800 px the change log's JSON-LD gives the original, scaled by 0.479 on both axes.
+  - Two halves stacked, *Republicans* over *Democrats*. Each half has its Toss-up, Leans and Likely columns side by side and its pickup box under the first; the cells are tinted by the seat's party.
+- **Reader 2, Code:** `tesseract.js` 5.1.1 with its English data, installed in the session scratchpad. It needs no system install and fetches nothing at run time.
+  - **Its read,** 12:00 PM MT (18:00:23Z): the eight headers and their counts off the image, then each column's cells, every district placed under its header.
+  - **The result:** 95 rows, each column equal to its header's count, and every row in all four passes (plain and inverted, each as a block and as a column) with no character corrected.
+  - **The rest of the image:** the totals (164, 200, 182, 223) and both footer lines read as reader 1 has them.
+- **How reader 2 was made to read** (its script and controls in `docs/handoffs/789-artifacts/reader2/`):
+  - **First, two boards drawn offline from reader 1's CSV.** On those, a white header on a coloured bar read nothing until each bar was read from its own crop.
+  - **On the real board, the header cells are tinted close to the cells under them,** so a column starts below its header's own text line.
+  - **A crop that took in the table's rules on both sides** read none of the 16 Leans R cells in the full run, and at most two when cropped alone, so crops stop inside the rules.
+  - **A brightest-channel pass was tried and taken out:** on the synthetic boards it invented districts in 2 of 6 passes.
+- **The diff:** none. Reader 2 agrees with reader 1 on all 95 rows, district and column, the two toss-up columns told apart by their header counts. **Settled by Corey:** nothing, since there was no difference to settle.
+  - The CSV's header now records reader 2's reading and *differences: none*.
+  - Its rows are untouched and parse the same.
+- **The control:** a copy of the CSV with five planted faults (a wrong district, a row moved, a row dropped, a toss-up on the wrong side) showed exactly those five against the same image.
+- **The counts:** every section's rows equal its header's count, every cell mints one House id, and no district appears twice.
+
+**The board against the store** (read-only, 7:57 PM MT, 01:57:55Z Oct 23; `board-preview.txt`).
+- **The text tables** hold 136 rows in 88 chains, none with an old label outside the vocabulary. Prod held 83 House Sabato rows.
+- **Of the 95 cells:**
+  - 35 change a stored row, 8 are new, 46 match, and 6 are pickups (locked).
+  - All 95 have a races row, including the eight *New* districts: FL-22, TX-09, TX-35, LA-06, TX-32, CA-01, CA-41 and UT-01.
+- **Stored rows the board leaves off:** two, CT-05 (Hayes) and KS-03 (Davids).
+  - Each is stored Likely D (dated 2026-05-19), and the text tables made each Safe D on Jul 30.
+  - Neither was moved on Oct 8 or later, so the HALT doesn't fire.
+- **Text-table races the board leaves off with no stored row:** 22, so nothing to write.
+  - 21 are Safe in the tables.
+  - **`CA-03-2026` is the one the tables rate competitive,** the House stats' *the board leaves off 1 race(s) the tables rate competitive*. Its one row is the Nov. 5, 2025 table's: *Kevin Kiley (R, CA-3)*, Likely Republican → Likely Democratic. Read by the tables alone, it would be a new Likely D row dated 2025-11-05.
+  - **The board's silence kept that row out.** The board doesn't list CA-3; it lists Kiley as `Kevin Kiley (CA-6)*`, Likely Democratic, with the footnote above. The parse holds `CA-03-2026` in the board's `offBoard`, so the race is neither rated nor locked. `boardSilence` reads stored rows only, and no rater has a row for `CA-03-2026` in prod (`SELECT`, 2:41 PM MT Oct 23, 20:41:59Z), so nothing was retired or named. Its incumbent in `members` is Kiley, `I`, for whom the footer names no label in any case.
+  - **Kiley's own cell** went to `CA-06-2026`, Bera's seat in `races`. Its stored Likely D (2026-09-15) matched, so that row is unchanged.
+
+**The legs** (`diag`, `scripts/diagnostic/ratings-from-file-789.ts`, 586 lines since the review's amend): **27 PASS, 0 FAIL** at 8:21 PM MT.
+- **Run again on the settled CSV:** 12:05 PM MT Oct 23 (18:05Z), 27 PASS, 0 FAIL. Line for line it's the same, but for its times and the newest refusal (#27332).
+- **Run again at the review's amend** (`57ba88e`), 2:51 PM MT Oct 23 (20:51:29Z): 27 PASS, 0 FAIL, on run 4's copy (`--template`), since § 3 had written prod in between. Line for line it's run 4, but for its times, its ports and the copy's line.
+- **The setup:** each leg runs on its own `file:` copy of prod, built by `scripts/migrate.ts` and filled by `SELECT` (`members`, `races`, `race_ratings`, `rating_history`). The process never opens prod.
+- **The tripwire** counted 0 at every reading but its own control.
+- **C, the offline guarantee:**
+  - A file run asked for any URL but Sabato's throws and fetches nothing.
+  - Sabato's URL reads the file, labelled by its name.
+  - The tripwire's control refuses `example.invalid` and counts 1.
+- **B, a saved challenge page** (`origin-check-retry-page.html`, 5,572 bytes, *Just a moment...*):
+  - Both legs fail at the floors, and the message names the file (*read from file:origin-check-retry-page.html*).
+  - Nothing is written, and the CLI exits 1 with no POST.
+- **D, the network path's control:** `fetchSource` against a local 403 reads as HO 771's legs did (`cf-mitigated challenge, server cloudflare, cf-ray …, 5,572 bytes, "Just a moment..."`), and nothing is written.
+- **A, red** (the file without the board, by the CLI with `--flush`):
+  - The House fails by name with (a)'s message, and its rows don't move.
+  - The Senate writes its 7 rows.
+  - The flush POSTs once, with the dummy bearer, and the CLI exits 1.
+- **A, the control:** a row dropped (VA-1) and a row doubled are each refused before anything else (*refused, every section must hold the count its header prints*). Nothing is written, and there is no POST.
+- **A, green,** in-process and by § 3's command on copies: both legs are ok, and the two move the same rows to the same labels and dates.
+  - **The House:** 89 competitive and 29 locked. Upserted 43 (35 changed, 8 new), unchanged 46, conflicts 0, `skippedNoRaceRow` 0.
+  - **Its departures:** 2, CT-05 and KS-03, each with its Safe D history row dated 2026-07-30.
+  - **The Senate:** upserted 7 (5 changed, 2 new), unchanged 7.
+  - **The stats:** `dataUrl` is the file plus the board's image URL, and `pageAsOf` is 2026-10-20. The copy's AS OF moves 2026-09-29 → 2026-10-20.
+  - **The HALT check:** 2 departures, none moved on Oct 8 or later.
+- **A, planted:**
+  - A D-held and an R-held seat the board leaves off (AL-07 planted Likely D, AL-01 planted Lean R) retire as Safe D and Safe R as of Oct 20, each with its history row.
+  - An independent's seat (CA-03, planted Likely D) is kept and named in `offBoard`.
+- **Regressions:** HO 770's shape legs read 31/0 and HO 771's daily legs 23/0. HO 770's source legs fetch Sabato live, so they weren't run (guard 3).
+
+**The board's dates** (flagged): a board row whose label matches the race's newest text move keeps that move's date, as HO 770's *date of the race's newest change* reads, and one that differs is dated Oct 20.
+- 28 rows were decided by the board and read Oct 20.
+- 17 read their text dates: Sep 29, Oct 8, and CT-05's and KS-03's Jul 30.
+
+**§ 3, the prod run,** 12:07:50 to 12:08:22 PM MT Oct 23 (18:07:50 to 18:08:22Z), Node 24.22.0, exit 0 (`s3-run.txt`).
+- **The command:** `npm run sync:race-ratings -- --html docs/handoffs/sabato-rating-changes-2026-10-22.html --supplement docs/handoffs/sabato-house-2026-10-20.csv --flush`, with `REVALIDATE_URL` set to Production's `/api/revalidate` for that process only.
+- **The House:** ok. 89 competitive and 29 locked; upserted 43 (35 changed, 8 new), unchanged 46, deleted 2, `skippedNoRaceRow` 0, conflicts `[]`, `offBoard` `[]`.
+  - `pageAsOf` 2026-10-20, and `dataUrl` is the file plus the board's image URL.
+  - The stats count one race the tables rate competitive that the board leaves off: `CA-03-2026`, with no stored row, so nothing was written for it (*The board against the store*, above).
+- **The Senate:** ok. 14 competitive and 2 locked; upserted 7 (5 changed, 2 new), unchanged 7, deleted 0, conflicts `[]`, `offBoard` `[]`, `pageAsOf` 2026-10-14.
+- **The flush:** *Flush of `race-ratings`: 200*.
+- **The House rows the board decided:** 28, its entry the newest, each dated Oct 20.
+  - **Changed:** AZ-01, AZ-06, CA-13, CA-48, CO-04, CO-08, IA-02, IA-03, MN-01, NC-01, NC-11, NH-01, NV-02, NV-03, NY-04, NY-21, OH-01, PA-10, SC-01, TX-23, TX-35, WI-03.
+  - **New:** IN-05, KS-02, MD-01, NE-01, NJ-02, WA-05.
+- **The House rows the text tables decided,** the board agreeing: 15, each dated by its text move.
+  - **Sep 29:** CA-45, KY-06, ME-02, MO-02, MT-01, PA-07, VA-01, VA-02 and VA-05 changed; NC-03 and OH-15 new.
+  - **Oct 8:** FL-22, FL-25, NE-02 and WI-01.
+- **Every `CHANGED` line,** by its move. Each chain is in the paste, and in `legs-run4.txt`'s table, which prod matches row for row.
+  - **House, Toss Up → Lean D (12):** AZ-01, AZ-06, CO-08, IA-02, IA-03, NC-01, NC-11, PA-10 and WI-03 (the board); FL-25 (Oct 8); PA-07 and VA-02 (Sep 29).
+  - **House, Likely R → Lean R (12):** CO-04, MN-01, NV-02, NY-21, SC-01 and TX-23 (the board); WI-01 (Oct 8); KY-06, ME-02, MO-02, MT-01 and VA-05 (Sep 29).
+  - **House, Lean D → Likely D (8):** CA-13, CA-48, NH-01, NV-03, NY-04 and OH-01 (the board); NE-02 (Oct 8); CA-45 (Sep 29).
+  - **House, Lean R → Toss Up (3):** TX-35 (the board); FL-22 (Oct 8); VA-01 (Sep 29).
+  - **House, new, all Likely R (8):** IN-05, KS-02, MD-01, NE-01, NJ-02 and WA-05 (the board); NC-03 and OH-15 (Sep 29).
+  - **Senate (5 changed, 2 new):** S-AK Toss Up → Lean D (Oct 6); S-KS Lean R → Toss Up, S-MN Likely D → Lean D, S-NE Likely R → Lean R and S-NH Lean D → Likely D (Oct 14); S-MS Likely R (Oct 14) and S-SC Likely R (Oct 6), new.
+- **The departures:** CT-05 and KS-03, each stored Likely D (May 19), deleted with a Safe D history row dated Jul 30.
+- **The readings around it** (`SELECT` only; `s3-before.txt`, `s3-after.txt`, `s3-diff.txt`): before at 12:07:11 PM MT (18:07:11Z), after at 12:08:40 PM MT (18:08:40Z).
+  - **The schema fingerprint** read `736e6b987bf77620` both times.
+  - **The tables:** `race_ratings` 268 → 276, `rating_history` 820 → 822, `races` 540.
+  - **Sabato's rows:** 95 → 103, with 40 changed, 10 new and 2 departed. No row whose label held was touched: its date, source and stamp are kept.
+  - **The newest date:** MAX(`rating_date`) 2026-09-29 → 2026-10-20.
+  - **The sources:** the 50 rows written cite the rating-changes page. The 53 unchanged rows keep the sources they had: Ballotpedia for 26 House and 6 Senate rows, and the Crystal Ball's House and Senate pages for 20 and 1.
+  - **Against leg A's CLI copy,** prod after the run matches on all 103 rows, by label, date and `source_url`.
+  - **The cron ledger alongside:** no cron row started between the two reads, and the 73 rows of the six hours before read `success`.
+  - **That morning's ratings tick, #27332** (5:00 AM MT, 11:00:44Z), was refused like the twelve before it: a 403 `cf-mitigated` challenge, `cf-ray a4f03d624979b7b9-PDX`, 5,689 bytes.
+  - That's thirteen scheduled refusals in a row, Oct 11 through Oct 23, and 16 rows without a `success` since #21278 (Sep 30).
+
+**The read-back on Production** (12:09 PM MT, 18:09:34 to 18:09:41Z; `readback-789.txt`), every request with a fresh query string but the plain `/api/version`:
+- **The served SHA, the HO 787 way:** `curl -sD -` on `/api/version`, plain and fresh.
+  - It read `79cd202` both times, with `Cache-Control: no-store`, `X-Vercel-Cache: MISS` and `Age: 0`.
+  - § 3 wrote data only; nothing deployed.
+- **`/electoral`:** the sources line reads *Sabato · as of 2026-10-20 · direct*.
+  - Beside it are Cook *as of 2026-09-29 · via Ballotpedia* and Inside Elections *as of 2026-09-22 · via Ballotpedia*.
+- **`/race/AZ-01-2026`,** a race the board decided: its Sabato chip reads *Lean D*, titled *Updated 2026-10-20*, and the page's own sources line reads *Sabato · as of 2026-10-20 · direct*.
+
+**The cadence, until Sabato answers the cron or Nov 3 passes:**
+- **The read:** a scheduled daily read from Corey's box with the sync's own agent (a Windows scheduled task; the script lives beside the saved pages, repo-ignored), the page opened in his browser at the same time; a challenge stops it for the day.
+- **The ingest:** `npm run sync:race-ratings -- --html <file> --flush`, each run's `CHANGED` lines pasted to the chat.
+- **The Oct 20 entry stays on the change log,** so every later ingest passes its settled transcription with `--supplement`. Without it, the House fails by name and only the Senate writes.
+- **A new image entry** means a transcription before that day's ingest: two readers and Corey's settling, then `--supplement`.
+
+**Flagged at the push:**
+1. **The board's dates,** above.
+2. **The board's mark:** the chain check matches a board's entry by its `board` mark, not by `from` being null. A text row whose old label is outside the vocabulary also reads null, and no text row does today.
+3. **The incumbent's party** is read through `races` → `members`. A seat whose incumbent is neither D nor R keeps its row and is named in `offBoard`; only the planted seat does.
+4. **The legs' copy carries `members`,** for that join.
+5. **Leg B's file is 5,572 bytes.** The handoff's 5,689 is #27065's live body.
+6. **`node:fs` in `lib/race-ratings-scrape.ts`** was safe under HO 774's rule (client islands import only types from `lib/queries.ts`), and the cold build confirmed it. The review took it out anyway, by SKILL's house pattern (below).
+7. **A both-ok run that wrote nothing doesn't flush,** by (b)'s letter.
+8. **The bill-rosters note sits on HO 677's live line** (`:258`). There is no HO 676 WATCH or OPEN LOOPS line for the route.
+9. **The scheduled task's ingest line passes no supplement yet.** It's off for now, and it needs the supplement before it's turned on (the cadence, above).
+10. **One board per chamber:** a second board image in the House would throw *two boards (…); one at a time* until a rule says which board governs.
+11. **The CLI's header comment** still reads *one `curl.exe` a day from the box with the sync's own agent string*. The scheduled task runs exactly that, so it stays.
+12. **SKILL's cron line (`:1266`) gains a sentence, not a clause.** Its second half says what a board day changes in the line's own claims.
+13. **Reader 2's crops were fitted to this board's geometry,** where to cut and what to leave out. Every word and number is still Tesseract's reading, and its script lives only in the repo-ignored artifacts. The review filed that as an OPEN LOOPS line (`:16`).
+
+**The review reply** (2026-10-23), taken before the push:
+- **The hold is HO 786's:** commits on `789-review` show the diff, the push publishes it, and Corey pasting the reply approves it. The FF go follows the architect's read of the ref.
+- **Checked by the reply:** reader 2's 95 cells and its planted control; the legs, 27/0 with the tripwire at 0; § 3's one run and its readings; the read-back; the dates as ruled, 28 by the board and 15 by the text move; the docs and the reconcile; the gates and the audit.
+- **One amend, in `feat`: no `node:` import in `lib/race-ratings-scrape.ts`.** Flag 6 held, but SKILL's house pattern (`:86`) keeps a `lib/<source>.ts` import-safe for client bundles, its deps type-only, so its types can ride into client components, and `RatingSource` and `Chamber` live in that file. SKILL's `:2373` (HO 774) is what one value import from a `node:`-bearing lib module cost: `node:fs` failed `/search`'s build at HO 773.
+  - `fileScrapeRun({ html, label })` takes the page's text, and the CLI and the legs read the file with `node:fs` on their side.
+  - `feat` was amended in place (`9bb2e4b` → `7fa5179`), and the three commits above it were replayed: `diag` (`12708a2` → `57ba88e`), with the legs' side of the read and `--template`, then `docs` and `docs(skill)`.
+  - A missing `--html` file now fails before either leg runs, as a missing `--supplement` already did. Before, it failed both legs inside the run.
+  - The prod run wasn't repeated: the upsert path didn't change.
+- **The legs again,** at the amend: 27 PASS, 0 FAIL on run 4's copy (*The legs*, above).
+- **A reading beside flags 7 and 9,** outside the reply's ask: § 3's command on a fresh `SELECT` copy of today's prod (2:52 PM MT, 20:52:42Z) wrote nothing. Both legs were ok, 89 and 14 rows unchanged, nothing deleted, no conflicts, and *No leg wrote, so there is nothing to flush*. That's the daily ingest on a day the page hasn't moved, the supplement passed.
+- **Two readings for the push paste:**
+  - the race the board leaves off, named by id in the probe section: `CA-03-2026` (*The board against the store*);
+  - flags 7 to 11, which the attachment cut at the fold, in full. None needs a ruling the HO doesn't give, so the push didn't wait on them. Flag 9's `--supplement` is Corey's to carry into the daily script after the FF.
+- **One more OPEN LOOPS line,** from flag 13, owned by Code, low: the board reader isn't in the repo. The close count is 283.
+- **Then** the cold build, the cheap gates and the push.
+
+**Docs (HO 789):**
+- This block.
+- **backlog, 5+/3−:**
+  - Two new OPEN LOOPS lines at the top, each owned by Code, low: `:15`, the route skips its flush when one leg throws (ruling (b)); and `:16`, the review's from flag 13, the board reader isn't in the repo.
+  - `:32` (now `:34`), the four seed snapshots: *the 10-13 emails* corrected.
+  - `:40` (now `:42`), a dated note: the manual path, the two 200 reads, the image entry and the supplement every later ingest carries, and the record corrected. No email has gone to the Center for Politics; Corey wrote to Ballotpedia only; that email is drafted as of Oct 22 and remains Corey's. The close is unchanged.
+  - HO 677's bill-rosters line (`:256`, now `:258`): a dated note with #26890 and #26924.
+  - The three deletions are those three lines' rewrites.
+- **oddities, one entry:** *a change log carried its largest entry as a picture, then lost the picture, and the board on the sibling page is read by its own headers' counts*.
+- **The reconcile:**
+  - open: 281 live / 354 struck (635), § OPEN LOOPS `:14-234` 78 / 125;
+  - close: **283 / 354 (637), § OPEN LOOPS `:14-236` 80 / 125**;
+  - the control, `^- \*\*~~`, is 0 at both.
+- **SKILL, its own commit, last:**
+  - the Sabato bullet (`:74`): the saved-page path and its cadence, the ingest, a saved challenge page writing nothing, and both entry kinds (table and board), with the board's counts as the control;
+  - the cron line (`:1266`): a refused day can be filled from a saved page;
+  - a scripts-list line for `npm run sync:race-ratings` and its three flags;
+  - `:2977` gains *or ingested from a page a person saved, through the same sync (HO 789)*.
+- **The FF go follows the architect's read of the ref.**
+- **Also notes now run through HO 789.**
