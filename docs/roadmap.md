@@ -7548,3 +7548,92 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
   - `:2977` gains *or ingested from a page a person saved, through the same sync (HO 789)*.
 - **The FF go follows the architect's read of the ref.**
 - **Also notes now run through HO 789.**
+
+**Also (HO 790), the bill sync's frontier: a row in `sync_state` that moves only when a listing completes, a `sync_queue` between the listing and the writes, the list walked `updateDate asc` in overlapping pages, a 240 s budget, and the summary reset keyed on a new action or a new text version by Corey's ruling. It opens with HO 789's FF go as taken.**
+- **What's here:**
+  - HO 789's FF go as taken, with its records;
+  - STEP 0, a check: claims 1 to 7 held, two read off their anchor or their bound, neither a HALT;
+  - the ruling;
+  - § 1's model, and the one place it departs from the handoff: the wide listing;
+  - § 2, the reset;
+  - the legs, red at `b64cc81` and green at the `fix` commit, plus a leg for the pass;
+  - the migration, run by Corey before the push;
+  - the pass after the FF, and what it sets going;
+  - what was flagged.
+- **Five commits, kinds unmixed:** `feat` `474bbb1` (§ 1's five files), `fix` `24d37a5` (§ 2, with the comments it made false in two more files), `diag` `8307dae` (the legs and the pass), `docs` (this block, the backlog, the oddities), then `docs(skill)`, alone and last.
+- **Prod was written once, by the migration, and otherwise read by `SELECT` only,** through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name. The migration, the handoff's write 1, ran from the box by Corey's hand before the push (below); the enqueue and the drain run after the FF. The legs wrote `file:` copies and reached nothing beyond 127.0.0.1.
+- **The pointer is 790:** pointer 789 (`docs/roadmap.md:7550`), highest HO in commit subjects 789, `main` at `b64cc81`.
+
+**HO 789's FF go, as taken** (`docs/handoffs/789-ff-go.md`). The paste is `docs/handoffs/789-artifacts/paste-789-ff.md`, and it agrees with every record below.
+- **`main` at `b64cc81`:** `79cd202..b64cc81`, four commits, no force (3:18 PM MT Oct 23, 21:18:00 to 21:18:02Z). `ls-remote` read `main` alone at 21:18:16Z.
+- **Production built fresh, with no dedup:** `dpl_91MMjkQoTnAYayqnYqZ6EsD7STjs` (`bld_fdssxtd5e`, iad1), its build printing *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step*. READY at 3:18:57 PM MT (21:18:57.929Z). The review Preview of the same SHA (`dpl_2UwCUMCrJuB7e2aztTsUNZ1Vzhbn`) was a separate deployment, 18.0 minutes earlier.
+- **`verify:deploy`, in the foreground:** first matched at 41 s and held five reads in a row.
+- **The served SHA:** the box's `curl -sD -` on `/api/version`, plain and with a fresh query string, read `b64cc81` twice with `Cache-Control: no-store`, `X-Vercel-Cache: MISS` and `Age: 0`. The production alias resolves to that deployment, updated 0.2 s after READY.
+- **`e2e-prod` #40025861206,** fired by the Production record: `smoke` **143 passed (6.0m)**, and its narrow pass read 82 cells against Production, every one `over=0`. GitHub labels its `head_branch` `789-review`, because the ref still carried the SHA when the record fired; the run checked out `b64cc81`.
+- **The record's lag, as a bound:** 0.1 to 1.1 s after READY (HO 788's was 0.9 to 1.9 s).
+- **The chat side:** the `cbt` skill rebuilt from blob `8ae326a` (`789-close.md`); the daily Sabato read's ingest switched on Oct 24 with the Oct 20 House board as its supplement (the HO 790 handoff).
+- **`/api/sync-race-ratings` #27600** (Oct 24, 5:00:44 AM MT, 11:00:44Z), read by this HO from `cron_runs`: `error` in 125 ms, the 403 `cf-mitigated` challenge in both legs (`cf-ray a4f87ac44a26ef57-PDX`, 5,689 bytes), nothing written. The expected reading: the HO 789 code's first scheduled run on Production, refused as before. It's the fourteenth scheduled refusal in a row, Oct 11 through Oct 24 (#24166 to #27600); the last `success` is #21278, Sep 30. Backlog `:40`'s wall.
+
+**STEP 0, a check (method.md, HO 768): claims 1 to 7 held, and two read off their anchor or their bound without failing.**
+- **1:** `main` and `origin/main` at `b64cc81`; the pointer 789 at `:7550`; the highest HO in commit subjects 789; the one numbered file above 789 is this one.
+- **2 to 4:** every `lib/sync.ts`, route, `vercel.json`, `lib/cron-log.ts`, committees-route and `scripts/migrate.ts` anchor read as stated, and all 135 statements in `migrate.ts`'s `statements` are `CREATE … IF NOT EXISTS`. Prod at 2:00 PM MT Oct 24 (20:00:54Z): no `sync_queue` in `sqlite_master`, and `sync_state` empty (no `donors_cursor`).
+- **5, read one line off its anchor:** the prompt's inputs are as stated (the title, `latest_action_text`, the CRS summary, the bill text), at `lib/summarize.ts:217-220`, one line below the handoff's `:216-219`; `:115` fetches the text. The premise holds, so no HALT; the clause comment cites `:217-220`, and the new CRS line cites `:219`.
+- **6, read under its expected 99% and over its 90% HALT line** (prod, 2:01 PM MT): `textVersions.count` non-null on 19,369 of 19,775 rows, **97.95%**. All 406 nulls have `textVersions` absent, and no row has a count of 0; the newest ten are introductions of Oct 23 with no text yet, which the rule reads as a count of 0 (§ 2). `MAX(update_date)` 2026-10-24T13:53:37Z (7:53:37 AM MT). `/api/sync` over the 30 days from 2:01 PM MT Sep 24: 120 rows (115 `success`, 3 `timeout`, 2 `error`); `budgetStopped` on 30 of the 115 with stats (26.09%); `seen` median 33, p90 93, max 138, sum 4,523, so **151 a day** as the volume floor; `runSync`'s median 14.5 s, at 2.13 bills upserted a second.
+- **7, three reads, the key in each URL and in no printed line:**
+  - the list from 48 hours before, `sort=updateDate+asc`, `limit=5`: 200, `pagination.count` 301, five non-decreasing `updateDate`s (Oct 22 four times, then Oct 23), and every date in both reads a bare day;
+  - the same list sorted desc, the control the handoff's two named calls lacked (five equal bare days are non-decreasing either way): it opened on Oct 24 where asc opened on Oct 22, so asc is honoured;
+  - the first asc entry's detail (`119-hr-227`): `updateDateIncludingText` 2026-10-22T20:16:35Z, 15.5 minutes into the window, `textVersions.count` 6, `summaries.count` 2.
+- **8:** SKILL `:50`, `:90`, `:115`, `:1230-1242`, `:1263`, `:1337`, `:1344` and `:1365`, and backlog `:17`, `:81`, `:105` and `:655`, read as stated. The reconcile at open: 283 live / 354 struck on 637, mis-struck 0.
+- **9:** the Oct 21 census is labels p4, p5 and p6 in `docs/handoffs/788-artifacts/`, behind 7,905, 7,903 and 7,902 (missing 4, 1 and 0); p6 is pass 3's 7,902.
+
+**The ruling, Corey's on backlog `:17`** (the HO 790 handoff: *Corey ruled on `:17` today, 1:15 PM MT Oct 24*): ***the summary resets on a new text version or a new latest action, and keeps on a metadata-only move.***
+
+**§ 1, the model** (`lib/sync.ts`'s header carries it).
+- **The frontier** is `sync_state`'s `bills_frontier`, an ISO instant. An absent key is bootstrapped from `MAX(update_date)` (`getWatermark`, kept as the bootstrap's read), or seven days back on an empty table.
+- **The listing:** `/bill/{congress}` from the frontier, `sort=updateDate asc`, pages of 250 advanced by 225 (HO 754's overlap), each page's entries into `sync_queue` in one INSERT keyed by bill id: a row already queued keeps its `enqueued_at` and takes the later list day, and a live listing takes over a backfill row. Only a listing that reaches the end of the list moves the frontier, to the instant it began less 15 minutes. A listing the deadline cuts, or a page that throws (a 5xx past `fetchJson`'s 429 retry, recorded as `listError`, redacted), leaves the frontier and keeps every row it queued, and the tick goes on to the drain.
+- **The drain:** the queue oldest list day first, in rounds of 500, each round past the previous one's last row, so a row that failed this tick waits for the next. A write deletes the row; a failed fetch charges an attempt and writes `last_error`; the third drops the row, named in the stats.
+- **Nothing on that path compares at day precision.** The list prints days, the filter reads seconds and the detail carries the instant, so every entry the filter returns is fetched and the upsert decides.
+- **The wide listing, where § 1 departs from the handoff.** Once a UTC day (`bills_wide_at`), the handoff's wide listing ran from the frontier less 48 hours *instead of* the frontier listing, and queued only what was missing or behind at day precision. Standing in for the frontier listing, its day compare passes over a same-day second update made after the frontier, leg F's shape, and then moves the frontier past it. So it runs *after* a completed frontier listing, as a second listing that never moves the frontier. At 151 updates a day it costs about two list pages. Leg H's added case reads it.
+- **The route:** `maxDuration` 300, a 240 s budget, a 290 s soft timeout, the committees route's layering. At 2.13 bills a second, 240 s drains about 500 a tick against about 38 a tick of Congress.gov's volume.
+
+**§ 2, the reset.** `UPSERT_SQL`'s seven summary clauses test a bound flag, `? = 1`: `update_date` moved and the latest action's date or text, or the text versions' count, changed. A count the detail omits reads 0. `changed_at` and the committee walk's failure count stay on `update_date` (a committee referral is metadata, and the HO 753 walk must see it); the stage trio is untouched. Each write reports whether it reset, by action and by text, and two moves the ruling counts without acting on: the CRS summaries' count (`crsMoved`, and `crsOnly` where nothing else reset) and the title.
+
+**The legs** (`scripts/diagnostic/sync-frontier-790.ts --legs`, sha256 `520823ea…` on all three runs; the seed is 1,000 prod bills copied by `SELECT`, sha256 `0820a466…`). Each runs on a `file:` copy built by the real `scripts/migrate.ts`, against a stub Congress.gov on 127.0.0.1, with HO 771's tripwire installed and `.env` never loaded.
+- **At `b64cc81`** (a worktree, the script copied in; `lib/sync.ts` there has no seam, so the tripwire rewrote Congress.gov to the stub, 19 times), **A, E and F read red:**
+  - **A:** tick 1 upserted 10 and stopped on the budget; tick 2 listed from 2026-10-24T18:17:42Z, the window's freshest instant, and skipped it; 10 of the 40 at their new instants, 30 at their old `update_date`. HO 116's shape.
+  - **E:** case 1, metadata only, nulled.
+  - **F:** tick 2 listed from T and skipped the bill, `stored >= listUpdate` against the bare day; the store kept T.
+- **At `feat` `474bbb1`:** A, B, C, D, F, G and H green; E and P red, both on § 2: a metadata-only write still resets, so E's case 1 was nulled and P's drain counted 11 resets where 4 are due.
+- **At `fix` `24d37a5`: A to H and P green, 37 checks, 0 failed.** The tripwire refused 0 on every run.
+  - **A:** tick 1 listed all 41 and stopped the drain on its deadline with 32 queued; tick 2 upserted those 32; all 40 at their new instants; the frontier moved once in tick 1, to its listing start less 15 minutes.
+  - **B:** a re-update between pages 1 and 2 shifts every later entry left by five: all 600 queued once, the five re-updated at their newest day. The control at `overlap: 0` lost the five pushed across the boundary, positions 250 to 254, named.
+  - **C:** the deadline fell during page 2: two pages, 475 queued, `listComplete` false, the frontier unchanged; tick 2 re-walked from the same frontier, queued the other 125, moved the frontier, and wrote all 600.
+  - **D:** a 503 on the first list page set `listError` (redacted), kept the frontier, and the tick still drained the 5 queued before it; a detail answering 503 every time read attempts 1, 2, then dropped and named; one failing once was cleared on the next tick.
+  - **E:** metadata only kept its summary, topics and `is_ceremonial`, with `changed_at` stamped; a new action nulled all seven and advanced the stage (`committee` → `other_chamber`, logged); a new text version nulled all seven; a same-instant re-read changed nothing, `changed_at` included. The tally: 4 written, 2 resets, 1 by action, 1 by text.
+  - **F:** stored T (16:35:47Z), then T plus 4 hours (20:35:47Z), both on Oct 24.
+  - **G:** the first tick listed from `MAX(update_date)` with `bootstrapped` true and the key written; on an empty table, from seven days back.
+  - **H:** the wide listing ran from the frontier less 48 hours and wrote `bills_wide_at`; an entry 30 hours old stored on an older day was queued, one stored on its list day wasn't; the added case, a same-day second update past the frontier, was queued by the frontier listing while the wide listing's day compare passed over it; run again, `wide` false.
+  - **P, added to the handoff's legs:** `--enqueue`'s and `--drain`'s own functions on the copy. The enqueue is idempotent; a live listing took a backfill row over, keeping its `enqueued_at`; the box's drain emptied the backfill queue in rounds of 2, 2 and 0 resets under a cap of 2, waited twice on the hole, kept both live rows, and left the 7 metadata-only summaries as they were. The checkpoint stopped a run without `--go` and halted one past its halt line with it.
+
+**The migration on prod, run by Corey before the push.** Code's `npm run migrate` was refused by the session's auto-mode classifier as a production action, so Corey ran it from the box at 5:01 PM MT Oct 24 (23:01Z), after the go and before the push. It printed 214 lines. Against `b64cc81`'s output, read off fresh `file:` copies each migrated twice, the only new lines are 39 and 40: `ok: CREATE TABLE IF NOT EXISTS sync_queue (` and `ok: CREATE INDEX IF NOT EXISTS idx_sync_queue_drain …`. The handoff named the table's alone; the index is the next statement. Against HEAD's trial output the only differences are prod reading *already populated* and *already seeded (19775 rows)*, where an empty copy repopulates and seeds; no stop line. The schema read went from 222 entries to 225, the three on `sync_queue`: the table, `idx_sync_queue_drain`, and `sqlite_autoindex_sync_queue_1`, SQLite's own index for the text primary key. The 222 older entries still fingerprint `736e6b987bf77620`, and `sync_queue` holds 0 rows. The deployed `b64cc81` neither reads nor writes the table, so the order is safe.
+
+**The pass, after the FF** (the same script; backlog `:81`'s second half). `--census` runs the HO 788 census as label 790a; `--enqueue --census 790a` queues every missing and behind row as `backfill`; `--drain` runs the cron's own drain on that queue in rounds capped at 150 resets, the next round 90 s past the next 10-minute boundary, after the summarizer's `*/10` tick, and checks the projection at the first round boundary at or past 300 drained: over 2,000 it waits for Corey's `--go`, over 4,000 it HALTs. The summary hole is read before each round, and a round waits while the pass's addition to it is over 1% of the corpus. The handoff paced the hole by the cap and the cadence alone, against a summarizer that clears 80 to 120 bills a tick, so 150 a round could outrun it. Then `--census` as label 790b, which reads 0 behind, or only rows listed today or yesterday.
+- **What it sets going:** the pass stamps `changed_at` on every bill it writes, so the committee-bills walk (HO 753, `5 */6`) re-walks about 7,900 bills over the following days at its own budget. `bills_fts`'s `UPDATE OF title` trigger fires on every row. The next `/api/sync` tick's unconditional `expireTag("bills")` carries the writes to the pages.
+- **The first Production tick** reads `bootstrapped` true and runs the wide listing too, since `bills_wide_at` is absent.
+
+**What was flagged** (the paste carries each):
+- the wide listing as a second listing (§ 1);
+- the drain's `DELETE` and its attempt `UPDATE` scoped to the drain's own source, so a live listing that takes a row over while its bill is in flight keeps the row;
+- `queueBefore`/`queueAfter` count the queue the tick drains, live on the route;
+- three stats keys beyond the handoff's list: `droppedCount`, `wideComplete` and `crsOnly`;
+- a detail with no update date charges an attempt where the old loop counted it upserted;
+- the `fix` commit touches three files where the guard said one: comments in `scripts/migrate.ts` and `lib/summarize-runner.ts` that § 2 made false;
+- the citation `lib/summarize.ts:217-220`;
+- claim 7's control read;
+- leg H's added case and leg P;
+- the drain's hold on the hole;
+- the instrument the handoff named for the new same-day line, which compares at day precision and can't see the shape (backlog);
+- backlog `:81` noted rather than struck, since its close's second half is the 790b census;
+- the migration, refused to the session by its classifier and run by Corey before the push, with two new lines where the handoff named one and three entries on `sync_queue`, the third SQLite's index for the text key.
+- **The reconcile:** open 283 / 354 on 637, close **283 / 356 on 639**, mis-struck 0 at both, § OPEN LOOPS `:14-238` 81 / 126. `:17` and `:655` struck, two lines new, `:81` and `:105` noted. The handoff expected 282 / 357 with `:81` struck as well.
+- **Also notes now run through HO 790.**
