@@ -77,6 +77,8 @@ type DetailBill = {
   latestAction?: LatestAction;
   sponsors?: Sponsor[];
   cosponsors?: { count?: number };
+  textVersions?: { count?: number };
+  summaries?: { count?: number };
 };
 
 type ListResponse = {
@@ -127,8 +129,16 @@ export type SyncStats = {
   // HO 790: the daily wide listing ran this tick, and reached the end of the list (which writes bills_wide_at).
   wide: boolean;
   wideComplete: boolean;
-  // HO 790: writes that nulled a summary (HO 115's trigger: update_date moved).
+  // HO 790: writes that nulled a summary, on a new latest action or a new text version (Corey's ruling on backlog
+  // :17), and of them those with a new action and those with a new text version (a write with both counts in each).
   resets: number;
+  resetByAction: number;
+  resetByText: number;
+  // HO 790: two moves the ruling counts and doesn't act on: the CRS summaries' count (every write where it moved, and
+  // those where nothing else reset the summary, the resets a CRS term would add) and the title.
+  crsMoved: number;
+  crsOnly: number;
+  titleMoved: number;
 };
 
 function billId(congress: number, type: string, number: number | string): string {
@@ -333,21 +343,32 @@ ON CONFLICT(id) DO UPDATE SET
   update_date = excluded.update_date,
   cluster_id = excluded.cluster_id,
   -- HO 753: the committee-bills walk keys on changed_at. Stamped on insert and
-  -- when update_date moves, the same trigger as the summary reset below; an
-  -- unchanged rewrite leaves it alone. The same change resets the walk's failure
-  -- count, so a bill set aside after five failed walks comes back when it changes.
+  -- when update_date moves; an unchanged rewrite leaves it alone. The same
+  -- change resets the walk's failure count, so a bill set aside after five
+  -- failed walks comes back when it changes. HO 790: it stays on update_date
+  -- while the summary reset below moved off it, because a committee referral
+  -- is metadata and the walk must see it.
   changed_at = CASE WHEN excluded.update_date != bills.update_date THEN excluded.changed_at ELSE bills.changed_at END,
   committee_walk_failures = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.committee_walk_failures END,
-  summary = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary END,
-  summary_model = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_model END,
-  summary_updated_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summary_updated_at END,
-  topics = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.topics END,
-  is_ceremonial = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.is_ceremonial END,
-  -- HO 115: a bill with a new update_date gets a fresh shot at summarization.
+  -- HO 790: the seven summary columns reset on upsertBill's substantive flag,
+  -- bound once per clause (? = 1): update_date moved AND the latest action or
+  -- the text versions' count changed. The summarizer's prompt reads the latest
+  -- action and the latest text (lib/summarize.ts:217-220), so those two are
+  -- what a reset follows; a subject, a cosponsor or a title moving update_date
+  -- keeps the summary (HO 790, Corey's ruling on backlog :17, 2026-10-24). The
+  -- prompt reads the CRS summary too, and a new one is not a reset under the
+  -- ruling; the drain counts it (crsMoved, crsOnly). Until HO 790 each clause
+  -- tested excluded.update_date != bills.update_date (HO 115).
+  summary = CASE WHEN ? = 1 THEN NULL ELSE bills.summary END,
+  summary_model = CASE WHEN ? = 1 THEN NULL ELSE bills.summary_model END,
+  summary_updated_at = CASE WHEN ? = 1 THEN NULL ELSE bills.summary_updated_at END,
+  topics = CASE WHEN ? = 1 THEN NULL ELSE bills.topics END,
+  is_ceremonial = CASE WHEN ? = 1 THEN NULL ELSE bills.is_ceremonial END,
+  -- HO 115: a bill whose summary resets gets a fresh shot at summarization.
   -- Clear the failure timestamp and attempt counter so the 24h-skip clause in
   -- runSummarize doesn't strand a re-synced bill on its prior failure record.
-  summarize_failed_at = CASE WHEN excluded.update_date != bills.update_date THEN NULL ELSE bills.summarize_failed_at END,
-  summarize_attempts = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.summarize_attempts END,
+  summarize_failed_at = CASE WHEN ? = 1 THEN NULL ELSE bills.summarize_failed_at END,
+  summarize_attempts = CASE WHEN ? = 1 THEN 0 ELSE bills.summarize_attempts END,
   -- HO 383: keep STORED stage fresh the moment an action advances, before
   -- re-summarization, so non-gated stage views (/bills?stage=, the funnel) are
   -- correct in the gap window. The advance decision (real update_date change +
@@ -362,12 +383,22 @@ ON CONFLICT(id) DO UPDATE SET
   stage = COALESCE(?, bills.stage)
 `;
 
-// HO 790: null when the detail carries no update date and nothing was written; otherwise whether the write nulled
-// the bill's summary.
+// HO 790: what one write did, for the drain's tally: whether the summary reset and why, and the two moves the
+// ruling counts without acting on.
+type UpsertResult = { substantive: boolean; byAction: boolean; byText: boolean; crsMoved: boolean; titleMoved: boolean };
+
+// HO 790: a count the detail omits reads 0. Congress.gov leaves textVersions out until a bill has text (HO 790's
+// STEP 0: 406 stored bills without it, none with a count of 0), so a first text version reads as a change and two
+// absences don't.
+function countOf(v: unknown): number {
+  return v == null ? 0 : Number(v);
+}
+
+// HO 790: null when the detail carries no update date and nothing was written.
 async function upsertBill(
   db: ReturnType<typeof getDb>,
   detail: DetailBill,
-): Promise<{ reset: boolean } | null> {
+): Promise<UpsertResult | null> {
   const id = billId(detail.congress, detail.type, detail.number);
   const update = effectiveUpdate(detail);
   if (!update) {
@@ -379,21 +410,41 @@ async function upsertBill(
   const clusterId = classifyCluster(detail.title, billType);
 
   // HO 383: decide whether this sync advances the stored stage. Read the prior
-  // row first so we can (a) gate on a real update_date change — the same trigger
-  // that nulls the summary — and (b) advance monotonically only (never regress;
-  // the runner still owns LLM-disagreement downgrades via its pending logic). A
-  // brand-new bill (no prior row) keeps the INSERT default stage (NULL) and is
-  // staged by the runner at first summary, exactly as before.
+  // row first so we can (a) gate on a real update_date change (since HO 790 no
+  // longer the summary's trigger, which also needs a new action or text) and
+  // (b) advance monotonically only (never regress; the runner still owns
+  // LLM-disagreement downgrades via its pending logic). A brand-new bill (no
+  // prior row) keeps the INSERT default stage (NULL) and is staged by the
+  // runner at first summary, exactly as before.
   const computedStage = computeStage(detail.latestAction?.text ?? null);
   const prior = (
     await db.execute({
-      sql: "SELECT stage, update_date FROM bills WHERE id = ?",
+      sql: `SELECT stage, update_date, title, latest_action_date, latest_action_text,
+                   json_extract(raw_json, '$.textVersions.count') AS text_versions,
+                   json_extract(raw_json, '$.summaries.count') AS crs_summaries
+            FROM bills WHERE id = ?`,
       args: [id],
     })
   ).rows[0];
   const priorStage = (prior?.stage as string | null) ?? null;
   const updateMoved = prior !== undefined && (prior.update_date as string | null) !== update;
   const stageAdvanced = updateMoved && stageRank(computedStage) > stageRank(priorStage);
+
+  // HO 790: the summary reset (UPSERT_SQL) follows the latest action and the text versions, the two inputs of the
+  // summarizer's prompt the ruling names; the CRS count and the title are read for the tally only.
+  let byAction = false;
+  let byText = false;
+  let crsMoved = false;
+  let titleMoved = false;
+  if (prior !== undefined && updateMoved) {
+    byAction =
+      (prior.latest_action_date as string | null) !== (detail.latestAction?.actionDate ?? null) ||
+      (prior.latest_action_text as string | null) !== (detail.latestAction?.text ?? null);
+    byText = countOf(prior.text_versions) !== countOf(detail.textVersions?.count);
+    crsMoved = countOf(prior.crs_summaries) !== countOf(detail.summaries?.count);
+    titleMoved = (prior.title as string | null) !== detail.title;
+  }
+  const substantive = byAction || byText;
   const stageObservedAt = stageAdvanced ? new Date().toISOString() : null;
   const newStageArg = stageAdvanced ? computedStage : null;
 
@@ -417,6 +468,8 @@ async function upsertBill(
       clusterId,
       // HO 753 changed_at: written on insert, or when update_date moved (UPSERT_SQL).
       new Date().toISOString(),
+      // HO 790: the summary reset's flag, once for each of its seven clauses (UPSERT_SQL).
+      ...Array<number>(7).fill(substantive ? 1 : 0),
       // HO 383 stage trio (previous_stage gate, stage_observed_at, stage).
       newStageArg,
       stageObservedAt,
@@ -437,7 +490,7 @@ async function upsertBill(
       args: [id, priorStage, computedStage, stageObservedAt],
     });
   }
-  return { reset: updateMoved };
+  return { substantive, byAction, byText, crsMoved, titleMoved };
 }
 
 export type RunSyncOptions = {
@@ -560,7 +613,12 @@ async function drainOne(
         error = "no update date in detail";
       } else {
         stats.upserted++;
-        if (result.reset) stats.resets++;
+        if (result.substantive) stats.resets++;
+        if (result.byAction) stats.resetByAction++;
+        if (result.byText) stats.resetByText++;
+        if (result.crsMoved) stats.crsMoved++;
+        if (result.crsMoved && !result.substantive) stats.crsOnly++;
+        if (result.titleMoved) stats.titleMoved++;
         // Scoped to the drain's own source: a live listing that took this row over while the bill was in flight
         // keeps it, and the cron fetches it again.
         await db.execute({ sql: "DELETE FROM sync_queue WHERE bill_id = ? AND source = ?", args: [id, source] });
@@ -671,6 +729,11 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     wide: false,
     wideComplete: false,
     resets: 0,
+    resetByAction: 0,
+    resetByText: 0,
+    crsMoved: 0,
+    crsOnly: 0,
+    titleMoved: 0,
   };
   stats.queueBefore = await queueDepth(db, source);
 

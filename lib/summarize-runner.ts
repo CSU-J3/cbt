@@ -32,8 +32,9 @@ const PER_BILL_TIMEOUT_MS = 15_000;
 // The summarize cron runs every 10 minutes (`*/10`, vercel.json), so 24h is
 // about 144 ticks: the value is a choice, not a match to the cadence (it matched
 // the daily cron of HO 115's time). A failed bill does not burn consecutive
-// ticks. Reset to NULL/0 when the bill re-syncs (see UPSERT_SQL) or summarizes
-// successfully.
+// ticks. Reset to NULL/0 when the bill re-syncs with a new latest action or text
+// version (see UPSERT_SQL; any re-sync that moved update_date until HO 790) or
+// summarizes successfully.
 const FAILURE_DEFER_HOURS = 24;
 // HO 115: bills crossing this attempt count are surfaced into the
 // cron_runs error trail for manual inspection — not auto-disabled, just
@@ -145,8 +146,9 @@ export async function runSummarize(
     `(summarize_failed_at IS NULL OR summarize_failed_at < datetime('now', '-${FAILURE_DEFER_HOURS} hours'))`,
     // HO 406: ceremonial exclusion, matching the feed predicate. NOTE (verified
     // against prod): this currently removes ZERO rows — is_ceremonial is only set
-    // by the summarize step and sync resets it to NULL on every update
-    // (lib/sync.ts), so every summary-IS-NULL row is is_ceremonial IS NULL by
+    // by the summarize step and sync resets it to NULL whenever it resets the
+    // summary (lib/sync.ts; on every update until HO 790), so every
+    // summary-IS-NULL row is is_ceremonial IS NULL by
     // construction and matches via the IS NULL branch. It's kept as a zero-cost
     // defensive alignment with the feed (and future-correct if a pre-summary
     // ceremonial classifier is ever added); it is NOT the inflow reduction HO

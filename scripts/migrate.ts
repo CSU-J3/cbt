@@ -1764,8 +1764,8 @@ async function main() {
   // consecutive ticks. `summarize_attempts` counts cumulative failures so the
   // route can surface chronically-failing bills (>= 3) to the cron_runs error
   // trail for manual inspection. Both reset to NULL/0 when a bill re-syncs
-  // with a new update_date (see UPSERT_SQL in lib/sync.ts) and on a
-  // successful summary.
+  // with a new latest action or text version (see UPSERT_SQL in lib/sync.ts;
+  // a new update_date alone until HO 790) and on a successful summary.
   await ensureColumn(db, "bills", "summarize_failed_at", "TEXT");
   await ensureColumn(
     db,
@@ -1825,7 +1825,8 @@ async function main() {
   // HO 753: the committee-bills walk keys per bill, not on a shared update_date
   // cursor. `changed_at` is the time of the last local write that changed the
   // bill: lib/sync.ts's UPSERT_SQL stamps it on insert and when update_date moves
-  // (the same trigger that resets the summary); an unchanged rewrite leaves it.
+  // (until HO 790 the same trigger that reset the summary, which since needs a
+  // new action or text version too); an unchanged rewrite leaves it.
   // `committees_walked_at` is when its committees were last walked, stamped in the
   // same batch as the rows. `committee_walk_failures` counts consecutive failed
   // walks; a walk or an update_date change resets it, and at 5 the walk sets the
