@@ -1,6 +1,9 @@
 // HO 788: the bills Congress.gov lists for the current Congress that CT lacks or holds behind, named by type and
 // number; each one's cause read off /api/sync's own ledger (cron_runs), a join rather than an inference; and the gap
 // repaired through the sync's own code. Read-only except --repair.
+// HO 790: --repair is superseded and is not to be run: runSync now queues every entry it lists and drains the whole
+// queue, so the allow-set and the read-side view below no longer bound what it writes. The pass for bills held behind
+// is scripts/diagnostic/sync-frontier-790.ts (--enqueue, --drain); --census stays the audit, run monthly.
 //
 //   npx tsx scripts/diagnostic/bills-gap-788.ts --step0    [--label L]
 //   npx tsx scripts/diagnostic/bills-gap-788.ts --ticks    [--label L]
