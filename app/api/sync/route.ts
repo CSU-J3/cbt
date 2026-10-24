@@ -11,18 +11,24 @@ import { ingestTrades } from "@/lib/trades-ingest";
 // the `wrapCronRoute` finalize pattern. HO 667 retired the dashboard-lead
 // step (orphaned since HO 244 — nothing had rendered the lead in ~400
 // handoffs, and it was the dominant step at ~25.3s of a 40.4s run).
-// This route now runs: report catch-up → bill sync (≤30s budget) → trades.
+// This route now runs: report catch-up → bill sync (≤240s budget) → trades.
 // Report and news live on their own crons. Per-step wall-clock times are
 // logged and included in the cron_runs payload — note `timings.lead` is
 // GONE from that payload as of HO 667, so a row with no `lead` key is a
-// post-667 tick, not a truncated payload.
+// post-667 tick, not a truncated payload. HO 790: the sync lists from the
+// frontier in sync_state into sync_queue and drains it, so a tick the budget
+// stops leaves its rows queued for the next one (lib/sync.ts header).
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-// HO 116 lock: stop starting new bills in runSync at 30s wall-clock from
-// route start. Leaves ~25s for downstream steps (lead + trades) inside
-// the 60s function ceiling.
-const SYNC_BUDGET_MS = 30_000;
+// HO 790: stop starting new list pages and queued bills in runSync 240s after
+// route start; the report catch-up before it counts against the 240s, and a
+// detail fetch in flight then is cut by its 15s cap. Trades follow, inside the
+// 290s soft timeout under the 300s ceiling: the committees route's layering
+// (app/api/cron/committees/route.ts). Until HO 790 the budget was 30s under a
+// 60s ceiling, and a tick got through a median 63 bills.
+const SYNC_BUDGET_MS = 240_000;
+const SOFT_TIMEOUT_MS = 290_000;
 
 function authorize(request: Request): NextResponse | null {
   const secret = process.env.CRON_SECRET;
@@ -101,8 +107,9 @@ async function handle(request: Request) {
     timings.sync = Date.now() - tSync;
     console.log(
       `[sync] runSync: ${timings.sync}ms ` +
-        `(seen=${sync.seen} upserted=${sync.upserted} skipped=${sync.skipped} ` +
-        `failed=${sync.failed} timeout=${sync.timedOut} budgetStopped=${sync.budgetStopped})`,
+        `(seen=${sync.seen} enqueued=${sync.enqueued} upserted=${sync.upserted} skipped=${sync.skipped} ` +
+        `failed=${sync.failed} timeout=${sync.timedOut} queue=${sync.queueBefore}→${sync.queueAfter} ` +
+        `listComplete=${sync.listComplete} budgetStopped=${sync.budgetStopped})`,
     );
     // Invalidate after sync writes new bill rows so the dashboard sees them
     // before any later step in this tick fails.
@@ -157,7 +164,7 @@ async function handle(request: Request) {
         ? `report-catchup-failed: ${reportCatchupError}`
         : undefined,
     };
-  });
+  }, { softTimeoutMs: SOFT_TIMEOUT_MS });
 
   return NextResponse.json(result.body, { status: result.httpStatus });
 }

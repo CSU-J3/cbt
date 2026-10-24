@@ -2,7 +2,7 @@
   "regions": ["pdx1"],
   "functions": {
     "app/api/sync/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/sync-votes/route.ts": {
       "maxDuration": 60

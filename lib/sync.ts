@@ -1,11 +1,47 @@
+// HO 790: the bill sync. The frontier is a row in sync_state (`bills_frontier`, an ISO instant), not a derived
+// MAX(update_date). A tick lists /bill/{congress} from it, `sort=updateDate asc`, in pages of 250 that overlap by 25
+// (HO 754's meetings method, so an entry that shifts across a boundary while the walk runs is read twice and never
+// zero times), and every listed entry goes into sync_queue keyed by bill id. When the listing reaches the end of the
+// list the frontier moves to the instant the listing began, less a 15-minute margin; a listing cut by the deadline or
+// by a failed page leaves the frontier where it was, and the next tick lists from there again. Then the tick drains
+// the queue, oldest list day first: each bill's detail fetched and upserted, its row deleted. A failed fetch charges
+// the row an attempt and leaves it for the next tick; the third drops it, named in the stats.
+//
+// Nothing is compared at day precision on this path. The list prints both dates as a bare day (HO 788 read 58,557
+// entries, none with a time), `fromDateTime` filters on updateDateIncludingText to the second, and the detail carries
+// the instant, so every entry the filter returns is fetched and the upsert decides. Once a UTC day (`bills_wide_at`),
+// after the frontier listing completes, a second listing from the frontier less 48 hours enqueues each entry missing
+// from `bills` or whose stored day is before its list day: the self-heal for late indexing, and the only day compare
+// left. It never moves the frontier, so it can't drop what the frontier listing took.
+//
+// /api/sync and `npm run sync` call runSync with the `live` queue. A pass run from the box enqueues with
+// `source = 'backfill'` and drains that queue alone, so the cron's drain never reads it.
 import { classifyCluster } from "./cluster-patterns";
 import { getCurrentCongress } from "./congress";
 import { getDb } from "./db";
 import { computeStage, stageRank } from "./enums";
-import { fetchError } from "./redact";
+import { fetchError, redactSecrets } from "./redact";
 
-const API_BASE = "https://api.congress.gov/v3";
+// HO 790: the one seam, for the legs' stub on 127.0.0.1 (scripts/diagnostic/sync-frontier-790.ts). Unset everywhere
+// else, so production reads Congress.gov.
+const API_BASE = process.env.CONGRESS_API_BASE ?? "https://api.congress.gov/v3";
 const PAGE_SIZE = 250;
+// HO 790: each list page after the first starts 25 places before the previous one ended. An entry re-updated while
+// the walk runs moves to the end of the asc list, which shifts every later entry left by one; 25 is the shift a
+// boundary absorbs between two page reads.
+const OVERLAP = 25;
+// HO 790: a completed listing moves the frontier to its own start less this, so an entry Congress.gov indexes a few
+// minutes behind its updateDateIncludingText is still listed by the next tick.
+const FRONTIER_MARGIN_MS = 15 * 60_000;
+// HO 790: the daily wide listing reaches this far behind the frontier.
+const WIDE_WINDOW_MS = 48 * 60 * 60_000;
+// HO 790: queue rows read per drain round, failed fetches a row may take before it's dropped, and the dropped ids
+// a tick's stats carry.
+const DRAIN_BATCH = 500;
+const MAX_ATTEMPTS = 3;
+const DROPPED_CAP = 50;
+const FRONTIER_KEY = "bills_frontier";
+const WIDE_KEY = "bills_wide_at";
 // HO 116: hard wall-clock cap per detail fetch. Cheap insurance — observed
 // p95 was 127ms locally — but mirrors the HO 115 summarize pattern so a
 // future hung Congress.gov call can't burn the cron tick.
@@ -50,19 +86,49 @@ type ListResponse = {
 
 type DetailResponse = { bill?: DetailBill };
 
+type QueueSource = "live" | "backfill";
+
 export type SyncStats = {
+  // Every list entry read, the overlap's repeats included.
   seen: number;
   upserted: number;
+  // List entries with no date, and entries the wide listing's day compare passed over.
   skipped: number;
   failed: number;
   // HO 116: detail fetches killed by the per-bill AbortController. Subset of
   // `failed`. Defensive metric — measured p95 is 127ms, so this is usually 0.
   timedOut: number;
-  // HO 116: did the loop stop because deadlineMs was reached (vs. exhausting
-  // the list)? The route uses this in its timings payload to see whether the
-  // cron is leaving runSync work on the table.
+  // HO 116: did the tick stop because deadlineMs was reached? Since HO 790 that
+  // can happen in the listing (before a page) or in the drain (before a bill).
   budgetStopped: boolean;
+  // The frontier listing's fromDateTime; empty when the tick only drains (`listing: false`).
   fromDateTime: string;
+  // HO 790: the frontier as the tick read it and as it left it, and whether this tick wrote it first, from
+  // MAX(update_date).
+  frontierBefore: string | null;
+  frontierAfter: string | null;
+  bootstrapped: boolean;
+  // HO 790: the frontier listing reached the end of the list; only then does the frontier move.
+  listComplete: boolean;
+  // HO 790: a list page that threw (a 5xx past fetchJson's 429 retry, a network failure), redacted. The frontier
+  // stays and the tick goes on to the drain.
+  listError: string | null;
+  // HO 790: list pages read across the tick's listings, and the frontier listing's own pagination.count.
+  pages: number;
+  listedCount: number | null;
+  // HO 790: ids put into sync_queue that weren't already there.
+  enqueued: number;
+  // HO 790: the depth of the queue this tick drains (`source`), at the tick's start and end.
+  queueBefore: number;
+  queueAfter: number;
+  // HO 790: rows deleted on their third failed fetch: the first 50 ids, and the count.
+  dropped: string[];
+  droppedCount: number;
+  // HO 790: the daily wide listing ran this tick, and reached the end of the list (which writes bills_wide_at).
+  wide: boolean;
+  wideComplete: boolean;
+  // HO 790: writes that nulled a summary (HO 115's trigger: update_date moved).
+  resets: number;
 };
 
 function billId(congress: number, type: string, number: number | string): string {
@@ -98,7 +164,7 @@ async function fetchJson<T>(
 function listUrl(fromDateTime: string, offset: number, apiKey: string): string {
   const params = new URLSearchParams({
     fromDateTime,
-    sort: "updateDate desc",
+    sort: "updateDate asc",
     limit: String(PAGE_SIZE),
     offset: String(offset),
     format: "json",
@@ -122,6 +188,12 @@ function normalizeDateTime(s: string): string {
   return s.replace(/\.\d+Z$/, "Z");
 }
 
+function isoSeconds(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+}
+
+// HO 790: the frontier's bootstrap, read once, when sync_state has no bills_frontier. Until HO 790 this was every
+// tick's fromDateTime.
 async function getWatermark(db: ReturnType<typeof getDb>): Promise<string> {
   const r = await db.execute("SELECT MAX(update_date) AS m FROM bills");
   const m = r.rows[0]?.m as string | null | undefined;
@@ -129,10 +201,42 @@ async function getWatermark(db: ReturnType<typeof getDb>): Promise<string> {
   return normalizeDateTime(m);
 }
 
+// HO 790: the frontier and the wide listing's last day, read together once a tick. An absent frontier is bootstrapped
+// from getWatermark and written, and the stats say so.
+async function getFrontier(
+  db: ReturnType<typeof getDb>,
+  stats: SyncStats,
+): Promise<{ frontier: string; wideAt: string | null }> {
+  const r = await db.execute({
+    sql: "SELECT key, value FROM sync_state WHERE key IN (?, ?)",
+    args: [FRONTIER_KEY, WIDE_KEY],
+  });
+  const state = new Map(r.rows.map((row) => [row.key as string, row.value as string]));
+  let frontier = state.get(FRONTIER_KEY);
+  if (!frontier) {
+    frontier = await getWatermark(db);
+    await setSyncState(db, FRONTIER_KEY, frontier);
+    stats.bootstrapped = true;
+  }
+  return { frontier, wideAt: state.get(WIDE_KEY) ?? null };
+}
+
+async function setSyncState(db: ReturnType<typeof getDb>, key: string, value: string): Promise<void> {
+  await db.execute({
+    sql: `INSERT INTO sync_state (key, value, updated_at) VALUES (?, ?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    args: [key, value, new Date().toISOString()],
+  });
+}
+
+async function setFrontier(db: ReturnType<typeof getDb>, instant: string): Promise<void> {
+  await setSyncState(db, FRONTIER_KEY, instant);
+}
+
 // HO 116: batched diff. One round-trip per list page replaces the previous
 // per-bill SELECT, which was the dominant cost in runSync (8.5s/page on
-// Turso locally → ~17s/page projected in prod). Same logic, identical
-// skip/needs-fetch outcome — see scripts/diagnostic/sync-measure.ts.
+// Turso locally → ~17s/page projected in prod). HO 790: kept for the wide
+// listing's day compare, the one place the stored date is still read.
 async function getStoredUpdates(
   db: ReturnType<typeof getDb>,
   ids: string[],
@@ -150,6 +254,40 @@ async function getStoredUpdates(
     if (ud) result.set(id, ud);
   }
   return result;
+}
+
+async function queueDepth(db: ReturnType<typeof getDb>, source: QueueSource): Promise<number> {
+  const r = await db.execute({ sql: "SELECT COUNT(*) AS n FROM sync_queue WHERE source = ?", args: [source] });
+  return Number(r.rows[0]?.n ?? 0);
+}
+
+// HO 790: one list page's entries into sync_queue, in one statement. A row already queued keeps its enqueued_at and
+// takes the later list day; a live listing takes over a backfill row, so the cron drains it first (either drain
+// writes the same detail). Returns the ids that weren't queued before, read before the INSERT, since rowsAffected
+// counts the conflict updates too.
+async function enqueue(
+  db: ReturnType<typeof getDb>,
+  entries: Map<string, string>,
+  source: QueueSource,
+): Promise<number> {
+  if (entries.size === 0) return 0;
+  const ids = [...entries.keys()];
+  const placeholders = ids.map(() => "?").join(",");
+  const had = new Set(
+    (await db.execute({ sql: `SELECT bill_id FROM sync_queue WHERE bill_id IN (${placeholders})`, args: ids })).rows.map(
+      (row) => row.bill_id as string,
+    ),
+  );
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: `INSERT INTO sync_queue (bill_id, list_update_day, source, enqueued_at)
+          VALUES ${ids.map(() => "(?, ?, ?, ?)").join(", ")}
+          ON CONFLICT(bill_id) DO UPDATE SET
+            list_update_day = MAX(excluded.list_update_day, sync_queue.list_update_day),
+            source = CASE WHEN excluded.source = 'live' THEN 'live' ELSE sync_queue.source END`,
+    args: ids.flatMap((id) => [id, entries.get(id)!, source, now]),
+  });
+  return ids.filter((id) => !had.has(id)).length;
 }
 
 // ── cosponsor_count is NOT written here, and the omission is deliberate ──────
@@ -224,15 +362,17 @@ ON CONFLICT(id) DO UPDATE SET
   stage = COALESCE(?, bills.stage)
 `;
 
+// HO 790: null when the detail carries no update date and nothing was written; otherwise whether the write nulled
+// the bill's summary.
 async function upsertBill(
   db: ReturnType<typeof getDb>,
   detail: DetailBill,
-): Promise<void> {
+): Promise<{ reset: boolean } | null> {
   const id = billId(detail.congress, detail.type, detail.number);
   const update = effectiveUpdate(detail);
   if (!update) {
     console.warn(`skipping ${id}: no update date in detail`);
-    return;
+    return null;
   }
   const sponsor = detail.sponsors?.[0];
   const billType = String(detail.type).toLowerCase();
@@ -252,10 +392,8 @@ async function upsertBill(
     })
   ).rows[0];
   const priorStage = (prior?.stage as string | null) ?? null;
-  const stageAdvanced =
-    prior !== undefined &&
-    (prior.update_date as string | null) !== update &&
-    stageRank(computedStage) > stageRank(priorStage);
+  const updateMoved = prior !== undefined && (prior.update_date as string | null) !== update;
+  const stageAdvanced = updateMoved && stageRank(computedStage) > stageRank(priorStage);
   const stageObservedAt = stageAdvanced ? new Date().toISOString() : null;
   const newStageArg = stageAdvanced ? computedStage : null;
 
@@ -299,35 +437,217 @@ async function upsertBill(
       args: [id, priorStage, computedStage, stageObservedAt],
     });
   }
+  return { reset: updateMoved };
 }
 
 export type RunSyncOptions = {
+  // An explicit start for the frontier listing. It never moves the frontier, and it turns the automatic wide listing
+  // off.
   fromDateTime?: string;
   /**
    * HO 116: absolute epoch-millis past which runSync stops *starting* new
-   * bills. The 15s per-detail AbortController bounds the in-flight bill on
-   * top of this, mirroring runSummarize's pattern. The route passes
-   * `routeStart + 30_000` so the downstream steps (lead + news + trades +
-   * Monday report) get ~25s of remaining function budget. Outer-loop
-   * pagination check too: if a long page-1 detail-fetch crowd pushed us past
-   * the deadline, we won't even fetch the next list page.
+   * work: checked before each list page and before each queued bill. The 15s
+   * per-detail AbortController bounds the in-flight bill on top of this,
+   * mirroring runSummarize's pattern. HO 790: the route passes
+   * `routeStart + 240_000` inside its 290s soft timeout, so trades still run
+   * after the sync. What a tick doesn't reach stays queued for the next one.
    */
   deadlineMs?: number;
+  // HO 790: the daily wide listing. true runs it, false never; unset (the route) runs it when bills_wide_at is
+  // absent or its UTC date is before today's, unless fromDateTime is given.
+  wide?: boolean;
+  // HO 790: the queue this run labels its listings with and drains. Default `live`; a pass from the box uses
+  // `backfill`.
+  source?: QueueSource;
+  // HO 790: false skips the listings and the frontier, so the run only drains (the pass's mode). Default true.
+  listing?: boolean;
+  // HO 790: the drain stops starting new bills once `resets` reaches this; the pass's pace cap. Unset on the route.
+  maxResets?: number;
+  // HO 790: the list pages' overlap, default 25. The legs set 0 as the control (scripts/diagnostic/sync-frontier-790.ts);
+  // nothing else should.
+  overlap?: number;
 };
+
+// HO 790: one listing from `from` to the end of the list, every entry into the queue (the wide listing first drops
+// the ones its day compare passes over). Returns whether it reached the end, which a cut or a thrown page doesn't.
+async function walkList(
+  db: ReturnType<typeof getDb>,
+  apiKey: string,
+  from: string,
+  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; dayCompare: boolean },
+  stats: SyncStats,
+): Promise<boolean> {
+  let offset = 0;
+  try {
+    while (true) {
+      if (cfg.deadlineMs !== undefined && Date.now() >= cfg.deadlineMs) {
+        stats.budgetStopped = true;
+        console.log(`budget reached before list page offset=${offset}; the listing from ${from} is cut`);
+        return false;
+      }
+      const page = await fetchJson<ListResponse>(listUrl(from, offset, apiKey));
+      stats.pages++;
+      if (offset === 0 && !cfg.dayCompare) stats.listedCount = page.pagination?.count ?? null;
+      const bills = page.bills ?? [];
+      console.log(`list from ${from} offset=${offset}: ${bills.length} bills`);
+
+      // id → list day; the later day wins if a page names an id twice.
+      const entries = new Map<string, string>();
+      for (const lb of bills) {
+        stats.seen++;
+        const id = billId(lb.congress, lb.type, lb.number);
+        const listUpdate = effectiveUpdate(lb);
+        if (!listUpdate) {
+          console.warn(`skip ${id}: list entry has no update date`);
+          stats.skipped++;
+          continue;
+        }
+        const day = listUpdate.slice(0, 10);
+        const prev = entries.get(id);
+        if (prev === undefined || day > prev) entries.set(id, day);
+      }
+      if (cfg.dayCompare && entries.size > 0) {
+        const stored = await getStoredUpdates(db, [...entries.keys()]);
+        for (const [id, day] of entries) {
+          const s = stored.get(id);
+          if (s !== undefined && s.slice(0, 10) >= day) {
+            entries.delete(id);
+            stats.skipped++;
+          }
+        }
+      }
+      stats.enqueued += await enqueue(db, entries, cfg.source);
+
+      if (bills.length < PAGE_SIZE) return true;
+      offset += PAGE_SIZE - cfg.overlap;
+    }
+  } catch (err) {
+    stats.listError = redactSecrets((err as Error).message);
+    console.error(`list from ${from} failed at offset=${offset}: ${stats.listError}`);
+    return false;
+  }
+}
+
+// HO 790: drain one queued bill. A row the drain doesn't clear is charged an attempt; the third deletes it.
+async function drainOne(
+  db: ReturnType<typeof getDb>,
+  apiKey: string,
+  row: { id: string; attempts: number },
+  source: QueueSource,
+  stats: SyncStats,
+): Promise<void> {
+  const { id } = row;
+  const [congress, type, number] = id.split("-");
+  let error: string | null = null;
+  // HO 116: detail fetch is bounded by a 15s AbortController. Same shape
+  // as runSummarize. `ac.signal.aborted` after a throw means the timer
+  // fired; that bill counts as timedOut (subset of failed), and its queue
+  // row stays for the next tick.
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), PER_DETAIL_TIMEOUT_MS);
+  try {
+    const detailRes = await fetchJson<DetailResponse>(
+      detailUrl(Number(congress), type ?? "", number ?? "", apiKey),
+      ac.signal,
+    );
+    const detail = detailRes.bill;
+    if (!detail) {
+      console.warn(`skip ${id}: detail response missing bill`);
+      error = "detail response missing bill";
+    } else {
+      const result = await upsertBill(db, detail);
+      if (result === null) {
+        error = "no update date in detail";
+      } else {
+        stats.upserted++;
+        if (result.reset) stats.resets++;
+        // Scoped to the drain's own source: a live listing that took this row over while the bill was in flight
+        // keeps it, and the cron fetches it again.
+        await db.execute({ sql: "DELETE FROM sync_queue WHERE bill_id = ? AND source = ?", args: [id, source] });
+      }
+    }
+  } catch (err) {
+    if (ac.signal.aborted) {
+      stats.timedOut++;
+      console.warn(`timeout ${id}: detail exceeded ${PER_DETAIL_TIMEOUT_MS}ms`);
+      error = `detail exceeded ${PER_DETAIL_TIMEOUT_MS}ms`;
+    } else {
+      console.error(`failed ${id}:`, (err as Error).message);
+      error = redactSecrets((err as Error).message);
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  if (error === null) return;
+  stats.failed++;
+  const attempts = row.attempts + 1;
+  if (attempts >= MAX_ATTEMPTS) {
+    await db.execute({ sql: "DELETE FROM sync_queue WHERE bill_id = ? AND source = ?", args: [id, source] });
+    stats.droppedCount++;
+    if (stats.dropped.length < DROPPED_CAP) stats.dropped.push(id);
+    console.warn(`dropped ${id} from the queue after ${attempts} failed fetches: ${error}`);
+  } else {
+    await db.execute({
+      sql: "UPDATE sync_queue SET attempts = ?, last_error = ? WHERE bill_id = ? AND source = ?",
+      args: [attempts, error.slice(0, 300), id, source],
+    });
+  }
+}
+
+// HO 790: the drain, oldest list day first, in rounds of DRAIN_BATCH until the queue is empty, the deadline arrives
+// or the reset cap is reached. Each round reads past the previous one's last row, so a row that failed this tick
+// waits for the next.
+async function drain(
+  db: ReturnType<typeof getDb>,
+  apiKey: string,
+  cfg: { source: QueueSource; deadlineMs?: number; maxResets?: number },
+  stats: SyncStats,
+): Promise<void> {
+  let cursor: [string, string, string] | null = null;
+  rounds: while (true) {
+    const r = await db.execute(
+      cursor === null
+        ? {
+            sql: `SELECT bill_id, list_update_day, enqueued_at, attempts FROM sync_queue
+                  WHERE source = ? AND attempts < ?
+                  ORDER BY list_update_day, enqueued_at, bill_id LIMIT ?`,
+            args: [cfg.source, MAX_ATTEMPTS, DRAIN_BATCH],
+          }
+        : {
+            sql: `SELECT bill_id, list_update_day, enqueued_at, attempts FROM sync_queue
+                  WHERE source = ? AND attempts < ? AND (list_update_day, enqueued_at, bill_id) > (?, ?, ?)
+                  ORDER BY list_update_day, enqueued_at, bill_id LIMIT ?`,
+            args: [cfg.source, MAX_ATTEMPTS, ...cursor, DRAIN_BATCH],
+          },
+    );
+    for (const row of r.rows) {
+      // Checked before starting any bill, so the only thing that can push us past `deadlineMs` is the 15s
+      // per-detail AbortController.
+      if (cfg.deadlineMs !== undefined && Date.now() >= cfg.deadlineMs) {
+        stats.budgetStopped = true;
+        console.log(`budget reached after ${stats.upserted + stats.failed} queued bill(s); the rest wait for the next tick`);
+        break rounds;
+      }
+      if (cfg.maxResets !== undefined && stats.resets >= cfg.maxResets) {
+        console.log(`reset cap ${cfg.maxResets} reached; the drain stops starting bills`);
+        break rounds;
+      }
+      const id = row.bill_id as string;
+      cursor = [row.list_update_day as string, row.enqueued_at as string, id];
+      await drainOne(db, apiKey, { id, attempts: Number(row.attempts) }, cfg.source, stats);
+    }
+    if (r.rows.length < DRAIN_BATCH) break;
+  }
+}
 
 export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
   const apiKey = process.env.CONGRESS_API_KEY;
   if (!apiKey) throw new Error("CONGRESS_API_KEY is not set");
   const db = getDb();
 
-  const fromDateTime = opts.fromDateTime ?? (await getWatermark(db));
   const deadlineMs = opts.deadlineMs;
-  console.log(
-    `syncing bills updated since ${fromDateTime}` +
-      (deadlineMs ? ` deadline=${new Date(deadlineMs).toISOString()}` : ""),
-  );
-
-  let offset = 0;
+  const source: QueueSource = opts.source ?? "live";
+  const overlap = opts.overlap ?? OVERLAP;
   const stats: SyncStats = {
     seen: 0,
     upserted: 0,
@@ -335,110 +655,73 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     failed: 0,
     timedOut: 0,
     budgetStopped: false,
-    fromDateTime,
+    fromDateTime: "",
+    frontierBefore: null,
+    frontierAfter: null,
+    bootstrapped: false,
+    listComplete: false,
+    listError: null,
+    pages: 0,
+    listedCount: null,
+    enqueued: 0,
+    queueBefore: 0,
+    queueAfter: 0,
+    dropped: [],
+    droppedCount: 0,
+    wide: false,
+    wideComplete: false,
+    resets: 0,
   };
-  let deadlineReached = false;
+  stats.queueBefore = await queueDepth(db, source);
 
-  // HO 116 caveat (worth knowing before tweaking this loop): list sort is
-  // `updateDate desc` so the freshest bills are processed first. On a
-  // partial-tick kill — Vercel ceiling or `deadlineMs` reached — the new
-  // MAX(update_date) advances to whichever bill we processed first (the
-  // freshest one). Bills further down in the same tick's queue (older
-  // changes) end up below the next tick's watermark and are skipped until
-  // they update again on their own. This is the same behavior the pre-116
-  // implementation had; HO 116 doesn't regress it. If post-deploy shows the
-  // backlog isn't draining, the resolution is `updateDate asc` plus an
-  // explicit cursor in `sync_state` — defer until evidence calls for it.
-  pageLoop: while (true) {
-    if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
-      stats.budgetStopped = true;
-      console.log(
-        `budget reached before page offset=${offset}; stopping`,
-      );
-      break;
-    }
-    const url = listUrl(fromDateTime, offset, apiKey);
-    const page = await fetchJson<ListResponse>(url);
-    const bills = page.bills ?? [];
-    if (bills.length === 0) break;
+  // RECORD, HO 116's caveat and what retired it. Until HO 790 this function listed `updateDate desc` from
+  // MAX(update_date) and wrote each bill as it went, and HO 116 wrote down what that cost: on a partial tick the
+  // watermark advanced to the freshest bill written, and the older changes further down that tick's list fell below
+  // the next tick's fromDateTime, "skipped until they update again on their own". It named the resolution,
+  // `updateDate asc` plus an explicit cursor in `sync_state`, and deferred it "until evidence calls for it". The
+  // evidence came at HO 752 (3 of 200 sampled committee-walked bills behind) and at HO 788 (8,287 of 19,127 stored
+  // bills behind, 43.3%, 8,021 of them first owed by a tick that stopped). HO 790 built the resolution it named, with
+  // a queue between the listing and the writes.
+  if (opts.listing ?? true) {
+    const explicit = opts.fromDateTime !== undefined;
+    const { frontier, wideAt } = await getFrontier(db, stats);
+    stats.frontierBefore = frontier;
+    stats.frontierAfter = frontier;
+    const from = opts.fromDateTime ?? frontier;
+    stats.fromDateTime = from;
+    console.log(
+      `syncing bills listed since ${from}${explicit ? ` (explicit; the frontier ${frontier} stays)` : ""}` +
+        (deadlineMs ? ` deadline=${new Date(deadlineMs).toISOString()}` : ""),
+    );
 
-    console.log(`page offset=${offset}: ${bills.length} bills`);
-
-    // HO 116: batch the diff. One IN(...) SELECT for the whole page replaces
-    // 250 per-bill round-trips — measured 8481ms → 84ms on a full page.
-    const ids = bills.map((lb) => billId(lb.congress, lb.type, lb.number));
-    const storedById = await getStoredUpdates(db, ids);
-
-    for (const lb of bills) {
-      // Deadline check before starting any new bill, so the only thing that
-      // can push us past `deadlineMs` is the 15s per-detail AbortController.
-      if (deadlineMs !== undefined && Date.now() >= deadlineMs) {
-        stats.budgetStopped = true;
-        deadlineReached = true;
-        console.log(
-          `budget reached after ${stats.seen}/${bills.length}+ bill(s); stopping`,
-        );
-        break pageLoop;
-      }
-
-      stats.seen++;
-      const id = billId(lb.congress, lb.type, lb.number);
-      const listUpdate = effectiveUpdate(lb);
-      if (!listUpdate) {
-        console.warn(`skip ${id}: list entry has no update date`);
-        stats.skipped++;
-        continue;
-      }
-      const stored = storedById.get(id) ?? null;
-      if (stored && stored >= listUpdate) {
-        stats.skipped++;
-        continue;
-      }
-
-      // HO 116: detail fetch is bounded by a 15s AbortController. Same shape
-      // as runSummarize. `ac.signal.aborted` after a throw means the timer
-      // fired; that bill counts as timedOut (subset of failed) and will be
-      // re-attempted naturally on the next tick when its watermark
-      // comparison still shows it as needing fetch.
-      const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), PER_DETAIL_TIMEOUT_MS);
-      try {
-        const detailRes = await fetchJson<DetailResponse>(
-          detailUrl(lb.congress, lb.type, lb.number, apiKey),
-          ac.signal,
-        );
-        const detail = detailRes.bill;
-        if (!detail) {
-          console.warn(`skip ${id}: detail response missing bill`);
-          stats.failed++;
-          continue;
-        }
-        await upsertBill(db, detail);
-        stats.upserted++;
-      } catch (err) {
-        if (ac.signal.aborted) {
-          stats.timedOut++;
-          console.warn(
-            `timeout ${id}: detail exceeded ${PER_DETAIL_TIMEOUT_MS}ms`,
-          );
-        } else {
-          console.error(`failed ${id}:`, (err as Error).message);
-        }
-        stats.failed++;
-      } finally {
-        clearTimeout(timer);
-      }
+    const listingStartedAt = Date.now();
+    stats.listComplete = await walkList(db, apiKey, from, { overlap, deadlineMs, source, dayCompare: false }, stats);
+    if (stats.listComplete && !explicit) {
+      const next = isoSeconds(listingStartedAt - FRONTIER_MARGIN_MS);
+      await setFrontier(db, next);
+      stats.frontierAfter = next;
     }
 
-    if (deadlineReached) break;
-    if (bills.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
+    const today = new Date().toISOString().slice(0, 10);
+    const wide = opts.wide ?? (!explicit && (wideAt === null || wideAt.slice(0, 10) < today));
+    if (wide && stats.listComplete) {
+      stats.wide = true;
+      const wideFrom = isoSeconds(Date.parse(normalizeDateTime(from)) - WIDE_WINDOW_MS);
+      console.log(`wide listing since ${wideFrom}: missing or behind at day precision`);
+      stats.wideComplete = await walkList(db, apiKey, wideFrom, { overlap, deadlineMs, source, dayCompare: true }, stats);
+      if (stats.wideComplete) await setSyncState(db, WIDE_KEY, new Date().toISOString());
+    }
   }
 
+  await drain(db, apiKey, { source, deadlineMs, maxResets: opts.maxResets }, stats);
+  stats.queueAfter = await queueDepth(db, source);
+
   console.log(
-    `done: seen=${stats.seen} upserted=${stats.upserted} ` +
-      `skipped=${stats.skipped} failed=${stats.failed} ` +
-      `timeout=${stats.timedOut} budgetStopped=${stats.budgetStopped}`,
+    `done: seen=${stats.seen} enqueued=${stats.enqueued} upserted=${stats.upserted} resets=${stats.resets} ` +
+      `skipped=${stats.skipped} failed=${stats.failed} timeout=${stats.timedOut} dropped=${stats.droppedCount} ` +
+      `queue=${stats.queueBefore}→${stats.queueAfter} listComplete=${stats.listComplete} wide=${stats.wide} ` +
+      `frontier=${stats.frontierBefore}→${stats.frontierAfter} budgetStopped=${stats.budgetStopped}` +
+      (stats.listError ? ` listError=${stats.listError}` : ""),
   );
   return stats;
 }

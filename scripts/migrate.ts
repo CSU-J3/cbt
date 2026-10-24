@@ -277,12 +277,31 @@ const statements = [
   )`,
   // Generic key/value table for sync checkpoint state. One row in v1:
   // key='donors_cursor', value=last-processed bioguide_id. Cleared when a
-  // run finishes the full member list.
+  // run finishes the full member list. No code wrote it after the donors
+  // pipeline went; since HO 790 the bill sync keeps two keys here,
+  // 'bills_frontier' (the instant its listing starts from) and 'bills_wide_at'
+  // (when its daily wide listing last completed), lib/sync.ts.
   `CREATE TABLE IF NOT EXISTS sync_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL
   )`,
+  // HO 790: the bill sync's queue. A row is a bill the list named since the
+  // frontier, owed a detail fetch. runSync's listing writes it (a row already
+  // queued keeps its enqueued_at and takes the later list day), its drain
+  // deletes it once the detail is upserted, and the third failed fetch deletes
+  // it too, named in the tick's stats. `source` keeps a pass run from the box
+  // ('backfill') out of the cron's drain ('live'); a live listing that names a
+  // backfill row takes it over, so the cron drains it first.
+  `CREATE TABLE IF NOT EXISTS sync_queue (
+    bill_id TEXT PRIMARY KEY,
+    list_update_day TEXT NOT NULL,                -- the list's updateDateIncludingText, a bare day
+    source TEXT NOT NULL DEFAULT 'live',          -- 'live' (the route's listing) | 'backfill' (a pass from the box)
+    enqueued_at TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_sync_queue_drain ON sync_queue(source, list_update_day, enqueued_at)`,
   // HO 218: per-seat Kalshi prediction-market odds. One row per race_id (our
   // raceId form, e.g. "PA-07-2026" / "S-ME-2026"). Loose link to races.id (no
   // FK) — the fetcher writes every 2026 House/Senate general seat Kalshi runs,
