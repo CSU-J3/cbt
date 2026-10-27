@@ -7781,3 +7781,76 @@ Every tick read `queueBefore` and `queueAfter` 0, and `wideComplete` matched `wi
 - the Sabato line covering Oct 26's run as well, read today;
 - 1,001 detail reads where the handoff costed about 500: the first run's 500, the second's 500, and STEP 0's one.
 - **Also notes now run through HO 791.**
+
+**Also (HO 792), the old compare's residual counted at second precision and re-synced: 468 of the 11,768 bills old code stored read behind Congress.gov by a same-day second update, went through the 790 pass's enqueue and drain, and a recheck reads every one current. The Sabato task's cause found and fixed by Corey. It opens with HO 791's FF go as taken.**
+- **What's here:**
+  - HO 791's FF go as taken, with its records;
+  - the Sabato task, found and fixed by Corey;
+  - STEP 0, a check: every claim held;
+  - the count, its control and its reading;
+  - the enqueue, the drain and the recheck;
+  - the ticks and the CRS meter;
+  - the ledger;
+  - what was flagged.
+- **Three commits, kinds unmixed:** `diag` (`--count` and `--recheck` in `scripts/diagnostic/late-index-791.ts`), `docs` (this block and the backlog), then `docs(skill)`, alone and last.
+- **Prod was written twice, by `scripts/diagnostic/sync-frontier-790.ts --enqueue --census 792r` and `--drain --reset-cap 150`, under their allow rules,** and read by `SELECT` otherwise. No `/api/sync` call, no migration, no `--go`. Congress.gov had 12,345 detail reads from the box (STEP 0's one, the count's 11,768 and its 108 retries, the recheck's 468), plus the drain's 468 through `runSync`, the key in each URL and in no printed line.
+- **The pointer is 792:** pointer 791 (`docs/roadmap.md:7783` at `5d862e3`; the handoff cited `:7653`), highest HO in commit subjects 791, `main` at `5d862e3`.
+
+**HO 791's FF go, as taken.**
+- **`main` at `5d862e3`:** `a5ba9ee..5d862e3`, three commits, no force. `791-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The cold build before the push:** `.next` held one junction, `.next\node_modules\@libsql\client-6da938047d5fc1cd` to `node_modules\@libsql\client`. It was unlinked with `cmd /c rmdir`, its target was confirmed intact from a separate process, and only then was `.next` removed. The build exited 0 with 0 warning lines.
+- **The typecheck:** the first e2e call, `tsc --noEmit -p e2e`, was the wrong path (TS5057, no `tsconfig.json` there). The reading is `npm run typecheck`, which runs `tsc --noEmit` and `tsconfig.e2e.json`, exit 0. `check:odds-sites` read OK (190 `.tsx` scanned, 13 reference a market, 13 listed) and `check:design-citations` OK (1,166 scanned, 167 citations, 0 problems).
+- **The deploy:** Production record `7347880432` at 7:25:05 PM MT Oct 26 (01:25:05Z Oct 27), `success`. `/api/version` read `5d862e3` at 7:25:42 PM MT (01:25:42Z); a read at 7:24:23 PM MT (01:24:23Z), before the record, still read `a5ba9ee`.
+- **`e2e-prod` `40432444562`,** fired by the record: smoke **143 passed (5.8m)**, concluded 7:31:39 PM MT (01:31:39Z). No dispatch, no flush.
+
+**The Sabato task, found and fixed by Corey at 8:32 PM MT Oct 26 (02:32Z Oct 27).**
+- **The cause:** Task Scheduler fired at 5:00:01 PM MT Oct 26 and refused: `LastTaskResult` 2147946720 (`0x800710E0`, *the operator or administrator has refused the request*), `NumberOfMissedRuns` 0, the task reading `State: Running`. Saturday's 5:00 PM MT run (Oct 24) logged at 5:00:03 PM (ok 200, 447,120 bytes) and 5:00:14 PM (ingest exit 0, 89 and 14 unchanged, nothing to flush), then held the task on its verdict popup. The task's default refuses a second instance, so the Oct 25 and Oct 26 runs never started.
+- **The fix:** Corey stopped it, turned the two battery conditions off, `StartWhenAvailable` on and `ExecutionTimeLimit` to two hours, and ran it through Task Scheduler: `LastTaskResult` 0 at 8:32:14 PM MT. The log carries 8:32:15 PM (ok 200, 447,120 bytes, cf-ray `a50e4a0bcbe6b7cf-DEN`) and 8:32:24 PM (ingest exit 0, unchanged, nothing to flush).
+- **Read back at STEP 0** (11:55 AM MT Oct 27, 17:55Z): `DisallowStartIfOnBatteries` False, `StopIfGoingOnBatteries` False, `StartWhenAvailable` True, `ExecutionTimeLimit` PT2H, `MultipleInstances` IgnoreNew; `State` Ready, `LastRunTime` 8:32:14 PM MT Oct 26, `LastTaskResult` 0, `NextRunTime` 5:00 PM MT Oct 27, `NumberOfMissedRuns` 0. The log's lines since 8:32:15 PM are those two. A day nobody clicks the popup now ends at 7:00 PM with `LastTaskResult` `0x41306` (terminated), the log carrying the verdict.
+
+**STEP 0, a check: every claim held** (11:55 AM MT Oct 27, 17:55Z; `docs/handoffs/792-artifacts/step0.log`).
+- **1:** `main` `5d862e3`, pointer 791 (at `:7783`, not the handoff's `:7653`), highest HO in subjects 791, and the one numbered file above 791 is this handoff.
+- **2:** `late-index-791.ts` at every cited line: `MODES` `:39`, `ART` `:42`, `WIDE_WINDOW_MS` `:52`, `DETAIL_TIMEOUT_MS` `:53`, `WRITE_WORD` and `q()` `:103-104`, `detail()` with its own 429 retry `:117-137`, `detailInstant` `:139-142`, `classify` `:255-265` with same-day before the window, `sample()` `:269`.
+- **3:** `sync-frontier-790.ts`: `ART788` `:72`, `CensusRow` `:896`, `readCensus` `:897-907` with the four header columns and the day from `list_updateDateIncludingText` else `list_updateDate`, `enqueueBackfill` `:933-947`, `--enqueue` taking `missing` and `behind` `:1009`.
+- **4:** #27983 (6:00:11 PM MT Oct 25, 00:00:11Z Oct 26) is the one `/api/sync` row whose `sync.bootstrapped` is true; the row before it, #27922, carries no `listComplete`, old code's payload. The six rows since read `success`. `sync_queue` held 0 rows. `bills_frontier` 2026-10-27T11:45:11Z (updated 6:00:24 AM MT, 12:00:24Z); `bills_wide_at` 2026-10-27T00:00:25.698Z.
+- **5:** the population (`changed_at IS NULL OR changed_at < '2026-10-26T00:00:11Z'`) **11,768**, of them 9,063 with `changed_at` NULL; the complement 8,020; `COUNT(*)` 19,788, the two summing to it. `MAX(update_date)` over the population is 2026-10-24T13:53:37Z, the bootstrap instant itself.
+- **6:** `x-ratelimit-limit` 20,000, `x-ratelimit-remaining` 19,999.
+- **7:** the task's settings read back as Corey set them (above).
+- **8:** backlog `:15` to `:18` and `:46` as cited, reconcile 284 / 357 on 641, mis-struck 0; SKILL `:74` and `:1386` as cited.
+
+**The count, `--count --label 792a`** (`docs/handoffs/792-artifacts/count-792a-2026-10-27T1956.log`, `count-792a.csv`).
+- **The run:** one start, no restart, 11:59:09 AM to 1:56:40 PM MT (17:59Z to 19:56Z), 117.5 minutes. F was read once before the first detail read: 2026-10-27T11:45:11Z (5:45:11 AM MT). Two workers held to 2.5 reads a second; Congress.gov's latency held them under it, from 1.81 a second in the first 500 to 1.04 at the slowest stretch. `x-ratelimit-remaining` never fell under 8,000, so there were no pauses. 108 reads timed out at 15 s; each was retried once at the end and read.
+- **The control** ran on this run's own first 22 rows, before any was written or any class printed, and passed. Moved back one hour, each read *same-day miss*: `119-hconres-10`, `119-hconres-108`, `119-hconres-111`, `119-hconres-112`, `119-hconres-113`. Moved back three days, each read *wide-unreachable*: `119-hconres-114`, `119-hconres-118`, `119-hconres-12`, `119-hconres-120`, `119-hconres-121`. Every other row was unchanged.
+- **The reading:** current 11,265 · pending 23 · **same-day miss 468** · wide-reachable 12 · wide-unreachable 0 · ahead 0 · unread 0.
+- **The misses' lag:** median 5 h 15 m, p90 9 h 50 m, max 18 h 00 m 28 s (`119-hres-1530`).
+- **By U1's month, misses over the population:** none from Jan 2025 through Apr 2026 (0 of 6,894); then May 2026 4/240, Jun 1/274, Jul 24/557, Aug 56/795, Sep 193/1,483, Oct 190/1,525. The misses fall on 62 stored days, the most on Sep 24 (41), Aug 20 (39) and Oct 16 (37). Why none before May isn't read here.
+- **HO 791's 47 against the count:** 39 are among the 468. Six read pending (Congress.gov moved them again on Oct 27). `119-hr-10866` and `119-hr-10870` left the population: the frontier wrote them on Oct 27 (`changed_at` 12:00:42Z and 18:00:23Z) after Congress.gov moved them.
+- **The 12 wide-reachable** are one batch, `119-hr-10885` to `119-hr-10906`, U1 13:58:33–34Z Oct 23 and U2 05:23:33–34Z Oct 27, under F and inside the window. Tick #28313 (12:00:11 AM MT Oct 27, 06:00:11Z) listed from its frontier, 23:45:12Z Oct 26, and wrote 19, not these; #28378 listed from 05:45:11Z, above them. So Congress.gov indexed them at least 37 minutes after their instant: the first late index past the 15-minute margin that the sampler or the count has read. The wide listing of the 00:00Z Oct 28 tick should take them (a different day from U1); left out of the census as the handoff says, and the next HO reads them.
+- **The 23 pending** have U2 on Oct 27, at or after F; the frontier takes them.
+- **The census file:** `docs/handoffs/788-artifacts/census-792r.csv`, 468 rows (468 same-day misses, 0 wide-unreachable), class `behind`, both date columns U2's day.
+
+**The enqueue, the drain and the recheck.**
+- **The enqueue** (1:57:06 PM MT, 19:57:06Z): `census-792r: 468 rows (missing 0, behind 468)`, the queue before empty; newly queued 468, already queued 0; the queue after `backfill 468`, the census's ids in the queue 468 of 468.
+- **The drain** (`--drain --reset-cap 150`, 1:57:33 to 2:02:53 PM MT, 19:57Z to 20:02Z, 319.8 s; `drain-792r.log`): one round, the hole at the start 0 of 19,788. Fetched 468, written 468, **resets 20** (by action 14, by text 10, by both 4), kept 448, `crsMoved` 16 (**`crsOnly` 16**), title moved 35, failed 0, dropped 0. The checkpoint projected 20 for the run, under 2,000, so no `--go` came up. The queue ended at 0.
+- **The recheck** (`--recheck 792r`, 2:03:04 to 2:06:14 PM MT, 20:03Z to 20:06Z, 2.50 a second; `recheck-792r.csv`): F 2026-10-27T17:45:10Z; **current 468**, pending 0, every other class 0. None dropped, so no `census-792s.csv`.
+- **The consequence:** the drain stamped `changed_at` on every bill it wrote, so the committee-bills walk re-walks them at its own budget.
+
+**The ticks and the CRS meter** (`--ticks`, 2:06:22 PM MT, 20:06Z).
+- **Eight `/api/sync` ticks since HO 790's READY,** every one `success`: 448 enqueued, 448 upserted, 34 resets (by action 23, by text 15), `crsOnly` 13. **The meter reads 13 of 448, 2.90%**; the drain's is 16 of 468, 3.42%.
+- **The committee walk:** `remaining` 5,578 at 6:05 PM MT Oct 26, 5,442, 5,040, then 4,984 at 12:05 PM MT Oct 27 (18:05Z). Two ticks walked short: #28315 (12:05 AM MT Oct 27) 140 with 2 failed, and #28454 (12:05 PM MT, during the count) 78 with 20 failed. The count shared Congress.gov's slowness that hour and may have added to it; which isn't settled here.
+
+**The ledger.**
+- **Backlog:**
+  - *Bills the old sync left behind by a same-day second update…* (HO 791) is **struck**: 468 counted, 468 re-synced, the recheck 468 current.
+  - *The Sabato daily task's 5:00 PM MT runs on Oct 25 and Oct 26 logged nothing…* gains the cause and the four settings, with a dated note: one logged run so far (8:32 PM MT Oct 26). The strike is owed to the next HO, at three.
+  - *Should a new CRS summary re-summarize?* gains a dated note with the meter and the drain's `crsOnly`; still Corey's.
+- **Reconcile:** 284 / 357 on 641 at open; 283 / 358 on 641 at close, mis-struck 0.
+- **No oddities entry:** the count read 0 wide-unreachable and 0 ahead. The month pattern is recorded above, unexplained.
+
+**What was flagged.**
+- The pointer's line: `:7783` at `5d862e3`, not `:7653`.
+- The count ran at 1.04 to 1.81 reads a second, not 2.5: Congress.gov's latency, 108 timeouts at 15 s. It took 117.5 minutes, not about 80.
+- The drain's command carried a redirect of its output to `drain-792r.log`; the allow rule matched it, no prompt.
+- The 12 wide-reachable bills: a late index past the margin, read once, owed to the next HO's read.
+- The Sabato line isn't struck: two of its three runs fall after this commit.
+- **Also notes now run through HO 792.**
