@@ -7637,3 +7637,147 @@ Both are left, as the handoff kept C1b and changed neither token. They're filed 
 - the migration, refused to the session by its classifier and run by Corey before the push, with two new lines where the handoff named one and three entries on `sync_queue`, the third SQLite's index for the text key.
 - **The reconcile:** open 283 / 354 on 637, close **283 / 356 on 639**, mis-struck 0 at both, § OPEN LOOPS `:14-238` 81 / 126. `:17` and `:655` struck, two lines new, `:81` and `:105` noted. The handoff expected 282 / 357 with `:81` struck as well.
 - **Also notes now run through HO 790.**
+
+**Also (HO 791), the same-day late-index sampler, the frontier's first ticks read, and the ledger after HO 790. The sampler's first run reads 47 of 500 recently updated bills behind Congress.gov by a same-day second update the old sync left, none of them the frontier margin's. It opens with HO 790's FF go as taken.**
+- **What's here:**
+  - HO 790's FF go as taken, with its records;
+  - the first tick and the pass, as read after the FF;
+  - the corrections to HO 790's close and to two lines of its block, append-only;
+  - STEP 0, a check: every claim held;
+  - the frontier's ticks and the CRS meter;
+  - the sampler, its control and its reading;
+  - the ledger;
+  - what was flagged.
+- **Three commits, kinds unmixed:** `diag` (the sampler and `docs/probes/791-late-index.md`), `docs` (this block, the backlog, one oddities entry), then `docs(skill)`, alone and last.
+- **Prod was read by `SELECT` only,** through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name, and nothing was written. Congress.gov had 1,001 detail reads, the key in each URL and in no printed line.
+- **The pointer is 791:** pointer 790 (`docs/roadmap.md:7639`), highest HO in commit subjects 790, `main` at `a5ba9ee`.
+
+**HO 790's FF go, as taken** (`docs/handoffs/790-ff-go.md`). The paste is `docs/handoffs/790-artifacts/paste-790-ff.md`, and it agrees with every record below.
+- **`main` at `a5ba9ee`:** `b64cc81..a5ba9ee`, five commits, no force (1:13:23 PM MT Oct 25, 19:13:23Z). `790-review` was deleted on the remote at 19:13:38Z, and `ls-remote` then read `main` alone.
+- **Production built fresh, with no dedup:** `dpl_G8xgVMhiyBHe3tyckMeMFAJ5sLRM` (`bld_403jlq8rt`, iad1), its build printing *VERCEL_FORCE_NO_BUILD_CACHE is set so skipping build cache step*. READY at 1:14:03 PM MT (19:14:03.272Z). The review Preview of the same SHA (`dpl_7fcAsEY98zDZwSfHd3EtbXNSgFMT`) was a separate deployment, 19.8 hours earlier.
+- **`verify:deploy`, in the foreground:** first matched at 0 s and held five reads in a row, confirmed at 41 s.
+- **The served SHA:** `/api/version`, plain and with a fresh query string, read `a5ba9ee` twice with `Cache-Control: no-store`, `X-Vercel-Cache: MISS` and `Age: 0`. The production alias resolves to that deployment, updated 0.14 s after READY.
+- **`e2e-prod` #40225049209,** fired by the Production record: `smoke` **143 passed (5.6m)**, and its narrow pass read 82 cells against Production, every one `over=0`. GitHub labels its `head_branch` `790-review`, though the ref was deleted 27 s before the run was created; the run checked out `a5ba9ee`.
+- **The record's lag, as a bound:** 0.7 to 1.7 s after READY.
+- **The go's lag, 19.5 hours.** The go was written against the ref at 5:35 PM MT Oct 24 and reached Code at 1:10 PM MT Oct 25 (19:10Z). In between, four `/api/sync` ticks ran on `b64cc81`: #27733, #27794, #27859 and #27922, each `success` and each with `seen` 0 from the old watermark, 13:53:37Z Oct 24. **Nothing was lost because Congress.gov listed nothing past that watermark during the lag,** not because of the queue, which `b64cc81` never reads or writes. The first tick on the new code was 00:00Z Oct 26 (6:00 PM MT Oct 25).
+
+**The first tick and the pass, as read after the FF** (`paste-790-tick.md`, `paste-790-pass.md`, `paste-790-monday.md`).
+- **Tick #27983** (6:00:11 to 6:01:29 PM MT Oct 25, 00:00:11 to 00:01:29Z Oct 26): `bootstrapped` true, `frontierBefore` 13:53:37Z Oct 24 (the `MAX(update_date)` read), `listComplete` true, `frontierAfter` 23:45:43Z Oct 25 (the listing's start less 15 minutes), `wide` and `wideComplete` true, `pages` 3 (one frontier, two wide), **`enqueued` 182**, the queue 0 before and after, `resets` 5 (all by text), 78,299 ms. The frontier listing listed 0. The wide listing queued the 182.
+- **The 182's cause, proven.** Their update times fall in the Oct 23 window 08:05:17Z to 08:06:11Z. Old-code tick #27341 (6:00:31 to 6:00:40 AM MT Oct 23, 12:00:31 to 12:00:40Z) has 53 surviving writes, with `update_date`s from 08:06:11Z, the top of that window, to 10:56:21Z, none lower. Its descending walk reached the batch and stopped inside it on its budget: HO 116's drop, read directly. The first wide listing was its first live repair.
+- **Census 790a** (6:06:40 to 6:12:03 PM MT Oct 25, read-only): Congress.gov listed 19,775 and prod stored 19,775. It read 0 missing, 0 ahead, 12,068 current and **7,707 behind**. That's 195 fewer than HO 788's closing 7,902, and all 195 had been written: 116 by the first tick's 182 and 79 by old-code ticks from 12:00Z Oct 22 to 12:00Z Oct 24. None joined.
+- **The enqueue** (12.6 s): the queue empty before, 7,707 queued as `backfill`, every census id present after.
+- **The drain** (`--reset-cap 150`, 6:13:01 to 7:34:35 PM MT, 00:13:01 to 01:34:35Z), three rounds, the queue empty after, nothing dropped. The reset parts are separate (action only / text only / both), so each round's parts sum to its resets:
+
+| Round | Written | Resets | Action only / text only / both | Kept | CRS moved (no reset) | Title moved | Failed |
+|---|---|---|---|---|---|---|---|
+| 1 | 1,385 | 150 | 28 / 122 / 0 | 1,235 | 178 (174) | 102 | 0 |
+| 2 | 4,799 | 150 | 16 / 132 / 2 | 4,649 | 213 (207) | 134 | 5 |
+| 3 | 1,523 | 91 | 8 / 82 / 1 | 1,432 | 112 (108) | 72 | 0 |
+| Sum | **7,707** | **391** | **52 / 336 / 3** | **7,316** | 503 (**489**) | 308 | 5 |
+
+  With the overlap counted twice, by action is 55 and by text 339, so 55 + 339 − 3 = 391.
+  - **The checkpoint** projected 835 resets at the first round boundary at or past 300 drained, which was round 1's end (1,385 drained, 150 reset). The run made 391. The oldest-listed end reset the most: 10.8% in round 1, 3.1% in round 2, 6.0% in round 3.
+  - **The five Senate timeouts** (`119-s-698`, `119-s-707`, `119-s-762`, `119-sres-225`, `119-sres-371`) each took over 15 s in round 2. All five were written on their second try, as round 3's first rows.
+  - **Prod matched the tally.** 7,707 bills carry a `changed_at` in the drain's span. All 391 reset summaries were rewritten by the 7:40 PM MT tick (01:40Z): the 7:35:56 PM MT read found 30 still empty, and that tick landed them. 7,316 kept theirs. One stage transition was logged, and the queue was empty.
+  - **The summary hole peaked at the 6:20 PM MT tick's 107** (00:20:23Z). The summarizer selects only `summary IS NULL`, and the hole was 0 when the drain began. Each round's resets were cleared before the next began, so the hole never passed a round's 150, under the ~198 that is 1% of the corpus, and the drain never waited on it.
+- **Census 790b** (7:36:16 to 7:43:21 PM MT Oct 25, 01:36:16 to 01:43:21Z Oct 26): **0 behind, 0 missing,** at day precision. HO 791's sampler reads what that precision can't (below).
+- **Monday's ticks and the walk,** as Code read them at 3:45 PM MT Oct 26 and as `--ticks` reads them below. #28044 and #28110 listed 0, and #28183 queued and wrote 26. The committee walk's four rows from #27986 read walked 182, 500, 500 and 500, with `remaining` 0, 7,023, 6,523 and 6,042.
+- **The box's rules** (`.claude\settings.local.json`):
+  - three allow rules, narrow by design: `Bash(npm run migrate)` exact, `… sync-frontier-790.ts --enqueue:*` and `… --drain:*`;
+  - one ask rule, `… sync-frontier-790.ts --drain *--go*`;
+  - the two echo-with-grep one-offs removed.
+
+  The ask rule is structural only for commands typed mode flag first. The script reads `--drain` and `--go` anywhere in its arguments (`sync-frontier-790.ts:70`, `:1031`), so `--go --drain` or a respelled path gets past it. The script's own stop, over 2,000 projected without `--go`, holds regardless. The rule has never fired, so it is untested live.
+- **The security monitor's flag, as Code corrected it.** It flagged two of Code's docs-check agents `[Auto-Mode Bypass]`. `research:syntax` ran two open-web WebSearch queries, which returned third-party links it never opened. Every WebFetch went to code.claude.com/docs or the Claude Code changelog, and the rest were read-only Grep and Read. Nothing was edited, and no shell command ran.
+- **The Sabato daily task's 5:00 PM MT run on Oct 25 logged nothing and saved no page.** `sabato-daily.log` ends at 5:00:14 PM MT Oct 24 (23:00:14Z). Read at 6:05 PM MT Oct 26 (00:05Z Oct 27), it holds no Oct 26 line either (backlog, new).
+
+**The corrections, append-only** (`docs/handoffs/790-artifacts/paste-790-close-check.md`, Code's read-only check of `790-close.md` against the logs, the readings and `main`, 12:45 to 1:55 PM MT Oct 26). HO 790's block is settled history, so these land here and nothing above changes. The handoff calls all 17 corrections to the landed block. **Two are, in item 2; the other fifteen correct the chat's close** (`docs/handoffs/790-close.md`, untracked, its line numbers as saved at 12:39 PM MT Oct 26), whose readings the records above carry corrected.
+- **In landed text** (item 2, from `dcae4c4`):
+  - **`docs/roadmap.md:7575`'s *Backlog `:40`'s wall*** is Sabato's reader line, *Sabato's reader is refused: Cloudflare challenges the honest agent from both networks* (`:44` at `a5ba9ee`, `:42` at `b64cc81`, `:40` at `57ba88e`). The number was copied from `789-close.md`. At `a5ba9ee`, `:40` is Code's data-cache line (HO 780).
+  - **`docs/roadmap.md:7621`'s mechanism** named the next `/api/sync` tick's `expireTag("bills")`. The summarizer runs `expireTag("bills")` on every tick that lands a summary (`app/api/cron/summarize/route.ts:121`), and all nine of its ticks from 6:20 to 7:40 PM MT Oct 25 landed some. So the pages took the pass's writes during the pass, every one flushed by 7:40 PM MT (01:40Z), and the 06:00Z flush added nothing for it.
+- **In the close:**
+  1. `:36`'s *Backlog `:81`'s close is read* is `:83`, the HO 752 line. `:81` at `a5ba9ee` is the HO 754 committees-errors line.
+  2. `:67`'s *"missed nothing" narrowing* never landed (`git grep -i "missed nothing" main` finds nothing). It was said of tick #27983's frontier listing, not of #27341 (`:44`). The same correction's second half, that the tick paste's 173 passed over counts reads, about 148 distinct bills of 330 listed, is dropped at `:44`. The two lines of landed text are item 2's.
+  3. `:62`'s *Backlog `:40` stays Corey's* is `:44`, the same stale number.
+  4. `:26`'s *its queue peaked at 18 bills* understates it. 18 was one reading in round 2 at 7:04 PM MT. The 6:20 PM MT tick landed 107, so the hole held at least 107 then (the record above).
+  5. `:35`'s *835 resets after the first 300* came at round 1's end, 1,385 drained and 150 reset (`drain-2026-10-26T0013.log:19`). "After the first 300" is the handoff's spec. The gate could act only after a full round.
+  6. `:35`'s *30 still empty, 361 rewritten by 7:40 PM MT* is the 7:35:56 PM MT read. The 7:40 PM MT tick landed the last 30, so by 7:40 all 391 were rewritten.
+  7. The table at `:28-33` carries by action and by text with the overlap counted in each. As separate parts the rounds read 28 / 122 / 0, 16 / 132 / 2 and 8 / 82 / 1, summing to 52 / 336 / 3, the table above. `:59`'s *eight times the by-action resets* is 489 / 55 = 8.9.
+  8. `:67`'s *three censuses* were two, 790a and 790b.
+  9. `:8`'s *the queue is durable* has the outcome right and the mechanism wrong. `b64cc81` never touches `sync_queue`, which held 0 rows at 1:19 PM MT Oct 25. Nothing was lost because Congress.gov listed nothing past the 13:53:37Z Oct 24 watermark (the record above).
+  10. `:62`'s *`sabato-daily.log` lines for Oct 24 and 25 are unread*: the log has no Oct 25 line. Its four lines end at 5:00:14 PM MT Oct 24.
+  11. `:50`'s *official docs and the changelog* was Code's first filing, corrected before the close: two open-web WebSearch queries, nothing opened (the record above).
+  12. `:50`'s *verified by two harmless calls at 1:47 and 1:48 PM MT* ran at 1:47:59 and 1:48:28 PM MT, after the allow rules and before the ask rule existed (2:55 PM MT). They are consistent with the allow rules taking effect and don't prove it, and the ask rule has never fired.
+  13. `:49`'s *makes Corey's 2,000-reset gate structural* holds only for the form typed mode flag first (the record above). The settings diff is in the tick paste, not the pass paste.
+  14. The title's *proven on its first tick*: that tick's frontier listing listed 0, the 182 came from the wide listing, and the tick never stopped on its budget. A budget-cut tick resuming from the queue has been shown only on the stub, in legs A and C.
+  15. `:3`'s *read off the remote, not off Code's paste* is true of the refs. The `e2e-prod` and lag bullets (`:7`, `:8`) are Code's readings as pasted, like `:6`'s deploy.
+  16. `:37`'s *found 7,523 bills owed a walk and started on them at 12:05 AM MT Oct 26*: 7,523 is Code's `SELECT`, by the walk's own predicate, at 7:39 PM MT Oct 25. No walk row has reported it; the walk's rows are above.
+  17. `:41`'s *(a weekend)*: Oct 26 was a Monday. Both censuses ran Sunday evening MT, 00:06 to 01:43Z Monday, so the UTC "today or yesterday" window held only weekend hours. The newest list day was Saturday Oct 24, with 23 entries.
+- **The rule this applies is the method's existing one,** not a new entry. A ground-truth paragraph quotes what was read at its SHA, and a backlog `:N` is an as-of marker: so a `:N` rides here only as a parenthetical with its SHA, and every line is anchored by its opening words (guard 4).
+
+**STEP 0, a check: claims 1 to 10 held, and none was a HALT.**
+- **1:** `main` at `a5ba9ee`; the pointer 790 at `:7639`; the highest HO in commit subjects 790; the one numbered file above 790 is this one.
+- **2:** every `lib/sync.ts` anchor read as stated: `FRONTIER_MARGIN_MS` `:35`, `WIDE_WINDOW_MS` `:37`, `walkList` `:526`, the wide listing's day compare `:562-569` (`s.slice(0, 10) >= day` at `:566`), `runSync` `:701`, the frontier advance `:763`, the wide decision `:769`, `wideFrom` `:772`.
+- **3** (prod, 5:46 PM MT Oct 26, 23:46Z): `bills_frontier` `2026-10-26T17:45:10Z`, updated 12:00:15 PM MT (18:00:15Z); `bills_wide_at` `2026-10-26T00:00:55.127Z` (6:00:55 PM MT Oct 25), updated then; `sync_queue` 0 rows.
+- **4:** every `/api/sync` row since 00:00Z Oct 26 read `success`: #27983, #28044, #28110 and #28183, and nothing since, as Code read them at 3:45 PM MT.
+- **5:** `app/api/cron/summarize/route.ts:121` is `if (stats.ok > 0) expireTag("bills")`.
+- **6:** `bills-gap-788.ts`'s `--census` usage at `:10` (with `--vs` beside the handoff's flags), `ART` at `:72`, `MODES` at `:93`; `census-790a.csv` 7,707 behind and 0 missing, `census-790b.csv` 0 and 0.
+- **7:** the backlog lines and the two roadmap lines as stated; the reconcile at open 283 / 356 on 639, mis-struck 0.
+- **8:** SKILL `## Congress.gov API` `:44`, `### External data sources` `:59`, `## Sync logic` `:1249`, `### Backfill scripts` `:1365`, the 790 scripts line `:1385`; `docs/probes/` held five files.
+- **9:** `paste-790-close-check.md` on the box, 17 items.
+- **10:** one detail read, `x-ratelimit-remaining` 19,999.
+
+**The frontier's ticks** (`scripts/diagnostic/late-index-791.ts --ticks`, 5:46 PM MT Oct 26): every `/api/sync` row since Production READY, four ticks, about a day. The handoff's "first week" isn't there yet.
+
+| tick | started | elapsed_ms | listComplete | pages | listedCount | enqueued | upserted | resets (action / text) | crsOnly | wide | budgetStopped | failed | dropped |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| #27983 | 6:00:11 PM MT Oct 25 (00:00:11Z Oct 26) | 78,299 | true | 3 | 0 | 182 | 182 | 5 (0 / 5) | 5 | true | false | 0 | 0 |
+| #28044 | 12:00:11 AM MT Oct 26 (06:00:11Z) | 7,119 | true | 1 | 0 | 0 | 0 | 0 | 0 | false | false | 0 | 0 |
+| #28110 | 6:00:10 AM MT (12:00:10Z) | 8,536 | true | 1 | 0 | 0 | 0 | 0 | 0 | false | false | 0 | 0 |
+| #28183 | 12:00:10 PM MT (18:00:10Z) | 22,180 | true | 1 | 26 | 26 | 26 | 0 | 3 | false | false | 0 | 0 |
+| **Sum** | 4 ticks, all `success` | | | 6 | | 208 | 208 | 5 (0 / 5) | **8** | | | 0 | 0 |
+
+Every tick read `queueBefore` and `queueAfter` 0, and `wideComplete` matched `wide`. The full table, with every key the handoff named, is in the probe.
+- **The CRS meter: `crsOnly` 8 over `upserted` 208, 3.85%.** Five are the first tick's repair, and three are among #28183's 26 writes. One day of ticks isn't the ongoing rate, so Corey's ruling waits as planned.
+- **The committee walk:** #27986, #28046, #28113 and #28186 walked 182, 500, 500 and 500, with `remaining` 0, 7,023, 6,523 and 6,042, `failed` 0 throughout, and `capHit` from #28046 on. At 500 a tick, 6,042 is 13 more ticks, the last near 6:05 PM MT Oct 29 (00:05Z Oct 30). That's a projection. `remaining` fell 481, not 500, between the last two, so newly owed bills join as it goes.
+
+**The sampler** (`scripts/diagnostic/late-index-791.ts --sample`, `docs/probes/791-late-index.md`).
+- **The method.** The population is every `bills` row with `update_date` in the last `--days` (7). A seeded shuffle (mulberry32) draws `--n` (500), the seed defaulting to the run's start second. `bills_frontier` (F) is read once before the first detail read. Each bill gets one detail read (the 15 s cap, `fetchJson`'s 429 retry). The detail's `updateDateIncludingText` (U2) is set against the stored `update_date` (U1), both to the second.
+- **The classes:**
+  - *current* (U2 = U1);
+  - *pending* (U2 > U1, U2 ≥ F);
+  - *same-day miss* (U2 > U1, U2 < F, the same UTC day);
+  - *wide-reachable* (a later day, U2 ≥ F − 48 h);
+  - *wide-unreachable* (a later day, U2 < F − 48 h);
+  - *ahead* (U2 < U1);
+  - *unread*.
+- **The control** runs on the same reads before any class prints. Five current bills have U1 moved back an hour in memory (U1 at or past 01:00Z, U2 < F) and must read *same-day miss*. Five others moved back three days (U2 < F − 48 h) must read *wide-unreachable*. Every other bill must read as it does unmodified.
+- **Run 1, seed 1793058413** (5:49:52 to 5:52 PM MT Oct 26, 23:49:52 to 23:52Z). The population was 670 bills with `update_date` at or after 2026-10-19T23:49:52Z, and 500 were drawn. F was 2026-10-26T17:45:10Z. 500 details read, all 200, in 105 s.
+  - **The control passed:** `119-s-2702`, `119-hr-6025`, `119-hr-7177`, `119-s-3082` and `119-hr-7815` at −1 h read *same-day miss*; `119-hr-2940`, `119-s-1158`, `119-hr-10083`, `119-hr-7247` and `119-hr-5769` at −3 d read *wide-unreachable*; nothing else moved.
+  - **The reading:** 436 current, 17 pending, **47 same-day misses**, 0 wide-reachable, 0 wide-unreachable, 0 ahead, 0 unread.
+  - **The 47,** each named with its lags in the probe, run from 7 minutes (`119-s-2787`) to 16 hours 59 minutes (`119-s-2316`). Every U2 falls on Oct 20 to Oct 24, before 13:53:37Z Oct 24, the frontier's bootstrap instant, so no frontier listing ever covered one. Every U2 is also below F − 48 h. 24 were inside the first tick's wide window, from 13:53:37Z Oct 22, and its day compare passed them over. 17 share one Congress.gov batch, 13:58:33Z to 13:58:34Z Oct 23. Five read by `SELECT` were written by old-code ticks from details that read U1 at the time: their `raw_json` dates equal their `update_date`.
+  - **The 17 pending** have U2 from 19:25:19Z to 21:39:35Z Oct 26, above F, which leaves them to the 00:00Z Oct 27 tick's frontier listing. **Read after that tick** (#28252, `success`, 40 written, its wide listing from 17:45:10Z Oct 24; `SELECT` at 6:04:20 PM MT): all 17 at their U2, and all 47 misses still at their U1.
+- **The first run's control failed, and that was a defect in the handoff's classes.** As written, *same-day miss* (U2 < F, same day) and *wide-unreachable* (U2 < F − 48 h, any day) overlap. The first build checked the window first, so all five −1 h bills, each older than the window, read *wide-unreachable*. The control voided the run before a class printed (`docs/handoffs/791-artifacts/sample-1793058413-control-failed.log`). The second build puts same-day first, because below the frontier a same-day late index is missed wherever U2 falls. *Wide-unreachable* is now a later day only. The same seed redrew the same 500 from the same 670.
+- **What it reads, for the margin:** nothing yet. 16 sampled bills were stored since the frontier began, and all 16 read current. **For the pass:** census 790b's zero is at day precision. At second precision a residual exists, about 63 in the 670 by the sample's rate, an estimate. The corpus before Oct 20 is unsampled. No listing will reach these bills again. That residual is the old compare's other loss, not the older-tail drop the pass repaired. It is filed as its own line, and its repair is the next HO's (guard 5).
+
+**The ledger.**
+- **Backlog:**
+  - *`/api/sync` leaves a bill's stored `update_date` behind Congress.gov…* (HO 752) **struck** on census 790b, with the residual filed, as the line's own rule asks: leg A red at `b64cc81` and green at `474bbb1`; the first tick's 182; 790a 7,707 behind, the pass's 7,707 written; 790b 0 behind and 0 missing. The handoff's close note said *no residual*, and this one names the residual instead.
+  - *Should a new CRS summary re-summarize?* gains 489 and the meter's 8 of 208. Still Corey's.
+  - The struck HO 788 line gains the pass's tally.
+  - *A same-day second update that Congress.gov indexes late…* gains the instrument and run 1. Its sampler reads the rows stored since the frontier until the residual line closes, and its close is unchanged.
+  - Two lines new: *Bills the old sync left behind by a same-day second update sit below every listing* (Code, medium), and *The Sabato daily task's 5:00 PM MT runs on Oct 25 and Oct 26 logged nothing* (Corey, low).
+  - **The reconcile:** open 283 / 356 on 639, close **284 / 357 on 641**, mis-struck 0 at both. The numstat reads 6 / 4: the 4 deletions are the four lines rewritten in place (three appended, one struck), and the 2 net additions are the new lines.
+- **Oddities:** one entry, *The zero that closed a pass was read at day precision*, with the class overlap the control caught.
+
+**What was flagged** (the paste carries each):
+- the reading itself: 47 same-day misses, none the margin's, all from before the frontier;
+- the handoff's overlapping classes, caught by the first run's control, and the order the second build gives them;
+- the HO 752 line struck with its residual filed as a new line, where the handoff wrote *no residual* and filed a second line only on a wide-unreachable or ahead bill;
+- the oddities entry's subject, the day-precision zero, where the handoff's wording, *the 15-minute margin met a real indexing lag*, would be false of this reading;
+- the same-day line's sampler scoped to the rows stored since the frontier, a forced consequence of the residual and not a widening;
+- the 17 corrections, two to landed text and fifteen to the chat's close, where the handoff counts all 17 against the landed block;
+- "the first week of ticks" reading one day, four ticks;
+- the Sabato line covering Oct 26's run as well, read today;
+- 1,001 detail reads where the handoff costed about 500: the first run's 500, the second's 500, and STEP 0's one.
+- **Also notes now run through HO 791.**
