@@ -4,6 +4,8 @@
 //   npx tsx scripts/diagnostic/late-index-791.ts --step0
 //   npx tsx scripts/diagnostic/late-index-791.ts --ticks
 //   npx tsx scripts/diagnostic/late-index-791.ts --sample [--n 500] [--days 7] [--seed <int>]
+//   npx tsx scripts/diagnostic/late-index-791.ts --count [--label 792a] [--rate 2.5]      (HO 792)
+//   npx tsx scripts/diagnostic/late-index-791.ts --recheck 792r                           (HO 792)
 //
 // --step0    claims 3, 4, 6 and 10: sync_state's bills_frontier and bills_wide_at and sync_queue's rows (3); every
 //            /api/sync row since 00:00Z Oct 26 (4); census-790a.csv's and census-790b.csv's behind and missing counts
@@ -23,23 +25,38 @@
 //            eligible: U2 < F - 48 h) must read wide-unreachable; every other sampled bill must read as it does
 //            unmodified. Then the real classification on the stored values. A sampler that compared days would read
 //            all ten as current, and so would one never built: the control is the difference.
+// --count    HO 792: the old compare's residual at second precision. The population is every bill whose stored
+//            update_date came from a detail old code fetched: changed_at IS NULL or before 00:00:11Z Oct 26, tick
+//            #27983's start, the first tick on the new code (changed_at is stamped on insert and whenever update_date
+//            moves, so every move new code wrote is at or after it). F is read once before the first detail read. Two
+//            workers read one detail each under a shared --rate a second (default 2.5); a read whose
+//            x-ratelimit-remaining is under 8,000 pauses both for five minutes. Rows append to count-<label>.csv as
+//            they're read, and a restart with the same label skips every id already in it. THE CONTROL runs on this
+//            run's own first rows before any is written or any class prints, as --sample's does; a failure voids the
+//            run and writes nothing. An unread row is retried once at the end. Then the classes, the misses' lag and
+//            U1's months, and docs/handoffs/788-artifacts/census-792r.csv: every same-day miss and wide-unreachable
+//            bill as `behind`, both date columns U2's day, the shape sync-frontier-790.ts --enqueue --census reads.
+// --recheck  HO 792: census-<label>.csv's ids read again at the same pace and classified against the stored
+//            update_date as it now stands, into recheck-<label>.csv. After the drain each reads current, or pending
+//            where Congress.gov has moved it since.
 //
 // SAFETY. Prod is read through q(), which refuses anything but SELECT or WITH … SELECT and any statement naming a write
 // keyword; this script writes nothing to prod. TURSO_DATABASE_URL, TURSO_AUTH_TOKEN and CONGRESS_API_KEY are read
 // from .env by name. Congress.gov requests carry the key in the query, as production does; every printed or saved line
 // passes redactSecrets, and the request lines print the path alone. Times print in Mountain Time on a 12-hour clock
-// with UTC beside. Artifacts go to docs/handoffs/791-artifacts/ (repo-ignored).
+// with UTC beside. Artifacts go to docs/handoffs/791-artifacts/ (repo-ignored), HO 792's to docs/handoffs/792-artifacts/.
 import { config } from "dotenv";
 import { createClient, type Client, type InArgs, type ResultSet, type Row } from "@libsql/client";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { redactSecrets } from "../../lib/redact";
 
 const argAt = (flag: string) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
-const MODES = ["--step0", "--ticks", "--sample"] as const;
+const MODES = ["--step0", "--ticks", "--sample", "--count", "--recheck"] as const;
 type Mode = (typeof MODES)[number];
 const MODE: Mode | undefined = MODES.find((m) => process.argv.includes(m));
 const ART = path.resolve("docs/handoffs/791-artifacts"); // repo-ignored
+const ART792 = path.resolve("docs/handoffs/792-artifacts"); // repo-ignored
 const ART788 = path.resolve("docs/handoffs/788-artifacts"); // repo-ignored
 const MT = "America/Denver";
 const ROUTE = "/api/sync";
@@ -352,12 +369,239 @@ async function sample() {
   say(`  wrote docs/handoffs/791-artifacts/sample-${seed}.csv and .log`);
 }
 
+// ── --count and --recheck (HO 792) ──────────────────────────────────────────
+const POP_CUT = "2026-10-26T00:00:11Z"; // tick #27983's start, the first on the new code
+const BOOTSTRAP = "2026-10-24T13:53:37Z"; // the frontier's bootstrap; old code wrote nothing after it
+const RATE_FLOOR = 8_000;
+const PAUSE_MS = 5 * 60_000;
+const save792 = (name: string, body: string) => { mkdirSync(ART792, { recursive: true }); writeFileSync(path.join(ART792, name), redactSecrets(body)); };
+type R = { id: string; u1s: string; u2s: string; cls: Cls; err: string };
+const CSV_HEAD = "id,u1,u2,class,err";
+const csvRow = (r: R) => `${r.id},${r.u1s},${r.u2s},${r.cls},${r.err.replace(/[,\r\n]/g, " ")}`;
+function readRows(file: string): R[] {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8").split(/\r?\n/).slice(1).filter(Boolean).map((l) => {
+    const [id = "", u1s = "", u2s = "", cls = "unread", ...e] = l.split(",");
+    return { id, u1s, u2s, cls: cls as Cls, err: e.join(",") };
+  });
+}
+// An id's last row is its reading: an unread row retried at the end is followed by its retry.
+const lastById = (rows: R[]) => new Map(rows.map((r) => [r.id, r] as const));
+const mtNow = () => when(new Date());
+
+// One shared pace for both workers: a slot every 1000 / rate ms, and every slot held while a pause is on.
+function pacer(rate: number) {
+  const gap = 1000 / rate;
+  let next = Date.now();
+  let pausedUntil = 0;
+  let pauses = 0;
+  return {
+    get pauses() { return pauses; },
+    async slot() {
+      for (;;) {
+        const now = Date.now();
+        if (now < pausedUntil) { await sleep(pausedUntil - now); continue; }
+        const at = Math.max(now, next);
+        next = at + gap;
+        if (at > now) await sleep(at - now);
+        if (Date.now() >= pausedUntil) return;
+      }
+    },
+    seen(remaining: string | null) {
+      const n = Number(remaining);
+      if (remaining === null || !Number.isFinite(n) || n >= RATE_FLOOR || Date.now() < pausedUntil) return;
+      pausedUntil = Date.now() + PAUSE_MS;
+      pauses++;
+      say(`  PAUSE ${pauses} at ${mtNow()}: x-ratelimit-remaining ${fmtN(n)}, under ${fmtN(RATE_FLOOR)}; both workers wait five minutes, to ${when(pausedUntil)}`);
+    },
+  };
+}
+
+// Two workers over `todo`, one detail read each, through the pacer. onRow sees each row as it's read; stop() ends
+// both workers after their read in flight.
+async function readPaced(todo: { id: string; u1s: string }[], F: number, pace: ReturnType<typeof pacer>, onRow: (r: R) => void, stop: () => boolean) {
+  let i = 0;
+  let readCount = 0;
+  let lastRemaining: string | null = null;
+  const t0 = Date.now();
+  const worker = async () => {
+    while (!stop()) {
+      const k = i++;
+      if (k >= todo.length) return;
+      const { id, u1s } = todo[k]!;
+      await pace.slot();
+      if (stop()) return;
+      const d = await detail(id);
+      if (d.remaining) lastRemaining = d.remaining;
+      pace.seen(d.remaining);
+      const u2s = d.err ? "" : detailInstant(d.json) ?? "";
+      const err = d.err || (u2s ? "" : "no update date in the detail");
+      onRow({ id, u1s, u2s, cls: err ? "unread" : classify(toMs(u1s), toMs(u2s), F), err });
+      readCount++;
+      if (readCount % 500 === 0 || readCount === todo.length) {
+        const s = (Date.now() - t0) / 1000;
+        say(`    ${fmtN(readCount)}/${fmtN(todo.length)} · ${(s / 60).toFixed(1)} min · ${(readCount / s).toFixed(2)} a second · x-ratelimit-remaining ${lastRemaining ?? "?"} · ${mtNow()}`);
+      }
+    }
+  };
+  await Promise.all([worker(), worker()]);
+  return { readCount, ms: Date.now() - t0 };
+}
+
+async function readF() {
+  const fr = objs(await q("bills_frontier, once, before the first detail read", `SELECT key, value, updated_at FROM sync_state WHERE key = 'bills_frontier'`));
+  const F = toMs(fr[0]?.value);
+  if (F === null) throw new Error("HALT: bills_frontier is absent or unparsed");
+  say(`  F = ${fr[0]!.value} (${when(F)}) · updated_at ${when(fr[0]!.updated_at)} · F - 48 h = ${isoS(F - WIDE_WINDOW_MS)}`);
+  return F;
+}
+
+// The unread rows read once more, at the end, appended after their first row.
+async function retryUnread(file: string, F: number, pace: ReturnType<typeof pacer>) {
+  const all = readRows(file);
+  const n = new Map<string, number>();
+  for (const r of all) n.set(r.id, (n.get(r.id) ?? 0) + 1);
+  const todo = [...lastById(all).values()].filter((r) => r.cls === "unread" && n.get(r.id) === 1).map((r) => ({ id: r.id, u1s: r.u1s }));
+  say(`\n  unread, retried once: ${todo.length}${todo.length ? ` (${todo.map((r) => r.id).join(", ")})` : ""}`);
+  if (todo.length) await readPaced(todo, F, pace, (r) => appendFileSync(file, `${csvRow(r)}\n`), () => false);
+}
+
+function quantile(sorted: number[], p: number) { return sorted.length ? sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)]! : NaN; }
+
+async function count() {
+  const label = argAt("--label") ?? "792a";
+  const rate = Number(argAt("--rate") ?? 2.5);
+  if (!/^[\w-]+$/.test(label) || !Number.isFinite(rate) || rate <= 0 || rate > 5) throw new Error("--label takes a word and --rate a number over 0, at most 5");
+  mkdirSync(ART792, { recursive: true });
+  const file = path.join(ART792, `count-${label}.csv`);
+  const runsFile = path.join(ART792, `count-${label}.runs`);
+  const runs = existsSync(runsFile) ? readFileSync(runsFile, "utf8").split(/\r?\n/).filter(Boolean) : [];
+  const starts = runs.filter((l) => l.startsWith("start ")).length;
+  appendFileSync(runsFile, `start ${isoS(Date.now())}\n`);
+  const prior = readRows(file);
+  const done = new Set(prior.map((r) => r.id));
+  say(`\n── the count: label ${label} · rate ${rate} a second, two workers · floor ${fmtN(RATE_FLOOR)} remaining · ${starts ? `RESTART ${starts} (${fmtN(done.size)} ids already in count-${label}.csv)` : "first start"}`);
+
+  const pop = objs(await q("count · the population: stored by old code", `SELECT id, update_date FROM bills WHERE changed_at IS NULL OR changed_at < ? ORDER BY id`, [POP_CUT]));
+  const maxU1 = pop.reduce((m, p) => (String(p.update_date) > m ? String(p.update_date) : m), "");
+  say(`  population ${fmtN(pop.length)} (changed_at IS NULL or before ${POP_CUT}, ${when(POP_CUT)}) · MAX(update_date) ${maxU1} (${when(maxU1)}) · at or before the bootstrap ${BOOTSTRAP}: ${toMs(maxU1)! <= toMs(BOOTSTRAP)! ? "yes" : "NO"}`);
+  const F = await readF();
+  const todo = pop.filter((p) => !done.has(String(p.id))).map((p) => ({ id: String(p.id), u1s: String(p.update_date) }));
+  say(`  to read this run: ${fmtN(todo.length)} · about ${(todo.length / rate / 60).toFixed(0)} minutes at ${rate} a second · ${mtNow()}`);
+  if (!existsSync(file)) writeFileSync(file, `${CSV_HEAD}\n`);
+
+  const pace = pacer(rate);
+  // THE CONTROL: this run's first rows are held in memory, unwritten and unprinted, until it has run on them.
+  const st: { control: "pending" | "pass" | "fail" | "none" } = { control: todo.length ? "pending" : "none" };
+  const buf: R[] = [];
+  const runControl = () => {
+    say(`\n── the control, on this run's first ${buf.length} rows, U1 moved in memory only`);
+    const cur = buf.filter((r) => r.cls === "current");
+    const hourOk = cur.filter((r) => { const u1 = toMs(r.u1s)!; return u1 - HOUR >= Date.parse(`${dayOf(u1)}T00:00:00Z`) && toMs(r.u2s)! < F; }).slice(0, 5);
+    const used = new Set(hourOk.map((r) => r.id));
+    const dayOk = cur.filter((r) => !used.has(r.id) && toMs(r.u2s)! < F - WIDE_WINDOW_MS).slice(0, 5);
+    const shift = new Map<string, number>([...hourOk.map((r) => [r.id, HOUR] as const), ...dayOk.map((r) => [r.id, 3 * DAY_MS] as const)]);
+    let ok = hourOk.length === 5 && dayOk.length === 5;
+    let othersMoved = 0;
+    for (const r of buf) {
+      const s = shift.get(r.id);
+      const u1 = toMs(r.u1s);
+      const c = r.cls === "unread" ? "unread" : classify(u1 === null ? null : u1 - (s ?? 0), toMs(r.u2s), F);
+      if (s === HOUR) { say(`  -1 h  ${r.id} · U1 ${r.u1s} → ${isoS(u1! - HOUR)} · U2 ${r.u2s} · reads ${c}`); if (c !== "same-day miss") ok = false; }
+      else if (s === 3 * DAY_MS) { say(`  -3 d  ${r.id} · U1 ${r.u1s} → ${isoS(u1! - 3 * DAY_MS)} · U2 ${r.u2s} · reads ${c}`); if (c !== "wide-unreachable") ok = false; }
+      else if (c !== r.cls) othersMoved++;
+    }
+    if (othersMoved) ok = false;
+    say(`  ${hourOk.length} of 5 for -1 h, ${dayOk.length} of 5 for -3 d · every other row unchanged: ${othersMoved === 0 ? "yes" : `NO, ${othersMoved} moved`}`);
+    say(`  the control ${ok ? "PASSES: five same-day miss, five wide-unreachable, nothing else moved" : "FAILS: the run is void, nothing written"}`);
+    appendFileSync(runsFile, `control ${ok ? "pass" : "fail"} ${isoS(Date.now())} ${[...shift.keys()].join(" ")}\n`);
+    st.control = ok ? "pass" : "fail";
+    if (ok) appendFileSync(file, buf.map((r) => `${csvRow(r)}\n`).join(""));
+  };
+  const eligible = () => {
+    const cur = buf.filter((r) => r.cls === "current");
+    const h = cur.filter((r) => { const u1 = toMs(r.u1s)!; return u1 - HOUR >= Date.parse(`${dayOf(u1)}T00:00:00Z`) && toMs(r.u2s)! < F; }).slice(0, 5);
+    const used = new Set(h.map((r) => r.id));
+    return h.length === 5 && cur.filter((r) => !used.has(r.id) && toMs(r.u2s)! < F - WIDE_WINDOW_MS).length >= 5;
+  };
+  say(`\n  detail reads, ${mtNow()}:`);
+  const t0 = Date.now();
+  const res = await readPaced(todo, F, pace, (r) => {
+    if (st.control === "pass") appendFileSync(file, `${csvRow(r)}\n`);
+    else if (st.control === "pending") { buf.push(r); if (eligible()) runControl(); }
+  }, () => st.control === "fail");
+  if (st.control === "pending") { say(`  the population ran out before the control had five and five eligible rows`); runControl(); }
+  if (st.control === "fail") { save792(`count-${label}-control-failed-${isoS(Date.now()).slice(0, 16).replace(":", "")}.log`, `${out.join("\n")}\n`); process.exitCode = 1; return; }
+  if (!runs.concat(readFileSync(runsFile, "utf8").split(/\r?\n/)).some((l) => l.startsWith("control pass"))) throw new Error("no run of this label has passed its control; the reading is void");
+  await retryUnread(file, F, pace);
+  say(`  this run: ${fmtN(res.readCount)} read in ${(((Date.now() - t0) / 60_000)).toFixed(1)} minutes · pauses ${pace.pauses} · ${mtNow()}`);
+
+  // The reading, over every row the label holds.
+  const byId = lastById(readRows(file));
+  const missingIds = pop.map((p) => String(p.id)).filter((id) => !byId.has(id));
+  const rows = pop.map((p) => byId.get(String(p.id))).filter((r): r is R => !!r);
+  say(`\n── the reading: ${fmtN(rows.length)} of ${fmtN(pop.length)} population ids read${missingIds.length ? ` · ${fmtN(missingIds.length)} NOT YET READ: restart with --label ${label}` : ""}`);
+  const counts = new Map<Cls, number>(CLASSES.map((c) => [c, 0]));
+  for (const r of rows) counts.set(r.cls, counts.get(r.cls)! + 1);
+  say(`  ${CLASSES.map((c) => `${c} ${fmtN(counts.get(c)!)}`).join(" · ")}`);
+  const misses = rows.filter((r) => r.cls === "same-day miss");
+  const lags = misses.map((r) => toMs(r.u2s)! - toMs(r.u1s)!).sort((a, b) => a - b);
+  if (lags.length) say(`  same-day misses' lag: median ${lag(quantile(lags, 0.5))} · p90 ${lag(quantile(lags, 0.9))} · max ${lag(lags[lags.length - 1]!)} (${misses.find((r) => toMs(r.u2s)! - toMs(r.u1s)! === lags[lags.length - 1])!.id})`);
+  const months = new Map<string, [number, number]>();
+  for (const r of rows) { const m = r.u1s.slice(0, 7); const v = months.get(m) ?? [0, 0]; v[1]++; if (r.cls === "same-day miss") v[0]++; months.set(m, v); }
+  say(`  by U1's month (misses / population): ${[...months.entries()].sort().map(([m, [a, b]]) => `${m} ${a}/${b}`).join(" · ")}`);
+  for (const c of ["wide-unreachable", "ahead", "unread", "wide-reachable", "pending"] as Cls[]) {
+    const ids = rows.filter((r) => r.cls === c);
+    if (ids.length) say(`  ${c}: ${ids.map((r) => `${r.id} (U1 ${r.u1s} · U2 ${r.u2s || "—"}${r.err ? ` · ${r.err}` : ""})`).join(", ")}`);
+  }
+  if (missingIds.length) { save792(`count-${label}-${isoS(Date.now()).slice(0, 16).replace(":", "")}.log`, `${out.join("\n")}\n`); return; }
+
+  const behind = rows.filter((r) => r.cls === "same-day miss" || r.cls === "wide-unreachable");
+  const census = `id,class,list_updateDate,list_updateDateIncludingText\n${behind.map((r) => `${r.id},behind,${r.u2s.slice(0, 10)},${r.u2s.slice(0, 10)}`).join("\n")}\n`;
+  const cf = path.join(ART788, "census-792r.csv");
+  if (existsSync(cf) && readFileSync(cf, "utf8") !== census) say(`  census-792r.csv exists and differs: NOT overwritten (it may already be enqueued)`);
+  else { mkdirSync(ART788, { recursive: true }); writeFileSync(cf, census); say(`\n  wrote docs/handoffs/788-artifacts/census-792r.csv: ${fmtN(behind.length)} rows (same-day miss ${misses.length} + wide-unreachable ${counts.get("wide-unreachable")}), class behind, both date columns U2's day; pending, wide-reachable and ahead left out`); }
+  save792(`count-${label}-${isoS(Date.now()).slice(0, 16).replace(":", "")}.log`, `${out.join("\n")}\n`);
+}
+
+async function recheck() {
+  const label = argAt("--recheck");
+  if (!label || !/^[\w-]+$/.test(label)) throw new Error("--recheck takes a census label, e.g. 792r");
+  const cf = path.join(ART788, `census-${label}.csv`);
+  const lines = readFileSync(cf, "utf8").split(/\r?\n/).filter(Boolean);
+  const ids = lines.slice(1).map((l) => l.split(",")[lines[0]!.split(",").indexOf("id")]!).filter(Boolean);
+  say(`\n── the recheck of census-${label}.csv: ${fmtN(ids.length)} ids`);
+  const F = await readF();
+  const stored = objs(await q("recheck · the stored update_date as it now stands", `SELECT id, update_date FROM bills WHERE id IN (SELECT value FROM json_each(?)) ORDER BY id`, [JSON.stringify(ids)]));
+  const u1 = new Map(stored.map((r) => [String(r.id), String(r.update_date)] as const));
+  const absent = ids.filter((id) => !u1.has(id));
+  if (absent.length) say(`  absent from bills: ${absent.join(", ")}`);
+  mkdirSync(ART792, { recursive: true });
+  const file = path.join(ART792, `recheck-${label}.csv`);
+  const done = new Set(readRows(file).map((r) => r.id));
+  if (!existsSync(file)) writeFileSync(file, `${CSV_HEAD}\n`);
+  const todo = ids.filter((id) => u1.has(id) && !done.has(id)).map((id) => ({ id, u1s: u1.get(id)! }));
+  say(`  to read: ${fmtN(todo.length)}${done.size ? ` (${fmtN(done.size)} already in recheck-${label}.csv)` : ""} · ${mtNow()}`);
+  const pace = pacer(Number(argAt("--rate") ?? 2.5));
+  await readPaced(todo, F, pace, (r) => appendFileSync(file, `${csvRow(r)}\n`), () => false);
+  await retryUnread(file, F, pace);
+  const rows = [...lastById(readRows(file)).values()];
+  const counts = new Map<Cls, number>(CLASSES.map((c) => [c, 0]));
+  for (const r of rows) counts.set(r.cls, counts.get(r.cls)! + 1);
+  say(`\n── the recheck: ${CLASSES.map((c) => `${c} ${fmtN(counts.get(c)!)}`).join(" · ")} · total ${fmtN(rows.length)} · pauses ${pace.pauses}`);
+  const off = rows.filter((r) => r.cls !== "current" && r.cls !== "pending");
+  say(`  not current or pending: ${off.length}${off.length ? `: ${off.map((r) => `${r.id} ${r.cls} (U1 ${r.u1s} · U2 ${r.u2s || "—"}${r.err ? ` · ${r.err}` : ""})`).join(", ")}` : ""}`);
+  save792(`recheck-${label}-${isoS(Date.now()).slice(0, 16).replace(":", "")}.log`, `${out.join("\n")}\n`);
+}
+
 async function main() {
   config({ path: ".env", quiet: true });
   if (!MODE) throw new Error(`one of ${MODES.join(", ")}`);
   say(`late-index-791 ${MODE} · ${when(new Date())}`);
   if (MODE === "--step0") { await step0(); save(`step0-${isoS(Date.now()).slice(0, 16).replace(":", "")}.log`, `${out.join("\n")}\n`); }
   else if (MODE === "--ticks") await ticks();
-  else await sample();
+  else if (MODE === "--sample") await sample();
+  else if (MODE === "--count") await count();
+  else await recheck();
 }
 main().catch((e) => { say(`FAILED: ${(e as Error).message}`); process.exitCode = 1; });
