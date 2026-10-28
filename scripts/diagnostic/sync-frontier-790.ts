@@ -27,7 +27,12 @@
 //            b64cc81 with this file copied in, lib/sync.ts there has no CONGRESS_API_BASE seam, so the tripwire rewrites
 //            https://api.congress.gov/v3 to the stub and counts each rewrite; only A, E and F run there (the reds).
 //            Leg P is added to the handoff's A to H: --enqueue's and --drain's own code (enqueueBackfill, drainRounds)
-//            on the copy, the summarizer stood in for by the sleep between rounds.
+//            on the copy, the summarizer stood in for by the sleep between rounds. HO 793 changes H (the wide listing
+//            queues an entry stored on its own list day) and adds L, the late index (a bill the stub lists only from
+//            tick 2, its same-day update past tick 1's frontier: the wide listing takes it, and tick 2 run without the
+//            wide listing is the control) and O, the drain's order (a wide tick with 300 current re-reads and 10 fresh
+//            entries under a deadline: first in, first out writes the 10, and drainOrder "listDay", the order before
+//            HO 793, is the control). Run at 67e9575 with this file copied in, --only H,L,O reads the reds.
 // --census   the census through the HO 788 instrument: runs `bills-gap-788.ts --census --no-details --label <L>` unless
 //            docs/handoffs/788-artifacts/census-<L>.csv already exists, then reads that file: missing and behind, and
 //            the behind by list day (today, yesterday, older: the residual a finished pass names).
@@ -316,6 +321,9 @@ type StubBill = {
   id: string; congress: number; type: string; number: string; title: string; instant: number;
   actionDate: string | null; actionText: string | null; textVersions: number | null; summaries: number | null;
   raw: Record<string, unknown>;
+  // HO 793: the list names this bill only from this tick on (tick() counts from 1), Congress.gov indexing it late;
+  // its detail answers at once.
+  listableFromTick?: number;
 };
 type ListLog = { at: number; from: string | null; sort: string; offset: number; n: number; status: number };
 const stub = {
@@ -329,6 +337,7 @@ const stub = {
   detailRequests: 0,
   detailById: new Map<string, number>(),
   listLog: [] as ListLog[],
+  tickNo: 0,
   port: 0,
   update(id: string, patch: Partial<Omit<StubBill, "id">>) {
     const b = this.bills.get(id);
@@ -375,7 +384,7 @@ async function handleStub(req: IncomingMessage, res: ServerResponse) {
     const fromMs = from ? Date.parse(from) : Number.NEGATIVE_INFINITY;
     const asc = /\basc$/i.test(sort.trim());
     const all = [...stub.bills.values()]
-      .filter((b) => b.instant >= fromMs)
+      .filter((b) => b.instant >= fromMs && (b.listableFromTick ?? 0) <= stub.tickNo)
       .sort((a, b) => (asc ? a.instant - b.instant || a.id.localeCompare(b.id) : b.instant - a.instant || b.id.localeCompare(a.id)));
     const page = all.slice(offset, offset + limit);
     const body = {
@@ -437,6 +446,7 @@ async function tick(label: string, opts: Record<string, unknown>) {
   const logs: string[] = [];
   const orig = { log: console.log, warn: console.warn, error: console.error };
   const cap = (...a: unknown[]) => { logs.push(a.map(String).join(" ")); };
+  stub.tickNo++;
   const listFrom = stub.listLog.length;
   const detailBefore = stub.detailRequests;
   const t0 = Date.now();
@@ -496,7 +506,7 @@ async function setup(o: { frontier?: string; wideAt?: boolean } = {}) {
       textVersions: asNum(at(raw, "textVersions", "count")), summaries: asNum(at(raw, "summaries", "count")), raw,
     });
   }
-  Object.assign(stub, { listLatencyMs: 0, detailLatencyMs: 0, failNextList: 0, afterListPage: null, listRequests: 0, detailRequests: 0, listLog: [] });
+  Object.assign(stub, { listLatencyMs: 0, detailLatencyMs: 0, failNextList: 0, afterListPage: null, listRequests: 0, detailRequests: 0, listLog: [], tickNo: 0 });
   stub.failDetail.clear();
   stub.detailById.clear();
   const batch: Array<string | { sql: string; args: InArgs }> = [];
@@ -732,8 +742,8 @@ async function legG() {
 
 // ── H ──
 async function legH() {
-  say(`\n── H, the wide listing`);
-  say(`  never done: an entry Congress.gov indexed after the frontier passed it is never listed again`);
+  say(`\n── H, the wide listing (HO 793: it queues every entry it lists)`);
+  say(`  never done: an entry Congress.gov indexed after the frontier passed it is never listed again; and before HO 793, one stored on its own list day is passed over`);
   let F = floorS(Date.now() - 30 * MIN);
   while (dayOf(F - MIN) !== dayOf(F + MIN)) { say("  (the frontier is within a minute of midnight UTC; waiting 2 minutes)"); await sleep(2 * MIN); F = floorS(Date.now() - 30 * MIN); }
   await setup({ frontier: isoS(F) });
@@ -756,11 +766,75 @@ async function legH() {
   const fromList = [...new Set(stub.listLog.map((l) => l.from))];
   say(`  list requests' fromDateTime: ${fromList.join(", ")} · queued after tick 1: ${[h1, h2, h3].map((id) => `${id} ${queued.has(id) ? "queued" : "not queued"}`).join(" · ")} · skipped ${String(S(t1.stats, "skipped"))}`);
   check("the wide listing ran from the frontier less 48 hours and wrote bills_wide_at", S(t1.stats, "wide") === true && S(t1.stats, "wideComplete") === true && fromList.includes(wideFrom) && (st.get("bills_wide_at") ?? "").slice(0, 10) === dayOf(Date.now()), `wide ${String(S(t1.stats, "wide"))} · wideComplete ${String(S(t1.stats, "wideComplete"))} · from ${wideFrom} requested ${fromList.includes(wideFrom)} · bills_wide_at ${String(st.get("bills_wide_at"))}`);
-  check("an entry stamped 30 h ago whose stored day is older is queued; one whose stored day equals its list day is not", queued.has(h1) && !queued.has(h2) && Number(S(t1.stats, "skipped")) >= 1, `h1 ${queued.has(h1)} · h2 ${queued.has(h2)} · skipped ${String(S(t1.stats, "skipped"))}`);
-  check("the frontier listing still queues a same-day second update past the frontier (the wide listing's day compare passes over it: skipped counts h2 and h3)", queued.has(h3) && S(t1.stats, "skipped") === 2, `h3 ${queued.has(h3)} · skipped ${String(S(t1.stats, "skipped"))}`);
+  check("an entry stamped 30 h ago whose stored day is older is queued, and (HO 793) so is one whose stored day equals its list day", queued.has(h1) && queued.has(h2), `h1 ${queued.has(h1)} · h2 ${queued.has(h2)}`);
+  check("the frontier listing queues a same-day second update past the frontier, and skipped counts neither h2 nor h3 (HO 793; until then it counted both)", queued.has(h3) && S(t1.stats, "skipped") === 0, `h3 ${queued.has(h3)} · skipped ${String(S(t1.stats, "skipped"))}`);
   const t2 = await tick("tick 2, the same tick run again", {});
   const st2 = await storedUpdates([h1, h2, h3]);
-  check("run again: wide false, and the queue drains h1 and h3, never h2", S(t2.stats, "wide") === false && st2.get(h1) === isoS(L1) && st2.get(h3) === isoS(N3) && st2.get(h2) === isoS(S2) && !stub.detailById.has(h2), `wide ${String(S(t2.stats, "wide"))} · h1 ${st2.get(h1)} · h2 ${st2.get(h2)} (fetched ${stub.detailById.get(h2) ?? 0}) · h3 ${st2.get(h3)}`);
+  check("run again: wide false, and the queue drains h1, h2 and h3, each at its listed instant", S(t2.stats, "wide") === false && st2.get(h1) === isoS(L1) && st2.get(h3) === isoS(N3) && st2.get(h2) === isoS(L2) && stub.detailById.get(h2) === 1, `wide ${String(S(t2.stats, "wide"))} · h1 ${st2.get(h1)} · h2 ${st2.get(h2)} (fetched ${stub.detailById.get(h2) ?? 0}) · h3 ${st2.get(h3)}`);
+}
+
+// ── L ── HO 793: the late index.
+async function legL() {
+  say(`\n── L, the late index (HO 793)`);
+  say(`  never done: a same-day second update Congress.gov lists only after the frontier passed its instant keeps the stored U1 until Congress.gov moves the bill again`);
+  // U1 and U2 two hours apart on one UTC day, U2 at least an hour before now so tick 1's frontier (its start less 15
+  // minutes) moves above it.
+  let U2 = floorS(Date.now() - HOUR);
+  if (U2 - 2 * HOUR < startOfUtcDay(U2)) U2 = startOfUtcDay(U2) - HOUR;
+  const U1 = U2 - 2 * HOUR;
+  const F0 = U2 - HOUR;
+  const x = L.ids[600]!;
+  const run = async (wide2: boolean) => {
+    await setup({ frontier: isoS(F0), wideAt: true });
+    await L.db.execute({ sql: "UPDATE bills SET update_date = ? WHERE id = ?", args: [isoS(U1), x] });
+    stub.update(x, { instant: U2, listableFromTick: 2 });
+    const t1 = await tick("tick 1, the frontier listing (the stub doesn't list x yet)", {});
+    const s1 = (await storedUpdates([x])).get(x);
+    const t2 = await tick(`tick 2 (wide: ${wide2})`, { wide: wide2 });
+    const s2 = (await storedUpdates([x])).get(x);
+    return { t1, s1, t2, s2 };
+  };
+  say(`  x ${x} stored at U1 ${isoS(U1)}; the stub moves it to U2 ${isoS(U2)} (the same UTC day) and lists it only from tick 2; the frontier starts at ${isoS(F0)}, bills_wide_at today`);
+  const c = await run(false);
+  check("control: tick 2 without the wide listing misses it (this reads the same at the base and after)", c.s1 === isoS(U1) && c.s2 === isoS(U1) && Date.parse(String(S(c.t1.stats, "frontierAfter"))) > U2, `after tick 1 ${c.s1} · tick 1's frontier ${String(S(c.t1.stats, "frontierAfter"))} · after tick 2 ${c.s2}`);
+  const g = await run(true);
+  check("tick 1 completes, the frontier moves above U2, and the store still reads U1", S(g.t1.stats, "listComplete") === true && Date.parse(String(S(g.t1.stats, "frontierAfter"))) > U2 && g.s1 === isoS(U1), `listComplete ${String(S(g.t1.stats, "listComplete"))} · frontier ${String(S(g.t1.stats, "frontierAfter"))} · after tick 1 ${g.s1}`);
+  check("tick 2's wide listing queues it and the store reads U2", S(g.t2.stats, "wide") === true && S(g.t2.stats, "wideComplete") === true && g.s2 === isoS(U2), `wide ${String(S(g.t2.stats, "wide"))} · after tick 2 ${g.s2} (U2 ${isoS(U2)})`);
+}
+
+// ── O ── HO 793: the drain's order.
+async function legO() {
+  say(`\n── O, the drain's order (HO 793)`);
+  say(`  never done: on the wide tick, with a budget that can't cover the queue, the window's re-reads drain ahead of the frontier listing's fresh entries, and the fresh wait a tick`);
+  const now = floorS(Date.now());
+  const window = L.ids.slice(100, 400);
+  const fresh = L.ids.slice(400, 410);
+  const F0 = now - 30 * MIN;
+  const run = async (order: "fifo" | "listDay") => {
+    await setup({ frontier: isoS(F0) });
+    // 300 stored and current inside the window, on days before the fresh entries' (more than 24 hours earlier).
+    const batch = window.map((id, k) => {
+      const at = now - 47 * HOUR + k * Math.floor((22 * HOUR) / window.length);
+      stub.update(id, { instant: floorS(at) });
+      return { sql: "UPDATE bills SET update_date = ? WHERE id = ?", args: [isoS(floorS(at)), id] };
+    });
+    await L.db.batch(batch, "write");
+    fresh.forEach((id, k) => stub.update(id, { instant: now - 20 * MIN + k * SECOND }));
+    stub.detailLatencyMs = 100;
+    const t = await tick(`a wide tick, drainOrder ${order}, the deadline 5 s out`, { deadlineMs: Date.now() + 5_000, drainOrder: order });
+    const st = await storedUpdates([...fresh, ...window]);
+    const freshDone = fresh.filter((id) => st.get(id) === isoS(stub.bills.get(id)!.instant)).length;
+    const q = await queueRows();
+    const windowQueued = window.filter((id) => q.some((r) => r.bill_id === id)).length;
+    say(`    ${order}: written ${String(S(t.stats, "upserted"))} · fresh at their new instant ${freshDone} of 10 · window rows still queued ${windowQueued} of 300 · enqueued ${String(S(t.stats, "enqueued"))} · budgetStopped ${String(S(t.stats, "budgetStopped"))}`);
+    return { t, freshDone, windowQueued };
+  };
+  say(`  frontier ${isoS(F0)}, bills_wide_at absent; 300 bills (${window[0]} …) stored current from ${isoS(now - 47 * HOUR)} over 22 hours, 10 fresh (${fresh[0]} …) updated from ${isoS(now - 20 * MIN)}; detail latency 100 ms`);
+  const g = await run("fifo");
+  check("the wide listing queued the 300 (HO 793), and the deadline cut the drain", S(g.t.stats, "wide") === true && S(g.t.stats, "enqueued") === 310 && S(g.t.stats, "budgetStopped") === true && Number(S(g.t.stats, "upserted")) < 310, `enqueued ${String(S(g.t.stats, "enqueued"))} · upserted ${String(S(g.t.stats, "upserted"))} · budgetStopped ${String(S(g.t.stats, "budgetStopped"))}`);
+  check("first in, first out: all 10 fresh written", g.freshDone === 10, `${g.freshDone} of 10`);
+  const c = await run("listDay");
+  check("control, drainOrder listDay (the order before HO 793): fewer than 10 fresh, the window's entries drained ahead of them", c.freshDone < 10 && Number(S(c.t.stats, "upserted")) >= 10, `${c.freshDone} of 10 fresh · upserted ${String(S(c.t.stats, "upserted"))}`);
 }
 
 // ── P ── added to the handoff's A to H: the pass's own code (enqueueBackfill, drainRounds) on the copy.
@@ -868,7 +942,7 @@ async function legs() {
 
   const all: Array<[string, () => Promise<void>]> = [
     ["A", legA], ["B", async () => { await legB(undefined); await legB(0); }], ["C", legC], ["D", legD],
-    ["E", legE], ["F", legF], ["G", legG], ["H", legH], ["P", legP],
+    ["E", legE], ["F", legF], ["G", legG], ["H", legH], ["L", legL], ["O", legO], ["P", legP],
   ];
   const only = argAt("--only")?.split(",").map((s) => s.trim().toUpperCase());
   const pick = all.filter(([k]) => (only ? only.includes(k) : base ? ["A", "E", "F"].includes(k) : true));
