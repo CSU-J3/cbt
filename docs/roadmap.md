@@ -7854,3 +7854,62 @@ Every tick read `queueBefore` and `queueAfter` 0, and `wideComplete` matched `wi
 - The 12 wide-reachable bills: a late index past the margin, read once, owed to the next HO's read.
 - The Sabato line isn't struck: two of its three runs fall after this commit.
 - **Also notes now run through HO 792.**
+
+**Also (HO 793), the wide listing fetches everything it lists, and the queue drains first in, first out. The last day compare leaves the live path, so an update Congress.gov indexes under 48 hours late is fetched whether it falls on the stored day or a later one. It opens with HO 792's FF go as taken.**
+- **What's here:**
+  - HO 792's FF go as taken, with its records and its two reads;
+  - STEP 0, a check: every claim held;
+  - the change;
+  - the legs, red at the base and green at the fix;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Four commits, kinds unmixed:** `fix` (`lib/sync.ts`), `diag` (the legs in `scripts/diagnostic/sync-frontier-790.ts`), `docs` (this block and the backlog), then `docs(skill)`, alone and last.
+- **Prod was read by `SELECT` only** and nothing was written: no pass, no enqueue, no drain, no `/api/sync` call, no migration. The legs wrote `file:` copies only.
+- **The pointer is 793:** pointer 792 (`docs/roadmap.md:7856`), highest HO in commit subjects 792, `main` at `67e9575`.
+
+**HO 792's FF go, as taken.**
+- **`main` at `67e9575`:** `5d862e3..67e9575`, three commits, no force. `792-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The gates before the push:** the cold build, its one junction (`.next\node_modules\@libsql\client-6da938047d5fc1cd`) unlinked first and its target confirmed from a separate process, exit 0 with 0 warning lines; `npm run typecheck` 0; `check:odds-sites` OK (190 scanned, 13 reference a market, 13 listed); `check:design-citations` OK (1,166 scanned, 0 problems).
+- **The deploy:** Production record `7374811499` at 7:34:26 PM MT Oct 27 (01:34:26Z Oct 28), `success` at 01:34:31Z. `/api/version` read `67e9575` at 01:34:42Z; a read at 01:34:31Z, the second the record succeeded, read `5d862e3`, the alias not yet moved.
+- **`e2e-prod` `40615852674`,** fired by the record: smoke **143 passed (5.5m)**, concluded 7:40:34 PM MT (01:40:34Z). No dispatch, no flush.
+- **Read 1, the 00:00Z Oct 28 tick:** #28520 (6:00:10 PM MT Oct 27), `success`, `wide` and `wideComplete` true. Its frontier listing (from 17:45:10Z) listed 24, and the tick enqueued and wrote 36, 12 resets. The twelve (`119-hr-10885` to `119-hr-10906`) are among them, each stored at its own instant (05:23:34Z, `119-hr-10899` and `119-hr-10905` at 05:23:33Z) and written at 00:00:48–49Z.
+- **Read 2, the Sabato task:** it fired at 5:00:01 PM MT Oct 27 and logged at 5:00:02 PM *refused: status 403, challenge=True, 5,497 bytes, cf-ray `a515508f387424a5-DEN`*, keeping the challenge page, then ended at the two-hour limit with its popup up (`LastTaskResult` `0x41306`), as the settings predict.
+
+**STEP 0, a check: every claim held** (8:04 PM MT Oct 27, 02:04Z Oct 28; `docs/handoffs/793-artifacts/step0.log`).
+- **1:** `main` `67e9575`, pointer 792 at `:7856`, highest HO in subjects 792, the one numbered file above 792 this handoff.
+- **2:** `lib/sync.ts` at every cited line: the header's wide-listing sentence `:12-15`; `DRAIN_BATCH` `:40`; `skipped`'s comment `:97`; `getStoredUpdates` `:250` with its HO 790 note `:248`, the day compare its only caller; `walkList` `:526`, `dayCompare` `:530`, `listedCount` `:543`, the no-date skip `:555`, the day compare `:562-569`; `drain` `:658` with *oldest list day first*, both `ORDER BY`s `:671` and `:677`, the cursor tuple `:676`; the frontier walk `:761`, the wide decision `:769`, the wide walk `:774`.
+- **3:** `sync-frontier-790.ts`: `StubBill` `:315`, `failNextList` `:325`, `handleStub` `:357`, `tick()` `:436`, `setup()` `:488`, leg H `:734`, leg P `:767`, `legs()` `:823`.
+- **4:** #28520 `elapsed_ms` 40,864, `budgetStopped` false, `queueAfter` 0. The last seven days of `/api/sync` (28 rows from 8:04 PM MT Oct 20): `elapsed_ms` max 78,299 (#27983, the bootstrap's wide tick) and median 17,872. One `budgetStopped`, #27341 (6:00 AM MT Oct 23), old code and not a wide tick; no wide tick has run out of budget. Two rows not `success`, #26948 and #27009 (Oct 22, 00:00Z and 06:00Z), old code's 520s on the `desc` listing (HO 788). The wide ticks: #27983 182 enqueued, #28252 40, #28520 36.
+- **5:** `bills_frontier` 2026-10-27T23:45:10Z (updated 6:00:14 PM MT Oct 27); **273 bills** stored with `update_date` at or after it less 48 hours (23:45:10Z Oct 25), the stored share of what the next wide listing fetches. The handoff estimated about 340.
+- **6:** SKILL `:50`, `:90`, Sync logic steps 2 and 3, and the `sync-frontier-790.ts` line as cited; backlog `:15`, `:16`, `:18`, `:46`; reconcile 283 / 358 on 641, mis-struck 0.
+
+**The change** (`fix`, `lib/sync.ts` only).
+- **The wide listing queues every entry it lists.** `walkList` loses `dayCompare` and its branch; `listedCount` is read when `!cfg.wide`, the one other place the flag told the listings apart. `getStoredUpdates` went with its only caller, a RECORD at the removal site (HO 116 batched it; HO 790 kept it for the day compare; HO 793 removed both). `skipped` counts list entries with no date, its comment saying the day compare also counted there until HO 793.
+- **The drain is first in, first out:** both `ORDER BY`s and the cursor read `enqueued_at, list_update_day, bill_id`. The frontier listing enqueues before the wide listing, and a row already queued keeps its `enqueued_at`, so on the wide tick the fresh entries drain ahead of the window's re-reads. A backfill run stamps one `enqueued_at` for all its rows, so they still drain by list day.
+- **The header:** nothing on the path compares a listed date with a stored one; once a UTC day the wide listing re-reads the last 48 hours whatever the stored day says; a RECORD of what comparing days cost (HO 791's 47 of 500, HO 792's 468 of 11,768).
+- **`drainOrder?: "fifo" | "listDay"`** on `RunSyncOptions`, default `fifo`, for leg O's control only.
+- Nothing else changed: the frontier, its 15-minute margin, the 48-hour window, the wide decision, the reset rule, the route and its budget. No migration.
+
+**The legs** (`docs/handoffs/793-artifacts/legs-base-67e9575.log`, `legs-head-5b6dbe3.log`).
+- **Red at `67e9575`** (a worktree at the base, the new script copied in, `--only H,L,O`): **H** red, 3 checks (`h2`, stored on its own list day, not queued; `skipped` 2; `h2` never fetched). **L** red on its one check (after tick 2 the store keeps U1 2026-10-27T21:00:00Z, U2 23:00:00Z); its control and its tick 1 pass. **O** red, 2 checks: the wide listing queued 10, not 310, so the deadline never cut and the control wrote all 10 fresh; O's red is the control's, as the handoff said. The tripwire refused 0.
+- **Green at `5b6dbe3`,** every leg A to H, L, O and P: **43 checks passed, 0 failed,** the tripwire 0 refused.
+  - **H:** h1 and h2 queued, `skipped` 0, and the second run writes h1, h2 and h3 at their listed instants, `h2` fetched once.
+  - **L:** the control (tick 2 with `wide: false`) keeps U1; tick 1's frontier moves above U2 (to 01:56:10Z) with the store at U1; tick 2's wide listing writes U2.
+  - **O:** `fifo` wrote 35 under the 5 s deadline, all 10 fresh among them, 275 of the 300 left queued; the control, `listDay`, wrote 36 and **0 of 10 fresh**.
+
+**The ledger.**
+- **Backlog** (no strike):
+  - *A same-day second update that Congress.gov indexes late…* (HO 790): a dated note. The shape now needs a lag over 48 hours; leg L; HO 792's twelve as the first reading past the margin; the close stays.
+  - *The Sabato daily task's 5:00 PM MT runs…*: a dated note with Oct 27's run and the ruling, **a refused run that logged counts**. Two of the three; Oct 28's comes after this commit, so the strike is owed to the next HO.
+  - *Sabato's reader is refused…*: a dated note, Oct 27's refusal after 200s on Oct 22, 23, 24 and 26, and the saved-page fill.
+  - *Should a new CRS summary re-summarize?*: the meter over nine ticks, **21 of 484, 4.34%** (8:11 PM MT Oct 27). Still Corey's.
+- **Reconcile:** 283 / 358 on 641 at open and at close, mis-struck 0.
+
+**Owed after the FF.** `lib/` changed, so Production serves new code: `verify:deploy`, the served SHA, `e2e-prod` with smoke 143. Then the first wide tick on the new code, the first 00:00Z tick after the deploy: `enqueued` (expected near claim 5's 273), `upserted`, `resets` (no more than the day's real changes), `elapsedMs` against the 240 s budget, `budgetStopped`, `queueAfter`. If it runs out of budget, the queue carries the rest by design and the next tick's row shows it clearing.
+
+**What was flagged.**
+- Claim 5 read 273 where the handoff estimated about 340.
+- The Sabato reader's note names Oct 23's 200 too; the handoff's text named Oct 22, Oct 24 and Oct 26, and the log has Oct 23 at 5:00:02 PM MT.
+- Leg L's instants: run after 00:00Z, it put U2 at 23:00Z the day before (U1 21:00Z), so U1 and U2 share a UTC day and U2 sits an hour or more before the tick.
+- **Also notes now run through HO 793.**
