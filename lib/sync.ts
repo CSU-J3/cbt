@@ -4,15 +4,18 @@
 // zero times), and every listed entry goes into sync_queue keyed by bill id. When the listing reaches the end of the
 // list the frontier moves to the instant the listing began, less a 15-minute margin; a listing cut by the deadline or
 // by a failed page leaves the frontier where it was, and the next tick lists from there again. Then the tick drains
-// the queue, oldest list day first: each bill's detail fetched and upserted, its row deleted. A failed fetch charges
+// the queue first in, first out: each bill's detail fetched and upserted, its row deleted. A failed fetch charges
 // the row an attempt and leaves it for the next tick; the third drops it, named in the stats.
 //
-// Nothing is compared at day precision on this path. The list prints both dates as a bare day (HO 788 read 58,557
-// entries, none with a time), `fromDateTime` filters on updateDateIncludingText to the second, and the detail carries
-// the instant, so every entry the filter returns is fetched and the upsert decides. Once a UTC day (`bills_wide_at`),
-// after the frontier listing completes, a second listing from the frontier less 48 hours enqueues each entry missing
-// from `bills` or whose stored day is before its list day: the self-heal for late indexing, and the only day compare
-// left. It never moves the frontier, so it can't drop what the frontier listing took.
+// Nothing on this path compares a listed date with a stored one. The list prints both dates as a bare day (HO 788 read
+// 58,557 entries, none with a time), `fromDateTime` filters on updateDateIncludingText to the second, and the detail
+// carries the instant, so every entry the filter returns is fetched and the upsert decides. Once a UTC day
+// (`bills_wide_at`), after the frontier listing completes, a second listing from the frontier less 48 hours enqueues
+// every entry it lists, whatever the stored day says: the self-heal for late indexing, so an update Congress.gov indexes
+// under 48 hours late is fetched whether it falls on the stored day or a later one. It never moves the frontier, so it
+// can't drop what the frontier listing took. RECORD: until HO 793 the wide listing passed over an entry whose stored
+// day equalled its list day, and HO 791's sample (47 of 500) and HO 792's count (468 of 11,768 stored by the old sync)
+// measured what comparing days had cost.
 //
 // /api/sync and `npm run sync` call runSync with the `live` queue. A pass run from the box enqueues with
 // `source = 'backfill'` and drains that queue alone, so the cron's drain never reads it.
@@ -94,7 +97,7 @@ export type SyncStats = {
   // Every list entry read, the overlap's repeats included.
   seen: number;
   upserted: number;
-  // List entries with no date, and entries the wide listing's day compare passed over.
+  // List entries with no date. Until HO 793 the wide listing's day compare also counted the entries it passed over.
   skipped: number;
   failed: number;
   // HO 116: detail fetches killed by the per-bill AbortController. Subset of
@@ -243,28 +246,9 @@ async function setFrontier(db: ReturnType<typeof getDb>, instant: string): Promi
   await setSyncState(db, FRONTIER_KEY, instant);
 }
 
-// HO 116: batched diff. One round-trip per list page replaces the previous
-// per-bill SELECT, which was the dominant cost in runSync (8.5s/page on
-// Turso locally → ~17s/page projected in prod). HO 790: kept for the wide
-// listing's day compare, the one place the stored date is still read.
-async function getStoredUpdates(
-  db: ReturnType<typeof getDb>,
-  ids: string[],
-): Promise<Map<string, string>> {
-  const result = new Map<string, string>();
-  if (ids.length === 0) return result;
-  const placeholders = ids.map(() => "?").join(",");
-  const r = await db.execute({
-    sql: `SELECT id, update_date FROM bills WHERE id IN (${placeholders})`,
-    args: ids,
-  });
-  for (const row of r.rows) {
-    const id = row.id as string;
-    const ud = row.update_date as string | null;
-    if (ud) result.set(id, ud);
-  }
-  return result;
-}
+// RECORD, HO 793: getStoredUpdates batched the stored update_date for a list page's ids in one SELECT (HO 116, which
+// replaced a per-bill SELECT that cost ~8.5 s a page). HO 790 kept it for the wide listing's day compare, the one place
+// the stored date was still read; HO 793 removed that compare, and the function with it.
 
 async function queueDepth(db: ReturnType<typeof getDb>, source: QueueSource): Promise<number> {
   const r = await db.execute({ sql: "SELECT COUNT(*) AS n FROM sync_queue WHERE source = ?", args: [source] });
@@ -519,15 +503,18 @@ export type RunSyncOptions = {
   // HO 790: the list pages' overlap, default 25. The legs set 0 as the control (scripts/diagnostic/sync-frontier-790.ts);
   // nothing else should.
   overlap?: number;
+  // HO 793: the drain's order, default `fifo`. `listDay` is the order before HO 793 (oldest list day first), kept only
+  // as leg O's control (scripts/diagnostic/sync-frontier-790.ts); nothing else should set it.
+  drainOrder?: "fifo" | "listDay";
 };
 
-// HO 790: one listing from `from` to the end of the list, every entry into the queue (the wide listing first drops
-// the ones its day compare passes over). Returns whether it reached the end, which a cut or a thrown page doesn't.
+// HO 790: one listing from `from` to the end of the list, every entry into the queue (since HO 793 the wide listing's
+// too). Returns whether it reached the end, which a cut or a thrown page doesn't.
 async function walkList(
   db: ReturnType<typeof getDb>,
   apiKey: string,
   from: string,
-  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; dayCompare: boolean },
+  cfg: { overlap: number; deadlineMs?: number; source: QueueSource; wide: boolean },
   stats: SyncStats,
 ): Promise<boolean> {
   let offset = 0;
@@ -540,7 +527,7 @@ async function walkList(
       }
       const page = await fetchJson<ListResponse>(listUrl(from, offset, apiKey));
       stats.pages++;
-      if (offset === 0 && !cfg.dayCompare) stats.listedCount = page.pagination?.count ?? null;
+      if (offset === 0 && !cfg.wide) stats.listedCount = page.pagination?.count ?? null;
       const bills = page.bills ?? [];
       console.log(`list from ${from} offset=${offset}: ${bills.length} bills`);
 
@@ -558,16 +545,6 @@ async function walkList(
         const day = listUpdate.slice(0, 10);
         const prev = entries.get(id);
         if (prev === undefined || day > prev) entries.set(id, day);
-      }
-      if (cfg.dayCompare && entries.size > 0) {
-        const stored = await getStoredUpdates(db, [...entries.keys()]);
-        for (const [id, day] of entries) {
-          const s = stored.get(id);
-          if (s !== undefined && s.slice(0, 10) >= day) {
-            entries.delete(id);
-            stats.skipped++;
-          }
-        }
       }
       stats.enqueued += await enqueue(db, entries, cfg.source);
 
@@ -652,15 +629,19 @@ async function drainOne(
   }
 }
 
-// HO 790: the drain, oldest list day first, in rounds of DRAIN_BATCH until the queue is empty, the deadline arrives
-// or the reset cap is reached. Each round reads past the previous one's last row, so a row that failed this tick
-// waits for the next.
+// HO 790: the drain, in rounds of DRAIN_BATCH until the queue is empty, the deadline arrives or the reset cap is
+// reached. Each round reads past the previous one's last row, so a row that failed this tick waits for the next.
+// HO 793: first in, first out (`enqueued_at, list_update_day, bill_id`). The frontier listing enqueues before the wide
+// listing, so on the wide tick the fresh entries drain ahead of the window's re-reads, which oldest list day first
+// would put ahead of them. A backfill run stamps one enqueued_at for all its rows, so they still drain by list day.
 async function drain(
   db: ReturnType<typeof getDb>,
   apiKey: string,
-  cfg: { source: QueueSource; deadlineMs?: number; maxResets?: number },
+  cfg: { source: QueueSource; deadlineMs?: number; maxResets?: number; order?: "fifo" | "listDay" },
   stats: SyncStats,
 ): Promise<void> {
+  const fifo = (cfg.order ?? "fifo") === "fifo";
+  const cols = fifo ? "enqueued_at, list_update_day, bill_id" : "list_update_day, enqueued_at, bill_id";
   let cursor: [string, string, string] | null = null;
   rounds: while (true) {
     const r = await db.execute(
@@ -668,13 +649,13 @@ async function drain(
         ? {
             sql: `SELECT bill_id, list_update_day, enqueued_at, attempts FROM sync_queue
                   WHERE source = ? AND attempts < ?
-                  ORDER BY list_update_day, enqueued_at, bill_id LIMIT ?`,
+                  ORDER BY ${cols} LIMIT ?`,
             args: [cfg.source, MAX_ATTEMPTS, DRAIN_BATCH],
           }
         : {
             sql: `SELECT bill_id, list_update_day, enqueued_at, attempts FROM sync_queue
-                  WHERE source = ? AND attempts < ? AND (list_update_day, enqueued_at, bill_id) > (?, ?, ?)
-                  ORDER BY list_update_day, enqueued_at, bill_id LIMIT ?`,
+                  WHERE source = ? AND attempts < ? AND (${cols}) > (?, ?, ?)
+                  ORDER BY ${cols} LIMIT ?`,
             args: [cfg.source, MAX_ATTEMPTS, ...cursor, DRAIN_BATCH],
           },
     );
@@ -691,7 +672,9 @@ async function drain(
         break rounds;
       }
       const id = row.bill_id as string;
-      cursor = [row.list_update_day as string, row.enqueued_at as string, id];
+      cursor = fifo
+        ? [row.enqueued_at as string, row.list_update_day as string, id]
+        : [row.list_update_day as string, row.enqueued_at as string, id];
       await drainOne(db, apiKey, { id, attempts: Number(row.attempts) }, cfg.source, stats);
     }
     if (r.rows.length < DRAIN_BATCH) break;
@@ -758,7 +741,7 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     );
 
     const listingStartedAt = Date.now();
-    stats.listComplete = await walkList(db, apiKey, from, { overlap, deadlineMs, source, dayCompare: false }, stats);
+    stats.listComplete = await walkList(db, apiKey, from, { overlap, deadlineMs, source, wide: false }, stats);
     if (stats.listComplete && !explicit) {
       const next = isoSeconds(listingStartedAt - FRONTIER_MARGIN_MS);
       await setFrontier(db, next);
@@ -770,13 +753,13 @@ export async function runSync(opts: RunSyncOptions = {}): Promise<SyncStats> {
     if (wide && stats.listComplete) {
       stats.wide = true;
       const wideFrom = isoSeconds(Date.parse(normalizeDateTime(from)) - WIDE_WINDOW_MS);
-      console.log(`wide listing since ${wideFrom}: missing or behind at day precision`);
-      stats.wideComplete = await walkList(db, apiKey, wideFrom, { overlap, deadlineMs, source, dayCompare: true }, stats);
+      console.log(`wide listing since ${wideFrom}: every entry it lists`);
+      stats.wideComplete = await walkList(db, apiKey, wideFrom, { overlap, deadlineMs, source, wide: true }, stats);
       if (stats.wideComplete) await setSyncState(db, WIDE_KEY, new Date().toISOString());
     }
   }
 
-  await drain(db, apiKey, { source, deadlineMs, maxResets: opts.maxResets }, stats);
+  await drain(db, apiKey, { source, deadlineMs, maxResets: opts.maxResets, order: opts.drainOrder }, stats);
   stats.queueAfter = await queueDepth(db, source);
 
   console.log(
