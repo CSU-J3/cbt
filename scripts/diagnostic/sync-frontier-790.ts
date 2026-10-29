@@ -32,7 +32,8 @@
 //            tick 2, its same-day update past tick 1's frontier: the wide listing takes it, and tick 2 run without the
 //            wide listing is the control) and O, the drain's order (a wide tick with 300 current re-reads and 10 fresh
 //            entries under a deadline: first in, first out writes the 10, and drainOrder "listDay", the order before
-//            HO 793, is the control). Run at 67e9575 with this file copied in, --only H,L,O reads the reds.
+//            HO 793, is the control). Run at 67e9575 with this file copied in, --only H,L,O reads the reds. HO 794
+//            adds E's case 5: the CRS summaries' count up by one, action and text unchanged, now a reset.
 // --census   the census through the HO 788 instrument: runs `bills-gap-788.ts --census --no-details --label <L>` unless
 //            docs/handoffs/788-artifacts/census-<L>.csv already exists, then reads that file: missing and behind, and
 //            the behind by list day (today, yesterday, older: the residual a finished pass names).
@@ -670,8 +671,8 @@ async function legE() {
   say(`\n── E, the reset rule (§ 2)`);
   say(`  never done (HO 115's rule): a moved update_date nulls the summary, so case 1, metadata only, loses its summary`);
   await setup({ wideAt: true, frontier: isoS(L.M + SECOND) });
-  const ids = L.ids.slice(600, 1000).filter((id) => stub.bills.get(id)!.textVersions !== null).slice(0, 4);
-  const [m1, m2, m3, m4] = ids as [string, string, string, string];
+  const ids = L.ids.slice(600, 1000).filter((id) => stub.bills.get(id)!.textVersions !== null).slice(0, 5);
+  const [m1, m2, m3, m4, m5] = ids as [string, string, string, string, string];
   const pre = { summary: "E-LEG SUMMARY", summary_model: "leg-model", summary_updated_at: "2026-10-01T00:00:00Z", topics: '["Health"]', is_ceremonial: 0, summarize_failed_at: "2026-10-02T00:00:00Z", summarize_attempts: 2, changed_at: "2026-10-03T00:00:00Z", committee_walk_failures: 2 };
   const now = floorS(Date.now());
   const sameAt = now - 2 * HOUR;
@@ -688,21 +689,23 @@ async function legE() {
   stub.update(m2, { instant: now - HOUR + SECOND, actionDate: dayOf(now), actionText: "Received in the Senate." });
   stub.update(m3, { instant: now - HOUR + 2 * SECOND, textVersions: (stub.bills.get(m3)!.textVersions ?? 0) + 1 });
   stub.update(m4, { instant: sameAt });
-  say(`  (1) ${m1} metadata only · (2) ${m2} a new latest action, stored stage committee · (3) ${m3} textVersions.count up by one · (4) ${m4} the same instant, ${isoS(sameAt)}`);
+  stub.update(m5, { instant: now - HOUR + 3 * SECOND, summaries: (stub.bills.get(m5)!.summaries ?? 0) + 1 });
+  say(`  (1) ${m1} metadata only · (2) ${m2} a new latest action, stored stage committee · (3) ${m3} textVersions.count up by one · (4) ${m4} the same instant, ${isoS(sameAt)} · (5) ${m5} the CRS summaries' count up by one (HO 794)`);
   const t = await tick("the tick", {});
-  const r = { 1: await bill(m1), 2: await bill(m2), 3: await bill(m3), 4: await bill(m4) };
+  const r = { 1: await bill(m1), 2: await bill(m2), 3: await bill(m3), 4: await bill(m4), 5: await bill(m5) };
   const seven = ["summary", "summary_model", "summary_updated_at", "topics", "is_ceremonial", "summarize_failed_at"] as const;
   const nulled = (x: Record<string, unknown>) => seven.every((c) => x[c] === null) && x.summarize_attempts === 0;
   const kept = (x: Record<string, unknown>) => seven.every((c) => x[c] === (pre as Record<string, unknown>)[c]) && x.summarize_attempts === pre.summarize_attempts;
   const show = (x: Record<string, unknown>) => `summary ${x.summary === null ? "NULL" : JSON.stringify(x.summary)} · topics ${String(x.topics)} · is_ceremonial ${String(x.is_ceremonial)} · summarize_failed_at ${String(x.summarize_failed_at)} · attempts ${String(x.summarize_attempts)} · changed_at ${String(x.changed_at)} · walk failures ${String(x.committee_walk_failures)} · update_date ${String(x.update_date)} · stage ${String(x.stage)} (previous ${String(x.previous_stage)})`;
-  for (const k of [1, 2, 3, 4] as const) say(`  (${k}) ${show(r[k])}`);
-  const trans = objs(await L.db.execute({ sql: "SELECT bill_id, from_stage, to_stage FROM stage_transitions WHERE bill_id IN (?, ?, ?, ?)", args: ids }));
+  for (const k of [1, 2, 3, 4, 5] as const) say(`  (${k}) ${show(r[k])}`);
+  const trans = objs(await L.db.execute({ sql: "SELECT bill_id, from_stage, to_stage FROM stage_transitions WHERE bill_id IN (?, ?, ?, ?, ?)", args: ids }));
   say(`  stage_transitions: ${trans.map((x) => `${x.bill_id} ${x.from_stage}→${x.to_stage}`).join("; ") || "none"}`);
   check("(1) metadata only: summary, topics and is_ceremonial kept, changed_at stamped, update_date moved", kept(r[1]) && r[1].changed_at !== pre.changed_at && r[1].committee_walk_failures === 0 && r[1].update_date === isoS(now - HOUR), show(r[1]));
   check("(2) a new latest action: the seven columns nulled, the stage advanced and logged (HO 383)", nulled(r[2]) && r[2].stage === "other_chamber" && r[2].previous_stage === "committee" && trans.some((x) => x.bill_id === m2 && x.from_stage === "committee" && x.to_stage === "other_chamber"), show(r[2]));
   check("(3) textVersions.count up by one, the action unchanged: nulled", nulled(r[3]), show(r[3]));
   check("(4) the same instant: nothing changes, changed_at included", kept(r[4]) && r[4].changed_at === pre.changed_at && r[4].committee_walk_failures === 2 && r[4].update_date === isoS(sameAt), show(r[4]));
-  check("the tally: 4 written, 2 resets, 1 by action, 1 by text, no CRS or title move", S(t.stats, "upserted") === 4 && S(t.stats, "resets") === 2 && S(t.stats, "resetByAction") === 1 && S(t.stats, "resetByText") === 1 && S(t.stats, "crsMoved") === 0 && S(t.stats, "titleMoved") === 0, fmtStats(t.stats));
+  check("(5) the CRS summaries' count up by one, action and text unchanged: nulled (HO 794, Corey's ruling 2026-10-28; until then kept)", nulled(r[5]) && r[5].update_date === isoS(now - HOUR + 3 * SECOND), show(r[5]));
+  check("the tally: 5 written, 3 resets, 1 by action, 1 by text, 1 CRS move and it the CRS term's own reset (crsOnly 1), no title move", S(t.stats, "upserted") === 5 && S(t.stats, "resets") === 3 && S(t.stats, "resetByAction") === 1 && S(t.stats, "resetByText") === 1 && S(t.stats, "crsMoved") === 1 && S(t.stats, "crsOnly") === 1 && S(t.stats, "titleMoved") === 0, fmtStats(t.stats));
 }
 
 // ── F ──
