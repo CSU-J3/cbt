@@ -24,6 +24,10 @@
 //           Moskowitz (D HOLD), TX-23 its first R (R WIN), S-AK none (NO CALL)
 //   since   HO 775's rater links inside the dimmed final call (MI-04, S-ME), HO 773's GA-13 (its D
 //           nominee over an incumbent who lost the primary), HO 776's AL-01 (Carl) and S-AL (Moore)
+//   HO 795  re-matched to the rulings that came after HO 777, each expectation taken from the ruling's code or
+//           block, never read off a page: HO 779's tag kept on a called race (components/RaceHubBody.tsx:180-188)
+//           on IA-02, S-NH, S-IA, FL-25, GA-13, AL-01 and S-AL; HO 783's dated Georgia runoff, Runoff Dec 1
+//           (lib/race-result.ts:177-180), on S-GA
 //
 // SAFETY. Prod is only READ (a SELECT-only reader) for the seed, with a fingerprint before and
 // after. Copies are `file:${abs}` from paths ending -777-rehearsal.db under the gitignored scratch
@@ -64,9 +68,12 @@ const RATER_PAGES: Record<"house" | "senate", string[]> = {
 };
 
 type PageWant = {
-  sub: "decided" | "notCalled" | "runoff" | "runoffDec12";
+  sub: "decided" | "notCalled" | "runoff" | "runoffDec12" | "runoffDec1";
   elected: string | null; // the roster row that reads Elected, or none
   qualifier: string | null; // the incumbent card's word (lib/race-result.ts raceResultView), null for none
+  // HO 795: the tag the card keeps in the word's place (HO 779's ruling, components/RaceHubBody.tsx:180-188): its
+  // data-incumbent-tag key and its words (lib/incumbent-tag.ts tagWords).
+  tag?: { key: string; words: string };
   prov: "called" | "nocall" | "nobox";
   anchors?: "house" | "senate"; // HO 775: the three chips are links inside the dimmed final call
   rated: boolean; // whether the header carries chips at all
@@ -77,7 +84,10 @@ const D = (o: Partial<PageWant> & Pick<PageWant, "elected" | "qualifier">): Page
 const SHAPES: Shape[] = [
   // HO 758
   { key: "re-elected", from: "758", race: "MI-04-2026", mark: ["Bill Huizenga"], page: D({ elected: null, qualifier: "re-elected", anchors: "house" }) },
-  { key: "open seat", from: "758", race: "IA-02-2026", mark: ["Joe Mitchell"], page: D({ elected: "Joe Mitchell", qualifier: "not on the ballot" }) },
+  // HO 795, HO 779's ruling (components/RaceHubBody.tsx:180-188): the card keeps the tag. Hinson is `senate` (HO 779's
+  // measurements: IA-02 → S-IA; lib/incumbent-qualifier.ts:13-26), and S-IA's one mark below is Turek's, another's:
+  // lost, LOST THE SENATE RACE (lib/incumbent-tag.ts:23-38, :43-47).
+  { key: "open seat", from: "758", race: "IA-02-2026", mark: ["Joe Mitchell"], page: D({ elected: "Joe Mitchell", qualifier: null, tag: { key: "senate", words: "LOST THE SENATE RACE" } }) },
   { key: "defeated", from: "758", race: "FL-14-2026", mark: ["Mike Beltran"], page: D({ elected: "Mike Beltran", qualifier: "defeated" }) },
   { key: "not called", from: "758", race: "CO-08-2026", mark: [], page: { sub: "notCalled", elected: null, qualifier: null, prov: "nocall", rated: true } },
   { key: "jungle runoff", from: "758", race: "LA-01-2026", jungle: { district: 1, names: ["Steve Scalise", "Lauren Jewett"] }, page: { sub: "runoffDec12", elected: null, qualifier: "runoff dec 12", prov: "nocall", rated: false } },
@@ -85,19 +95,36 @@ const SHAPES: Shape[] = [
   { key: "general box, two marks", from: "758", race: "AR-02-2026", mark: ["French Hill", "Chris Jones"], page: { sub: "runoff", elected: null, qualifier: "runoff", prov: "nocall", rated: true } },
   { key: "no box", from: "758", race: "FL-10-2026", mark: [], page: { sub: "notCalled", elected: null, qualifier: null, prov: "nobox", rated: false } },
   // HO 767
-  { key: "D HOLD, a member to the Senate", from: "767", race: "S-NH-2026", mark: ["Chris Pappas"], page: D({ elected: "Chris Pappas", qualifier: "not on the ballot" }), list: { chip: "D HOLD", checked: "Pappas", open: { "Chris Pappas": "Elected" }, roles: { P000614: "elected to the Senate" } } },
-  { key: "D GAIN, a member lost the Senate race", from: "767", race: "S-IA-2026", mark: ["Josh Turek"], page: D({ elected: "Josh Turek", qualifier: "not on the ballot" }), list: { chip: "D GAIN", checked: "Turek", open: { "Josh Turek": "Elected" }, roles: { H001091: "lost the Senate race" } } },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Shaheen, printed nowhere, is curated incumbent_running = 0,
+  // the first reason (lib/incumbent-qualifier.ts:33-34), and the reason tags stand: RETIRING (lib/incumbent-tag.ts:10-15).
+  { key: "D HOLD, a member to the Senate", from: "767", race: "S-NH-2026", mark: ["Chris Pappas"], page: D({ elected: "Chris Pappas", qualifier: null, tag: { key: "retiring", words: "RETIRING" } }), list: { chip: "D HOLD", checked: "Pappas", open: { "Chris Pappas": "Elected" }, roles: { P000614: "elected to the Senate" } } },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Ernst, printed nowhere, is curated incumbent_running = 0:
+  // RETIRING (lib/incumbent-qualifier.ts:33-34; lib/incumbent-tag.ts:10-15).
+  { key: "D GAIN, a member lost the Senate race", from: "767", race: "S-IA-2026", mark: ["Josh Turek"], page: D({ elected: "Josh Turek", qualifier: null, tag: { key: "retiring", words: "RETIRING" } }), list: { chip: "D GAIN", checked: "Turek", open: { "Josh Turek": "Elected" }, roles: { H001091: "lost the Senate race" } } },
   { key: "R HOLD, re-elected", from: "767", race: "S-ME-2026", mark: ["Susan Collins"], page: D({ elected: null, qualifier: "re-elected", anchors: "senate" }), list: { chip: "R HOLD", checked: "S. Collins", open: { "Susan Collins": "re-elected" }, roles: { C001035: "re-elected" } } },
   { key: "D GAIN, the incumbent defeated", from: "767", race: "S-OH-2026", mark: ["Sherrod Brown"], page: D({ elected: "Sherrod Brown", qualifier: "defeated" }), list: { chip: "D GAIN", checked: "Brown", open: { "Sherrod Brown": "Elected", "Jon Husted": "defeated" }, roles: { H001104: "defeated" } } },
-  { key: "a general runoff", from: "767", race: "S-GA-2026", mark: ["Jon Ossoff", "Mike Collins"], page: { sub: "runoff", elected: null, qualifier: "runoff", prov: "nocall", rated: true }, list: { chip: "RUNOFF", open: { "Jon Ossoff": "runoff", "Mike Collins": "runoff" }, roles: { O000174: "in the runoff", C001129: "in the Senate runoff" } } },
+  // HO 795, HO 783 (lib/race-result.ts:177-180, :207, :272): Georgia's general runoff is dated, 28 days after election
+  // day, so two marks read Runoff Dec 1 (the header, :276), and the incumbent among them runoff Dec 1 (the card's word,
+  // :280, compared lowered).
+  { key: "a general runoff", from: "767", race: "S-GA-2026", mark: ["Jon Ossoff", "Mike Collins"], page: { sub: "runoffDec1", elected: null, qualifier: "runoff dec 1", prov: "nocall", rated: true }, list: { chip: "RUNOFF", open: { "Jon Ossoff": "runoff", "Mike Collins": "runoff" }, roles: { O000174: "in the runoff", C001129: "in the Senate runoff" } } },
   { key: "I GAIN, a winner the majors don't name", from: "767", race: "S-NE-2026", mark: ["Dan Osborn"], page: D({ elected: "Dan Osborn", qualifier: "defeated" }), list: { chip: "I GAIN", checked: "Osborn", open: { "Dan Osborn": "Elected", "Pete Ricketts": "defeated" }, roles: { R000618: "defeated" } } },
-  { key: "D HOLD, a member moving in", from: "767", race: "FL-25-2026", mark: ["Moskowitz"], page: D({ elected: "Moskowitz", qualifier: "not on the ballot" }), list: { chip: "D HOLD", checked: "Moskowitz", open: { "Jared Evan Moskowitz": "Elected" }, roles: { M001217: "elected in FL-25" } } },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Wasserman Schultz is `moved` (HO 779's measurements: FL-25 →
+  // FL-20; lib/incumbent-qualifier.ts:13-26), and no shape marks FL-20: no outcome, the running words, RUNNING IN FL-20
+  // (lib/incumbent-tag.ts:23-38, :43-47).
+  { key: "D HOLD, a member moving in", from: "767", race: "FL-25-2026", mark: ["Moskowitz"], page: D({ elected: "Moskowitz", qualifier: null, tag: { key: "moved", words: "RUNNING IN FL-20" } }), list: { chip: "D HOLD", checked: "Moskowitz", open: { "Jared Evan Moskowitz": "Elected" }, roles: { M001217: "elected in FL-25" } } },
   { key: "R WIN, no stored incumbent", from: "767", race: "TX-23-2026", mark: ["__first_R__"], page: D({ elected: "Brandon Herrera", qualifier: null }), list: { chip: "R WIN", open: {} } },
   { key: "no call", from: "767", race: "S-AK-2026", mark: [], page: { sub: "notCalled", elected: null, qualifier: null, prov: "nocall", rated: true }, list: { chip: "NO CALL", open: {}, roles: { S001198: "not yet called" } } },
   // since
-  { key: "a D nominee over an incumbent who lost the primary", from: "773", race: "GA-13-2026", mark: ["Jasmine Clark"], page: D({ elected: "Jasmine Clark", qualifier: "not on the ballot", rated: false }), record: "the card for B001328" },
-  { key: "AL-01's rerun nominee", from: "776", race: "AL-01-2026", mark: ["Jerry Carl"], page: D({ elected: "Jerry Carl", qualifier: "not on the ballot", rated: false }), record: "the card and open row for Moore; R HOLD on /electoral" },
-  { key: "Moore on S-AL", from: "776", race: "S-AL-2026", mark: ["Barry Moore"], page: D({ elected: "Barry Moore", qualifier: "not on the ballot", rated: false }), record: "whether S-AL's row was tied to Moore at the seed" },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Blair, printed nowhere and not curated as retiring, is unmarked
+  // in GA-13's decided D primary: LOST PRIMARY (lib/incumbent-qualifier.ts:38-59; lib/incumbent-tag.ts:10-15).
+  { key: "a D nominee over an incumbent who lost the primary", from: "773", race: "GA-13-2026", mark: ["Jasmine Clark"], page: D({ elected: "Jasmine Clark", qualifier: null, tag: { key: "lost_primary", words: "LOST PRIMARY" }, rated: false }), record: "the card for B001328" },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Moore is `senate` (HO 779's measurements: AL-01 → S-AL), and
+  // S-AL's one mark below is his: elected, ELECTED TO THE SENATE (lib/incumbent-tag.ts:23-38, :43-47).
+  { key: "AL-01's rerun nominee", from: "776", race: "AL-01-2026", mark: ["Jerry Carl"], page: D({ elected: "Jerry Carl", qualifier: null, tag: { key: "senate", words: "ELECTED TO THE SENATE" }, rated: false }), record: "the card and open row for Moore; R HOLD on /electoral" },
+  // HO 795, HO 779 (components/RaceHubBody.tsx:180-188): Tuberville is on the curated governor list
+  // (data/governor-runs-2026.json; lib/incumbent-qualifier.ts:27-32), and past election day it reads RAN FOR GOVERNOR
+  // (lib/incumbent-tag.ts:48-49).
+  { key: "Moore on S-AL", from: "776", race: "S-AL-2026", mark: ["Barry Moore"], page: D({ elected: "Barry Moore", qualifier: null, tag: { key: "governor", words: "RAN FOR GOVERNOR" }, rated: false }), record: "whether S-AL's row was tied to Moore at the seed" },
 ];
 
 const argAt = (flag: string) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
@@ -651,8 +678,9 @@ async function night(browser: Browser, out: Record<string, unknown>) {
     await ctx.close();
     const w = s.page;
     const tag = `${s.race} (HO ${s.from}, ${s.key})`;
-    const wantSub = w.sub === "decided" ? "Decided · Nov 3, 2026" : w.sub === "notCalled" ? "Not yet called" : w.sub === "runoffDec12" ? "Runoff Dec 12" : "Runoff";
-    check("race page", `${tag}: the header reads ${wantSub}`, w.sub === "runoff" ? (x.sub ?? "").endsWith("Runoff") : (x.sub ?? "").includes(wantSub), `"${x.sub}"`);
+    const wantSub = w.sub === "decided" ? "Decided · Nov 3, 2026" : w.sub === "notCalled" ? "Not yet called" : w.sub === "runoffDec12" ? "Runoff Dec 12" : w.sub === "runoffDec1" ? "Runoff Dec 1" : "Runoff";
+    // HO 795: a runoff header is matched at its end, so a bare Runoff and Georgia's Runoff Dec 1 read exactly.
+    check("race page", `${tag}: the header reads ${wantSub}`, w.sub === "runoff" || w.sub === "runoffDec1" ? (x.sub ?? "").endsWith(wantSub) : (x.sub ?? "").includes(wantSub), `"${x.sub}"`);
     if (w.rated) check("race page", `${tag}: the chips sit dimmed under final call ·`, x.chipsOpacity === "0.55" && /final call/i.test(x.chipsText ?? ""), `opacity ${x.chipsOpacity} · "${x.chipsText}"`);
     else check("race page", `${tag}: no rating row, so no chips`, x.chipsText === null, `chips ${x.chipsText === null ? "none" : `"${x.chipsText}"`}`);
     if (w.anchors) {
@@ -662,7 +690,9 @@ async function night(browser: Browser, out: Record<string, unknown>) {
     }
     const elected = x.rows.filter((r) => r.elected).map((r) => r.text);
     check("race page", `${tag}: ${w.elected ? `Elected on ${w.elected}'s row, and only it` : "no row reads Elected"}`, w.elected ? elected.length === 1 && elected[0]!.includes(w.elected) : elected.length === 0, `Elected ${JSON.stringify(elected)} · rows ${x.rows.map((r) => r.text).slice(0, 6).join(" | ")}`);
-    check("race page", `${tag}: the card's word reads ${w.qualifier ?? "nothing"}`, (x.qualifier?.toLowerCase() ?? null) === w.qualifier, `"${x.qualifier ?? "none"}" · tag "${x.tag ?? "none"}"`);
+    // HO 795: where HO 779 keeps the tag, the card shows the tag, as ruled, and no word.
+    if (w.tag) check("race page", `${tag}: the card keeps its incumbent's tag, ${w.tag.key} "${w.tag.words}", and shows no word`, x.qualifier === null && x.tagKey === w.tag.key && x.tag === w.tag.words, `word "${x.qualifier ?? "none"}" · tag ${x.tagKey ?? "none"} "${x.tag ?? "none"}"`);
+    else check("race page", `${tag}: the card's word reads ${w.qualifier ?? "nothing"}`, (x.qualifier?.toLowerCase() ?? null) === w.qualifier, `"${x.qualifier ?? "none"}" · tag "${x.tag ?? "none"}"`);
     const provOk = x.provenance.length > 0 && x.provenance.every((p) => (w.prov === "called" ? p.startsWith("Called by Ballotpedia · read ") : w.prov === "nobox" ? p.startsWith("No general-election box on Ballotpedia · read ") : p.startsWith("No call on Ballotpedia · read ")) && / MT$/.test(p));
     check("race page", `${tag}: the provenance line reads ${w.prov === "called" ? "Called by Ballotpedia" : w.prov === "nobox" ? "No general-election box on Ballotpedia" : "No call on Ballotpedia"} with its read time`, provOk, JSON.stringify(x.provenance));
     if (s.record) say(`    RECORD ${tag} · ${s.record}: card "${x.card ?? "none"}" · tag ${x.tagKey ? `${x.tagKey} "${x.tag}"` : "none"}`);
