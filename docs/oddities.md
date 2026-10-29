@@ -4944,3 +4944,21 @@ The second half is the compare that looked precise and wasn't. `stored >= listUp
 HO 790's paced pass ended on census 790b: 0 behind, 0 missing, so *there is no residual*. Its own paste says, two lines further on, that the census compares at day precision and can't see a same-day second update, which is the class the block's new backlog line filed. Both sentences were true, and the conclusion drawn from them wasn't. A zero from an instrument that reads one class current whether or not it's there says nothing about that class. The census was the right close for the older-tail drop, which moves bills across days, and the wrong one for the old compare's other loss, which doesn't. HO 791's sampler, built for the frontier's margin, read the other loss first: 47 of 500 recently updated bills behind Congress.gov on their own stored day. All 47 were stored before the frontier existed, below every listing that will run again. None was the margin's (`docs/probes/791-late-index.md`). **The rule:** when a close reads an instrument's zero, name the classes that instrument can't see, and say what reads them, in the same sentence as the zero.
 
 The sampler's own control caught a second defect first. The handoff defined *same-day miss* (below the frontier, on U1's day) and *wide-unreachable* (below the frontier less 48 hours, on any day) so that they overlapped. The first build checked the window first, so every control bill moved back an hour on a day older than the window read *wide-unreachable*. The control said the reading was void before a single class printed. Classes written as a list of conditions need an order, or a proof that no bill meets two of them, and a control that plants a bill in each one finds out which.
+
+## A rehearsal re-run after its rulings read its own stale expectations as FAILs, and the re-match reads the ruling, never the page (HO 795, Oct 2026)
+
+On Oct 11, HO 777's election-night rehearsal (`scripts/diagnostic/election-night-rehearsal-777.ts`) wrote down what each race page should say on Nov 4. Two rulings then changed some of those pages on purpose:
+- HO 779 kept the incumbent's tag on a called race, so HO 758's *not on the ballot* shows only where there's no tag (`components/RaceHubBody.tsx:180-188`).
+- HO 783 dated Georgia's runoff: *Runoff Dec 1* (`lib/race-result.ts:177-180`).
+
+HO 795 re-ran the rehearsal on today's tree and read 238 PASS and 9 FAIL. Seven cards showed the ruled tag where the script expected the word, and S-GA's header and word carried their date.
+
+The handoff's own hand reads, worded from HO 777's block, read four more FAILs the same way. LA-01's were *two Advanced*, where HO 780's own record reads one beside the incumbent's card. The other three were called races whose card keeps its tag.
+
+No page was wrong. Nine expectations and four handoff lines had been written from a block the rulings superseded, and the same tree read them as FAILs. A rehearsal that reads nine known-stale FAILs is a gate nobody can read: the next real FAIL would sit among them.
+
+**The rule:** a rehearsal's expectations are the rulings' text. A re-run after a ruling re-matches them before it reads, each new expected string taken from the ruling's code or block and citing it.
+
+**The tautology guard:** the re-match reads the ruling, never the page. An expectation copied off the page it checks passes whatever the page says. HO 795 derived the seven tags from the seed's data and the rulings' order and words (`docs/handoffs/795-artifacts/rematch-derivation-795.log`). A second derivation, barred from every log and capture and from the first derivation, reached the same eight expectations from the rulings and the copy alone. Only then did it re-run the same copies, which read 247 / 0 / 1.
+
+The derivation's own first pass shows why the guard has to be independent. It read GA-13's NULL curated flag as 0 and printed RETIRING, and the slip surfaced as a disagreement with the page the author had already seen. The rule's text, `= 0` (`lib/incumbent-qualifier.ts:34`), corrected it, and the independent derivation, which never saw a page, is what makes the corrected string the ruling's and not the page's.

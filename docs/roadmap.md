@@ -7979,3 +7979,146 @@ Every tick read `queueBefore` and `queueAfter` 0, and `wideComplete` matched `wi
 - The Sabato task's Oct 28 end state is `0x2`, not `0x41306`: the popup dismissed, the script's own refusal exit.
 - The estimate of ~600 read 539.
 - **Also notes now run through HO 794.**
+
+**Also (HO 795), election-week readiness. The HO 777 rehearsal was re-run on today's tree: 238 / 9 / 1 as first read, every FAIL a pre-ruling expectation, then 247 / 0 / 1 after Corey's ruled re-match. The Nov 4 runbook is restated at today's lines in `docs/probes/795-election-night-readiness.md`, and the crons it leans on were read for the week. It opens with HO 794's FF go as taken, and the CRS catch-up.**
+- **What's here:**
+  - HO 794's FF go as taken, and the CRS catch-up;
+  - STEP 0, a check: claims 1 to 6 held;
+  - the rehearsal: the first run, the HALT, the ruling, the re-match, the second run;
+  - the hand reads, as worded and as ruled;
+  - the probe file;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Three commits, kinds unmixed:** `diag` (the rehearsal's re-match and the probe file), `docs` (this block, the backlog and the oddity), then `docs(skill)`, alone and last.
+- **Prod was read by `SELECT` only.** No cron was called and nothing was written, and the rehearsal ran on `file:` copies.
+- **The pointer is 795:** pointer 794 (`docs/roadmap.md:7981`), highest HO in commit subjects 794, `main` at `dc491c8`.
+
+**HO 794's FF go, as taken.**
+- **`main` at `dc491c8`:** `21f1d2e..dc491c8`, four commits, no force. `794-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The gates before the push:**
+  - the cold build: its junction unlinked first and its target confirmed, then exit 0 with 0 warning lines;
+  - `npm run typecheck`: 0;
+  - `check:odds-sites` and `check:design-citations`: OK.
+- **The deploy:**
+  - `verify:deploy` read `21f1d2e` until 21 s, then `dc491c8` from 31 s on five reads.
+  - `/api/version` read `dc491c8` plain and with a fresh query string at 7:31:31 PM MT Oct 28 (01:31:31Z Oct 29): `no-store`, `MISS`, `Age: 0`.
+  - Production record `7401660737` at 7:30:48 PM MT Oct 28 (01:30:48Z Oct 29), at `congressionalterminal-dei6trbwd`, a separate deployment from the review Preview (`go4i2iwio`), so no dedup.
+- **`e2e-prod` `40800869364`,** fired by the record: smoke **143 passed (6.2m)**, done at 7:37:44 PM MT (01:37:44Z). The first `gh run watch` exited 1 mid-run, so the run was polled to the end. No dispatch, no flush.
+
+**The CRS catch-up** (`scripts/diagnostic/crs-catchup-794.ts`).
+- **The box's two rules** (`.claude/settings.local.json`, gitignored):
+  - allow `Bash(npx tsx scripts/diagnostic/crs-catchup-794.ts --reset:*)`;
+  - ask `Bash(npx tsx scripts/diagnostic/crs-catchup-794.ts --reset *--go*)`.
+- **The reset** (`--reset --count 794a`, typed bare) started at 7:32:19 PM MT (01:32:19Z), with all 539 still matching the guard and the hole at 0. It named the host and paused five seconds. Four rounds, at the summarizer's pace:
+
+  | round | at | written | refused | the hole after |
+  |---|---|---|---|---|
+  | 1 | 7:32:46 PM MT (01:32:46Z) | 150 | 0 | 150 |
+  | 2 | 7:41:49 PM MT (01:41:49Z) | 150 | 0 | 150 |
+  | 3 | 7:51:51 PM MT (01:51:51Z) | 150 | 0 | 150 |
+  | 4 | 8:01:53 PM MT (02:01:53Z) | 89 | 0 | 157 |
+
+  539 written, 0 refused. The 2,000 gate wasn't reached, and no `--go`.
+- **The summarizer's ticks:** #28808 (150), #28809 (150), #28811 (82, stopped on its budget), #28812 (139, budget) and #28814 (18). That's 539 summarized, 0 failed, 871,150 prompt and 54,512 output tokens. The hole read 0 at 8:21:17 PM MT.
+- **794b** (`--count --label 794b`, 8:21:32 PM MT, 02:21:32Z Oct 29) read the same 6,378 summaries on 6,221 bills, and **0 candidates**.
+- **The 539, checked directly:** every one holds a summary, every `summary_updated_at` falls from 7:40:25 to 8:20:29 PM MT, and none failed. The catch-up's backlog line is struck on it.
+
+**STEP 0, a check: claims 1 to 6 held** (`docs/handoffs/795-artifacts/step0-2026-10-29T21-03-31-478Z.log`, read at 3:03:31 PM MT Oct 29, 21:03:31Z).
+- **1:** `main` `dc491c8`, pointer 794 at `:7981`, highest HO in subjects 794; this handoff is the one numbered file above 794.
+- **2:** the rehearsal script as cited, except three header ranges one line off: copies `:12-16`, shapes `:17-26`, safety `:28-32`, against `:12-17`, `:18-27`, `:29-33`. `lib/clock.ts:11-13` and `daysToElection` `lib/format.ts:142` as cited.
+- **3:** the routes, the tick's bounds, `RunResult` and `vercel.json`'s schedules as cited. `kalshi` is `15 */2 * * *` (`:116-117`).
+- **4, the ballot cron's week:**
+  - **84 rows, all `success`.**
+  - **82 ticks read alike:** 40 of 40 READ, stop `cap`, 40 requests, `minGapMs` 6000, 0 runoff boxes, 234,251 to 241,658 ms.
+  - **Two stopped on an UNREAD,** both timeouts on Oct 23: #27325, `MA-03-2026` after 25 READ; #27490, `VT-AL-2026`, its first race.
+  - **The sums:** 3,307 attempted, 3,305 READ.
+  - **The HALT tests:** no cause names a challenge, a WAF or a 202, and no tick in 48 hours read UNREAD more than 5.
+  - **The races:** all 470 were read within 24 hours (the oldest attempt 4:21:36 PM MT Oct 28), every last attempt a READ (463 `box`, 7 `no_box`). **0 marked**, and `general_runoff` has 0 rows.
+- **5, the other crons' week:**
+  - primaries: 14 of 14 `success`; the last `?state=` row is still HO 778's #24524.
+  - race-challengers: 7 of 7. #28924 wrote 909 rows in 465 races, jungle 0 decided.
+  - kalshi: 24 of 24 in 48 hours. `kalshi_odds` (469 rows) and `polymarket_odds` (34) were written at 2:15:37 PM MT.
+  - sync-race-ratings: 7 of 7 `error`, Sabato's challenge, as expected.
+  - `/api/sync`: 28 of 28 `success`; the wide ticks enqueued 182, 40, 36 and 320.
+- **6, the box:**
+  - `.env` carries `CRON_SECRET`, checked by name.
+  - `gradshow-numbers-787.ts` with no mode prints its usage (`:1035`) and exits 2.
+  - The Sabato task is Ready; it last ran Oct 28 with `0x2`, and Oct 29's run is at 5:00 PM MT.
+- **7, re-derived:** backlog `:15`, `:17`, `:47` and `:76`; reconcile 282 / 360 on 642. The WATCH line carries no `lib/general-ballot.ts:785`: that cite is HO 777's block's (`docs/roadmap.md:6018`), and the pacer is at `lib/general-ballot.ts:946` now.
+
+**The rehearsal, re-run** (`scripts/diagnostic/election-night-rehearsal-777.ts`, Node v24.22.2).
+- **The seed** (`--seed --label 795`, 3:09:39 to 3:10:35 PM MT):
+  - 22 whole tables, with `bills` and `member_votes` cut to the 107 members and the newest 400 `cron_runs`.
+  - Prod's fingerprint was equal before and after.
+  - HO 777's 17 marks and Louisiana's three jungle winners were planted.
+  - STALE: only S-ME's curated name, as at HO 777.
+- **The build:** cold, the junction unlinked first: exit 0, 0 warning lines, `JVYNrudYscPa3pSDUsrXb`.
+- **The first run** (`--run --label 795`, 3:12:36 to 3:14:15 PM MT) read **233 PASS, 9 FAIL, 1 N/A**, so **238 / 9 / 1** with the seed's 5. Each FAIL was an expectation HO 777 wrote on Oct 11, before the ruling that changed its page:
+  - **Seven, HO 779** (`c4d116b`, Oct 12, `components/RaceHubBody.tsx:180-188`): *the card's word reads not on the ballot* on IA-02, S-NH, S-IA, FL-25, GA-13, AL-01 and S-AL. Each card shows the tag the ruling keeps instead: LOST THE SENATE RACE, RETIRING, RETIRING, RUNNING IN FL-20, LOST PRIMARY, ELECTED TO THE SENATE and RAN FOR GOVERNOR.
+  - **Two, HO 783** (`a86a287`, Oct 13, `lib/race-result.ts:177-180`): S-GA's header *Runoff* and card word *runoff*. The page reads *Runoff Dec 1* and *runoff Dec 1*, which HO 783's own leg read as its green.
+- **The HALT** went to chat with each check's line, the copy and the capture (`docs/handoffs/795-artifacts/halt-795.md`).
+- **Corey's ruling:**
+  - all thirteen are instrument FAILs: the nine, and the four hand reads below;
+  - no surface FAILed, so no fix HO;
+  - option 2: re-match the script to the rulings in this HO's `diag` commit, each new expected string taken from the ruling's code or block and citing it, nothing read off the page; then re-run on the same seed and copies.
+- **The re-match:**
+  - The seven shapes expect the tag with no word: a `tag` expectation, its key and words, and the card's check reads the tag where the ruling keeps one.
+  - S-GA expects *Runoff Dec 1*, matched at the header's end like a bare *Runoff*, and *runoff dec 1*.
+  - Each shape's check count is unchanged.
+  - The tags were derived from the seed's data and the rulings' order and words (`docs/handoffs/795-artifacts/rematch-derivation-795.log`). **The tautology guard:** a second derivation was barred from the runs' logs and captures and from the first derivation. From the rulings' code and blocks and the night copy's data alone, it reached the same seven tags and S-GA's two strings, and it found each cite in the diff pointing at what it claims.
+  - **The check logic, reviewed:** sound. The scope is the eight shapes, the type, the header comment and the two checks, and each shape's check count is unchanged. Four of the seven tags (RETIRING twice, LOST PRIMARY, RUNNING IN FL-20) read the same before and after election day, so the run's clock rests on IA-02's, AL-01's and S-AL's (`docs/handoffs/795-artifacts/rematch-guard-795.json`).
+- **The second run** (`--run --label 795b`, 3:46:12 to 3:47:48 PM MT, on the same copies byte for byte) read **242 PASS, 0 FAIL, 1 N/A**, so **247 / 0 / 1**.
+  - The other 233 checks read as in the first run.
+  - The N/A is AL-01's R HOLD, as at HO 777.
+- **Readings, not FAILs:**
+  - **The band at the real clock:** *ELECTION DAY · NOV 3 · 5 DAYS · ~58 competitive seats*.
+  - **The band at the Nov 4 clock:** *RESULTS · NOV 3 · 61 of 105 competitive seats called · House R 43 · D 44 · other 1 · 347 open*, equal to its `SELECT`.
+  - **The 105 rated seats** against HO 777's 99 are Sabato's moves since HO 777's seed: eight added (six of them dated Oct 20) and two dropped.
+
+**The hand reads, as worded and as ruled** (the `night` copy, 3:16:42 to 3:17:18 PM MT):
+- **HO 780, LA-01:** FAIL as worded (*two Advanced*), PASS as ruled. It reads *Runoff Dec 12*, Jewett *Advanced* and Scalise's card *runoff Dec 12*, which is HO 780's recorded LA-01 (`docs/roadmap.md:6365`).
+- **HO 780, LA-02:** PASS: *Decided · Nov 3, 2026*, with *Elected* on Renada Collins's row.
+- **HO 783, S-GA:** PASS: *Runoff Dec 1*, the card *runoff Dec 1*, and `/electoral`'s row RUNOFF.
+- **HO 784:** PASS: the sources line gives each rater's AS OF on MI-04's page and on `/electoral`.
+- **HO 789:** PASS: *Sabato · as of 2026-10-20 · direct* on both tabs, equal to the unmarked copy's line.
+- **HO 779, AL-01, S-AL and GA-13:** FAIL three times as worded (*HO 758's word where the tag was*), PASS as ruled: ELECTED TO THE SENATE, RAN FOR GOVERNOR and LOST PRIMARY.
+
+**The probe file,** `docs/probes/795-election-night-readiness.md` (`diag`):
+- the Nov 4 runbook in the WATCH line's order, (a), (c), (b), then the reads, every mechanism at today's line;
+- the clock: MST from Nov 1, 15:00Z, the windows, and the pages turning at 00:00Z Nov 4, 5:00 PM MST Nov 3;
+- the preconditions;
+- each read's expectation, as ruled;
+- what each step reads if nothing happened;
+- the rehearsal and its captures' index.
+
+The Nov 4 handoff is written from it on Nov 3.
+
+**The ledger.**
+- **Backlog:**
+  - *The CRS catch-up: 539 bills…* (HO 794) is **struck** on 794b's reading and the direct check of the 539.
+  - *WATCH (HO 758) · the first Nov-4 read* gains a dated note: the readiness re-read, the rehearsal's counts and its re-match, the ballot cron's week, the lock and the state route at today's lines, the clock, and the probe file as the runbook. The WATCH stays dated Nov 4.
+  - *Sabato's reader is refused…* (Corey's): nothing appended. Oct 29's run is at 5:00 PM MT, after this commit, and the handoff appends it only if read.
+  - No FAIL line, since none survives the ruling.
+- **Oddities:** one entry. A rehearsal's expectations are the rulings' text, and a re-run after a ruling re-matches them before it reads; the re-match reads the ruling, never the page.
+- **Reconcile:** 282 / 360 on 642 at open; **281 / 361 on 642** at close, mis-struck 0.
+
+**Owed after the FF.**
+- Docs and a diagnostic only, so Production's code doesn't change: read the served SHA once, `e2e-prod` if the record fires one, and no flush.
+- The `docs(skill)` commit means the chat rebuilds `cbt.zip`, held and not uploaded.
+- The Nov 4 handoff is written from the probe file on the evening of Tuesday Nov 3, and run Wednesday Nov 4 after 8:00 AM MST.
+- Corey's three odds snapshots (Mon Nov 2 9:30 PM, Tue Nov 3 7:30 AM and 3:30 PM, MST) are his, by the 787 script.
+
+**What was flagged.**
+- **Ratified:** claim 2's three header ranges one line off; claim 7's `:785` cite as HO 777's block's.
+- **The rehearsal's first read:** the handoff expected 247 / 0 / 1 from HO 777's expectations, and the tree read 238 / 9 / 1, every FAIL pre-ruling. Ruled instrument, and re-matched.
+- **The handoff's § 1.2 wording** for LA-01 and for HO 779 was HO 777's block's. Ruled.
+- **Node:** the rehearsal ran on v24.22.2 (`node@24` in the session scratchpad), as HO 777's ran on 24.21.0. Ratified.
+- **The artifacts:**
+  - The script writes to `docs/handoffs/777-artifacts/` (its `ART`), so HO 777's r1 captures were set aside for each run and restored, and the runs' captures and labelled files sit under `795-artifacts`. Ratified.
+  - `795b` reads the 795 seed under its own label, so the copies, sentinels and plant record were given `795b` names, byte for byte (sha256 equal).
+- **The ruling's *105 against 99 (Sabato's Oct 20 ratings)*, measured:** eight seats added and two dropped, all Sabato's, six of the eight dated Oct 20.
+- **The derivation's first pass** read GA-13's NULL curated flag as 0, so RETIRING. The rule is `= 0` (`lib/incumbent-qualifier.ts:34`), and the corrected pass reads LOST PRIMARY.
+- **The pages turn at 00:00Z Nov 4, 5:00 PM MST Nov 3,** by the UTC-date gate (`lib/format.ts:142-148`). Until Ballotpedia marks, every race page reads *Not yet called* and the band reads RESULTS with 0 called. A reading, not a FAIL.
+- **After `795b`, one comment changed:** S-GA's cite gains `:276` and `:280`, the header's and the word's own lines, on the review's note. The committed script differs from the run's blob (`f606d0e`) by that comment alone.
+- **Also notes now run through HO 795.**
