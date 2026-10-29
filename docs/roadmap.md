@@ -7913,3 +7913,69 @@ Every tick read `queueBefore` and `queueAfter` 0, and `wideComplete` matched `wi
 - The Sabato reader's note names Oct 23's 200 too; the handoff's text named Oct 22, Oct 24 and Oct 26, and the log has Oct 23 at 5:00:02 PM MT.
 - Leg L's instants: run after 00:00Z, it put U2 at 23:00Z the day before (U1 21:00Z), so U1 and U2 share a UTC day and U2 sits an hour or more before the tick.
 - **Also notes now run through HO 793.**
+
+**Also (HO 794), a new CRS summary re-summarizes, by Corey's ruling of Oct 28. The bills already holding an AI summary older than their CRS summary are counted, 539, for a reset at the summarizer's pace after the FF. It opens with HO 793's FF go as taken.**
+- **What's here:**
+  - HO 793's FF go as taken, with its records;
+  - the first wide tick on the new code, and the meter's correction;
+  - the Sabato task's third logged run;
+  - the ruling;
+  - STEP 0, a check: every claim held;
+  - the rule, and leg E red and green;
+  - the catch-up's instrument, its legs and the count;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Four commits, kinds unmixed:** `fix` (`lib/sync.ts`), `diag` (leg E's case 5 and `scripts/diagnostic/crs-catchup-794.ts`), `docs` (this block and the backlog), then `docs(skill)`, alone and last.
+- **Prod was read by `SELECT` only** and nothing was written before the FF. Congress.gov had 34 reads: STEP 0's three (two of the list, one per-bill `/summaries`), the probe's two with `fromDateTime`, and the count's 29 pages, the key in each URL and in no printed line.
+- **The pointer is 794:** pointer 793 (`docs/roadmap.md:7915`), highest HO in commit subjects 793, `main` at `21f1d2e`.
+
+**HO 793's FF go, as taken.**
+- **`main` at `21f1d2e`:** `67e9575..21f1d2e`, four commits, no force. `793-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The gates before the push:** the cold build, its one junction (`.next\node_modules\@libsql\client-6da938047d5fc1cd`) unlinked first and its target confirmed, exit 0 with 0 warning lines; `npm run typecheck` 0; `check:odds-sites` OK; `check:design-citations` OK.
+- **The deploy:** `verify:deploy` first matched at 52 s and held five reads. `/api/version` with a fresh query string read `21f1d2e`, `no-store`, MISS, Age 0. Production record `7375632484` at 8:34:08 PM MT Oct 27 (02:34:08Z Oct 28), at `congressionalterminal-gimzio10w`, a separate deployment from the review Preview (`c2h5929x9`).
+- **`e2e-prod` `40621701766`,** fired by the record: smoke **143 passed (5.7m)**, `success` at 8:40:59 PM MT (02:40:59Z). No dispatch, no flush.
+
+**The first wide tick on the new code, #28788** (6:00:10 PM MT Oct 28, 00:00:10Z Oct 29): `wide` and `wideComplete` true, 3 pages, `listedCount` 188, 320 enqueued and written (188 from the frontier listing, 132 added by the wide listing), 0 resets, `crsOnly` 21, 133,232 ms of the 240,000 budget, queue 0 → 0, nothing failed or dropped.
+- **The meter's correction.** HO 793's paste read `crsOnly` 21 as the re-reads finding CRS moves and predicted the wide ticks would lift the meter. `upsertBill` computes `crsMoved` only when `update_date` moved (`lib/sync.ts:423-430` at `21f1d2e`), so a re-read counts nothing there and only adds to `upserted`, which since HO 793 dilutes the rate on every wide tick. The meter that holds is `crsOnly` per day.
+
+**The Sabato task's third logged run** (5:00:01 PM MT Oct 28): logged at 5:00:02 PM *refused: status 403, challenge=True, 5,497 bytes, cf-ray `a51d8deccf83fa0d-DEN`*. It ended with `LastTaskResult` `0x2` (read 7:16 PM MT), not the `0x41306` the handoff expected: `0x2` is the script's own exit after a refusal (`docs/handoffs/sabato-daily.ps1:115`), so its popup was dismissed before the two-hour limit. The box was refused two days running.
+
+**The ruling.** At 6:45 PM MT Oct 28, on *"Should a new Congressional Research Service (CRS) summary trigger a fresh AI summary? Today it doesn't, so a bill summarized before CRS published its summary keeps the older AI summary written without it."*, Corey chose **"Yes, re-summarize"**, whose description read *"Treat a new CRS summary like a new action. About 15 extra summaries a day, plus a one-time catch-up the next handoff measures first."* Read as: a write whose `update_date` moved and whose CRS summaries' count changed resets the summary, exactly as a new latest action or a new text version does since HO 790; and the bills whose AI summary predates the CRS summary they now carry are re-summarized once, sized here before any reset.
+
+**STEP 0, a check: every claim held** (`docs/handoffs/794-artifacts/step0-*.log`).
+- **1:** `main` `21f1d2e`, pointer 793 at `:7915`, highest HO in subjects 793, the one numbered file above 793 this handoff.
+- **2:** `lib/sync.ts`: `SyncStats`' CRS comment `:140-141`, `crsMoved` and `crsOnly` `:142-143`; `UPSERT_SQL`'s reset comment `:337-345`; `UpsertResult` `:372`; the flags `:423-430`, each computed only when `updateMoved`; `substantive` `:431`; the drain's tally `:596-597`.
+- **3:** `lib/summarize.ts`: the per-bill `/summaries` fetch at `:152` (the handoff cited `:153`), the latest by `actionDate` `:153-157`, the prompt's CRS line `:219`; `lib/summarize-runner.ts` writes `summary_updated_at` with the summary at `:321` and `:378`. The premise holds.
+- **4** (7:16 PM MT Oct 28, 01:16Z Oct 29): `/summaries/119?limit=5&sort=updateDate+asc` answered 200, **`pagination.count` 35**, every item dated Oct 28: without `fromDateTime` the list answers a recent window only. Each item names its bill (`congress`, `type`, `number`, with the bill's `updateDateIncludingText` and `url`) and carries two dated fields with a time, `updateDate` (the record) and `lastSummaryUpdateDate` (the summary). The same sorted desc answered from 20:16:23Z down, after the asc list's last: the sort is honoured. `/bill/119/s/890/summaries` carries `actionDate`, `actionDesc`, `text`, `updateDate` and `versionCode`, its `updateDate` 20:15:34Z equal to the list's `lastSummaryUpdateDate`, not the list's `updateDate` (20:16:23Z): the summary's own instant is `lastSummaryUpdateDate`, and the count reads it. A probe with `fromDateTime=2025-01-01T00:00:00Z` answered `pagination.count` 6,378, so the count reads the list from there.
+- **5:** 19,788 bills, every one with a summary; of them 6,221 with `raw_json`'s `summaries.count` at 1 or more; 0 with a summary and `summary_updated_at` NULL. The latest `summary_updated_at`, 2026-10-28T18:10:25.528Z, has the guard's bound's format.
+- **6:** the Sabato task: `State` Ready, `LastRunTime` 5:00:01 PM MT Oct 28, `LastTaskResult` `0x2`, `NextRunTime` 5:00 PM MT Oct 29; Oct 28's log line as above. Oct 29's run hadn't happened.
+- **7:** backlog `:16`, `:18` and `:46` as cited; reconcile 283 / 358 on 641, mis-struck 0; SKILL step 4 `:1256`, the endpoint list and the scripts list as cited.
+
+**The rule** (`fix` `387862c`, `lib/sync.ts` only): `substantive = byAction || byText || crsMoved`; `crsOnly` counts `crsMoved && !byAction && !byText`, the resets the CRS term alone caused, so the meter is now a count of real resets inside `resets`; `SyncStats`' and `UPSERT_SQL`'s comments say so, the latter naming the three inputs of the prompt besides the title and both rulings. The flags, the stage trio and `changed_at` are untouched; a title, a subject or a cosponsor still keeps the summary.
+
+**Leg E** (`docs/handoffs/794-artifacts/legs-E-base-21f1d2e.log`, `legs-head.log`): case 5, a stored bill with a summary re-listed with a moved instant and its CRS summaries' count up by one, action and text unchanged.
+- **Red at `21f1d2e`** (a worktree at the base, the script copied in, `--only E`): case 5 kept its summary, and the tally read `resets` 2, `crsMoved` 1, `crsOnly` 1. Cases 1 to 4 green. The tripwire refused 0.
+- **Green at `387862c`,** every leg A to H, L, O and P: **44 checks passed, 0 failed**, the tripwire 0. Case 5 nulled, the tally `resets` 3, `crsOnly` 1; case 1, metadata only, still keeps its summary.
+
+**The catch-up's instrument, `scripts/diagnostic/crs-catchup-794.ts`.**
+- **Its legs** (`--legs`, a `file:` copy built by `scripts/migrate.ts`, seeded from HO 790's `seed-1000.json`, a fetch tripwire refusing every request and `.env` never loaded): **12 checks passed, 0 failed**, the tripwire 0. (a) an older summary nulled, all seven columns, and an unstamped one counted apart and nulled; (b) a newer one kept by the guard; (c) a NULL summary untouched; (d) a bill re-summarized after the count kept, and a re-run writing nothing twice; (e) 2,001 without `--go` stopped, 4,001 with it halted, 2,000 without it run, the hole unmoved; (f) 5 at 2 a round: rounds of 2, 2 and 1, a wait between each.
+- **The count, `--count --label 794a`** (7:17 PM MT Oct 28, 01:17Z Oct 29; `count-794a.csv`): 29 pages, 7,078 entries read with the overlap's repeats, 6,378 distinct summaries on **6,221 bills**, every item with a bill and a `lastSummaryUpdateDate`. Against `bills`: **539 candidates**, none with `summary_updated_at` NULL. Their CRS dates by month: May 59, Jun 148, Jul 163, Aug 19, Sep 56, Oct 94. The busiest day is Oct 28 with 34, so no bulk touch. The list names no bill `bills` doesn't hold. 539 is under the 2,000 gate, so the reset runs on its own after the FF.
+
+**The ledger.**
+- **Backlog:**
+  - *Should a new CRS summary re-summarize?* (HO 790) is **struck** on its close: the ruling verbatim with its date, the term in `substantive` (`387862c`), leg E's case 5 red and green, the meter's correction, and the catch-up handed to its own line.
+  - **New:** *The CRS catch-up: 539 bills hold an AI summary older than their latest CRS summary* (Code, medium), its close `--count` reading 0 candidates among them after the summarizer drains the hole.
+  - *The Sabato daily task's 5:00 PM MT runs…* is **struck**: three logged runs, the ruling that a refused run that logged counts, the settings holding.
+  - *Sabato's reader is refused…* gains a dated note: refused Oct 27 and Oct 28, the box's reach maybe gone, the saved-page fill, the Center for Politics email unsent. Still Corey's.
+- **Reconcile:** 283 / 358 on 641 at open; **282 / 360 on 642** at close, mis-struck 0.
+
+**Owed after the FF.** `lib/` changed: `verify:deploy`, the served SHA, `e2e-prod` with smoke 143. Then the box's two rules for the new script in HO 790's form (allow on `--reset`, ask on `--reset *--go*`), `npx tsx scripts/diagnostic/crs-catchup-794.ts --reset --count 794a` typed bare, and, once the summarizer has drained the hole, `--count --label 794b`, expected 0 candidates or only bills whose CRS summary arrived after the reset began.
+
+**What was flagged.**
+- Claim 3's fetch is at `:152`, not `:153`; the premise holds.
+- Claim 4: the list without `fromDateTime` answers 35, a recent window. The count adds `fromDateTime=2025-01-01T00:00:00Z`, a probe's 6,378, and reads `lastSummaryUpdateDate`, the field the per-bill `/summaries` carries as its `updateDate`. STEP 0's first read was sorted asc where the handoff named none, so the desc read separates the two orders.
+- The catch-up's legs seed from HO 790's `seed-1000.json`, a `SELECT` of prod read once, rather than a new `SELECT`, so `--legs` never loads `.env`.
+- The Sabato task's Oct 28 end state is `0x2`, not `0x41306`: the popup dismissed, the script's own refusal exit.
+- The estimate of ~600 read 539.
+- **Also notes now run through HO 794.**
