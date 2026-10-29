@@ -137,8 +137,9 @@ export type SyncStats = {
   resets: number;
   resetByAction: number;
   resetByText: number;
-  // HO 790: two moves the ruling counts and doesn't act on: the CRS summaries' count (every write where it moved, and
-  // those where nothing else reset the summary, the resets a CRS term would add) and the title.
+  // HO 790: the CRS summaries' count (every write where it moved; and the resets the CRS term alone caused, which
+  // until HO 794 counted the resets a CRS term would add, since a new CRS summary didn't reset) and the title, which
+  // the ruling counts and doesn't act on.
   crsMoved: number;
   crsOnly: number;
   titleMoved: number;
@@ -335,14 +336,14 @@ ON CONFLICT(id) DO UPDATE SET
   changed_at = CASE WHEN excluded.update_date != bills.update_date THEN excluded.changed_at ELSE bills.changed_at END,
   committee_walk_failures = CASE WHEN excluded.update_date != bills.update_date THEN 0 ELSE bills.committee_walk_failures END,
   -- HO 790: the seven summary columns reset on upsertBill's substantive flag,
-  -- bound once per clause (? = 1): update_date moved AND the latest action or
-  -- the text versions' count changed. The summarizer's prompt reads the latest
-  -- action and the latest text (lib/summarize.ts:217-220), so those two are
-  -- what a reset follows; a subject, a cosponsor or a title moving update_date
-  -- keeps the summary (HO 790, Corey's ruling on backlog :17, 2026-10-24). The
-  -- prompt reads the CRS summary too, and a new one is not a reset under the
-  -- ruling; the drain counts it (crsMoved, crsOnly). Until HO 790 each clause
-  -- tested excluded.update_date != bills.update_date (HO 115).
+  -- bound once per clause (? = 1): update_date moved AND the latest action, the
+  -- text versions' count or the CRS summaries' count changed. Those are the
+  -- three inputs of the summarizer's prompt besides the title (lib/summarize.ts:
+  -- 217-220), so they are what a reset follows (HO 790, Corey's ruling on
+  -- backlog :17, 2026-10-24, the action and the text; HO 794, Corey's ruling on
+  -- the CRS line, 2026-10-28, the CRS summary). A subject, a cosponsor or a
+  -- title moving update_date keeps the summary. Until HO 790 each clause tested
+  -- excluded.update_date != bills.update_date (HO 115).
   summary = CASE WHEN ? = 1 THEN NULL ELSE bills.summary END,
   summary_model = CASE WHEN ? = 1 THEN NULL ELSE bills.summary_model END,
   summary_updated_at = CASE WHEN ? = 1 THEN NULL ELSE bills.summary_updated_at END,
@@ -367,8 +368,8 @@ ON CONFLICT(id) DO UPDATE SET
   stage = COALESCE(?, bills.stage)
 `;
 
-// HO 790: what one write did, for the drain's tally: whether the summary reset and why, and the two moves the
-// ruling counts without acting on.
+// HO 790: what one write did, for the drain's tally: whether the summary reset and why (since HO 794 a CRS move is
+// one of the reasons), and the title move the ruling counts without acting on.
 type UpsertResult = { substantive: boolean; byAction: boolean; byText: boolean; crsMoved: boolean; titleMoved: boolean };
 
 // HO 790: a count the detail omits reads 0. Congress.gov leaves textVersions out until a bill has text (HO 790's
@@ -428,7 +429,7 @@ async function upsertBill(
     crsMoved = countOf(prior.crs_summaries) !== countOf(detail.summaries?.count);
     titleMoved = (prior.title as string | null) !== detail.title;
   }
-  const substantive = byAction || byText;
+  const substantive = byAction || byText || crsMoved;
   const stageObservedAt = stageAdvanced ? new Date().toISOString() : null;
   const newStageArg = stageAdvanced ? computedStage : null;
 
@@ -594,7 +595,7 @@ async function drainOne(
         if (result.byAction) stats.resetByAction++;
         if (result.byText) stats.resetByText++;
         if (result.crsMoved) stats.crsMoved++;
-        if (result.crsMoved && !result.substantive) stats.crsOnly++;
+        if (result.crsMoved && !result.byAction && !result.byText) stats.crsOnly++;
         if (result.titleMoved) stats.titleMoved++;
         // Scoped to the drain's own source: a live listing that took this row over while the bill was in flight
         // keeps it, and the cron fetches it again.
