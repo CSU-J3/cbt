@@ -8122,3 +8122,187 @@ The Nov 4 handoff is written from it on Nov 3.
 - **The pages turn at 00:00Z Nov 4, 5:00 PM MST Nov 3,** by the UTC-date gate (`lib/format.ts:142-148`). Until Ballotpedia marks, every race page reads *Not yet called* and the band reads RESULTS with 0 called. A reading, not a FAIL.
 - **After `795b`, one comment changed:** S-GA's cite gains `:276` and `:280`, the header's and the word's own lines, on the review's note. The committed script differs from the run's blob (`f606d0e`) by that comment alone.
 - **Also notes now run through HO 795.**
+
+**Also (HO 796), the account surfaces hidden behind one constant: no sign-in on either masthead or the landing, no watch star, no WATCHLIST item, and `/watchlist` a 404, while the routes, the API and the tables stay. `ACCOUNT_UI` in `lib/account-ui.ts` is `false`, and flipping it brings the arc back. It opens with HO 795's FF go as taken.**
+- **What's here:**
+  - HO 795's FF go as taken;
+  - three reads: the Sabato task, Nov 1 on the box, the odds task;
+  - the ruling;
+  - STEP 0, a check: claims 1 to 5 held;
+  - the change, the crawl list, and two forced consequences, each measured red then green;
+  - § 3's reading, the captures and the layout reads;
+  - the builds, base and change;
+  - the review;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Four commits, kinds unmixed:** `feat` (the ten files of § 1), `test` (the crawl list and fit-finish's `/watchlist` test), `docs` (this block and the backlog), then `docs(skill)`, alone and last.
+- **Prod was read by `SELECT` only,** through the app's own reads on a local production server, and once over HTTP for claim 7. No cron was called and nothing was written.
+- **The pointer is 796:** pointer 795 (`docs/roadmap.md:8124`), highest HO in commit subjects 795, `main` at `eba6c0d`.
+
+**HO 795's FF go, as taken** (`docs/handoffs/795-artifacts/ff-mechanics.txt`).
+- **`main` at `eba6c0d`:** `dc491c8..eba6c0d`, three commits (`dcbb495` diag, `0cbd331` docs, `eba6c0d` docs(skill)), no force. `795-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The gates before the push:**
+  - the cold build on Node v24.22.2: its junction unlinked first and its target confirmed, then exit 0 with 0 warning lines;
+  - `npm run typecheck`: 0;
+  - `check:odds-sites` and `check:design-citations`: OK.
+- **The push** ran between 8:07:00 and 8:07:25 PM MT Oct 29 (02:07:00Z to 02:07:25Z Oct 30). The chain (the push, the ref's deletion, local `main`'s fast-forward) ended at 8:07:25 PM MT.
+- **The deploy:**
+  - Production record `7428903110` at 8:08:03 PM MT (02:08:03Z Oct 30), `success` a second later, at `congressionalterminal-6btpzbmzz`. It's a separate deployment from the review Preview (`ko3pvc5t0`), so no dedup.
+  - `/api/version` read `eba6c0d` once at 8:08:56 PM MT (02:08:56Z).
+- **`e2e-prod` `40989898929`,** fired by the record: smoke **143 passed (5.8m)**, and every one of the 82 narrow cells read `over=0`. No dispatch, no flush.
+
+**Read 1, the Sabato task** (`docs/handoffs/sabato-daily.log`, read again at 12:28 PM MST Nov 1, 19:28Z).
+- **Oct 29** (5:00:02 PM MT, 23:00:02Z): refused, 403, the challenge, 5,603 bytes, cf-ray `a525cb4d4c8c4de3-MCI`. The task ended `0x41306` (its two-hour limit), as read at HO 795's FF.
+- **Oct 30 and Oct 31** (5:00:02 PM MT, 23:00:02Z each): refused, 403, the challenge, 5,603 bytes, cf-rays `a52e08aff93be75b-DEN` and `a536460a5ed07c34-DEN`. Each kept the challenge page, with no retry. Their end states weren't read; the read was the log.
+
+**Read 2, Nov 1 on the box.**
+- The honest agent's `curl.exe` read (`docs/handoffs/sabato-daily.ps1:80`, `CBT-ratings-sync/1.0`), run by hand with the VPN off at 11:22:57 AM MST (18:22:57Z): 403, `challenge=True`, 5,497 bytes, cf-ray `a53ced8a3e5779a2-DEN`.
+- The log holds a second hand read at 11:33:41 AM MST (18:33:41Z) with the same answer, cf-ray `a53cfd454fbdfd76-DEN`.
+- The day's files are named by the date, so `sabato-rating-changes-2026-11-01.challenge.html` (5,497 bytes) and its headers are the second read's (`Date: Sun, 01 Nov 2026 18:33:41 GMT`).
+- So the score is on the request, not the network.
+
+**Read 3, the odds task.**
+- `CBT odds snapshots` was registered Nov 1 as Corey. It has three ONCE triggers: 9:30 PM MST Nov 2, then 7:30 AM and 3:30 PM MST Nov 3 (04:30Z, 14:30Z and 22:30Z). `StartWhenAvailable`, `WakeToRun`, `PT30M`.
+- It was tested at 10:51:32 AM and 11:03:36 AM MST, both `0`.
+- The log is UTF-8 after the first test (`docs/handoffs/odds-snapshots.log`). The first test's UTF-16 log is kept as `odds-snapshots-utf16-2026-11-01-1052.log`.
+- The two Nov 1 files, `docs/probes/odds-snapshots/2026-11-01-1052-MT.json` and `…-1103-MT.json` (193,122 bytes each), are tests, not snapshots, and stay untracked.
+
+**The ruling** (Corey, Nov 1): *"i want to hide the login box and watch list. just to keep it super basic. i dont want them to think im tryting to hack them.. we are seeing a lot of that lately."*
+- The site's link goes in the Center for Politics allowlist email and on the GradShow poster.
+- Logged-out has always been the demo (SKILL `:17`), so hiding the account surfaces loses no reader anything.
+- Whether they return or go for good is Corey's, after GradShow (backlog, new).
+
+**STEP 0, a check: claims 1 to 5 held** (read at `eba6c0d` before any edit).
+- **1:** `main` `eba6c0d`, locally and on the remote (`ls-remote` read `main` alone); pointer 795 at `:8124`; highest HO in subjects 795. This handoff is the one numbered file above 795.
+- **2 to 5:** every anchor as cited, in `HeaderBar.tsx`, `DashboardV2Header.tsx`, `BillRow.tsx` (the only renderer of `.feed-row`), `app/bill/[id]/page.tsx`, `app/welcome/page.tsx`, `LandingCTAs.tsx`, `app/watchlist/page.tsx`, `app/globals.css` and `OddsToggle.tsx:4`.
+- **6, re-derived:**
+  - `e2e/routes.ts:85` carries `/watchlist`.
+  - fit-finish `:1024-1031` expects 200.
+  - `e2e-prod.yml:246` runs smoke, odds-off and narrow, not fit-finish.
+  - **`ROUTES` holds 39, not 35:** 33 literal entries plus the six `?stage=` variants spread from `STAGES`, counted by importing the module. So § 2 leaves 38, not 34.
+- **7, prod's served HTML,** read once at 11:58:51 AM MST (18:58:51Z) with curl 8.17.0 (Git for Windows' build) and no agent flag, with `/api/version` at `eba6c0d`:
+  - `/welcome`: 200, 316,093 bytes, `>LOGIN<` once.
+  - `/bills`: 200, 166,482 bytes, `row-star` 25 times, `pnav-mine` twice, `href="/watchlist"` once.
+  - That's the before.
+- **8:** SKILL `:17`, `:28`, `:2003`, `:2006`, `:2070`, `:2236` and `:2887`, and backlog `:47`, all as cited. Reconcile 281 / 361 on 642, mis-struck 0.
+
+**The change** (`feat`, the ten files).
+- **`lib/account-ui.ts`,** new: `ACCOUNT_UI = false`, under the handoff's header.
+- **`components/HeaderBar.tsx`:**
+  - The eleven entries stay in the source array, now `ALL_NAV_ITEMS`, its HO 608 comment intact. `NAV_ITEMS` is that array filtered, so `MobileNavDrawer` and both `PrimaryNav` variants follow with no change of their own.
+  - The divider renders before the item keyed `"feed"`, so DASHBOARD | LEGISLATION… holds in both states. One line after the HO 608 paragraph in `PrimaryNav`'s comment says so. `pnav-mine` stays keyed on `"watchlist"`.
+  - The session read is `ACCOUNT_UI ? await auth() : null`, recorded in the HO 355 comment.
+  - The `·` + `AuthButton` pair renders only while `ACCOUNT_UI`.
+- **`components/DashboardV2Header.tsx`:** the same two gates, its HO 355 comment recording the read's. ODDS follows LAST SYNC, and the HO 692 comment over it says so.
+- **`components/OddsToggle.tsx:4`:** *after LOGIN*, and while `ACCOUNT_UI` is false, after LAST SYNC on the dashboard and after IN BETA on inner pages.
+- **`components/BillRow.tsx`:** the `.row-star` span renders only while `ACCOUNT_UI`, and when it doesn't, the row carries `feed-row--nostar`. The `onWatchlist` prop stays. The HO 613 comment gains the handoff's line.
+- **`app/globals.css`:** the handoff's four rules after the momentum rule, under one HO 796 comment, and two more in the `max-width: 700px` block (below).
+- **`app/bill/[id]/page.tsx`:** `isInWatchlist` runs only while `ACCOUNT_UI` (`Promise.resolve(false)` otherwise), and `WatchlistToggle` mounts only then.
+- **`components/LandingCTAs.tsx`:** a `showLogin` prop, and LOGIN renders only when it's true, recorded in the header comment's LOGIN entry.
+- **`app/welcome/page.tsx`:** passes `ACCOUNT_UI` as `showLogin` and renders `micro2` only while it's true; `micro1` stays.
+- **`app/watchlist/page.tsx`:** `notFound()` first while `ACCOUNT_UI` is false, before any read.
+- Nothing in the handoff's untouched list changed, and no component was removed.
+
+**The first forced consequence: the phone-width block.**
+- `app/globals.css`'s `max-width: 700px` block re-declares the row grid: `26px 1fr` for the base and both days-since variants, `22px 1fr` compact. It also hides `.row-days-since` and `.row-momentum`.
+- The handoff's two nostar days-since rules outrank those by a class, so alone they'd keep their 90px column there with nothing in it.
+- Two rules in the block set `1fr` for both. They tie those two on specificity and win by order.
+- **Measured, red and green** (`/stale`'s first row at 390):
+  - as served: one 356px track, 0px empty;
+  - with only those two rules deleted through CSSOM: `266px 0px 90px`, and 90px empty on the right of every row.
+
+**The crawl list** (`test`).
+- `e2e/routes.ts`: the `/watchlist` entry is commented out in place under the handoff's line. `ROUTES` reads 38.
+- `e2e/fit-finish.spec.ts`: the test keeps its name and its collectors, and its status expectation is 404 under the same line.
+
+**The second forced consequence: fit-finish's collectors.**
+- **Run as the handoff wrote it, against the local server, the test failed.** The status read 404, but `assertClean` failed twice on the document's own 404:
+  - `bad` held `404 http://localhost:3000/watchlist`;
+  - the console held Chromium's *Failed to load resource: the server responded with a status of 404 (Not Found)*.
+- The collectors now expect exactly those two: `c.bad` the one URL, `c.consoleErr` one line matching `status of 404`, `c.pageErr` empty. `assertClean` is commented out in place, to return with the surface.
+- Run again: **1 passed** (3.5 s). `typecheck:e2e` passed both versions; it can see neither.
+
+**§ 3's reading.**
+- **The server:** `next start` at `:3000` on Node v24.22.2, the box's `.env`, the change's cold build.
+  - Bind check: one listener, pid 38672, the scratchpad's v24.22.2 `node.exe`.
+  - The served stylesheet (184,444 bytes) carries all six `feed-row--nostar` selectors.
+- **The handoff's grep,** read at 12:18:39 PM MST (19:18:39Z) with `ct_seen`:
+
+  | route | status | grep -c |
+  |---|---|---|
+  | `/welcome` | 200 | 0 |
+  | `/` | 200 | 0 |
+  | `/bills` | 200 | 0 |
+  | `/stale` | 200 | 0 |
+  | `/changes` | 200 | 0 |
+  | `/patterns` | 200 | 1 |
+  | `/search?q=tax` | 200 | 1 |
+  | `/bill/119-s-2` | 200 | 0 |
+  | `/committee/hlig00` | 200 | 1 |
+  | `/members/A000055` | 200 | 0 |
+  | `/electoral` | 200 | 0 |
+  | `/race/AL-01-2026` | 200 | 0 |
+
+- **The three 1s are one string,** `"onWatchlist":false`: BillRow's prop key in the RSC flight data, where a server page renders the rows directly. It appears 10 times on `/patterns`, 50 on `/search?q=tax` and 3 on `/committee/hlig00`, and nothing else matched. It's the plumbing the handoff keeps, not a sign-in surface.
+- **`/watchlist` read 404** (7,964 bytes).
+- **Controls, so a dead page can't read 0:** `pnav-item` 20 on each HeaderBar route (ten items, markup and flight), `IN BETA` twice everywhere, `ENTER TERMINAL` once on `/welcome`. The first pass read 0 bytes on every route because `MSYS_NO_PATHCONV` broke `curl.exe`'s output path, and the controls caught it.
+- **The captures,** 1440, with `ct_seen` and reduced motion: `796-artifacts/welcome.png`, `home.png` and `bills.png`, plus `stale-390.png`.
+- **The layout reads** (`796-artifacts/layout-reads.json`):
+  - ten nav items, the divider before LEGISLATION, on `/` and `/bills`;
+  - the title bar `· IN BETA · ODDS ON`; the dashboard's meta row `IN BETA`, `LAST SYNC …`, `ODDS ON`;
+  - every row on `/bills`, `/stale`, `/changes`, `/search`, `/committee/hlig00` and `/patterns` is nostar, its first child at the row's left edge;
+  - `/stale` at 1440: `1262px 54px 90px`; at 390, one track on every feed route, and doc overflow 0;
+  - no WATCH on the bill hero, and 0 console errors at either width.
+- **`/welcome`'s `.ctagrid` second column computes to 143.688px, not nothing.** The stats strip spans both columns and feeds it. Nothing sits in it, ENTER TERMINAL keeps the stats' left edge, and no CSS changed.
+- **The server's log:** 29 `[auth][error] MissingSecret`. They come from the `auth()` calls the change keeps (the watchlist helpers and `/`'s gate), on a box `.env` with no `AUTH_SECRET`, checked by name. Production carries it.
+
+**The builds, base and change.**
+- **A secretless worktree at `eba6c0d`** (Node v24.22.2, `cp -al` node_modules), built at the base and then with the change: both exit 0 with 0 warning lines.
+- **Their route tables differ on one row:** `/watchlist` ƒ → ○, prerendered as the 404. `/bill/[id]`, `/vote/[id]` and every other route keep their type, so dropping the headers' `auth()` made nothing static.
+- **The checkout's cold build** (its junction unlinked first, the target 24 files before and after): exit 0, 0 warning lines. Then `npm run typecheck` 0, and `check:odds-sites` and `check:design-citations` OK.
+
+**The review** (workflow `wf_795f9f98-161`, nine agents): five readers over the diff (completeness, layout, runtime, tests, fidelity), and a skeptic for each reader that found something.
+- **Completeness:** no route renders a sign-in, LOGIN, a star, the WATCH toggle, WATCHLIST (inline or in the drawer), the *Want your own watchlist?* line or a `/watchlist` link. The one sign-in-on-401 path (`use-watch-toggle`) is reachable only through the two gated components.
+- **Layout:** no defect, the phone-width rules included.
+- **Confirmed, and fixed:**
+  - fit-finish's test as the handoff wrote it can't pass (four readers; fixed above);
+  - SKILL `:2867`, the `ROUTES` count's canonical home, read *prints 39* and 78 document requests a run. It now reads 38 and 76;
+  - `PrimaryNav`'s comment still read *divider before index 2*, so the HO 796 line moved there from the HO 608 comment over the list;
+  - `DashboardV2Header`'s HO 692 comment said ODDS follows LOGIN. It now names LAST SYNC while `ACCOUNT_UI` is false.
+- **Refuted:**
+  - that the crawl doesn't read `ACCOUNT_UI`: that's the handoff's design, and the restoration is written at both sites and in the backlog;
+  - that the phone-width rules are a defect: they're needed and named, and the four prescribed rules are present verbatim.
+- **Uncertain:** that `OddsToggle.tsx:4`'s departure goes unnamed. It's named below.
+- **After the fixes, a last cold build** (12:32:04 to 12:32:37 PM MST, 19:32Z): exit 0, 0 warning lines, `/watchlist` ○. Then `npm run typecheck` 0, and both checks OK.
+
+**The ledger.**
+- **Backlog:**
+  - New, OPEN LOOPS: *The account surfaces are hidden (HO 796)…*, Corey's, after GradShow (Nov 18). It names the flip's two restorations and carries a close.
+  - *Sabato's reader is refused…* (Corey's) gains a dated note: refused at every scheduled run since Oct 27, and twice by hand Nov 1 from the DEN edge. The allowlist email is Corey's to send once this HO is served.
+- **Oddities:** none.
+- **Reconcile:** 281 / 361 on 642 at open; **282 / 361 on 643** at close, mis-struck 0.
+
+**Owed after the FF.**
+- `components/` and `app/` changed, so Production serves new code:
+  - the served SHA;
+  - `e2e-prod` with the crawl one route shorter (smoke and narrow each lose `/watchlist`'s tests; the counts from the run);
+  - then § 3's grep against prod's `/welcome` and `/bills`, expected 0 and 0. That reading goes to chat, and the allowlist email goes out on it.
+- The `docs(skill)` commit means the chat rebuilds `cbt.zip`.
+- Corey's three odds snapshots run by the task: 9:30 PM MST Nov 2, and 7:30 AM and 3:30 PM MST Nov 3.
+
+**What was flagged.**
+- **Claim 6:** `ROUTES` is 39, not 35, so 38 after § 2, not 34. The handoff's 35 counts `{ slug:` lines over the whole file: it takes in the two `FIXTURE_ROUTES` and misses the spread. SKILL `:2887` says 38 and points at the evaluated count.
+- **SKILL `:2867`, not in the handoff's list,** is that count's canonical home, and this change made it false (*prints 39*, 78 requests a run). It reads 38 and 76, with the old figures kept beside them.
+- **The two forced consequences,** the phone-width rules and fit-finish's collectors, each measured red then green.
+- **The `.ctagrid`'s second column** computes to 143.688px, fed by the spanning stats strip, not nothing. No visible effect, and no CSS change.
+- **`OddsToggle.tsx:4`:** the handoff's *after IN BETA while `ACCOUNT_UI` is false* holds on inner pages only. On the dashboard ODDS follows LAST SYNC, so the comment names both.
+- **`NAV_ITEMS`:** the full list is `ALL_NAV_ITEMS` and the export filters it, since a literal can't be filtered in place and keep its `NavItem` typing. SKILL `:2236` names both.
+- **The HO 608 line:** it sits after the HO 608 paragraph in `PrimaryNav`'s comment, where *divider before index 2* is written, not in the `HO 608 —` comment over the list. It's one sentence on two lines.
+- **`DashboardV2Header`'s HO 355 and HO 692 comments** record the gate and the new neighbour, as `HeaderBar`'s and `OddsToggle`'s do.
+- **The backlog line** names the flip's two restorations and carries a close, which the handoff's text didn't.
+- **Read 2:** the log holds two hand reads on Nov 1, and the kept page is the second's.
+- **Claim 7's curl** is Git for Windows' 8.17.0, with no `-A`.
+- **HO 795's push time:** 8:07:25 PM MT is when the chain ended; the push ran between 8:07:00 and 8:07:25.
+- **SKILL lines left as they are:** `:2024`, `:2226`, `:2280`, `:2396` and `:2422` describe the star and the toggle as components, and the components stay. `:2221`'s `1fr 40px 36px` has been stale since HO 613, not since this HO.
+- **Also notes now run through HO 796.**
