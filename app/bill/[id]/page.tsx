@@ -13,6 +13,7 @@ import { PartyTag } from "@/components/PartyTag";
 import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
 import { TopicChips } from "@/components/TopicChips";
 import { WatchlistToggle } from "@/components/WatchlistToggle";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import { BILL_TYPE_LABELS } from "@/lib/enums";
 import {
   congressGovUrl,
@@ -138,7 +139,7 @@ export default async function BillDetailPage({
     news,
     billVotes,
   ] = await Promise.all([
-    isInWatchlist(bill.id),
+    ACCOUNT_UI ? isInWatchlist(bill.id) : Promise.resolve(false),
     getBillCommittees(bill.id),
     getMeetingsForBill(bill.id),
     getCommitteesIndex(),
@@ -355,7 +356,9 @@ export default async function BillDetailPage({
                 {bill.title}
               </h1>
             </div>
-            <WatchlistToggle billId={bill.id} initial={onWatchlist} />
+            {ACCOUNT_UI ? (
+              <WatchlistToggle billId={bill.id} initial={onWatchlist} />
+            ) : null}
           </div>
 
           {/* Shared stage bar (HO 317). Returns null on null/off-path stage. */}

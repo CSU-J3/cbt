@@ -8,6 +8,7 @@ import { SponsorHoverName } from "@/components/SponsorHoverName";
 import { StagePillStrip } from "@/components/StagePillStrip";
 import { TopicChips } from "@/components/TopicChips";
 import { WatchStar } from "@/components/WatchStar";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import { daysSince, parseTopics } from "@/lib/format";
 import type { FeedBill } from "@/lib/queries";
 
@@ -136,6 +137,7 @@ export function BillRow({
     daysSinceMode ? "has-days-since" : "",
     showMomentum ? "has-momentum" : "",
     compact ? "feed-row--compact" : "",
+    ACCOUNT_UI ? "" : "feed-row--nostar",
     expandable ? "feed-row--expandable" : "",
     isOpen ? "is-open" : "",
   ]
@@ -244,14 +246,18 @@ export function BillRow({
           right edge, so a short row put ~1,900px between its content and its
           only affordance. A leading star is a stable click target on every row
           and needs no exemption — the HO 609 caret precedent: far-right
-          affordances reposition, they do not get carved out. */}
-      <span className="row-star">
-        <WatchStar
-          billId={bill.id}
-          initial={onWatchlist}
-          size={compact ? "sm" : "md"}
-        />
-      </span>
+          affordances reposition, they do not get carved out.
+          While `ACCOUNT_UI` is false the star and its column are gone, not
+          empty (HO 796; the HO 618 rule: no reserved empty slot). */}
+      {ACCOUNT_UI ? (
+        <span className="row-star">
+          <WatchStar
+            billId={bill.id}
+            initial={onWatchlist}
+            size={compact ? "sm" : "md"}
+          />
+        </span>
+      ) : null}
 
       {navigableShell}
 

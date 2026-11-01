@@ -1,7 +1,9 @@
 "use client";
 
 // HO 692 — the ODDS ON / OFF control, mounted on the masthead meta row of BOTH
-// headers (DashboardV2Header and HeaderBar), middot-joined after LOGIN.
+// headers (DashboardV2Header and HeaderBar), middot-joined after LOGIN (while
+// `ACCOUNT_UI` is false, HO 796: after LAST SYNC on the dashboard, after IN BETA
+// on inner pages).
 //
 // THE LABEL IS RENDERED BY CSS, NOT BY STATE, and that is the whole trick. Both
 // words are in the markup; `html[data-odds="off"]` decides which one is visible,

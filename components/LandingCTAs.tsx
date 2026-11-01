@@ -18,15 +18,18 @@ import { useTransition } from "react";
 //     `/welcome` (loop). Non-sensitive, so a client-set cookie is fine.
 //   LOGIN — signIn("github", { callbackUrl: "/" }). Post-auth the session
 //     renders the terminal directly; that path needs no cookie. HO 670 relabelled
-//     this from SIGN IN; the HANDLER is unchanged.
+//     this from SIGN IN; the HANDLER is unchanged. Rendered only when
+//     `showLogin`, which the page passes as ACCOUNT_UI (HO 796).
 export function LandingCTAs({
   primaryClassName,
   secondaryClassName,
   arrowClassName,
+  showLogin,
 }: {
   primaryClassName: string;
   secondaryClassName: string;
   arrowClassName: string;
+  showLogin: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -46,17 +49,19 @@ export function LandingCTAs({
       >
         ENTER TERMINAL <span className={arrowClassName}>→</span>
       </button>
-      <button
-        type="button"
-        className={secondaryClassName}
-        disabled={isPending}
-        onClick={() =>
-          startTransition(() => void signIn("github", { callbackUrl: "/" }))
-        }
-        style={{ opacity: isPending ? 0.6 : 1 }}
-      >
-        LOGIN
-      </button>
+      {showLogin ? (
+        <button
+          type="button"
+          className={secondaryClassName}
+          disabled={isPending}
+          onClick={() =>
+            startTransition(() => void signIn("github", { callbackUrl: "/" }))
+          }
+          style={{ opacity: isPending ? 0.6 : 1 }}
+        >
+          LOGIN
+        </button>
+      ) : null}
     </>
   );
 }

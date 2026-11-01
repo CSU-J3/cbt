@@ -5,6 +5,7 @@ import { LandingCTAs } from "@/components/LandingCTAs";
 import { sourceLabel } from "@/components/RatingChip";
 import { RATER_ORDER } from "@/components/RatingSourcesLine";
 import { WelcomeClock } from "@/components/WelcomeClock";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import { currentCongressLabel } from "@/lib/congress";
 import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "@/lib/enums";
 import { isMarketOpen } from "@/lib/market-hours";
@@ -325,14 +326,17 @@ export default async function WelcomePage() {
               primaryClassName={`${styles.btn} ${styles.btnPrimary}`}
               secondaryClassName={`${styles.btn} ${styles.btnSecondary}`}
               arrowClassName={styles.arr ?? ""}
+              showLogin={ACCOUNT_UI}
             />
 
             <span className={styles.micro1}>
               <b>No account needed</b> to poke around.
             </span>
-            <span className={styles.micro2}>
-              <span className={styles.arrow}>↑</span> Want your own watchlist?
-            </span>
+            {ACCOUNT_UI ? (
+              <span className={styles.micro2}>
+                <span className={styles.arrow}>↑</span> Want your own watchlist?
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

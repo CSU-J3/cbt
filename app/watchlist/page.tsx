@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { BillRowList } from "@/components/BillRowList";
 import {
   CHAMBER_SEGMENTS,
@@ -8,6 +9,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { SortDropdown } from "@/components/SortDropdown";
 import { StageLegend } from "@/components/StageLegend";
 import { auth } from "@/auth";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import {
   getWatchlistBills,
   sanitizeChamber,
@@ -24,6 +26,9 @@ export default async function WatchlistPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  // HO 796: 404 while the account surfaces are hidden (lib/account-ui.ts),
+  // before any read.
+  if (!ACCOUNT_UI) notFound();
   const params = await searchParams;
   // HO 490: one page-computed clock threaded to the feed's client rows so
   // relative-age buckets match across SSR/hydration (#418). See lib/format.ts.

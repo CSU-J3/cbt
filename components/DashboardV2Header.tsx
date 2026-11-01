@@ -7,6 +7,7 @@ import { MarketsTape } from "@/components/MarketsTape";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
 import { WelcomeClock } from "@/components/WelcomeClock";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import type { Stage } from "@/lib/enums";
 import type { CorpusStats } from "@/lib/queries";
 
@@ -82,7 +83,8 @@ export async function DashboardV2Header({
   // nothing — the dashboard renders identically logged-out. This is the LIVE `/`
   // header; HomeHeader backed only the classic dashboard, removed at HO 608, and
   // is now unreferenced (left in place — deleting it is not this slice's scope).
-  const session = await auth();
+  // HO 796: read only while ACCOUNT_UI is true (lib/account-ui.ts); hidden, no auth.
+  const session = ACCOUNT_UI ? await auth() : null;
   // HO 608 (C5 — no number appears twice on one screen): the masthead used to read
   // FIVE counts and the stage funnel ~240px below redrew the same five as bars. It
   // now reads TWO — the corpus total and enacted — and the three middle counts
@@ -148,14 +150,17 @@ export async function DashboardV2Header({
                 spacer IS the C1 pattern (SIGN IN sat ~700px right of LAST SYNC at
                 2560), and SKILL owns the conventions, so the mock loses this one.
                 It follows the sync with a `·` like every other masthead item. */}
-            <p className="home-header-meta">
-              ·{" "}
-              <AuthButton
-                user={session?.user ? { name: session.user.name ?? null } : null}
-              />
-            </p>
+            {ACCOUNT_UI ? (
+              <p className="home-header-meta">
+                ·{" "}
+                <AuthButton
+                  user={session?.user ? { name: session.user.name ?? null } : null}
+                />
+              </p>
+            ) : null}
 
-            {/* HO 692: ODDS ON/OFF, following LOGIN with a `·` like every other
+            {/* HO 692: ODDS ON/OFF, following LOGIN (LAST SYNC while `ACCOUNT_UI`
+                is false, HO 796) with a `·` like every other
                 masthead item (the HO 610 packing). It gates every prediction-market
                 render site in the app via `html[data-odds="off"]`; see the odds
                 block in globals.css. */}

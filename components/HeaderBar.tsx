@@ -10,6 +10,7 @@ import { MobileNavDrawer } from "@/components/MobileNavDrawer";
 import { OddsToggle } from "@/components/OddsToggle";
 import { SearchBox } from "@/components/SearchBox";
 import { WelcomeClock } from "@/components/WelcomeClock";
+import { ACCOUNT_UI } from "@/lib/account-ui";
 import { breadcrumbSegments } from "@/lib/breadcrumb";
 import { type FeedFilters, getCorpusStats } from "@/lib/queries";
 
@@ -41,7 +42,7 @@ export type NavItem = {
 // own surfaces (the mock styles WATCHLIST as `.nav a.mine`) and everything after
 // the divider is the corpus. NAV_ITEMS is shared with every inner page's
 // HeaderBar, so the reorder is site-wide by design.
-export const NAV_ITEMS: readonly NavItem[] = [
+const ALL_NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
   { key: "feed", href: "/bills", icon: "▤", label: "Legislation", tooltip: "Legislation, news, stage changes, and the president's desk" },
@@ -54,6 +55,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "amendments", href: "/amendments", icon: "Δ", label: "Amendments", tooltip: "Floor amendments — who's amending which bills, and the sliver that gets voted on" },
   { key: "reports", href: "/reports", icon: "⎘", label: "Reports", tooltip: "Weekly reports — newest first" },
 ];
+export const NAV_ITEMS: readonly NavItem[] = ALL_NAV_ITEMS.filter(
+  (item) => ACCOUNT_UI || item.key !== "watchlist",
+);
 
 // HO 230 (design items 9+10) — text-only PowerShell-path nav. Shared by the
 // dashboard (HomeHeader, `variant="home"`) and inner pages (HeaderBar,
@@ -69,6 +73,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
 // \LOBBYING \NOMINATIONS | \REPORTS \WATCHLIST (dividers before index 1 and 8 — HO
 // 264 inserted \HEARINGS, HO 437 inserted \LOBBYING, and HO 456 inserted
 // \NOMINATIONS into the middle group, bumping \REPORTS from 5 → 6 → 7 → 8).
+// HO 796: the divider is keyed on "feed", not index 2, so \DASHBOARD |
+// \LEGISLATION… holds in both states while ACCOUNT_UI filters \WATCHLIST out.
 //
 // HO 690 — THE TWO `.pnav-bracket` SPANS ARE GONE FROM THE MARKUP, not hidden.
 // They were transparent-at-rest and amber-on-active, and they RESERVED LAYOUT
@@ -96,9 +102,9 @@ export function PrimaryNav({
       : "primary-nav header-nav flex flex-wrap items-center gap-y-2 gap-x-3 text-[length:var(--fs-13)] uppercase tracking-[0.5px] whitespace-nowrap";
   return (
     <nav className={wrapperClass} aria-label="Primary navigation">
-      {NAV_ITEMS.map((item, i) => (
+      {NAV_ITEMS.map((item) => (
         <Fragment key={item.key}>
-          {i === 2 ? <span className="pnav-divider" aria-hidden /> : null}
+          {item.key === "feed" ? <span className="pnav-divider" aria-hidden /> : null}
           <Link
             href={item.href}
             title={item.tooltip}
@@ -152,7 +158,8 @@ export async function HeaderBar({
   const corpus = await getCorpusStats(true);
   // HO 355: read identity server-side and hand it to the AuthButton island (no
   // SessionProvider). A1 gates nothing — anonymous browsing is unaffected.
-  const session = await auth();
+  // HO 796: read only while ACCOUNT_UI is true (lib/account-ui.ts); hidden, no auth.
+  const session = ACCOUNT_UI ? await auth() : null;
   const showSearch = !!feedFilters;
   // Suppressed on /watchlist and /bill/[id] (no feedFilters threaded in).
   // Also suppressed when a cluster is active — cluster bypasses the
@@ -186,8 +193,12 @@ export async function HeaderBar({
               every route. Global `.beta-tag`, no font-size of its own. */}
           <span aria-hidden>·</span>{" "}
           <span className="beta-tag">IN BETA</span>{" "}
-          <span aria-hidden>·</span>{" "}
-          <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+          {ACCOUNT_UI ? (
+            <>
+              <span aria-hidden>·</span>{" "}
+              <AuthButton user={session?.user ? { name: session.user.name ?? null } : null} />
+            </>
+          ) : null}
           {/* HO 692 — the same ODDS control the dashboard masthead carries.
               Inner pages render market data too (the /electoral hero band, the
               KALSHI lines, the bill panel's ODDS block), so the control has to

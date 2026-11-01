@@ -2091,6 +2091,23 @@ body {
 .feed-row.has-momentum.has-days-since {
   grid-template-columns: 28px 1fr auto 90px;
 }
+/* HO 796 — while ACCOUNT_UI (lib/account-ui.ts) is false, BillRow renders no
+   star and carries feed-row--nostar, so the 28px star column (24px compact) is
+   dropped, not left empty (the HO 618 rule: no reserved empty slot). Each rule
+   beats its base by one class. The row's content moves left by the star's width,
+   and that is the intended result: no compensating padding. */
+.feed-row.feed-row--nostar {
+  grid-template-columns: 1fr;
+}
+.feed-row.feed-row--nostar.has-days-since {
+  grid-template-columns: 1fr 90px;
+}
+.feed-row.feed-row--nostar.has-momentum.has-days-since {
+  grid-template-columns: 1fr auto 90px;
+}
+.feed-row.feed-row--compact.feed-row--nostar {
+  grid-template-columns: 1fr;
+}
 .feed-row .row-momentum {
   display: flex;
   align-items: center;
@@ -8453,6 +8470,14 @@ a.rl-nm:hover,
   }
   .feed-row.feed-row--compact {
     grid-template-columns: 22px 1fr;
+  }
+  /* HO 796 — the two nostar days-since rules above outrank this block's rules
+     by one class, so without these their 90px column would survive here with
+     nothing in it (this block hides .row-days-since and .row-momentum). Tied
+     on specificity with those two, these win by being later in the file. */
+  .feed-row.feed-row--nostar.has-days-since,
+  .feed-row.feed-row--nostar.has-momentum.has-days-since {
+    grid-template-columns: 1fr;
   }
   .feed-row .feed-row-link {
     grid-template-columns: 44px 1fr;
