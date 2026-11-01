@@ -1025,9 +1025,16 @@ test.describe("lighter surfaces", () => {
     const c = attachCollectors(page);
     const resp = await page.goto("/watchlist", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await settle(page);
-    expect.soft(resp?.status(), "/watchlist should not 500 anonymous").toBe(200);
+    // HO 796 — 404 while `lib/account-ui.ts` is false; this line returns with the surface.
+    expect.soft(resp?.status(), "/watchlist should not 500 anonymous").toBe(404);
     logClean("watchlist", c);
-    assertClean(c, "/watchlist");
+    // HO 796 — while hidden, the document's own 404 is the expected reading: the
+    // collectors hold it once as a bad response and once as Chromium's console
+    // line, and anything beyond those two is a real error on the 404 page.
+    expect.soft(c.bad, "/watchlist 4xx/5xx").toEqual([`404 ${resp?.url()}`]);
+    expect.soft(c.consoleErr, "/watchlist console errors").toEqual([expect.stringMatching(/status of 404\b/)]);
+    expect.soft(c.pageErr, "/watchlist uncaught page errors").toEqual([]);
+    // assertClean(c, "/watchlist"); // returns with the surface (HO 796)
   });
 });
 
