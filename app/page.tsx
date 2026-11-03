@@ -160,6 +160,16 @@ export default async function DashboardPage({
     fullName: topicFullLabel(t.topic),
   }));
 
+  // HO 797 — the feed opens on NEW THIS WEEK, except: Movers is the only tab
+  // `filters` narrows (New and Top Stalls take `chamber` alone), so a filtered page
+  // opens there (otherwise the funnel click still moves the filter strip, BREAKING
+  // and the distributions, but the open feed tab wouldn't change); and an empty New
+  // would open the home page on an empty state. The key is what re-applies this
+  // when a filter is set or cleared: a soft navigation otherwise keeps the
+  // island's tab state, which is what the chamber toggle still relies on.
+  const feedFiltered = Boolean(filters.stage || filters.topic);
+  const feedInitialTab = feedFiltered || newBillsCount === 0 ? "movers" : "new";
+
   return (
     <div className="home-shell">
       {/* HO 608 (P3 slice 1) — the two regions of
@@ -256,6 +266,8 @@ export default async function DashboardPage({
               see the CSS comment; HO 609 resolves it with the row rework. */}
           <section className="home-quadrant home-feed-panel">
             <ActivityTabs
+              key={feedFiltered ? "filtered" : "plain"}
+              initialTab={feedInitialTab}
               activityContent={
                 <ActivityTicker
                   filters={filters}
@@ -275,6 +287,7 @@ export default async function DashboardPage({
               newCount={newBillsCount}
               filterSlot={
                 <span className="feed-chamber" aria-label="Chamber">
+                  <span className="feed-chamber-label">Chamber</span>
                   {CHAMBER_OPTIONS.map((o) => (
                     <Link
                       key={o.value || "all"}

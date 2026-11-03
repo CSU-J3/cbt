@@ -30,7 +30,13 @@ import { type ReactNode, useState } from "react";
 // the panel's right edge (C1). It is a rendered node, not data: the page builds
 // the chamber <Link>s server-side so the toggle is real navigation and the state
 // is shareable, and this island stays free of both data fetches and URL logic.
-type Tab = "movers" | "stalls" | "new";
+// HO 797 moved the slot out of the nav to its own row.
+//
+// HO 797: the order is NEW THIS WEEK / MOVERS / TOP STALLS, and the page chooses
+// the open tab through `initialTab` (app/page.tsx says when it is MOVERS). The
+// chamber selector is its own row under the strip, `.feed-chamber-row`, in the
+// /hearings filter idiom: docs/design/mock-797-feed-tabs.html (ruled: option C).
+export type Tab = "movers" | "stalls" | "new";
 
 export function ActivityTabs({
   activityContent,
@@ -40,6 +46,7 @@ export function ActivityTabs({
   stallsCount,
   newCount,
   filterSlot,
+  initialTab,
 }: {
   activityContent: ReactNode;
   stallsContent: ReactNode;
@@ -48,16 +55,26 @@ export function ActivityTabs({
   stallsCount: number;
   newCount: number;
   filterSlot?: ReactNode;
+  initialTab: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>("movers");
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   return (
     <div className="flex flex-1 flex-col min-h-0">
       <nav
         className="search-tabs breaking-stalls-tabs"
         role="tablist"
-        aria-label="Movers, top stalls, or new this week"
+        aria-label="New this week, movers, or top stalls"
       >
+        <button
+          type="button"
+          role="tab"
+          aria-current={tab === "new" ? "page" : undefined}
+          onClick={() => setTab("new")}
+        >
+          New This Week
+          <span className="count">({newCount.toLocaleString()})</span>
+        </button>
         <button
           type="button"
           role="tab"
@@ -76,26 +93,8 @@ export function ActivityTabs({
           Top Stalls
           <span className="count">({stallsCount.toLocaleString()})</span>
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-current={tab === "new" ? "page" : undefined}
-          onClick={() => setTab("new")}
-        >
-          New This Week
-          <span className="count">({newCount.toLocaleString()})</span>
-        </button>
-        {filterSlot ? (
-          // One flex item, so .search-tabs' 24px gap separates it from the last
-          // tab while the middot stays tight against the options inside it.
-          <span className="feed-filterslot">
-            <span className="feed-chamber-sep" aria-hidden>
-              ·
-            </span>
-            {filterSlot}
-          </span>
-        ) : null}
       </nav>
+      {filterSlot ? <div className="feed-chamber-row">{filterSlot}</div> : null}
 
       <div className="flex flex-1 flex-col min-h-0">
         {tab === "movers"
