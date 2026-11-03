@@ -8306,3 +8306,138 @@ The Nov 4 handoff is written from it on Nov 3.
 - **HO 795's push time:** 8:07:25 PM MT is when the chain ended; the push ran between 8:07:00 and 8:07:25.
 - **SKILL lines left as they are:** `:2024`, `:2226`, `:2280`, `:2396` and `:2422` describe the star and the toggle as components, and the components stay. `:2221`'s `1fr 40px 36px` has been stale since HO 613, not since this HO.
 - **Also notes now run through HO 796.**
+
+**Also (HO 797), the dashboard feed's tabs read NEW THIS WEEK / MOVERS / TOP STALLS and open on NEW THIS WEEK, or on MOVERS when a page carries `?stage=` or `?topics=` or NEW's count is 0. The chamber selector is its own row under the strip, in the `/hearings` filter idiom. It opens with HO 796's FF go as taken.**
+- **What's here:**
+  - HO 796's FF go as taken;
+  - the rulings and the mock;
+  - the architect's call on MOVERS;
+  - STEP 0, a check: claims 1 to 4 held, 5 and 6 re-derived;
+  - the change;
+  - the test, red at the base;
+  - § 3's readings, the captures and a finding;
+  - the review;
+  - the Nov 3 go (`docs/handoffs/797-push-go.md`, 11:10 AM MST Nov 3, 18:10Z): the mock tracked and read, the comment reworded, the row's offset set from the mock's reading;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Four commits, kinds unmixed:** `feat` (`ActivityTabs.tsx`, `page.tsx`, `globals.css`), `test` (one smoke test), `docs` (this block, the backlog and the mock), then `docs(skill)`, alone and last. The ref was first made on Nov 1 and remade on Nov 3 for the go's changes (flagged below).
+- **Prod was only read,** by what this session ran: the app's own reads on a local production server, and `gh` for HO 796's records. No cron was called and nothing was written.
+- **The pointer is 797:** pointer 796 (`docs/roadmap.md:8308`), highest HO in commit subjects 796, `main` at `e19d7e3`.
+
+**HO 796's FF go, as taken** (`docs/handoffs/796-artifacts/ff-mechanics.txt`; the Production record, its status, and the `e2e-prod` run and its log re-read through `gh` in this session).
+- **`main` at `e19d7e3`:** `eba6c0d..e19d7e3`, four commits (`fc2a62f` feat, `f2cdc7f` test, `0c57bf1` docs, `e19d7e3` docs(skill)), no force. `796-review` was deleted on the remote and locally, local `main` went forward by `--ff-only`, and `ls-remote` then read `main` alone.
+- **The gates before the push:**
+  - the cold build on Node v24.22.2: its junction unlinked first and its target confirmed (24 files before and after), then exit 0 with 0 warning lines;
+  - `npm run typecheck`: 0;
+  - `check:odds-sites` and `check:design-citations`: OK.
+- **The push** was done by 12:52:11 PM MST (19:52:11Z).
+- **The deploy:**
+  - Production record `7478194013` (`vercel[bot]`), created and `success` at 12:52:51 PM MST (19:52:51Z), at `congressionalterminal-fxyhdtm5f`. The review's Preview of the same SHA (record `7478080798`, `pd9s5z5dm`) is a separate deployment, so no dedup.
+  - `verify:deploy` read `e19d7e3` from 21 s and five in a row by 62 s. `/api/version` read `e19d7e3` once at 12:53:55 PM MST (19:53:55Z).
+- **`e2e-prod` `41343968945`,** fired by the record, 12:52:53 to 12:59:17 PM MST (19:52:53Z to 19:59:17Z), `success`: smoke **140 passed (5.5m)**, one route shorter than HO 795's 143; 76 documents over 38 routes, every one 200; every one of the 80 narrow cells `over=0`. No dispatch, no flush.
+- **Prod's three reads** at 12:54:32 PM MST (19:54:32Z), served `e19d7e3`, with `ct_seen`: `/welcome` and `/bills` 0 and 0 on the handoff's grep, `/watchlist` 404.
+- **The Center for Politics message** went from the CSU address at 2:01 PM MST Nov 1 (21:01Z), as the handoff records it.
+
+**The rulings** (Corey, Nov 1), verbatim.
+- His request, before the mock: *"lets move the tabs to be: New this week , Movers , last is top stalls. move all,house,senate button to below the tabs?"*
+- His ruling, off `docs/design/mock-797-feed-tabs.html`: *"chamber = C, open on =new"*.
+- **The reading: C and New.** The selector is option C, `CHAMBER [ALL] HOUSE SENATE` at 11px with the active option bracketed, and the feed opens on NEW THIS WEEK.
+- **The mock** was absent from disk at this block's first writing: swept by name in `~/Downloads`, `docs/design/` and the repo from 2:29 PM MST Nov 1 (21:29Z), last at 3:20:42 PM MST (22:20:42Z), and once more at 8:47:45 PM MST Nov 1 (03:47:45Z Nov 2) on the first go, which HALTed on it. The chat wrote it onto this box at 11:00 AM MST Nov 3 (18:00Z; the file's mtime 11:00:54 AM, 18:00:54Z) as `docs/design/mock-797-feed-tabs.html`, and this commit carries it unedited: 81,497 bytes, LF line endings, sha256 read off the disk at 11:34:46 AM MST (18:34:46Z) `bbfb2e3d9f587be68731e83aed004aa6485e7c2707d5e9b1f39d8fed6681d220`, the handoff's. It loads on option A at 887 wide and opens on New, as the handoff says, the ruling being what Corey selected in it.
+- **The mock, read** (`797-artifacts/mock-797-measure.mjs` → `nov3/mock-797-reads.json`, 11:39:02 to 11:39:05 AM MST Nov 3, 18:39:02Z to 18:39:05Z: the file opened in Playwright, option C selected, at the mock's two panel widths, 887 and 390, on each of its three tabs). Its `.tabs` take `margin-bottom: var(--space-sm)` with `--space-sm: 8px`; its `.row-filter` takes `margin: -2px 0 var(--space-sm)` and `padding: 0 0 2px` at `normal` line height, its options and label 11px (`--fs-11`), `[ALL]` in `rgb(251, 191, 36)` with the brackets in `rgb(217, 119, 6)`. So **the row sits 6 px under the strip's rule, is 16 px tall, and sits 8 px above the list**; the list is 30 under the strip (8 with the strip alone, the mock's *now* layout) and 73 from the panel's top at 887 (51 with the strip alone: the handoff's 51 → 73). The same 6 / 16 / 8 / 30 / 73 at 390, where its strip wraps to 69 px tall.
+
+**The architect's call on MOVERS,** which the mock didn't show.
+- NEW THIS WEEK and TOP STALLS don't take `filters` (`app/page.tsx:266-267` at `e19d7e3`); only MOVERS does (`:260-264`). With NEW open, a funnel or topic click would rebase nothing in the feed, and HO 320's click-to-filter would read as broken there. (The handoff says *nothing visible*; the filter strip, BREAKING and the other half of the distributions do move.)
+- So a page carrying `?stage=` or `?topics=` opens on MOVERS, and the island is keyed on that condition, so setting or clearing a filter re-applies it. Without the key a soft navigation keeps the island's tab state, which is what the chamber toggle still relies on.
+- The same expression opens on MOVERS when NEW's count is 0 for the chosen chamber, so, in the handoff's words, `/` never opens on *No new bills introduced in the last 7 days.* and smoke's first-row test can't go red on a quiet week.
+- NEW's badge and its rows share one predicate (`getNewBillsThisWeekCount` and `getNewBillsThisWeek`, `lib/queries.ts:667` and `:733`). They're cached under different tags, though (`bills`, and `bills` with `news-breaking`), and the review derived the minutes after 00:00Z (5 PM MST) in which a news flush can recompute the rows before the count. There the *never* doesn't hold, and neither does the *can't*, though `e2e-prod` runs smoke with `--retries=2`, so a red needs all three attempts inside that window (backlog, new).
+
+**STEP 0, a check: claims 1 to 4 held** (read at `e19d7e3` before any edit, 2:28 PM MST, 21:28Z).
+- **1:** `main` `e19d7e3`, locally and on the remote (`ls-remote` read `main` alone); pointer 796 at `:8308`, the file's last line; highest HO in subjects 796. This handoff is the one numbered file above 796.
+- **2 to 4:** every anchor as cited, in `ActivityTabs.tsx` (`:33`, `:52`, `:59`, `:61-87` in the order MOVERS, TOP STALLS, NEW, `:88-97`), `app/page.tsx` (`:97-100`, `:137`, `:258-294`, `:260-264`, `:266-267`, `:276-293`, `:277`) and `app/globals.css` (`:1838-1844`, `:1845`, `:1851`, `:1855`, `:1860`, `:1870`, `:1873`, and `.hcal-filter-*` at `:11067`, `:11073`, `:11088`, `:11091`, `:11095`). In tracked files `feed-filterslot` and `feed-chamber-sep` appear only at their own CSS rules and at `ActivityTabs.tsx:91-92`.
+- **5, re-derived:**
+  - `StageFunnel.tsx:91` is `router.push(href, { scroll: false })`.
+  - No e2e spec names `feed-chamber`, `feed-filterslot`, `breaking-stalls-tabs` or a feed tab's label.
+  - The tests that read rows on `/`'s open tab are `smoke.spec.ts:913` and fit-finish `:106`, `:156` (its second load at `:179`, read at `:181`) and `:563`. All three tabs render `V2FeedList`, so `.v2f-row` and `.v2f-group` are on NEW's rows as they were on MOVERS'. The other tests that load `/` don't read the feed's rows: the tape hovers (both specs), the ODDS strip, the WeeklyBand hover, click-to-filter, the races box (three tests), the no-sideways-scroll widths, the dropdown hunt, the PRESIDENT click and the anonymous `/?stage=president` redirect.
+- **6, re-derived:** SKILL `:1835`, `:2001`, `:2314` and `:2379` as cited, and no other SKILL clause places the selector or names the open tab. Reconcile 282 / 361 on 643, mis-struck 0.
+
+**The change** (`feat`).
+- **`components/ActivityTabs.tsx`:**
+  - `Tab` is exported, and a required `initialTab` seeds `useState`.
+  - The buttons run NEW THIS WEEK, MOVERS, TOP STALLS, each one's markup unchanged, and the nav's `aria-label` is *New this week, movers, or top stalls*.
+  - `filterSlot` leaves the nav and renders straight after it, in `<div className="feed-chamber-row">`. The middot and `.feed-filterslot` are gone.
+  - The header gains the HO 797 paragraph: the order, `initialTab`, the row, and the mock cited on one line. The HO 642 paragraph gains *HO 797 moved the slot out of the nav to its own row.*
+- **`app/page.tsx`:** `feedFiltered` and `feedInitialTab` directly above the return, under the handoff's comment, whose *or a funnel click would change nothing visible* the Nov 3 go reworded to *(otherwise the funnel click still moves the filter strip, BREAKING and the distributions, but the open feed tab wouldn't change)*, the rest verbatim. The mount carries `key={feedFiltered ? "filtered" : "plain"}` and `initialTab={feedInitialTab}`, and `.feed-chamber` opens with `<span className="feed-chamber-label">Chamber</span>`. The `<Link>`s are unchanged.
+- **`app/globals.css`:**
+  - `.feed-filterslot` and `.feed-chamber-sep` are removed.
+  - `.feed-chamber-row`, `.feed-chamber-label` and the two `.is-on` pseudo-element rules are added, and the options move to `--fs-11` and `--text-muted`: the handoff's values throughout, and no new tokens, with one value changed by the Nov 3 go: `.feed-chamber-row`'s top margin is **−10 px, not the handoff's −2**, so the row sits 6 px under the rule as the mock does (the strip's effective margin-bottom is `.search-tabs`' 16 px, not the 8 the mock's strip has), with a comment beside it saying so.
+  - The HO 642 comment's first sentence and its load-bearing sentence are rewritten: the options sit outside `.search-tabs` since HO 797, the descendant scoping is kept for specificity with the rest of the block, and the treatment copies `.hcal-filter-*` as values, not shared classes. Its second sentence loses *against the last tab* (flagged below).
+  - No `@media` block re-declares any of these selectors.
+- **Nothing under `lib/`,** and no change to the three feeds' queries or row markup, to `/hearings`' CSS, or to what `filters` reaches.
+
+**The test** (`test`): the handoff's test, verbatim, in `targeted interactions`, after *expand a bill row*.
+- **Red at the base.** The base's cold build at `e19d7e3` (Node v24.22.2, 2:35:27 to 2:36:02 PM MST, 21:35:27Z to 21:36:02Z; its junction unlinked first, the target 24 files before and after; exit 0, 0 warning lines), served at `:3000` (one listener, pid 41464, the scratchpad's v24.22.2 `node.exe`), with the test as written: **1 failed** at 2:37:08 PM MST (21:37:08Z), on the first tab's text: *Expected substring: "New This Week"*, *Received string: "Movers(49)"*, after the 15 s expect timeout.
+- **Green on the change:** § 3a below.
+
+**§ 3's server.**
+- The change's cold build, its junction unlinked first and the target 24 files before and after: 2:42:52 to 2:43:29 PM MST (21:42:52Z to 21:43:29Z), exit 0, 0 warning lines.
+- `next start` at `:3000` on Node v24.22.2 with the box's `.env`. Bind check: one listener, pid 55372, the scratchpad's v24.22.2 `node.exe`.
+- The served stylesheet (184,702 bytes; the base's 184,444) carries `feed-chamber-row` and `feed-chamber-label` and no `feed-filterslot`. The base's carried `feed-filterslot`. `.search-tabs` is in both, the control. Each was read over HTTP from its own server, and the files weren't kept (`797-artifacts/mechanics.txt`).
+- **Nov 3, the go's two feat changes rebuilt:** the junction unlinked first (24 files before and after, 0 reparse points left), `.next` removed, the cold build on Node v24.22.2 from 11:40:41 to 11:41:47 AM MST (18:40:41Z to 18:41:47Z), exit 0, 0 warning lines. `next start` at `:3000`: one listener, pid 39436, the scratchpad's v24.22.2 `node.exe`, the box's `.env`. `/` 200 (439,604 bytes) with `ct_seen`; the served stylesheet (184,703 bytes) carries `feed-chamber-row` with `margin:-10px`, no `feed-filterslot`, `.search-tabs` 7. Its log held `[auth][error] MissingSecret` ×38 and nothing else error-like.
+
+**§ 3a,** 2:44:12 to 2:44:28 PM MST (21:44:12Z to 21:44:28Z): **5 passed** (13.9 s): the new test, *expand a bill row*, *feed row expand*, *feed id: plain click* and *sponsor portrait*. The portrait test found a resolved sponsor within NEW's first six rows, so there's no finding to name. The three fit-finish tests' collector lines each read `console=0 pageErr=0 bad=0`.
+
+**§ 3a again, Nov 3,** on the rebuilt feat: the new test alone, **1 passed** (4.3 s), 11:43:12 to 11:43:30 AM MST (18:43:12Z to 18:43:30Z); then the same five, **5 passed** (10.2 s), 11:43:30 to 11:43:42 AM MST (18:43:30Z to 18:43:42Z), the three collector lines again `console=0 pageErr=0 bad=0`.
+
+**§ 3b, at 1440** (`docs/handoffs/797-artifacts/read-797.mjs` → `reads-change.json`, the run of 2:48:47 to 2:48:58 PM MST, 21:48:47Z to 21:48:58Z; every context with `ct_seen`, so the strip rendered with no 307 to `/welcome`, and with reduced motion, read back in the page).
+1. **`/`:** `New This Week(44)`, `Movers(49)`, `Top Stalls(5)` in that order, NEW active. `.feed-chamber-row` sits 14 px below the nav. `.feed-filterslot` 0, and no `.feed-chamber` inside the nav.
+2. **MOVERS, then HOUSE:** `/?chamber=house`, the tab **still MOVERS**. **Then ALL:** `/`, still MOVERS. A marker set on `window` survived both, so they were same-document, the soft navigation the comment relies on. No HALT.
+3. **From `/` on NEW, two funnel bars,** each from a fresh load, each bar's filtered MOVERS count read off its own page before any click:
+   - **COMMITTEE,** the largest count that still narrows: `/?stage=committee`, MOVERS, 49 → 46. The rows stay 30, `ActivityTicker`'s cap. × CLEAR: `/`, NEW.
+   - **FLOOR,** the largest under the cap (tied with PRESIDENT at 3; the funnel's order broke the tie): `/?stage=floor`, MOVERS, 49 → 3, rows 30 → 3, each with FLOOR at one end of its transition (*FLOOR → CMTE*, *FLOOR → PRES*; the dashboard's stage filter is `stage = ? OR previous_stage = ?`, `lib/queries.ts`, `buildChangesWhere`). × CLEAR: `/`, NEW.
+   - All four navigations were same-document.
+4. **`/?stage=floor&chamber=senate`:** MOVERS. HOUSE: `/?stage=floor&chamber=house`, MOVERS. ALL: `/?stage=floor`, MOVERS.
+5. **Computed styles:** `.is-on` (ALL) is `rgb(251, 191, 36)`; its `::before` is `"["` in `rgb(217, 119, 6)`, and its `::after` `"]"` the same. The three options and the label all compute 11px, which is `--fs-11` at 1440. The other options read `--text-muted` (`rgb(148, 163, 184)`) and the label `--text-dim` (`rgb(107, 114, 128)`).
+6. **`.v2f`'s top less the nav's bottom.** The first read, Nov 1, with the handoff's −2 px: **16 px at the base, 40.5 px on the change, +24.5 px,** the same on all three tabs and inside the handoff's 18 to 28 (−2 + 18.5, the row, + 8; from the panel's top 62 → 86.5, the handoff giving the mock's as 51 → 73). **Re-read Nov 3 with the go's −10 px** (`797-artifacts/strip-797-nov3.mjs` → `nov3/strip-reads-nov3.json`, 11:43:44 to 11:43:49 AM MST, 18:43:44Z to 18:43:49Z; and `read-797.mjs` again → `nov3/reads-change.json`, 11:43:50 to 11:44:03 AM MST, 18:43:50Z to 18:44:03Z): **the row 6 px under the rule and 8 above the list at 1440 and 390 on every tab, and `.v2f` 32.5 px under the nav, +16.5 on the base's 16,** 78.5 from the panel's top at 1440. Beside the mock's own numbers rather than the derived bound: the mock's row is 6 under and 8 above too, and its list sits 30 under its strip against the page's 32.5; the 2.5 px is the row's height, 18.5 on the page (a 16.5 px line at 11px on the panel's 1.5 line-height, plus 2 px of padding) against the mock's 16 at `normal`. The strip's own margin, 16 on the page and 8 in the mock, is what the −10 absorbs.
+
+Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.json`, `fail: []`): NEW active, the counts now 37 / 51 / 5; MOVERS through HOUSE and ALL, same-document; COMMITTEE 51 → 48 (rows 30) and FLOOR 51 → 3 (rows 3), each × CLEAR back to NEW; `/?stage=floor&chamber=senate` holding MOVERS through HOUSE and ALL; the same colours and 11px.
+
+**The captures** (`797-artifacts/`, gitignored), 1440 and 390: `home-new-*.png`, `home-stalls-*.png` (no day header; the row sits on the rows) and `home-movers-house-*.png`, plus the base's three tabs at 1440. At 390 the strip wraps, TOP STALLS on its own line and the nav 77 px tall, and the row sits under it. The document doesn't scroll sideways in any of the six. Nov 3's six are in `797-artifacts/nov3/`, the row 6 under the rule in each, and `strip-built-nov3-{1440,390}.png` are the crops beside Nov 1's `strip-built-*.png` and `strip-whatif-6px-*.png`.
+
+**A finding, filed:** TOP STALLS' badge reads *(5)* over 60 rows. The badge is HO 133's constant and the 60 is HO 627's ceiling; the captures show both (backlog, new).
+
+**The review** (workflow `wf_d33e52cb-96e`, ten agents): four readers over the diff (fidelity, the cascade, runtime, the tests) and a refute-first skeptic for each of their six findings.
+- **Fidelity:** only the four files changed. Every clause of § 1 and § 2 is as written, each button block byte-identical to the base's, and guards 1, 3 and 4 hold. The two departures are the ones flagged below.
+- **Runtime, read in Next 16.3.4's source:** the page segment's React key drops its search params (`node_modules/next/dist/client/components/layout-router.js:549`, `createRouterCacheKey(activeSegment, true)`, applied as the key at `:673-688`), so a navigation that changes only the query keeps the island, and the key is what remounts it. A topic row (a `router.push`, like the funnel bar), `?topics=` alone, an invalid `?stage=` or `?topics=` (NEW, since nothing is applied), back and forward across a filter, and a clear into a chamber whose NEW is empty (MOVERS) all read as designed, with no console error and no hydration report.
+- **Tests:** the test is verbatim and `typecheck:e2e` covers it. The `(0)` regex can't match `(10)` or `(1,204)`, its assertions read server-rendered attributes, and `e2e-prod`'s smoke should read 140 + 1 = 141, owed after the FF.
+- **Confirmed:**
+  - **The row sits 14 px under the strip's rule, where the handoff's 51 → 73 puts the mock's 6 px under it.** `.search-tabs { margin-bottom: 16px }` (`:5958` now) comes after `.breaking-stalls-tabs { margin-bottom: var(--space-sm) }` (`:1811`) at the same specificity, so the strip's margin is 16, not 8, and the row's −2 px acts on 16. Read 6 can't see it, since the margin sits in both base and change. Measured on the build (`797-artifacts/strip-reads.json`, 3:18 PM MST, 22:18Z): 14 px under the rule and 8 above the list at 1440 and 390; with `margin-top: -10px` injected in the page alone, 6 and 8 (`strip-built-*.png`, `strip-whatif-6px-*.png`). Not changed, because the mock isn't on disk and the 6 px is derived, not read. When it lands, its option C is measured and decides. **Nov 3:** it landed and was read, 6 under, 16 tall and 8 above (above); the go set `margin-top: -10px`, and the build reads 6 and 8 (read 6, re-read).
+  - **The open-on-NEW rule reads NEW's cached count, and NEW's empty state its separately cached rows** (two readers): filed.
+- **Refuted, as the handoff's design:** a chamber toggle into an empty NEW keeps NEW on its empty state, since the key covers the filter only and read 2 requires the tab to hold; and the smoke test's `?stage=` leg is a full load, so it can't see the key. Both are flagged below.
+
+**The ledger.**
+- **Backlog,** two new OPEN LOOPS lines, both Code's, low:
+  - *The TOP STALLS badge reads (5) over a tab that renders 60 rows (HO 797's § 3b captures)*;
+  - *The feed's open-on-NEW rule reads NEW's cached count, and NEW's empty state reads its separately cached rows… (HO 797's review)*.
+- **Oddities:** none.
+- **Reconcile:** 282 / 361 on 643 at open; **284 / 361 on 645** at close, mis-struck 0.
+
+**Owed after the FF.**
+- `components/` and `app/` changed, so Production serves new code: the served SHA; `e2e-prod`, smoke **141** with the new test, narrow's cells `over=0`, the real counts from the run; then § 3b's reads 1 and 3 against prod.
+- The `docs(skill)` commit means the chat rebuilds `cbt.zip`; the upload stays held until after GradShow.
+- Corey's three odds snapshots run by the task: 9:30 PM MST Nov 2 (04:30Z Nov 3), then 7:30 AM and 3:30 PM MST Nov 3 (14:30Z and 22:30Z). The first two had run by this block's Nov 3 remake (`docs/probes/odds-snapshots/2026-11-02-2130-MT.json` and `2026-11-03-0730-MT.json`, untracked and left out of every commit). Nothing here touched `scripts/diagnostic/gradshow-numbers-787.ts`.
+
+**What was flagged.**
+- **The mock was absent from disk** through Nov 1 and the first go (8:44 PM MST Nov 1, 03:44Z Nov 2), which HALTed at its step 1 on it; through that, `check:design-citations` read three problems, one token DANGLING at three sites: `ActivityTabs.tsx:38`, this block's ruling line and SKILL `:2001`. It landed at 11:00 AM MST Nov 3 (18:00Z), this commit carries it, and the gate resolves all three.
+- **The row's offset** (the review): 14 px under the rule as built, 6 px in the mock by the handoff's own numbers, held for the mock. The mock read 6 on Nov 3, and the go set `margin-top: -10px`: a departure from the handoff's § 1 CSS (`margin: -2px 0 var(--space-sm)`), named here, and the build reads 6 and 8.
+- **The HO 642 CSS comment's second sentence** lost *against the last tab*, which this change made false. The handoff named only the first sentence and the load-bearing one.
+- **`key` and `initialTab`** are the mount's first two props; the handoff didn't place them.
+- **Read 3:** the handoff names a funnel bar, and two were clicked, so the narrowing reads in the rows as well as the count. The instrument's first stage check was wrong about the filter: it read the current stage alone. That run is kept (`reads-change-run2-stagecheck-misread.json`), and the check now reads both ends.
+- **Read 6:** first +24.5 px against the mock's +22, inside the handoff's bound; with the go's −10 px, +16.5. The page's 1.5 line-height makes the row 18.5 px tall, where the mock's row, at `normal` line height, is 16: on Nov 1 that was the review's derivation from the handoff's 51 → 73, and on Nov 3 it was read in the mock (16, with the list 30 under the strip). So the page's list sits 32.5 under the nav against the mock's 30, the row's 2.5 px, and the handoff's +22 is on a strip margin 8 px shorter than the page's.
+- **The handoff's *rebases nothing visible*** (its line 5): with NEW open a funnel click still moves the filter strip, BREAKING and the other half of the distributions. It's the feed that wouldn't move, and the architect's-call section says so. The Nov 3 go reworded the `app/page.tsx` comment, which the handoff gave verbatim, to match: *or a funnel click would change nothing visible* is now *(otherwise the funnel click still moves the filter strip, BREAKING and the distributions, but the open feed tab wouldn't change)*.
+- **The ref was remade on Nov 3:** `reset --soft e19d7e3`, then the four commits again with explicit pathspecs, the feat with the go's two changes and the docs with the mock; the test's and SKILL's contents are unchanged. Nov 1's `9344ff0`, `981ba9b`, `d70b36d` and `b9a1e7a` stay in the reflog. The Nov 1 reads and captures stand as recorded; Nov 3's sit beside them in `797-artifacts/nov3/`.
+- **SENATE's NEW is 0 today,** so SENATE clicked from `/` on NEW lands on NEW's empty state in the same document, while a load of `/?chamber=senate` opens on MOVERS. That's the design (the key is the filter's alone, and read 2 holds the tab), and the review refuted it as a defect. It's recorded so it isn't rediscovered.
+- **The key's soft-navigation path has no automated guard.** The smoke test's `?stage=` leg is a full load, so it passes without the key; § 3b's read 3 is the reading. A soft-click leg would change the handoff's verbatim test, so it's proposed, not done.
+- **The HO 133 CSS comment** (`:1806-1809`) still says the strip takes *a tighter margin*, which `.search-tabs`' 16 px has overridden since HO 133 put the strip rule earlier in the file. It's pre-existing, and the handoff says nothing else in the file changes, so it stands.
+- **The architect's *never* and *can't*** hold while NEW's cached count and cached rows agree; the review derived the window where they don't (backlog, new).
+- **Also notes now run through HO 797.**
