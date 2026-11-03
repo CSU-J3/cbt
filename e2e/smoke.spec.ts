@@ -921,6 +921,22 @@ test.describe("targeted interactions", () => {
     await page.screenshot({ path: `${SHOT_DIR}/x-bill-expand.png`, fullPage: true });
   });
 
+  test("feed tabs: New / Movers / Top Stalls; opens on New, or Movers when New is empty; ?stage= opens on Movers", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const tabs = page.locator('.breaking-stalls-tabs [role="tab"]');
+    await expect(tabs).toHaveCount(3, { timeout: 20_000 });
+    await expect(tabs.nth(0)).toContainText("New This Week");
+    await expect(tabs.nth(1)).toContainText("Movers");
+    await expect(tabs.nth(2)).toContainText("Top Stalls");
+    const newIsEmpty = /\(0\)/.test((await tabs.nth(0).textContent()) ?? "");
+    await expect(tabs.nth(newIsEmpty ? 1 : 0)).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".breaking-stalls-tabs .feed-chamber")).toHaveCount(0);
+    await expect(page.locator(".feed-chamber-row .feed-chamber-opt")).toHaveCount(3);
+
+    await page.goto("/?stage=floor", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expect(tabs.nth(1)).toHaveAttribute("aria-current", "page", { timeout: 20_000 });
+  });
+
   test("open a race district drawer → .rdm-panel opens and stays within viewport", async ({
     page,
   }) => {
