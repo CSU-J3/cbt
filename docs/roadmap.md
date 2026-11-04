@@ -8538,3 +8538,71 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **The clock:** (c) waited 21 minutes for the 9:15–9:35 window, as written.
 - **LA-06 reads *not on the ballot* of Cleo Fields with no tag:** the same words the `absent` reason would give, by HO 758's word instead (no `box` read).
 - **Also notes now run through HO 798.**
+
+**Also (HO 799), the GradShow poster's ceremonial bills by stage: one statement over `bills`, every table a sum over its cells, read Wednesday Nov 4 at 12:24 PM MST (19:24Z): 177 law-eligible ceremonial bills by stage against the dome's 16,892; 990 ceremonial resolutions; 3 ceremonial laws, 3 of 122 under Pew's Oct 14 cut beside Pew's 12 of 121; 123 post-office titles, 90 tagged ceremonial; ten bills drawn by seed 799 for Corey to eyeball; and the finding that 9,305 of the dome's bills, the May 2026 batch, carry no tag at all. It opens with HO 798's FF go as taken.**
+- **What's here:**
+  - HO 798's FF go as taken;
+  - STEP 0, a check: claims 1 to 7 hold, none a HALT;
+  - the clock;
+  - A to D, each count with its predicate and its as-of, the controls and the seed;
+  - the findings;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Three commits, kinds unmixed:** `diag` (the sibling `scripts/diagnostic/gradshow-ceremonial-799.ts`, alone), `docs` (the findings file `docs/probes/799-gradshow-ceremonial.md`, alone), `docs` (this block and the backlog). No app code: nothing under `lib/`, `app/`, `components/`; nothing in `scripts/` but the sibling; `gradshow-numbers-787.ts` untouched, its three odds-snapshot runs done and the `CBT odds snapshots` task still registered for the results HO; `docs/probes/odds-snapshots/` left untracked for the same HO. SKILL unchanged: the 787 script isn't in its scripts list (STEP 0's claim 7), and the sibling follows it.
+- **No migration and no prod write.** Prod was read by `SELECT` only, through `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name; its schema fingerprint read `4e94644350e1d992` before and after each run. No cron call, no flush, no `UPDATE`.
+- **Prod's `rows_read`:** 303,523 over 24 statements in r2, the record, and 269,126 over 21 in r1, every statement's pipeline result carrying the field (`docs/handoffs/799-artifacts/rows-ledger.tsv`); no Congress.gov request.
+- **The pointer is 799:** pointer 798 (`docs/roadmap.md:8540`), highest HO in commit subjects 798, `main` at `281c81d`.
+
+**HO 798's FF go, as taken** (`docs/handoffs/798-ff-go.md`, taken up 11:21 AM MST Nov 4, 18:21Z).
+- **`main` at `281c81d`:** two docs commits (`35bf214` the findings file, `281c81d` the block, the backlog and the oddity), the second amended twice on the go: once for the two corrected sentences (the Center for Politics message went through centerforpolitics.org's contact form from the CSU address at 2:01 PM MST Nov 1, 21:01Z, as the HO 797 block records, no reply as of Nov 4; the chat's own fetch of LA-05's page at 11:15 AM MST Nov 4, 18:15Z, a stale copy, appended to the six-box loop), once for a UTC twin in its message; `798-review` pushed with lease as `281c81d` at 11:39:56 AM MST (18:39:56Z), then `281c81d:main` with no force, the ref deleted on both sides, local `main` forwarded by `--ff-only`.
+- **The gates before the push,** on Node v24.22.2: the cold build SKILL's way (the `.next` junction unlinked first, its target's 24 files confirmed intact from a separate process), `npm run build` 11:40:38 to 11:41:47 AM MST (18:40:38 to 18:41:47Z), exit 0 in 69 s, 0 warning lines; `typecheck` 0 on both projects; `check:odds-sites` OK (190 / 13 / 13); `check:design-citations` OK (1171 scanned, 171 citations, 157 resolved, 4 allowlisted, 0 problems).
+- **The push** at 11:42:23 AM MST (18:42:23Z): `bd29e97..281c81d -> main`; `ls-remote` then read `main` alone at `281c81d781c33fb18f7c3a2ba9a5f9ce6399eb29`.
+- **The deploy:** Production record `7554678466`, `success` at 11:43:09 AM MST (18:43:09Z), deployment `congressionalterminal-3q7kqxwmh`. Docs only, so no served-SHA or `e2e-prod` read beyond the record; no SKILL change, so no `cbt.zip` rebuild and no manifest row.
+- **The Center for Politics:** unanswered as of this morning, Nov 4 (Corey's word in the chat).
+
+**STEP 0, a check** (claims 1 to 7 at `281c81d`, read 12:01 PM MST Nov 4 (19:01Z) for the tree and 12:24 PM MST (19:24Z) for prod; the tree anchors re-derived by the sibling's own greps, `docs/probes/799-gradshow-ceremonial.md`).
+- **1 holds:** `main`, `origin/main` and `ls-remote` read `281c81d`, the remote's one head; pointer 798 at `:8540`; highest HO in subjects 798; the tree clean but for `docs/probes/odds-snapshots/`; reconcile 285 / 362 on 647, mis-struck 0.
+- **2 holds:** `ALLOWED_STAGES` at `lib/enums.ts:55-62`, the six in order; the HO 239 guard (`decideStage`, `lib/summarize-runner.ts:112-124`) advances forward moves and first observations past introduced, rejects any downgrade to `introduced`, and takes another downgrade only when the same stage is proposed twice running. Prod stores committee 17,993 · enacted 140 · floor 970 · introduced 137 · other_chamber 592: no `other`, no NULL, no `president`, none off the ladder.
+- **3 holds:** the tag is written at `lib/summarize-runner.ts:306` (null, 1 or 0) by the UPDATEs at `:323` and `:379`, at `scripts/classify-ceremonial.ts:40-41` (1 or 0), and reset to NULL with the summary at `lib/sync.ts:351`; prod by `typeof` and value reads integer 0 7,825 · integer 1 1,167 · NULL 10,840, nothing else.
+- **4 holds:** the dome's scope and predicate as HO 787 read them (`docs/probes/787-gradshow-numbers.md:89`, `:66`).
+- **5 (record):** `119-sres-611` is stored `enacted` with `is_ceremonial` NULL (summarized May 11, 2026, 1:18 AM MDT, 07:18Z; no `previous_stage`), so it falls in no A table and A3 doesn't count it.
+- **6 holds:** `historical_laws` holds the 118th only (`scripts/migrate.ts:498-500`); prod's `bills` has 32 columns, nine date-like, none an approval date, so B2's cut uses `latest_action_date`.
+- **7 (record):** `cal` and `agreed` at `gradshow-numbers-787.ts:248-249`, the usage line at `:1035`; SKILL's list carries `:1387` and `:1389` and not the 787 script.
+
+**The clock.** Run Wednesday Nov 4, a day before the handoff's Thursday, as the chat sent it (the file written 11:54 AM MST, 18:54Z): r1 at 12:09 PM MST (19:09Z), then r2, the record, 12:24:16 to 12:24:21 PM MST (19:24:16 to 19:24:21Z), after `/api/sync` #30573 (11:00:11 AM MST, 18:00:11Z) and `/api/cron/summarize` #30591 (12:20:23 PM MST, 19:20:23Z); the newest `update_date` 10:57:03 AM MST (17:57:03Z), the newest `summary_updated_at` 11:10:26 AM MST (18:10:26Z). `bills` holds 19,832 rows, all the 119th.
+
+**A. Ceremonial by stage** (one `GROUP BY` over `bills` on `bill_type, stage, is_ceremonial, summary IS NOT NULL AS gated, cal, agreed`, `cal` and `agreed` the 787 cube's values copied; 119 cells as of 12:24:20 PM MST, 19:24:20Z; the two controls equal on the first read, A1 + A2 = 17,069 and A1 + A3 = 1,167, every `bill_type` among the eight; no re-read, no HALT).
+- **A1, law-eligible and ceremonial: 177.** introduced 1 · committee 154 (46 on a calendar) · floor 7 (none on a calendar) · other_chamber 12 (1) · president 0 · enacted 3; `other` 0, NULL 0.
+- **A2, the dome's own predicate: 16,892.** introduced 105 · committee 15,785 (567 on a calendar) · floor 296 (48 on a calendar, HO 787's 65 then) · other_chamber 570 (34) · president 0 · enacted 136; `other` 0, NULL 0. Inside it, **9,305 untagged, every one with a summary**, and 7,587 tagged not ceremonial.
+- **A3, the four resolution types and ceremonial: 990** (hres 589, sres 347, hconres 40, sconres 14); at `floor` or later **231** (floor 225, other_chamber 6); with `agreed` set **221**; not the same number, and neither "agreed to". 990 of the 1,167 ceremonial rows can never become law.
+- **A4, totals:** ceremonial across all types 1,167 beside HO 787's 969 (+198); law-eligible any tag 17,069 beside 16,303 + A1 = 16,480 (+589; the dome 16,892 beside 16,303, +589); rows held 19,832 beside 19,106 (+726); the dome's enacted 136 beside 119.
+
+**B. Ceremonial laws.** B1: **3**, `119-s-1596` (Jocelyn Nungaray National Wildlife Refuge Act, Public Law 119-30, 2025-07-24), `119-s-2283` (the Oscar J. Upham Post Office, 119-59, 2025-12-18), `119-s-790` (the Barbara L. Cubin National Historic Trails Interpretive Center, 119-117, 2026-09-25), each a *Became Public Law* action. B2, the cut `latest_action_date <= '2026-10-14'` (the proxy, claim 6): **CT 3 of 122** (2.5%; 106 tagged not ceremonial, 13 untagged) beside **Pew's 12 of 121** as of Oct. 14, 2026 (109 substantive; Pew's definition *intended primarily to honor or recognize an individual, group or cause*, its coders not CT's classifier); without the cut 3 of 139; dated after it 17, all tagged not ceremonial, two of them (`119-hr-1744`, `119-hr-8205`) at `enacted` on *Signed by President.* of Nov 3 with no public-law number yet, so their date is the signing date. B3: the reconcile HO hadn't landed, so B1 is re-derived, not cited.
+
+**C. The label's example.** Law-eligible titles naming a post office or a facility of the United States Postal Service: **123**, 90 tagged ceremonial, 1 tagged not (`119-hr-10442`, a signage requirement on the Ronald A. Robinson Post Office, which directs an agency and reads substantive by the prompt's rule), 32 untagged (the May batch's).
+
+**D. Ten for Corey** (seed 799: mulberry32 over the id-sorted list, a Fisher-Yates shuffle, HO 787's method; each list's sha256 in the findings file). At `floor` or later, 22 candidates: `119-s-1596` (enacted), `119-s-567` (floor), `119-hr-9191` (other_chamber, National Fossil Act of 2026), `119-s-2682` (floor), `119-hr-4288` (other_chamber). In `committee`, 154 candidates: `119-hr-8562`, `119-hr-9871`, `119-hr-7313`, `119-hr-10114`, `119-hr-5309`. The tag is reported, not fixed.
+
+**The findings.**
+- **The May 2026 batch has no tag:** 9,305 of the dome's 16,892 bills carry `is_ceremonial` NULL with a summary, all summarized in May 2026 by gemini-2.5-flash, while every law-eligible bill summarized since June carries one (the control: 576 · 81 · 1,231 · 1,118 · 1,447 · 3,248 · 63 by month). The summarizer stores NULL when the model's JSON lacks the boolean (`lib/summarize.ts:194-197`), leaving the row to `scripts/classify-ceremonial.ts`, which hasn't been run over them. So the hollow dots can mark the 177 tagged, and the May batch's share is unknown (about 210 at the tagged rows' 2.3%). A backfill run is a prod write and the chat's call; filed here, in the findings file and, on the FF go, as its own OPEN LOOPS line (backlog `:83`, Corey's, dated before Monday Nov 9).
+- Two laws signed Nov 3 carry no public-law number yet (`119-hr-1744`, `119-hr-8205`): their date is the signing date until Congress.gov posts the law action.
+- No bill sits at `president` in either scope (HO 787 read 6).
+- The dome's calendar rows kept at `floor` are 48 today (HO 787's 65); A1 has none at `floor`.
+- `119-sres-611` is untagged and still at `enacted` by the old model (HO 787's backlog line stands).
+- CT's 122 laws under Pew's cut against Pew's 121, 13 of them untagged, so CT's 3 of 122 is a floor, not a comparison.
+
+**The ledger.** Two read-only runs, the fingerprint `4e94644350e1d992` before and after each: r1 (21 statements, 269,126 `rows_read`) and r2, the record (24 statements, 303,523); 572,649 in all, about 0.02% of the plan's 2.5B a month. `.env`'s `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name; nothing else read, nothing written.
+
+**What's owed after the FF.**
+- No app code, so Production serves the same code: no served-SHA or `e2e-prod` read beyond what the deploy reports on its own.
+- **Monday Nov 9, before the poster prints:** `npx tsx scripts/diagnostic/gradshow-ceremonial-799.ts --label print` once more, read-only, its as-of pasted to the chat and to the poster chat, no commit unless a figure the poster carries has moved (the backlog line, Corey's).
+- Then the results HO: the three odds snapshots committed, *favorites won X of N* for the poster, the `CBT odds snapshots` task unregistered, the CRS meter note, the Sabato refusals, and the six-box loop's hand route rehearsed before Dec 12.
+- The May batch's tag: Corey's call, in the chat (the backfill classifier over 10,840 untagged rows, a prod write); its OPEN LOOPS line, backlog `:83`, added on the FF go, dated before Monday Nov 9.
+
+**What was flagged.**
+- Run Wednesday Nov 4, not the handoff's Thursday, as the chat sent it; the backlog note the handoff words as *HO 799 (2026-11-05) … no reply as of Nov 5* is dated 2026-11-04 with *no reply as of Nov 4*, the day it was read.
+- Two reads beyond A to D (the untagged rows by month, with the tagged rows as the control; the laws dated after the cut), evidence for the findings; A's tables stay sums over the one statement.
+- Two runs, r2 the record, every shared figure equal; a read-only review of the script before the record run (an adversarial workflow, 15 agents) confirmed nothing, and three of its nits were taken anyway (the B2 numerator's NULL-date semantics, the precondition's wording, B3 worded as dated).
+- The handoff fixed the backlog to one line, so the May batch's tag had no line of its own at the review push (reconcile 286 / 362 on 648); the FF go added one after `:82`, and the reconcile reads 287 / 362 on 649.
+- **Also notes now run through HO 799.**
