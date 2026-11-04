@@ -4962,3 +4962,13 @@ No page was wrong. Nine expectations and four handoff lines had been written fro
 **The tautology guard:** the re-match reads the ruling, never the page. An expectation copied off the page it checks passes whatever the page says. HO 795 derived the seven tags from the seed's data and the rulings' order and words (`docs/handoffs/795-artifacts/rematch-derivation-795.log`). A second derivation, barred from every log and capture and from the first derivation, reached the same eight expectations from the rulings and the copy alone. Only then did it re-run the same copies, which read 247 / 0 / 1.
 
 The derivation's own first pass shows why the guard has to be independent. It read GA-13's NULL curated flag as 0 and printed RETIRING, and the slip surfaced as a disagreement with the page the author had already seen. The rule's text, `= 0` (`lib/incumbent-qualifier.ts:34`), corrected it, and the independent derivation, which never saw a page, is what makes the corrected string the ruling's and not the page's.
+
+## A probe's own input outlived it: the MAP-card check typed a seat into the cartogram's search, the LIST kept the filter across the tab switch, and the next reading counted one row (HO 798, Nov 2026)
+
+On Nov 4 the eight reads' script (`docs/handoffs/798-artifacts/reads-798.mjs`) read `/electoral`'s LIST on the Senate tab, 14 rows with 12 won, then checked a called seat's MAP card for a Kalshi line the way HO 777's rehearsal does: switch to MAP, type the seat into the search, open the card by its chevron. It switched back to LIST and clicked HOUSE. The House leg then read one row, S-IA's, and FAILed *every decided rated race is a won row* with 53 races missing.
+
+The page was right. The search box still held `IA SEN`; the cartogram's search filters the LIST as well as the MAP, and the filter survives the tab switch. The rehearsal never met it because its MAP check runs after both tabs are read (`election-night-rehearsal-777.ts:709-726`), and the night's dry run never met it because the Senate tab then had no called seat to search for.
+
+The fix was a reset before each tab (clear the search, return to LIST), the reads were re-run seven minutes later as the record (64 PASS, 0 FAIL, 2 N/A), and the first run stays on file beside it.
+
+**The rule:** a probe that types into a page undoes its typing before the next reading, and a reading that counts rows asserts the count's premise first (the tab's whole list, no filter), so a contaminated count fails on the premise and not on the rows it couldn't see.
