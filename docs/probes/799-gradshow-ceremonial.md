@@ -167,6 +167,38 @@ Seed **799**: mulberry32 over the id-sorted candidate list, a Fisher-Yates shuff
 
 Whether *National Fossil Act of 2026* (a designation) reads right is Corey's to say; nothing here reclassifies.
 
+## After HO 800's backfill (as of 3:13:54 PM MST Nov 4, 22:13:54Z)
+
+> **HO 800** ran the backfill classifier (`npm run classify-ceremonial`, gemini-2.5-flash on each bill's title and latest action) over the 10,840 rows reading `is_ceremonial` NULL, by Corey's ruling (*"backfill"*, Nov 4, 1:54 PM MST): the NULL ids snapshotted first at 2:51:41 PM MST (21:51:41Z; `docs/handoffs/800-artifacts/null-ids-before.tsv`, repo-ignored, the reversal list), a 200-row pilot, then the full run, 2:53:53 to 3:09:56 PM MST (21:53:53 to 22:09:56Z). **9,720 rows were tagged; 1,120 still read NULL**: 1,105 refused by the project's gemini-2.5-flash quota of 10,000 generate requests a day (Tier 1), which began refusing at 3:09:47 PM MST (22:09:47Z) and resets at 1:00 AM MST Nov 5 (08:00Z), and 15 parse-fails. The residue is sres 567, s 390, sjres 135, sconres 19 and hr 9, so the batch's 567 Senate simple resolutions (of 951) are still untagged; its resume is an OPEN LOOPS line, dated before Monday Nov 9. Below, this file's script re-read afterwards, `--label 800`, read-only (3:13:52 to 3:13:54 PM MST, 22:13:52 to 22:13:54Z; 24 statements, 314,347 `rows_read`; the fingerprint `4e94644350e1d992` before and after), beside the 12:24 PM MST reading above. No sync ran between the two (`/api/sync` last at 11:00:11 AM MST, #30573) and no summary was written (the newest `summary_updated_at` still 11:10:26 AM MST). The controls hold: A1 + A2 = 17,069 and A1 + A3 = 2,066, the two separate counts, on the first read. Nothing above this section is edited.
+
+| Stage | **A1 · hollow** after (799, Δ) | **A2 · the dome** after (799, Δ) |
+|---|---|---|
+| introduced | 1 (1, 0) | 105 (105, 0) |
+| committee | 353 (154, **+199**), 49 on a calendar (46) | 15,586 (15,785, −199), 564 on a calendar (567) |
+| floor | 8 (7, +1), 1 on a calendar (0) | 295 (296, −1), 47 on a calendar (48) |
+| other_chamber | 14 (12, +2), 1 on a calendar (1) | 568 (570, −2), 34 on a calendar (34) |
+| president | 0 (0, 0) | 0 (0, 0) |
+| enacted | 7 (3, +4) | 132 (136, −4) |
+| other · NULL | 0 · 0 | 0 · 0 |
+| **total** | **383** (177, **+206**) | **16,686** (16,892, −206): 16,152 tagged not ceremonial (7,587, +8,565), **534 untagged** (9,305, −8,771), every one with a summary |
+
+| Figure | After HO 800 | HO 799 (12:24 PM MST) | Δ |
+|---|---|---|---|
+| A3 · ceremonial resolutions | **1,683** (hres 1,248, sres 347, hconres 74, sconres 14) | 990 (589, 347, 40, 14) | +693 (hres +659, hconres +34; sres and sconres are in the residue) |
+| A3 · at `floor` or later | **254** | 231 | +23 |
+| A3 · with `agreed` set | **244** | 221 | +23 |
+| A4 · ceremonial, all types | **2,066** | 1,167 | +899 (HO 787's 969: +1,097) |
+| A4 · law-eligible, any tag (A1 + A2) | **17,069** | 17,069 | 0 |
+| B · ceremonial laws | **7** | 3 | +4: `119-hr-2170` (the Leonard G. "Bud" Lomell VA Clinic, Public Law 119-35), `119-hr-452` (the Miracle on Ice Congressional Gold Medal, 119-53), `119-s-4138` (a posthumous honorary promotion's notice waived, 119-80), `119-hr-7194` (the Nicholas Dockery Medal of Honor Act, **Private Law 119-2**, which B flags as not a *Became Public Law* action) |
+| B2 · under Pew's cut | **7 of 122** (5.7%), every one of the 122 now tagged | 3 of 122, 13 untagged | +4: up toward Pew's 12 of 121 and still short of it; one of the 7 is the private law |
+| B2 · without the cut | **7 of 139** | 3 of 139 | +4; none of the 17 laws dated after Oct 14 is ceremonial |
+| C · post-office titles | **123**: 117 ceremonial, 5 not, 1 untagged | 90, 1, 32 | the 32 untagged: 27 tagged ceremonial, 4 tagged not, 1 in the residue |
+| D · the seed | 799, the lists now 29 at `floor` or later (22) and 353 in committee (154) | | the draws move with the lists (the run's log carries both) |
+
+**The four post-office titles the backfill tagged not ceremonial** are each substantive by its title, as HO 799's signage bill is: two direct the Postal Service (`119-hr-3958`, notice when a post office suspends operations; `119-hr-6523`, a post office established in Mountain House, California), one transfers land to it for a post office's construction (`119-hr-4716`), and `119-hr-287` is the Mobile Post Office Relief Act, an act's name alone, for Corey's eye.
+
+**For the poster chat.** The hollow dots now mark **383** law-eligible bills against the dome's 16,686, every stage's count above. 534 of the dome's bills are still untagged: 525 Senate bills and joint resolutions refused or unparsed (s 390, sjres 135) and 9 House bills that failed to parse. About 6 of them would be hollow at the rates by type (s 34 of 2,859 in this backfill, 1.2%; sjres 1 of 86 among the tagged), 12 or 13 at the pooled 2.3% (206 of 8,771). The resume after 1:00 AM MST Nov 5 tags them, and Monday Nov 9's re-run reads the poster's figures after it. CT's ceremonial laws read 7 of 122 under Pew's Oct 14 cut (Pew: 12 of 121); with every law now tagged, the gap is the two classifiers' definitions, not CT's coverage.
+
 ## Findings
 
 1. **The May 2026 batch has no tag.** 9,305 of the dome's 16,892 bills (55%) carry `is_ceremonial` NULL with a summary, all summarized in May 2026 by gemini-2.5-flash; every law-eligible bill summarized since June carries a tag (A2's untagged rows, with the control). The hollow dots can mark the 177 tagged; the May batch's share is unknown (about 210 at the tagged rows' 2.3%). The backfill classifier exists (`scripts/classify-ceremonial.ts`, Gemini over `WHERE is_ceremonial IS NULL`, 10,840 rows across all types) and is a prod write, so it is the chat's call, not this HO's; filed here and in the block, with no backlog line of its own (the handoff fixes the backlog to one line and the `:42` note).
