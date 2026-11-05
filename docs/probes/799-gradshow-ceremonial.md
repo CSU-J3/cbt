@@ -199,6 +199,33 @@ Whether *National Fossil Act of 2026* (a designation) reads right is Corey's to 
 
 **For the poster chat.** The hollow dots now mark **383** law-eligible bills against the dome's 16,686, every stage's count above. 534 of the dome's bills are still untagged: 525 Senate bills and joint resolutions refused or unparsed (s 390, sjres 135) and 9 House bills that failed to parse. About 6 of them would be hollow at the rates by type (s 34 of 2,859 in this backfill, 1.2%; sjres 1 of 86 among the tagged), 12 or 13 at the pooled 2.3% (206 of 8,771). The resume after 1:00 AM MST Nov 5 tags them, and Monday Nov 9's re-run reads the poster's figures after it. CT's ceremonial laws read 7 of 122 under Pew's Oct 14 cut (Pew: 12 of 121); with every law now tagged, the gap is the two classifiers' definitions, not CT's coverage.
 
+### The second reading, after HO 801's resume (as of 1:06:08 AM MST Nov 5, 08:06:08Z)
+
+> **HO 801** resumed the residue after the quota reset: `npm run classify-ceremonial -- --label full-2 --concurrency 5`, 1:02:23 to 1:05:16 AM MST Nov 5 (08:02:23 to 08:05:16Z). It saw the 1,120 rows still NULL and tagged 1,115 (494 ceremonial, 621 not), with 5 parse-fails, 0 errors and 0 429s. Production's `/api/revalidate?tag=bills` was flushed by hand at 1:05:33 AM MST (200). **The batch's residue is the 5 parse-fails:** `119-hr-1536`, `119-hr-4561`, `119-hr-5696`, `119-s-2883`, `119-s-928`, all law-eligible. Across HO 800 and HO 801, NULL went from 10,840 to 5, a drop of 10,835, which equals the four logs' ok rows. Seven of those rows were re-summarized by Production's summarizer afterwards and carry its tag; none is unexplained. This file's script re-read once more, `--label 801`, read-only (1:06:07 to 1:06:09 AM MST, 08:06:07 to 08:06:09Z; 24 statements, 315,964 `rows_read`; the fingerprint `4e94644350e1d992` before and after). Beside it is the first reading above, with the deltas. A sync (#30703, 11:00 PM MST Nov 4) and the summarizer ran between the two; the law-eligible count, 17,069, didn't move. The controls hold: A1 + A2 = 17,069 and A1 + A3 = 2,560.
+
+| Stage | **A1 · hollow** now (first reading, Δ) | **A2 · the dome** now (first reading, Δ) |
+|---|---|---|
+| introduced | 1 (1, 0) | 105 (105, 0) |
+| committee | 364 (353, **+11**), 49 on a calendar (49) | 15,575 (15,586, −11), 564 on a calendar (564) |
+| floor | 8 (8, 0) | 295 (295, 0) |
+| other_chamber | 14 (14, 0) | 568 (568, 0) |
+| president | 0 | 0 |
+| enacted | 7 (7, 0) | 132 (132, 0) |
+| **total** | **394** (383, **+11**) | **16,675** (16,686, −11): 16,670 tagged not ceremonial (+518), **5 untagged** (534, −529), the 5 parse-fails |
+
+| Figure | Now | First reading | Δ |
+|---|---|---|---|
+| A3 · ceremonial resolutions | **2,166** (hres 1,248, sres 814, hconres 74, sconres 30) | 1,683 | +483: the batch's Senate resolutions now counted (sres +467, sconres +16) |
+| A3 · at `floor` or later | **495** | 254 | +241 |
+| A3 · with `agreed` set | **480** | 244 | +236 |
+| A3 · at `enacted` | **1** | 0 | `119-sres-611`, now tagged ceremonial (HO 799's claim 5 read it untagged) |
+| A4 · ceremonial, all types | **2,560** | 2,066 | +494 (HO 787's 969: +1,591) |
+| B · ceremonial laws, under Pew's cut | **7 of 122** | 7 of 122 | 0: every law under the cut was tagged by the first reading |
+| C · post-office titles | 123: **118 ceremonial, 5 not, 0 untagged** | 117, 5, 1 | the last untagged one tagged ceremonial |
+| D · the seed's lists | 29 at `floor` or later (29), 364 in committee (353) | | the committee draw moves |
+
+**For the poster chat.** The hollow dots mark **394** of the dome's 16,675 law-eligible bills; 5 bills stay untagged, the classifier's parse-fails, too few to move a dot. The Senate's ceremonial resolutions are now in A3: 2,166 in all, 495 at `floor` or later. The ceremonial laws still read 7 of 122 under Pew's Oct 14 cut (Pew: 12 of 121). Monday Nov 9's `--label print` re-run is the poster's as-of.
+
 ## Findings
 
 1. **The May 2026 batch has no tag.** 9,305 of the dome's 16,892 bills (55%) carry `is_ceremonial` NULL with a summary, all summarized in May 2026 by gemini-2.5-flash; every law-eligible bill summarized since June carries a tag (A2's untagged rows, with the control). The hollow dots can mark the 177 tagged; the May batch's share is unknown (about 210 at the tagged rows' 2.3%). The backfill classifier exists (`scripts/classify-ceremonial.ts`, Gemini over `WHERE is_ceremonial IS NULL`, 10,840 rows across all types) and is a prod write, so it is the chat's call, not this HO's; filed here and in the block, with no backlog line of its own (the handoff fixes the backlog to one line and the `:42` note).
