@@ -226,6 +226,96 @@ Whether *National Fossil Act of 2026* (a designation) reads right is Corey's to 
 
 **For the poster chat.** The hollow dots mark **394** of the dome's 16,675 law-eligible bills; 5 bills stay untagged, the classifier's parse-fails, too few to move a dot. The Senate's ceremonial resolutions are now in A3: 2,166 in all, 495 at `floor` or later. The ceremonial laws still read 7 of 122 under Pew's Oct 14 cut (Pew: 12 of 121). Monday Nov 9's `--label print` re-run is the poster's as-of.
 
+### The third reading, after HO 802's corrections (as of 11:03:38 AM MST Nov 5, 18:03:38Z)
+
+> **The chat read every hollow dot beside its summary.** HO 801's FF go asked for them: `docs/handoffs/801-artifacts/hollow-dots.tsv`, 394 rows, read 9:47:19 AM MST Nov 5. The split:
+> - **Backfill, 217 rows:** tagged on title and latest action alone (`lib/classify-ceremonial.ts:46-47`, HOs 800 and 801). **36** of them change law, create a program or direct an agency, the prompt's own *substantive*.
+> - **Other, 177 rows:** tagged by the summarizer with the text in hand. None of them does.
+>
+> **HO 802** set the 36 back to 0 by hand:
+> - `UPDATE bills SET is_ceremonial = 0 WHERE is_ceremonial = 1 AND id IN (the 36)` at 11:03:09 AM MST (18:03:09Z), `rowsAffected` 36. The reversal list, `docs/handoffs/802-artifacts/before.tsv`, was read first at 11:02:59 AM: 36 rows, all reading 1.
+> - Production's `bills` tag was flushed by hand at 11:03:21 AM (200).
+> - No model was called.
+>
+> This file's script re-read once more, `--label 802`, read-only: 11:03:33 to 11:03:39 AM MST (18:03:33 to 18:03:39Z), 24 statements, 315,868 `rows_read`, the fingerprint `4e94644350e1d992` before and after. Beside it is the second reading above, with the deltas.
+>
+> Between the two readings a sync reset 8 law-eligible rows, summary and tag together (`lib/sync.ts:351`); they wait for the summarizer. The law-eligible total reads 17,069 at both, so none is a new row. The controls hold: A1 + A2 = 17,069 and A1 + A3 = 2,524.
+
+| Stage | **A1 · hollow** now (second reading, Δ) | **A2 · the dome** now (second reading, Δ) |
+|---|---|---|
+| introduced | 1 (1, 0) | 105 (105, 0) |
+| committee | 330 (364, **−34**), 49 on a calendar (49) | 15,609 (15,575, +34), 564 on a calendar (564) |
+| floor | 7 (8, −1), 0 on a calendar (1) | 296 (295, +1), 48 on a calendar (47) |
+| other_chamber | 13 (14, −1), 1 on a calendar (1) | 569 (568, +1), 34 on a calendar (34) |
+| president | 0 | 0 |
+| enacted | 7 (7, 0) | 132 (132, 0) |
+| **total** | **358** (394, **−36**) | **16,711** (16,675, +36): 16,698 tagged not ceremonial (+28), **13 untagged** (5, +8): the 5 parse-fails and the 8 the sync reset |
+
+| Figure | Now | Second reading | Δ |
+|---|---|---|---|
+| A3 · ceremonial resolutions | **2,166** (hres 1,248, sres 814, hconres 74, sconres 30) | 2,166 | 0 |
+| A3 · at `floor` or later | **495** | 495 | 0 |
+| A3 · with `agreed` set | **480** | 480 | 0 |
+| A3 · at `enacted` | **1** | 1 | 0 |
+| A4 · ceremonial, all types | **2,524** | 2,560 | −36 (HO 787's 969: +1,555) |
+| B · ceremonial laws, under Pew's cut | **7 of 122** | 7 of 122 | 0: none of the 36 is at `enacted` |
+| C · post-office titles | 123: **118 ceremonial, 5 not, 0 untagged** | 118, 5, 0 | 0: C's predicate doesn't catch `119-hr-1225`, a ZIP Code |
+| D · the seed's lists | 27 at `floor` or later (29), 330 in committee (364) | | both draws move |
+
+**The 36 set back to 0.** The handoff's list, with the chat's read of each title beside its summary head. Two titles read differently in prod; neither changes the list:
+- `119-s-3553` carries a curly apostrophe, *Where’s WALDO Act*.
+- `119-sjres-74`'s title is the CRA joint resolution's long form, which the table paraphrases.
+
+| Bill | Title | What it does |
+|---|---|---|
+| `119-hr-1014` | Specialist Joey Lenz Act of 2025 | expands the Defense Department's periodic health assessments |
+| `119-hr-1159` | Honoring Our Fallen TSA Officers Act | makes TSA employees eligible for Public Safety Officers' Benefits |
+| `119-hr-1225` | To direct the United States Postal Service to designate a single, unique ZIP Code for Eastvale, California | directs the Postal Service to assign a ZIP Code |
+| `119-hr-124` | Byron Nash Renal Medullary Carcinoma Awareness Act of 2023 | a federal Medicaid match for sickle cell education |
+| `119-hr-1310` | POSTAL Act | bars closing or combining mail processing centers |
+| `119-hr-1359` | Black History Matters Act | requires a study of Black history education |
+| `119-hr-2011` | Sarah Debbink Langenkamp Active Transportation Safety Act | widens what highway safety funds can pay for |
+| `119-hr-3317` | Honoring Civil Servants Killed in the Line of Duty Act | raises the death gratuity |
+| `119-hr-3591` | Carla Walker Act | creates DNA-analysis grant programs |
+| `119-hr-4040` | SALONS Stories Act | incentives for domestic violence training at licensure |
+| `119-hr-4268` | Remembering Our Local Heroes Act | creates a grant program for local memorials |
+| `119-hr-4833` | Dyess Air Base Access Infrastructure Design Act | requires gate design work at the base |
+| `119-hr-5787` | BALL Act | bars White House construction money during a shutdown |
+| `119-hr-5886` | Warrior Road Act | directs how the Transportation Department prioritizes highway projects |
+| `119-hr-6392` | Home School Graduation Recognition Act | treats homeschool completers as high school graduates |
+| `119-hr-6908` | Blue Envelope Awareness Act | requires Justice Department guidance for a state program |
+| `119-hr-7151` | Artificial Intelligence Public Awareness and Education Campaign Act | requires a Commerce Department campaign |
+| `119-hr-7168` | Seton Hall Fire Victims Remembrance Act of 2026 | requires dormitory fire suppression standards |
+| `119-hr-7271` | Evan Anzoo Memorial Act | requires a Comptroller General study |
+| `119-hr-7669` | Rejecting the Erasure of Afghan Women and Girls Act | requires a State Department report |
+| `119-hr-7740` | African American History Act of 2026 | lets the museum spend appropriated funds on expanded programs |
+| `119-hr-7988` | Safe Passage to the World Cup Act | temporary entry without a visa |
+| `119-hr-803` | Sergeant Gary Beikirch Medal of Honor Act | lets surviving spouses draw both a pension and DIC |
+| `119-hr-8160` | Premenstrual Dysphoric Disorder Awareness and Research Act of 2026 | requires HHS research and data collection |
+| `119-hr-902` | RECOGNIZING Judea and Samaria Act | bars funds for documents that say *West Bank* |
+| `119-hr-988` | To amend title 36 ... the National Woman's Relief Corps | moves a federal charter's domicile and office |
+| `119-s-138` | VA Home Loan Awareness Act of 2025 | adds a notice to the mortgage application |
+| `119-s-1699` | Artificial Intelligence Public Awareness and Education Campaign Act | requires a Commerce Department campaign |
+| `119-s-1819` | DOGE BROS Act | raises fines for illegally accessing government data |
+| `119-s-2078` | Honoring Civil Servants Killed in the Line of Duty Act | raises the death gratuity |
+| `119-s-2711` | Go Pack Go Act of 2025 | lets subscribers choose an adjacent market's broadcast channels |
+| `119-s-3272` | Motorcycle Safety Awareness Act of 2025 | conditions on state driver education |
+| `119-s-3553` | Where's WALDO Act | requires an OPM public website of federal employees |
+| `119-s-411` | Flight 293 Remembrance Act | requires a Defense Department public database of crash deaths |
+| `119-s-512` | Agent Raul Gonzalez Officer Safety Act | creates federal crimes for fleeing Border Patrol |
+| `119-sjres-74` | CRA disapproval of PHMSA's *Gulf of America* rule | would void an agency rule |
+
+**Left as tagged, 12 rows the prompt reads either way.** All 12 read 1 at 11:04:56 AM MST, and all came from the backfill. They are filed in the backlog for Corey's ruling after GradShow:
+- six federal-holiday bills (`119-hr-2119`, `119-hr-3046`, `119-hr-5322`, `119-hr-794`, `119-hr-911`, `119-hr-964`);
+- a policy statement (`119-hjres-77`);
+- a federal charter (`119-hr-3981`);
+- a bar on renaming Navy ships (`119-hr-3993`);
+- the Gulf of America order codified (`119-hr-4533`);
+- an agency requirement around hostages (`119-hr-5772`);
+- one-time Mall displays (`119-sjres-96`).
+
+**For the poster chat.** The hollow dots now mark **358** of the dome's 16,711 law-eligible bills, and none of the 36 that change law is among them. 13 bills are untagged: the 5 parse-fails and the 8 the sync reset, which the summarizer tags when it reads them. Monday Nov 9's `--label print` re-run is the poster's as-of.
+
 ## Findings
 
 1. **The May 2026 batch has no tag.** 9,305 of the dome's 16,892 bills (55%) carry `is_ceremonial` NULL with a summary, all summarized in May 2026 by gemini-2.5-flash; every law-eligible bill summarized since June carries a tag (A2's untagged rows, with the control). The hollow dots can mark the 177 tagged; the May batch's share is unknown (about 210 at the tagged rows' 2.3%). The backfill classifier exists (`scripts/classify-ceremonial.ts`, Gemini over `WHERE is_ceremonial IS NULL`, 10,840 rows across all types) and is a prod write, so it is the chat's call, not this HO's; filed here and in the block, with no backlog line of its own (the handoff fixes the backlog to one line and the `:42` note).

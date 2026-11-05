@@ -8845,3 +8845,133 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Three of § 1's eye's ten tagged 1 read substantive** (`119-sjres-74`, a CRA disapproval; `119-s-512`; `119-sjres-96`): for Corey's eye, not a stop.
 - **SKILL's sentence, read against the tree:** it names the weekly report among the quota's sharers too (`lib/report-generation.ts:1580` calls the same model), beside the handoff's summarize and news crons.
 - **Also notes now run through HO 801.**
+
+**Also (HO 802), the hollow dots corrected.** 36 law-eligible bills that the title-only backfill had tagged ceremonial were set back to 0 by hand. One `UPDATE` on the listed ids took `rowsAffected` 36, and one `bills` flush on Production returned 200. HO 799's script re-read reads the hollow dots 394 → **358** and the dome 16,675 → 16,711; A3, B and C are unchanged. One read of the other direction filed 53 rows tagged 0 whose titles read as tribute, for the chat; they are not fixed here. The 12 law-eligible rows the prompt reads either way stay tagged, an OPEN LOOPS line for after GradShow. No app code was touched and no Gemini call was made.
+- **What's here:**
+  - HO 801's FF go as taken, and the go's rulings;
+  - STEP 0, a check: claims 1 to 6 hold, none a HALT;
+  - § 1, the write: the snapshot, the one statement, the flush, the reversal's shape;
+  - prod after;
+  - § 2, the re-read;
+  - § 3, the other direction;
+  - the titles read against the list;
+  - § 4, the docs;
+  - the chat's miss, on the record;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Two commits, kinds unmixed:**
+  - `docs`: the HO 799 findings file's third reading, this block, the backlog and the oddity.
+  - `docs(skill)`: alone and last.
+  - No app code: nothing under `lib/`, `app/`, `components/` or `scripts/`. The instruments live under `docs/handoffs/802-artifacts/`: `reads-802.ts`, `write-802.ts` and `flush-prod.mjs`.
+- **The one prod write was § 1's `UPDATE` on the listed ids reading 1, and the one flush was the `bills` tag,** by hand on Production. Everything else was `SELECT`, with the schema fingerprint `4e94644350e1d992` before and after every read and the write.
+- **The pointer is 802:** pointer 801 (`docs/roadmap.md:8847`), highest HO in commit subjects 801, `main` at `f15cec7`.
+
+**HO 801's FF go, as taken** (`docs/handoffs/801-ff-go.md`; the gates from 9:45:23 AM MST Nov 5, 16:45:23Z).
+- **`main` at `f15cec7`:** five commits on `5e6a040`:
+  - `6daf9d3` (diag, `scripts/diagnostic/odds-results-801.ts`);
+  - `5850c6c` (docs, the three odds snapshots);
+  - `125a1b7` (docs, the odds findings file and the HO 799 findings file's second reading);
+  - `a404e03` (docs, the block, the backlog and the oddity);
+  - `f15cec7` (docs(skill)).
+  - No force; `801-review` deleted on both sides.
+- **The gates before the push,** on Node v24.22.2:
+  - the cold build, exit 0 in 30 s, 16 of 16 pages, 0 warning lines;
+  - `typecheck` 0 on both projects;
+  - `check:odds-sites` and `check:design-citations` OK.
+- **The push** at 9:46:27 AM MST Nov 5 (16:46:27Z): `5e6a040..f15cec7 -> main`, no force.
+- **The deploy:** Production record `7579601430`, `success` at 9:47:14 AM MST (16:47:14Z), deployment `congressionalterminal-cmzlqplxe`. A script, data and docs, so no served-SHA or `e2e-prod` read.
+- **The go's read:** every hollow dot with its summary head, `docs/handoffs/801-artifacts/hollow-dots.tsv` (394 rows, `via` backfill 217 and other 177), read at 9:47:19 AM MST (16:47:19Z) for the chat. This HO's list is the chat's reading of it.
+
+**The go's rulings.**
+- **The hand list, ruled.** MD-01's *Andy Harris* is the marked *Andrew Harris*, and NM-02's *Gabe Vasquez* is the marked *Gabriel Vasquez*: favorites who won. S-SC's Polymarket *Darline Graham Nordone* is the ballot's *Darline Graham*: a favorite who lost.
+  - So at the 11:24:30 PM MST Nov 4 marks, **Kalshi's favorites won 62 of 67** called, 5 lost. House 51 of 55, Senate 11 of 12. By band: 50–59 3 of 3, 60–69 3 of 6, 70–79 12 of 14, 80–89 10 of 10, 90–100 34 of 34.
+  - Polymarket's won 11 of 12, 1 lost.
+  - The two books named the same candidate in 14 of 14.
+  - The odds findings file keeps 60 of 67, the script's count before the hand.
+- **Four nicknames among the not called, ruled the same people:** AK-AL's *Nick Begich III*, NY-01's *Nick LaLota*, NY-17's *Mike Lawler* and OH-10's *Mike Turner*. Once each race is called the script will read the favorite *unmatched*, and the chat applies the ruling by hand.
+- **Two cautions for the poster:**
+  - The as-of is the newest read; the rated races' own reads ran back to 8:58 AM MST Nov 4.
+  - The 67 aren't a random 67: favorites the ballot reads as D were 57 of 70 called with 0 lost, and as R 10 of 35 called with 5 lost.
+
+**STEP 0, a check** (claims 1 to 6 at `f15cec7`; the prod claims read 11:02:16 to 11:02:17 AM MST Nov 5, 18:02:16 to 18:02:17Z).
+- **1 holds:**
+  - `main` reads `f15cec7` on the remote and the box; pointer 801 at `:8847`; highest HO in subjects 801.
+  - The tree is clean but for the two untracked Nov 1 test snapshots.
+  - Reconcile 286 / 364 on 650, mis-struck 0; `:82` is the Monday re-run and `:84` the struck residue.
+- **2 holds:** each of the 36 ids exists, reads 1, carries a summary and reads 1 in a `docs/handoffs/800-artifacts/classify-*.log`; 0 dropped.
+- **3 holds, a count recorded:**
+  - The tag's values are 0, 1 or NULL and nothing else. Law-eligible: 0 16,662 · 1 **394** · NULL **13**. Resolutions: 0 597 · 1 2,166 · NULL 0.
+  - `IS NULL` reads 13 against the handoff's about 5, inside its 10. Against the second reading (0 16,670 · NULL 5), the 0s read 8 fewer and the NULLs 8 more, with the total 17,069 both times. § 2 reads 8 of the 13 with no summary: a sync's reset (`lib/sync.ts:351`) clears both, and they wait for the summarizer.
+- **4 holds:** the column's writers are:
+  - `lib/summarize-runner.ts:306`, with its UPDATEs at `:323` and `:379`;
+  - `lib/sync.ts:351`, the reset to NULL with the summary;
+  - `scripts/classify-ceremonial.ts:234`, over NULL rows only;
+  - `scripts/diagnostic/crs-catchup-794.ts:71`, dormant and typed by hand.
+  - The leg harnesses in it and in `sync-frontier-790.ts` write `file:` copies only. So a hand tag lasts until a bill's text changes, and then the summarizer re-tags it.
+- **5 holds:** the feeds read the column at query time (`lib/queries.ts:574`, `:600`, `:643`, `:688`, `:762`) inside caches tagged `bills`, so the flush is all a render needs.
+- **6 holds:** the HO 799 findings file has *The second reading* at `:202` and *## Findings* at `:229`; SKILL `:2093` reads as HO 801 left it; `flush-prod.mjs` and `hollow-dots.tsv` (394 rows) are on the box.
+
+**§ 1, the write** (`docs/handoffs/802-artifacts/write-802.ts --go`, 11:02:59 to 11:03:09 AM MST Nov 5).
+- **The snapshot first:** `before.tsv`, the reversal list, holds 36 rows, all reading 1, with their `summary_updated_at`; sha256 `45576b81c075586e`; as of 11:02:59 AM MST (18:02:59Z).
+- **The one statement:** `UPDATE bills SET is_ceremonial = 0 WHERE is_ceremonial = 1 AND id IN (the 36)`, through a writer that runs that statement and no other.
+  - **`rowsAffected` 36** at 11:03:09 AM MST (18:03:09Z), the 36 STEP 0 kept.
+  - The read-back: 0 ×36. The fingerprint unchanged.
+- **The flush, by hand, once:** `POST https://congressional-terminal-chi-silk.vercel.app/api/revalidate?tag=bills`, Bearer `$CRON_SECRET` by name. It returned **200 in 279 ms, `{"ok":true,"tag":"bills"}`**, sent at 11:03:21 AM MST (18:03:21Z).
+- **The reversal, not run:** `UPDATE bills SET is_ceremonial = 1 WHERE id IN (…)` over `before.tsv`'s 36 ids, then the same flush. The list lives in `docs/handoffs/802-artifacts/before.tsv` on the box, and the same 36 ids are in the HO 799 findings file's third reading.
+
+**Prod after** (11:03:31 AM MST, 18:03:31Z):
+- Law-eligible: 0 **16,698** · 1 **358** · NULL 13.
+- Resolutions: 0 597 · 1 2,166 · NULL 0, unchanged.
+- The list's 36 read 0.
+- Against the handoff's estimate (0 about 16,706, NULL 5), the difference is the same 8 rows as claim 3's.
+
+**§ 2, the re-read** (`gradshow-ceremonial-799.ts --label 802`, 11:03:33 to 11:03:39 AM MST, read-only, 24 statements, 315,868 `rows_read`; the HO 799 findings file's third reading):
+- A1, the hollow dots, **358** (394, −36: committee −34, floor −1, other_chamber −1).
+- A2, the dome, **16,711** (16,675, +36): tagged not ceremonial 16,698 (+28), untagged 13 (5, +8). The 13 are the 5 parse-fails and the 8 the sync reset.
+- A3, ceremonial resolutions, 2,166, its stages unchanged (495 at `floor` or later, 480 `agreed`, 1 at `enacted`).
+- A4, ceremonial across all types, **2,524** (2,560, −36).
+- B unchanged, 7 of 122 under Pew's cut: none of the 36 is at `enacted`.
+- C unchanged (118, 5, 0): its predicate doesn't catch `119-hr-1225`'s ZIP Code.
+- D's lists: 27 at `floor` or later (29), 330 in committee (364).
+- The controls were equal on the first read: A1 + A2 = 17,069, A1 + A3 = 2,524.
+- Every figure came in as the handoff estimated except A2's untagged, 13 against 5 (the 8).
+
+**§ 3, the other direction** (11:04:16 to 11:04:17 AM MST, read-only). The handoff's statement over the law-eligible rows tagged 0, outside the list, whose titles read as tribute returned **53 rows**. They went into `docs/handoffs/802-artifacts/tagged-0-lookalikes.tsv` (sha256 `9b6a1ff388ed8f8d`), with tabs and newlines in a field replaced by a space. Nothing is fixed here: the chat reads the file off the box, and any corrections ride Monday's handoff.
+
+**The titles, read against the list** (11:04:55 AM MST, Guard 4).
+- 34 of the 36 titles read as the table names them.
+- `119-s-3553` reads *Where’s WALDO Act* in prod, with a curly apostrophe.
+- `119-sjres-74`'s title is the CRA joint resolution's long form, which the table paraphrases.
+- Neither changes the list. The 12 left as tagged: 12 found, all reading 1.
+- In `hollow-dots.tsv`, all 36 and all 12 read `via` backfill.
+
+**§ 4, the docs.**
+- The HO 799 findings file's third reading, after *The second reading* and before *## Findings*. It carries the handoff's table whole, the 12 left as tagged and the split. Nothing above it is edited.
+- The backlog: `:82`'s dated note, and one OPEN LOOPS line after `:84` for the 12.
+- The oddity.
+- SKILL's sentence.
+
+**The chat's miss, on the record.** HO 800's paste flagged `119-hr-1014`, `119-hr-1310` and `119-hr-5787` for the chat's eye. Its FF go let them stand on their titles, and all three are on this list.
+
+**The ledger.**
+- Prod's `rows_read`, all read-only:
+  - 15 statements and 117,251 by this HO's read instrument (`docs/handoffs/802-artifacts/rows-ledger.tsv`);
+  - 24 statements and 315,868 by § 2's re-read (`docs/handoffs/799-artifacts/rows-ledger.tsv`);
+  - 433,119 in all.
+- § 1's snapshot, `UPDATE` and read-back weren't tapped.
+- Gemini: no calls.
+
+**What's owed after the FF.**
+- Docs only, so Production serves the same app code: no served-SHA or `e2e-prod` read beyond what the deploy reports. The `docs(skill)` commit means the chat rebuilds `cbt.zip`, held until after GradShow; the manifest gains a row.
+- **Monday Nov 9, before the poster prints:** the three `--label print` runs (`:82`), on a handoff the chat writes that morning, carrying any corrections § 3 brings.
+- **After GradShow:** the 12 left as tagged, ruled by class (the new OPEN LOOPS line).
+- The Louisiana hand route before Dec 12 (`:80`) and the low loops stand.
+
+**What was flagged.**
+- **NULL 13, not about 5** (STEP 0's claim 3, prod after and § 2's A2): 8 law-eligible rows a sync reset since the second reading, summary and tag together. The law-eligible total is 17,069 at both readings, so none is new. Inside claim 3's 10, so recorded.
+- **Two titles read differently from the table** (Guard 4): `119-s-3553`'s curly apostrophe and `119-sjres-74`'s long form. Flagged; the list is unchanged.
+- **The `:82` note in the line's own form:** the label is bold, as on HO 801's note there, with the handoff's words after it.
+- **The third reading carries the handoff's table whole** (bill, title, what it does) as *the list above*.
+- **Reads beyond the letter:** the 36 titles and the 12 left as tagged, read once in prod, and the 48 rows' `via` in `hollow-dots.tsv`.
+- **Also notes now run through HO 802.**
