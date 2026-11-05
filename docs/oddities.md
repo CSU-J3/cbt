@@ -4972,3 +4972,21 @@ The page was right. The search box still held `IA SEN`; the cartogram's search f
 The fix was a reset before each tab (clear the search, return to LIST), the reads were re-run seven minutes later as the record (64 PASS, 0 FAIL, 2 N/A), and the first run stays on file beside it.
 
 **The rule:** a probe that types into a page undoes its typing before the next reading, and a reading that counts rows asserts the count's premise first (the tab's whole list, no filter), so a contaminated count fails on the premise and not on the rows it couldn't see.
+
+## One project's day of generate requests is the box's and Production's at once, and the refusals came and went inside it (HO 801, Nov 2026)
+
+HO 800's full run reached the project's gemini-2.5-flash cap at 3:09:47 PM MST Nov 4 (22:09:47Z): `GenerateRequestsPerDayPerProjectPerModel`, 10,000 generate requests a day on Tier 1, *Please retry in 9h50m*. Nothing in the repo named the cap. HO 800's estimate priced tokens and dollars, and the backfill's 10,840 rows can't fit one Pacific day's 10,000 even before anything else calls the model.
+
+The cap is Production's too. The news cron calls the same model (`lib/news-matcher.ts:151`), and its 3:30 and 4:00 PM MST ticks (#30628, #30632) were refused 6 of 6 and 11 of 11 on the same metric, their retry delays (9h29m, 8h59m) pointing at the same 08:00Z reset. So Production's `GEMINI_API_KEY` is the box's project. The summarizer stamped nothing only because its queue was empty.
+
+Then the window didn't behave as its retry delay said:
+- The 4:30 PM tick made 15 of 15 calls, and the 5:00 and 5:30 PM ticks 13 and 12, none refused.
+- The summarizer summarized 12 bills at 5:10 PM.
+- From 6:00 PM the refusals came back and mostly held: 11 of 13 at 6:00 PM (#30656), 3 of 12 at 7:00 PM, 12 of 12 at 9:00 PM, and 13 of 13 at 12:00 and 12:30 AM MST Nov 5.
+- The 1:00 AM tick (#30725, 08:00:05Z), five seconds after midnight Pacific, made 13 of 13. HO 801's resume of the batch's last 1,120 rows ran clean at 1:02 AM.
+
+Calls landed hours before the reset the delay named, and refusals came back after it. Recorded as read, not explained.
+
+A second thing turned up in the same read. An article whose LLM match fails keeps its `llm_error` tag for good: `storeObservation` writes an observation's tags once, and a re-ingest bumps `last_seen` only (`lib/news-to-observation.ts:265-273`). Meanwhile `skipLlm` holds only without that tag (`lib/news-ingest.ts:258`), so every later tick calls the model for the article again while it stays in its feed. The news ticks made 3 to 12 calls before 3:09 PM and 11 to 15 after. That fits about ten re-calls a tick, read as consistent rather than counted per article. By 1:08 AM MST Nov 5, 20 tagged articles had been seen since 3:09 PM, 13 of them still in their feeds, and none had gained a `news_mentions` row. The ten the 3:30 and 4:00 PM ticks refused were in their feeds at the 4:30 PM tick, which answered all 15 of its calls. So they were re-matched, not lost, and their tags kept them in the LLM's path anyway. On a shared quota, each refused call adds an article that costs a call on every tick until it ages out.
+
+**The rule:** a run that spends a shared quota is sized against what Production spends from the same day. Before calling the window open or shut, read the refusals the crons record (`cron_runs`), not a refusal's retry delay.

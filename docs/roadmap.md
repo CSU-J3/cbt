@@ -8704,3 +8704,144 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Reads beyond the letter:** the whole column's state at the snapshot (`tags-before.tsv`), the tagged shares by type before the pilot, the pilot's other seven 1s, and the summarizer's state after the quota ran out.
 - **SKILL's sentence, read against the tree and the run:** the per-row log's directory is `docs/handoffs/800-artifacts/`, fixed in the script (the handoff's text said `<ho>-artifacts/`), and the batch was tagged but for its residue, which the sentence names: 1,105 refused by the quota and 15 parse-fails.
 - **Also notes now run through HO 800.**
+
+**Also (HO 801), the results HO.** The May batch's residue was tagged after Gemini's quota reset: of HO 800's 10,840 NULL rows, 5 parse-fails are left. The three election odds snapshots are committed, and the poster's *favorites won X of N* is read off them: **Kalshi's favorites won 60 of 67** rated races called by 11:24 PM MST Nov 4, Polymarket's 11 of 12. The `CBT odds snapshots` task is unregistered, and the ledger's dated notes are written (Monday's three runs, Sabato refused Nov 4, the CRS meter). Read along the way: the quota is Production's too, and the news ingest re-calls an article whose match failed on every tick.
+- **What's here:**
+  - HO 800's FF go as taken, and the quota's reach into Production;
+  - STEP 0, a check: claims 1 to 8 hold, none a HALT;
+  - § 1, the residue: the tally, the flush, prod after, the re-read, the eye;
+  - § 2, the odds: the script, the counts, the matching rule and the reading taken, the hand list, the two books, the drift, the as-of, the controls, the checks;
+  - § 3, the task;
+  - § 4, the notes, and what the news ticks did with the calls the quota refused;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **Five commits, kinds unmixed:**
+  - `diag`: `scripts/diagnostic/odds-results-801.ts`, alone.
+  - `docs`: the three snapshot files, by explicit pathspec; the two Nov 1 test files stay untracked.
+  - `docs`: the odds findings file `docs/probes/801-odds-results.md`, and the HO 799 findings file's second reading.
+  - `docs`: this block, the backlog and the oddity.
+  - `docs(skill)`: alone and last.
+  - No app code: nothing under `lib/`, `app/`, `components/`; `gradshow-numbers-787.ts`, `gradshow-ceremonial-799.ts` and `classify-ceremonial.ts` untouched.
+- **The one prod write was § 1's run of the standing UPDATE on rows reading NULL; the one flush was the `bills` tag,** by hand on Production. Everything else was `SELECT`, the schema fingerprint `4e94644350e1d992` before and after every read. One thing changed on the box: the scheduled task, unregistered.
+- **The pointer is 801:** pointer 800 (`docs/roadmap.md:8706`), highest HO in commit subjects 800, `main` at `5e6a040`.
+
+**HO 800's FF go, as taken** (`docs/handoffs/800-ff-go.md`, 4:35 to 4:38 PM MST Nov 4, 23:35 to 23:38Z).
+- **`main` at `5e6a040`:** three commits on `a953adc`: `656235a` (feat, `scripts/classify-ceremonial.ts`), `2b8a0c9` (docs, the HO 799 findings file's after-section, the block and the backlog), `5e6a040` (docs(skill)). No force; `800-review` deleted on both sides.
+- **The gates before the push,** on Node v24.22.2:
+  - the cold build SKILL's way (the `.next` junction unlinked first, its target's 24 files confirmed intact from a separate process), exit 0 in 30 s, 0 warning lines;
+  - `typecheck` 0 on both projects;
+  - `check:odds-sites` and `check:design-citations` OK.
+- **The push** at 4:36 PM MST Nov 4 (23:36Z): `a953adc..5e6a040 -> main`, no force; `ls-remote` then read `main` alone.
+- **The deploy:** Production record `7560834813`, `success` at 4:37:16 PM MST (23:37:16Z), deployment `congressionalterminal-bh2muzxto`. A script and docs, so no served-SHA or `e2e-prod` read.
+- **The quota's reach into Production,** read by `SELECT` on `cron_runs` at 4:37 PM MST:
+  - The news cron's 3:30 and 4:00 PM MST ticks (#30628, #30632) refused 6 of 6 and 11 of 11 Gemini calls on the same 10,000-a-day limit (*retry in 9h29m*, *8h59m*), and the 4:30 PM tick (#30636) made 15 of 15.
+  - The nine summarize ticks from 3:10 to 4:30 PM summarized 0 with an empty queue; `summary IS NULL` read 0.
+  - So Production's `GEMINI_API_KEY` shares the box's project and quota, and nothing was stamped.
+
+**STEP 0, a check** (claims 1 to 8 at `5e6a040`: the tree and prod read 6:28 to 6:39 PM MST Nov 4, 01:28 to 01:39Z Nov 5; claim 2 read again at 1:01 AM MST Nov 5, 08:01Z, and claim 5 at 1:07 AM, before each was acted on).
+- **1 holds:** `main`, `origin/main` and `ls-remote` read `5e6a040`, the remote's one head; pointer 800 at `:8706`; highest HO in subjects 800; the tree clean but for `docs/probes/odds-snapshots/`; reconcile 287 / 363 on 650, mis-struck 0; `:84` the residue, `:82` the Monday re-run, `:50` Sabato's reader, `:19` the struck CRS line.
+- **2 holds:**
+  - `is_ceremonial IS NULL` reads **1,120** (sres 567, s 390, sjres 135, sconres 19, hr 9), every one with a summary, delta 0 from 3:13 PM MST Nov 4, and the same at 1:01 AM.
+  - The tag's values are 0, 1 or NULL and nothing else; `summary IS NULL` reads 0.
+  - The summarizer wrote 12 summaries at 5:10 PM MST Nov 4 and was stamping nothing.
+- **3 holds:** `docs/probes/odds-snapshots/` holds the five files: the two Nov 1 tests at 193,122 bytes each, and the three snapshots with the claimed `taken_at` (04:30:20Z, 14:30:09Z, 22:30:03Z Nov 3), heads (`b9a1e7a`, `b9a1e7a`, `bd29e97`) and keys; the last reads `kalshi_odds` 469, `polymarket_odds` 34, `rated_index.N` 105.
+- **4 holds:** the rows carry the claimed fields, and more (`kalshi_odds` one row per race, all 105 rated races among them; `polymarket_odds` 14 of them); `rated_index` rows `race_id, chamber, kalshi, polymarket`; `general_ballot` has `race_id, name, party, marked` (SKILL `:1181-1195`); 386 races decided by one mark at 6:35 PM MST Nov 4.
+- **5 holds, twice:** `CBT odds snapshots` exists, `Ready`, three one-time triggers (9:30 PM MST Nov 2, 7:30 AM and 3:30 PM MST Nov 3), all past, no repetition; `LastRunTime` 3:30 PM MST Nov 3, `LastTaskResult` 0, no next run, `NumberOfMissedRuns` 0. Read at 6:30 PM MST Nov 4 and again at 1:07:28 AM MST Nov 5. `CBT Sabato daily read` exists and wasn't touched.
+- **6 (record):** `sabato-rating-changes-2026-11-04.challenge.html` (5,497 bytes) and `.headers.txt` at 5:00 PM MST (00:00:02Z Nov 5): `403`, `Cf-Mitigated: challenge`, the edge DEN, `cf-ray a557936f8e361f24-DEN`.
+- **7 holds:** a failed match is stored tagged `llm_error` (`lib/news-ingest.ts:306`), and `skipLlm` holds only without that tag (`:258`), so a later tick re-calls it. The tag itself never clears: `storeObservation` writes tags once (`lib/news-to-observation.ts:265-273`).
+- **8 holds:** SKILL `:2092-2093`, the backfill paragraph and HO 800's sentence (*all but 1,120 rows*); the scripts list carries `late-index-791.ts` (`:1387`) and the rehearsal (`:1389`), not the 787 or 799 scripts.
+
+**§ 1, the residue.**
+- **The run:** `npm run classify-ceremonial -- --label full-2 --concurrency 5`, 1:02:23 to 1:05:16 AM MST Nov 5 (08:02:23 to 08:05:16Z), 172.8 s. The first 20 rows were answered, not refused, so the reset had come.
+- **The tally** (`docs/handoffs/800-artifacts/classify-full-2.log`): 1,120 seen, **1,115 ok** (494 ceremonial, 621 not), **5 parse-fail**, 0 error, 0 429s. By type:
+  - hr 9: 6 ok (0 · 6), 3 parse-fail;
+  - s 390: 388 ok (6 · 382), 2 parse-fail;
+  - sconres 19: 16 · 3;
+  - sjres 135: 5 · 130;
+  - sres 567: 467 · 100.
+  - Parse-fail and error at 0.45%, under the 2%, so no `full-3`.
+- **The run's own POST** went to `$REVALIDATE_URL` and failed (`ECONNREFUSED`), as HO 800 found.
+- **The flush, by hand, once:** `POST https://congressional-terminal-chi-silk.vercel.app/api/revalidate?tag=bills`, Bearer `$CRON_SECRET` by name: **200 in 275 ms, `{"ok":true,"tag":"bills"}`**, sent 1:05:33 AM MST (08:05:33Z).
+- **Prod after** (1:05:48 AM MST, 08:05:48Z), against HO 800's snapshot (`null-ids-before.tsv`, which stays the reversal list for both runs):
+  - NULL went from 10,840 to **5**, a drop of 10,835, the four logs' ok rows exactly: 10,828 written and unchanged since, and 7 re-summarized by Production's summarizer after the snapshot (they carry its tag).
+  - 0 unexplained, no row outside the snapshot changed, none new.
+  - The residue is the 5 parse-fails, `119-hr-1536`, `119-hr-4561`, `119-hr-5696`, `119-s-2883` and `119-s-928`, all law-eligible; none comes from the summarizer.
+  - The tag now: law-eligible 0 16,670 · 1 394 · NULL 5; resolutions 0 597 · 1 2,166 · NULL 0. Newly tagged over HO 800 and HO 801: law-eligible 217 of 9,300 ceremonial (2.3%), resolutions 1,176 of 1,535 (76.6%).
+- **The re-read** (`gradshow-ceremonial-799.ts --label 801`, 1:06:07 to 1:06:09 AM MST, read-only; the HO 799 findings file's second reading):
+  - A1, the hollow dots, **394** (383, +11, all in committee).
+  - A2, the dome, 16,675 (16,686, −11); untagged **5** (534, −529).
+  - A3, ceremonial resolutions, **2,166** (1,683, +483: sres +467, sconres +16): 495 at `floor` or later (+241), 480 `agreed` (+236), and 1 at `enacted`, `119-sres-611`, tagged now.
+  - A4, ceremonial across all types, 2,560 (+494).
+  - B unchanged, 7 of 122 under Pew's cut.
+  - C's last untagged post-office title tagged ceremonial (118, 5, 0).
+  - The controls equal on the first read.
+- **The eye** (seed 801, the run's law-eligible rows). Tagged 1, all 11 candidates and ten drawn (the list's sha256 `4038fc938f4dc351`):
+  - `119-s-94` (the Miracle on Ice Congressional Gold Medal);
+  - `119-sjres-105` (the Robert E. Lee Memorial renamed Arlington House National Historic Site);
+  - `119-s-650` (the National Churchill Museum a National Historic Landmark);
+  - `119-s-814` (the Charles L. Blockson Post Office Building);
+  - `119-s-512` (the Agent Raul Gonzalez Officer Safety Act);
+  - `119-sjres-96` (displays on the National Mall);
+  - `119-s-498` (the United States Colored Troops Congressional Gold Medal);
+  - `119-sjres-79` (honoring the thirteen killed at Abbey Gate);
+  - `119-s-614` (Alexi Navalny Way);
+  - `119-sjres-74` (a CRA disapproval of a pipeline-safety rule).
+  - The last is substantive by the prompt's rule, and `119-s-512` and `119-sjres-96` read substantive too: three for Corey's eye.
+  - Tagged 0, ten of 518 (`35b279fd05df7834`): `119-sjres-1` and `119-sjres-43` (constitutional amendments), `119-s-842`, `119-s-950`, `119-s-95`, `119-s-813`, `119-sjres-169` (a CRA disapproval), `119-s-685`, `119-s-517`, `119-s-604`, all substantive.
+
+**§ 2, the odds** (`scripts/diagnostic/odds-results-801.ts --label 801`, 1:06:58 AM MST Nov 5, read-only, 5 statements, 6,251 `rows_read`; the tables in `docs/probes/801-odds-results.md`).
+- **The book** is the 3:30 PM MST Nov 3 snapshot, the polls still open; **the results** are prod's marks as of 11:24:30 PM MST Nov 4 (06:24:30Z), 387 races decided by one mark prod-wide. Ballotpedia is still calling races: 38 of the 105 rated read no mark.
+- **Kalshi: favorites won 60 of 67 called, 89.6%** (5 lost, 2 unmatched; 92.3% of those decided). House 49 of 55, Senate 11 of 12. By the favorite's `implied_pct`: 50–59 3 of 3, 60–69 3 of 6, 70–79 12 of 14, 80–89 9 of 10, 90–100 33 of 34. The five losses: IN-05 (Victoria Spartz, 74), MO-02 (Ann Wagner, 61), OH-15 (Mike Carey, 61), TX-23 (Brandon Herrera, 62), S-SC (Darline Graham, 70).
+- **Polymarket: 11 of 12 called** of its 14 Senate races (1 unmatched, 2 not called).
+- **The two books** named the same candidate in 13 of 14. S-AK's Kalshi party favorite (D) is Polymarket's Mary Peltola, the race's one D. S-SC is unresolved: *Darline Graham* against *Darline Graham Nordone*.
+- **The matching rule:** a party favorite on party; a named favorite by name. Names are lower-cased, diacritics folded, a period before a letter joined, punctuation but hyphens dropped, the suffixes dropped, single-letter initials dropped while more than two tokens remain, and first and last tokens kept. They match when the last tokens are equal and the first equal or a prefix. The rule is printed in full in the findings file.
+- **The reading taken, flagged:** a named favorite is matched against every candidate on the ballot, so a favorite who is on it and unmarked reads *favorite lost*. Under the narrower reading (the winner only) the five losses read unmatched instead, and 60 of 67 doesn't move.
+- **The hand list (never guessed):**
+  - MD-01, Kalshi's *Andy Harris* against the marked *Andrew Harris*;
+  - NM-02, *Gabe Vasquez* against the marked *Gabriel Vasquez*;
+  - S-SC, Polymarket's *Darline Graham Nordone* against the ballot's *Darline Graham*.
+  - If the hand rules the first two the same people, Kalshi reads 62 of 67.
+- **The drift:** the Kalshi favorite changed in 3 rated races:
+  - AL-02 end to end: Marques 51 → Figures 54 → Figures 53, won.
+  - NY-17 end to end: Conley 55 → 57 → Lawler 51, not called.
+  - CO-03 and back: Hurd 62 → Romero 51 → Hurd 54, not called.
+  - The ten biggest moves (eleven, tenth place shared at 6) run NJ-02 −15 to TX-23 +6, the last a favorite who lost.
+- **The controls:**
+  - The rated index's 105 and the Kalshi rows' 469 against each snapshot's own counts, equal in all three.
+  - Planted in memory: an altered name read unmatched, a party flip favorite lost, and the winner's own name and party favorite won. All PASS, nothing written.
+  - 17 of 17 matcher vectors.
+- **The checks:**
+  - An independent recompute from the handoff's text alone (`docs/handoffs/801-artifacts/indep/`), never reading the script, agreed on every verdict and count under the same reading, the dev data first and then this run's.
+  - A review of the script (two agents and four skeptics) found nine defects, all fixed before the record run: the two books compared as strings, the *right* column's labels, Polymarket's bands and split missing, the tie at the tenth move, the share's denominator, the drift's labels, a leading initial, truncated SQL in the log, and *J.D.* read as an initial.
+
+**§ 3, the task.** Claim 5 read twice, then `Unregister-ScheduledTask -TaskName 'CBT odds snapshots' -Confirm:$false` at **1:07:37 AM MST Nov 5 (08:07:37Z)**. From a separate process (PID 22268, 1:07:45 AM) `Get-ScheduledTask` read *No MSFT_ScheduledTask objects found* for it, and `CBT Sabato daily read` was present and `Ready`. `docs\handoffs\odds-snapshots.log` stays on disk (37,012 bytes).
+
+**§ 4, the notes.**
+- **Backlog:** `:84` struck on its close; `:82` gains Monday's three runs; `:50`, Sabato refused Nov 4, the Center for Politics unanswered as of Nov 5; `:19`, the CRS meter is `crsOnly` per day.
+- **The oddity:** the quota is one project's day shared by the box and Production; the refusals came and went inside the window; an `llm_error` article is re-called every tick.
+- **What the news ticks did with the 17 refused calls** (claim 7, read on `observations` at 1:08 AM MST Nov 5):
+  - The 17 were 10 articles first seen at 3:30 and 4:00 PM MST Nov 4.
+  - They are still tagged `llm_error`, since the tag is written once.
+  - They were re-called by every later tick while in their feeds, successfully at 4:30 PM (15 of 15), and the LLM found no bill: none gained a `news_mentions` row.
+  - 13 of the 20 tagged articles seen since 3:09 PM are still in a feed.
+  - Re-matched, not lost, so the handoff's condition for an OPEN LOOPS line (unmatched and out of their feeds' windows) isn't met, and none is filed.
+  - The news ticks' calls ran 3 to 12 before 3:09 PM and 11 to 15 after, consistent with the re-calls (the oddity).
+
+**The ledger.**
+- Prod's `rows_read`, all read-only: 107 statements and 349,010 by this HO's instruments (`docs/handoffs/801-artifacts/rows-ledger.tsv`, two dev odds runs and one failed `--news` read among them), and 24 and 315,964 by § 1's re-read (`docs/handoffs/799-artifacts/rows-ledger.tsv`). 664,974 in all.
+- Gemini, as the run's log gives it: 214,369 tokens in and 11,931 out over 1,120 responses, about $0.09 at the paid list price. The § 1 run's 1,115 UPDATEs weren't tapped.
+
+**What's owed after the FF.**
+- A diagnostic script, data and docs, so Production serves the same app code: no served-SHA or `e2e-prod` read beyond what the deploy reports. The `docs(skill)` commit means the chat rebuilds `cbt.zip`, held until after GradShow; the manifest gains a row.
+- **Monday Nov 9, before the poster prints:** the three `--label print` runs (`:82`), their as-of to the chat and the poster chat.
+- The Louisiana hand route before Dec 12 (`:80`) and the low loops stand.
+
+**What was flagged.**
+- **Run on the evening of Nov 4 and after 1:00 AM Nov 5:** STEP 0 and § 2's script were prepared from 6:28 PM MST Nov 4. § 1, § 2's record run, § 3 and the notes ran after the reset, in the handoff's order. Production's news ticks were still refused on the quota at 6:00 PM and through 12:30 AM.
+- **The odds' reading of a named loss** (above): the wider reading, with the narrower one's counts printed beside it.
+- **The script went through a dev run, a review and an independent recompute before the record run;** the review's fixes are in the `diag` commit.
+- **The re-call loop** is filed as an oddity, not an OPEN LOOPS line: the handoff files a line only for articles lost out of their windows, and these were re-matched.
+- **Three of § 1's eye's ten tagged 1 read substantive** (`119-sjres-74`, a CRA disapproval; `119-s-512`; `119-sjres-96`): for Corey's eye, not a stop.
+- **SKILL's sentence, read against the tree:** it names the weekly report among the quota's sharers too (`lib/report-generation.ts:1580` calls the same model), beside the handoff's summarize and news crons.
+- **Also notes now run through HO 801.**
