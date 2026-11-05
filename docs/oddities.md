@@ -4996,3 +4996,9 @@ A second thing turned up in the same read. An article whose LLM match fails keep
 `classifyCeremonial` sees the title and the latest action and nothing else (`lib/classify-ceremonial.ts:46-47`). Of the 217 law-eligible rows it tagged 1, 36 change law, create a program or direct an agency: *Honoring Our Fallen TSA Officers Act* extends a benefits program, *Seton Hall Fire Victims Remembrance Act* sets dormitory standards, *Agent Raul Gonzalez Officer Safety Act* creates federal crimes, and *BALL Act* and *DOGE BROS Act* gave it nothing to read. The 177 the summarizer tagged with the text in hand had none wrong. The samples missed the size of it: HOs 800 and 801 drew ten at a time, HO 800's flagged three of these, and the chat let them stand on their titles.
 
 **The rule:** a sample of ten prices a rate, not a list. When a count goes on a poster and the set is a few hundred rows, read the set.
+
+## Two taggers, one column: the same bill can read hollow in one chamber and solid in the other (HO 803, Nov 2026)
+
+The backfill reads the title and calls a coin, a Medal of Honor or a memorial ceremonial; the summarizer reads the text and often doesn't, on its prompt's *directs an agency*. The read found 8 titles over 17 bills tagged both ways, and twins a title match can't catch: James Capers's Medal of Honor reads 1 in the Senate and 0 in the House.
+
+**The rule:** a column two pipelines write is checked against itself: one title, one tag.

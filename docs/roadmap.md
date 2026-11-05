@@ -8975,3 +8975,136 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **The third reading carries the handoff's table whole** (bill, title, what it does) as *the list above*.
 - **Reads beyond the letter:** the 36 titles and the 12 left as tagged, read once in prod, and the 48 rows' `via` in `hollow-dots.tsv`.
 - **Also notes now run through HO 802.**
+
+**Also (HO 803), the tag's other direction.** 48 law-eligible bills tagged 0 that Pew's definition and their own twins call ceremonial were set to 1 by hand, and one twin, `119-sjres-96`, was set to 0. One batch of two `UPDATE`s took `rowsAffected` 48 and 1, and one `bills` flush on Production returned 200. HO 799's script re-read reads the hollow dots 358 → **405**, the dome 16,711 → 16,664, and B 7 → **13 of 122** under Pew's cut, or 11 of 120 counting public laws only, beside Pew's 12 of 121. The print runs were rehearsed read-only, so Monday's runs are read-only too. No app code was touched and no Gemini call was made.
+- **What's here:**
+  - HO 802's FF go as taken;
+  - STEP 0, a check: claims 1 to 5 hold, none a HALT;
+  - § 1, the write: the snapshot, the one batch, the flush, the reversal's shape;
+  - the rows read against the list;
+  - prod after;
+  - § 2, the re-read and the laws by kind;
+  - § 3, the rehearsal;
+  - § 4, the docs;
+  - the ledger;
+  - what's owed after the FF;
+  - what was flagged.
+- **One commit:** `docs`, the HO 799 findings file's fourth reading, this block, the backlog and the oddity.
+  - SKILL untouched, so no `cbt.zip` and no manifest row.
+  - No app code: nothing under `lib/`, `app/`, `components/` or `scripts/`. The instruments live under `docs/handoffs/803-artifacts/`: `lists-803.mjs`, `reads-803.ts`, `write-803.ts` and `flush-prod.mjs`.
+- **The one prod write was § 1's batch on the listed ids, and the one flush was the `bills` tag,** by hand on Production. Everything else was `SELECT`, with the schema fingerprint `4e94644350e1d992` before and after every read and the write.
+- **The pointer is 803:** pointer 802 (`docs/roadmap.md:8977`), highest HO in commit subjects 802, `main` at `7ea3951`.
+
+**HO 802's FF go, as taken** (`docs/handoffs/802-ff-go.md`; the gates from 11:48:54 AM MST Nov 5, 18:48:54Z).
+- **`main` at `7ea3951`:** two commits on `f15cec7`, `f4af1c6` (docs) and `7ea3951` (docs(skill)). No force; `802-review` deleted on both sides.
+- **The gates before the push,** on Node v24.22.2:
+  - the cold build, exit 0 in 30 s, 16 of 16 pages, 0 warning lines;
+  - `typecheck` 0 on both projects;
+  - `check:odds-sites` and `check:design-citations` OK.
+- **The push** at 11:49:50 AM MST Nov 5 (18:49:50Z): `f15cec7..7ea3951 -> main`, no force.
+- **The deploy:** Production record `7582470955`, `success` at 11:55:48 AM MST (18:55:48Z), deployment `congressionalterminal-jmsn9et4k`. Docs only, so no served-SHA or `e2e-prod` read.
+- **The go's three reads** (11:50:58 to 11:51:12 AM MST, read-only), in `docs/handoffs/802-artifacts/`:
+  - `tagged-0-lookalikes-2.tsv`: 140 rows (161 matched, minus the 21 already in the first file);
+  - `same-title-two-tags.tsv`: 8 titles over 17 bills;
+  - `enacted-tagged-0.tsv`: 132 laws.
+  - This HO's list is the chat's reading of them, with § 3's 53.
+
+**STEP 0, a check** (claims 1 to 5 at `7ea3951`; the prod claims read 12:35:22 to 12:35:23 PM MST Nov 5, 19:35:22 to 19:35:23Z).
+- **1 holds:**
+  - `main` reads `7ea3951` on the remote and the box; pointer 802 at `:8977`; highest HO in subjects 802.
+  - The tree is clean but for the two untracked Nov 1 test snapshots.
+  - Reconcile 287 / 364 on 651, mis-struck 0; `:82` is the Monday re-run and `:85` the close rows.
+- **2 holds:** each of the 48 exists and reads 0, and `119-sjres-96` reads 1; 0 dropped.
+- **3 holds, a count recorded:**
+  - The tag's values are 0, 1 or NULL and nothing else. Law-eligible: 0 16,706 · 1 **358** · NULL **5**. Resolutions: 0 597 · 1 2,166 · NULL 0.
+  - NULL reads 5 against the handoff's about 13, inside its 10. Against the third reading (0 16,698 · NULL 13), the 0s read 8 more and the NULLs 8 fewer: the summarizer re-read the 8 rows a sync had reset, its newest stamp 11:10:26 AM MST.
+- **4 holds:** the column's writers are as HO 802 read them:
+  - `lib/summarize-runner.ts:306`, with its UPDATEs at `:323` and `:379`;
+  - `lib/sync.ts:351`;
+  - `scripts/classify-ceremonial.ts:234`;
+  - `scripts/diagnostic/crs-catchup-794.ts:71`, dormant.
+  - `lib/summarize.ts:20` holds the summarizer's rule, which ends *or directs an agency — even narrowly scoped*.
+  - The other hits are read-only regexes in the HO 799 script and the two leg harnesses, which write `file:` copies only. No `INSERT` names the column.
+- **5 holds:** the HO 799 findings file has *The third reading* at `:229` and *## Findings* at `:319`; HO 802's `write-802.ts`, `reads-802.ts` and `flush-prod.mjs` are on the box.
+
+**§ 1, the write** (`docs/handoffs/803-artifacts/write-803.ts --go`, 12:37:13 to 12:37:16 PM MST Nov 5).
+- **The snapshot first:** `before.tsv`, the reversal list, holds 49 rows (48 reading 0, 1 reading 1) with their `summary_updated_at`; sha256 `f7d0416c6230a6b6`; as of 12:37:13 PM MST (19:37:13Z).
+- **The one batch,** in one write transaction at 12:37:16 PM MST (19:37:16Z), through a writer that runs these two statements and no other:
+  - `UPDATE bills SET is_ceremonial = 1 WHERE is_ceremonial = 0 AND id IN (the 48)`: **`rowsAffected` 48**;
+  - `UPDATE bills SET is_ceremonial = 0 WHERE is_ceremonial = 1 AND id = '119-sjres-96'`: **`rowsAffected` 1**.
+  - The read-back: 1 ×48, and 0 for `119-sjres-96`. The fingerprint unchanged.
+- **The flush, by hand, once:** `POST https://congressional-terminal-chi-silk.vercel.app/api/revalidate?tag=bills`, Bearer `$CRON_SECRET` by name. It returned **200 in 386 ms, `{"ok":true,"tag":"bills"}`**, sent at 12:37:30 PM MST (19:37:30Z).
+- **The reversal, not run:** each row back to its value in `before.tsv`, so `UPDATE bills SET is_ceremonial = 0 WHERE id IN (the 48)` and `UPDATE bills SET is_ceremonial = 1 WHERE id = '119-sjres-96'`, then the same flush. The list lives in `docs/handoffs/803-artifacts/before.tsv` on the box, and the same 49 ids are in the HO 799 findings file's fourth reading.
+
+**The rows, read against the list** (12:35:33 PM MST, Guard 4; the 49 rows' titles and summary heads in `rows-803.tsv`).
+- **45 of the 49 read as their class names them.** Four read otherwise, for the chat's eye, with the list unchanged:
+  - `119-hr-7113` renames the Congressional Budget Office the *China Budget Office*. It is a renaming, but of an agency, and it honors no one.
+  - `119-hr-10456` (*Renewing the Dream Act*) orders Interior to replace the Lincoln Memorial's plaque for King's speech. `119-s-2369` orders Interior to remove or cover Francis Newlands's name on the Chevy Chase Circle fountain. Each makes an official do an honorific thing, the shape the list otherwise leaves as tagged, though both sit with the twins (their twins `119-s-5690` and `119-hr-4608` read 1).
+  - `119-s-633` is a circulating $1 coin series honoring presidents, not a commemorative coin in the Mint's sense. It honors by name.
+- **The six at `enacted`** are the six the handoff names for B: `119-hr-2196`, `119-hr-3377`, `119-hr-3497`, `119-hr-7211`, `119-s-3705`, `119-s-858`.
+- **Left as they are:** the 25 left tagged 0 all read 0, the 11 left tagged 1 all read 1, and `119-hjres-133` reads `enacted` and 0.
+- **The 48 by writer,** read off HO 800's per-row logs: 11 logged 0 by the backfill, and 37 not in its logs, so the summarizer's.
+
+**Prod after** (12:37:37 PM MST, 19:37:37Z):
+- Law-eligible: 0 **16,659** · 1 **405** · NULL 5.
+- Resolutions: 0 597 · 1 2,166 · NULL 0, unchanged.
+- The 48 read 1, and `119-sjres-96` reads 0.
+
+**§ 2, the re-read** (`gradshow-ceremonial-799.ts --label 803`, 12:37:41 to 12:37:44 PM MST, read-only, 24 statements, 315,998 `rows_read`; the HO 799 findings file's fourth reading):
+- A1, the hollow dots, **405** (358, +47: committee +35, floor +2, other_chamber +4, enacted +6).
+- A2, the dome, **16,664** (16,711, −47): tagged not ceremonial 16,659 (−39), untagged 5 (13, −8), the 5 parse-fails.
+- A3, ceremonial resolutions, 2,166, its stages unchanged.
+- A4, ceremonial across all types, **2,571** (2,524, +47).
+- B, **13 of 122** under Pew's cut (7, +6): `119-s-3705`, `119-hr-3377`, `119-hr-7211`, `119-hr-3497`, `119-s-858` and `119-hr-2196` joined.
+- C unchanged (118, 5, 0).
+- D's lists: 39 at `floor` or later (27), 365 in committee (330).
+- The controls were equal on the first read: A1 + A2 = 17,069, A1 + A3 = 2,571.
+- Every figure came in as the handoff estimated.
+- **The laws by kind** (12:38:24 PM MST, read-only):
+  - Two law-eligible laws carry a latest action other than *Became Public Law*: `119-hr-3377` (Private Law 119-1) and `119-hr-7194` (Private Law 119-2), both of Mar 26, 2026, both now tagged 1.
+  - `119-hr-1744` and `119-hr-8205` now read *Became Public Law No: 119-137* and *119-138* (Nov 3, 2026), after the cut.
+  - B both ways, under the cut: all laws 13 of 122 (10.7%); public laws only, as Pew counts, **11 of 120** (9.2%), beside Pew's 12 of 121 (9.9%). Pew doesn't publish its list, so this is a count beside a count, not a match of bills.
+
+**§ 3, the rehearsal** (read-only, 12:38 to 12:39 PM MST).
+- **`gradshow-numbers-787.ts --numbers --label 803`** ran clean: 20 statements, 225,615 `rows_read`, the fingerprint unchanged.
+  - Every tree anchor hit, so none drifted.
+  - It printed its own *OUTSIDE* and *HALT (A1)* against the Oct 19 poster: *Introduced* 17,261 and *Became law* 126 now, beside the poster's 18,137 and 120 and the drift since then, [14,387, 17,650]. Recorded; they aren't this HO's.
+  - Its scope, the rows tagged 0 or NULL with a summary, would read 17,308 before the write (17,261 + 48 − 1), so the hand tags took *Introduced* down 47.
+- **`odds-results-801.ts --label 803`** ran clean: 5 statements, 6,251 `rows_read`, the fingerprint unchanged, the four planted controls PASS. As the script reads it:
+  - **Kalshi's favorites won 65 of 73 called** (89.0%), 6 lost, 2 unmatched, 32 not called. House 54 of 61 (5 lost, 2 unmatched), Senate 11 of 12 (1 lost).
+  - By band: 50–59 3 of 3, 60–69 4 of 7, 70–79 13 of 16, 80–89 10 of 11, 90–100 35 of 36.
+  - The six losses: IN-05 (Spartz, 74), MO-02 (Wagner, 61), OH-15 (Carey, 61), S-SC (Graham, 70), TX-09 (Alex Mealer, 76, called since HO 801) and TX-23 (Herrera, 62).
+  - **Polymarket's won 11 of 12 called,** 0 lost, 1 unmatched, 2 not called. The two books named the same candidate in 13 of 14, S-SC unresolved.
+  - **The hand list** is HO 801's three: MD-01 *Andy Harris* against the marked *Andrew Harris*, NM-02 *Gabe Vasquez* against the marked *Gabriel Vasquez*, and S-SC's Polymarket *Darline Graham Nordone* against the ballot's *Darline Graham*. With HO 801's FF go's rulings applied, Kalshi reads 67 of 73 and Polymarket 11 of 12 with 1 lost, the chat's to apply.
+  - The four nicknames ruled the same people are still not called.
+  - **The marks' as-of:** the newest marked `read_at` is 11:24:30 AM MST Nov 5 prod-wide. Over the 105 rated races in `odds-803-ballot.tsv`, one `read_at` a race, the oldest is 1:21:48 PM MST Nov 4 (20:21:48Z, TX-28) and the newest 11:24:24 AM MST Nov 5 (18:24:24Z, TX-23).
+
+**§ 4, the docs.**
+- The HO 799 findings file's fourth reading, after *The third reading* and before *## Findings*. It carries Pew's rule with its link, the list, what's left as it is and B both ways. Nothing above it is edited.
+- The backlog: `:82`'s and `:85`'s dated notes. The reconcile stands at 287 / 364 on 651.
+- The oddity.
+
+**The ledger.**
+- Prod's `rows_read`, all read-only, 651,038 over 67 statements in all:
+  - 18 statements and 103,174 by this HO's read instrument (`docs/handoffs/803-artifacts/rows-ledger.tsv`);
+  - 24 and 315,998 by § 2's re-read (`docs/handoffs/799-artifacts/rows-ledger.tsv`);
+  - 20 and 225,615 by the numbers rehearsal (`docs/handoffs/787-artifacts/rows-ledger.tsv`);
+  - 5 and 6,251 by the odds rehearsal (`docs/handoffs/801-artifacts/rows-ledger.tsv`).
+- § 1's snapshot, batch and read-back weren't tapped.
+- Gemini: no calls.
+
+**What's owed after the FF.**
+- Docs only, so Production serves the same app code: no served-SHA or `e2e-prod` read beyond what the deploy reports. SKILL is untouched, so no `cbt.zip` rebuild.
+- **Monday Nov 9, before the poster prints:** the three `--label print` runs (`:82`), read-only, from a short block the chat gives that morning.
+- **After GradShow:** the close rows (`:85`), ruled on the one question, then the two prompts get Pew's classes.
+- The Louisiana hand route before Dec 12 (`:80`) and the low loops stand.
+
+**What was flagged.**
+- **NULL 5, not about 13** (STEP 0's claim 3): the summarizer re-read the 8 rows a sync had reset. Inside the 10, so recorded.
+- **Four rows read differently from their class** (Guard 4): `119-hr-7113`, `119-hr-10456`, `119-s-2369` and `119-s-633`. Flagged; the list is unchanged.
+- **The `:82` and `:85` notes in the lines' own form:** the label is bold, as HO 802's FF go ratified for `:82`, with the handoff's words after it.
+- **The rehearsal's *HALT (A1)* and *OUTSIDE*** are the HO 787 script's own lines against the Oct 19 poster, recorded as the handoff says.
+- **The odds read a sixth loss since HO 801, TX-09;** the hand list is HO 801's three, and the chat applies the rulings.
+- **Pew's link** is as the handoff gives it, not fetched here.
+- **Reads beyond the letter:** the 49 rows' titles and summary heads (`rows-803.tsv`), the 25 and the 11 left as they are, `119-hjres-133`, and the 48 by writer off HO 800's logs.
+- **Also notes now run through HO 803.**

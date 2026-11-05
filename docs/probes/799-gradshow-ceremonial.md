@@ -316,6 +316,85 @@ Whether *National Fossil Act of 2026* (a designation) reads right is Corey's to 
 
 **For the poster chat.** The hollow dots now mark **358** of the dome's 16,711 law-eligible bills, and none of the 36 that change law is among them. 13 bills are untagged: the 5 parse-fails and the 8 the sync reset, which the summarizer tags when it reads them. Monday Nov 9's `--label print` re-run is the poster's as-of.
 
+### The fourth reading, after HO 803's corrections (as of 12:37:44 PM MST Nov 5, 19:37:44Z)
+
+> **The chat read the tag's other direction.** HO 802's FF go asked for four reads:
+> - `docs/handoffs/802-artifacts/tagged-0-lookalikes.tsv`, 53 rows;
+> - `tagged-0-lookalikes-2.tsv`, 140;
+> - `same-title-two-tags.tsv`, 8 titles over 17 bills;
+> - `enacted-tagged-0.tsv`, 132 laws.
+>
+> The column's two writers disagree by class. The title-only backfill reads a coin, a Medal of Honor or a memorial bill as ceremonial. The summarizer, with the text in hand, often reads the same kind as substantive, on its prompt's *directs an agency* (`lib/summarize.ts:20`). Of the 48 rows set to 1, 37 are the summarizer's 0s and 11 the backfill's (HO 800's per-row logs).
+>
+> **The rule for these rows is Pew's,** since the poster sets CT's count beside Pew's ([Pew Research Center, Oct 15, 2026](https://pewresearch.org/short-reads/2026/10/15/so-far-the-119th-congress-is-among-the-least-productive-of-the-past-40-years)).
+> - **Ceremonial:** laws "intended primarily to honor or recognize an individual, group or cause". Pew's examples are renaming federal buildings and other public facilities, authorizing commemorative coins or Congressional Gold Medals, and permitting outside groups to erect memorials on federal land.
+> - **Substantive:** by Pew's deliberately generous test, laws that spend money, create or change permanent law, order officials to act, acquire or dispose of land, or have any other real-world impact, however limited.
+> - **Both ways:** a bill that makes an official do an honorific thing reads both ways, so it stays as tagged.
+>
+> **HO 803** set 48 rows to 1 and one to 0 by hand, in one write transaction at 12:37:16 PM MST (19:37:16Z):
+> - `UPDATE bills SET is_ceremonial = 1 WHERE is_ceremonial = 0 AND id IN (the 48)`, `rowsAffected` 48;
+> - `UPDATE bills SET is_ceremonial = 0 WHERE is_ceremonial = 1 AND id = '119-sjres-96'`, `rowsAffected` 1.
+> - The reversal list, `docs/handoffs/803-artifacts/before.tsv`, was read first at 12:37:13 PM: 49 rows, 48 reading 0 and 1 reading 1.
+> - Production's `bills` tag was flushed by hand at 12:37:30 PM (200).
+> - No model was called.
+>
+> This file's script re-read once more, `--label 803`, read-only: 12:37:41 to 12:37:44 PM MST (19:37:41 to 19:37:44Z), 24 statements, 315,998 `rows_read`, the fingerprint `4e94644350e1d992` before and after. Beside it is the third reading above, with the deltas.
+>
+> Between the two readings, the summarizer re-read the 8 rows a sync had reset; its newest stamp is 11:10:26 AM MST. A2's untagged is back to the 5 parse-fails, and A1's move is the hand tags' net, +48 and −1. The controls hold: A1 + A2 = 17,069 and A1 + A3 = 2,571.
+
+| Stage | **A1 · hollow** now (third reading, Δ) | **A2 · the dome** now (third reading, Δ) |
+|---|---|---|
+| introduced | 1 (1, 0) | 105 (105, 0) |
+| committee | 365 (330, **+35**), 52 on a calendar (49) | 15,574 (15,609, −35), 561 on a calendar (564) |
+| floor | 9 (7, +2), 0 on a calendar (0) | 294 (296, −2), 48 on a calendar (48) |
+| other_chamber | 17 (13, +4), 1 on a calendar (1) | 565 (569, −4), 34 on a calendar (34) |
+| president | 0 | 0 |
+| enacted | 13 (7, **+6**) | 126 (132, −6) |
+| **total** | **405** (358, **+47**) | **16,664** (16,711, −47): 16,659 tagged not ceremonial (−39), **5 untagged** (13, −8), the 5 parse-fails |
+
+| Figure | Now | Third reading | Δ |
+|---|---|---|---|
+| A3 · ceremonial resolutions | **2,166** (hres 1,248, sres 814, hconres 74, sconres 30) | 2,166 | 0 |
+| A3 · at `floor` or later | **495** | 495 | 0 |
+| A3 · with `agreed` set | **480** | 480 | 0 |
+| A3 · at `enacted` | **1** | 1 | 0 |
+| A4 · ceremonial, all types | **2,571** | 2,524 | +47 (HO 787's 969: +1,602) |
+| B · ceremonial laws, under Pew's cut | **13 of 122** | 7 of 122 | +6: `119-s-3705`, `119-hr-3377`, `119-hr-7211`, `119-hr-3497`, `119-s-858`, `119-hr-2196` |
+| C · post-office titles | 123: **118 ceremonial, 5 not, 0 untagged** | 118, 5, 0 | 0 |
+| D · the seed's lists | 39 at `floor` or later (27), 365 in committee (330) | | both draws move |
+
+**The list.** To 1, 48 rows:
+
+| Class | Rows |
+|---|---|
+| Commemorative coins (12) | `119-hr-1546`, `119-hr-1787`, `119-hr-1993`, `119-hr-2257`, `119-hr-4382`, `119-hr-6126`, `119-s-1289`, `119-s-2229`, `119-s-2265`, `119-s-4051`, `119-s-633`, `119-s-877` |
+| Renamed facilities and places (7) | `119-hjres-63`, `119-hr-1964`, `119-hr-2217`, `119-hr-5928`, `119-hr-7113`, `119-hr-8054`, `119-s-573` |
+| Memorials outside groups put up on federal land: siting, extensions, authority (12) | `119-hr-186`, `119-s-858`, `119-hr-2196`, `119-s-2546`, `119-hr-2290`, `119-s-1088`, `119-hr-2306`, `119-s-1353`, `119-hr-7495`, `119-hr-9582`, `119-hr-9849`, `119-s-1876` |
+| Medal of Honor authorizations (6) | `119-hr-10021`, `119-hr-3377`, `119-hr-7211`, `119-hr-8973`, `119-hr-9106`, `119-hr-9595` |
+| A new honor, the Medal of Sacrifice (2) | `119-hr-3497`, `119-s-3765` |
+| Statues for the Capitol (2) | `119-hr-10121`, `119-hr-250` |
+| A museum or landmark recognized by name (3) | `119-hr-1945`, `119-hr-3057`, `119-s-4282` |
+| Twins of rows already 1 (4) | `119-s-1070`, `119-hr-10456`, `119-s-2369`, `119-s-3705` |
+
+To 0, one row: `119-sjres-96` (one-time displays on the Mall), the twin of `119-hjres-133`, which became law and reads 0. A request that lets the displays happen has a real-world effect, however limited.
+
+**Left as they are.**
+- **25 rows tagged 0 that read both ways:**
+  - monuments, plaques and exhibits an official must place: `119-hr-10604`, `119-s-5494`, `119-hr-8211`, `119-s-5044`, `119-hr-4290`, `119-hr-212`;
+  - flags and honors rules: `119-hr-342`, `119-hr-1363`, `119-hr-9522`, `119-hr-4013`, `119-hr-3583`, `119-hr-3999`;
+  - service medals: `119-hr-3780`, `119-hr-4254`, `119-hr-4622`, `119-s-2370`, `119-hr-6901`;
+  - the Pride flag (`119-hr-7659`, `119-s-3911`), the Marshall House (`119-hr-1352`, `119-s-603`), the Albert Pike statue (`119-hr-4934`), Tubman on the $20 (`119-s-923`), a commemoration commission (`119-hr-8741`) and a federal holiday (`119-hr-1395`).
+- **11 rows tagged 1, the close rows in the backlog:** six federal-holiday bills, `119-hjres-77`, `119-hr-3981`, `119-hr-3993`, `119-hr-4533` and `119-hr-5772`.
+- **Read at 12:35:33 PM MST:** all 25 read 0 and all 11 read 1.
+
+**B both ways.** One read lists the law-eligible laws whose latest action isn't a *Became Public Law* action: `119-hr-3377` (Private Law 119-1) and `119-hr-7194` (Private Law 119-2), both of Mar 26, 2026, and both now tagged 1. `119-hr-1744` and `119-hr-8205` now read *Became Public Law No: 119-137* and *119-138* (Nov 3, 2026), after the cut. Under the cut (`latest_action_date` on or before Oct 14, 2026):
+- **All laws:** CT 13 ceremonial of 122 (10.7%).
+- **Public laws only, as Pew counts:** CT 11 of 120 (9.2%), beside Pew's 12 of 121 (9.9%).
+
+Pew doesn't publish its list, so this is a count beside a count, not a match of bills.
+
+**For the poster chat.** The hollow dots now mark **405** of the dome's 16,664 law-eligible bills. Counting public laws as Pew does, CT reads 11 ceremonial laws of 120 under Pew's Oct 14 cut, beside Pew's 12 of 121; counting all laws, 13 of 122. Monday Nov 9's `--label print` re-run is the poster's as-of.
+
 ## Findings
 
 1. **The May 2026 batch has no tag.** 9,305 of the dome's 16,892 bills (55%) carry `is_ceremonial` NULL with a summary, all summarized in May 2026 by gemini-2.5-flash; every law-eligible bill summarized since June carries a tag (A2's untagged rows, with the control). The hollow dots can mark the 177 tagged; the May batch's share is unknown (about 210 at the tagged rows' 2.3%). The backfill classifier exists (`scripts/classify-ceremonial.ts`, Gemini over `WHERE is_ceremonial IS NULL`, 10,840 rows across all types) and is a prod write, so it is the chat's call, not this HO's; filed here and in the block, with no backlog line of its own (the handoff fixes the backlog to one line and the `:42` note).
