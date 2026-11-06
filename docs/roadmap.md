@@ -9108,3 +9108,25 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Pew's link** is as the handoff gives it, not fetched here.
 - **Reads beyond the letter:** the 49 rows' titles and summary heads (`rows-803.tsv`), the 25 and the 11 left as they are, `119-hjres-133`, and the 48 by writer off HO 800's logs.
 - **Also notes now run through HO 803.**
+
+**Also (HO 804), the committees WATCH read a month late, the hand-row read-back rehearsed for Monday, and 15 stale ledger lines closed.** HO 756's WATCH asked for a read after the 28th scheduled `5 */6 * * *` tick, 2026-10-06 18:05Z, and only the first two were ever read. Read now from `cron_runs`, the 28 meet its bar and the 121 since read no `error`, so the WATCH and the committees errors line strike. Prod by `SELECT` and one GET; no app code, no Gemini call, no flush.
+- **HO 803's FF go, as taken:** `main` at `3cb107b`, one commit on `7ea3951`, amended once with the go's sentence on `:85`; no force; `803-review` deleted on both sides. The cold build on Node 24.22.2 exit 0 in 31 s, 16 of 16 pages, 0 warnings; `typecheck` 0 on both; `check:odds-sites` and `check:design-citations` OK; the hash audit 0 hits in 8 files. The push `7ea3951..3cb107b` at 1:17:11 PM MST Nov 5 (20:17:11Z); Production record `7584304587`, `success` at 1:17:55 PM MST (20:17:55Z), deployment `congressionalterminal-gmm3d9ym3`. Docs only, so no served-SHA or `e2e-prod` read.
+- **STEP 0, a check: claims 1 to 6 hold, none a HALT** (prod read at 5:27:56 PM MST Nov 5, 00:27:56Z Nov 6). `main` reads `3cb107b` on the remote and the box, pointer 803 at `:9110`, reconcile 287 / 364 on 651; the route's anchors as given, the status union at `lib/cron-log.ts:16-20` (`orphaned` at `:20` and `:104`); #21163 and #21224 as claimed, 149 rows since 2026-09-30 against about 148 (the 149th is the Nov 6 00:05Z tick), the route's oldest row 2026-05-28, so nothing pruned; the fingerprint `4e94644350e1d992` before and after every read; the two lists 36 and 49, no id shared.
+- **§ 1, W1, the WATCH's 28 ticks, by its bar** (`docs/handoffs/804-artifacts/committees-watch-804.ts --watch`, 5:28:09 PM MST Nov 5, 00:28:09Z Nov 6; every row in `ticks-804.tsv`). All six lines met:
+  - 0 `error`, 0 `timeout`, 0 `orphaned`: 28 `success`, no hand run.
+  - Empty slots: 0.
+  - `remaining` 0 from the first tick on, and at most 1 after it, once (#22858 at 10-06 12:05Z, one failed walk).
+  - `gaveUp.count` 0 throughout.
+  - `elapsed_ms` at most 29,412 (#22858), under 290,000.
+  - Neither step failed on any of the 28.
+- **W2, the 121 scheduled ticks since** (2026-10-07 00:05Z to 2026-11-06 00:05Z): 121 of 121 slots, no hand run, all `success`. So no `error` row reads the abort or carries the breaker's words, and the committees errors line's bar is met too.
+  - The list step failed on 3, each `The operation was aborted due to timeout` on a `success` row that walked on (#24773, #25110, #30155; by hour 00/06/12/18Z 1 / 1 / 0 / 1); the members step failed on none.
+  - `remaining` peaked at 7,023 at #28046 (10-26 06:05Z), the first tick after HO 790's drain wrote 7,707 bills (00:13 to 01:34Z Oct 26), and drained at the 500 cap to 0 by 10-30 18:05Z. One earlier spike, 445 at #26743 (10-21 06:05Z), the first tick after HO 788's repair wrote 950, read 0 at the next. 19 ticks over 50, `deadlineHit` 2 (#28315 and #28454, Oct 27), `capHit` 19; since 10-30 18:05Z, at most 3.
+  - `gaveUp.count` 0 throughout; `elapsed_ms` at most 243,843 (#28454), none at or over 290,000.
+- **Owed now 0** (set aside 0), read-756.ts's statement at 5:28:12 PM MST. **`/api/health`**, one GET: the committees row `healthy` true, `lastStatus` `success` at 2026-11-06 00:05:43Z. The whole read is HTTP 503 on one route, `/api/sync-race-ratings`: Sabato's 403 every day since Oct 11 (the Sabato reader line, `:50`), its last success Sep 30.
+- **§ 2, the hand-row read-back** (`hand-rows-804.ts --label 804`, 5:30:57 PM MST, read-only): 85 of 85 read and 85 as set (HO 802's 36 at 0, HO 803's 48 at 1, `119-sjres-96` at 0); none moved, none re-summarized since its write.
+- **What struck:** the WATCH (`:90`) and the committees errors line (`:93`) on their bars; the CCBT check (`:153`) tombstoned; DONE's 14 to `- ~~**Title**~~`, the control under `## DONE` reading 0. `:82` gains Monday's read-back, and the header's `:5` the WATCH sentence. No line added. Reconcile 287 / 364 → **270 / 381** on 651, mis-struck 0.
+- **The ledger:** prod `rows_read` 24,511 over 18 statements, all `SELECT` (`docs/handoffs/804-artifacts/rows-ledger.tsv`), one read beyond the letter among them: the ratings route back to its last success. Gemini: no calls.
+- **Flagged:** the tombstone reads *nearly five months past* its Jun 13 date where the handoff wrote *five months* (Jun 13 to Nov 5 is 145 days); tick times are named by their UTC slots.
+- **Owed after the FF:** Monday Nov 9, before the poster prints, the three `--label print` runs and the read-back (`:82`), read-only.
+- **Also notes now run through HO 804.**
