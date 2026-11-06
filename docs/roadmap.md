@@ -9130,3 +9130,32 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Flagged:** the tombstone reads *nearly five months past* its Jun 13 date where the handoff wrote *five months* (Jun 13 to Nov 5 is 145 days); tick times are named by their UTC slots.
 - **Owed after the FF:** Monday Nov 9, before the poster prints, the three `--label print` runs and the read-back (`:82`), read-only.
 - **Also notes now run through HO 804.**
+
+**Also (HO 805), the FMP swap measured first: CT's trades against CapitolStockWatch's open dataset, the official House and Senate filings tried from the box, and every FMP touchpoint listed.** Read-only on prod and docs only. The numbers are in `docs/probes/805-trades-sources.md`; the swap is HO 806's, after the Nov 9 print.
+- **HO 804's FF go, as taken:**
+  - `main` at `af27e38`: one commit, amended once with the go's sentence on `:50`; no force; `804-review` deleted on both sides.
+  - The gates: the cold build on Node 24.22.2 exit 0 in 57 s, 16 of 16 pages, 0 warnings; `typecheck` 0 on both; `check:odds-sites` and `check:design-citations` OK; the hash audit 0 hits in 7 files.
+  - The push `3cb107b..af27e38` at 6:48:31 PM MST Nov 5 (01:48:31Z Nov 6).
+  - Production record `7590176281`, `success` at 6:49:14 PM MST (01:49:14Z), deployment `congressionalterminal-6racq1wdy`. Docs only, so no served-SHA or `e2e-prod` read.
+- **The ruling,** Corey's, verbatim: *"You pick os approved"* (9:20 AM MST Nov 6). Trades move to CapitolStockWatch's open dataset (CC BY 4.0, credited with a link), and the seven FMP symbols leave the tape.
+- **STEP 0, a check: claims 1 to 6 hold, none a HALT** (Nov 6, by 9:37:23 AM MST). Recorded:
+  - `tradesPlanCap` is at `app/api/sync/route.ts:160`, its comment at `:157`;
+  - *hundreds of rows* spans `lib/queries.ts:3717-3718`, and it's stale at 2,780;
+  - `market_ticks` has no source column, so a tick's source is its symbol's in `MARKET_SYMBOLS`;
+  - the dataset's repo is one commit, `7a6958f` at 9:01:09 AM MST;
+  - the fingerprint read `4e94644350e1d992` throughout.
+- **§ 1, CT now:** `stock_trades` holds 2,780 rows (House 2,219, Senate 561), all filed in 2026 (Apr 2 to Nov 5), 148 unmatched, each carrying its filing's link. `market_ticks` holds 24,853, the seven FMP symbols' 16,618 among them. Without them the bare 4-hourly run still ticks at most 4.00 h apart, inside the 9 h health window.
+- **§ 2, the dataset:** the GitHub and site CSVs are byte-identical, 4,950 rows (House 4,648, Senate 302) from 124 filers, all 2026. `trades.json` holds the same 4,950 and carries `owner`, which the CSV lacks. The badge's repo is a 301 to the same repo. The chat's checks reproduce; its 977 counted six fields, which its handoff called every field, and every field reads 156.
+- **§ 3, the match:** CT's matcher places 120 of the 124 filers (4 unmatched, 18 rows). Key A matches 1,241 rows and Key B 1,570. Filing by filing, CSW holds 230 House filings CT lacks, and CT holds 52 Senate filings CSW lacks. No CT row predates 2026.
+- **§ 4, the official route:**
+  - **The House answered:** the index's 456 PTRs, 401 of them in CSW. In the 12 sample PDFs, 47 of 48 electronic rows agree on all four fields, and 35 of 39 paper rows on date, type and amount.
+  - **eFD refused** the agreement's POST (403, a bot-manager block page), so the Senate's list is unread from the box.
+- **§ 5, FMP everywhere:** 166 lines at `af27e38`: 86 that run, 2 in `components/`, 42 in tooling, 36 in docs. `vercel env ls` is unread: the CLI's token was refused.
+- **One commit,** `docs`: the probe, this block and `:30`'s dated note; the reconcile stands at 270 / 381 on 651. SKILL, oddities and code are untouched, so no `cbt.zip`.
+- **Flagged in the paste:**
+  - the 977;
+  - `components/` outside the handoff's three groups;
+  - the Senate read by substitute;
+  - Khanna's 459-row scan checked in part;
+  - up to 70 retired DOW and GOLD ticks that may be FMP's.
+- **Also notes now run through HO 805.**
