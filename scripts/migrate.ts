@@ -213,11 +213,12 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_news_mentions_bill ON news_mentions(bill_id)`,
   `CREATE INDEX IF NOT EXISTS idx_news_mentions_published ON news_mentions(published_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_news_mentions_source ON news_mentions(source)`,
-  // handoff 70: stock trades from FMP disclosures. Composite id keys the
-  // table because FMP doesn't return a stable filing id (bioguide-disclosure
-  // date-ticker-transaction date-amount; re-ingestion is idempotent via
-  // INSERT OR IGNORE). bioguide_id nullable so unmatched rows still land —
-  // matcher is best-effort and audit-by-SELECT-WHERE-NULL is the workflow.
+  // HO 806: stock trades from CapitolStockWatch's open dataset (CC BY 4.0),
+  // keyed on its own per-line id with a `csw:` prefix; lib/trades-ingest.ts
+  // mirrors the feed's filing-date window. From HO 70 to HO 805 the rows were
+  // FMP's, keyed on a composite, and HO 806 deleted them. `bioguide_id` stays
+  // nullable so an unmatched filer's rows still land; audit with
+  // `SELECT … WHERE bioguide_id IS NULL`.
   `CREATE TABLE IF NOT EXISTS stock_trades (
     id TEXT PRIMARY KEY,
     bioguide_id TEXT REFERENCES members(bioguide_id),
@@ -531,9 +532,9 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_cron_runs_status ON cron_runs(status)`,
   // handoff 142: markets ticker data layer. Append-only history of policy-
   // effect indicators (SPX/TNX/WTI/DXY in v1; VIX deferred — Stooq doesn't
-  // carry it). Refreshed by /api/cron/markets from two vercel.json crons: every
-  // 30 min in US market hours on weekdays (`?source=fmp`, the FMP symbols)
-  // and every four hours (`0 */4`, every symbol). `symbol` is the
+  // carry it). Refreshed every 4 hours by `/api/cron/markets` (`0 */4`; from
+  // HO 475 to HO 806 also every 30 minutes in market hours for the FMP
+  // symbols). `symbol` is the
   // internal stable identifier; the upstream source/remote-symbol mapping
   // lives in `lib/markets.ts` and is decoupled from the DB. `change_pct` is
   // nullable: NULL on the first-ever tick for a symbol (no prior reference)
