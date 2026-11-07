@@ -9159,3 +9159,31 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - Khanna's 459-row scan checked in part;
   - up to 70 retired DOW and GOLD ticks that may be FMP's.
 - **Also notes now run through HO 805.**
+
+**Also (HO 806), the FMP swap: trades from CapitolStockWatch's open dataset (CC BY 4.0), the seven FMP symbols off the tape, FMP's code, cron and key out.** Built on `806-review` from `3e47616` in six commits, prod read by `SELECT` only; § 5, the deletes and the backfill, runs on the FF go.
+- **HO 805's FF go, as taken:**
+  - `main` at `3e47616`: one commit, amended once with the go's three replacements; no force; `805-review` deleted on both sides.
+  - The gates: the cold build on Node 24.22.2 exit 0 in 71 s, 16 of 16 pages, 0 warnings; `typecheck` 0 on both; `check:odds-sites` and `check:design-citations` OK; the hash audit 0 hits in 8 files.
+  - The push `af27e38..3e47616` at 12:53:40 PM MST Nov 6 (19:53:40Z).
+  - Production record `7609453426`, `success` at 12:54:35 PM MST (19:54:35Z), deployment `congressionalterminal-72yqetv2w`. Docs only, so no served-SHA or `e2e-prod` read.
+- **The rulings,** Corey's, verbatim: *"You pick os approved"* (9:20 AM MST Nov 6), the swap; *"ok"* (1:05 PM MST Nov 6), FMP's stored rows deleted with no copy kept; *"send 806 and then we fix anything that would pop up at the grad show"* (9:50 AM MST Nov 7), the swap ahead of Monday's print.
+- **Two calls differ from HO 805's close:** the row id is CSW's own per-line `id` with a `csw:` prefix, since owner and type added to the composite wouldn't keep Salazar's five rows five (DocID `20035778`, two NVDA buys that differ only in `comment`); and nothing is added for April McClain Delaney, whom CSW spells as `members` does.
+- **STEP 0, a check: claims 1 to 8 hold, none a HALT** (Nov 7, by 12:07:15 PM MST). Recorded: `TradeRow` prints the raw name at `:51` and `:55` (the handoff's `:50` and `:54`), and `lib/cron-health.ts`'s exception paragraph ends at `:28`; HO 805's sweep reads 184 at `3e47616` (166 at `af27e38`, the 18 more in its own probe); `stock_trades` 2,783 (House 2,222, Senate 561), all FMP-shaped, 0 `csw:`, 0 neither; the seven symbols 16,730 ticks; DOW 21 and GOLD 8 past § 5d's instants, none after Jun 16; the feed 4,950 records, every id unique, all 40 keys on every one, the same rows as HO 805's copy; the fingerprint `4e94644350e1d992` throughout.
+- **§ 1 (`feat`):** `lib/capitolstockwatch.ts` fetches the feed; `lib/trades-ingest.ts`, rewritten, mirrors the `csw:` rows of the feed's filing-date window behind a delete guard; the matcher folds accents, strips post-nominals, reads multi-word surnames and takes one alias; `/api/sync` carries `trades` and joins its `chronicErr`; the readers join `members` for the name; `/trades` and the hub's Trades tab credit CapitolStockWatch, the licence linked.
+- **§ 2 (`feat`):** the seven symbols, `fetchFmp` and the `?source=fmp` entry out; MARKETS reads TNX, WTI, CPI and UNEMP; `vercel.json` holds 19 entries over 19 routes.
+- **§ 3 (`chore`):** `lib/fmp.ts` and three FMP-only probes removed; `FMP_API_KEY` out of `lib/redact.ts` and `.env.example`; `migrate.ts`'s two comments.
+- **§ 4 (`test`):** the smoke spec's sources test reads `/trades`'s credit and licence link: 1 passed against the local build, while prod's `/trades` reads none of its tokens until the FF.
+- **Leg A, the matcher:** 124 filers (4,950 rows); the base places 120, the new 124, the same 120; placed differently 0, a planted pair proving that count can move; the four new on claim 6's bioguides; unplaced 0.
+- **Leg B, the dry run on prod:** fetched and kept 4,950 (House 4,648, Senate 302), window Jan 1 to Nov 5, `domain` 0 beside 2,783 FMP rows in that window; would insert 4,950, update, delete and refuse 0; matched 4,950, `ownerOther` 0; prod's counts the same before and after.
+- **Leg C, the pages** (a local `next start` on prod's database, beside prod's served HTML): the credit and licence link on `/trades` and both hubs (Khanna, Tuberville), the Senate note on Tuberville's only; `/` reads Nvidia, Lockheed, Alphabet and Nasdaq Composite 0 against prod's 1, 2, 2 and 1, the control 1 on both; `/welcome` prints labels upper-cased, and reads NVIDIA, LOCKHEED, ALPHABET and NASDAQ 0 against prod's 4 each, the control *10Y TREASURY* 4 on both. Captures at 1440, the trade rows masked.
+- **Leg D, the FMP gate:** the four files gone (4 at the base); `vercel.json` 19 entries, none `source=fmp`, 19 routes (20, 1 and 19); `MARKET_SYMBOLS` FRED 4, Kalshi 3, Polymarket 3, none of the seven; claim 5's grep 1, not 0: `lib/markets.ts:38`, the HO 227 note § 2 keeps; HO 805's sweep 70, each a RECORD clause or a dated diagnostic, probe or mock, none current-tense in `app/`, `lib/`, `components/`, `README.md` or `.env.example`.
+- **The gates:** the cold build on Node 25.5.0 exit 0 in 60 s, 16 of 16 pages, 0 warnings; `typecheck` 0 on both; `check:odds-sites` and `check:design-citations` OK.
+- **Docs:** README's five sites; backlog `:30` gains its dated note with two lines after it, `:172`, `:528` and `:541` gain notes, `:638` and `:640` strike, reconcile 270 / 383 on 653; oddities' two lines and one entry; SKILL alone and last.
+- **Flagged in the paste:**
+  - DOW's 2 rows on Jun 10 before § 5d's instant, hour for hour with SPX's and NDQ's first rows after Stooq died, which § 5d as written keeps;
+  - § 5's `/welcome` tokens, which can't read there, and the upper-case ones that do;
+  - claim 5's grep at 1; the build on Node 25.5.0;
+  - the feed's weak `ETag`, against SKILL's *no validators*;
+  - three SKILL lines rewritten outside the list (`:82`, `:83`, `:1341`) and `getMemberTrades`' tag comment.
+- **Owed at the FF:** § 5 and its reads, then `:30` strikes in the next docs commit.
+- **Also notes now run through HO 806.**

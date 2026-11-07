@@ -43,8 +43,8 @@ row remember what you flagged.
   bills clustered into repeated forms, with a filler-watch strip and click-through
   to the measures. `/trends` sits in the same group and carries the long-run
   time-series charts.
-- **Trades (`/trades`)** — congressional stock-trade disclosures (FMP), matched to
-  members.
+- **Trades (`/trades`)** — congressional stock-trade disclosures from
+  CapitolStockWatch's open dataset (CC BY 4.0), matched to members.
 - **Watchlist (`/watchlist`)** — the bills you've starred anywhere in the terminal,
   in one place. The star is per-account, which is what the sign-in is for.
 - **Weekly reports (`/reports`)** — generated snapshots that package an answer to
@@ -73,7 +73,7 @@ with `fast-xml-parser`; reports rendered with `react-markdown` + `remark-gfm`.
    (https://aistudio.google.com/apikey), `TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`
    (`turso db create cbt`, then `turso db tokens create cbt`), and `CRON_SECRET`
    (any 32-byte hex string). The rest are per-surface and documented inline in
-   `.env.example` — `FMP_API_KEY`/`FRED_API_KEY` for the markets tape and trades,
+   `.env.example` — `FRED_API_KEY` for the markets tape (trades need no key),
    `FEC_API_KEY` for fundraising, `LDA_API_KEY` for lobbying, the Auth.js trio for
    sign-in, `REVALIDATE_URL` for backfill cache flushes. Everything renders with
    whatever data is present.
@@ -105,8 +105,8 @@ on every tick, and `/api/health` watches the fleet.
 
 The schedule is native Vercel Cron end-to-end — `vercel.json` carries every entry
 and is the authority. The shape: `/api/sync` every 6 hours, summarize every 10
-minutes, news every 30, markets every 4 hours plus half-hourly FMP ticks through US
-market hours, Kalshi odds every 2 hours, bill rosters every 3, daily passes for LDA,
+minutes, news every 30, markets every 4 hours, Kalshi odds every 2 hours, bill
+rosters every 3, daily passes for LDA,
 amendments, nominations, votes, and race ratings, and one weekly, the weekly report
 (Mon 09:30 UTC).
 
@@ -123,7 +123,7 @@ crawl), and `design-citations.yml`.
   funnel/legend, race cards and maps, the markets tape, hearings views, report
   rendering.
 - `lib/` — shared logic: `db.ts`, `queries.ts`, the sync/summarize pipeline, and
-  per-source modules (`congress`, `fmp`, `markets`, `kalshi`, `polymarket`, `fec`,
+  per-source modules (`congress`, `capitolstockwatch`, `markets`, `kalshi`, `polymarket`, `fec`,
   `race-ratings-*`, `primaries-sync`, `hearings`, `report-generation`, …).
 - `scripts/` — standalone `tsx` CLI entry points: `migrate`, `sync`, `summarize`,
   the seed/backfill scripts, and the per-source syncs.
@@ -151,9 +151,11 @@ crawl), and `design-citations.yml`.
 - **Bills & actions** — [Congress.gov API v3](https://api.congress.gov), Library of
   Congress.
 - **Summaries** — Google [Gemini 2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini).
-- **Markets tape** — [FMP](https://site.financialmodelingprep.com) (equity indices +
-  congressional trade disclosures) and [FRED](https://fred.stlouisfed.org) (rates,
-  commodities, VIX).
+- **Markets tape** — [FRED](https://fred.stlouisfed.org): the 10-year Treasury
+  yield, WTI crude, CPI and unemployment.
+- **Stock trades** — [CapitolStockWatch](https://www.capitolstockwatch.com)'s open
+  dataset ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), parsed from
+  the House Clerk's and the Senate's STOCK Act filings. Senate coverage is partial.
 - **Prediction markets** — [Kalshi](https://kalshi.com) and
   [Polymarket](https://polymarket.com) for race and chamber-control odds.
 - **Race ratings** — [Sabato's Crystal Ball](https://centerforpolitics.org/crystalball/), read from its

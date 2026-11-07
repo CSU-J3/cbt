@@ -365,6 +365,8 @@ FEC Schedule E (independent expenditures) has no single clean dollar source. Thr
 
 Recorded so the pipeline isn't re-scoped as dead: FMP's `/api/v4/` congressional-trading endpoints died Aug 2025, and HO 70 **rebuilt the trades pipeline onto `/stable/senate-latest` + `/stable/house-latest`**, which are live and bioguide-keyed (via senateID). HO 388's source probe confirmed it healthy — **548 rows, 0 unmatched, syncing daily**. Do not re-chase this as a dead source; the `/api/v4/` obituary is about the old paths, not the current pipeline. (The free-tier pagination cap — page 0 only, ~100 rows/chamber/run — is the real limit; see SKILL "Things to watch for.")
 
+HO 806 (Nov 2026): CT dropped FMP anyway, for its terms rather than its health (see *A free key isn't a display licence*).
+
 ## A 1-row 500 can still be a full-corpus scan — size-independent in failure, not in work (HO 382, Jun 2026)
 
 A filtered view returning HTTP 500 on a result set of **one row** is not necessarily a logic throw — it can be an unbounded scan/aggregation over the *whole* corpus that's size-independent in its failure but very much not in its work (the giant `committee` bucket / a `?stage=`+`?topics=` distribution recompute that never short-circuits). The one-row result tells you nothing about how many rows the query *touched*. To split the two classes, reproduce via `getDb()` locally against **prod Turso** (no 10s `boundedFetch` cap): a **timeout-class** query runs slow and *completes* (you see it return after 15–30s); a **logic-class** query *throws its real message immediately*. HO 382's home-filter 500 was misdiagnosed as a logic bug for exactly this reason — the small filtered result masked a corpus-wide scan, and only the uncapped local run against prod data showed it completing-but-slow rather than throwing. (Same statless-planner / unbounded-aggregate family as the gated-aggregate and CASE-sort entries below; the new tell is *a tiny result set is no alibi for a fast query*.)
@@ -388,6 +390,8 @@ The Polymarket shutdown half (`POLY-SHUTDOWN`) returns no liquid same-question m
 ## `market_ticks` holds dead symbols from prior roster swaps — key reads off the displayed roster, not `SELECT DISTINCT symbol` (HO 373, Jun 2026)
 
 ~13 stale symbols (old roster members from the Stooq→FMP/FRED swap and the HO 251 tape swap) still sit in `market_ticks` with frozen history. Any tape/series read must key off the CURRENTLY-DISPLAYED roster's internal keys (`MARKET_SYMBOLS` / the tape's `placeholderSymbols`), never `SELECT DISTINCT symbol FROM market_ticks` — the latter resurrects dead instruments. (Settled in the HO 373 sparkline-source probe.)
+
+HO 806: the seven FMP symbols left `MARKET_SYMBOLS` with their rows deleted, on Corey's ruling that no copy of FMP's data be kept, so they don't join the dead set; DOW and GOLD lost their FMP-era rows.
 
 ## Tape freshness reads `MAX(ticked_at)` across all symbols — one fresh feed masks N dead ones (HO 370, Jun 2026)
 
@@ -5002,3 +5006,9 @@ A second thing turned up in the same read. An article whose LLM match fails keep
 The backfill reads the title and calls a coin, a Medal of Honor or a memorial ceremonial; the summarizer reads the text and often doesn't, on its prompt's *directs an agency*. The read found 8 titles over 17 bills tagged both ways, and twins a title match can't catch: James Capers's Medal of Honor reads 1 in the Senate and 0 in the House.
 
 **The rule:** a column two pipelines write is checked against itself: one title, one tag.
+
+## A free key isn't a display licence: CT showed FMP's data on four surfaces on terms that barred it (HO 806, Nov 2026)
+
+CT read FMP's free tier for trades from HO 70 and for the tape's indices from HO 227, five stocks joining at HO 289, and showed both on public pages: the dashboard tape, `/welcome`, `/trades` and the member pages. FMP's terms bar displaying its data publicly without its prior written approval, free plan or paid (§ 2.2, read 2026-10-16; backlog `:30`, HO 786), and its own guidance says a free site still needs a Data Display and Licensing Agreement. Nothing in the key's sign-up said so, and no gate here reads a vendor's terms. Calling the use educational changes nothing: that's a copyright idea, and this is a contract. HO 806 moved trades to CapitolStockWatch's open dataset, which CC BY 4.0 lets anyone show with credit, a link to the licence and a note of changes, and dropped the seven symbols.
+
+**The rule:** before a page shows a source's data, read the source's terms for display, not just for access. A free key grants access.
