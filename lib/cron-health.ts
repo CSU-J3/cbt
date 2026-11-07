@@ -19,13 +19,14 @@
 // healthy-but-slow route; a general per-route data-freshness layer catches it
 // and is BANKED, not this HO.
 //
-// Markets is the ONE exception: `?source=fmp` and the bare run both log the
-// fixed `route="/api/cron/markets"` (markets/route.ts), so cron_runs can't tell
-// them apart. Its signal is instead `market_ticks` freshness — the literal "no
+// Markets is the ONE exception. Every bare run carries the POLY-SHUTDOWN
+// chronicErr, so its signal is `market_ticks` freshness — the literal "no
 // market_ticks write in N hours" the backlog loop asked for — which backstops
 // the POLY-SHUTDOWN ghost (a chronic partial-failure `success` row): if ticks
 // keep landing it's healthy regardless of the chronicErr string; if they stop,
 // unhealthy regardless. A markets `error`/`orphaned` is still a hard failure.
+// Until HO 806 a second entry, `?source=fmp`, logged the same route string,
+// which was the first reason.
 import { getDb } from "@/lib/db";
 
 const MIN = 60_000;
@@ -50,10 +51,10 @@ export type CronRoute = {
   signal?: CronSignal;
 };
 
-// The 19 watched route keys, against 19 distinct route strings across 20
-// vercel.json crons — the two /api/cron/markets entries collapse to one route
-// string, and /api/cron/lda-rollup is watched since HO 737, which closes the
-// gap HO 676 found while adding the roster route and filed rather than fixed.
+// The 19 watched route keys, one per vercel.json entry since HO 806; there were
+// 20 entries over these 19 route strings until the markets `?source=fmp` entry
+// went. /api/cron/lda-rollup is watched since HO 737, which closes the gap HO
+// 676 found while adding the roster route and filed rather than fixed.
 // The count read 14 while listing 15 before HO 676; corrected with the addition
 // rather than left to drift further, again with lda-rollup's (HO 737), again
 // with general-ballot's (HO 749), and again with committee-meetings' (HO 754).

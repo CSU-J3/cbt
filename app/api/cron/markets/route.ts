@@ -3,12 +3,12 @@
 // percent change vs the most recent prior `market_date` row of the same
 // symbol, and appends one row per symbol to `market_ticks`.
 //
-// Triggered by two vercel.json crons on this one route. `0 */4 * * *` with no
-// param fetches every symbol, the FRED end-of-day ones included, six times a
-// day; it has been a Vercel cron since HO 314 (`30 21` daily until HO 475).
-// `0,30 13-21 * * 1-5` with `?source=fmp`, added at HO 475, fetches the seven
-// FMP symbols (two indices, five stocks) every 30 min from 13:00 to 21:30 UTC
-// on weekdays. Auth mirrors the other cron routes (Bearer CRON_SECRET).
+// Triggered by one vercel.json cron, `0 */4 * * *`, with no param: every symbol
+// in MARKET_SYMBOLS (FRED, Kalshi, Polymarket), six times a day; a Vercel cron
+// since HO 314 (`30 21` daily until HO 475). From HO 475 to HO 806 a second
+// entry, `?source=fmp` at `0,30 13-21 * * 1-5`, polled the seven FMP symbols
+// every 30 minutes in market hours; HO 806 dropped FMP. Auth mirrors the other
+// cron routes (Bearer CRON_SECRET).
 //
 // Per-symbol fetch errors are non-fatal: one bad upstream shouldn't drop
 // the other rows. They land in the response payload and, if any happen,
@@ -93,7 +93,7 @@ async function processSymbol(symbol: MarketSymbol): Promise<SymbolOutcome> {
       price: quote.price,
       changePct,
       marketDate: quote.marketDate,
-      // HO 681: undefined for FMP/FRED and for the non-fed Polymarket symbols —
+      // HO 681: undefined for FRED and for the non-fed Polymarket symbols —
       // those sources report no resolved identity, so they are not compared.
       resolvedId: quote.resolvedId,
     };
@@ -108,12 +108,8 @@ async function handle(request: Request) {
   if (denied) return denied;
 
   // `?source=<src>` fetches only that source's symbols; no param = all. HO 172
-  // used this so the intraday GitHub Actions run polls only the intraday source
-  // (FRED is end-of-day — polling it intraday just re-writes the same value). HO
-  // 227: Stooq died; the intraday source is now FMP (the indices). Since HO 475
-  // the `?source=fmp` vercel.json entry polls the FMP symbols every 30 min in
-  // market hours, and the bare `0 */4` entry fetches everything, the FRED EOD
-  // symbols included, six times a day. Filter is generic by source.
+  // added it for an intraday-only run. No vercel.json entry passes it since HO
+  // 806, and it stays generic.
   const source = new URL(request.url).searchParams.get("source");
   const symbols = source
     ? MARKET_SYMBOLS.filter((s) => s.source === source)

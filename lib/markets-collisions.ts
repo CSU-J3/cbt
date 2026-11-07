@@ -52,9 +52,9 @@ export function findCollisions(
   // would be a category error waiting to produce a false positive.
   //
   // Symbols reporting no `resolvedId` are NOT compared — absence means "this
-  // source has no identity to check", never "checked and unique". FMP/FRED
-  // never report one (their `remote` is already a stable per-symbol id, so two
-  // of them cannot silently converge), and on the Polymarket side only the fed
+  // source has no identity to check", never "checked and unique". FRED never
+  // reports one (its `remote` is already a stable per-symbol id, so two of its
+  // symbols cannot silently converge), and on the Polymarket side only the fed
   // path does, because only the fed path has ever had two symbols aimed at one
   // question.
   const bySourceAndId = new Map<string, { resolved: string; symbols: string[] }>();

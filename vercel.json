@@ -109,10 +109,6 @@
       "schedule": "0 */4 * * *"
     },
     {
-      "path": "/api/cron/markets?source=fmp",
-      "schedule": "0,30 13-21 * * 1-5"
-    },
-    {
       "path": "/api/cron/kalshi",
       "schedule": "15 */2 * * *"
     },

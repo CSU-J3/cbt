@@ -62,9 +62,8 @@ const POLL_MS = 60_000;
 // HO 251: the 8-symbol econ/prediction set. Indices NDQ ~5-digit (9ch); SPX 8ch;
 // WTI 6ch (oil past $100); TNX 5ch; the four %-format symbols (CPI/UNEMP/SHUTDOWN/
 // FEDCUT) render "NN.N%" → 6ch.
+// HO 806: SPX and NDQ left with FMP.
 const PRICE_SLOT_CH: Record<string, number> = {
-  SPX: 8,
-  NDQ: 9,
   TNX: 5,
   CPI: 5,
   UNEMP: 5,
@@ -98,7 +97,7 @@ const MAX_PLAUSIBLE_DAILY_MOVE_PCT = 8;
 
 // HO 376: Fisher-Yates shuffle (returns a new array; does not mutate the input).
 // Used once per mount to randomize each scrolling strip's item order so the loop
-// doesn't always start from the same SPX run and the two stacked strips don't
+// doesn't always start from the same first symbol and the two stacked strips don't
 // scroll in lockstep. Called only post-mount (the hydration trap — Math.random()
 // during SSR/first render mismatches server vs client), so first paint renders
 // the stable source order.
@@ -737,7 +736,7 @@ export function MarketsTapeClient({
   }, []);
 
   // HO 376: shuffle this strip's render order ONCE on mount (scrolling tapes only),
-  // so reloads don't always start the loop from the same SPX run and the two
+  // so reloads don't always start the loop from the same first symbol and the two
   // stacked strips (each its own instance → its own shuffle) look uncorrelated.
   // null until mounted → first paint uses the stable source order (the hydration
   // trap: Math.random() during SSR/first render mismatches server vs client).
@@ -884,7 +883,7 @@ export function MarketsTapeClient({
       >
         {labelNode}
         <div className="markets-tape-row markets-tape-row--placeholder">
-          {(placeholderSymbols ?? ["SPX", "NDQ", "TNX", "CPI", "WTI"]).map(
+          {(placeholderSymbols ?? ["TNX", "WTI", "CPI", "UNEMP"]).map(
             (s) => (
               <span key={s} className="markets-tape-item">
                 <span className="markets-tape-symbol">{s}</span>

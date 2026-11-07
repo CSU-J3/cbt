@@ -28,19 +28,8 @@ import type { CorpusStats } from "@/lib/queries";
 // FRED-monthly → MO badge) here off the second strip, which is now ODDS (markets
 // → indices · equities · 10Y · WTI · CPI · UNEMP). The strip is a scrolling marquee
 // (scroll prop), so the longer roster crawls rather than clipping the static row.
-const MARKETS_TAPE = [
-  "SPX",
-  "NDQ",
-  "NVDA",
-  "AAPL",
-  "MSFT",
-  "GOOGL",
-  "LMT",
-  "TNX",
-  "WTI",
-  "CPI",
-  "UNEMP",
-];
+// HO 806: the indices and the five equities left with FMP, so MARKETS reads 10Y · WTI · CPI · UNEMP.
+const MARKETS_TAPE = ["TNX", "WTI", "CPI", "UNEMP"];
 // HO 290: the second strip is ODDS — prediction markets ONLY (no econ). Each
 // Kalshi "K" symbol is paired with its Polymarket "P" half so both ticks flow to
 // the client and render as a dual-source item (`LABEL K x% P y%`); the POLY-*

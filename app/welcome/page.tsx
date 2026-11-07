@@ -59,9 +59,9 @@ export const metadata: Metadata = {
 
 // HO 670 — the tape rosters are DERIVED FROM lib/markets CONFIG, which is what
 // retires the eight hardcoded label→symbol pairs the old page carried (HO 669
-// pinned that divergence on the record). MARKETS is every FMP/FRED symbol —
-// verified set-identical to DashboardV2Header's MARKETS_TAPE — and ODDS is every
-// Kalshi symbol. Labels, formats and cadences all come from the config now, so a
+// pinned that divergence on the record). MARKETS is every FRED symbol (the FMP
+// ones left at HO 806), set-identical to DashboardV2Header's MARKETS_TAPE — and
+// ODDS is every Kalshi symbol. Labels, formats and cadences all come from the config now, so a
 // symbol renamed there renames here for free.
 //
 // What is still local: render ORDER and the K↔P pairing. Deriving the pairing
@@ -69,9 +69,7 @@ export const metadata: Metadata = {
 // the four pairs are written out. `lib/markets.ts` is NOT edited by this HO, and
 // the full unification with components/MarketsTape (which owns the shared live
 // island and its hover portal on `/`) is filed in the backlog, not taken here.
-const MARKETS_ROSTER = MARKET_SYMBOLS.filter(
-  (s) => s.source === "fmp" || s.source === "fred",
-);
+const MARKETS_ROSTER = MARKET_SYMBOLS.filter((s) => s.source === "fred");
 const ODDS_PAIRS: { primary: string; secondary: string }[] = [
   { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN" },
   // HO 681: one Fed-cut horizon. A September-pinned pair sat here from HO 670

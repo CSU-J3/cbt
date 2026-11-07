@@ -11,10 +11,9 @@
 // half hour, `*/30 * * * *` (vercel.json). It has no minute of its own:
 // summarize (`*/10`) fires at every :00 and :30 with it, every on-the-hour
 // entry shares its :00 (sync, primaries and the bare markets at their hours,
-// the daily crons at theirs, sync-race-ratings daily at 11:00 since HO 771,
-// and markets `?source=fmp` in weekday market hours), and at :30 it
-// meets weekly-report (Mon 09:30), race-challengers (12:30) and markets
-// `?source=fmp` again.
+// the daily crons at theirs, and sync-race-ratings daily at 11:00 since HO
+// 771), and at :30 it meets weekly-report (Mon 09:30) and race-challengers
+// (12:30).
 //
 // expireTag("news-breaking") flushes both /news (getBreakingNews) and
 // the home block (getBreakingNewsForHome) — both share that tag per HO 114.

@@ -76,6 +76,12 @@
 // by source="polymarket"; that mount died at HO 608–610 and the branch itself was
 // struck at HO 669, so a symbol now surfaces wherever a tape's explicit `symbols`
 // list names it — for these, the v2 ODDS strip, as each pair's secondary half.
+//
+// HO 806, FMP DROPPED. Its terms bar showing its data on a website without its
+// written approval (backlog `:30`), so the seven FMP symbols (SPX, NDQ, NVDA,
+// AAPL, MSFT, GOOGL, LMT), `fetchFmp` and the `?source=fmp` cron are gone, and
+// HO 806's FF deleted their `market_ticks` rows. The tape reads FRED, Kalshi
+// and Polymarket. The HO 227 and HO 251 notes above are history.
 import { KALSHI_BASE } from "@/lib/kalshi";
 import {
   fetchPolymarketFedCut,
@@ -83,7 +89,7 @@ import {
   fetchPolymarketShutdown,
 } from "@/lib/polymarket";
 
-export type MarketSource = "fmp" | "fred" | "kalshi" | "polymarket";
+export type MarketSource = "fred" | "kalshi" | "polymarket";
 export type MarketFormat = "index" | "yield" | "price" | "percent";
 export type MarketGroup = "equities" | "commodities";
 // HO 251 — release cadence, the input to the tape's per-symbol freshness model
@@ -97,7 +103,7 @@ export type MarketCadence = "daily" | "monthly" | "kalshi";
 export type MarketSymbol = {
   internal: string;
   source: MarketSource;
-  remote: string; // FMP/FRED: the upstream series id. Kalshi: the SERIES ticker.
+  remote: string; // FRED: the upstream series id. Kalshi: the SERIES ticker.
   label: string;
   fullName: string;
   format: MarketFormat;
@@ -139,21 +145,6 @@ export type MarketSymbol = {
 };
 
 export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
-  // Indices — FMP /stable/quote (intraday, free on the existing key). HO 227.
-  { internal: "SPX", source: "fmp", remote: "^GSPC", label: "S&P 500", fullName: "S&P 500", format: "index", group: "equities", cadence: "daily" },
-  { internal: "NDQ", source: "fmp", remote: "^IXIC", label: "Nasdaq", fullName: "Nasdaq Composite", format: "index", group: "equities", cadence: "daily" },
-  // HO 289 (B2): individual equities — tech + defense — via FMP /stable/quote
-  // (intraday, same key/endpoint as the indices; HO 288 confirmed all five return
-  // clean price + change from prod egress). RTX/NOC/GD were specced but 402 on the
-  // FMP free tier (tier-determined, confirmed in 288) so they're out. Intraday like
-  // the indices → eod=false → NO EOD micro-tag (an EOD tag on a live intraday print
-  // would be the exact mislabel the tag exists to prevent). They ride the v2
-  // scrolling MARKETS strip, which names them in its explicit `symbols` list.
-  { internal: "NVDA", source: "fmp", remote: "NVDA", label: "Nvidia", fullName: "NVIDIA Corp.", format: "price", group: "equities", cadence: "daily" },
-  { internal: "AAPL", source: "fmp", remote: "AAPL", label: "Apple", fullName: "Apple Inc.", format: "price", group: "equities", cadence: "daily" },
-  { internal: "MSFT", source: "fmp", remote: "MSFT", label: "Microsoft", fullName: "Microsoft Corp.", format: "price", group: "equities", cadence: "daily" },
-  { internal: "GOOGL", source: "fmp", remote: "GOOGL", label: "Alphabet", fullName: "Alphabet Inc.", format: "price", group: "equities", cadence: "daily" },
-  { internal: "LMT", source: "fmp", remote: "LMT", label: "Lockheed", fullName: "Lockheed Martin Corp.", format: "price", group: "equities", cadence: "daily" },
   // Rates — FRED EOD.
   { internal: "TNX", source: "fred", remote: "DGS10", label: "10Y Treasury", fullName: "10-Year Treasury Yield", format: "yield", group: "commodities", cadence: "daily" },
   // Econ — FRED monthly. CPI uses units=pc1 → YoY % directly (the raw index ~334
@@ -201,9 +192,9 @@ export type FetchedQuote = {
   price: number;
   marketDate: string; // YYYY-MM-DD
   // HO 681: the upstream thing this quote was priced off — a Kalshi EVENT TICKER
-  // or a Polymarket event SLUG. Additive and OPTIONAL; FMP/FRED leave it unset
-  // (their `remote` is already a stable per-symbol id, so two of them cannot
-  // silently converge). It exists because `price` and `marketDate` cannot
+  // or a Polymarket event SLUG. Additive and OPTIONAL; FRED leaves it unset
+  // (its `remote` is already a stable per-symbol id, so two of its symbols
+  // cannot silently converge). It exists because `price` and `marketDate` cannot
   // express IDENTITY: FEDCUT and FEDCUT-SEP agreed on both while quietly
   // resolving one event, and nothing in the pipeline could say so. The markets
   // cron asserts uniqueness across the filled ones, per source, per run.
@@ -215,38 +206,6 @@ class FetchQuoteError extends Error {
     super(`[${symbol}] ${message}`);
     this.name = "FetchQuoteError";
   }
-}
-
-// FMP /stable/quote returns a JSON array with one quote object:
-// [{"symbol":"^GSPC","name":"S&P 500","price":7386.31,"changePercentage":-0.26,
-//   "change":-19.42,"volume":...,"timestamp":1749...}]
-// Intraday (the replacement for Stooq's light-quote feed, HO 227). Uses the
-// FMP_API_KEY already in env for the trades pipeline. The quote carries its own
-// change, but we keep the route's prior-session diff for consistency — so we
-// only need price + the trading date. marketDate from the `timestamp` when
-// present, else today (the fetch is intraday, so "today" is the right date).
-async function fetchFmp(symbol: MarketSymbol): Promise<FetchedQuote> {
-  const key = process.env.FMP_API_KEY;
-  if (!key) {
-    throw new FetchQuoteError(symbol.internal, `FMP_API_KEY not configured`);
-  }
-  const url = `https://financialmodelingprep.com/stable/quote?symbol=${encodeURIComponent(symbol.remote)}&apikey=${key}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) {
-    throw new FetchQuoteError(symbol.internal, `fmp HTTP ${res.status}`);
-  }
-  const data: unknown = await res.json();
-  const row = Array.isArray(data) ? data[0] : data;
-  const price = (row as { price?: unknown })?.price;
-  if (typeof price !== "number" || !Number.isFinite(price)) {
-    throw new FetchQuoteError(symbol.internal, `fmp no numeric price`);
-  }
-  const ts = (row as { timestamp?: unknown })?.timestamp;
-  const marketDate =
-    typeof ts === "number" && Number.isFinite(ts)
-      ? new Date(ts * 1000).toISOString().slice(0, 10)
-      : new Date().toISOString().slice(0, 10);
-  return { price, marketDate };
 }
 
 // FRED via the official JSON API (api.stlouisfed.org). HO 228 swapped this off
@@ -528,8 +487,6 @@ async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQ
 
 export async function fetchQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   switch (symbol.source) {
-    case "fmp":
-      return fetchFmp(symbol);
     case "fred":
       return fetchFred(symbol);
     case "kalshi":
