@@ -3587,6 +3587,10 @@ export type StockTrade = {
   id: string;
   bioguideId: string | null;
   memberNameRaw: string;
+  // HO 806: `members.name` when the filer is matched, the disclosed name
+  // otherwise (a feed's filer spelling can carry credentials or legal first
+  // names, so the readers show the member's own name).
+  memberName: string;
   chamber: "senate" | "house";
   ticker: string | null;
   assetDescription: string | null;
@@ -3603,6 +3607,7 @@ function rowToStockTrade(r: Record<string, unknown>): StockTrade {
     id: r.id as string,
     bioguideId: (r.bioguide_id as string | null) ?? null,
     memberNameRaw: r.member_name_raw as string,
+    memberName: String(r.member_name ?? r.member_name_raw ?? ""),
     chamber: chamber === "senate" || chamber === "house" ? chamber : "house",
     ticker: (r.ticker as string | null) ?? null,
     assetDescription: (r.asset_description as string | null) ?? null,
@@ -3614,27 +3619,30 @@ function rowToStockTrade(r: Record<string, unknown>): StockTrade {
   };
 }
 
-// Tagged `member-trades` separately from `bills` and `members` — trade data
-// refreshes on its own cron step and we want a tight invalidation surface
-// so unrelated bills writes don't bust the trade cache. 1-hour backstop
-// since FMP data shifts daily at most.
+// Tagged `member-trades` separately from `bills` — trade data refreshes on its
+// own cron step and we want a tight invalidation surface so unrelated bills
+// writes don't bust the trade cache. HO 806 adds `members`, since the row
+// carries the joined member name. 1-hour backstop: the feed rebuilds every two
+// hours and the sync reads it every six.
 export const getMemberTrades = unstable_cache(
   async (bioguideId: string, limit = 20): Promise<StockTrade[]> => {
     const db = getDb();
     const rs = await db.execute({
-      sql: `SELECT id, bioguide_id, member_name_raw, chamber, ticker,
-              asset_description, transaction_type, transaction_date,
-              disclosure_date, amount, owner
-            FROM stock_trades
-            WHERE bioguide_id = ?
-            ORDER BY disclosure_date DESC, transaction_date DESC, id DESC
+      sql: `SELECT t.id, t.bioguide_id, t.member_name_raw, t.chamber, t.ticker,
+              t.asset_description, t.transaction_type, t.transaction_date,
+              t.disclosure_date, t.amount, t.owner,
+              COALESCE(m.name, t.member_name_raw) AS member_name
+            FROM stock_trades t
+            LEFT JOIN members m ON m.bioguide_id = t.bioguide_id
+            WHERE t.bioguide_id = ?
+            ORDER BY t.disclosure_date DESC, t.transaction_date DESC, t.id DESC
             LIMIT ?`,
       args: [bioguideId, limit],
     });
     return rs.rows.map(rowToStockTrade);
   },
   ["getMemberTrades"],
-  { revalidate: 3600, tags: ["member-trades"] },
+  { revalidate: 3600, tags: ["member-trades", "members"] },
 );
 
 export const getMemberTradeCount = unstable_cache(
@@ -3670,16 +3678,19 @@ export const getRecentTrades = unstable_cache(
     const page = Math.max(1, opts.page ?? 1);
     const pageSize = opts.pageSize ?? 50;
     const offset = (page - 1) * pageSize;
-    const cols = `id, bioguide_id, member_name_raw, chamber, ticker,
-        asset_description, transaction_type, transaction_date,
-        disclosure_date, amount, owner`;
+    // HO 806: the member's own name beside the disclosed one (StockTrade.memberName).
+    const cols = `t.id, t.bioguide_id, t.member_name_raw, t.chamber, t.ticker,
+        t.asset_description, t.transaction_type, t.transaction_date,
+        t.disclosure_date, t.amount, t.owner,
+        COALESCE(m.name, t.member_name_raw) AS member_name`;
 
     const [rs, countRs] = opts.bioguideId
       ? await Promise.all([
           db.execute({
-            sql: `SELECT ${cols} FROM stock_trades
-                  WHERE bioguide_id = ?
-                  ORDER BY disclosure_date DESC, transaction_date DESC, id DESC
+            sql: `SELECT ${cols} FROM stock_trades t
+                  LEFT JOIN members m ON m.bioguide_id = t.bioguide_id
+                  WHERE t.bioguide_id = ?
+                  ORDER BY t.disclosure_date DESC, t.transaction_date DESC, t.id DESC
                   LIMIT ? OFFSET ?`,
             args: [opts.bioguideId, pageSize, offset],
           }),
@@ -3690,8 +3701,9 @@ export const getRecentTrades = unstable_cache(
         ])
       : await Promise.all([
           db.execute({
-            sql: `SELECT ${cols} FROM stock_trades INDEXED BY idx_trades_disclosure_date
-                  ORDER BY disclosure_date DESC, id DESC
+            sql: `SELECT ${cols} FROM stock_trades t INDEXED BY idx_trades_disclosure_date
+                  LEFT JOIN members m ON m.bioguide_id = t.bioguide_id
+                  ORDER BY t.disclosure_date DESC, t.id DESC
                   LIMIT ? OFFSET ?`,
             args: [pageSize, offset],
           }),
@@ -3708,14 +3720,14 @@ export const getRecentTrades = unstable_cache(
     };
   },
   ["getRecentTrades"],
-  { revalidate: 3600, tags: ["member-trades"] },
+  { revalidate: 3600, tags: ["member-trades", "members"] },
 );
 
 // HO 389 — most-traded tickers over a trailing window, for the /trades index
 // rollup. memberCount = COUNT(DISTINCT bioguide_id), so NULL-bioguide (unmatched)
 // trades lift tradeCount but not the member tally — an honest cut. N/A/NULL
-// tickers (cash, options shells) dropped. stock_trades is small (hundreds of
-// rows), but the date-index hint keeps the windowed scan disciplined.
+// tickers (cash, options shells) dropped. stock_trades holds a few thousand rows
+// a year, and the date-index hint keeps the windowed scan disciplined.
 export const getMostTradedTickers = unstable_cache(
   async (
     days = 90,
@@ -10371,7 +10383,7 @@ export type MarketTick = {
   // the hover wording (daily="as of", monthly="as of {Mon}", kalshi="resolves").
   cadence: MarketCadence;
   // HO 227: true for FRED-sourced EOD symbols (10Y/WTI). The tape labels these so
-  // a stale close is never shown as a fresh intraday print. FMP indices = false.
+  // a stale close is never shown as a fresh intraday print.
   // HO 251: monthly FRED (CPI/UNEMP) and kalshi are NOT "EOD" — cadence carries
   // their framing instead, so eod is daily-FRED only.
   eod: boolean;

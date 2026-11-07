@@ -11,10 +11,11 @@ import { Fragment } from "react";
 //
 // Presentational, with no hooks and no server-only import, because
 // ElectoralBoard, a client component, renders it.
+// HO 806: a source can carry its licence, printed after its name and linked (CapitolStockWatch's CC BY 4.0).
 
 export type SourcesGroup = {
   label: string;
-  sources: { name: string; href?: string }[];
+  sources: { name: string; href?: string; license?: { name: string; href: string } }[];
 };
 
 export function SourcesLine({
@@ -62,6 +63,21 @@ export function SourcesLine({
               ) : (
                 <span style={{ color: "var(--text-muted)" }}>{s.name}</span>
               )}
+              {s.license ? (
+                <>
+                  <span style={{ color: "var(--text-dim)" }}> (</span>
+                  <a
+                    className="source-link"
+                    style={{ color: "var(--text-muted)" }}
+                    href={s.license.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {s.license.name}
+                  </a>
+                  <span style={{ color: "var(--text-dim)" }}>)</span>
+                </>
+              ) : null}
             </Fragment>
           ))}
         </Fragment>

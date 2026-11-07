@@ -21,3 +21,9 @@ export const PRIMARY_CALENDAR_URL = "https://www.270towin.com/2026-state-primary
 // The Lobbying Disclosure Act site, whose API lib/lda-sync.ts reads. Its home redirects to /system/public/
 // (HO 786 STEP 0: 200 there).
 export const LDA_HOME_URL = "https://lda.gov/";
+
+// CapitolStockWatch, whose open dataset (CC BY 4.0) lib/trades-ingest.ts reads. Its README asks for credit and a link
+// to this site (HO 805); the feed's own URL lives in lib/capitolstockwatch.ts.
+export const CAPITOLSTOCKWATCH_URL = "https://www.capitolstockwatch.com";
+// The licence the dataset carries, linked beside the credit (HO 806).
+export const CC_BY_4_URL = "https://creativecommons.org/licenses/by/4.0/";

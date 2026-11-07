@@ -1,100 +1,157 @@
-// Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages for each
-// chamber, matches FMP names against `members`, and idempotently writes
-// rows to `stock_trades`. Shared by `scripts/sync-trades.ts` (CLI) and
-// `/api/sync` (cron) — same code path, different pagination caps.
+// Stock-trade ingest (HO 806, rewritten whole; handoff 70 first wrote it for
+// FMP's feed). Reads CapitolStockWatch's open dataset (lib/capitolstockwatch.ts,
+// CC BY 4.0), places each filer on a bioguide (lib/matchMember.ts), and mirrors
+// the feed's filing-date window into `stock_trades`: a new line is inserted, a
+// changed one updated, and one the feed no longer carries deleted, behind a
+// guard. Shared by `/api/sync` (cron) and `scripts/sync-trades.ts` (CLI, with
+// --dry-run): the same code path.
 import type { Client, InStatement } from "@libsql/client";
+import { type CswRecord, fetchCswTrades } from "./capitolstockwatch";
 import { getDb } from "./db";
-import {
-  type FmpTrade,
-  fetchHouseTrades,
-  fetchSenateTrades,
-  isFmpPlanBoundary,
-} from "./fmp";
 import { type MatchableMember, matchMemberName } from "./matchMember";
 
-export interface ChamberIngestResult {
-  chamber: "senate" | "house";
-  pagesFetched: number;
-  inserted: number;
-  matched: number;
-  unmatchedNames: Set<string>;
-  errors: string[];
-  // Set to the first page the FMP Free-plan boundary rejected (HO 579): the
-  // plan permits page 0 only, so page>=1 is a permanent, expected entitlement
-  // gate, not a failure. Page 0's rows are still captured. Recorded here rather
-  // than pushed into `errors` so the condition stays visible without reading as
-  // a cron failure. null means the boundary was never reached this run (e.g. an
-  // all-seen short-circuit stopped first, or the plan was upgraded).
-  planCappedAtPage: number | null;
+// The 31 disclosure fields `raw_json` keeps, in this order. Each record carries
+// nine more (ret_since, excess_since, ret_30d, ret_1y, window_advantage, dte,
+// hasInsiderAlignment, has_insider_alignment, insiderAlignment): the dataset's
+// analytics, recomputed against current prices at each rebuild. CT doesn't show
+// them, and kept they would read every row as changed on every run, so they're
+// dropped.
+const RAW_KEYS = [
+  "id",
+  "source_id",
+  "filer_id",
+  "filer_name",
+  "branch",
+  "chamber",
+  "party",
+  "state",
+  "office",
+  "agency",
+  "level",
+  "filing_type",
+  "doc_url",
+  "filing_date",
+  "transaction_date",
+  "days_to_file",
+  "is_late",
+  "notification_received_over_30d",
+  "owner",
+  "ticker",
+  "asset_name",
+  "asset_type",
+  "security_type",
+  "transaction_type",
+  "amount_range_low",
+  "amount_range_high",
+  "amount_range_label",
+  "comment",
+  "row_index",
+  "expiration_date",
+  "strike_price",
+] as const;
+
+export interface TradesIngestResult {
+  dryRun: boolean;
+  fetched: number;                    // records in the feed
+  kept: number;
+  skipped: Record<string, number>;    // by reason: not-congress, chamber, no-id, no-filer, no-filing-date
+  duplicateIds: number;
+  byChamber: { house: number; senate: number };   // kept
+  window: { from: string; to: string };
+  domain: number;                     // csw: rows held in the window before the run
+  inserted: number;                   // or would insert, on a dry run
+  updated: number;                    // or would update, on a dry run
+  deleted: number;                    // or would delete, on a dry run
+  deleteRefused: number;
+  matched: number;                    // kept rows placed on a bioguide
+  unmatchedNames: string[];           // distinct "filer_name · chamber · state"
+  ownerOther: number;
 }
 
-export interface IngestTradesOptions {
-  // Hard ceiling on pages per chamber. CLI uses 20 (initial backfill);
-  // cron uses 3 (incremental). The page-all-seen short-circuit usually
-  // stops well below this on warm runs.
-  maxPagesPerChamber: number;
-}
+type TradeRow = {
+  id: string;
+  bioguide_id: string | null;
+  member_name_raw: string;
+  chamber: "house" | "senate";
+  ticker: string | null;
+  asset_description: string | null;
+  transaction_type: string | null;
+  transaction_date: string | null;
+  disclosure_date: string;
+  amount: string | null;
+  owner: string | null;
+  raw_json: string;
+};
 
-type RawRow = Record<string, unknown>;
+// The eleven stored columns besides `id` that a feed line can change
+// (`ingested_at` is set on insert only).
+const COMPARED = [
+  "bioguide_id",
+  "member_name_raw",
+  "chamber",
+  "ticker",
+  "asset_description",
+  "transaction_type",
+  "transaction_date",
+  "disclosure_date",
+  "amount",
+  "owner",
+  "raw_json",
+] as const;
 
-function pickString(row: RawRow, ...keys: string[]): string | null {
-  for (const k of keys) {
-    const v = row[k];
-    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
+const BATCH = 200;
+const DELETE_CHUNK = 100;
+
+function text(v: unknown): string | null {
+  if (typeof v === "string") {
+    const s = v.trim();
+    return s ? s : null;
   }
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
   return null;
 }
 
-// FMP returns dates in multiple shapes ("2024-03-15", "2024-03-15T00:00:00",
-// occasionally "03/15/2024"). Normalize to ISO "YYYY-MM-DD" where possible;
-// fall back to the raw string so we don't lose data.
-function normalizeDate(raw: string | null): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
-  const slash = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (slash) {
-    const [, mm, dd, yyyy] = slash;
-    return `${yyyy}-${(mm ?? "01").padStart(2, "0")}-${(dd ?? "01").padStart(2, "0")}`;
+function mapTicker(v: unknown): string | null {
+  const s = text(v)?.toUpperCase() ?? null;
+  return s === null || s === "--" || s === "N/A" ? null : s;
+}
+
+// The House files owner codes and the Senate words. TradeRow prints the value
+// upper-cased (`ownerLabel`, which hides `self`), so mapping both to one word
+// keeps the chips reading [SPOUSE], [JOINT], [DEPENDENT] as they did. Anything
+// else is kept as given and counted in `ownerOther`.
+const OWNER_MAP: Readonly<Record<string, string>> = {
+  sp: "Spouse",
+  spouse: "Spouse",
+  jt: "Joint",
+  joint: "Joint",
+  dc: "Dependent",
+  child: "Dependent",
+  "dependent child": "Dependent",
+  dependent: "Dependent",
+  self: "Self",
+};
+
+function mapOwner(v: unknown): { owner: string | null; other: boolean } {
+  const s = text(v);
+  if (s === null) return { owner: null, other: false };
+  const mapped = OWNER_MAP[s.toLowerCase()];
+  return mapped ? { owner: mapped, other: false } : { owner: s, other: true };
+}
+
+function rawJson(rec: CswRecord): string {
+  const kept: Record<string, unknown> = {};
+  for (const k of RAW_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rec, k)) kept[k] = rec[k];
   }
-  return trimmed;
+  return JSON.stringify(kept);
 }
 
-// FMP House feed often returns name in two fields (`firstName` + `lastName`);
-// Senate feed sometimes returns a single `senator` or `representative`
-// string. Prefer the structured pair when both halves are present.
-function extractName(row: RawRow): string {
-  const first = pickString(row, "firstName", "first_name");
-  const last = pickString(row, "lastName", "last_name");
-  if (first && last) return `${first} ${last}`;
-  return (
-    pickString(row, "representative", "senator", "name", "memberName") ?? ""
-  );
-}
-
-// The handoff specifies the composite key shape: bioguide-disclosure-ticker
-// -transaction-amount. We use the raw member name when no bioguide match
-// landed so unmatched rows still dedupe across re-ingests.
-function composeId(args: {
-  matchedBioguide: string | null;
-  memberNameRaw: string;
-  ticker: string | null;
-  transactionDate: string | null;
-  disclosureDate: string | null;
-  amount: string | null;
-}): string {
-  const memberKey =
-    args.matchedBioguide ?? `unmatched:${args.memberNameRaw.toLowerCase()}`;
-  const parts = [
-    memberKey,
-    args.disclosureDate ?? "",
-    args.ticker ?? "",
-    args.transactionDate ?? "",
-    args.amount ?? "",
-  ];
-  return parts
-    .map((p) => p.replace(/\|/g, "_"))
-    .join("|");
+function chunk<T>(xs: readonly T[], n: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
 }
 
 async function loadMembers(db: Client): Promise<MatchableMember[]> {
@@ -110,162 +167,194 @@ async function loadMembers(db: Client): Promise<MatchableMember[]> {
   }));
 }
 
-async function ingestChamber(
-  db: Client,
-  members: MatchableMember[],
-  chamber: "senate" | "house",
-  maxPages: number,
-): Promise<ChamberIngestResult> {
-  const result: ChamberIngestResult = {
-    chamber,
-    pagesFetched: 0,
-    inserted: 0,
-    matched: 0,
-    unmatchedNames: new Set(),
-    errors: [],
-    planCappedAtPage: null,
-  };
-
-  const fetcher = chamber === "senate" ? fetchSenateTrades : fetchHouseTrades;
-  const ingestedAt = new Date().toISOString();
-
-  for (let page = 0; page < maxPages; page++) {
-    let trades: FmpTrade[];
-    try {
-      trades = await fetcher({ page });
-    } catch (err) {
-      if (isFmpPlanBoundary(err)) {
-        // Permanent Free-plan boundary (HO 579), not a failure. Record the cap
-        // and stop paging quietly — page 0 above is already captured. info-level
-        // so the state is visible in logs without reading as a warning/error.
-        result.planCappedAtPage = err.page;
-        console.info(
-          `[trades] ${chamber}: FMP Free plan caps paging at page ${err.page}; page 0 captured, stopping`,
-        );
-        break;
-      }
-      result.errors.push(
-        err instanceof Error ? err.message : String(err),
-      );
-      break;
-    }
-    result.pagesFetched++;
-    if (trades.length === 0) break;
-
-    let pageInsertedAny = false;
-    // HO 483: build every page INSERT OR IGNORE, then send them in ONE batched
-    // write. The per-row work below the extraction — in-memory matchMemberName,
-    // composeId — is unchanged; only the ~100/chamber per-row db.execute
-    // round-trips collapse into a single db.batch (~200 → 1 for the step).
-    const statements: InStatement[] = [];
-    for (const trade of trades) {
-      const row = trade as RawRow;
-      const memberNameRaw = extractName(row);
-      if (!memberNameRaw) continue;
-
-      const ticker =
-        pickString(row, "ticker", "symbol") ?? null;
-      const assetDescription =
-        pickString(row, "assetDescription", "asset_description") ?? null;
-      const transactionType =
-        pickString(row, "transactionType", "type") ?? null;
-      const transactionDate = normalizeDate(
-        pickString(row, "transactionDate", "transaction_date"),
-      );
-      const disclosureDate = normalizeDate(
-        pickString(row, "disclosureDate", "disclosure_date"),
-      );
-      const amount = pickString(row, "amount") ?? null;
-      const owner = pickString(row, "owner", "ownerType") ?? null;
-      // FMP's /stable/ endpoints carry the state in `district`:
-      //   Senate: "PA" (2-letter state code)
-      //   House:  "VA05" (state + district number; empty for unmatched)
-      // First two letters cover both. `state` is kept as a fallback for
-      // any older response variant; `office` is intentionally not used
-      // here — on /stable/ it's the member's full name, not a state hint.
-      const districtRaw = pickString(row, "district", "state");
-      const stateHint = districtRaw ? districtRaw.slice(0, 2) : null;
-
-      const matched = matchMemberName(
-        memberNameRaw,
-        members,
-        chamber,
-        stateHint,
-      );
-      if (matched) result.matched++;
-      else result.unmatchedNames.add(memberNameRaw);
-
-      const id = composeId({
-        matchedBioguide: matched,
-        memberNameRaw,
-        ticker,
-        transactionDate,
-        disclosureDate,
-        amount,
-      });
-
-      // Same INSERT OR IGNORE as before — byte-identical SQL + 13 args — just
-      // queued for the batch instead of executed inline. The OR-IGNORE conflict
-      // semantics are unchanged, so the set of rows that lands is identical.
-      statements.push({
-        sql: `INSERT OR IGNORE INTO stock_trades
-                (id, bioguide_id, member_name_raw, chamber, ticker,
-                 asset_description, transaction_type, transaction_date,
-                 disclosure_date, amount, owner, raw_json, ingested_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-          id,
-          matched,
-          memberNameRaw,
-          chamber,
-          ticker,
-          assetDescription,
-          transactionType,
-          transactionDate,
-          disclosureDate ?? "",
-          amount,
-          owner,
-          JSON.stringify(row),
-          ingestedAt,
-        ],
-      });
-    }
-
-    // One round-trip for the whole page (HO 483). Each ResultSet carries its
-    // own rowsAffected, so result.inserted and the all-seen short-circuit are
-    // reconstructed exactly as the inline changes() check did per row.
-    if (statements.length > 0) {
-      const results = await db.batch(statements, "write");
-      for (const rs of results) {
-        if ((rs.rowsAffected ?? 0) > 0) {
-          result.inserted++;
-          pageInsertedAny = true;
-        }
-      }
-    }
-
-    // Stop when an entire page is all-seen. Self-correcting if FMP backfills
-    // late — the next sync will pick it up.
-    if (!pageInsertedAny) break;
+// Each statement's rowsAffected, summed: the write's own read-back, so an
+// INSERT OR IGNORE that met a row an overlapping run wrote first counts 0.
+async function runBatches(db: Client, statements: InStatement[]): Promise<number> {
+  let affected = 0;
+  for (const part of chunk(statements, BATCH)) {
+    const results = await db.batch(part, "write");
+    for (const rs of results) affected += rs.rowsAffected ?? 0;
   }
-
-  return result;
+  return affected;
 }
 
+const INSERT_SQL = `INSERT OR IGNORE INTO stock_trades
+    (id, bioguide_id, member_name_raw, chamber, ticker,
+     asset_description, transaction_type, transaction_date,
+     disclosure_date, amount, owner, raw_json, ingested_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+const UPDATE_SQL = `UPDATE stock_trades
+  SET bioguide_id = ?, member_name_raw = ?, chamber = ?, ticker = ?,
+      asset_description = ?, transaction_type = ?, transaction_date = ?,
+      disclosure_date = ?, amount = ?, owner = ?, raw_json = ?
+  WHERE id = ?`;
+
 export async function ingestTrades(
-  options: IngestTradesOptions,
-): Promise<ChamberIngestResult[]> {
+  opts: { dryRun?: boolean } = {},
+): Promise<TradesIngestResult> {
+  const dryRun = opts.dryRun ?? false;
+  const ingestedAt = new Date().toISOString();
+  const feed = await fetchCswTrades();
   const db = getDb();
   const members = await loadMembers(db);
-  const results: ChamberIngestResult[] = [];
-  for (const chamber of ["senate", "house"] as const) {
-    const r = await ingestChamber(
-      db,
-      members,
+
+  // ── Kept records. A record is kept only if each check holds; a skip counts
+  // under the first reason it fails.
+  const skipped: Record<string, number> = {};
+  const skip = (reason: string) => {
+    skipped[reason] = (skipped[reason] ?? 0) + 1;
+  };
+  const rows = new Map<string, TradeRow>();
+  const byChamber = { house: 0, senate: 0 };
+  const matchCache = new Map<string, string | null>();
+  const unmatched = new Set<string>();
+  let duplicateIds = 0;
+  let matched = 0;
+  let ownerOther = 0;
+
+  for (const item of feed) {
+    const rec: CswRecord = item !== null && typeof item === "object" ? (item as CswRecord) : {};
+    if (rec.branch !== "congress") { skip("not-congress"); continue; }
+    const chamber = rec.chamber;
+    if (chamber !== "house" && chamber !== "senate") { skip("chamber"); continue; }
+    if (typeof rec.id !== "string" || rec.id.trim() === "") { skip("no-id"); continue; }
+    const filer = typeof rec.filer_name === "string" ? rec.filer_name.trim() : "";
+    if (!filer) { skip("no-filer"); continue; }
+    const filingDate = typeof rec.filing_date === "string" ? rec.filing_date : "";
+    if (!YMD.test(filingDate)) { skip("no-filing-date"); continue; }
+
+    const id = `csw:${rec.id}`;
+    if (rows.has(id)) { duplicateIds++; continue; }
+
+    const state = text(rec.state);
+    const cacheKey = `${chamber}|${state ?? ""}|${filer}`;
+    let bioguide = matchCache.get(cacheKey);
+    if (bioguide === undefined) {
+      bioguide = matchMemberName(filer, members, chamber, state);
+      matchCache.set(cacheKey, bioguide);
+    }
+    if (bioguide) matched++;
+    else unmatched.add(`${filer} · ${chamber} · ${state ?? ""}`);
+
+    const { owner, other } = mapOwner(rec.owner);
+    if (other) ownerOther++;
+    const txDate =
+      typeof rec.transaction_date === "string" && YMD.test(rec.transaction_date)
+        ? rec.transaction_date
+        : null;
+
+    rows.set(id, {
+      id,
+      bioguide_id: bioguide,
+      member_name_raw: filer,
       chamber,
-      options.maxPagesPerChamber,
-    );
-    results.push(r);
+      ticker: mapTicker(rec.ticker),
+      asset_description: text(rec.asset_name),
+      transaction_type: text(rec.transaction_type),
+      transaction_date: txDate,
+      disclosure_date: filingDate,
+      amount: text(rec.amount_range_label),
+      owner,
+      raw_json: rawJson(rec),
+    });
+    byChamber[chamber]++;
   }
-  return results;
+
+  const kept = [...rows.values()];
+  if (kept.length === 0) {
+    throw new Error(`CSW feed kept 0 of ${feed.length} records`);
+  }
+
+  // ── The mirror. The sync owns the `csw:` rows in the feed's filing-date
+  // window, and nothing else. FMP's rows (HO 70 to HO 805) carry no prefix, so
+  // they can never read as vanished; HO 806's FF deletes them by their own
+  // shape (a `|` in the id). A future source keeps its own prefix. And at the
+  // year's turn the window moves with the feed, a year of filings, so the old
+  // year's rows stay. A feed that drops more than max(25, 5%) of the window's
+  // rows reads as broken: nothing is deleted and `deleteRefused` carries the
+  // count.
+  let from = kept[0]!.disclosure_date;
+  let to = from;
+  for (const r of kept) {
+    if (r.disclosure_date < from) from = r.disclosure_date;
+    if (r.disclosure_date > to) to = r.disclosure_date;
+  }
+
+  const domainRs = await db.execute({
+    sql: `SELECT id, ${COMPARED.join(", ")} FROM stock_trades
+          WHERE id LIKE 'csw:%' AND disclosure_date >= ? AND disclosure_date <= ?`,
+    args: [from, to],
+  });
+  const domain = new Map<string, Record<string, unknown>>();
+  for (const r of domainRs.rows) {
+    domain.set(String(r.id), r as unknown as Record<string, unknown>);
+  }
+
+  const norm = (v: unknown) => (v === null || v === undefined ? null : String(v));
+  const inserts: TradeRow[] = [];
+  const updates: TradeRow[] = [];
+  for (const r of kept) {
+    const have = domain.get(r.id);
+    if (!have) inserts.push(r);
+    else if (COMPARED.some((c) => norm(have[c]) !== norm(r[c]))) updates.push(r);
+  }
+  const vanished = [...domain.keys()].filter((id) => !rows.has(id));
+  const deleteLimit = Math.max(25, Math.ceil(domain.size * 0.05));
+  const deletable = vanished.length <= deleteLimit;
+
+  let inserted = inserts.length;
+  let updated = updates.length;
+  let deleted = deletable ? vanished.length : 0;
+  if (!dryRun) {
+    inserted = await runBatches(
+      db,
+      inserts.map((r) => ({
+        sql: INSERT_SQL,
+        args: [
+          r.id, r.bioguide_id, r.member_name_raw, r.chamber, r.ticker,
+          r.asset_description, r.transaction_type, r.transaction_date,
+          r.disclosure_date, r.amount, r.owner, r.raw_json, ingestedAt,
+        ],
+      })),
+    );
+    updated = await runBatches(
+      db,
+      updates.map((r) => ({
+        sql: UPDATE_SQL,
+        args: [
+          r.bioguide_id, r.member_name_raw, r.chamber, r.ticker,
+          r.asset_description, r.transaction_type, r.transaction_date,
+          r.disclosure_date, r.amount, r.owner, r.raw_json, r.id,
+        ],
+      })),
+    );
+    deleted = deletable
+      ? await runBatches(
+          db,
+          chunk(vanished, DELETE_CHUNK).map((ids) => ({
+            sql: `DELETE FROM stock_trades WHERE id IN (${ids.map(() => "?").join(", ")})`,
+            args: ids,
+          })),
+        )
+      : 0;
+  }
+
+  return {
+    dryRun,
+    fetched: feed.length,
+    kept: kept.length,
+    skipped,
+    duplicateIds,
+    byChamber,
+    window: { from, to },
+    domain: domain.size,
+    inserted,
+    updated,
+    deleted,
+    deleteRefused: deletable ? 0 : vanished.length,
+    matched,
+    unmatchedNames: [...unmatched].sort(),
+    ownerOther,
+  };
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { formatDateShort } from "@/lib/format";
 import type { StockTrade } from "@/lib/queries";
 
-// FMP's transaction_type strings are filing-flavored. Bucket into three
+// The filings' transaction_type strings are filing-flavored. Bucket into three
 // visual buckets here rather than scattering the regex across the row.
 function txnClass(raw: string | null): "buy" | "sell" | "other" {
   if (!raw) return "other";
@@ -48,11 +48,11 @@ export function TradeRow({
               className="transition hover:text-[var(--accent-amber-bright)]"
               style={{ color: "var(--accent-amber)" }}
             >
-              {trade.memberNameRaw}
+              {trade.memberName}
             </Link>
           ) : (
             <span style={{ color: "var(--text-muted)" }}>
-              {trade.memberNameRaw}
+              {trade.memberName}
             </span>
           )}
         </span>

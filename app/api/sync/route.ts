@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { wrapCronRoute } from "@/lib/cron-log";
 import { runReportCatchup } from "@/lib/report-generation";
 import { runSync } from "@/lib/sync";
-import { ingestTrades } from "@/lib/trades-ingest";
+import { ingestTrades, type TradesIngestResult } from "@/lib/trades-ingest";
 
 // Sync cron, every 6h (`0 */6`, vercel.json). HO 115 split summarize out; HO 116 bounded runSync;
 // HO 117 split news ingestion into /api/cron/news; HO 139 split the
@@ -115,26 +115,26 @@ async function handle(request: Request) {
     // before any later step in this tick fails.
     expireTag("bills");
 
-    // Stock-trade ingestion (handoff 70). Pulls FMP disclosure pages and
-    // writes to stock_trades. Best-effort: missing FMP_API_KEY or a stuck
-    // endpoint logs and skips, never crashes the cron.
+    // HO 806: stock trades from CapitolStockWatch's open dataset, mirrored for the
+    // feed's filing-date window (lib/trades-ingest.ts). Non-fatal: a fetch or write
+    // failure logs and rides chronicErr as `trades-failed:`, a refused delete as
+    // `trades-delete-refused:`, and the route stays success.
     const tTrades = Date.now();
-    // HO 579: per-chamber page cap from FMP's Free plan (page 0 only). Surfaced
-    // in the payload so the boundary is observable from the route rather than
-    // inferred from the absence of an error line.
-    let tradesPlanCap: Record<string, number | null> | null = null;
+    let trades: TradesIngestResult | null = null;
+    let tradesError: string | null = null;
     try {
-      const tradeResults = await ingestTrades({ maxPagesPerChamber: 3 });
-      tradesPlanCap = {};
-      for (const r of tradeResults) {
-        console.log(
-          `[sync] trades.${r.chamber}: pages=${r.pagesFetched} inserted=${r.inserted} matched=${r.matched} unmatched_names=${r.unmatchedNames.size} plan_capped_at_page=${r.planCappedAtPage ?? "none"}`,
-        );
-        for (const e of r.errors) console.warn(`[sync] trades error: ${e}`);
-        tradesPlanCap[r.chamber] = r.planCappedAtPage;
+      trades = await ingestTrades();
+      console.log(
+        `[sync] trades: fetched=${trades.fetched} kept=${trades.kept} window=${trades.window.from}..${trades.window.to} ` +
+          `domain=${trades.domain} inserted=${trades.inserted} updated=${trades.updated} deleted=${trades.deleted} ` +
+          `deleteRefused=${trades.deleteRefused} matched=${trades.matched} unmatched=${trades.unmatchedNames.length} ` +
+          `duplicateIds=${trades.duplicateIds} ownerOther=${trades.ownerOther}`,
+      );
+      if (trades.inserted + trades.updated + trades.deleted > 0) {
+        expireTag("member-trades");
       }
-      expireTag("member-trades");
     } catch (err) {
+      tradesError = err instanceof Error ? err.message : String(err);
       console.warn("[sync] trades ingestion failed; skipping", err);
     }
     timings.trades = Date.now() - tTrades;
@@ -154,15 +154,26 @@ async function handle(request: Request) {
           generated: reportCatchupGenerated,
           error: reportCatchupError,
         },
-        // HO 579: per-chamber FMP page cap (page 0 = Free-plan boundary). null
-        // if trades ingestion threw before returning. An entitlement gate, not
-        // a failure — cron status stays success.
-        tradesPlanCap,
+        // HO 806: the trades step's counts (lib/trades-ingest.ts), the unmatched
+        // names cut to 10; null if the step threw.
+        trades: trades
+          ? { ...trades, unmatchedNames: trades.unmatchedNames.slice(0, 10) }
+          : null,
       },
       // Non-fatal surfacing into cron_runs.error_message (status stays success).
-      chronicErr: reportCatchupError
-        ? `report-catchup-failed: ${reportCatchupError}`
-        : undefined,
+      chronicErr:
+        [
+          reportCatchupError ? `report-catchup-failed: ${reportCatchupError}` : null,
+          tradesError ? `trades-failed: ${tradesError}` : null,
+          trades && trades.deleteRefused > 0
+            ? `trades-delete-refused: ${trades.deleteRefused}`
+            : null,
+          trades && trades.duplicateIds > 0
+            ? `trades-duplicate-ids: ${trades.duplicateIds}`
+            : null,
+        ]
+          .filter((s): s is string => s !== null)
+          .join("; ") || undefined,
     };
   }, { softTimeoutMs: SOFT_TIMEOUT_MS });
 

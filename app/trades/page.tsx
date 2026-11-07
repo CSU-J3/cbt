@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { HeaderBar } from "@/components/HeaderBar";
 import { Pagination } from "@/components/Pagination";
+import { SourcesLine } from "@/components/SourcesLine";
 import { TradeRow } from "@/components/TradeRow";
 import { getMember, getMostTradedTickers, getRecentTrades } from "@/lib/queries";
+import { CAPITOLSTOCKWATCH_URL, CC_BY_4_URL } from "@/lib/source-links";
 
 // Reads the DB; opt out of static prerender. unstable_cache still applies.
 export const dynamic = "force-dynamic";
@@ -81,6 +83,14 @@ export default async function TradesPage({
             </Link>
           ) : null}
         </div>
+        {/* HO 806: where the trades come from, and the licence's terms: credit, a link, a note of changes. */}
+        <SourcesLine
+          className="mb-1"
+          groups={[{ label: "Trades", sources: [{ name: "CapitolStockWatch", href: CAPITOLSTOCKWATCH_URL, license: { name: "CC BY 4.0", href: CC_BY_4_URL } }] }]}
+        />
+        <p className="mb-3 max-w-[70ch] text-[length:var(--fs-12)] leading-snug" style={{ color: "var(--text-muted)", fontFamily: "var(--sans)" }}>
+          Stock-trade disclosures filed since January 2026, adapted by CT: filers matched to members, owner codes spelled out. Senate coverage is partial.
+        </p>
 
         {topTickers.length > 0 ? (
           <section

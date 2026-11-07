@@ -9,6 +9,7 @@ import { MemberVoteRow } from "@/components/MemberVoteRow";
 import { MemberVoteStats } from "@/components/MemberVoteStats";
 import { RaceNewsRow } from "@/components/RaceNewsRow";
 import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
+import { SourcesLine } from "@/components/SourcesLine";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
 import { currentCongressLabel, getCurrentCongress, ordinal } from "@/lib/congress";
@@ -39,6 +40,7 @@ import {
 import { palestineTrackerHref } from "@/lib/palestine-config";
 import { raceIdFromMember } from "@/lib/race-id";
 import { ratingColor } from "@/lib/race-colors";
+import { CAPITOLSTOCKWATCH_URL, CC_BY_4_URL } from "@/lib/source-links";
 
 // Reads the DB by params; opt out of static prerender. unstable_cache still
 // applies at the query layer.
@@ -566,7 +568,11 @@ export default async function MemberPage({
                     : undefined,
                 content:
                   trades.length === 0 ? (
-                    <div className="rec-empty">No disclosed trades on file</div>
+                    <div className="rec-empty">
+                      {member.chamber === "senate"
+                        ? "No disclosed trades on file. Senate coverage is partial."
+                        : "No disclosed trades on file"}
+                    </div>
                   ) : (
                     <>
                       <div className="trade-header-row px-4">
@@ -584,6 +590,16 @@ export default async function MemberPage({
                           </li>
                         ))}
                       </ul>
+                      {/* HO 806: the trades' source and its licence, credited where they show. */}
+                      <SourcesLine
+                        className="mt-2 px-4"
+                        groups={[{ label: "Trades", sources: [{ name: "CapitolStockWatch", href: CAPITOLSTOCKWATCH_URL, license: { name: "CC BY 4.0", href: CC_BY_4_URL } }] }]}
+                      />
+                      {member.chamber === "senate" ? (
+                        <p className="mt-1 px-4 text-[length:var(--fs-12)]" style={{ color: "var(--text-dim)" }}>
+                          Senate coverage is partial.
+                        </p>
+                      ) : null}
                     </>
                   ),
               },
