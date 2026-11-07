@@ -4,7 +4,7 @@ import zlib from "node:zlib";
 import { isKnownNoise } from "./console-noise";
 import { ROUTES } from "./routes";
 import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "../lib/enums";
-import { LDA_HOME_URL, PRIMARY_CALENDAR_URL, senateRollCallUrl } from "../lib/source-links";
+import { CAPITOLSTOCKWATCH_URL, CC_BY_4_URL, LDA_HOME_URL, PRIMARY_CALENDAR_URL, senateRollCallUrl } from "../lib/source-links";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -1076,6 +1076,14 @@ test.describe("targeted interactions", () => {
       vote.locator(`a[href="${senateRollCallUrl(119, 1, 1, "htm")}"]`),
       "senate.gov links the roll call's own page",
     ).toHaveCount(1);
+
+    // HO 806: /trades credits CapitolStockWatch and links its licence (CC BY 4.0).
+    await page.goto("/trades", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const trades = page.locator("[data-sources]");
+    await expect(trades, "/trades's sources line").toBeVisible({ timeout: 20_000 });
+    await expect(trades).toContainText(/trades via capitolstockwatch/i);
+    await expect(trades.locator(`a[href="${CAPITOLSTOCKWATCH_URL}"]`), "CapitolStockWatch links its site").toHaveCount(1);
+    await expect(trades.locator(`a[href="${CC_BY_4_URL}"]`), "the licence links CC BY 4.0").toHaveCount(1);
   });
 
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert
