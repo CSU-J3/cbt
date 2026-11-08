@@ -37,7 +37,7 @@ function stripPunctuation(s: string): string {
 function normalizeTokens(raw: string): string[] {
   const cleaned = stripPunctuation(raw)
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   const tokens = cleaned.split(/\s+/).filter(Boolean);
   // Drop honorifics anywhere they appear (covers "Sen. John Doe" and

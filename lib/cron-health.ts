@@ -46,8 +46,9 @@ export type CronRoute = {
   // window is generous (~9d MVP). Window-aware next-fire precision is banked.
   windowOnly?: boolean;
   // Freshness signal. Default "cron_runs" (success/timeout liveness). Markets
-  // uses "market_ticks" (MAX(ticked_at) age) because its two Vercel crons share
-  // one route string.
+  // uses "market_ticks" (MAX(ticked_at) age) because every bare run carries the
+  // POLY-SHUTDOWN chronicErr (the exception paragraph above). Until HO 806 its
+  // two Vercel crons also shared one route string, which was the first reason.
   signal?: CronSignal;
 };
 
@@ -171,7 +172,8 @@ async function evalCronRunsRoute(route: CronRoute, now: number): Promise<CronRou
 
 async function evalMarketTicksRoute(route: CronRoute, now: number): Promise<CronRouteHealth> {
   const db = getDb();
-  // market_ticks is a small table (~74 rows/day, ~4k total) so an unfiltered
+  // market_ticks is a small table (54 rows a day over the 7 days to Nov 7, 2026,
+  // 8,267 in all, read for HO 807 after HO 806 deleted FMP's ticks) so an unfiltered
   // MAX(ticked_at) is cheap even without a ticked_at-only index. Plus the
   // status side: a markets error/orphaned is a hard failure even if ticks are
   // fresh (a POLY-SHUTDOWN-ghost success is not — it stays status='success').
