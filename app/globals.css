@@ -1611,6 +1611,19 @@ body {
   cursor: help;
   white-space: nowrap;
 }
+/* HO 807: on a phone the head's one flex row (HO 616) squeezed the description
+   into a column a word or two wide beside "how it's scored →". Below 700 the
+   head wraps: the title and its link keep line one, the description takes line
+   two. At 700 and up nothing changes. */
+@media (max-width: 700px) {
+  .ideo-strip-head {
+    flex-wrap: wrap;
+  }
+  .ideo-strip-desc {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
 .ideo-strip-svg {
   display: block;
   width: 100%;
@@ -1660,6 +1673,17 @@ body {
   color: var(--accent-amber);
   cursor: help;
   white-space: nowrap;
+}
+/* HO 807: the same phone wrap as .ideo-strip-head's, its own block per HO 527's
+   containment rule: below 700 the description takes line two. */
+@media (max-width: 700px) {
+  .part-strip-head {
+    flex-wrap: wrap;
+  }
+  .part-strip-desc {
+    order: 1;
+    flex-basis: 100%;
+  }
 }
 .part-strip-svg {
   display: block;
