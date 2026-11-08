@@ -455,6 +455,27 @@ for (const width of WIDTHS) {
             `(scrollWidth ${doc.s} vs clientWidth ${doc.c}, over ${over}px) — ` +
             `over-edge: ${culprits.join(" | ") || "none captured"}`,
         ).toBeLessThanOrEqual(doc.c + TOLERANCE);
+
+        // HO 807 — THE MASTHEAD'S FIRST LABEL STAYS WHOLE. On a phone the path's
+        // `overflow-wrap: anywhere` cut `119TH` (`119T / H`), because nothing
+        // between the root's `:\`, a separator and a label could break. The
+        // `<wbr />`s after the root and after each separator let the path wrap at
+        // a separator. Wherever a page renders a visible masthead, the first
+        // label returns exactly one client rect. /welcome has no masthead, so it
+        // reads null here and asserts nothing.
+        const firstLabelRects = await page.evaluate(() => {
+          const path = document.querySelector(".breadcrumb-path");
+          if (!path || !path.checkVisibility()) return null;
+          const first = path.querySelector(".breadcrumb-seg-label");
+          return first ? first.getClientRects().length : null;
+        });
+        if (firstLabelRects !== null) {
+          expect(
+            firstLabelRects,
+            `${route.path} split the masthead's first label across ` +
+              `${firstLabelRects} lines at ${width}`,
+          ).toBe(1);
+        }
       });
     }
   });

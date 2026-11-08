@@ -933,6 +933,22 @@ test.describe("targeted interactions", () => {
     await expect(page.locator(".breaking-stalls-tabs .feed-chamber")).toHaveCount(0);
     await expect(page.locator(".feed-chamber-row .feed-chamber-opt")).toHaveCount(3);
 
+    // HO 807: TOP STALLS' badge counts the stale set (it read the constant 5 over a
+    // 60-row tab). Open the tab: the badge is at least the rows the panel renders,
+    // and equals them when the set is under the tab's 60-row ceiling.
+    const stallsTab = tabs.nth(2);
+    const badgeText = (await stallsTab.locator(".count").textContent()) ?? "";
+    const badge = Number(badgeText.replace(/[^0-9]/g, ""));
+    await stallsTab.click();
+    await expect(stallsTab).toHaveAttribute("aria-current", "page");
+    const stallRows = page.locator(".breaking-stalls-tabs").locator("xpath=..").locator(".v2f-row");
+    if (badge > 0) await expect(stallRows.first()).toBeVisible({ timeout: 15_000 });
+    const rowCount = await stallRows.count();
+    expect(badge, `Top Stalls badge ${badgeText} against ${rowCount} rows`).toBeGreaterThanOrEqual(rowCount);
+    if (rowCount < 60) {
+      expect(badge, `Top Stalls badge ${badgeText} should equal its ${rowCount} rows under the ceiling`).toBe(rowCount);
+    }
+
     await page.goto("/?stage=floor", { waitUntil: "domcontentloaded", timeout: 45_000 });
     await expect(tabs.nth(1)).toHaveAttribute("aria-current", "page", { timeout: 20_000 });
   });
