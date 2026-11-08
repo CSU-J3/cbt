@@ -19,8 +19,10 @@
 
 const FEC_BASE = "https://api.open.fec.gov/v1";
 
-// Resolved-key visibility (handoff 83 debug). Called once by sync-fec at
-// startup so a misconfigured env shows up immediately, not 200 429s in.
+// Resolved-key visibility (handoff 83 debug). Called once by sync-fec and
+// sync-pac-ie at startup so a misconfigured env shows up immediately, not 200
+// 429s in. HO 808: it prints the key's source and length, no characters (until
+// then it printed the first and last four, which a saved log kept).
 export function logResolvedFecKey(): void {
   const k = fecApiKey();
   const source = process.env.FEC_API_KEY
@@ -28,20 +30,13 @@ export function logResolvedFecKey(): void {
     : process.env.CONGRESS_API_KEY
       ? "CONGRESS_API_KEY"
       : "(neither set)";
-  console.log(`FEC key source=${source} value=${maskApiKey(k)}`);
+  console.log(`FEC key source=${source} length=${k.length}`);
 }
 
 function fecApiKey(): string {
   return (
     process.env.FEC_API_KEY ?? process.env.CONGRESS_API_KEY ?? ""
   );
-}
-
-// Mask the API key for safe logging: keep first/last 4 chars, show length.
-function maskApiKey(k: string): string {
-  if (!k) return "(empty)";
-  if (k.length <= 8) return "***";
-  return `${k.slice(0, 4)}…${k.slice(-4)} (len=${k.length})`;
 }
 
 async function sleep(ms: number): Promise<void> {
