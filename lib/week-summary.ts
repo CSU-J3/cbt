@@ -29,6 +29,7 @@
 // the gate is NOT stored — there is no silent retry loop and no partial render.
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
+import { readEnactedInWeek } from "./enacted-in-week";
 import { SUMMARY_MODEL } from "./summarize";
 
 export const WEEK_SUMMARY_SENTENCES = 3;
@@ -75,12 +76,10 @@ export async function buildWeekSummaryPayload(
   });
   const r0 = rep.rows[0];
 
-  const enacted = await db.execute({
-    sql: `SELECT id, title FROM bills
-           WHERE stage = 'enacted' AND latest_action_date >= ? AND latest_action_date < ?
-           ORDER BY latest_action_date DESC LIMIT 5`,
-    args: [weekStart, endEx],
-  });
+  // HO 807: the week's laws on both clocks (lib/enacted-in-week.ts), the read the
+  // report's laws_count now counts, so a law CT recorded after its last action's
+  // week lands here and in `lawsEnacted` alike. The first five.
+  const enacted = (await readEnactedInWeek(db, weekStart, weekEnd)).slice(0, 5);
 
   // Advances past committee, on the OBSERVATION clock (HO 635) — the same clock
   // the band's "TRANSITIONS OBSERVED" label exists to disclose.
@@ -130,7 +129,7 @@ export async function buildWeekSummaryPayload(
     lawsEnacted: r0 ? Number(r0.laws_count) : null,
     hearingsHeld: Number(hearings.rows[0]?.n ?? 0),
     fillerPct: tot === 0 ? 0 : Math.round((cer / tot) * 100),
-    enacted: enacted.rows.map((x) => ({ billId: String(x.id), title: String(x.title) })),
+    enacted: enacted.map((x) => ({ billId: x.id, title: x.title })),
     topAdvances: adv.rows.map((x) => ({
       billId: String(x.id),
       title: String(x.title),

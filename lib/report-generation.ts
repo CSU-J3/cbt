@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { getDb } from "./db";
+import { readEnactedInWeek } from "./enacted-in-week";
 import { ALLOWED_TOPICS_SET, stageRank } from "./enums";
 import { formatBillId } from "./format";
 import { withGeminiRetry } from "./gemini-retry";
@@ -724,18 +725,14 @@ async function gatherReportData(week: WeekRange): Promise<ReportData> {
   const stageTrackingStart =
     (trackRs.rows[0]?.first as string | null) ?? null;
 
-  // 2. Enactments within the week — full list, no limit.
-  const enactRs = await db.execute({
-    sql: `SELECT bill_type, bill_number, title
-          FROM bills
-          WHERE stage = 'enacted'
-            AND latest_action_date BETWEEN ? AND ?
-          ORDER BY latest_action_date DESC`,
-    args: [week.start, week.end],
-  });
-  const enactments: Enactment[] = enactRs.rows.map((r) => ({
-    billId: formatBillId(r.bill_type as string, r.bill_number as number),
-    title: r.title as string,
+  // 2. Enactments within the week — full list, no limit. HO 807: on both clocks
+  // (lib/enacted-in-week.ts): a law counts here when its last action falls in
+  // the week or when CT recorded it in the week, so laws_count and the ladder's
+  // `enacted` advances (step 1, by stage_observed_at) can't disagree.
+  const enacted = await readEnactedInWeek(db, week.start, week.end);
+  const enactments: Enactment[] = enacted.map((b) => ({
+    billId: formatBillId(b.billType, b.billNumber),
+    title: b.title,
   }));
 
   // 3. New introductions count — this week and the week before, so the LEAD
