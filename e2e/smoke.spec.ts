@@ -1102,6 +1102,77 @@ test.describe("targeted interactions", () => {
     await expect(trades.locator(`a[href="${CC_BY_4_URL}"]`), "the licence links CC BY 4.0").toHaveCount(1);
   });
 
+  // HO 808: SHUTDOWN is Kalshi's alone (no liquid Polymarket market asks its
+  // question), so its ODDS item holds the K group alone, while FED CUT, which both
+  // venues price, keeps two. Read once the tape settles, since the client lays down
+  // its copies after hydration. Prod renders the tape to headless Chrome (read Nov
+  // 7, 2026: 42 symbols and 18 pair items after hydration), so this asserts rather
+  // than skipping on an empty tape.
+  test("ODDS on /: SHUTDOWN holds one source group, FED CUT two", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const groups = (re: RegExp) => [
+              ...new Set(
+                [...document.querySelectorAll(".markets-tape-item--pair")]
+                  .filter((it) => re.test(it.querySelector(".markets-tape-symbol")?.textContent?.trim() ?? ""))
+                  .map((it) => it.querySelectorAll(".markets-tape-pair-grp").length),
+              ),
+            ];
+            return { shutdown: groups(/^SHUTDOWN$/), fedCut: groups(/^FED CUT/) };
+          }),
+        { message: "every SHUTDOWN item holds one group and every FED CUT item two", timeout: 20_000 },
+      )
+      .toEqual({ shutdown: [1], fedCut: [2] });
+  });
+
+  // HO 808: the same on /welcome's server-rendered ODDS strip, which marks each
+  // source with a letter: SHUTDOWN's item carries no P, FED CUT's carries one.
+  test("ODDS on /welcome: SHUTDOWN has no P letter, FED CUT has one", async ({ page }) => {
+    await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    await expect(page.locator('[class*="taperun"]').first(), "/welcome's tapes").toBeAttached({ timeout: 20_000 });
+    const letters = await page.evaluate(() => {
+      const items = [...document.querySelectorAll('[class*="tapeitem"]')];
+      const pOf = (re: RegExp) => [
+        ...new Set(
+          items
+            .filter((it) => re.test(it.querySelector('[class*="sym"]')?.textContent?.trim() ?? ""))
+            .map((it) => it.querySelectorAll('[class*="srcP"]').length),
+        ),
+      ];
+      return { shutdown: pOf(/^SHUTDOWN ODDS$/), fedCut: pOf(/^FED CUT ODDS$/) };
+    });
+    expect(letters, "P letters per item: SHUTDOWN none, FED CUT one").toEqual({ shutdown: [0], fedCut: [1] });
+  });
+
+  // HO 808: /welcome's CSS marquees loop by translating the track -50%, seamless
+  // only while each half is at least its strip's width. The strip can't measure,
+  // so each half repeats its items to a floor; HO 806's roster cut had left
+  // MARKETS' half 794 px against a 1,116 px strip at 1440.
+  test("/welcome's marquees: each half is at least its strip's width at 1440 and 2560", async ({ page }) => {
+    for (const width of [1440, 2560]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await expect(page.locator('[class*="taperun"]').first(), `/welcome's tapes at ${width}`).toBeAttached({ timeout: 20_000 });
+      const rows = await page.evaluate(() =>
+        [...document.querySelectorAll('[class*="taperow"]')].map((row) => ({
+          label: row.querySelector('[class*="tapelabel"]')?.textContent?.trim() ?? "",
+          mask: row.querySelector('[class*="tapemask"]')?.getBoundingClientRect().width ?? 0,
+          halves: [...row.querySelectorAll('[class*="taperun"]')].map((r) => r.getBoundingClientRect().width),
+        })),
+      );
+      expect(rows.length, `two strips at ${width}`).toBe(2);
+      for (const r of rows) {
+        expect(r.halves.length, `${r.label} at ${width}: two halves`).toBe(2);
+        for (const h of r.halves) {
+          expect(h, `${r.label} at ${width}: a half of ${h.toFixed(1)} px against a ${r.mask.toFixed(1)} px strip`).toBeGreaterThanOrEqual(r.mask);
+        }
+      }
+    }
+  });
+
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert
   // "@nonci"). Bucket D: prod withholds the markets tape from headless Chrome
   // under BotID, so there's nothing to hover. The skip guard below stays honest
