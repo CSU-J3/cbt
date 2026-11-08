@@ -4906,6 +4906,8 @@ The GradShow poster's draft quoted the board's foot, *last sync 2:05 AM MT*, as 
 
 At HO 787's read the foot would have said 3:04 PM MT, while `/api/sync` had last run at 6:00 PM MT and the summarizer at 7:50 PM MT. A quiet evening on Congress.gov makes the sync look hours stale when it isn't. For an as-of time, the honest phrase is *Congress.gov's updates through …*.
 
+HO 807 (Nov 2026): LAST SYNC now reads the sync's own `cron_runs` row, on every page and in `/welcome`'s foot: the start of the newest `/api/sync` run that isn't `error` or `orphaned` (`getCorpusStats`). On Nov 7 it read 11:00 AM MT where `MAX(update_date)` read 10:28 AM MT.
+
 ## Turbopack's `.next` holds a junction into `node_modules`, so a cold build's *remove `.next` first* is HO 737's hazard (HO 787, Oct 2026)
 
 HO 787's cold build, before its review push, began by removing `.next`. Listing it first found a junction, `.next\node_modules\@libsql\client-6da938047d5fc1cd` → `node_modules\@libsql\client`: a link Turbopack had made to an external package. A recursive `Remove-Item -Force` follows a junction out of the tree it was told to delete (HO 737's note, above), so removing `.next` that way would have emptied the main tree's `@libsql/client`, the database client, rather than a build output.
@@ -5012,3 +5014,9 @@ The backfill reads the title and calls a coin, a Medal of Honor or a memorial ce
 CT read FMP's free tier for trades from HO 70 and for the tape's indices from HO 227, five stocks joining at HO 289, and showed both on public pages: the dashboard tape, `/welcome`, `/trades` and the member pages. FMP's terms bar displaying its data publicly without its prior written approval, free plan or paid (§ 2.2, read 2026-10-16; backlog `:30`, HO 786), and its own guidance says a free site still needs a Data Display and Licensing Agreement. Nothing in the key's sign-up said so, and no gate here reads a vendor's terms. Calling the use educational changes nothing: that's a copyright idea, and this is a contract. HO 806 moved trades to CapitolStockWatch's open dataset, which CC BY 4.0 lets anyone show with credit, a link to the licence and a note of changes, and dropped the seven symbols.
 
 **The rule:** before a page shows a source's data, read the source's terms for display, not just for access. A free key grants access.
+
+## One report, two clocks (HO 807, Nov 2026)
+
+The weekly report counted laws by action date and advances by observation date. A law CT recorded after its week landed in neither count, and still read as an advance. The dashboard's summary for the week of Oct 26, 2026 read *No laws were enacted and no hearings were held. 119-hr-952 advanced to enacted, while 119-hr-8205 and 119-hr-1744 advanced to president.* `reports.laws_count` counted `stage = 'enacted'` by `latest_action_date` in the week (`lib/report-generation.ts`), and 119-hr-952's last action was Oct 22, the week before. The summary's advances come from `stage_transitions` by `observed_at`, and CT recorded the move on Oct 27. Each count was right on its own clock, and the two sat in one sentence. HO 807 counts a law in its week by either clock (`lib/enacted-in-week.ts`), for the report and the summary's list alike. Reports already written keep their text: a report records what CT knew when it ran.
+
+**The rule:** two counts that sit side by side read one clock, or both clocks.

@@ -9187,3 +9187,43 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - three SKILL lines rewritten outside the list (`:82`, `:83`, `:1341`) and `getMemberTrades`' tag comment.
 - **Owed at the FF:** § 5 and its reads, then `:30` strikes in the next docs commit.
 - **Also notes now run through HO 806.**
+
+**Also (HO 807), the GradShow fixes: seven things a judge would hit on prod, from the chat's Nov 7 sweep, plus three ride-alongs from HO 806's review.** Built on `807-review` from `3acf351` in eleven commits; prod was read by `SELECT` only, and § 11, the FEC refresh, runs on the FF go.
+- **HO 806's FF go, as taken:**
+  - `main` at `3acf351`: six commits, no force, `806-review` deleted on both sides.
+  - The gates: the cold build on Node 25.5.0 exit 0, 16 of 16 pages, 0 warnings, the route table unchanged; `typecheck` 0; both checks OK; the hash audit 0 secret hits in 56 files.
+  - The push `3e47616..3acf351` at 3:03:28 PM MST Nov 7 (22:03:28Z).
+  - Production record `7627683110`, `success` at 3:04:13 PM MST, deployment `dpl_3tDWKUy8FPAaE91JJvhDFivZf9g8` (Node 24.x). `verify:deploy` read `3acf351` on 5 consecutive reads; CI `42418785774` passed on Node 20.20.2; `e2e-prod` `42418841691` passed, smoke 141.
+  - § 5, 3:09:49 to 3:09:51 PM MST, every bar met. FMP's 2,783 trades and the seven symbols' 16,737 ticks were deleted, with DOW's 23 (ruling 1, Jun 10 00:00Z) and GOLD's 8; `sync:trades` inserted 4,950 `csw:` rows, and the flush answered 200. The reads after: 0 FMP-shaped rows, NULL `bioguide_id` 0, and 0 FMP tokens on `/` and on `/welcome` (ruling 2's upper case). The box's four FMP copies were deleted.
+- **The chat's ruling for claim 3:** a tick that hadn't landed when claim 3 came up is recorded as such, and read before the review push, with its HALTs applying then.
+- **STEP 0, a check: claims 1 to 12 hold, none a HALT** (Nov 7, 3:58 to 4:15 PM MST, and claim 3 at 5:03 PM). Recorded:
+  - claim 5's diagnostic read 474 members, 6 with no raceId (the five two-year delegates and Puerto Rico's resident commissioner, whose row reads 2026), 0 with no `races` row and 0 mismatches;
+  - LAST SYNC's two readings differ: 11:00 AM MT against 10:28 AM MT;
+  - TOP STALLS' set is 891 (652 House, 239 Senate), 731 ms cold;
+  - the Oct 26 week holds `119-hr-952` alone, the two stamps differing on 0 of 49;
+  - the strip descriptions are 83.1 and 75.4 px at 375;
+  - FEC's key resolves to `FEC_API_KEY`, differing from Congress's, and 527 members would refresh;
+  - `lib/matchMember.ts` has 2 marks;
+  - the tick, #31428, ended `success` with `fetched` 4,950, `inserted` 0, `matched` 4,950, `error_message` null.
+- **§ 1 (`fix`):** past this year's election day the member hub's cell reads `{year} ELECTION` and the seat's race in the race page's words, the incumbent's tag or the result's qualifier with the race's header, or the header alone. There's no cell without a `races` row.
+- **§ 2 (`fix`):** a `<wbr />` after the masthead's root and after each separator.
+- **§ 3 (`fix`):** LAST SYNC reads the newest `/api/sync` run that isn't `error` or `orphaned`, and phones print SYNC.
+- **§ 4 (`fix`):** TOP STALLS' badge reads `getStaleBillsCount`, the stale set.
+- **§ 5 (`fix`):** `lib/enacted-in-week.ts` counts a week's laws on both clocks, for the report's `laws_count` and the summary's list.
+- **§ 6 (`fix`):** below 700, each `/members` strip head's description takes its own line.
+- **§ 7 (`chore`):** the matcher's two marks became the escape; cron-health's two comments were rewritten (the POLY-SHUTDOWN reason; 54 rows a day, 8,267 in all).
+- **§ 8 (`test`):** the narrow spec's first-label check, and the feed-tabs test's badge against its rows.
+- **The claim 5 diagnostic** lands alone as a `diag` commit; the handoff named the file and listed no commit for it.
+- **The legs** ran on a local `next start` against prod's database, the befores on `3acf351`'s build:
+  - **A:** 23 of 23 after-election-day hubs match their race page's word and header in the served HTML. King (2030) reads as before, and Norton has no cell (`data-cells` 2, 3 before).
+  - **B:** `119TH` reads 1 rect at 375, 390 and 430 on four pages (2 before).
+  - **C:** *LAST SYNC 11:00 AM MT* on `/`, `/bills` and `/welcome` (10:28 before), and *SYNC* at 375.
+  - **D:** badges 891, 652 and 239 over 60 rows ((5) before).
+  - **E:** `119-hr-952` in `readEnactedInWeek` and in the payload's `enacted`, where the old query reads none.
+  - **F:** the descriptions sit on their own line at full width at 375 and 390, and the boxes at 1440 match the base.
+  - **G:** 0 marks; 124 of 124 filers, 0 placed differently; `market_ticks` 8,267 rows, 54.0 a day.
+- **The gates:** the tree's cold build on Node 25.5.0 exit 0, 16 of 16 pages, 0 warnings, the route table unchanged; `typecheck` 0; both checks OK; narrow 40 of 40 at 430 and at 390; smoke 46 of 47, the miss the `@nonci` markets hover that `e2e-prod` skips.
+- **Docs:** backlog `:15` gains its dated note, `:28` and `:30` strike, and the FEC refresh line follows `:32`; reconcile 270 / 383 on 653 → 269 / 385 on 654. Oddities gain a line and one entry; SKILL is alone and last.
+- **Flagged in the paste:** the sixth null raceId; the diag commit; the FEC log's masked key; the `:168` → `:169` shift in the new backlog line; SKILL's absent `sync:fec` entry and its ride-alongs; the smoke miss.
+- **Owed at the FF:** the push, `verify:deploy`, CI and `e2e-prod`; prod reads of Collins's hub, TOP STALLS on `/` (`:15` strikes after) and LAST SYNC beside `cron_runs`; then § 11.
+- **Also notes now run through HO 807.**
