@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BillRowList } from "@/components/BillRowList";
 import { HeaderBar } from "@/components/HeaderBar";
+import { IncumbentTag } from "@/components/IncumbentTag";
 import { MemberFundraisingLine } from "@/components/MemberFundraisingLine";
 import { MemberHeader } from "@/components/MemberHeader";
 import { MemberIdeology } from "@/components/MemberIdeology";
@@ -12,8 +13,10 @@ import { RecordTabs, type RecordTab } from "@/components/RecordTabs";
 import { SourcesLine } from "@/components/SourcesLine";
 import { StageLegend } from "@/components/StageLegend";
 import { TradeRow } from "@/components/TradeRow";
+import { clockNowMs } from "@/lib/clock";
 import { currentCongressLabel, getCurrentCongress, ordinal } from "@/lib/congress";
-import { daysUntil, formatDateShort } from "@/lib/format";
+import { daysToElection, daysUntil, formatDateShort } from "@/lib/format";
+import { incumbentTagAt } from "@/lib/incumbent-tag";
 import {
   getMember,
   getMemberAffiliations,
@@ -33,12 +36,16 @@ import {
   type MemberCommitteeRow,
   getPalestinePools,
   getPalestineScorecard,
+  getIncumbentQualifiers,
   getPrimaryForRace,
+  getRace,
   getRaceRatings,
+  getRaceResult,
   getWatchedBillIds,
 } from "@/lib/queries";
 import { palestineTrackerHref } from "@/lib/palestine-config";
 import { raceIdFromMember } from "@/lib/race-id";
+import { raceResultView } from "@/lib/race-result";
 import { ratingColor } from "@/lib/race-colors";
 import { CAPITOLSTOCKWATCH_URL, CC_BY_4_URL } from "@/lib/source-links";
 
@@ -154,8 +161,9 @@ export default async function MemberPage({
   const { bioguideId } = await params;
   // HO 490: one page-computed clock threaded to the sponsored-bills feed rows
   // and the race-news rows so relative-age buckets match across SSR/hydration
-  // (#418). See lib/format.ts.
-  const nowMs = Date.now();
+  // (#418). See lib/format.ts. HO 807: it is lib/clock.ts's now (the page is
+  // force-dynamic), which the election cell's after-election-day branch reads too.
+  const nowMs = clockNowMs();
 
   const [
     member,
@@ -227,6 +235,23 @@ export default async function MemberPage({
     : null;
   const ratings = raceId ? await getRaceRatings(raceId) : [];
   const headerRating = ratings[0] ?? null;
+
+  // HO 807: past this year's election day the election cell reads the seat's
+  // race in the race page's words. Its three reads run only on that branch.
+  const currentYear = new Date(nowMs).getUTCFullYear();
+  const electionYear = member?.nextElectionYear ?? null;
+  const afterElectionDay =
+    electionYear !== null &&
+    electionYear === currentYear &&
+    daysToElection(electionYear, nowMs) < 0;
+  const [seatRace, seatReading, seatQualifiers] =
+    afterElectionDay && raceId
+      ? await Promise.all([
+          getRace(raceId),
+          getRaceResult(raceId),
+          getIncumbentQualifiers(electionYear),
+        ])
+      : [null, null, null];
 
   // The member's 2026 state primary (handoff 91). Only D/R members resolve a row —
   // independents don't run in a party primary (Kiley, party='I', gets no chip; correct
@@ -326,14 +351,80 @@ export default async function MemberPage({
                 </div>
               </div>,
             ];
-            if (member.nextElectionYear != null) {
+            if (member.nextElectionYear != null && afterElectionDay) {
+              // HO 807: this year, past election day, the cell reads the seat's
+              // race in the race page's words (RaceHubBody's merge, in its order):
+              // the incumbent's tag, else the result's qualifier, shown only when
+              // the race's stored incumbent is this member; with neither, the
+              // race's header. No raceId or no races row (the delegates): no cell.
+              if (raceId && seatRace && seatReading) {
+                const view = raceResultView(
+                  seatReading,
+                  member.nextElectionYear,
+                  nowMs,
+                );
+                const isIncumbent =
+                  seatRace.incumbent_bioguide_id === member.bioguideId;
+                const tag = isIncumbent
+                  ? incumbentTagAt(
+                      seatQualifiers?.[raceId] ?? null,
+                      member.nextElectionYear,
+                      nowMs,
+                    )
+                  : null;
+                const qualifier = isIncumbent && !tag ? view.qualifier : null;
+                const raceHeader = view.header ? (
+                  <Link
+                    href={`/race/${raceId}`}
+                    className="transition hover:text-[var(--accent-amber-bright)]"
+                  >
+                    {view.header}
+                  </Link>
+                ) : null;
+                band3.push(
+                  <div key="election">
+                    <div className="mhp-mlabel">
+                      {member.nextElectionYear} election
+                    </div>
+                    {tag || qualifier ? (
+                      <>
+                        <div className="mhp-mval mono">
+                          {tag ? (
+                            <IncumbentTag q={tag} />
+                          ) : (
+                            <span
+                              className="uppercase"
+                              style={{
+                                color:
+                                  qualifier === "re-elected"
+                                    ? "var(--result-elected)"
+                                    : "var(--text-secondary)",
+                              }}
+                              data-incumbent-qualifier
+                            >
+                              {qualifier}
+                            </span>
+                          )}
+                        </div>
+                        {raceHeader ? (
+                          <div className="mhp-msub">{raceHeader}</div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="mhp-mval mono">{raceHeader ?? "—"}</div>
+                    )}
+                  </div>,
+                );
+              }
+            } else if (member.nextElectionYear != null) {
               // Absorbs MemberHeader's former election-chip branch (HO 509
               // follow-up): a future year links to the seat's race when a
               // raceId resolves, a past year reads "Former member" (the old
               // cell rendered a stale "Next election 2024" here — a real bug),
               // and the primary sub-line stays on the future branch only.
-              const isFutureElection =
-                member.nextElectionYear >= new Date().getFullYear();
+              // HO 807: the year is compared on lib/clock.ts's now, in UTC, and
+              // this year past its election day takes the branch above.
+              const isFutureElection = member.nextElectionYear >= currentYear;
               const electionValue = (
                 <>
                   {member.nextElectionYear}
