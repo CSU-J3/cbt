@@ -39,15 +39,25 @@ export function BreadcrumbMasthead({
       >
         Congressional Terminal<span className="prompt-accent">{":\\"}</span>
       </Link>
+      {/* HO 807: a break opportunity after the root and after each separator.
+          The root is `nowrap` and nothing between `:\`, a `\` and a label could
+          break, so on a phone the path's `overflow-wrap: anywhere` cut the first
+          label (`119T / H`). With these, the path wraps at a separator and a
+          label stays whole. The `<wbr />` after the root sits outside the link,
+          since the link is `nowrap`. */}
+      <wbr />
       {parts.map((seg, i) => (
         <span key={`${i}-${seg}`}>
           {/* True PowerShell spacing: a bare `\` separator, no surrounding
               spaces. The first segment (119TH) needs none — the root's `:\`
               already ends in a backslash, so it reads `:\119TH`. */}
           {i === 0 ? null : (
-            <span className="prompt-accent" aria-hidden>
-              {"\\"}
-            </span>
+            <>
+              <span className="prompt-accent" aria-hidden>
+                {"\\"}
+              </span>
+              <wbr />
+            </>
           )}
           <span className="breadcrumb-seg-label">{seg}</span>
         </span>
