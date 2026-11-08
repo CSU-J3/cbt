@@ -196,12 +196,23 @@ function OddsItem({
 }
 
 // A CSS-only marquee loops by translating the track -50%, which is seamless ONLY
-// while each half is at least as wide as the strip. MARKETS carries 11 symbols and
-// clears that on its own; ODDS carries 4 pairs (~900px), so a single copy per half
-// leaves a visible dead gap on a wide screen. The live client tape solves this by
-// MEASURING and setting a repeat count in JS; a server-rendered strip cannot
-// measure, so it overshoots — three copies per half, ~2,700px, past any desktop.
-const ODDS_COPIES_PER_HALF = 3;
+// while each half is at least as wide as the strip. The live client tape solves
+// this by MEASURING and setting a repeat count in JS; a server-rendered strip
+// can't measure, so each half repeats its items until it holds a floor of them:
+// copies = ceil(MIN_ITEMS_PER_HALF / items). A fixed count of copies fills the
+// strip only while the roster keeps its size, and a roster can shrink. MARKETS
+// rendered its 11 symbols once a half until HO 806 cut them to 4, and then a half
+// measured 794 px against a 1,116 px strip at 1440 (prod, Nov 7, 2026). Each strip
+// keeps the pace both ran before HO 806, about 5.8 s an item (MARKETS 64 s for 11,
+// ODDS 52 s for 9), so a half's --tdur is its item count × SECONDS_PER_ITEM.
+const MIN_ITEMS_PER_HALF = 14;
+const SECONDS_PER_ITEM = 5.8;
+
+// One half's copies of a roster of `count` items, and the loop's --tdur.
+function loopOf(count: number): { copies: number; tdur: string } {
+  const copies = Math.ceil(MIN_ITEMS_PER_HALF / Math.max(1, count));
+  return { copies, tdur: `${+(copies * count * SECONDS_PER_ITEM).toFixed(1)}s` };
+}
 
 function latestTickedAt(ticks: MarketTick[]): string | null {
   let best: string | null = null;
@@ -262,6 +273,8 @@ export default async function WelcomePage() {
     ).toUpperCase();
     return [{ key: p.primary, label, kalshi, poly, paired: p.secondary !== undefined }];
   });
+  const marketsLoop = loopOf(marketTicks.length);
+  const oddsLoop = loopOf(oddsItems.length);
 
   // Market state comes from the DATA + the shared NYSE calendar (lib/market-hours,
   // the same helper the live tape's wash reads), never from a constant. ODDS is a
@@ -356,14 +369,18 @@ export default async function WelcomePage() {
             {marketTicks.length > 0 ? (
               <span
                 className={styles.tapetrack}
-                style={{ ["--tdur" as string]: "64s" }}
+                style={{ ["--tdur" as string]: marketsLoop.tdur }}
               >
-                {/* Duplicated EXACTLY twice — the -50% loop depends on it. */}
-                {[0, 1].map((run) => (
-                  <span key={run} className={styles.taperun}>
-                    {marketTicks.map((t) => (
-                      <MarketsItem key={`${run}-${t.symbol}`} tick={t} />
-                    ))}
+                {/* Two halves EXACTLY: the -50% loop depends on it. Each repeats
+                    the roster to a floor of items, because this strip can't
+                    measure and a roster can shrink, as HO 806's did (11 to 4). */}
+                {[0, 1].map((half) => (
+                  <span key={half} className={styles.taperun}>
+                    {Array.from({ length: marketsLoop.copies }, (_, copy) =>
+                      marketTicks.map((t) => (
+                        <MarketsItem key={`${half}-${copy}-${t.symbol}`} tick={t} />
+                      )),
+                    )}
                   </span>
                 ))}
               </span>
@@ -399,11 +416,11 @@ export default async function WelcomePage() {
             {oddsItems.length > 0 ? (
               <span
                 className={`${styles.tapetrack} ${styles.rtl}`}
-                style={{ ["--tdur" as string]: "52s" }}
+                style={{ ["--tdur" as string]: oddsLoop.tdur }}
               >
                 {[0, 1].map((half) => (
                   <span key={half} className={styles.taperun}>
-                    {Array.from({ length: ODDS_COPIES_PER_HALF }, (_, copy) =>
+                    {Array.from({ length: oddsLoop.copies }, (_, copy) =>
                       oddsItems.map((o) => (
                         <OddsItem
                           key={`${half}-${copy}-${o.key}`}
