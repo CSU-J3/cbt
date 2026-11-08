@@ -29,14 +29,13 @@ import {
   getNewBillsThisWeekCount,
   getStageChangesCount,
   getStageDistribution,
+  getStaleBillsCount,
   getTopicDistribution,
   sanitizeChamber,
   sanitizeStage,
   sanitizeTopic,
 } from "@/lib/queries";
 import { topicColor, topicFullLabel, topicLabel } from "@/lib/topic-colors";
-
-const TOP_STALLS_COUNT = 5;
 
 // Dynamic render: the dashboard reads live DB aggregates AND awaits searchParams
 // for the distributions click-to-filter (below), both of which opt the route out
@@ -135,6 +134,7 @@ export default async function DashboardPage({
     breakingCount,
     activityCount,
     newBillsCount,
+    stallsCount,
     absent,
   ] = await Promise.all([
     getCorpusStats(true),
@@ -144,6 +144,9 @@ export default async function DashboardPage({
     getBreakingNewsForHomeCount({ hours: 72, minConfidence: 0.7, filters }),
     getStageChangesCount({ chamber }, 7, filters),
     getNewBillsThisWeekCount(chamber),
+    // HO 807: the TOP STALLS badge counts the stale set (it read the constant 5,
+    // the row cap before HO 627 raised the tab's ROW_LIMIT to 60).
+    getStaleBillsCount(chamber),
     getAbsenceWatch(),
   ]);
 
@@ -283,7 +286,7 @@ export default async function DashboardPage({
               // byte-identical when no chamber is set, so the unfiltered badge is
               // unchanged. Same reasoning as ActivityTicker's footer count.
               activityCount={activityCount.filtered}
-              stallsCount={TOP_STALLS_COUNT}
+              stallsCount={stallsCount}
               newCount={newBillsCount}
               filterSlot={
                 <span className="feed-chamber" aria-label="Chamber">

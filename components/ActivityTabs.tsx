@@ -10,6 +10,9 @@ import { type ReactNode, useState } from "react";
 // Tab counts: MOVERS shows total stage changes (last 7d), TOP
 // STALLS shows the row cap (5). Both fed in from page.tsx so the
 // client island stays free of data fetches.
+// HO 807: TOP STALLS' count is now the stale set's size
+// (getStaleBillsCount), not the row cap, which HO 627 raised to 60
+// while the badge kept reading 5.
 //
 // HO 232 (design item 5, absorbed in place): the left tab was renamed
 // ACTIVITY → MOVERS. The tab already ran the /changes stage-transition

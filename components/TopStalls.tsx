@@ -28,6 +28,9 @@ import { type Chamber, getStaleBills } from "@/lib/queries";
 // the tab simply stays short until the corpus produces more. That is the honest
 // behaviour, and it is why this tab carries no [+N MORE] arithmetic. No variant
 // split — see the ActivityTicker note.
+// HO 807: the set had grown to 891 rows by Nov 7, 2026, so the tab renders its
+// 60-row ceiling, and the badge (getStaleBillsCount) reads the whole set; the
+// [ View all stale → ] foot reaches the rest.
 const ROW_LIMIT = 60;
 
 export async function TopStalls({

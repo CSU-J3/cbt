@@ -7270,6 +7270,25 @@ export type FeedCount = {
   filtered: number;
 };
 
+// HO 807: the TOP STALLS badge's count, the set getStaleBills draws its rows
+// from, so the badge reads the set the way MOVERS and NEW THIS WEEK read theirs
+// (the tab still renders up to its 60-row ceiling). It takes the chamber only,
+// so the hint is always the one getStaleBills takes with no stage.
+export const getStaleBillsCount = unstable_cache(
+  async (chamber?: Chamber): Promise<number> => {
+    const db = getDb();
+    const { clauses, args } = buildStaleWhere({ chamber });
+    const rs = await db.execute({
+      sql: `SELECT COUNT(*) AS n FROM bills INDEXED BY idx_bills_summary_stage
+            WHERE ${clauses.join(" AND ")}`,
+      args,
+    });
+    return Number(rs.rows[0]?.n ?? 0);
+  },
+  ["getStaleBillsCount"],
+  { revalidate: 3600, tags: ["bills"] },
+);
+
 export const getStaleBills = unstable_cache(
   async (filters: FeedFilters, limit = 50): Promise<FeedBill[]> => {
     const db = getDb();
