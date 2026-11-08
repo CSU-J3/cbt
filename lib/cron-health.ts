@@ -19,14 +19,15 @@
 // healthy-but-slow route; a general per-route data-freshness layer catches it
 // and is BANKED, not this HO.
 //
-// Markets is the ONE exception. Every bare run carries the POLY-SHUTDOWN
-// chronicErr, so its signal is `market_ticks` freshness — the literal "no
-// market_ticks write in N hours" the backlog loop asked for — which backstops
-// the POLY-SHUTDOWN ghost (a chronic partial-failure `success` row): if ticks
-// keep landing it's healthy regardless of the chronicErr string; if they stop,
-// unhealthy regardless. A markets `error`/`orphaned` is still a hard failure.
-// Until HO 806 a second entry, `?source=fmp`, logged the same route string,
-// which was the first reason.
+// Markets is the ONE exception. Its signal is `market_ticks` freshness, the
+// literal "no market_ticks write in N hours" the backlog loop asked for: it reads
+// whether ticks landed, which a `success` row can't, since a run that fails a
+// symbol still logs `success`. If ticks keep landing it's healthy whatever the
+// row's error_message says; if they stop, unhealthy regardless. A markets
+// `error`/`orphaned` is still a hard failure. History: HO 477 chose it because
+// `?source=fmp` and the bare run logged one route string, which ended at HO 806;
+// from then the reason given was the POLY-SHUTDOWN chronicErr every bare run
+// carried (a symbol that never ticked), which ended at HO 808.
 import { getDb } from "@/lib/db";
 
 const MIN = 60_000;
@@ -46,9 +47,10 @@ export type CronRoute = {
   // window is generous (~9d MVP). Window-aware next-fire precision is banked.
   windowOnly?: boolean;
   // Freshness signal. Default "cron_runs" (success/timeout liveness). Markets
-  // uses "market_ticks" (MAX(ticked_at) age) because every bare run carries the
-  // POLY-SHUTDOWN chronicErr (the exception paragraph above). Until HO 806 its
-  // two Vercel crons also shared one route string, which was the first reason.
+  // uses "market_ticks" (MAX(ticked_at) age) because it reads whether ticks
+  // landed, which a `success` row can't (the exception paragraph above). The
+  // shared fmp route string that forced it ended at HO 806, and the
+  // POLY-SHUTDOWN chronicErr that kept it ended at HO 808.
   signal?: CronSignal;
 };
 
@@ -176,11 +178,12 @@ async function evalMarketTicksRoute(route: CronRoute, now: number): Promise<Cron
   // 8,267 in all, read for HO 807 after HO 806 deleted FMP's ticks) so an unfiltered
   // MAX(ticked_at) is cheap even without a ticked_at-only index. Plus the
   // status side: a markets error/orphaned is a hard failure even if ticks are
-  // fresh (a POLY-SHUTDOWN-ghost success is not — it stays status='success').
+  // fresh (a run that fails a symbol is not: it stays status='success', as the
+  // POLY-SHUTDOWN ghost's did until HO 808).
   const [ticksRes, lastRunRes] = await Promise.all([
     db.execute(`SELECT MAX(ticked_at) AS latest FROM market_ticks`),
     db.execute({
-      sql: `SELECT started_at, status, error_message FROM cron_runs
+      sql: `SELECT started_at, status FROM cron_runs
             WHERE route = ? ORDER BY started_at DESC LIMIT 1`,
       args: [route.path],
     }),
@@ -202,13 +205,7 @@ async function evalMarketTicksRoute(route: CronRoute, now: number): Promise<Cron
     note = freshAt
       ? `no market_ticks write in ${ageHours(ageMs)} (> ${ageHours(route.maxStaleMs)})`
       : `market_ticks empty`;
-  else {
-    const ghost =
-      lastStatus === "success" &&
-      typeof lastRun?.error_message === "string" &&
-      lastRun.error_message.includes("POLY-SHUTDOWN");
-    note = `market_ticks ${ageHours(ageMs)} fresh${ghost ? " (POLY-SHUTDOWN ghost, ignored)" : ""}`;
-  }
+  else note = `market_ticks ${ageHours(ageMs)} fresh`;
 
   return {
     path: route.path,

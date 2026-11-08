@@ -70,8 +70,9 @@ export const metadata: Metadata = {
 // the full unification with components/MarketsTape (which owns the shared live
 // island and its hover portal on `/`) is filed in the backlog, not taken here.
 const MARKETS_ROSTER = MARKET_SYMBOLS.filter((s) => s.source === "fred");
-const ODDS_PAIRS: { primary: string; secondary: string }[] = [
-  { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN" },
+const ODDS_PAIRS: { primary: string; secondary?: string }[] = [
+  // HO 808: SHUTDOWN is Kalshi's alone; no liquid Polymarket market asks it.
+  { primary: "SHUTDOWN" },
   // HO 681: one Fed-cut horizon. A September-pinned pair sat here from HO 670
   // until the roller reached September and the two resolved one event. Note this
   // strip labels from `MARKET_SYMBOLS[].label` and does NOT use `showMonth`, so
@@ -157,14 +158,18 @@ function MarketsItem({ tick }: { tick: MarketTick }) {
 // The two halves are INDEPENDENT readings, never blended into one number: K is
 // Kalshi, P is Polymarket, and a missing half renders N/A rather than hiding the
 // pair (which would silently imply the question isn't being priced at all).
+// HO 808: that rule is for a pair. An item with no Polymarket market (SHUTDOWN:
+// none liquid asks its question) shows K alone, with no P letter or slot.
 function OddsItem({
   label,
   kalshi,
   poly,
+  paired,
 }: {
   label: string;
   kalshi: MarketTick | undefined;
   poly: MarketTick | undefined;
+  paired: boolean;
 }) {
   return (
     <span className={styles.tapeitem}>
@@ -174,13 +179,18 @@ function OddsItem({
         <span className={styles.val}>{kalshi.price.toFixed(1)}%</span>
       ) : (
         <span className={styles.na}>N/A</span>
-      )}{" "}
-      <span className={styles.srcP}>P</span>{" "}
-      {poly ? (
-        <span className={styles.val}>{poly.price.toFixed(1)}%</span>
-      ) : (
-        <span className={styles.na}>N/A</span>
       )}
+      {paired ? (
+        <>
+          {" "}
+          <span className={styles.srcP}>P</span>{" "}
+          {poly ? (
+            <span className={styles.val}>{poly.price.toFixed(1)}%</span>
+          ) : (
+            <span className={styles.na}>N/A</span>
+          )}
+        </>
+      ) : null}
     </span>
   );
 }
@@ -245,12 +255,12 @@ export default async function WelcomePage() {
   });
   const oddsItems = ODDS_PAIRS.flatMap((p) => {
     const kalshi = bySymbol.get(p.primary);
-    const poly = bySymbol.get(p.secondary);
+    const poly = p.secondary ? bySymbol.get(p.secondary) : undefined;
     if (!kalshi && !poly) return [];
     const label = (
       MARKET_SYMBOLS.find((s) => s.internal === p.primary)?.label ?? p.primary
     ).toUpperCase();
-    return [{ key: p.primary, label, kalshi, poly }];
+    return [{ key: p.primary, label, kalshi, poly, paired: p.secondary !== undefined }];
   });
 
   // Market state comes from the DATA + the shared NYSE calendar (lib/market-hours,
@@ -400,6 +410,7 @@ export default async function WelcomePage() {
                           label={o.label}
                           kalshi={o.kalshi}
                           poly={o.poly}
+                          paired={o.paired}
                         />
                       )),
                     )}

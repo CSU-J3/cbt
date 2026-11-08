@@ -265,7 +265,7 @@ function monthAbbrUpper(iso: string): string {
 // resolution month (FED CUT → "FED CUT JUL").
 export type TapePair = {
   primary: string;
-  secondary: string;
+  secondary?: string;
   label: string;
   showMonth?: boolean;
 };
@@ -281,6 +281,10 @@ type HoverHandler = (node: ReactNode, el: HTMLElement | null) => void;
 // single-source. Reuses the .markets-tape-price slot (fixed-width, tabular-nums)
 // so a daily value change can't jump the marquee. The hover spells out both full
 // source names, each value, and the resolve date.
+// HO 808: a pair with no `secondary` is Kalshi's alone, because no liquid
+// Polymarket market asks its question (SHUTDOWN). It renders the K group alone,
+// and its hover shows K and one line saying why. The N/A rule above holds for a
+// pair both venues price, where a Polymarket half misses a tick.
 function PairItem({
   pair,
   primary,
@@ -297,6 +301,7 @@ function PairItem({
   const month =
     pair.showMonth && primary ? monthAbbrUpper(primary.marketDate) : "";
   const display = month ? `${pair.label} ${month}` : pair.label;
+  const paired = pair.secondary !== undefined;
   const kVal = primary ? formatPrice(primary.price, primary.format) : "N/A";
   const pVal = secondary ? formatPrice(secondary.price, secondary.format) : "N/A";
   // HO 303: live numbers are white (--text-primary) to match the tape/hover
@@ -330,16 +335,23 @@ function PairItem({
           </span>
           <span className="markets-tape-detail-value">{kVal}</span>
         </span>
-        <span className="markets-tape-detail-odds-grp">
-          <span
-            className="markets-tape-detail-src"
-            style={{ color: "var(--poly)" }}
-          >
-            P
+        {paired ? (
+          <span className="markets-tape-detail-odds-grp">
+            <span
+              className="markets-tape-detail-src"
+              style={{ color: "var(--poly)" }}
+            >
+              P
+            </span>
+            <span className="markets-tape-detail-value">{pVal}</span>
           </span>
-          <span className="markets-tape-detail-value">{pVal}</span>
-        </span>
+        ) : null}
       </span>
+      {paired ? null : (
+        <span className="markets-tape-detail-note">
+          Kalshi only: no liquid Polymarket market asks this question.
+        </span>
+      )}
       {/* HO 374: the odds 1W delta (pts) + 7d spark draw from the KALSHI series
           only (the deeper venue, HO 251) — Polymarket stays the secondary figure
           number, never a second line. `primary` is the Kalshi tick. */}
@@ -375,15 +387,17 @@ function PairItem({
           {kVal}
         </span>
       </span>
-      <span className="markets-tape-pair-grp">
-        <SourceTag source="polymarket" />
-        <span
-          className="markets-tape-price"
-          style={{ minWidth: "5ch", color: valColor(!!secondary) }}
-        >
-          {pVal}
+      {paired ? (
+        <span className="markets-tape-pair-grp">
+          <SourceTag source="polymarket" />
+          <span
+            className="markets-tape-price"
+            style={{ minWidth: "5ch", color: valColor(!!secondary) }}
+          >
+            {pVal}
+          </span>
         </span>
-      </span>
+      ) : null}
     </span>
   );
 }
@@ -744,7 +758,9 @@ export function MarketsTapeClient({
   const [shuffledOrder, setShuffledOrder] = useState<string[] | null>(null);
   useEffect(() => {
     if (!scroll) return;
-    const secondary = new Set((pairs ?? []).map((p) => p.secondary));
+    const secondary = new Set(
+      (pairs ?? []).flatMap((p) => (p.secondary ? [p.secondary] : [])),
+    );
     const base = (placeholderSymbols ?? ticks.map((t) => t.symbol)).filter(
       (sym) => !secondary.has(sym),
     );
@@ -920,7 +936,9 @@ export function MarketsTapeClient({
   // fetch+poll but never drawn standalone — they render inside their primary's
   // PairItem. Drop them from the render order; map each primary to its pair.
   const pairByPrimary = new Map((pairs ?? []).map((p) => [p.primary, p]));
-  const secondarySet = new Set((pairs ?? []).map((p) => p.secondary));
+  const secondarySet = new Set(
+    (pairs ?? []).flatMap((p) => (p.secondary ? [p.secondary] : [])),
+  );
   // HO 376: post-mount the scrolling strips use the shuffled order; first paint
   // (and the static tape) use the stable source order. Same array drives both
   // duplicated marquee halves, so the seamless -50% wrap is preserved.
@@ -937,7 +955,7 @@ export function MarketsTapeClient({
           key={sym}
           pair={pair}
           primary={bySymbol.get(pair.primary)}
-          secondary={bySymbol.get(pair.secondary)}
+          secondary={pair.secondary ? bySymbol.get(pair.secondary) : undefined}
           stale={stripStale}
           onHover={handleHover}
         />

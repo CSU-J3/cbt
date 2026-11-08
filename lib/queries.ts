@@ -10431,7 +10431,8 @@ export type MarketTick = {
   // daily, percentage-POINTS for kalshi odds (the price is already a probability) —
   // or null when no 7d anchor within +2d tolerance exists (the <7d cohort). POLY-*
   // never carry a spark: the odds sparkline draws from the deeper Kalshi series
-  // (HO 251), so the empty Poly key (POLY-SHUTDOWN has zero rows) is a non-issue.
+  // (HO 251), so an empty Poly key was a non-issue (POLY-SHUTDOWN had zero rows
+  // until HO 808 dropped the symbol).
   spark: { t: number; p: number }[];
   delta1w: number | null;
 };
@@ -10482,7 +10483,8 @@ export const getLatestMarketTicks = unstable_cache(
     // nearest row at-or-before now−7d, accepted within the +2d tolerance — is
     // captured in the same scan; the sparkline itself uses only the ≤7d slice. POLY-*
     // are excluded: the odds sparkline draws from the deeper Kalshi series (HO 251),
-    // never the Polymarket half (POLY-SHUTDOWN has zero rows anyway).
+    // never the Polymarket half (POLY-SHUTDOWN had zero rows anyway, until HO 808
+    // dropped it).
     const sparkKeys = MARKET_SYMBOLS.filter((s) => s.source !== "polymarket").map(
       (s) => s.internal,
     );

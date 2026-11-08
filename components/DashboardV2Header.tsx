@@ -34,17 +34,18 @@ const MARKETS_TAPE = ["TNX", "WTI", "CPI", "UNEMP"];
 // Kalshi "K" symbol is paired with its Polymarket "P" half so both ticks flow to
 // the client and render as a dual-source item (`LABEL K x% P y%`); the POLY-*
 // entries are render-skipped (drawn inside the primary). Order = SHUTDOWN, FED
-// CUT, RECESSION. CPI/UNEMP moved to MARKETS above.
+// CUT, RECESSION. CPI/UNEMP moved to MARKETS above. HO 808: SHUTDOWN is Kalshi's
+// alone, since no liquid Polymarket market asks its question, so its pair has no
+// secondary and the item reads `SHUTDOWN K x%`.
 const ODDS_TAPE = [
   "SHUTDOWN",
-  "POLY-SHUTDOWN",
   "FEDCUT",
   "POLY-FEDCUT",
   "RECESSION",
   "POLY-RECESSION",
 ];
 const ODDS_PAIRS = [
-  { primary: "SHUTDOWN", secondary: "POLY-SHUTDOWN", label: "SHUTDOWN" },
+  { primary: "SHUTDOWN", label: "SHUTDOWN" },
   // ONE Fed-cut horizon (HO 681). `showMonth` stays ON and is doing MORE work
   // now, not less: with a single row it is no longer disambiguating a pair, it
   // is naming which meeting the roller currently sits on — the label reads

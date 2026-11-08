@@ -82,11 +82,21 @@
 // AAPL, MSFT, GOOGL, LMT), `fetchFmp` and the `?source=fmp` cron are gone, and
 // HO 806's FF deleted their `market_ticks` rows. The tape reads FRED, Kalshi
 // and Polymarket. The HO 227 and HO 251 notes above are history.
+//
+// HO 808, POLY-SHUTDOWN DROPPED. Polymarket runs no liquid market on Kalshi's
+// shutdown question. Its same-question market (`government-shutdown-by-…`) is
+// an untraded shell the macro floors refuse (HO 255), and its liquid shutdown
+// market (`another-us-government-shutdown-house-winner-2026`) asks a different
+// question, which the slug filter excluded. So the symbol never ticked, and
+// every markets run logged it as a fetch failure. On Corey's ruling, verbatim:
+// "Whatever the most accurate information that can be displayed." (Nov 7,
+// 2026), SHUTDOWN shows Kalshi's figure alone. FED CUT and RECESSION keep their
+// pairs, and an N/A for a Polymarket half that misses a tick. The HO 259 note
+// above is history for shutdown.
 import { KALSHI_BASE } from "@/lib/kalshi";
 import {
   fetchPolymarketFedCut,
   fetchPolymarketRecession,
-  fetchPolymarketShutdown,
 } from "@/lib/polymarket";
 
 export type MarketSource = "fred" | "kalshi" | "polymarket";
@@ -116,7 +126,7 @@ export type MarketSymbol = {
   // "cut-sum" = sum of the meeting's Cut* markets' yes-prices (FED CUT).
   kalshiKind?: "single-yes" | "cut-sum";
   // HO 259/290: which Polymarket macro market this symbol reads (source="polymarket").
-  polyKind?: "fed" | "shutdown" | "recession";
+  polyKind?: "fed" | "recession";
   // HO 302: pin a SPECIFIC Kalshi event (a Fed-meeting horizon) instead of the
   // series' soonest-open. e.g. "KXFEDDECISION-26SEP" for FED CUT SEP.
   //
@@ -177,7 +187,6 @@ export const MARKET_SYMBOLS: readonly MarketSymbol[] = [
   // kept off the bare tape on `/` + inner pages by source="polymarket"; that
   // filter went with the branch. remote is unused (discovery is by Gamma search
   // in fetchPolymarket*); polyKind selects which.
-  { internal: "POLY-SHUTDOWN", source: "polymarket", remote: "", polyKind: "shutdown", label: "Shutdown (Polymarket)", fullName: "Govt Shutdown Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   { internal: "POLY-FEDCUT", source: "polymarket", remote: "", polyKind: "fed", label: "Fed Cut (Polymarket)", fullName: "Fed Rate-Cut Odds — Polymarket", format: "percent", group: "commodities", cadence: "kalshi" },
   // RECORD (HO 681): POLY-FEDCUT-SEP lived here — the "P" half of FED CUT SEP,
   // pinned to the September meeting via polyMonth. It went with its K half: by
@@ -459,17 +468,18 @@ async function fetchKalshi(symbol: MarketSymbol): Promise<FetchedQuote> {
 }
 
 // HO 259: Polymarket macro quote. Reads only the one market this symbol needs
-// (fed or shutdown). A null result (no liquid same-question market — e.g. the
-// shutdown ghost) THROWS so processSymbol writes no tick → the tape's P slot reads
-// N/A, never a fabricated zero. A previously-good value persists (last tick stays)
-// and washes STALE after 26h if it goes dark — the same degrade as every symbol.
+// (fed or recession). A null result (no liquid same-question market, as the
+// shutdown shell was until HO 808) THROWS so processSymbol writes no tick → the
+// tape's P slot reads N/A, never a fabricated zero. A previously-good value
+// persists (last tick stays) and washes STALE after 26h if it goes dark — the
+// same degrade as every symbol. A symbol with no polyKind reads nothing.
 async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQuote> {
   const q =
     symbol.polyKind === "fed"
       ? await fetchPolymarketFedCut(symbol.polyMonth)
       : symbol.polyKind === "recession"
         ? await fetchPolymarketRecession()
-        : await fetchPolymarketShutdown();
+        : null;
   if (!q) {
     throw new FetchQuoteError(
       symbol.internal,
@@ -479,8 +489,8 @@ async function fetchPolymarketMacroQuote(symbol: MarketSymbol): Promise<FetchedQ
   return {
     price: q.pct,
     marketDate: q.resolveDate ?? new Date().toISOString().slice(0, 10),
-    // HO 681: only the fed path fills this (see PolymarketMacroQuote). Shutdown
-    // and recession pass it through as undefined and are not compared.
+    // HO 681: only the fed path fills this (see PolymarketMacroQuote). Recession
+    // passes it through as undefined and is not compared.
     resolvedId: q.resolvedId,
   };
 }

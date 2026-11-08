@@ -164,8 +164,9 @@ async function gammaGet<T>(url: string): Promise<T> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// HO 259: Polymarket macro signals (fed-cut + shutdown) for the v2 SIGNALS tape,
-// paired against the Kalshi macro ticks. One headline % each, normalized to the
+// HO 259: Polymarket macro signals (fed-cut, recession since HO 290, and shutdown
+// until HO 808 dropped it) for the v2 SIGNALS tape, paired against the Kalshi
+// macro ticks. One headline % each, normalized to the
 // SAME question Kalshi answers so the K/P pair is apples-to-apples (verified live
 // at wire time, not assumed — see the per-market notes below).
 export type PolymarketMacroQuote = {
@@ -178,10 +179,6 @@ export type PolymarketMacroQuote = {
   // The markets cron asserts uniqueness across the filled ones per run; symbols
   // that leave it undefined are simply not compared. See `fetchQuote`'s consumer.
   resolvedId?: string;
-};
-export type PolymarketMacro = {
-  fed: PolymarketMacroQuote | null;
-  shutdown: PolymarketMacroQuote | null;
 };
 
 // Macro markets demand a STRICTER ghost gate than the seats. The seat gate is an
@@ -269,32 +266,6 @@ export async function fetchPolymarketFedCut(
   };
 }
 
-// SHUTDOWN — P(government shutdown by the funding deadline), to MATCH Kalshi's
-// KXGOVTSHUTDOWN single-yes. Polymarket's same-question market
-// ("government-shutdown-by-{deadline}") is a single Yes/No binary. Pair ONLY when
-// it clears the macro ghost floors AND is that same question; the lone liquid
-// shutdown-adjacent market ("...house-winner...") asks a DIFFERENT question and is
-// excluded by the slug filter. Today the same-question market is a $39 ghost → this
-// returns null → the tape's P slot reads N/A (the designed fallback).
-export async function fetchPolymarketShutdown(): Promise<PolymarketMacroQuote | null> {
-  const events = await searchEvents("government shutdown");
-  const cands = events
-    .filter((e) => e.slug && /^government-shutdown-by-/.test(e.slug) && !e.closed)
-    .sort((a, b) => endMs(a) - endMs(b));
-  const ev = cands[0];
-  if (!ev) return null;
-  const volume = num(ev.volume);
-  const liquidity = num(ev.liquidity);
-  if ((volume ?? 0) < MACRO_MIN_VOLUME || (liquidity ?? 0) < MACRO_MIN_LIQUIDITY) {
-    return null; // ghost shell — degrade to N/A, never price off it
-  }
-  const m = (ev.markets ?? [])[0];
-  if (!m) return null;
-  const yes = marketYes(m);
-  if (yes === null) return null;
-  return { pct: yes * 100, resolveDate: ev.endDate?.slice(0, 10) ?? null };
-}
-
 // RECESSION — P(US recession by end of 2026), to pair with Kalshi's KXRECSSNBER-26
 // single-yes (HO 290). The same-question market is the fixed-slug
 // "us-recession-by-end-of-{year}" Yes/No binary (288 probe: vol ~$1.6M, liq ~$31k,
@@ -316,16 +287,6 @@ export async function fetchPolymarketRecession(): Promise<PolymarketMacroQuote |
   const yes = marketYes(m);
   if (yes === null) return null;
   return { pct: yes * 100, resolveDate: ev.endDate?.slice(0, 10) ?? null };
-}
-
-// Both macro signals, each non-fatal (a failure → null → N/A, never throws the
-// pair). Parallel — the two are independent markets.
-export async function fetchPolymarketMacro(): Promise<PolymarketMacro> {
-  const [fed, shutdown] = await Promise.all([
-    fetchPolymarketFedCut().catch(() => null),
-    fetchPolymarketShutdown().catch(() => null),
-  ]);
-  return { fed, shutdown };
 }
 
 // Scan all 35 Senate-2026 seats by slug and return the favored outcome for every
