@@ -9227,3 +9227,29 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Flagged in the paste:** the sixth null raceId; the diag commit; the FEC log's masked key; the `:168` → `:169` shift in the new backlog line; SKILL's absent `sync:fec` entry and its ride-alongs; the smoke miss.
 - **Owed at the FF:** the push, `verify:deploy`, CI and `e2e-prod`; prod reads of Collins's hub, TOP STALLS on `/` (`:15` strikes after) and LAST SYNC beside `cron_runs`; then § 11.
 - **Also notes now run through HO 807.**
+
+**Also (HO 808), SHUTDOWN reads Kalshi alone and `/welcome`'s marquees fill a wide screen: two GradShow fixes found after HO 807 was written, plus three ride-alongs from HO 807's FF go.** Built on `808-review` from `cdfda2f` in six commits; prod was read by `SELECT` only.
+- **HO 807's FF go, as taken:**
+  - `main` at `cdfda2f`: eleven commits, no force, `807-review` deleted on both sides.
+  - The gates: the cold build on Node 25.5.0 exit 0, 16 of 16 pages, 0 warnings, the route table unchanged; `typecheck` 0; both checks OK; reconcile 269 / 385 on 654; the hash audit 0 secret hits in 91 files.
+  - The push `3acf351..cdfda2f` at 5:27:29 PM MST Nov 7 (00:27:29Z).
+  - Production record `7629138254`, `success` at 5:28:22 PM MST. `verify:deploy` read `cdfda2f` on 5 consecutive reads; CI `42429830393` passed; `e2e-prod` `42429895186` passed, smoke 141, both new assertions among them.
+  - The prod reads, 5:30 PM, each met: Collins's hub reads *2026 ELECTION · DEFEATED* with the header linked to `/race/S-ME-2026`; TOP STALLS reads (891) over 60 rows once open, against 891 by `SELECT`; LAST SYNC reads 5:00 PM MT, the start of #31428.
+  - § 11: the planted control masked the line; `CBT FEC refresh` registered at 5:37:27 PM, hourly for 24 hours from 6:42 PM; the hand-started first run returned 0, 55 of 55 calls, 27 totals upserted, the log masked (`(len=` 0 times, the hash audit 0).
+- **The go's ride-alongs:** a, `logResolvedFecKey` prints the key's source and length; b, a backlog line for Puerto Rico's resident commissioner; c, `:15` strikes on the FF's read.
+- **STEP 0, a check: claims 1 to 5 hold, none a HALT** (Nov 7, 5:40 to 5:46 PM MST; the first attempt halted at claim 1 at 3:46 PM, before HO 807's FF). Recorded:
+  - `POLY-SHUTDOWN` 0 rows, against `POLY-FEDCUT` 829 and `POLY-RECESSION` 826;
+  - the newest markets run, #31426, names `POLY-SHUTDOWN` in its `error_message`;
+  - MARKETS' half 794.3, 859.8 and 990.3 px against masks of 1,130.8, 1,587.4 and 2,180.8 at 1440, 1920 and 2560; ODDS' (the control) 1,904.6, 2,069.3 and 2,397.9, each past its mask.
+- **§ 1 (`fix`):** SHUTDOWN reads Kalshi alone. `POLY-SHUTDOWN`, `fetchPolymarketShutdown` and the uncalled `fetchPolymarketMacro` are gone; a pair with no secondary renders K alone, with a hover line saying why; cron-health's ghost read went, and its comments keep the reason as history. No data change.
+- **§ 2 (`fix`):** `/welcome`'s strips repeat to a floor of 14 items a half at 5.8 s an item: MARKETS 16 over 92.8 s, ODDS 15 over 87 s.
+- **Ride-along a (`fix`):** `logResolvedFecKey` prints `FEC key source=… length=N`, and `maskApiKey` is gone. The planted 40-character control read `value=PLNT…TNLP (len=40)` before and `length=40` after, with no character of the plant.
+- **§ 3 (`test`):** three untagged smoke tests: SHUTDOWN's one group and FED CUT's two on `/`; no P on SHUTDOWN and one on FED CUT on `/welcome`; each half at least its strip at 1440 and 2560. All three fail on prod's `cdfda2f` (the red control) and pass on the local build.
+- **The legs** ran on a local `next start` against prod's database, the befores on `cdfda2f`'s build:
+  - **A:** SHUTDOWN reads *K 39.0%* alone on `/` (1 group, 2 before) and on `/welcome` (no P, *P N/A* before); FED CUT and RECESSION keep both; the hover carries the Kalshi-only line and FED CUT's (the control) doesn't; `MARKET_SYMBOLS` 9, no `POLY-SHUTDOWN`.
+  - **B:** halves of 3,177.4 and 2,977.8 px at 1440, 3,439.0 and 3,232.6 at 1920, 3,961.0 and 3,740.9 at 2560 (MARKETS, ODDS), each past its mask; the pace 34.2 to 43.0 px/s against ODDS' 36.6 to 46.1 before, about 7% under.
+- **The gates:** the cold build on Node 25.5.0 exit 0, 16 of 16 pages, 0 warnings, the route table unchanged; `typecheck` 0; both checks OK; smoke 49 of 50, the miss the `@nonci` markets hover that `e2e-prod` skips.
+- **Docs:** backlog `:15` and `:165` strike, and the resident commissioner's line follows the rollover checklist's block (`:247`); reconcile 269 / 385 on 654 → 268 / 387 on 655. Oddities gain a line and one entry; SKILL is alone and last.
+- **Flagged in the paste:** the markets signal's history (the shared fmp route string forced it at HO 477, the ghost was what it backstopped); `fit-finish`'s `/welcome` count (6, now 10; local-only, unnamed, unchanged); the stale BotID notes (`e2e-prod`'s runner saw the tape); the Kalshi-only line's existing class; comments beyond the named ones; the moved anchors, `:236` among them; SKILL's additions; the FEC task running this checkout; ride-along a's commit third.
+- **Owed at the FF:** the push, `verify:deploy`, CI and `e2e-prod`; prod reads of `/welcome`'s halves at 1440 and of the first markets run after the FF, whose `error_message` no longer names `POLY-SHUTDOWN`.
+- **Also notes now run through HO 808.**
