@@ -124,6 +124,9 @@ export async function DashboardV2Header({
             <p className="home-header-meta">
               ·{" "}
               <span className="show-desktop">LAST SYNC </span>
+              {/* HO 807: a phone prints SYNC, where `.show-desktop` drops the
+                  words (two unlabelled times before). */}
+              <span className="show-mobile">SYNC </span>
               <CyclingTimestamp iso={corpus.lastSync} />{" "}
               <WelcomeClock
                 className="masthead-clock"

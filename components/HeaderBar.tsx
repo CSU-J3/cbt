@@ -216,6 +216,9 @@ export async function HeaderBar({
       <p className="header-sync-sub">
         ·{" "}
         <span className="show-desktop">LAST SYNC </span>
+        {/* HO 807: below 700 `.show-desktop` drops the words, so a phone's
+            subhead printed two unlabelled times; it prints SYNC there. */}
+        <span className="show-mobile">SYNC </span>
         <CyclingTimestamp iso={corpus.lastSync} />{" "}
         {/* HO 697: WelcomeClock MOUNTED, not re-implemented — zone pinned MT by
             the HO 670 review ruling; see its header. Third render site. */}

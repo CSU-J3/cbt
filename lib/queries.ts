@@ -613,10 +613,21 @@ export const getStageDistribution = unstable_cache(
 
 export type CorpusStats = {
   total: number; // total non-ceremonial bills
-  lastSync: string | null; // ISO timestamp of most recent update_date
+  // HO 807: the ISO start of the newest /api/sync run that isn't `error` or
+  // `orphaned` (it was MAX(update_date), Congress.gov's clock on the newest
+  // bill it changed, not the time CT synced).
+  lastSync: string | null;
 };
 
 // Feeds the dashboard HeaderBar's "N bills tracked · last sync HH:MM MT" line.
+//
+// HO 807: `lastSync` is CT's own sync, read from cron_runs in the same batch as
+// the count. A `running` row counts: the route flushes `bills` mid-run
+// (app/api/sync/route.ts, after runSync and before the wrapper writes the row's
+// status), so the read that flush triggers sees this run as `running`, and
+// reading `success` alone would cache the previous run's time for up to an hour.
+// A `timeout` comes after the bills step, so it counts too. An `error` or
+// `orphaned` run isn't a sync.
 //
 // HO 253: `summaryGated` is the v2 corpus-count predicate. `/`'s HomeHeader calls
 // this with no arg (non-ceremonial, summary-or-not — the pre-existing dashboard
@@ -635,17 +646,24 @@ export const getCorpusStats = unstable_cache(
     // (is_ceremonial, update_date) WHERE summary IS NOT NULL → index-only COUNT+MAX
     // (6.9s → 34ms; EXPLAIN: SCAN USING INDEX). ONLY on the gated path — the
     // ungated `/` call has no `summary IS NOT NULL` clause, so the partial index
-    // is unusable there (would be "no query solution").
+    // is unusable there (would be "no query solution"). HO 807: MAX(update_date)
+    // left this statement (lastSync reads cron_runs), so the hint serves the
+    // COUNT alone.
     const fromHint = summaryGated ? " INDEXED BY idx_bills_summary_feed" : "";
-    const rs = await db.execute(
-      `SELECT COUNT(*) AS total, MAX(update_date) AS last_sync
-       FROM bills${fromHint}
-       WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)${summaryClause}`,
+    const [countRs, syncRs] = await db.batch(
+      [
+        `SELECT COUNT(*) AS total
+         FROM bills${fromHint}
+         WHERE (is_ceremonial = 0 OR is_ceremonial IS NULL)${summaryClause}`,
+        `SELECT started_at FROM cron_runs
+         WHERE route = '/api/sync' AND status NOT IN ('error', 'orphaned')
+         ORDER BY started_at DESC LIMIT 1`,
+      ],
+      "read",
     );
-    const r = rs.rows[0];
     return {
-      total: Number(r?.total ?? 0),
-      lastSync: (r?.last_sync as string | null) ?? null,
+      total: Number(countRs?.rows[0]?.total ?? 0),
+      lastSync: (syncRs?.rows[0]?.started_at as string | null | undefined) ?? null,
     };
   },
   ["getCorpusStats"],
