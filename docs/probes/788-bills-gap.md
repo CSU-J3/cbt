@@ -165,7 +165,7 @@ So the HO HALTed before writing, under method.md's *a failed claim, or a reading
 
 ## The repair, pass 1 (`--repair --allow p1`, label `r1`)
 
-**The guards, printed before the run:** the database host `cbt-csu-j3.aws-us-west-2.turso.io` (`TURSO_DATABASE_URL`, by name), the same host SKILL names as the DB primary; `runSync({ fromDateTime: 2025-01-03T00:00:00Z })`, the 119th Congress's first day; the last `/api/sync` tick 6:00 PM MT (00:00Z Oct 21), 85 minutes before, and the next at midnight MT (06:00Z), 275 minutes after.
+**The guards, printed before the run:** the database host (`TURSO_DATABASE_URL`, by name), the same host SKILL names as the DB primary; `runSync({ fromDateTime: 2025-01-03T00:00:00Z })`, the 119th Congress's first day; the last `/api/sync` tick 6:00 PM MT (00:00Z Oct 21), 85 minutes before, and the next at midnight MT (06:00Z), 275 minutes after.
 
 **The watermark, read immediately before the run** (7:25 PM MT, 01:25:13Z): `MAX(update_date)` **2026-10-20T22:49:19Z** (4:49 PM MT), so the frontier day is 2026-10-20. One tick had run since the census's snapshot: #26680 at 6:00 PM MT (00:00:10Z), `success`, `fromDateTime` 2026-10-20T17:49:25Z, `seen` 53, `upserted` 38, not budget-stopped.
 
