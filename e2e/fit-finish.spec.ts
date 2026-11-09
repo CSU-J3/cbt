@@ -616,13 +616,23 @@ test.describe("welcome /welcome", () => {
   // /welcome renders its OWN strip — bespoke markup in app/welcome/page.tsx,
   // NOT the shared MarketsTape client island — so it needs its own assertion
   // rather than riding the `/` one above. Two differences that matter:
-  // its copy count is a SERVER CONSTANT (2 halves x ODDS_COPIES_PER_HALF = 6,
-  // because a server-rendered strip cannot measure and so overshoots), and it
-  // labels from MARKET_SYMBOLS[].label rather than `showMonth`, so the string
-  // is "FED CUT ODDS" and never "FED CUT SEP".
+  // its copy count is a SERVER-SIDE FLOOR since HO 808 (a server-rendered
+  // strip cannot measure, so each half repeats the roster until it holds
+  // MIN_ITEMS_PER_HALF items: copies = ceil(MIN_ITEMS_PER_HALF / items), in
+  // app/welcome/page.tsx's loopOf), and it labels from MARKET_SYMBOLS[].label
+  // rather than `showMonth`, so the string is "FED CUT ODDS" and never
+  // "FED CUT SEP".
+  //
+  // So the test compares FED CUT with the pairs that are singular by
+  // construction, SHUTDOWN and RECESSION (each listed once in ODDS_PAIRS),
+  // rather than with a count: one of each a copy, however many copies the
+  // floor lays down, the way the `/` test checks FED CUT against SHUTDOWN.
+  // Two halves make the count even and at least 2. No constant.
   //
   // Reading at c84c02f (pre-change): 12 — six "FED CUT ODDS" and six
   // "FED CUT ODDS (SEP)", visually distinct while carrying identical numbers.
+  // HO 808's reading: 10, two halves of five copies, where this test pinned 6
+  // (2 halves x ODDS_COPIES_PER_HALF, 3, which HO 808 retired).
   test("/welcome ODDS strip carries ONE FED CUT per copy", async ({ page }) => {
     const c = attachCollectors(page);
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -636,15 +646,28 @@ test.describe("welcome /welcome", () => {
     await expect(oddsRow, "welcome ODDS row present").toBeVisible({ timeout: 10_000 });
 
     const rowText = (await oddsRow.innerText()).replace(/\s+/g, " ");
-    const count = rowText.split("FED CUT ODDS").length - 1;
+    const countOf = (label: string) => rowText.split(label).length - 1;
+    const fedCut = countOf("FED CUT ODDS");
+    const shutdown = countOf("SHUTDOWN ODDS");
+    const recession = countOf("RECESSION ODDS");
 
     // eslint-disable-next-line no-console
-    console.log(`[odds-one-fedcut] /welcome → "FED CUT ODDS" occurrences=${count}`);
+    console.log(
+      `[odds-one-fedcut] /welcome → "FED CUT ODDS"=${fedCut} "SHUTDOWN ODDS"=${shutdown} "RECESSION ODDS"=${recession}`,
+    );
 
+    // The copy count is a server-side floor since HO 808, so FED CUT is held
+    // to the pairs singular by construction, one of each a copy, not to a count.
     expect(
-      count,
-      "6 = 2 halves x ODDS_COPIES_PER_HALF (was 12 at c84c02f)",
-    ).toBe(6);
+      fedCut,
+      "one FED CUT per copy: as often as SHUTDOWN, singular by construction (the copy count is a server-side floor since HO 808, so no constant; 12 at c84c02f)",
+    ).toBe(shutdown);
+    expect(
+      fedCut,
+      "one FED CUT per copy: as often as RECESSION, singular by construction",
+    ).toBe(recession);
+    expect(fedCut, "two halves: at least one FED CUT in each").toBeGreaterThanOrEqual(2);
+    expect(fedCut % 2, `two halves: an even FED CUT count (read ${fedCut})`).toBe(0);
     // The pinned-September label must be gone outright, not merely deduped.
     expect(rowText, "no September-pinned label survives").not.toContain("(SEP)");
 
