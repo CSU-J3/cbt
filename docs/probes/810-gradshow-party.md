@@ -218,3 +218,55 @@ Predicate `congress = 119 AND bill_type IN ('hr','s','hjres','sjres') AND (is_ce
 ## The ledger
 
 One run, read-only: **810**, 9:49:04 to 9:49:09 AM MST (16:49:04 to 16:49:09Z), 32 statements (16 single, 16 in one read-only batch), **425,666 `rows_read`**, 34 results carrying the field, the fingerprint `4e94644350e1d992` before and after. The instrument as run is the committed blob (sha256 `304f0f6715f97f164ad30129c839a208bf78aca627c9974e47650a70c932ac69`). The run's inputs: `.env`'s `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name, and `docs/handoffs/799-artifacts/run-803.json` (repo-ignored), whose cube as-of, stored stages, calendar count, 139 laws and 13 hollow ids the instrument checked against its copied constants before reading prod.
+
+## The print reading, by HO 812 (as of 12:18:27 PM MST Nov 10, 19:18:27Z)
+
+> HO 812 § 3 ran `npx tsx scripts/diagnostic/gradshow-party-810.ts --label print`, read-only.
+> - **When and what:** 12:18:24 to 12:18:27 PM MST (19:18:24 to 19:18:27Z) at HEAD `64aad1d`. It took 32 statements (16 single, 16 in one read-only batch) and 425,798 `rows_read`; 34 results carried the field. The fingerprint read `4e94644350e1d992` before and after. **HALTs: none.**
+> - **After HO 812's one write:** `119-hr-1043` (P.L. 119-68, Gosar, R-AZ), set from `committee` to `enacted` at 12:15:56 PM MST, 19:15:56Z (`docs/probes/812-laws-vs-official.md`).
+> - **Freshness:** `/api/sync` last ran at 11:00:11 AM MST (#32118, 18:00:11Z, success); the record run's newest was 5:00:11 AM MST (#32055, 12:00:11Z).
+
+```
+REPUBLICANS: 8,588 BILLS · 108 LAWS · 1.26%
+DEMOCRATS: 8,001 BILLS · 19 LAWS · 0.24%
+INDEPENDENTS: 93 BILLS · 0 LAWS · 0.00%
+NOV 10, 2026, 12:18 PM MT
+```
+
+- **The three lines sum** to 16,682 bills and 127 laws.
+- **The dome's 126 doesn't hold: it reads 127.** The +1 is `119-hr-1043`, the hand-set law.
+  - It carries no stamp, so C2 lists no law observed since Nov 5.
+  - The verdict line ends on an empty list ("(+1): "), since its vocabulary has no hand-set row.
+  - The reconciliation carries the case: 140 law-eligible laws observed by Nov 5's as-of or never stamped (Nov 5: 139), 127 of them not hollow on Nov 5 (the printed 126).
+- **Against the record run (9:49 AM):**
+  - R: +1 bill and +1 law (8,587 · 107 → 8,588 · 108);
+  - D: +4 bills (7,997 → 8,001);
+  - I: unchanged.
+  - The five more bills all started in the House (R +1, D +4), and the 11:00 AM sync ran between the two reads.
+- **At `president`:** 3, all R-sponsored and House-started (2 at 9:49 AM).
+- **The rest reads as at 9:49 AM:**
+  - A: R, D and I only, with NULL and empty 0 of 16,682;
+  - B3: the same one bill, `119-sjres-82`;
+  - B4: no law's `sponsor_party` differs from `members.party`, 127 of 127.
+
+B2, the chamber a bill started in (same predicate, same as-of):
+
+| Party | House bills | House laws | House rate | Senate bills | Senate laws | Senate rate |
+|---|---:|---:|---:|---:|---:|---:|
+| R | 5,711 | 66 | 1.16% | 2,877 | 42 | 1.46% |
+| D | 5,175 | 14 | 0.27% | 2,826 | 5 | 0.18% |
+| I | 3 | 0 | 0.00% | 90 | 0 | 0.00% |
+
+C1, the dome against Nov 5, the handoff's way (calendar placements at `floor` counted as committee):
+
+| Stage | Nov 5 | Now | Δ |
+|---|---:|---:|---:|
+| introduced | 105 | 105 | 0 |
+| committee | 15,622 | 15,637 | +15 |
+| floor | 246 | 245 | −1 |
+| other_chamber | 565 | 565 | 0 |
+| president | 0 | 3 | +3 |
+| enacted | 126 | **127** | **+1** |
+| total | 16,664 | 16,682 | +18 |
+
+The law-eligible ceremonial rows read 404 (Nov 5: 405), and the law-eligible rows at any tag 17,086 (17,069).

@@ -418,3 +418,53 @@ Pew doesn't publish its list, so this is a count beside a count, not a match of 
 Two runs, both read-only, both with the schema fingerprint `4e94644350e1d992` before and after: r1 12:09:28 to 12:09:33 PM MST (19:09:28 to 19:09:33Z), 21 statements, 269,126 `rows_read`; **r2 12:24:16 to 12:24:21 PM MST (19:24:16 to 19:24:21Z), 24 statements, 303,523 `rows_read`**, the record. 572,649 in all, about 0.02% of the plan's 2.5B a month (HO 602); every statement's pipeline result carried the field. The run's inputs: `.env`'s `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name; nothing else.
 
 **Monday Nov 9, before the poster prints:** `npx tsx scripts/diagnostic/gradshow-ceremonial-799.ts --label print` once more, read-only; its as-of pasted to the chat and to the poster chat; no commit unless a figure the poster carries has moved (the backlog line).
+
+## The print reading, by HO 812 (as of 12:18:22 PM MST Nov 10, 19:18:22Z)
+
+> **Backlog `:86`'s run,** a day after the Monday it was dated for. HO 812 § 3 ran `npx tsx scripts/diagnostic/gradshow-ceremonial-799.ts --label print`, read-only.
+> - **When and what:** 12:18:18 to 12:18:22 PM MST (19:18:18 to 19:18:22Z) at HEAD `64aad1d`. It took 24 statements and 316,361 `rows_read`, with the fingerprint `4e94644350e1d992` before and after. **HALTs: none.**
+> - **After HO 812's one write.** `119-hr-1043` (P.L. 119-68) read `committee`, because its latest action is a committee report filed after it became law. It was set to `enacted` at 12:15:56 PM MST, 19:15:56Z (`docs/probes/812-laws-vs-official.md`).
+> - **Freshness:** `/api/sync` last ran at 11:00:11 AM MST (#32118, 18:00:11Z) and `/api/cron/summarize` at 12:10:23 PM MST (#32132, 19:10:23Z). The newest `update_date` is 10:08:33 AM MST (17:08:33Z) and the newest `summary_updated_at` 11:10:35 AM MST (18:10:35Z).
+>
+> Beside it is the fourth reading above (12:37:44 PM MST Nov 5), the one the poster printed.
+
+| Stage | **A1 · hollow** now (fourth reading, Δ) | **A2 · the dome** now (fourth reading, Δ) |
+|---|---|---|
+| introduced | 1 (1, 0) | 105 (105, 0) |
+| committee | 365 (365, 0), 52 on a calendar (52) | 15,589 (15,574, +15), 570 on a calendar (561) |
+| floor | 8 (9, **−1**), 0 on a calendar (0) | 293 (294, −1), 48 on a calendar (48) |
+| other_chamber | 17 (17, 0), 1 on a calendar (1) | 565 (565, 0), 34 on a calendar (34) |
+| president | 0 | **3** (0, +3) |
+| enacted | 13 (13, 0) | **127** (126, **+1**) |
+| **total** | **404** (405, −1) | **16,682** (16,664, +18): 16,677 tagged not ceremonial (16,659), 5 untagged (5), the parse-fails |
+
+| Figure | Now | Fourth reading | Δ |
+|---|---|---|---|
+| A3 · ceremonial resolutions | **2,169** (hres 1,249, sres 815, hconres 74, sconres 31) | 2,166 | +3 |
+| A3 · at `floor` or later | **496** | 495 | +1 |
+| A3 · with `agreed` set | **481** | 480 | +1 |
+| A3 · at `enacted` | **1** | 1 | 0 |
+| A4 · ceremonial, all types | **2,573** | 2,571 | +2 (HO 787's 969: +1,604) |
+| A4 · law-eligible, any tag (A1 + A2) | **17,086** | 17,069 | +17 |
+| B · ceremonial laws, under Pew's cut | **13 of 123** | 13 of 122 | the denominator +1: `119-hr-1043` |
+| B · without the cut | **13 of 140** | 13 of 139 | +1, the same law |
+| C · post-office titles | 123: **118 ceremonial, 5 not, 0 untagged** | 118, 5, 0 | 0 |
+| D · the seed's lists | 38 at `floor` or later (39), 365 in committee (365) | | the floor-or-later draw moves; the committee list is the same (sha256 `7df4bca2ae745e40` both times) |
+
+**What moved.**
+- **A1's −1 is the hand tag that moved.** HO 803 set `119-hr-1945` to 1 at `floor` (`docs/handoffs/803-artifacts/rows-803.tsv`). It reads 0 since the summarizer re-summarized it on Nov 6 (5:10:25 AM MST, 12:10:25Z). It's named, not re-set. It now counts in A2, at whatever stage it reads; this run reads cells, not rows.
+- **A2's `enacted` +1 is `119-hr-1043`,** from `committee`, by HO 812's write.
+- **A2's `president` +3** are three R-sponsored, House-started bills (HO 810's print reading).
+- **The rest is net.** A2's +18 is 17 law-eligible rows new since Nov 5 plus the one hand tag. A3's +3 is net, one each of hres, sres and sconres.
+
+**B both ways.** The script's list of laws whose latest action isn't a *Became Public Law* action covers B1's ceremonial rows only. It still names the two private laws, `119-hr-3377` and `119-hr-7194` (Mar 26, both tagged 1).
+- **It doesn't name `119-hr-1043`,** whose latest action is the Feb 11 report, not the Dec 29 approval. Both dates fall under the cut, so the count holds.
+
+Under the cut (`latest_action_date` on or before Oct 14, 2026):
+- **All laws:** CT 13 ceremonial of 123 (10.6%).
+- **Public laws only, as Pew counts:** CT 11 of 121 (9.1%), beside Pew's 12 of 121 (9.9%). CT's public laws under the cut now number Pew's 121. That's still a count beside a count, not a match of bills, and the cut reads `latest_action_date` as its proxy.
+
+**For the poster chat.**
+- The hollow dots mark **404** law-eligible bills beside the dome's 16,682 (17,086 law-eligible in all).
+- Counting public laws as Pew does, CT reads 11 ceremonial laws of 121 under Pew's Oct 14 cut, beside Pew's 12 of 121. Counting all laws, it reads 13 of 123.
+- This is the poster's as-of: 12:18 PM MT Nov 10.

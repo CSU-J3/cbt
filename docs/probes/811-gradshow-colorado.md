@@ -209,3 +209,37 @@ Control: the members' bills sum to 16,677, and no dome bill lacks a `members` ro
 ## The ledger
 
 One run, read-only: **811**, 10:39:50 to 10:40:02 AM MST (17:39:50 to 17:40:02Z), 30 statements (12 single, 18 in one read-only batch), **309,957 `rows_read`**, 32 results carrying the field, the fingerprint `4e94644350e1d992` before and after. The instrument as run is the committed blob (sha256 `fd1bd1e10bf9170ca78d20e82bdabb5ef827331a6397bfa4958b95e23f74de5f`). The run's inputs: `.env`'s `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` by name, and `docs/handoffs/799-artifacts/run-803.json` (repo-ignored), checked against the copied constants before prod is read.
+
+## The print reading, by HO 812 (as of 12:18:32 PM MST Nov 10, 19:18:32Z)
+
+> HO 812 § 3 ran `npx tsx scripts/diagnostic/gradshow-colorado-811.ts --label print`, read-only.
+> - **When and what:** 12:18:28 to 12:18:32 PM MST (19:18:28 to 19:18:32Z) at HEAD `64aad1d`. It took 30 statements (12 single, 18 in one read-only batch) and 310,047 `rows_read`; 32 results carried the field. The fingerprint read `4e94644350e1d992` before and after. **HALTs: none.**
+> - **After HO 812's one write:** `119-hr-1043` (P.L. 119-68, Gosar, R-AZ), set from `committee` to `enacted` at 12:15:56 PM MST, 19:15:56Z (`docs/probes/812-laws-vs-official.md`).
+> - **Freshness:** `/api/sync` last ran at 11:00:11 AM MST (#32118, 18:00:11Z, success); the record run's newest was 5:00:11 AM MST (#32055, 12:00:11Z).
+
+```
+BENNET · D · SEN: 72 BILLS · 0 LAWS
+HICKENLOOPER · D · SEN: 35 BILLS · 0 LAWS
+DEGETTE · D · CO-1: 14 BILLS · 0 LAWS
+NEGUSE · D · CO-2: 89 BILLS · 0 LAWS
+HURD · R · CO-3: 27 BILLS · 1 LAWS
+BOEBERT · R · CO-4: 20 BILLS · 0 LAWS
+CRANK · R · CO-5: 9 BILLS · 0 LAWS
+CROW · D · CO-6: 28 BILLS · 0 LAWS
+PETTERSEN · D · CO-7: 42 BILLS · 0 LAWS
+EVANS · R · CO-8: 22 BILLS · 0 LAWS
+COLORADO: 358 BILLS · 1 LAWS · 0.28%
+CONGRESS: 16,682 BILLS · 127 LAWS · 0.76%
+NOV 10, 2026, 12:18 PM MT
+```
+
+- **The ten member lines and COLORADO read as at 10:40 AM.** B1 to B5 match the record run row for row. Colorado's one law is still `119-hr-2316` (Hurd). No Colorado row reads `is_current = 0`, on the roster as of Sep 11, 3:04 PM MDT (21:04Z), still its last fetch (555 rows, 539 current).
+- **CONGRESS moves:** 16,677 · 126 → 16,682 · 127 (0.76% both).
+  - The +1 law is `119-hr-1043`, an Arizona bill, so no Colorado row moves.
+  - The +5 bills are new to the dome since 10:40 AM; the 11:00 AM sync ran between the two reads.
+- **The dome's 126 doesn't hold: it reads 127.**
+  - No law in the dome was observed after Nov 5's as-of, since the row carries no stamp.
+  - 140 law-eligible laws were observed by then or never stamped (Nov 5: 139), and 127 of them weren't hollow on Nov 5.
+- **The median member (C2) holds:** a senator 52 bills · 0 laws, a House member 22 · 0.
+  - The House's population is 448 members with a bill in the dome (447 at 10:40 AM).
+  - Current voting members only: 431 · 22 · 0.
