@@ -5028,3 +5028,18 @@ The weekly report counted laws by action date and advances by observation date. 
 `/welcome`'s two strips are CSS marquees rendered on the server, so neither can measure itself (*A CSS-only marquee has a minimum content width*, HO 670). MARKETS filled its strip by item count alone: 11 symbols, about 2,400 px a half, rendered once a half. HO 806 cut the roster to 4 when FMP left, and nothing read the strip again. On prod at 1440 a half measured 794 px against a 1,116 px strip (Nov 7), so a 322 px gap crossed it on every loop. A local build read 794.3 against 1,130.8 at 1440, and 990.3 against 2,180.8 at 2560. ODDS overshot by a fixed three copies, which still cleared 2560 by 179 px. HO 808 repeats each strip's items to a floor of 14 a half (`copies = ceil(14 / items)`), at the pace both ran before HO 806, about 5.8 s an item: MARKETS 16 items over 92.8 s, ODDS 15 over 87 s. The halves then read 3,177 and 2,978 px at 1440, and 3,961 and 3,741 at 2560. Smoke reads each half against its strip at 1440 and 2560 on every deploy.
 
 **The rule:** a strip that can't measure repeats to a floor of items, not a fixed count of copies.
+
+## The latest action isn't always the furthest: a law read `committee` for months (HO 812, Nov 2026)
+
+`computeStage` stages a bill from its latest action alone (`lib/enums.ts:97`), on the premise that the latest action is the furthest one.
+- **The law:** `119-hr-1043`, the La Paz County Solar Energy and Job Creation Act, became P.L. 119-68 on Dec 29, 2025.
+- **The latest action:** six weeks later, on Feb 11, 2026, the Senate committee that had been discharged of it filed its written report (No. 119-109). That report is the bill's latest action.
+- **So CT stored a law at `committee`.** The sync only advances, and only when Congress.gov's record moves (`lib/sync.ts:404-416`). It computed `committee` again on every re-fetch.
+
+Nothing looked wrong on any page: the law counted as one more bill in committee, and the dome's *Became law* read 126 where the dome's scope held 127 laws.
+
+Only a check against the official list found it. Congress.gov's `/law/119` lists 138 public and 2 private laws, and CT held 139 of them at `enacted`. HO 811's inline check found the gap, and HO 812's tracked one, `scripts/diagnostic/laws-vs-official-812.ts`, read it closed.
+
+HO 812 set the row by hand, with no stamp. The code fix is a backlog line: the bill's detail names the law (`raw_json`'s `$.laws`), whatever its latest action says.
+
+**The rule:** a count of `enacted` is a floor until it's checked against the official list.

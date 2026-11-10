@@ -9275,3 +9275,93 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Flagged in the paste:** claim 5's widened read; claim 2's wait and its missed-run count; Julie Johnson, the tail's third `totals empty`; the two prior-block edits; the ruled line's additions and its place; a stray `/tmp` write, deleted; a filtered process query at one bind check.
 - **Owed at the FF:** the push, `verify:deploy`, the served SHA, CI and `e2e-prod`; the `cbt.zip` rebuild after GradShow (the `docs(skill)` commit).
 - **Also notes now run through HO 809.**
+
+**Also (HO 810), the GradShow poster's bills and laws by sponsor's party, in the dome's own scope and predicate.** Built on `810-review` from `1ebc2aa` in two commits; prod was read by `SELECT` only. This block, like the two after it, is HO 812's docs commit.
+- **HO 809's FF go, as taken:**
+  - `main` at `1ebc2aa`: the push `fa40186..1ebc2aa` at 7:53:20 PM MST Nov 9 (02:53:20Z Nov 10), no force, `809-review` deleted on both sides.
+  - Production record `7672199535`, `success` at 7:54:00 PM MST. `verify:deploy` read `1ebc2aa` from the first read. CI `42745792399` and design citations `42745792529` passed, and `e2e-prod` `42745863757` passed, smoke 144.
+  - Inline after the FF, the box's `.env` changed. `REVALIDATE_URL` was set to prod's `/api/revalidate` (8:37 PM MST), and a one-off flush read 200. Both `FMP_API_KEY` lines came out (0 by name at 9:53 PM MST). Backlog `:34` and `:32` strike in HO 812's docs.
+- **STEP 0, re-derived at `1ebc2aa`, a check: none of its seven claims failed.** The handoff's Nov 5 floor 246 and committee 15,622 read as HO 799's stored 294 and 15,574, with the 48 calendar placements at `floor` counted as committee.
+- **A, the party field:** `sponsor_party` in the dome's scope reads R 8,587 · D 7,997 · I 93, with NULL and empty 0, so no HALT.
+  - Its one writer, `lib/sync.ts:324`, rewrites it from Congress.gov's first sponsor on every upsert. But a bill is refetched only when its Congress.gov record moves.
+  - The one party switcher, Kiley (R → I, 2026-03-09), keeps 20 bills at R and 3 at I.
+- **B, the card** (run 810, as of 9:49:09 AM MST Nov 10): REPUBLICANS 8,587 BILLS · 107 LAWS · 1.25%; DEMOCRATS 7,997 · 19 · 0.24%; INDEPENDENTS 93 · 0 · 0.00%.
+  - B2 splits it by the chamber a bill started in. B3 is one bill (`119-sjres-82`). B4 finds no law whose `sponsor_party` differs from `members.party`. B5's members probe is absent.
+  - Four HALT checks ran, none hit. The handoff's B2 check is an identity inside one snapshot, so one against the dome's own statement by chamber was added.
+- **C, the dome:** 16,677 bills, +13 on the printed 16,664, and its 126 laws held, none observed since Nov 5. Two R-sponsored bills sat at `president`.
+- **The run:** 810, 9:49:04 to 9:49:09 AM MST (16:49:04 to 16:49:09Z): 32 statements, 425,666 `rows_read`, the fingerprint `4e94644350e1d992` before and after.
+  - The script was reviewed read-only before it: 8 agents, 4 of 15 findings confirmed, all minor, each fixed.
+  - The findings file was checked against the record after it: 6 agents.
+- **Commits:** `13a7e02` (`diag`, `scripts/diagnostic/gradshow-party-810.ts`, a sibling of HO 799's script) and `f67e7d3` (`docs`, `docs/probes/810-gradshow-party.md`).
+- **Also notes now run through HO 810.**
+
+**Also (HO 811), the GradShow poster's Colorado delegation: each member's bills and laws in the dome's scope and predicate.** Built on `811-review`, stacked on `810-review` at `f67e7d3`, in two commits; prod was read by `SELECT` only.
+- **STEP 0, re-derived at `f67e7d3`, a check: none of its seven claims failed, and no HALT.** The HO number is 811, not the pointer's next (810), since HO 810 was already in flight.
+- **A, the delegation:** ten serving members, two senators and CO-1 to CO-8. They come from the `members` roster as of Sep 11 (`npm run sync:members`, run by hand), and nobody has left.
+- **B, the card** (run 811, as of 10:40:02 AM MST Nov 10): the ten member lines, COLORADO 358 BILLS · 1 LAWS · 0.28% and CONGRESS 16,677 BILLS · 126 LAWS · 0.76%.
+  - Colorado's one law is `119-hr-2316` (Hurd, P.L. 119-40).
+  - The 4 ceremonial bills are excluded, and none of them is a law.
+- **C:** the dome's 126 held. The median member with a bill in the dome reads 52 bills · 0 laws for a senator and 22 · 0 for a House member.
+- **Two wording points for the poster chat:** `1 LAWS` follows the handoff's template, and the House label `CO-n` is HO 811's.
+- **The run:** 811, 10:39:50 to 10:40:02 AM MST (17:39:50 to 17:40:02Z): 30 statements, 309,957 `rows_read`, the fingerprint unchanged.
+  - The script was reviewed read-only before it: 6 agents, 1 of 15 findings confirmed, fixed.
+  - The findings file was checked after it: 4 agents.
+- **Commits:** `725537c` (`diag`, `scripts/diagnostic/gradshow-colorado-811.ts`) and `64aad1d` (`docs`, `docs/probes/811-gradshow-colorado.md`).
+- **The go (Nov 10), as taken:**
+  - `810-review` at `f67e7d3` and `811-review` at `64aad1d` were pushed as new branches at 11:41 AM MST. `ls-remote` read both, beside `main` at `1ebc2aa`.
+  - The flagged decisions stand: the numbering, the sibling scripts, the Nov 5 floor and committee reading, and the added B2 check.
+  - Then an inline, read-only law check ran against Congress.gov's official list (`docs/handoffs/811-artifacts/laws-check-811.ts`, 11:44 AM MST). It read 138 public and 2 private laws, and CT held 139 at `enacted`. One was short: `119-hr-1043` (P.L. 119-68, Gosar, R-AZ), at `committee`. None was missing and none CT-only. HO 812 fixed it.
+- **Also notes now run through HO 811.**
+
+**Also (HO 812), P.L. 119-68 read `committee`: `119-hr-1043` set to `enacted` by hand, then the poster's print read, with 127 laws.** Built on `812-review`, stacked on `811-review` at `64aad1d`, in four commits.
+- **Prod took one statement and one flush;** everything else read it by `SELECT` and its served HTML.
+- **The findings are in `docs/probes/812-laws-vs-official.md`.**
+- **Why it read `committee`:** `computeStage` reads the latest action alone (`lib/enums.ts:97`). This law's latest action is a Senate committee's written report, filed Feb 11, six weeks after the law was signed. The sync can't correct it: it only advances (`lib/sync.ts:404-416`), and a re-fetch computes `committee` again.
+- **STEP 0, a check (12:14 PM MST Nov 10): seven claims hold, none a HALT.**
+  - Claim 1: `ls-remote` read `main` `1ebc2aa`, `810-review` `f67e7d3` and `811-review` `64aad1d`.
+  - Claim 2: the row read `committee`, `is_ceremonial` 0, with a summary stored and `$.laws` naming 119-68.
+  - Claim 3: the law check read 138 public and 2 private laws, 139 held, one short.
+  - Claim 4: no `sync_queue` row.
+  - Claim 5: no `stage_transitions` row and no stamp. The summary at 7:40:44 PM MDT Oct 28 (01:40:44Z Oct 29) left `pending_stage` NULL, so the row read `committee` at the printed dome's as-of.
+  - Claim 6: the dome's laws read 126, and 139 at any tag.
+  - Claim 7: no `print` label was taken.
+- **§ 1, the write:**
+  - `before.tsv` came first (12:15:56 PM MST), the reversal list.
+  - Then the one `UPDATE`, `rowsAffected` 1, with no stamp and no `stage_transitions` row, as the chat ruled.
+  - The `bills` flush read 200 `{"ok":true,"tag":"bills"}` at 12:16:07 PM.
+- **§ 2, the reads after:**
+  - The row reads `enacted`, the stamp columns NULL.
+  - 127 laws in the dome (R 108, D 19), and 140 at any tag. The law check reads 0 short.
+  - `/` reads *127 enacted*, `/welcome` *127 Became law*, and the bill page ENACTED.
+  - MOVERS doesn't list the bill: a read of `/`'s whole HTML at 1:05 PM, script payload included, finds it 0 times, and its 27 MOVERS rows don't include it.
+  - Gosar's hub reads *Enacted 1 (3.7%)*.
+  - The fingerprint is unchanged.
+- **§ 3, the print read** (12:18:16 to 12:18:32 PM MST):
+  - THE DOME, NOV 10, 2026, 12:18 PM MT: BECAME LAW 127 · ON THE PRESIDENT'S DESK 3 · PASSED ONE CHAMBER 565 · REACHED THE FLOOR 245 · NOT REFERRED YET 105 · IN COMMITTEE 15,637 · BILLS 16,682 · CEREMONIAL 404 · ALL 17,086.
+  - REPUBLICANS 8,588 · 108 · 1.26%, DEMOCRATS 8,001 · 19 · 0.24%, INDEPENDENTS 93 · 0 · 0.00%.
+  - Colorado's lines read as at 10:40 AM, and CONGRESS 16,682 · 127 · 0.76%.
+  - The printed Nov 5 dome, restated: 127 laws, 15,621 in committee.
+  - One hand tag moved: `119-hr-1945`, HO 803's 1, now 0, named and not re-set.
+- **Commits:**
+  - `d80b970` (`diag`): `scripts/diagnostic/laws-vs-official-812.ts`, the law check tracked with `--label`. Record run `812` at 12:22 PM read 140 of 140, 0 short.
+  - `docs`: the new findings file, and a print reading appended to HO 799's, 810's and 811's.
+  - `docs`: the backlog, the roadmap and the oddities.
+  - `docs(skill)`: the limit at `computeStage`, alone and last.
+- **Docs:**
+  - Backlog `:32`, `:34` and `:86` strike. The new line, *a law can read short of `enacted`*, follows `:27`'s Senate resolution at `enacted`, so the three strikes now sit at `:33`, `:35` and `:87`. The reconcile goes from 269 / 389 on 658 to 267 / 392 on 659.
+  - The roadmap gains this block and HO 810's and 811's, each ending on its pointer. The oddities gain one entry.
+- **Flagged in the paste:**
+  - `/`'s masthead says *enacted*, not *Became law*.
+  - `:34`'s 8:37:46 PM flush time is the handoff's, and the artifacts carry no stamp.
+  - The law check ran twice in § 2.
+  - HO 810's verdict line ends on an empty list.
+  - Gosar's hub had the fix before any `members` flush.
+  - The 11:00 AM sync's five bills and one more bill at `president`.
+  - `:86`'s two HO 801 runs weren't among the four.
+  - The served-page patterns missed two pages, so a second GET quoted them.
+  - MOVERS was read again from the whole HTML at 1:05 PM, since the first page read stripped the script payload where a closed tab's rows travel.
+- **Owed at the FF:** the chat's one go covers HO 810, HO 811 and HO 812.
+  - On the head: the cold build and the gates, then the push to `main` and the three review refs deleted.
+  - Then `verify:deploy`, CI and `e2e-prod`. No prod read is owed beyond § 2's.
+  - The `cbt.zip` rebuild after GradShow (the `docs(skill)` commit).
+- **Also notes now run through HO 812.**
