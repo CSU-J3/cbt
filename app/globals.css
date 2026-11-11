@@ -266,7 +266,9 @@ body {
    sits in — --fs-13 on the /welcome rail, the mast row's rung on the mastheads —
    which is how one class serves three render sites without a modifier. Lifted
    from landing.module.css `.beta`, which is deleted; the brackets are content so
-   the markup stays the two words. */
+   the markup stays the two words. HO 813: the /welcome rail left with the
+   lobby, whose *Beta* is a pill of its own, so the class serves the two
+   mastheads now. */
 .beta-tag {
   font-weight: 600;
   letter-spacing: 0.2em;
@@ -304,7 +306,8 @@ body {
    MOUNTED, not re-implemented (its zone stays pinned to MT by the HO 670 review
    ruling — see its header). Colours match landing.module.css's `.clock` family;
    the size is inherited from the sync line rather than pinned to --fs-11, for the
-   same reason `.beta-tag` sets none. */
+   same reason `.beta-tag` sets none. HO 813: that family left the module with
+   /welcome's clock, so these colours are the clock's only statement now. */
 .masthead-clock {
   letter-spacing: 0.08em;
   color: var(--text-dim);

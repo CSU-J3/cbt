@@ -49,8 +49,12 @@ export type WeekSummaryPayload = {
 };
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function monDd(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
+// HO 813: exported as the one MON DD formatter. /welcome's week line and the
+// dashboard's WeeklyBand read it, and WeeklyBand's private copy is retired. It
+// slices the date first, as that copy did, so a full ISO stamp reads as its day;
+// a bare YYYY-MM-DD, which is all this file passes, reads exactly as before.
+export function monDd(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(d.getTime())) return iso;
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }

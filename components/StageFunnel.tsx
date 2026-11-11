@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { type MouseEvent } from "react";
 import type { Stage } from "@/lib/enums";
+import { funnelWidthPct } from "@/lib/stage-funnel-geometry";
 
 // home-dashboard-cleanup: bottleneck funnel that replaces the row-2
 // stage bubble. Sqrt-scaled horizontal bars in pipeline order (INTRO →
@@ -47,12 +48,6 @@ const STAGE_COLORS: Record<Stage, string> = {
   enacted: "var(--stage-enacted)",
 };
 
-// Floor in % of track width so the PRESIDENT row renders visibly even
-// at count 0 (handoff: "min-width ~4-6px even at count 0"). The CSS
-// also pins `min-width: 4px` on the bar element as a px-level backstop
-// if the track gets very narrow at small viewports.
-const MIN_BAR_PCT = 2.2;
-
 // `basePath` is the dashboard route the funnel filters against (default `/` — the
 // only live caller since HO 608 removed the classic dashboard, which passed its
 // own path). `staticMode` (the v2 `/` swap, HO 311) renders a non-interactive
@@ -73,7 +68,6 @@ export function StageFunnel({
   const currentStage = staticMode ? null : params.get("stage");
 
   const maxCount = bars.reduce((m, b) => Math.max(m, b.count), 0);
-  const sqrtMax = Math.sqrt(maxCount) || 1;
 
   function buildHref(stage: Stage, isSelected: boolean): string {
     const next = new URLSearchParams(params.toString());
@@ -110,8 +104,7 @@ export function StageFunnel({
       {bars.map((b) => {
         const isSelected = currentStage === b.stage;
         const dimmed = anySelected && !isSelected;
-        const rawPct = (Math.sqrt(b.count) / sqrtMax) * 100;
-        const widthPct = Math.max(rawPct, MIN_BAR_PCT);
+        const widthPct = funnelWidthPct(b.count, maxCount);
         const tooltipBase = `${STAGE_TOOLTIP_LABELS[b.stage]} · ${b.count.toLocaleString()} bills · ${b.percentage.toFixed(1)}% of corpus`;
         const tooltip = staticMode
           ? tooltipBase

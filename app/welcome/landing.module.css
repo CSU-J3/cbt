@@ -1,224 +1,144 @@
-/* HO 670 — /welcome, rebuilt as the BOARD. Supersedes the HO 361 split layout
-   ported from docs/design/landing.html; the geometry here is format 1 of
-   docs/design/welcome-formats-mock.html, ruled by Corey 2026-08-17, with the
-   handoff spec winning wherever the two disagreed.
+/* HO 813 — /welcome, rebuilt as the LOBBY: rewritten from the product rules of
+   the ruled mock's <style> (docs/design/mock-813-landing-scroll.html, v7), not
+   its .mock control bar. Supersedes the HO 670 board's chrome, which is record.
 
-   TOKENS, NOT FACES. Every font-family below is var(--font-mono) or var(--sans)
-   and every 9-14px size is on the --fs-* ladder (HO 604), so this page inherits
-   whatever those tokens become — which is the actual fix for "the welcome page
-   doesn't match the app". (The HO 361 module was already on-token for FAMILY;
-   what drifted was SIZE: 23px / 11.5px / 10.5px / clamp(28px,3.5vw,46px) literals.
-   Those are gone.) The three literals that remain are deliberate one-offs the
-   ladder does not cover and the spec names: the 68px headline, the 24px stat
-   numerals, and the 16px lead.
+   ONE TYPEFACE. Everything is var(--sans); var(--font-mono) is the board rows'
+   ident and meta alone, where the mono is the product. Sizes are the mock's:
+   72 / 40 / 20 / 17 / 15 and the rest. In the 9-14px range they are the --fs-*
+   ladder (SKILL's type rule, HO 604), which reads the mock's px at 1440 and
+   steps +1 per stop above 1600 like every other surface.
 
-   MOTION. Five animations live here — both marquees, the panel scroll, the panel
-   crossfade, the IN BETA pulse and the cursor blink — and EVERY one is killed by
-   the prefers-reduced-motion block at the bottom of this file. A persistent pulse
-   is a real problem for photosensitive and vestibular users; the media query is
-   one line and there is no argument for skipping it. */
+   TOKENS, NOT HEX. Every colour is a token already in app/globals.css, and
+   none is added: the mock's --ink / --ink-2 / --ink-3 / --ink-4 are --text-
+   primary / -secondary / -muted / -dim, --line and --line-soft are --border-
+   strong and --border-soft, --surface is --bg-row-hover (#0f1620), --panel is
+   --bg-panel, --s-* are --stage-*, --amber is --accent-amber-bright and
+   --amber-deep is --accent-amber, --fresh is --rating-freshness. The mock's few
+   in-between greys (a hover border, the search button) are color-mix() of two
+   of those tokens rather than new literals.
+
+   RADII are module values: 14 (the cards), 12 (the search form), 10 (the
+   button), 999 (the pills), with 8 and 4 for the small parts.
+
+   THE BOARD'S FADE IS AN OVERLAY (.pviewport::after), not a mask: a mask
+   erases what it covers, and the mock's v1 used one that a viewer painted
+   nothing under. The board keeps the HO 670 motion (the scroll and the 45s
+   crossfade), and the reduced-motion block at the bottom still stops all of it.
+
+   BREAKPOINTS are the mock's: 1100 (one hero column, two-up grids), 760 (one
+   column, the first panel alone, as the HO 670 phone layout did), 420. */
 
 .page *{box-sizing:border-box}
 .page{background:var(--bg-base);color:var(--text-primary);min-height:100vh;
-      font-family:var(--font-mono);font-size:var(--fs-12);-webkit-font-smoothing:antialiased;
-      display:flex;flex-direction:column}
+      font-family:var(--sans);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+/* :where() keeps these two resets at an element's weight, as the mock's bare
+   `a` and `button` were, so a class such as .btnPrimary or .toplink beats them. */
+:where(.page) a{color:inherit;text-decoration:none}
+:where(.page) button{font:inherit;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.wrap{max-width:1200px;margin:0 auto;
+      padding-left:max(32px,env(safe-area-inset-left,0px));padding-right:max(32px,env(safe-area-inset-right,0px))}
 
-/* ── top rail ─────────────────────────────────────────────────────────────── */
-.rail{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 28px;
-      border-bottom:1px solid var(--border-strong);font-size:var(--fs-12);color:var(--text-muted)}
-.brand{white-space:nowrap}
-.prompt{color:var(--accent-amber);font-weight:400}
-.spacer{flex:1}
-/* Bracket form: no border box — the brackets ARE the frame. */
-/* HO 697 — the tag's LOOK moved to globals.css as `.beta-tag` (every masthead
-   uses it now); its SIZE stays here, because it belongs to this rail and not to
-   the shared class. Dropping `font-size` outright took the rail's tag from 13px
-   to the rail's inherited 12px and lost its padding — a ruled surface (HO 670)
-   restyled as a side effect of sharing a class, which is the thing not to do.
-   So `.beta-tag` remains size-agnostic and the rail re-states its own rung. */
-.rail :global(.beta-tag){font-size:var(--fs-13);padding:5px 0}
-.clock{font-size:var(--fs-11);letter-spacing:.08em;color:var(--text-dim);white-space:nowrap}
-.clockTime{color:var(--text-muted)}
-.clockZone{color:var(--accent-amber)}
+/* ── the top bar ─────────────────────────────────────────────────────────── */
+.top{display:flex;align-items:center;gap:20px;padding-block:26px;border-bottom:1px solid var(--border-soft)}
+/* 600, where the mock asks 700: the app declares Plex Sans at 400 / 500 / 600
+   (app/layout.tsx), so a 700 here would render the 600 face anyway. */
+.brand{font-weight:600;font-size:28px;line-height:1;letter-spacing:-.03em;display:inline-flex;align-items:center;gap:14px;color:var(--text-primary)}
+/* The terminal's prompt, in the mock's amber, #fbbf24 (Corey, 3:46 PM: the
+   wordmark is "the name of the damn thing", taken as 28px with the :\> in amber;
+   the FF go ruled the mock's shade over the handoff's --accent-amber). */
+.mark{color:var(--accent-amber-bright);font-weight:600;letter-spacing:0}
+.pill{font-size:var(--fs-12);font-weight:500;color:var(--text-muted);border:1px solid var(--border-strong);border-radius:999px;
+      padding:3px 10px;line-height:1.4;letter-spacing:0;position:relative;top:1px}
+.sp{flex:1}
+.toplink{font-size:15px;color:var(--text-muted)}
+.toplink:hover{color:var(--text-primary)}
+.sync{font-size:var(--fs-14);color:var(--text-dim)}
+.sync b{font-weight:500;color:var(--text-muted)}
 
-/* ── BREAKING strip — no top border, the rail already drew one ────────────── */
-.breaking{display:flex;align-items:center;gap:14px;padding:10px 28px;
-          background:color-mix(in srgb,var(--party-republican) 8%,transparent);
-          border-bottom:1px solid var(--border-soft)}
-.tag{font-size:var(--fs-9);letter-spacing:.16em;color:var(--party-republican);
-     border:1px solid color-mix(in srgb,var(--party-republican) 50%,transparent);
-     padding:3px 6px;line-height:1;white-space:nowrap}
-.txt{font-size:var(--fs-12);color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.flavorLine{display:inline-block;animation:landingFlavorFade .5s ease}
-@keyframes landingFlavorFade{from{opacity:0}to{opacity:1}}
+/* ── the hero ────────────────────────────────────────────────────────────── */
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:40px 72px;align-items:center;padding-block:88px 72px}
+.h1{font-size:72px;line-height:1;letter-spacing:-.035em;font-weight:600;margin:0;max-width:14ch;text-wrap:balance}
+.lead{font-size:20px;line-height:1.5;color:var(--text-secondary);margin:28px 0 0;max-width:34em;text-wrap:pretty}
+.lead b{font-weight:600;color:var(--text-primary)}
+.facts{margin:22px 0 0;font-size:15px;color:var(--text-dim);line-height:1.6;max-width:40em}
+.facts b{font-weight:500;color:var(--text-muted)}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;margin-top:34px}
+.btn{font-weight:600;font-size:16px;padding:14px 22px;border-radius:10px;border:1px solid var(--border-strong);
+     background:transparent;color:var(--text-primary);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:color-mix(in srgb,var(--border-strong) 68%,var(--text-dim));background:var(--bg-row-hover)}
+.btn:focus-visible{outline:2px solid var(--accent-amber-bright);outline-offset:3px}
+.btnPrimary{background:var(--accent-amber-bright);border-color:var(--accent-amber-bright);color:var(--bg-base)}
+.btnPrimary:hover{background:color-mix(in srgb,var(--accent-amber-bright) 72%,var(--text-primary));
+                  border-color:color-mix(in srgb,var(--accent-amber-bright) 72%,var(--text-primary))}
+.quiet{font-size:15px;color:var(--text-dim)}
 
-/* ── banner ───────────────────────────────────────────────────────────────── */
-.banner{display:grid;grid-template-columns:1.35fr 1fr;column-gap:48px;row-gap:0;
-        padding:12px 28px 24px;align-items:end;
-        grid-template-areas:"head right" "lead right"}
-.headwrap{grid-area:head}
-.leadwrap{grid-area:lead;margin-top:14px}
-.right{grid-area:right;align-self:end;padding-bottom:4px}
+/* the search: a plain GET form to /search, no island */
+.search{margin-top:34px;max-width:620px}
+.search form{display:flex;align-items:center;gap:8px;background:var(--bg-row-hover);border:1px solid var(--border-strong);
+             border-radius:12px;padding:6px 6px 6px 18px}
+.search form:focus-within{border-color:color-mix(in srgb,var(--border-strong) 68%,var(--text-dim));
+                          box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-amber-bright) 18%,transparent)}
+.search input{flex:1;min-width:0;background:transparent;border:0;color:var(--text-primary);font:inherit;font-size:17px;padding:10px 0;outline:0}
+.search input::placeholder{color:var(--text-dim)}
+.search button{flex:none;font-weight:600;font-size:15px;padding:10px 16px;border-radius:8px;border:0;
+               background:color-mix(in srgb,var(--border-strong) 70%,var(--bg-row-hover));color:var(--text-primary);cursor:pointer}
+.search button:hover{background:color-mix(in srgb,var(--border-strong) 85%,var(--text-dim))}
+.search button:focus-visible{outline:2px solid var(--accent-amber-bright);outline-offset:2px}
+.tries{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:12px;font-size:var(--fs-14);color:var(--text-dim);align-items:center}
+.tries a{color:var(--text-muted);background:var(--bg-row-hover);border:1px solid var(--border-soft);border-radius:999px;padding:3px 11px}
+.tries a:hover{color:var(--text-primary);border-color:var(--border-strong)}
 
-.h1{grid-area:head;font-family:var(--sans);font-weight:600;font-size:68px;line-height:1.05;
-    letter-spacing:-.025em;margin:0;max-width:15ch;text-wrap:balance;color:var(--text-primary)}
-/* The cursor is a BLOCK, not a glyph — an underscore in the sans face sits at a
-   different depth than the mono one the terminal chrome uses. */
-.cursor{display:inline-block;width:.6em;height:6px;background:var(--accent-amber-bright);
-        vertical-align:baseline;margin-left:.08em;animation:blink 1.1s steps(1) infinite}
-@keyframes blink{50%{opacity:0}}
-/* 14px measured from the title's LINE BOX, which carries ~10px of descender
-   slack the gap cannot see. Do not "correct" for it — the optical gap is right. */
-.lead{font-family:var(--sans);font-size:16px;line-height:1.55;color:var(--text-secondary);
-      max-width:46ch;text-wrap:pretty;margin:0}
+/* ── the funnel card (components/LandingFunnel.tsx) ──────────────────────── */
+.card{background:var(--bg-row-hover);border:1px solid var(--border-strong);border-radius:14px;padding:28px 28px 22px}
+.cardTitle{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.5}
+.card .sub{margin:4px 0 0;font-size:var(--fs-14);color:var(--text-dim)}
+.funnel{display:grid;grid-template-columns:max-content 1fr max-content;gap:12px 16px;align-items:center;margin-top:22px}
+/* A row is three grid cells; its wrapper takes no box, so the columns line up. */
+.frow{display:contents}
+.lab{font-size:15px;color:var(--text-secondary);white-space:nowrap}
+.trk{height:14px;min-width:0}
+.bar{display:block;height:100%;min-width:6px;border-radius:4px}
+.ct{font-size:16px;font-weight:500;text-align:right;white-space:nowrap}
+.lab.law,.ct.law{color:var(--accent-amber-bright);font-weight:600}
+.card .foot{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--border-soft);font-size:var(--fs-14);color:var(--text-dim);line-height:1.5}
+.card .foot b{font-weight:600;color:var(--accent-amber-bright)}
 
-/* One grid so the stats, the buttons and the microcopy share column edges: the
-   stats align to the primary button and each microcopy line sits under the button it
-   describes. Two columns, one per button: HO 727 removed a third that held only the
-   decorative line beside ENTER TERMINAL. The tracks pack to the END (HO 728), so
-   LOGIN's right edge sits on .right's, which is the banner's 28px padding and so the
-   same line the rail's clock and the bottom bar's LAST SYNC hold (.rail and .bottom,
-   both `padding:14px 28px`). The 1180 block packs back to start once the banner is
-   one column. */
-.ctagrid{display:grid;grid-template-columns:auto auto;column-gap:14px;row-gap:0;
-         align-items:center;justify-content:end}
-/* THE STRIP IS TILED, WHICH IS A DIFFERENT PROPERTY FROM "IT LOOKS RIGHT AT 390".
+/* ── sections ────────────────────────────────────────────────────────────── */
+.sec{padding-block:96px 0}
+.sec.last{padding-bottom:112px}
+.h2{font-size:40px;line-height:1.1;letter-spacing:-.03em;font-weight:600;margin:0;max-width:22ch;text-wrap:balance}
+.sub2{font-size:18px;color:var(--text-muted);margin:12px 0 0;max-width:40em;text-wrap:pretty}
 
-   It was drawn as one row -- dividers as `border-right` on each cell, the last
-   one zeroed -- and then given permission to wrap by a `flex-wrap` sitting in
-   the 900 block, without being told how to look once it did. At 390 the third
-   cell drops to its own row and the arrangement comes apart in two ways at
-   once: the second cell, now last on its row, keeps a divider that ends at
-   nothing, and neither row fills the container, whose `width:max-content` is
-   clamped to `max-width:100%`. The outer border then encloses an area no cell
-   covers, which reads as an empty bordered cell. Measured before the fix
-   (`scripts/diagnostic/stats-tiling-699.ts`): at 390 the two rows covered
-   266.9 and 106.6 of a 352.0 inner width -- short by 85.1px and 245.4px -- and
-   at 360, 266.9 and 106.6 of 322.0, short by 55.1 and 215.4.
+/* ── the week line ───────────────────────────────────────────────────────── */
+.week{margin-top:0;padding-block:22px;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);
+      display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;font-size:16px;color:var(--text-secondary)}
+.week b{font-weight:600;color:var(--text-primary)}
+.week a{color:var(--text-muted);font-size:15px;margin-left:auto;white-space:nowrap}
+.week a:hover{color:var(--text-primary)}
 
-   THE FIX IS NOT A BREAKPOINT, AND THAT IS THE RULE RATHER THAN THE TASTE.
-   Picking the width where the wrap happens would re-create exactly the
-   dependence HO 698 was spent removing: where this strip wraps is a function of
-   the face's advance widths on the host doing the measuring, so a rule tuned to
-   the wrap we can see here is a rule that holds only for the fonts we happen to
-   ship. The strip is made correct under EVERY wrap outcome instead. Dividers
-   become a 1px `gap` showing the container's own background through, so they
-   are right for any row structure -- three cells, 2+1, 1+1+1 -- and no cell has
-   to know whether it is last. `flex:1 1 auto` lets a partial last row stretch
-   to fill rather than leaving an area, and `min-width:0` means a cell too wide
-   for the line shrinks instead of hanging past the border. Nothing depends on
-   how many fit.
-
-   `flex-wrap` moves here from the 900 block so there is one home for it; the
-   strip is `max-content`, so it never wraps where it fits and the media query
-   was not what permitted the wrap, only where it was written down. The outer
-   border stays -- it frames the tiling, it is not part of it. Verified with a
-   proportional serif at +2px tracking forced onto the subtree, which moves the
-   wrap point somewhere nobody chose and leaves both equalities holding. */
-.stats{grid-row:1;grid-column:1/3;justify-self:start;margin-bottom:22px;
-       display:flex;flex-wrap:wrap;gap:1px;background:var(--border-strong);
-       border:1px solid var(--border-strong);width:max-content;max-width:100%}
-.stat{padding:12px 20px;background:var(--bg-base);flex:1 1 auto;min-width:0}
-.v{font-size:24px;color:var(--text-primary);letter-spacing:-.01em;line-height:1}
-.l{margin-top:4px;font-size:var(--fs-9);letter-spacing:.14em;color:var(--text-dim);
-   text-transform:uppercase;white-space:nowrap}
-.l em{font-style:normal;color:var(--accent-amber)}
-
-.btn{font-family:var(--font-mono);font-size:var(--fs-12);letter-spacing:.14em;text-transform:uppercase;
-     padding:14px 20px;border:1px solid var(--border-strong);background:transparent;
-     color:var(--text-muted);cursor:pointer;white-space:nowrap;
-     display:inline-flex;align-items:center;gap:9px}
-.btn:hover{color:var(--text-primary);border-color:#374151}
-.btnPrimary{grid-row:2;grid-column:1;border-color:var(--accent-amber);color:var(--accent-amber-bright)}
-.btnPrimary:hover{background:color-mix(in srgb,var(--accent-amber) 8%,transparent);
-                  border-color:var(--accent-amber-bright);color:var(--accent-amber-bright)}
-.btnSecondary{grid-row:2;grid-column:2}
-.arr{font-weight:400}
-
-.micro1,.micro2{font-size:var(--fs-11);color:var(--text-dim);align-self:start;margin-top:11px;white-space:nowrap}
-.micro1{grid-row:3;grid-column:1}
-.micro2{grid-row:3;grid-column:2}
-.micro1 b{font-weight:400;color:var(--text-secondary)}
-.arrow{color:var(--accent-amber-bright)}
-
-/* ── the two tapes ────────────────────────────────────────────────────────── */
-.tapes{border-bottom:1px solid var(--border-soft)}
-.taperow{display:flex;align-items:center;padding:7px 20px;font-size:var(--fs-10);
-         letter-spacing:.05em;color:var(--text-dim);overflow:hidden}
-.taperow + .taperow{border-top:1px solid var(--border-soft)}
-.tapelabel{flex:none;padding-right:16px;font-size:var(--fs-10);letter-spacing:.16em;color:var(--text-dim)}
-.tapemask{flex:1;min-width:0;overflow:hidden;position:relative}
-.tapetrack{display:inline-flex;white-space:nowrap;animation:tapescroll var(--tdur,60s) linear infinite}
-.taperun{display:inline-flex}
-/* ODDS counter-scrolls: same keyframes, reversed. */
-.rtl{animation-direction:reverse}
-@keyframes tapescroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-.tapeitem{flex:none;padding:0 14px;border-left:1px solid var(--border-strong)}
-.sym{color:var(--accent-amber);letter-spacing:.1em}
-.val{color:var(--text-primary)}
-.na{color:var(--text-dim)}
-.cad{color:var(--text-dim);letter-spacing:.08em}
-.badge{font-size:var(--fs-9);letter-spacing:.12em;color:var(--text-dim);
-       border:1px solid var(--border-strong);padding:1px 4px;margin-left:5px}
-/* K and P are two INDEPENDENT readings of the same question, coloured apart so
-   they can't be read as one blended number. */
-.srcK{color:var(--stage-committee);letter-spacing:.08em}
-.srcP{color:#a78bfa;letter-spacing:.08em}
-.up{color:var(--market-up)}
-.down{color:var(--market-down)}
-.asof{flex:none;padding-left:20px;color:var(--text-dim);letter-spacing:.12em;white-space:nowrap}
-.closed{color:var(--text-dim)}
-.live{color:var(--market-up)}
-.livedot{display:inline-block;width:5px;height:5px;border-radius:50%;
-         background:var(--market-up);margin-right:5px;vertical-align:middle}
-
-/* ── the three panels ─────────────────────────────────────────────────────── */
-/* The board takes its NATURAL height (header + a 420px viewport per panel) and is
-   deliberately not the page's flex filler. Stretching it was tried and reverted:
-   a taller viewport than the data fills breaks the -50% scroll loop, because a
-   5-row dataset duplicated twice is ~590px and any viewport past that shows the
-   gap between the two halves. 420px is the height every dataset covers. */
-.board{display:grid;grid-template-columns:repeat(3,1fr)}
-.pcol{position:relative;overflow:hidden;min-width:0;border-right:1px solid var(--border-strong);
-      display:flex;flex-direction:column}
-.pcol:last-child{border-right:0}
-
-/* The three labels share ONE grid cell (grid-area 1/1) rather than stacking
-   absolutely: an absolutely-positioned label takes no height and the header
-   collapses to bare padding. z-index + its own background keep the header ABOVE
-   the frost overlays, or the top strip samples the title and dims it. */
-.colhead{position:relative;z-index:4;background:var(--bg-base);
-         display:grid;grid-template-columns:1fr;align-items:baseline;
-         padding:11px 16px;border-bottom:1px solid var(--border-strong);
-         font-size:var(--fs-11);letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim)}
+/* ── Live: the HO 670 board as three cards (app/welcome/panels.tsx) ──────── */
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:40px}
+.pcol{position:relative;background:var(--bg-panel);border:1px solid var(--border-strong);border-radius:14px;
+      overflow:hidden;display:flex;flex-direction:column;min-width:0}
+/* The three labels share ONE grid cell (grid-area 1/1), so the header keeps the
+   height of its tallest label; the green *live* takes the second column. */
+.colhead{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:10px;
+         padding:16px 20px 14px;border-bottom:1px solid var(--border-strong)}
 .swaplabel{grid-area:1/1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.on{color:var(--accent-amber-bright)}
-.note{color:var(--text-muted);margin-left:8px}
+.on{font-size:16px;font-weight:600;color:var(--text-primary)}
+.note{font-size:var(--fs-14);color:var(--text-dim);margin-left:6px}
+.live{grid-area:1/2;font-size:var(--fs-13);color:var(--market-up);display:inline-flex;align-items:center;gap:6px}
+.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--market-up)}
 
-/* FADE AND FROST ARE TWO JOBS. The rows fade by ALPHA via this mask, so glyphs
-   stay sharp all the way out; the frost below is a separate surface blur, itself
-   masked so it only engages past the point where the text has already gone to
-   nothing. A backdrop-filter placed over live text smears the type — that is the
-   bug this arrangement exists to avoid. */
-.pviewport{height:420px;overflow:hidden;position:relative;
-           -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 60%,transparent 99%);
-                   mask-image:linear-gradient(to bottom,transparent 0,#000 7%,#000 60%,transparent 99%)}
+.pviewport{height:384px;overflow:hidden;position:relative}
+.pviewport::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;z-index:1;
+                  background:linear-gradient(to bottom,transparent,var(--bg-panel) 90%)}
 .stack{position:absolute;inset:0;overflow:hidden}
 .ptrack{animation:drift var(--dur,30s) linear infinite}
 .rev{animation-direction:reverse}
 .runset{display:block}
 @keyframes drift{from{transform:translateY(0)}to{transform:translateY(-50%)}}
-
-.pfade{position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;
-       background:linear-gradient(to bottom,rgba(10,14,20,0),rgba(10,14,20,.55) 60%,var(--bg-base) 96%);
-       -webkit-backdrop-filter:blur(5px) saturate(.85);backdrop-filter:blur(5px) saturate(.85);
-       -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 70%);
-               mask-image:linear-gradient(to bottom,transparent 0,#000 70%)}
-.pfadeTop{position:absolute;left:0;right:0;top:37px;height:34px;pointer-events:none;z-index:2;
-          background:linear-gradient(to top,rgba(10,14,20,0),rgba(10,14,20,.75) 85%);
-          -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
-          -webkit-mask-image:linear-gradient(to top,transparent 0,#000 75%);
-                  mask-image:linear-gradient(to top,transparent 0,#000 75%)}
 
 /* 45s cycle, three phases: 1 visible 0-29%, 2 visible 33-62%, 3 visible 66-96%,
    wrapping 96->100%. The per-panel delays (-0s / -15s / -30s) mean no two panels
@@ -232,108 +152,82 @@
 @keyframes cy2{0%,29%{opacity:0}33%,62%{opacity:1}66%,100%{opacity:0}}
 @keyframes cy3{0%,62%{opacity:0}66%,96%{opacity:1}100%{opacity:0}}
 
-/* ── panel row ────────────────────────────────────────────────────────────── */
-.row{display:grid;grid-template-columns:66px 1fr;gap:12px;padding:9px 16px;
-     border-bottom:1px solid var(--border-soft);align-items:baseline;color:var(--text-dim)}
-.rident{font-size:var(--fs-10);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* a board row: the ident and meta in mono, the title in sans */
+.row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;padding:12px 20px;
+     border-bottom:1px solid var(--border-soft);align-items:baseline}
+.rident{font-family:var(--font-mono);font-size:var(--fs-11);letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .identType{color:var(--accent-amber)}
 .identNum{color:var(--text-muted)}
 .rmain{min-width:0}
-.rtitle{font-family:var(--sans);font-size:var(--fs-14);color:var(--text-primary);line-height:1.28;
-        overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
-.rmeta{margin-top:3px;font-size:var(--fs-11);letter-spacing:.06em;color:var(--text-dim);
+.rtitle{font-size:15px;line-height:1.35;color:var(--text-primary);overflow:hidden;
+        display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.rmeta{margin-top:4px;font-family:var(--font-mono);font-size:var(--fs-11);letter-spacing:.04em;color:var(--text-dim);
        white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .who{color:var(--text-muted)}
 .d{color:var(--party-democrat)}
 .r{color:var(--party-republican)}
 .i{color:var(--party-independent)}
 
-/* ── bottom rail ──────────────────────────────────────────────────────────── */
-/* margin-top:auto pins the rail to the bottom of a tall viewport. The board is a
-   fixed height by design (above), so on a big screen the slack has to go
-   somewhere: below the board as plain background, with the rail anchored, rather
-   than inside the panels where it would break their scroll loop. */
-.bottom{display:flex;align-items:center;gap:16px;padding:14px 28px;margin-top:auto;
-        border-top:1px solid var(--border-strong)}
-.foot{font-size:var(--fs-10);letter-spacing:.08em;color:var(--text-dim)}
-.footK{color:var(--text-muted)}
-a.footK:hover,a.footK:focus-visible{text-decoration:underline} /* HO 784: the foot's rater links */
-.sep{color:var(--border-strong)}
+/* ── What's inside: the nine pages, a list in columns ────────────────────── */
+.pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 48px;margin-top:44px}
+.pg{display:block;min-width:0;padding-top:18px;border-top:1px solid var(--border-strong)}
+.nm{font-size:20px;font-weight:600;letter-spacing:-.015em;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.nm span{font-size:var(--fs-14);font-weight:500;color:var(--text-dim);white-space:nowrap}
+.pg p{margin:8px 0 0;font-size:15px;line-height:1.5;color:var(--text-muted);text-wrap:pretty}
+.pg:hover .nm{color:var(--accent-amber-bright)}
+.pg:focus-visible{outline:2px solid var(--accent-amber-bright);outline-offset:6px;border-radius:4px}
 
-/* ── responsive ───────────────────────────────────────────────────────────── */
-/* 1180: the banner is one column and the panels stack. */
-@media (max-width:1180px){
-  .banner{grid-template-columns:1fr;grid-template-areas:"head" "lead" "right";row-gap:0}
-  .right{align-self:start;margin-top:26px;padding-bottom:0}
-  .ctagrid{justify-content:start}
-  .h1{font-size:52px;max-width:20ch}
-  .board{grid-template-columns:1fr}
-  .pcol{border-right:0;border-bottom:1px solid var(--border-strong)}
-  .pcol:last-child{border-bottom:0}
+/* ── How it's built ──────────────────────────────────────────────────────── */
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 48px;margin-top:44px}
+.how h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.015em}
+.how p{margin:10px 0 0;font-size:16px;line-height:1.55;color:var(--text-muted);text-wrap:pretty}
+.how p b{font-weight:500;color:var(--text-secondary)}
+.stages{display:flex;flex-wrap:wrap;gap:6px 0;align-items:center;margin-top:14px;font-size:var(--fs-14);font-weight:500}
+.stages span{padding:2px 0}
+.stages i{font-style:normal;color:var(--text-dim);padding:0 8px}
+
+/* ── the footer ──────────────────────────────────────────────────────────── */
+.foot{margin-top:112px;border-top:1px solid var(--border-soft);padding-block:28px 40px;font-size:var(--fs-14);color:var(--text-dim);line-height:1.7}
+.foot b{font-weight:500;color:var(--text-muted)}
+.fr{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:baseline}
+.foot a{color:var(--text-muted)}
+.foot a:hover,.foot a:focus-visible{text-decoration:underline} /* HO 784: the raters' links */
+.foot em{font-style:normal;color:var(--rating-freshness)}
+
+/* ── responsive ──────────────────────────────────────────────────────────── */
+@media (max-width:1100px){
+  .hero{grid-template-columns:1fr;gap:48px;padding-block:64px 56px}
+  .h1{font-size:60px}
+  .board,.pages,.how{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-/* 900: single column throughout — and /welcome is the first page many people
-   see on a phone, where three stacked 420px panels cycling nine datasets is
-   simply too much. ONE panel, ONE dataset, no crossfade: the movers feed, which
-   is the page's headline claim. The scroll stays (it is the point); only the
-   swap goes. */
-@media (max-width:900px){
-  .rail,.breaking,.banner,.bottom{padding-left:18px;padding-right:18px}
-  .h1{font-size:40px;max-width:none}
-  .lead{font-size:15px}
-  .taperow{padding-left:14px;padding-right:14px}
-  .asof{display:none}
+/* 760: one column throughout, and the board is one panel with one dataset and
+   no crossfade, as the HO 670 phone layout was: three stacked cycling panels is
+   too much for the first page many people see on a phone. The scroll stays. */
+@media (max-width:760px){
+  .wrap{padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+  .brand{font-size:22px}
+  .top{flex-wrap:wrap;gap:12px 20px}
+  .sync{display:none}
+  .h1{font-size:44px;max-width:none}
+  .lead{font-size:18px}
+  .h2{font-size:32px}
+  .board,.pages,.how{grid-template-columns:1fr}
   .pcol:not(:first-child){display:none}
-  .pviewport{height:340px}
   .cyc1,.cyc2,.cyc3{animation:none}
   .cyc2,.cyc3{display:none}
   .cyc1{opacity:1}
+  .sec{padding-block:72px 0}
+  .search form{flex-wrap:wrap;padding:10px}
+  .search button{width:100%}
+  .week a{margin-left:0}
 }
-/* 560: THE CTA STACKS, AND THE REASON IS A RULE RATHER THAN A TASTE.
-
-   The two-column CTA came from the 1460 collapse (the base layout since HO 727,
-   when that block was deleted as a no-op) and was never collapsed
-   again, so from 1459px down to 430px two `white-space: nowrap` ENGLISH
-   SENTENCES sized the two `auto` tracks. A nowrap sentence in an `auto` track
-   is a pure function of the face's advance widths with no slack anywhere, which
-   is precisely what docs/method.md forbids a narrow layout to depend on: at 430
-   the row measured 421.4 of 430 on the Windows box and 445 on the Ubuntu CI
-   runner from the SAME served bytes, and the 8.6px that made one host green was
-   margin nobody had chosen. The micro lines drove it, not the buttons — the
-   tracks measured 217.8 and 171.6, which are exactly `micro1` at 33 characters
-   and `micro2` at 26, both at 6.6px per character.
-
-   So the fix is not a narrower string or a smaller size, either of which would
-   buy new margin and leave the dependence in place. One column, and the three
-   things that could still consume it are removed: the tracks are `minmax(0,1fr)`
-   so no content can size them, `min-width:0` so an item cannot refuse to shrink
-   to its track, and `white-space:normal` so text that outgrows the track WRAPS
-   instead of painting past it. Verified by measuring the page with a face far
-   fatter than any host resolves — proportional serif at +2px letter-spacing
-   forced onto the whole subtree — which moves the row's right edge by ZERO
-   (412 at 430, 372 at 390, same as the fix without it). That control is the
-   point: a reading that only holds for the fonts we happen to ship is the bug
-   this is fixing, not the fix.
-
-   Also closes an overflow the gate could not see. At 390 the old layout scrolls
-   to 421 on the box as well; the narrow gate reads 430 only, so a phone
-   narrower than the one width anybody measured was broken on every host. */
-@media (max-width:560px){
-  .ctagrid{grid-template-columns:minmax(0,1fr)}
-  .stats{grid-column:1}
-  .btnPrimary{grid-row:2;grid-column:1}
-  .micro1{grid-row:3;grid-column:1}
-  .btnSecondary{grid-row:4;grid-column:1;margin-top:14px}
-  .micro2{grid-row:5;grid-column:1}
-  .btn,.micro1,.micro2{white-space:normal;min-width:0;justify-self:start}
+@media (max-width:420px){
+  .wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .actions .btn{width:100%;text-align:center}
 }
 @media (prefers-reduced-motion:reduce){
-  .cursor,.tapetrack,.ptrack,.cyc1,.cyc2,.cyc3,.flavorLine{animation:none}
+  .page *{transition:none!important}
+  .ptrack,.cyc1,.cyc2,.cyc3{animation:none}
   .cyc2,.cyc3{display:none}
   .cyc1{opacity:1}
-  .cursor{opacity:.55}
-  /* The fade and the frost exist to hand rows off at the edges of a MOVING list.
-     With the scroll stopped they are pure damage: the top fade permanently
-     half-erases the first row's title and the bottom frost blurs the last one. */
-  .pviewport{-webkit-mask-image:none;mask-image:none}
-  .pfade,.pfadeTop{display:none}
 }

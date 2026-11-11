@@ -1,4 +1,6 @@
+import { headers } from "next/headers";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { HeaderBar } from "@/components/HeaderBar";
 import { SearchBox } from "@/components/SearchBox";
 import { SearchResultsBills } from "@/components/SearchResultsBills";
@@ -6,9 +8,12 @@ import { SearchResultsMembers } from "@/components/SearchResultsMembers";
 import { SearchResultsNews } from "@/components/SearchResultsNews";
 import { SearchResultsReports } from "@/components/SearchResultsReports";
 import { SearchTabs } from "@/components/SearchTabs";
+import { parseBillRef } from "@/lib/bill-ref";
+import { getCurrentCongress } from "@/lib/congress";
 import {
   SEARCH_TABS,
   type SearchTab,
+  getBillById,
   sanitizeQ,
   sanitizeSearchTab,
   searchBillsCount,
@@ -54,6 +59,27 @@ export default async function SearchPage({
 }) {
   const params = await searchParams;
   const q = sanitizeQ(params.q);
+  // HO 813: the bill-number fast path. bills_fts doesn't index the number, so a
+  // query that reads as a bill reference ("HR 3978", "S.Con.Res. 2") goes straight
+  // to that bill in the current Congress when CT holds it, and otherwise falls
+  // through to the search below. redirect() throws to do its work, so it sits
+  // outside any try/catch.
+  //
+  // ONLY A PAGE LOAD TAKES IT. SearchBox searches as the reader types: each pause
+  // of 250ms pushes /search?q= through the client router (components/SearchBox.tsx),
+  // so a redirect there would carry a reader typing "HR 3978" to /bill/…-hr-39 at a
+  // pause and drop the search they were typing. A client-router fetch carries
+  // Next's `rsc` header and a Sec-Fetch-Mode other than `navigate`; a page load
+  // (the lobby's form and its Try links, a typed or pasted URL) carries neither,
+  // or `navigate`.
+  const ref = parseBillRef(q);
+  if (ref) {
+    const h = await headers();
+    const mode = h.get("sec-fetch-mode");
+    const pageLoad = h.get("rsc") === null && (mode === null || mode === "navigate");
+    const id = `${getCurrentCongress()}-${ref.type}-${ref.number}`;
+    if (pageLoad && (await getBillById(id))) redirect(`/bill/${id}`);
+  }
   const active = sanitizeSearchTab(params.tab);
   // HO 490: page-computed clock threaded to the bills/news result rows (#418).
   const nowMs = Date.now();

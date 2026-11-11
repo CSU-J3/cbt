@@ -39,21 +39,12 @@ import {
   getWeeklyBandPriorWeek,
   getWeeklyBandTransitionLadder,
 } from "@/lib/queries";
+// HO 365: the MON DD formatter (uppercased by the band's text-transform) for the
+// "WEEK OF JUN 22" header and the "JUN 15 REPORT →" link. HO 813 retired this
+// file's private copy for lib/week-summary's export, which /welcome reads too.
+import { monDd } from "@/lib/week-summary";
 
 const ENACTED_ID_CAP = 3;
-
-// HO 365: MON DD formatter (uppercased by the band's text-transform) for the
-// "WEEK OF JUN 22" header and the "JUN 15 REPORT →" link. UTC, to match the
-// YYYY-MM-DD week-start strings.
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-function monDd(iso: string): string {
-  const d = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
-}
 
 // HO 283: the week-over-week delta that rides after each metric's value+label.
 // ▲ up (--market-up green) / ▼ down (--market-down red) — the tape's directional

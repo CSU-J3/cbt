@@ -24,7 +24,9 @@ import {
 } from "@/lib/queries";
 import styles from "./landing.module.css";
 
-// HO 670 — the three cycling demo panels of the /welcome board.
+// HO 670 — the three cycling demo panels of the /welcome board. HO 813 kept
+// them as the lobby's Live section: the data and the cycling are unchanged, and
+// the look is landing.module.css's (cards on --bg-panel, sentence-case headers).
 //
 // Nine datasets, three per panel, each scrolling on its own loop while the three
 // crossfade on a 45s cycle (the CSS in landing.module.css owns both motions; this
@@ -38,9 +40,9 @@ import styles from "./landing.module.css";
 //     returns ZERO rows in a week with no enactments (a panel that renders its
 //     header and no rows is the failure this arrangement exists to avoid).
 //   - HEARINGS reads upcoming AND the last 14 days: the whole forward calendar is
-//     3 rows during recess, and a track shorter than its 420px viewport breaks the
-//     -50% scroll loop. The label says SCHEDULED + RECENT rather than claiming a
-//     week that isn't there.
+//     3 rows during recess, and a track shorter than its viewport (420px then,
+//     384px since HO 813) breaks the -50% scroll loop. The note says *scheduled and recent* (SCHEDULED + RECENT
+//     until HO 813) rather than claiming a week that isn't there.
 // A third label is honest rather than literal: MEMBERS ranks by bills sponsored
 // this Congress (getMembersRanked's `volume` sort). There is no 30-day member
 // window in lib/queries, and writing one is a new query — out of scope here.
@@ -178,9 +180,13 @@ function sourceTag(source: string): string {
 
 export type BoardData = {
   panels: PanelSpec[];
-  // The banner readout's MOVED/7d figure rides along — same count the panel
-  // header note prints, read once.
+  // The MOVED/7d figure rides along — same count the panel header note prints,
+  // read once. HO 813: the pages list's Legislation count reads it.
   moved7d: number;
+  // HO 813: the LDA rollup's filings count, for the pages list's Lobbying line,
+  // so the page prints it from the read this board already makes. Null when the
+  // rollup is missing, and the line then prints no count.
+  lobbyingFilings: number | null;
 };
 
 export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardData> {
@@ -381,8 +387,11 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
     ),
   }));
 
+  // HO 813: the nine notes, rewritten without middle dots for the lobby's Live
+  // section. The labels were already sentence case; only the CSS shouted them.
   return {
     moved7d,
+    lobbyingFilings: lobbying ? lobbying.stats.filings : null,
     panels: [
       {
         key: "p1",
@@ -391,19 +400,19 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
         datasets: [
           {
             label: "Bills",
-            note: `${moved7d.toLocaleString()} moved · 7d`,
+            note: `${moved7d.toLocaleString()} moved in 7 days`,
             durationS: 26,
             rows: billsRows,
           },
           {
             label: "Stalls",
-            note: "longest since action",
+            note: "longest since any action",
             durationS: 30,
             rows: stallRows,
           },
           {
             label: "Enacted",
-            note: `became law · ${enacted.total.toLocaleString()} total`,
+            note: `became law, ${enacted.total.toLocaleString()} in all`,
             durationS: 24,
             rows: enactedRows,
           },
@@ -430,7 +439,7 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
           },
           {
             label: "Hearings",
-            note: "scheduled + recent",
+            note: "scheduled and recent",
             durationS: 33,
             rows: hearingRows,
           },
@@ -449,13 +458,13 @@ export async function loadBoard(nowMs: number, moved7d: number): Promise<BoardDa
           },
           {
             label: "Races",
-            note: "2026 · rated",
+            note: "2026, rated",
             durationS: 28,
             rows: raceRows,
           },
           {
             label: "Patterns",
-            note: "corpus",
+            note: "the corpus",
             durationS: 25,
             rows: patternRows,
           },
@@ -482,14 +491,15 @@ function Row({ row }: { row: PanelRow }) {
   );
 }
 
-export function Panel({ panel }: { panel: PanelSpec }) {
+// HO 813: `live` marks the first panel's header with the mock's green *live*
+// (mock-813-landing-scroll.html); the page passes it for panel one alone.
+export function Panel({ panel, live = false }: { panel: PanelSpec; live?: boolean }) {
   const delayClass = styles[DELAY_CLASS[panel.delay] ?? "d1"] ?? "";
   return (
     <div className={`${styles.pcol} ${delayClass}`}>
       {/* One grid CELL holds all three labels (grid-area 1/1), so the header
           keeps the height of its tallest label instead of collapsing to bare
-          padding — and it paints ABOVE the fades with its own background, or the
-          top frost samples the title and dims it. */}
+          padding. */}
       <div className={styles.colhead}>
         {panel.datasets.map((d, i) => (
           <span
@@ -500,6 +510,7 @@ export function Panel({ panel }: { panel: PanelSpec }) {
             <span className={styles.note}>{d.note}</span>
           </span>
         ))}
+        {live ? <span className={styles.live}>live</span> : null}
       </div>
       <div className={styles.pviewport}>
         {panel.datasets.map((d, i) => (
@@ -524,13 +535,10 @@ export function Panel({ panel }: { panel: PanelSpec }) {
           </div>
         ))}
       </div>
-      {/* Frost, NOT fade: the rows themselves fade by alpha via the viewport's
-          mask (glyphs stay sharp all the way out); these two overlays blur the
-          panel surface and are themselves masked so they only engage where the
-          text has already gone to nothing. A backdrop-filter over live text
-          smears the type — that is the bug this split avoids. */}
-      <div className={styles.pfadeTop} />
-      <div className={styles.pfade} />
+      {/* HO 813: the fade is the viewport's own ::after overlay, a gradient to
+          the panel colour (landing.module.css). The HO 670 mask and its two
+          frost layers are gone: a mask erases text rather than covering it, and
+          the mock's v1 used one that a viewer painted nothing under. */}
     </div>
   );
 }
