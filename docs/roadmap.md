@@ -9365,3 +9365,48 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - Then `verify:deploy`, CI and `e2e-prod`. No prod read is owed beyond § 2's.
   - The `cbt.zip` rebuild after GradShow (the `docs(skill)` commit).
 - **Also notes now run through HO 812.**
+
+**Also (HO 813), `/welcome` rebuilt as the lobby: one typeface, a 1200px column, the stage funnel beside the headline, the live board kept as the preview, the terminal's chrome left behind the door.** Built on `813-review` from `main` at `8caff27`, in four commits.
+- **The ruling, verbatim** (Corey, 3:44 PM MST Nov 10, on `docs/design/mock-813-landing-scroll.html` v7): *"HEADLINE wtf · LEAD both · BESIDE funnel · SECTIONS week+board+pages+how · PAGES 3 · WIDTH 1200"*.
+  - On the wordmark (3:46 PM): *"this needs to change. its to small and its the name of the damn thing"*, built as a 28px wordmark with the terminal's `:\>` in amber. Then *"nope this works"* (4:02 PM) on the result.
+  - The mock lands unedited, 31,303 bytes, sha256 `9aa71e2f4c5004a9e6d4658e67c28006217e440d5e72ba227a60d22892696cd2`. The one-screen, mono-only brief (`docs/design/landing-page-design-brief.md`) carries a supersession note and is record.
+- **Three places the build departs from the mock, by the handoff:**
+  1. The week line prints the week its report covers, *The week of Nov 2.*, not *This week in Congress.*: the newest report covers an earlier week.
+  2. The third How-it's-built heading is *Where the data comes from*, not *Ten sources, their own clocks*, which counted wrong, and the hero's facts line counts no sources.
+  3. Members prints no count. The mock's 536 is the nav tooltip's literal, and the build prints a count only from a query.
+- **What left the page:** the rail, BREAKING, the tapes, the clock and the bottom rail. The dashboard keeps all of them. `WelcomeClock` stays as a component, since both mastheads mount it.
+- **What ships:** the top bar (the wordmark, *Beta*, the last sync, *Open the terminal*); the hero (the HO 670 headline, the ruled lead, a facts line with the 119th's dates and the 120th's start, *Enter the terminal*, the search with four quick picks, and the funnel card beside them, `components/LandingFunnel.tsx`); the week line; Live (the HO 670 board as three cards, its nine notes without middle dots); What's inside (the nine pages, with counts only from reads the page makes); How it's built; the footer.
+  - A bill reference searched from a page load goes to its bill page: `lib/bill-ref.ts` and `app/search/page.tsx`.
+  - The funnel's bar geometry moved to `lib/stage-funnel-geometry.ts`, and the dashboard's `StageFunnel` reads it too. `monDd` is exported from `lib/week-summary.ts`, and `WeeklyBand`'s copy is retired.
+- **STEP 0 (5:21 to 5:31 PM MST Nov 10): five claims, none a HALT.**
+  - Claim 1: `ls-remote` read `main` alone at `8caff27`.
+  - Claim 2: the anchors held, but some were re-cited. `page.tsx`'s `loadBoard` is at `:245`, `enacted` and `lawRatio` at `:258-260`, the tapes at `:365-448`, the board at `:450-454` and the foot at `:456-509`. Smoke's marquee test runs to `:1174`. The clock's held-mount line is `:314` and already struck: the clock shipped to both mastheads. No backlog line flagged the tooltip's 536, so one is filed now.
+  - Claim 3: the mock matched, 31,303 bytes.
+  - Claim 4: in one read-only transaction at 5:31:08 PM, the bars summed to 17,285, equal to `getCorpusStats(true).total`, with 0 off the path.
+  - Claim 5: `HeaderBar` and `DashboardV2Header` import `WelcomeClock` too, so the component stays and backlog `:135` doesn't strike.
+- **The review before commit:** five read-only agents checked the diff against the handoff and the mock, and every ruled string matched. Three code fixes came from it:
+  - **The fast path takes a page load only.** `SearchBox` pushes `/search?q=` at each typing pause, so the handoff's literal redirect carried a reader typing `HR 3978` to `/bill/119-hr-39` at a pause (measured on an unguarded local build, 6:15 PM). A client-router fetch carries Next's `rsc` header and a non-`navigate` `Sec-Fetch-Mode`, and it now skips the redirect.
+  - The lobby's link sets the cookie on a middle-click and on the context menu too, since neither fires `click`.
+  - The wordmark is weight 600, since the app declares Plex Sans at 400, 500 and 600, and a 700 rendered the 600 face anyway.
+- **Ruled at the FF go (Nov 10), and fixed up on the ref before the FF.** Three ruled lines were corrected for truth (flag 3, the handoff's guard 3), one departure from the mock was reversed (flag 4), and the hearings count's rule was replaced (flag 6):
+  - *Six stages* reads *A bill's stage is read from its latest action. The count of laws is checked against the official list of public laws, so a bill that became law and then received a committee report still counts as a law.* The check is HO 812's tracked script, and backlog `:28` makes it routine.
+  - Live's sub reads *Nine feeds, in rotation.*, true at every width. *Nine feeds, three at a time.* wasn't at 760px and under, where the board is one panel.
+  - Roll Call is a configured feed (`lib/news-sources.ts:39-44`), so the column reads *The Hill, Politico and Roll Call for news*, and the footer's list gains *Roll Call* after *Politico*.
+  - The wordmark's `:\>` follows the mock, `#fbbf24`, which is `--accent-amber-bright`; the handoff's `--accent-amber` in § 6 was the chat's slip. The build's other departures from the mock are ratified as built: the wordmark at weight 600, the `--fs` ladder for sizes from 9 to 14px, the `color-mix()` greys, the green *live* on the first panel, and the headings without periods.
+  - Hearings counts as the dashboard's THIS WEEK does: the handoff's rule was wrong, not the count. It read the upcoming meetings alone, 3 on a Tuesday evening. The dashboard reads `getUpcomingMeetings()` and `getRecentMeetings(14)` together (`components/HearingsTab.tsx:22-27`) and counts the week's Monday to Friday. The lobby counts the same input by the same rule, each meeting once by its event id, so the two surfaces print one number.
+- **Tests:**
+  - Retired: `fit-finish.spec.ts`'s ODDS strip test, smoke's two `/welcome` tape tests (the P letters and the marquees' halves) and `odds-off.spec.ts`'s `/welcome` row. `e2e/odds-sites.allowlist.json` lists `app/welcome/page.tsx` as *not-a-render-site* now.
+  - Amended: smoke's foot test reads the `<footer>`.
+  - Added, four: the funnel sums to its title; the search, with the bill-number fast path; the nine pages; the term dates and the bill reference, with no page. The search test also holds across Jan 3, 2027, sends a five-digit unheld reference to the search, and types into the box.
+  - **e2e-prod's smoke reads 144 after the FF, not the handoff's 146.** The step runs `smoke`, `odds-off` and `narrow` together (51 + 13 + 80 by `--list`). The `odds-off` row it retired ran at two viewports, so the count is 144 − 2 − 2 + 4.
+  - Each new test read red against `8caff27`. The first three ran against prod's page, which had no funnel card, no search form and no *What's inside*. The fourth ran with `8caff27`'s lib, where `lib/bill-ref` doesn't exist. The typed-box leg read red on the unguarded build.
+- **§ 6, re-read on a fresh local build of the fixups (7:10 to 7:12 PM MST):**
+  - Smoke's `welcome|/search` tests passed with the foot and lib tests, 9 of 9. Narrow read 0 over at 430 and 390.
+  - The h1 is Plex Sans at 72px at 1440, the face loaded. The primary button is `--accent-amber-bright`, the wordmark's `:\>` is `--accent-amber-bright` too (`rgb(251, 191, 36)`), and the board's ident is `--font-mono`.
+  - The four corrected strings are served as ruled.
+  - Hearings reads *11 this week*, and the dashboard's THIS WEEK reads 11.
+  - `/search?q=HR+3978` returned a 307 to `/bill/119-hr-3978`.
+  - The captures are in `docs/handoffs/813-artifacts/`. The hero's takes the top bar too, so the wordmark is in frame.
+- **Docs:** backlog `:28` gains its two leftovers, and two lines are new: a re-summary overwrites a hand-set ceremonial tag, and the nav tooltip's literal 536. The reconcile goes from 267 / 392 on 659 to 269 / 392 on 661. The oddities gain one entry: `/search` runs at every typing pause.
+- **Owed at the FF:** the cold build and the gates on the head, the push to `main` and the ref deleted, then `verify:deploy`, CI and `e2e-prod`, with smoke at 144.
+- **Also notes now run through HO 813.**

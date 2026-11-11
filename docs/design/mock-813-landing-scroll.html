@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing Scroll Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* mock-813 v7 · /welcome as a lobby for the terminal (Corey, 3:32 PM MST Nov 10: v6 "ugly like super bad").
+   Plan. Colour: CBT's own tokens and nothing new: base #0a0e14, surface #0f1620, panel #050709, text #e5e7eb / #cbd5e1 / #94a3b8,
+   amber #fbbf24 spent in two places only (the primary button, the funnel's last row). Type: one family, IBM Plex Sans, weight and
+   size doing the work (72 / 44 / 20 / 17 / 15); Plex Mono appears only inside the live board, where it is the product. Layout: a
+   1200px column, left-aligned, 112px between sections. The one memorable thing is the stage funnel, drawn large beside the
+   headline, ending on the 127 that became law. No eyebrow labels, no all-caps outside the board, no decorative rules. */
+:root{
+  color-scheme:dark;
+  --bg:#0a0e14; --surface:#0f1620; --panel:#050709;
+  --line:#1f2937; --line-soft:#111820;
+  --ink:#e5e7eb; --ink-2:#cbd5e1; --ink-3:#94a3b8; --ink-4:#6b7280;
+  --amber:#fbbf24; --amber-deep:#d97706; --fresh:#d2500e;
+  --rep:#ef4444; --dem:#3b82f6; --ind:#a78bfa;
+  --s-intro:#94a3b8; --s-cmte:#06b6d4; --s-floor:#fbbf24; --s-other:#f59e0b; --s-pres:#fb923c; --s-law:#10b981;
+  --up:#10b981; --down:#ef4444;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --col:1200px; --gutter:32px; --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.num{font-variant-numeric:tabular-nums}
+
+/* ───────── mock chrome (not product) ───────── */
+.mock{position:sticky;top:0;z-index:40;background:#0b0f15;border-bottom:1px dashed #2b3646;font-family:var(--mono);font-size:12px;
+  padding:8px max(16px,env(safe-area-inset-right,0px)) 9px max(16px,env(safe-area-inset-left,0px))}
+.mock-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.mock-title{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3)}
+.mock-top button{background:transparent;border:0;color:var(--ink-4);font-size:10px;cursor:pointer;padding:0;text-decoration:underline}
+.groups{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:7px}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.grp .k{font-size:10px;letter-spacing:.5px;color:var(--ink-4);margin-right:1px;text-transform:uppercase}
+.grp button{background:transparent;border:1px solid var(--line);border-radius:2px;padding:3px 7px;font-size:11px;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.grp button:hover{color:var(--ink-2)}
+.grp button:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.grp button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--surface)}
+.note{font-size:11px;color:var(--ink-3);margin-top:7px;max-width:1300px}
+.note b{color:var(--ink-2);font-weight:500}
+.ruling{font-size:11px;color:var(--ink-4);margin-top:5px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ruling b{color:var(--amber);font-weight:500;word-break:break-word}
+.ruling button{border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:10px;padding:2px 7px;border-radius:2px;cursor:pointer}
+.prov{font-size:11px;color:var(--ink-4);margin-top:5px;max-width:1300px}
+.prov summary{cursor:pointer;color:var(--ink-4);text-decoration:underline}
+.prov p{margin:5px 0 0;line-height:1.5}
+.prov code{color:var(--ink-3)}
+.mock.folded .groups,.mock.folded .note,.mock.folded .prov{display:none}
+
+/* ───────── product ───────── */
+.page{background:var(--bg);min-height:100vh}
+.wrap{max-width:var(--col);margin:0 auto;padding-left:max(var(--gutter),env(safe-area-inset-left,0px));padding-right:max(var(--gutter),env(safe-area-inset-right,0px))}
+.page.wide{--col:1400px}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:20px;padding-block:26px;border-bottom:1px solid var(--line-soft)}
+.brand{font-weight:700;font-size:28px;line-height:1;letter-spacing:-.03em;display:inline-flex;align-items:center;gap:14px;color:var(--ink)}
+.brand .mark{color:var(--amber);font-weight:600;letter-spacing:0}
+.pill{font-size:12px;font-weight:500;color:var(--ink-3);border:1px solid var(--line);border-radius:999px;padding:3px 10px;line-height:1.4;letter-spacing:0;position:relative;top:1px}
+.top .sp{flex:1}
+.toplink{font-size:15px;color:var(--ink-3)} .toplink:hover{color:var(--ink)}
+.sync{font-size:14px;color:var(--ink-4)} .sync b{font-weight:500;color:var(--ink-3)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:40px 72px;align-items:center;padding-block:88px 72px}
+.hero.one{grid-template-columns:1fr}
+.h1{font-size:72px;line-height:1;letter-spacing:-.035em;font-weight:600;margin:0;max-width:14ch;text-wrap:balance}
+.h1 .l2{display:block;font-size:30px;line-height:1.2;letter-spacing:-.02em;font-weight:500;color:var(--ink-3);margin-top:20px;max-width:24ch}
+.lead{font-size:20px;line-height:1.5;color:var(--ink-2);margin:28px 0 0;max-width:34em;text-wrap:pretty}
+.lead b{font-weight:600;color:var(--ink)}
+.facts{margin:22px 0 0;font-size:15px;color:var(--ink-4);line-height:1.6;max-width:40em}
+.facts b{font-weight:500;color:var(--ink-3)}
+.actions{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px;margin-top:34px}
+.btn{font-weight:600;font-size:16px;padding:14px 22px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#374151;background:var(--surface)}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+.btnPrimary{background:var(--amber);border-color:var(--amber);color:#0a0e14}
+.btnPrimary:hover{background:#fcd34d;border-color:#fcd34d}
+.quiet{font-size:15px;color:var(--ink-4)}
+
+/* search */
+.search{margin-top:34px;max-width:620px}
+.search form{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 6px 6px 18px}
+.search form:focus-within{border-color:#374151;box-shadow:0 0 0 3px color-mix(in srgb,var(--amber) 18%,transparent)}
+.search input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font:inherit;font-size:17px;padding:10px 0;outline:0}
+.search input::placeholder{color:var(--ink-4)}
+.search button{flex:none;font-weight:600;font-size:15px;padding:10px 16px;border-radius:8px;border:0;background:#1a2330;color:var(--ink);cursor:pointer}
+.search button:hover{background:#243040}
+.search button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.tries{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:12px;font-size:14px;color:var(--ink-4);align-items:center}
+.tries a{color:var(--ink-3);background:var(--surface);border:1px solid var(--line-soft);border-radius:999px;padding:3px 11px}
+.tries a:hover{color:var(--ink);border-color:var(--line)}
+
+/* the funnel card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:28px 28px 22px}
+.card h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em}
+.card .sub{margin:4px 0 0;font-size:14px;color:var(--ink-4)}
+.funnel{display:grid;grid-template-columns:max-content 1fr max-content;gap:12px 16px;align-items:center;margin-top:22px}
+.funnel .lab{font-size:15px;color:var(--ink-2);white-space:nowrap}
+.funnel .trk{height:14px;min-width:0}
+.funnel .bar{display:block;height:100%;min-width:6px;border-radius:4px}
+.funnel .ct{font-size:16px;font-weight:500;text-align:right;white-space:nowrap}
+.funnel .lab.law,.funnel .ct.law{color:var(--amber);font-weight:600}
+.card .foot{margin:22px 0 0;padding-top:16px;border-top:1px solid var(--line-soft);font-size:14px;color:var(--ink-4);line-height:1.5}
+.card .foot b{font-weight:600;color:var(--amber)}
+
+/* sections */
+.sec{padding-block:96px 0}
+.sec.last{padding-bottom:112px}
+.h2{font-size:40px;line-height:1.1;letter-spacing:-.03em;font-weight:600;margin:0;max-width:22ch;text-wrap:balance}
+.sub2{font-size:18px;color:var(--ink-3);margin:12px 0 0;max-width:40em;text-wrap:pretty}
+.sub2 a{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.sub2 a:hover{text-decoration-color:var(--ink-3)}
+
+/* the week sentence */
+.week{margin-top:0;padding-block:22px;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);display:flex;flex-wrap:wrap;gap:8px 18px;align-items:baseline;font-size:16px;color:var(--ink-2)}
+.week b{font-weight:600;color:var(--ink)}
+.week a{color:var(--ink-3);font-size:15px;margin-left:auto;white-space:nowrap} .week a:hover{color:var(--ink)}
+
+/* the live board: three panels, the product as it is */
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:40px}
+.pnl{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.ph{display:flex;align-items:baseline;gap:10px;padding:16px 20px 14px;border-bottom:1px solid var(--line)}
+.ph b{font-size:16px;font-weight:600} .ph span{font-size:14px;color:var(--ink-4)}
+.ph .live{margin-left:auto;font-size:13px;color:var(--up);display:inline-flex;align-items:center;gap:6px}
+.ph .live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--up)}
+.pv{height:384px;overflow:hidden;position:relative}
+.pv::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;pointer-events:none;background:linear-gradient(to bottom,rgba(5,7,9,0),var(--panel) 90%)}
+.row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:12px;padding:12px 20px;border-bottom:1px solid var(--line-soft);align-items:baseline}
+.id{font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--amber-deep);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.id i{font-style:normal;color:var(--ink-3)}
+.ttl{font-size:15px;line-height:1.35;color:var(--ink);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.meta{margin-top:4px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--ink-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta .who{color:var(--ink-3)}
+.d{color:var(--dem)} .r{color:var(--rep)} .i{color:var(--ind)}
+
+/* what's inside: nine pages, a list in columns */
+.pages{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 48px;margin-top:44px}
+.pg{display:block;min-width:0;padding-top:18px;border-top:1px solid var(--line)}
+.pg .nm{font-size:20px;font-weight:600;letter-spacing:-.015em;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.pg .nm span{font-size:14px;font-weight:500;color:var(--ink-4);white-space:nowrap}
+.pg p{margin:8px 0 0;font-size:15px;line-height:1.5;color:var(--ink-3);text-wrap:pretty}
+.pg:hover .nm{color:var(--amber)}
+.pg:focus-visible{outline:2px solid var(--amber);outline-offset:6px;border-radius:4px}
+
+/* how it's built */
+.how{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px 48px;margin-top:44px}
+.how h3{margin:0;font-size:20px;font-weight:600;letter-spacing:-.015em}
+.how p{margin:10px 0 0;font-size:16px;line-height:1.55;color:var(--ink-3);text-wrap:pretty}
+.how p b{font-weight:500;color:var(--ink-2)}
+.stages{display:flex;flex-wrap:wrap;gap:6px 0;align-items:center;margin-top:14px;font-size:14px;font-weight:500}
+.stages span{padding:2px 0} .stages i{font-style:normal;color:var(--ink-4);padding:0 8px}
+
+/* footer */
+.foot{margin-top:112px;border-top:1px solid var(--line-soft);padding-block:28px 40px;font-size:14px;color:var(--ink-4);line-height:1.7}
+.foot b{font-weight:500;color:var(--ink-3)}
+.foot .fr{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:baseline}
+.foot .sp{flex:1}
+.foot em{font-style:normal;color:var(--fresh)}
+
+/* responsive */
+@media (max-width:1100px){
+  .hero{grid-template-columns:1fr;gap:48px;padding-block:64px 56px}
+  .h1{font-size:60px}
+  .board,.pages,.how{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  :root{--gutter:20px}
+  .brand{font-size:22px} .top{flex-wrap:wrap;gap:12px 20px} .sync{display:none}
+  .h1{font-size:44px;max-width:none} .h1 .l2{font-size:24px}
+  .lead{font-size:18px}
+  .h2{font-size:32px}
+  .board,.pages,.how{grid-template-columns:1fr}
+  .board .pnl:not(:first-child){display:none}
+  .sec{padding-block:72px 0}
+  .search form{flex-wrap:wrap;padding:10px} .search button{width:100%}
+  .week a{margin-left:0}
+}
+@media (max-width:420px){ :root{--gutter:16px} .actions .btn{width:100%;text-align:center} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+
+<div class="mock" id="mock">
+  <div class="mock-top">
+    <span class="mock-title">mock-813 v7 · /welcome as the lobby for the terminal · against main at 8caff27, data read off prod 1:23 and 2:14 PM MST Nov 10, 2026</span>
+    <button id="foldBtn" type="button">hide controls</button>
+  </div>
+  <div class="groups" id="groups"></div>
+  <div class="note" id="note"></div>
+  <div class="ruling">Reply with the line as set: <b id="ruling"></b> <button id="copyBtn" type="button">copy</button></div>
+  <details class="prov">
+    <summary>what's real in this mock, and what changed in v7</summary>
+    <p><b>v7 is the lobby, not the terminal.</b> The terminal's chrome (the rail, BREAKING, the tapes, the mono caps, the middle dots) stays behind the door; it appears here only inside the live board, which is the product as it is. The page is one family, Plex Sans, at five sizes; amber is spent on the primary button and the funnel's last row and nowhere else; cards exist only for the two live objects (the funnel, the board). Every colour is a token from <code>app/globals.css</code>; nothing is new.</p>
+    <p><b>Every row and number is prod's</b>: the funnel (Introduced 112, In committee 15,997, On the floor 473, Passed one chamber 568, On the President's desk 3, Became law 127; 17,280 in all), the week of Nov 2's sentences and the hearings count from <code>/</code> at 2:14 PM MST; the board's rows, the stats and the foot from <code>/welcome</code> at 1:23 PM. The pages' counts are shown where the mock has a real one; the build reads each from the page's own query. The board doesn't cycle here; on the site the panels rotate through all nine datasets, as today. LOGIN stays hidden (<code>ACCOUNT_UI</code> false since HO 796).</p>
+    <p><b>The search box</b> submits to <code>/search</code>, which covers bills (title, summary, sponsor), members, news and reports. A bare bill number isn't indexed, so the build adds a fast path that sends <code>HR 3978</code> straight to its bill page.</p>
+    <p><b>Rulings carried:</b> the lead loses its last sentence (1:46 PM); the statement rewritten plain (5:11 PM: "be normal"); adult register, no slogans built on a contrast or a triad (1:48 PM); the 119th's dates and the 120th's start on the page (2:04 PM); not a copy of another site's layout (2:13 PM); v6's terminal-everywhere look rejected (3:32 PM). <b>Knobs.</b> HEADLINE: the HO 670 line, or a two-line statement. LEAD: your line, a plain statement, or both. BESIDE: the funnel, or nothing (one column). SECTIONS: each block on or off. PAGES: three columns or two. WIDTH: 1200 or 1400. Defaults are the architect's recommendation; what you leave set is the ruling.</p>
+  </details>
+</div>
+
+<div class="page" id="page">
+  <div class="wrap">
+
+    <div class="top">
+      <span class="brand"><span>Congressional Terminal<span class="mark">:\&gt;</span></span> <span class="pill">Beta</span></span>
+      <span class="sp"></span>
+      <span class="sync">Last sync <b>11:00 AM MT</b></span>
+      <a class="toplink" href="#">Open the terminal</a>
+    </div>
+
+    <div class="hero" id="hero">
+      <div>
+        <h1 class="h1" id="h1"></h1>
+        <p class="lead" id="lead"></p>
+        <p class="facts">The 119th Congress runs <b>Jan 3, 2025 to Jan 3, 2027</b>; the 120th starts Jan 3, 2027. Synced four times a day from congress.gov and nine other sources.</p>
+        <div class="actions">
+          <button type="button" class="btn btnPrimary">Enter the terminal</button>
+          <span class="quiet">No account needed.</span>
+        </div>
+        <div class="search" id="search">
+          <form onsubmit="return false">
+            <input id="q" type="search" placeholder="Search bills, members, news, and reports" aria-label="Search bills, members, news, and reports" autocomplete="off">
+            <button type="submit">Search</button>
+          </form>
+          <div class="tries"><span>Try</span> <a href="#">HR 3978</a> <a href="#">Markey</a> <a href="#">veterans</a> <a href="#">shutdown</a></div>
+        </div>
+      </div>
+      <div class="card" id="funnelCard">
+        <h3>17,280 bills, by stage</h3>
+        <p class="sub">Every bill in the 119th Congress, by its current stage from introduction to enactment.</p>
+        <div class="funnel" id="funnel"></div>
+        <p class="foot"><b>127 became law</b>, 0.7 percent. Ceremonial bills, like namings and awareness designations, are set aside from these counts.</p>
+      </div>
+    </div>
+
+    <div class="week" data-sec="week">
+      <span><b>This week in Congress.</b> 11 bills were introduced. 2 laws were enacted. 15 stage transitions occurred, and filler was 21 percent.</span>
+      <a href="#">Read the Nov 2 report</a>
+    </div>
+
+    <section class="sec" data-sec="board">
+      <h2 class="h2">Live</h2>
+      <p class="sub2">Three of the terminal's nine feeds. On the site they rotate through all of them.</p>
+      <div class="board" id="board"></div>
+    </section>
+
+    <section class="sec" data-sec="pages">
+      <h2 class="h2">What's inside</h2>
+      <p class="sub2">Nine pages, all open without an account.</p>
+      <div class="pages" id="pages"></div>
+    </section>
+
+    <section class="sec last" data-sec="how">
+      <h2 class="h2">How it's built</h2>
+      <div class="how">
+        <div>
+          <h3>Every bill, summarized</h3>
+          <p>Each bill gets a summary written from its text, with its topics. The ceremonial ones, like namings, awareness designations and honoring resolutions, are tagged and set aside from the counts.</p>
+        </div>
+        <div>
+          <h3>Six stages</h3>
+          <p>A bill's stage is read from its latest action and checked against the official list of public laws, so a bill that became law and then received a committee report still counts as a law.</p>
+          <div class="stages"><span style="color:var(--s-intro)">Introduced</span><i>→</i><span style="color:var(--s-cmte)">Committee</span><i>→</i><span style="color:var(--s-floor)">Floor</span><i>→</i><span style="color:var(--s-other)">Other chamber</span><i>→</i><span style="color:var(--s-pres)">President</span><i>→</i><span style="color:var(--s-law)">Law</span></div>
+        </div>
+        <div>
+          <h3>Ten sources, their own clocks</h3>
+          <p><b>congress.gov</b> for bills, actions, members, hearings, nominations and amendments. <b>FRED</b> for the markets. <b>Kalshi</b> and <b>Polymarket</b> for the odds, never blended. <b>FEC</b> for fundraising, <b>lda.gov</b> for lobbying, <b>Ballotpedia</b> for ballots and incumbents, <b>The Hill</b> and <b>Politico</b> for news.</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="foot">
+      <div class="fr">
+        <span><b>Congressional Terminal</b>, the 119th Congress</span>
+        <span class="sp"></span>
+        <span>Race ratings from Cook, Inside Elections and Sabato, <em>as of 2026-09-22 to 2026-10-20</em>, via Ballotpedia</span>
+      </div>
+      <div class="fr">
+        <span>Sources: congress.gov, FRED, Kalshi, Polymarket, FEC, lda.gov, Ballotpedia, The Hill, Politico</span>
+        <span class="sp"></span>
+        <span>Synced four times a day, last at <b>11:00 AM MT</b></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ───────── data, as read off prod ───────── */
+const BILLS = [
+ ["HR","10963","To eliminate the statute of limitations for certain Federal perjury offenses.","DAVIS","D","IL","CMTE","2h"],
+ ["HR","10968","To direct the Secretary of Veterans Affairs to establish a grant program to provide financial assistance to eligible…","PELOSI","D","CA","CMTE","2h"],
+ ["HR","10969","To amend the Richard B. Russell National School Lunch Act to establish a task force for the development of best…","SCHRIER","D","WA","CMTE","2h"],
+ ["HR","10961","To direct the Secretary of Veterans Affairs to report on the Warrior Training Advancement Course of the Veterans…","CARTER","D","LA","CMTE","2h"],
+ ["HR","10966","To require the Secretary of Veterans Affairs to ensure that medical facilities of the Department of Veterans Affairs…","MACE","R","SC","CMTE","2h"],
+ ["HR","3978","Nuclear REFUEL (Recycling Efficient Fuels Utilizing Expedited Licensing) Act","LATTA","R","OH","FLOOR","2h"],
+ ["HR","1703","Choices for Increased Mobility Act of 2026","JOYCE","R","PA","PRES","2h"],
+];
+const MEMBERS = [
+ ["FL","SEN","Rick Scott","R",157,0],["MA","SEN","Edward J. Markey","D",144,0],["UT","SEN","Mike Lee","R",133,0],
+ ["TN","SEN","Marsha Blackburn","R",128,2],["TX","SEN","Ted Cruz","R",126,4],["TX","SEN","John Cornyn","R",124,2],["OR","SEN","Jeff Merkley","D",115,0],
+];
+const NEWS = [
+ ["THE HILL","House Oversight Republicans release final Epstein report","HR 10820 +1","2h"],
+ ["POLITICO","House Oversight Republicans release final report on Epstein investigation","HR 10820 +1","4h"],
+ ["POLITICO","Senior Dems will make life ‘hell’ without Jeffries vote, freshman rep says","HJRES 221","4h"],
+ ["THE HILL","Jeffries pushes tighter China chip restrictions amid Nvidia CEO scandal","HR 10873","5h"],
+ ["POLITICO","Jeffries pushes to restrict China chip exports in defense bill","HR 10861","21h"],
+ ["THE HILL","Democrats must not cede power via permitting bill that would fast-track data centers","HR 10950","22h"],
+ ["THE HILL","Protecting America's digital infrastructure starts with common sense","HR 10915","1d"],
+];
+/* the dashboard's funnel at 2:14 PM MST, ungated, ceremonial set aside; sums to 17,280 */
+const FUNNEL = [["Introduced",112,"var(--s-intro)"],["In committee",15997,"var(--s-cmte)"],["On the floor",473,"var(--s-floor)"],
+ ["Passed one chamber",568,"var(--s-other)"],["On the President's desk",3,"var(--s-pres)"],["Became law",127,"var(--s-law)"]];
+/* the nav's entries, in its order; a count where the mock has a real one */
+const PAGES = [
+ ["Legislation","27 moved this week","Every bill, its news and its stage changes, and the President's desk."],
+ ["Hearings","11 this week","Committee hearings, markups and business meetings, by day."],
+ ["Members","536","Every member, their bills and laws, their 2026 race, and the primary calendar."],
+ ["Electoral","3 raters","The competitive 2026 races with each forecaster's rating, and the primary calendar."],
+ ["Patterns","","Bill shapes, long-run trends, and the bills that stalled."],
+ ["Lobbying","142,715 filings","What's being lobbied: LD-2 filings by issue, and who's paying."],
+ ["Nominations","","Presidential nominations, by agency and status."],
+ ["Amendments","","Floor amendments: who's amending which bills, and the few that get a vote."],
+ ["Reports","Newest Nov 2","A weekly report on what moved, newest first."],
+];
+const STAGE = {CMTE:"var(--s-cmte)",FLOOR:"var(--s-floor)",OTHER:"var(--s-other)",PRES:"var(--s-pres)",LAW:"var(--s-law)"};
+
+/* ───────── controls ───────── */
+const CTL = [
+ ["headline","HEADLINE",[["wtf","WTF (HO 670)"],["claim","STATEMENT"]]],
+ ["lead","LEAD",[["roi","ROI (YOURS)"],["straight","STRAIGHT"],["both","BOTH"]]],
+ ["beside","BESIDE THE HEADLINE",[["funnel","THE FUNNEL"],["none","NOTHING"]]],
+ ["sections","SECTIONS",[["week","THIS WEEK"],["board","LIVE BOARD"],["pages","WHAT'S INSIDE"],["how","HOW IT'S BUILT"]],"multi"],
+ ["pages","PAGES",[["3","THREE COLUMNS"],["2","TWO COLUMNS"]]],
+ ["width","WIDTH",[["1200","1200"],["1400","1400"]]],
+];
+const DEF = {headline:"wtf",lead:"both",beside:"funnel",sections:"week+board+pages+how",pages:"3",width:"1200"};
+const NOTES = {
+ headline:{wtf:"The HO 670 hero line.",claim:"A two-line statement of what the product is."},
+ lead:{roi:"Your line, less its last sentence (ruled 1:46 PM MST Nov 10).",straight:"One plain statement of what the product is.",both:"Your hook, then the statement."},
+ beside:{funnel:"The stage funnel, drawn large, ending on the 127 that became law.",none:"One column: the headline, the lead, the button and the search, nothing beside them."},
+ sections:{},
+ pages:{3:"Nine pages in three columns.",2:"Nine pages in two columns, more room for each line."},
+ width:{1200:"A 1200px column.",1400:"A 1400px column."},
+};
+const st = Object.assign({}, DEF);
+(function load(){
+  try{ const h=location.hash.slice(1); if(h && h.includes("=")) h.split("&").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("="); if(k in DEF) st[k]=decodeURIComponent(v);}); }catch(e){}
+  try{ if(!location.hash.includes("=")){ const s=localStorage.getItem("mock-813-v7"); if(s){ const o=JSON.parse(s); Object.keys(DEF).forEach(k=>{ if(o[k]) st[k]=o[k]; }); } } }catch(e){}
+})();
+const $ = (id) => document.getElementById(id);
+const secOn = (k) => st.sections.split("+").includes(k);
+const SHORT = {headline:"HEADLINE",lead:"LEAD",beside:"BESIDE",sections:"SECTIONS",pages:"PAGES",width:"WIDTH"};
+function rulingLine(){ return CTL.map(([k]) => `${SHORT[k]} ${st[k]}`).join(" · "); }
+function persist(){
+  try{ localStorage.setItem("mock-813-v7", JSON.stringify(st)); }catch(e){}
+  try{ history.replaceState(null,"","#"+Object.keys(DEF).map(k=>`${k}=${encodeURIComponent(st[k])}`).join("&")); }catch(e){}
+}
+function drawControls(){
+  $("groups").innerHTML = CTL.map(([k,label,opts,multi]) => `<div class="grp"><span class="k">${label}</span>${opts.map(([v,t]) =>
+    `<button type="button" data-k="${k}" data-v="${v}" class="${multi ? (secOn(v)?"on":"") : (st[k]===v?"on":"")}">${t}</button>`).join("")}</div>`).join("");
+  $("groups").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+    const k=b.dataset.k, v=b.dataset.v;
+    if(k==="sections"){ const set=new Set(st.sections.split("+").filter(Boolean)); set.has(v)?set.delete(v):set.add(v);
+      st.sections = CTL[3][2].map(o=>o[0]).filter(x=>set.has(x)).join("+"); }
+    else st[k]=v;
+    render(k);
+  }));
+}
+
+/* ───────── render ───────── */
+const esc = (s) => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+const party = (p,stt) => `<span class="${p==="D"?"d":p==="R"?"r":"i"}">[${p}${stt?"-"+stt:""}]</span>`;
+const stage = (s) => `<span style="color:${STAGE[s]||"inherit"}">${s}</span>`;
+const row = (ident,title,meta) => `<div class="row"><div class="id">${ident}</div><div><div class="ttl">${esc(title)}</div><div class="meta">${meta}</div></div></div>`;
+const billRows = BILLS.map(b => row(`${b[0]} <i>${b[1]}</i>`, b[2], `<span class="who">${b[3]}</span> ${party(b[4],b[5])} · ${stage(b[6])} · ${b[7]}`)).join("");
+const memberRows = MEMBERS.map(m => row(`${m[0]} <i>${m[1]}</i>`, m[2], `${party(m[3],m[0])} · ${m[4]} SPONSORED · ${m[5]} ENACTED`)).join("");
+const newsRows = NEWS.map(n => row(n[0], n[1], `<span class="who">${n[2]}</span> · ${n[3]}`)).join("");
+$("board").innerHTML =
+  `<div class="pnl"><div class="ph"><b>Bills</b><span>27 moved in 7 days</span><span class="live">live</span></div><div class="pv">${billRows}</div></div>` +
+  `<div class="pnl"><div class="ph"><b>Members</b><span>most bills sponsored</span></div><div class="pv">${memberRows}</div></div>` +
+  `<div class="pnl"><div class="ph"><b>News</b><span>matched to bills</span></div><div class="pv">${newsRows}</div></div>`;
+const sqrtMax = Math.sqrt(Math.max(...FUNNEL.map(f=>f[1])));
+$("funnel").innerHTML = FUNNEL.map((f,i) => { const law = i===FUNNEL.length-1; return `<span class="lab${law?" law":""}">${f[0]}</span><span class="trk"><span class="bar" style="width:${Math.max(Math.sqrt(f[1])/sqrtMax*100,3).toFixed(1)}%;background:${law?"var(--amber)":f[2]}"></span></span><span class="ct num${law?" law":""}">${f[1].toLocaleString()}</span>`; }).join("");
+
+function render(changed){
+  $("h1").innerHTML = st.headline==="wtf"
+    ? `WTF is going on in Congress?`
+    : `Every bill in the 119th Congress.<span class="l2">Summarized, placed on its path, and tracked four times a day.</span>`;
+  const ROI = "Ever wanted to know the ROI on your Congress Critter? Are they working hard, or hardly working?";
+  const STRAIGHT = "Congressional Terminal tracks every bill in the 119th Congress: a summary, its stage from introduction to enactment, its sponsor, the hearings and lobbying filings, and the news that mentions it.";
+  $("lead").innerHTML = st.lead==="roi" ? esc(ROI) : st.lead==="straight" ? esc(STRAIGHT) : `<b>${esc("Ever wanted to know the ROI on your Congress Critter?")}</b> ${esc(STRAIGHT)}`;
+  $("hero").classList.toggle("one", st.beside==="none");
+  $("funnelCard").hidden = st.beside==="none";
+  document.querySelectorAll("[data-sec]").forEach(el => { el.hidden = !secOn(el.dataset.sec); });
+  $("pages").style.gridTemplateColumns = st.pages==="2" ? "repeat(2,minmax(0,1fr))" : "";
+  $("pages").innerHTML = PAGES.map(p => `<a class="pg" href="#"><span class="nm">${p[0]}${p[1]?`<span class="num">${esc(p[1])}</span>`:""}</span><p>${esc(p[2])}</p></a>`).join("");
+  $("page").classList.toggle("wide", st.width==="1400");
+  drawControls();
+  $("ruling").textContent = rulingLine();
+  if(changed && NOTES[changed] && NOTES[changed][st[changed]]) $("note").innerHTML = `<b>${CTL.find(c=>c[0]===changed)[1]} ${String(st[changed]).toUpperCase()}:</b> ${NOTES[changed][st[changed]]}`;
+  else if(changed==="sections") $("note").innerHTML = `<b>SECTIONS:</b> ${st.sections.split("+").filter(Boolean).map(s=>s.toUpperCase()).join(" · ") || "none"}.`;
+  else if(!changed) $("note").innerHTML = `<b>Defaults are the architect's recommendation.</b> Click any option; the page redraws and the line updates. Scroll to see every section.`;
+  persist();
+}
+$("foldBtn").addEventListener("click", () => { const m=$("mock"); m.classList.toggle("folded"); $("foldBtn").textContent = m.classList.contains("folded") ? "show controls" : "hide controls"; });
+$("copyBtn").addEventListener("click", () => { const t=rulingLine(); const done=()=>{ $("copyBtn").textContent="copied"; setTimeout(()=>$("copyBtn").textContent="copy",1200); };
+  try{ navigator.clipboard.writeText(t).then(done, () => { const r=document.createRange(); r.selectNodeContents($("ruling")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }); }catch(e){} });
+render();
+</script>
+</body>
+</html>

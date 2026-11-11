@@ -1,3 +1,4 @@
+<!-- SUPERSEDED (HO 813, 2026-11-10): this one-screen, mono-only brief is record. HO 813 ruled the lobby on docs/design/mock-813-landing-scroll.html (Corey, v7, 3:44 PM MST Nov 10): one typeface, a 1200px column, the stage funnel beside the headline. -->
 # Landing page — design brief (for Design chat)
 
 For the Design chat. Produces an approved mock; not a Code handoff. On approval, the mock overwrites the repo copy at `docs/design/landing.html` and gets committed, so the build handoff (B1) points at live repo content, not a stale paste.

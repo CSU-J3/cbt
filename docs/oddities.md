@@ -5043,3 +5043,12 @@ Only a check against the official list found it. Congress.gov's `/law/119` lists
 HO 812 set the row by hand, with no stamp. The code fix is a backlog line: the bill's detail names the law (`raw_json`'s `$.laws`), whatever its latest action says.
 
 **The rule:** a count of `enacted` is a floor until it's checked against the official list.
+
+## `/search` runs at every pause in typing, so a redirect there carries the typist off (HO 813, Nov 2026)
+
+`SearchBox` has no submit. Each pause of 250ms pushes `/search?q=…` through the client router (`components/SearchBox.tsx`), on every page but `/bills` and `/members`, `/search` included. So whatever the `/search` page does on the server runs at each pause, not once per search.
+- **What it would have done:** HO 813's bill-number fast path redirects a reference CT holds to its bill page. Built as the handoff wrote it, a reader typing `HR 3978` who paused after `HR 39` landed on `/bill/119-hr-39` (a local build, 6:15 PM MST Nov 10), and the bill page has no search box, so the search was gone.
+- **Why no test saw it:** no e2e test typed into the box, so every check read a page load (the lobby's form, a typed URL, curl), and each of those takes the redirect correctly.
+- **The fix:** only a page load takes the fast path. A client-router fetch carries Next's `rsc` header and a `Sec-Fetch-Mode` other than `navigate`. Smoke's search test now types `HR 3978` into the box and asserts it stays on `/search`; that leg read red on the unguarded build.
+
+**The rule:** a server-side effect on `/search` runs at every typing pause. Key it to a page load, or it fires mid-word.
