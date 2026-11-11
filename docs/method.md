@@ -139,7 +139,10 @@ was pasted ahead of every handoff (HO 695).
 - **Paste-back:** table deltas as executed · `git show --stat` per commit · gate
   outputs including the bind evidence · the backlog numstat with every deletion
   explained · the docs and SKILL diffs · every remote claim via `git ls-remote`.
-  Never delete struck text; strike is `~~…~~` plus a one-line close note. The
+  Never delete struck text; strike is `~~…~~` plus a one-line close note. A
+  struck line then moves to `docs/backlog-archive.md` verbatim (§ Doc authority
+  and conventions); a move is not a deletion, and the paste shows the archive's
+  additions beside the backlog's deletions. The
   numstat deletions column is the authority (§ Gates). One swallowed block
   re-delivers as a gitignored file, never a second paste (§ Relay).
 
@@ -440,10 +443,18 @@ and it survives the widening.
   commit message, never into the landed text; a supersession marker on a prior
   block's pointer is the one permitted touch (HO 615). Ruled at HO 694, where the
   block was amended twice before FF and the 690 correction had gone into a commit
-  message.
+  message. **Blocks before the current arc are in `docs/roadmap-archive.md`**
+  (HO 814), moved whole, verbatim and in order by
+  `scripts/diagnostic/docs-diet-814.mjs --before <HO> --write`; a later sweep is
+  its own ruled HO, and the pointer never moves there. **A new block is at most
+  40 lines and 6,000 bytes.** It says what changed, what was ruled and what a
+  later reader can't get from the commits, the paste or the close; it doesn't
+  restate gate output.
 - **`docs/backlog.md`** — the open-loops ledger; its header states its own
   conventions, including that a logged line's mechanism or premise is **a claim,
-  not a fact** — probe it before building on it.
+  not a fact** — probe it before building on it. Struck lines live in
+  `docs/backlog-archive.md` under the section they were struck in (HO 814); the
+  header states the two-file reconcile.
 - **Backlog and roadmap cross-references anchor by the target's opening words
   and HO number; a `:N` is an as-of marker, not an address.** OPEN LOOPS is
   newest-first, so every inserted line shifts every line below it and ages every
@@ -465,7 +476,9 @@ and it survives the widening.
   the backlog, three roadmap occurrences, four handoffs and a hold
   recommendation before HO 744 checked it against the expression; the tick was
   09-23 (oddities, "A cron date written from memory", HO 744).
-- **`docs/oddities.md`** — field notes, appended, dated, HO-tagged.
+- **`docs/oddities.md`** — field notes, appended, dated, HO-tagged. Entries
+  before HO 780 are in `docs/oddities-archive.md` (HO 814); a citation by an
+  entry's title resolves in either file.
 - **`docs/design/`** — mocks and ruling records, tracked by default.
   `docs/design/README.md` states the directory's rule: the `mock-<HO>-<slug>.html`
   name, the one ignored `scratch/`, citations on one line, and what

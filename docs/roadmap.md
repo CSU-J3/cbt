@@ -3356,3 +3356,29 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **Docs:** backlog `:28` gains its two leftovers, and two lines are new: a re-summary overwrites a hand-set ceremonial tag, and the nav tooltip's literal 536. The reconcile goes from 267 / 392 on 659 to 269 / 392 on 661. The oddities gain one entry: `/search` runs at every typing pause.
 - **Owed at the FF:** the cold build and the gates on the head, the push to `main` and the ref deleted, then `verify:deploy`, CI and `e2e-prod`, with smoke at 144.
 - **Also notes now run through HO 813.**
+
+**Also (HO 814), the docs diet, first half: landed history moved out of the roadmap, the backlog and the oddities into three archive files, verbatim.** No app code, no SKILL change, no prod read or write. Base `8ccb249`.
+
+- **The ruling.** Corey, the afternoon of Nov 11 (after 1:54 PM MST), in the chat's dialog, three answers:
+  - Timing: *"Archives now (Recommended)"*. The archive moves run now; the SKILL.md split waits until after GradShow.
+  - Struck backlog lines: *"Move all struck (Recommended)"*. Every struck line moves to an archive file, word for word.
+  - Oddities: *"Yes, same cutoff"*. Entries before HO 780 move too.
+- **A move is not a deletion.** Every moved line is in an archive file, unchanged, so the never-delete rule holds.
+- **Before and after,** in lines and LF bytes:
+  - `docs/roadmap.md`: 9,412 lines, 2,267,285 bytes, to 3,358 lines, 463,108 bytes. `docs/roadmap-archive.md` is 6,062 lines, 1,804,475 bytes: the 238 blocks before HO 780.
+  - `docs/backlog.md`: 913 lines, 1,242,017 bytes, to 496 lines, 413,316 bytes. `docs/backlog-archive.md` is 440 lines, 829,005 bytes: the 392 struck entries, under the section each was struck in.
+  - `docs/oddities.md`: 5,054 lines, 652,255 bytes, to 180 lines, 29,050 bytes. `docs/oddities-archive.md` is 4,882 lines, 623,539 bytes: the 364 entries above the first one whose heading names HO 780 or later.
+  - The three live docs go from 4,161,557 bytes to 905,474.
+- **The proof is a rebuild, by git and shell alone.**
+  - The roadmap's head, its archive past the six-line header and the roadmap's tail hash to the base blob, `21e59bb5059f1bf41a65fc543a3452c3df2fb61a`.
+  - The oddities rebuild the same way, to `63723ade8fe144bd1a49f1702ab77435c692d6c9`.
+  - Every non-blank backlog line at the base is in one file or the other, and the live file is the base with lines taken out, none added or reordered.
+- **The script** is `scripts/diagnostic/docs-diet-814.mjs`, the Drive file unedited. It is the sweep too: strike a backlog line, then run it with `--write` in the same commit. A later roadmap or oddities sweep (`--before <HO>`) is its own ruled HO.
+- **The backlog's reconcile reads both files now,** as its header states: 269 / 392 on 661 at the move, as before it, and 271 / 392 on 663 with this HO's two lines.
+- **Filed, two backlog lines:**
+  - The SKILL split is the diet's second half, held until after GradShow.
+  - Two diagnostics read `docs/roadmap.md` alone, `skill-coverage-649.ts` and `gradshow-numbers-787.ts`. Neither is patched unless it is run again.
+- **`docs/method.md`** names the archives in the paste-back bullet and in § Doc authority's roadmap, backlog and oddities bullets. **A new roadmap block is at most 40 lines and 6,000 bytes;** this is the first under the cap.
+- **One filed line departs from the handoff's text.** The handoff said `gradshow-numbers-787.ts:653`'s first dated line becomes a later one. It is `:52`, above the cut, and doesn't change; `:654`'s smallest date string does. The line says so.
+- **SKILL is unedited.** Its five pointers to an oddities entry, and at least one to a backlog line, now resolve in the archive files; the marker at the top of each live doc names its archive.
+- **Also notes now run through HO 814.**
