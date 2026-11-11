@@ -5,6 +5,8 @@ import { isKnownNoise } from "./console-noise";
 import { ROUTES } from "./routes";
 import { RACE_RATING_PAGES_2026, RACE_RATING_SOURCES } from "../lib/enums";
 import { CAPITOLSTOCKWATCH_URL, CC_BY_4_URL, LDA_HOME_URL, PRIMARY_CALENDAR_URL, senateRollCallUrl } from "../lib/source-links";
+import { parseBillRef } from "../lib/bill-ref";
+import { congressTermDates, getCurrentCongress } from "../lib/congress";
 
 // HO 379 — single smoke crawler. Per route: assert the document returns 200,
 // zero failed subrequests (the stylesheet-404 / unstyled-page tell), zero console
@@ -1051,17 +1053,20 @@ test.describe("targeted interactions", () => {
     expect(named, "the line's raters are the strip's").toEqual(strip);
 
     await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    // HO 786: "synced 4× daily" has its own nowrap span inside the foot, so the
-    // foot is the span that holds it and the raters' links.
-    const foot = page.locator("span", { hasText: "synced 4× daily", has: page.locator("a") });
-    await expect(foot, "/welcome's foot").toHaveCount(1);
+    // HO 813: the foot is the lobby's <footer>, and its ratings line reads "Race
+    // ratings from Cook, Inside Elections and Sabato, as of <date>, via
+    // Ballotpedia": the raters sit between "ratings" and "as of", so the date is
+    // read after the raters rather than as "ratings as of".
+    const foot = page.locator("footer");
+    await expect(foot, "/welcome's footer").toHaveCount(1);
     for (const s of order) {
       await expect(
         foot.locator(`a[href="${RACE_RATING_PAGES_2026[s]?.house ?? ""}"]`),
-        `the foot links ${s}'s House page`,
+        `the footer links ${s}'s House page`,
       ).toHaveCount(1);
     }
-    await expect(foot).toContainText(/ratings as of \d{4}-\d{2}-\d{2}/);
+    await expect(foot).toContainText(/Race ratings from .+, as of \d{4}-\d{2}-\d{2}/);
+    await expect(foot).toContainText("four times a day");
   });
 
   test("the sources lines name where the data comes from", async ({ page }) => {
@@ -1128,49 +1133,85 @@ test.describe("targeted interactions", () => {
       .toEqual({ shutdown: [1], fedCut: [2] });
   });
 
-  // HO 808: the same on /welcome's server-rendered ODDS strip, which marks each
-  // source with a letter: SHUTDOWN's item carries no P, FED CUT's carries one.
-  test("ODDS on /welcome: SHUTDOWN has no P letter, FED CUT has one", async ({ page }) => {
+  // HO 813: the lobby's funnel card. Its title is getCorpusStats(true).total and
+  // its bars are getStageDistribution(undefined, true), one scope (summarized,
+  // non-ceremonial, every such bill on one of six stages), so the six counts sum
+  // to the title. A card that disagrees with itself fails here.
+  test("/welcome's funnel sums to its title", async ({ page }) => {
     await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    await expect(page.locator('[class*="taperun"]').first(), "/welcome's tapes").toBeAttached({ timeout: 20_000 });
-    const letters = await page.evaluate(() => {
-      const items = [...document.querySelectorAll('[class*="tapeitem"]')];
-      const pOf = (re: RegExp) => [
-        ...new Set(
-          items
-            .filter((it) => re.test(it.querySelector('[class*="sym"]')?.textContent?.trim() ?? ""))
-            .map((it) => it.querySelectorAll('[class*="srcP"]').length),
-        ),
-      ];
-      return { shutdown: pOf(/^SHUTDOWN ODDS$/), fedCut: pOf(/^FED CUT ODDS$/) };
-    });
-    expect(letters, "P letters per item: SHUTDOWN none, FED CUT one").toEqual({ shutdown: [0], fedCut: [1] });
+    const card = page.locator("[data-landing-funnel]");
+    await expect(card, "/welcome's funnel card").toHaveCount(1, { timeout: 20_000 });
+    const rows = card.locator("[data-funnel-row]");
+    await expect(rows, "six stage rows").toHaveCount(6);
+    const title = ((await card.locator("h2").textContent()) ?? "").trim();
+    expect(title, "the title reads N bills, by stage").toMatch(/^[\d,]+ bills, by stage$/);
+    const counts = await rows.evaluateAll((els) => els.map((el) => el.lastElementChild?.textContent ?? ""));
+    const n = (s: string) => Number(s.replace(/[^0-9]/g, ""));
+    const sum = counts.reduce((a, c) => a + n(c), 0);
+    expect(sum, `the six counts (${counts.join(" + ")}) sum to the title (${title})`).toBe(n(title));
+    await expect(rows.last().locator("span").first(), "the last row's label").toHaveText("Became law");
   });
 
-  // HO 808: /welcome's CSS marquees loop by translating the track -50%, seamless
-  // only while each half is at least its strip's width. The strip can't measure,
-  // so each half repeats its items to a floor; HO 806's roster cut had left
-  // MARKETS' half 794 px against a 1,116 px strip at 1440.
-  test("/welcome's marquees: each half is at least its strip's width at 1440 and 2560", async ({ page }) => {
-    for (const width of [1440, 2560]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
-      await expect(page.locator('[class*="taperun"]').first(), `/welcome's tapes at ${width}`).toBeAttached({ timeout: 20_000 });
-      const rows = await page.evaluate(() =>
-        [...document.querySelectorAll('[class*="taperow"]')].map((row) => ({
-          label: row.querySelector('[class*="tapelabel"]')?.textContent?.trim() ?? "",
-          mask: row.querySelector('[class*="tapemask"]')?.getBoundingClientRect().width ?? 0,
-          halves: [...row.querySelectorAll('[class*="taperun"]')].map((r) => r.getBoundingClientRect().width),
-        })),
-      );
-      expect(rows.length, `two strips at ${width}`).toBe(2);
-      for (const r of rows) {
-        expect(r.halves.length, `${r.label} at ${width}: two halves`).toBe(2);
-        for (const h of r.halves) {
-          expect(h, `${r.label} at ${width}: a half of ${h.toFixed(1)} px against a ${r.mask.toFixed(1)} px strip`).toBeGreaterThanOrEqual(r.mask);
-        }
-      }
+  // HO 813: the lobby's search is a plain GET form to /search, and /search sends a
+  // bill reference to its bill page when CT holds it (lib/bill-ref.ts). The
+  // Congress is read at test time, not written as 119.
+  //
+  // Three readings past the handoff's wording (HO 813, flagged): the redirect is
+  // asserted while CT holds the bill, so the leg survives Jan 3, 2027, when the
+  // Congress turns 120 and CT holds no 120-hr-3978 for months; a five-digit
+  // reference CT doesn't hold reaches getBillById and must fall through, since
+  // HR 999999's six digits never parse; and a reference typed into the search box
+  // stays on /search, because only a page load takes the fast path.
+  test("/welcome searches /search, and a bill number goes to its page", async ({ page }) => {
+    await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const form = page.locator('form[role="search"]');
+    await expect(form, "/welcome's search form").toHaveCount(1, { timeout: 20_000 });
+    await expect(form, "it submits to /search").toHaveAttribute("action", "/search");
+    await expect(form.locator('input[name="q"]'), "its input is named q").toHaveCount(1);
+
+    const id = `${getCurrentCongress()}-hr-3978`;
+    const held = (await page.request.get(`/bill/${id}`)).status() === 200;
+    if (!held) {
+      test.info().annotations.push({
+        type: "flag",
+        description: `CT holds no ${id} yet, so the fall-through is read instead of the redirect`,
+      });
     }
+    await page.goto("/search?q=HR+3978", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    expect(
+      new URL(page.url()).pathname,
+      held ? "HR 3978 lands on its bill page" : `CT holds no ${id}, so HR 3978 stays on the search`,
+    ).toBe(held ? `/bill/${id}` : "/search");
+
+    await page.goto("/search?q=HR+99999", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    expect(new URL(page.url()).pathname, "a reference CT doesn't hold falls through to the search").toBe("/search");
+    await page.goto("/search?q=HR+999999", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    expect(new URL(page.url()).pathname, "six digits isn't a bill reference, so it stays on the search").toBe("/search");
+
+    await page.goto("/search", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const box = page.locator("input.search-box:visible").first();
+    await expect(box, "/search's search box").toBeVisible({ timeout: 20_000 });
+    await box.fill("HR 3978");
+    await page.waitForURL(/[?&]q=HR\+3978/, { timeout: 15_000 });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    expect(new URL(page.url()).pathname, "a reference typed into the search box stays on /search").toBe("/search");
+  });
+
+  // HO 813: What's inside is the nav's pages less Dashboard, in nav order. The nav
+  // is read where it renders (an inner page's PrimaryNav, `.primary-nav`), which
+  // holds the list to NAV_ITEMS without importing a server component here.
+  test("/welcome lists the nine pages", async ({ page }) => {
+    await page.goto("/reports", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const nav = page.locator("nav.primary-nav a.pnav-item");
+    await expect(nav.first(), "an inner page's nav").toBeAttached({ timeout: 20_000 });
+    const navHrefs = await nav.evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+    const expected = navHrefs.filter((h) => h !== "/");
+    await page.goto("/welcome", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    const inside = page.locator("section", { has: page.locator("h2", { hasText: "What's inside" }) });
+    await expect(inside, "the What's inside section").toHaveCount(1, { timeout: 20_000 });
+    const hrefs = await inside.locator("a").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
+    expect(hrefs, "nine links").toHaveLength(9);
+    expect(hrefs, "the nav's hrefs less Dashboard, in nav order").toEqual(expected);
   });
 
   // @nonci — excluded from the unattended prod run (e2e-prod.yml --grep-invert
@@ -1225,5 +1266,29 @@ test.describe("targeted interactions", () => {
     );
     // The point of the check: it must NOT throw — a clean empty state is fine.
     expect.soft(c.pageErr, "no uncaught error on the empty PRESIDENT filter").toEqual([]);
+  });
+});
+
+// HO 813: the lobby's two small libs, checked with no page. The repo has no unit
+// runner, only Playwright, and this spec already imports from lib/.
+test.describe("lib, no page", () => {
+  test("lib: the term dates and the bill reference", () => {
+    const ymd = (d: Date) => d.toISOString().slice(0, 10);
+    const t119 = congressTermDates(119);
+    const t120 = congressTermDates(120);
+    expect([ymd(t119.start), ymd(t119.end)], "the 119th's term").toEqual(["2025-01-03", "2027-01-03"]);
+    expect([ymd(t120.start), ymd(t120.end)], "the 120th's term").toEqual(["2027-01-03", "2029-01-03"]);
+    const forms: [string, string, number][] = [
+      ["H.R. 3978", "hr", 3978],
+      ["HR3978", "hr", 3978],
+      ["hr 3978", "hr", 3978],
+      ["S. 1", "s", 1],
+      ["H.J.Res. 12", "hjres", 12],
+      ["S.Res. 5", "sres", 5],
+      ["H.Con.Res. 1", "hconres", 1],
+      ["S.Con.Res. 2", "sconres", 2],
+    ];
+    for (const [q, type, number] of forms) expect(parseBillRef(q), q).toEqual({ type, number });
+    for (const q of ["veterans", "HR", "3978"]) expect(parseBillRef(q), q).toBeNull();
   });
 });

@@ -44,8 +44,8 @@
     "note": "Not DOM: the export markdown drops its Kalshi line by reading data-odds at CLICK time. Covered by scripts/diagnostic/odds-toggle-692.ts, which intercepts the Blob — the OFF pass cannot see a string."
   },
   "app/welcome/page.tsx": {
-    "reason": "gated",
-    "note": "The landing's ODDS taperow. A CSS-module row, so unlike the dashboard tape it is NOT hidden below 700px — 430 is a real test of it."
+    "reason": "not-a-render-site",
+    "note": "HO 813: the ODDS taperow left with the tapes. The lobby names Kalshi and Polymarket as sources, in prose (How it's built and the footer), and renders no market data."
   },
   "app/welcome/panels.tsx": {
     "reason": "not-a-render-site",

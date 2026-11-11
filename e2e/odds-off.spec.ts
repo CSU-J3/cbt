@@ -33,9 +33,8 @@ const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 const RACE = process.env.SEED_RACE ?? "AL-01-2026";
 
 // 1440 is the ordinary desktop read; 430 is the one where the dashboard tape is
-// already `display:none` by width, so it exercises the sites that are NOT — in
-// particular `/welcome`'s ODDS row, which is a CSS-module `taperow` untouched by
-// that rule.
+// already `display:none` by width, so it exercises the sites that are NOT. (That
+// meant `/welcome`'s ODDS row until HO 813 took the tapes off the landing.)
 const VIEWPORTS = [
   { w: 1440, h: 1200, tag: "1440" },
   { w: 430, h: 932, tag: "430" },
@@ -53,8 +52,8 @@ const ROUTES: Route[] = [
   // The bill panel's ODDS block is only in the DOM once a row is expanded.
   { slug: "bills", path: "/bills", gate: true, expand: true },
   { slug: "race", path: `/race/${RACE}`, gate: true },
-  // The anonymous landing: no gate cookie, by design.
-  { slug: "welcome", path: "/welcome", gate: false },
+  // HO 813: the anonymous landing's row left with its ODDS strip; the lobby
+  // renders no market data, so there is nothing on it to sweep.
 ];
 
 // The same regex the HO 590 / 692 harnesses use, so a fire here and a fire
