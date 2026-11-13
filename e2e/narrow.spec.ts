@@ -1,5 +1,6 @@
 // HO 694 — THE NARROW GATE: the doc-scroll invariant at every configured narrow
-// width, for every crawl route. HO 703 added the second width.
+// width, for every crawl route. HO 703 added the second width and HO 815 the
+// third.
 //
 // WHY IT DID NOT EXIST, which is the whole reason three filed defects sat
 // unrepaired. Every standing width gate in this repo is WIDE-VIEWPORT-ONLY:
@@ -19,19 +20,39 @@
 // with its own scroller is invisible here by construction, exactly as it is to
 // the 1440/2560 invariant this joins.
 //
-// THE TWO WIDTHS AND WHY THERE ARE TWO (HO 703). 430 is the iPhone 15 Pro Max
-// CSS width. 390 is the iPhone 12/13/14/15 and SE-class width, and it is here
-// because HO 698 measured the OLD `/welcome` CTA scrolling to 421 at 390 while
-// reading a clean 430 — broken on every host, at a width no gate looked at. A
-// route clean at 430 and over at 390 is therefore a REAL class, not a
+// THE THREE WIDTHS AND WHY EACH IS HERE. 430 is the iPhone 15 Pro Max CSS
+// width. 390 is the iPhone 12/13/14/15 and SE-class width (HO 703), and it is
+// here because HO 698 measured the OLD `/welcome` CTA scrolling to 421 at 390
+// while reading a clean 430 — broken on every host, at a width no gate looked
+// at. A route clean at 430 and over at 390 is therefore a REAL class, not a
 // hypothetical: it is the case that got filed as backlog:86.
 //
-// 390 WAS MEASURED BEFORE IT BECAME A GATE, which is the order that matters: a
-// gate that reds on day one for pre-existing reasons teaches everyone to ignore
-// it. Dispatch 34267948870 (2026-09-08, Ubuntu runner, against prod) ran both
-// widths over all 36 routes and read 0 routes over at 390 — `/welcome` included,
-// at 390/390 over=0, HO 698 and HO 699 having fixed it. The second width was
-// added to the default only after that reading.
+// 851 IS A FOLDABLE'S OPEN SCREEN (HO 815). Corey's Pixel 10 Pro Fold, open,
+// read 851 x 728 at DPR 2.44 in an in-app browser tab at 9:28 AM MST on
+// 2026-11-13. Until then this gate read 430 and 390, `fit-finish.spec.ts` read
+// 1440 and 2560, and nothing gated a width between them. 851 sits in the band
+// where `globals.css`'s 899 and 900 rules apply and its 700-to-780 rules do
+// not, and an iPad held upright (810 to 834 wide) sits in the same band.
+//
+// EACH WIDTH WAS MEASURED BEFORE IT BECAME A GATE, which is the order that
+// matters: a gate that reds on day one for pre-existing reasons teaches
+// everyone to ignore it. 390: dispatch 34267948870 (2026-09-08, Ubuntu runner,
+// against prod) ran both widths over all 36 routes and read 0 routes over at
+// 390 — `/welcome` included, at 390/390 over=0, HO 698 and HO 699 having fixed
+// it. 851: dispatch 43467223505 (2026-11-13, Ubuntu runner, against prod at
+// `e517d37`) ran `430,390,851` over the 40 cells a width and read 0 over at
+// 851. Each joined the default only after its reading: measured on prod by
+// dispatch, then promoted.
+//
+// 883 IS NOT A GATE. It is the Fold's open screen turned sideways, read once by
+// dispatch 43469118482 (2026-11-13, 0 of 40 over) and not promoted. No `@media`
+// width rule in `globals.css` or the landing module falls between 851 and 883,
+// so the two share every viewport rule and the narrower is the tighter. The one
+// rule between them is a container query (`rlmain`, max-width 879px), which
+// keys on its container's width and not the viewport's.
+//
+// `HEIGHT` STAYS 932 AT EVERY WIDTH, 851 included: this gate reads a width.
+// The Fold's own 728 is `e2e/touch.spec.ts`'s viewport.
 //
 // THE CONTROL IS THE HISTORY, NOT A PLANT. Run against prod at `409e074`, before
 // any fix, this spec was RED on seven routes (`/members`, `/members/pass-rate`,
@@ -78,9 +99,10 @@ const GATE_COOKIE = { name: "ct_seen", value: "1", url: BASE_URL };
 // repo rather than a second one to keep in step.
 //
 // HO 703 — PARAMETRISED, AND `WIDTHS` BELOW IS THE ONLY HOME OF THE DEFAULT.
-// Since the row 4 reading it is `430,390`, and every trigger reads BOTH: the
-// daily, `deployment_status`, the `narrow-preview` job, and a dispatch that
-// leaves `narrow_widths` empty. Only a dispatch that actually sets the input
+// Since HO 815 it is `430,390,851` (`430,390` from HO 703's row 4 reading
+// until then), and every trigger reads ALL THREE: the daily,
+// `deployment_status`, the `narrow-preview` job, and a dispatch that leaves
+// `narrow_widths` empty. Only a dispatch that actually sets the input
 // reads anything else. NOTHING ELSE MAY CARRY A LITERAL WIDTH — a second home
 // for this default silently overrides this one, and the run then reports the
 // gate it did not run. A candidate width is measured through that dispatch
@@ -115,7 +137,7 @@ const REDIRECTS: Record<string, string> = {
 
 const HEIGHT = 932;
 const WIDTHS: number[] = (() => {
-  const raw = process.env.NARROW_WIDTHS || "430,390";
+  const raw = process.env.NARROW_WIDTHS || "430,390,851";
   const parts = raw.split(",").map((w) => w.trim()).filter((w) => w.length > 0);
   const parsed = parts.map((w) => Number(w));
   if (!parsed.length || parsed.some((w) => !Number.isFinite(w) || w <= 0)) {
@@ -475,7 +497,7 @@ for (const width of WIDTHS) {
             expect(
               bands.stacked,
               `${route.path} has no row carrying BOTH a WATCH link and a ` +
-                `recorded-vote pointer — at this width the pointer renders ` +
+                `recorded-vote pointer — at 720px and under the pointer renders ` +
                 `only stacked under WATCH, so without such a row the band is ` +
                 `in the DOM and drawn nowhere`,
             ).toBeGreaterThanOrEqual(1);

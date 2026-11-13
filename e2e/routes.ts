@@ -63,7 +63,7 @@ export const ROUTES: Route[] = [
   { slug: "races", path: "/races" },
   { slug: "electoral", path: "/electoral" },
   // HO 710: the 2028 seat outlook is a distinct render (no band/board/calendar),
-  // so it rides the smoke crawl and BOTH narrow widths on its own entry.
+  // so it rides the smoke crawl and every narrow width on its own entry.
   { slug: "electoral-2028", path: "/electoral?cycle=2028" },
   { slug: "primaries", path: "/primaries" },
   { slug: "reports", path: "/reports" },
