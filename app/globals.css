@@ -9251,6 +9251,56 @@ a.rl-nm:hover,
   color: var(--party-republican);
   pointer-events: none;
 }
+/* HO 815 — ON A TOUCH DEVICE NO TEXT-ENTRY CONTROL COMPUTES UNDER 16px.
+
+   WHY 16. iOS Safari zooms the page when a control takes focus with a font
+   under 16px, and the page stays zoomed afterwards. THAT ZOOM IS THE REASON FOR
+   THE NUMBER AND IS NOT MEASURED HERE: no gate in this repo runs Safari. What
+   is measured is the computed size under Chromium's touch emulation, where
+   `hasTouch` is what turns `pointer: coarse` on. The zoom is read on a phone.
+
+   MEASURED 2026-11-13 at two touch viewports, 390 x 844 (DPR 3) and 851 x 728
+   (DPR 2.4375, a Pixel 10 Pro Fold, open), and the same at both.
+   BEFORE, on prod at `e517d37`: the four filter selects 12px; `.search-box`
+   13px compact (/bills, /changes, /stale) and 14px full (/members, /search);
+   `.lob-fbar-search-input` 12px; `.cart-search input` 13px.
+   AFTER, on a local build of this change: all thirteen 16px, and no page
+   scrolls sideways. The lobby's search is 17px before and after.
+
+   WHAT MOVES, ON A TOUCH DEVICE ONLY. /bills' stage select 139 x 27 to
+   170 x 32; the compact search box 31.5 tall to 36 at the same 230 wide; the
+   full one 37 to 40, and on /members, where its width is its own, 217 wide to
+   249; /lobbying's input 28 to 34; the cartogram's 29.5 to 34.
+   On /members at 390 the party select no longer fits beside the chamber
+   segment, so the two selects share the next line. The selects now read larger
+   than the 12px segments beside them, which is the mobile redesign's to settle.
+   WITH A FINE POINTER NOTHING MOVES: at 1440 every control's computed size and
+   box read identical on the two builds (/bills, /members, /lobbying,
+   /electoral).
+
+   WHY THESE SELECTORS AND NOT EVERY `input`. The lobby's search is 17px by
+   ruling (mock 813) and a blanket rule would shrink it to 16. `select` and
+   `textarea` are bare, so a new one is covered the day it lands; the tree has
+   no `textarea` today.
+
+   WHY `!important`. `.lob-fbar-search-input` and `.cart-search input` each set
+   their own `font-size` at the same specificity as the selectors here, so
+   without it this block would hold only by sitting later in the file than
+   both. With it, where the block sits is cosmetic.
+
+   A NEW TEXT-ENTRY CONTROL: an `input` takes a selector here, and its route's
+   slug joins `TOUCH_SLUGS` in `e2e/routes.ts`. `e2e/touch.spec.ts` reads the
+   size on those routes, and `e2e/narrow.spec.ts` reds on a control whose route
+   is off the list. */
+@media (pointer: coarse) {
+  .search-box,
+  .lob-fbar-search-input,
+  .cart-search input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
 /* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
    to the right of a 2,528px control bar and opened a 1,821px void. */
 .cart-summary {
