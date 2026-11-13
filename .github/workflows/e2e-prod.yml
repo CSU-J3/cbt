@@ -19,7 +19,7 @@ on:
         default: false
       # HO 703 — measure a candidate narrow width on prod BEFORE it becomes a
       # gate. THE DEFAULT IS NOT HERE AND MUST NOT BE: it lives in exactly one
-      # place, `e2e/narrow.spec.ts` (`430,390`), and this input is EMPTY so that
+      # place, `e2e/narrow.spec.ts` (`430,390,851`), and this input is EMPTY so that
       # leaving it alone reads whatever that spec reads. A literal here would be
       # a second home for one default, and the second home silently wins.
       narrow_widths:
@@ -134,8 +134,24 @@ jobs:
     #   BOTH widths 5m06s  34267948870 (the dispatch that measured 390 before it became a gate)
     # So the second width costs about a minute; whole job 5m54s against this
     # 20-minute cap, better than 3x headroom. Narrow-only for comparison, on the
-    # `narrow-preview` job below: 72 cells in 2m11s at --retries=0. Re-measure
-    # here before adding a third width or caching the install.
+    # `narrow-preview` job below: 72 cells in 2m11s at --retries=0.
+    #
+    # RE-MEASURED (HO 815), as the note this replaces asked before a third
+    # width. The same step, against prod at `e517d37` on the Ubuntu runner:
+    #   THREE widths 7m09s  43467223505 (the dispatch that measured 851 before it became a gate; 184 tests)
+    #   ONE  width   4m25s  43469118482 (the dispatch that read 883 once; 104 tests)
+    # Whole job 7m52s with three widths, against this 20-minute cap. A width is
+    # 40 cells now (38 routes and the 2 fixture routes), so the default reads 120
+    # narrow cells, and `e2e/touch.spec.ts` adds 18 documents that neither
+    # dispatch ran: its first Production reading is the run after HO 815's FF.
+    # One caution on the 7m09s: a local 18-document read of prod (HO 815's STEP
+    # 0, four workers, ended 16:58:36Z) overlapped that crawl for under a minute.
+    # Narrow and touch together on `narrow-preview` at --retries=0: 138 tests
+    # (120 narrow cells, 18 touch) in 4m08s, whole job 4m42s (43476274728, the
+    # first Preview of `815-review`, which ran the ref's own command line).
+    # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
+    # flag it. Re-measure here before adding a fourth width or caching the
+    # install.
     timeout-minutes: 20
     steps:
       # HO 685 — prints the group this run actually resolved to.
@@ -174,8 +190,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run prod smoke crawl
-        # smoke.spec.ts ONLY (explicit path, never an e2e/ glob that would silently
-        # pick up the next spec that lands). Runs against the live prod domain
+        # FOUR SPECS, EACH NAMED BY PATH (never an e2e/ glob that would silently
+        # pick up the next spec that lands): the crawl first, then the odds-off,
+        # narrow and touch passes below. Runs against the live prod domain
         # (spec BASE_URL default). --grep-invert "@nonci" drops the tagged
         # markets-hover case: bucket D — prod withholds the tape from headless
         # Chrome under BotID, so there's nothing to hover. (That also records why
@@ -205,7 +222,7 @@ jobs:
           # `deployment_status` and `schedule` there is no `inputs` object at
           # all, so this resolves to the EMPTY STRING; on a dispatch that leaves
           # the field alone it is empty too. Either way `e2e/narrow.spec.ts`
-          # falls back to its own `430,390`, so this job, the daily and the
+          # falls back to its own `430,390,851`, so this job, the daily and the
           # `narrow-preview` job below cannot read different widths. A literal
           # fallback here (`|| '430'`) is what the first cut had, and it made
           # this the SECOND home of a default the spec already owned — the
@@ -243,7 +260,17 @@ jobs:
         # WIRED ONLY NOW, after the fixes: on prod at 409e074 this spec was red
         # on seven routes, so adding it in the same commit as itself would have
         # made the first CI run on that SHA red by construction.
-        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts --grep-invert "@nonci" --retries=2
+        #
+        # HO 815 — the touch gate joins. `e2e/touch.spec.ts` walks the nine
+        # routes that render a text-entry control, at two touch viewports (390,
+        # and the Fold's open 851), and asserts each control computes 16px or
+        # more, that no page scrolls sideways, and that `theme-color` carries
+        # `--bg-base`. It is the only spec here whose pointer is coarse, so it
+        # is the only one that can see a rule under `@media (pointer: coarse)`.
+        # Deploy-blocking for the narrow gate's reason: a control under 16px
+        # comes from CSS, so the deploy that introduced it is the one to red.
+        # Named by path like the others, never by an e2e/ glob.
+        run: npx playwright test e2e/smoke.spec.ts e2e/odds-off.spec.ts e2e/narrow.spec.ts e2e/touch.spec.ts --grep-invert "@nonci" --retries=2
 
       - name: Upload report on failure
         if: failure()
@@ -383,8 +410,9 @@ jobs:
       github.event.deployment_status.state == 'success' &&
       github.event.deployment_status.environment == 'Preview'
     runs-on: ubuntu-latest
-    # Narrow-only against one host: ~2-3 min. Capped well under the smoke job's
-    # 20 because there is far less to do and a hung run here blocks a human.
+    # The narrow and touch gates against one host. Capped well under the smoke
+    # job's 20 because there is far less to do and a hung run here blocks a
+    # human; the measured time is in the smoke job's budget block.
     timeout-minutes: 15
     steps:
       # Named first so the log says WHICH bytes were read before anything runs.
@@ -478,6 +506,10 @@ jobs:
       # command. Playwright FOLLOWS the 302, so without the header the spec
       # would assert against Vercel's login page — the step above is what stops
       # that reaching here.
+      #
+      # HO 815 — the touch gate rides this step, so a ref that changes a control
+      # or the stylesheet gets its touch reading before the FF, on the same
+      # proven deployment and at the same --retries=0.
       - name: Narrow gate against the Preview deployment
         env:
           BASE_URL: ${{ github.event.deployment_status.environment_url }}
@@ -489,7 +521,7 @@ jobs:
           # fixture is a LEAK and the spec reds on it. This job is the only
           # place in the repo that sets this variable.
           NARROW_FIXTURES: '1'
-        run: npx playwright test e2e/narrow.spec.ts --retries=0
+        run: npx playwright test e2e/narrow.spec.ts e2e/touch.spec.ts --retries=0
 
       - name: Upload report on failure
         if: failure()
