@@ -65,7 +65,7 @@
 // failed-request attribution on these routes; this spec asserts one number and
 // spends one navigation per route.
 import { expect, test } from "@playwright/test";
-import { FIXTURE_ROUTES, ROUTES } from "./routes";
+import { FIXTURE_ROUTES, ROUTES, TEXT_ENTRY_SELECTOR, TOUCH_ROUTES } from "./routes";
 
 const BASE_URL =
   process.env.BASE_URL ?? "https://congressional-terminal-chi-silk.vercel.app";
@@ -148,6 +148,9 @@ const NARROW_FIXTURES: "present" | "absent" = (() => {
 })();
 
 const FIXTURE_SLUGS = new Set(FIXTURE_ROUTES.map((r) => r.slug));
+// HO 815 — the pathnames the touch gate walks (`e2e/touch.spec.ts`). A page
+// that renders a text-entry control has to come to rest on one of them.
+const TOUCH_PATHS = new Set(TOUCH_ROUTES.map((r) => r.path.split("?")[0]));
 
 // The same 1px subpixel tolerance the layout audit's M0 and the HO 683 overflow
 // alarm use, for the same reason and deliberately not tighter.
@@ -319,6 +322,42 @@ for (const width of WIDTHS) {
           `${route.path} landed on ${doc.url}, not ${expectedPath} — the width ` +
             `below was measured on a different page than the one named`,
         ).toBe(expectedPath);
+
+        // HO 815 — THE TOUCH LIST'S ENFORCER. `e2e/touch.spec.ts` reads text-entry
+        // controls on a touch device, but only on `TOUCH_ROUTES`, so a control on
+        // a route off that list would sit outside it unread. This spec already
+        // walks every route at every width, so it asks here, at no extra
+        // document: does the page render a visible text-entry control, and if
+        // so is it a page the touch gate walks? The pathname is the LANDED one,
+        // so `/committees` answers as `/members` and `/electoral?cycle=2028` as
+        // `/electoral` — which also means a query variant passes on its parent's
+        // entry, and a control only the variant renders is not caught here.
+        //
+        // WHAT ITS ZERO MEANS: no route in this crawl renders a visible
+        // text-entry control off the touch list, at this width, with a fine
+        // pointer. It says nothing of a control behind an interaction this
+        // spec never performs. Its control is HO 815's Leg C: with `lobbying`
+        // taken out of `TOUCH_SLUGS` this assertion was red on `/lobbying` at
+        // every width.
+        const textEntry = await page.evaluate(
+          (selector) =>
+            Array.from(document.querySelectorAll<HTMLElement>(selector)).filter((el) => {
+              if (!el.checkVisibility({ visibilityProperty: true })) return false;
+              const r = el.getBoundingClientRect();
+              return r.width > 0 && r.height > 0;
+            }).length,
+          TEXT_ENTRY_SELECTOR,
+        );
+        if (textEntry > 0) {
+          expect(
+            TOUCH_PATHS.has(landedPath),
+            `${route.slug} (${route.path}) renders ${textEntry} visible text-entry ` +
+              `control${textEntry === 1 ? "" : "s"} at ${width} and ${landedPath} is ` +
+              `not a TOUCH_ROUTES pathname, so the touch gate never reads ` +
+              `${textEntry === 1 ? "it" : "them"} — add the slug to TOUCH_SLUGS in ` +
+              `e2e/routes.ts`,
+          ).toBe(true);
+        }
 
         // HO 698 — read the font state AT the width, not after, and take a second
         // width once the face has definitely applied. A 445 that becomes 430 at

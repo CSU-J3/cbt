@@ -115,3 +115,60 @@ export const FIXTURE_ROUTES: Route[] = [
   { slug: "fixture-home-max", path: "/?fixture=max" },
   { slug: "fixture-committee-max", path: `/committee/${COMMITTEE}?fixture=max` },
 ];
+
+// HO 815 — THE TOUCH ROUTES: every crawl route that renders a text-entry
+// control, which is what `e2e/touch.spec.ts` walks under touch emulation.
+//
+// WHY A LIST AND NOT ALL OF `ROUTES`. The touch gate asserts that a page HAS a
+// text-entry control and that each one computes 16px or more, the size under
+// which iOS Safari zooms the page on focus. On a route with no control the
+// first half has nothing to read, so the gate walks only the routes that carry
+// one: 9 of the 38, two viewports, 18 documents a run.
+//
+// THE LIST IS ENFORCED, NOT TRUSTED, and the enforcer is the narrow spec. It
+// walks every route at every width already, so it asserts there, at no extra
+// document, that a page rendering a visible text-entry control lands on one of
+// these routes' pathnames. A new search box on a page missing from the list
+// therefore reds the narrow gate and names the slug to add, where it would
+// otherwise sit outside the touch gate unread. The check is PER PATHNAME: a
+// query variant of a listed page (`electoral-2028`, a distinct render of
+// `/electoral`) passes it on its parent's entry, so a control that only such a
+// variant renders needs its own slug here, and nothing reds to say so. Read at HO 815's STEP 0 the
+// tree's controls were `SearchBox` (five page mounts), the four filter selects,
+// `/lobbying`'s filter-bar search, the cartogram's search and the lobby's.
+//
+// `TEXT_ENTRY_SELECTOR` is the one definition of "text-entry control" and both
+// specs import it, for the reason the route list is shared: a second copy that
+// drifted would read as a shorter list, not as an error. Hidden inputs,
+// checkboxes and radios take no typing and draw no keyboard, so they are out.
+// Visibility is each spec's own read (`checkVisibility` and a non-zero box).
+export const TEXT_ENTRY_SELECTOR =
+  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, textarea';
+
+export const TOUCH_SLUGS = [
+  "welcome",
+  "bills",
+  "members",
+  "electoral",
+  "changes",
+  "stale",
+  "search",
+  "search-populated",
+  "lobbying",
+] as const;
+
+// `ROUTES` filtered, so the order is the crawl's. A slug that resolves to no
+// route THROWS AT LOAD: a mistyped slug would otherwise shorten the list, and a
+// shorter list is exactly what a silently-narrowed gate looks like.
+export const TOUCH_ROUTES: Route[] = (() => {
+  const wanted = new Set<string>(TOUCH_SLUGS);
+  const found = ROUTES.filter((r) => wanted.has(r.slug));
+  const missing = TOUCH_SLUGS.filter((s) => !found.some((r) => r.slug === s));
+  if (missing.length || found.length !== TOUCH_SLUGS.length) {
+    throw new Error(
+      `TOUCH_SLUGS names ${TOUCH_SLUGS.length} slugs and ROUTES resolves ${found.length}` +
+        ` — no route for: ${missing.join(", ") || "(a duplicate slug)"}`,
+    );
+  }
+  return found;
+})();
