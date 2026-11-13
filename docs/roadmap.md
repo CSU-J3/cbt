@@ -3382,3 +3382,29 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
 - **One filed line departs from the handoff's text.** The handoff said `gradshow-numbers-787.ts:653`'s first dated line becomes a later one. It is `:52`, above the cut, and doesn't change; `:654`'s smallest date string does. The line says so.
 - **SKILL is unedited.** Its five pointers to an oddities entry, and at least one to a backlog line, now resolve in the archive files; the marker at the top of each live doc names its archive.
 - **Also notes now run through HO 814.**
+
+**Also (HO 815), touch and the Fold: on a touch device no text-entry control computes under 16px, the browser bar takes `--bg-base`, a touch spec gates both, and the narrow gate reads 851.** Built on `815-review` from `e517d37`. No database read or write, no dependency, no component edit.
+
+- **HO 814's FF go, as taken:** `main` at `e517d37`, pushed 4:04:17 PM MST Nov 11 with no force; Production record `7723413558`, `success`; `e2e-prod` `43117028251`, smoke 144 passed.
+- **The asks,** Corey, Nov 13 (MST): *"Can we optimize the mobile experience?"* (9:17 AM); *"Touch fixes now (Recommended)"* (by 9:21); *"Can one optimization be working really well with Google Pixe 10l fold pro?"* (9:21); and at 9:28 his Fold's reading, open: viewport 851 × 728, DPR 2.44. The redesign waits for a mock after Nov 18.
+- **STEP 0 held, with two of the handoff's figures corrected.**
+  - `ROUTES` evaluates to 38, not 39 (HO 796 commented `/watchlist` out), so a width is 40 cells, not 41.
+  - No `@media` width rule falls between 851 and 883, as the handoff said; one container rule does (`rlmain`, max-width 879px, `app/globals.css:6640`), and the narrow spec's header names it.
+  - The emulation control, Chromium 149: `hasTouch` turns `(pointer: coarse)` on, and `isMobile` alone leaves it fine.
+  - The touch spec against prod at the base read 18 of 18 red: every cell on the colour, 16 on the controls, at the chat's sizes (12 to 14px; `/welcome` 17px).
+  - Dispatch `43467223505` (`430,390,851`): 0 of 40 over at 851, 184 passed, the crawl step 7m09s. Dispatch `43469118482` (883, read once, not promoted): 0 of 40 over.
+- **§ 1, `e2e/touch.spec.ts`:** the nine `TOUCH_ROUTES` at 390 × 844 and at the Fold's 851 × 728, with `hasTouch` and `isMobile`. Five readings a cell: the page, the emulation read inside the page, every visible text-entry control at 16px or more, no sideways scroll, and `theme-color` equal to `--bg-base`.
+- **The narrow spec enforces the list:** a page that renders a visible text-entry control must land on a `TOUCH_ROUTES` pathname. Its control: with `lobbying` off the list the gate read 3 red, `/lobbying` at each width, and 117 passed.
+- **§ 2:** one `@media (pointer: coarse)` block sets 16px on `.search-box`, `.lob-fbar-search-input`, `.cart-search input`, `select` and `textarea`. Thirteen controls on eight pages go from 12 to 14px up to 16px on a touch device. With a fine pointer nothing moves: at 1440 every control's size and box read the same on the two builds.
+- **What 16px is not:** a reading of iOS Safari's zoom. No gate runs Safari, so a phone reads that.
+- **§ 3:** `viewport.themeColor` is `#0a0e14`, a literal the touch spec holds to the token. Whether Chrome on Android paints it in dark mode is unread.
+- **§ 4:** the narrow default is `430,390,851`, promoted after the dispatch. **§ 5:** `e2e-prod`'s smoke job runs four specs, `narrow-preview` runs the narrow and touch specs, and the budget block carries the measured times.
+- **The ref's first CI reading,** `narrow-preview` run `43476274728` on the first review push: 138 passed in 4m08s at `--retries=0`, the narrow gate's 120 cells and the touch spec's 18, on the ref's own command line. The two fixture routes read 0 over at 851 with their bands present.
+- **Flagged, beyond the two figures:**
+  - `TEXT_ENTRY_SELECTOR` lives in `e2e/routes.ts` and both specs import it; the handoff named the selector, not its home.
+  - The enforcer compares pathnames, as the handoff wrote it, so a query variant of a listed page (`electoral-2028`) passes on its parent's entry. The comments say so.
+  - The touch spec's `OVER_EDGE` differs from the narrow spec's by one escape: the narrow copy splits class names on the letter `s`. Filed, not fixed.
+  - Four backlog lines are new where the handoff named two (that defect, and the crawl's install delay measuring 38 and 61 seconds against the comment's two minutes), so the reconcile reads 275 / 392 on 667.
+  - The builds ran on the box's Node 25; guard 2 allowed no download of a Node 24.
+- **Owed at the FF:** the Production `e2e-prod` run, the touch spec's first; the served stylesheet read for `pointer:coarse`; Corey's Fold readings (the bar's colour on `/`, the controls on `/bills`, the Tooltip line's two taps); the first iPhone in reach focusing `/bills`' search; the icon mock; `cbt.zip` after GradShow.
+- **Also notes now run through HO 815.**

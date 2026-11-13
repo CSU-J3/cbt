@@ -178,3 +178,11 @@ HO 812 set the row by hand, with no stamp. The code fix is a backlog line: the b
 - **The fix:** only a page load takes the fast path. A client-router fetch carries Next's `rsc` header and a `Sec-Fetch-Mode` other than `navigate`. Smoke's search test now types `HR 3978` into the box and asserts it stays on `/search`; that leg read red on the unguarded build.
 
 **The rule:** a server-side effect on `/search` runs at every typing pause. Key it to a page load, or it fires mid-word.
+
+## The band between the gates (HO 815, Nov 2026)
+
+The narrow gate read 430 and 390, `fit-finish` read 1440 and 2560, and a foldable's open screen sat between them unread until its owner asked. Corey's Pixel 10 Pro Fold, open, is 851 wide (his reading, Nov 13). It read clean: dispatched against prod before it became a gate, all 40 cells at 851 were 0 over (`43467223505`), and so were the 40 at 883, the same screen turned sideways (`43469118482`).
+- **What sits in the band:** at 851 `globals.css`'s 899 and 900 rules apply and its 700-to-780 rules don't, so it is a layout neither neighbouring gate renders. An iPad held upright (810 to 834 wide) is in it too. The crawl's overflow alarm reads 1280, on the daily and on a dispatch, and blocks no deploy.
+- **The pointer was a second unread band.** Every spec ran the config's one project, whose pointer is fine, so the narrow gate read a phone's width with a mouse's pointer and a rule under `(pointer: coarse)` was invisible to all of them. `e2e/touch.spec.ts` is the first to set `hasTouch`, and it reads the media query back inside the page.
+
+**The rule:** a width gate covers the widths in its list; a device in hand is measured before it's assumed.
