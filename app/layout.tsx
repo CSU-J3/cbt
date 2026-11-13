@@ -156,9 +156,17 @@ export const metadata: Metadata = {
     "Personal feed of recent US Congress bills with plain-English summaries.",
 };
 
+// HO 815 — `themeColor` is the colour a phone's browser paints its own bar,
+// and it is `--bg-base` (`app/globals.css:4`), so the bar reads as part of the
+// page. It is a LITERAL because this export cannot read a CSS variable, which
+// makes it a second home for the token's value. `e2e/touch.spec.ts`'s fifth
+// assertion holds the two together: on every touch route it compares the
+// served `<meta name="theme-color">` with `--bg-base` as computed on `:root`,
+// so a palette change that moves one and not the other reds the gate.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#0a0e14",
 };
 
 export default function RootLayout({
