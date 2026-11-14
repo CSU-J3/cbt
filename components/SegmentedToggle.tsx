@@ -41,7 +41,7 @@ export function SegmentedToggle<V extends string>({
 }) {
   return (
     <div
-      className="inline-flex items-center overflow-hidden rounded-sm border"
+      className="seg-toggle inline-flex items-center overflow-hidden rounded-sm border"
       style={{ borderColor: "var(--border-strong)" }}
       role="group"
       aria-label={ariaLabel}

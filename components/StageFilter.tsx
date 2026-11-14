@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { ALLOWED_STAGES, type Stage } from "@/lib/enums";
+import { TouchSelect } from "@/components/TouchSelect";
 
 const STAGE_LABEL: Record<string, string> = {
   introduced: "INTRODUCED",
@@ -55,17 +56,20 @@ export function StageFilter({
     });
   }
 
+  // The face reads the selected option's label; the first option's when the
+  // value matches none (HO 816).
+  const faceText =
+    (current && availableStages.includes(current as Stage)
+      ? STAGE_LABEL[current]
+      : undefined) ?? "ALL STAGES";
+
   return (
-    <select
+    <TouchSelect
+      label="Stage"
+      faceText={faceText}
       value={current ?? ""}
       onChange={(e) => onChange(e.target.value)}
       disabled={isPending}
-      className="rounded-sm border px-2 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] focus:outline-none"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        color: "var(--text-secondary)",
-        borderColor: "var(--border-strong)",
-      }}
     >
       <option value="">ALL STAGES</option>
       {availableStages.map((s) => (
@@ -73,6 +77,6 @@ export function StageFilter({
           {STAGE_LABEL[s]}
         </option>
       ))}
-    </select>
+    </TouchSelect>
   );
 }

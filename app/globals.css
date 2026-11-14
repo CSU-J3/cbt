@@ -9301,6 +9301,101 @@ a.rl-nm:hover,
     font-size: 16px !important;
   }
 }
+/* HO 816 — THE FILTER BARS ON A TOUCH DEVICE, RULED C. A dropdown wears the
+   segments' face over its hidden 16px select, every control in a bar answers a
+   40px touch, and /bills and /members get their phone rows.
+
+   THE RULING. Corey's "c", 12:54 PM MST 2026-11-13, on mock-816 v1 (the
+   ruled mock, kept under docs/design). C is the control treatment for
+   every page with these controls. /bills' phone rows are ruled as drawn;
+   /members' are the chat's call, so C doesn't split that page's two dropdowns
+   across rows. Everything sits under `(pointer: coarse)`: with a fine pointer
+   nothing moves (HO 815's ruling, "Touch-scoped, desktop unchanged").
+
+   THE FACE. `components/TouchSelect.tsx` wraps each filter select. Off a touch
+   device `.tsel` is `display: contents` and the face isn't drawn, so the select
+   is the flex item it always was. On one, the face is drawn and the select sits
+   on it at opacity 0, 6px taller above and below. The select is what's tapped,
+   focused and read by a screen reader, and HO 815's rule above still sets it at
+   16px. The face is what's seen.
+
+   THE SLOP. A segment and a checkbox label take a transparent `::after` 6px
+   past their top and bottom, so a 28px control answers a 40px touch.
+   `.mc-fbar`'s row gap goes from 10 to 12 so two rows' slop can't meet;
+   `.filter-chips` already has 12.
+
+   MEASURED 2026-11-14 on local `next start` builds of `921c371` and this
+   change, under Chromium's touch emulation at 390 x 844 (DPR 3) and 851 x 728
+   (DPR 2.4375, the Fold, open), the same at both widths unless given twice.
+   THE FACES, each 28px tall: ALL STAGES 121.5 wide, LATEST ACTION 144.6, ALL
+   PARTIES 129.2, ALL STATES 121.5. Each select 40px tall, 16px, opacity 0.
+   THE BARS, before to after, at 390 then 851: /bills 205 (5 rows) to 175 (4),
+   97 to 95; /members 231.5 (6 rows) to 207.5 (5), 101 to 99; /stale 255 to
+   261, 157 to 153; /changes 241 to 251, 143 to 143; /lobbying 115.5 to 117.5,
+   53 to 53. /stale and /changes grow at 390 because a checkbox label is 18px
+   tall with a fine pointer and 28 here: the 40px target's price, accepted.
+   /bills with filters on, at 390: `?stage=committee&topics=healthcare,
+   technology` 203.5; `?stage=other_chamber&sort=introduced&chamber=senate`
+   215 in 5 rows, since the two longest faces don't share a row.
+   THE PROBES, on the touch gate's 18 cells: 0 face misses and 0 target misses
+   (a hit 4px past every segment and checkbox label, and 2px inside every
+   control in a bar). Against prod before the change: 10 cells red.
+   A TAP at the stage face's centre focuses the select, and a choice lands on
+   `?stage=committee` with the face reading COMMITTEE.
+   WITH A FINE POINTER NOTHING MOVES: at 1440 and at 390 every control's box
+   and font, and each bar's box, read identical on the two builds (/bills,
+   /members, /stale, /changes, /lobbying; 174 controls).
+
+   NOT READ HERE: whether a phone's own picker opens on that tap. The touch gate
+   reads sizes, the cover and the hit under Chromium's emulation; an iPhone and
+   Corey's Fold read the picker (backlog, HO 816). */
+.tsel { display: contents; }
+.tsel-face { display: none; }
+
+@media (pointer: coarse) {
+  .tsel { display: inline-flex; position: relative; }
+  .tsel-face {
+    display: inline-flex; align-items: center; gap: 9px;
+    height: 28px; padding: 0 9px 0 12px;
+    font-size: var(--fs-12); line-height: 18px; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+    color: var(--text-secondary); background-color: var(--bg-base);
+    border: 1px solid var(--border-strong); border-radius: 4px;
+  }
+  .tsel-caret { font-style: normal; font-size: 9px; color: var(--text-dim); }
+  .tsel > select {
+    position: absolute; left: 0; top: -6px;
+    width: 100%; height: calc(100% + 12px);
+    opacity: 0; padding: 0; border: 0;
+  }
+  .tsel:focus-within .tsel-face { outline: 1px solid var(--accent-amber-bright); outline-offset: 1px; }
+  .tsel:has(select:disabled) .tsel-face { opacity: 0.6; }
+
+  .mc-fbar { row-gap: 12px; }
+  .mc-fbar .seg-toggle, .filter-chips .seg-toggle { overflow: visible; }
+  .mc-fbar .seg-toggle > a, .filter-chips .seg-toggle > a { position: relative; }
+  .mc-fbar .seg-toggle > a:first-child, .filter-chips .seg-toggle > a:first-child { border-radius: 3px 0 0 3px; }
+  .mc-fbar .seg-toggle > a:last-child, .filter-chips .seg-toggle > a:last-child { border-radius: 0 3px 3px 0; }
+  .mc-fbar .seg-toggle > a::after, .filter-chips .seg-toggle > a::after,
+  .mc-fbar .ctl-check::after, .filter-chips .ctl-check::after {
+    content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px;
+  }
+  .mc-fbar .ctl-check, .filter-chips .ctl-check { position: relative; min-height: 28px; }
+}
+
+@media (pointer: coarse) and (max-width: 700px) {
+  .bl-fbar .mc-fbar-count { order: 1; flex: 1 1 auto; }
+  .bl-fbar .ctl-check { order: 2; }
+  .bl-fbar > .tsel { order: 3; }
+  .bl-fbar .control-sort { order: 4; }
+  .bl-fbar > .seg-toggle { order: 5; }
+  .bl-fbar .bl-clear { order: 6; }
+  .bl-fbar .control-search { order: 7; flex: 1 1 100%; max-width: none; }
+
+  .mb-fbar .ctl-check { order: 1; }
+  .mb-fbar .seg-toggle ~ .seg-toggle { order: 2; }
+  .mb-fbar .mc-fbar-search { order: 3; flex: 1 1 100%; }
+}
 /* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
    to the right of a 2,528px control bar and opened a 1,821px void. */
 .cart-summary {

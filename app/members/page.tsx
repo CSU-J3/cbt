@@ -484,7 +484,7 @@ export default async function MembersPage({
         <ParticipationStrip dots={partDots} congressLabel={partLabel} />
 
         {/* ---- Filter bar (full-width strip; connects to the pane) ---- */}
-        <div className="mc-fbar">
+        <div className="mc-fbar mb-fbar">
           {/* HO 367: redundant MEMBERS title + congress number dropped (both live
               in the breadcrumb). Left edge is now the live chamber-split readout. */}
           <span className="mc-fbar-count">

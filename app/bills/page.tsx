@@ -266,7 +266,7 @@ async function BillsView({
 
         {/* Filter bar — the real filters (the 24-chip topic row is gone; it's the
             rail now). Scope count reflects the active filter set. */}
-        <div className="mc-fbar">
+        <div className="mc-fbar bl-fbar">
           <span className="mc-fbar-count">
             <span className="mc-fbar-n">{total.toLocaleString()}</span> BILLS
             {topics.length > 0 ? (
@@ -300,7 +300,7 @@ async function BillsView({
           {hasFilters ? (
             <Link
               href={clearFiltersHref}
-              className="text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
+              className="bl-clear text-[length:var(--fs-12)] uppercase tracking-[0.5px] transition hover:text-[var(--text-secondary)]"
               style={{ color: "var(--text-dim)" }}
             >
               Clear ✕

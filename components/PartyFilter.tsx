@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { TouchSelect } from "@/components/TouchSelect";
 
 const PARTY_LABEL: Record<string, string> = {
   R: "REPUBLICAN",
@@ -39,17 +40,20 @@ export function PartyFilter({
     });
   }
 
+  // The face reads the selected option's label; the first option's when the
+  // value matches none (HO 816).
+  const faceText =
+    (current && (PARTIES as readonly string[]).includes(current)
+      ? PARTY_LABEL[current]
+      : undefined) ?? "ALL PARTIES";
+
   return (
-    <select
+    <TouchSelect
+      label="Party"
+      faceText={faceText}
       value={current ?? ""}
       onChange={(e) => onChange(e.target.value)}
       disabled={isPending}
-      className="rounded-sm border px-2 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] focus:outline-none"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        color: "var(--text-secondary)",
-        borderColor: "var(--border-strong)",
-      }}
     >
       <option value="">ALL PARTIES</option>
       {PARTIES.map((p) => (
@@ -57,6 +61,6 @@ export function PartyFilter({
           {PARTY_LABEL[p]}
         </option>
       ))}
-    </select>
+    </TouchSelect>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { TouchSelect } from "@/components/TouchSelect";
 
 export function StateFilter({
   current,
@@ -29,17 +30,17 @@ export function StateFilter({
     });
   }
 
+  // The face reads the selected option's label; the first option's when the
+  // value matches none (HO 816).
+  const faceText = current && states.includes(current) ? current : "ALL STATES";
+
   return (
-    <select
+    <TouchSelect
+      label="State"
+      faceText={faceText}
       value={current ?? ""}
       onChange={(e) => onChange(e.target.value)}
       disabled={isPending}
-      className="rounded-sm border px-2 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] focus:outline-none"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        color: "var(--text-secondary)",
-        borderColor: "var(--border-strong)",
-      }}
     >
       <option value="">ALL STATES</option>
       {states.map((s) => (
@@ -47,6 +48,6 @@ export function StateFilter({
           {s}
         </option>
       ))}
-    </select>
+    </TouchSelect>
   );
 }

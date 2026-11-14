@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import type { SortKey } from "@/lib/queries";
+import { TouchSelect } from "@/components/TouchSelect";
 
 const SORT_LABEL: Record<SortKey, string> = {
   action: "LATEST ACTION",
@@ -33,23 +34,26 @@ export function SortDropdown({
     });
   }
 
+  // The face reads the selected option's label; the first option's when the
+  // value matches none (HO 816).
+  // `action` is SORT_OPTIONS' first entry.
+  const faceText = SORT_OPTIONS.includes(current)
+    ? SORT_LABEL[current]
+    : SORT_LABEL.action;
+
   return (
-    <select
+    <TouchSelect
+      label="Sort"
+      faceText={faceText}
       value={current}
       onChange={(e) => onChange(e.target.value)}
       disabled={isPending}
-      className="rounded-sm border px-2 py-1 text-[length:var(--fs-12)] font-medium uppercase tracking-[0.5px] focus:outline-none"
-      style={{
-        backgroundColor: "var(--bg-base)",
-        color: "var(--text-secondary)",
-        borderColor: "var(--border-strong)",
-      }}
     >
       {SORT_OPTIONS.map((s) => (
         <option key={s} value={s}>
           {SORT_LABEL[s]}
         </option>
       ))}
-    </select>
+    </TouchSelect>
   );
 }
