@@ -3408,3 +3408,40 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - The builds ran on the box's Node 25; guard 2 allowed no download of a Node 24.
 - **Owed at the FF:** the Production `e2e-prod` run, the touch spec's first; the served stylesheet read for `pointer:coarse`; Corey's Fold readings (the bar's colour on `/`, the controls on `/bills`, the Tooltip line's two taps); the first iPhone in reach focusing `/bills`' search; the icon mock; `cbt.zip` after GradShow.
 - **Also notes now run through HO 815.**
+
+**Also (HO 816), the filter bars on a touch device, ruled C: a dropdown wears the segments' face over its hidden 16px select, every control in a bar answers a 40px touch, and `/bills` and `/members` take phone rows.** Built on `816-review` from `921c371`. No database read or write, no dependency, no new route.
+
+- **HO 815's FF go, as taken:** `main` at `921c371`, pushed 12:28:07 PM MST Nov 13 with no force; Production record `7774468914`, `success`; prod served `921c371` from about 12:29:00 PM. `e2e-prod` `43492584938`, `success`, 202 passed: 64 smoke and odds-off, the narrow gate's 120 cells at `430,390,851` with none over, and the touch spec's 18. The crawl step took 7m28s and the job 8m08s.
+- **Its 18 touch lines,** the touch spec's first on Production: every cell `coarse=true`, `over=0` and `theme=#0a0e14`, the controls' minimum 16px (`/welcome` 17px), the same at 390 and 851. Controls a page: `/bills` and `/members` 3, `/stale` 2, the other six 1.
+- **The ruling,** Corey, Nov 13 (MST): *"lets work on that"* (12:37 PM, on the chat's *"/bills controls,"*), then *"c"* (12:54 PM, on mock-816 v1, committed as `docs/design/mock-816-touch-controls.html`).
+- **STEP 0 held.**
+  - Claims 1 to 9 as stated. Claim 9 was read by word boundary, since the substring `tsel` hits *itself*.
+  - Claim 10, § 1's readings against prod at the base: 10 red, 8 green. Reading 6 was red on `/bills`, `/members` and `/stale`, and reading 7 on those three plus `/changes` and `/lobbying`, at both viewports; every miss was a slop probe.
+  - Claim 11: every bar within 0.5px of the chat's *shipped* column.
+- **§ 1:** the touch spec reads seven readings a cell. Reading 6 is the face: each visible select sits in a `.tsel` at opacity 0, its face is 12px and 28px tall and covered 5px above and below, the face's centre hits the select, and the face reads the option's text. Reading 7 is the targets: in each bar, a hit 4px past each segment's and checkbox label's edges lands on it, a hit 2px inside each control's edges lands on that control, and `BAR_MINIMUMS` sets each slug's counts.
+- **§ 2:** `components/TouchSelect.tsx` wraps the four filter selects and is the one home of their `className` and `style`. The class hooks are `seg-toggle`, `ctl-check`, `bl-fbar`, `bl-clear` and `mb-fbar`.
+- **§ 3:** the ruled rules, after HO 815's block. `/bills`' phone rows are as ruled; `/members`' are the chat's call.
+- **The legs,** on local `next start` builds of the base and the change:
+  - A, the touch gate: 18 passed.
+  - B, a fine pointer at 1440 and 390 on five pages: every control's box and font, and each bar's box, identical (174 controls). Narrow 120 passed; `fit-finish`'s doc-scroll unchanged.
+  - C, the bars under touch at 390 / 851, beside the chat's C column:
+    - `/bills` 175 (4 rows) / 95;
+    - `/members` 207.5 (5 rows) / 99;
+    - `/stale` 261 / 153;
+    - `/changes` 251 / 143;
+    - `/lobbying` 117.5 / 53;
+    - each within 0.5px.
+  - D, `/bills` with filters on at 390: 203.5 and 215, beside the chat's 204 and 215.
+  - E: a tap at the stage face's centre focuses the select; choosing *Committee* lands on `?stage=committee` and the face reads *COMMITTEE*, at both viewports.
+  - F: the change's stylesheet holds `tsel-face`; the base's doesn't.
+  - G: 34 captures for Corey, under `816-artifacts/captures/`.
+- **Flagged:**
+  - Each filter bar's text now carries its hidden faces' text (*ALL STAGES▼* beside the option's), so a read of the bar's `textContent` sees it twice.
+  - The ref's first `narrow-preview` run (`43645333005`) read 2 touch cells red: at 390, `/changes`' and `/stale`'s right-most chips sat under Vercel's Preview toolbar, which Production doesn't inject. The touch spec now hides every `vercel-*` element before it probes, and the ref was pushed again.
+  - The builds ran on the box's Node 25 (the new QUEUED line).
+- **Owed at the FF:**
+  - the push, `verify:deploy`, CI, the Production `e2e-prod` run with its 18 touch lines, and the served stylesheet read for `tsel-face`;
+  - Corey on the Fold: `/bills`, `/members` and `/stale`, open and closed, with a dropdown tapped;
+  - the first iPhone in reach: the new backlog line's tap;
+  - `cbt.zip` after GradShow, with SKILL changed at 815 and 816.
+- **Also notes now run through HO 816.**

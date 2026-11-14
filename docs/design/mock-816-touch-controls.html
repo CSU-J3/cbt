@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Touch Controls Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* mock-816 v1 · /bills' filter bar on a touch device (Corey, 12:37 PM MST Nov 13: "lets work on that", of the /bills controls).
+   Plan. Colour: CT's own tokens and nothing new: base #0a0e14, row #0f1620, panel #050709, line #1f2937, text #e5e7eb /
+   #cbd5e1 / #94a3b8 / #6b7280, amber #fbbf24 for the active state only. Type: IBM Plex Mono, as the bar is on prod; Plex Sans
+   only in the sketched bill row. Layout: the same slice of /bills drawn at a phone's 390 and at the Fold's open 851, each in
+   a fixed-width frame that lays itself out by container query, so both can sit on one desk screen. The one thing to look at
+   is the bar: its height, its rows, and whether the controls read as one family. Single theme by choice: CT is dark. */
+:root{
+  color-scheme:dark;
+  --base:#0a0e14; --row:#0f1620; --panel:#050709; --line:#1f2937;
+  --ink:#e5e7eb; --ink-2:#cbd5e1; --ink-3:#94a3b8; --ink-4:#6b7280;
+  --amber:#fbbf24; --amber-deep:#d97706;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#06080c;color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* ───────── mock chrome (not product) ───────── */
+.mock{position:sticky;top:0;z-index:40;background:#0b0f15;border-bottom:1px dashed #2b3646;font-size:12px;padding:8px 16px 9px}
+.mock-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.mock-title{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3)}
+.mock-top button{background:transparent;border:0;color:var(--ink-4);font-size:10px;cursor:pointer;padding:0;text-decoration:underline}
+.groups{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:7px}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.grp .k{font-size:10px;letter-spacing:.5px;color:var(--ink-4);margin-right:1px;text-transform:uppercase}
+.grp button{background:transparent;border:1px solid var(--line);border-radius:2px;padding:6px 9px;font-size:11px;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.grp button:hover{color:var(--ink-2)}
+.grp button:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.grp button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--row)}
+.note{font-size:11.5px;color:var(--ink-3);margin-top:8px;max-width:1100px}
+.note b{color:var(--ink-2);font-weight:500}
+.ruling{font-size:11px;color:var(--ink-4);margin-top:6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ruling b{color:var(--amber);font-weight:500}
+.ruling button{border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:10px;padding:3px 8px;border-radius:2px;cursor:pointer}
+.prov{margin-top:6px;font-size:11px;color:var(--ink-4);max-width:1100px}
+.prov summary{cursor:pointer}
+.prov p{margin:6px 0 0;color:var(--ink-3)}
+.prov b{color:var(--ink-2);font-weight:500}
+.prov code{color:var(--ink-2)}
+.mock.folded .groups,.mock.folded .note,.mock.folded .prov{display:none}
+.quick{display:none}
+@media (max-width:900px){
+  .mock{position:static}
+  .quick{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;background:#0b0f15;border-top:1px dashed #2b3646;padding:8px 12px}
+  .quick button{flex:1;height:44px;background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--ink-3);font-size:13px;cursor:pointer}
+  .quick button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--row)}
+  .stage.device{padding-bottom:84px}
+}
+
+/* ───────── the stage: one or two device frames ───────── */
+.stage{display:flex;gap:28px;align-items:flex-start;padding:22px 16px 60px;overflow-x:auto}
+.stage.device{padding:0 0 40px;gap:0;display:block}
+.frame{flex:0 0 auto}
+.frame-h{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-4);margin:0 0 7px}
+.frame-h b{color:var(--ink-2);font-weight:500}
+.stage.device .frame-h{padding:10px 16px 0}
+.dev{box-sizing:content-box;container-type:inline-size;container-name:dev;background:var(--base);border:1px solid #232c3a}
+.stage.device .dev{border-width:1px 0}
+.read{font-size:11px;color:var(--ink-3);margin:8px 0 0;display:flex;gap:6px 16px;flex-wrap:wrap}
+.read b{color:var(--ink);font-weight:500}
+.read .was{color:var(--ink-4)}
+.stage.device .read{padding:0 16px}
+
+/* ───────── product: the slice of /bills (measured values) ───────── */
+.slice{padding:14px 16px 18px}
+.tabs{display:flex;gap:14px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3);padding-bottom:11px;border-bottom:1px solid var(--line)}
+.mode{margin:12px 0}
+
+.seg{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.seg button{position:relative;background:var(--base);color:var(--ink-3);border:0;border-left:1px solid var(--line);font:500 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:4px 12px;cursor:pointer}
+.seg button:first-child{border-left:0}
+.seg button.on{background:var(--row);color:var(--amber)}
+.seg button:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+
+.fbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-bottom:0}
+.count{font:400 11px/16.5px var(--mono);letter-spacing:.5px;color:var(--ink-3);white-space:nowrap}
+.count .n{color:var(--ink-2)}
+.ctl{display:inline-flex}
+.ctl select{font:500 16px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-2);background:var(--base);border:1px solid var(--line);border-radius:4px;padding:4px 8px;margin:0}
+.ctl select:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.face{display:none}
+.cer{position:relative;display:inline-flex;align-items:center;gap:6px;font:400 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-4);cursor:pointer;user-select:none;white-space:nowrap}
+.cer input{width:12px;height:12px;margin:0;accent-color:var(--amber-deep);cursor:pointer}
+.search{position:relative;width:230px}
+.search .glyph{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:13px;line-height:1;color:var(--ink-4);pointer-events:none}
+.search input{display:block;width:100%;font:400 16px/24px var(--mono);color:var(--ink);background:var(--base);border:1px solid var(--line);border-radius:0;padding:5px 26px;margin:0;outline:none;-webkit-appearance:none;appearance:none}
+.search input::placeholder{color:var(--ink-4)}
+.search input:focus-visible{border-color:var(--amber-deep)}
+.sort{display:inline-flex;align-items:center;gap:8px;font:400 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-4)}
+.chips,.sortseg{display:none}
+
+/* B · one height: every control 40px tall; 16px where text is entered or picked, 14px elsewhere */
+.v-b .count{font-size:12px}
+.v-b .ctl select{height:40px;padding:0 10px}
+.v-b .seg button{font-size:14px;line-height:20px;padding:10px 14px}
+.v-b .mode button{font-size:12px;line-height:18px;padding:4px 12px}
+.v-b .cer{font-size:14px;line-height:20px;gap:9px;min-height:40px}
+.v-b .cer input{width:18px;height:18px}
+.v-b .search input{height:40px;padding:0 28px}
+@container dev (max-width:700px){
+  .v-b .search{flex:1 1 100%;width:auto}
+}
+
+/* C and D share the terminal face: a 12px drawn control, the 16px native select invisible on top of it, 6px of
+   tap slop above and below everything, so a 28px control answers a 40px touch */
+.fo .fbar{row-gap:12px}
+.fo .ctl{position:relative}
+.fo .face{display:inline-flex;align-items:center;gap:9px;height:28px;font:500 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-2);background:var(--base);border:1px solid var(--line);border-radius:4px;padding:0 9px 0 12px;white-space:nowrap}
+.fo .face .car{font-style:normal;font-size:9px;color:var(--ink-4)}
+.fo .ctl select{position:absolute;left:0;top:-6px;width:100%;height:calc(100% + 12px);opacity:0;padding:0;border:0;cursor:pointer}
+.fo .ctl:focus-within .face{outline:1px solid var(--amber);outline-offset:1px}
+.fo .fbar .seg{overflow:visible}
+.fo .fbar .seg button:first-child{border-radius:3px 0 0 3px}
+.fo .fbar .seg button:last-child{border-radius:0 3px 3px 0}
+.fo .fbar .seg button::after,.fo .chips button::after,.fo .cer::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.fo .cer{line-height:18px;min-height:28px}
+@container dev (max-width:700px){
+  .fo .count{order:1;flex:1 1 auto}
+  .fo .cer{order:2}
+  .fo .stage-ctl{order:3}
+  .fo .sort{order:4}
+  .fo .chamber{order:5}
+  .fo .search{order:7;flex:1 1 100%;width:auto}
+}
+
+/* D · C, and the two short filters become tap rows: no dropdown left on /bills */
+.v-d .stage-ctl,.v-d .sortsel{display:none}
+.v-d .chips{display:flex;flex-wrap:wrap;gap:6px}
+.v-d .chips button{position:relative;background:var(--base);color:var(--ink-3);border:1px solid var(--line);border-radius:4px;font:500 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;padding:4px 11px;cursor:pointer;white-space:nowrap}
+.v-d .chips button.on{background:var(--row);color:var(--amber);border-color:#3a2f12}
+.v-d .chips button:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.v-d .sortseg{display:inline-flex}
+.v-d .count{order:1}
+.v-d .chips{order:2}
+.v-d .chamber{order:3}
+.v-d .sort{order:4}
+.v-d .cer{order:5}
+.v-d .search{order:6}
+@container dev (max-width:700px){
+  .v-d .count{order:1;flex:1 1 auto}
+  .v-d .cer{order:2}
+  .v-d .chips{order:3;flex:1 1 100%}
+  .v-d .chamber{order:4}
+  .v-d .sort{order:5}
+  .v-d .search{order:7}
+}
+
+/* ───────── sketched context under the bar (not measured; dimmed on purpose) ───────── */
+.ctx{margin-top:0;border:1px solid var(--line);display:grid;grid-template-columns:250px 1fr}
+.ctx > *{opacity:.5}
+.ctx-tag{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink-4);margin:6px 0 0}
+.rail-h{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:1px;color:var(--ink-4);padding:9px 12px;border-bottom:1px solid var(--line)}
+.rail-r{display:grid;grid-template-columns:14px 1fr 46px 44px;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #131a24;font-size:12px;color:var(--ink-2)}
+.rail-r:last-child{border-bottom:0}
+.rail-r i{width:10px;height:10px;border:1.5px solid var(--c);border-radius:2px}
+.rail-r .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rail-r .bar{height:2px;background:#1a2230}
+.rail-r .bar s{display:block;height:2px;background:var(--c)}
+.rail-r .v{text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.pane{border-left:1px solid var(--line);min-width:0}
+.legend{font-size:11.5px;letter-spacing:.5px;color:var(--ink-3);padding:9px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px 12px}
+.legend .cm{color:#06b6d4} .legend .fl{color:var(--amber)} .legend .pr{color:#fb923c} .legend .en{color:#10b981}
+.pager{font-size:11.5px;color:var(--ink-4);padding:9px 14px;border-bottom:1px solid var(--line);letter-spacing:.5px}
+.pager b{color:var(--amber);font-weight:500}
+.bill{display:grid;grid-template-columns:54px 1fr;border-left:3px solid #a78bfa}
+.bill .id{background:#12101c;text-align:center;padding:14px 0;font-size:10px;color:var(--ink-3)}
+.bill .id b{display:block;font-size:17px;color:var(--ink);font-weight:500}
+.bill .bd{padding:12px 14px;min-width:0}
+.bill .t{font:600 16px/1.3 var(--sans);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bill .m{font-size:10.5px;letter-spacing:.6px;color:var(--ink-4);margin-top:7px}
+.bill .m span{border:1px solid var(--line);padding:2px 7px;margin-right:6px}
+.bill .m .cm{color:#06b6d4;border-color:#0e7490}
+@container dev (max-width:700px){
+  .ctx{grid-template-columns:1fr}
+  .pane{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+  .seg button,.chips button,.grp button{transition:color .12s,background-color .12s}
+}
+</style>
+</head>
+<body>
+
+<div class="mock" id="mock">
+  <div class="mock-top">
+    <span class="mock-title">mock-816 v1 · /bills' filter bar on a touch device · against main at 921c371, the bar measured on prod 12:40 PM MST Nov 13, 2026</span>
+    <button id="foldBtn" type="button">hide controls</button>
+  </div>
+  <div class="groups" id="groups"></div>
+  <div class="note" id="note"></div>
+  <div class="ruling">Reply with the line as set: <b id="ruling"></b> <button id="copyBtn" type="button">copy</button></div>
+  <details class="prov">
+    <summary>what's real in this mock</summary>
+    <p><b>The bar in A is prod's, measured.</b> Every size, colour, padding and gap of the filter bar and its six controls was read off prod's <code>/bills</code> at <code>921c371</code>, in the desktop app's browser at 390 and at 851 wide, with HO 815's touch rule applied by hand. Prod's bar read 358 × 205 at 390 and 819 × 97 at 851; the line under each frame gives what your browser draws, beside those two figures.</p>
+    <p><b>Every option keeps HO 815's rule.</b> A control you type in or pick from still computes 16px on a touch device, so the touch gate stays green and an iPhone has nothing to zoom on. In C and D the native select is still there at 16px: it sits invisible on top of a 12px drawn face, so a tap opens the phone's own picker.</p>
+    <p><b>The stage and sort lists are prod's</b> (seven stages, two sorts). The count is prod's at the time of measuring. <b>Sketched, not measured:</b> the tab row above the bar and the topics and bill row below it, drawn from HO 815's 10:43 AM captures and dimmed so the bar is what you judge.</p>
+    <p><b>The same ruling carries to the other pages.</b> <code>/members</code> has two selects (parties and states), <code>/stale</code> has one, and seven pages carry a search box. A, B and C apply to all of them as drawn. D's tap rows fit only a filter with a handful of choices, so <code>/members</code>' state list would keep C's face.</p>
+    <p><b>The selects, segments and checkbox work</b>, so on your Fold a tap opens the real picker. Nothing here filters anything.</p>
+  </details>
+</div>
+
+<div class="stage" id="stage"></div>
+<div class="quick" id="quick" role="group" aria-label="Controls option"></div>
+
+<template id="slice">
+  <div class="slice">
+    <div class="tabs"><span>Changes</span><span>President</span><span>Reports</span></div>
+    <div class="seg mode" role="group" aria-label="Feed mode"><button type="button" class="on">Legislation</button><button type="button">News</button></div>
+
+    <div class="fbar">
+      <span class="count"><span class="n">17,374</span> BILLS</span>
+
+      <span class="ctl stage-ctl">
+        <span class="face" aria-hidden="true"><span class="v">All stages</span><i class="car">▼</i></span>
+        <select data-id="stage" aria-label="Stage">
+          <option>All stages</option><option>Introduced</option><option>Committee</option><option>Floor</option><option>Other chamber</option><option>President</option><option>Enacted</option>
+        </select>
+      </span>
+
+      <div class="chips" role="group" aria-label="Stage">
+        <button type="button" class="on">All</button><button type="button">Introduced</button><button type="button">Committee</button><button type="button">Floor</button><button type="button">Other chamber</button><button type="button">President</button><button type="button">Enacted</button>
+      </div>
+
+      <div class="seg chamber" role="group" aria-label="Chamber"><button type="button" class="on">All</button><button type="button">House</button><button type="button">Senate</button></div>
+
+      <label class="cer"><input type="checkbox" data-id="cer">include ceremonial</label>
+
+      <div class="search"><span class="glyph" aria-hidden="true">⌕</span><input type="search" data-id="q" placeholder="search bills..." spellcheck="false" autocomplete="off" aria-label="Search bills"></div>
+
+      <span class="sort">Sort
+        <span class="ctl sortsel">
+          <span class="face" aria-hidden="true"><span class="v">Latest action</span><i class="car">▼</i></span>
+          <select data-id="sort" aria-label="Sort"><option>Latest action</option><option>Newly introduced</option></select>
+        </span>
+        <span class="seg sortseg" role="group" aria-label="Sort"><button type="button" class="on">Latest action</button><button type="button">Newly introduced</button></span>
+      </span>
+    </div>
+
+    <div class="ctx" aria-hidden="true">
+      <div class="rail">
+        <div class="rail-h"><span>TOPICS · 24</span><span>VOL</span></div>
+        <div class="rail-r" style="--c:#f43f5e"><i></i><span class="nm">Government operations</span><span class="bar"><s style="width:100%"></s></span><span class="v">5,807</span></div>
+        <div class="rail-r" style="--c:#ec4899"><i></i><span class="nm">Healthcare</span><span class="bar"><s style="width:52%"></s></span><span class="v">3,024</span></div>
+        <div class="rail-r" style="--c:#ef4444"><i></i><span class="nm">Technology</span><span class="bar"><s style="width:42%"></s></span><span class="v">2,438</span></div>
+        <div class="rail-r" style="--c:#22c55e"><i></i><span class="nm">Consumer protection</span><span class="bar"><s style="width:37%"></s></span><span class="v">2,121</span></div>
+        <div class="rail-r" style="--c:#d946ef"><i></i><span class="nm">Environment</span><span class="bar"><s style="width:35%"></s></span><span class="v">2,061</span></div>
+      </div>
+      <div class="pane">
+        <div class="legend"><span>▸ INTRO</span><span class="cm">▸ COMMITTEE</span><span class="fl">▸▸ FLOOR</span><span class="fl">▸▸▸ OTHER CHAMBER</span><span class="pr">▸▸▸▸ PRESIDENT</span><span class="en">✓ ENACTED</span></div>
+        <div class="pager">‹ PREV &nbsp;<b>1</b> 2 3 … 695 &nbsp;NEXT › &nbsp;&nbsp; PAGE 1 OF 695</div>
+        <div class="bill"><div class="id">S<b>90</b></div><div class="bd"><div class="t">A bill to prohibit the use of funds by the Secretary of the Interior…</div><div class="m"><span>INTRODUCED · 22MO</span><span class="cm">COMMITTEE</span></div></div></div>
+      </div>
+    </div>
+    <p class="ctx-tag">below the bar: context, sketched</p>
+  </div>
+</template>
+
+<script>
+(function(){
+  var OPTIONS = {
+    a:{label:'A · as shipped', line:'A, as shipped',
+       note:'<b>A is what HO 815 put on prod this morning.</b> The two selects and the search box are 16px; the segments, the checkbox and the labels beside them are still 12px. Five rows on a phone, and the controls are four different heights (32, 28, 18 and 36).'},
+    b:{label:'B · one height', line:'B, one height',
+       note:'<b>B makes the bar touch-sized.</b> Every control is 40px tall. What you type in or pick from is 16px, everything else steps up to 14px, and the checkbox grows to 18px. It reads as one family and every target is easy to hit. It is also the tallest bar on a phone.'},
+    c:{label:'C · terminal face', line:'C, terminal face',
+       note:'<b>C keeps the desktop\'s look, and it is the chat\'s pick.</b> The dropdowns are drawn like the segments: 12px, 28px tall. The real 16px select lies invisible on top, so a tap still opens the phone\'s picker and nothing zooms. Everything you tap answers a 40px touch though it is drawn at 28, and the search box stays 36. On a phone the count and the ceremonial box share the top line, since the box changes the count, and the search box takes a full row. Only what you type is larger.'},
+    d:{label:'D · C + tap rows', line:'D, terminal face with tap rows',
+       note:'<b>D is C with no dropdown left on /bills.</b> Stage and sort become rows you tap, like the chamber toggle, so the active filter is always in view and a change is one tap where a dropdown takes two. It costs height on a phone, and it only suits a filter with a handful of choices.'}
+  };
+  var VIEWS = {both:'side by side', phone:'phone · 390', fold:'Fold, open · 851', device:'this device'};
+  var PROD = {390:[358,205], 851:[819,97]};
+  var state = {v:'c', view:(window.innerWidth >= 1330 ? 'both' : 'device')};
+
+  var stage = document.getElementById('stage'), tpl = document.getElementById('slice');
+  var groups = document.getElementById('groups'), note = document.getElementById('note'), ruling = document.getElementById('ruling');
+  var quick = document.getElementById('quick');
+  var uid = 0;
+
+  function mkGroup(key, label, items, current){
+    var g = document.createElement('div'); g.className = 'grp';
+    var k = document.createElement('span'); k.className = 'k'; k.textContent = label; g.appendChild(k);
+    Object.keys(items).forEach(function(id){
+      var b = document.createElement('button'); b.type = 'button';
+      b.textContent = typeof items[id] === 'string' ? items[id] : items[id].label;
+      if (id === current) b.className = 'on';
+      b.setAttribute('aria-pressed', id === current ? 'true' : 'false');
+      b.addEventListener('click', function(){ state[key] = id; render(); });
+      g.appendChild(b);
+    });
+    return g;
+  }
+
+  function frame(kind){
+    var f = document.createElement('div'); f.className = 'frame';
+    var h = document.createElement('p'); h.className = 'frame-h';
+    var dev = document.createElement('div'); dev.className = 'dev v-' + state.v + (state.v === 'c' || state.v === 'd' ? ' fo' : '');
+    if (kind === 'phone') { dev.style.width = '390px'; f.style.width = '392px'; }
+    if (kind === 'fold') { dev.style.width = '851px'; f.style.width = '853px'; }
+    dev.appendChild(tpl.content.cloneNode(true));
+    uid++;
+    dev.querySelectorAll('[data-id]').forEach(function(el){ el.id = el.getAttribute('data-id') + '-' + uid; });
+    var read = document.createElement('p'); read.className = 'read';
+    f.appendChild(h); f.appendChild(dev); f.appendChild(read);
+    f._kind = kind; f._h = h; f._dev = dev; f._read = read;
+    wire(dev, f);
+    return f;
+  }
+
+  function wire(dev, f){
+    dev.querySelectorAll('.seg, .chips').forEach(function(g){
+      g.addEventListener('click', function(e){
+        var b = e.target.closest('button'); if (!b || !g.contains(b)) return;
+        g.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+      });
+    });
+    dev.querySelectorAll('.ctl').forEach(function(c){
+      var s = c.querySelector('select'), v = c.querySelector('.v');
+      s.addEventListener('change', function(){ v.textContent = s.options[s.selectedIndex].text; measure(f); });
+    });
+  }
+
+  function measure(f){
+    var dev = f._dev, bar = dev.querySelector('.fbar');
+    var br = bar.getBoundingClientRect();
+    var kids = Array.prototype.filter.call(bar.children, function(k){ return k.getClientRects().length > 0; })
+      .map(function(k){ return k.getBoundingClientRect(); }).sort(function(a,b){ return a.top - b.top; });
+    var rows = 0, bottom = -1e9;
+    kids.forEach(function(r){ if (r.top >= bottom - 2) { rows++; bottom = r.bottom; } else { bottom = Math.max(bottom, r.bottom); } });
+    var slop = dev.classList.contains('fo') ? 12 : 0;
+    var min = null;
+    function consider(el, name, extra){
+      if (!el || el.getClientRects().length === 0) return;
+      var hgt = Math.round(el.getBoundingClientRect().height + extra);
+      if (min === null || hgt < min.h) min = {h:hgt, name:name};
+    }
+    bar.querySelectorAll('.ctl').forEach(function(c){
+      if (c.getClientRects().length === 0) return;
+      var s = c.querySelector('select');
+      consider(s, 'a dropdown', 0);
+    });
+    consider(bar.querySelector('.chamber button'), 'a segment', slop);
+    consider(bar.querySelector('.chips button'), 'a stage row', slop);
+    consider(bar.querySelector('.sortseg button'), 'a sort segment', slop);
+    consider(bar.querySelector('.cer'), 'the ceremonial box', slop);
+    consider(bar.querySelector('.search input'), 'the search box', 0);
+    var w = dev.clientWidth;
+    var label = f._kind === 'phone' ? 'Phone' : f._kind === 'fold' ? 'Fold, open' : 'This device';
+    f._h.innerHTML = '<b>' + label + '</b> · ' + w + ' wide';
+    var was = PROD[w] ? ' <span class="was">(prod, as shipped: ' + PROD[w][1] + 'px)</span>' : '';
+    f._read.innerHTML = '<span>bar <b>' + Math.round(br.height) + 'px</b> tall' + was + '</span><span><b>' + rows + '</b> row' + (rows === 1 ? '' : 's') +
+      '</span><span>smallest touch target <b>' + min.h + 'px</b> tall, ' + min.name + '</span>';
+  }
+
+  var frames = [];
+  function render(){
+    groups.innerHTML = '';
+    groups.appendChild(mkGroup('v', 'Controls', OPTIONS, state.v));
+    groups.appendChild(mkGroup('view', 'Show', VIEWS, state.view));
+    quick.innerHTML = '';
+    Object.keys(OPTIONS).forEach(function(id){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = id.toUpperCase();
+      b.setAttribute('aria-label', OPTIONS[id].label); b.setAttribute('aria-pressed', id === state.v ? 'true' : 'false');
+      if (id === state.v) b.className = 'on';
+      b.addEventListener('click', function(){ state.v = id; render(); });
+      quick.appendChild(b);
+    });
+    note.innerHTML = OPTIONS[state.v].note;
+    ruling.textContent = 'controls ' + OPTIONS[state.v].line;
+    stage.innerHTML = ''; frames = [];
+    stage.className = 'stage' + (state.view === 'device' ? ' device' : '');
+    var kinds = state.view === 'both' ? ['phone','fold'] : [state.view];
+    kinds.forEach(function(k){ var f = frame(k); stage.appendChild(f); frames.push(f); });
+    measureAll();
+  }
+  function measureAll(){ frames.forEach(measure); }
+
+  document.getElementById('foldBtn').addEventListener('click', function(){
+    var m = document.getElementById('mock'); var folded = m.classList.toggle('folded');
+    this.textContent = folded ? 'show controls' : 'hide controls';
+  });
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    var btn = this, text = ruling.textContent;
+    function done(ok){ btn.textContent = ok ? 'copied' : 'select the line and copy it'; setTimeout(function(){ btn.textContent = 'copy'; }, 1800); }
+    try { navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); }); } catch (e) { done(false); }
+  });
+  window.addEventListener('resize', measureAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureAll);
+  render();
+})();
+</script>
+</body>
+</html>
