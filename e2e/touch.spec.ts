@@ -25,6 +25,19 @@
 //      on `:root`. `app/layout.tsx` states the value as a literal, because a
 //      `viewport` export cannot read a CSS variable, so this is what holds the
 //      literal and the token together.
+//   6. THE FACE (HO 816) — every visible `select` sits in a `.tsel`
+//      (`components/TouchSelect.tsx`) and computes opacity 0; its `.tsel-face`
+//      is visible, 12px and 28px tall; the select covers the face, left and
+//      right within 1px, at least 5px above and below, at least 40px tall; with
+//      the control scrolled to the centre, the face's centre hits the select;
+//      and the face's text is the selected option's.
+//   7. THE TOUCH TARGETS (HO 816) — in every bar (`BAR_SELECTOR`), each control
+//      scrolled to the centre first: a hit 4px past the top and the bottom of
+//      every segment and checkbox label lands on it (the slop), and a hit 2px
+//      inside the top and the bottom of every control in the bar lands on that
+//      control (no cover; a select answers as itself or its `.tsel`). Each slug
+//      with a bar holds at least `BAR_MINIMUMS`' counts, so a bar where the
+//      probe found nothing can't pass. Each cell logs its bar's box and rows.
 //
 // WHAT ITS ZERO MEANS (method.md § Gates). On the nine `TOUCH_ROUTES` at two
 // viewports, under Chromium's touch emulation, no visible text-entry control
@@ -37,6 +50,12 @@
 // `TOUCH_ROUTES` pathname. THAT CHECK IS PER PATHNAME, so a query variant of a
 // listed page (`/electoral?cycle=2028`, a distinct render) is read by neither
 // spec unless its own slug is on the list.
+// AND SINCE HO 816: on the routes with a bar, under the same emulation, every
+// filter select is drawn as a 12px face with the select covering it, every
+// segment and checkbox label answers a hit 4px past its edges, and no control
+// in a bar is covered 2px inside its own. IT SAYS NOTHING ABOUT A PHONE'S OWN
+// PICKER OPENING on that tap, or about a route without a bar; a phone reads the
+// picker (backlog, HO 816).
 //
 // THE TWO VIEWPORTS. 390 x 844 at DPR 3 is the iPhone 12-to-14 screen in
 // Playwright's device table, and 390 is a width the narrow gate already reads.
@@ -57,6 +76,15 @@
 // sideways (over=0 on all 18), so the width assertion here is unproven by
 // history; its idiom is the narrow gate's, which was. Assertion 2's control is
 // STEP 0's read with the options off, quoted above.
+// READINGS 6 AND 7 HAVE THE SAME KIND OF CONTROL. Run against prod at `921c371`
+// on 2026-11-14 (21:23Z, 2:23 PM MST), before HO 816's change, this spec was
+// RED on ten cells and green on eight. Reading 6 was red on /bills (two
+// selects), /members (two) and /stale (one) at both viewports: no select sat in
+// a `.tsel`. Reading 7 was red on those three and on /changes and /lobbying at
+// both: every segment and checkbox label missed both slop probes (a hit 4px
+// past its edge landed on the bar), 44 misses a viewport. No cover probe
+// missed and no bar fell short of its minimums, so the cover probe and the
+// minimums are unproven by history. The four routes without a bar were green.
 //
 // NO SCREENSHOTS AND NO COLLECTORS, as in the narrow spec: one navigation a
 // cell, one log line a cell. Untagged, so `e2e-prod` runs it on every trigger.
@@ -74,6 +102,34 @@ const TOLERANCE = 1;
 // The size under which iOS Safari zooms the page on focus. The reason for the
 // number is Safari's; this spec measures the number and not the zoom.
 const MIN_FONT_PX = 16;
+
+// HO 816 — A BAR is a filter strip holding the controls: `.mc-fbar` (/bills,
+// /members, /lobbying) or the `<section class="filter-chips">` of /stale and
+// /changes. The bare `.filter-chips` class also names the topic chips' own row
+// and NewsFilters' rows, which hold no select, segment or checkbox, so the
+// section is what's read.
+const BAR_SELECTOR = ".mc-fbar, section.filter-chips";
+// The face (reading 6): what a touch device draws over its hidden select.
+const FACE_PX = 12;
+const FACE_TALL = 28;
+// The select covers the face by at least this much above and below, and is at
+// least this tall: a 28px face answers a 40px touch.
+const FACE_COVER = 5;
+const SELECT_TALL = 40;
+// The touch targets (reading 7): a hit this far past a segment's or a checkbox
+// label's top and bottom edge must still land on it, and a hit this far inside
+// any control's edge must land on that control and not on a neighbour's slop.
+const SLOP_PX = 4;
+const INSET_PX = 2;
+// The minimums a slug, so a bar where the probe found nothing can't pass. The
+// counts are what each bar renders at HO 816 with no filters set.
+const BAR_MINIMUMS: Record<string, { segments: number; checks: number; selects: number }> = {
+  bills: { segments: 3, checks: 1, selects: 2 },
+  members: { segments: 6, checks: 1, selects: 2 },
+  stale: { segments: 3, checks: 2, selects: 1 },
+  changes: { segments: 3, checks: 1, selects: 0 },
+  lobbying: { segments: 2, checks: 0, selects: 0 },
+};
 
 // `e2e/narrow.spec.ts`'s OVER_EDGE, copied as the near-miss helpers are: every
 // element whose right edge passes clientWidth, deepest first, unclipped before
@@ -201,6 +257,178 @@ function cells(tag: string, width: number) {
         };
       }, TEXT_ENTRY_SELECTOR);
 
+      // THE SECOND READ, readings 6 and 7 (HO 816). It scrolls each control to
+      // the centre of the viewport before it probes, so it runs after the read
+      // above and still before any assertion.
+      const probe = await page.evaluate(
+        ({ barSelector, textEntry, k }) => {
+          // VERCEL'S PREVIEW TOOLBAR IS NOT THE PAGE. A Preview deployment
+          // injects it as a fixed overlay (`vercel-live-feedback`, a custom
+          // element), and with a control scrolled to the centre at 390 it sits
+          // over the right-most chips: the ref's first narrow-preview run
+          // (43645333005, HO 816) read 14 misses on it at 390, 5 on /changes
+          // and 9 on /stale, one of them a slop probe. Production doesn't inject it (claim 10's probes on prod hit
+          // the same chips). So every `vercel-*` element is hidden before the
+          // probe, and the log says how many were.
+          let toolbar = 0;
+          for (const el of Array.from(document.querySelectorAll("*"))) {
+            if (el.tagName.startsWith("VERCEL-")) {
+              (el as HTMLElement).style.setProperty("display", "none", "important");
+              toolbar++;
+            }
+          }
+          const visible = (el: Element) => {
+            if (!(el as HTMLElement).checkVisibility({ visibilityProperty: true })) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const text = (el: Element | null | undefined) =>
+            (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+          const name = (el: Element | null) => {
+            if (!el) return "nothing";
+            const tag = el.tagName.toLowerCase();
+            if (tag === "select") {
+              const s = el as HTMLSelectElement;
+              return `select(${s.getAttribute("aria-label") ?? text(s.selectedOptions[0])})`;
+            }
+            if (tag === "a" || tag === "button" || tag === "label") return `${tag}(${text(el).slice(0, 24)})`;
+            const cls =
+              typeof el.className === "string" && el.className.trim()
+                ? "." + el.className.trim().split(/\s+/)[0]
+                : "";
+            return tag + cls;
+          };
+          const centre = (el: Element) => el.scrollIntoView({ block: "center", inline: "nearest" });
+
+          // 6. THE FACE, on every visible select.
+          const faceMisses: string[] = [];
+          let faces = 0;
+          const selects = Array.from(document.querySelectorAll("select")).filter(visible);
+          for (const sel of selects) {
+            const tsel = sel.closest(".tsel");
+            if (!tsel) {
+              faceMisses.push(`${name(sel)}: not inside a .tsel`);
+              continue;
+            }
+            const fails: string[] = [];
+            const opacity = getComputedStyle(sel).opacity;
+            if (opacity !== "0") fails.push(`opacity ${opacity}`);
+            const face = tsel.querySelector(":scope > .tsel-face");
+            if (!face || !visible(face)) {
+              faceMisses.push(`${name(sel)}: ${[...fails, "no visible .tsel-face"].join(", ")}`);
+              continue;
+            }
+            faces++;
+            centre(sel);
+            const f = face.getBoundingClientRect();
+            const s = sel.getBoundingClientRect();
+            const px = parseFloat(getComputedStyle(face).fontSize);
+            if (px !== k.facePx) fails.push(`face ${px}px`);
+            if (Math.abs(f.height - k.faceTall) > 0.5) fails.push(`face ${f.height}px tall`);
+            if (Math.abs(s.left - f.left) > 1 || Math.abs(s.right - f.right) > 1)
+              fails.push(`select x ${s.left}-${s.right} vs face ${f.left}-${f.right}`);
+            if (f.top - s.top < k.cover) fails.push(`select top ${f.top - s.top}px above the face`);
+            if (s.bottom - f.bottom < k.cover) fails.push(`select bottom ${s.bottom - f.bottom}px below the face`);
+            if (s.height < k.selectTall) fails.push(`select ${s.height}px tall`);
+            const hit = document.elementFromPoint(f.left + f.width / 2, f.top + f.height / 2);
+            if (hit !== sel) fails.push(`the face's centre hits ${name(hit)}`);
+            const faceText = text(face.querySelector(":scope > span")).toUpperCase();
+            const optText = text(sel.selectedOptions[0]).toUpperCase();
+            if (faceText !== optText) fails.push(`face "${faceText}" vs option "${optText}"`);
+            if (fails.length) faceMisses.push(`${name(sel)}: ${fails.join(", ")}`);
+          }
+
+          // 7. THE TOUCH TARGETS, in every bar.
+          const bars = Array.from(document.querySelectorAll(barSelector)).filter(visible);
+          const boxes: string[] = [];
+          const targetMisses: string[] = [];
+          const found = { segments: 0, checks: 0, selects: 0 };
+          let targets = 0;
+          for (const bar of bars) {
+            // The box and the rows, read before any scroll moves the page. A
+            // display:contents wrapper (the face's, under a fine pointer) is
+            // read through to its children.
+            const items: DOMRect[] = [];
+            const walk = (el: Element) => {
+              for (const ch of Array.from(el.children)) {
+                if (getComputedStyle(ch).display === "contents") walk(ch);
+                else if (visible(ch)) items.push(ch.getBoundingClientRect());
+              }
+            };
+            walk(bar);
+            items.sort((a, b) => a.top - b.top);
+            let rows = 0;
+            let rowBottom = -Infinity;
+            for (const r of items) {
+              if (r.top >= rowBottom - 0.5) {
+                rows++;
+                rowBottom = r.bottom;
+              } else rowBottom = Math.max(rowBottom, r.bottom);
+            }
+            const b = bar.getBoundingClientRect();
+            boxes.push(`${Math.round(b.width)}x${Math.round(b.height * 10) / 10} rows=${rows}`);
+
+            const segs = Array.from(bar.querySelectorAll('[role="group"] > a')).filter(visible);
+            const checks = Array.from(bar.querySelectorAll("label")).filter(
+              (l) => l.querySelector('input[type="checkbox"]') && visible(l),
+            );
+            const sels = Array.from(bar.querySelectorAll("select")).filter(visible);
+            const inputs = Array.from(bar.querySelectorAll(textEntry)).filter(
+              (el) => el.tagName !== "SELECT" && visible(el),
+            );
+            const others = Array.from(bar.querySelectorAll("a, button")).filter(
+              (el) => !segs.includes(el) && visible(el),
+            );
+            found.segments += segs.length;
+            found.checks += checks.length;
+            found.selects += sels.length;
+
+            const answers = (el: Element, hit: Element | null) => {
+              if (!hit) return false;
+              if (el.tagName === "SELECT") return hit === el || hit === el.closest(".tsel");
+              return el.contains(hit);
+            };
+            const at = (el: Element, where: string, y: (r: DOMRect) => number) => {
+              centre(el);
+              const r = el.getBoundingClientRect();
+              const hit = document.elementFromPoint(r.left + r.width / 2, y(r));
+              if (!answers(el, hit)) targetMisses.push(`${name(el)} ${where} hits ${name(hit)}`);
+            };
+            for (const el of [...segs, ...checks]) {
+              at(el, `${k.slop}px above`, (r) => r.top - k.slop);
+              at(el, `${k.slop}px below`, (r) => r.bottom + k.slop);
+            }
+            for (const el of [...segs, ...checks, ...sels, ...inputs, ...others]) {
+              targets++;
+              at(el, `${k.inset}px inside the top`, (r) => r.top + k.inset);
+              at(el, `${k.inset}px inside the bottom`, (r) => r.bottom - k.inset);
+            }
+          }
+          return { faces, selects: selects.length, faceMisses, bars: boxes, found, targets, targetMisses, toolbar };
+        },
+        {
+          barSelector: BAR_SELECTOR,
+          textEntry: TEXT_ENTRY_SELECTOR,
+          k: {
+            facePx: FACE_PX,
+            faceTall: FACE_TALL,
+            cover: FACE_COVER,
+            selectTall: SELECT_TALL,
+            slop: SLOP_PX,
+            inset: INSET_PX,
+          },
+        },
+      );
+      const minimum = BAR_MINIMUMS[route.slug];
+      const shortfalls: string[] = [];
+      if (minimum) {
+        if (probe.bars.length === 0) shortfalls.push("no bar");
+        for (const key of ["segments", "checks", "selects"] as const) {
+          if (probe.found[key] < minimum[key])
+            shortfalls.push(`${key} ${probe.found[key]} of at least ${minimum[key]}`);
+        }
+      }
+
       const controls: Control[] = read.controls;
       const over = read.s - read.c;
       const min = controls.length ? Math.min(...controls.map((c) => c.px)) : null;
@@ -216,6 +444,16 @@ function cells(tag: string, width: number) {
         `[touch ${tag} ${route.slug}] coarse=${read.coarse} inner=${read.inner}` +
           ` controls=${controls.length} min=${min === null ? "none" : `${min}px`}` +
           ` scroll=${read.s}/${read.c} over=${over} theme=${theme ?? "none"}` +
+          ` faces=${probe.faces} targets=${probe.targets} miss=${probe.targetMisses.length}` +
+          ` bar=${probe.bars.length ? probe.bars.join(" + ") : "none"}` +
+          (probe.toolbar ? ` vercel-toolbar-hidden=${probe.toolbar}` : "") +
+          (probe.faceMisses.length
+            ? `\n    face: ${probe.faceMisses.join("\n          ")}`
+            : "") +
+          (probe.targetMisses.length
+            ? `\n    miss: ${probe.targetMisses.join("\n          ")}`
+            : "") +
+          (shortfalls.length ? `\n    short: ${shortfalls.join(" | ")}` : "") +
           (under.length
             ? `\n    under ${MIN_FONT_PX}px: ${under.map((c) => `${c.k}=${c.px}px`).join(" | ")}`
             : "") +
@@ -302,6 +540,35 @@ function cells(tag: string, width: number) {
             `(app/globals.css)`,
         )
         .toBe(bgBase);
+
+      // 6. THE FACE (HO 816).
+      expect
+        .soft(
+          probe.faceMisses,
+          `${route.path} @${tag}: ${probe.faceMisses.length} of ${probe.selects} ` +
+            `visible selects aren't drawn as a face on a touch device — each ` +
+            `filter select renders through components/TouchSelect.tsx, and the ` +
+            `face's rules sit under \`@media (pointer: coarse)\` in app/globals.css`,
+        )
+        .toEqual([]);
+
+      // 7. THE TOUCH TARGETS (HO 816).
+      expect
+        .soft(
+          shortfalls,
+          `${route.path} @${tag}: the bar holds fewer controls than its ` +
+            `minimums (BAR_MINIMUMS), so the probes below read too little to pass`,
+        )
+        .toEqual([]);
+      expect
+        .soft(
+          probe.targetMisses,
+          `${route.path} @${tag}: ${probe.targetMisses.length} touch probes in ` +
+            `the bar missed their control — a segment or a checkbox label answers ` +
+            `${SLOP_PX}px past its edges, and no control is covered ${INSET_PX}px ` +
+            `inside its own`,
+        )
+        .toEqual([]);
     });
   }
 }
