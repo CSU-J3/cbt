@@ -3476,3 +3476,35 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - the first iPhone in reach: HIDE folds, the ▴ is easy to hit, and there's no FULL;
   - `cbt.zip` after GradShow, with SKILL changed at 815, 816 and 817.
 - **Also notes now run through HO 817.**
+
+**Also (HO 818), four fixes from the Fold: the strip's menu closes on SHOW and HIDE, MEMBERS and ELECTORAL draw text glyphs, the sync stamp holds its widest zone's width, and `/amendments` and `/nominations` name their sections.** Built on `818-review` from `fd60184`. No database read or write, no dependency, no new route, no mock.
+
+- **HO 817's FF go, as taken:** `main` at `fd60184`, pushed 10:36:27 PM MST Nov 14 with no force. Production record `7799147387`, `success`; prod served `fd60184` from about 10:37:24 PM. `e2e-prod` `43681858867`, `success`, 211 passed, the narrow gate's 120 cells with none over; the crawl step 7m31s, the job 8m11s. The 18 touch lines are HO 816's FF run's exactly; the 9 fold lines are the Preview's but for the toolbar suffix. Prod's `/` links one stylesheet holding `mh-strip`, 8 times.
+- **What Corey's Fold read** (open, Nov 15; four videos and two screenshots, read by the chat):
+  - the ☰ drawer's open state survived SHOW and HIDE (9:45 and 9:49 AM);
+  - Android drew 👥 and 🗳 as colour emoji;
+  - the sync time moved what followed it in some zones;
+  - `/amendments` read `CT:\119TH>`.
+
+  Full screen: eight ☰ moves arrived in it, and every drop was Chrome's own drag down from the top edge (the backlog note, oddities).
+- **STEP 0:** claims 1 to 5 and 8 held.
+  - Claim 6 HALTed: `zone-stamp` sits inside the comment word *timezone-stamp* (`lib/zone-cycle.ts:11`), and ♙ and ☒ hit only as bytes in gitignored PNG baselines. Ruled at 11:55 AM: both names kept, claim 6 read over text files.
+  - Claim 7: the fold cells were red on F4, F6 and F7 as predicted. The zone cells were red at 412 and 851 on four slots, since that day's sync made ET the short token. Ratified: the wide slot follows the sync's hour.
+- **§ 1:** F4 reads the icons, F6 opens the menu before SHOW, and F7 taps HIDE again; nine zone cells (390, 412 and 851) drive Playwright's clock through the five slots; the crawl reads every masthead path for a section.
+- **§ 2:** `MastheadFold` remounts the drawer on SHOW and HIDE (`menuKey`); ♙ (U+2659) and ☒ (U+2612) in `NAV_ITEMS`; `CyclingTimestamp` renders the five zones hidden in one grid cell (`.zone-stamp`) with the live one on top; `/nominations` and `/amendments` in `lib/breadcrumb.ts`.
+- **The legs,** on local `next start` builds of the base and the change:
+  - A: the touch spec 36 passed (18, 9 fold, 9 zone); smoke and odds-off 64 passed, `/amendments` and `/nominations` green on the path read.
+  - B: a fine pointer at 1440 on `/` and `/changes`: identical but the stamp's own box (78.11 wide on both; MT was a wide zone that day) and the dashboard tapes' item order. Narrow 120 passed, none over; `fit-finish`'s doc-scroll at 1440 and 2560 unchanged.
+  - C: under touch, 360 to 900 by 4, the clock driven. HEAD equals the base's tallest at all 136 widths on all three routes, and never exceeds the base's MT that day. The base moved with the zone at 392 and 396 and at 468 and 472 on `/` (+16.5 and +20.5 over ET), and at 400 and 404 on `/changes` and `/bill/119-s-2` (+16.5); HEAD holds the tall height there in every slot.
+  - D: 16 captures for Corey under `818-artifacts/captures/`. ♙ and ☒ draw as glyphs, not boxes.
+- **Flagged:**
+  - `/` at 412 holds 244 in every slot on the box's fonts, where the chat's browser read 264.5 to 281.
+  - Claim 6 over text files reads `zone-stamp` 1 (the comment itself), not 0.
+  - Local `/electoral`'s first read timed out at the database client on both builds, and was 200 on a retry.
+  - SKILL: the touch gate's HO 817 reduced-motion sentence, rewritten for the hold.
+- **Owed at the FF:**
+  - the push, `verify:deploy`, CI, and the Production `e2e-prod` run with its touch, fold and zone lines;
+  - Corey on the Fold: the drawer's two new icons, the menu closed after SHOW and HIDE, a reload then FULL (the backlog line's close), HIDE on `/bills` with the Fold closed, and HO 816's dropdown taps;
+  - the first iPhone in reach;
+  - `cbt.zip` after GradShow, with SKILL changed at 815 to 818.
+- **Also notes now run through HO 818.**

@@ -186,3 +186,9 @@ The narrow gate read 430 and 390, `fit-finish` read 1440 and 2560, and a foldabl
 - **The pointer was a second unread band.** Every spec ran the config's one project, whose pointer is fine, so the narrow gate read a phone's width with a mouse's pointer and a rule under `(pointer: coarse)` was invisible to all of them. `e2e/touch.spec.ts` is the first to set `hasTouch`, and it reads the media query back inside the page.
 
 **The rule:** a width gate covers the widths in its list; a device in hand is measured before it's assumed.
+
+## Chrome on Android leaves full screen on a drag down from the top (HO 818, Nov 2026)
+
+On Chrome for Android, a page in element full screen leaves it when the reader drags down from the top edge of the screen. That's the browser's own way out, and a page can't block it. HO 817's HIDE asks for full screen as it folds the masthead. On Corey's Fold, open (Nov 15), every drop out of full screen in four videos was that drag: four times in his 10:14 video. In the 10:19 one, `/` held full screen untouched for 11 s. The masthead stays folded after the drop, and the strip's FULL is the way back in (HO 817).
+
+**The rule:** full screen on a phone is the reader's to leave. A page offers the way back and doesn't try to hold it.
