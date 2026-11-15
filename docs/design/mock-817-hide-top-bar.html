@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hide Top Bar Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* mock-817 v1 · a hide button for the top bar (Corey, 2:43 PM MST Nov 13: "could we add a hide button for the top bar?").
+   Plan. Colour: CT's own tokens and nothing new (base #0a0e14, row #0f1620, panel #050709, line #1f2937, soft #111820,
+   text #e5e7eb / #cbd5e1 / #94a3b8 / #6b7280, amber #fbbf24 and #d97706). The browser's chrome is drawn in the greys read
+   off Corey's 12:35 PM screenshot. Type: IBM Plex Mono, as the masthead is on prod. Layout: the top of a CT page drawn on
+   the open Fold's whole screen (851 x 883) and on a 390 phone, each frame laid out by container query, so the one thing to
+   judge is how far down the screen the page starts. Single theme by choice: CT is dark.
+   v2 (Corey, 3:03 PM: "hide is in an bad location."): where the button sits is now its own setting, four places.
+   v3 (Corey, 3:36 PM: "just make it stick out a lil more, its a bit hard to notice. other than that, send it"): HIDE and SHOW
+   are drawn in CT's amber, border #d97706 and text #fbbf24, on the same base. No new colour. */
+:root{
+  color-scheme:dark;
+  --base:#0a0e14; --row:#0f1620; --panel:#050709; --line:#1f2937; --soft:#111820;
+  --ink:#e5e7eb; --ink-2:#cbd5e1; --ink-3:#94a3b8; --ink-4:#6b7280;
+  --amber:#fbbf24; --amber-deep:#d97706;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#06080c;color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* ───────── mock chrome (not product) ───────── */
+.mock{position:sticky;top:0;z-index:40;background:#0b0f15;border-bottom:1px dashed #2b3646;font-size:12px;padding:8px 16px 9px}
+.mock-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.mock-title{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3)}
+.mock-top button{background:transparent;border:0;color:var(--ink-4);font-size:10px;cursor:pointer;padding:0;text-decoration:underline}
+.groups{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:7px}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.grp .k{font-size:10px;letter-spacing:.5px;color:var(--ink-4);margin-right:1px;text-transform:uppercase}
+.grp button{background:transparent;border:1px solid var(--line);border-radius:2px;padding:6px 9px;font-size:11px;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.grp button:hover{color:var(--ink-2)}
+.grp button:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.grp button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--row)}
+.note{font-size:11.5px;color:var(--ink-3);margin-top:8px;max-width:1100px}
+.note b{color:var(--ink-2);font-weight:500}
+.ruling{font-size:11px;color:var(--ink-4);margin-top:6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ruling b{color:var(--amber);font-weight:500}
+.ruling button{border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:10px;padding:3px 8px;border-radius:2px;cursor:pointer}
+.prov{margin-top:6px;font-size:11px;color:var(--ink-4);max-width:1100px}
+.prov summary{cursor:pointer}
+.prov p{margin:6px 0 0;color:var(--ink-3)}
+.prov b{color:var(--ink-2);font-weight:500}
+.prov code{color:var(--ink-2)}
+.mock.folded .groups,.mock.folded .note,.mock.folded .prov{display:none}
+.quick{display:none}
+@media (max-width:900px){
+  .mock{position:static}
+  .quick{display:flex;gap:8px;position:fixed;left:0;right:0;bottom:0;z-index:50;background:#0b0f15;border-top:1px dashed #2b3646;padding:8px 12px}
+  .quick button{flex:1;height:44px;background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--ink-3);font-size:13px;cursor:pointer}
+  .quick button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--row)}
+  .stage.device{padding-bottom:84px}
+}
+
+/* ───────── the stage: one or two device frames ───────── */
+.stage{display:flex;gap:28px;align-items:flex-start;padding:22px 16px 60px;overflow-x:auto}
+.stage.device{padding:0 0 40px;gap:0;display:block}
+.frame{flex:0 0 auto}
+.frame-h{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-4);margin:0 0 7px}
+.frame-h b{color:var(--ink-2);font-weight:500}
+.stage.device .frame-h{padding:10px 16px 0}
+.dev{box-sizing:content-box;display:flex;flex-direction:column;background:var(--base);border:1px solid #232c3a;overflow:hidden}
+.stage.device .dev{border-width:1px 0;overflow:visible}
+.read{font-size:11px;color:var(--ink-3);margin:8px 0 0;display:flex;gap:6px 16px;flex-wrap:wrap;max-width:851px}
+.read b{color:var(--ink);font-weight:500}
+.read .was{color:var(--ink-4)}
+.stage.device .read{padding:0 16px}
+
+/* the browser and the phone around the page: drawn, not Chrome's real UI */
+.sys{flex:none;height:60px;background:#1d1b1f;display:flex;align-items:center;justify-content:space-between;padding:0 34px;font:500 15px/1 var(--sans);color:#f2f0f8}
+.sys .r{letter-spacing:3px;font-size:12px}
+.cbar{flex:none;height:70px;background:#1d1b1f;border-bottom:1px solid #3f3e42;display:flex;align-items:center;gap:22px;padding:0 22px;font:400 20px/1 var(--sans);color:#f2f0f8}
+.cbar .nav-g{opacity:.85;letter-spacing:14px;white-space:nowrap}
+.cbar .pill{flex:1;height:48px;border-radius:24px;background:#312f33;display:flex;align-items:center;padding:0 22px;font-size:15px;white-space:nowrap;overflow:hidden}
+.cbar .end{letter-spacing:14px;white-space:nowrap;opacity:.85;font-size:18px}
+.gest{flex:none;height:32px;background:#1d1b1f;display:flex;align-items:center;justify-content:center}
+.gest i{width:200px;height:4px;border-radius:2px;background:#e8e6ee}
+.dev.full .sys,.dev.full .cbar,.dev.full .gest{display:none}
+.vp{flex:1 1 auto;min-height:0;overflow:auto;position:relative;container-type:inline-size;container-name:vp;background:var(--base);scrollbar-width:none}
+.vp::-webkit-scrollbar{display:none}
+.stage.device .vp{overflow:visible}
+
+/* ───────── product: CT's masthead, measured on prod at 921c371 ───────── */
+.ac{color:var(--amber-deep)}
+.tp{font:500 26px/32.5px var(--mono);letter-spacing:.5px;color:var(--ink);text-decoration:none;white-space:nowrap}
+.caret{color:var(--ink-2)}
+.mt{font:400 11px/16.5px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-4)}
+.beta{font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);line-height:1;white-space:nowrap}
+.beta::before{content:"[ "}
+.beta::after{content:" ]"}
+.mt .sm,.ib-sync .sm{display:none}
+.clk{letter-spacing:.88px}
+.clk .ct{color:var(--ink-3)}
+.clk .cz{color:var(--amber-deep)}
+.tbtn{position:relative;font:inherit;letter-spacing:inherit;text-transform:inherit;color:var(--ink-4);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+.tbtn b{color:var(--ink-3);font-weight:600}
+.tbtn:hover,.tbtn:focus-visible{color:var(--amber);outline:none}
+.tbtn:hover b,.tbtn:focus-visible b{color:var(--amber)}
+.tbtn.slop::after{content:"";position:absolute;left:-6px;right:-6px;top:-12px;bottom:-12px}
+.ctl-hide,.ctl-full{display:none}
+.v-c .ctl-hide,.v-d .ctl-hide{display:inline}
+.v-b.can-full .ctl-full{display:inline}
+.dev:not(.at-odds) .ctl-hide,.dev:not(.at-odds) .ctl-full{display:none}
+.when-full{display:none}
+.full .when-full{display:inline}
+.full .when-norm{display:none}
+
+/* the dashboard's masthead (DashboardV2Header), inset by the page's 12/24 padding */
+.home{padding:12px 24px;display:flex;flex-direction:column;gap:12px}
+.hh{display:flex;flex-direction:column;border-bottom:1px solid var(--line)}
+.hh-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;min-width:0}
+.ro{font:400 14px/21px var(--mono);letter-spacing:.3px;color:var(--ink-3);white-space:nowrap}
+.ro .tot{color:#3b82f6;font-weight:600}
+.ro .en{color:#10b981;font-weight:600}
+.nav{display:flex;flex-wrap:wrap;gap:0 1px;margin:8px -6px 0;border-top:1px solid var(--soft)}
+.nav a{display:flex;gap:2px;font:400 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3);padding:8px 6px;border-bottom:2px solid transparent;text-decoration:none;white-space:nowrap}
+.nav a .sl{color:var(--amber-deep)}
+.nav a.on{background:var(--row);color:var(--amber);border-bottom-color:var(--amber-deep)}
+.nav .dv{width:1px;background:var(--line);margin:0 3px}
+.tapes{display:flex;flex-direction:column}
+.tape{position:relative;display:flex;align-items:center;height:38px;background:var(--panel);border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;font:400 14px/21px var(--mono);white-space:nowrap}
+.tape + .tape{border-top:0}
+.tl{flex:none;align-self:stretch;display:flex;align-items:center;width:65px;padding:0 4px 0 12px;border-left:2px solid var(--amber-deep);font-size:9px;letter-spacing:1.26px;color:var(--ink-4)}
+.ti{display:inline-flex;align-items:center;gap:6px;padding:0 10px;border-right:1px solid var(--line);line-height:18px}
+.ti .s{color:var(--amber-deep);font-weight:500;letter-spacing:.5px}
+.ti .p{color:var(--ink);font-weight:600}
+.ti .k{color:#22d3ee;font-size:11px}
+.ti .q{color:#60a5fa;font-size:11px}
+.ti .mtag{font-size:9px;letter-spacing:.5px;color:var(--ink-4);border:1px solid var(--line);border-radius:2px;padding:0 2px;line-height:12px}
+.tm{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;padding:0 12px 0 18px;background:linear-gradient(90deg,transparent,var(--panel) 18px);font-size:11px;letter-spacing:.5px;color:var(--ink-4)}
+
+/* an inner page's masthead (HeaderBar), full width on the panel colour */
+.ib{background:var(--panel)}
+.ib-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 0;padding:10px 16px}
+.ib-auth{font:400 16px/24px var(--mono);color:var(--ink-4);padding-left:12px;white-space:nowrap}
+.ib-auth .tbtn b{color:var(--ink-3)}
+.ib-sync{margin:0;font:400 11px/16.5px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-4);padding:2px 16px 8px}
+.ib-navrow{padding:0 16px;border-bottom:1px solid var(--line)}
+
+/* the folded strip, the mock's design from CT's own pieces: HO 816's 28px face with 6px of slop */
+.strip{display:none;align-items:center;justify-content:space-between;gap:12px;height:44px;border-bottom:1px solid var(--line);min-width:0}
+.ib .strip{padding:0 16px}
+.folded .exp{display:none}
+.folded .strip{display:flex}
+.sp{font:500 14px/20px var(--mono);letter-spacing:.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;text-decoration:none}
+.sb{display:flex;gap:8px;flex:none}
+.face{position:relative;height:28px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;font:500 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-2);background:var(--base);border:1px solid var(--line);border-radius:4px;cursor:pointer;white-space:nowrap}
+.face::after{content:"";position:absolute;left:0;right:0;top:-6px;bottom:-6px}
+.face:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.face.menu{color:var(--amber-deep);font-size:15px;padding:0 9px}
+.face.tog{color:var(--amber);border-color:var(--amber-deep)}
+.face.tog .g{color:var(--amber)}
+.drawer-open .face.menu{color:var(--amber);border-color:var(--amber-deep)}
+.face .g{color:var(--ink-4);font-size:9px}
+.s-full{display:none}
+.v-d.can-full .s-full{display:inline-flex}
+
+/* v2 · where the button sits */
+/* top right: the spot the strip's SHOW lands on, so one spot does both */
+.corner{position:absolute;top:8px;right:0;z-index:3;display:none;gap:8px}
+.ib .corner{right:16px}
+.at-corner.v-c .corner,.at-corner.v-d .corner,.at-corner.v-b.can-full .corner{display:flex}
+.at-corner.folded .corner{display:none}
+.c-hide,.c-full{display:none}
+.v-c .c-hide,.v-d .c-hide,.v-b.can-full .c-full{display:inline-flex}
+.at-corner.v-c .tp,.at-corner.v-d .tp,.at-corner.v-b.can-full .tp{max-width:calc(100% - 72px)}
+/* end of the nav: one more tab, pushed right */
+.navbtn{display:none;margin-left:auto;align-items:center;gap:4px;font:400 12px/18px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3);background:none;border:0;border-bottom:2px solid transparent;padding:8px 6px;cursor:pointer;white-space:nowrap}
+.navbtn .sl{color:var(--amber-deep)}
+.navbtn:hover,.navbtn:focus-visible{color:var(--amber);outline:none}
+.at-nav.v-c .n-hide,.at-nav.v-d .n-hide,.at-nav.v-b.can-full .n-full{display:flex}
+/* a tab hung on the bottom edge; folded, it hangs under the strip */
+.seam{display:none;position:absolute;left:50%;bottom:-24px;transform:translateX(-50%);z-index:4;height:24px;gap:6px;padding:0 12px;font-size:11px;line-height:16px;color:var(--ink-3);background:var(--panel);border-top:0;border-radius:0 0 4px 4px}
+.seam .g{color:var(--amber-deep);font-size:10px}
+.at-seam.v-c .s-hide,.at-seam.v-d .s-hide,.at-seam.v-b.can-full .s-fulltab{display:inline-flex}
+.at-seam.folded .s-hide{display:none}
+.at-seam.folded .s-show{display:inline-flex}
+.at-seam .strip [data-act="show"]{display:none}
+.at-seam.v-c .home > .mast,.at-seam.v-d .home > .mast,.at-seam.v-b.can-full .home > .mast{margin-bottom:16px}
+.at-seam.v-c .mast.ib,.at-seam.v-d .mast.ib,.at-seam.v-b.can-full .mast.ib{margin-bottom:12px}
+
+/* the drawer: the tree's dormant .mobile-nav-drawer (HO 156), opened from the strip */
+.drawer{display:none;position:absolute;left:0;right:0;z-index:5;flex-direction:column;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:0 12px 24px rgba(0,0,0,.45)}
+.folded.drawer-open .drawer{display:flex}
+.drawer a{display:flex;align-items:center;gap:10px;padding:12px;font:400 15px/22px var(--mono);letter-spacing:.5px;text-transform:uppercase;color:var(--ink-2);text-decoration:none;border-top:.5px solid var(--soft)}
+.drawer a:first-child{border-top:0}
+.drawer a.on{color:var(--amber)}
+.drawer .ic{font-size:16px;line-height:1;width:20px;text-align:center}
+.mast{position:relative}
+
+@container vp (max-width:700px){
+  .home{padding:12px}
+  .tp{font-size:20px;line-height:25px}
+  .mt .lg,.ib-sync .lg{display:none}
+  .mt .sm,.ib-sync .sm{display:inline}
+  .nav{border-bottom:1px solid var(--soft)}
+  .nav a,.navbtn{font-size:14px;line-height:21px}
+  .tapes{display:none}
+  .corner .lbl{display:none}
+  .corner .c-hide{width:28px;padding:0;justify-content:center}
+  .corner .c-hide .g{font-size:15px;color:var(--amber)}
+  .corner .c-full{padding:0 7px}
+  .at-corner.v-c .tp,.at-corner.v-d .tp{max-width:calc(100% - 36px)}
+  .at-corner.v-b.can-full .tp{max-width:calc(100% - 56px)}
+  .ib .corner{right:8px}
+  .ib .strip{padding-right:8px}
+}
+
+/* ───────── sketched page under the masthead (not measured; heights are prod's; dimmed on purpose) ───────── */
+.sk{border:1px solid var(--line);background:#080b10;color:var(--ink-4);font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;padding:9px 12px;opacity:.55}
+.abw{height:254px;display:flex;flex-direction:column;gap:12px}
+.abw-h{font-weight:600;letter-spacing:1.5px;font-size:12px}
+.abw-h .mia{color:#f87171}.abw-h .ar{color:var(--amber)}
+.cards{display:flex;gap:24px}
+.cards i{width:122px;height:150px;border:1px solid #7f1d1d;background:#0f141c}
+.cards i + i{border-color:#92400e}
+.rb{height:102px}.wk{height:67px}.wb{height:65px}.tw{height:871px}
+.bm{padding:16px}
+.st{height:37px}.md{height:28px;margin:16px 0 12px;width:170px}.fb{height:89px}.pn{height:2444px;margin-top:0}
+@container vp (max-width:700px){
+  .abw{height:268px}.rb{height:124px}.wk{height:89px}.wb{height:156px}.fb{height:191px}.pn{height:3025px}
+  .cards{gap:12px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .grp button,.face,.tbtn{transition:color .12s,background-color .12s,border-color .12s}
+}
+</style>
+</head>
+<body>
+
+<div class="mock" id="mock">
+  <div class="mock-top">
+    <span class="mock-title">mock-817 v3 · a hide button for the top bar, ruled 3:36 PM: D, top right, touch devices, drawn in amber · against main at 921c371, the mastheads measured on prod 2:46 PM MST Nov 13, 2026</span>
+    <button id="foldBtn" type="button">hide controls</button>
+  </div>
+  <div class="groups" id="groups"></div>
+  <div class="note" id="note"></div>
+  <div class="ruling">Reply with the line as set: <b id="ruling"></b> <button id="copyBtn" type="button">copy</button></div>
+  <details class="prov">
+    <summary>what's real in this mock</summary>
+    <p><b>The masthead in A is prod's, measured.</b> Every size, colour, padding and gap was read off prod at <code>921c371</code> in the desktop app's browser, 2:46 PM MST Nov 13. The dashboard's masthead read 803 &times; 236 at 851 wide and 366 &times; 320 at 390; <code>/bills</code>' read 851 &times; 189 and 390 &times; 307. The line under each frame gives what your browser draws beside prod's figure. The tapes are drawn standing still.</p>
+    <p><b>The Fold frame is your whole screen,</b> 851 wide and 883 tall, from your reading this morning. The status bar, Chrome's bar and the gesture strip are read off your 12:35 PM screenshot of <code>/</code>: 130px above the page and 32 below it. They're drawn in its greys; they aren't Chrome's real UI. Your viewport reading said 728 tall where the screenshot leaves 721, so Chrome's bar may vary by a few pixels.</p>
+    <p><b>The phone frame is a 390 &times; 844 iPhone-size page,</b> with no browser drawn. Safari on an iPhone gives a page no full screen (only a video can go full screen there; WebKit bug 206854 is still open), so B and D draw no FULL button on that frame. An Android phone would get it, as the Fold does.</p>
+    <p><b>The strip, its buttons and the drawer are the mock's design,</b> built from CT's own pieces: the buttons are HO 816's 28px face with 6px of slop, the drawer is the tree's dormant <code>.mobile-nav-drawer</code> (<code>components/MobileNavDrawer.tsx</code>, unused since HO 156) with the nav's own icons, and the fold would be remembered the way ODDS is, a third row in <code>lib/prefs.ts</code> set before paint, so a folded page doesn't flash open on load. The short name <code>CT:\</code> in the strip is the mock's, so the strip fits a phone.</p>
+    <p><b>On a phone prod's masthead moves 16px with the clock.</b> The sync line wraps for some zones and times and not others: the dashboard's read 320 tall at 2:46 PM and 304 at 3:01. The mock draws the 2:46 strings.</p>
+    <p><b>Sketched, not measured:</b> everything under the masthead, dimmed. Its heights are prod's, so the readout's figures hold. On <code>/bills</code> the filter bar is drawn at its shipped height; HO 816 hasn't landed.</p>
+    <p><b>The ruling, verbatim.</b> 3:03 PM on v1: <i>"hide is in an bad location."</i> 3:36 PM on v2, as it opened (hide D, touch devices, button top right): <i>"just make it stick out a lil more, its a bit hard to notice. other than that, send it"</i>. v3 is v2 with HIDE and SHOW in amber: border <code>--accent-amber</code>, text <code>--accent-amber-bright</code>, on <code>--bg-base</code>. FULL and &#9776; keep the plain face, so the toggle is the one amber control in the strip.</p>
+    <p><b>v2 moves the button, nothing else.</b> The four places are drawn with CT's own pieces: the corner and the tab are HO 816's face, the nav's is drawn as one more tab. The readout gives the button's size, its touch target, and how far SHOW lands from it once the bar is folded. At the top right, the title is held clear of the button by a max-width, so between 701 and about 757 wide the dashboard's title wraps a line sooner than it does today.</p>
+    <p><b>The buttons work.</b> In the frames FULL is drawn: the browser's bars go and the page fills the screen. In <i>this device</i> view, FULL asks your browser for real full screen where it allows it; inside claude.ai's frame it may not, and then it's drawn only.</p>
+  </details>
+</div>
+
+<div class="stage" id="stage"></div>
+<div class="quick" id="quick" role="group" aria-label="Hide option"></div>
+
+<template id="t-home">
+  <div class="home">
+    <div class="mast">
+      <header class="hh exp">
+        <div class="hh-row">
+          <a class="tp" href="#" onclick="return false">Congressional Terminal<span class="ac">:\</span><wbr>119TH<span class="ac">\</span><wbr>Dashboard<span class="ac">&gt;</span></a>
+          <span class="ro"><span class="tot">17,374</span> tracked · <span class="en">131</span> enacted</span>
+          <span class="mt">· <span class="beta">In beta</span></span>
+          <span class="mt">· <span class="lg">Last sync </span><span class="sm">Sync </span>11:00 AM MT <span class="clk">FRI 13 NOV 2026 · <span class="ct">&nbsp;2:46:29 PM</span> <span class="cz">MT</span></span></span>
+          <span class="mt">· <button type="button" class="tbtn">Odds <b>on</b></button><span class="ctl-hide"> · <button type="button" class="tbtn slop" data-act="hide">Hide <b>&#9652;</b></button></span><span class="ctl-full"> · <button type="button" class="tbtn slop" data-act="full"><span class="when-norm">Full screen</span><span class="when-full">Exit full screen</span></button></span></span>
+        </div>
+        <nav class="nav" aria-label="Primary navigation">
+          <a href="#" class="on"><span class="sl">\</span>Dashboard</a><span class="dv" aria-hidden="true"></span><a href="#"><span class="sl">\</span>Legislation</a><a href="#"><span class="sl">\</span>Hearings</a><a href="#"><span class="sl">\</span>Members</a><a href="#"><span class="sl">\</span>Electoral</a><a href="#"><span class="sl">\</span>Patterns</a><a href="#"><span class="sl">\</span>Lobbying</a><a href="#"><span class="sl">\</span>Nominations</a><a href="#"><span class="sl">\</span>Amendments</a><a href="#"><span class="sl">\</span>Reports</a><button type="button" class="navbtn n-hide" data-act="hide"><span class="sl">&#9652;</span>Hide</button><button type="button" class="navbtn n-full" data-act="full"><span class="when-norm">Full screen</span><span class="when-full">Exit full screen</span></button>
+        </nav>
+        <div class="tapes">
+          <div class="tape"><span class="tl">MARKETS</span><span class="ti"><span class="s">CPI</span><span class="p">3.7%</span><span class="mtag">MO</span></span><span class="ti"><span class="s">UNEMP</span><span class="p">4.1%</span><span class="mtag">MO</span></span><span class="ti"><span class="s">WTI</span><span class="p">89.62</span><span class="mtag">EOD</span></span><span class="ti"><span class="s">TNX</span><span class="p">4.98%</span></span><span class="tm">AS OF 10:00 AM CT</span></div>
+          <div class="tape"><span class="tl">ODDS</span><span class="ti"><span class="s">RECESSION</span><span class="k">K</span><span class="p">3.0%</span><span class="q">P</span><span class="p">2.3%</span></span><span class="ti"><span class="s">SHUTDOWN</span><span class="k">K</span><span class="p">43.0%</span></span><span class="ti"><span class="s">FED CUT DEC</span></span><span class="tm">AS OF 10:00 AM CT</span></div>
+        </div>
+      </header>
+      <div class="strip">
+        <a class="sp" href="#" onclick="return false">CT<span class="ac">:\</span>Dashboard<span class="ac">&gt;</span></a>
+        <span class="sb"><button type="button" class="face menu" data-act="menu" aria-label="Navigation menu">&#9776;</button><button type="button" class="face s-full" data-act="full"><span class="when-norm">Full</span><span class="when-full">Exit full</span></button><button type="button" class="face tog" data-act="show">Show <span class="g">&#9660;</span></button></span>
+      </div>
+      <nav class="drawer" aria-label="Primary navigation"></nav>
+      <span class="corner"><button type="button" class="face tog c-hide" data-act="hide" aria-label="Hide the top bar"><span class="lbl">Hide</span><span class="g">&#9652;</span></button><button type="button" class="face c-full" data-act="full"><span class="when-norm">Full</span><span class="when-full">Exit full</span></button></span>
+      <button type="button" class="face seam s-hide" data-act="hide"><span class="g">&#9652;</span>Hide</button><button type="button" class="face seam s-show" data-act="show"><span class="g">&#9662;</span>Show</button><button type="button" class="face seam s-fulltab" data-act="full"><span class="when-norm">Full screen</span><span class="when-full">Exit full screen</span></button>
+    </div>
+    <div class="sk first abw"><div class="abw-h"><span class="mia">&#9650; MIA</span> (1) &middot; <span class="ar">AT RISK</span> (1)</div><div class="cards"><i></i><i></i></div><div>missed-vote watch, sketched</div></div>
+    <div class="sk rb">hearings &middot; races</div>
+    <div class="sk wk">week of nov 2 &middot; summary</div>
+    <div class="sk wb">the week, day by day</div>
+    <div class="sk tw">stage funnel &middot; topics &middot; feed</div>
+  </div>
+</template>
+
+<template id="t-bills">
+  <div class="mast ib">
+    <div class="exp">
+      <div class="ib-title">
+        <a class="tp" href="#" onclick="return false">Congressional Terminal<span class="ac">:\</span><wbr>119TH<span class="ac">\</span><wbr>Legislation<span class="ac">&gt;</span><span class="caret">_</span></a>
+        <span class="ib-auth">· <span class="beta">In beta</span> · <button type="button" class="tbtn">ODDS <b>ON</b></button><span class="ctl-hide"> · <button type="button" class="tbtn slop" data-act="hide">HIDE <b>&#9652;</b></button></span><span class="ctl-full"> · <button type="button" class="tbtn slop" data-act="full"><span class="when-norm">FULL SCREEN</span><span class="when-full">EXIT FULL SCREEN</span></button></span></span>
+      </div>
+      <p class="ib-sync">· <span class="lg">Last sync </span><span class="sm">Sync </span>10:00 AM PT <span class="clk">FRI 13 NOV 2026 · <span class="ct">&nbsp;2:48:52 PM</span> <span class="cz">MT</span></span></p>
+      <div class="ib-navrow">
+        <nav class="nav" aria-label="Primary navigation">
+          <a href="#"><span class="sl">\</span>Dashboard</a><span class="dv" aria-hidden="true"></span><a href="#" class="on"><span class="sl">\</span>Legislation</a><a href="#"><span class="sl">\</span>Hearings</a><a href="#"><span class="sl">\</span>Members</a><a href="#"><span class="sl">\</span>Electoral</a><a href="#"><span class="sl">\</span>Patterns</a><a href="#"><span class="sl">\</span>Lobbying</a><a href="#"><span class="sl">\</span>Nominations</a><a href="#"><span class="sl">\</span>Amendments</a><a href="#"><span class="sl">\</span>Reports</a><button type="button" class="navbtn n-hide" data-act="hide"><span class="sl">&#9652;</span>Hide</button><button type="button" class="navbtn n-full" data-act="full"><span class="when-norm">Full screen</span><span class="when-full">Exit full screen</span></button>
+        </nav>
+      </div>
+    </div>
+    <div class="strip">
+      <a class="sp" href="#" onclick="return false">CT<span class="ac">:\</span>Legislation<span class="ac">&gt;</span></a>
+      <span class="sb"><button type="button" class="face menu" data-act="menu" aria-label="Navigation menu">&#9776;</button><button type="button" class="face s-full" data-act="full"><span class="when-norm">Full</span><span class="when-full">Exit full</span></button><button type="button" class="face tog" data-act="show">Show <span class="g">&#9660;</span></button></span>
+    </div>
+    <nav class="drawer" aria-label="Primary navigation"></nav>
+    <span class="corner"><button type="button" class="face tog c-hide" data-act="hide" aria-label="Hide the top bar"><span class="lbl">Hide</span><span class="g">&#9652;</span></button><button type="button" class="face c-full" data-act="full"><span class="when-norm">Full</span><span class="when-full">Exit full</span></button></span>
+      <button type="button" class="face seam s-hide" data-act="hide"><span class="g">&#9652;</span>Hide</button><button type="button" class="face seam s-show" data-act="show"><span class="g">&#9662;</span>Show</button><button type="button" class="face seam s-fulltab" data-act="full"><span class="when-norm">Full screen</span><span class="when-full">Exit full screen</span></button>
+  </div>
+  <div class="bm">
+    <div class="sk first st">changes &middot; president &middot; reports</div>
+    <div class="sk md">legislation | news</div>
+    <div class="sk fb">the filter bar, at its shipped height</div>
+    <div class="sk pn">bills</div>
+  </div>
+</template>
+
+<script>
+(function(){
+  var OPTIONS = {
+    a:{label:'A · as shipped', line:'A, as shipped',
+       note:'<b>A is prod today.</b> On your open Fold the status bar and Chrome\'s bar take 130px and the gesture strip 32. CT\'s masthead takes 236 more on the dashboard and 189 on an inner page, so the dashboard\'s first panel starts 390px down an 883px screen. On a phone the nav alone is four rows, 158px.'},
+    b:{label:'B · full screen', line:'B, full screen',
+       note:'<b>B hides the browser\'s bar and leaves CT\'s alone.</b> One tap on FULL SCREEN and the status bar, Chrome\'s bar and the gesture strip go, up to 162px back on the Fold. Android\'s back gesture leaves full screen first (a second back goes back a page), and so does a full page load. A move between CT\'s pages through its links doesn\'t reload, so it should hold; that\'s unread on the Fold. An iPhone can\'t do this for a page, so the button isn\'t drawn there.'},
+    c:{label:'C · fold the masthead', line:'C, fold the masthead',
+       note:'<b>C folds CT\'s top block and leaves the browser alone.</b> HIDE folds the title, the readout, the nav and the tapes into one 44px strip: the page\'s name, a &#9776; that opens the nav as a list, and SHOW. The fold is remembered on that browser the way ODDS is, and it works on every phone, the iPhone too. Chrome\'s bar stays.'},
+    d:{label:'D · fold + full screen', line:'D, fold and full screen',
+       note:'<b>D is C, and HIDE also asks for full screen where the browser allows it.</b> On the Fold the dashboard\'s first panel starts 68px down the screen, where it starts 390 today. A browser only grants full screen on a tap, so after a reload the masthead is still folded and Chrome\'s bar is back; the strip carries FULL for that. Back leaves full screen first, as in B. On an iPhone D is C. <b>It\'s the chat\'s pick:</b> it answers "the top bar" whichever bar you meant.'}
+  };
+  var LOCS = {
+    corner:{label:'top right', line:'top right',
+      note:' <b>Top right is the chat\'s pick for where it sits:</b> it\'s the spot the strip\'s SHOW lands on, so one place hides and shows, tap and tap again. It\'s HO 816\'s 28px face with a 40px touch, drawn in CT\'s amber so it stands out, and SHOW wears the same. On a phone the title leaves 66px beside it, so the button is the &#9652; alone, tucked 8px from the edge, and the title stays clear of it down to a 360-wide phone.'},
+    nav:{label:'end of the nav', line:'at the end of the nav',
+      note:' <b>At the end of the nav</b> it\'s one more tab, pushed right, so it\'s as big as the tabs (36px on the Fold, 39 on a phone) with nothing added. SHOW lands at the top right of the strip, a long way up from it.'},
+    seam:{label:'tab under the bar', line:'on a tab under the bar',
+      note:' <b>A tab under the bar</b> hangs on its bottom edge like a drawer handle, and folded it hangs under the strip as SHOW, so it stays on the seam. To keep it off the first panel the page moves down 16px on the dashboard and 12 on an inner page.'},
+    odds:{label:'beside ODDS (v1)', line:'beside ODDS',
+      note:' <b>Beside ODDS</b> is where v1 put it, 11px text at the end of the sync line, and SHOW lands on the other side of the screen.'}
+  };
+  var PAGES = {home:'dashboard · /', bills:'legislation · /bills'};
+  var WHERES = {touch:{label:'touch devices', line:'touch devices', note:' <b>Touch devices:</b> nothing changes with a mouse, by your HO 815 ruling.'},
+                all:{label:'every device', line:'every device', note:' <b>Every device:</b> a desk browser gets the button too. The 1400+ two-column dashboard, where the feed runs level with the masthead, isn\'t drawn here.'}};
+  var STATES = {open:'as you land', hidden:'after a tap'};
+  var VIEWS = {both:'side by side', phone:'phone · 390', fold:'Fold, open · 851', device:'this device'};
+  var PROD = {home:{fold:[236,390], phone:[320,344]}, bills:{fold:[189,335], phone:[307,323]}};
+  var NAV = [['&#8962;','Dashboard','home'],['&#9636;','Legislation','bills'],['&#9638;','Hearings'],['&#128101;','Members'],['&#128499;','Electoral'],['&#8862;','Patterns'],['$','Lobbying'],['&#9672;','Nominations'],['&#916;','Amendments'],['&#9112;','Reports']];
+  var state = {v:'d', at:'corner', page:'home', where:'touch', st:'open', view:(window.innerWidth >= 1330 ? 'both' : 'device')};
+
+  var stage = document.getElementById('stage');
+  var groups = document.getElementById('groups'), note = document.getElementById('note'), ruling = document.getElementById('ruling');
+  var quick = document.getElementById('quick');
+  var frames = [];
+
+  function mkGroup(key, label, items, current){
+    var g = document.createElement('div'); g.className = 'grp';
+    var k = document.createElement('span'); k.className = 'k'; k.textContent = label; g.appendChild(k);
+    Object.keys(items).forEach(function(id){
+      var b = document.createElement('button'); b.type = 'button';
+      b.textContent = typeof items[id] === 'string' ? items[id] : items[id].label;
+      if (id === current) b.className = 'on';
+      b.setAttribute('aria-pressed', id === current ? 'true' : 'false');
+      b.addEventListener('click', function(){ state[key] = id; render(); });
+      g.appendChild(b);
+    });
+    return g;
+  }
+
+  function canFull(f){
+    if (f._kind === 'fold') return true;
+    if (f._kind === 'phone') return false;
+    return !!(document.fullscreenEnabled && document.documentElement.requestFullscreen);
+  }
+
+  function frame(kind){
+    var f = document.createElement('div'); f.className = 'frame';
+    var h = document.createElement('p'); h.className = 'frame-h';
+    var dev = document.createElement('div'); dev.className = 'dev';
+    if (kind === 'fold') {
+      dev.style.width = '851px'; dev.style.height = '883px'; f.style.width = '853px';
+      dev.innerHTML = '<div class="sys" aria-hidden="true"><span>2:51</span><span class="r">&#9650;&#9650; &#9646;</span></div>' +
+        '<div class="cbar" aria-hidden="true"><span class="nav-g">&#8592;&#8594;&#8635;</span><span class="pill">congressional-terminal-chi-silk.vercel.app</span><span class="end">+&#10697;&#8942;</span></div>' +
+        '<div class="vp"></div><div class="gest" aria-hidden="true"><i></i></div>';
+    } else {
+      dev.innerHTML = '<div class="vp"></div>';
+      if (kind === 'phone') { dev.style.width = '390px'; dev.style.height = '844px'; f.style.width = '392px'; }
+    }
+    var vp = dev.querySelector('.vp');
+    vp.appendChild(document.getElementById(state.page === 'home' ? 't-home' : 't-bills').content.cloneNode(true));
+    vp.querySelectorAll('.drawer').forEach(function(d){
+      d.innerHTML = NAV.map(function(n){ return '<a href="#"' + (n[2] === state.page ? ' class="on"' : '') + '><span class="ic">' + n[0] + '</span><span>' + n[1] + '</span></a>'; }).join('');
+    });
+    var read = document.createElement('p'); read.className = 'read';
+    f.appendChild(h); f.appendChild(dev); f.appendChild(read);
+    f._kind = kind; f._h = h; f._dev = dev; f._read = read; f._vp = vp;
+    f._folded = false; f._full = false; f._drawer = false;
+    if (state.st === 'hidden') {
+      if (state.v === 'c' || state.v === 'd') f._folded = true;
+      if ((state.v === 'b' || state.v === 'd') && kind !== 'device' && canFull(f)) f._full = true;
+    }
+    dev.addEventListener('click', function(e){
+      var a = e.target.closest('a'); if (a && dev.contains(a)) e.preventDefault();
+      var b = e.target.closest('[data-act]'); if (!b || !dev.contains(b)) return;
+      var act = b.getAttribute('data-act');
+      if (act === 'hide') { f._folded = true; f._drawer = false; if (state.v === 'd' && canFull(f)) setFull(f, true); }
+      if (act === 'show') { f._folded = false; f._drawer = false; if (state.v === 'd' && f._full) setFull(f, false); }
+      if (act === 'menu') { f._drawer = !f._drawer; }
+      if (act === 'full') { setFull(f, !f._full); }
+      paint(f);
+    });
+    paint(f);
+    return f;
+  }
+
+  function setFull(f, on){
+    if (f._kind === 'device') {
+      try {
+        if (on && !document.fullscreenElement) document.documentElement.requestFullscreen({navigationUI:'hide'}).catch(function(){});
+        if (!on && document.fullscreenElement) document.exitFullscreen().catch(function(){});
+      } catch (e) {}
+      return; // the fullscreenchange listener paints
+    }
+    f._full = on;
+  }
+
+  function paint(f){
+    var dev = f._dev;
+    dev.className = 'dev v-' + state.v + ' at-' + state.at + (canFull(f) ? ' can-full' : '') + (f._folded ? ' folded' : '') + (f._full ? ' full' : '') + (f._drawer ? ' drawer-open' : '');
+    var strip = f._vp.querySelector('.strip'), drawer = f._vp.querySelector('.drawer');
+    if (strip && drawer) drawer.style.top = (strip.offsetTop + strip.offsetHeight) + 'px';
+    var mb = dev.querySelector('[data-act="menu"]'); if (mb) mb.setAttribute('aria-expanded', f._drawer ? 'true' : 'false');
+    measure(f);
+  }
+
+  function vis(vp, act){
+    var els = vp.querySelectorAll('[data-act="' + act + '"]');
+    for (var i = 0; i < els.length; i++) if (els[i].getClientRects().length) return els[i];
+    return null;
+  }
+  function touch(el){
+    var h = el.getBoundingClientRect().height;
+    return Math.round(h + (el.classList.contains('face') ? 12 : el.classList.contains('slop') ? 24 : 0));
+  }
+  function measure(f){
+    var vp = f._vp, dev = f._dev;
+    var btn = '';
+    if (state.v !== 'a') {
+      var keep = dev.className;
+      dev.className = keep.replace(/ (folded|drawer-open)/g, '');
+      var hb = vis(vp, state.v === 'b' ? 'full' : 'hide');
+      if (hb) {
+        var hr = hb.getBoundingClientRect();
+        btn = '<span>' + (state.v === 'b' ? 'FULL SCREEN' : 'HIDE') + ' <b>' + Math.round(hr.width) + ' &times; ' + Math.round(hr.height) + '</b>, a <b>' + touch(hb) + 'px</b> touch</span>';
+        if (state.v !== 'b') {
+          dev.className = dev.className + ' folded';
+          var sb = vis(vp, 'show');
+          if (sb) {
+            var sr = sb.getBoundingClientRect();
+            var d = Math.round(Math.hypot((sr.left + sr.width / 2) - (hr.left + hr.width / 2), (sr.top + sr.height / 2) - (hr.top + hr.height / 2)));
+            btn += '<span>SHOW lands <b>' + d + 'px</b> from it</span>';
+          }
+        }
+      }
+      dev.className = keep;
+    }
+    var mast = vp.querySelector('.mast'), first = vp.querySelector('.first');
+    var vr = vp.getBoundingClientRect();
+    var mh = Math.round(mast.getBoundingClientRect().height);
+    var top = Math.round(first.getBoundingClientRect().top - vr.top + vp.scrollTop);
+    var chrome = 0;
+    if (f._kind === 'fold' && !f._full) chrome = dev.querySelector('.sys').offsetHeight + dev.querySelector('.cbar').offsetHeight;
+    var y = chrome + top;
+    var label = f._kind === 'phone' ? 'Phone' : f._kind === 'fold' ? 'Fold, open' : 'This device';
+    var dims = f._kind === 'fold' ? '851 &times; 883, the whole screen' : f._kind === 'phone' ? '390 &times; 844, iPhone size, no browser drawn' : vp.clientWidth + ' wide';
+    f._h.innerHTML = '<b>' + label + '</b> · ' + dims;
+    var p = PROD[state.page][f._kind];
+    var html = '<span>masthead <b>' + mh + 'px</b>' + (p ? ' <span class="was">(prod: ' + p[0] + ')</span>' : '') + '</span>';
+    if (f._kind === 'device') {
+      html += '<span>the page starts <b>' + top + 'px</b> below the top of CT</span>';
+    } else {
+      var H = f._kind === 'fold' ? 883 : 844;
+      html += '<span>the page starts <b>' + y + 'px</b> down the screen' + (p ? ' <span class="was">(prod today: ' + p[1] + ')</span>' : '') + '</span>' +
+              '<span><b>' + Math.round((H - y) / H * 100) + '%</b> of the screen is page</span>';
+      if (f._kind === 'fold') html += '<span>browser\'s bar <b>' + (f._full ? 'hidden' : 'shown') + '</b></span>';
+    }
+    f._read.innerHTML = html + btn;
+  }
+
+  function render(){
+    groups.innerHTML = '';
+    groups.appendChild(mkGroup('v', 'Hide', OPTIONS, state.v));
+    groups.appendChild(mkGroup('at', 'Button at', LOCS, state.at));
+    groups.appendChild(mkGroup('page', 'Page', PAGES, state.page));
+    groups.appendChild(mkGroup('where', 'Where', WHERES, state.where));
+    groups.appendChild(mkGroup('st', 'Frames', STATES, state.st));
+    groups.appendChild(mkGroup('view', 'Show', VIEWS, state.view));
+    quick.innerHTML = '';
+    Object.keys(OPTIONS).forEach(function(id){
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = id.toUpperCase();
+      b.setAttribute('aria-label', OPTIONS[id].label); b.setAttribute('aria-pressed', id === state.v ? 'true' : 'false');
+      if (id === state.v) b.className = 'on';
+      b.addEventListener('click', function(){ state.v = id; render(); });
+      quick.appendChild(b);
+    });
+    note.innerHTML = OPTIONS[state.v].note + (state.v === 'a' ? '' : LOCS[state.at].note + WHERES[state.where].note);
+    ruling.textContent = 'hide ' + OPTIONS[state.v].line + (state.v === 'a' ? '' : ', ' + WHERES[state.where].line + ', button ' + LOCS[state.at].line);
+    stage.innerHTML = ''; frames = [];
+    stage.className = 'stage' + (state.view === 'device' ? ' device' : '');
+    var kinds = state.view === 'both' ? ['phone','fold'] : [state.view];
+    kinds.forEach(function(k){ var f = frame(k); stage.appendChild(f); frames.push(f); });
+    frames.forEach(paint);
+  }
+
+  document.addEventListener('fullscreenchange', function(){
+    frames.forEach(function(f){ if (f._kind === 'device') { f._full = !!document.fullscreenElement; paint(f); } });
+  });
+  document.getElementById('foldBtn').addEventListener('click', function(){
+    var m = document.getElementById('mock'); var folded = m.classList.toggle('folded');
+    this.textContent = folded ? 'show controls' : 'hide controls';
+  });
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    var btn = this, text = ruling.textContent;
+    function done(ok){ btn.textContent = ok ? 'copied' : 'select the line and copy it'; setTimeout(function(){ btn.textContent = 'copy'; }, 1800); }
+    try { navigator.clipboard.writeText(text).then(function(){ done(true); }, function(){ done(false); }); } catch (e) { done(false); }
+  });
+  window.addEventListener('resize', function(){ frames.forEach(paint); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ frames.forEach(paint); });
+  render();
+})();
+</script>
+</body>
+</html>

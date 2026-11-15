@@ -3445,3 +3445,34 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - the first iPhone in reach: the new backlog line's tap;
   - `cbt.zip` after GradShow, with SKILL changed at 815 and 816.
 - **Also notes now run through HO 816.**
+
+**Also (HO 817), the masthead folds on a touch device, ruled D: HIDE at the top right folds it into a 44px strip and asks for full screen, and the strip carries the page's name, the nav as a list, FULL and SHOW.** Built on `817-review` from `fa12cde`. No database read or write, no dependency, no new route.
+
+- **HO 816's FF go, as taken:** `main` at `fa12cde`, pushed 5:11:01 PM MST Nov 14 with no force; Production record `7795938542`, `success`; prod served `fa12cde` from about 5:11:59 PM. `e2e-prod` `43656955326`, `success`, 202 passed, the narrow gate's 120 cells with none over. The crawl step took 7m15s and the job 7m56s.
+- **Its 18 touch lines** are the Preview's exactly: `faces` on `/bills`, `/members` and `/stale`, 0 misses, and `/stale`'s bar at 390 reads 251, where local builds read 261. Prod's `/bills` stylesheet holds `tsel-face` 4 times.
+- **The ruling,** Corey (MST): *"could we add a hide button for the top bar?"* (Nov 13, 2:43 PM); *"hide is in an bad location."* (3:03 PM, on mock-817 v1); *"just make it stick out a lil more, its a bit hard to notice. other than that, send it"* (3:36 PM, on v2). v3 is committed as `docs/design/mock-817-hide-top-bar.html`.
+- **STEP 0 held.**
+  - Claims 1 to 8 as stated.
+  - Claim 9, § 1's fold cells against prod at the base: 9 red, the six touch cells on F2 (no HIDE) and the three fine-pointer cells on the attribute.
+  - Claim 10: five open heights within 0.5px of the chat's *today*; `/` at 390 read 303.5 against 320 (flagged).
+- **§ 1:** nine fold cells in the touch spec. F2 reads HIDE open (28px, 8px down, on the masthead's right edge, a 4px slop, no text line under it), F3 a tap on HIDE (the attribute and the key, the 44px strip, SHOW within 21px, the label), F4 the menu, F5 a reload, F6 SHOW; three fine-pointer cells store the fold and read nothing drawn. `e2e/routes.ts` gains `FOLD_SLUGS`.
+- **§ 2:** `lib/prefs.ts` gains the `masthead` row (`data-masthead`). `components/MastheadFold.tsx` renders HIDE and the strip, mounted by both mastheads in the drawer's old place, and `lastSegment` names the page.
+- **§§ 3 and 4:** the ruled rules after HO 816's block, all under `(pointer: coarse)`, with the title held clear in three rules; the mock, unedited.
+- **The legs,** on local `next start` builds of the base and the change:
+  - A, the touch gate: 27 passed, the 18 cells and the 9 fold cells.
+  - B, a fine pointer at 1440 and 390 on five pages, the fold stored and not: the masthead and every visible descendant identical, but for the dashboard tapes' item order, which two loads of one build don't share either. Narrow 120 passed; `fit-finish`'s doc-scroll unchanged.
+  - C, beside the chat's table, open at 390 / 851: `/` 303.5 / 236, `/bills` 307 / 189, `/changes` 307 / 221.5, `/bill/119-s-2` 307 / 221.5, `/committee/hlig00` 357 / 254, `/members/A000055` 307 / 221.5. Folded 45 on the dashboard and 44 elsewhere; the page starts at 69, 60 and 65. HIDE 64.3 × 28 and 28 × 28; SHOW 0 to 0.5px and 18.1px from it. Wider: `/` +32.5, +4.5, +0 at 720, 1024, 1366; `/bills` +0, +28, +0.
+  - D, Chromium: HIDE goes full screen and folds; a drawer link keeps both through the client navigation; EXIT FULL, FULL and SHOW do what they say.
+  - E: with the fold stored, the first animation frame computes the masthead hidden and the strip shown.
+  - F: the change's stylesheet holds `mh-strip`; the base's doesn't.
+  - G: 32 captures for Corey, under `817-artifacts/captures/`.
+- **Flagged:**
+  - The dashboard's sync time cycles five zones, and at 390 its UTC phase wraps the meta row (320 against 303.5), which is the chat's 320. The fold cells run under reduced motion, so F6 reads the fold and not the clock.
+  - At 360 with FULL drawn, the strip cuts *Dashboard* and *Legislation* with an ellipsis.
+  - HO 816's FF go's ride-alongs: the `/members` sentence in HO 816's CSS comment and in SKILL, SKILL's two older sentences, and the Search bullet's note on a bar's text.
+- **Owed at the FF:**
+  - the push, `verify:deploy`, CI, the Production `e2e-prod` run with its touch lines and the fold cells, and the served stylesheet read for `mh-strip`;
+  - Corey on the Fold: the new backlog line's reading, and HIDE on `/bills` with the Fold closed;
+  - the first iPhone in reach: HIDE folds, the ▴ is easy to hit, and there's no FULL;
+  - `cbt.zip` after GradShow, with SKILL changed at 815, 816 and 817.
+- **Also notes now run through HO 817.**
