@@ -42,13 +42,19 @@ export type NavItem = {
 // own surfaces (the mock styles WATCHLIST as `.nav a.mine`) and everything after
 // the divider is the corpus. NAV_ITEMS is shared with every inner page's
 // HeaderBar, so the reorder is site-wide by design.
+// HO 818 — A NAV ICON IS A TEXT GLYPH, never a `\p{Extended_Pictographic}` code
+// point: a platform may draw one of those as a colour emoji, and Android drew
+// MEMBERS (👥) and ELECTORAL (🗳) that way in the folded strip's drawer on
+// Corey's Fold (Nov 15), where the other eight draw in the link's colour. The
+// chat's picks: ♙ (U+2659, white chess pawn, a figure) and ☒ (U+2612, ballot
+// box with X). The touch gate's F4 reads every icon (e2e/touch.spec.ts).
 const ALL_NAV_ITEMS: readonly NavItem[] = [
   { key: "dashboard", href: "/", icon: "⌂", label: "Dashboard", tooltip: "Dashboard summary" },
   { key: "watchlist", href: "/watchlist", icon: "★", label: "Watchlist", tooltip: "Bills you've flagged with the watch star" },
   { key: "feed", href: "/bills", icon: "▤", label: "Legislation", tooltip: "Legislation, news, stage changes, and the president's desk" },
   { key: "hearings", href: "/hearings", icon: "▦", label: "Hearings", tooltip: "Committee hearings, markups, and business meetings" },
-  { key: "members", href: "/members", icon: "👥", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
-  { key: "races", href: "/electoral", icon: "🗳", label: "Electoral", tooltip: "Competitive 2026 races, forecaster ratings, and the primary calendar" },
+  { key: "members", href: "/members", icon: "♙", label: "Members", tooltip: "All 536 Members, 2026 races, and the primary calendar" },
+  { key: "races", href: "/electoral", icon: "☒", label: "Electoral", tooltip: "Competitive 2026 races, forecaster ratings, and the primary calendar" },
   { key: "patterns", href: "/patterns", icon: "⊞", label: "Patterns", tooltip: "Bill shapes, long-run trends, and stalled bills" },
   { key: "lobbying", href: "/lobbying", icon: "$", label: "Lobbying", tooltip: "What's being lobbied — LD-2 filings by issue area, and who's paying" },
   { key: "nominations", href: "/nominations", icon: "◈", label: "Nominations", tooltip: "Presidential nominations — who's being confirmed, by agency and status" },

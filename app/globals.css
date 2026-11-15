@@ -320,6 +320,24 @@ body {
   color: var(--accent-amber);
 }
 
+/* HO 818 — the sync time holds its widest zone's width, so the clock after it
+   on the line stops moving as the zones cycle and the line no longer wraps in
+   one zone and not another. `components/CyclingTimestamp.tsx` renders the five
+   zones' texts hidden and the live one on top, all in one grid cell, so the
+   cell is the widest text's width in any font. The hidden texts come from the
+   sync's instant alone, so the server and the first paint agree (the
+   hydration note in that file). */
+.zone-stamp {
+  display: inline-grid;
+  white-space: nowrap;
+}
+.zone-stamp > span {
+  grid-area: 1 / 1;
+}
+.zone-stamp-size {
+  visibility: hidden;
+}
+
 /* HO 612: the auth control follows the path. `.header-titlebar` sets column-gap
    0 (HO 189, so a deep path + nav never wraps on a razor-thin bar), so the
    spacing is explicit here rather than inherited. */

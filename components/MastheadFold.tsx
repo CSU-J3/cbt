@@ -43,6 +43,12 @@ export function MastheadFold({
   const showRef = useRef<HTMLButtonElement>(null);
   const [canFull, setCanFull] = useState(false);
   const [isFull, setIsFull] = useState(false);
+  // HO 818 — THE MENU CLOSES ON SHOW AND ON HIDE. The drawer keeps its own open
+  // state, and on Corey's Fold (Nov 15) SHOW unfolded a page with the menu open
+  // and the next HIDE brought it back open. HIDE and SHOW each give the drawer a
+  // new key, so it remounts and starts closed whichever way the strip went.
+  // MobileNavDrawer's code doesn't change.
+  const [menuKey, setMenuKey] = useState(0);
 
   useEffect(() => {
     if (!document.fullscreenEnabled) return;
@@ -70,6 +76,7 @@ export function MastheadFold({
         className="mh-hide"
         aria-label="Hide the top bar"
         onClick={() => {
+          setMenuKey((k) => k + 1);
           writePref("masthead", "folded");
           askFull();
           showRef.current?.focus({ preventScroll: true });
@@ -91,7 +98,7 @@ export function MastheadFold({
           </span>
         </span>
         <span className="mh-btns">
-          <MobileNavDrawer items={items} active={active} />
+          <MobileNavDrawer key={menuKey} items={items} active={active} />
           {canFull ? (
             <button
               type="button"
@@ -107,6 +114,7 @@ export function MastheadFold({
             className="mh-show"
             aria-label="Show the top bar"
             onClick={() => {
+              setMenuKey((k) => k + 1);
               writePref("masthead", "open");
               leaveFull();
               hideRef.current?.focus({ preventScroll: true });

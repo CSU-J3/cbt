@@ -18,7 +18,9 @@ import type { NavItem, NavItemKey } from "@/components/HeaderBar";
 // inside the static-below-1024 constraint and is not a motion exception.
 //
 // Dismiss (this pass only): tapping a nav item closes it (navigation
-// dismisses) and tapping the hamburger again closes it. Tap-outside and an
+// dismisses) and tapping the hamburger again closes it. Since HO 818 the
+// strip's SHOW and HIDE close it too, by remounting it from `MastheadFold`
+// with a new key. Tap-outside and an
 // explicit in-drawer close glyph are deferred to 15c's global touch
 // convention — the drawer's open/close convention must align with whatever
 // 15c lands, so 15c shouldn't ship a conflicting pattern (SKILL.md flag).

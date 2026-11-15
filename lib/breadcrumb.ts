@@ -71,6 +71,10 @@ function sectionFor(basePath: string, mode?: "bills" | "news"): string[] {
   if (basePath === "/stale") return ["Patterns", "Stale"];
   // HO 437: /lobbying — standalone analytical surface (like Patterns).
   if (basePath === "/lobbying") return ["Lobbying"];
+  // HO 818: /nominations and /amendments had no branch, so their mastheads read
+  // `119TH` alone and the folded strip's label with them. The nav's own labels.
+  if (basePath === "/nominations") return ["Nominations"];
+  if (basePath === "/amendments") return ["Amendments"];
   if (basePath === "/reports" || basePath.startsWith("/reports/"))
     return ["Reports"];
   if (basePath === "/search") return ["Search"];
