@@ -757,6 +757,20 @@ test.describe("route crawl", () => {
         }
       }
 
+      // ── HO 818 — EVERY MASTHEAD PATH NAMES ITS SECTION. Read after hit 2's
+      // settle, on the page as served. `lib/breadcrumb.ts` maps a page's basePath
+      // to its section, and a path it doesn't know falls through to `[]`, so the
+      // masthead read `CT:\119TH>` alone, and the folded strip's label with it
+      // (`/amendments` and `/nominations` on Corey's Fold, Nov 15). The congress
+      // and a section are two labels. A page with no `.breadcrumb-path`
+      // (`/welcome`) isn't read.
+      const crumbs = await page.evaluate(() => {
+        const path = document.querySelector(".breadcrumb-path");
+        return path
+          ? Array.from(path.querySelectorAll(".breadcrumb-seg-label")).map((el) => (el.textContent ?? "").trim())
+          : null;
+      });
+
       const mut2 = await readMut(page);
       const failed1 = c.failed.slice(0, mark.failed);
       const failed2 = c.failed.slice(mark.failed);
@@ -838,6 +852,17 @@ test.describe("route crawl", () => {
       expect.soft(bad2, `${route.path} hit-2 4xx/5xx subrequests`).toEqual([]);
       expect.soft(console2, `${route.path} hit-2 console errors`).toEqual([]);
       expect.soft(pageErr2, `${route.path} hit-2 uncaught page errors`).toEqual([]);
+
+      // HO 818 — the masthead path names a section (the read above).
+      if (crumbs) {
+        expect
+          .soft(
+            crumbs.length,
+            `${route.path} masthead path reads [${crumbs.join(" \\ ")}]: no section, so ` +
+              `lib/breadcrumb.ts has no branch for this page's basePath`,
+          )
+          .toBeGreaterThanOrEqual(2);
+      }
     });
   }
 

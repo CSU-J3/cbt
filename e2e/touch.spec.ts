@@ -55,11 +55,20 @@
 //       nav hidden; SHOW's centre within 21px of HIDE's; the strip's label is
 //       the path's last segment; no sideways scroll.
 //   F4. THE MENU — the strip's toggle opens the drawer from the strip's foot,
-//       holding the nav's links, and a second tap closes it.
+//       holding the nav's links, and a second tap closes it. HO 818: every
+//       `.mobile-nav-icon` is a text glyph, with no `\p{Extended_Pictographic}`
+//       code point and no U+FE0F, so no platform swaps in a colour emoji; the
+//       log prints the glyphs (`icons=`).
 //   F5. A RELOAD — the attribute is on `html` when domcontentloaded returns,
 //       and the strip is shown after the load.
 //   F6. A TAP ON SHOW — the attribute and the key are gone, the header is its
-//       open height again and HIDE is back.
+//       open height again and HIDE is back. HO 818: the menu is opened first,
+//       as F4 opens it, and after SHOW no `.mobile-nav-drawer` is in the
+//       document (`menu-after-show=gone`).
+//   F7. A TAP ON HIDE AGAIN (HO 818), at its centre read fresh — the masthead
+//       folds, the strip is shown, its toggle reads `aria-expanded="false"`
+//       and no `.mobile-nav-drawer` is in the document (`menu-after-hide=
+//       closed`).
 // Logged, not asserted: `document.fullscreenEnabled`, whether full screen was
 // set after F3's tap, and whether the strip drew FULL. Chromium's emulation
 // isn't Chrome on a phone. Vercel's Preview toolbar is hidden before HIDE is
@@ -68,6 +77,20 @@
 // read that the attribute is set (the row reached the boot script), that the
 // pointer is fine, and that neither HIDE nor the strip is drawn while the path
 // is.
+//
+// THE ZONE CELLS (HO 818), on the three `FOLD_ROUTES` at 390, 412 and 851, with
+// motion on. The masthead's sync time cycles five zones, 4 s each
+// (`lib/zone-cycle.ts`), and a zone's text can be wider than another's. The
+// page's clock is Playwright's, installed before the load, paused 1 s into
+// slot ET and stepped 4 s a slot.
+//   Z1. THE PAGE AND THE EMULATION, hard: 2xx on the route's path, `pointer:
+//       coarse`, `innerWidth` the viewport's, and reduced motion NOT matching.
+//   Z2. In each slot in order (ET, CT, MT, PT, UTC), soft: the masthead's sync
+//       line shows exactly one time-and-zone token, the slot's; the
+//       `.masthead-clock` after it sits where it sat in slot ET, left and top
+//       within 1px; and the masthead `header` is slot ET's height within 1px.
+// One log line a cell: the five tokens, the clock's five positions and the
+// five heights.
 //
 // WHAT ITS ZERO MEANS (method.md § Gates). On the nine `TOUCH_ROUTES` at two
 // viewports, under Chromium's touch emulation, no visible text-entry control
@@ -92,6 +115,13 @@
 // even with the fold stored. IT SAYS NOTHING ABOUT CHROME'S OWN BAR GOING on a
 // phone, keeping gone through CT's links, or Android's back gesture; the Fold
 // reads those (backlog, HO 817).
+// AND SINCE HO 818: under the same emulation, on the three fold routes, the
+// drawer's icons are text glyphs, and SHOW and HIDE each leave the menu closed;
+// and on those routes at 390, 412 and 851, nothing after the sync time moves
+// and the masthead keeps its height while the zone cycles. IT SAYS NOTHING
+// ABOUT A WIDTH IT DOESN'T READ, about `WelcomeClock`'s own width (its time is
+// 10 or 11 characters across the day, read here at one), or about how a phone's
+// font draws a glyph; a phone reads the icons.
 //
 // THE TWO VIEWPORTS. 390 x 844 at DPR 3 is the iPhone 12-to-14 screen in
 // Playwright's device table, and 390 is a width the narrow gate already reads.
@@ -130,11 +160,27 @@
 // the attribute (`html data-masthead is null`), since the boot script had no
 // masthead row; HIDE and the strip weren't drawn and the path was. So F3 to
 // F6 are unproven by history, as the width reading above is.
+// HO 818'S READINGS HAVE THE SAME KIND OF CONTROL. Run against prod at
+// `fd60184` on 2026-11-15 (18:10Z, 11:10 AM MST), before HO 818's change:
+// - the six touch fold cells were RED on F4, F6 and F7 and green on F2, F3 and
+//   F5. F4 read `the drawer's icons draw as emoji: 👥 (Members), 🗳
+//   (Electoral)`; F6 `a .mobile-nav-drawer is still in the document after
+//   SHOW`; F7 `the strip's toggle reads aria-expanded="true"` and the drawer
+//   in the document;
+// - the three fine-pointer cells were green, unchanged;
+// - the zone cells were RED at 412 and 851, all six on the clock's left: that
+//   day's sync read `1:00 PM ET | 12:00 PM CT | 11:00 AM MT | 10:00 AM PT |
+//   6:00 PM UTC`, so slot ET's token was a character shorter than the other
+//   four's and the clock sat 7.1px further right in CT, MT, PT and UTC. No
+//   header moved. Which slot is wide follows the sync's hour. At 390 the three
+//   were GREEN: the clock starts its own line there, and the header held 320 on
+//   `/` and 307 on the inner pages in every slot. So the zone cells' height
+//   reading is unproven by history at these three widths.
 //
 // NO SCREENSHOTS AND NO COLLECTORS, as in the narrow spec: one log line a
 // cell, and one navigation a cell but for the fold's touch cells, which reload
-// once (15 documents a run for the nine). Untagged, so `e2e-prod` runs it on
-// every trigger.
+// once (15 documents a run for the nine, and 9 for the nine zone cells).
+// Untagged, so `e2e-prod` runs it on every trigger.
 import { expect, test } from "@playwright/test";
 import { FOLD_ROUTES, TEXT_ENTRY_SELECTOR, TOUCH_ROUTES } from "./routes";
 
@@ -191,6 +237,19 @@ const STRIP_TALL = 44;
 const FOLDED_MAX = 46;
 const SHOW_NEAR = 21;
 const PHONE_MAX = 700;
+// HO 818 — a nav icon is a text glyph: no code point a platform may draw as a
+// colour emoji. U+FE0F asks for the emoji form of the code point before it.
+const EMOJI = /\p{Extended_Pictographic}|️/u;
+
+// HO 818 — THE ZONE CELLS. `T0` is a whole minute, so the sync time's slot 0 (ET)
+// starts on it (`lib/zone-cycle.ts`: the slot is `floor(now / 4000) % 5`, and a
+// minute is fifteen slots), and the masthead's own clock (`WelcomeClock`, pinned
+// to MT) reads 12:00:0x PM through all five slots, one width. A time-and-zone
+// token is the cycling stamp's shape; the lookbehind keeps `WelcomeClock`'s
+// `12:00:05 PM MT` out of it.
+const ZONE_T0 = Date.UTC(2026, 10, 16, 19, 0, 0);
+const ZONE_SLOTS = ["ET", "CT", "MT", "PT", "UTC"] as const;
+const ZONE_TOKEN = /(?<![\d:])\d{1,2}:\d{2} [AP]M (?:ET|CT|MT|PT|UTC)\b/g;
 
 // `e2e/narrow.spec.ts`'s OVER_EDGE, copied as the near-miss helpers are: every
 // element whose right edge passes clientWidth, deepest first, unclipped before
@@ -660,8 +719,8 @@ test.describe("touch @851", () => {
   cells("851", 851);
 });
 
-// HO 817 — THE FOLD CELLS (readings F1 to F6). One navigation and one reload a
-// cell, one log line a cell. Every read is taken and every tap made before any
+// HO 817 — THE FOLD CELLS (readings F1 to F6; F7 since HO 818). One navigation
+// and one reload a cell, one log line a cell. Every read is taken and every tap made before any
 // assertion, so a red cell still logs every number. A step whose control isn't
 // there is skipped only where an earlier reading already failed, and the log
 // says what wasn't read; a skipped step can't turn a cell green.
@@ -702,6 +761,7 @@ function foldCells(tag: string, width: number) {
       const f4: string[] = [];
       const f5: string[] = [];
       const f6: string[] = [];
+      const f7: string[] = [];
       const skipped: string[] = [];
 
       // F1 AND F2, ONE READ. The masthead is the `header` holding the
@@ -868,8 +928,40 @@ function foldCells(tag: string, width: number) {
         if (folded.s > folded.c + TOLERANCE) f3.push(`scrolls sideways folded (${folded.s}/${folded.c})`);
       } else skipped.push("F3 to F6 (F2 found no single HIDE)");
 
+      // The drawer as F4 reads it, and F6 again after the reload: its links, its
+      // top against the strip's foot, and each link's icon with its label.
+      const readDrawer = () =>
+        page.evaluate(() => {
+          const d = document.querySelector(".mh-strip .mobile-nav-drawer");
+          const strip = document.querySelector(".mh-strip");
+          if (!d || !strip || !(d as HTMLElement).checkVisibility()) return null;
+          return {
+            links: d.querySelectorAll("a").length,
+            top: d.getBoundingClientRect().top,
+            stripBottom: strip.getBoundingClientRect().bottom,
+            icons: Array.from(d.querySelectorAll(".mobile-nav-icon")).map((el) => ({
+              icon: (el.textContent ?? "").trim(),
+              label: (el.nextElementSibling?.textContent ?? "").trim(),
+            })),
+          };
+        });
+      const drawerMisses = (
+        d: { links: number; top: number; stripBottom: number },
+      ): string[] => {
+        const out: string[] = [];
+        if (d.links !== open.navLinks)
+          out.push(`the drawer holds ${d.links} links, the masthead's nav ${open.navLinks}`);
+        if (Math.abs(d.top - d.stripBottom) > 1)
+          out.push(`the drawer's top ${d.top - d.stripBottom}px from the strip's foot`);
+        return out;
+      };
+
       // F4. THE MENU: the strip's toggle opens the drawer from the strip's foot.
-      let drawer: { links: number; top: number; stripBottom: number } | null = null;
+      // HO 818: and every icon in it is a text glyph, drawn in the link's colour:
+      // no `\p{Extended_Pictographic}` code point and no U+FE0F, so no platform
+      // has a colour emoji to swap in (Android drew MEMBERS and ELECTORAL as
+      // emoji on Corey's Fold, Nov 15).
+      let drawer: Awaited<ReturnType<typeof readDrawer>> = null;
       let drawerClosed: boolean | null = null;
       if (folded) {
         if (!folded.strip) skipped.push("F4 (F3 found no strip)");
@@ -879,22 +971,13 @@ function foldCells(tag: string, width: number) {
           const ty = folded.toggle.t + folded.toggle.h / 2;
           await page.touchscreen.tap(tx, ty);
           await settleTap();
-          drawer = await page.evaluate(() => {
-            const d = document.querySelector(".mh-strip .mobile-nav-drawer");
-            const strip = document.querySelector(".mh-strip");
-            if (!d || !strip || !(d as HTMLElement).checkVisibility()) return null;
-            return {
-              links: d.querySelectorAll("a").length,
-              top: d.getBoundingClientRect().top,
-              stripBottom: strip.getBoundingClientRect().bottom,
-            };
-          });
+          drawer = await readDrawer();
           if (!drawer) f4.push("a tap on the strip's toggle showed no .mobile-nav-drawer");
           else {
-            if (drawer.links !== open.navLinks)
-              f4.push(`the drawer holds ${drawer.links} links, the masthead's nav ${open.navLinks}`);
-            if (Math.abs(drawer.top - drawer.stripBottom) > 1)
-              f4.push(`the drawer's top ${drawer.top - drawer.stripBottom}px from the strip's foot`);
+            f4.push(...drawerMisses(drawer));
+            const emoji = drawer.icons.filter((i) => EMOJI.test(i.icon));
+            if (emoji.length)
+              f4.push(`the drawer's icons draw as emoji: ${emoji.map((i) => `${i.icon} (${i.label})`).join(", ")}`);
           }
           await page.touchscreen.tap(tx, ty);
           await settleTap();
@@ -910,6 +993,7 @@ function foldCells(tag: string, width: number) {
       let atDcl: string | null = null;
       let stripAfterLoad: boolean | null = null;
       let showAfterLoad: FoldBox | null = null;
+      let toggleAfterLoad: FoldBox | null = null;
       if (folded) {
         await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
         atDcl = await page.evaluate(() => document.documentElement.getAttribute("data-masthead"));
@@ -922,26 +1006,50 @@ function foldCells(tag: string, width: number) {
             const r = el.getBoundingClientRect();
             return r.width > 0 && r.height > 0;
           };
+          const box = (el: Element | null | undefined) => {
+            if (!visible(el)) return null;
+            const r = el.getBoundingClientRect();
+            return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+          };
           const strip = document.querySelector(".breadcrumb-path")?.closest("header")?.querySelector(".mh-strip");
-          const show = strip?.querySelector(".mh-show");
-          const r = visible(show) ? show.getBoundingClientRect() : null;
           return {
             strip: visible(strip),
-            show: r ? { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height } : null,
+            show: box(strip?.querySelector(".mh-show")),
+            toggle: box(strip?.querySelector(".mobile-nav-toggle")),
           };
         });
         stripAfterLoad = after.strip;
         showAfterLoad = after.show;
+        toggleAfterLoad = after.toggle;
         if (atDcl !== "folded")
           f5.push(`html data-masthead is ${JSON.stringify(atDcl)} when domcontentloaded returns`);
         if (!stripAfterLoad) f5.push("no visible .mh-strip after the load");
       }
 
-      // F6. A TAP ON SHOW undoes the fold.
-      let shown: { attr: string | null; stored: string | null; headerH: number | null; hide: boolean } | null = null;
+      // F6. A TAP ON SHOW undoes the fold. HO 818: with the menu opened first,
+      // as F4 opens it, so SHOW is read closing it. On Corey's Fold (Nov 15) the
+      // drawer's open state survived SHOW and came back open on the next HIDE.
+      let shown: {
+        attr: string | null;
+        stored: string | null;
+        headerH: number | null;
+        hide: boolean;
+        drawerInDoc: boolean;
+      } | null = null;
       if (folded) {
         if (!showAfterLoad) f6.push("no visible .mh-show to tap after the reload");
         else {
+          if (!toggleAfterLoad) f6.push("no visible .mobile-nav-toggle in the strip after the reload");
+          else {
+            await page.touchscreen.tap(
+              toggleAfterLoad.l + toggleAfterLoad.w / 2,
+              toggleAfterLoad.t + toggleAfterLoad.h / 2,
+            );
+            await settleTap();
+            const reopened = await readDrawer();
+            if (!reopened) f6.push("after the reload, a tap on the strip's toggle showed no .mobile-nav-drawer");
+            else f6.push(...drawerMisses(reopened));
+          }
           await page.touchscreen.tap(showAfterLoad.l + showAfterLoad.w / 2, showAfterLoad.t + showAfterLoad.h / 2);
           await settleTap();
           shown = await page.evaluate((key) => {
@@ -958,6 +1066,7 @@ function foldCells(tag: string, width: number) {
               stored,
               headerH: header ? header.getBoundingClientRect().height : null,
               hide: !!hide && hide.checkVisibility() && hide.getBoundingClientRect().height > 0,
+              drawerInDoc: document.querySelector(".mobile-nav-drawer") !== null,
             };
           }, FOLD_KEY);
           if (shown.attr !== null) f6.push(`html data-masthead is still ${JSON.stringify(shown.attr)}`);
@@ -965,8 +1074,51 @@ function foldCells(tag: string, width: number) {
           if (shown.headerH === null || !open.header || Math.abs(shown.headerH - open.header.h) > 1)
             f6.push(`the header ${shown.headerH}px tall shown, ${open.header?.h ?? "?"}px open`);
           if (!shown.hide) f6.push("HIDE isn't visible again");
+          if (shown.drawerInDoc) f6.push("a .mobile-nav-drawer is still in the document after SHOW");
         }
       }
+
+      // F7 (HO 818). A TAP ON HIDE AGAIN, at its centre read fresh: the masthead
+      // folds with the menu closed.
+      let again: {
+        attr: string | null;
+        strip: boolean;
+        expanded: string | null;
+        drawerInDoc: boolean;
+      } | null = null;
+      if (shown) {
+        const hideNow = await page.evaluate(() => {
+          const el = document.querySelector(".breadcrumb-path")?.closest("header")?.querySelector(".mh-hide");
+          if (!el || !(el as HTMLElement).checkVisibility({ visibilityProperty: true })) return null;
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0 ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+        });
+        if (!hideNow) f7.push("no visible .mh-hide to tap after SHOW");
+        else {
+          await page.touchscreen.tap(hideNow.x, hideNow.y);
+          await settleTap();
+          again = await page.evaluate(() => {
+            const strip = document.querySelector(".breadcrumb-path")?.closest("header")?.querySelector(".mh-strip");
+            const r = strip?.getBoundingClientRect();
+            return {
+              attr: document.documentElement.getAttribute("data-masthead"),
+              strip:
+                !!strip &&
+                (strip as HTMLElement).checkVisibility({ visibilityProperty: true }) &&
+                !!r &&
+                r.width > 0 &&
+                r.height > 0,
+              expanded: strip?.querySelector(".mobile-nav-toggle")?.getAttribute("aria-expanded") ?? null,
+              drawerInDoc: document.querySelector(".mobile-nav-drawer") !== null,
+            };
+          });
+          if (again.attr !== "folded") f7.push(`html data-masthead is ${JSON.stringify(again.attr)}`);
+          if (!again.strip) f7.push("no visible .mh-strip");
+          if (again.expanded !== "false")
+            f7.push(`the strip's toggle reads aria-expanded=${JSON.stringify(again.expanded)}`);
+          if (again.drawerInDoc) f7.push("a .mobile-nav-drawer is in the document");
+        }
+      } else if (folded) skipped.push("F7 (F6 tapped no SHOW)");
 
       const r1 = (n: number | null | undefined) => (n === null || n === undefined ? "none" : `${Math.round(n * 10) / 10}`);
       const dist =
@@ -983,6 +1135,7 @@ function foldCells(tag: string, width: number) {
           ["F4", f4],
           ["F5", f5],
           ["F6", f6],
+          ["F7", f7],
         ] as const
       ).filter(([, m]) => m.length);
       // eslint-disable-next-line no-console
@@ -992,7 +1145,10 @@ function foldCells(tag: string, width: number) {
           ` hide=${open.hide ? `${r1(open.hide.w)}x${r1(open.hide.h)}` : `none(${open.hides})`}` +
           ` clear=${r1(open.clear)} dist=${r1(dist)}` +
           ` drawer=${drawer ? `${drawer.links}/${open.navLinks}` : "none"}` +
+          ` icons=${drawer ? drawer.icons.map((i) => i.icon).join("") : "none"}` +
           ` reload=${atDcl ?? "none"}` +
+          ` menu-after-show=${shown ? (shown.drawerInDoc ? "kept" : "gone") : "none"}` +
+          ` menu-after-hide=${again ? (again.expanded === "false" && !again.drawerInDoc ? "closed" : "open") : "none"}` +
           ` fs-enabled=${open.fsEnabled} fs-after-hide=${folded ? folded.fsSet : "none"}` +
           ` full=${folded ? (folded.full ? "drawn" : "no") : "none"}` +
           (toolbar ? ` vercel-toolbar-hidden=${toolbar}` : "") +
@@ -1021,9 +1177,10 @@ function foldCells(tag: string, width: number) {
         .soft(f2, `${route.path} @${tag}: HIDE, open — one 28px button 8px down at the masthead's right, answering 4px past its edges, with no text line under it`)
         .toEqual([]);
       expect.soft(f3, `${route.path} @${tag}: a tap on HIDE — the masthead folds into the 44px strip`).toEqual([]);
-      expect.soft(f4, `${route.path} @${tag}: the strip's menu — the drawer opens from its foot and closes`).toEqual([]);
+      expect.soft(f4, `${route.path} @${tag}: the strip's menu — the drawer opens from its foot with text-glyph icons, and closes`).toEqual([]);
       expect.soft(f5, `${route.path} @${tag}: a reload — the fold is on html before first paint`).toEqual([]);
-      expect.soft(f6, `${route.path} @${tag}: a tap on SHOW — the masthead opens as it was`).toEqual([]);
+      expect.soft(f6, `${route.path} @${tag}: a tap on SHOW, the menu open — the masthead opens as it was and the menu is gone`).toEqual([]);
+      expect.soft(f7, `${route.path} @${tag}: a tap on HIDE again — the masthead folds with the menu closed`).toEqual([]);
     });
   }
 }
@@ -1033,7 +1190,10 @@ function foldCells(tag: string, width: number) {
 // the open masthead reads 320 then and 303.5 in the other four (measured on the
 // HO 817 build, 2026-11-15). F6 compares the open height before the fold with
 // the height after SHOW, so with motion it read the clock and not the fold.
-// Reduced motion pins the zone to MT.
+// Reduced motion pins the zone to MT. Since HO 818 the stamp holds its widest
+// zone's width (`.zone-stamp`, components/CyclingTimestamp.tsx), so the height
+// no longer moves with the zone; the zone cells read that. The pin stays, so a
+// fold cell never reads the clock.
 test.describe("fold @390", () => {
   test.use({
     viewport: { width: 390, height: 844 },
@@ -1129,4 +1289,174 @@ test.describe("fold, fine pointer @1440", () => {
         .toEqual([]);
     });
   }
+});
+
+// HO 818 — THE ZONE CELLS (Z1 and Z2). The sync time cycles five zones, 4 s each,
+// and nothing after it on its line may move, nor the masthead grow, while it
+// does. The page's clock is Playwright's: installed before the load, run during
+// it, then paused 1 s into slot 0 and stepped 4 s a slot, so each slot is read
+// once, in order, whatever the wall clock says. Motion is on: reduced motion
+// pins the zone to MT and would read one slot five times.
+type ZoneRead = {
+  tokens: string[];
+  clock: { l: number; t: number } | null;
+  headerH: number | null;
+};
+
+function zoneCells(tag: string, width: number) {
+  for (const route of FOLD_ROUTES) {
+    test(`${route.slug} (${route.path}) zones @${tag}`, async ({ page, context }) => {
+      await page.clock.install({ time: ZONE_T0 - 120_000 });
+      await context.addCookies([GATE_COOKIE]);
+      const response = await page.goto(route.path, {
+        waitUntil: "domcontentloaded",
+        timeout: 45_000,
+      });
+      await page.waitForLoadState("load").catch(() => {});
+      await page.waitForTimeout(2_500);
+      await page.clock.pauseAt(ZONE_T0 + 1_000);
+
+      const env = await page.evaluate(() => ({
+        coarse: matchMedia("(pointer: coarse)").matches,
+        inner: window.innerWidth,
+        url: location.pathname + location.search,
+        reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      }));
+
+      // The masthead is the `header` holding the breadcrumb path, as the fold
+      // cells find it. Its sync line: `.home-header-meta` holding `.show-mobile`
+      // on `/`, `.header-sync-sub` elsewhere. `innerText` skips text that isn't
+      // rendered, `visibility: hidden` included, so its tokens are the ones seen.
+      const readZone = () =>
+        page.evaluate((home): { text: string | null; clock: { l: number; t: number } | null; headerH: number | null } => {
+          const header = document.querySelector(".breadcrumb-path")?.closest("header") ?? null;
+          const line = !header
+            ? null
+            : home
+              ? (Array.from(header.querySelectorAll(".home-header-meta")).find((p) => p.querySelector(".show-mobile")) ?? null)
+              : header.querySelector(".header-sync-sub");
+          const clock = header?.querySelector(".masthead-clock");
+          const r = clock ? clock.getBoundingClientRect() : null;
+          return {
+            text: line ? (line as HTMLElement).innerText : null,
+            clock: r ? { l: r.left, t: r.top } : null,
+            headerH: header ? header.getBoundingClientRect().height : null,
+          };
+        }, route.slug === "home");
+
+      const z2: string[] = [];
+      const reads: (ZoneRead | null)[] = [];
+      for (const [i, want] of ZONE_SLOTS.entries()) {
+        if (i > 0) await page.clock.runFor(4_000);
+        const held: { last: ZoneRead | null } = { last: null };
+        const zoneOf = async () => {
+          const r = await readZone();
+          const read: ZoneRead = {
+            tokens: r.text === null ? [] : (r.text.match(ZONE_TOKEN) ?? []),
+            clock: r.clock,
+            headerH: r.headerH,
+          };
+          held.last = read;
+          return read.tokens.length === 1 ? (read.tokens[0] ?? "").split(" ").pop() : `${read.tokens.length} tokens`;
+        };
+        try {
+          await expect.poll(zoneOf, { timeout: 3_000, intervals: [100] }).toBe(want);
+        } catch {
+          const seen = held.last;
+          z2.push(
+            `slot ${want}: the sync line read ${seen ? (seen.tokens.length ? seen.tokens.join(" | ") : "no token") : "nothing"}`,
+          );
+        }
+        reads.push(held.last);
+      }
+
+      const base = reads[0];
+      for (const [i, want] of ZONE_SLOTS.entries()) {
+        const r = reads[i];
+        if (i === 0 || !r || !base) continue;
+        if (!r.clock || !base.clock) z2.push(`slot ${want}: no .masthead-clock in the masthead`);
+        else {
+          const dl = r.clock.l - base.clock.l;
+          const dt = r.clock.t - base.clock.t;
+          if (Math.abs(dl) > TOLERANCE) z2.push(`slot ${want}: the clock's left ${dl > 0 ? "+" : ""}${Math.round(dl * 10) / 10}px on ET's`);
+          if (Math.abs(dt) > TOLERANCE) z2.push(`slot ${want}: the clock's top ${dt > 0 ? "+" : ""}${Math.round(dt * 10) / 10}px on ET's`);
+        }
+        if (r.headerH === null || base.headerH === null) z2.push(`slot ${want}: no masthead header`);
+        else if (Math.abs(r.headerH - base.headerH) > TOLERANCE)
+          z2.push(`slot ${want}: the header ${r.headerH}px tall, ${base.headerH}px in ET`);
+      }
+
+      const r1 = (n: number | null | undefined) => (n === null || n === undefined ? "none" : `${Math.round(n * 10) / 10}`);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[zone ${tag} ${route.slug}] coarse=${env.coarse} inner=${env.inner} reduce=${env.reduce}` +
+          ` tokens=${reads.map((r) => (r && r.tokens.length ? r.tokens.join("+") : "none")).join("|")}` +
+          ` clock=${reads.map((r) => (r?.clock ? `${r1(r.clock.l)},${r1(r.clock.t)}` : "none")).join("|")}` +
+          ` header=${reads.map((r) => r1(r?.headerH)).join("|")}` +
+          (z2.length ? `\n    Z2: ${z2.join("\n        ")}` : ""),
+      );
+
+      // Z1. THE PAGE AND THE EMULATION, hard: motion is on, or Z2 reads one slot.
+      const status = response?.status() ?? 0;
+      expect(status, `${route.path} answered ${status}, not 2xx`).toBeGreaterThanOrEqual(200);
+      expect(status, `${route.path} answered ${status}, not 2xx`).toBeLessThan(300);
+      expect(
+        env.url.split("?")[0],
+        `${route.path} landed on ${env.url}, so the zones were read on another page`,
+      ).toBe(route.path.split("?")[0]);
+      expect(env.coarse, `${route.path} @${tag}: matchMedia('(pointer: coarse)') is false`).toBe(true);
+      expect(env.inner, `${route.path} @${tag}: innerWidth is ${env.inner}, not ${width}`).toBe(width);
+      expect(
+        env.reduce,
+        `${route.path} @${tag}: prefers-reduced-motion is reduce inside the page, so the sync time is pinned to MT`,
+      ).toBe(false);
+
+      // Z2, soft.
+      expect
+        .soft(
+          z2,
+          `${route.path} @${tag}: the sync time cycles ET, CT, MT, PT, UTC with nothing after it moving ` +
+            `and the masthead's height held`,
+        )
+        .toEqual([]);
+    });
+  }
+}
+
+test.describe("zones @390", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "no-preference" },
+    storageState: { cookies: [], origins: [] },
+  });
+  zoneCells("390", 390);
+});
+
+// THE FOLD, CLOSED, ESTIMATED: 412 x 915 at DPR 2.625 is a common Android phone
+// screen. Nobody has read the cover screen's CSS width.
+test.describe("zones @412", () => {
+  test.use({
+    viewport: { width: 412, height: 915 },
+    deviceScaleFactor: 2.625,
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "no-preference" },
+    storageState: { cookies: [], origins: [] },
+  });
+  zoneCells("412", 412);
+});
+
+test.describe("zones @851", () => {
+  test.use({
+    viewport: { width: 851, height: 728 },
+    deviceScaleFactor: 2.4375,
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "no-preference" },
+    storageState: { cookies: [], origins: [] },
+  });
+  zoneCells("851", 851);
 });
