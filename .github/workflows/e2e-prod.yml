@@ -159,6 +159,14 @@ jobs:
     # which the Playwright install was 31 s against HO 816's run's 25 s. The fold
     # cells add 15 documents a run (each touch cell reloads once), so the smoke
     # crawl grows by the same nine tests at HO 817's FF, its first reading.
+    # RE-MEASURED (HO 818), the same read. `Run prod smoke crawl` against prod at
+    # `fd60184` (HO 817's FF): 211 tests (64 smoke and odds-off, 120 narrow, 27
+    # touch) in 7m31s, whole job 8m11s (43681858867), +16 s and +15 s on the
+    # figures above. Narrow and touch on `narrow-preview` with HO 818's F7 and
+    # nine zone cells: 156 tests (120 narrow, 36 touch) in 4m56s, whole job
+    # 5m39s (43752491809, the first Preview of `818-review`), +34 s on the step
+    # and +22 s on the job. The zone cells add 9 documents a run, so the smoke
+    # crawl grows by the same nine tests at HO 818's FF, its first reading.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
