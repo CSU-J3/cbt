@@ -172,3 +172,24 @@ export const TOUCH_ROUTES: Route[] = (() => {
   }
   return found;
 })();
+
+// HO 817 — THE FOLD ROUTES: the pages `e2e/touch.spec.ts` folds the masthead on.
+// Three, each for a reading the others don't give: `home` is the dashboard's
+// masthead (`DashboardV2Header`); `changes` is the tightest phone title, its
+// second line 1px clear of HIDE at 390; `bill-detail` is a title that needs the
+// reserve at the Fold's 851. Every other page mounts `HeaderBar`'s masthead,
+// which `changes` and `bill-detail` read. `TOUCH_ROUTES`' guard, for its reason.
+export const FOLD_SLUGS = ["home", "changes", "bill-detail"] as const;
+
+export const FOLD_ROUTES: Route[] = (() => {
+  const wanted = new Set<string>(FOLD_SLUGS);
+  const found = ROUTES.filter((r) => wanted.has(r.slug));
+  const missing = FOLD_SLUGS.filter((s) => !found.some((r) => r.slug === s));
+  if (missing.length || found.length !== FOLD_SLUGS.length) {
+    throw new Error(
+      `FOLD_SLUGS names ${FOLD_SLUGS.length} slugs and ROUTES resolves ${found.length}` +
+        ` — no route for: ${missing.join(", ") || "(a duplicate slug)"}`,
+    );
+  }
+  return found;
+})();
