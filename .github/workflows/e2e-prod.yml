@@ -149,6 +149,16 @@ jobs:
     # Narrow and touch together on `narrow-preview` at --retries=0: 138 tests
     # (120 narrow cells, 18 touch) in 4m08s, whole job 4m42s (43476274728, the
     # first Preview of `815-review`, which ran the ref's own command line).
+    # RE-MEASURED (HO 817), as the budget read in its handoff asked: a move past
+    # 30 s takes the new times here. `Run prod smoke crawl` against prod at
+    # `fa12cde` (HO 816's FF): 202 tests (64 smoke and odds-off, 120 narrow, 18
+    # touch) in 7m15s, whole job 7m56s (43656955326), +6 s and +4 s on HO 815's.
+    # Narrow and touch on `narrow-preview` with HO 817's nine fold cells: 147
+    # tests (120 narrow, 27 touch) in 4m22s, whole job 5m17s (43661412911, the
+    # first Preview of `817-review`), +14 s on the step and +35 s on the job, of
+    # which the Playwright install was 31 s against HO 816's run's 25 s. The fold
+    # cells add 15 documents a run (each touch cell reloads once), so the smoke
+    # crawl grows by the same nine tests at HO 817's FF, its first reading.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
