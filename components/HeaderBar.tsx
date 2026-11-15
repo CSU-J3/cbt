@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Fragment } from "react";
 import { auth } from "@/auth";
 import { AuthButton } from "@/components/AuthButton";
-import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
+import { BreadcrumbMasthead, lastSegment } from "@/components/BreadcrumbMasthead";
 import { CeremonialToggle } from "@/components/CeremonialToggle";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { type NavKey, pathToNavKey } from "@/components/GroupTabs";
-import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { MastheadFold } from "@/components/MastheadFold";
 import { OddsToggle } from "@/components/OddsToggle";
 import { SearchBox } from "@/components/SearchBox";
 import { WelcomeClock } from "@/components/WelcomeClock";
@@ -165,9 +165,12 @@ export async function HeaderBar({
   // Also suppressed when a cluster is active — cluster bypasses the
   // ceremonial gate, so the toggle would be a dead control.
   const showCeremonialToggle = !!feedFilters && !cluster;
+  // HO 817: computed once, for the path and for the folded strip's label.
+  const segments = breadcrumbSegments(basePath, { mode, presidentAlias, detail });
 
   return (
-    <header style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
+    // HO 817: `mh-inner` places HIDE and pads the strip on an inner page.
+    <header className="mh-inner" style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
       {/* HO 323 — standardized inner-page chrome: TITLE ROW (breadcrumb path
           ONLY) → LAST SYNC subhead (HO 325) → NAV ROW (its own full-width row,
           the dashboard nav styling) → page content. The markets tape and the
@@ -178,10 +181,7 @@ export async function HeaderBar({
           orphaned `.header-titlebar-sync` / `.header-titlebar-nav` classes are
           gone. */}
       <div className="header-titlebar">
-        <BreadcrumbMasthead
-          segments={breadcrumbSegments(basePath, { mode, presidentAlias, detail })}
-          cursor
-        />
+        <BreadcrumbMasthead segments={segments} cursor />
         {/* HO 612 (C1) — follows the path with a `·`, was on `margin-left: auto`.
             Pinned right it opened a ~1,875px interior gap in the title bar on
             EVERY inner page — two M1 rows per route site-wide, and the entire M1
@@ -243,7 +243,14 @@ export async function HeaderBar({
       <div className="header-nav-row">
         <PrimaryNav active={pathToNavKey(basePath)} variant="home" />
       </div>
-      <MobileNavDrawer items={NAV_ITEMS} active={pathToNavKey(basePath)} />
+      {/* HO 817: HIDE and the folded strip, whose menu is the HO 156 drawer
+          that mounted here (components/MastheadFold.tsx). Drawn only under a
+          coarse pointer. */}
+      <MastheadFold
+        label={lastSegment(segments)}
+        items={NAV_ITEMS}
+        active={pathToNavKey(basePath)}
+      />
 
       {/* Transitional (HO 187): feed pages that haven't built their own band-3
           control strip yet (/changes, /stale until their sub-stage) still get

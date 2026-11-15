@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import type { NavItem, NavItemKey } from "@/components/HeaderBar";
 
-// HO 156 Phase 2 (spec 15a skeleton) — the single client island that owns
-// the mobile nav. Hidden ≥700px (the inline header nav owns that band);
-// below 700px the inline navs hide (CSS) and this hamburger + vertical
-// drawer take over. Mounted in both HeaderBar and HomeHeader and fed the
-// same NAV_ITEMS, so the drawer content is identical regardless of which
-// header mounted it.
+// HO 156 Phase 2 (spec 15a skeleton) — the hamburger + vertical drawer of the
+// nav. SINCE HO 817 IT IS THE FOLDED STRIP'S MENU: `components/MastheadFold.tsx`
+// mounts it inside `.mh-strip`, in both mastheads (DashboardV2Header and
+// HeaderBar), fed the same NAV_ITEMS, so the drawer is identical whichever
+// masthead mounted it. It is shown only under a coarse pointer with the
+// masthead folded (`html[data-masthead="folded"]`, app/globals.css); everywhere
+// else `.mobile-nav` stays `display: none` and the inline nav is the nav. The
+// drawer opens from the strip's foot (`top: 100%` against `.mh-strip`).
 //
 // Instant show/hide (conditional render === display toggle), NOT a slide.
 // A tap-triggered disclosure reading instant is deliberate — it stays

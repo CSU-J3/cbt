@@ -21,6 +21,16 @@ import { getCurrentCongress, ordinal } from "@/lib/congress";
 // the behavior on the dashboard, Bills, and every page. HO 195: `/members`
 // passes `cursor={false}` and re-emits the caret at the END of the inline sync
 // string instead (a deliberate Members-only divergence); no other page changes.
+const congressLabel = () => ordinal(getCurrentCongress()).toUpperCase(); // "119TH"
+
+// HO 817 — the last of the parts the path draws (`[congress, ...segments]`),
+// which the folded strip (components/MastheadFold.tsx) carries as the page's
+// name. With no segments that's the congress label, which keeps its one home
+// above.
+export function lastSegment(segments: string[]): string {
+  return segments[segments.length - 1] ?? congressLabel();
+}
+
 export function BreadcrumbMasthead({
   segments,
   cursor = true,
@@ -28,7 +38,7 @@ export function BreadcrumbMasthead({
   segments: string[];
   cursor?: boolean;
 }) {
-  const congress = ordinal(getCurrentCongress()).toUpperCase(); // "119TH"
+  const congress = congressLabel();
   const parts = [congress, ...segments];
   return (
     <span className="terminal-prompt breadcrumb-path">

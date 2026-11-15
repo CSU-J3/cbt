@@ -399,19 +399,18 @@ body {
   display: block;
 }
 
-/* ---- Mobile nav drawer (HO 156 Phase 2 — currently DORMANT) ---------- */
-/* One client island mounted in both HeaderBar and HomeHeader, kept in the
-   tree but not currently shown. At 6 nav items the inline nav wraps cleanly
-   into two rows on a 375px phone, so the hamburger isn't needed (HO 156
-   follow-up). `.mobile-nav` therefore stays display:none at ALL widths and
-   the inline navs render at every width (they already flex-wrap). To revive
-   the drawer — e.g. if the nav count grows past what wraps cleanly — re-add
-   an `@media (max-width: 700px)` block that sets `.mobile-nav { display: flex;
-   justify-content: flex-end; width: 100% }` and hides `.header-nav,
-   .home-header-nav`. Mind the cascade: that media rule must come AFTER the
-   base `.home-header-nav { display: flex }` (later in this file) or equal
-   specificity lets the base win. The drawer panel is absolute-positioned off
-   the (position: relative) header; instant display toggle, no slide. */
+/* ---- Mobile nav drawer (HO 156 Phase 2; since HO 817 the folded strip's menu) */
+/* One client island, `components/MobileNavDrawer.tsx`. It was dormant from the
+   HO 156 follow-up until HO 817: at 6 nav items the inline nav wrapped cleanly
+   on a 375px phone, so the hamburger wasn't needed. SINCE HO 817 IT LIVES IN
+   THE FOLDED STRIP: `components/MastheadFold.tsx` mounts it inside `.mh-strip`
+   in both mastheads, and the HO 817 block (under `(pointer: coarse)`, after HO
+   816's) sets `.mh-strip .mobile-nav { display: flex }`, so it shows only on a
+   touch device with the masthead folded. `.mobile-nav` stays display:none here
+   as the base, at every width, and the inline navs render wherever the
+   masthead is open. The drawer panel is absolute-positioned off the
+   (position: relative) strip, so it opens from the strip's foot; instant
+   display toggle, no slide. */
 .mobile-nav {
   display: none;
 }
@@ -9308,8 +9307,10 @@ a.rl-nm:hover,
    THE RULING. Corey's "c", 12:54 PM MST 2026-11-13, on mock-816 v1 (the
    ruled mock, kept under docs/design). C is the control treatment for
    every page with these controls. /bills' phone rows are ruled as drawn;
-   /members' are the chat's call, so C doesn't split that page's two dropdowns
-   across rows. Everything sits under `(pointer: coarse)`: with a fine pointer
+   /members' are the chat's call: the party dropdown beside the chamber toggle
+   and the state dropdown beside INCLUDE CEREMONIAL keep the bar to 5 rows,
+   where C in the DOM's order took 6. Everything sits under
+   `(pointer: coarse)`: with a fine pointer
    nothing moves (HO 815's ruling, "Touch-scoped, desktop unchanged").
 
    THE FACE. `components/TouchSelect.tsx` wraps each filter select. Off a touch
@@ -9395,6 +9396,165 @@ a.rl-nm:hover,
   .mb-fbar .ctl-check { order: 1; }
   .mb-fbar .seg-toggle ~ .seg-toggle { order: 2; }
   .mb-fbar .mc-fbar-search { order: 3; flex: 1 1 100%; }
+}
+/* HO 817 — THE MASTHEAD FOLDS ON A TOUCH DEVICE, RULED D. HIDE at the masthead's
+   top right folds it into a 44px strip and asks for full screen; the strip
+   carries the page's name, the nav as a list, FULL and SHOW.
+
+   THE RULING, verbatim (MST). Corey, Nov 13, 2:43 PM: "could we add a hide
+   button for the top bar?" On mock-817 v1, 3:03 PM: "hide is in an bad
+   location." On v2, as it opened (hide D, fold and full screen, touch
+   devices, button top right), 3:36 PM: "just make it stick out a lil more, its
+   a bit hard to notice. other than that, send it". v3 draws HIDE and SHOW in
+   CT's amber and is the ruled mock, kept under docs/design.
+   Everything sits under `(pointer: coarse)`, as HO 815's and 816's blocks do:
+   with a fine pointer nothing is drawn and nothing moves, even with the fold
+   stored. The markup is components/MastheadFold.tsx; the state is
+   `html[data-masthead="folded"]`, the third row in lib/prefs.ts, set before
+   first paint by the boot script.
+
+   WHERE HIDE SITS. 8px down from the masthead's top, on its right edge: the
+   dashboard `header`'s edge, and 16px in on an inner page (8 on a phone, so a
+   360 phone keeps 8px clear of the title). The strip is 44 tall, so SHOW's face
+   sits on the same 8px line at the same right edge: one spot hides and shows.
+
+   THE TITLE HELD CLEAR, IN THREE RULES, each where a line could reach under
+   the button (72 = HIDE's 64 + 8; 36 on a phone, where HIDE is the ▴ alone):
+   the dashboard's prompt row takes a right padding at 701 and up, where its
+   first line can carry the readout and the meta items; on a phone it's the
+   title's max-width, since line one is the title alone there; an inner page
+   takes a 1px-tall float at the right of the title's first line, so only line
+   one gives way, plus a right margin on IN BETA · ODDS, which only bites when
+   that group shares line one. A full-width padding on a phone cost /changes
+   25px for nothing (its second line clears the button), which is why it's
+   three rules and not one.
+
+   FOLDED, the strip replaces the title row, the sync line, the nav and the
+   tapes. The dashboard's `header` keeps its own 0.5px rule under the strip; an
+   inner page's strip draws the rule the nav row carried. The drawer (HO 156,
+   unchanged) opens from the strip's foot: `.mobile-nav-drawer`'s `top: 100%`
+   resolves against `.mh-strip`.
+
+   A RELOAD keeps the fold, since it's stored, but a browser grants full screen
+   only on a tap: after a reload the masthead is folded, the browser's bar is
+   back, and the strip's FULL asks again. FULL is drawn only where
+   `document.fullscreenEnabled` reads true, so never on an iPhone.
+
+   MEASURED 2026-11-15 on local `next start` builds of `fa12cde` and this
+   change, under Chromium's touch emulation with reduced motion, the chat's
+   figures in brackets. Reduced motion pins the dashboard's sync time: it
+   otherwise cycles five zones, and its UTC phase wraps the meta row at 390
+   (320 against 303.5), which is the chat's 320.
+   OPEN at 390, before to after: / 303.5 to 303.5 [320 (320)]; /bills,
+   /changes, /bill/119-s-2 and /members/A000055 307 to 307; /committee/hlig00
+   357 to 357. At 851: / 236 to 236; /bills 189 to 189; /changes 221.5 to
+   221.5 [222]; /bill/119-s-2 and /members/A000055 189 to 221.5 [222];
+   /committee/hlig00 221.5 to 254 [254]. FOLDED, 45 on the dashboard and 44
+   on every inner page, at both widths. THE PAGE STARTS folded at 69 on /, 60
+   on the inner pages and 65 on /members/A000055 [69, 60, 65]; open, it starts
+   at 327.5 and 260 on /, 323 and 205 on /bills.
+   HIDE is 64.3 x 28 at 851 and 28 x 28 at 390, 8px down. SHOW lands 0 to
+   0.5px from it at 851 and 18.1 at 390 [0 to 1, 20]. The closest text line is
+   /changes' second line at 390, 0.5px clear of HIDE [1].
+   WIDER, the open masthead's growth: / +32.5 at 720, +4.5 at 1024, +0 at 1100
+   and 1366 [+33, +5, +0]; /bills +0 at 720, +28 at 1024 and 1100, +0 at 1366
+   [the same]. At 360: / +0 and /bills +1, HIDE 14 and 8px clear of the title
+   [the same]. No page scrolled sideways, open or folded.
+
+   NOT READ HERE: whether Chrome on a phone drops its own bar on HIDE, keeps it
+   gone through CT's links, or what Android's back gesture does. The touch gate
+   reads the fold, the reload and the drawer under Chromium's emulation; the
+   Fold reads the rest (backlog, HO 817). */
+.mh-hide,
+.mh-strip {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .mh-hide,
+  .mh-show,
+  .mh-face {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 10px;
+    font-family: var(--font-mono); font-size: var(--fs-12); line-height: 18px; font-weight: 500;
+    letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap;
+    color: var(--text-secondary); background-color: var(--bg-base);
+    border: 1px solid var(--border-strong); border-radius: 4px; cursor: pointer;
+  }
+  .mh-hide,
+  .mh-show {
+    font-weight: 600;
+    color: var(--accent-amber-bright);
+    border-color: var(--accent-amber);
+  }
+  .mh-hide { position: absolute; top: 8px; right: 0; z-index: 3; }
+  .mh-inner > .mh-hide { right: var(--space-lg); }
+  .mh-show,
+  .mh-face { position: relative; }
+  .mh-caret { font-style: normal; font-size: 9px; }
+  .mh-hide::after,
+  .mh-show::after,
+  .mh-face::after,
+  .mh-strip .mobile-nav-toggle::after {
+    content: ""; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px;
+  }
+
+  .mh-strip {
+    position: relative;
+    align-items: center; justify-content: space-between; gap: 12px;
+    height: 44px; min-width: 0;
+  }
+  .mh-inner .mh-strip {
+    padding: 0 var(--space-lg);
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .mh-path {
+    display: flex; align-items: baseline; min-width: 0;
+    font-family: var(--font-mono); font-size: var(--fs-14); line-height: 20px; font-weight: 500;
+    letter-spacing: 0.5px; color: var(--text-primary); white-space: nowrap;
+  }
+  .mh-path a { color: inherit; text-decoration: none; }
+  .mh-path .prompt-accent { color: var(--accent-amber); }
+  .mh-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .mh-btns { display: flex; gap: 8px; flex: none; }
+  .mh-strip .mobile-nav { display: flex; }
+  .mh-strip .mobile-nav-toggle {
+    position: relative; display: inline-flex; align-items: center;
+    height: 28px; padding: 0 9px; font-size: 15px;
+    border: 1px solid var(--border-strong); border-radius: 4px;
+    background-color: var(--bg-base);
+  }
+
+  .header-titlebar .breadcrumb-path::before {
+    content: ""; float: right; width: 72px; height: 1px;
+  }
+  .header-titlebar-auth { margin-right: 72px; }
+
+  html[data-masthead="folded"] .mh-hide { display: none; }
+  html[data-masthead="folded"] .mh-strip { display: flex; }
+  html[data-masthead="folded"] .home-header-top,
+  html[data-masthead="folded"] .home-header > .primary-nav,
+  html[data-masthead="folded"] .dv2-tapes,
+  html[data-masthead="folded"] .header-titlebar,
+  html[data-masthead="folded"] .header-sync-sub,
+  html[data-masthead="folded"] .header-nav-row {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 701px) {
+  .home-header-prompt-row { padding-right: 72px; }
+}
+
+@media (pointer: coarse) and (max-width: 700px) {
+  .mh-hide { width: 28px; padding: 0; justify-content: center; }
+  .mh-hide-word { display: none; }
+  .mh-hide .mh-caret { font-size: 15px; }
+  .home-header-prompt-row .breadcrumb-path { max-width: calc(100% - 36px); }
+  .header-titlebar .breadcrumb-path::before { width: 36px; }
+  .header-titlebar-auth { margin-right: 36px; }
+  .mh-inner > .mh-hide { right: 8px; }
+  .mh-inner .mh-strip { padding-right: 8px; }
 }
 /* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
    to the right of a 2,528px control bar and opened a 1,821px void. */

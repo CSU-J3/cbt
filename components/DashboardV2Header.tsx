@@ -1,10 +1,10 @@
 import { auth } from "@/auth";
 import { AuthButton } from "@/components/AuthButton";
-import { BreadcrumbMasthead } from "@/components/BreadcrumbMasthead";
+import { BreadcrumbMasthead, lastSegment } from "@/components/BreadcrumbMasthead";
 import { CyclingTimestamp } from "@/components/CyclingTimestamp";
 import { NAV_ITEMS, PrimaryNav } from "@/components/HeaderBar";
 import { MarketsTape } from "@/components/MarketsTape";
-import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { MastheadFold } from "@/components/MastheadFold";
 import { OddsToggle } from "@/components/OddsToggle";
 import { WelcomeClock } from "@/components/WelcomeClock";
 import { ACCOUNT_UI } from "@/lib/account-ui";
@@ -83,13 +83,16 @@ export async function DashboardV2Header({
   const stageCount = (stage: Stage) =>
     stageDist.bars.find((b) => b.stage === stage)?.count ?? 0;
   const enacted = stageCount("enacted");
+  // HO 817: the path's segments, read by the path and by the folded strip's
+  // label, so the two can't drift.
+  const segments = ["Dashboard"];
 
   return (
     <header className="home-header">
       <div className="home-header-top">
         <div className="home-header-title">
           <div className="home-header-prompt-row">
-            <BreadcrumbMasthead segments={["Dashboard"]} cursor={false} />
+            <BreadcrumbMasthead segments={segments} cursor={false} />
 
             <p className="home-stat-readout">
               <span className="stat-num stat-total">
@@ -165,7 +168,10 @@ export async function DashboardV2Header({
         </div>
       </div>
 
-      <MobileNavDrawer items={NAV_ITEMS} active="dashboard" />
+      {/* HO 817: HIDE and the folded strip, whose menu is the HO 156 drawer
+          that mounted here (components/MastheadFold.tsx). Drawn only under a
+          coarse pointer. */}
+      <MastheadFold label={lastSegment(segments)} items={NAV_ITEMS} active="dashboard" />
 
       {/* HO 690 — THE NAV MOVED ABOVE THE TAPES (ruled by Corey 2026-09-03, "3.
           yes", against docs/design/mock-690-chrome.html § 03). It had sat under

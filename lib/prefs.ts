@@ -31,7 +31,7 @@
 // No React import, no `next/*` import: this file is imported by the root layout
 // (a server component) AND by client islands, so it must be safe in both.
 
-export type PrefName = "weekSummary" | "odds";
+export type PrefName = "weekSummary" | "odds" | "masthead";
 
 export type PrefSpec = {
   /** localStorage key. Namespaced `cbt:pref:` so it is greppable and cannot
@@ -70,6 +70,18 @@ export const PREFS: Record<PrefName, PrefSpec> = {
     attr: "data-odds",
     values: ["on", "off"] as const,
     default: "on",
+  },
+  // HO 817 — the masthead's fold on a touch device, ruled D by Corey on
+  // mock-817 v2, 3:36 PM MST 2026-11-13: "just make it stick out a lil more,
+  // its a bit hard to notice. other than that, send it". HIDE writes `folded`
+  // and SHOW `open` (components/MastheadFold.tsx), and every rule keyed on
+  // `html[data-masthead="folded"]` sits under `(pointer: coarse)`, so a fine
+  // pointer with the fold stored renders the open masthead.
+  masthead: {
+    key: "cbt:pref:masthead",
+    attr: "data-masthead",
+    values: ["open", "folded"] as const,
+    default: "open",
   },
 };
 
