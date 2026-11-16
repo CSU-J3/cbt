@@ -52,7 +52,9 @@
 //       `Range` rects of its text nodes, overlaps it by more than 1px.
 //   F3. A TAP ON HIDE — `html[data-masthead="folded"]` and the stored key;
 //       the 44px `.mh-strip` shown and the header 46 or less; the path and the
-//       nav hidden; SHOW's centre within 21px of HIDE's; the strip's label is
+//       nav hidden; a hit at HIDE's centre (read before the tap) lands on SHOW
+//       (since HO 820's review; HO 817 read the centres within 21px, and the
+//       log keeps that distance as `dist=`); the strip's label is
 //       the path's last segment; no sideways scroll.
 //   F4. THE MENU — the strip's toggle opens the drawer from the strip's foot,
 //       holding the nav's links, and a second tap closes it. HO 818: every
@@ -76,7 +78,10 @@
 // Three FINE-POINTER cells at 1440 store the fold before the page loads and
 // read that the attribute is set (the row reached the boot script), that the
 // pointer is fine, and that neither HIDE nor the strip is drawn while the path
-// is.
+// is. Since HO 820 they also read that the header computes `position: relative`
+// and, after `scrollTo(0, 600)`, has moved up by exactly the page's scroll: at
+// 1440 `/` and `/bill/119-s-2` stop short of 600, so the read is the move, not a
+// depth.
 //
 // THE ZONE CELLS (HO 818), on the three `FOLD_ROUTES` at 390, 412 and 851, with
 // motion on. The masthead's sync time cycles five zones, 4 s each
@@ -91,6 +96,27 @@
 //       within 1px; and the masthead `header` is slot ET's height within 1px.
 // One log line a cell: the five tokens, the clock's five positions and the
 // five heights.
+//
+// THE PIN CELLS (HO 820), on the three `FOLD_ROUTES` at 390 and 851. Each stores
+// the fold, reloads, and reads in order. P1 is hard; the rest are soft.
+//   P1. THE PAGE, THE EMULATION AND THE FOLD, as F1, with `data-masthead` folded.
+//   P2. THE PAGE STARTS WHERE IT DID: the first visible element after the
+//       `header` sits at the base's folded reading within 1px (`PIN_START`).
+//   P3. PINNED AT DEPTH, at the bottom and at half the document: the header's
+//       top at 0, the 44px strip visible, a hit at its centre and 4px in from
+//       its left landing in the header, the header spanning the viewport on the
+//       dashboard and its parent's content box on an inner page, no sideways
+//       scroll.
+//   P4. THE MENU AT DEPTH: the strip's ☰ opens the drawer from the strip's foot
+//       with the nav's links, its bottom on the screen or the drawer scrolling,
+//       and a second tap closes it.
+//   P5. SHOW LETS GO, at the bottom: the attribute gone, the header back to
+//       `position: relative` and above the screen, in the page's flow.
+//   P6. OPEN DOESN'T PIN: the fold cleared, at `scrollY` 600 the header's top
+//       is below -500. Where P5 couldn't tap SHOW, the cell clears the fold by
+//       script and says so (`cleared=script`).
+// A control that isn't on the screen is a miss, never a skip. One log line a
+// cell: P2's start, P3's two tops and hits, P4's drawer box, P5's position.
 //
 // WHAT ITS ZERO MEANS (method.md § Gates). On the nine `TOUCH_ROUTES` at two
 // viewports, under Chromium's touch emulation, no visible text-entry control
@@ -122,6 +148,14 @@
 // ABOUT A WIDTH IT DOESN'T READ, about `WelcomeClock`'s own width (its time is
 // 10 or 11 characters across the day, read here at one), or about how a phone's
 // font draws a glyph; a phone reads the icons.
+// AND SINCE HO 820: under Chromium's touch emulation, at 390 and 851 on the
+// three fold routes, a folded masthead stays at the top through the page, its
+// menu opens from where it is, SHOW releases it, and an open masthead scrolls
+// away; a fine pointer pins nothing. It reads WHERE the header is, not HOW it's
+// held: the log carries its computed position at the bottom (`fixed` on the
+// dashboard, `sticky` on an inner page), and no cell asserts it. IT SAYS NOTHING ABOUT A REAL PHONE'S SCROLLING, its address bar
+// coming and going, or a width it doesn't read; the Fold and an iPhone read
+// those (after HO 820's FF).
 //
 // THE TWO VIEWPORTS. 390 x 844 at DPR 3 is the iPhone 12-to-14 screen in
 // Playwright's device table, and 390 is a width the narrow gate already reads.
@@ -176,10 +210,29 @@
 //   were GREEN: the clock starts its own line there, and the header held 320 on
 //   `/` and 307 on the inner pages in every slot. So the zone cells' height
 //   reading is unproven by history at these three widths.
+// HO 820'S PIN CELLS HAVE THE SAME KIND OF CONTROL. Run against prod at
+// `036241a` on 2026-11-16 (20:32Z, 1:32 PM MST), before HO 820's change:
+// - the six pin cells were RED on P3, P4 and P5 and green on P2 and P6. P3
+//   read the header far above the screen at depth (`/` at 390: top -2412 at
+//   scrollY 2424; `/changes` at 851: -12924), no hit landing in it, and on
+//   `/` the header spanning 12 to 378, not 0 to 390. P4 and P5 read the strip's
+//   ☰ and SHOW off the screen (top -2404 on `/` at 390), so neither could be
+//   tapped. P2 read 69 on `/` and 44 on `/changes` and `/bill/119-s-2` at both
+//   viewports, the starts `PIN_START` quotes;
+// - the three fine-pointer cells were green, with the header `relative` and
+//   moving with the page.
+// F3'S HIT READ (HO 820's review) has its own control, a plant, since no
+// history shows it red: on a local build with one injected rule moving SHOW
+// 60px left (`.mh-strip .mh-btns { margin-right: 60px }`), the hit at HIDE's
+// centre landed on `div.mh-strip`, not SHOW, at 390 and 851 on `/` and
+// `/changes`; as built it landed on `button.mh-show`. HO 817's 21px distance
+// it replaced was red on `/` at 390 under the pinned strip (21.7), with the hit
+// landing.
 //
 // NO SCREENSHOTS AND NO COLLECTORS, as in the narrow spec: one log line a
 // cell, and one navigation a cell but for the fold's touch cells, which reload
-// once (15 documents a run for the nine, and 9 for the nine zone cells).
+// once (15 documents a run for the nine, 9 for the nine zone cells, and 12 for
+// the six pin cells, which load and reload).
 // Untagged, so `e2e-prod` runs it on every trigger.
 import { expect, test } from "@playwright/test";
 import { FOLD_ROUTES, TEXT_ENTRY_SELECTOR, TOUCH_ROUTES } from "./routes";
@@ -227,15 +280,17 @@ const BAR_MINIMUMS: Record<string, { segments: number; checks: number; selects: 
 // HO 817 — THE FOLD (readings F1 to F6). HIDE is a 28px button 8px below its
 // masthead's top, on its right edge: the `header`'s right on the dashboard, and
 // 16px in on an inner page (8 on a phone, 700 wide or less). Folded, the strip
-// is 44px and the `header` 46 or less, and SHOW's centre lands within 21px of
-// HIDE's. `FOLD_KEY` is `lib/prefs.ts`' masthead row, written out here so a
-// renamed key reds rather than following.
+// is 44px and the `header` 46 or less, and a hit at HIDE's centre lands on SHOW
+// (since HO 820's review; HO 817 read SHOW's centre within 21px of HIDE's, a
+// stand-in for "one spot hides and shows" that the pinned dashboard strip, 12px
+// higher, broke at 390 while the hit still landed). `FOLD_KEY` is
+// `lib/prefs.ts`' masthead row, written out here so a renamed key reds rather
+// than following.
 const FOLD_KEY = "cbt:pref:masthead";
 const HIDE_TALL = 28;
 const HIDE_TOP = 8;
 const STRIP_TALL = 44;
 const FOLDED_MAX = 46;
-const SHOW_NEAR = 21;
 const PHONE_MAX = 700;
 // HO 818 — a nav icon is a text glyph: no code point a platform may draw as a
 // colour emoji. U+FE0F asks for the emoji form of the code point before it.
@@ -868,11 +923,14 @@ function foldCells(tag: string, width: number) {
         c: number;
         fsSet: boolean;
         full: boolean;
+        hitAtHide: string;
+        hitsShow: boolean;
       } | null = null;
       if (open.hide) {
         await page.touchscreen.tap(open.hide.l + open.hide.w / 2, open.hide.t + open.hide.h / 2);
         await settleTap();
-        folded = await page.evaluate((key) => {
+        const hideAt = { x: open.hide.l + open.hide.w / 2, y: open.hide.t + open.hide.h / 2 };
+        folded = await page.evaluate(({ key, hideAt }) => {
           const visible = (el: Element | null | undefined): el is HTMLElement => {
             if (!el || !(el as HTMLElement).checkVisibility({ visibilityProperty: true })) return false;
             const r = el.getBoundingClientRect();
@@ -905,8 +963,21 @@ function foldCells(tag: string, width: number) {
             c: document.documentElement.clientWidth,
             fsSet: document.fullscreenElement !== null,
             full: visible(strip?.querySelector(".mh-face")),
+            // HO 820's review: one spot hides and shows. The point HIDE's centre
+            // was at, before the tap, resolves to SHOW (or a node inside it).
+            ...(() => {
+              const hit = document.elementFromPoint(hideAt.x, hideAt.y);
+              const cls =
+                hit && typeof hit.className === "string" && hit.className.trim()
+                  ? "." + hit.className.trim().split(/\s+/)[0]
+                  : "";
+              return {
+                hitAtHide: hit ? hit.tagName.toLowerCase() + cls : "nothing",
+                hitsShow: !!hit?.closest(".mh-show"),
+              };
+            })(),
           };
-        }, FOLD_KEY);
+        }, { key: FOLD_KEY, hideAt });
         if (folded.attr !== "folded") f3.push(`html data-masthead is ${JSON.stringify(folded.attr)}`);
         if (folded.stored !== "folded") f3.push(`${FOLD_KEY} is ${JSON.stringify(folded.stored)}`);
         if (!folded.strip) f3.push("no visible .mh-strip");
@@ -916,13 +987,8 @@ function foldCells(tag: string, width: number) {
         if (folded.pathVisible) f3.push("the masthead's .breadcrumb-path is still visible");
         if (folded.navVisible) f3.push("the masthead's .primary-nav is still visible");
         if (!folded.show) f3.push("no visible .mh-show");
-        else {
-          const d = Math.hypot(
-            folded.show.l + folded.show.w / 2 - (open.hide.l + open.hide.w / 2),
-            folded.show.t + folded.show.h / 2 - (open.hide.t + open.hide.h / 2),
-          );
-          if (d > SHOW_NEAR) f3.push(`SHOW's centre ${d.toFixed(1)}px from HIDE's`);
-        }
+        else if (!folded.hitsShow)
+          f3.push(`a hit at HIDE's centre (${hideAt.x.toFixed(1)}, ${hideAt.y.toFixed(1)}) lands on ${folded.hitAtHide}, not SHOW`);
         if (folded.label !== open.lastLabel)
           f3.push(`the strip's label "${folded.label}" vs the masthead's last segment "${open.lastLabel}"`);
         if (folded.s > folded.c + TOLERANCE) f3.push(`scrolls sideways folded (${folded.s}/${folded.c})`);
@@ -1143,7 +1209,7 @@ function foldCells(tag: string, width: number) {
         `[fold ${tag} ${route.slug}] coarse=${open.coarse} inner=${open.inner} reduce=${open.reduce}` +
           ` open=${r1(open.header?.h)} folded=${r1(folded?.headerH)}` +
           ` hide=${open.hide ? `${r1(open.hide.w)}x${r1(open.hide.h)}` : `none(${open.hides})`}` +
-          ` clear=${r1(open.clear)} dist=${r1(dist)}` +
+          ` clear=${r1(open.clear)} dist=${r1(dist)} hit-at-hide=${folded ? folded.hitAtHide : "none"}` +
           ` drawer=${drawer ? `${drawer.links}/${open.navLinks}` : "none"}` +
           ` icons=${drawer ? drawer.icons.map((i) => i.icon).join("") : "none"}` +
           ` reload=${atDcl ?? "none"}` +
@@ -1257,9 +1323,26 @@ test.describe("fold, fine pointer @1440", () => {
           hide: Array.from(document.querySelectorAll(".mh-hide")).some(visible),
           strip: Array.from(document.querySelectorAll(".mh-strip")).some(visible),
           path: visible(header?.querySelector(".breadcrumb-path")),
+          pos: header ? getComputedStyle(header).position : null,
         };
       });
+      // HO 820: a fine pointer doesn't pin either. The header stays in the flow
+      // and scrolls away with the page.
+      // At 1440 `/` and `/bill/119-s-2` are shorter than 600 + the viewport, so the
+      // read is the header's move against the page's own scroll, not a fixed depth.
+      const scrolled = await page.evaluate(async () => {
+        const header = document.querySelector(".breadcrumb-path")?.closest("header") ?? null;
+        const top0 = header ? header.getBoundingClientRect().top + window.scrollY : null;
+        window.scrollTo(0, 600);
+        await new Promise((r) => setTimeout(r, 300));
+        return { y: window.scrollY, top: header ? header.getBoundingClientRect().top : null, top0 };
+      });
       const misses: string[] = [];
+      if (read.pos !== "relative") misses.push(`the header computes position ${read.pos}, not relative`);
+      if (scrolled.top === null || scrolled.top0 === null || scrolled.y <= 0)
+        misses.push(`the page didn't scroll (scrollY ${scrolled.y}) or there's no masthead header`);
+      else if (Math.abs(scrolled.top - (scrolled.top0 - scrolled.y)) > TOLERANCE)
+        misses.push(`at scrollY ${scrolled.y} the header's top is ${scrolled.top}, not ${scrolled.top0 - scrolled.y}: it didn't scroll with the page`);
       if (read.attr !== "folded") misses.push(`html data-masthead is ${JSON.stringify(read.attr)}, not "folded"`);
       if (read.coarse) misses.push("matchMedia('(pointer: coarse)') is true");
       if (read.hide) misses.push("a .mh-hide is visible");
@@ -1270,6 +1353,7 @@ test.describe("fold, fine pointer @1440", () => {
         `[fold 1440 ${route.slug}] coarse=${read.coarse} attr=${read.attr ?? "none"}` +
           ` hide=${read.hide ? "visible" : "hidden"} strip=${read.strip ? "visible" : "hidden"}` +
           ` path=${read.path ? "visible" : "hidden"}` +
+          ` pos=${read.pos ?? "none"} at600=y${scrolled.y}:top${scrolled.top === null ? "none" : Math.round(scrolled.top * 10) / 10}` +
           (misses.length ? `\n    fine: ${misses.join("\n          ")}` : ""),
       );
 
@@ -1283,12 +1367,318 @@ test.describe("fold, fine pointer @1440", () => {
       expect
         .soft(
           misses,
-          `${route.path} @1440 with a fine pointer and the fold stored: the attribute is set ` +
-            `and nothing of the fold is drawn — every rule sits under \`(pointer: coarse)\``,
+          `${route.path} @1440 with a fine pointer and the fold stored: the attribute is set, ` +
+            `nothing of the fold is drawn, and the header stays in the flow — every rule sits under \`(pointer: coarse)\``,
         )
         .toEqual([]);
     });
   }
+});
+
+// HO 820 — THE PIN CELLS (P1 to P6), on the three `FOLD_ROUTES` at 390 and 851,
+// after the fold cells. Each stores the fold the way F3's tap stores it,
+// reloads (as F5 does), and reads in order. P1 is hard; the rest are soft. A
+// control a reading needs that isn't on the screen is a miss, never a skip.
+// `PIN_START` is P2's reading of the base, quoted from claim 8 (prod at
+// `036241a`, 2026-11-16 1:31 PM MST): the first panel at 69 on `/`, `main` at 44
+// on `/changes` and `/bill/119-s-2`, at both viewports.
+const PIN_START: Record<string, Record<string, number>> = {
+  "390": { home: 69, changes: 44, "bill-detail": 44 },
+  "851": { home: 69, changes: 44, "bill-detail": 44 },
+};
+const OPEN_GONE = -500;
+
+type PinRead = {
+  url: string;
+  coarse: boolean;
+  inner: number;
+  innerH: number;
+  reduce: boolean;
+  attr: string | null;
+  y: number;
+  vw: number;
+  header: FoldBox | null;
+  pos: string | null;
+  strip: FoldBox | null;
+  toggle: FoldBox | null;
+  show: FoldBox | null;
+  hitCentre: boolean | null;
+  hitLeft: boolean | null;
+  after: number | null;
+  afterName: string;
+  content: { l: number; r: number } | null;
+  s: number;
+  c: number;
+  navLinks: number;
+};
+
+function pinCells(tag: string, width: number) {
+  for (const route of FOLD_ROUTES) {
+    test(`${route.slug} (${route.path}) pin @${tag}`, async ({ page, context }) => {
+      await context.addCookies([GATE_COOKIE]);
+      await page.goto(route.path, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      await page.evaluate((key) => {
+        try {
+          localStorage.setItem(key, "folded");
+        } catch {
+          /* P1 reads the attribute missing */
+        }
+      }, FOLD_KEY);
+      const response = await page.reload({ waitUntil: "domcontentloaded", timeout: 45_000 });
+      await page.waitForLoadState("load").catch(() => {});
+      await page.waitForTimeout(2_500);
+      const settle = () => page.waitForTimeout(400);
+      const toolbar = await page.evaluate(() => {
+        let n = 0;
+        for (const el of Array.from(document.querySelectorAll("*"))) {
+          if (el.tagName.startsWith("VERCEL-")) {
+            (el as HTMLElement).style.setProperty("display", "none", "important");
+            n++;
+          }
+        }
+        return n;
+      });
+
+      const read = (): Promise<PinRead> =>
+        page.evaluate(() => {
+          const visible = (el: Element | null | undefined): el is HTMLElement => {
+            if (!el || !(el as HTMLElement).checkVisibility({ visibilityProperty: true })) return false;
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0;
+          };
+          const box = (el: Element | null | undefined) => {
+            if (!visible(el)) return null;
+            const r = el.getBoundingClientRect();
+            return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+          };
+          const header = document.querySelector(".breadcrumb-path")?.closest("header") ?? null;
+          const strip = header?.querySelector(".mh-strip") ?? null;
+          // The first visible element after the header: on the dashboard the
+          // first panel in `.dash-left`, on an inner page what follows the header.
+          let after: Element | null = header?.nextElementSibling ?? null;
+          while (after && !visible(after)) after = after.nextElementSibling;
+          const parent = header?.parentElement ?? null;
+          let content: { l: number; r: number } | null = null;
+          if (parent) {
+            const r = parent.getBoundingClientRect();
+            const cs = getComputedStyle(parent);
+            content = {
+              l: r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft),
+              r: r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight),
+            };
+          }
+          const sb = visible(strip) ? strip.getBoundingClientRect() : null;
+          const hit = (x: number, y: number) => {
+            const el = document.elementFromPoint(x, y);
+            return !!(el && header && header.contains(el));
+          };
+          const name = (el: Element | null) =>
+            el ? el.tagName.toLowerCase() + (typeof el.className === "string" && el.className.trim() ? "." + el.className.trim().split(/\s+/)[0] : "") : "nothing";
+          return {
+            url: location.pathname + location.search,
+            coarse: matchMedia("(pointer: coarse)").matches,
+            inner: window.innerWidth,
+            innerH: window.innerHeight,
+            reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
+            attr: document.documentElement.getAttribute("data-masthead"),
+            y: window.scrollY,
+            vw: document.documentElement.clientWidth,
+            header: header ? (({ left, top, right, bottom, width, height }) => ({ l: left, t: top, r: right, b: bottom, w: width, h: height }))(header.getBoundingClientRect()) : null,
+            pos: header ? getComputedStyle(header).position : null,
+            strip: box(strip),
+            toggle: box(strip?.querySelector(".mobile-nav-toggle")),
+            show: box(strip?.querySelector(".mh-show")),
+            hitCentre: sb ? hit(sb.left + sb.width / 2, sb.top + sb.height / 2) : null,
+            hitLeft: sb ? hit(sb.left + 4, sb.top + sb.height / 2) : null,
+            after: after ? after.getBoundingClientRect().top : null,
+            afterName: name(after),
+            content,
+            s: document.documentElement.scrollWidth,
+            c: document.documentElement.clientWidth,
+            navLinks: header ? header.querySelectorAll(".primary-nav a").length : 0,
+          };
+        });
+      const scrollTo = async (y: "bottom" | "half" | number) => {
+        await page.evaluate((y) => {
+          const h = document.documentElement.scrollHeight;
+          window.scrollTo(0, y === "bottom" ? h : y === "half" ? Math.round(h / 2) : y);
+        }, y);
+        await page.waitForTimeout(300);
+      };
+      const onScreen = (b: FoldBox | null, innerH: number) => !!b && b.t >= 0 && b.b <= innerH;
+      const r1 = (n: number | null | undefined) => (n === null || n === undefined ? "none" : `${Math.round(n * 10) / 10}`);
+
+      const p2: string[] = [];
+      const p3: string[] = [];
+      const p4: string[] = [];
+      const p5: string[] = [];
+      const p6: string[] = [];
+
+      // P1 and P2, at the top after the reload.
+      const top = await read();
+      const base = PIN_START[tag]?.[route.slug];
+      if (top.after === null) p2.push("no visible element after the header");
+      else if (base === undefined || Number.isNaN(base))
+        p2.push(`no base start quoted for ${route.slug} @${tag}; this build reads ${r1(top.after)}`);
+      else if (Math.abs(top.after - base) > TOLERANCE)
+        p2.push(`the page starts at ${r1(top.after)} (${top.afterName}), the base at ${base}`);
+
+      // P3, pinned at depth: at the bottom, then at half the document.
+      const pinned = (at: string, r: PinRead) => {
+        const out: string[] = [];
+        if (!r.header) return [`${at}: no masthead header`];
+        if (Math.abs(r.header.t) > TOLERANCE) out.push(`${at}: the header's top is ${r1(r.header.t)} at scrollY ${r1(r.y)}`);
+        if (!r.strip) out.push(`${at}: no visible .mh-strip`);
+        else if (Math.abs(r.strip.h - STRIP_TALL) > TOLERANCE) out.push(`${at}: the strip is ${r1(r.strip.h)}px tall`);
+        if (r.hitCentre !== true || r.hitLeft !== true)
+          out.push(`${at}: a hit at the strip's centre ${r.hitCentre ? "lands" : "misses"}, 4px in from its left ${r.hitLeft ? "lands" : "misses"}`);
+        const span =
+          route.slug === "home" ? { l: 0, r: r.vw } : r.content ?? { l: NaN, r: NaN };
+        if (Math.abs(r.header.l - span.l) > TOLERANCE || Math.abs(r.header.r - span.r) > TOLERANCE)
+          out.push(`${at}: the header spans ${r1(r.header.l)} to ${r1(r.header.r)}, not ${r1(span.l)} to ${r1(span.r)}`);
+        if (r.s > r.c + TOLERANCE) out.push(`${at}: scrolls sideways (${r.s}/${r.c})`);
+        return out;
+      };
+      await scrollTo("bottom");
+      const bottom = await read();
+      p3.push(...pinned("bottom", bottom));
+      await scrollTo("half");
+      const half = await read();
+      p3.push(...pinned("half", half));
+
+      // P4, the menu, back at the bottom.
+      await scrollTo("bottom");
+      const atBottom = await read();
+      let drawer: { t: number; b: number; l: number; w: number; h: number; links: number; stripFoot: number; sh: number; ch: number; oy: string; innerH: number } | null = null;
+      let drawerClosed: boolean | null = null;
+      if (!onScreen(atBottom.toggle, atBottom.innerH))
+        p4.push(`the strip's toggle isn't on the screen at the bottom (${atBottom.toggle ? `top ${r1(atBottom.toggle.t)}` : "not visible"}), so it can't be tapped`);
+      else {
+        const t = atBottom.toggle as FoldBox;
+        await page.touchscreen.tap(t.l + t.w / 2, t.t + t.h / 2);
+        await settle();
+        drawer = await page.evaluate(() => {
+          const d = document.querySelector(".mh-strip .mobile-nav-drawer");
+          const strip = document.querySelector(".breadcrumb-path")?.closest("header")?.querySelector(".mh-strip");
+          if (!d || !strip || !(d as HTMLElement).checkVisibility()) return null;
+          const r = d.getBoundingClientRect();
+          return {
+            t: r.top, b: r.bottom, l: r.left, w: r.width, h: r.height,
+            links: d.querySelectorAll("a").length,
+            stripFoot: strip.getBoundingClientRect().bottom,
+            sh: d.scrollHeight, ch: d.clientHeight, oy: getComputedStyle(d).overflowY,
+            innerH: window.innerHeight,
+          };
+        });
+        if (!drawer) p4.push("a tap on the strip's toggle at the bottom showed no .mobile-nav-drawer");
+        else {
+          if (Math.abs(drawer.t - drawer.stripFoot) > TOLERANCE)
+            p4.push(`the drawer's top ${r1(drawer.t - drawer.stripFoot)}px from the strip's foot`);
+          if (drawer.links !== atBottom.navLinks)
+            p4.push(`the drawer holds ${drawer.links} links, the masthead's nav ${atBottom.navLinks}`);
+          if (drawer.b > drawer.innerH + TOLERANCE && !(drawer.sh > drawer.ch && drawer.oy === "auto"))
+            p4.push(`the drawer's bottom ${r1(drawer.b)} is past the screen's ${drawer.innerH} and it doesn't scroll`);
+        }
+        await page.touchscreen.tap(t.l + t.w / 2, t.t + t.h / 2);
+        await settle();
+        drawerClosed = await page.evaluate(() => {
+          const d = document.querySelector(".mh-strip .mobile-nav-drawer");
+          return !d || !(d as HTMLElement).checkVisibility();
+        });
+        if (!drawerClosed) p4.push("a second tap left the drawer open");
+      }
+
+      // P5, SHOW lets go, at the bottom.
+      const preShow = await read();
+      let released: { attr: string | null; pos: string | null; top: number | null } | null = null;
+      if (!onScreen(preShow.show, preShow.innerH))
+        p5.push(`SHOW isn't on the screen at the bottom (${preShow.show ? `top ${r1(preShow.show.t)}` : "not visible"}), so it can't be tapped`);
+      else {
+        const s = preShow.show as FoldBox;
+        await page.touchscreen.tap(s.l + s.w / 2, s.t + s.h / 2);
+        await settle();
+        const r = await read();
+        released = { attr: r.attr, pos: r.pos, top: r.header?.t ?? null };
+        if (r.attr !== null) p5.push(`html data-masthead is still ${JSON.stringify(r.attr)}`);
+        if (r.pos !== "relative") p5.push(`the header computes position ${r.pos}, not relative`);
+        if (r.header === null || r.header.t >= 0) p5.push(`the header's top is ${r1(r.header?.t)}, not above the screen`);
+      }
+
+      // P6, open doesn't pin. If P5 couldn't tap SHOW, the fold is cleared here.
+      let cleared = "show";
+      if (!released || released.attr !== null) {
+        cleared = "script";
+        await page.evaluate((key) => {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            /* the attribute below is what the rules read */
+          }
+          document.documentElement.removeAttribute("data-masthead");
+        }, FOLD_KEY);
+      }
+      await scrollTo(600);
+      const open = await read();
+      if (open.header === null || open.header.t >= OPEN_GONE)
+        p6.push(`at scrollY ${r1(open.y)} the open header's top is ${r1(open.header?.t)}, not below ${OPEN_GONE}`);
+
+      const fails = ([["P2", p2], ["P3", p3], ["P4", p4], ["P5", p5], ["P6", p6]] as const).filter(([, m]) => m.length);
+      // eslint-disable-next-line no-console
+      console.log(
+        `[pin ${tag} ${route.slug}] coarse=${top.coarse} inner=${top.inner} attr=${top.attr ?? "none"} reduce=${top.reduce}` +
+          ` start=${r1(top.after)}(${top.afterName}) base=${Number.isNaN(base ?? NaN) ? "none" : base}` +
+          ` bottom=y${r1(bottom.y)}:top${r1(bottom.header?.t)}/${bottom.pos}/hit${bottom.hitCentre ? 1 : 0}${bottom.hitLeft ? 1 : 0}` +
+          ` half=y${r1(half.y)}:top${r1(half.header?.t)}/hit${half.hitCentre ? 1 : 0}${half.hitLeft ? 1 : 0}` +
+          ` drawer=${drawer ? `${r1(drawer.l)},${r1(drawer.t)} ${r1(drawer.w)}x${r1(drawer.h)} links${drawer.links}/${atBottom.navLinks}` : "none"}` +
+          ` closed=${drawerClosed ?? "none"}` +
+          ` show=${released ? `${released.attr ?? "unfolded"}/${released.pos}/top${r1(released.top)}` : "none"}` +
+          ` cleared=${cleared} open600=top${r1(open.header?.t)}` +
+          (toolbar ? ` vercel-toolbar-hidden=${toolbar}` : "") +
+          fails.map(([k, m]) => `\n    ${k}: ${m.join("\n        ")}`).join(""),
+      );
+
+      // P1, hard.
+      const status = response?.status() ?? 0;
+      expect(status, `${route.path} answered ${status}, not 2xx`).toBeGreaterThanOrEqual(200);
+      expect(status, `${route.path} answered ${status}, not 2xx`).toBeLessThan(300);
+      expect(top.url.split("?")[0], `${route.path} landed on ${top.url}`).toBe(route.path.split("?")[0]);
+      expect(top.coarse, `${route.path} @${tag}: matchMedia('(pointer: coarse)') is false`).toBe(true);
+      expect(top.inner, `${route.path} @${tag}: innerWidth is ${top.inner}, not ${width}`).toBe(width);
+      expect(top.reduce, `${route.path} @${tag}: prefers-reduced-motion isn't reduce inside the page`).toBe(true);
+      expect(top.attr, `${route.path} @${tag}: html data-masthead after the reload`).toBe("folded");
+
+      // P2 to P6, soft.
+      expect.soft(p2, `${route.path} @${tag}: folded, the page starts where it did`).toEqual([]);
+      expect.soft(p3, `${route.path} @${tag}: folded, the strip stays at the top through the page`).toEqual([]);
+      expect.soft(p4, `${route.path} @${tag}: at the bottom, the menu opens from the strip's foot and closes`).toEqual([]);
+      expect.soft(p5, `${route.path} @${tag}: at the bottom, SHOW lets the masthead go back into the page`).toEqual([]);
+      expect.soft(p6, `${route.path} @${tag}: an open masthead scrolls away`).toEqual([]);
+    });
+  }
+}
+
+test.describe("pin @390", () => {
+  test.use({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 3,
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "reduce" },
+    storageState: { cookies: [], origins: [] },
+  });
+  pinCells("390", 390);
+});
+
+test.describe("pin @851", () => {
+  test.use({
+    viewport: { width: 851, height: 728 },
+    deviceScaleFactor: 2.4375,
+    hasTouch: true,
+    isMobile: true,
+    contextOptions: { reducedMotion: "reduce" },
+    storageState: { cookies: [], origins: [] },
+  });
+  pinCells("851", 851);
 });
 
 // HO 818 — THE ZONE CELLS (Z1 and Z2). The sync time cycles five zones, 4 s each,
