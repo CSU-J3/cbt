@@ -154,6 +154,13 @@ export const metadata: Metadata = {
   title: "Congressional Terminal",
   description:
     "Personal feed of recent US Congress bills with plain-English summaries.",
+  // HO 819 — the iPhone's half of CT's icon (the rest is app/manifest.ts and
+  // scripts/render-icons.ts). `title` is the label under the icon on the Home
+  // Screen, ruled `CT` (Corey, 11:24 AM MST 2026-11-16); `black` gives a web
+  // app's status bar CT's dark instead of white. No `capable`: since iOS 26
+  // Safari opens a Home Screen site as a web app by default, and the manifest's
+  // `display` covers the versions before it.
+  appleWebApp: { title: "CT", statusBarStyle: "black" },
 };
 
 // HO 815 — `themeColor` is the colour a phone's browser paints its own bar,

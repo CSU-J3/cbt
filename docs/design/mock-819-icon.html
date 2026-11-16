@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CT Icon Mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* mock-819 v1 · CT's icon (Corey, 11:08 AM MST Nov 16: "lets work on icons and that will be the stop for mobile till after
+   the gradshow"). Closes the HO 815 backlog line "CT has no icon: no favicon, no touch icon, no manifest".
+   Plan. Colour: CT's own tokens and nothing new (base #0a0e14, row #0f1620, line #1f2937, ink #e5e7eb / #cbd5e1 / #94a3b8 /
+   #6b7280, amber #fbbf24 and #d97706). Type: IBM Plex Mono 600 for every lettered mark, as the masthead is. Each icon is
+   drawn on a canvas by one function, so the 16px tab icon, the phone icons and the 512 sheet are the same drawing at
+   different sizes, and the pixel views are real pixels. Phones and wallpaper are neutral sketches. Single theme: CT is dark.
+   v2 (Corey, 11:24 AM MST Nov 16, on v1: "C (:\), amber ground, labelled CT, opens standalone"): the ruling, recorded; the
+   mock opens on it. Nothing drawn changed. */
+:root{
+  color-scheme:dark;
+  --base:#0a0e14; --row:#0f1620; --panel:#050709; --line:#1f2937; --soft:#111820;
+  --ink:#e5e7eb; --ink-2:#cbd5e1; --ink-3:#94a3b8; --ink-4:#6b7280;
+  --amber:#fbbf24; --amber-deep:#d97706;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:#06080c;color:var(--ink);font-family:var(--mono);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+
+/* ───────── mock chrome (not product) ───────── */
+.mock{position:sticky;top:0;z-index:40;background:#0b0f15;border-bottom:1px dashed #2b3646;font-size:12px;padding:8px 16px 9px}
+.mock-top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.mock-title{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--ink-3)}
+.mock-top button{background:transparent;border:0;color:var(--ink-4);font-size:10px;cursor:pointer;padding:0;text-decoration:underline}
+.groups{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:7px}
+.grp{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.grp .k{font-size:10px;letter-spacing:.5px;color:var(--ink-4);margin-right:1px;text-transform:uppercase}
+.grp button{background:transparent;border:1px solid var(--line);border-radius:2px;padding:6px 9px;font-size:11px;color:var(--ink-3);cursor:pointer;white-space:nowrap}
+.grp button:hover{color:var(--ink-2)}
+.grp button:focus-visible{outline:1px solid var(--amber);outline-offset:1px}
+.grp button.on{color:var(--ink);border-color:var(--amber-deep);background:var(--row)}
+.note{font-size:11.5px;color:var(--ink-3);margin-top:8px;max-width:1100px}
+.note b{color:var(--ink-2);font-weight:500}
+.note p{margin:0 0 4px}
+.ruling{font-size:11px;color:var(--ink-4);margin-top:6px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ruling b{color:var(--amber);font-weight:500}
+.ruling button{border:1px solid var(--line);background:transparent;color:var(--ink-3);font-size:10px;padding:3px 8px;border-radius:2px;cursor:pointer}
+.prov{margin-top:6px;font-size:11px;color:var(--ink-4);max-width:1100px}
+.prov summary{cursor:pointer}
+.prov p{margin:6px 0 0;color:var(--ink-3)}
+.prov b{color:var(--ink-2);font-weight:500}
+.prov code{color:var(--ink-2)}
+.mock.folded .groups,.mock.folded .note,.mock.folded .prov{display:none}
+@media (max-width:900px){ .mock{position:static} }
+
+/* ───────── stage ───────── */
+.stage{display:flex;flex-wrap:wrap;gap:28px 36px;padding:22px 16px 60px;align-items:flex-start}
+.panel{flex:0 0 auto}
+.frame-h{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--ink-4);margin:0 0 8px}
+.frame-h b{color:var(--ink-2);font-weight:500}
+.read{font-size:11px;color:var(--ink-3);margin:8px 0 0;max-width:560px}
+.read b{color:var(--ink);font-weight:500}
+
+/* home screens (sketch) */
+.homes{display:flex;gap:18px;flex-wrap:wrap}
+.hs{width:300px;height:250px;border:1px solid #232c3a;border-radius:18px;overflow:hidden;position:relative;padding:22px 14px 0}
+.hs.android{background:radial-gradient(120% 90% at 20% 0%,#2a3346 0%,#151a24 55%,#0d1017 100%)}
+.hs.ios{background:radial-gradient(120% 90% at 80% 0%,#2b2f3d 0%,#171a22 55%,#0e1015 100%)}
+.hs .os{position:absolute;top:8px;left:16px;right:16px;display:flex;justify-content:space-between;font:500 10px/1 var(--sans);color:#d9dbe3;opacity:.8}
+.hs .grid{display:grid;grid-template-columns:repeat(4,1fr);row-gap:18px;margin-top:16px}
+.app{display:flex;flex-direction:column;align-items:center;gap:6px}
+.app .lab{font:400 11px/1.2 var(--sans);color:#eef0f5;max-width:66px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.ico{width:52px;height:52px;position:relative;overflow:hidden;flex:none}
+.android .ico{border-radius:50%}
+.ios .ico{border-radius:23%}
+.ico canvas{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.ph{display:flex;align-items:center;justify-content:center;background:#3a4252}
+.ph i{display:block;background:#8f97a8}
+.ph.p1 i{width:18px;height:18px;border-radius:4px}
+.ph.p2 i{width:0;height:0;background:none;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:17px solid #8f97a8}
+.ph.p3 i{width:18px;height:18px;border-radius:50%}
+.ph.p4 i{width:22px;height:6px;border-radius:3px}
+.dock{position:absolute;left:12px;right:12px;bottom:12px;height:66px;border-radius:20px;background:rgba(255,255,255,.07);display:flex;align-items:center;justify-content:space-around}
+.android .dock{background:none}
+
+/* tab strip (sketch) */
+.tabs{width:560px;background:#1b1f27;border:1px solid #232c3a;border-radius:10px 10px 0 0;padding:8px 8px 0;display:flex;gap:4px}
+.tab{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:8px 8px 0 0;font:400 12px/1 var(--sans);color:#aeb6c4;width:220px}
+.tab.on{background:#2a2f39;color:#eef0f5}
+.tab .x{margin-left:auto;opacity:.6}
+.tab .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fav{width:16px;height:16px;flex:none}
+.fav.globe{border:1.5px solid #8f97a8;border-radius:50%}
+.urlbar{width:560px;height:36px;background:#2a2f39;border:1px solid #232c3a;border-top:0;display:flex;align-items:center;padding:0 12px;font:400 12px/1 var(--sans);color:#aeb6c4}
+.urlbar span{background:#1b1f27;border-radius:14px;padding:6px 12px;flex:1}
+.pix{display:flex;gap:22px;margin-top:14px;align-items:flex-end;flex-wrap:wrap}
+.pix figure{margin:0;display:flex;flex-direction:column;gap:6px;align-items:center}
+.pix canvas{image-rendering:pixelated;image-rendering:crisp-edges;border:1px solid #232c3a}
+.pix figcaption{font-size:10px;color:var(--ink-4);letter-spacing:.4px}
+
+/* launch frames (the Fold, open, at half size) */
+.launch{display:flex;gap:18px;flex-wrap:wrap}
+.fold{width:426px;height:442px;border:1px solid #232c3a;background:var(--base);display:flex;flex-direction:column;overflow:hidden}
+.fold .sys{flex:none;height:30px;background:#1d1b1f;display:flex;align-items:center;justify-content:space-between;padding:0 17px;font:500 9px/1 var(--sans);color:#f2f0f8}
+.fold.app-win .sys{background:var(--base)}
+.fold .cbar{flex:none;height:35px;background:#1d1b1f;border-bottom:1px solid #3f3e42;display:flex;align-items:center;gap:11px;padding:0 11px;font:400 10px/1 var(--sans);color:#f2f0f8}
+.fold .cbar .pill{flex:1;height:24px;border-radius:12px;background:#312f33;display:flex;align-items:center;padding:0 11px;font-size:8px;white-space:nowrap;overflow:hidden}
+.fold .vp{flex:1;min-height:0;position:relative;overflow:hidden}
+.fold .gest{flex:none;height:16px;display:flex;align-items:center;justify-content:center;background:#1d1b1f}
+.fold.app-win .gest{background:var(--base)}
+.fold .gest i{width:100px;height:2px;border-radius:1px;background:#e8e6ee}
+.splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--base)}
+.splash .ico{width:88px;height:88px;border-radius:50%}
+.splash .nm{font:500 12px/1.2 var(--sans);color:var(--ink-2)}
+.sk{padding:9px 8px 0;font-family:var(--mono)}
+.sk .t1{font:500 13px/1.2 var(--mono);color:var(--ink);letter-spacing:.3px}
+.sk .ac{color:var(--amber-deep)}
+.sk .t2{font-size:7.5px;color:var(--ink-3);margin-top:4px;letter-spacing:.3px}
+.sk .t2 .bl{color:#60a5fa}.sk .t2 .gr{color:#4ade80}.sk .t2 .am{color:var(--amber)}
+.sk .t3{font-size:6.5px;color:var(--ink-4);margin-top:3px;letter-spacing:.5px;text-transform:uppercase}
+.sk .nv{display:flex;gap:10px;font-size:6.5px;color:var(--ink-3);border-bottom:1px solid var(--line);padding:6px 0 4px;margin-top:6px;letter-spacing:.4px;text-transform:uppercase;flex-wrap:wrap}
+.sk .nv .on{color:var(--amber);border-bottom:1px solid var(--amber)}
+.sk .tp{height:18px;border:1px solid var(--line);margin-top:5px;border-left:2px solid var(--amber-deep)}
+.sk .dim{opacity:.35}
+.sk .blk{height:46px;border:1px solid var(--line);background:var(--row);margin-top:7px}
+.sk .blk.s{height:28px}
+.cap{font-size:10px;color:var(--ink-4);margin:6px 0 0;letter-spacing:.3px}
+
+/* side-by-side sheet */
+.sheet{display:grid;grid-template-columns:auto repeat(4,auto);gap:12px 22px;align-items:end}
+.sheet .rh{font-size:10px;color:var(--ink-4);letter-spacing:.5px;text-transform:uppercase;align-self:center}
+.sheet .ch{font-size:10px;color:var(--ink-3);letter-spacing:.5px;text-align:center}
+.sheet .ch.on{color:var(--amber)}
+.sheet .cell{display:flex;gap:10px;align-items:flex-end;justify-content:center}
+.sheet canvas{border:1px solid #232c3a}
+</style>
+</head>
+<body>
+
+<div class="mock" id="mock">
+  <div class="mock-top">
+    <span class="mock-title">mock-819 v2 · CT's icon, ruled 11:24 AM: C (:\), amber ground, labelled CT, opens standalone · against main at 87b0b75, prod read 11:15 AM MST Nov 16, 2026</span>
+    <button id="foldBtn" type="button">hide controls</button>
+  </div>
+  <div class="groups" id="groups"></div>
+  <div class="note" id="note"></div>
+  <div class="ruling">Reply with the line as set: <b id="ruling"></b> <button id="copyBtn" type="button">copy</button></div>
+  <details class="prov">
+    <summary>what's real in this mock</summary>
+    <p><b>Today CT has no icon at all.</b> On prod at <code>87b0b75</code>, 11:15 AM MST Nov 16: <code>/favicon.ico</code>, <code>/icon</code>, <code>/apple-icon</code>, <code>/apple-touch-icon.png</code>, <code>/manifest.webmanifest</code> and <code>/manifest.json</code> all answer 404, and <code>/</code> links no icon and no manifest; its only such tag is HO 815's <code>theme-color</code>. So a tab shows the browser's blank globe and a saved shortcut shows a letter tile. That's the backlog line this mock closes.</p>
+    <p><b>The marks are drawn, not described.</b> One canvas function draws every icon from the mark, the ground and the size, in IBM Plex Mono 600 (the masthead's face) and CT's own colours. The 16 and 32px views under the tab strip are those pixels, blown up. At 32px and under each mark is cut about a fifth larger, as tab icons usually are, and the dome's lines are thicker; the phones and the sheet's 128 and 48 keep the full margin. The handoff would render the ruled mark the same way to PNG files with the self-hosted font, so no device needs the font.</p>
+    <p><b>The phones are sketches.</b> The wallpapers, the three grey apps and their names are invented. Android cuts each icon to its launcher's shape and only promises to keep the middle 80% (the maskable icon's safe zone); the Pixel's default is a circle, drawn here. An iPhone keeps the whole square and rounds its corners.</p>
+    <p><b>The Fold frames are half size</b> of your open screen (851 &times; 883). The status bar, Chrome's bar and the gesture strip are the 60, 70 and 32px read off your Nov 13 screenshot for mock-817. The page under them is a dim sketch of the dashboard's masthead; the splash layout is a sketch of Chrome's.</p>
+    <p><b>What makes it installable.</b> Chrome offers <i>Install app</i> once the manifest has a name, a 192px and a 512px icon, a start URL and a display of <code>standalone</code>, <code>fullscreen</code> or <code>minimal-ui</code> (web.dev, <i>install criteria</i>). No service worker is on that list. With <i>browser</i>, Chrome's menu still adds a shortcut, which opens a tab.</p>
+    <p><b>iPhones decide for themselves now.</b> Since iOS 26, a site added to the Home Screen opens as a web app by default, and the person adding it can turn <i>Open as Web App</i> off. So on an iPhone the display setting matters less than the icon and the name.</p>
+    <p><b>The ruling, verbatim.</b> 11:24 AM MST Nov 16, on v1: <i>"C (:\), amber ground, labelled CT, opens standalone"</i>. Read as: the mark is the masthead's <code>:\</code> in IBM Plex Mono 600, drawn in CT's base <code>#0a0e14</code> on a full square of <code>#d97706</code>, centred, at this mock's sizes, and cut about a fifth larger at 32px and under; the label under the icon (the manifest's <code>short_name</code>) is <i>CT</i>, and the full name stays <i>Congressional Terminal</i>; the app opens <code>standalone</code>, with <code>#0a0e14</code> for its theme and splash colour. v2 records it and opens on it; nothing drawn changed.</p>
+    <p><b>What a ruling ships</b> (the handoff, after GradShow or before it if you say so): <code>app/icon.png</code> and <code>favicon.ico</code>, a 180px <code>apple-icon.png</code>, and <code>app/manifest.ts</code> with the 192 and 512px icons, a maskable 512, the name <i>Congressional Terminal</i>, the label you pick, <code>start_url: "/"</code>, the display you pick, and <code>#0a0e14</code> for its two colours. A test reads each file on prod.</p>
+  </details>
+</div>
+
+<div class="stage" id="stage">
+  <section class="panel" data-view="home">
+    <p class="frame-h"><b>Home screens</b> · Android, the Pixel launcher's circle · iPhone, the whole square</p>
+    <div class="homes">
+      <div class="hs android"><div class="os"><span>11:15</span><span>&#9650;&#9650; &#9646;</span></div><div class="grid" id="g-android"></div></div>
+      <div class="hs ios"><div class="os"><span>11:15</span><span>&#9650; &#9646;</span></div><div class="grid" id="g-ios"></div><div class="dock" id="d-ios"></div></div>
+    </div>
+    <p class="read" id="r-home"></p>
+  </section>
+
+  <section class="panel" data-view="tab">
+    <p class="frame-h"><b>A browser tab</b> · today, and with the mark · then its 16 and 32px pixels</p>
+    <div class="tabs">
+      <div class="tab"><span class="fav globe"></span><span class="t">Congressional Terminal</span><span class="x">&#215;</span></div>
+      <div class="tab on"><canvas class="fav" id="fav-tab"></canvas><span class="t">Congressional Terminal</span><span class="x">&#215;</span></div>
+    </div>
+    <div class="urlbar"><span>congressional-terminal-chi-silk.vercel.app</span></div>
+    <p class="cap">left: today's tab, no icon · right: the same tab with the mark</p>
+    <div class="pix">
+      <figure><canvas id="px16" width="16" height="16" style="width:112px;height:112px"></canvas><figcaption>16px · &#215;7</figcaption></figure>
+      <figure><canvas id="px32" width="32" height="32" style="width:112px;height:112px"></canvas><figcaption>32px · &#215;3.5</figcaption></figure>
+      <figure><canvas id="px180" class="hi"></canvas><figcaption>180px · iPhone file</figcaption></figure>
+    </div>
+    <p class="read" id="r-tab"></p>
+  </section>
+
+  <section class="panel" data-view="launch">
+    <p class="frame-h"><b>Opening it from the Fold's home screen</b> · half size · <span id="disp-h"></span></p>
+    <div class="launch">
+      <div><div class="fold" id="f1"></div><p class="cap" id="c1"></p></div>
+      <div><div class="fold" id="f2"></div><p class="cap" id="c2"></p></div>
+    </div>
+    <p class="read" id="r-launch"></p>
+  </section>
+
+  <section class="panel" data-view="sheet">
+    <p class="frame-h"><b>The four marks side by side</b> · on the ground you set · 128, 48, 32 and 16px</p>
+    <div class="sheet" id="sheet"></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var MARKS = {
+    b:{label:'B · CT_', line:'B (CT_)',
+       note:'<b>B is CT with the masthead\'s cursor,</b> the amber bar that blinks after the path on every page. Two letters hold up in a 16px tab, and the cursor is the one shape that is CT\'s own. <b>The chat\'s pick.</b>'},
+    a:{label:'A · CT:\\', line:'A (CT:\\)',
+       note:'<b>A is the folded strip\'s own prefix,</b> <code>CT:\\</code>, the way the strip names every page. It\'s the most CT of the four on a phone, and the weakest in a tab: four characters in 16px come out a smudge (see the pixels).'},
+    c:{label:'C · :\\', line:'C (:\\)',
+       note:'<b>C is only the amber <code>:\\</code></b> from <code>Congressional Terminal:\\</code>. It\'s the most distinct shape in a row of tabs, and it reads as a skeptical face, which suits a site that asks what\'s going on in Congress. On its own it doesn\'t say whose it is. <b>Ruled 11:24 AM.</b>'},
+    d:{label:'D · dome', line:'D (the dome)',
+       note:'<b>D is a Capitol dome in amber line,</b> the one mark that says Congress without a word. Thin lines thin out small: in a 16px tab it\'s a smudge with a point on top, so the tab file would want a heavier cut.'}
+  };
+  var GROUNDS = {
+    dark:{label:'dark', line:'dark ground',
+       note:' <b>Dark</b> is CT\'s base, <code>#0a0e14</code>, with the masthead\'s ink and amber, so the icon looks like the page it opens. On a dark wallpaper it can sink into it.'},
+    amber:{label:'amber', line:'amber ground',
+       note:' <b>Amber</b> fills it with CT\'s <code>#d97706</code> and draws the mark in the base colour. It\'s the loudest thing on a home screen, and nothing in CT is filled amber today.'}
+  };
+  var LABELS = {
+    ct:{label:'CT', line:'labelled CT', text:'CT',
+       note:' Under the icon it says <b>CT</b>, what the strip calls the site. The full name, <i>Congressional Terminal</i>, is on the splash and in the install sheet.'},
+    congress:{label:'Congress', line:'labelled Congress', text:'Congress',
+       note:' Under the icon it says <b>Congress</b>, the plainest word for what it is. The full name is on the splash and in the install sheet.'},
+    terminal:{label:'Terminal', line:'labelled Terminal', text:'Terminal',
+       note:' Under the icon it says <b>Terminal</b>. On a phone that already has a terminal app, two icons would share the word.'}
+  };
+  var DISPLAYS = {
+    standalone:{label:'standalone', line:'opens standalone',
+       note:'<b>Standalone opens CT in its own window:</b> no address bar, the status bar stays and takes CT\'s <code>#0a0e14</code>, and a splash shows the icon while the first page loads. The page starts 60px down the Fold\'s screen, against 130 in Chrome. HIDE\'s full screen still works inside it. <b>The chat\'s pick:</b> the Fold gets CT\'s whole width under its own clock and battery.'},
+    fullscreen:{label:'fullscreen', line:'opens fullscreen',
+       note:'<b>Fullscreen opens CT with no status bar either,</b> the way FULL leaves it, from the first frame. A drag down from the top shows the bars for a moment. FULL and EXIT FULL would have nothing to do there, so the handoff would hide them in that mode.'},
+    browser:{label:'browser', line:'opens in the browser',
+       note:'<b>Browser keeps today\'s behaviour on Android:</b> the home-screen icon opens a Chrome tab, Chrome\'s bar and all, 130px before the page starts, with no splash and no <i>Install app</i>. The icon and the label still change. An iPhone opens it as a web app anyway unless you switch that off when adding it.'}
+  };
+  var VIEWS = {all:'everything', home:'home screens', tab:'tab', launch:'opening it', sheet:'side by side'};
+  var state = {m:'c', g:'amber', l:'ct', d:'standalone', v:'all'};
+
+  var FONT = '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+  function colors(g){
+    return g === 'amber' ? {bg:'#d97706', ink:'#0a0e14', acc:'#0a0e14'} : {bg:'#0a0e14', ink:'#e5e7eb', acc:'#fbbf24'};
+  }
+
+  function run(ctx, S, parts, em, cursor){
+    ctx.font = '600 ' + em + 'px ' + FONT;
+    ctx.textBaseline = 'alphabetic';
+    var w = 0; parts.forEach(function(p){ w += ctx.measureText(p[0]).width; });
+    var adv = ctx.measureText('0').width;
+    if (cursor) w += adv;
+    var x = (S - w) / 2, y = S / 2 + em * 0.698 / 2;
+    parts.forEach(function(p){ ctx.fillStyle = p[1]; ctx.fillText(p[0], x, y); x += ctx.measureText(p[0]).width; });
+    if (cursor) {
+      var h = Math.max(1, em * 0.12);
+      ctx.fillStyle = cursor;
+      ctx.fillRect(x + adv * 0.08, y - h, adv * 0.84, h);
+    }
+  }
+
+  function dome(ctx, S, c, tight){
+    var u = S / 512;
+    ctx.strokeStyle = c.acc; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = tight ? Math.max(30 * u, 1.5) : 22 * u;
+    ctx.beginPath();
+    ctx.moveTo(128 * u, 372 * u); ctx.lineTo(384 * u, 372 * u);
+    ctx.moveTo(160 * u, 300 * u); ctx.lineTo(352 * u, 300 * u);
+    [176, 216, 256, 296, 336].forEach(function(x){ ctx.moveTo(x * u, 300 * u); ctx.lineTo(x * u, 372 * u); });
+    ctx.moveTo(174 * u, 300 * u);
+    ctx.ellipse(256 * u, 300 * u, 82 * u, 92 * u, 0, Math.PI, 2 * Math.PI);
+    ctx.moveTo(256 * u, 208 * u); ctx.lineTo(256 * u, 176 * u);
+    ctx.moveTo(256 * u, 176 * u); ctx.lineTo(256 * u, 142 * u);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.lineWidth = tight ? Math.max(22 * u, 1.25) : 16 * u;
+    ctx.rect(240 * u, 176 * u, 32 * u, 32 * u);
+    ctx.stroke();
+  }
+
+  // tight: at 32px and under the mark is cut about a fifth larger, as tab icons usually are
+  function draw(ctx, S, m, g, tight){
+    var c = colors(g), k = tight ? 1.22 : 1;
+    ctx.save();
+    ctx.clearRect(0, 0, S, S);
+    ctx.fillStyle = c.bg; ctx.fillRect(0, 0, S, S);
+    if (m === 'a') run(ctx, S, [['CT', c.ink], [':\\', c.acc]], S * 0.2667 * k, null);
+    if (m === 'b') run(ctx, S, [['CT', c.ink]], S * 0.333 * k, c.acc);
+    if (m === 'c') run(ctx, S, [[':\\', c.acc]], S * 0.4667 * k, null);
+    if (m === 'd') {
+      ctx.translate(S / 2, S / 2); ctx.scale(k, k); ctx.translate(-S / 2, -S / 2);
+      dome(ctx, S, c, tight);
+    }
+    ctx.restore();
+  }
+
+  // a canvas of css size `css`, drawn crisp at the device's pixel ratio
+  function icon(css, m, g){
+    var cv = document.createElement('canvas');
+    var px = Math.round(css * DPR);
+    cv.width = px; cv.height = px; cv.style.width = css + 'px'; cv.style.height = css + 'px';
+    draw(cv.getContext('2d'), px, m, g, css <= 32);
+    return cv;
+  }
+
+  // Android: the launcher's circle shows the icon's middle 80%, so the canvas is 1.25x the circle
+  function androidIcon(d){
+    var w = document.createElement('div'); w.className = 'ico';
+    w.style.width = w.style.height = d + 'px';
+    w.appendChild(icon(Math.round(d * 1.25), state.m, state.g));
+    return w;
+  }
+  function iosIcon(d){
+    var w = document.createElement('div'); w.className = 'ico';
+    w.style.width = w.style.height = d + 'px';
+    w.appendChild(icon(d, state.m, state.g));
+    return w;
+  }
+  function ph(n){
+    var w = document.createElement('div'); w.className = 'ico ph p' + n; w.innerHTML = '<i></i>'; return w;
+  }
+  function app(iconEl, label){
+    var a = document.createElement('div'); a.className = 'app';
+    var l = document.createElement('span'); l.className = 'lab'; l.textContent = label;
+    a.appendChild(iconEl); a.appendChild(l); return a;
+  }
+
+  function paintHome(){
+    var ga = document.getElementById('g-android'), gi = document.getElementById('g-ios'), di = document.getElementById('d-ios');
+    ga.innerHTML = ''; gi.innerHTML = ''; di.innerHTML = '';
+    var lab = LABELS[state.l].text;
+    ga.appendChild(app(ph(1), 'Files')); ga.appendChild(app(ph(2), 'Photos')); ga.appendChild(app(androidIcon(52), lab)); ga.appendChild(app(ph(3), 'Clock'));
+    ga.appendChild(app(ph(4), 'Notes')); ga.appendChild(app(ph(3), 'Weather')); ga.appendChild(app(ph(1), 'Wallet')); ga.appendChild(app(ph(2), 'Maps'));
+    gi.appendChild(app(ph(3), 'Clock')); gi.appendChild(app(iosIcon(52), lab)); gi.appendChild(app(ph(1), 'Files')); gi.appendChild(app(ph(4), 'Notes'));
+    [1, 2, 3, 4].forEach(function(n){ var e = ph(n); di.appendChild(e); });
+    document.getElementById('r-home').innerHTML = 'Each icon is ' + 52 + 'px, about a launcher\'s size. <b>' + MARKS[state.m].line + '</b> on the ' + GROUNDS[state.g].line + '. Android cuts to its launcher\'s shape (the Pixel\'s circle here), and an iPhone keeps the square with its corners rounded.';
+  }
+
+  function paintTab(){
+    var t = document.getElementById('fav-tab');
+    t.width = t.height = Math.round(16 * DPR); t.style.width = t.style.height = '16px';
+    draw(t.getContext('2d'), t.width, state.m, state.g, true);
+    draw(document.getElementById('px16').getContext('2d'), 16, state.m, state.g, true);
+    draw(document.getElementById('px32').getContext('2d'), 32, state.m, state.g, true);
+    var h = document.getElementById('px180');
+    h.width = h.height = Math.round(112 * DPR); h.style.width = h.style.height = '112px';
+    draw(h.getContext('2d'), h.width, state.m, state.g);
+    var small = {a:'A\'s four characters don\'t survive 16px.', b:'B\'s two letters and cursor read at 16px.', c:'C\'s two strokes read at 16px.', d:'D\'s dome thins to a sketch at 16px.'};
+    document.getElementById('r-tab').innerHTML = 'Your laptop draws the tab icon at 16px with twice the pixels; the blown-up views are what a 16 and a 32px file hold. ' + small[state.m];
+  }
+
+  function sketch(){
+    return '<div class="sk"><div class="t1">Congressional Terminal<span class="ac">:\\</span>119TH<span class="ac">\\</span>Dashboard<span class="ac">&gt;</span></div>' +
+      '<div class="t2"><span class="bl">17,378</span> tracked · <span class="gr">131</span> enacted · <span class="am">[ IN BETA ]</span></div>' +
+      '<div class="t3">· last sync 11:00 AM MT · ' + 'MON 16 NOV 2026 · 11:15:02 AM MT · odds on</div>' +
+      '<div class="nv"><span class="on">\\Dashboard</span><span>\\Legislation</span><span>\\Hearings</span><span>\\Members</span><span>\\Electoral</span><span>\\Patterns</span><span>\\Lobbying</span></div>' +
+      '<div class="dim"><div class="tp"></div><div class="tp"></div><div class="blk"></div><div class="blk s"></div><div class="blk"></div><div class="blk"></div></div></div>';
+  }
+
+  function frame(el, kind){
+    var d = state.d;
+    var appWin = d !== 'browser';
+    el.className = 'fold' + (appWin ? ' app-win' : '');
+    var sys = '<div class="sys"><span>11:15</span><span>&#9650;&#9650; &#9646;</span></div>';
+    var cbar = '<div class="cbar"><span>&#8592;</span><span class="pill">congressional-terminal-chi-silk.vercel.app</span><span>&#8942;</span></div>';
+    var gest = '<div class="gest"><i></i></div>';
+    var top = (d === 'fullscreen' ? '' : sys) + (d === 'browser' ? cbar : '');
+    var bottom = d === 'fullscreen' ? '' : gest;
+    var vp = '<div class="vp">' + (kind === 'splash' && appWin ? '<div class="splash"></div>' : sketch()) + '</div>';
+    el.innerHTML = top + vp + bottom;
+    if (kind === 'splash' && appWin) {
+      var s = el.querySelector('.splash');
+      var w = document.createElement('div'); w.className = 'ico'; w.style.width = w.style.height = '88px';
+      w.appendChild(icon(110, state.m, state.g));
+      var n = document.createElement('div'); n.className = 'nm'; n.textContent = 'Congressional Terminal';
+      s.appendChild(w); s.appendChild(n);
+    }
+  }
+
+  function paintLaunch(){
+    var d = state.d;
+    document.getElementById('disp-h').textContent = DISPLAYS[d].label;
+    frame(document.getElementById('f1'), 'splash');
+    frame(document.getElementById('f2'), 'page');
+    document.getElementById('c1').textContent = d === 'browser' ? 'as it opens: a Chrome tab, no splash' : 'as it opens: the splash, while the first page loads';
+    document.getElementById('c2').textContent = 'the first screen: the dashboard, open';
+    var start = {browser:130, standalone:60, fullscreen:0}[d];
+    var fold = {browser:'about 1,036', standalone:'about 1,114', fullscreen:'all 883'};
+    document.getElementById('r-launch').innerHTML = '<b>The page starts ' + start + 'px down the Fold\'s screen</b> (full size), against 130 in Chrome today' + (d === 'browser' ? ', which is this' : '') + '. ' +
+      (d === 'fullscreen' ? 'Nothing is drawn above it or below it.' : d === 'standalone' ? 'Above it is the status bar alone, painted CT\'s base; below it the gesture strip.' : 'Above it are the status bar and Chrome\'s bar; below it the gesture strip.') +
+      ' Folding the masthead with HIDE still works in every mode.';
+  }
+
+  function paintSheet(){
+    var s = document.getElementById('sheet'); s.innerHTML = '';
+    var hdr = document.createElement('span'); hdr.className = 'rh'; hdr.textContent = ''; s.appendChild(hdr);
+    ['a', 'b', 'c', 'd'].forEach(function(m){
+      var h = document.createElement('span'); h.className = 'ch' + (m === state.m ? ' on' : ''); h.textContent = MARKS[m].label; s.appendChild(h);
+    });
+    var rh = document.createElement('span'); rh.className = 'rh'; rh.textContent = GROUNDS[state.g].label; s.appendChild(rh);
+    ['a', 'b', 'c', 'd'].forEach(function(m){
+      var cell = document.createElement('div'); cell.className = 'cell';
+      [128, 48, 32, 16].forEach(function(z){ cell.appendChild(icon(z, m, state.g)); });
+      s.appendChild(cell);
+    });
+  }
+
+  // ───── controls ─────
+  var groups = document.getElementById('groups'), note = document.getElementById('note'), ruling = document.getElementById('ruling');
+  function mkGroup(key, label, items){
+    var g = document.createElement('div'); g.className = 'grp';
+    var k = document.createElement('span'); k.className = 'k'; k.textContent = label; g.appendChild(k);
+    Object.keys(items).forEach(function(id){
+      var b = document.createElement('button'); b.type = 'button';
+      b.textContent = typeof items[id] === 'string' ? items[id] : items[id].label;
+      var on = state[key] === id;
+      if (on) b.className = 'on';
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.addEventListener('click', function(){ state[key] = id; render(); });
+      g.appendChild(b);
+    });
+    return g;
+  }
+  function line(){
+    return MARKS[state.m].line + ', ' + GROUNDS[state.g].line + ', ' + LABELS[state.l].line + ', ' + DISPLAYS[state.d].line;
+  }
+  function render(){
+    groups.innerHTML = '';
+    groups.appendChild(mkGroup('m', 'Mark', MARKS));
+    groups.appendChild(mkGroup('g', 'Ground', GROUNDS));
+    groups.appendChild(mkGroup('l', 'Label', LABELS));
+    groups.appendChild(mkGroup('d', 'Opens', DISPLAYS));
+    groups.appendChild(mkGroup('v', 'View', VIEWS));
+    note.innerHTML = '<p>' + MARKS[state.m].note + GROUNDS[state.g].note + '</p><p>' + LABELS[state.l].note.trim() + '</p><p>' + DISPLAYS[state.d].note + '</p>';
+    ruling.textContent = line();
+    document.querySelectorAll('.panel').forEach(function(p){
+      p.hidden = !(state.v === 'all' || state.v === p.getAttribute('data-view'));
+    });
+    paintHome(); paintTab(); paintLaunch(); paintSheet();
+  }
+
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    var t = line();
+    var b = this;
+    function done(){ b.textContent = 'copied'; setTimeout(function(){ b.textContent = 'copy'; }, 1200); }
+    try { navigator.clipboard.writeText(t).then(done, function(){ fallback(t); done(); }); } catch (e) { fallback(t); done(); }
+  });
+  function fallback(t){
+    var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+  document.getElementById('foldBtn').addEventListener('click', function(){
+    var m = document.getElementById('mock'); var f = m.classList.toggle('folded');
+    this.textContent = f ? 'show controls' : 'hide controls';
+  });
+
+  render();
+  // canvases need the face loaded before they draw it
+  if (document.fonts && document.fonts.load) {
+    Promise.all([document.fonts.load('600 64px "IBM Plex Mono"'), document.fonts.ready]).then(render, render);
+  }
+})();
+</script>
+</body>
+</html>
