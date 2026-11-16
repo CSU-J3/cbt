@@ -167,6 +167,14 @@ jobs:
     # 5m39s (43752491809, the first Preview of `818-review`), +34 s on the step
     # and +22 s on the job. The zone cells add 9 documents a run, so the smoke
     # crawl grows by the same nine tests at HO 818's FF, its first reading.
+    # RE-MEASURED (HO 819), as ruled at HO 818's FF: that reading. `Run prod
+    # smoke crawl` against prod at `87b0b75` (HO 818's FF), the zone cells' first
+    # Production run: 220 tests (64 smoke and odds-off, 120 narrow, 36 touch) in
+    # 9m01s, whole job 9m37s (43755454474), +90 s and +86 s on HO 818's figures.
+    # About 31 s of that was one retry: `narrow doc-scroll @430 › patterns`
+    # answered 500 (22.9 s) and then 200 (8.4 s). The job sits 23 s under the
+    # 10-minute line below. HO 819's icon test is one more smoke test, so the
+    # crawl reads 221 from HO 819's FF; `narrow-preview` runs none of it.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
