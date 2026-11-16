@@ -3508,3 +3508,26 @@ Reads 1 to 5 re-ran on Nov 3's build with the same result (`nov3/reads-change.js
   - the first iPhone in reach;
   - `cbt.zip` after GradShow, with SKILL changed at 815 to 818.
 - **Also notes now run through HO 818.**
+
+**Also (HO 819), CT gets its icon: ruled C (`:\`), amber ground, labelled CT, opens standalone.** Built on `819-review` from `87b0b75`. No database read or write, no dependency, no service worker, no CSS.
+
+- **HO 818's FF, as taken:** `main` at `87b0b75`, pushed 12:58:30 PM MST Nov 15 with no force. Production record `7809063683`, `success`; prod served `87b0b75` from about 12:59:28 PM. `e2e-prod` `43755454474`, `success`: 220 tests, 219 passed and 1 flaky (`narrow doc-scroll @430 › patterns`, a prod 500 in 22.9 s, then 200), the narrow gate's 120 cells with none over; the crawl step 9m01s, the job 9m37s. The touch lines are HO 817's FF run's exactly, and the fold and zone lines the Preview's but for the toolbar suffix. Prod's `/` sheet holds `zone-stamp` 3 times. Ruled at 6:10 PM: HO 818 closed, the 500 filed in WATCH, the times in the budget block (both here).
+- **The ruling, verbatim** (Corey, 11:24 AM MST Nov 16, on mock-819 v1): `C (:\), amber ground, labelled CT, opens standalone`. The ruled mock is v2, committed at `docs/design/mock-819-icon.html` byte for byte from Drive.
+- **STEP 0:** claims 1 to 4, 6, 7 and 9 held. In claim 5, `scripts/diagnostic/` holds 23 files importing `chromium` from `@playwright/test`, not 10, and nothing depended on the count. Claim 8: the new test against prod at `87b0b75` read all 17 readings red (`/favicon.ico` 404, no icon, touch icon, manifest or title in `/`'s head), and the served `theme-color` `#0a0e14`.
+- **§ 1:** `e2e/smoke.spec.ts` gains *icon and manifest (HO 819)*, one test: I1 the ICO's directory, I2 `/`'s head, I3 each file's decoded size, I4 the manifest's fields held to the served `theme-color`, I5 the mark's pixels off the 512 maskable and the 32px icon's corners.
+- **§ 2:** `scripts/render-icons.ts` draws the mock's C on amber in headless Chromium with the self-hosted Plex Mono 600 and writes `app/favicon.ico` (16, 32, 48), `app/icon.png`, `app/apple-icon.png` and `public/icons/icon-192.png` and `icon-512.png`. Its output is committed; change the script, not the files.
+- **§ 3:** `app/manifest.ts` (`short_name` CT, `display: standalone`, `#0a0e14` twice, a 192 and one 512 for `any` and `maskable`); the layout's `appleWebApp` titles the iPhone's icon CT with a `black` status bar.
+- **The legs,** on local `next start` builds of the base and the change:
+  - A: the icon test green (ico 16, 32, 48; all four links; I5 0 of 130,124 pixels off the ground outside the circle, 6.7% of the circle the mark); then the touch spec 36 passed, and smoke and odds-off 65 (HO 818's 64 and the icon test).
+  - B: two renderer runs, the same five sha256s, `git status` clean.
+  - C: Chrome 149's CDP: `getAppManifest` `errors: []`, display `kStandalone`, three icons; `getInstallabilityErrors` `[]`.
+  - D: the sheet for Corey under `819-artifacts/captures/`. At 16, 32, 48, 180 and 192 the files equal the mock's own canvases pixel for pixel. The tab strip can't be captured from Playwright.
+  - E: `/`'s served HTML at 1440 and 390 differs from the base's by seven head tags only; the body markup is byte-identical across four loads. Narrow 120 cells at 430, 390 and 851, none over; `fit-finish`'s doc-scroll at 1440 and 2560 green on both builds.
+- **Flagged:**
+  - Next emits `mobile-web-app-capable` `yes` with `appleWebApp` though no `capable` is set (its default).
+  - The test's comment names the mock without its path, and the test commit was amended before the push, so each commit's design-citations reads clean on its own.
+  - The icon line struck on the local build, as the handoff says; its own close names prod, which is the FF's Production run.
+  - Next links the ICO with `sizes="48x48"`, its largest frame; the 16 and 32 are inside the file.
+- **Owed at the FF:** the push, `verify:deploy`, CI, and the Production `e2e-prod` run with the icon test in its crawl (221); Corey on the Fold (*Install app*, the amber `:\` labelled CT, the splash and no Chrome bar; and HO 818's drawer, reload then FULL, HIDE on `/bills` closed, HO 816's dropdown taps); the first iPhone (*Add to Home Screen*); `cbt.zip` after GradShow, SKILL changed at 815 to 819.
+- **Mobile stops here until after GradShow** (Corey, 11:08 AM MST Nov 16).
+- **Also notes now run through HO 819.**
