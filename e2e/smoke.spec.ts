@@ -1317,3 +1317,256 @@ test.describe("lib, no page", () => {
     for (const q of ["veterans", "HR", "3978"]) expect(parseBillRef(q), q).toBeNull();
   });
 });
+
+// ── HO 819: the icon set and the manifest ────────────────────────────────────
+//
+// WHAT ITS ZERO MEANS: prod serves the ruled icon set (C, `:\` on amber, ruled
+// on mock-819 v2, which scripts/render-icons.ts cites) and a manifest that
+// makes CT installable as `standalone`. I1 the ICO at 16, 32 and 48; I2 `/`'s
+// head links the 32px PNG, the 180px touch icon, one manifest and the iPhone
+// title `CT`; I3 every linked file answers as a PNG of the size it declares; I4
+// the manifest's fields, its colours held to the served theme-color, and a 192
+// any, 512 any and 512 maskable; I5 the mark's pixels, off the 512 maskable and
+// the 32px icon. It says NOTHING about what a launcher draws, or how: Android
+// masks and crops, iOS rounds the corners, and neither is readable from here.
+//
+// THE CONTROL: against prod at 87b0b75 (HO 818's head), at 11:40 AM MST
+// 2026-11-16, before any icon existed, all 17 readings were red: "/favicon.ico
+// answers 404" (as text/html), "/'s head holds 0 link[rel="manifest"]",
+// "apple-mobile-web-app-title reads []", "I3 found 0 icon files to read", "I5:
+// the 32px icon's four corners read null as the ground", and the rest alike.
+// The served theme-color read "#0a0e14", the colour I4 holds the manifest to.
+//
+// The files are scripts/render-icons.ts's output. I5 reads their pixels, so a
+// re-render that moves the mark out of the maskable safe circle (radius 40%,
+// 205px at 512) or off the ground reds here.
+const ICON_GROUND = [0xd9, 0x77, 0x06]; // #d97706
+const ICON_MARK = [0x0a, 0x0e, 0x14]; // #0a0e14
+
+test.describe("icon and manifest (HO 819)", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test.beforeEach(async ({ context }) => {
+    await context.addCookies([GATE_COOKIE]);
+  });
+
+  test("the icon set, the manifest and the mark's pixels", async ({ page, request }) => {
+    const resp = await page.goto("/", { waitUntil: "domcontentloaded", timeout: 45_000 });
+    expect.soft(resp?.status(), `/ answers ${resp?.status()}`).toBe(200);
+
+    // I1, the ICO: 200, an icon type, the ICONDIR magic, and its directory.
+    const ico = await request.get("/favicon.ico");
+    const icoType = (ico.headers()["content-type"] ?? "").split(";")[0]?.trim() ?? "";
+    const icoBuf = ico.ok() ? await ico.body() : Buffer.alloc(0);
+    const icoMagic = icoBuf.subarray(0, 4).toString("hex");
+    const icoSizes: string[] = [];
+    if (icoMagic === "00000100" && icoBuf.length >= 6) {
+      const n = icoBuf.readUInt16LE(4);
+      for (let i = 0; i < n && 6 + 16 * (i + 1) <= icoBuf.length; i++)
+        icoSizes.push(`${icoBuf[6 + 16 * i] || 256}x${icoBuf[7 + 16 * i] || 256}`);
+    }
+    expect.soft(ico.status(), `/favicon.ico answers ${ico.status()}`).toBe(200);
+    expect
+      .soft(["image/x-icon", "image/vnd.microsoft.icon"], `/favicon.ico's content-type reads "${icoType}"`)
+      .toContain(icoType);
+    expect.soft(icoMagic, `/favicon.ico's first four bytes read ${icoMagic || "(none)"}`).toBe("00000100");
+    expect
+      .soft(
+        [...icoSizes].sort((a, b) => parseInt(a, 10) - parseInt(b, 10)),
+        `/favicon.ico's directory lists [${icoSizes.join(", ")}]`,
+      )
+      .toEqual(["16x16", "32x32", "48x48"]);
+
+    // I2, the links in `/`'s head.
+    const head = await page.evaluate(() => {
+      const links = (rel: string) =>
+        Array.from(document.head.querySelectorAll(`link[rel="${rel}"]`)).map((l) => ({
+          href: (l as HTMLLinkElement).href,
+          type: l.getAttribute("type"),
+          sizes: l.getAttribute("sizes"),
+        }));
+      const metas = (name: string) =>
+        Array.from(document.head.querySelectorAll(`meta[name="${name}"]`)).map((m) =>
+          m.getAttribute("content"),
+        );
+      return {
+        icon: links("icon"),
+        touch: links("apple-touch-icon"),
+        manifest: links("manifest"),
+        title: metas("apple-mobile-web-app-title"),
+        theme: metas("theme-color"),
+      };
+    });
+    const pngIcon = head.icon.find((l) => l.type === "image/png" && l.sizes === "32x32");
+    const touchIcon = head.touch.find((l) => l.sizes === "180x180");
+    expect
+      .soft(pngIcon, `/'s head has no link[rel="icon"] of image/png 32x32; its icon links read ${JSON.stringify(head.icon)}`)
+      .toBeTruthy();
+    expect
+      .soft(touchIcon, `/'s head has no apple-touch-icon of 180x180; its touch links read ${JSON.stringify(head.touch)}`)
+      .toBeTruthy();
+    expect.soft(head.manifest.length, `/'s head holds ${head.manifest.length} link[rel="manifest"]`).toBe(1);
+    expect
+      .soft(head.title, `/'s head: apple-mobile-web-app-title reads ${JSON.stringify(head.title)}`)
+      .toEqual(["CT"]);
+
+    // I4, the manifest (read before I3, which reads its icons). Its colours are
+    // held to the served theme-color, which the touch gate holds to --bg-base.
+    type ManifestIcon = { src?: string; sizes?: string; type?: string; purpose?: string };
+    const manifestUrl = head.manifest[0]?.href ?? null;
+    let manifestStatus = 0;
+    let manifest: Record<string, unknown> | null = null;
+    if (manifestUrl) {
+      const r = await request.get(manifestUrl);
+      manifestStatus = r.status();
+      try {
+        manifest = JSON.parse(await r.text());
+      } catch {
+        manifest = null;
+      }
+    }
+    expect
+      .soft(manifestStatus, `the linked manifest (${manifestUrl ?? "none linked"}) answers ${manifestStatus || "nothing"}`)
+      .toBe(200);
+    expect.soft(manifest, "the linked manifest parses as JSON").not.toBeNull();
+    const m = manifest ?? {};
+    const fields = {
+      name: m.name,
+      short_name: m.short_name,
+      id: m.id,
+      start_url: m.start_url,
+      scope: m.scope,
+      display: m.display,
+    };
+    expect.soft(fields, `the manifest reads ${JSON.stringify(fields)}`).toEqual({
+      name: "Congressional Terminal",
+      short_name: "CT",
+      id: "/",
+      start_url: "/",
+      scope: "/",
+      display: "standalone",
+    });
+    const theme = (head.theme[0] ?? "").toLowerCase();
+    const want = theme || "(no theme-color served)";
+    expect
+      .soft(
+        [String(m.theme_color ?? "").toLowerCase(), String(m.background_color ?? "").toLowerCase()],
+        `the manifest's theme_color and background_color read ${m.theme_color} and ${m.background_color}, against the served theme-color "${theme}"`,
+      )
+      .toEqual([want, want]);
+    const icons: ManifestIcon[] = Array.isArray(m.icons) ? (m.icons as ManifestIcon[]) : [];
+    const iconFor = (size: number, purpose: string) =>
+      icons.find(
+        (i) => i.sizes === `${size}x${size}` && (i.purpose ?? "any").split(/\s+/).includes(purpose),
+      );
+    const missing = ([[192, "any"], [512, "any"], [512, "maskable"]] as const)
+      .filter(([s, p]) => !iconFor(s, p))
+      .map(([s, p]) => `${s} ${p}`);
+    expect.soft(missing, `the manifest's icons lack these; they read ${JSON.stringify(icons)}`).toEqual([]);
+
+    // I3, the files: each answers as a PNG and decodes at its declared size.
+    const files: { what: string; url: string; size: number }[] = [];
+    if (pngIcon) files.push({ what: "icon 32x32", url: pngIcon.href, size: 32 });
+    if (touchIcon) files.push({ what: "apple-touch-icon 180x180", url: touchIcon.href, size: 180 });
+    for (const i of icons)
+      if (i.src && manifestUrl)
+        files.push({
+          what: `manifest icon ${i.sizes} ${i.purpose ?? "any"}`,
+          url: new URL(i.src, manifestUrl).href,
+          size: Number(/^(\d+)x\1$/.exec(i.sizes ?? "")?.[1] ?? NaN),
+        });
+    expect.soft(files.length, `I3 found ${files.length} icon files to read`).toBeGreaterThanOrEqual(5);
+    for (const f of files) {
+      const r = await request.get(f.url);
+      const type = (r.headers()["content-type"] ?? "").split(";")[0]?.trim() ?? "";
+      expect.soft([r.status(), type], `${f.what} (${f.url}) answers ${r.status()} as "${type}"`).toEqual([200, "image/png"]);
+      const dims = await page.evaluate(async (u) => {
+        const img = new Image();
+        img.src = u;
+        try {
+          await img.decode();
+          return [img.naturalWidth, img.naturalHeight];
+        } catch {
+          return null;
+        }
+      }, f.url);
+      expect.soft(dims, `${f.what} decodes at ${JSON.stringify(dims)}`).toEqual([f.size, f.size]);
+    }
+
+    // I5, the mark's pixels: off the 512 maskable, drawn to a canvas in the page.
+    const maskable = iconFor(512, "maskable");
+    const px = await page.evaluate(
+      async ({ maskUrl, iconUrl, ground, mark }) => {
+        const near = (d: Uint8ClampedArray, i: number, c: number[], tol: number) =>
+          [0, 1, 2].every((k) => Math.abs((d[i + k] ?? -999) - (c[k] ?? 999)) <= tol);
+        const pixels = async (u: string, n: number) => {
+          const img = new Image();
+          img.src = u;
+          await img.decode();
+          const cv = document.createElement("canvas");
+          cv.width = n;
+          cv.height = n;
+          const ctx = cv.getContext("2d")!;
+          ctx.drawImage(img, 0, 0, n, n);
+          return ctx.getImageData(0, 0, n, n).data;
+        };
+        const out = { outside: -1, outsideOff: -1, inside: -1, insideMark: -1, farthest: -1, corners: null as boolean[] | null };
+        if (maskUrl) {
+          try {
+            const d = await pixels(maskUrl, 512);
+            let outside = 0, outsideOff = 0, inside = 0, insideMark = 0, farthest = 0;
+            for (let y = 0; y < 512; y++)
+              for (let x = 0; x < 512; x++) {
+                const r = Math.hypot(x + 0.5 - 256, y + 0.5 - 256);
+                const i = (y * 512 + x) * 4;
+                const isMark = near(d, i, mark, 12);
+                if (isMark && r > farthest) farthest = r;
+                if (r > 205) {
+                  outside++;
+                  if (!near(d, i, ground, 3)) outsideOff++;
+                } else {
+                  inside++;
+                  if (isMark) insideMark++;
+                }
+              }
+            Object.assign(out, { outside, outsideOff, inside, insideMark, farthest: Math.round(farthest) });
+          } catch {
+            /* stays -1: read as red below */
+          }
+        }
+        if (iconUrl) {
+          try {
+            const d = await pixels(iconUrl, 32);
+            out.corners = [0, 31 * 4, 31 * 32 * 4, (31 * 32 + 31) * 4].map((i) => near(d, i, ground, 3));
+          } catch {
+            /* stays null */
+          }
+        }
+        return out;
+      },
+      {
+        maskUrl: maskable?.src && manifestUrl ? new URL(maskable.src, manifestUrl).href : null,
+        iconUrl: pngIcon?.href ?? null,
+        ground: ICON_GROUND,
+        mark: ICON_MARK,
+      },
+    );
+    const share = px.inside > 0 ? px.insideMark / px.inside : 0;
+    expect
+      .soft(px.outsideOff, `I5: ${px.outsideOff} of the 512 maskable's ${px.outside} pixels outside the safe circle are off the ground`)
+      .toBe(0);
+    expect
+      .soft(share, `I5: ${(share * 100).toFixed(1)}% of the safe circle is the mark (${px.insideMark} of ${px.inside})`)
+      .toBeGreaterThanOrEqual(0.03);
+    expect
+      .soft(px.corners, `I5: the 32px icon's four corners read ${JSON.stringify(px.corners)} as the ground`)
+      .toEqual([true, true, true, true]);
+
+    // eslint-disable-next-line no-console
+    console.log(
+      `[icons] ico=${icoSizes.join(",") || "none"}` +
+        ` links=icon-png-32:${pngIcon ? 1 : 0} touch-180:${touchIcon ? 1 : 0} manifest:${head.manifest.length} title:${head.title.join("|") || "none"}` +
+        ` display=${String(m.display ?? "none")} short_name=${String(m.short_name ?? "none")}` +
+        ` I5 off-ground-outside=${px.outsideOff}/${px.outside} mark-inside=${px.insideMark}/${px.inside} (${(share * 100).toFixed(1)}%) farthest-mark=${px.farthest}px`,
+    );
+  });
+});
