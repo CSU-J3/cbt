@@ -175,6 +175,14 @@ jobs:
     # answered 500 (22.9 s) and then 200 (8.4 s). The job sits 23 s under the
     # 10-minute line below. HO 819's icon test is one more smoke test, so the
     # crawl reads 221 from HO 819's FF; `narrow-preview` runs none of it.
+    # RE-MEASURED (HO 820), the same read. Narrow and touch on `narrow-preview`
+    # with HO 820's six pin cells: 162 tests (120 narrow, 42 touch) in 5m31s,
+    # whole job 6m18s (43957174120, the first Preview of `820-review`), +35 s on
+    # the step and +39 s on the job against HO 818's 4m56s and 5m39s above. That
+    # run read one red at --retries=0, F3 on `/` at 390 (HO 820's flag, SHOW
+    # 21.6px from HIDE). The pin cells add 12 documents a run, each loading and
+    # reloading, so the smoke crawl grows by the same six tests at HO 820's FF
+    # (227), its first reading.
     # THE CAP STAYS AT 20 while the whole job stays under 10 minutes; past that,
     # flag it. Re-measure here before adding a fourth width or caching the
     # install.
