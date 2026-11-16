@@ -9574,6 +9574,96 @@ a.rl-nm:hover,
   .mh-inner > .mh-hide { right: 8px; }
   .mh-inner .mh-strip { padding-right: 8px; }
 }
+
+/* HO 820 — THE FOLDED STRIP STAYS PUT. Corey, 12:47 PM MST 2026-11-16: "when
+   scrolling full screen on mobile, i want CT:/ branding bar to stay and
+   everything under it scrolls." Read as: under a coarse pointer, once HIDE has
+   folded the masthead (`html[data-masthead="folded"]`, HO 817), the 44px strip
+   pins to the top and the page scrolls under it, whether or not the browser
+   granted full screen. An iPhone has no full screen for a page, and a reload
+   keeps the fold but drops full screen. The open masthead doesn't pin (236 to
+   357px tall on a phone), and a fine pointer gets nothing, as at HO 817.
+
+   An inner page's header (`.mh-inner`) is a child of `div.flex.min-h-screen`,
+   which runs the document's height, so it sticks. The dashboard's header sits
+   in `.dash-left`, so how it pins follows `.dash-page`'s two-column switch at
+   `(min-width: 1400px)` (`.dash-page` above, and `.dash-bills` beside it):
+   - BELOW 1400px, one column: `.dash-left` ends before the feed, so sticky lets
+     go there (the chat read its top at -752 at scrollY 2,400 on a 390 phone).
+     It's fixed, with `.home-main`'s inline padding so SHOW keeps HIDE's right
+     edge, and `.dash-left` keeps the room the header took: its folded 45px and
+     the column's 12px gap, so the first panel still starts at 69 (the touch
+     gate's P2). The strip sits at 0 where the folded header sat at 12, so SHOW
+     is 12px higher than HIDE was; HIDE's centre still lands on SHOW, and since
+     HO 820's review that hit is what the touch gate's F3 reads (the 21px
+     distance it replaced was a stand-in for it).
+   - FROM 1400px, two columns: `.dash-left` is the column that sets the
+     document's height (1,261 of 1,285 at 1440), so the header is sticky in it
+     and keeps the column's width. SHOW lands on HIDE's spot, where the fixed,
+     full-width strip had put it 618 to 709px away (1400 to 1600), and the strip
+     never crosses the feed column, so `.dash-bills` keeps its own top.
+   The fixed rule sits under `(max-width: 1399px)`, the sheet's way of writing
+   the switch's other side (as 1149 against 1150 and 899 against 900).
+
+   z-index 55: above every in-flow popover at 50 or under (`.cm-pop`,
+   `.abw-cardback`, `.breaking-row-full`, `.sponsor-hover-card`), so they slide
+   under the strip; under the fixed tips and portals at 60 and up, so a tooltip
+   still draws over it. The three absolute pops at 60 (`.topic-hover-pop`,
+   `.title-pop`, `.us-map-peek-wrap`) can draw over the strip when they're
+   scrolled under it: recorded, not chased.
+
+   The sticky rules (HO 820's claim 6). `.dash-bills`, sticky at top 16 from
+   1400px against the document, sits in the right column, which the strip no
+   longer crosses, so it keeps its top. `.rl-heads` and `.rec-note` stick inside
+   their own scrolling boxes (`.rl-box`, `.rec-body`), so their top is the box's
+   and the strip never sits between them. `.rl-news-head` computes static below
+   1150px and from 1150 sticks inside `.rl-news`, its own box, the same way. All
+   four are left as they are.
+
+   Readings, the chat's then HO 820's on the base build (claim 7): `.home-main`'s
+   inline padding 12 at 390 and 24 at 851, and 24 at 1024 and 1366 too, so one
+   step at 700; two columns from 1400; the folded header 45 tall, the strip 44,
+   the first panel at 69. */
+.mh-inner { position: relative; }
+
+@media (pointer: coarse) {
+  html[data-masthead="folded"] { scroll-padding-top: 52px; }
+
+  /* Inner pages: the header's parent runs the document's height. */
+  html[data-masthead="folded"] .mh-inner {
+    position: sticky; top: 0; z-index: 55;
+  }
+
+  html[data-masthead="folded"] .mh-strip .mobile-nav-drawer {
+    max-height: calc(100dvh - 44px); overflow-y: auto;
+  }
+}
+
+/* The dashboard, one column (below .dash-page's switch at 1400px): .dash-left
+   ends before the feed, so sticky lets go there. Fixed. */
+@media (pointer: coarse) and (max-width: 1399px) {
+  html[data-masthead="folded"] .home-header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 55;
+    padding-inline: var(--space-xl);
+    background-color: var(--bg-base);
+  }
+  html[data-masthead="folded"] .dash-left {
+    padding-top: calc(45px + var(--space-md));
+  }
+}
+
+@media (pointer: coarse) and (max-width: 700px) {
+  html[data-masthead="folded"] .home-header { padding-inline: var(--space-md); }
+}
+
+/* The dashboard, two columns (from 1400px): .dash-left sets the document's
+   height, so the header sticks in it and keeps the column's width. */
+@media (pointer: coarse) and (min-width: 1400px) {
+  html[data-masthead="folded"] .home-header {
+    position: sticky; top: 0; z-index: 55;
+    background-color: var(--bg-base);
+  }
+}
 /* HO 619 (C1) — the summary FOLLOWS the controls; `margin-left: auto` pinned it
    to the right of a 2,528px control bar and opened a 1,821px void. */
 .cart-summary {

@@ -176,7 +176,9 @@ export async function HeaderBar({
 
   return (
     // HO 817: `mh-inner` places HIDE and pads the strip on an inner page.
-    <header className="mh-inner" style={{ position: "relative", backgroundColor: "var(--bg-panel)" }}>
+    // HO 820: its `position: relative` is `.mh-inner`'s rule in the sheet now, so
+    // the folded strip's `position: sticky` (under a coarse pointer) can win.
+    <header className="mh-inner" style={{ backgroundColor: "var(--bg-panel)" }}>
       {/* HO 323 — standardized inner-page chrome: TITLE ROW (breadcrumb path
           ONLY) → LAST SYNC subhead (HO 325) → NAV ROW (its own full-width row,
           the dashboard nav styling) → page content. The markets tape and the
