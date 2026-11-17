@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mock-821 v2 · dashboard search (ruled A · C · Z)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-base:#0a0e14; --bg-panel:#050709; --bg-row-hover:#0f1620;
+    --border-strong:#1f2937; --border-soft:#111820;
+    --text-primary:#e5e7eb; --text-secondary:#cbd5e1; --text-muted:#94a3b8; --text-dim:#6b7280;
+    --accent-amber:#d97706; --accent-amber-bright:#fbbf24;
+    --party-republican:#ef4444; --party-democrat:#3b82f6; --party-independent:#a78bfa;
+    --stage-introduced:#94a3b8; --stage-committee:#06b6d4; --stage-floor:#fbbf24; --stage-president:#fb923c; --stage-enacted:#10b981;
+    --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#06080c;color:var(--text-primary);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+  button{font:inherit}
+
+  /* ── mock chrome ─────────────────────────────────────────── */
+  .mk{position:sticky;top:0;z-index:100;background:#0d1219;border-bottom:1px solid var(--border-strong);padding:10px 16px 12px;font-family:var(--mono);font-size:11px;color:var(--text-muted)}
+  .mk h1{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--text-primary);text-transform:uppercase}
+  .mk h1 .v{color:var(--accent-amber-bright)}
+  .mk-rows{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}
+  .mk-lab{color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+  .mk-opts{display:flex;flex-wrap:wrap;gap:6px}
+  .mk-b{background:none;border:1px solid var(--border-strong);color:var(--text-muted);border-radius:3px;padding:4px 9px;font-family:var(--mono);font-size:11px;cursor:pointer;letter-spacing:.03em}
+  .mk-b:hover{color:var(--text-primary)}
+  .mk-b.on{color:var(--accent-amber-bright);border-color:var(--accent-amber);background:rgba(217,119,6,.08)}
+  .mk-b .cp{color:var(--text-dim);font-size:9.5px;margin-left:5px}
+  .mk-b.na{opacity:.35;pointer-events:none}
+  .mk-note{margin-top:9px;padding:8px 10px;border:1px solid var(--border-soft);background:var(--bg-panel);color:var(--text-muted);line-height:1.6;max-width:1180px}
+  .mk-note b{color:var(--text-secondary);font-weight:600}
+  .mk-note .rul{color:var(--accent-amber-bright)}
+  .mk-try{margin-top:6px;color:var(--text-dim)}
+  .mk-try a{color:var(--accent-amber);cursor:pointer;margin-right:10px;text-decoration:none}
+
+  .stage-wrap{padding:16px;display:flex;justify-content:center}
+  #webScaler{transform-origin:top left}
+  .web{width:1440px;background:var(--bg-base);position:relative;border:1px solid var(--border-strong)}
+  .phone{width:390px;height:844px;background:var(--bg-base);position:relative;overflow:hidden;border:1px solid #2a3442;border-radius:22px;box-shadow:0 0 0 6px #10151d}
+  .phone-scroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+  .phone-scroll::-webkit-scrollbar{display:none}
+
+  /* ── CT facsimile ───────────────────────────────────────── */
+  .mono{font-family:var(--mono)}
+  .amber{color:var(--accent-amber)}
+  .dim{color:var(--text-dim)}
+  .main{display:grid;grid-template-columns:747px 620px;gap:10px;padding:12px 24px 24px;align-items:start}
+  .left{display:flex;flex-direction:column;gap:12px;min-width:0}
+  .right{position:sticky;top:16px;min-width:0}
+  .mast{position:relative}
+  .mast-title{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:.5px;line-height:33px;color:var(--text-primary);white-space:nowrap}
+  .mast-title .a{color:var(--accent-amber)}
+  .mast-stats{font-family:var(--mono);font-size:13px;color:var(--text-muted);margin-top:3px}
+  .mast-stats .n1{color:#60a5fa;font-weight:600}.mast-stats .n2{color:#34d399;font-weight:600}
+  .mast-stats .beta{color:var(--accent-amber-bright);letter-spacing:.15em;font-weight:600;margin-left:10px}
+  .mast-sync{font-family:var(--mono);font-size:10.5px;color:var(--text-dim);letter-spacing:.05em;margin-top:4px}
+  .nav{display:flex;flex-wrap:wrap;border:1px solid var(--border-soft);border-radius:2px;margin-top:10px;font-family:var(--mono);font-size:12px;letter-spacing:.04em}
+  .nav span{padding:8px 11px;color:var(--text-muted);border-right:1px solid var(--border-soft)}
+  .nav span.on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber);background:#0f141c}
+  .tapes{border:1px solid var(--border-soft);font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:8px}
+  .tape{display:flex;gap:16px;padding:7px 10px;white-space:nowrap;overflow:hidden}
+  .tape+.tape{border-top:1px solid var(--border-soft)}
+  .tape .k{color:var(--text-dim);letter-spacing:.12em;font-size:9.5px}
+  .up{color:#34d399}.dn{color:#f87171}
+  .panel{border:1px solid var(--border-strong);background:var(--bg-panel);padding:12px 14px}
+  .ph{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;margin-bottom:10px}
+  .ph .r{color:#f87171;font-weight:600}.ph .o{color:var(--accent-amber);font-weight:600}
+  .mia{display:flex;gap:12px}
+  .mcard{width:150px;height:170px;border:1px solid #f87171;padding:8px;position:relative;background:#0b0f15;font-family:var(--mono);font-size:11px}
+  .mcard.o{border-color:var(--accent-amber)}
+  .mcard .num{display:inline-block;background:#f87171;color:#111;font-weight:700;font-size:18px;padding:2px 6px}
+  .mcard.o .num{background:var(--accent-amber-bright)}
+  .mcard .nm{position:absolute;left:10px;bottom:34px;font-family:var(--sans);font-weight:600;font-size:13px}
+  .mcard .pt{position:absolute;left:10px;bottom:20px;font-size:10px}
+  .lines .ln{font-family:var(--mono);font-size:11px;color:var(--text-muted);padding:5px 0;border-top:1px solid var(--border-soft)}
+  .summary{font-size:14px;line-height:1.55;color:var(--text-secondary)}
+  .feed-tabs{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--text-dim);padding:10px 12px 6px;border-bottom:1px solid var(--border-soft)}
+  .feed-tabs .on{color:var(--text-primary);border-bottom:2px solid var(--accent-amber);padding-bottom:4px}
+  .frow{padding:7px 12px;border-bottom:1px solid var(--border-soft)}
+  .frow .t{font-size:12.5px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .frow .t .id{font-family:var(--mono);color:var(--accent-amber);font-size:10.5px;margin-right:8px}
+  .frow .m{font-family:var(--mono);font-size:9.5px;color:var(--text-dim);margin-top:2px;letter-spacing:.04em}
+  .frow .m .d{color:#60a5fa}.frow .m .rp{color:#f87171}
+
+  /* phone facsimile */
+  .p-main{padding:12px 12px 40px;display:flex;flex-direction:column;gap:12px}
+  .p-mast{position:relative;padding-right:40px}
+  .p-mast .mast-title{font-size:21px;line-height:28px;white-space:normal}
+  .p-mast .mast-stats{font-size:12px;line-height:20px}
+  .p-nav{display:flex;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;border:1px solid var(--border-soft);margin-top:10px}
+  .p-nav span{padding:9px 10px;color:var(--text-muted)}
+  .p-nav span.on{color:var(--accent-amber-bright);border-bottom:2px solid var(--accent-amber)}
+  .hide-btn{position:absolute;top:8px;right:0;width:28px;height:28px;border:1px solid var(--accent-amber);color:var(--accent-amber-bright);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--bg-base);cursor:pointer}
+  .strip{position:sticky;top:0;z-index:20;height:45px;background:var(--bg-base);border-bottom:1px solid var(--border-strong);display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 12px;font-family:var(--mono)}
+  .strip .path{font-size:14px;font-weight:500;white-space:nowrap}
+  .strip .btns{display:flex;gap:6px}
+  .sb{height:28px;min-width:28px;padding:0 8px;border:1px solid var(--border-strong);border-radius:4px;background:var(--bg-base);color:var(--text-secondary);font-family:var(--mono);font-size:11px;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+  .sb.amb{border-color:var(--accent-amber);color:var(--accent-amber-bright);font-weight:600}
+  .sb.find{font-size:14px}
+  .sb.find.on{border-color:var(--accent-amber);color:var(--accent-amber-bright)}
+
+  /* ── the search ─────────────────────────────────────────── */
+  .srch{position:relative;font-family:var(--mono)}
+  .srch-box{display:flex;align-items:center;gap:8px;height:34px;border:1px solid var(--border-strong);background:var(--bg-panel);padding:0 10px;border-radius:2px}
+  .srch-box:focus-within{border-color:var(--accent-amber)}
+  .srch-box .p{color:var(--accent-amber);font-size:13px}
+  .srch-box input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--text-primary);font-family:var(--mono);font-size:13px;letter-spacing:.02em}
+  .srch-box input::placeholder{color:var(--text-dim)}
+  .srch-box input::-webkit-search-cancel-button{display:none}
+  .srch-box .kbd{border:1px solid var(--border-strong);color:var(--text-dim);font-size:10px;padding:1px 5px;border-radius:2px}
+  .srch-box .x{color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 2px}
+  .phone .srch-box{height:40px}
+  .phone .srch-box input{font-size:16px}
+  .pull{position:absolute;left:0;right:0;top:33px;height:2px;overflow:hidden;opacity:0}
+  .phone .pull{top:39px}
+  .pull.on{opacity:1}
+  .pull::before{content:"";position:absolute;top:0;bottom:0;width:30%;background:var(--accent-amber);animation:pull .7s linear infinite}
+  @keyframes pull{from{left:-30%}to{left:100%}}
+  .drop{position:absolute;left:0;right:0;top:36px;z-index:30;background:#070a0f;border:1px solid var(--accent-amber);border-top:0;max-height:440px;overflow-y:auto;box-shadow:0 12px 30px rgba(0,0,0,.6)}
+  .phone .drop{top:42px;max-height:520px}
+  .dg{border-top:1px solid var(--border-soft)}
+  .dg:first-child{border-top:0}
+  .dgh{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.12em;color:var(--text-dim);padding:7px 10px 3px;text-transform:uppercase}
+  .dgh .c{color:var(--text-muted)}
+  .di{display:flex;gap:9px;align-items:baseline;padding:6px 10px;cursor:pointer;font-size:12px}
+  .di:hover,.di.cur{background:var(--bg-row-hover)}
+  .di.cur{box-shadow:inset 2px 0 0 var(--accent-amber)}
+  .di .id{color:var(--accent-amber);font-size:10.5px;min-width:58px;white-space:nowrap}
+  .di .tt{font-family:var(--sans);color:var(--text-primary);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .di .mt{font-size:9.5px;color:var(--text-dim);white-space:nowrap}
+  .di mark{background:none;color:var(--accent-amber-bright)}
+  .dfoot{display:flex;justify-content:space-between;padding:8px 10px;border-top:1px solid var(--border-strong);font-size:10px;color:var(--text-dim);letter-spacing:.04em}
+  .dfoot a{color:var(--accent-amber);text-decoration:none}
+  .phone .dfoot span{display:none}
+  .dempty{padding:12px 10px;font-size:11px;color:var(--text-dim)}
+  .dstat{padding:6px 10px;font-size:10px;color:var(--text-dim);letter-spacing:.05em;border-bottom:1px solid var(--border-soft)}
+  .dstat b{color:var(--accent-amber-bright);font-weight:500}
+
+  /* the picked item */
+  .pick{border:1px solid var(--border-strong);border-left:2px solid var(--accent-amber);background:var(--bg-panel);padding:12px 14px;position:relative}
+  .pick-h{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--text-dim);text-transform:uppercase}
+  .pick-h .tag{color:var(--accent-amber-bright);border:1px solid var(--accent-amber);padding:1px 5px;font-size:9.5px}
+  .pick-h .sp{flex:1}
+  .pick-h .cls{cursor:pointer;color:var(--text-dim);font-size:14px;padding:0 4px}
+  .pick-t{font-size:17px;font-weight:600;margin:8px 0 4px;line-height:1.3}
+  .pick-t .id{font-family:var(--mono);color:var(--accent-amber);font-size:13px;margin-right:8px;font-weight:500}
+  .pick-meta{font-family:var(--mono);font-size:11px;color:var(--text-muted);line-height:1.7}
+  .pick-meta .R{color:var(--party-republican)}.pick-meta .D{color:var(--party-democrat)}
+  .pick-sum{font-size:13.5px;line-height:1.55;color:var(--text-secondary);margin:8px 0 0}
+  .pick-sum.ph{color:var(--text-dim);font-style:italic;font-size:12.5px}
+  .track{display:flex;gap:3px;margin:10px 0 4px}
+  .track div{flex:1;font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--text-dim);border-top:3px solid var(--border-strong);padding-top:4px;text-transform:uppercase;white-space:nowrap;overflow:hidden}
+  .track div.done{border-top-color:var(--stage-committee);color:var(--text-muted)}
+  .track div.now{border-top-color:var(--accent-amber-bright);color:var(--accent-amber-bright)}
+  .chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;border:1px solid var(--border-strong);color:var(--text-muted);padding:2px 6px}
+  .chip.b{border-color:var(--accent-amber);color:var(--accent-amber)}
+  .go-row{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .go{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--bg-base);background:var(--accent-amber-bright);border:0;padding:8px 12px;border-radius:2px;cursor:pointer;text-decoration:none}
+  .go.sec{background:none;color:var(--accent-amber);border:1px solid var(--accent-amber)}
+  .go-path{font-family:var(--mono);font-size:10px;color:var(--text-dim)}
+  .phone .go{padding:11px 14px;font-size:12px}
+  .pick-stats{display:flex;gap:18px;font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-top:10px}
+  .pick-stats b{display:block;font-size:18px;color:var(--text-primary);font-weight:600}
+
+  /* Y: side panel / sheet */
+  .feedpanel-back{font-family:var(--mono);font-size:10.5px;color:var(--accent-amber);padding:10px 12px;border-bottom:1px solid var(--border-soft);cursor:pointer;letter-spacing:.06em}
+  .rightpick{padding:12px}
+  .rightpick .pick{border-left-width:1px;border-top:2px solid var(--accent-amber)}
+  .sheet-dim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:40}
+  .sheet{position:absolute;left:0;right:0;bottom:0;max-height:66%;overflow-y:auto;z-index:41;background:var(--bg-panel);border-top:2px solid var(--accent-amber);border-radius:12px 12px 0 0;padding:8px 14px 18px}
+  .sheet .handle{width:40px;height:4px;border-radius:2px;background:var(--border-strong);margin:2px auto 10px}
+  .sheet .pick{border:0;padding:0;background:none}
+
+  .hl{outline:1px dashed rgba(251,191,36,.45);outline-offset:3px}
+  .where{position:absolute;font-family:var(--mono);font-size:9.5px;color:var(--accent-amber-bright);background:#1a1206;border:1px solid var(--accent-amber);padding:1px 5px;letter-spacing:.06em;z-index:5;pointer-events:none}
+</style>
+</head>
+<body>
+
+<div class="mk" id="mk">
+  <h1>mock-821 <span class="v">v2</span> · dashboard search · ruled: web A, phone C, the pick Z</h1>
+  <div class="mk-rows">
+    <span class="mk-lab">Device</span>
+    <div class="mk-opts" id="optDevice"></div>
+    <span class="mk-lab">Bar, web</span>
+    <div class="mk-opts" id="optWeb"></div>
+    <span class="mk-lab">Bar, phone</span>
+    <div class="mk-opts" id="optPhone"></div>
+    <span class="mk-lab">The pick</span>
+    <div class="mk-opts" id="optPick"></div>
+    <span class="mk-lab">Phone masthead</span>
+    <div class="mk-opts" id="optFold"></div>
+  </div>
+  <div class="mk-note" id="note"></div>
+  <div class="mk-try">Try: <a data-q="tax">tax</a><a data-q="markey">markey</a><a data-q="shutdown">shutdown</a><a data-q="hr 7303">hr 7303</a><a data-q="s 4964">s 4964</a> · ↑ ↓ to move, Enter to pick, Esc to close · titles, names and headlines are prod's (Nov 16); counts on members marked · weren't read</div>
+</div>
+
+<div class="stage-wrap" id="stageWrap"><div id="webScaler"></div></div>
+
+<script>
+/* ── data: read off prod, Nov 16, 2026 ─────────────────────────────── */
+const STAGES = ["Intro","Committee","Floor","Other chamber","President","Enacted"];
+const BILLS = [
+  {id:"S 4964", slug:"119-s-4964", t:"Protecting Innocent Taxpayers from Endless Assessments Act", sp:"Marshall", pty:"R", st:"KS", ch:"SENATE", stage:1, topics:["TAX"], intro:"2026-07-14", last:"2026-07-14 · Read twice and referred to the Committee on Finance.", cos:1,
+   sum:"This bill would change how long the IRS has to assess taxes for fraudulent tax returns. It would protect taxpayers from unlimited assessments if a tax preparer filed a fraudulent return without the taxpayer's knowledge or intent to evade taxes, by limiting the IRS to its standard three-year window in such cases."},
+  {id:"HR 7303", slug:"119-hr-7303", t:"Middle Class Tax Cut Act", sp:"Thanedar", pty:"D", st:"MI", ch:"HOUSE", stage:1, topics:["TAX"]},
+  {id:"HR 9499", slug:"119-hr-9499", t:"Protecting Taxpayers from Ghost Preparers Act", sp:"Malliotakis", pty:"R", st:"NY", ch:"HOUSE", stage:3, topics:["TAX","CONS"]},
+  {id:"HR 9498", slug:"119-hr-9498", t:"Taxpayer Advocate Participation Act", sp:"Steube", pty:"R", st:"FL", ch:"HOUSE", stage:3, topics:["TAX","GOV"]},
+  {id:"S 327", slug:"119-s-327", t:"HONOR Act", sp:"Cortez Masto", pty:"D", st:"NV", ch:"SENATE", stage:2, topics:["TAX","FRGN"]},
+  {id:"S 129", slug:"119-s-129", t:"No Tax on Tips Act", sp:"Cruz", pty:"R", st:"TX", ch:"SENATE", stage:2, topics:["TAX","LAB"]},
+  {id:"HR 4280", slug:"119-hr-4280", t:"Bipartisan Tax Fairness Act of 2025", sp:"Fitzpatrick", pty:"R", st:"PA", ch:"HOUSE", stage:1, topics:["TAX"]},
+  {id:"S 2845", slug:"119-s-2845", t:"Billionaires Income Tax Act", sp:"Wyden", pty:"D", st:"OR", ch:"SENATE", stage:1, topics:["TAX","FIN"]},
+  {id:"HR 8085", slug:"119-hr-8085", t:"Ultra-Millionaire Tax Act of 2026", sp:"Jayapal", pty:"D", st:"WA", ch:"HOUSE", stage:1, topics:["TAX"]},
+  {id:"HR 11026", slug:"119-hr-11026", t:"To amend title 37, United States Code, to authorize the Secretary of Defense…", sp:"Pfluger", pty:"R", st:"TX", ch:"HOUSE", stage:0, topics:["DEF","TAX"]},
+];
+const MEMBERS = [
+  {name:"Edward J. Markey", pty:"D", st:"MA", ch:"SENATE", bills:146},
+  {name:"Roger Marshall", pty:"R", st:"KS", ch:"SENATE"},
+  {name:"Shri Thanedar", pty:"D", st:"MI", ch:"HOUSE"},
+];
+const NEWS = [
+  {h:"Trump signs stopgap funding bill into law, temporarily avoiding shutdown", src:"the hill", age:"74d", bill:"HR 6500"},
+  {h:"Congress funds government until December, averting pre-election shutdown", src:"the hill", age:"76d", bill:"HR 6500"},
+  {h:"Congress punts on big issues", src:"roll call", age:"73d", bill:"S 5377"},
+  {h:"This week on the Hill: House aims to pass measure to avert shutdown ahead of midterms", src:"the hill", age:"77d", bill:"HR 6500"},
+  {h:"Homeland Security investigative unit in spotlight in Omar probe", src:"roll call", age:"32d", bill:"HR 10803"},
+];
+const REPORTS = [
+  {wk:"Week of August 31, 2026", key:"2026-08-31", x:"…early December. This action averted a potential government shutdown. The House also advanced resolutions related to military actions…", words:"shutdown government december"},
+  {wk:"Week of November 9, 2026", key:"2026-11-09", x:"Congress introduced 106 bills and saw 144 stage transitions. Four laws were enacted: 119-hr-1945, 119-hr-7730, 119-hr-997, and 119-hr-1703. 11 hearings were held…", words:"hearings enacted"},
+];
+
+/* ── state ─────────────────────────────────────────────────────────── */
+const S = {device:"web", web:"A", phone:"C", pick:"Z", fold:"open", q:"", open:false, cur:0, sel:null, loading:false, findOpen:false};
+const OPTS = {
+  device:[["web","WEB 1440"],["phone","PHONE 390"]],
+  web:[["A","A · under the masthead, above the panels","ruled"],["B","B · top of the feed column"],["C","C · across the top"]],
+  phone:[["A","A · under the open masthead"],["B","B · A, and ⌕ in the strip"],["C","C · ⌕ only, beside HIDE and in the strip","ruled"]],
+  pick:[["X","X · a card atop the dashboard"],["Y","Y · web: in the feed column · phone: a sheet"],["Z","Z · opens under the bar","ruled"]],
+  fold:[["open","masthead open"],["folded","folded (HO 817), pinned (HO 820)"]],
+};
+const NOTES = {
+  web:{
+    A:"<b>Web A.</b> The bar sits under the masthead and its tapes, above the first panel, the width of the left column. It's where the eye lands after the title, and a pick opens right under it. It scrolls away with the masthead.",
+    B:"<b>Web B.</b> The bar heads the feed column. That column is sticky at 1440, so the bar stays on screen as the left column scrolls. It narrows the feed by nothing and adds 46px above the tabs.",
+    C:"<b>Web C.</b> A slim bar across the whole page, above the masthead, like a command line. The most prominent, and it pushes the dashboard down 46px.",
+  },
+  phone:{
+    A:"<b>Phone A.</b> A bar under the open masthead's nav. Folded, there's no bar.",
+    B:"<b>Phone B.</b> A, plus a ⌕ in the folded strip. With HO 820 the strip is pinned, so ⌕ opens a search row under it at any depth of the page.",
+    C:"<b>Phone C.</b> No bar. A ⌕ sits beside HIDE on the open masthead and in the strip; tapping it opens the row. Saves 50px on the open masthead, and the title gives up 36px more on its first line.",
+  },
+  pick:{
+    X:"<b>Pick X.</b> The pick becomes a card at the top of the dashboard's content, under the bar: the bill's stage track, sponsor, last action and summary, or the member, story or report. ✕ clears it; the button opens the page. It stays until cleared or replaced.",
+    Y:"<b>Pick Y.</b> Web: the feed column shows the pick in place of the feed, with ← BACK TO FEED. Phone: a sheet rises from the bottom over a dimmed page.",
+    Z:"<b>Pick Z.</b> The card opens right under the bar, in the page's flow, so the panels below move down by its height. On a folded phone it opens under the pinned search row and scrolls within itself. Typing again opens the results over it, and a new pick replaces it. (v1's note said it pushes nothing; v1 drew it in the flow, and v2 says what v1 drew.)",
+  },
+};
+
+/* ── search ───────────────────────────────────────────────────────── */
+const norm = s => s.toLowerCase().replace(/[.\s]+/g," ").trim();
+const ref = q => { const m = norm(q).replace(/\s/g,"").match(/^(hr|s|hres|sres|hjres|sjres|hconres|sconres)(\d{1,5})$/); return m ? (m[1].toUpperCase()+" "+m[2]) : null; };
+function search(q){
+  const n = norm(q); if (n.length < 2) return null;
+  const r = ref(q);
+  const has = s => norm(s).includes(n);
+  const bills = BILLS.filter(b => has(b.t) || norm(b.id).replace(/\s/g,"") === n.replace(/\s/g,"") || has(b.sp));
+  if (r) { const i = bills.findIndex(b => b.id === r); if (i > 0) bills.unshift(bills.splice(i,1)[0]); }
+  return {
+    ref: r && BILLS.find(b => b.id === r) ? r : null,
+    groups:[
+      ["Legislation", bills.map(b => ({k:"bill", o:b}))],
+      ["Members", MEMBERS.filter(m => has(m.name)).map(m => ({k:"member", o:m}))],
+      ["News", NEWS.filter(x => has(x.h)).map(x => ({k:"news", o:x}))],
+      ["Reports", REPORTS.filter(x => has(x.x) || has(x.words) || has(x.wk)).map(x => ({k:"report", o:x}))],
+    ],
+  };
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const markq = (s, q) => { const n = norm(q); const i = s.toLowerCase().indexOf(n); return i < 0 ? esc(s) : esc(s.slice(0,i)) + "<mark>" + esc(s.slice(i, i+n.length)) + "</mark>" + esc(s.slice(i+n.length)); };
+let flat = [];
+let timer = null;
+
+function dropHTML(){
+  if (!S.open || norm(S.q).length < 2) return "";
+  if (S.loading) return `<div class="drop"><div class="dstat">searching <b>17,378</b> bills, 536 members, news and reports…</div></div>`;
+  const res = search(S.q); flat = [];
+  let total = 0, html = "";
+  for (const [name, items] of res.groups) {
+    total += items.length;
+    if (!items.length) continue;
+    html += `<div class="dg"><div class="dgh"><span>${name}</span><span class="c">${items.length}</span></div>`;
+    for (const it of items.slice(0, 4)) {
+      const i = flat.length; flat.push(it);
+      const c = i === S.cur ? " cur" : "";
+      if (it.k === "bill") html += `<div class="di${c}" data-i="${i}"><span class="id">${esc(it.o.id)}</span><span class="tt">${markq(it.o.t, S.q)}</span><span class="mt">${it.o.sp.toUpperCase()} [${it.o.pty}-${it.o.st}]</span></div>`;
+      if (it.k === "member") html += `<div class="di${c}" data-i="${i}"><span class="id">${it.o.ch === "SENATE" ? "SEN" : "REP"}</span><span class="tt">${markq(it.o.name, S.q)}</span><span class="mt">[${it.o.pty}-${it.o.st}]</span></div>`;
+      if (it.k === "news") html += `<div class="di${c}" data-i="${i}"><span class="id">${esc(it.o.bill)}</span><span class="tt">${markq(it.o.h, S.q)}</span><span class="mt">${esc(it.o.src)} · ${it.o.age}</span></div>`;
+      if (it.k === "report") html += `<div class="di${c}" data-i="${i}"><span class="id">REPORT</span><span class="tt">${esc(it.o.wk)}</span><span class="mt">${it.o.key}</span></div>`;
+    }
+    html += `</div>`;
+  }
+  if (!total) html = `<div class="dempty">Nothing for “${esc(S.q)}”. Try a bill number, a member's last name or a topic.</div>`;
+  const lead = res.ref ? `<div class="dstat">bill number: Enter opens <b>${res.ref}</b> here</div>` : "";
+  return `<div class="drop">${lead}${html}<div class="dfoot"><span>top 4 a group · ↑ ↓ Enter · Esc</span><a>all results in /search?q=${esc(norm(S.q))} →</a></div></div>`;
+}
+
+function searchHTML(){
+  return `<div class="srch" id="srch"><div class="srch-box"><span class="p">⌕</span><input id="sq" type="search" autocomplete="off" spellcheck="false" placeholder="Search bills, members, news, reports" value="${esc(S.q)}">${S.q ? `<span class="x" id="sx">✕</span>` : (S.device === "web" ? `<span class="kbd">/</span>` : "")}</div><div class="pull${S.loading ? " on" : ""}"></div>${dropHTML()}</div>`;
+}
+
+/* ── the pick ─────────────────────────────────────────────────────── */
+function pickHTML(it){
+  if (!it) return "";
+  const o = it.o, x = `<span class="cls" data-act="clear" title="Clear">✕</span>`;
+  if (it.k === "bill") {
+    const track = STAGES.map((s, i) => `<div class="${i < o.stage ? "done" : i === o.stage ? "now" : ""}">${s}</div>`).join("");
+    const sum = o.sum ? `<p class="pick-sum">${esc(o.sum)}</p>` : `<p class="pick-sum ph">The stored summary prints here (the mock has only S 4964's).</p>`;
+    return `<div class="pick"><div class="pick-h"><span class="tag">BILL</span><span>${o.ch} · 119TH</span><span class="sp"></span>${x}</div>
+      <div class="pick-t"><span class="id">${esc(o.id)}</span>${esc(o.t)}</div>
+      <div class="track">${track}</div>
+      <div class="pick-meta">Sponsor <span class="${o.pty}">${esc(o.sp)} [${o.pty}-${o.st}]</span>${o.cos != null ? ` · ${o.cos} cosponsor` : ""}${o.intro ? ` · introduced ${o.intro}` : ""}${o.last ? `<br>Last action ${esc(o.last)}` : ""}</div>
+      ${sum}<div class="chips">${o.topics.map(t => `<span class="chip">${t}</span>`).join("")}</div>
+      <div class="go-row"><a class="go">OPEN ${esc(o.id)} →</a><span class="go-path">/bill/${o.slug}</span></div></div>`;
+  }
+  if (it.k === "member") return `<div class="pick"><div class="pick-h"><span class="tag">MEMBER</span><span>${o.ch} · 119TH</span><span class="sp"></span>${x}</div>
+      <div class="pick-t">${esc(o.name)} <span class="mono" style="font-size:13px;color:var(--party-${o.pty === "D" ? "democrat" : "republican"})">[${o.pty}-${o.st}]</span></div>
+      <div class="pick-stats"><span><b>${o.bills ?? "·"}</b>bills sponsored</span><span><b>·</b>became law</span><span><b>·</b>votes missed</span></div>
+      <div class="go-row"><a class="go">OPEN MEMBER →</a><span class="go-path">/members/&lt;bioguide&gt;</span></div></div>`;
+  if (it.k === "news") return `<div class="pick"><div class="pick-h"><span class="tag">NEWS</span><span>${esc(o.src)} · ${o.age} ago</span><span class="sp"></span>${x}</div>
+      <div class="pick-t" style="font-size:16px">${esc(o.h)}</div>
+      <div class="chips"><span class="chip b">${esc(o.bill)}</span></div>
+      <div class="go-row"><a class="go">OPEN ARTICLE ↗</a><a class="go sec">OPEN ${esc(o.bill)} →</a></div></div>`;
+  if (it.k === "report") return `<div class="pick"><div class="pick-h"><span class="tag">REPORT</span><span>weekly</span><span class="sp"></span>${x}</div>
+      <div class="pick-t">${esc(o.wk)}</div><p class="pick-sum">${esc(o.x)}</p>
+      <div class="go-row"><a class="go">OPEN REPORT →</a><span class="go-path">/reports/${o.key}</span></div></div>`;
+}
+
+/* ── the facsimile ────────────────────────────────────────────────── */
+const NAV = ["DASHBOARD","LEGISLATION","HEARINGS","MEMBERS","ELECTORAL","PATTERNS","LOBBYING","NOMINATIONS","AMENDMENTS","REPORTS"];
+const FEED = [
+  ["HR 11036","To require Federal agency heads to submit an annual assessment on staffi…","WALKINSHAW [D-VA]","TECH GOV"],
+  ["HR 11035","To amend the Public Health Service Act to direct the Secretary of Health an…","LAUSEN [D-WA]","HLTH"],
+  ["HR 11034","To establish the National Fish and Wildlife Foundation Coastal State Fund.","FLETCHER [D-TX]","ENV"],
+  ["HR 11033","To amend the Internal Revenue Code of 1986 to include qualified domesti…","MALLIOTAKIS [R-NY]","TAX"],
+  ["S 5718","A bill to amend title 49, United States Code, with respect to restroom access …","BLUNT ROCHESTER [D-DE]","TRNS LAB"],
+  ["S 5717","A bill to amend title 36, United States Code, to move the place of incorporati…","DUCKWORTH [D-IL]","GOV"],
+  ["HR 11032","To establish a grant program carried out by the Department of Homeland S…","VEASEY [D-TX]","TECH EDU GOV"],
+  ["HR 11031","CDL Fraud Tipline Act","TAYLOR [R-OH]","TRNS IMM GOV"],
+  ["HR 11030","Fair Premiums for Farmers Act","SORENSEN [D-IL]","AGR"],
+  ["HR 11029","BRIDGE Care at Home Act","SMITH [R-NE]","HLTH SS"],
+  ["HR 11028","DesigNAIT Act of 2026","SELF [R-TX]","FRGN FIN"],
+  ["HR 11027","Enhancing Competition in Contracting Orders Act","SCHOLTEN [D-MI]","GOV"],
+  ["HR 11026","To amend title 37, United States Code, to authorize the Secretary of Defens…","PFLUGER [R-TX]","DEF TAX"],
+  ["HR 11025","Stand By NICU Babies and Families Act","PETTERSEN [D-CO]","LAB HLTH"],
+];
+const feedRows = n => FEED.slice(0, n).map(f => `<div class="frow"><div class="t"><span class="id">${f[0]}</span>${f[1]}</div><div class="m">INTRO 3d · <span class="${f[2].includes("[R") ? "rp" : "d"}">${f[2]}</span> · ${f[3]}</div></div>`).join("");
+const tapes = `<div class="tapes"><div class="tape"><span class="k">MARKETS</span><span>TNX 5.10% <span class="up">▲ +2.41%</span></span><span>UNEMP 4.1%</span><span>CPI 3.7%</span><span>WTI 89.62</span><span class="dim">AS OF 9:00 AM MT</span></div><div class="tape"><span class="k">ODDS</span><span>FED CUT DEC K 2.0% · P 0.9%</span><span>SHUTDOWN K 40.0%</span><span>RECESSION K 2.0</span><span class="dim">● LIVE</span></div></div>`;
+const blocks = `
+  <div class="panel"><div class="ph"><span class="r">▲ MIA</span> (1) · <span class="o">AT RISK</span> (1)</div><div class="mia"><div class="mcard"><span class="num">42</span><span class="nm">Dunn</span><span class="pt" style="color:#f87171">R-FL</span></div><div class="mcard o"><span class="num">9</span><span class="nm">Correa</span><span class="pt" style="color:#60a5fa">D-CA</span></div></div></div>
+  <div class="panel"><div class="ph"><span class="o">HEARINGS</span> · RACES · MOVES 4 · NEW 6</div><div class="lines"><div class="ln">TODAY · MON NOV 16 · 1 SCHEDULED · 38 THIS WEEK ▲27</div><div class="ln">▸ 12:00a BUSINESS · Pending calendar business.</div></div></div>
+  <div class="panel"><div class="ph">WEEK OF NOV 9 · SUMMARY</div><div class="summary">Congress introduced 106 bills and saw 144 stage transitions. Four laws were enacted: 119-hr-1945, 119-hr-7730, 119-hr-997, and 119-hr-1703. 11 hearings were held, and government_operations was the top topic with 43 actions.</div></div>
+  <div class="panel"><div class="ph">WEEK OF NOV 16</div><div class="lines"><div class="ln">● 4 ENACTED ▲2 · HR 1945 · HR 7730 · HR 997 +1</div><div class="ln">91 NEW BILLS ▲68 · 144 TRANSITIONS · 12 HEARINGS ▲12</div></div></div>`;
+
+function renderWeb(){
+  const sel = S.sel;
+  const bar = searchHTML();
+  const pickCard = sel && S.pick === "X" ? pickHTML(sel) : "";
+  const inlinePick = sel && S.pick === "Z" ? `<div style="margin-top:6px">${pickHTML(sel)}</div>` : "";
+  const top = S.web === "C" ? `<div style="padding:10px 24px 0" class="hl-slot">${bar}${inlinePick}</div>` : "";
+  const left = `<div class="left">
+      <div class="mast"><div class="mast-title">Congressional Terminal<span class="a">:\\</span>119TH<span class="a">\\</span>Dashboard<span class="a">&gt;</span></div>
+        <div class="mast-stats"><span class="n1">17,378</span> tracked · <span class="n2">131</span> enacted_<span class="beta">[ IN BETA ]</span></div>
+        <div class="mast-sync">· LAST SYNC 11:00 AM MT · MON 16 NOV 2026 · 12:48:51 PM MT · ODDS ON</div>
+        <div class="nav">${NAV.map((n,i) => `<span class="${i ? "" : "on"}">\\${n}</span>`).join("")}</div>
+        ${tapes}</div>
+      ${S.web === "A" ? `<div>${bar}${inlinePick}</div>` : ""}
+      ${pickCard}
+      ${blocks}</div>`;
+  const rightBody = sel && S.pick === "Y"
+    ? `<div class="feedpanel-back" data-act="clear">← BACK TO FEED</div><div class="rightpick">${pickHTML(sel)}</div>`
+    : `<div class="feed-tabs"><span class="on">NEW THIS WEEK (91)</span><span>MOVERS (144)</span><span>TOP STALLS (961)</span></div>${feedRows(14)}`;
+  const right = `<div class="right">${S.web === "B" ? `<div style="margin-bottom:8px">${bar}${inlinePick}</div>` : ""}<div style="border:1px solid var(--border-strong);background:var(--bg-panel)">${rightBody}</div></div>`;
+  return `<div class="web" id="web">${top}<div class="main">${left}${right}</div></div>`;
+}
+
+function renderPhone(){
+  const sel = S.sel, folded = S.fold === "folded";
+  const showBarOpen = S.phone === "A" || S.phone === "B";
+  const findBtn = (S.phone === "B" || S.phone === "C");
+  const bar = searchHTML();
+  const inlinePick = sel && S.pick === "Z" ? `<div style="margin-top:6px">${pickHTML(sel)}</div>` : "";
+  let head;
+  if (folded) {
+    head = `<div class="strip"><span class="path">CT<span class="amber">:\\</span>Dashboard<span class="amber">&gt;</span></span><span class="btns">${findBtn ? `<span class="sb find${S.findOpen ? " on" : ""}" data-act="find">⌕</span>` : ""}<span class="sb" style="color:var(--accent-amber)">☰</span><span class="sb">FULL</span><span class="sb amb">SHOW ▾</span></span></div>`;
+    if (S.findOpen && findBtn) head += `<div style="position:sticky;top:45px;z-index:19;background:var(--bg-base);padding:8px 12px;border-bottom:1px solid var(--border-strong)">${bar}${inlinePick}</div>`;
+  } else {
+    const cfind = S.phone === "C" ? `<span class="sb find${S.findOpen ? " on" : ""}" data-act="find" style="position:absolute;top:8px;right:36px">⌕</span>` : "";
+    head = `<div style="padding:12px 12px 0"><div class="p-mast" style="padding-right:${S.phone === "C" ? 72 : 40}px"><div class="mast-title">Congressional Terminal<span class="amber">:\\</span>119TH<span class="amber">\\</span>Dashboard<span class="amber">&gt;</span></div>
+      <div class="mast-stats"><span class="n1" style="color:#60a5fa;font-weight:600">17,378</span> tracked · <span style="color:#34d399;font-weight:600">131</span> enacted_<br><span style="color:var(--accent-amber-bright);letter-spacing:.15em;font-weight:600">[ IN BETA ]</span></div>
+      <div class="mast-sync">· SYNC 1:00 PM ET · MON 16 NOV 2026 · ODDS ON</div>
+      <span class="hide-btn">▴</span>${cfind}</div>
+      <div class="p-nav">${NAV.map((n,i) => `<span class="${i ? "" : "on"}">\\${n}</span>`).join("")}</div>
+      ${showBarOpen || (S.phone === "C" && S.findOpen) ? `<div style="margin-top:10px">${bar}${inlinePick}</div>` : ""}</div>`;
+  }
+  const pickCard = sel && S.pick === "X" ? pickHTML(sel) : "";
+  const feed = `<div style="border:1px solid var(--border-strong);background:var(--bg-panel)"><div class="feed-tabs"><span class="on">NEW THIS WEEK</span><span>MOVERS</span><span>STALLS</span></div>${feedRows(8)}</div>`;
+  const sheet = sel && S.pick === "Y" ? `<div class="sheet-dim" data-act="clear"></div><div class="sheet"><div class="handle"></div>${pickHTML(sel)}</div>` : "";
+  return `<div class="phone" id="phone"><div class="phone-scroll" id="pscroll">${head}<div class="p-main">${pickCard}${blocks}${feed}</div></div>${sheet}</div>`;
+}
+
+/* ── chrome + wiring ──────────────────────────────────────────────── */
+function chrome(){
+  const mk = (key, el) => { document.getElementById(el).innerHTML = OPTS[key].map(([v, l, p]) => {
+    let na = (key === "web" && S.device !== "web") || ((key === "phone" || key === "fold") && S.device !== "phone");
+    return `<button class="mk-b${S[key] === v ? " on" : ""}${na ? " na" : ""}" data-k="${key}" data-v="${v}">${l}${p ? `<span class="cp">${p}</span>` : ""}</button>`; }).join(""); };
+  mk("device","optDevice"); mk("web","optWeb"); mk("phone","optPhone"); mk("pick","optPick"); mk("fold","optFold");
+  document.getElementById("note").innerHTML =
+    `${S.device === "web" ? NOTES.web[S.web] : NOTES.phone[S.phone]}<br>${NOTES.pick[S.pick]}<br>` +
+    `<b>Both ways:</b> results arrive as you type (from 2 characters, a 200 ms pause), grouped Legislation, Members, News, Reports, four a group, with a link to the full <span class="mono">/search</span>. A bill number puts that bill first, and Enter opens it here. The amber line under the bar is the request in flight. ` +
+    `<br><span class="rul">The ruling:</span> Corey, 1:15 PM MST Nov 16, on v1, a capture of its toolbar with WEB 1440, A, C and Z set: <i>“is my pick”</i>. This v2 opens on it.`;
+}
+
+function render(keepFocus){
+  chrome();
+  const wrap = document.getElementById("webScaler");
+  const ps = document.getElementById("pscroll"), keep = ps ? ps.scrollTop : 0;
+  wrap.innerHTML = S.device === "web" ? renderWeb() : renderPhone();
+  const ps2 = document.getElementById("pscroll"); if (ps2) ps2.scrollTop = keep;
+  fit();
+  wire();
+  if (keepFocus) { const i = document.getElementById("sq"); if (i) { i.focus(); const v = i.value; i.setSelectionRange(v.length, v.length); } }
+}
+
+function fit(){
+  const w = document.getElementById("webScaler"), web = document.getElementById("web");
+  if (!web) { w.style.transform = ""; w.style.width = ""; w.style.height = ""; w.parentElement.style.height = ""; return; }
+  const avail = document.getElementById("stageWrap").clientWidth - 32;
+  const k = Math.min(1, avail / 1442);
+  w.style.transform = `scale(${k})`; w.style.width = "1442px"; w.style.height = "";
+  w.parentElement.style.height = (web.offsetHeight * k + 32) + "px";
+}
+
+function choose(it){
+  S.sel = it; S.open = false; S.cur = 0;
+  if (S.device === "phone" && S.fold === "folded" && S.pick !== "Z") S.findOpen = false;
+  render(false);
+  if (S.device === "phone" && S.pick === "X") { const p = document.getElementById("pscroll"); const c = p.querySelector(".pick"); if (c) p.scrollTo({top: c.offsetTop - (S.fold === "folded" ? 57 : 12), behavior: "smooth"}); }
+}
+
+function wire(){
+  const i = document.getElementById("sq");
+  if (i) {
+    i.addEventListener("input", e => {
+      S.q = e.target.value; S.cur = 0; S.open = true; S.loading = norm(S.q).length >= 2;
+      clearTimeout(timer);
+      render(true);
+      timer = setTimeout(() => { S.loading = false; render(true); }, 380);
+    });
+    i.addEventListener("focus", () => { if (!S.open && norm(S.q).length >= 2) { S.open = true; render(true); } });
+    i.addEventListener("keydown", e => {
+      if (e.key === "Escape") { S.open = false; render(false); return; }
+      if (!S.open || S.loading) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); S.cur = Math.min(flat.length - 1, S.cur + 1); render(true); }
+      if (e.key === "ArrowUp") { e.preventDefault(); S.cur = Math.max(0, S.cur - 1); render(true); }
+      if (e.key === "Enter") { e.preventDefault(); if (flat[S.cur]) choose(flat[S.cur]); }
+    });
+  }
+  document.querySelectorAll(".di").forEach(d => d.addEventListener("mousedown", e => { e.preventDefault(); choose(flat[+d.dataset.i]); }));
+  const x = document.getElementById("sx"); if (x) x.addEventListener("click", () => { S.q = ""; S.open = false; render(true); });
+  document.querySelectorAll("[data-act=clear]").forEach(b => b.addEventListener("click", () => { S.sel = null; render(false); }));
+  document.querySelectorAll("[data-act=find]").forEach(b => b.addEventListener("click", () => { S.findOpen = !S.findOpen; render(S.findOpen); }));
+}
+
+document.getElementById("mk").addEventListener("click", e => {
+  const b = e.target.closest(".mk-b"); if (b) { S[b.dataset.k] = b.dataset.v; S.open = false; render(false); return; }
+  const a = e.target.closest("[data-q]");
+  if (a) { S.q = a.dataset.q; S.open = true; S.loading = true; S.cur = 0; if (S.device === "phone") { if (S.phone === "A") S.fold = "open"; if (S.phone === "C" || (S.phone === "B" && S.fold === "folded")) S.findOpen = true; } render(true); clearTimeout(timer); timer = setTimeout(() => { S.loading = false; render(true); }, 380); }
+});
+document.addEventListener("keydown", e => { if (e.key === "/" && document.activeElement?.id !== "sq") { const i = document.getElementById("sq"); if (i) { e.preventDefault(); i.focus(); } } });
+document.addEventListener("mousedown", e => { if (S.open && !e.target.closest("#srch")) { S.open = false; document.querySelector(".drop")?.remove(); } });
+window.addEventListener("resize", fit);
+render(false);
+</script>
+</body>
+</html>
